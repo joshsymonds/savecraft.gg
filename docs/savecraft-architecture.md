@@ -88,41 +88,23 @@ savecraft/
 ├── buf.gen.yaml                 # buf codegen config (Go + TypeScript targets)
 ├── Justfile                     # Command runner targets
 ├── cmd/
-│   ├── daemon/                  # Local daemon binary
-│   │   └── main.go
-│   └── server/                  # MCP server + push API binary
+│   └── savecraftd/              # Local daemon binary
 │       └── main.go
 ├── internal/
 │   ├── proto/                   # Generated Go code from protobuf (do not edit)
 │   │   └── savecraft/v1/
 │   │       └── protocol.pb.go
-│   ├── schema/                  # Hand-written Go types: GameState, plugin manifest
-│   │   ├── manifest.go          # PluginManifest, SectionDeclaration, SavePaths
-│   │   ├── state.go             # GameState, Section, Identity
-│   │   └── errors.go            # PluginError, ParseError
-│   ├── storage/                 # R2/S3 client: snapshot read/write, latest pointer
-│   │   ├── client.go
-│   │   ├── snapshot.go
-│   │   └── latest.go
-│   ├── auth/                    # Token validation, Clerk JWT verification
-│   │   ├── clerk.go
-│   │   ├── daemon_auth.go       # API key validation for daemon pushes
-│   │   └── oauth.go             # OAuth discovery metadata endpoint
-│   ├── plugin/                  # WASM runtime: plugin loading, manifest parsing
-│   │   ├── runtime.go           # wazero lifecycle, ndjson stdout reader
-│   │   ├── loader.go            # Plugin download, signature verification
-│   │   └── registry.go          # Plugin manifest polling, version checks
-│   ├── watcher/                 # Filesystem watcher: debounce, hash comparison
+│   ├── daemon/                  # Daemon orchestrator, domain types (GameState), interfaces
+│   │   ├── daemon.go            # Daemon struct, Run loop, event handling
+│   │   └── daemon_test.go       # Tests with hand-written fakes
+│   ├── runner/                  # WASM plugin execution via wazero
+│   │   └── wazero.go            # WazeroRunner: ndjson stdout parsing, 2MB limit
+│   ├── watcher/                 # Filesystem watcher: fsnotify + debounce + hash
 │   │   └── watcher.go
-│   ├── wsconn/                  # WebSocket client for daemon ↔ DO connection
-│   │   └── client.go            # Connect, reconnect backoff, message send/receive
-│   ├── mcp/                     # MCP tool definitions and handlers
-│   │   ├── server.go            # MCP server setup, tool registration
-│   │   └── tools.go             # list_saves, get_save_sections, get_section, get_note, search, create_note, etc.
-│   ├── notes/                   # Note CRUD, D1 storage
-│   │   └── notes.go
-│   └── search/                  # FTS5 indexing and query
-│       └── search.go
+│   ├── push/                    # HTTP client for /api/v1/push
+│   │   └── client.go
+│   └── wsconn/                  # WebSocket client for /ws/daemon
+│       └── client.go
 ├── worker/                      # Cloudflare Worker + Durable Object (TypeScript)
 │   ├── src/
 │   │   ├── index.ts             # Worker routes, request handling
@@ -133,11 +115,14 @@ savecraft/
 │   ├── wrangler.toml
 │   └── package.json
 ├── plugins/
+│   ├── echo/                    # Reference/test plugin: reflects input as GameState
+│   │   ├── main.go
+│   │   └── Justfile             # just build → echo.wasm
 │   └── d2r/                     # D2R parser source (compiles to .wasm)
 │       ├── main.go              # stdin→parse→stdout (ndjson)
 │       ├── parser.go            # d2s format parsing
 │       ├── items.go             # Item decoding with lookup tables
-│       └── Makefile             # GOOS=wasip1 GOARCH=wasm go build
+│       └── Justfile             # just build → d2r.wasm
 ├── install/
 │   ├── install.sh               # Linux/Steam Deck curl installer
 │   ├── savecraft.service        # systemd user unit template
@@ -149,10 +134,12 @@ savecraft/
 
 Cross-compilation for daemon:
 ```bash
-GOOS=windows GOARCH=amd64 go build -o savecraft-daemon.exe ./cmd/daemon
-GOOS=linux GOARCH=amd64 go build -o savecraft-daemon-linux ./cmd/daemon
-GOOS=linux GOARCH=arm64 go build -o savecraft-daemon-deck ./cmd/daemon
+GOOS=windows GOARCH=amd64 go build -o savecraft-daemon.exe ./cmd/savecraftd
+GOOS=linux GOARCH=amd64 go build -o savecraft-daemon-linux ./cmd/savecraftd
+GOOS=linux GOARCH=arm64 go build -o savecraft-daemon-deck ./cmd/savecraftd
 ```
+
+Go `internal/` packages are daemon-only. The server is a TypeScript Cloudflare Worker (`worker/`), not a Go binary.
 
 ## WASM Plugin System
 
@@ -161,6 +148,7 @@ GOOS=linux GOARCH=arm64 go build -o savecraft-daemon-deck ./cmd/daemon
 - **Cross-platform:** One .wasm binary works on Windows x86, Linux x86, Linux ARM (Steam Deck). No per-platform compilation for plugins.
 - **Sandboxed:** Plugins cannot access filesystem, network, or environment. They process bytes the daemon feeds them via stdin and emit JSON to stdout. Structurally impossible to exfiltrate data.
 - **Community-friendly:** Contributors write parsers in Go (or Rust/Zig), compile to WASM. Same toolchain as the daemon for Go plugins.
+- **Language-agnostic build:** Each plugin provides a `Justfile` with a `just build` target that produces a `.wasm` file in the plugin directory. The top-level `just build-plugin <name>` delegates to the plugin's own build. The daemon doesn't care what language the plugin is written in — only that it speaks WASI Preview 1 with the ndjson contract.
 
 ### Runtime: wazero
 
@@ -204,7 +192,7 @@ Valid `error_type` values: `unsupported_version`, `corrupt_file`, `parse_error`.
 
 ```go
 // plugins/d2r/main.go
-// Build: GOOS=wasip1 GOARCH=wasm go build -o d2r.wasm .
+// Build: just build (see plugins/d2r/Justfile)
 package main
 
 import (
@@ -249,6 +237,8 @@ func writeError(errType, message string) {
 ```
 
 Simple plugins that don't need progress updates just emit a single result line. The status lines are optional.
+
+**Reference plugin (echo):** `plugins/echo/` is a minimal plugin that reads stdin and reflects its content back as a GameState. It validates the ndjson contract and wazero integration end-to-end without any game-specific logic. Tests use it to verify the runner, status forwarding, and error paths.
 
 **Daemon-side execution with wazero:**
 
@@ -421,6 +411,12 @@ plugins/{game_id}/parser.wasm.sig
 - Diff tool: `get_section_diff(save_id, section, from_timestamp, to_timestamp)` returns changed fields.
 
 ## Daemon Behavior
+
+### Architecture: Interface-Driven with Fakes
+
+The daemon orchestrator (`internal/daemon/`) defines interfaces for all external dependencies: `Watcher`, `Runner`, `PushClient`, `WSClient`, `FS`. Tests inject hand-written fakes. Real implementations live in separate packages (`internal/runner/`, `internal/watcher/`, etc.) and satisfy the interfaces implicitly.
+
+The `Daemon.Run()` loop: connect WebSocket → send `DaemonOnline` → scan configured games → enter event loop (file events, WS commands, context cancellation). On shutdown, send `DaemonOffline`.
 
 ### Filesystem Watching
 
@@ -1223,7 +1219,7 @@ The "plugin" concept generalizes from "binary file parser" to "data source adapt
 
 The WebSocket protocol is defined in `proto/protocol.proto`. `buf generate` produces Go types (`internal/proto/`) and TypeScript types (`worker/src/proto/`) from the same source. No mirrored types, no drift.
 
-GameState types (what plugins emit, what R2 stores, what MCP serves) are **not** in protobuf. Section data is arbitrary JSON per game — protobuf's `Struct` type is an awkward fit. GameState types are hand-written Go structs (`internal/schema/`) and TypeScript interfaces (`worker/src/types/`). The envelope is small and stable enough (4 fields) that the duplication is acceptable.
+GameState types (what plugins emit, what R2 stores, what MCP serves) are **not** in protobuf. Section data is arbitrary JSON per game — protobuf's `Struct` type is an awkward fit. GameState types are hand-written Go structs in `internal/daemon/` (next to the interfaces that produce and consume them) and TypeScript interfaces in `worker/src/types/`. The envelope is small and stable enough (4 fields) that the duplication is acceptable.
 
 ### just
 

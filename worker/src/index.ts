@@ -58,64 +58,62 @@ async function handlePush(request: Request, env: Env): Promise<Response> {
   // Validate body
   let body: Record<string, unknown>;
   try {
-    body = (await request.json()) as Record<string, unknown>;
+    body = await request.json<Record<string, unknown>>();
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
 
-  const identity = body["identity"] as Record<string, unknown> | undefined;
-  const sections = body["sections"];
-  const summary = (body["summary"] as string) ?? "";
+  const identity = body.identity as Record<string, unknown> | undefined;
+  const sections = body.sections;
+  const summary = (body.summary as string | undefined) ?? "";
 
   if (!identity || !sections) {
     return Response.json(
       { error: "Body must contain 'identity' and 'sections' keys" },
-      { status: 400 }
+      { status: 400 },
     );
   }
 
-  const characterName = (identity["character_name"] as string) ?? "";
+  const characterName = (identity.character_name as string | undefined) ?? "";
   if (!characterName) {
-    return Response.json(
-      { error: "identity.character_name is required" },
-      { status: 400 }
-    );
+    return Response.json({ error: "identity.character_name is required" }, { status: 400 });
   }
 
   // Size check (5MB limit)
-  const bodyStr = JSON.stringify(body);
-  if (bodyStr.length > 5 * 1024 * 1024) {
+  const bodyString = JSON.stringify(body);
+  if (bodyString.length > 5 * 1024 * 1024) {
     return Response.json({ error: "Body exceeds 5MB limit" }, { status: 413 });
   }
 
   // Upsert save in D1, get save UUID
   const existingSave = await env.DB.prepare(
-    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND character_name = ?"
-  ).bind(userUuid, gameId, characterName).first<{ uuid: string }>();
+    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND character_name = ?",
+  )
+    .bind(userUuid, gameId, characterName)
+    .first<{ uuid: string }>();
 
   let saveUuid: string;
   if (existingSave) {
     saveUuid = existingSave.uuid;
-    await env.DB.prepare(
-      "UPDATE saves SET summary = ?, last_updated = ? WHERE uuid = ?"
-    ).bind(summary, parsedAt, saveUuid).run();
+    await env.DB.prepare("UPDATE saves SET summary = ?, last_updated = ? WHERE uuid = ?")
+      .bind(summary, parsedAt, saveUuid)
+      .run();
   } else {
     saveUuid = crypto.randomUUID();
     await env.DB.prepare(
-      "INSERT INTO saves (uuid, user_uuid, game_id, character_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?)"
-    ).bind(saveUuid, userUuid, gameId, characterName, summary, parsedAt).run();
+      "INSERT INTO saves (uuid, user_uuid, game_id, character_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+      .bind(saveUuid, userUuid, gameId, characterName, summary, parsedAt)
+      .run();
   }
 
   // Write snapshot to R2
   const snapshotKey = `users/${userUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
-  await env.SNAPSHOTS.put(snapshotKey, bodyStr);
+  await env.SNAPSHOTS.put(snapshotKey, bodyString);
 
   // Update latest pointer
   const latestKey = `users/${userUuid}/saves/${saveUuid}/latest.json`;
-  await env.SNAPSHOTS.put(latestKey, bodyStr);
+  await env.SNAPSHOTS.put(latestKey, bodyString);
 
-  return Response.json(
-    { save_uuid: saveUuid, snapshot_timestamp: parsedAt },
-    { status: 201 }
-  );
+  return Response.json({ save_uuid: saveUuid, snapshot_timestamp: parsedAt }, { status: 201 });
 }

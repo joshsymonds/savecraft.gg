@@ -1,5 +1,6 @@
 import { env, SELF } from "cloudflare:test";
-import { describe, it, expect } from "vitest";
+import { describe, expect, it } from "vitest";
+
 import { connectWs, waitForMessage } from "./helpers";
 
 describe("DaemonHub", () => {
@@ -52,13 +53,13 @@ describe("DaemonHub", () => {
 
     // Check D1
     const rows = await env.DB.prepare(
-      "SELECT * FROM device_events WHERE event_type = 'daemonOnline'"
+      "SELECT * FROM device_events WHERE event_type = 'daemonOnline'",
     ).all();
 
     expect(rows.results.length).toBeGreaterThanOrEqual(1);
     const row = rows.results[0]!;
-    expect(row["device_id"]).toBe("steam-deck");
-    expect(row["event_type"]).toBe("daemonOnline");
+    expect(row.device_id).toBe("steam-deck");
+    expect(row.event_type).toBe("daemonOnline");
 
     daemonWs.close();
     uiWs.close();

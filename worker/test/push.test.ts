@@ -1,5 +1,5 @@
-import { SELF, env } from "cloudflare:test";
-import { describe, it, expect } from "vitest";
+import { env, SELF } from "cloudflare:test";
+import { describe, expect, it } from "vitest";
 
 const TEST_USER = "push-test-user";
 
@@ -53,9 +53,7 @@ describe("Push API", () => {
       ...validGameState,
       summary: "Hammerdin, Level 90 Paladin",
     };
-    const resp2 = await SELF.fetch(
-      pushRequest(updated, { "X-Parsed-At": "2026-02-25T22:00:00Z" })
-    );
+    const resp2 = await SELF.fetch(pushRequest(updated, { "X-Parsed-At": "2026-02-25T22:00:00Z" }));
     expect(resp2.status).toBe(201);
     const body2 = await resp2.json<{ save_uuid: string }>();
 
@@ -63,10 +61,12 @@ describe("Push API", () => {
 
     // D1 should have exactly one save row for this character
     const rows = await env.DB.prepare(
-      "SELECT * FROM saves WHERE user_uuid = ? AND game_id = 'd2r' AND character_name = 'Hammerdin'"
-    ).bind(TEST_USER).all();
+      "SELECT * FROM saves WHERE user_uuid = ? AND game_id = 'd2r' AND character_name = 'Hammerdin'",
+    )
+      .bind(TEST_USER)
+      .all();
     expect(rows.results).toHaveLength(1);
-    expect(rows.results[0]!["summary"]).toBe("Hammerdin, Level 90 Paladin");
+    expect(rows.results[0]!.summary).toBe("Hammerdin, Level 90 Paladin");
   });
 
   it("rejects missing auth", async () => {
@@ -75,28 +75,26 @@ describe("Push API", () => {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Game": "d2r" },
         body: JSON.stringify(validGameState),
-      })
+      }),
     );
     expect(resp.status).toBe(401);
   });
 
   it("rejects missing X-Game header", async () => {
-    const resp = await SELF.fetch(
-      pushRequest(validGameState, { "X-Game": "" })
-    );
+    const resp = await SELF.fetch(pushRequest(validGameState, { "X-Game": "" }));
     expect(resp.status).toBe(400);
   });
 
   it("rejects body without identity", async () => {
     const resp = await SELF.fetch(
-      pushRequest({ sections: { foo: { description: "bar", data: {} } } })
+      pushRequest({ sections: { foo: { description: "bar", data: {} } } }),
     );
     expect(resp.status).toBe(400);
   });
 
   it("rejects body without sections", async () => {
     const resp = await SELF.fetch(
-      pushRequest({ identity: { character_name: "Test", game_id: "d2r" } })
+      pushRequest({ identity: { character_name: "Test", game_id: "d2r" } }),
     );
     expect(resp.status).toBe(400);
   });

@@ -1,4 +1,5 @@
 import { DurableObject } from "cloudflare:workers";
+
 import type { Env } from "./types";
 
 /**
@@ -10,6 +11,7 @@ import type { Env } from "./types";
  * UI messages forward to daemon. Status events are persisted to D1.
  */
 export class DaemonHub extends DurableObject<Env> {
+  // eslint-disable-next-line @typescript-eslint/require-await -- DO API requires async override
   async fetch(request: Request): Promise<Response> {
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket upgrade", { status: 426 });
@@ -28,28 +30,35 @@ export class DaemonHub extends DurableObject<Env> {
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     const tags = this.ctx.getTags(ws);
-    const msgStr = typeof message === "string" ? message : new TextDecoder().decode(message);
+    const msgString = typeof message === "string" ? message : new TextDecoder().decode(message);
 
     if (tags.includes("daemon")) {
       // Forward daemon events to all UI connections
       for (const uiWs of this.ctx.getWebSockets("ui")) {
-        uiWs.send(msgStr);
+        uiWs.send(msgString);
       }
       // Persist event to D1
-      await this.persistEvent(msgStr);
+      await this.persistEvent(msgString);
     } else if (tags.includes("ui")) {
       // Forward UI commands to all daemon connections
       for (const daemonWs of this.ctx.getWebSockets("daemon")) {
-        daemonWs.send(msgStr);
+        daemonWs.send(msgString);
       }
     }
   }
 
-  async webSocketClose(ws: WebSocket, code: number, reason: string, wasClean: boolean): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/require-await -- DO API requires async override
+  async webSocketClose(
+    ws: WebSocket,
+    code: number,
+    reason: string,
+    _wasClean: boolean,
+  ): Promise<void> {
     ws.close(code, reason);
   }
 
-  async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/require-await -- DO API requires async override
+  async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
     ws.close(1011, "Unexpected error");
   }
 
@@ -67,12 +76,14 @@ export class DaemonHub extends DurableObject<Env> {
 
       // Try to extract device_id from the event data
       const eventData = parsed[eventType] as Record<string, unknown> | undefined;
-      const deviceId = (eventData?.["deviceId"] as string) ?? "unknown";
+      const deviceId = (eventData?.deviceId as string | undefined) ?? "unknown";
 
       await this.env.DB.prepare(
         `INSERT INTO device_events (user_uuid, device_id, event_type, event_data)
-         VALUES (?, ?, ?, ?)`
-      ).bind(userUuid, deviceId, eventType, message).run();
+         VALUES (?, ?, ?, ?)`,
+      )
+        .bind(userUuid, deviceId, eventType, message)
+        .run();
 
       // Prune old events (keep last 100 per device)
       await this.env.DB.prepare(
@@ -81,8 +92,10 @@ export class DaemonHub extends DurableObject<Env> {
            SELECT id FROM device_events
            WHERE user_uuid = ? AND device_id = ?
            ORDER BY created_at DESC LIMIT 100
-         )`
-      ).bind(userUuid, deviceId, userUuid, deviceId).run();
+         )`,
+      )
+        .bind(userUuid, deviceId, userUuid, deviceId)
+        .run();
     } catch {
       // Don't let persistence failures break the relay
     }
