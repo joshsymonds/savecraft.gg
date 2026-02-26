@@ -1,5 +1,7 @@
 import { env, SELF } from "cloudflare:test";
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { cleanAll } from "./helpers";
 
 const TEST_USER = "push-test-user";
 
@@ -33,6 +35,8 @@ const validGameState = {
 };
 
 describe("Push API", () => {
+  beforeEach(cleanAll);
+
   it("accepts valid game state and returns 201", async () => {
     const resp = await SELF.fetch(pushRequest(validGameState));
     expect(resp.status).toBe(201);
@@ -97,5 +101,93 @@ describe("Push API", () => {
       pushRequest({ identity: { character_name: "Test", game_id: "d2r" } }),
     );
     expect(resp.status).toBe(400);
+  });
+
+  it("does not update latest.json when incoming timestamp is older", async () => {
+    // Use a unique character to isolate this test
+    const character = {
+      ...validGameState,
+      identity: { ...validGameState.identity, character_name: "TimestampGuardChar" },
+      summary: "Newer push",
+    };
+
+    // Push with a newer timestamp first
+    const resp1 = await SELF.fetch(
+      pushRequest(character, { "X-Parsed-At": "2026-02-25T22:00:00Z" }),
+    );
+    expect(resp1.status).toBe(201);
+    const body1 = await resp1.json<{ save_uuid: string }>();
+
+    // Push with an older timestamp — snapshot written, but latest.json should NOT update
+    const olderCharacter = { ...character, summary: "Older push" };
+    const resp2 = await SELF.fetch(
+      pushRequest(olderCharacter, { "X-Parsed-At": "2026-02-25T20:00:00Z" }),
+    );
+    expect(resp2.status).toBe(201);
+
+    // latest.json should still have the newer push's data
+    const latestKey = `users/${TEST_USER}/saves/${body1.save_uuid}/latest.json`;
+    const latest = await env.SNAPSHOTS.get(latestKey);
+    expect(latest).not.toBeNull();
+    const latestData = await latest!.json<{ summary: string }>();
+    expect(latestData.summary).toBe("Newer push");
+
+    // D1 summary should also still reflect the newer push
+    const row = await env.DB.prepare("SELECT summary, last_updated FROM saves WHERE uuid = ?")
+      .bind(body1.save_uuid)
+      .first<{ summary: string; last_updated: string }>();
+    expect(row!.summary).toBe("Newer push");
+    expect(row!.last_updated).toBe("2026-02-25T22:00:00Z");
+  });
+
+  it("updates latest.json when incoming timestamp is newer", async () => {
+    const character = {
+      ...validGameState,
+      identity: { ...validGameState.identity, character_name: "TimestampNewerChar" },
+      summary: "First push",
+    };
+
+    // Push with an older timestamp first
+    const resp1 = await SELF.fetch(
+      pushRequest(character, { "X-Parsed-At": "2026-02-25T20:00:00Z" }),
+    );
+    expect(resp1.status).toBe(201);
+    const body1 = await resp1.json<{ save_uuid: string }>();
+
+    // Push with a newer timestamp — should update latest.json
+    const newerCharacter = { ...character, summary: "Second push" };
+    const resp2 = await SELF.fetch(
+      pushRequest(newerCharacter, { "X-Parsed-At": "2026-02-25T22:00:00Z" }),
+    );
+    expect(resp2.status).toBe(201);
+
+    const latestKey = `users/${TEST_USER}/saves/${body1.save_uuid}/latest.json`;
+    const latest = await env.SNAPSHOTS.get(latestKey);
+    const latestData = await latest!.json<{ summary: string }>();
+    expect(latestData.summary).toBe("Second push");
+  });
+
+  it("always writes the immutable snapshot regardless of timestamp order", async () => {
+    const character = {
+      ...validGameState,
+      identity: { ...validGameState.identity, character_name: "SnapshotAlwaysChar" },
+    };
+
+    // Push newer first
+    const resp1 = await SELF.fetch(
+      pushRequest(character, { "X-Parsed-At": "2026-02-25T22:00:00Z" }),
+    );
+    expect(resp1.status).toBe(201);
+    const body1 = await resp1.json<{ save_uuid: string; snapshot_timestamp: string }>();
+
+    // Push older — should still return 201 (snapshot written)
+    const resp2 = await SELF.fetch(
+      pushRequest(
+        { ...character, summary: "Older snapshot" },
+        { "X-Parsed-At": "2026-02-25T20:00:00Z" },
+      ),
+    );
+    expect(resp2.status).toBe(201);
+    expect(body1.snapshot_timestamp).toBe("2026-02-25T22:00:00Z");
   });
 });

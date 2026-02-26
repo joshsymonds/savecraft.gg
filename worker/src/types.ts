@@ -3,4 +3,8 @@ export interface Env {
   SNAPSHOTS: R2Bucket;
   DAEMON_HUB: DurableObjectNamespace;
   ENVIRONMENT: string;
+  /** Clerk issuer URL (e.g. "https://clerk.savecraft.gg"). When set, enables JWT validation. Unset = stub auth. */
+  CLERK_ISSUER?: string;
+  /** Public-facing server URL for OAuth discovery (e.g. "https://mcp.savecraft.gg"). */
+  SERVER_URL?: string;
 }

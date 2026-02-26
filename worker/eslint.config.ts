@@ -211,6 +211,8 @@ export default tseslint.config(
       "sonarjs/cognitive-complexity": "off",
       "sonarjs/no-duplicate-string": "off",
       "max-lines-per-function": "off",
+      "max-nested-callbacks": "off",
+      "unicorn/consistent-function-scoping": "off",
       complexity: "off",
       "no-console": "off",
     },

@@ -1,4 +1,27 @@
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
+
+/** D1 tables in FK-safe deletion order (children before parents). */
+export const CLEANUP_TABLES = [
+  "search_index",
+  "notes",
+  "device_configs",
+  "device_events",
+  "saves",
+] as const;
+
+/**
+ * Clean all shared state (D1 + R2) between tests.
+ * Delete order: children before parents (FK-safe).
+ */
+export async function cleanAll(): Promise<void> {
+  for (const table of CLEANUP_TABLES) {
+    await env.DB.prepare(`DELETE FROM ${table}`).run();
+  }
+  const listed = await env.SNAPSHOTS.list();
+  for (const object of listed.objects) {
+    await env.SNAPSHOTS.delete(object.key);
+  }
+}
 
 /**
  * Connect a WebSocket through the Worker routes.
