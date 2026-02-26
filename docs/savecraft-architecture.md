@@ -81,16 +81,24 @@ Monorepo. Single Go module.
 
 ```
 savecraft/
+├── proto/
+│   └── savecraft/v1/
+│       └── protocol.proto       # Canonical WebSocket message types (protobuf)
+├── buf.yaml                     # buf module config
+├── buf.gen.yaml                 # buf codegen config (Go + TypeScript targets)
+├── Justfile                     # Command runner targets
 ├── cmd/
 │   ├── daemon/                  # Local daemon binary
 │   │   └── main.go
 │   └── server/                  # MCP server + push API binary
 │       └── main.go
 ├── internal/
-│   ├── schema/                  # Shared JSON types: section definitions, plugin manifest
+│   ├── proto/                   # Generated Go code from protobuf (do not edit)
+│   │   └── savecraft/v1/
+│   │       └── protocol.pb.go
+│   ├── schema/                  # Hand-written Go types: GameState, plugin manifest
 │   │   ├── manifest.go          # PluginManifest, SectionDeclaration, SavePaths
-│   │   ├── state.go             # GameState, Section, Identity, Save (UUID-based)
-│   │   ├── events.go            # StatusEvent types (daemon_online, parse_success, etc.)
+│   │   ├── state.go             # GameState, Section, Identity
 │   │   └── errors.go            # PluginError, ParseError
 │   ├── storage/                 # R2/S3 client: snapshot read/write, latest pointer
 │   │   ├── client.go
@@ -101,7 +109,7 @@ savecraft/
 │   │   ├── daemon_auth.go       # API key validation for daemon pushes
 │   │   └── oauth.go             # OAuth discovery metadata endpoint
 │   ├── plugin/                  # WASM runtime: plugin loading, manifest parsing
-│   │   ├── runtime.go           # wazero lifecycle, stdin/stdout contract
+│   │   ├── runtime.go           # wazero lifecycle, ndjson stdout reader
 │   │   ├── loader.go            # Plugin download, signature verification
 │   │   └── registry.go          # Plugin manifest polling, version checks
 │   ├── watcher/                 # Filesystem watcher: debounce, hash comparison
@@ -119,12 +127,14 @@ savecraft/
 │   ├── src/
 │   │   ├── index.ts             # Worker routes, request handling
 │   │   ├── hub.ts               # DaemonHub Durable Object class (WebSocket relay)
-│   │   └── protocol.ts          # Shared message type definitions
+│   │   └── proto/               # Generated TypeScript from protobuf (do not edit)
+│   │       └── savecraft/v1/
+│   │           └── protocol.ts
 │   ├── wrangler.toml
 │   └── package.json
 ├── plugins/
 │   └── d2r/                     # D2R parser source (compiles to .wasm)
-│       ├── main.go              # stdin→parse→stdout
+│       ├── main.go              # stdin→parse→stdout (ndjson)
 │       ├── parser.go            # d2s format parsing
 │       ├── items.go             # Item decoding with lookup tables
 │       └── Makefile             # GOOS=wasip1 GOARCH=wasm go build
@@ -132,7 +142,7 @@ savecraft/
 │   ├── install.sh               # Linux/Steam Deck curl installer
 │   ├── savecraft.service        # systemd user unit template
 │   └── build/                   # MSI (WiX), .pkg, signing scripts
-├── web/                         # Auth pages, settings UI, device status dashboard
+├── web/                         # SvelteKit frontend: device status, settings, notes
 ├── go.mod
 └── go.sum
 ```
@@ -158,24 +168,37 @@ Pure-Go WASM runtime. No CGO, no libc, no external dependencies. Supports WASI P
 
 WASI Preview 2 (Component Model) is not used — wazero doesn't support it yet, and Preview 1 is sufficient for the stdin/stdout contract.
 
-### Plugin Contract: stdin/stdout via WASI
+### Plugin Contract: ndjson on stdout via WASI
 
-Plugins are compiled as WASI executables. The daemon communicates via stdin (save file bytes in) and stdout (JSON out). No manual memory management, no malloc/free exports, no pointer arithmetic.
+Plugins are compiled as WASI executables. The daemon feeds raw save file bytes on stdin. The plugin writes newline-delimited JSON (ndjson) to stdout. No manual memory management, no malloc/free exports, no pointer arithmetic.
 
 **Input:** Raw save file bytes on stdin.
 
-**Output (success):** Exit code 0. JSON on stdout conforming to the GameState schema.
+**Output:** Newline-delimited JSON on stdout. Every line is a JSON object with a `type` field:
 
-**Output (error):** Exit code 1. Structured JSON on stderr:
+- `"status"` — Progress update. Optional. Plugin authors emit these for long-running or multi-step parses. The daemon forwards them to the UI via WebSocket.
+- `"result"` — Final GameState output. **Required on exit code 0.** Must be the last line.
+- `"error"` — Structured error. **Required on exit code 1.** Must be the last line.
 
+**stderr** is for unstructured debug logging. The daemon captures it for diagnostics but does not parse it.
+
+**Status line:**
 ```json
-{
-  "error_type": "unsupported_version | corrupt_file | parse_error",
-  "message": "Human-readable description",
-  "byte_offset": 1234,
-  "details": {}
-}
+{"type": "status", "message": "Found 3 save files in directory"}
+{"type": "status", "message": "Decoding inventory (247 items)"}
 ```
+
+**Result line (success, exit code 0):**
+```json
+{"type": "result", "identity": {...}, "summary": "...", "sections": {...}}
+```
+
+**Error line (failure, exit code 1):**
+```json
+{"type": "error", "error_type": "corrupt_file", "message": "Human-readable description", "byte_offset": 1234}
+```
+
+Valid `error_type` values: `unsupported_version`, `corrupt_file`, `parse_error`.
 
 **Plugin Go source example (D2R):**
 
@@ -190,6 +213,8 @@ import (
     "os"
 )
 
+var enc = json.NewEncoder(os.Stdout)
+
 func main() {
     data, err := io.ReadAll(os.Stdin)
     if err != nil {
@@ -197,22 +222,33 @@ func main() {
         os.Exit(1)
     }
 
+    enc.Encode(map[string]string{"type": "status", "message": "Read " + fmt.Sprintf("%d", len(data)) + " bytes"})
+
     state, err := ParseD2S(data)
     if err != nil {
         writeError("corrupt_file", err.Error())
         os.Exit(1)
     }
 
-    json.NewEncoder(os.Stdout).Encode(state)
+    // Emit the final result line
+    enc.Encode(map[string]any{
+        "type":     "result",
+        "identity": state.Identity,
+        "summary":  state.Summary,
+        "sections": state.Sections,
+    })
 }
 
 func writeError(errType, message string) {
-    json.NewEncoder(os.Stderr).Encode(map[string]string{
+    enc.Encode(map[string]string{
+        "type":       "error",
         "error_type": errType,
         "message":    message,
     })
 }
 ```
+
+Simple plugins that don't need progress updates just emit a single result line. The status lines are optional.
 
 **Daemon-side execution with wazero:**
 
@@ -222,15 +258,41 @@ ctx := context.Background()
 r := wazero.NewRuntime(ctx)
 wasi_snapshot_preview1.MustInstantiate(ctx, r)
 
-var stdout, stderr bytes.Buffer
+// stdout is a pipe — daemon reads ndjson lines as they arrive
+stdoutR, stdoutW := io.Pipe()
+var stderr bytes.Buffer
+
 config := wazero.NewModuleConfig().
     WithStdin(bytes.NewReader(saveFileBytes)).
-    WithStdout(&stdout).
+    WithStdout(stdoutW).
     WithStderr(&stderr)
 
+// Read stdout lines in a goroutine
+go func() {
+    scanner := bufio.NewScanner(stdoutR)
+    for scanner.Scan() {
+        line := scanner.Bytes()
+        msg := parsePluginLine(line)
+        switch msg.Type {
+        case "status":
+            // Forward to WebSocket as PluginStatus event
+            ws.Send(PluginStatus{GameID: gameID, FileName: fileName, Message: msg.Message})
+        case "result":
+            // Store as the final GameState
+            gameState = msg.GameState
+        case "error":
+            // Store as the parse error
+            parseErr = msg.Error
+        }
+    }
+}()
+
 mod, err := r.InstantiateWithConfig(ctx, pluginWasm, config)
-// Check exit code, read stdout for JSON or stderr for errors
+stdoutW.Close()
+// Check exit code, use gameState or parseErr
 ```
+
+**Size limit:** The daemon enforces a 2MB hard cap on the result line. If a plugin emits a result larger than 2MB, the daemon treats it as a parse error and logs a warning. Typical game state JSON is 10-500KB.
 
 ### Plugin Manifest
 
@@ -288,7 +350,7 @@ plugins/{game_id}/parser.wasm.sig
 
 ### GameState (plugin output)
 
-All plugins emit JSON conforming to this structure:
+All plugins emit a `result` line on stdout conforming to this structure (the `type: "result"` field is stripped by the daemon before storage):
 
 ```json
 {
@@ -300,6 +362,7 @@ All plugins emit JSON conforming to this structure:
       "level": 89
     }
   },
+  "summary": "Hammerdin, Level 89 Paladin",
   "sections": {
     "character_overview": {
       "description": "Level, class, difficulty, play time",
@@ -333,6 +396,7 @@ All plugins emit JSON conforming to this structure:
 - **Section-level granularity.** Stardew Valley farm state can be megabytes. The AI requests only the sections it needs for the question.
 - **Plugin-defined schema.** The server does not validate section contents. Each game's sections have different shapes. The plugin is the authority on what data looks like.
 - **No cross-game normalization.** D2R gear and Stardew crops are fundamentally different data. Attempting to normalize into a universal schema would lose information and add complexity for zero benefit.
+- **Plugin-authored summaries.** The `summary` field is a human-readable display string authored by the plugin. The plugin knows what matters for its game. Examples: `"Hammerdin, Level 89 Paladin"` (D2R), `"Berry Merry Farm, Year 3 Fall — 69% Perfection"` (Stardew), `"Emperor Halfdan of Scandinavia, 847 AD"` (CK3). The server stores summaries in D1 for fast UI rendering and MCP tool responses.
 
 ### R2 Object Layout
 
@@ -453,43 +517,56 @@ Critical: no application-layer heartbeats. The UI must not send periodic pings. 
 
 ### Message Protocol
 
-All messages are JSON with a `type` field. Shared TypeScript types in `worker/src/protocol.ts`, mirrored as Go types in `internal/schema/events.go`.
+All messages are protobuf-defined with JSON encoding on the wire. The canonical schema lives in `proto/protocol.proto`. Go types are generated to `internal/proto/`, TypeScript types to `worker/src/proto/`. No mirrored types — both languages codegen from the same `.proto` file via `buf generate`.
 
-**Daemon → DO (status events):**
+Messages use a protobuf `oneof` envelope (`Message.payload`). Field numbers are grouped by category with gaps for future additions. Each side processes the variants it cares about and ignores the rest.
 
-```json
-{"type": "daemon_online", "device": "steam-deck", "version": "0.1.0", "timestamp": "..."}
-{"type": "daemon_offline", "device": "steam-deck", "timestamp": "..."}
-{"type": "game_detected", "game": "d2r", "path": "/home/deck/.local/share/...", "save_count": 3}
-{"type": "game_not_found", "game": "d2r", "paths_checked": ["/home/deck/.local/share/..."]}
-{"type": "parse_success", "game": "d2r", "identity": {"name": "Hammerdin", "class": "Paladin", "level": 87}, "save_uuid": "...", "snapshot_size_bytes": 42000}
-{"type": "parse_error", "game": "d2r", "file": "SharedStash.d2i", "error_type": "unsupported_format", "message": "unsupported format version 0x62"}
-{"type": "watching", "game": "d2r", "path": "/home/deck/.local/share/...", "files_monitored": 3}
-{"type": "plugin_updated", "game": "d2r", "version": "1.2.0"}
+**Save data does not flow through the WebSocket.** The daemon pushes parsed GameState JSON to the server via HTTP POST (`/api/v1/push`). The WebSocket carries only lightweight status events (~200 bytes each). This keeps the Durable Object cheap and simple — it relays small messages and hibernates, never processing multi-KB payloads.
+
+**Full lifecycle for a save update (daemon → server → UI):**
+
+```
+ScanStarted       → "Scanning /home/deck/.local/share/D2R/..."
+ScanCompleted     → "Found 3 files: Hammerdin.d2s, Sorceress.d2s, SharedStash.d2i"
+ParseStarted      → "Parsing Hammerdin.d2s..."
+PluginStatus      → "Decoding inventory (247 items)"     [optional, from plugin stdout]
+ParseCompleted    → "Parsed: Hammerdin, Level 89 Paladin (8 sections, 47KB)"
+PushStarted       → "Uploading Hammerdin (47KB)..."
+PushCompleted     → "✓ Uploaded Hammerdin (47KB) in 340ms"
 ```
 
-**DO → daemon (commands):**
+**On parse failure:**
 
-```json
-{"type": "config_update", "config": {"games": {"d2r": {"save_path": "/custom/path", "enabled": true}}}}
-{"type": "rescan_game", "game": "d2r"}
-{"type": "plugin_available", "game": "d2r", "version": "1.2.0", "url": "..."}
+```
+ParseStarted      → "Parsing SharedStash.d2i..."
+ParseFailed       → "✗ Parse failed: unsupported format version 0x62"
 ```
 
-**DO → UI (forwarded events + state):**
+**On push failure with retry:**
 
-The DO forwards all daemon status events to the UI connection. On UI connect, the DO also sends the current device state (last known status per game, daemon online/offline) from D1 so the UI doesn't start blank.
-
-```json
-{"type": "device_state", "devices": [{"device": "steam-deck", "online": true, "last_seen": "...", "games": [{"game": "d2r", "status": "watching", "saves_found": 3, "last_parse": "...", "last_parse_status": "success"}]}]}
+```
+PushStarted       → "Uploading Hammerdin (47KB)..."
+PushFailed        → "✗ Upload failed: 503 — will retry in 2s"
+PushStarted       → "Uploading Hammerdin (47KB)..."
+PushCompleted     → "✓ Uploaded Hammerdin (47KB) in 280ms"
 ```
 
-**UI → DO → daemon (user commands):**
+**Message categories:**
 
-```json
-{"type": "rescan_game", "game": "d2r"}
-{"type": "test_path", "game": "d2r", "path": "/home/deck/custom/saves"}
-```
+| Range | Direction | Category | Messages |
+|-------|-----------|----------|----------|
+| 1-9 | daemon → server | Daemon lifecycle | `DaemonOnline`, `DaemonOffline` |
+| 10-19 | daemon → server | Game discovery | `ScanStarted`, `ScanCompleted`, `GameDetected`, `GameNotFound`, `Watching` |
+| 20-29 | daemon → server | Parse lifecycle | `ParseStarted`, `PluginStatus`, `ParseCompleted`, `ParseFailed` |
+| 30-39 | daemon → server | Push lifecycle | `PushStarted`, `PushCompleted`, `PushFailed` |
+| 40-49 | daemon → server | Plugin mgmt | `PluginUpdated` |
+| 50-59 | server → daemon | Commands | `ConfigUpdate`, `RescanGame`, `PluginAvailable` |
+| 60-69 | server → UI | State | `DeviceState` (cold-start snapshot) |
+| 70-79 | UI → server → daemon | User actions | `TestPath`, `TestPathResult` |
+
+The DO forwards all daemon status events (ranges 1-49) to the UI WebSocket if connected. On UI connect, the DO sends a `DeviceState` snapshot constructed from D1 persisted events.
+
+**Coordination:** The daemon sends `PushStarted` before the HTTP POST, `PushCompleted`/`PushFailed` after. It only sends `PushStarted` after a successful parse. If the push fails and will be retried, the daemon sends `PushFailed` with `will_retry: true`, then `PushStarted` again on retry.
 
 ### Status Persistence
 
@@ -1139,6 +1216,37 @@ Free tier generous enough for word-of-mouth. Paid tier unlocks infrastructure-in
 | FFXIV | Lodestone (unofficial scrapers) | No local save data. API-based acquisition. |
 
 The "plugin" concept generalizes from "binary file parser" to "data source adapter" — some plugins parse files, some call APIs. The daemon and MCP serving layer are identical either way.
+
+## Development Tooling
+
+### Protobuf + buf
+
+The WebSocket protocol is defined in `proto/protocol.proto`. `buf generate` produces Go types (`internal/proto/`) and TypeScript types (`worker/src/proto/`) from the same source. No mirrored types, no drift.
+
+GameState types (what plugins emit, what R2 stores, what MCP serves) are **not** in protobuf. Section data is arbitrary JSON per game — protobuf's `Struct` type is an awkward fit. GameState types are hand-written Go structs (`internal/schema/`) and TypeScript interfaces (`worker/src/types/`). The envelope is small and stable enough (4 fields) that the duplication is acceptable.
+
+### just
+
+`just` is the command runner. All build/test/lint/generate targets are in the `Justfile`. `just --list` shows available targets. `just check` runs everything.
+
+### Svelte
+
+SvelteKit for the web UI. TypeScript throughout.
+
+### Testing Strategy
+
+**Unit tests (fast, run on every change):**
+- Go: all external dependencies behind interfaces. Hand-written fakes for filesystem, WASM runtime, WebSocket client, HTTP push client. No mock libraries.
+- Worker: Vitest + Miniflare for local D1, R2, Durable Objects, WebSocket.
+- Svelte: component tests with mock WebSocket and API responses.
+
+**Integration tests (Docker Compose, CI + on-demand):**
+- Daemon binary + Miniflare Worker + real WebSocket connections + real file events.
+- End-to-end: write a save file → daemon detects → parses → pushes → MCP tool returns data.
+
+### Development Environment
+
+nix devenv + direnv. `devenv.nix` provides Go, Node, Wrangler, buf, just, and all development tools. `direnv allow` activates the environment automatically on `cd`.
 
 ## Open Decisions (Deferred)
 
