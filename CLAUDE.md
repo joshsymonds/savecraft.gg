@@ -8,7 +8,7 @@ Read `docs/savecraft-architecture.md` for the full architecture document. It is 
 
 ## Tech Stack
 
-- **Daemon:** Go, wazero (WASM runtime), fsnotify, nhooyr.io/websocket
+- **Daemon:** Go 1.26, wazero (WASM runtime), fsnotify, nhooyr.io/websocket
 - **Cloud:** Cloudflare Workers (TypeScript), Durable Objects, R2, D1 (SQLite/FTS5)
 - **Auth:** Clerk (OAuth, JWT, magic links)
 - **Frontend:** SvelteKit, TypeScript
@@ -24,7 +24,7 @@ Read `docs/savecraft-architecture.md` for the full architecture document. It is 
 
 - Monorepo, single Go module
 - WebSocket protocol defined once in protobuf, codegen'd to both languages. No mirrored types.
-- GameState types (plugin output) are hand-written Go/TS — section data is arbitrary JSON per game
+- GameState types (plugin output) are hand-written Go/TS — section data is arbitrary JSON per game. Types live next to their consumers, not in grab-bag packages.
 - Plugin stdout is ndjson: `{"type": "status"|"result"|"error", ...}` per line
 - Save data pushed via HTTP POST, not WebSocket. WS carries lightweight status events only.
 - All R2 access scoped to `users/{user_uuid}/` prefix
@@ -66,9 +66,10 @@ Every layer must be fully testable in isolation and in integration.
 - `proto/savecraft/v1/protocol.proto` — Canonical WebSocket protocol definition
 - `internal/proto/savecraft/v1/` — Generated Go protobuf code (do not edit)
 - `worker/src/proto/savecraft/v1/` — Generated TypeScript protobuf code (do not edit)
-- `internal/schema/` — Hand-written Go types (GameState, plugin manifest)
-- `cmd/daemon/` — Daemon entrypoint
-- `cmd/server/` — Server entrypoint (Go, for self-hosted option)
+- `internal/daemon/` — Daemon orchestrator, domain types (GameState), interfaces
+- `internal/runner/` — WASM plugin execution via wazero
+- `cmd/savecraftd/` — Daemon entrypoint
+- `plugins/echo/` — Reference plugin for testing the ndjson contract
 - `worker/` — Cloudflare Worker + Durable Object (TypeScript)
 - `web/` — SvelteKit frontend
 - `plugins/` — WASM plugin sources
