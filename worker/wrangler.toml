@@ -1,0 +1,26 @@
+name = "savecraft"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+
+[vars]
+ENVIRONMENT = "development"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "savecraft"
+database_id = "local"
+migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "SNAPSHOTS"
+bucket_name = "savecraft-snapshots"
+
+[durable_objects]
+bindings = [
+  { name = "DAEMON_HUB", class_name = "DaemonHub" }
+]
+
+[[migrations]]
+tag = "v1"
+new_classes = ["DaemonHub"]

@@ -16,6 +16,10 @@ Read `docs/savecraft-architecture.md` for the full architecture document. It is 
 - **Protocol:** Protobuf (proto/protocol.proto) → buf generate → Go + TypeScript
 - **Build:** just (Justfile), nix devenv + direnv
 
+## Project Phase
+
+**Pre-launch. Treat main as a feature branch.** No backwards compatibility required for anything — wire protocol, API contracts, DB schema, plugin format. Everything is subject to change. Delete old code, don't version it. This note will be removed when the project ships.
+
 ## Key Conventions
 
 - Monorepo, single Go module
