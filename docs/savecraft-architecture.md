@@ -286,41 +286,64 @@ stdoutW.Close()
 
 **Size limit:** The daemon enforces a 2MB hard cap on the result line. If a plugin emits a result larger than 2MB, the daemon treats it as a parse error and logs a warning. Typical game state JSON is 10-500KB.
 
-### Plugin Manifest
+### Plugin Metadata (`plugin.toml`)
 
-Each plugin includes a `manifest.json` alongside its `.wasm` binary:
+Each production plugin has a `plugin.toml` in its directory — the single source of truth for plugin metadata. Test plugins (echo, error, noop, crash) are dev-only and have no `plugin.toml`.
 
-```json
-{
-  "game_id": "d2r",
-  "game_name": "Diablo II: Resurrected",
-  "version": "1.0.0",
-  "file_extensions": [".d2s", ".d2i"],
-  "save_paths": {
-    "windows": ["%USERPROFILE%/Saved Games/Diablo II Resurrected"],
-    "linux": [
-      "~/.local/share/Diablo II Resurrected/Save",
-      "~/.steam/steam/steamapps/compatdata/2201080/pfx/drive_c/users/steamuser/Saved Games/Diablo II Resurrected"
-    ],
-    "darwin": ["~/Library/Application Support/Diablo II Resurrected/Save"]
-  },
-  "identity_extraction": {
-    "description": "Character name from d2s header bytes 20-35. Shared stash (.d2i) emits game-scoped identity (no character_name)."
-  },
-  "sections": [
-    {"name": "character_overview", "description": "Level, class, difficulty, play time"},
-    {"name": "equipped_gear", "description": "All equipped items with stats, sockets, runewords"},
-    {"name": "inventory", "description": "Items in inventory grid"},
-    {"name": "stash", "description": "Personal and shared stash contents"},
-    {"name": "skills", "description": "Skill point allocation by tree"},
-    {"name": "quest_progress", "description": "Quest completion flags by act and difficulty"},
-    {"name": "waypoints", "description": "Unlocked waypoints by difficulty"},
-    {"name": "mercenary", "description": "Mercenary type, level, and equipment"}
-  ]
-}
+```toml
+game_id = "d2r"
+name = "Diablo II: Resurrected"
+description = "Parses .d2s character save files from Reign of the Warlock (v105)"
+version = "0.0.1"
+channel = "beta"                          # "beta" or "stable"
+coverage = "partial"                      # "partial" or "full"
+file_extensions = [".d2s"]
+homepage = "https://savecraft.gg/plugins/d2r"
+
+limitations = [
+  "Shared stash (.d2i) not yet supported",
+  "Only Reign of the Warlock (v105) saves — classic LoD not supported",
+]
+
+[author]
+name = "Josh Symonds"
+github = "joshsymonds"
+
+[default_paths]
+windows = "%USERPROFILE%/Saved Games/Diablo II Resurrected"
+linux = "~/.local/share/Diablo II Resurrected"
+darwin = "~/Library/Application Support/Diablo II Resurrected"
 ```
 
-The daemon resolves environment variables and `~` in save paths at startup. If a declared path exists, it auto-configures. The user can override paths via the web settings UI; overrides are stored per-device in D1.
+**Field reference:**
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `game_id` | yes | Unique identifier, matches plugin directory name |
+| `name` | yes | Human-readable game title |
+| `description` | yes | What the plugin parses |
+| `version` | yes | Semver. Bump to trigger a plugin release |
+| `channel` | yes | `"beta"` or `"stable"` — daemon can filter by channel |
+| `coverage` | yes | `"partial"` (known limitations) or `"full"` |
+| `file_extensions` | yes | Save file extensions this plugin handles |
+| `homepage` | no | URL for plugin documentation |
+| `limitations` | no | Known gaps, shown in UI and MCP responses |
+| `author.name` | yes | Plugin author's display name |
+| `author.github` | yes | GitHub username |
+| `default_paths` | yes | Per-OS default save directory (env vars and `~` expanded by daemon) |
+
+The daemon resolves environment variables and `~` in default paths at startup. If a declared path exists, it auto-configures. The user can override paths via the web settings UI; overrides are stored per-device in D1.
+
+### Plugin Manifest (`manifest.json`)
+
+`manifest.json` is a **generated** artifact — never hand-edited. The `cmd/plugin-manifest/` Go tool reads `plugin.toml`, computes the sha256 of the built `.wasm` binary, and writes `manifest.json` with all fields plus `sha256` and `url`. This manifest is uploaded to R2 alongside the signed WASM binary.
+
+```
+just plugin-manifest d2r          # generate plugins/d2r/manifest.json
+just build-plugin d2r             # build the .wasm first
+```
+
+The manifest endpoint `GET /api/v1/plugins/manifest` returns all fields from R2 — version, sha256, name, description, channel, coverage, file_extensions, default_paths, limitations, author, homepage — plus a resolved download URL. The worker passes through whatever the manifest contains with no filtering.
 
 ### Plugin Distribution
 
@@ -332,11 +355,11 @@ plugins/{game_id}/parser.wasm
 plugins/{game_id}/parser.wasm.sig
 ```
 
-**Polling:** Daemon checks `GET /api/v1/plugins/manifest` on startup and every 24 hours. Response is a JSON object mapping game IDs to `{version, sha256, url}`. Daemon compares local versions, downloads updates as needed.
+**Polling:** Daemon checks `GET /api/v1/plugins/manifest` on startup and every 24 hours. Response is a JSON object mapping game IDs to plugin metadata (version, sha256, url, plus all `plugin.toml` fields). Daemon compares local versions, downloads updates as needed.
 
-**Signing:** Every `.wasm` binary is signed with an Ed25519 private key held by Savecraft. A `.sig` file ships alongside each `.wasm`. The daemon has the public key baked in and verifies signatures before loading. Unsigned or tampered modules are refused.
+**Signing:** Every `.wasm` binary is signed with an Ed25519 private key held by Savecraft (`SIGNING_PRIVATE_KEY` in GitHub Actions secrets, base64-encoded raw 32-byte key). A `.sig` file ships alongside each `.wasm`. The daemon has the public key baked in (`internal/signing/signing_key.pub`) and verifies signatures before loading. Unsigned or tampered modules are refused.
 
-**Trust model:** Community contributors submit PRs with parser source code to the `plugins/` directory in the monorepo. CI builds the WASM. Maintainer reviews source code and merges. Release pipeline signs the binary. Same model as Linux package signing.
+**Trust model:** Community contributors submit PRs with parser source code to the `plugins/` directory in the monorepo. Maintainer reviews source code and merges. Release pipeline builds the WASM, signs the binary, and uploads to R2. Same model as Linux package signing.
 
 ## Server-Side Game Adapters
 
@@ -1432,6 +1455,38 @@ SvelteKit for the web UI. TypeScript throughout.
 ### Development Environment
 
 nix devenv + direnv. `devenv.nix` provides Go, Node, Wrangler, buf, just, and all development tools. `direnv allow` activates the environment automatically on `cd`.
+
+### CI & Release
+
+CI and release are separate concerns with separate workflows in `.github/workflows/`.
+
+**CI (`ci.yml`):** Runs on every push to `main` and every PR. Uses `dorny/paths-filter` to skip jobs when irrelevant files change:
+
+| Job | Triggers on |
+|-----|-------------|
+| `go` | `internal/**`, `cmd/**`, `plugins/**`, `proto/**`, `go.mod`, `go.sum` |
+| `worker` | `worker/**`, `proto/**` |
+| `web` | `web/**` |
+| `deploy` | Always (after all checks pass, main branch only) |
+
+A web-only PR skips Go and Worker checks entirely. The `deploy` job runs if no check jobs failed — skipped jobs don't block it.
+
+**Daemon release (`release-daemon.yml`):** Triggered by `v*` tags. Builds daemon binaries for all platforms (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64), signs them with Ed25519, generates checksums, bakes the public key and version into `install.sh`, and creates a GitHub Release with all artifacts. Daemon versioning follows git tags.
+
+**Plugin release (`release-plugin.yml`):** Triggered by changes to `plugins/*/plugin.toml` on `main`. Plugin versioning is independent of the daemon — each plugin has its own version in `plugin.toml`. The workflow:
+
+1. Detects which `plugin.toml` files changed in the commit
+2. For each changed plugin:
+   - Reads the new version from `plugin.toml`
+   - Fetches the current `manifest.json` from R2 — if the version matches, skips (safety gate against re-runs)
+   - Builds the WASM (`just build-plugin <game_id>`)
+   - Signs the WASM with Ed25519
+   - Generates `manifest.json` from `plugin.toml` + sha256 (`cmd/plugin-manifest/`)
+   - Uploads `parser.wasm`, `parser.wasm.sig`, and `manifest.json` to R2
+
+**To release a new plugin version:** bump `version` in `plugin.toml`, merge to main. No git tags needed. The version in `plugin.toml` is the source of truth — the release workflow reads it directly.
+
+**Signing key:** Ed25519 keypair generated by `just keygen` (`cmd/savecraft-keygen/`). The public key (`internal/signing/signing_key.pub`) is checked into the repo and baked into daemon binaries. The private key is base64-encoded and stored as `SIGNING_PRIVATE_KEY` in GitHub Actions secrets.
 
 ## Open Decisions (Deferred)
 
