@@ -19,14 +19,14 @@ describe("ActivityEvent", () => {
   it("renders detail when provided", () => {
     render(ActivityEvent, {
       props: {
-        type: "parse_success",
-        message: "Parsed Hammerdin",
-        detail: "Level 89 Paladin",
+        type: "parse_completed",
+        message: "Atmus, Level 74 Warlock (Hell)",
+        detail: "6 sections · 48KB",
         time: "now",
       },
     });
 
-    expect(screen.getByText("Level 89 Paladin")).toBeInTheDocument();
+    expect(screen.getByText("6 sections · 48KB")).toBeInTheDocument();
   });
 
   it("omits detail when not provided", () => {
@@ -41,17 +41,43 @@ describe("ActivityEvent", () => {
     expect(container.querySelector(".detail")).not.toBeInTheDocument();
   });
 
-  it("shows correct icon for event type", () => {
+  it("shows correct icon for parse_started", () => {
     const { container } = render(ActivityEvent, {
       props: {
-        type: "parse_error",
-        message: "SharedStash.d2i failed",
+        type: "parse_started",
+        message: "Parsing Atmus.d2s",
+        time: "now",
+      },
+    });
+
+    const icon = container.querySelector(".icon");
+    expect(icon?.textContent).toBe("◌");
+  });
+
+  it("shows correct icon for parse_failed", () => {
+    const { container } = render(ActivityEvent, {
+      props: {
+        type: "parse_failed",
+        message: "Corrupt.d2s — corrupt file",
         time: "1h",
       },
     });
 
     const icon = container.querySelector(".icon");
-    expect(icon?.textContent).toBe("⚠");
+    expect(icon?.textContent).toBe("✕");
+  });
+
+  it("shows correct icon for plugin_status", () => {
+    const { container } = render(ActivityEvent, {
+      props: {
+        type: "plugin_status",
+        message: "45 items, 4 socketed",
+        time: "now",
+      },
+    });
+
+    const icon = container.querySelector(".icon");
+    expect(icon?.textContent).toBe("»");
   });
 
   it("renders time", () => {

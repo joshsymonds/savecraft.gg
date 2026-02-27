@@ -16,13 +16,18 @@
   let { type, message, detail, time, isNew = false }: Props = $props();
 
   const iconMap: Record<ActivityEventType, { icon: string; colorVar: string }> = {
-    parse_success: { icon: "✓", colorVar: "var(--color-green)" },
-    parse_error: { icon: "⚠", colorVar: "var(--color-yellow)" },
-    watching: { icon: "→", colorVar: "var(--color-blue)" },
-    game_detected: { icon: "◈", colorVar: "var(--color-green)" },
+    parse_started: { icon: "◌", colorVar: "var(--color-blue)" },
+    plugin_status: { icon: "»", colorVar: "var(--color-text-dim)" },
+    parse_completed: { icon: "✓", colorVar: "var(--color-green)" },
+    parse_failed: { icon: "✕", colorVar: "var(--color-red)" },
+    push_started: { icon: "↑", colorVar: "var(--color-blue)" },
+    push_completed: { icon: "✓", colorVar: "var(--color-green)" },
+    push_failed: { icon: "✕", colorVar: "var(--color-red)" },
+    plugin_updated: { icon: "↑", colorVar: "var(--color-gold)" },
     daemon_online: { icon: "▶", colorVar: "var(--color-green)" },
     daemon_offline: { icon: "■", colorVar: "var(--color-red)" },
-    plugin_updated: { icon: "↑", colorVar: "var(--color-gold)" },
+    watching: { icon: "→", colorVar: "var(--color-blue)" },
+    game_detected: { icon: "◈", colorVar: "var(--color-green)" },
     config_push: { icon: "⟳", colorVar: "var(--color-blue)" },
   };
 
@@ -43,7 +48,7 @@
 <style>
   .event {
     display: flex;
-    gap: 8px;
+    gap: 6px;
     padding: 7px 14px;
     border-bottom: 1px solid rgba(74, 90, 173, 0.06);
     align-items: flex-start;
@@ -55,10 +60,10 @@
 
   .icon {
     font-family: var(--font-pixel);
-    font-size: 8px;
-    min-width: 14px;
+    font-size: 17px;
+    min-width: 18px;
     text-align: center;
-    padding-top: 3px;
+    line-height: 1.3;
   }
 
   .content {
