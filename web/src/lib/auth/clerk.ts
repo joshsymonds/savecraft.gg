@@ -1,5 +1,5 @@
 import { PUBLIC_CLERK_PUBLISHABLE_KEY } from "$env/static/public";
-import { Clerk } from "@clerk/clerk-js";
+import type { Clerk } from "@clerk/clerk-js";
 import { readable, type Readable } from "svelte/store";
 
 export interface AuthState {
@@ -23,7 +23,42 @@ const SAVECRAFT_APPEARANCE = {
     colorTextSecondary: "#8890b8",
     colorDanger: "#e85a5a",
     fontFamily: "'VT323', monospace",
+    fontSize: "18px",
     borderRadius: "4px",
+  },
+  elements: {
+    socialButtonsBlockButton: {
+      color: "#e8e0d0",
+      background: "rgba(74, 90, 173, 0.25)",
+      border: "1px solid rgba(74, 90, 173, 0.4)",
+    },
+    footerAction: {
+      fontSize: "18px",
+    },
+    footerActionLink: {
+      color: "#c8a84e",
+      fontSize: "18px",
+      textDecoration: "underline",
+    },
+  },
+} as const;
+
+const SAVECRAFT_LOCALIZATION = {
+  signUp: {
+    start: {
+      title: "Create your account",
+      subtitle: "Your save files, understood by AI",
+      actionText: "Already have an account?",
+      actionLink: "Sign in",
+    },
+  },
+  signIn: {
+    start: {
+      title: "Welcome back",
+      subtitle: "Sign in to Savecraft",
+      actionText: "New here?",
+      actionLink: "Create an account",
+    },
   },
 } as const;
 
@@ -69,10 +104,14 @@ export const authState: Readable<AuthState> = authStateStore;
 export async function initializeClerk(): Promise<void> {
   if (clerkInstance) return;
 
-  const clerk = new Clerk(PUBLIC_CLERK_PUBLISHABLE_KEY);
+  const { Clerk: ClerkClass } = await import("@clerk/clerk-js");
+  const clerk = new ClerkClass(PUBLIC_CLERK_PUBLISHABLE_KEY);
   clerkInstance = clerk;
 
-  await clerk.load({ appearance: SAVECRAFT_APPEARANCE });
+  await clerk.load({
+    appearance: SAVECRAFT_APPEARANCE,
+    localization: SAVECRAFT_LOCALIZATION,
+  });
 
   updateAuthState(clerk);
   clerk.addListener(() => updateAuthState(clerk));

@@ -21,7 +21,7 @@
       !$authState.isSignedIn &&
       !PUBLIC_ROUTES.includes($page.url.pathname)
     ) {
-      goto("/sign-in");
+      goto("/sign-up");
     }
   });
 

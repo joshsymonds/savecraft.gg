@@ -22,8 +22,13 @@
 </script>
 
 <div class="sign-in-page">
-  <div class="sign-in-title">SAVECRAFT</div>
-  <div bind:this={container}></div>
+  <div class="hero">
+    <div class="logo">SAVECRAFT</div>
+    <p class="tagline">Welcome back</p>
+  </div>
+  <div class="auth-card">
+    <div bind:this={container}></div>
+  </div>
 </div>
 
 <style>
@@ -33,13 +38,30 @@
     align-items: center;
     justify-content: center;
     min-height: 100vh;
-    gap: 24px;
+    gap: 40px;
+    padding: 40px 20px;
   }
 
-  .sign-in-title {
+  .hero {
+    text-align: center;
+    animation: fade-slide-in 0.6s ease-out;
+  }
+
+  .logo {
     font-family: var(--font-pixel);
-    font-size: 18px;
+    font-size: 24px;
     color: var(--color-gold);
-    letter-spacing: 4px;
+    letter-spacing: 6px;
+    margin-bottom: 12px;
+  }
+
+  .tagline {
+    font-family: var(--font-body);
+    font-size: 24px;
+    color: var(--color-text);
+  }
+
+  .auth-card {
+    animation: fade-slide-in 0.6s ease-out 0.15s both;
   }
 </style>
