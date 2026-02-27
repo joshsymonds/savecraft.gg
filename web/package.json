@@ -51,5 +51,8 @@
     "typescript-eslint": "^8.32.1",
     "vite": "^6.3.5",
     "vitest": "^3.2.1"
+  },
+  "dependencies": {
+    "@clerk/clerk-js": "^5.125.2"
   }
 }
