@@ -1,5 +1,6 @@
-// D2R plugin: parses Diablo II Resurrected .d2s save files into structured GameState.
+// D2R plugin: parses Diablo II Resurrected .d2s and .d2i files into structured GameState.
 // Supports both LoD (version <= 0x60) and D2R (version >= 0x61) formats.
+// .d2s = character saves, .d2i = shared stash (game-scoped, no character name).
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -o d2r.wasm .
 package main
@@ -23,12 +24,50 @@ func main() {
 		os.Exit(1)
 	}
 
+	if d2s.IsStash(data) {
+		handleStash(enc, data)
+	} else {
+		handleCharacter(enc, data)
+	}
+}
+
+func handleStash(enc *json.Encoder, data []byte) {
+	writeStatusf(enc, "Shared stash file, %d bytes", len(data))
+
+	stash, err := d2s.ParseStash(data)
+	if err != nil {
+		writeError(enc, "parse_error", err.Error())
+		os.Exit(1)
+	}
+
+	totalItems := 0
+	nonEmptyTabs := 0
+	for _, tab := range stash.Tabs {
+		totalItems += len(tab.Items)
+		if len(tab.Items) > 0 {
+			nonEmptyTabs++
+		}
+	}
+	writeStatusf(enc, "%d items across %d tabs", totalItems, nonEmptyTabs)
+
+	sections := buildStashSections(stash)
+	summary := buildStashSummary(stash)
+
+	// Game-scoped identity: no characterName.
 	if err := enc.Encode(map[string]any{
-		"type":    "status",
-		"message": fmt.Sprintf("Read %d bytes, parsing D2S...", len(data)),
+		"type": "result",
+		"identity": map[string]any{
+			"gameId": "d2r",
+		},
+		"summary":  summary,
+		"sections": sections,
 	}); err != nil {
 		os.Exit(1)
 	}
+}
+
+func handleCharacter(enc *json.Encoder, data []byte) {
+	writeStatusf(enc, "Character save, %d bytes", len(data))
 
 	save, err := d2s.Parse(data)
 	if err != nil {
@@ -36,7 +75,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Build sections from parsed data.
+	writeStatusf(enc, "Character: %s, Level %d %s", save.Header.Name, save.Attributes.Level, save.Header.Class)
+
+	socketed := 0
+	for _, item := range save.Items {
+		if item.Socketed {
+			socketed++
+		}
+	}
+	if socketed > 0 {
+		writeStatusf(enc, "%d items, %d socketed", len(save.Items), socketed)
+	} else {
+		writeStatusf(enc, "%d items", len(save.Items))
+	}
+
 	sections := map[string]any{
 		"character": map[string]any{
 			"description": "Character overview",
@@ -278,9 +330,21 @@ func buildItemMap(item d2s.Item) map[string]any {
 	return m
 }
 
+// internalOnlyProps are stats stored in the item bitstream but already displayed
+// as dedicated fields (defense, durability, sockets, etc.). Skip them in output.
+var internalOnlyProps = map[uint64]bool{
+	67: true, 68: true, 71: true, 72: true, 73: true,
+	82: true, 90: true, 92: true, 94: true, 140: true,
+	159: true, 160: true, 181: true, 185: true, 186: true, 194: true,
+	324: true, 356: true,
+}
+
 func buildPropertyList(attrs []d2s.MagicAttribute) []map[string]any {
 	props := make([]map[string]any, 0, len(attrs))
 	for _, a := range attrs {
+		if internalOnlyProps[a.ID] {
+			continue
+		}
 		props = append(props, map[string]any{
 			"name": formatProperty(a),
 		})
@@ -337,28 +401,6 @@ func formatProperty(a d2s.MagicAttribute) string {
 		if len(a.Values) >= 2 && !strings.Contains(a.Name, "{0}") {
 			return fmt.Sprintf("%s %d-%d", a.Name, a.Values[0], a.Values[1])
 		}
-
-	// Per-level properties: value is stored as eighths (divide by 8 for display).
-	case 214, 215, 216, 217, 218, 219, 220, 221, 222, 223, 224, 225, 226, 227, 228, 229, 230, 231, 232:
-		if len(a.Values) >= 1 {
-			name := perLevelNames[a.ID]
-			if name == "" {
-				name = a.Name
-			}
-			return fmt.Sprintf("%s (Based on Character Level)", name)
-		}
-
-	// Max durability %.
-	case 75:
-		if len(a.Values) >= 1 {
-			return fmt.Sprintf("+%d%% Enhanced Maximum Durability", a.Values[0])
-		}
-
-	// Throw max damage.
-	case 160:
-		if len(a.Values) >= 1 {
-			return fmt.Sprintf("+%d to Maximum Throw Damage", a.Values[0])
-		}
 	}
 
 	// Standard {N} substitution.
@@ -376,28 +418,6 @@ var chanceTocastTrigger = map[uint64]string{
 	198: "on Strike",
 	199: "on Level Up",
 	201: "when Struck",
-}
-
-var perLevelNames = map[uint64]string{
-	214: "+Defense",
-	215: "+Defense",
-	216: "+Life",
-	217: "+Mana",
-	218: "+Maximum Damage",
-	219: "+Maximum Damage %",
-	220: "+Strength",
-	221: "+Dexterity",
-	222: "+Energy",
-	223: "+Vitality",
-	224: "+Attack Rating",
-	225: "+Attack Rating %",
-	226: "+Cold Absorb %",
-	227: "+Fire Absorb %",
-	228: "+Lightning Absorb %",
-	229: "+Poison Absorb %",
-	230: "+Find Gold %",
-	231: "+Find Magic %",
-	232: "+Stamina Regen %",
 }
 
 func skillOrID(id int64) string {
@@ -445,6 +465,66 @@ func className(id int) string {
 		return "Warlock"
 	default:
 		return fmt.Sprintf("Class#%d", id)
+	}
+}
+
+func buildStashSummary(stash *d2s.SharedStash) string {
+	totalItems := 0
+	for _, tab := range stash.Tabs {
+		totalItems += len(tab.Items)
+	}
+
+	kind := "Softcore"
+	if stash.Kind == 0 {
+		kind = "Hardcore"
+	}
+
+	return fmt.Sprintf("Shared Stash (%s), %d items, %d gold", kind, totalItems, stash.Gold)
+}
+
+func buildStashSections(stash *d2s.SharedStash) map[string]any {
+	sections := map[string]any{
+		"overview": map[string]any{
+			"description": "Shared stash overview",
+			"data": map[string]any{
+				"gold":    stash.Gold,
+				"version": stash.Version,
+				"tabs":    len(stash.Tabs),
+			},
+		},
+	}
+
+	tabNum := 0
+	for _, tab := range stash.Tabs {
+		if tab.Type == 2 { // metadata section, skip
+			continue
+		}
+		tabNum++
+		if len(tab.Items) == 0 {
+			continue
+		}
+
+		tabType := "Normal"
+		if tab.Type == 1 {
+			tabType = "Advanced"
+		}
+
+		key := fmt.Sprintf("tab%d", tabNum)
+		sections[key] = map[string]any{
+			"description": fmt.Sprintf("Stash tab %d (%s)", tabNum, tabType),
+			"data":        buildItemList(tab.Items),
+		}
+	}
+
+	return sections
+}
+
+func writeStatusf(enc *json.Encoder, format string, args ...any) {
+	if err := enc.Encode(map[string]any{
+		"type":    "status",
+		"message": fmt.Sprintf(format, args...),
+	}); err != nil {
+		os.Exit(1)
 	}
 }
 

@@ -293,7 +293,7 @@ Each plugin includes a `manifest.json` alongside its `.wasm` binary:
   "game_id": "d2r",
   "game_name": "Diablo II: Resurrected",
   "version": "1.0.0",
-  "file_extensions": [".d2s"],
+  "file_extensions": [".d2s", ".d2i"],
   "save_paths": {
     "windows": ["%USERPROFILE%/Saved Games/Diablo II Resurrected"],
     "linux": [
@@ -303,7 +303,7 @@ Each plugin includes a `manifest.json` alongside its `.wasm` binary:
     "darwin": ["~/Library/Application Support/Diablo II Resurrected/Save"]
   },
   "identity_extraction": {
-    "description": "Character name from d2s header bytes 20-35"
+    "description": "Character name from d2s header bytes 20-35. Shared stash (.d2i) emits game-scoped identity (no character_name)."
   },
   "sections": [
     {"name": "character_overview", "description": "Level, class, difficulty, play time"},
@@ -341,6 +341,8 @@ plugins/{game_id}/parser.wasm.sig
 ### GameState (plugin output)
 
 All plugins emit a `result` line on stdout conforming to this structure (the `type: "result"` field is stripped by the daemon before storage):
+
+**Character save** (most common — one save per character/playthrough):
 
 ```json
 {
@@ -380,6 +382,25 @@ All plugins emit a `result` line on stdout conforming to this structure (the `ty
 }
 ```
 
+**Game save** (shared state across all characters — shared stash, meta-progression, unlocks):
+
+```json
+{
+  "identity": {
+    "game_id": "d2r"
+  },
+  "summary": "Shared Stash (3 tabs, 47 items)",
+  "sections": {
+    "stash": {
+      "description": "Shared stash contents across all characters",
+      "data": { "tabs": [ { "items": ["..."] } ] }
+    }
+  }
+}
+```
+
+When `character_name` is omitted from `identity`, the save is game-scoped: one per `(user_uuid, game_id)`. Character saves and game saves use the same sections model, same R2 storage, same MCP tools. The distinction is purely identity cardinality. Examples of game-level state: D2R shared stash, Hades mirror upgrades, Dead Cells unlocked blueprints, roguelite meta-progression.
+
 **Design principles:**
 
 - **Self-describing.** Every section carries a `description` field. The AI uses these to decide which sections to request.
@@ -387,6 +408,7 @@ All plugins emit a `result` line on stdout conforming to this structure (the `ty
 - **Plugin-defined schema.** The server does not validate section contents. Each game's sections have different shapes. The plugin is the authority on what data looks like.
 - **No cross-game normalization.** D2R gear and Stardew crops are fundamentally different data. Attempting to normalize into a universal schema would lose information and add complexity for zero benefit.
 - **Plugin-authored summaries.** The `summary` field is a human-readable display string authored by the plugin. The plugin knows what matters for its game. Examples: `"Hammerdin, Level 89 Paladin"` (D2R), `"Berry Merry Farm, Year 3 Fall — 69% Perfection"` (Stardew), `"Emperor Halfdan of Scandinavia, 847 AD"` (CK3). The server stores summaries in D1 for fast UI rendering and MCP tool responses.
+- **Two identity scopes.** Character saves are identified by `(user_uuid, game_id, character_name)`. Game saves are identified by `(user_uuid, game_id)` with no character name. The plugin decides which scope applies by including or omitting `character_name` in the identity block.
 
 ### R2 Object Layout
 
@@ -400,7 +422,11 @@ plugins/{game_id}/parser.wasm.sig
 
 - **Snapshots are immutable.** Every push creates a new timestamped object.
 - **`latest.json`** is a copy of the most recent snapshot for fast reads. Updated only if the incoming `parsed_at` timestamp is newer than the current latest (prevents race conditions from out-of-order pushes).
-- **Save UUID** is assigned by the server when a save is first pushed. The daemon includes the plugin's identity tuple (e.g., character name for D2R, farm name + player name for Stardew) in the push. The server uses `(user_uuid, game_id, identity_tuple)` to look up or create the save UUID in D1. All subsequent pushes for the same identity map to the same save UUID.
+- **Save UUID** is assigned by the server when a save is first pushed. The daemon includes the plugin's identity block in the push. The server resolves identity to a save UUID in D1:
+  - **Character saves:** `(user_uuid, game_id, character_name)` — one save per character.
+  - **Game saves:** `(user_uuid, game_id)` where `character_name` is NULL — one save per game for shared state.
+
+  D1 enforces uniqueness via partial indexes: `UNIQUE(user_uuid, game_id) WHERE character_name IS NULL` and `UNIQUE(user_uuid, game_id, character_name) WHERE character_name IS NOT NULL`. All subsequent pushes for the same identity map to the same save UUID.
 - **User UUID** is assigned at account creation. All R2 access scoped to `users/{user_uuid}/`.
 
 ### Historical Data and Diffs
@@ -476,7 +502,7 @@ X-Parsed-At: 2026-02-25T21:30:00Z
 2. Validate: is body valid JSON? Is it under 5MB?
 3. Validate structure: does top-level have `identity` and `sections` keys?
 4. Validate `X-Game` matches a known plugin.
-5. Look up save UUID from `(user_uuid, game_id, identity_tuple)` in D1. Create if first push.
+5. Look up save UUID from identity in D1. If `character_name` is present: `(user_uuid, game_id, character_name)`. If absent: `(user_uuid, game_id)` with `character_name IS NULL`. Create if first push.
 6. Write snapshot to `users/{user_uuid}/saves/{save_uuid}/snapshots/{timestamp}.json` in R2.
 7. Compare `X-Parsed-At` to current `latest.json` timestamp. Only update latest pointer if incoming is newer.
 8. Re-index save sections in FTS5 (DELETE old rows for this save, INSERT new rows per section).
@@ -587,6 +613,28 @@ CREATE TABLE device_events (
 CREATE INDEX idx_device_events_user_device ON device_events(user_uuid, device_id, created_at DESC);
 ```
 
+**Saves table (identity → save UUID mapping):**
+
+```sql
+CREATE TABLE saves (
+  uuid TEXT PRIMARY KEY,
+  user_uuid TEXT NOT NULL,
+  game_id TEXT NOT NULL,
+  character_name TEXT,              -- NULL for game-scoped saves
+  summary TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_uuid) REFERENCES users(uuid)
+);
+
+-- Character saves: one per (user, game, character).
+CREATE UNIQUE INDEX idx_saves_character
+  ON saves(user_uuid, game_id, character_name) WHERE character_name IS NOT NULL;
+
+-- Game saves: one per (user, game). Shared stash, meta-progression, etc.
+CREATE UNIQUE INDEX idx_saves_game
+  ON saves(user_uuid, game_id) WHERE character_name IS NULL;
+```
+
 ### Daemon WebSocket Client (Go)
 
 Uses `nhooyr.io/websocket` for context-aware WebSocket with clean shutdown.
@@ -692,21 +740,34 @@ Returns all saves the user has pushed, with metadata.
       "save_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       "game_id": "d2r",
       "game_name": "Diablo II: Resurrected",
+      "scope": "character",
       "name": "Hammerdin",
       "last_updated": "2026-02-25T21:30:00Z",
-      "summary": { "class": "Paladin", "level": 89 }
+      "summary": "Hammerdin, Level 89 Paladin"
+    },
+    {
+      "save_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
+      "game_id": "d2r",
+      "game_name": "Diablo II: Resurrected",
+      "scope": "game",
+      "name": null,
+      "last_updated": "2026-02-25T21:30:00Z",
+      "summary": "Shared Stash (3 tabs, 47 items)"
     },
     {
       "save_id": "b2c3d4e5-f6a7-8901-bcde-f12345678901",
       "game_id": "stardew",
       "game_name": "Stardew Valley",
+      "scope": "character",
       "name": "Sunrise Farm - Luna",
       "last_updated": "2026-02-25T20:00:00Z",
-      "summary": { "farm_type": "Standard", "year": 3, "season": "Fall" }
+      "summary": "Berry Merry Farm, Year 3 Fall — 69% Perfection"
     }
   ]
 }
 ```
+
+The `scope` field distinguishes character saves (`"character"`) from game-level saves (`"game"`). Game saves have `name: null`. AI consumers can correlate game saves with character saves by matching `game_id`.
 
 #### `get_save_sections(save_id)`
 
