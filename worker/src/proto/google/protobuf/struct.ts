@@ -76,22 +76,17 @@ export interface Value {
   kind?:
     | //
     /** Represents a null value. */
-    { $case: "nullValue"; nullValue: NullValue }
-    | //
+    { $case: "nullValue"; nullValue: NullValue } //
     /** Represents a double value. */
-    { $case: "numberValue"; numberValue: number }
-    | //
+    | { $case: "numberValue"; numberValue: number } //
     /** Represents a string value. */
-    { $case: "stringValue"; stringValue: string }
-    | //
+    | { $case: "stringValue"; stringValue: string } //
     /** Represents a boolean value. */
-    { $case: "boolValue"; boolValue: boolean }
-    | //
+    | { $case: "boolValue"; boolValue: boolean } //
     /** Represents a structured value. */
-    { $case: "structValue"; structValue: { [key: string]: any } | undefined }
-    | //
+    | { $case: "structValue"; structValue: { [key: string]: any } | undefined } //
     /** Represents a repeated `Value`. */
-    { $case: "listValue"; listValue: Array<any> | undefined }
+    | { $case: "listValue"; listValue: Array<any> | undefined }
     | undefined;
 }
 
@@ -150,12 +145,12 @@ export const Struct: MessageFns<Struct> & StructWrapperFns = {
     return {
       fields: isObject(object.fields)
         ? (globalThis.Object.entries(object.fields) as [string, any][]).reduce(
-          (acc: { [key: string]: any | undefined }, [key, value]: [string, any]) => {
-            acc[key] = value as any | undefined;
-            return acc;
-          },
-          {},
-        )
+            (acc: { [key: string]: any | undefined }, [key, value]: [string, any]) => {
+              acc[key] = value as any | undefined;
+              return acc;
+            },
+            {},
+          )
         : {},
     };
   },
@@ -179,15 +174,14 @@ export const Struct: MessageFns<Struct> & StructWrapperFns = {
   },
   fromPartial<I extends Exact<DeepPartial<Struct>, I>>(object: I): Struct {
     const message = createBaseStruct();
-    message.fields = (globalThis.Object.entries(object.fields ?? {}) as [string, any | undefined][]).reduce(
-      (acc: { [key: string]: any | undefined }, [key, value]: [string, any | undefined]) => {
-        if (value !== undefined) {
-          acc[key] = value;
-        }
-        return acc;
-      },
-      {},
-    );
+    message.fields = (
+      globalThis.Object.entries(object.fields ?? {}) as [string, any | undefined][]
+    ).reduce((acc: { [key: string]: any | undefined }, [key, value]: [string, any | undefined]) => {
+      if (value !== undefined) {
+        acc[key] = value;
+      }
+      return acc;
+    }, {});
     return message;
   },
 
@@ -362,7 +356,10 @@ export const Value: MessageFns<Value> & AnyValueWrapperFns = {
             break;
           }
 
-          message.kind = { $case: "structValue", structValue: Struct.unwrap(Struct.decode(reader, reader.uint32())) };
+          message.kind = {
+            $case: "structValue",
+            structValue: Struct.unwrap(Struct.decode(reader, reader.uint32())),
+          };
           continue;
         }
         case 6: {
@@ -370,7 +367,10 @@ export const Value: MessageFns<Value> & AnyValueWrapperFns = {
             break;
           }
 
-          message.kind = { $case: "listValue", listValue: ListValue.unwrap(ListValue.decode(reader, reader.uint32())) };
+          message.kind = {
+            $case: "listValue",
+            listValue: ListValue.unwrap(ListValue.decode(reader, reader.uint32())),
+          };
           continue;
         }
       }
@@ -387,28 +387,28 @@ export const Value: MessageFns<Value> & AnyValueWrapperFns = {
       kind: isSet(object.nullValue)
         ? { $case: "nullValue", nullValue: nullValueFromJSON(object.nullValue) }
         : isSet(object.null_value)
-        ? { $case: "nullValue", nullValue: nullValueFromJSON(object.null_value) }
-        : isSet(object.numberValue)
-        ? { $case: "numberValue", numberValue: globalThis.Number(object.numberValue) }
-        : isSet(object.number_value)
-        ? { $case: "numberValue", numberValue: globalThis.Number(object.number_value) }
-        : isSet(object.stringValue)
-        ? { $case: "stringValue", stringValue: globalThis.String(object.stringValue) }
-        : isSet(object.string_value)
-        ? { $case: "stringValue", stringValue: globalThis.String(object.string_value) }
-        : isSet(object.boolValue)
-        ? { $case: "boolValue", boolValue: globalThis.Boolean(object.boolValue) }
-        : isSet(object.bool_value)
-        ? { $case: "boolValue", boolValue: globalThis.Boolean(object.bool_value) }
-        : isSet(object.structValue)
-        ? { $case: "structValue", structValue: object.structValue }
-        : isSet(object.struct_value)
-        ? { $case: "structValue", structValue: object.struct_value }
-        : isSet(object.listValue)
-        ? { $case: "listValue", listValue: [...object.listValue] }
-        : isSet(object.list_value)
-        ? { $case: "listValue", listValue: [...object.list_value] }
-        : undefined,
+          ? { $case: "nullValue", nullValue: nullValueFromJSON(object.null_value) }
+          : isSet(object.numberValue)
+            ? { $case: "numberValue", numberValue: globalThis.Number(object.numberValue) }
+            : isSet(object.number_value)
+              ? { $case: "numberValue", numberValue: globalThis.Number(object.number_value) }
+              : isSet(object.stringValue)
+                ? { $case: "stringValue", stringValue: globalThis.String(object.stringValue) }
+                : isSet(object.string_value)
+                  ? { $case: "stringValue", stringValue: globalThis.String(object.string_value) }
+                  : isSet(object.boolValue)
+                    ? { $case: "boolValue", boolValue: globalThis.Boolean(object.boolValue) }
+                    : isSet(object.bool_value)
+                      ? { $case: "boolValue", boolValue: globalThis.Boolean(object.bool_value) }
+                      : isSet(object.structValue)
+                        ? { $case: "structValue", structValue: object.structValue }
+                        : isSet(object.struct_value)
+                          ? { $case: "structValue", structValue: object.struct_value }
+                          : isSet(object.listValue)
+                            ? { $case: "listValue", listValue: [...object.listValue] }
+                            : isSet(object.list_value)
+                              ? { $case: "listValue", listValue: [...object.list_value] }
+                              : undefined,
     };
   },
 
@@ -589,15 +589,21 @@ export const ListValue: MessageFns<ListValue> & ListValueWrapperFns = {
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin ? T
-  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
-  : T extends { $case: string } ? { [K in keyof Omit<T, "$case">]?: DeepPartial<T[K]> } & { $case: T["$case"] }
-  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+export type DeepPartial<T> = T extends Builtin
+  ? T
+  : T extends globalThis.Array<infer U>
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends { $case: string }
+        ? { [K in keyof Omit<T, "$case">]?: DeepPartial<T[K]> } & { $case: T["$case"] }
+        : T extends {}
+          ? { [K in keyof T]?: DeepPartial<T[K]> }
+          : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin ? P
+export type Exact<P, I extends P> = P extends Builtin
+  ? P
   : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
 
 function isObject(value: any): boolean {
