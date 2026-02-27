@@ -127,7 +127,7 @@ describe("Push API", () => {
 
     // latest.json should still have the newer push's data
     const latestKey = `users/${TEST_USER}/saves/${body1.save_uuid}/latest.json`;
-    const latest = await env.SNAPSHOTS.get(latestKey);
+    const latest = await env.SAVES.get(latestKey);
     expect(latest).not.toBeNull();
     const latestData = await latest!.json<{ summary: string }>();
     expect(latestData.summary).toBe("Newer push");
@@ -162,7 +162,7 @@ describe("Push API", () => {
     expect(resp2.status).toBe(201);
 
     const latestKey = `users/${TEST_USER}/saves/${body1.save_uuid}/latest.json`;
-    const latest = await env.SNAPSHOTS.get(latestKey);
+    const latest = await env.SAVES.get(latestKey);
     const latestData = await latest!.json<{ summary: string }>();
     expect(latestData.summary).toBe("Second push");
   });

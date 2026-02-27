@@ -22,7 +22,7 @@ describe("Plugin Registry", () => {
       version: "1.0.0",
       sha256: "abc123def456",
     };
-    await env.SNAPSHOTS.put("plugins/d2r/manifest.json", JSON.stringify(d2rManifest));
+    await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(d2rManifest));
 
     const resp = await SELF.fetch("https://test-host/api/v1/plugins/manifest");
     expect(resp.status).toBe(200);
@@ -55,7 +55,7 @@ describe("Plugin Registry", () => {
         darwin: "~/Library/Application Support/Diablo II Resurrected",
       },
     };
-    await env.SNAPSHOTS.put("plugins/d2r/manifest.json", JSON.stringify(d2rManifest));
+    await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(d2rManifest));
 
     const resp = await SELF.fetch("https://test-host/api/v1/plugins/manifest");
     expect(resp.status).toBe(200);
@@ -83,11 +83,11 @@ describe("Plugin Registry", () => {
   });
 
   it("returns multiple plugins", async () => {
-    await env.SNAPSHOTS.put(
+    await env.PLUGINS.put(
       "plugins/d2r/manifest.json",
       JSON.stringify({ game_id: "d2r", version: "1.0.0", sha256: "abc" }),
     );
-    await env.SNAPSHOTS.put(
+    await env.PLUGINS.put(
       "plugins/stardew/manifest.json",
       JSON.stringify({ game_id: "stardew", version: "2.0.0", sha256: "def" }),
     );
