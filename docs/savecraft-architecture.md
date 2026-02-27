@@ -108,7 +108,9 @@ savecraft/
 ├── worker/                      # Cloudflare Worker + Durable Object (TypeScript)
 │   ├── src/
 │   │   ├── index.ts             # Worker routes, request handling
-│   │   ├── hub.ts               # DaemonHub Durable Object class (WebSocket relay)
+│   │   ├── hub.ts               # SaveHub Durable Object class (WebSocket relay + API fetch coordinator)
+│   │   ├── adapters/            # Server-side game adapters (API-backed saves)
+│   │   │   └── poe2.ts          # Path of Exile 2 adapter (GGG API)
 │   │   └── proto/               # Generated TypeScript from protobuf (do not edit)
 │   │       └── savecraft/v1/
 │   │           └── protocol.ts
@@ -336,6 +338,89 @@ plugins/{game_id}/parser.wasm.sig
 
 **Trust model:** Community contributors submit PRs with parser source code to the `plugins/` directory in the monorepo. CI builds the WASM. Maintainer reviews source code and merges. Release pipeline signs the binary. Same model as Linux package signing.
 
+## Server-Side Game Adapters
+
+### Why Not WASM
+
+The daemon plugin model is designed around local file parsing: read bytes from stdin, write ndjson to stdout, no network, no secrets, no ambient authority. API-backed games (PoE2, WoW via Battle.net, FFXIV) break every one of those constraints:
+
+- **Network access** to hit game APIs
+- **Secrets** (OAuth tokens, API keys) that should never touch the user's machine
+- **Rate limiting / retry logic** better handled server-side
+- **No daemon dependency** — the whole point of API games is the user doesn't need local software
+
+These are not plugins. They're **server-side game adapters**: TypeScript modules that run in the SaveHub DO, with access to credentials and outbound `fetch()`.
+
+### Adapter Interface
+
+```typescript
+interface GameAdapter {
+  gameId: string;
+  gameName: string;
+  fetchSave(credentials: GameCredentials, characterId?: string): Promise<GameState>;
+  listCharacters(credentials: GameCredentials): Promise<CharacterInfo[]>;
+}
+
+interface GameCredentials {
+  accessToken: string;
+  refreshToken?: string;
+  expiresAt?: number;
+}
+
+interface CharacterInfo {
+  characterId: string;
+  name: string;
+  summary: string;  // e.g. "Level 95 Witch — Occultist"
+}
+```
+
+Each adapter is a plain TypeScript module in `worker/src/adapters/`. No WASM, no sandbox, no signing. They're first-party server code, deployed with the Worker.
+
+The output is the same `GameState` shape that daemon plugins produce — sections with arbitrary JSON per game. R2 storage, D1 metadata, MCP tools, search — all identical downstream.
+
+### Credential Management
+
+Game API credentials are stored in D1, encrypted at rest with a Worker-level secret (`CREDENTIAL_KEY` in `wrangler.toml` secrets).
+
+```sql
+CREATE TABLE game_credentials (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  user_uuid TEXT NOT NULL,
+  game_id TEXT NOT NULL,
+  access_token_enc TEXT NOT NULL,    -- encrypted
+  refresh_token_enc TEXT,            -- encrypted, nullable
+  expires_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY (user_uuid) REFERENCES users(uuid),
+  UNIQUE(user_uuid, game_id)
+);
+```
+
+**OAuth flows:** Each game has its own OAuth provider (Battle.net, GGG, etc.). The web UI initiates the OAuth dance, the Worker handles the callback, and the resulting tokens are encrypted and stored. Token refresh happens automatically when the adapter detects expiry.
+
+**No tokens on the user's machine.** The daemon never sees game API credentials. This is a security advantage — a compromised daemon can't leak OAuth tokens for games it doesn't even handle.
+
+### Refresh Flow
+
+When `refresh_save` targets an API-backed save:
+
+```
+MCP client → Worker → SaveHub DO → adapter.fetchSave(credentials, characterId)
+                                  → game API (e.g. api.pathofexile.com)
+                                  ← GameState JSON
+                                  → write to R2 (same layout as daemon pushes)
+                                  → update D1 metadata (save row, summary)
+                                  → emit status event to UI WebSocket
+                                  ← { refreshed: true, timestamp: "..." }
+```
+
+The SaveHub emits the same status event types as daemon-backed parses (`ParseStarted`, `ParseCompleted`, etc.) so the UI activity feed renders identically.
+
+### Rate Limiting
+
+Game APIs have rate limits (GGG: ~45 req/min, Battle.net: varies by endpoint). Adapters must respect these. Since adapters run in the SaveHub DO (one per user, single-threaded), there's a natural serialization per user. Cross-user rate limiting (shared API key limits) requires a separate rate limiter — a small DO keyed by game ID that tracks request counts.
+
 ## Data Schema
 
 ### GameState (plugin output)
@@ -520,14 +605,20 @@ X-Parsed-At: 2026-02-25T21:30:00Z
 
 The daemon and web UI maintain persistent WebSocket connections to a per-user Durable Object (DO) that acts as a message hub. This enables real-time config delivery, live status reporting, and an interactive setup experience where users see immediate feedback as the daemon discovers and parses saves.
 
-### Architecture: Durable Object Hub
+### Architecture: SaveHub Durable Object
 
-Each user gets a single Durable Object, keyed by user UUID (`env.DAEMON_HUB.get(env.DAEMON_HUB.idFromName(userUUID))`). The DO holds up to two tagged WebSocket connections:
+Each user gets a single Durable Object (`SaveHub`), keyed by user UUID (`env.SAVE_HUB.get(env.SAVE_HUB.idFromName(userUUID))`). The SaveHub is the per-user coordination point for all save updates, regardless of source.
 
-- **`"daemon"` connection:** One per device. The daemon connects on startup and maintains the connection for the lifetime of the process.
-- **`"ui"` connection:** One per active web UI session. The browser connects when the user opens the device status page and disconnects when they navigate away.
+**Two roles:**
 
-The DO is a dumb relay with labeled sockets. It receives messages from one side, inspects the tag, and forwards to the other side. When no connections are active, the DO hibernates and incurs zero cost.
+1. **WebSocket relay** for daemon-backed saves. Holds up to two tagged WebSocket connections:
+   - **`"daemon"` connection:** One per device. The daemon connects on startup and maintains the connection for the lifetime of the process.
+   - **`"ui"` connection:** One per active web UI session. The browser connects when the user opens the device status page and disconnects when they navigate away.
+   - Receives messages from one side, inspects the tag, forwards to the other. For `refresh_save` on daemon-backed games, sends `RescanGame` to the daemon.
+
+2. **API fetch coordinator** for API-backed saves. When `refresh_save` targets an API-backed game, the SaveHub calls the game adapter directly — fetches from the game API, shapes the response into GameState, writes to R2, and updates D1. Status events flow to the UI WebSocket the same as daemon events ("Fetching PoE2 character…", "Updated PoE2 character ✓").
+
+When no connections are active and no fetches are in progress, the DO hibernates and incurs zero cost.
 
 **Why one DO per user (not shared):** Durable Objects are actors — single-threaded, pinned to a region. A shared DO serving 500 users would need internal routing tables and creates a single point of failure. Per-user DOs have zero routing logic, zero cross-user concerns, and cost nothing when idle thanks to WebSocket Hibernation. Cloudflare designed DOs for the "millions of tiny actors" pattern; the billing model assumes it.
 
@@ -823,7 +914,7 @@ Returns changes between two snapshots for a section.
 
 Requests fresh data for a save. The server routes to the appropriate ingest path based on the save's game type — the MCP client never needs to know which path is taken.
 
-- **Daemon-backed saves** (local files: D2R, Stardew, etc.): The Worker sends `RescanGame` to the DaemonHub DO, which forwards it to the daemon over WebSocket. The daemon rescans the save directory, re-parses changed files, and pushes fresh data to R2 via the push API.
+- **Daemon-backed saves** (local files: D2R, Stardew, etc.): The Worker sends `RescanGame` to the SaveHub DO, which forwards it to the daemon over WebSocket. The daemon rescans the save directory, re-parses changed files, and pushes fresh data to R2 via the push API.
 - **API-backed saves** (remote APIs: PoE2, WoW via Battle.net, etc.): The Worker fetches directly from the game's API using stored credentials, parses the response, and writes to R2.
 
 Both paths produce the same result: updated snapshots in R2, updated metadata in D1. Subsequent `get_section` calls return the fresh data.
@@ -1286,26 +1377,29 @@ Free tier generous enough for word-of-mouth. Paid tier unlocks infrastructure-in
 | Baldur's Gate 3 | `.lsv` (Larian format) | Good. Norbyte's LSLib is canonical. | Large saves (~100MB) but compressible. Character builds, spell selections, quest state. |
 | Civilization VI | `.Civ6Save` (compressed binary) | Moderate. pydt/civ6-save-parser (npm). Format partially documented. | Amazing advisory angle: "is my science output on track?" |
 
-### Tier 4: API-Based (Different Plugin Type)
+### Tier 4: API-Based (Server-Side Adapters)
 
 | Game | Data Source | Notes |
 |------|-----------|-------|
-| WoW (via addons) | `SavedVariables/*.lua` local files | Addons like Simulationcraft dump full character sheet to local Lua files. Parse those. |
-| WoW (via API) | Battle.net API | Character profiles, gear, stats, achievements. Plugin becomes "data source adapter" not file parser. |
-| FFXIV | Lodestone (unofficial scrapers) | No local save data. API-based acquisition. |
+| Path of Exile 2 | GGG OAuth API | Character profiles, passive tree, equipped items, stash tabs. Official OAuth with granular scopes. |
+| WoW (via API) | Battle.net OAuth API | Character profiles, gear, stats, achievements, mythic+ scores. Battle.net OAuth. |
+| WoW (via addons) | `SavedVariables/*.lua` local files | Addons like Simulationcraft dump full character sheet to local Lua files. Daemon-backed parser — Tier 3 complexity, not an adapter. |
+| FFXIV | Lodestone / XIVAPI (unofficial) | No local save data. Community APIs, no official OAuth. Fragile but viable. |
 
-The "plugin" concept generalizes from "binary file parser" to "data source adapter" — some plugins parse files, some call APIs. The daemon and MCP serving layer are identical either way.
+These are **not WASM plugins**. The daemon plugin model assumes local files, no network, no secrets. API-backed games break all three constraints. Instead, these are **server-side game adapters** — TypeScript modules that run in the Worker/SaveHub, with access to credentials and outbound `fetch()`.
 
-**Dual ingest, single abstraction.** The `refresh_save` MCP tool unifies both paths. For daemon-backed saves (local file parsers), the Worker sends `RescanGame` through the DO to the daemon. For API-backed saves, the Worker fetches from the game API directly. The MCP client — and by extension the AI — never knows which path is taken. One tool, two ingest paths, same R2 result. See [MCP Tools → `refresh_save`](#refresh_savesave_id) for the full contract.
+See [Server-Side Game Adapters](#server-side-game-adapters) for the full architecture.
+
+**Dual ingest, single abstraction.** The `refresh_save` MCP tool unifies both paths. For daemon-backed saves, the SaveHub sends `RescanGame` to the daemon over WebSocket. For API-backed saves, the SaveHub calls the game adapter directly. The MCP client — and by extension the AI — never knows which path is taken. One tool, two ingest paths, same R2 result. See [MCP Tools → `refresh_save`](#refresh_savesave_id) for the full contract.
 
 **Conversation pattern is identical for both:**
 
 ```
 Player (PoE2, API-backed):  "I just slotted a new skill gem."
-AI: calls refresh_save → Worker hits GGG API → R2 updated → AI reads fresh sections
+AI: calls refresh_save → SaveHub calls GGG API → R2 updated → AI reads fresh sections
 
 Player (Stardew, daemon-backed):  "I just finished the Community Center!"
-AI: calls refresh_save → Worker pokes DO → daemon rescans → pushes to R2 → AI reads fresh sections
+AI: calls refresh_save → SaveHub sends RescanGame → daemon rescans → pushes to R2 → AI reads fresh sections
 ```
 
 ## Development Tooling
@@ -1353,7 +1447,7 @@ These are policy decisions, not architecture decisions. Nothing about them chang
 ## Implementation Order
 
 1. **Cloud skeleton:** Register savecraft.gg. Stand up R2 bucket, D1 database, Workers skeleton, Clerk instance. Basic push API that accepts JSON and writes to R2.
-2. **Durable Object hub:** Implement DaemonHub DO class with WebSocket Hibernation. `/ws/daemon` and `/ws/ui` upgrade routes. Message protocol types. Status event persistence in D1.
+2. **Durable Object hub:** Implement SaveHub DO class with WebSocket Hibernation. `/ws/daemon` and `/ws/ui` upgrade routes. Message protocol types. Status event persistence in D1.
 3. **Daemon core + WebSocket:** Go daemon binary with WebSocket client (nhooyr.io/websocket), reconnection backoff, status event reporting. Filesystem watcher (fsnotify + debounce + hash). Can test with dummy parse events before real WASM plugins.
 4. **Web UI: device status page:** Activity feed, device health cards, game detection display. Real-time updates via WebSocket. This is the onboarding experience — users need to see the daemon working before anything else matters.
 5. **Installation packaging:** Linux/Deck curl installer with systemd sandboxing. Windows MSI with code signing. macOS .pkg with notarization. Signature verification in all installers.
