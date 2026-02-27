@@ -17,11 +17,7 @@
 
   // Route guard: redirect to /sign-in if not authenticated and not on a public route
   $effect(() => {
-    if (
-      $authState.isLoaded &&
-      !$authState.isSignedIn &&
-      !PUBLIC_ROUTES.has(page.url.pathname)
-    ) {
+    if ($authState.isLoaded && !$authState.isSignedIn && !PUBLIC_ROUTES.has(page.url.pathname)) {
       void goto(resolve("/sign-up"));
     }
   });

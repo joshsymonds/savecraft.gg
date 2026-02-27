@@ -13,12 +13,7 @@
 <Story name="ParseStarted">
   <div style="width: 420px;">
     <Panel>
-      <ActivityEvent
-        type="parse_started"
-        message="Parsing Atmus.d2s"
-        detail="d2r"
-        time="now"
-      />
+      <ActivityEvent type="parse_started" message="Parsing Atmus.d2s" detail="d2r" time="now" />
     </Panel>
   </div>
 </Story>
