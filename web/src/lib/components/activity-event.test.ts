@@ -51,7 +51,7 @@ describe("ActivityEvent", () => {
     });
 
     const icon = container.querySelector(".icon");
-    expect(icon?.textContent).toBe("◌");
+    expect(icon?.textContent).toBe("○");
   });
 
   it("shows correct icon for parse_failed", () => {
@@ -77,7 +77,7 @@ describe("ActivityEvent", () => {
     });
 
     const icon = container.querySelector(".icon");
-    expect(icon?.textContent).toBe("»");
+    expect(icon?.textContent).toBe("›");
   });
 
   it("renders time", () => {
