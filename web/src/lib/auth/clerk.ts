@@ -105,6 +105,7 @@ export async function initializeClerk(): Promise<void> {
   if (clerkInstance) return;
 
   const clerkModule = await import("@clerk/clerk-js");
+  // eslint-disable-next-line @typescript-eslint/no-unsafe-argument -- $env types depend on .env.local which CI lacks
   const clerk = new clerkModule.Clerk(PUBLIC_CLERK_PUBLISHABLE_KEY);
   clerkInstance = clerk;
 

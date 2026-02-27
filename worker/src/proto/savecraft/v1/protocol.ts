@@ -117,39 +117,32 @@ export interface Message {
     | //
     /** Daemon lifecycle (1-9) */
     { $case: "daemonOnline"; daemonOnline: DaemonOnline }
-    | { $case: "daemonOffline"; daemonOffline: DaemonOffline }
-    | //
+    | { $case: "daemonOffline"; daemonOffline: DaemonOffline } //
     /** Game discovery (10-19) */
-    { $case: "scanStarted"; scanStarted: ScanStarted }
+    | { $case: "scanStarted"; scanStarted: ScanStarted }
     | { $case: "scanCompleted"; scanCompleted: ScanCompleted }
     | { $case: "gameDetected"; gameDetected: GameDetected }
     | { $case: "gameNotFound"; gameNotFound: GameNotFound }
-    | { $case: "watching"; watching: Watching }
-    | //
+    | { $case: "watching"; watching: Watching } //
     /** Parse lifecycle (20-29) */
-    { $case: "parseStarted"; parseStarted: ParseStarted }
+    | { $case: "parseStarted"; parseStarted: ParseStarted }
     | { $case: "pluginStatus"; pluginStatus: PluginStatus }
     | { $case: "parseCompleted"; parseCompleted: ParseCompleted }
-    | { $case: "parseFailed"; parseFailed: ParseFailed }
-    | //
+    | { $case: "parseFailed"; parseFailed: ParseFailed } //
     /** Push lifecycle (30-39) */
-    { $case: "pushStarted"; pushStarted: PushStarted }
+    | { $case: "pushStarted"; pushStarted: PushStarted }
     | { $case: "pushCompleted"; pushCompleted: PushCompleted }
-    | { $case: "pushFailed"; pushFailed: PushFailed }
-    | //
+    | { $case: "pushFailed"; pushFailed: PushFailed } //
     /** Plugin management (40-49) */
-    { $case: "pluginUpdated"; pluginUpdated: PluginUpdated }
-    | //
+    | { $case: "pluginUpdated"; pluginUpdated: PluginUpdated } //
     /** Commands: server → daemon (50-59) */
-    { $case: "configUpdate"; configUpdate: ConfigUpdate }
+    | { $case: "configUpdate"; configUpdate: ConfigUpdate }
     | { $case: "rescanGame"; rescanGame: RescanGame }
-    | { $case: "pluginAvailable"; pluginAvailable: PluginAvailable }
-    | //
+    | { $case: "pluginAvailable"; pluginAvailable: PluginAvailable } //
     /** State: server → UI (60-69) */
-    { $case: "deviceState"; deviceState: DeviceState }
-    | //
+    | { $case: "deviceState"; deviceState: DeviceState } //
     /** User actions: UI → server → daemon (70-79) */
-    { $case: "testPath"; testPath: TestPath }
+    | { $case: "testPath"; testPath: TestPath }
     | { $case: "testPathResult"; testPathResult: TestPathResult }
     | undefined;
 }
@@ -436,7 +429,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "daemonOnline", daemonOnline: DaemonOnline.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "daemonOnline",
+            daemonOnline: DaemonOnline.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 2: {
@@ -444,7 +440,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "daemonOffline", daemonOffline: DaemonOffline.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "daemonOffline",
+            daemonOffline: DaemonOffline.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 10: {
@@ -452,7 +451,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "scanStarted", scanStarted: ScanStarted.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "scanStarted",
+            scanStarted: ScanStarted.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 11: {
@@ -460,7 +462,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "scanCompleted", scanCompleted: ScanCompleted.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "scanCompleted",
+            scanCompleted: ScanCompleted.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 12: {
@@ -468,7 +473,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "gameDetected", gameDetected: GameDetected.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "gameDetected",
+            gameDetected: GameDetected.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 13: {
@@ -476,7 +484,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "gameNotFound", gameNotFound: GameNotFound.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "gameNotFound",
+            gameNotFound: GameNotFound.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 14: {
@@ -484,7 +495,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "watching", watching: Watching.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "watching",
+            watching: Watching.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 20: {
@@ -492,7 +506,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "parseStarted", parseStarted: ParseStarted.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "parseStarted",
+            parseStarted: ParseStarted.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 21: {
@@ -500,7 +517,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "pluginStatus", pluginStatus: PluginStatus.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "pluginStatus",
+            pluginStatus: PluginStatus.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 22: {
@@ -508,7 +528,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "parseCompleted", parseCompleted: ParseCompleted.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "parseCompleted",
+            parseCompleted: ParseCompleted.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 23: {
@@ -516,7 +539,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "parseFailed", parseFailed: ParseFailed.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "parseFailed",
+            parseFailed: ParseFailed.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 30: {
@@ -524,7 +550,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "pushStarted", pushStarted: PushStarted.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "pushStarted",
+            pushStarted: PushStarted.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 31: {
@@ -532,7 +561,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "pushCompleted", pushCompleted: PushCompleted.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "pushCompleted",
+            pushCompleted: PushCompleted.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 32: {
@@ -540,7 +572,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "pushFailed", pushFailed: PushFailed.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "pushFailed",
+            pushFailed: PushFailed.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 40: {
@@ -548,7 +583,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "pluginUpdated", pluginUpdated: PluginUpdated.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "pluginUpdated",
+            pluginUpdated: PluginUpdated.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 50: {
@@ -556,7 +594,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "configUpdate", configUpdate: ConfigUpdate.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "configUpdate",
+            configUpdate: ConfigUpdate.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 51: {
@@ -564,7 +605,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "rescanGame", rescanGame: RescanGame.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "rescanGame",
+            rescanGame: RescanGame.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 52: {
@@ -583,7 +627,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "deviceState", deviceState: DeviceState.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "deviceState",
+            deviceState: DeviceState.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 70: {
@@ -591,7 +638,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "testPath", testPath: TestPath.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "testPath",
+            testPath: TestPath.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 71: {
@@ -599,7 +649,10 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "testPathResult", testPathResult: TestPathResult.decode(reader, reader.uint32()) };
+          message.payload = {
+            $case: "testPathResult",
+            testPathResult: TestPathResult.decode(reader, reader.uint32()),
+          };
           continue;
         }
       }
@@ -616,86 +669,285 @@ export const Message: MessageFns<Message> = {
       payload: isSet(object.daemonOnline)
         ? { $case: "daemonOnline", daemonOnline: DaemonOnline.fromJSON(object.daemonOnline) }
         : isSet(object.daemon_online)
-        ? { $case: "daemonOnline", daemonOnline: DaemonOnline.fromJSON(object.daemon_online) }
-        : isSet(object.daemonOffline)
-        ? { $case: "daemonOffline", daemonOffline: DaemonOffline.fromJSON(object.daemonOffline) }
-        : isSet(object.daemon_offline)
-        ? { $case: "daemonOffline", daemonOffline: DaemonOffline.fromJSON(object.daemon_offline) }
-        : isSet(object.scanStarted)
-        ? { $case: "scanStarted", scanStarted: ScanStarted.fromJSON(object.scanStarted) }
-        : isSet(object.scan_started)
-        ? { $case: "scanStarted", scanStarted: ScanStarted.fromJSON(object.scan_started) }
-        : isSet(object.scanCompleted)
-        ? { $case: "scanCompleted", scanCompleted: ScanCompleted.fromJSON(object.scanCompleted) }
-        : isSet(object.scan_completed)
-        ? { $case: "scanCompleted", scanCompleted: ScanCompleted.fromJSON(object.scan_completed) }
-        : isSet(object.gameDetected)
-        ? { $case: "gameDetected", gameDetected: GameDetected.fromJSON(object.gameDetected) }
-        : isSet(object.game_detected)
-        ? { $case: "gameDetected", gameDetected: GameDetected.fromJSON(object.game_detected) }
-        : isSet(object.gameNotFound)
-        ? { $case: "gameNotFound", gameNotFound: GameNotFound.fromJSON(object.gameNotFound) }
-        : isSet(object.game_not_found)
-        ? { $case: "gameNotFound", gameNotFound: GameNotFound.fromJSON(object.game_not_found) }
-        : isSet(object.watching)
-        ? { $case: "watching", watching: Watching.fromJSON(object.watching) }
-        : isSet(object.parseStarted)
-        ? { $case: "parseStarted", parseStarted: ParseStarted.fromJSON(object.parseStarted) }
-        : isSet(object.parse_started)
-        ? { $case: "parseStarted", parseStarted: ParseStarted.fromJSON(object.parse_started) }
-        : isSet(object.pluginStatus)
-        ? { $case: "pluginStatus", pluginStatus: PluginStatus.fromJSON(object.pluginStatus) }
-        : isSet(object.plugin_status)
-        ? { $case: "pluginStatus", pluginStatus: PluginStatus.fromJSON(object.plugin_status) }
-        : isSet(object.parseCompleted)
-        ? { $case: "parseCompleted", parseCompleted: ParseCompleted.fromJSON(object.parseCompleted) }
-        : isSet(object.parse_completed)
-        ? { $case: "parseCompleted", parseCompleted: ParseCompleted.fromJSON(object.parse_completed) }
-        : isSet(object.parseFailed)
-        ? { $case: "parseFailed", parseFailed: ParseFailed.fromJSON(object.parseFailed) }
-        : isSet(object.parse_failed)
-        ? { $case: "parseFailed", parseFailed: ParseFailed.fromJSON(object.parse_failed) }
-        : isSet(object.pushStarted)
-        ? { $case: "pushStarted", pushStarted: PushStarted.fromJSON(object.pushStarted) }
-        : isSet(object.push_started)
-        ? { $case: "pushStarted", pushStarted: PushStarted.fromJSON(object.push_started) }
-        : isSet(object.pushCompleted)
-        ? { $case: "pushCompleted", pushCompleted: PushCompleted.fromJSON(object.pushCompleted) }
-        : isSet(object.push_completed)
-        ? { $case: "pushCompleted", pushCompleted: PushCompleted.fromJSON(object.push_completed) }
-        : isSet(object.pushFailed)
-        ? { $case: "pushFailed", pushFailed: PushFailed.fromJSON(object.pushFailed) }
-        : isSet(object.push_failed)
-        ? { $case: "pushFailed", pushFailed: PushFailed.fromJSON(object.push_failed) }
-        : isSet(object.pluginUpdated)
-        ? { $case: "pluginUpdated", pluginUpdated: PluginUpdated.fromJSON(object.pluginUpdated) }
-        : isSet(object.plugin_updated)
-        ? { $case: "pluginUpdated", pluginUpdated: PluginUpdated.fromJSON(object.plugin_updated) }
-        : isSet(object.configUpdate)
-        ? { $case: "configUpdate", configUpdate: ConfigUpdate.fromJSON(object.configUpdate) }
-        : isSet(object.config_update)
-        ? { $case: "configUpdate", configUpdate: ConfigUpdate.fromJSON(object.config_update) }
-        : isSet(object.rescanGame)
-        ? { $case: "rescanGame", rescanGame: RescanGame.fromJSON(object.rescanGame) }
-        : isSet(object.rescan_game)
-        ? { $case: "rescanGame", rescanGame: RescanGame.fromJSON(object.rescan_game) }
-        : isSet(object.pluginAvailable)
-        ? { $case: "pluginAvailable", pluginAvailable: PluginAvailable.fromJSON(object.pluginAvailable) }
-        : isSet(object.plugin_available)
-        ? { $case: "pluginAvailable", pluginAvailable: PluginAvailable.fromJSON(object.plugin_available) }
-        : isSet(object.deviceState)
-        ? { $case: "deviceState", deviceState: DeviceState.fromJSON(object.deviceState) }
-        : isSet(object.device_state)
-        ? { $case: "deviceState", deviceState: DeviceState.fromJSON(object.device_state) }
-        : isSet(object.testPath)
-        ? { $case: "testPath", testPath: TestPath.fromJSON(object.testPath) }
-        : isSet(object.test_path)
-        ? { $case: "testPath", testPath: TestPath.fromJSON(object.test_path) }
-        : isSet(object.testPathResult)
-        ? { $case: "testPathResult", testPathResult: TestPathResult.fromJSON(object.testPathResult) }
-        : isSet(object.test_path_result)
-        ? { $case: "testPathResult", testPathResult: TestPathResult.fromJSON(object.test_path_result) }
-        : undefined,
+          ? { $case: "daemonOnline", daemonOnline: DaemonOnline.fromJSON(object.daemon_online) }
+          : isSet(object.daemonOffline)
+            ? {
+                $case: "daemonOffline",
+                daemonOffline: DaemonOffline.fromJSON(object.daemonOffline),
+              }
+            : isSet(object.daemon_offline)
+              ? {
+                  $case: "daemonOffline",
+                  daemonOffline: DaemonOffline.fromJSON(object.daemon_offline),
+                }
+              : isSet(object.scanStarted)
+                ? { $case: "scanStarted", scanStarted: ScanStarted.fromJSON(object.scanStarted) }
+                : isSet(object.scan_started)
+                  ? { $case: "scanStarted", scanStarted: ScanStarted.fromJSON(object.scan_started) }
+                  : isSet(object.scanCompleted)
+                    ? {
+                        $case: "scanCompleted",
+                        scanCompleted: ScanCompleted.fromJSON(object.scanCompleted),
+                      }
+                    : isSet(object.scan_completed)
+                      ? {
+                          $case: "scanCompleted",
+                          scanCompleted: ScanCompleted.fromJSON(object.scan_completed),
+                        }
+                      : isSet(object.gameDetected)
+                        ? {
+                            $case: "gameDetected",
+                            gameDetected: GameDetected.fromJSON(object.gameDetected),
+                          }
+                        : isSet(object.game_detected)
+                          ? {
+                              $case: "gameDetected",
+                              gameDetected: GameDetected.fromJSON(object.game_detected),
+                            }
+                          : isSet(object.gameNotFound)
+                            ? {
+                                $case: "gameNotFound",
+                                gameNotFound: GameNotFound.fromJSON(object.gameNotFound),
+                              }
+                            : isSet(object.game_not_found)
+                              ? {
+                                  $case: "gameNotFound",
+                                  gameNotFound: GameNotFound.fromJSON(object.game_not_found),
+                                }
+                              : isSet(object.watching)
+                                ? {
+                                    $case: "watching",
+                                    watching: Watching.fromJSON(object.watching),
+                                  }
+                                : isSet(object.parseStarted)
+                                  ? {
+                                      $case: "parseStarted",
+                                      parseStarted: ParseStarted.fromJSON(object.parseStarted),
+                                    }
+                                  : isSet(object.parse_started)
+                                    ? {
+                                        $case: "parseStarted",
+                                        parseStarted: ParseStarted.fromJSON(object.parse_started),
+                                      }
+                                    : isSet(object.pluginStatus)
+                                      ? {
+                                          $case: "pluginStatus",
+                                          pluginStatus: PluginStatus.fromJSON(object.pluginStatus),
+                                        }
+                                      : isSet(object.plugin_status)
+                                        ? {
+                                            $case: "pluginStatus",
+                                            pluginStatus: PluginStatus.fromJSON(
+                                              object.plugin_status,
+                                            ),
+                                          }
+                                        : isSet(object.parseCompleted)
+                                          ? {
+                                              $case: "parseCompleted",
+                                              parseCompleted: ParseCompleted.fromJSON(
+                                                object.parseCompleted,
+                                              ),
+                                            }
+                                          : isSet(object.parse_completed)
+                                            ? {
+                                                $case: "parseCompleted",
+                                                parseCompleted: ParseCompleted.fromJSON(
+                                                  object.parse_completed,
+                                                ),
+                                              }
+                                            : isSet(object.parseFailed)
+                                              ? {
+                                                  $case: "parseFailed",
+                                                  parseFailed: ParseFailed.fromJSON(
+                                                    object.parseFailed,
+                                                  ),
+                                                }
+                                              : isSet(object.parse_failed)
+                                                ? {
+                                                    $case: "parseFailed",
+                                                    parseFailed: ParseFailed.fromJSON(
+                                                      object.parse_failed,
+                                                    ),
+                                                  }
+                                                : isSet(object.pushStarted)
+                                                  ? {
+                                                      $case: "pushStarted",
+                                                      pushStarted: PushStarted.fromJSON(
+                                                        object.pushStarted,
+                                                      ),
+                                                    }
+                                                  : isSet(object.push_started)
+                                                    ? {
+                                                        $case: "pushStarted",
+                                                        pushStarted: PushStarted.fromJSON(
+                                                          object.push_started,
+                                                        ),
+                                                      }
+                                                    : isSet(object.pushCompleted)
+                                                      ? {
+                                                          $case: "pushCompleted",
+                                                          pushCompleted: PushCompleted.fromJSON(
+                                                            object.pushCompleted,
+                                                          ),
+                                                        }
+                                                      : isSet(object.push_completed)
+                                                        ? {
+                                                            $case: "pushCompleted",
+                                                            pushCompleted: PushCompleted.fromJSON(
+                                                              object.push_completed,
+                                                            ),
+                                                          }
+                                                        : isSet(object.pushFailed)
+                                                          ? {
+                                                              $case: "pushFailed",
+                                                              pushFailed: PushFailed.fromJSON(
+                                                                object.pushFailed,
+                                                              ),
+                                                            }
+                                                          : isSet(object.push_failed)
+                                                            ? {
+                                                                $case: "pushFailed",
+                                                                pushFailed: PushFailed.fromJSON(
+                                                                  object.push_failed,
+                                                                ),
+                                                              }
+                                                            : isSet(object.pluginUpdated)
+                                                              ? {
+                                                                  $case: "pluginUpdated",
+                                                                  pluginUpdated:
+                                                                    PluginUpdated.fromJSON(
+                                                                      object.pluginUpdated,
+                                                                    ),
+                                                                }
+                                                              : isSet(object.plugin_updated)
+                                                                ? {
+                                                                    $case: "pluginUpdated",
+                                                                    pluginUpdated:
+                                                                      PluginUpdated.fromJSON(
+                                                                        object.plugin_updated,
+                                                                      ),
+                                                                  }
+                                                                : isSet(object.configUpdate)
+                                                                  ? {
+                                                                      $case: "configUpdate",
+                                                                      configUpdate:
+                                                                        ConfigUpdate.fromJSON(
+                                                                          object.configUpdate,
+                                                                        ),
+                                                                    }
+                                                                  : isSet(object.config_update)
+                                                                    ? {
+                                                                        $case: "configUpdate",
+                                                                        configUpdate:
+                                                                          ConfigUpdate.fromJSON(
+                                                                            object.config_update,
+                                                                          ),
+                                                                      }
+                                                                    : isSet(object.rescanGame)
+                                                                      ? {
+                                                                          $case: "rescanGame",
+                                                                          rescanGame:
+                                                                            RescanGame.fromJSON(
+                                                                              object.rescanGame,
+                                                                            ),
+                                                                        }
+                                                                      : isSet(object.rescan_game)
+                                                                        ? {
+                                                                            $case: "rescanGame",
+                                                                            rescanGame:
+                                                                              RescanGame.fromJSON(
+                                                                                object.rescan_game,
+                                                                              ),
+                                                                          }
+                                                                        : isSet(
+                                                                              object.pluginAvailable,
+                                                                            )
+                                                                          ? {
+                                                                              $case:
+                                                                                "pluginAvailable",
+                                                                              pluginAvailable:
+                                                                                PluginAvailable.fromJSON(
+                                                                                  object.pluginAvailable,
+                                                                                ),
+                                                                            }
+                                                                          : isSet(
+                                                                                object.plugin_available,
+                                                                              )
+                                                                            ? {
+                                                                                $case:
+                                                                                  "pluginAvailable",
+                                                                                pluginAvailable:
+                                                                                  PluginAvailable.fromJSON(
+                                                                                    object.plugin_available,
+                                                                                  ),
+                                                                              }
+                                                                            : isSet(
+                                                                                  object.deviceState,
+                                                                                )
+                                                                              ? {
+                                                                                  $case:
+                                                                                    "deviceState",
+                                                                                  deviceState:
+                                                                                    DeviceState.fromJSON(
+                                                                                      object.deviceState,
+                                                                                    ),
+                                                                                }
+                                                                              : isSet(
+                                                                                    object.device_state,
+                                                                                  )
+                                                                                ? {
+                                                                                    $case:
+                                                                                      "deviceState",
+                                                                                    deviceState:
+                                                                                      DeviceState.fromJSON(
+                                                                                        object.device_state,
+                                                                                      ),
+                                                                                  }
+                                                                                : isSet(
+                                                                                      object.testPath,
+                                                                                    )
+                                                                                  ? {
+                                                                                      $case:
+                                                                                        "testPath",
+                                                                                      testPath:
+                                                                                        TestPath.fromJSON(
+                                                                                          object.testPath,
+                                                                                        ),
+                                                                                    }
+                                                                                  : isSet(
+                                                                                        object.test_path,
+                                                                                      )
+                                                                                    ? {
+                                                                                        $case:
+                                                                                          "testPath",
+                                                                                        testPath:
+                                                                                          TestPath.fromJSON(
+                                                                                            object.test_path,
+                                                                                          ),
+                                                                                      }
+                                                                                    : isSet(
+                                                                                          object.testPathResult,
+                                                                                        )
+                                                                                      ? {
+                                                                                          $case:
+                                                                                            "testPathResult",
+                                                                                          testPathResult:
+                                                                                            TestPathResult.fromJSON(
+                                                                                              object.testPathResult,
+                                                                                            ),
+                                                                                        }
+                                                                                      : isSet(
+                                                                                            object.test_path_result,
+                                                                                          )
+                                                                                        ? {
+                                                                                            $case:
+                                                                                              "testPathResult",
+                                                                                            testPathResult:
+                                                                                              TestPathResult.fromJSON(
+                                                                                                object.test_path_result,
+                                                                                              ),
+                                                                                          }
+                                                                                        : undefined,
     };
   },
 
@@ -773,7 +1025,10 @@ export const Message: MessageFns<Message> = {
       }
       case "scanStarted": {
         if (object.payload?.scanStarted !== undefined && object.payload?.scanStarted !== null) {
-          message.payload = { $case: "scanStarted", scanStarted: ScanStarted.fromPartial(object.payload.scanStarted) };
+          message.payload = {
+            $case: "scanStarted",
+            scanStarted: ScanStarted.fromPartial(object.payload.scanStarted),
+          };
         }
         break;
       }
@@ -806,7 +1061,10 @@ export const Message: MessageFns<Message> = {
       }
       case "watching": {
         if (object.payload?.watching !== undefined && object.payload?.watching !== null) {
-          message.payload = { $case: "watching", watching: Watching.fromPartial(object.payload.watching) };
+          message.payload = {
+            $case: "watching",
+            watching: Watching.fromPartial(object.payload.watching),
+          };
         }
         break;
       }
@@ -829,7 +1087,10 @@ export const Message: MessageFns<Message> = {
         break;
       }
       case "parseCompleted": {
-        if (object.payload?.parseCompleted !== undefined && object.payload?.parseCompleted !== null) {
+        if (
+          object.payload?.parseCompleted !== undefined &&
+          object.payload?.parseCompleted !== null
+        ) {
           message.payload = {
             $case: "parseCompleted",
             parseCompleted: ParseCompleted.fromPartial(object.payload.parseCompleted),
@@ -839,13 +1100,19 @@ export const Message: MessageFns<Message> = {
       }
       case "parseFailed": {
         if (object.payload?.parseFailed !== undefined && object.payload?.parseFailed !== null) {
-          message.payload = { $case: "parseFailed", parseFailed: ParseFailed.fromPartial(object.payload.parseFailed) };
+          message.payload = {
+            $case: "parseFailed",
+            parseFailed: ParseFailed.fromPartial(object.payload.parseFailed),
+          };
         }
         break;
       }
       case "pushStarted": {
         if (object.payload?.pushStarted !== undefined && object.payload?.pushStarted !== null) {
-          message.payload = { $case: "pushStarted", pushStarted: PushStarted.fromPartial(object.payload.pushStarted) };
+          message.payload = {
+            $case: "pushStarted",
+            pushStarted: PushStarted.fromPartial(object.payload.pushStarted),
+          };
         }
         break;
       }
@@ -860,7 +1127,10 @@ export const Message: MessageFns<Message> = {
       }
       case "pushFailed": {
         if (object.payload?.pushFailed !== undefined && object.payload?.pushFailed !== null) {
-          message.payload = { $case: "pushFailed", pushFailed: PushFailed.fromPartial(object.payload.pushFailed) };
+          message.payload = {
+            $case: "pushFailed",
+            pushFailed: PushFailed.fromPartial(object.payload.pushFailed),
+          };
         }
         break;
       }
@@ -884,12 +1154,18 @@ export const Message: MessageFns<Message> = {
       }
       case "rescanGame": {
         if (object.payload?.rescanGame !== undefined && object.payload?.rescanGame !== null) {
-          message.payload = { $case: "rescanGame", rescanGame: RescanGame.fromPartial(object.payload.rescanGame) };
+          message.payload = {
+            $case: "rescanGame",
+            rescanGame: RescanGame.fromPartial(object.payload.rescanGame),
+          };
         }
         break;
       }
       case "pluginAvailable": {
-        if (object.payload?.pluginAvailable !== undefined && object.payload?.pluginAvailable !== null) {
+        if (
+          object.payload?.pluginAvailable !== undefined &&
+          object.payload?.pluginAvailable !== null
+        ) {
           message.payload = {
             $case: "pluginAvailable",
             pluginAvailable: PluginAvailable.fromPartial(object.payload.pluginAvailable),
@@ -899,18 +1175,27 @@ export const Message: MessageFns<Message> = {
       }
       case "deviceState": {
         if (object.payload?.deviceState !== undefined && object.payload?.deviceState !== null) {
-          message.payload = { $case: "deviceState", deviceState: DeviceState.fromPartial(object.payload.deviceState) };
+          message.payload = {
+            $case: "deviceState",
+            deviceState: DeviceState.fromPartial(object.payload.deviceState),
+          };
         }
         break;
       }
       case "testPath": {
         if (object.payload?.testPath !== undefined && object.payload?.testPath !== null) {
-          message.payload = { $case: "testPath", testPath: TestPath.fromPartial(object.payload.testPath) };
+          message.payload = {
+            $case: "testPath",
+            testPath: TestPath.fromPartial(object.payload.testPath),
+          };
         }
         break;
       }
       case "testPathResult": {
-        if (object.payload?.testPathResult !== undefined && object.payload?.testPathResult !== null) {
+        if (
+          object.payload?.testPathResult !== undefined &&
+          object.payload?.testPathResult !== null
+        ) {
           message.payload = {
             $case: "testPathResult",
             testPathResult: TestPathResult.fromPartial(object.payload.testPathResult),
@@ -986,8 +1271,8 @@ export const DaemonOnline: MessageFns<DaemonOnline> = {
       deviceId: isSet(object.deviceId)
         ? globalThis.String(object.deviceId)
         : isSet(object.device_id)
-        ? globalThis.String(object.device_id)
-        : "",
+          ? globalThis.String(object.device_id)
+          : "",
       version: isSet(object.version) ? globalThis.String(object.version) : "",
       timestamp: isSet(object.timestamp) ? fromJsonTimestamp(object.timestamp) : undefined,
     };
@@ -1071,8 +1356,8 @@ export const DaemonOffline: MessageFns<DaemonOffline> = {
       deviceId: isSet(object.deviceId)
         ? globalThis.String(object.deviceId)
         : isSet(object.device_id)
-        ? globalThis.String(object.device_id)
-        : "",
+          ? globalThis.String(object.device_id)
+          : "",
       timestamp: isSet(object.timestamp) ? fromJsonTimestamp(object.timestamp) : undefined,
     };
   },
@@ -1151,8 +1436,8 @@ export const ScanStarted: MessageFns<ScanStarted> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       path: isSet(object.path) ? globalThis.String(object.path) : "",
     };
   },
@@ -1253,19 +1538,19 @@ export const ScanCompleted: MessageFns<ScanCompleted> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       path: isSet(object.path) ? globalThis.String(object.path) : "",
       filesFound: isSet(object.filesFound)
         ? globalThis.Number(object.filesFound)
         : isSet(object.files_found)
-        ? globalThis.Number(object.files_found)
-        : 0,
+          ? globalThis.Number(object.files_found)
+          : 0,
       fileNames: globalThis.Array.isArray(object?.fileNames)
         ? object.fileNames.map((e: any) => globalThis.String(e))
         : globalThis.Array.isArray(object?.file_names)
-        ? object.file_names.map((e: any) => globalThis.String(e))
-        : [],
+          ? object.file_names.map((e: any) => globalThis.String(e))
+          : [],
     };
   },
 
@@ -1362,14 +1647,14 @@ export const GameDetected: MessageFns<GameDetected> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       path: isSet(object.path) ? globalThis.String(object.path) : "",
       saveCount: isSet(object.saveCount)
         ? globalThis.Number(object.saveCount)
         : isSet(object.save_count)
-        ? globalThis.Number(object.save_count)
-        : 0,
+          ? globalThis.Number(object.save_count)
+          : 0,
     };
   },
 
@@ -1451,13 +1736,13 @@ export const GameNotFound: MessageFns<GameNotFound> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       pathsChecked: globalThis.Array.isArray(object?.pathsChecked)
         ? object.pathsChecked.map((e: any) => globalThis.String(e))
         : globalThis.Array.isArray(object?.paths_checked)
-        ? object.paths_checked.map((e: any) => globalThis.String(e))
-        : [],
+          ? object.paths_checked.map((e: any) => globalThis.String(e))
+          : [],
     };
   },
 
@@ -1546,14 +1831,14 @@ export const Watching: MessageFns<Watching> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       path: isSet(object.path) ? globalThis.String(object.path) : "",
       filesMonitored: isSet(object.filesMonitored)
         ? globalThis.Number(object.filesMonitored)
         : isSet(object.files_monitored)
-        ? globalThis.Number(object.files_monitored)
-        : 0,
+          ? globalThis.Number(object.files_monitored)
+          : 0,
     };
   },
 
@@ -1635,13 +1920,13 @@ export const ParseStarted: MessageFns<ParseStarted> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       fileName: isSet(object.fileName)
         ? globalThis.String(object.fileName)
         : isSet(object.file_name)
-        ? globalThis.String(object.file_name)
-        : "",
+          ? globalThis.String(object.file_name)
+          : "",
     };
   },
 
@@ -1730,13 +2015,13 @@ export const PluginStatus: MessageFns<PluginStatus> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       fileName: isSet(object.fileName)
         ? globalThis.String(object.fileName)
         : isSet(object.file_name)
-        ? globalThis.String(object.file_name)
-        : "",
+          ? globalThis.String(object.file_name)
+          : "",
       message: isSet(object.message) ? globalThis.String(object.message) : "",
     };
   },
@@ -1768,7 +2053,14 @@ export const PluginStatus: MessageFns<PluginStatus> = {
 };
 
 function createBaseParseCompleted(): ParseCompleted {
-  return { gameId: "", fileName: "", identity: undefined, summary: "", sectionsCount: 0, sizeBytes: 0 };
+  return {
+    gameId: "",
+    fileName: "",
+    identity: undefined,
+    summary: "",
+    sectionsCount: 0,
+    sizeBytes: 0,
+  };
 }
 
 export const ParseCompleted: MessageFns<ParseCompleted> = {
@@ -1863,25 +2155,25 @@ export const ParseCompleted: MessageFns<ParseCompleted> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       fileName: isSet(object.fileName)
         ? globalThis.String(object.fileName)
         : isSet(object.file_name)
-        ? globalThis.String(object.file_name)
-        : "",
+          ? globalThis.String(object.file_name)
+          : "",
       identity: isSet(object.identity) ? SaveIdentity.fromJSON(object.identity) : undefined,
       summary: isSet(object.summary) ? globalThis.String(object.summary) : "",
       sectionsCount: isSet(object.sectionsCount)
         ? globalThis.Number(object.sectionsCount)
         : isSet(object.sections_count)
-        ? globalThis.Number(object.sections_count)
-        : 0,
+          ? globalThis.Number(object.sections_count)
+          : 0,
       sizeBytes: isSet(object.sizeBytes)
         ? globalThis.Number(object.sizeBytes)
         : isSet(object.size_bytes)
-        ? globalThis.Number(object.size_bytes)
-        : 0,
+          ? globalThis.Number(object.size_bytes)
+          : 0,
     };
   },
 
@@ -1915,9 +2207,10 @@ export const ParseCompleted: MessageFns<ParseCompleted> = {
     const message = createBaseParseCompleted();
     message.gameId = object.gameId ?? "";
     message.fileName = object.fileName ?? "";
-    message.identity = (object.identity !== undefined && object.identity !== null)
-      ? SaveIdentity.fromPartial(object.identity)
-      : undefined;
+    message.identity =
+      object.identity !== undefined && object.identity !== null
+        ? SaveIdentity.fromPartial(object.identity)
+        : undefined;
     message.summary = object.summary ?? "";
     message.sectionsCount = object.sectionsCount ?? 0;
     message.sizeBytes = object.sizeBytes ?? 0;
@@ -1999,18 +2292,18 @@ export const ParseFailed: MessageFns<ParseFailed> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       fileName: isSet(object.fileName)
         ? globalThis.String(object.fileName)
         : isSet(object.file_name)
-        ? globalThis.String(object.file_name)
-        : "",
+          ? globalThis.String(object.file_name)
+          : "",
       errorType: isSet(object.errorType)
         ? parseErrorTypeFromJSON(object.errorType)
         : isSet(object.error_type)
-        ? parseErrorTypeFromJSON(object.error_type)
-        : 0,
+          ? parseErrorTypeFromJSON(object.error_type)
+          : 0,
       message: isSet(object.message) ? globalThis.String(object.message) : "",
     };
   },
@@ -2108,14 +2401,14 @@ export const PushStarted: MessageFns<PushStarted> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       summary: isSet(object.summary) ? globalThis.String(object.summary) : "",
       sizeBytes: isSet(object.sizeBytes)
         ? globalThis.Number(object.sizeBytes)
         : isSet(object.size_bytes)
-        ? globalThis.Number(object.size_bytes)
-        : 0,
+          ? globalThis.Number(object.size_bytes)
+          : 0,
     };
   },
 
@@ -2230,24 +2523,24 @@ export const PushCompleted: MessageFns<PushCompleted> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       saveUuid: isSet(object.saveUuid)
         ? globalThis.String(object.saveUuid)
         : isSet(object.save_uuid)
-        ? globalThis.String(object.save_uuid)
-        : "",
+          ? globalThis.String(object.save_uuid)
+          : "",
       summary: isSet(object.summary) ? globalThis.String(object.summary) : "",
       snapshotSizeBytes: isSet(object.snapshotSizeBytes)
         ? globalThis.Number(object.snapshotSizeBytes)
         : isSet(object.snapshot_size_bytes)
-        ? globalThis.Number(object.snapshot_size_bytes)
-        : 0,
+          ? globalThis.Number(object.snapshot_size_bytes)
+          : 0,
       durationMs: isSet(object.durationMs)
         ? globalThis.Number(object.durationMs)
         : isSet(object.duration_ms)
-        ? globalThis.Number(object.duration_ms)
-        : 0,
+          ? globalThis.Number(object.duration_ms)
+          : 0,
     };
   },
 
@@ -2348,14 +2641,14 @@ export const PushFailed: MessageFns<PushFailed> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       message: isSet(object.message) ? globalThis.String(object.message) : "",
       willRetry: isSet(object.willRetry)
         ? globalThis.Boolean(object.willRetry)
         : isSet(object.will_retry)
-        ? globalThis.Boolean(object.will_retry)
-        : false,
+          ? globalThis.Boolean(object.will_retry)
+          : false,
     };
   },
 
@@ -2437,8 +2730,8 @@ export const PluginUpdated: MessageFns<PluginUpdated> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       version: isSet(object.version) ? globalThis.String(object.version) : "",
     };
   },
@@ -2508,12 +2801,12 @@ export const ConfigUpdate: MessageFns<ConfigUpdate> = {
     return {
       games: isObject(object.games)
         ? (globalThis.Object.entries(object.games) as [string, any][]).reduce(
-          (acc: { [key: string]: GameConfig }, [key, value]: [string, any]) => {
-            acc[key] = GameConfig.fromJSON(value);
-            return acc;
-          },
-          {},
-        )
+            (acc: { [key: string]: GameConfig }, [key, value]: [string, any]) => {
+              acc[key] = GameConfig.fromJSON(value);
+              return acc;
+            },
+            {},
+          )
         : {},
     };
   },
@@ -2537,15 +2830,14 @@ export const ConfigUpdate: MessageFns<ConfigUpdate> = {
   },
   fromPartial<I extends Exact<DeepPartial<ConfigUpdate>, I>>(object: I): ConfigUpdate {
     const message = createBaseConfigUpdate();
-    message.games = (globalThis.Object.entries(object.games ?? {}) as [string, GameConfig][]).reduce(
-      (acc: { [key: string]: GameConfig }, [key, value]: [string, GameConfig]) => {
-        if (value !== undefined) {
-          acc[key] = GameConfig.fromPartial(value);
-        }
-        return acc;
-      },
-      {},
-    );
+    message.games = (
+      globalThis.Object.entries(object.games ?? {}) as [string, GameConfig][]
+    ).reduce((acc: { [key: string]: GameConfig }, [key, value]: [string, GameConfig]) => {
+      if (value !== undefined) {
+        acc[key] = GameConfig.fromPartial(value);
+      }
+      return acc;
+    }, {});
     return message;
   },
 };
@@ -2555,7 +2847,10 @@ function createBaseConfigUpdate_GamesEntry(): ConfigUpdate_GamesEntry {
 }
 
 export const ConfigUpdate_GamesEntry: MessageFns<ConfigUpdate_GamesEntry> = {
-  encode(message: ConfigUpdate_GamesEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+  encode(
+    message: ConfigUpdate_GamesEntry,
+    writer: BinaryWriter = new BinaryWriter(),
+  ): BinaryWriter {
     if (message.key !== "") {
       writer.uint32(10).string(message.key);
     }
@@ -2615,15 +2910,20 @@ export const ConfigUpdate_GamesEntry: MessageFns<ConfigUpdate_GamesEntry> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<ConfigUpdate_GamesEntry>, I>>(base?: I): ConfigUpdate_GamesEntry {
+  create<I extends Exact<DeepPartial<ConfigUpdate_GamesEntry>, I>>(
+    base?: I,
+  ): ConfigUpdate_GamesEntry {
     return ConfigUpdate_GamesEntry.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<ConfigUpdate_GamesEntry>, I>>(object: I): ConfigUpdate_GamesEntry {
+  fromPartial<I extends Exact<DeepPartial<ConfigUpdate_GamesEntry>, I>>(
+    object: I,
+  ): ConfigUpdate_GamesEntry {
     const message = createBaseConfigUpdate_GamesEntry();
     message.key = object.key ?? "";
-    message.value = (object.value !== undefined && object.value !== null)
-      ? GameConfig.fromPartial(object.value)
-      : undefined;
+    message.value =
+      object.value !== undefined && object.value !== null
+        ? GameConfig.fromPartial(object.value)
+        : undefined;
     return message;
   },
 };
@@ -2691,14 +2991,14 @@ export const GameConfig: MessageFns<GameConfig> = {
       savePath: isSet(object.savePath)
         ? globalThis.String(object.savePath)
         : isSet(object.save_path)
-        ? globalThis.String(object.save_path)
-        : "",
+          ? globalThis.String(object.save_path)
+          : "",
       enabled: isSet(object.enabled) ? globalThis.Boolean(object.enabled) : false,
       fileExtensions: globalThis.Array.isArray(object?.fileExtensions)
         ? object.fileExtensions.map((e: any) => globalThis.String(e))
         : globalThis.Array.isArray(object?.file_extensions)
-        ? object.file_extensions.map((e: any) => globalThis.String(e))
-        : [],
+          ? object.file_extensions.map((e: any) => globalThis.String(e))
+          : [],
     };
   },
 
@@ -2769,8 +3069,8 @@ export const RescanGame: MessageFns<RescanGame> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
     };
   },
 
@@ -2855,8 +3155,8 @@ export const PluginAvailable: MessageFns<PluginAvailable> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       version: isSet(object.version) ? globalThis.String(object.version) : "",
       url: isSet(object.url) ? globalThis.String(object.url) : "",
     };
@@ -2926,7 +3226,9 @@ export const DeviceState: MessageFns<DeviceState> = {
 
   fromJSON(object: any): DeviceState {
     return {
-      devices: globalThis.Array.isArray(object?.devices) ? object.devices.map((e: any) => DeviceInfo.fromJSON(e)) : [],
+      devices: globalThis.Array.isArray(object?.devices)
+        ? object.devices.map((e: any) => DeviceInfo.fromJSON(e))
+        : [],
     };
   },
 
@@ -3022,15 +3324,17 @@ export const DeviceInfo: MessageFns<DeviceInfo> = {
       deviceId: isSet(object.deviceId)
         ? globalThis.String(object.deviceId)
         : isSet(object.device_id)
-        ? globalThis.String(object.device_id)
-        : "",
+          ? globalThis.String(object.device_id)
+          : "",
       online: isSet(object.online) ? globalThis.Boolean(object.online) : false,
       lastSeen: isSet(object.lastSeen)
         ? fromJsonTimestamp(object.lastSeen)
         : isSet(object.last_seen)
-        ? fromJsonTimestamp(object.last_seen)
-        : undefined,
-      games: globalThis.Array.isArray(object?.games) ? object.games.map((e: any) => GameInfo.fromJSON(e)) : [],
+          ? fromJsonTimestamp(object.last_seen)
+          : undefined,
+      games: globalThis.Array.isArray(object?.games)
+        ? object.games.map((e: any) => GameInfo.fromJSON(e))
+        : [],
     };
   },
 
@@ -3149,20 +3453,22 @@ export const GameInfo: MessageFns<GameInfo> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       gameName: isSet(object.gameName)
         ? globalThis.String(object.gameName)
         : isSet(object.game_name)
-        ? globalThis.String(object.game_name)
-        : "",
+          ? globalThis.String(object.game_name)
+          : "",
       status: isSet(object.status) ? gameStatusEnumFromJSON(object.status) : 0,
-      saves: globalThis.Array.isArray(object?.saves) ? object.saves.map((e: any) => SaveInfo.fromJSON(e)) : [],
+      saves: globalThis.Array.isArray(object?.saves)
+        ? object.saves.map((e: any) => SaveInfo.fromJSON(e))
+        : [],
       lastActivity: isSet(object.lastActivity)
         ? fromJsonTimestamp(object.lastActivity)
         : isSet(object.last_activity)
-        ? fromJsonTimestamp(object.last_activity)
-        : undefined,
+          ? fromJsonTimestamp(object.last_activity)
+          : undefined,
     };
   },
 
@@ -3274,15 +3580,15 @@ export const SaveInfo: MessageFns<SaveInfo> = {
       saveUuid: isSet(object.saveUuid)
         ? globalThis.String(object.saveUuid)
         : isSet(object.save_uuid)
-        ? globalThis.String(object.save_uuid)
-        : "",
+          ? globalThis.String(object.save_uuid)
+          : "",
       identity: isSet(object.identity) ? SaveIdentity.fromJSON(object.identity) : undefined,
       summary: isSet(object.summary) ? globalThis.String(object.summary) : "",
       lastUpdated: isSet(object.lastUpdated)
         ? fromJsonTimestamp(object.lastUpdated)
         : isSet(object.last_updated)
-        ? fromJsonTimestamp(object.last_updated)
-        : undefined,
+          ? fromJsonTimestamp(object.last_updated)
+          : undefined,
     };
   },
 
@@ -3309,9 +3615,10 @@ export const SaveInfo: MessageFns<SaveInfo> = {
   fromPartial<I extends Exact<DeepPartial<SaveInfo>, I>>(object: I): SaveInfo {
     const message = createBaseSaveInfo();
     message.saveUuid = object.saveUuid ?? "";
-    message.identity = (object.identity !== undefined && object.identity !== null)
-      ? SaveIdentity.fromPartial(object.identity)
-      : undefined;
+    message.identity =
+      object.identity !== undefined && object.identity !== null
+        ? SaveIdentity.fromPartial(object.identity)
+        : undefined;
     message.summary = object.summary ?? "";
     message.lastUpdated = object.lastUpdated ?? undefined;
     return message;
@@ -3370,8 +3677,8 @@ export const TestPath: MessageFns<TestPath> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       path: isSet(object.path) ? globalThis.String(object.path) : "",
     };
   },
@@ -3483,20 +3790,20 @@ export const TestPathResult: MessageFns<TestPathResult> = {
       gameId: isSet(object.gameId)
         ? globalThis.String(object.gameId)
         : isSet(object.game_id)
-        ? globalThis.String(object.game_id)
-        : "",
+          ? globalThis.String(object.game_id)
+          : "",
       path: isSet(object.path) ? globalThis.String(object.path) : "",
       valid: isSet(object.valid) ? globalThis.Boolean(object.valid) : false,
       filesFound: isSet(object.filesFound)
         ? globalThis.Number(object.filesFound)
         : isSet(object.files_found)
-        ? globalThis.Number(object.files_found)
-        : 0,
+          ? globalThis.Number(object.files_found)
+          : 0,
       fileNames: globalThis.Array.isArray(object?.fileNames)
         ? object.fileNames.map((e: any) => globalThis.String(e))
         : globalThis.Array.isArray(object?.file_names)
-        ? object.file_names.map((e: any) => globalThis.String(e))
-        : [],
+          ? object.file_names.map((e: any) => globalThis.String(e))
+          : [],
     };
   },
 
@@ -3612,15 +3919,21 @@ export const SaveIdentity: MessageFns<SaveIdentity> = {
 
 type Builtin = Date | Function | Uint8Array | string | number | boolean | undefined;
 
-export type DeepPartial<T> = T extends Builtin ? T
-  : T extends globalThis.Array<infer U> ? globalThis.Array<DeepPartial<U>>
-  : T extends ReadonlyArray<infer U> ? ReadonlyArray<DeepPartial<U>>
-  : T extends { $case: string } ? { [K in keyof Omit<T, "$case">]?: DeepPartial<T[K]> } & { $case: T["$case"] }
-  : T extends {} ? { [K in keyof T]?: DeepPartial<T[K]> }
-  : Partial<T>;
+export type DeepPartial<T> = T extends Builtin
+  ? T
+  : T extends globalThis.Array<infer U>
+    ? globalThis.Array<DeepPartial<U>>
+    : T extends ReadonlyArray<infer U>
+      ? ReadonlyArray<DeepPartial<U>>
+      : T extends { $case: string }
+        ? { [K in keyof Omit<T, "$case">]?: DeepPartial<T[K]> } & { $case: T["$case"] }
+        : T extends {}
+          ? { [K in keyof T]?: DeepPartial<T[K]> }
+          : Partial<T>;
 
 type KeysOfUnion<T> = T extends T ? keyof T : never;
-export type Exact<P, I extends P> = P extends Builtin ? P
+export type Exact<P, I extends P> = P extends Builtin
+  ? P
   : P & { [K in keyof P]: Exact<P[K], I[K]> } & { [K in Exclude<keyof I, KeysOfUnion<P>>]: never };
 
 function toTimestamp(date: Date): Timestamp {
