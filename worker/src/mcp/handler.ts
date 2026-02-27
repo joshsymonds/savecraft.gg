@@ -216,12 +216,12 @@ async function handleToolCall(
       return listSaves(env.DB, userUuid);
     }
     case "get_save_sections": {
-      return getSaveSections(env.DB, env.SNAPSHOTS, userUuid, args.save_id as string);
+      return getSaveSections(env.DB, env.SAVES, userUuid, args.save_id as string);
     }
     case "get_section": {
       return getSection(
         env.DB,
-        env.SNAPSHOTS,
+        env.SAVES,
         userUuid,
         args.save_id as string,
         args.section as string,
@@ -231,7 +231,7 @@ async function handleToolCall(
     case "get_section_diff": {
       return getSectionDiff(
         env.DB,
-        env.SNAPSHOTS,
+        env.SAVES,
         userUuid,
         args.save_id as string,
         args.section as string,
@@ -240,7 +240,7 @@ async function handleToolCall(
       );
     }
     case "get_save_summary": {
-      return getSaveSummary(env.DB, env.SNAPSHOTS, userUuid, args.save_id as string);
+      return getSaveSummary(env.DB, env.SAVES, userUuid, args.save_id as string);
     }
     case "list_notes": {
       return listNotes(env.DB, userUuid, args.save_id as string);

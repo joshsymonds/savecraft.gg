@@ -13,8 +13,12 @@ database_id = "local"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
-binding = "SNAPSHOTS"
-bucket_name = "savecraft-snapshots"
+binding = "SAVES"
+bucket_name = "savecraft-saves"
+
+[[r2_buckets]]
+binding = "PLUGINS"
+bucket_name = "savecraft-plugins"
 
 [durable_objects]
 bindings = [
@@ -40,8 +44,12 @@ database_id = "aad74b56-cce0-4ee1-8263-cad15450b0b0"
 migrations_dir = "migrations"
 
 [[env.production.r2_buckets]]
-binding = "SNAPSHOTS"
-bucket_name = "savecraft-snapshots"
+binding = "SAVES"
+bucket_name = "savecraft-saves"
+
+[[env.production.r2_buckets]]
+binding = "PLUGINS"
+bucket_name = "savecraft-plugins"
 
 [env.production.durable_objects]
 bindings = [
@@ -67,8 +75,12 @@ database_id = "05c71c36-dd0a-4693-aed4-c745d975ebae"
 migrations_dir = "migrations"
 
 [[env.staging.r2_buckets]]
-binding = "SNAPSHOTS"
-bucket_name = "savecraft-snapshots-staging"
+binding = "SAVES"
+bucket_name = "savecraft-saves-staging"
+
+[[env.staging.r2_buckets]]
+binding = "PLUGINS"
+bucket_name = "savecraft-plugins-staging"
 
 [env.staging.durable_objects]
 bindings = [

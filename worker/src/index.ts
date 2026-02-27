@@ -103,12 +103,12 @@ async function handlePluginManifest(env: Env): Promise<Response> {
   const plugins: Record<string, Record<string, unknown>> = {};
 
   // List all plugin manifests in R2
-  const listed = await env.SNAPSHOTS.list({ prefix: "plugins/" });
+  const listed = await env.PLUGINS.list({ prefix: "plugins/" });
 
   for (const object of listed.objects) {
     if (!object.key.endsWith("/manifest.json")) continue;
 
-    const manifest = await env.SNAPSHOTS.get(object.key);
+    const manifest = await env.PLUGINS.get(object.key);
     if (!manifest) continue;
 
     const data = await manifest.json<Record<string, unknown>>();
@@ -525,13 +525,13 @@ async function handlePush(request: Request, env: Env): Promise<Response> {
 
   // Write snapshot to R2 (always — snapshots are immutable)
   const snapshotKey = `users/${auth.userUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
-  await env.SNAPSHOTS.put(snapshotKey, bodyString);
+  await env.SAVES.put(snapshotKey, bodyString);
 
   // Update latest pointer only if incoming timestamp is newer
   const latestKey = `users/${auth.userUuid}/saves/${saveUuid}/latest.json`;
-  const isNewer = await isNewerThanLatest(env.SNAPSHOTS, latestKey, parsedAt);
+  const isNewer = await isNewerThanLatest(env.SAVES, latestKey, parsedAt);
   if (isNewer) {
-    await env.SNAPSHOTS.put(latestKey, bodyString, {
+    await env.SAVES.put(latestKey, bodyString, {
       customMetadata: { parsedAt },
     });
     // Update D1 summary only when latest changes

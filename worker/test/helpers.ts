@@ -17,9 +17,11 @@ export async function cleanAll(): Promise<void> {
   for (const table of CLEANUP_TABLES) {
     await env.DB.prepare(`DELETE FROM ${table}`).run();
   }
-  const listed = await env.SNAPSHOTS.list();
-  for (const object of listed.objects) {
-    await env.SNAPSHOTS.delete(object.key);
+  for (const bucket of [env.SAVES, env.PLUGINS]) {
+    const listed = await bucket.list();
+    for (const object of listed.objects) {
+      await bucket.delete(object.key);
+    }
   }
 }
 

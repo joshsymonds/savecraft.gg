@@ -518,11 +518,27 @@ When `character_name` is omitted from `identity`, the save is game-scoped: one p
 - **Plugin-authored summaries.** The `summary` field is a human-readable display string authored by the plugin. The plugin knows what matters for its game. Examples: `"Hammerdin, Level 89 Paladin"` (D2R), `"Berry Merry Farm, Year 3 Fall — 69% Perfection"` (Stardew), `"Emperor Halfdan of Scandinavia, 847 AD"` (CK3). The server stores summaries in D1 for fast UI rendering and MCP tool responses.
 - **Two identity scopes.** Character saves are identified by `(user_uuid, game_id, character_name)`. Game saves are identified by `(user_uuid, game_id)` with no character name. The plugin decides which scope applies by including or omitting `character_name` in the identity block.
 
-### R2 Object Layout
+### R2 Buckets
+
+Two separate R2 buckets per environment, split by access pattern:
+
+| Bucket | Binding | Contents |
+|--------|---------|----------|
+| `savecraft-saves` | `SAVES` | User save snapshots — private, scoped to `users/{user_uuid}/` |
+| `savecraft-plugins` | `PLUGINS` | Plugin binaries and manifests — public-read via API |
+
+Staging uses `-staging` suffix (`savecraft-saves-staging`, `savecraft-plugins-staging`).
+
+**Saves bucket layout:**
 
 ```
 users/{user_uuid}/saves/{save_uuid}/snapshots/{timestamp}.json
 users/{user_uuid}/saves/{save_uuid}/latest.json
+```
+
+**Plugins bucket layout:**
+
+```
 plugins/{game_id}/manifest.json
 plugins/{game_id}/parser.wasm
 plugins/{game_id}/parser.wasm.sig
@@ -535,7 +551,7 @@ plugins/{game_id}/parser.wasm.sig
   - **Game saves:** `(user_uuid, game_id)` where `character_name` is NULL — one save per game for shared state.
 
   D1 enforces uniqueness via partial indexes: `UNIQUE(user_uuid, game_id) WHERE character_name IS NULL` and `UNIQUE(user_uuid, game_id, character_name) WHERE character_name IS NOT NULL`. All subsequent pushes for the same identity map to the same save UUID.
-- **User UUID** is assigned at account creation. All R2 access scoped to `users/{user_uuid}/`.
+- **User UUID** is assigned at account creation. All saves R2 access scoped to `users/{user_uuid}/`.
 
 ### Historical Data and Diffs
 
@@ -1178,7 +1194,8 @@ The `type` field is critical. The AI must distinguish between "what you have" (s
 |---------|---------|-----------|
 | Workers | MCP server, push API, auth endpoints | 100K requests/day |
 | Durable Objects | Per-user WebSocket hub for daemon ↔ web UI real-time communication | Requires Workers Paid ($5/mo); $0.15/M requests, $12.50/M GB-s duration |
-| R2 | Snapshot storage, plugin hosting | 10M reads, 1M writes/month |
+| R2 (`savecraft-saves`) | User save snapshots | 10M reads, 1M writes/month |
+| R2 (`savecraft-plugins`) | Plugin binaries and manifests | (shared free tier) |
 | D1 | User accounts, device configs, device events, save UUID mapping, note content, FTS5 search index, plugin registry metadata | 5M rows read, 100K writes/day |
 
 **Cost projections:**
@@ -1197,7 +1214,7 @@ The `type` field is critical. The AI must distinguish between "what you have" (s
 
 ### Principle: R2 is Private, Server Mediates All Access
 
-R2 buckets have no public access. The MCP server (with R2 credentials) is the only reader. All access scoped to the authenticated user's `users/{user_uuid}/` prefix.
+Neither R2 bucket has public access. The Worker (with R2 bindings) is the only reader/writer. Save access is scoped to the authenticated user's `users/{user_uuid}/` prefix. Plugin access is unauthenticated but read-only via the manifest API endpoint — the Worker fetches from R2 and serves the response.
 
 ### Daemon → Cloud Push
 

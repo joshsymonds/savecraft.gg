@@ -73,7 +73,7 @@ async function seedSave(options: {
 
   const state = options.gameState ?? sampleGameState;
   const key = `users/${options.userUuid}/saves/${options.saveUuid}/latest.json`;
-  await env.SNAPSHOTS.put(key, JSON.stringify(state));
+  await env.SAVES.put(key, JSON.stringify(state));
 }
 
 async function seedSnapshot(
@@ -83,7 +83,7 @@ async function seedSnapshot(
   gameState: typeof sampleGameState,
 ): Promise<void> {
   const key = `users/${userUuid}/saves/${saveUuid}/snapshots/${timestamp}.json`;
-  await env.SNAPSHOTS.put(key, JSON.stringify(gameState));
+  await env.SAVES.put(key, JSON.stringify(gameState));
 }
 
 function parseResult(result: ToolResult): unknown {
@@ -179,7 +179,7 @@ describe("MCP Tools", () => {
         summary: "Hammerdin, Level 89 Paladin",
       });
 
-      const result = await getSaveSections(env.DB, env.SNAPSHOTS, USER_A, "save-sections");
+      const result = await getSaveSections(env.DB, env.SAVES, USER_A, "save-sections");
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -199,7 +199,7 @@ describe("MCP Tools", () => {
     });
 
     it("returns error for non-existent save", async () => {
-      const result = await getSaveSections(env.DB, env.SNAPSHOTS, USER_A, "nonexistent");
+      const result = await getSaveSections(env.DB, env.SAVES, USER_A, "nonexistent");
       expect(result.isError).toBe(true);
     });
 
@@ -212,7 +212,7 @@ describe("MCP Tools", () => {
         summary: "Sorceress, Level 80",
       });
 
-      const result = await getSaveSections(env.DB, env.SNAPSHOTS, USER_A, "save-other-user");
+      const result = await getSaveSections(env.DB, env.SAVES, USER_A, "save-other-user");
       expect(result.isError).toBe(true);
     });
   });
@@ -229,13 +229,7 @@ describe("MCP Tools", () => {
         summary: "Hammerdin, Level 89 Paladin",
       });
 
-      const result = await getSection(
-        env.DB,
-        env.SNAPSHOTS,
-        USER_A,
-        "save-section",
-        "equipped_gear",
-      );
+      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section", "equipped_gear");
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -262,7 +256,7 @@ describe("MCP Tools", () => {
 
       const result = await getSection(
         env.DB,
-        env.SNAPSHOTS,
+        env.SAVES,
         USER_A,
         "save-section-missing",
         "nonexistent_section",
@@ -271,7 +265,7 @@ describe("MCP Tools", () => {
     });
 
     it("returns error for non-existent save", async () => {
-      const result = await getSection(env.DB, env.SNAPSHOTS, USER_A, "nonexistent", "skills");
+      const result = await getSection(env.DB, env.SAVES, USER_A, "nonexistent", "skills");
       expect(result.isError).toBe(true);
     });
 
@@ -284,13 +278,7 @@ describe("MCP Tools", () => {
         summary: "Amazon, Level 70",
       });
 
-      const result = await getSection(
-        env.DB,
-        env.SNAPSHOTS,
-        USER_A,
-        "save-section-other",
-        "skills",
-      );
+      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section-other", "skills");
       expect(result.isError).toBe(true);
     });
 
@@ -321,7 +309,7 @@ describe("MCP Tools", () => {
 
       const result = await getSection(
         env.DB,
-        env.SNAPSHOTS,
+        env.SAVES,
         USER_A,
         "save-section-ts",
         "equipped_gear",
@@ -348,7 +336,7 @@ describe("MCP Tools", () => {
 
       const result = await getSection(
         env.DB,
-        env.SNAPSHOTS,
+        env.SAVES,
         USER_A,
         "save-section-ts-missing",
         "equipped_gear",
@@ -410,7 +398,7 @@ describe("MCP Tools", () => {
 
       const result = await getSectionDiff(
         env.DB,
-        env.SNAPSHOTS,
+        env.SAVES,
         USER_A,
         "save-diff",
         "equipped_gear",
@@ -450,7 +438,7 @@ describe("MCP Tools", () => {
 
       const result = await getSectionDiff(
         env.DB,
-        env.SNAPSHOTS,
+        env.SAVES,
         USER_A,
         "save-diff-same",
         "equipped_gear",
@@ -466,7 +454,7 @@ describe("MCP Tools", () => {
     it("returns error for non-existent save", async () => {
       const result = await getSectionDiff(
         env.DB,
-        env.SNAPSHOTS,
+        env.SAVES,
         USER_A,
         "nonexistent",
         "skills",
@@ -489,7 +477,7 @@ describe("MCP Tools", () => {
 
       const result = await getSectionDiff(
         env.DB,
-        env.SNAPSHOTS,
+        env.SAVES,
         USER_A,
         "save-diff-missing-ts",
         "equipped_gear",
@@ -512,7 +500,7 @@ describe("MCP Tools", () => {
         summary: "Hammerdin, Level 89 Paladin",
       });
 
-      const result = await getSaveSummary(env.DB, env.SNAPSHOTS, USER_A, "save-summary");
+      const result = await getSaveSummary(env.DB, env.SAVES, USER_A, "save-summary");
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -528,7 +516,7 @@ describe("MCP Tools", () => {
     });
 
     it("returns error for non-existent save", async () => {
-      const result = await getSaveSummary(env.DB, env.SNAPSHOTS, USER_A, "nonexistent");
+      const result = await getSaveSummary(env.DB, env.SAVES, USER_A, "nonexistent");
       expect(result.isError).toBe(true);
     });
   });
