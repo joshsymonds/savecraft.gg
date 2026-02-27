@@ -1,6 +1,6 @@
 // D2R plugin: parses Diablo II Resurrected .d2s and .d2i files into structured GameState.
 // Supports both LoD (version <= 0x60) and D2R (version >= 0x61) formats.
-// .d2s = character saves, .d2i = shared stash (game-scoped, no character name).
+// .d2s = character saves, .d2i = shared stash (game-scoped, saveName from stash kind).
 //
 // Build: GOOS=wasip1 GOARCH=wasm go build -o d2r.wasm .
 package main
@@ -53,11 +53,16 @@ func handleStash(enc *json.Encoder, data []byte) {
 	sections := buildStashSections(stash)
 	summary := buildStashSummary(stash)
 
-	// Game-scoped identity: no characterName.
+	kind := "Softcore"
+	if stash.Kind == 0 {
+		kind = "Hardcore"
+	}
+
 	if err := enc.Encode(map[string]any{
 		"type": "result",
 		"identity": map[string]any{
-			"gameId": "d2r",
+			"saveName": fmt.Sprintf("Shared Stash (%s)", kind),
+			"gameId":   "d2r",
 		},
 		"summary":  summary,
 		"sections": sections,
@@ -124,8 +129,8 @@ func handleCharacter(enc *json.Encoder, data []byte) {
 	if err := enc.Encode(map[string]any{
 		"type": "result",
 		"identity": map[string]any{
-			"characterName": save.Header.Name,
-			"gameId":        "d2r",
+			"saveName": save.Header.Name,
+			"gameId":   "d2r",
 		},
 		"summary":  summary,
 		"sections": sections,

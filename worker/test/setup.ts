@@ -10,10 +10,10 @@ const statements = [
     uuid TEXT PRIMARY KEY,
     user_uuid TEXT NOT NULL,
     game_id TEXT NOT NULL,
-    character_name TEXT NOT NULL,
+    save_name TEXT NOT NULL,
     summary TEXT NOT NULL DEFAULT '',
     last_updated TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE (user_uuid, game_id, character_name)
+    UNIQUE (user_uuid, game_id, save_name)
   )`,
   `CREATE TABLE IF NOT EXISTS device_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

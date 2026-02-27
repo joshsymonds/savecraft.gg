@@ -4,7 +4,7 @@ export type GameStatus = "watching" | "error" | "detected" | "not_found";
 
 export interface SaveSummary {
   saveUuid: string;
-  characterName: string;
+  saveName: string;
   summary: string;
   lastUpdated: string;
 }

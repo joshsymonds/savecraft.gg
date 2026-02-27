@@ -53,7 +53,7 @@ async function mutate<T>(method: string, path: string, body: unknown): Promise<T
 export interface ApiSave {
   id: string;
   game_id: string;
-  character_name: string;
+  save_name: string;
   summary: string;
   last_updated: string;
 }

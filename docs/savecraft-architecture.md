@@ -2,7 +2,16 @@
 
 ## Overview
 
-Savecraft is a platform that parses video game save files and exposes structured game state to AI assistants via MCP (Model Context Protocol). It enables AI conversations like "what's my Hammerdin's gear?" or "am I on track for Perfection in Stardew?" by giving Claude, ChatGPT, and Gemini access to actual save file data — not screenshots, not memory dumps, but the full structured state.
+Savecraft gives AI assistants access to your actual game state — your character, your gear, your progress — via MCP (Model Context Protocol). It turns Claude, ChatGPT, and Gemini into something that knows your game the way a co-op partner would: it can optimize your build, track your goals, and react when you vent about Countess dropping nothing for the fifteenth run in a row.
+
+Most of these games are played solo. The best moments — the lucky drop, the build finally clicking, the boss that took twenty attempts — happen with nobody watching. Savecraft means there's always someone who knows the context. You don't explain what a Shael is or why Perfection matters. The AI already knows your character, your gear, your goals. It's Player 2.
+
+Two modes of use emerge naturally from the same data:
+
+- **Companion.** "Another Countess run and ZERO SHAELS. Wtf." / "I JUST FOUND A BER RUNE." / "I think I'm burned out on this character." The AI knows your actual state and can react with context — commiserate, celebrate, suggest what to do next.
+- **Optimizer.** "What should I upgrade?" / "Am I hitting the 125% FCR breakpoint?" / "Compare my build to the Maxroll guide." The AI reads your sections, compares to game knowledge and attached notes, and gives specific advice.
+
+Both modes use the same MCP tools, the same save data, the same notes. The architecture doesn't distinguish between them — it just serves structured state and lets the conversation go wherever the player takes it.
 
 **Domains:** savecraft.gg (primary), savecraft.ai (redirect)
 **Parent company:** Autotome.ai
@@ -456,8 +465,8 @@ All plugins emit a `result` line on stdout conforming to this structure (the `ty
 ```json
 {
   "identity": {
-    "character_name": "Hammerdin",
-    "game_id": "d2r",
+    "saveName": "Hammerdin",
+    "gameId": "d2r",
     "extra": {
       "class": "Paladin",
       "level": 89
@@ -496,7 +505,8 @@ All plugins emit a `result` line on stdout conforming to this structure (the `ty
 ```json
 {
   "identity": {
-    "game_id": "d2r"
+    "saveName": "Shared Stash (Softcore)",
+    "gameId":   "d2r"
   },
   "summary": "Shared Stash (3 tabs, 47 items)",
   "sections": {
@@ -508,7 +518,7 @@ All plugins emit a `result` line on stdout conforming to this structure (the `ty
 }
 ```
 
-When `character_name` is omitted from `identity`, the save is game-scoped: one per `(user_uuid, game_id)`. Character saves and game saves use the same sections model, same R2 storage, same MCP tools. The distinction is purely identity cardinality. Examples of game-level state: D2R shared stash, Hades mirror upgrades, Dead Cells unlocked blueprints, roguelite meta-progression.
+Every save has a `saveName` provided by the plugin. For character saves this is the character name (e.g. "Hammerdin"). For game-scoped saves it's a descriptive label (e.g. "Shared Stash (Softcore)"). The unique identity is always `(user_uuid, game_id, save_name)`. Character saves and game saves use the same sections model, same R2 storage, same MCP tools — the only difference is what the plugin chooses as the name. Examples of game-level state: D2R shared stash, Hades mirror upgrades, Dead Cells unlocked blueprints, roguelite meta-progression.
 
 **Design principles:**
 
@@ -517,7 +527,7 @@ When `character_name` is omitted from `identity`, the save is game-scoped: one p
 - **Plugin-defined schema.** The server does not validate section contents. Each game's sections have different shapes. The plugin is the authority on what data looks like.
 - **No cross-game normalization.** D2R gear and Stardew crops are fundamentally different data. Attempting to normalize into a universal schema would lose information and add complexity for zero benefit.
 - **Plugin-authored summaries.** The `summary` field is a human-readable display string authored by the plugin. The plugin knows what matters for its game. Examples: `"Hammerdin, Level 89 Paladin"` (D2R), `"Berry Merry Farm, Year 3 Fall — 69% Perfection"` (Stardew), `"Emperor Halfdan of Scandinavia, 847 AD"` (CK3). The server stores summaries in D1 for fast UI rendering and MCP tool responses.
-- **Two identity scopes.** Character saves are identified by `(user_uuid, game_id, character_name)`. Game saves are identified by `(user_uuid, game_id)` with no character name. The plugin decides which scope applies by including or omitting `character_name` in the identity block.
+- **Plugin-named saves.** Every save is identified by `(user_uuid, game_id, save_name)`. The plugin always provides a `saveName` — character name for character saves, a descriptive label for game-scoped saves (e.g. "Shared Stash (Softcore)").
 
 ### R2 Buckets
 
@@ -548,10 +558,7 @@ plugins/{game_id}/parser.wasm.sig
 - **Snapshots are immutable.** Every push creates a new timestamped object.
 - **`latest.json`** is a copy of the most recent snapshot for fast reads. Updated only if the incoming `parsed_at` timestamp is newer than the current latest (prevents race conditions from out-of-order pushes).
 - **Save UUID** is assigned by the server when a save is first pushed. The daemon includes the plugin's identity block in the push. The server resolves identity to a save UUID in D1:
-  - **Character saves:** `(user_uuid, game_id, character_name)` — one save per character.
-  - **Game saves:** `(user_uuid, game_id)` where `character_name` is NULL — one save per game for shared state.
-
-  D1 enforces uniqueness via partial indexes: `UNIQUE(user_uuid, game_id) WHERE character_name IS NULL` and `UNIQUE(user_uuid, game_id, character_name) WHERE character_name IS NOT NULL`. All subsequent pushes for the same identity map to the same save UUID.
+  Every save is identified by `(user_uuid, game_id, save_name)`. D1 enforces uniqueness via `UNIQUE(user_uuid, game_id, save_name)`. All subsequent pushes for the same identity map to the same save UUID.
 - **User UUID** is assigned at account creation. All saves R2 access scoped to `users/{user_uuid}/`.
 
 ### Historical Data and Diffs
@@ -633,7 +640,7 @@ X-Parsed-At: 2026-02-25T21:30:00Z
 2. Validate: is body valid JSON? Is it under 5MB?
 3. Validate structure: does top-level have `identity` and `sections` keys?
 4. Validate `X-Game` matches a known plugin.
-5. Look up save UUID from identity in D1. If `character_name` is present: `(user_uuid, game_id, character_name)`. If absent: `(user_uuid, game_id)` with `character_name IS NULL`. Create if first push.
+5. Look up save UUID from identity in D1: `(user_uuid, game_id, save_name)`. Create if first push.
 6. Write snapshot to `users/{user_uuid}/saves/{save_uuid}/snapshots/{timestamp}.json` in R2.
 7. Compare `X-Parsed-At` to current `latest.json` timestamp. Only update latest pointer if incoming is newer.
 8. Re-index save sections in FTS5 (DELETE old rows for this save, INSERT new rows per section).
@@ -757,19 +764,11 @@ CREATE TABLE saves (
   uuid TEXT PRIMARY KEY,
   user_uuid TEXT NOT NULL,
   game_id TEXT NOT NULL,
-  character_name TEXT,              -- NULL for game-scoped saves
-  summary TEXT,
-  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (user_uuid) REFERENCES users(uuid)
+  save_name TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  last_updated TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (user_uuid, game_id, save_name)
 );
-
--- Character saves: one per (user, game, character).
-CREATE UNIQUE INDEX idx_saves_character
-  ON saves(user_uuid, game_id, character_name) WHERE character_name IS NOT NULL;
-
--- Game saves: one per (user, game). Shared stash, meta-progression, etc.
-CREATE UNIQUE INDEX idx_saves_game
-  ON saves(user_uuid, game_id) WHERE character_name IS NULL;
 ```
 
 ### Daemon WebSocket Client (Go)
@@ -979,7 +978,24 @@ Both paths produce the same result: updated snapshots in R2, updated metadata in
 
 ### AI Interaction Pattern
 
-When a user asks about their game state, the AI follows this pattern:
+Players interact with Savecraft in two distinct modes — often in the same conversation. The tools are identical; the intent is different.
+
+**Companion mode** — the player is talking about their game, not asking a structured question:
+
+1. "Another Countess run and ZERO SHAELS. Wtf."
+   - AI calls `get_section(save_id, "character_overview")` to see current level/difficulty
+   - AI calls `list_notes` or `search("farming")` to check if there's a farming goal
+   - AI commiserates with context: "You've been Hell Countess farming at level 74 — that's rough. She only drops up to Io in Hell. If you need Shaels specifically, Normal Countess is actually more reliable. Want me to update your farming note?"
+
+2. "I JUST FOUND A BER RUNE"
+   - AI calls `refresh_save` to get fresh data, then `search("farming")` to find goals
+   - AI reacts: "That's your Enigma Ber! One down. You still need Jah and a 3os Mage Plate. Want me to update your farming note?"
+
+3. "I think I'm done with this character for a while."
+   - AI calls `get_save_summary` to recap the character's state
+   - AI gives a send-off: "Level 89 Hammerdin with Enigma and HotO — that's a complete build. If you come back, your biggest upgrade path is probably torch farming."
+
+**Optimizer mode** — the player wants specific build/progression advice:
 
 1. Call `list_saves` to see what's available, or `search(query)` to find specific content across saves.
 2. Call `get_save_sections(save_id)` to see available sections for a save.
@@ -991,11 +1007,15 @@ When a user asks about their game state, the AI follows this pattern:
 4. If the user indicates something just changed ("I just equipped a new item", "I just finished a quest"), call `refresh_save` to get fresh data before reading sections. The AI doesn't need to know whether the save is daemon-backed or API-backed — the server handles routing.
 5. Combine structured save data with the AI's existing game knowledge (item stats, quest walkthroughs, build guides, meta analysis) to give personalized advice.
 
+**The key insight:** the companion mode doesn't require different tools or data. It requires the same context — what character, what gear, what goals — applied with empathy instead of analysis. Savecraft's architecture serves both by making the player's full state available. The AI's personality and the player's intent determine which mode the conversation takes.
+
 ## Notes
 
 ### Overview
 
-Notes are user-supplied reference material attached to a save. They cover the full spectrum from short goals ("farming for Ber rune") to full build guides (15KB of pasted Maxroll content) to progression checklists. When the AI reads a save's state, it can also read the attached notes and compare: "here's what you have vs. what the note says you should have."
+Notes are user-supplied reference material attached to a save. They cover the full spectrum from short goals ("farming for Ber rune") to full build guides (15KB of pasted Maxroll content) to progression checklists.
+
+Notes serve both interaction modes. In optimizer mode, the AI compares notes to actual state: "here's what you have vs. what the guide says you should have." In companion mode, notes are the AI's memory of your goals and context — when you say "I found the Ber!" the AI knows that was on your farming list and can react accordingly. The `create_note` and `update_note` tools let the AI maintain this context naturally during conversation, without the player managing a separate system.
 
 Notes are **not** vectorized, chunked, or RAG'd. A typical note is 200 bytes to 20KB of markdown. The AI reads individual notes in full after discovering them via search or listing.
 
@@ -1070,24 +1090,27 @@ Removes a note. Requires confirmation from the user in conversation before the A
 
 ### AI Interaction with Notes
 
-Typical flows:
+Typical flows — optimizer and companion modes often blend in the same conversation:
 
-**Reading a build guide:**
+**Optimizer: Reading a build guide:**
 1. User: "Am I following my Warlock build correctly?"
 2. AI calls `search(query: "warlock build")` → finds the note and the Warlock save
 3. AI calls `get_note(save_id, note_id)` → gets the full build guide content
 4. AI calls `get_section(save_id, "equipped_gear")` + `get_section(save_id, "skills")`
 5. AI compares actual state to guide recommendations, identifies gaps
 
-**Creating a goal:**
+**Companion: Setting a goal through conversation:**
 1. User: "I need to farm for Enigma. Remember that — I need Jah, Ber, and a 3-socket Mage Plate."
 2. AI calls `create_note(save_id, "Enigma Farming Goals", "Need: Jah rune, Ber rune, 3os Mage Plate")`
-3. Next session, user asks "what was I farming for?" → AI calls `list_notes` or `search("farming")`
+3. Next session, user says "ugh, still no Jah" → AI calls `list_notes` or `search("farming")`, knows exactly what they're talking about
 
-**Updating a note:**
-1. User: "I found the Jah rune! Update my farming note."
-2. AI calls `search("farming")` → finds the note
-3. AI calls `update_note(save_id, note_id, "Need: ~~Jah rune~~, Ber rune, 3os Mage Plate\n\nFound: Jah rune (2026-02-25)")`
+**Companion → Optimizer: Celebrating a drop leads to planning:**
+1. User: "I JUST FOUND A BER RUNE"
+2. AI calls `refresh_save` → `search("farming")` → finds the Enigma note
+3. AI: "That's your Enigma Ber! You still need Jah and a 3os Mage Plate. Want me to update the note?"
+4. AI calls `update_note(save_id, note_id, "Need: ~~Ber rune~~, Jah rune, 3os Mage Plate\n\nFound: Ber rune (2026-02-25)")`
+5. User: "Where should I farm for Jah?"
+6. Now in optimizer mode — AI combines game knowledge with the player's actual character level and difficulty to recommend farming spots
 
 ### Web UI: Note Management
 

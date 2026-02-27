@@ -61,7 +61,7 @@ function mapDeviceInfo(d: WireDeviceInfo): Device {
     const status = wireStatusToGameStatus(g.status);
     const saves: SaveSummary[] = (g.saves ?? []).map((s) => ({
       saveUuid: s.saveUuid ?? "",
-      characterName: s.identity?.name ?? "Unknown",
+      saveName: s.identity?.name ?? "Unknown",
       summary: s.summary ?? "",
       lastUpdated: relativeTime(s.lastUpdated),
     }));
@@ -241,12 +241,12 @@ export function dispatchToDevices(msg: WireMessage): void {
           const existing = game.saves.find((s) => s.saveUuid === pc.saveUuid);
           if (existing) {
             existing.summary = pc.summary ?? existing.summary;
-            if (pc.identity?.name) existing.characterName = pc.identity.name;
+            if (pc.identity?.name) existing.saveName = pc.identity.name;
             existing.lastUpdated = "just now";
           } else {
             game.saves.push({
               saveUuid: pc.saveUuid,
-              characterName: pc.identity?.name ?? "Unknown",
+              saveName: pc.identity?.name ?? "Unknown",
               summary: pc.summary ?? "",
               lastUpdated: "just now",
             });

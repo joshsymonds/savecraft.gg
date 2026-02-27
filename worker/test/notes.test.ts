@@ -5,13 +5,13 @@ import { cleanAll } from "./helpers";
 
 const TEST_USER = "notes-test-user";
 
-// Use unique character names per test to avoid UNIQUE(user_uuid, game_id, character_name) collisions
+// Use unique save names per test to avoid UNIQUE(user_uuid, game_id, save_name) collisions
 let charSeq = 0;
 
 async function seedSave(saveUuid: string, userUuid: string): Promise<void> {
   charSeq++;
   await env.DB.prepare(
-    "INSERT INTO saves (uuid, user_uuid, game_id, character_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO saves (uuid, user_uuid, game_id, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?)",
   )
     .bind(
       saveUuid,

@@ -14,7 +14,7 @@ interface SaveRow {
   uuid: string;
   user_uuid: string;
   game_id: string;
-  character_name: string;
+  save_name: string;
   summary: string;
   last_updated: string;
 }
@@ -26,8 +26,8 @@ interface GameStateSection {
 
 interface GameState {
   identity: {
-    character_name: string;
-    game_id: string;
+    saveName: string;
+    gameId: string;
     extra?: Record<string, unknown>;
   };
   summary: string;
@@ -79,7 +79,7 @@ async function loadSnapshotAtTimestamp(
 export async function listSaves(db: D1Database, userUuid: string): Promise<ToolResult> {
   const rows = await db
     .prepare(
-      "SELECT uuid, game_id, character_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
+      "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
     )
     .bind(userUuid)
     .all<SaveRow>();
@@ -87,7 +87,7 @@ export async function listSaves(db: D1Database, userUuid: string): Promise<ToolR
   const saves = rows.results.map((row) => ({
     save_id: row.uuid,
     game_id: row.game_id,
-    name: row.character_name,
+    name: row.save_name,
     summary: row.summary,
     last_updated: row.last_updated,
   }));
@@ -327,7 +327,7 @@ export async function createNote(
     .run();
 
   // Index in FTS5
-  await indexNote(db, userUuid, saveId, save.character_name, noteId, title, content);
+  await indexNote(db, userUuid, saveId, save.save_name, noteId, title, content);
 
   return textResult({ note_id: noteId });
 }
@@ -387,7 +387,7 @@ export async function updateNote(
       db,
       userUuid,
       saveId,
-      save.character_name,
+      save.save_name,
       noteId,
       updated.title,
       updated.content,
@@ -457,7 +457,7 @@ export async function getSaveSummary(
   return textResult({
     save_id: saveId,
     game_id: save.game_id,
-    name: save.character_name,
+    name: save.save_name,
     summary: save.summary,
     overview,
   });
@@ -526,7 +526,7 @@ export async function indexSaveSections(
   db: D1Database,
   userUuid: string,
   saveId: string,
-  characterName: string,
+  saveName: string,
   sections: Record<string, { description: string; data: unknown }>,
 ): Promise<void> {
   // Delete old section index entries for this save
@@ -544,7 +544,7 @@ export async function indexSaveSections(
       .bind(
         userUuid,
         saveId,
-        characterName,
+        saveName,
         name,
         section.description,
         JSON.stringify(section.data),

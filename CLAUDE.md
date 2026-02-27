@@ -28,7 +28,7 @@ Read `docs/savecraft-architecture.md` for the full architecture document. It is 
 - Plugin stdout is ndjson: `{"type": "status"|"result"|"error", ...}` per line
 - Save data pushed via HTTP POST, not WebSocket. WS carries lightweight status events only.
 - All R2 access scoped to `users/{user_uuid}/` prefix
-- Save identity resolved by `(user_uuid, game_id, character_name)` → save UUID
+- Save identity resolved by `(user_uuid, game_id, save_name)` → save UUID
 - Durable Objects use WebSocket Hibernation — no application-layer heartbeats
 - Plugins provide a `summary` string for UI display (e.g. "Hammerdin, Level 89 Paladin")
 

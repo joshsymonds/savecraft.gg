@@ -40,8 +40,8 @@ func main() {
 	if resultErr := enc.Encode(map[string]any{
 		"type": "result",
 		"identity": map[string]any{
-			"characterName": name,
-			"gameId":        "echo",
+			"saveName": name,
+			"gameId":   "echo",
 		},
 		"summary": name,
 		"sections": map[string]any{

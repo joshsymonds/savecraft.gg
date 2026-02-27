@@ -19,7 +19,7 @@ function toSave(row: ApiSave): Save {
     id: row.id,
     gameId: row.game_id,
     gameName: gameDisplayName(row.game_id),
-    characterName: row.character_name,
+    saveName: row.save_name,
     summary: row.summary,
     lastUpdated: relativeTime(row.last_updated),
   };

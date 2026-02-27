@@ -23,8 +23,8 @@ const USER_B = "mcp-user-b";
 
 const sampleGameState = {
   identity: {
-    character_name: "Hammerdin",
-    game_id: "d2r",
+    saveName: "Hammerdin",
+    gameId: "d2r",
     extra: { class: "Paladin", level: 89 },
   },
   summary: "Hammerdin, Level 89 Paladin",
@@ -51,7 +51,7 @@ async function seedSave(options: {
   saveUuid: string;
   userUuid: string;
   gameId: string;
-  characterName: string;
+  saveName: string;
   summary: string;
   lastUpdated?: string;
   gameState?: typeof sampleGameState;
@@ -59,13 +59,13 @@ async function seedSave(options: {
   const lastUpdated = options.lastUpdated ?? "2026-02-25T21:30:00Z";
 
   await env.DB.prepare(
-    "INSERT INTO saves (uuid, user_uuid, game_id, character_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO saves (uuid, user_uuid, game_id, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?)",
   )
     .bind(
       options.saveUuid,
       options.userUuid,
       options.gameId,
-      options.characterName,
+      options.saveName,
       options.summary,
       lastUpdated,
     )
@@ -111,14 +111,14 @@ describe("MCP Tools", () => {
         saveUuid: "save-1",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "Hammerdin",
+        saveName: "Hammerdin",
         summary: "Hammerdin, Level 89 Paladin",
       });
       await seedSave({
         saveUuid: "save-2",
         userUuid: USER_A,
         gameId: "stardew",
-        characterName: "Berry Farm",
+        saveName: "Berry Farm",
         summary: "Berry Farm, Year 3 Fall",
       });
 
@@ -135,7 +135,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-other",
         userUuid: USER_B,
         gameId: "d2r",
-        characterName: "Sorceress",
+        saveName: "Sorceress",
         summary: "Sorceress, Level 80",
       });
 
@@ -151,7 +151,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-meta",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "Hammerdin",
+        saveName: "Hammerdin",
         summary: "Hammerdin, Level 89 Paladin",
         lastUpdated: "2026-02-25T21:30:00Z",
       });
@@ -175,7 +175,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-sections",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "Hammerdin",
+        saveName: "Hammerdin",
         summary: "Hammerdin, Level 89 Paladin",
       });
 
@@ -198,6 +198,25 @@ describe("MCP Tools", () => {
       expect(overview!.description).toBe("Level, class, difficulty, play time");
     });
 
+    it("R2 snapshots use daemon-format identity (camelCase gameId)", async () => {
+      // seedSave stores sampleGameState in R2 — verify it uses daemon convention
+      await seedSave({
+        saveUuid: "save-fmt-check",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Hammerdin",
+        summary: "Format check",
+      });
+
+      const obj = await env.SAVES.get(`users/${USER_A}/saves/save-fmt-check/latest.json`);
+      const snapshot = await obj!.json<{ identity: Record<string, unknown> }>();
+      // Daemon sends camelCase — R2 should store exactly that
+      expect(snapshot.identity.gameId).toBe("d2r");
+      expect(snapshot.identity.saveName).toBe("Hammerdin");
+      // snake_case game_id should NOT be in daemon JSON
+      expect(snapshot.identity.game_id).toBeUndefined();
+    });
+
     it("returns error for non-existent save", async () => {
       const result = await getSaveSections(env.DB, env.SAVES, USER_A, "nonexistent");
       expect(result.isError).toBe(true);
@@ -208,7 +227,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-other-user",
         userUuid: USER_B,
         gameId: "d2r",
-        characterName: "Sorceress",
+        saveName: "Sorceress",
         summary: "Sorceress, Level 80",
       });
 
@@ -225,7 +244,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-section",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "Hammerdin",
+        saveName: "Hammerdin",
         summary: "Hammerdin, Level 89 Paladin",
       });
 
@@ -250,7 +269,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-section-missing",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "Hammerdin",
+        saveName: "Hammerdin",
         summary: "Hammerdin, Level 89 Paladin",
       });
 
@@ -274,7 +293,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-section-other",
         userUuid: USER_B,
         gameId: "d2r",
-        characterName: "Amazon",
+        saveName: "Amazon",
         summary: "Amazon, Level 70",
       });
 
@@ -287,7 +306,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-section-ts",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "HistoricalChar",
+        saveName: "HistoricalChar",
         summary: "Test",
       });
 
@@ -330,7 +349,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-section-ts-missing",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "MissingTsChar",
+        saveName: "MissingTsChar",
         summary: "Test",
       });
 
@@ -354,7 +373,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-diff",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "DiffChar",
+        saveName: "DiffChar",
         summary: "Test",
       });
 
@@ -429,7 +448,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-diff-same",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "SameChar",
+        saveName: "SameChar",
         summary: "Test",
       });
 
@@ -469,7 +488,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-diff-missing-ts",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "MissingDiffChar",
+        saveName: "MissingDiffChar",
         summary: "Test",
       });
 
@@ -496,7 +515,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-summary",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "Hammerdin",
+        saveName: "Hammerdin",
         summary: "Hammerdin, Level 89 Paladin",
       });
 
@@ -543,7 +562,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-notes-list",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "Hammerdin",
+        saveName: "Hammerdin",
         summary: "Hammerdin, Level 89",
       });
       await seedNote("save-notes-list", USER_A, "note-1", "Build Guide", "## Gear section");
@@ -565,7 +584,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-no-notes",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "NoNotesChar",
+        saveName: "NoNotesChar",
         summary: "No notes",
       });
 
@@ -586,7 +605,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-get-note",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "GetNoteChar",
+        saveName: "GetNoteChar",
         summary: "Test",
       });
       await seedNote("save-get-note", USER_A, "note-get-1", "My Guide", "Full content here");
@@ -605,7 +624,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-get-note-missing",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "MissingNoteChar",
+        saveName: "MissingNoteChar",
         summary: "Test",
       });
 
@@ -620,7 +639,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-create-note",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "CreateNoteChar",
+        saveName: "CreateNoteChar",
         summary: "Test",
       });
 
@@ -654,7 +673,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-update-note",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "UpdateNoteChar",
+        saveName: "UpdateNoteChar",
         summary: "Test",
       });
       await seedNote("save-update-note", USER_A, "note-update-1", "Old Title", "Old content");
@@ -680,7 +699,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-update-missing",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "UpdateMissingChar",
+        saveName: "UpdateMissingChar",
         summary: "Test",
       });
 
@@ -701,7 +720,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-delete-note",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "DeleteNoteChar",
+        saveName: "DeleteNoteChar",
         summary: "Test",
       });
       await seedNote("save-delete-note", USER_A, "note-delete-1", "Temp", "Delete me");
@@ -719,7 +738,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-delete-missing",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "DeleteMissingChar",
+        saveName: "DeleteMissingChar",
         summary: "Test",
       });
 
@@ -736,7 +755,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-search-1",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "SearchChar",
+        saveName: "SearchChar",
         summary: "SearchChar, Level 89",
       });
 
@@ -771,7 +790,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-search-2",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "SearchNoteChar",
+        saveName: "SearchNoteChar",
         summary: "Test",
       });
 
@@ -805,14 +824,14 @@ describe("MCP Tools", () => {
         saveUuid: "save-search-scope-a",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "ScopeCharA",
+        saveName: "ScopeCharA",
         summary: "Test",
       });
       await seedSave({
         saveUuid: "save-search-scope-b",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "ScopeCharB",
+        saveName: "ScopeCharB",
         summary: "Test",
       });
 
@@ -861,7 +880,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-search-other",
         userUuid: USER_B,
         gameId: "d2r",
-        characterName: "OtherUserChar",
+        saveName: "OtherUserChar",
         summary: "Test",
       });
 
@@ -889,7 +908,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-search-mcp-note",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "McpNoteChar",
+        saveName: "McpNoteChar",
         summary: "Test",
       });
 
@@ -916,7 +935,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-search-mcp-update",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "McpUpdateChar",
+        saveName: "McpUpdateChar",
         summary: "Test",
       });
 
@@ -950,7 +969,7 @@ describe("MCP Tools", () => {
         saveUuid: "save-search-mcp-delete",
         userUuid: USER_A,
         gameId: "d2r",
-        characterName: "McpDeleteChar",
+        saveName: "McpDeleteChar",
         summary: "Test",
       });
 

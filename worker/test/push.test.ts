@@ -21,8 +21,8 @@ function pushRequest(body: unknown, headers?: Record<string, string>): Request {
 
 const validGameState = {
   identity: {
-    character_name: "Hammerdin",
-    game_id: "d2r",
+    saveName: "Hammerdin",
+    gameId: "d2r",
     extra: { class: "Paladin", level: 89 },
   },
   summary: "Hammerdin, Level 89 Paladin",
@@ -65,7 +65,7 @@ describe("Push API", () => {
 
     // D1 should have exactly one save row for this character
     const rows = await env.DB.prepare(
-      "SELECT * FROM saves WHERE user_uuid = ? AND game_id = 'd2r' AND character_name = 'Hammerdin'",
+      "SELECT * FROM saves WHERE user_uuid = ? AND game_id = 'd2r' AND save_name = 'Hammerdin'",
     )
       .bind(TEST_USER)
       .all();
@@ -98,7 +98,7 @@ describe("Push API", () => {
 
   it("rejects body without sections", async () => {
     const resp = await SELF.fetch(
-      pushRequest({ identity: { character_name: "Test", game_id: "d2r" } }),
+      pushRequest({ identity: { saveName: "Test", gameId: "d2r" } }),
     );
     expect(resp.status).toBe(400);
   });
@@ -107,7 +107,7 @@ describe("Push API", () => {
     // Use a unique character to isolate this test
     const character = {
       ...validGameState,
-      identity: { ...validGameState.identity, character_name: "TimestampGuardChar" },
+      identity: { ...validGameState.identity, saveName: "TimestampGuardChar" },
       summary: "Newer push",
     };
 
@@ -143,7 +143,7 @@ describe("Push API", () => {
   it("updates latest.json when incoming timestamp is newer", async () => {
     const character = {
       ...validGameState,
-      identity: { ...validGameState.identity, character_name: "TimestampNewerChar" },
+      identity: { ...validGameState.identity, saveName: "TimestampNewerChar" },
       summary: "First push",
     };
 
@@ -167,10 +167,31 @@ describe("Push API", () => {
     expect(latestData.summary).toBe("Second push");
   });
 
+  it("stores daemon-format identity (camelCase gameId) in R2 snapshot", async () => {
+    const daemonBody = {
+      identity: { saveName: "FormatCheck", gameId: "d2r" },
+      summary: "Format test",
+      sections: { overview: { description: "test", data: {} } },
+    };
+    const resp = await SELF.fetch(pushRequest(daemonBody));
+    expect(resp.status).toBe(201);
+    const { save_uuid } = await resp.json<{ save_uuid: string }>();
+
+    // Read back from R2 and verify identity uses camelCase (daemon convention)
+    const latestKey = `users/${TEST_USER}/saves/${save_uuid}/latest.json`;
+    const obj = await env.SAVES.get(latestKey);
+    expect(obj).not.toBeNull();
+    const snapshot = await obj!.json<{ identity: Record<string, unknown> }>();
+    expect(snapshot.identity.gameId).toBe("d2r");
+    expect(snapshot.identity.saveName).toBe("FormatCheck");
+    // snake_case game_id should NOT be present — daemon sends camelCase
+    expect(snapshot.identity.game_id).toBeUndefined();
+  });
+
   it("always writes the immutable snapshot regardless of timestamp order", async () => {
     const character = {
       ...validGameState,
-      identity: { ...validGameState.identity, character_name: "SnapshotAlwaysChar" },
+      identity: { ...validGameState.identity, saveName: "SnapshotAlwaysChar" },
     };
 
     // Push newer first

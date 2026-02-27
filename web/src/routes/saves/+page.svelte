@@ -54,7 +54,7 @@
           <Panel>
             <div class="save-card">
               <div class="save-top">
-                <span class="save-name">{save.characterName}</span>
+                <span class="save-name">{save.saveName}</span>
               </div>
               <div class="save-summary">{save.summary}</div>
               <div class="save-updated">Last updated {save.lastUpdated}</div>

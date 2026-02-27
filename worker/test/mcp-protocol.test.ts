@@ -21,8 +21,8 @@ async function pushSave(): Promise<string> {
     },
     body: JSON.stringify({
       identity: {
-        character_name: "Hammerdin",
-        game_id: "d2r",
+        saveName: "Hammerdin",
+        gameId: "d2r",
         extra: { class: "Paladin", level: 89 },
       },
       summary: "Hammerdin, Level 89 Paladin",

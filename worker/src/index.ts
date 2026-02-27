@@ -389,14 +389,14 @@ async function handleNoteCollection(
       .run();
 
     // Index note in FTS5
-    const saveRow = await env.DB.prepare("SELECT character_name FROM saves WHERE uuid = ?")
+    const saveRow = await env.DB.prepare("SELECT save_name FROM saves WHERE uuid = ?")
       .bind(saveId)
-      .first<{ character_name: string }>();
+      .first<{ save_name: string }>();
     await indexNote(
       env.DB,
       userUuid,
       saveId,
-      saveRow?.character_name ?? "",
+      saveRow?.save_name ?? "",
       noteId,
       body.title,
       body.content,
@@ -507,16 +507,16 @@ async function updateOneNote(
 
     // Re-index note in FTS5
     const updated = await env.DB.prepare(
-      "SELECT n.title, n.content, s.character_name FROM notes n JOIN saves s ON n.save_id = s.uuid WHERE n.note_id = ?",
+      "SELECT n.title, n.content, s.save_name FROM notes n JOIN saves s ON n.save_id = s.uuid WHERE n.note_id = ?",
     )
       .bind(noteId)
-      .first<{ title: string; content: string; character_name: string }>();
+      .first<{ title: string; content: string; save_name: string }>();
     if (updated) {
       await indexNote(
         env.DB,
         userUuid,
         saveId,
-        updated.character_name,
+        updated.save_name,
         noteId,
         updated.title,
         updated.content,
@@ -557,13 +557,13 @@ async function deleteOneNote(
 
 async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
   const rows = await env.DB.prepare(
-    "SELECT uuid, game_id, character_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
+    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
   )
     .bind(userUuid)
     .all<{
       uuid: string;
       game_id: string;
-      character_name: string;
+      save_name: string;
       summary: string;
       last_updated: string;
     }>();
@@ -572,7 +572,7 @@ async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
     saves: rows.results.map((row) => ({
       id: row.uuid,
       game_id: row.game_id,
-      character_name: row.character_name,
+      save_name: row.save_name,
       summary: row.summary,
       last_updated: row.last_updated,
     })),
@@ -581,13 +581,13 @@ async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
 
 async function handleGetSave(env: Env, userUuid: string, saveId: string): Promise<Response> {
   const save = await env.DB.prepare(
-    "SELECT uuid, game_id, character_name, summary, last_updated FROM saves WHERE uuid = ? AND user_uuid = ?",
+    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE uuid = ? AND user_uuid = ?",
   )
     .bind(saveId, userUuid)
     .first<{
       uuid: string;
       game_id: string;
-      character_name: string;
+      save_name: string;
       summary: string;
       last_updated: string;
     }>();
@@ -611,7 +611,7 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
   return Response.json({
     id: save.uuid,
     game_id: save.game_id,
-    character_name: save.character_name,
+    save_name: save.save_name,
     summary: save.summary,
     last_updated: save.last_updated,
     sections,
@@ -666,9 +666,9 @@ async function handlePush(request: Request, env: Env): Promise<Response> {
     );
   }
 
-  const characterName = (identity.character_name as string | undefined) ?? "";
-  if (!characterName) {
-    return Response.json({ error: "identity.character_name is required" }, { status: 400 });
+  const saveName = (identity.saveName as string | undefined) ?? "";
+  if (!saveName) {
+    return Response.json({ error: "identity.saveName is required" }, { status: 400 });
   }
 
   // Size check (5MB limit)
@@ -679,9 +679,9 @@ async function handlePush(request: Request, env: Env): Promise<Response> {
 
   // Upsert save in D1, get save UUID
   const existingSave = await env.DB.prepare(
-    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND character_name = ?",
+    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
   )
-    .bind(auth.userUuid, gameId, characterName)
+    .bind(auth.userUuid, gameId, saveName)
     .first<{ uuid: string }>();
 
   let saveUuid: string;
@@ -690,9 +690,9 @@ async function handlePush(request: Request, env: Env): Promise<Response> {
   } else {
     saveUuid = crypto.randomUUID();
     await env.DB.prepare(
-      "INSERT INTO saves (uuid, user_uuid, game_id, character_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO saves (uuid, user_uuid, game_id, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?)",
     )
-      .bind(saveUuid, auth.userUuid, gameId, characterName, summary, parsedAt)
+      .bind(saveUuid, auth.userUuid, gameId, saveName, summary, parsedAt)
       .run();
   }
 
@@ -715,7 +715,7 @@ async function handlePush(request: Request, env: Env): Promise<Response> {
     }
     // Re-index save sections in FTS5
     const sectionData = sections as Record<string, { description: string; data: unknown }>;
-    await indexSaveSections(env.DB, auth.userUuid, saveUuid, characterName, sectionData);
+    await indexSaveSections(env.DB, auth.userUuid, saveUuid, saveName, sectionData);
   }
 
   return Response.json({ save_uuid: saveUuid, snapshot_timestamp: parsedAt }, { status: 201 });

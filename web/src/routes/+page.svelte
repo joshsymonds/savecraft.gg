@@ -20,6 +20,10 @@
     }
   }
 
+  function discover(): void {
+    send(JSON.stringify({ discoverGames: {} }));
+  }
+
   const ACCENT_COLORS: Record<DeviceStatus, string | undefined> = {
     online: "#5abe8a40",
     error: "#e8c44e40",
@@ -84,6 +88,11 @@
           </div>
           <div class="device-actions">
             <TinyButton
+              label="DISCOVER"
+              onclick={discover}
+              disabled={device.status === "offline"}
+            />
+            <TinyButton
               label="RESCAN"
               onclick={() => rescan(device)}
               disabled={device.status === "offline"}
@@ -110,7 +119,7 @@
               {#if game.status === "watching" && game.saves.length > 0}
                 <div class="save-list">
                   {#each game.saves as save}
-                    <span class="save-name">{save.characterName}</span>
+                    <span class="save-name">{save.saveName}</span>
                   {/each}
                 </div>
               {/if}

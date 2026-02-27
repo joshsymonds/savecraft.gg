@@ -1,12 +1,12 @@
--- Save UUID resolution: (user_uuid, game_id, character_name) → save UUID
+-- Save UUID resolution: (user_uuid, game_id, save_name) → save UUID
 CREATE TABLE saves (
   uuid TEXT PRIMARY KEY,
   user_uuid TEXT NOT NULL,
   game_id TEXT NOT NULL,
-  character_name TEXT NOT NULL,
+  save_name TEXT NOT NULL,
   summary TEXT NOT NULL DEFAULT '',
   last_updated TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE (user_uuid, game_id, character_name)
+  UNIQUE (user_uuid, game_id, save_name)
 );
 
 -- Device event persistence for UI cold-start and diagnostics

@@ -6,7 +6,7 @@ import { cleanAll } from "./helpers";
 const TEST_USER = "saves-rest-user";
 
 function pushSave(
-  characterName: string,
+  saveName: string,
   summary: string,
   parsedAt: string,
 ): Request {
@@ -19,12 +19,12 @@ function pushSave(
       "X-Parsed-At": parsedAt,
     },
     body: JSON.stringify({
-      identity: { character_name: characterName, game_id: "d2r" },
+      identity: { saveName, gameId: "d2r" },
       summary,
       sections: {
         character_overview: {
           description: "Level, class, difficulty",
-          data: { name: characterName, class: "Paladin", level: 89 },
+          data: { name: saveName, class: "Paladin", level: 89 },
         },
         skills: {
           description: "Skill allocations",
@@ -86,17 +86,17 @@ describe("Saves REST API", () => {
     expect(resp.status).toBe(200);
 
     const body = await resp.json<{
-      saves: { id: string; game_id: string; character_name: string; summary: string; last_updated: string }[];
+      saves: { id: string; game_id: string; save_name: string; summary: string; last_updated: string }[];
     }>();
 
     expect(body.saves).toHaveLength(2);
     // Ordered by last_updated DESC
     const first = body.saves[0]!;
     const second = body.saves[1]!;
-    expect(first.character_name).toBe("Hammerdin");
+    expect(first.save_name).toBe("Hammerdin");
     expect(first.game_id).toBe("d2r");
     expect(first.summary).toBe("Level 89 Paladin");
-    expect(second.character_name).toBe("Frostbite");
+    expect(second.save_name).toBe("Frostbite");
   });
 
   it("gets a single save with sections", async () => {
@@ -111,13 +111,13 @@ describe("Saves REST API", () => {
     const body = await resp.json<{
       id: string;
       game_id: string;
-      character_name: string;
+      save_name: string;
       summary: string;
       sections: { name: string; description: string }[];
     }>();
 
     expect(body.id).toBe(save_uuid);
-    expect(body.character_name).toBe("Hammerdin");
+    expect(body.save_name).toBe("Hammerdin");
     expect(body.sections).toHaveLength(2);
 
     const sectionNames = body.sections.map((s) => s.name).toSorted((a, b) => a.localeCompare(b));
