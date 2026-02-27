@@ -24,3 +24,30 @@ bindings = [
 [[migrations]]
 tag = "v1"
 new_classes = ["DaemonHub"]
+
+# ── Staging ────────────────────────────────────────────
+[env.staging]
+name = "savecraft-staging"
+route = { pattern = "staging.savecraft.gg/*", zone_name = "savecraft.gg" }
+
+[env.staging.vars]
+ENVIRONMENT = "staging"
+
+[[env.staging.d1_databases]]
+binding = "DB"
+database_name = "savecraft-staging"
+database_id = "05c71c36-dd0a-4693-aed4-c745d975ebae"
+migrations_dir = "migrations"
+
+[[env.staging.r2_buckets]]
+binding = "SNAPSHOTS"
+bucket_name = "savecraft-snapshots-staging"
+
+[env.staging.durable_objects]
+bindings = [
+  { name = "DAEMON_HUB", class_name = "DaemonHub" }
+]
+
+[[env.staging.migrations]]
+tag = "v1"
+new_sqlite_classes = ["DaemonHub"]
