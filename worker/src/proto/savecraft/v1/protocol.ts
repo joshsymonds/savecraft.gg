@@ -263,6 +263,7 @@ export interface PushCompleted {
   summary: string;
   snapshotSizeBytes: number;
   durationMs: number;
+  identity: SaveIdentity | undefined;
 }
 
 /** Upload failed. will_retry indicates if the daemon will retry automatically. */
@@ -2395,7 +2396,7 @@ export const PushStarted: MessageFns<PushStarted> = {
 };
 
 function createBasePushCompleted(): PushCompleted {
-  return { gameId: "", saveUuid: "", summary: "", snapshotSizeBytes: 0, durationMs: 0 };
+  return { gameId: "", saveUuid: "", summary: "", snapshotSizeBytes: 0, durationMs: 0, identity: undefined };
 }
 
 export const PushCompleted: MessageFns<PushCompleted> = {
@@ -2414,6 +2415,9 @@ export const PushCompleted: MessageFns<PushCompleted> = {
     }
     if (message.durationMs !== 0) {
       writer.uint32(40).int32(message.durationMs);
+    }
+    if (message.identity !== undefined) {
+      SaveIdentity.encode(message.identity, writer.uint32(50).fork()).join();
     }
     return writer;
   },
@@ -2465,6 +2469,14 @@ export const PushCompleted: MessageFns<PushCompleted> = {
           message.durationMs = reader.int32();
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.identity = SaveIdentity.decode(reader, reader.uint32());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2497,6 +2509,7 @@ export const PushCompleted: MessageFns<PushCompleted> = {
         : isSet(object.duration_ms)
         ? globalThis.Number(object.duration_ms)
         : 0,
+      identity: isSet(object.identity) ? SaveIdentity.fromJSON(object.identity) : undefined,
     };
   },
 
@@ -2517,6 +2530,9 @@ export const PushCompleted: MessageFns<PushCompleted> = {
     if (message.durationMs !== 0) {
       obj.durationMs = Math.round(message.durationMs);
     }
+    if (message.identity !== undefined) {
+      obj.identity = SaveIdentity.toJSON(message.identity);
+    }
     return obj;
   },
 
@@ -2530,6 +2546,9 @@ export const PushCompleted: MessageFns<PushCompleted> = {
     message.summary = object.summary ?? "";
     message.snapshotSizeBytes = object.snapshotSizeBytes ?? 0;
     message.durationMs = object.durationMs ?? 0;
+    message.identity = (object.identity !== undefined && object.identity !== null)
+      ? SaveIdentity.fromPartial(object.identity)
+      : undefined;
     return message;
   },
 };

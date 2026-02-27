@@ -282,16 +282,14 @@ export class DaemonHub extends DurableObject<Env> {
       case "pushCompleted": {
         const deviceId = await this.getDeviceIdForConnection(tags);
         if (!deviceId) return { kind: "none" };
-        const { gameId, saveUuid, summary } = rpc.payload.pushCompleted;
-        const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
-        const identity = await this.lookupSaveIdentity(saveUuid, userUuid);
+        const { gameId, saveUuid, summary, identity } = rpc.payload.pushCompleted;
         return {
           kind: "pushCompleted",
           deviceId,
           gameId,
           saveUuid,
           summary,
-          identity: identity ?? undefined,
+          identity,
         };
       }
       default: {
@@ -373,24 +371,6 @@ export class DaemonHub extends DurableObject<Env> {
     } catch {
       // Don't let state update failures break the relay
       return { kind: "none" };
-    }
-  }
-
-  private async lookupSaveIdentity(
-    saveUuid: string,
-    userUuid: string | undefined,
-  ): Promise<SaveIdentity | null> {
-    if (!userUuid) return null;
-    try {
-      const row = await this.env.DB.prepare(
-        "SELECT character_name FROM saves WHERE uuid = ? AND user_uuid = ?",
-      )
-        .bind(saveUuid, userUuid)
-        .first<{ character_name: string }>();
-      if (!row) return null;
-      return { name: row.character_name, extra: undefined };
-    } catch {
-      return null;
     }
   }
 

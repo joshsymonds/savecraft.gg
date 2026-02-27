@@ -8,16 +8,8 @@ const { subscribe, set, update } = writable<Device[]>([]);
 
 export const devices: Readable<Device[]> = { subscribe };
 
-/**
- * Fallback device ID — set on daemonOnline and deviceState. Used only when
- * _deviceId metadata is missing (very old replayed events). The hub now
- * injects _deviceId into all relayed and replayed events, so this is
- * rarely needed.
- */
-let lastOnlineDeviceId: string | null = null;
-
 function resolveDeviceId(msg: WireMessage): string | null {
-  return msg._deviceId ?? lastOnlineDeviceId;
+  return msg._deviceId ?? null;
 }
 
 function relativeTime(iso: string | undefined): string {
@@ -83,7 +75,6 @@ function mapDeviceInfo(d: WireDeviceInfo): Device {
   });
 
   const deviceStatus: DeviceStatus = d.online ? "online" : "offline";
-  if (d.online && d.deviceId) lastOnlineDeviceId = d.deviceId;
 
   return {
     id: d.deviceId ?? "",
@@ -141,7 +132,6 @@ export function dispatchToDevices(msg: WireMessage): void {
     case "daemonOnline": {
       const { deviceId, version } = msg.daemonOnline!;
       if (!deviceId) return;
-      lastOnlineDeviceId = deviceId;
       update((devs) => {
         const device = findOrCreateDevice(devs, deviceId);
         device.status = "online";
@@ -238,13 +228,11 @@ export function dispatchToDevices(msg: WireMessage): void {
 
     case "pushCompleted": {
       const pc = msg.pushCompleted!;
-      if (!pc.gameId) return;
+      const deviceId = resolveDeviceId(msg);
+      if (!deviceId || !pc.gameId) return;
 
       update((devs) => {
-        const targetDeviceId = resolveDeviceId(msg);
-        const targetDevice = targetDeviceId
-          ? devs.find((d) => d.id === targetDeviceId)
-          : devs[0];
+        const targetDevice = devs.find((d) => d.id === deviceId);
         if (!targetDevice) return devs;
 
         const game = findOrCreateGame(targetDevice, pc.gameId!);
@@ -253,12 +241,12 @@ export function dispatchToDevices(msg: WireMessage): void {
           const existing = game.saves.find((s) => s.saveUuid === pc.saveUuid);
           if (existing) {
             existing.summary = pc.summary ?? existing.summary;
-            existing.characterName = pc.summary?.split(",")[0] ?? existing.characterName;
+            if (pc.identity?.name) existing.characterName = pc.identity.name;
             existing.lastUpdated = "just now";
           } else {
             game.saves.push({
               saveUuid: pc.saveUuid,
-              characterName: pc.summary?.split(",")[0] ?? "Unknown",
+              characterName: pc.identity?.name ?? "Unknown",
               summary: pc.summary ?? "",
               lastUpdated: "just now",
             });
@@ -275,5 +263,4 @@ export function dispatchToDevices(msg: WireMessage): void {
 
 export function resetDevices(): void {
   set([]);
-  lastOnlineDeviceId = null;
 }

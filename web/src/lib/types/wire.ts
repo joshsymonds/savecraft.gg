@@ -98,6 +98,7 @@ export interface WirePushCompleted {
   summary?: string;
   snapshotSizeBytes?: number;
   durationMs?: number;
+  identity?: WireSaveIdentity;
 }
 
 export interface WirePushFailed {

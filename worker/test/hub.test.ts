@@ -347,15 +347,8 @@ describe("DaemonHub", () => {
     await closeWs(daemonB);
   });
 
-  it("enriches SaveInfo with identity from D1", async () => {
+  it("stores identity from pushCompleted in DeviceState", async () => {
     const userUuid = "ds-identity-user";
-
-    // Pre-populate a save in D1 (as if push API already ran)
-    await env.DB.prepare(
-      "INSERT INTO saves (uuid, user_uuid, game_id, character_name, summary) VALUES (?, ?, ?, ?, ?)",
-    )
-      .bind("save-abc", userUuid, "d2r", "Hammerdin", "Hammerdin, Level 89 Paladin")
-      .run();
 
     const daemon = await connectWs("/ws/daemon", userUuid);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
@@ -369,6 +362,7 @@ describe("DaemonHub", () => {
           gameId: "d2r",
           saveUuid: "save-abc",
           summary: "Hammerdin, Level 89 Paladin",
+          identity: { name: "Hammerdin", extra: { class: "Paladin", level: 89 } },
         },
       }),
     );
