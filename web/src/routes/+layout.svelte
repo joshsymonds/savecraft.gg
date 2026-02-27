@@ -1,9 +1,15 @@
 <script lang="ts">
   import "../app.css";
+  import { browser } from "$app/environment";
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
   import { page } from "$app/state";
   import { authState, getClerk, initializeClerk } from "$lib/auth/clerk";
+  import { resetActivity } from "$lib/stores/activity";
+  import { resetDevices } from "$lib/stores/devices";
+  import { loadPlugins } from "$lib/stores/plugins";
+  import { connect, disconnect } from "$lib/ws/client";
+  import { handleMessage } from "$lib/ws/dispatch";
   import { onMount } from "svelte";
 
   let { children } = $props();
@@ -11,14 +17,45 @@
 
   const PUBLIC_ROUTES = new Set(["/sign-in", "/sign-up"]);
 
+  /** Check Clerk's session cookie to infer auth state before the SDK loads. */
+  function hasClerkSession(): boolean {
+    if (!browser) return false;
+    const match = document.cookie.match(/__client_uat=(\d+)/);
+    return !!match && match[1] !== "0";
+  }
+
   onMount(() => {
     void initializeClerk();
+    void loadPlugins();
   });
 
-  // Route guard: redirect to /sign-in if not authenticated and not on a public route
+  // Route guard: redirect unauthenticated users away from protected routes.
+  // Uses the session cookie for an instant check before Clerk finishes loading.
   $effect(() => {
-    if ($authState.isLoaded && !$authState.isSignedIn && !PUBLIC_ROUTES.has(page.url.pathname)) {
+    if (PUBLIC_ROUTES.has(page.url.pathname)) return;
+    if ($authState.isLoaded && !$authState.isSignedIn) {
       void goto(resolve("/sign-up"));
+    } else if (!$authState.isLoaded && !hasClerkSession()) {
+      void goto(resolve("/sign-up"));
+    }
+  });
+
+  // Reverse guard: redirect authenticated users away from auth pages
+  $effect(() => {
+    if ($authState.isLoaded && $authState.isSignedIn && PUBLIC_ROUTES.has(page.url.pathname)) {
+      void goto(resolve("/"));
+    }
+  });
+
+  // WebSocket lifecycle: connect on sign-in, disconnect + reset on sign-out
+  $effect(() => {
+    if ($authState.isSignedIn) {
+      connect(handleMessage);
+      return () => {
+        disconnect();
+        resetDevices();
+        resetActivity();
+      };
     }
   });
 
@@ -35,15 +72,16 @@
       };
     }
   });
+
+  // Show the app shell if Clerk confirms signed-in, or optimistically if session cookie exists
+  const showAppShell = $derived(
+    $authState.isLoaded ? $authState.isSignedIn : hasClerkSession(),
+  );
 </script>
 
-{#if !$authState.isLoaded}
-  <div class="loading">
-    <span class="loading-text">INITIALIZING...</span>
-  </div>
-{:else if !$authState.isSignedIn}
+{#if PUBLIC_ROUTES.has(page.url.pathname)}
   {@render children()}
-{:else}
+{:else if showAppShell}
   <div class="app-shell">
     <header class="app-header">
       <span class="header-title">SAVECRAFT</span>
@@ -56,21 +94,6 @@
 {/if}
 
 <style>
-  .loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100vh;
-  }
-
-  .loading-text {
-    font-family: var(--font-pixel);
-    font-size: 8px;
-    color: var(--color-gold);
-    letter-spacing: 3px;
-    animation: fade-in 0.6s ease-out;
-  }
-
   .app-shell {
     display: flex;
     flex-direction: column;

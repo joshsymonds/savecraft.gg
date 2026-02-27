@@ -3,22 +3,23 @@
   Sign-up page: mounts Clerk's SignUp component.
 -->
 <script lang="ts">
-  import { getClerk } from "$lib/auth/clerk";
-  import { onMount } from "svelte";
+  import { authState, getClerk } from "$lib/auth/clerk";
 
   let container: HTMLDivElement;
 
-  onMount(() => {
+  // Mount Clerk's SignUp widget once the SDK is ready (page chrome renders immediately)
+  $effect(() => {
+    if (!$authState.isLoaded || !container) return;
     const clerk = getClerk();
-    clerk.mountSignUp(container, {
+    const el = container;
+    clerk.mountSignUp(el, {
       routing: "path",
       path: "/sign-up",
       signInUrl: "/sign-in",
       afterSignUpUrl: "/",
     });
-
     return () => {
-      clerk.unmountSignUp(container);
+      clerk.unmountSignUp(el);
     };
   });
 </script>
