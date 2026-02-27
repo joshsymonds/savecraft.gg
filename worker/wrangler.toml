@@ -1,4 +1,4 @@
-name = "savecraft"
+name = "savecraft-api"
 main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
@@ -25,10 +25,37 @@ bindings = [
 tag = "v1"
 new_classes = ["DaemonHub"]
 
+# ── Production ─────────────────────────────────────────
+[env.production]
+name = "savecraft-api"
+route = { pattern = "api.savecraft.gg/*", zone_name = "savecraft.gg" }
+
+[env.production.vars]
+ENVIRONMENT = "production"
+
+[[env.production.d1_databases]]
+binding = "DB"
+database_name = "savecraft"
+database_id = "aad74b56-cce0-4ee1-8263-cad15450b0b0"
+migrations_dir = "migrations"
+
+[[env.production.r2_buckets]]
+binding = "SNAPSHOTS"
+bucket_name = "savecraft-snapshots"
+
+[env.production.durable_objects]
+bindings = [
+  { name = "DAEMON_HUB", class_name = "DaemonHub" }
+]
+
+[[env.production.migrations]]
+tag = "v1"
+new_sqlite_classes = ["DaemonHub"]
+
 # ── Staging ────────────────────────────────────────────
 [env.staging]
-name = "savecraft-staging"
-route = { pattern = "staging.savecraft.gg/*", zone_name = "savecraft.gg" }
+name = "savecraft-api-staging"
+route = { pattern = "api.staging.savecraft.gg/*", zone_name = "savecraft.gg" }
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
