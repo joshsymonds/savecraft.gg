@@ -13,7 +13,13 @@ const MOCK_DEVICES: Device[] = [
     games: [
       { gameId: "d2r", name: "D2R", icon: "D", status: "watching", statusLine: "3 characters" },
       { gameId: "stardew", name: "STARDEW", icon: "S", status: "watching", statusLine: "1 farm" },
-      { gameId: "stellaris", name: "STELLARIS", icon: "X", status: "watching", statusLine: "2 empires" },
+      {
+        gameId: "stellaris",
+        name: "STELLARIS",
+        icon: "X",
+        status: "watching",
+        statusLine: "2 empires",
+      },
       { gameId: "bg3", name: "BG3", icon: "B", status: "not_found", statusLine: "not installed" },
     ],
   },
@@ -26,9 +32,27 @@ const MOCK_DEVICES: Device[] = [
     lastSeen: "3 hours ago",
     games: [
       { gameId: "d2r", name: "D2R", icon: "D", status: "watching", statusLine: "2 characters" },
-      { gameId: "elden-ring", name: "ELDEN RING", icon: "E", status: "watching", statusLine: "1 tarnished" },
-      { gameId: "stellaris", name: "STELLARIS", icon: "X", status: "watching", statusLine: "4 empires" },
-      { gameId: "fallout", name: "FALLOUT 4", icon: "F", status: "error", statusLine: "parse error" },
+      {
+        gameId: "elden-ring",
+        name: "ELDEN RING",
+        icon: "E",
+        status: "watching",
+        statusLine: "1 tarnished",
+      },
+      {
+        gameId: "stellaris",
+        name: "STELLARIS",
+        icon: "X",
+        status: "watching",
+        statusLine: "4 empires",
+      },
+      {
+        gameId: "fallout",
+        name: "FALLOUT 4",
+        icon: "F",
+        status: "error",
+        statusLine: "parse error",
+      },
     ],
   },
   {

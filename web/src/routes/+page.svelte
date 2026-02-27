@@ -39,7 +39,8 @@
               class:online={device.status === "online"}
               class:error={device.status === "error"}
             >
-              {DEVICE_ICONS[device.status]}</span>
+              {DEVICE_ICONS[device.status]}</span
+            >
             <div>
               <div class="device-name-row">
                 <span class="device-name">{device.name}</span>
@@ -47,7 +48,8 @@
               </div>
               <span class="device-meta">
                 {device.os} · {device.version}
-                {#if device.status === "offline"} · last seen {device.lastSeen}{/if}
+                {#if device.status === "offline"}
+                  · last seen {device.lastSeen}{/if}
               </span>
             </div>
           </div>
@@ -60,10 +62,7 @@
         <!-- Game grid -->
         <div class="game-grid">
           {#each device.games as game (game.gameId)}
-            <div
-              class="game-card"
-              class:dimmed={game.status === "not_found"}
-            >
+            <div class="game-card" class:dimmed={game.status === "not_found"}>
               <span class="game-icon">{game.icon}</span>
               <span class="game-name">{game.name}</span>
               <span
