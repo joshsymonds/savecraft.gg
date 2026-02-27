@@ -28,7 +28,9 @@
     daemon_offline: { icon: "■", colorVar: "var(--color-red)" },
     watching: { icon: "→", colorVar: "var(--color-blue)" },
     game_detected: { icon: "◆", colorVar: "var(--color-green)" },
-    config_push: { icon: "↻", colorVar: "var(--color-blue)" },
+    game_not_found: { icon: "◇", colorVar: "var(--color-text-muted)" },
+    scan_started: { icon: "○", colorVar: "var(--color-blue)" },
+    scan_completed: { icon: "●", colorVar: "var(--color-green)" },
   };
 
   let config = $derived(iconMap[type]);

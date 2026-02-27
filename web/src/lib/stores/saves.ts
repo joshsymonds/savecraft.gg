@@ -1,87 +1,45 @@
+import { fetchSaves, type ApiSave } from "$lib/api/client";
+import { gameDisplayName } from "$lib/stores/plugins";
 import type { Save } from "$lib/types/save";
-import type { Readable } from "svelte/store";
-import { readable } from "svelte/store";
+import { writable, type Readable } from "svelte/store";
 
-const MOCK_SAVES: Save[] = [
-  // D2R characters
-  {
-    id: "save-atmus",
-    gameId: "d2r",
-    gameName: "Diablo II: Resurrected",
-    characterName: "Atmus",
-    summary: "Level 74 Warlock, Hell Act 3, Reign of the Warlock",
-    lastUpdated: "2 minutes ago",
-    snapshotSize: "48KB",
-  },
-  {
-    id: "save-valkyrie",
-    gameId: "d2r",
-    gameName: "Diablo II: Resurrected",
-    characterName: "Valkyrie",
-    summary: "Level 89 Paladin, Hell Act 5, Hammerdin",
-    lastUpdated: "1 hour ago",
-    snapshotSize: "52KB",
-  },
-  {
-    id: "save-frostbite",
-    gameId: "d2r",
-    gameName: "Diablo II: Resurrected",
-    characterName: "Frostbite",
-    summary: "Level 31 Sorceress, Nightmare Act 1, Blizzard",
-    lastUpdated: "3 hours ago",
-    snapshotSize: "28KB",
-  },
-  {
-    id: "save-shared-stash",
-    gameId: "d2r",
-    gameName: "Diablo II: Resurrected",
-    characterName: "Shared Stash (Softcore)",
-    summary: "60 items, 0 gold, 6 tabs",
-    lastUpdated: "2 minutes ago",
-    snapshotSize: "12KB",
-  },
+function relativeTime(isoString: string): string {
+  const seconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
 
-  // Stardew Valley
-  {
-    id: "save-sunshine",
-    gameId: "stardew",
-    gameName: "Stardew Valley",
-    characterName: "Sunshine Farm",
-    summary: "Year 3 Spring, 1.2M gold, Greenhouse unlocked",
-    lastUpdated: "5 minutes ago",
-    snapshotSize: "24KB",
-  },
+function toSave(row: ApiSave): Save {
+  return {
+    id: row.id,
+    gameId: row.game_id,
+    gameName: gameDisplayName(row.game_id),
+    characterName: row.character_name,
+    summary: row.summary,
+    lastUpdated: relativeTime(row.last_updated),
+  };
+}
 
-  // Stellaris
-  {
-    id: "save-terran",
-    gameId: "stellaris",
-    gameName: "Stellaris",
-    characterName: "Terran Hegemony",
-    summary: "Year 2350, 12 systems, Federation president",
-    lastUpdated: "2 days ago",
-    snapshotSize: "180KB",
-  },
-  {
-    id: "save-hivemind",
-    gameId: "stellaris",
-    gameName: "Stellaris",
-    characterName: "The Swarm",
-    summary: "Year 2280, 8 systems, Devouring Swarm",
-    lastUpdated: "5 days ago",
-    snapshotSize: "145KB",
-  },
+const { subscribe, set } = writable<Save[]>([]);
 
-  // Elden Ring
-  {
-    id: "save-tarnished",
-    gameId: "elden-ring",
-    gameName: "Elden Ring",
-    characterName: "Gwyndolin",
-    summary: "Level 142, Raya Lucaria, INT/DEX build",
-    lastUpdated: "1 day ago",
-    snapshotSize: "64KB",
-  },
-];
+export const saves: Readable<Save[]> = { subscribe };
+export const savesLoading = writable(false);
+export const savesError = writable<string | null>(null);
 
-export const saves: Readable<Save[]> = readable(MOCK_SAVES);
+export async function loadSaves(): Promise<void> {
+  savesLoading.set(true);
+  savesError.set(null);
+  try {
+    const rows = await fetchSaves();
+    set(rows.map(toSave));
+  } catch (error) {
+    savesError.set(error instanceof Error ? error.message : "Failed to load saves");
+  } finally {
+    savesLoading.set(false);
+  }
+}

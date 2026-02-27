@@ -5,14 +5,35 @@ import type { Env } from "./types";
 
 export { DaemonHub } from "./hub";
 
+const CORS_HEADERS: Record<string, string> = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+  "Access-Control-Allow-Headers": "Authorization, Content-Type",
+  "Access-Control-Max-Age": "86400",
+};
+
+function corsify(response: Response): Response {
+  const patched = new Response(response.body, response);
+  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+    patched.headers.set(key, value);
+  }
+  return patched;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
+    if (request.method === "OPTIONS") {
+      return new Response(null, { status: 204, headers: CORS_HEADERS });
+    }
     const url = new URL(request.url);
-    return (
-      (await routePublicEndpoints(request, url, env)) ?? routeProtectedEndpoints(request, url, env)
-    );
+    const response =
+      (await routePublicEndpoints(request, url, env)) ??
+      (await routeProtectedEndpoints(request, url, env));
+    return corsify(response);
   },
 } satisfies ExportedHandler<Env>;
+
+const PLUGIN_DOWNLOAD_RE = /^\/plugins\/([^/]+)\/(parser\.wasm(?:\.sig)?)$/;
 
 async function routePublicEndpoints(
   request: Request,
@@ -29,10 +50,27 @@ async function routePublicEndpoints(
   if (url.pathname === "/api/v1/push" && request.method === "POST") {
     return handlePush(request, env);
   }
+  // Match /plugins/:gameId/parser.wasm or /plugins/:gameId/parser.wasm.sig
+  const pluginMatch = PLUGIN_DOWNLOAD_RE.exec(url.pathname);
+  if (pluginMatch?.[1] && pluginMatch[2] && request.method === "GET") {
+    return handlePluginDownload(env, pluginMatch[1], pluginMatch[2]);
+  }
   return null;
 }
 
 async function routeProtectedEndpoints(request: Request, url: URL, env: Env): Promise<Response> {
+  return (
+    (await routeWebSocketEndpoints(request, url, env)) ??
+    (await routeApiEndpoints(request, url, env)) ??
+    new Response("Not Found", { status: 404 })
+  );
+}
+
+async function routeWebSocketEndpoints(
+  request: Request,
+  url: URL,
+  env: Env,
+): Promise<Response | null> {
   if (url.pathname === "/ws/daemon" || url.pathname === "/ws/ui") {
     const auth = await authenticate(request, env);
     if (!auth) return new Response("Unauthorized", { status: 401 });
@@ -47,17 +85,34 @@ async function routeProtectedEndpoints(request: Request, url: URL, env: Env): Pr
     if (!auth) return unauthorizedMcp(env);
     return handleMcpRequest(request, env, auth.userUuid);
   }
+  return null;
+}
+
+async function routeApiEndpoints(
+  request: Request,
+  url: URL,
+  env: Env,
+): Promise<Response | null> {
+  if (!url.pathname.startsWith("/api/v1/")) return null;
+
+  const auth = await authenticate(request, env);
+  if (!auth) return new Response("Unauthorized", { status: 401 });
+
   if (url.pathname.startsWith("/api/v1/devices/") && url.pathname.endsWith("/config")) {
-    const auth = await authenticate(request, env);
-    if (!auth) return new Response("Unauthorized", { status: 401 });
     return handleDeviceConfig(request, url, env, auth.userUuid);
   }
   if (url.pathname.startsWith("/api/v1/notes/")) {
-    const auth = await authenticate(request, env);
-    if (!auth) return new Response("Unauthorized", { status: 401 });
     return handleNotes(request, url, env, auth.userUuid);
   }
-  return new Response("Not Found", { status: 404 });
+  if (url.pathname === "/api/v1/saves" && request.method === "GET") {
+    return handleListSaves(env, auth.userUuid);
+  }
+  if (url.pathname.startsWith("/api/v1/saves/") && request.method === "GET") {
+    const saveId = url.pathname.replace("/api/v1/saves/", "");
+    if (!saveId) return Response.json({ error: "Missing save_id" }, { status: 400 });
+    return handleGetSave(env, auth.userUuid, saveId);
+  }
+  return null;
 }
 
 /**
@@ -96,7 +151,7 @@ function handleOAuthResourceMetadata(env: Env): Response {
   );
 }
 
-// ── Plugin Registry ───────────────────────────────────────────
+// -- Plugin Registry -----------------------------------------------
 
 async function handlePluginManifest(env: Env): Promise<Response> {
   const serverUrl = env.SERVER_URL ?? "https://mcp.savecraft.gg";
@@ -125,7 +180,19 @@ async function handlePluginManifest(env: Env): Promise<Response> {
   return Response.json({ plugins });
 }
 
-// ── Device Config API ─────────────────────────────────────────
+async function handlePluginDownload(env: Env, gameId: string, filename: string): Promise<Response> {
+  const key = `plugins/${gameId}/${filename}`;
+  const object = await env.PLUGINS.get(key);
+  if (!object) {
+    return Response.json({ error: "Plugin not found" }, { status: 404 });
+  }
+  const contentType = filename.endsWith(".wasm") ? "application/wasm" : "application/octet-stream";
+  return new Response(object.body, {
+    headers: { "Content-Type": contentType },
+  });
+}
+
+// -- Device Config API ---------------------------------------------
 
 interface GameConfigInput {
   savePath: string;
@@ -139,10 +206,6 @@ async function handleDeviceConfig(
   env: Env,
   userUuid: string,
 ): Promise<Response> {
-  if (request.method !== "PUT") {
-    return new Response("Method Not Allowed", { status: 405 });
-  }
-
   // Parse device ID from /api/v1/devices/:deviceId/config
   const pathParts = url.pathname.split("/");
   const deviceId = pathParts[4];
@@ -150,6 +213,45 @@ async function handleDeviceConfig(
     return Response.json({ error: "Missing device_id" }, { status: 400 });
   }
 
+  if (request.method === "GET") {
+    return handleGetDeviceConfig(env, userUuid, deviceId);
+  }
+  if (request.method === "PUT") {
+    return handlePutDeviceConfig(request, env, userUuid, deviceId);
+  }
+
+  return new Response("Method Not Allowed", { status: 405 });
+}
+
+async function handleGetDeviceConfig(
+  env: Env,
+  userUuid: string,
+  deviceId: string,
+): Promise<Response> {
+  const rows = await env.DB.prepare(
+    "SELECT game_id, save_path, enabled, file_extensions FROM device_configs WHERE user_uuid = ? AND device_id = ?",
+  )
+    .bind(userUuid, deviceId)
+    .all<{ game_id: string; save_path: string; enabled: number; file_extensions: string }>();
+
+  const games: Record<string, GameConfigInput> = {};
+  for (const row of rows.results) {
+    games[row.game_id] = {
+      savePath: row.save_path,
+      enabled: row.enabled === 1,
+      fileExtensions: JSON.parse(row.file_extensions) as string[],
+    };
+  }
+
+  return Response.json({ games });
+}
+
+async function handlePutDeviceConfig(
+  request: Request,
+  env: Env,
+  userUuid: string,
+  deviceId: string,
+): Promise<Response> {
   let body: { games?: Record<string, GameConfigInput> };
   try {
     body = await request.json<{ games?: Record<string, GameConfigInput> }>();
@@ -196,7 +298,7 @@ async function handleDeviceConfig(
   return Response.json({ ok: true });
 }
 
-// ── Notes REST API ────────────────────────────────────────────
+// -- Notes REST API ------------------------------------------------
 
 async function handleNotes(
   request: Request,
@@ -443,6 +545,71 @@ async function deleteOneNote(
   await removeNoteFromIndex(env.DB, userUuid, noteId);
 
   return Response.json({ deleted: true });
+}
+
+// -- Saves REST API ------------------------------------------------
+
+async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
+  const rows = await env.DB.prepare(
+    "SELECT uuid, game_id, character_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
+  )
+    .bind(userUuid)
+    .all<{
+      uuid: string;
+      game_id: string;
+      character_name: string;
+      summary: string;
+      last_updated: string;
+    }>();
+
+  return Response.json({
+    saves: rows.results.map((row) => ({
+      id: row.uuid,
+      game_id: row.game_id,
+      character_name: row.character_name,
+      summary: row.summary,
+      last_updated: row.last_updated,
+    })),
+  });
+}
+
+async function handleGetSave(env: Env, userUuid: string, saveId: string): Promise<Response> {
+  const save = await env.DB.prepare(
+    "SELECT uuid, game_id, character_name, summary, last_updated FROM saves WHERE uuid = ? AND user_uuid = ?",
+  )
+    .bind(saveId, userUuid)
+    .first<{
+      uuid: string;
+      game_id: string;
+      character_name: string;
+      summary: string;
+      last_updated: string;
+    }>();
+
+  if (!save) return Response.json({ error: "Save not found" }, { status: 404 });
+
+  // Load section list from latest snapshot
+  const key = `users/${userUuid}/saves/${saveId}/latest.json`;
+  const object = await env.SAVES.get(key);
+  let sections: { name: string; description: string }[] = [];
+  if (object) {
+    const state = await object.json<{
+      sections: Record<string, { description: string }>;
+    }>();
+    sections = Object.entries(state.sections).map(([name, s]) => ({
+      name,
+      description: s.description,
+    }));
+  }
+
+  return Response.json({
+    id: save.uuid,
+    game_id: save.game_id,
+    character_name: save.character_name,
+    summary: save.summary,
+    last_updated: save.last_updated,
+    sections,
+  });
 }
 
 /**

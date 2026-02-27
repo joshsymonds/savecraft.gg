@@ -17,12 +17,14 @@ export interface AuthResult {
 /**
  * Extract user identity from the request.
  * Returns null if the request is not authenticated.
+ *
+ * Two token sources:
+ * - Authorization: Bearer TOKEN — used by daemon, REST API, MCP
+ * - Sec-WebSocket-Protocol: access_token.TOKEN — used by browser UI
+ *   (browser WebSocket API cannot set custom headers)
  */
 export async function authenticate(request: Request, env: Env): Promise<AuthResult | null> {
-  const auth = request.headers.get("Authorization");
-  if (!auth?.startsWith("Bearer ")) return null;
-
-  const token = auth.slice(7);
+  const token = extractToken(request);
   if (!token) return null;
 
   // Production: validate Clerk JWT
@@ -32,6 +34,26 @@ export async function authenticate(request: Request, env: Env): Promise<AuthResu
 
   // Development: bearer token IS the user UUID
   return { userUuid: token };
+}
+
+function extractToken(request: Request): string | undefined {
+  const auth = request.headers.get("Authorization");
+  if (auth?.startsWith("Bearer ")) {
+    return auth.slice(7) || undefined;
+  }
+
+  const protocols = request.headers.get("Sec-WebSocket-Protocol");
+  if (protocols) {
+    const match = protocols
+      .split(",")
+      .map((s) => s.trim())
+      .find((s) => s.startsWith("access_token."));
+    if (match) {
+      return match.slice("access_token.".length) || undefined;
+    }
+  }
+
+  return undefined;
 }
 
 /**
@@ -56,14 +78,15 @@ async function validateClerkJwt(token: string, env: Env): Promise<AuthResult | n
     };
 
     // Validate issuer
-    if (payload.iss !== env.CLERK_ISSUER) return null;
+    const issuer = env.CLERK_ISSUER;
+    if (!issuer || payload.iss !== issuer) return null;
 
     // Validate expiration
     if (payload.exp && payload.exp < Date.now() / 1000) return null;
 
     // Validate signature using Clerk's JWKS
     if (!header.kid) return null;
-    const jwk = await fetchClerkJwk(env.CLERK_ISSUER, header.kid);
+    const jwk = await fetchClerkJwk(issuer, header.kid);
     if (!jwk) return null;
 
     const isValid = await verifyJwtSignature(token, jwk, header.alg ?? "RS256");

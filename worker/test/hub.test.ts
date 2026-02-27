@@ -75,6 +75,25 @@ describe("DaemonHub", () => {
     expect(resp.status).toBe(401);
   });
 
+  it("authenticates via Sec-WebSocket-Protocol header", async () => {
+    const userUuid = "subprotocol-auth-user";
+
+    const resp = await SELF.fetch("https://test-host/ws/ui", {
+      headers: {
+        Upgrade: "websocket",
+        "Sec-WebSocket-Protocol": `access_token.${userUuid}`,
+      },
+    });
+
+    expect(resp.status).toBe(101);
+    expect(resp.webSocket).toBeTruthy();
+    expect(resp.headers.get("Sec-WebSocket-Protocol")).toBe(`access_token.${userUuid}`);
+
+    const ws = resp.webSocket!;
+    ws.accept();
+    ws.close();
+  });
+
   it("sends DeviceState then activity feed on UI connect (cold start)", async () => {
     const userUuid = "coldstart-test-user";
 
@@ -95,15 +114,20 @@ describe("DaemonHub", () => {
 
     temporaryUi.close();
 
-    // Fresh UI: first message should be DeviceState, then activity feed
+    // Fresh UI: first message should be DeviceState, then activity feed with _ts
     const freshUi = await connectWs("/ws/ui", userUuid);
 
     const msg1 = await waitForMessage<Record<string, unknown>>(freshUi);
     expect(msg1).toHaveProperty("deviceState");
+    // DeviceState snapshot does NOT have _ts (it's not a replayed event)
+    expect(msg1).not.toHaveProperty("_ts");
 
     const msg2 = await waitForMessage<Record<string, unknown>>(freshUi);
-    const firstKey = Object.keys(msg2)[0];
+    const firstKey = Object.keys(msg2).find((k) => k !== "_ts");
     expect(["daemonOnline", "scanCompleted", "parseCompleted"]).toContain(firstKey);
+    // Replayed events MUST have _ts injected from D1 created_at
+    expect(msg2).toHaveProperty("_ts");
+    expect(typeof msg2._ts).toBe("string");
 
     freshUi.close();
     daemonWs.close();

@@ -4,9 +4,14 @@
 -->
 <script lang="ts">
   import { Panel } from "$lib/components";
-  import { saves } from "$lib/stores/saves";
+  import { saves, savesLoading, savesError, loadSaves } from "$lib/stores/saves";
   import type { Save } from "$lib/types/save";
   import { SvelteMap } from "svelte/reactivity";
+  import { onMount } from "svelte";
+
+  onMount(() => {
+    loadSaves();
+  });
 
   /** Group saves by gameName, preserving insertion order. */
   let grouped = $derived.by(() => {
@@ -26,8 +31,16 @@
 <div class="saves-page">
   <div class="page-header">
     <span class="page-label">SAVES</span>
-    <span class="save-count">{$saves.length} characters</span>
+    {#if $savesLoading}
+      <span class="save-count">loading...</span>
+    {:else}
+      <span class="save-count">{$saves.length} characters</span>
+    {/if}
   </div>
+
+  {#if $savesError}
+    <div class="error-message">{$savesError}</div>
+  {/if}
 
   {#each [...grouped] as [gameName, gameSaves] (gameName)}
     <section class="game-group">
@@ -42,7 +55,6 @@
             <div class="save-card">
               <div class="save-top">
                 <span class="save-name">{save.characterName}</span>
-                <span class="save-size">{save.snapshotSize}</span>
               </div>
               <div class="save-summary">{save.summary}</div>
               <div class="save-updated">Last updated {save.lastUpdated}</div>
@@ -78,6 +90,17 @@
     font-family: var(--font-body);
     font-size: 16px;
     color: var(--color-text-dim);
+  }
+
+  .error-message {
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--color-danger, #e85a5a);
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    background: rgba(232, 90, 90, 0.1);
+    border: 1px solid rgba(232, 90, 90, 0.3);
+    border-radius: 4px;
   }
 
   /* ── Game groups ──────────────────────────────────────── */
@@ -130,12 +153,6 @@
     font-size: 8px;
     color: var(--color-text);
     letter-spacing: 0.5px;
-  }
-
-  .save-size {
-    font-family: var(--font-body);
-    font-size: 15px;
-    color: var(--color-text-muted);
   }
 
   .save-summary {

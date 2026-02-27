@@ -12,4 +12,6 @@ export type ActivityEventType =
   | "daemon_offline"
   | "watching"
   | "game_detected"
-  | "config_push";
+  | "game_not_found"
+  | "scan_started"
+  | "scan_completed";

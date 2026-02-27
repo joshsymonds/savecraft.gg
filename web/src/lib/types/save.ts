@@ -5,5 +5,4 @@ export interface Save {
   characterName: string;
   summary: string;
   lastUpdated: string;
-  snapshotSize: string;
 }

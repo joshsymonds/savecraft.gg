@@ -164,7 +164,20 @@ export class DaemonHub extends DurableObject<Env> {
       await this.sendRecentEvents(server);
     }
 
-    return new Response(null, { status: 101, webSocket: client });
+    // Echo Sec-WebSocket-Protocol so browser WS handshake succeeds
+    // when using protocol-based auth (access_token.TOKEN)
+    const protocol = request.headers.get("Sec-WebSocket-Protocol");
+    const headers: HeadersInit = {};
+    if (protocol) {
+      // Select only the access_token protocol, not the raw value
+      const selected = protocol
+        .split(",")
+        .map((s) => s.trim())
+        .find((s) => s.startsWith("access_token."));
+      if (selected) headers["Sec-WebSocket-Protocol"] = selected;
+    }
+
+    return new Response(null, { status: 101, webSocket: client, headers });
   }
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
@@ -377,17 +390,20 @@ export class DaemonHub extends DurableObject<Env> {
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
       const rows = await this.env.DB.prepare(
-        `SELECT event_data FROM device_events
+        `SELECT event_data, created_at FROM device_events
          WHERE user_uuid = ?
          ORDER BY created_at DESC
          LIMIT 50`,
       )
         .bind(userUuid)
-        .all<{ event_data: string }>();
+        .all<{ event_data: string; created_at: string }>();
 
       const events = rows.results.toReversed();
       for (const row of events) {
-        ws.send(row.event_data);
+        // Inject created_at timestamp so the UI can show relative times
+        const parsed = JSON.parse(row.event_data) as Record<string, unknown>;
+        parsed._ts = row.created_at;
+        ws.send(JSON.stringify(parsed));
       }
     } catch {
       // Don't let cold start failures break the connection

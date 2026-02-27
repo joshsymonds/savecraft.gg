@@ -140,6 +140,73 @@ describe("Device Config API", () => {
     });
     expect(resp.status).toBe(401);
   });
+
+  it("GET /api/v1/devices/:id/config returns saved config", async () => {
+    const userUuid = "config-get-user";
+    const deviceId = "my-laptop";
+
+    // PUT a config first
+    const putResp = await SELF.fetch(`https://test-host/api/v1/devices/${deviceId}/config`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${userUuid}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        games: {
+          d2r: { savePath: "/saves/d2r", enabled: true, fileExtensions: [".d2s", ".d2i"] },
+          stardew: { savePath: "/saves/stardew", enabled: false, fileExtensions: [".xml"] },
+        },
+      }),
+    });
+    expect(putResp.status).toBe(200);
+
+    // GET and verify it matches
+    const getResp = await SELF.fetch(`https://test-host/api/v1/devices/${deviceId}/config`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${userUuid}` },
+    });
+    expect(getResp.status).toBe(200);
+
+    const body = await getResp.json<{
+      games: Record<
+        string,
+        { savePath: string; enabled: boolean; fileExtensions: string[] }
+      >;
+    }>();
+
+    expect(body.games.d2r).toEqual({
+      savePath: "/saves/d2r",
+      enabled: true,
+      fileExtensions: [".d2s", ".d2i"],
+    });
+    expect(body.games.stardew).toEqual({
+      savePath: "/saves/stardew",
+      enabled: false,
+      fileExtensions: [".xml"],
+    });
+  });
+
+  it("GET /api/v1/devices/:id/config returns empty games when no config", async () => {
+    const userUuid = "config-empty-get-user";
+    const deviceId = "nonexistent-device";
+
+    const resp = await SELF.fetch(`https://test-host/api/v1/devices/${deviceId}/config`, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${userUuid}` },
+    });
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json<{ games: Record<string, unknown> }>();
+    expect(body.games).toEqual({});
+  });
+
+  it("GET /api/v1/devices/:id/config requires auth", async () => {
+    const resp = await SELF.fetch("https://test-host/api/v1/devices/my-pc/config", {
+      method: "GET",
+    });
+    expect(resp.status).toBe(401);
+  });
 });
 
 describe("Config push via DaemonHub", () => {

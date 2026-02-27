@@ -104,4 +104,47 @@ describe("Plugin Registry", () => {
     const resp = await SELF.fetch("https://test-host/api/v1/plugins/manifest");
     expect(resp.status).toBe(200);
   });
+
+  it("downloads parser.wasm from R2", async () => {
+    const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+    await env.PLUGINS.put("plugins/d2r/parser.wasm", wasmBytes);
+
+    const resp = await SELF.fetch("https://test-host/plugins/d2r/parser.wasm");
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toBe("application/wasm");
+
+    const body = new Uint8Array(await resp.arrayBuffer());
+    expect(body).toEqual(wasmBytes);
+  });
+
+  it("downloads parser.wasm.sig from R2", async () => {
+    const sigBytes = new Uint8Array(64).fill(0xaa);
+    await env.PLUGINS.put("plugins/d2r/parser.wasm.sig", sigBytes);
+
+    const resp = await SELF.fetch("https://test-host/plugins/d2r/parser.wasm.sig");
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toBe("application/octet-stream");
+
+    const body = new Uint8Array(await resp.arrayBuffer());
+    expect(body).toEqual(sigBytes);
+  });
+
+  it("returns 404 for missing plugin wasm", async () => {
+    const resp = await SELF.fetch("https://test-host/plugins/nonexistent/parser.wasm");
+    expect(resp.status).toBe(404);
+  });
+
+  it("returns 404 for missing plugin sig", async () => {
+    const resp = await SELF.fetch("https://test-host/plugins/d2r/parser.wasm.sig");
+    expect(resp.status).toBe(404);
+  });
+
+  it("does not require authentication for plugin downloads", async () => {
+    const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d]);
+    await env.PLUGINS.put("plugins/d2r/parser.wasm", wasmBytes);
+
+    // No Authorization header
+    const resp = await SELF.fetch("https://test-host/plugins/d2r/parser.wasm");
+    expect(resp.status).toBe(200);
+  });
 });

@@ -3,10 +3,13 @@
   Dashboard: device cards + activity feed sidebar.
 -->
 <script lang="ts">
-  import { ActivityEvent, Panel, StatusDot, TinyButton } from "$lib/components";
+  import { ActivityEvent, ConfigModal, Panel, StatusDot, TinyButton } from "$lib/components";
   import { activityEvents } from "$lib/stores/activity";
   import { devices } from "$lib/stores/devices";
   import type { DeviceStatus } from "$lib/types/device";
+  import { connectionStatus, type ConnectionStatus } from "$lib/ws/client";
+
+  let configDeviceId = $state<string | null>(null);
 
   const ACCENT_COLORS: Record<DeviceStatus, string | undefined> = {
     online: "#5abe8a40",
@@ -19,10 +22,26 @@
     error: "!",
     offline: "#",
   };
+
+  const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
+    connected: "LIVE",
+    connecting: "CONNECTING",
+    disconnected: "OFFLINE",
+  };
+
+  const CONNECTION_STATUS: Record<ConnectionStatus, "online" | "error" | "offline"> = {
+    connected: "online",
+    connecting: "error",
+    disconnected: "offline",
+  };
+
+  function gameIcon(name: string): string {
+    return name.charAt(0).toUpperCase();
+  }
 </script>
 
 <div class="dashboard">
-  <!-- ── Main: device cards ──────────────────────────────── -->
+  <!-- Main: device cards -->
   <main class="devices">
     <div class="section-header">
       <span class="section-label">DEVICES</span>
@@ -47,15 +66,16 @@
                 <StatusDot status={device.status} size={7} />
               </div>
               <span class="device-meta">
-                {device.os} · {device.version}
+                {#if device.version}{device.version}{/if}
                 {#if device.status === "offline"}
-                  · last seen {device.lastSeen}{/if}
+                  {#if device.version} · {/if}last seen {device.lastSeen}
+                {/if}
               </span>
             </div>
           </div>
           <div class="device-actions">
             <TinyButton label="RESCAN" />
-            <TinyButton label="CONFIG" />
+            <TinyButton label="CONFIG" onclick={() => (configDeviceId = device.id)} />
           </div>
         </div>
 
@@ -63,7 +83,7 @@
         <div class="game-grid">
           {#each device.games as game (game.gameId)}
             <div class="game-card" class:dimmed={game.status === "not_found"}>
-              <span class="game-icon">{game.icon}</span>
+              <span class="game-icon">{gameIcon(game.name)}</span>
               <span class="game-name">{game.name}</span>
               <span
                 class="game-status"
@@ -79,14 +99,32 @@
         </div>
       </Panel>
     {/each}
+
+    {#if $devices.length === 0}
+      <div class="empty-state">
+        {#if $connectionStatus === "connecting"}
+          <span class="empty-text">Connecting...</span>
+        {:else if $connectionStatus === "connected"}
+          <span class="empty-text">No devices connected. Install the daemon to get started.</span>
+        {:else}
+          <span class="empty-text">Offline. Check your connection.</span>
+        {/if}
+      </div>
+    {/if}
   </main>
 
-  <!-- ── Sidebar: activity feed ──────────────────────────── -->
+  <!-- Sidebar: activity feed -->
   <aside class="activity-sidebar">
     <div class="activity-header">
       <span class="activity-label">ACTIVITY</span>
-      <span class="live-indicator">
-        <StatusDot status="online" size={5} /> LIVE
+      <span
+        class="live-indicator"
+        class:live={$connectionStatus === "connected"}
+        class:connecting={$connectionStatus === "connecting"}
+        class:offline={$connectionStatus === "disconnected"}
+      >
+        <StatusDot status={CONNECTION_STATUS[$connectionStatus]} size={5} />
+        {CONNECTION_LABEL[$connectionStatus]}
       </span>
     </div>
     <div class="activity-feed">
@@ -99,9 +137,18 @@
           isNew={index === 0}
         />
       {/each}
+      {#if $activityEvents.length === 0}
+        <div class="empty-feed">
+          <span class="empty-feed-text">No activity yet</span>
+        </div>
+      {/if}
     </div>
   </aside>
 </div>
+
+{#if configDeviceId}
+  <ConfigModal deviceId={configDeviceId} onclose={() => (configDeviceId = null)} />
+{/if}
 
 <style>
   .dashboard {
@@ -251,6 +298,17 @@
     color: var(--color-text-muted);
   }
 
+  .empty-state {
+    padding: 48px 24px;
+    text-align: center;
+  }
+
+  .empty-text {
+    font-family: var(--font-body);
+    font-size: 18px;
+    color: var(--color-text-muted);
+  }
+
   /* ── Activity sidebar ─────────────────────────────────── */
 
   .activity-sidebar {
@@ -281,14 +339,36 @@
   .live-indicator {
     font-family: var(--font-pixel);
     font-size: 6px;
-    color: var(--color-green);
     display: flex;
     align-items: center;
     gap: 5px;
   }
 
+  .live-indicator.live {
+    color: var(--color-green);
+  }
+
+  .live-indicator.connecting {
+    color: var(--color-yellow);
+  }
+
+  .live-indicator.offline {
+    color: var(--color-text-muted);
+  }
+
   .activity-feed {
     flex: 1;
     overflow-y: auto;
+  }
+
+  .empty-feed {
+    padding: 24px 18px;
+    text-align: center;
+  }
+
+  .empty-feed-text {
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--color-text-muted);
   }
 </style>

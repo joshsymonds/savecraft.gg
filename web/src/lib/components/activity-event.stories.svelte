@@ -151,10 +151,37 @@
   </div>
 </Story>
 
-<Story name="ConfigPush">
+
+<Story name="ScanStarted">
   <div style="width: 420px;">
     <Panel>
-      <ActivityEvent type="config_push" message="Config pushed to DESKTOP-PC" time="1d" />
+      <ActivityEvent
+        type="scan_started"
+        message="Scanning Diablo II: Resurrected"
+        detail="~/.local/share/Diablo II Resurrected/Save"
+        time="now"
+      />
+    </Panel>
+  </div>
+</Story>
+
+<Story name="ScanCompleted">
+  <div style="width: 420px;">
+    <Panel>
+      <ActivityEvent
+        type="scan_completed"
+        message="Scan complete: D2R"
+        detail="3 files"
+        time="now"
+      />
+    </Panel>
+  </div>
+</Story>
+
+<Story name="GameNotFound">
+  <div style="width: 420px;">
+    <Panel>
+      <ActivityEvent type="game_not_found" message="Stardew Valley not found" time="4h" />
     </Panel>
   </div>
 </Story>
