@@ -179,9 +179,9 @@ describe("Push API", () => {
 
     // Read back from R2 and verify identity uses camelCase (daemon convention)
     const latestKey = `users/${TEST_USER}/saves/${save_uuid}/latest.json`;
-    const obj = await env.SAVES.get(latestKey);
-    expect(obj).not.toBeNull();
-    const snapshot = await obj!.json<{ identity: Record<string, unknown> }>();
+    const object = await env.SAVES.get(latestKey);
+    expect(object).not.toBeNull();
+    const snapshot = await object!.json<{ identity: Record<string, unknown> }>();
     expect(snapshot.identity.gameId).toBe("d2r");
     expect(snapshot.identity.saveName).toBe("FormatCheck");
     // snake_case game_id should NOT be present — daemon sends camelCase

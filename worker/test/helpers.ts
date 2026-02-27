@@ -6,6 +6,7 @@ export const CLEANUP_TABLES = [
   "notes",
   "device_configs",
   "device_events",
+  "api_keys",
   "saves",
 ] as const;
 

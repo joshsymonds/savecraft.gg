@@ -208,8 +208,8 @@ describe("MCP Tools", () => {
         summary: "Format check",
       });
 
-      const obj = await env.SAVES.get(`users/${USER_A}/saves/save-fmt-check/latest.json`);
-      const snapshot = await obj!.json<{ identity: Record<string, unknown> }>();
+      const object = await env.SAVES.get(`users/${USER_A}/saves/save-fmt-check/latest.json`);
+      const snapshot = await object!.json<{ identity: Record<string, unknown> }>();
       // Daemon sends camelCase — R2 should store exactly that
       expect(snapshot.identity.gameId).toBe("d2r");
       expect(snapshot.identity.saveName).toBe("Hammerdin");
