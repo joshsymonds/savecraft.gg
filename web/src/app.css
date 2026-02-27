@@ -1,0 +1,96 @@
+/* ── Global resets & theme ────────────────────────────────── */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  /* Colors */
+  --color-bg: #05071a;
+  --color-panel-bg: linear-gradient(135deg, #0a0e2e 0%, #111b47 50%, #0a0e2e 100%);
+  --color-border: #4a5aad;
+  --color-border-light: #7a8aed;
+  --color-gold: #c8a84e;
+  --color-gold-light: #e8c86e;
+  --color-green: #5abe8a;
+  --color-red: #e85a5a;
+  --color-yellow: #e8c44e;
+  --color-blue: #4a9aea;
+  --color-text: #e8e0d0;
+  --color-text-dim: #8890b8;
+  --color-text-muted: #4a5080;
+
+  /* Fonts */
+  --font-pixel: "Press Start 2P", monospace;
+  --font-body: "VT323", monospace;
+}
+
+html {
+  height: 100%;
+}
+
+body {
+  min-height: 100%;
+  background: linear-gradient(180deg, var(--color-bg) 0%, #0a0e2e 50%, var(--color-bg) 100%);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+::selection {
+  background: #c8a84e33;
+  color: #e8c86e;
+}
+
+/* ── Scrollbar ────────────────────────────────────────────── */
+
+::-webkit-scrollbar {
+  width: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(74, 90, 173, 0.3);
+  border-radius: 3px;
+}
+
+/* ── Animations ───────────────────────────────────────────── */
+
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes fade-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes ping-pulse {
+  0% {
+    transform: scale(1);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
