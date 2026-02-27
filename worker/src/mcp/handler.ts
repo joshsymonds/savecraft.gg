@@ -43,18 +43,35 @@ interface ToolDefinition {
   annotations?: { readOnlyHint?: boolean };
 }
 
+// Tool descriptions serve double duty: they tell the AI what each tool does,
+// and they guide *when* and *why* to use it. The AI has no system prompt for
+// Savecraft — these descriptions are its entire playbook.
+//
+// Progressive disclosure order:
+//   1. list_saves → orient (what characters/games exist)
+//   2. get_save_summary → context on a specific character
+//   3. list_notes → check player's own goals/guides FIRST
+//   4. get_note → read the player's context before giving advice
+//   5. get_save_sections / get_section → fetch game data as needed
+//   6. search → cross-save or "I don't know where this is" queries
+//
+// Two interaction modes (same tools, different intent):
+//   - Companion: player is talking, venting, celebrating. React with context.
+//   - Optimizer: player wants specific advice. Analyze sections + notes.
+
 const TOOLS: ToolDefinition[] = [
+  // ── Discovery ─────────────────────────────────────────────
   {
     name: "list_saves",
     description:
-      "List all saves for the current user with metadata (game, character name, summary, last updated)",
+      "List all of the player's saves. Start here to see what characters and games are available. Returns game, character name, a short summary, and when the save was last updated.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true },
   },
   {
-    name: "get_save_sections",
+    name: "get_save_summary",
     description:
-      "List available sections and their descriptions for a specific save. Use this to discover what data is available before fetching specific sections.",
+      "Quick overview of a save — the summary line and overview section data. Good for getting context on a character before diving deeper. Use this when the player mentions a character or you need to orient yourself.",
     inputSchema: {
       type: "object",
       properties: {
@@ -65,9 +82,23 @@ const TOOLS: ToolDefinition[] = [
     annotations: { readOnlyHint: true },
   },
   {
+    name: "get_save_sections",
+    description:
+      "List the available data sections for a save and what each contains. Check this before fetching sections so you know what's available — section names and contents vary by game.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        save_id: { type: "string", description: "The save UUID from list_saves" },
+      },
+      required: ["save_id"],
+    },
+    annotations: { readOnlyHint: true },
+  },
+  // ── Reading save data ─────────────────────────────────────
+  {
     name: "get_section",
     description:
-      "Get a specific section's full data from a save. Optionally pass a timestamp for historical queries.",
+      "Fetch a specific section's full data from a save. Only fetch the sections relevant to the player's question — don't load everything. Supports historical queries via optional timestamp.",
     inputSchema: {
       type: "object",
       properties: {
@@ -85,7 +116,7 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "get_section_diff",
     description:
-      "Compare a section between two snapshots. Returns a list of changed fields with old and new values.",
+      'Compare a section between two snapshots to see what changed. Returns specific fields with old and new values. Use when the player asks about progression, recent changes, or "what\'s different since last time."',
     inputSchema: {
       type: "object",
       properties: {
@@ -98,23 +129,16 @@ const TOOLS: ToolDefinition[] = [
     },
     annotations: { readOnlyHint: true },
   },
-  {
-    name: "get_save_summary",
-    description:
-      "Get a quick overview of a save: summary string and the overview/character section data",
-    inputSchema: {
-      type: "object",
-      properties: {
-        save_id: { type: "string", description: "The save UUID from list_saves" },
-      },
-      required: ["save_id"],
-    },
-    annotations: { readOnlyHint: true },
-  },
+  // ── Notes (player context — check these first!) ───────────
+  //
+  // Notes are the player's goals, build guides, farming lists, and session
+  // memories. When responding to a player, check notes BEFORE looking up
+  // external information — the player's own context is more relevant than
+  // generic advice. Notes are also how you remember things across sessions.
   {
     name: "list_notes",
     description:
-      "List all notes attached to a save. Returns metadata (title, source, size) without content.",
+      "List notes attached to a save — the player's build guides, goals, farming lists, and memories. Check notes early in any conversation: they contain context the player has already shared (what they're working toward, what build they're following, what happened last session). Returns titles and sizes without content.",
     inputSchema: {
       type: "object",
       properties: {
@@ -126,7 +150,8 @@ const TOOLS: ToolDefinition[] = [
   },
   {
     name: "get_note",
-    description: "Get a note's full content by ID",
+    description:
+      "Fetch a note's full content. Read relevant notes before giving advice — if the player has a build guide saved, compare their actual state to it rather than suggesting a generic build.",
     inputSchema: {
       type: "object",
       properties: {
@@ -139,34 +164,41 @@ const TOOLS: ToolDefinition[] = [
   },
   {
     name: "create_note",
-    description: "Create a new note attached to a save. Use for build guides, goals, or reminders.",
+    description:
+      "Create a note attached to a save. Use for build guides, farming goals, session memories, or anything the player might want recalled later. When a player shares something worth remembering — a goal, a frustration, a milestone, a plan — offer to save it as a note so you can reference it in future sessions. The player shouldn't have to repeat themselves.",
     inputSchema: {
       type: "object",
       properties: {
         save_id: { type: "string", description: "The save UUID from list_saves" },
-        title: { type: "string", description: "Note title" },
-        content: { type: "string", description: "Note content (markdown)" },
+        title: { type: "string", description: "Short descriptive title" },
+        content: {
+          type: "string",
+          description:
+            "Note content (markdown). Be structured and specific — future-you will read this to understand context.",
+        },
       },
       required: ["save_id", "title", "content"],
     },
   },
   {
     name: "update_note",
-    description: "Update an existing note's title and/or content",
+    description:
+      "Update a note's title or content. Keep notes current — when the player achieves a goal, finds a drop, or changes plans, update the relevant note so it stays accurate. Don't let notes go stale.",
     inputSchema: {
       type: "object",
       properties: {
         save_id: { type: "string", description: "The save UUID from list_saves" },
         note_id: { type: "string", description: "The note ID from list_notes" },
         title: { type: "string", description: "New title (optional)" },
-        content: { type: "string", description: "New content (optional)" },
+        content: { type: "string", description: "New content (optional, markdown)" },
       },
       required: ["save_id", "note_id"],
     },
   },
   {
     name: "delete_note",
-    description: "Delete a note. This action cannot be undone.",
+    description:
+      "Delete a note permanently. Confirm with the player before deleting — notes may contain context they'll want later even if it seems outdated now.",
     inputSchema: {
       type: "object",
       properties: {
@@ -176,17 +208,22 @@ const TOOLS: ToolDefinition[] = [
       required: ["save_id", "note_id"],
     },
   },
+  // ── Search ────────────────────────────────────────────────
   {
     name: "search",
     description:
-      "Full-text search across all saves and notes. Returns ranked matches with snippets. Optionally scope to a single save.",
+      'Full-text search across all saves and notes. Use when you need to find something specific (an item, a quest, a goal) and don\'t know which save or section contains it. Especially useful for cross-character queries like "which of my characters has Enigma?" Results distinguish between save data (what the player has) and notes (what the player wrote or is planning) — this distinction matters.',
     inputSchema: {
       type: "object",
       properties: {
-        query: { type: "string", description: "Search query (supports FTS5 syntax)" },
+        query: {
+          type: "string",
+          description: "Search query (supports prefix matching and boolean operators like OR)",
+        },
         save_id: {
           type: "string",
-          description: "Optional save UUID to scope search to a single save",
+          description:
+            "Optional: scope search to a single save instead of searching across all saves",
         },
       },
       required: ["query"],
