@@ -151,12 +151,31 @@ export interface WireTestPathResult {
   fileNames?: string[];
 }
 
+// --- Auto-discovery ---
+
+export interface WireDiscoveredGame {
+  gameId?: string;
+  name?: string;
+  path?: string;
+  fileCount?: number;
+}
+
+export interface WireGamesDiscovered {
+  games?: WireDiscoveredGame[];
+}
+
 // --- Message envelope ---
 
-export interface WireMessage {
+/** Hub-injected metadata fields (not part of the proto payload). */
+export interface WireMetadata {
   /** Injected by hub on replayed events — D1 created_at timestamp (ISO 8601). */
   _ts?: string;
+  /** Injected by hub — source device ID for the daemon connection that sent this event. */
+  _deviceId?: string;
+}
 
+/** Proto payload fields — one per message type. */
+export interface WirePayload {
   daemonOnline?: WireDaemonOnline;
   daemonOffline?: WireDaemonOffline;
   scanStarted?: WireScanStarted;
@@ -174,11 +193,13 @@ export interface WireMessage {
   pluginUpdated?: WirePluginUpdated;
   deviceState?: WireDeviceState;
   testPathResult?: WireTestPathResult;
+  gamesDiscovered?: WireGamesDiscovered;
 }
 
-export type WireMessageType = keyof WireMessage;
+export type WireMessage = WireMetadata & WirePayload;
+export type WireMessageType = keyof WirePayload;
 
-const MESSAGE_KEYS: WireMessageType[] = [
+const MESSAGE_KEYS = [
   "deviceState",
   "daemonOnline",
   "daemonOffline",
@@ -196,7 +217,8 @@ const MESSAGE_KEYS: WireMessageType[] = [
   "pushFailed",
   "pluginUpdated",
   "testPathResult",
-];
+  "gamesDiscovered",
+] as const satisfies readonly WireMessageType[];
 
 export function getMessageType(msg: WireMessage): WireMessageType | undefined {
   return MESSAGE_KEYS.find((key) => msg[key] !== undefined);

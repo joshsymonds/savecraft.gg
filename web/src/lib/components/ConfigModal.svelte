@@ -6,7 +6,8 @@
 <script lang="ts">
   import { fetchDeviceConfig, saveDeviceConfig, type GameConfigInput } from "$lib/api/client";
   import type { PluginManifest } from "$lib/api/client";
-  import { plugins } from "$lib/stores/plugins";
+  import { discoveredGames } from "$lib/stores/discovery";
+  import { loadPlugins, plugins } from "$lib/stores/plugins";
   import { testPathResult, clearTestPathResult } from "$lib/stores/testpath";
   import { send } from "$lib/ws/client";
   import Panel from "./Panel.svelte";
@@ -48,7 +49,15 @@
   async function loadConfig(): Promise<void> {
     loading = true;
     error = null;
+    testingGameId = null;
+    clearTestPathResult();
+
     try {
+      // Ensure plugins are loaded before building the game list.
+      if ($plugins.size === 0) {
+        await loadPlugins();
+      }
+
       const existing = await fetchDeviceConfig(deviceId);
       const map = new Map<string, GameConfigInput>();
 
@@ -58,10 +67,11 @@
         if (saved) {
           map.set(gameId, { ...saved });
         } else {
-          // Default: disabled, pre-fill path from manifest
+          // Default: disabled, pre-fill path from discovery or manifest
           const os = detectOS();
+          const discovered = $discoveredGames.get(gameId);
           map.set(gameId, {
-            savePath: plugin.default_paths[os] ?? "",
+            savePath: discovered?.path ?? plugin.default_paths[os] ?? "",
             enabled: false,
             fileExtensions: plugin.file_extensions,
           });
@@ -83,10 +93,11 @@
     const plugin = $plugins.get(gameId);
     const updated = { ...config, enabled: !config.enabled };
 
-    // When enabling with no path, pre-fill from manifest
+    // When enabling with no path, pre-fill from discovery or manifest
     if (updated.enabled && !updated.savePath && plugin) {
       const os = detectOS();
-      updated.savePath = plugin.default_paths[os] ?? "";
+      const discovered = $discoveredGames.get(gameId);
+      updated.savePath = discovered?.path ?? plugin.default_paths[os] ?? "";
     }
 
     games.set(gameId, updated);
@@ -117,13 +128,10 @@
     saving = true;
     error = null;
     try {
-      // Only include enabled games in the save
-      const toSave: Record<string, GameConfigInput> = {};
-      for (const [gameId, config] of games) {
-        if (config.enabled) {
-          toSave[gameId] = config;
-        }
-      }
+      // Send all games (enabled + disabled) to preserve paths.
+      // The server stores the enabled flag per row — disabled games
+      // keep their config so the user can re-enable without re-entering paths.
+      const toSave: Record<string, GameConfigInput> = Object.fromEntries(games);
       await saveDeviceConfig(deviceId, toSave);
       onclose();
     } catch (err) {
@@ -189,6 +197,13 @@
                     {/each}
                   </div>
                 </div>
+
+                {#if !config.enabled}
+                  {@const discovered = $discoveredGames.get(gameId)}
+                  {#if discovered && discovered.fileCount > 0}
+                    <div class="discovery-hint">Found at {discovered.path} ({discovered.fileCount} files)</div>
+                  {/if}
+                {/if}
 
                 {#if config.enabled}
                   <div class="path-row">
@@ -429,6 +444,13 @@
     color: var(--color-text-muted);
     margin-top: 4px;
     font-style: italic;
+  }
+
+  .discovery-hint {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-green);
+    margin-top: 4px;
   }
 
   /* ── Footer ──────────────────────────────────────────── */

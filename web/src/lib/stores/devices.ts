@@ -9,13 +9,16 @@ const { subscribe, set, update } = writable<Device[]>([]);
 export const devices: Readable<Device[]> = { subscribe };
 
 /**
- * Tracks the most recently seen online device ID. Game-level events
- * (watching, gameDetected, etc.) don't carry a deviceId, so we attribute
- * them to this device. This is a best-effort heuristic — in a multi-device
- * scenario where events interleave rapidly, attribution may be incorrect.
- * A proper fix requires the hub to inject deviceId into relayed events.
+ * Fallback device ID — set on daemonOnline and deviceState. Used only when
+ * _deviceId metadata is missing (very old replayed events). The hub now
+ * injects _deviceId into all relayed and replayed events, so this is
+ * rarely needed.
  */
 let lastOnlineDeviceId: string | null = null;
+
+function resolveDeviceId(msg: WireMessage): string | null {
+  return msg._deviceId ?? lastOnlineDeviceId;
+}
 
 function relativeTime(iso: string | undefined): string {
   if (!iso) return "unknown";
@@ -166,7 +169,7 @@ export function dispatchToDevices(msg: WireMessage): void {
     case "watching":
     case "gameDetected":
     case "gameNotFound": {
-      const deviceId = lastOnlineDeviceId;
+      const deviceId = resolveDeviceId(msg);
       if (!deviceId) return;
 
       let gameId: string | undefined;
@@ -197,14 +200,50 @@ export function dispatchToDevices(msg: WireMessage): void {
       break;
     }
 
+    case "parseFailed": {
+      const pf = msg.parseFailed!;
+      const deviceId = resolveDeviceId(msg);
+      if (!deviceId || !pf.gameId) return;
+
+      update((devs) => {
+        const device = devs.find((d) => d.id === deviceId);
+        if (!device) return devs;
+
+        const game = findOrCreateGame(device, pf.gameId!);
+        game.status = "error";
+        game.statusLine = pf.message ?? "parse error";
+        return devs;
+      });
+      break;
+    }
+
+    case "parseCompleted": {
+      const pc = msg.parseCompleted!;
+      const deviceId = resolveDeviceId(msg);
+      if (!deviceId || !pc.gameId) return;
+
+      update((devs) => {
+        const device = devs.find((d) => d.id === deviceId);
+        if (!device) return devs;
+
+        const game = findOrCreateGame(device, pc.gameId!);
+        if (game.status === "detected" || game.status === "error") {
+          game.status = "watching";
+          game.statusLine = gameStatusLine("watching", game.saves);
+        }
+        return devs;
+      });
+      break;
+    }
+
     case "pushCompleted": {
       const pc = msg.pushCompleted!;
       if (!pc.gameId) return;
 
       update((devs) => {
-        // Find the game on the last-online device, or any device
-        const targetDevice = lastOnlineDeviceId
-          ? devs.find((d) => d.id === lastOnlineDeviceId)
+        const targetDeviceId = resolveDeviceId(msg);
+        const targetDevice = targetDeviceId
+          ? devs.find((d) => d.id === targetDeviceId)
           : devs[0];
         if (!targetDevice) return devs;
 

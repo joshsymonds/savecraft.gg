@@ -6,12 +6,13 @@
   interface Props {
     label: string;
     onclick?: () => void;
+    disabled?: boolean;
   }
 
-  let { label, onclick }: Props = $props();
+  let { label, onclick, disabled = false }: Props = $props();
 </script>
 
-<button class="tiny-button" {onclick}>
+<button class="tiny-button" {onclick} {disabled}>
   {label}
 </button>
 
@@ -29,8 +30,13 @@
     transition: all 0.15s;
   }
 
-  .tiny-button:hover {
+  .tiny-button:hover:not(:disabled) {
     border-color: var(--color-border-light);
     color: var(--color-text);
+  }
+
+  .tiny-button:disabled {
+    opacity: 0.3;
+    cursor: default;
   }
 </style>

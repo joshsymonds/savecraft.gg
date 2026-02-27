@@ -1,7 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, connectWs, waitForMessage } from "./helpers";
+import { cleanAll, closeWs, connectWs, waitForMessage } from "./helpers";
 
 interface ConfigUpdateMsg {
   configUpdate: {
@@ -236,7 +236,7 @@ describe("Config push via DaemonHub", () => {
     expect(msg.configUpdate.games.d2r.enabled).toBe(true);
     expect(msg.configUpdate.games.d2r.fileExtensions).toEqual([".d2s"]);
 
-    daemonWs.close();
+    await closeWs(daemonWs);
   });
 
   it("pushes empty config when no configs exist", async () => {
@@ -250,7 +250,7 @@ describe("Config push via DaemonHub", () => {
     expect(msg.configUpdate).toBeDefined();
     expect(Object.keys(msg.configUpdate.games)).toHaveLength(0);
 
-    daemonWs.close();
+    await closeWs(daemonWs);
   });
 
   it("pushes config update when API writes new config", async () => {
@@ -289,6 +289,6 @@ describe("Config push via DaemonHub", () => {
     expect(msg.configUpdate.games.d2r).toBeDefined();
     expect(msg.configUpdate.games.d2r.savePath).toBe("/saves/d2r");
 
-    daemonWs.close();
+    await closeWs(daemonWs);
   });
 });

@@ -103,6 +103,7 @@ savecraft/
 │   │   └── watcher.go
 │   ├── push/                    # HTTP client for /api/v1/push
 │   │   └── client.go
+│   ├── pluginmgr/              # Plugin download, verification, caching, manifest access
 │   └── wsconn/                  # WebSocket client for /ws/daemon
 │       └── client.go
 ├── worker/                      # Cloudflare Worker + Durable Object (TypeScript)
@@ -564,7 +565,7 @@ plugins/{game_id}/parser.wasm.sig
 
 ### Architecture: Interface-Driven with Fakes
 
-The daemon orchestrator (`internal/daemon/`) defines interfaces for all external dependencies: `Watcher`, `Runner`, `PushClient`, `WSClient`, `FS`. Tests inject hand-written fakes. Real implementations live in separate packages (`internal/runner/`, `internal/watcher/`, etc.) and satisfy the interfaces implicitly.
+The daemon orchestrator (`internal/daemon/`) defines interfaces for all external dependencies: `Watcher`, `Runner`, `PushClient`, `WSClient`, `FS`, `PluginManager`. Tests inject hand-written fakes. Real implementations live in separate packages (`internal/runner/`, `internal/watcher/`, etc.) and satisfy the interfaces implicitly.
 
 The `Daemon.Run()` loop: connect WebSocket → send `DaemonOnline` → scan configured games → enter event loop (file events, WS commands, context cancellation). On shutdown, send `DaemonOffline`.
 
@@ -590,11 +591,13 @@ This handles:
 
 ### Save Directory Discovery
 
-1. On startup, daemon fetches its device config from the server (includes any user-set path overrides).
-2. For each installed plugin, resolve manifest's `save_paths` for the current OS (expand env vars, `~`).
-3. If a path exists on disk, register it for watching.
-4. User-set overrides from web UI take precedence over manifest defaults.
-5. If no path found for a game, skip it (game not installed on this device).
+1. On startup, after sending `DaemonOnline`, daemon calls `PluginManager.Manifests()` to get the full plugin manifest.
+2. For each plugin, picks the `default_paths` entry for the current OS (`runtime.GOOS`).
+3. Expands path templates: `~` → home directory, `%VAR%` → environment variable.
+4. Checks if path exists on disk via `FS.Stat()`. If exists, counts matching files by extension via `FS.ReadDir()`.
+5. Sends a single `GamesDiscovered` event listing all found games with paths and file counts.
+6. User-set overrides from web UI take precedence over discovered paths when configuring.
+7. The UI can re-trigger discovery via the `DiscoverGames` command.
 
 ### Plugin Loading
 
@@ -603,7 +606,11 @@ This handles:
 3. If update available: download `.wasm` and `.sig` from registry URLs.
 4. Verify Ed25519 signature against baked-in public key. Refuse unsigned/tampered binaries.
 5. Replace local `.wasm` file. Re-initialize wazero module for that game.
-6. Plugin binaries cached locally (e.g., `~/.savecraft/plugins/d2r/parser.wasm`).
+6. Plugin binaries cached locally per platform:
+   - Linux: `$XDG_DATA_HOME/savecraft/plugins/` (default `~/.local/share/savecraft/plugins/`)
+   - macOS: `~/Library/Application Support/Savecraft/plugins/`
+   - Windows: `%LOCALAPPDATA%\Savecraft\plugins\`
+   - Override: `SAVECRAFT_CACHE_DIR` env var
 
 ## Push API
 
@@ -708,11 +715,11 @@ PushCompleted     → "✓ Uploaded Hammerdin (47KB) in 280ms"
 | Range | Direction | Category | Messages |
 |-------|-----------|----------|----------|
 | 1-9 | daemon → server | Daemon lifecycle | `DaemonOnline`, `DaemonOffline` |
-| 10-19 | daemon → server | Game discovery | `ScanStarted`, `ScanCompleted`, `GameDetected`, `GameNotFound`, `Watching` |
+| 10-19 | daemon → server | Game discovery | `ScanStarted`, `ScanCompleted`, `GameDetected`, `GameNotFound`, `Watching`, `GamesDiscovered` |
 | 20-29 | daemon → server | Parse lifecycle | `ParseStarted`, `PluginStatus`, `ParseCompleted`, `ParseFailed` |
 | 30-39 | daemon → server | Push lifecycle | `PushStarted`, `PushCompleted`, `PushFailed` |
 | 40-49 | daemon → server | Plugin mgmt | `PluginUpdated` |
-| 50-59 | server → daemon | Commands | `ConfigUpdate`, `RescanGame`, `PluginAvailable` |
+| 50-59 | server → daemon | Commands | `ConfigUpdate`, `RescanGame`, `PluginAvailable`, `DiscoverGames` |
 | 60-69 | server → UI | State | `DeviceState` (cold-start snapshot) |
 | 70-79 | UI → server → daemon | User actions | `TestPath`, `TestPathResult` |
 

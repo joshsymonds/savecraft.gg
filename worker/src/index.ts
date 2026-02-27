@@ -236,10 +236,16 @@ async function handleGetDeviceConfig(
 
   const games: Record<string, GameConfigInput> = {};
   for (const row of rows.results) {
+    let fileExtensions: string[] = [];
+    try {
+      fileExtensions = JSON.parse(row.file_extensions) as string[];
+    } catch {
+      // Malformed JSON in D1 — fall back to empty array
+    }
     games[row.game_id] = {
       savePath: row.save_path,
       enabled: row.enabled === 1,
-      fileExtensions: JSON.parse(row.file_extensions) as string[],
+      fileExtensions,
     };
   }
 

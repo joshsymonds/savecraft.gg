@@ -125,6 +125,7 @@ export interface Message {
     | { $case: "gameDetected"; gameDetected: GameDetected }
     | { $case: "gameNotFound"; gameNotFound: GameNotFound }
     | { $case: "watching"; watching: Watching }
+    | { $case: "gamesDiscovered"; gamesDiscovered: GamesDiscovered }
     | //
     /** Parse lifecycle (20-29) */
     { $case: "parseStarted"; parseStarted: ParseStarted }
@@ -144,6 +145,7 @@ export interface Message {
     { $case: "configUpdate"; configUpdate: ConfigUpdate }
     | { $case: "rescanGame"; rescanGame: RescanGame }
     | { $case: "pluginAvailable"; pluginAvailable: PluginAvailable }
+    | { $case: "discoverGames"; discoverGames: DiscoverGames }
     | //
     /** State: server → UI (60-69) */
     { $case: "deviceState"; deviceState: DeviceState }
@@ -199,6 +201,18 @@ export interface Watching {
   gameId: string;
   path: string;
   filesMonitored: number;
+}
+
+/** Results of daemon auto-discovery of save directories. */
+export interface GamesDiscovered {
+  games: DiscoveredGame[];
+}
+
+export interface DiscoveredGame {
+  gameId: string;
+  name: string;
+  path: string;
+  fileCount: number;
 }
 
 /** Daemon detected a file change and is feeding it to the WASM plugin. */
@@ -292,6 +306,10 @@ export interface PluginAvailable {
   url: string;
 }
 
+/** Request the daemon to re-run save directory discovery. */
+export interface DiscoverGames {
+}
+
 /**
  * Full device state snapshot. Sent to UI on WebSocket connect for cold start.
  * Constructed from D1 persisted events so the page isn't blank.
@@ -378,6 +396,9 @@ export const Message: MessageFns<Message> = {
       case "watching":
         Watching.encode(message.payload.watching, writer.uint32(114).fork()).join();
         break;
+      case "gamesDiscovered":
+        GamesDiscovered.encode(message.payload.gamesDiscovered, writer.uint32(122).fork()).join();
+        break;
       case "parseStarted":
         ParseStarted.encode(message.payload.parseStarted, writer.uint32(162).fork()).join();
         break;
@@ -410,6 +431,9 @@ export const Message: MessageFns<Message> = {
         break;
       case "pluginAvailable":
         PluginAvailable.encode(message.payload.pluginAvailable, writer.uint32(418).fork()).join();
+        break;
+      case "discoverGames":
+        DiscoverGames.encode(message.payload.discoverGames, writer.uint32(426).fork()).join();
         break;
       case "deviceState":
         DeviceState.encode(message.payload.deviceState, writer.uint32(482).fork()).join();
@@ -485,6 +509,17 @@ export const Message: MessageFns<Message> = {
           }
 
           message.payload = { $case: "watching", watching: Watching.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 15: {
+          if (tag !== 122) {
+            break;
+          }
+
+          message.payload = {
+            $case: "gamesDiscovered",
+            gamesDiscovered: GamesDiscovered.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 20: {
@@ -578,6 +613,14 @@ export const Message: MessageFns<Message> = {
           };
           continue;
         }
+        case 53: {
+          if (tag !== 426) {
+            break;
+          }
+
+          message.payload = { $case: "discoverGames", discoverGames: DiscoverGames.decode(reader, reader.uint32()) };
+          continue;
+        }
         case 60: {
           if (tag !== 482) {
             break;
@@ -639,6 +682,10 @@ export const Message: MessageFns<Message> = {
         ? { $case: "gameNotFound", gameNotFound: GameNotFound.fromJSON(object.game_not_found) }
         : isSet(object.watching)
         ? { $case: "watching", watching: Watching.fromJSON(object.watching) }
+        : isSet(object.gamesDiscovered)
+        ? { $case: "gamesDiscovered", gamesDiscovered: GamesDiscovered.fromJSON(object.gamesDiscovered) }
+        : isSet(object.games_discovered)
+        ? { $case: "gamesDiscovered", gamesDiscovered: GamesDiscovered.fromJSON(object.games_discovered) }
         : isSet(object.parseStarted)
         ? { $case: "parseStarted", parseStarted: ParseStarted.fromJSON(object.parseStarted) }
         : isSet(object.parse_started)
@@ -683,6 +730,10 @@ export const Message: MessageFns<Message> = {
         ? { $case: "pluginAvailable", pluginAvailable: PluginAvailable.fromJSON(object.pluginAvailable) }
         : isSet(object.plugin_available)
         ? { $case: "pluginAvailable", pluginAvailable: PluginAvailable.fromJSON(object.plugin_available) }
+        : isSet(object.discoverGames)
+        ? { $case: "discoverGames", discoverGames: DiscoverGames.fromJSON(object.discoverGames) }
+        : isSet(object.discover_games)
+        ? { $case: "discoverGames", discoverGames: DiscoverGames.fromJSON(object.discover_games) }
         : isSet(object.deviceState)
         ? { $case: "deviceState", deviceState: DeviceState.fromJSON(object.deviceState) }
         : isSet(object.device_state)
@@ -715,6 +766,8 @@ export const Message: MessageFns<Message> = {
       obj.gameNotFound = GameNotFound.toJSON(message.payload.gameNotFound);
     } else if (message.payload?.$case === "watching") {
       obj.watching = Watching.toJSON(message.payload.watching);
+    } else if (message.payload?.$case === "gamesDiscovered") {
+      obj.gamesDiscovered = GamesDiscovered.toJSON(message.payload.gamesDiscovered);
     } else if (message.payload?.$case === "parseStarted") {
       obj.parseStarted = ParseStarted.toJSON(message.payload.parseStarted);
     } else if (message.payload?.$case === "pluginStatus") {
@@ -737,6 +790,8 @@ export const Message: MessageFns<Message> = {
       obj.rescanGame = RescanGame.toJSON(message.payload.rescanGame);
     } else if (message.payload?.$case === "pluginAvailable") {
       obj.pluginAvailable = PluginAvailable.toJSON(message.payload.pluginAvailable);
+    } else if (message.payload?.$case === "discoverGames") {
+      obj.discoverGames = DiscoverGames.toJSON(message.payload.discoverGames);
     } else if (message.payload?.$case === "deviceState") {
       obj.deviceState = DeviceState.toJSON(message.payload.deviceState);
     } else if (message.payload?.$case === "testPath") {
@@ -807,6 +862,15 @@ export const Message: MessageFns<Message> = {
       case "watching": {
         if (object.payload?.watching !== undefined && object.payload?.watching !== null) {
           message.payload = { $case: "watching", watching: Watching.fromPartial(object.payload.watching) };
+        }
+        break;
+      }
+      case "gamesDiscovered": {
+        if (object.payload?.gamesDiscovered !== undefined && object.payload?.gamesDiscovered !== null) {
+          message.payload = {
+            $case: "gamesDiscovered",
+            gamesDiscovered: GamesDiscovered.fromPartial(object.payload.gamesDiscovered),
+          };
         }
         break;
       }
@@ -893,6 +957,15 @@ export const Message: MessageFns<Message> = {
           message.payload = {
             $case: "pluginAvailable",
             pluginAvailable: PluginAvailable.fromPartial(object.payload.pluginAvailable),
+          };
+        }
+        break;
+      }
+      case "discoverGames": {
+        if (object.payload?.discoverGames !== undefined && object.payload?.discoverGames !== null) {
+          message.payload = {
+            $case: "discoverGames",
+            discoverGames: DiscoverGames.fromPartial(object.payload.discoverGames),
           };
         }
         break;
@@ -1579,6 +1652,182 @@ export const Watching: MessageFns<Watching> = {
     message.gameId = object.gameId ?? "";
     message.path = object.path ?? "";
     message.filesMonitored = object.filesMonitored ?? 0;
+    return message;
+  },
+};
+
+function createBaseGamesDiscovered(): GamesDiscovered {
+  return { games: [] };
+}
+
+export const GamesDiscovered: MessageFns<GamesDiscovered> = {
+  encode(message: GamesDiscovered, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.games) {
+      DiscoveredGame.encode(v!, writer.uint32(10).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GamesDiscovered {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGamesDiscovered();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.games.push(DiscoveredGame.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GamesDiscovered {
+    return {
+      games: globalThis.Array.isArray(object?.games) ? object.games.map((e: any) => DiscoveredGame.fromJSON(e)) : [],
+    };
+  },
+
+  toJSON(message: GamesDiscovered): unknown {
+    const obj: any = {};
+    if (message.games?.length) {
+      obj.games = message.games.map((e) => DiscoveredGame.toJSON(e));
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GamesDiscovered>, I>>(base?: I): GamesDiscovered {
+    return GamesDiscovered.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GamesDiscovered>, I>>(object: I): GamesDiscovered {
+    const message = createBaseGamesDiscovered();
+    message.games = object.games?.map((e) => DiscoveredGame.fromPartial(e)) || [];
+    return message;
+  },
+};
+
+function createBaseDiscoveredGame(): DiscoveredGame {
+  return { gameId: "", name: "", path: "", fileCount: 0 };
+}
+
+export const DiscoveredGame: MessageFns<DiscoveredGame> = {
+  encode(message: DiscoveredGame, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.gameId !== "") {
+      writer.uint32(10).string(message.gameId);
+    }
+    if (message.name !== "") {
+      writer.uint32(18).string(message.name);
+    }
+    if (message.path !== "") {
+      writer.uint32(26).string(message.path);
+    }
+    if (message.fileCount !== 0) {
+      writer.uint32(32).int32(message.fileCount);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DiscoveredGame {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDiscoveredGame();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.gameId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.path = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 32) {
+            break;
+          }
+
+          message.fileCount = reader.int32();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): DiscoveredGame {
+    return {
+      gameId: isSet(object.gameId)
+        ? globalThis.String(object.gameId)
+        : isSet(object.game_id)
+        ? globalThis.String(object.game_id)
+        : "",
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      path: isSet(object.path) ? globalThis.String(object.path) : "",
+      fileCount: isSet(object.fileCount)
+        ? globalThis.Number(object.fileCount)
+        : isSet(object.file_count)
+        ? globalThis.Number(object.file_count)
+        : 0,
+    };
+  },
+
+  toJSON(message: DiscoveredGame): unknown {
+    const obj: any = {};
+    if (message.gameId !== "") {
+      obj.gameId = message.gameId;
+    }
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.path !== "") {
+      obj.path = message.path;
+    }
+    if (message.fileCount !== 0) {
+      obj.fileCount = Math.round(message.fileCount);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DiscoveredGame>, I>>(base?: I): DiscoveredGame {
+    return DiscoveredGame.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<DiscoveredGame>, I>>(object: I): DiscoveredGame {
+    const message = createBaseDiscoveredGame();
+    message.gameId = object.gameId ?? "";
+    message.name = object.name ?? "";
+    message.path = object.path ?? "";
+    message.fileCount = object.fileCount ?? 0;
     return message;
   },
 };
@@ -2884,6 +3133,49 @@ export const PluginAvailable: MessageFns<PluginAvailable> = {
     message.gameId = object.gameId ?? "";
     message.version = object.version ?? "";
     message.url = object.url ?? "";
+    return message;
+  },
+};
+
+function createBaseDiscoverGames(): DiscoverGames {
+  return {};
+}
+
+export const DiscoverGames: MessageFns<DiscoverGames> = {
+  encode(_: DiscoverGames, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DiscoverGames {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDiscoverGames();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): DiscoverGames {
+    return {};
+  },
+
+  toJSON(_: DiscoverGames): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DiscoverGames>, I>>(base?: I): DiscoverGames {
+    return DiscoverGames.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<DiscoverGames>, I>>(_: I): DiscoverGames {
+    const message = createBaseDiscoverGames();
     return message;
   },
 };

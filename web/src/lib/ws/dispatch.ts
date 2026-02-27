@@ -1,5 +1,6 @@
 import { dispatchToActivity } from "$lib/stores/activity";
 import { dispatchToDevices } from "$lib/stores/devices";
+import { setDiscoveredGames } from "$lib/stores/discovery";
 import { setTestPathResult } from "$lib/stores/testpath";
 import type { WireMessage } from "$lib/types/wire";
 
@@ -13,6 +14,10 @@ export function handleMessage(data: string): void {
 
   if (msg.testPathResult) {
     setTestPathResult(msg.testPathResult);
+  }
+
+  if (msg.gamesDiscovered) {
+    setDiscoveredGames(msg.gamesDiscovered);
   }
 
   dispatchToDevices(msg);

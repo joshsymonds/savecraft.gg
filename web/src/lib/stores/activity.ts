@@ -33,6 +33,7 @@ const TYPE_MAP: Partial<Record<WireMessageType, ActivityEventType>> = {
   pushCompleted: "push_completed",
   pushFailed: "push_failed",
   pluginUpdated: "plugin_updated",
+  gamesDiscovered: "games_discovered",
 };
 
 function formatBytes(bytes: number | string | undefined): string {
@@ -162,6 +163,12 @@ function buildEvent(type: WireMessageType, msg: WireMessage): ActivityEventData 
       const p = msg.pluginUpdated!;
       message = `${p.gameId ?? "Plugin"} updated`;
       detail = p.version ? `v${p.version}` : undefined;
+      break;
+    }
+    case "gamesDiscovered": {
+      const g = msg.gamesDiscovered!;
+      const count = g.games?.length ?? 0;
+      message = `Discovered ${count} game${count !== 1 ? "s" : ""}`;
       break;
     }
     default:

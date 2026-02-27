@@ -14,4 +14,5 @@ export type ActivityEventType =
   | "game_detected"
   | "game_not_found"
   | "scan_started"
-  | "scan_completed";
+  | "scan_completed"
+  | "games_discovered";

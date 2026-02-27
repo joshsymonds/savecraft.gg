@@ -48,6 +48,19 @@ export async function connectWs(path: string, userUuid: string): Promise<WebSock
 }
 
 /**
+ * Close a WebSocket and wait for the server-side handler to settle.
+ * Without the delay, vitest-pool-workers may invalidate the DO between
+ * test files while webSocketClose is still running async storage ops,
+ * causing workerd inputGateBroken errors.
+ */
+export async function closeWs(ws: WebSocket): Promise<void> {
+  ws.close();
+  await new Promise((resolve) => {
+    setTimeout(resolve, 50);
+  });
+}
+
+/**
  * Wait for the next message on a WebSocket.
  * Returns the parsed JSON message, or rejects on timeout.
  */

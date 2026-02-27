@@ -1,7 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, connectWs, waitForMessage } from "./helpers";
+import { cleanAll, closeWs, connectWs, waitForMessage } from "./helpers";
 
 describe("DaemonHub", () => {
   beforeEach(cleanAll);
@@ -19,8 +19,8 @@ describe("DaemonHub", () => {
     expect(received.parseCompleted.gameId).toBe("d2r");
     expect(received.parseCompleted.summary).toBe("Hammerdin, Level 89 Paladin");
 
-    daemonWs.close();
-    uiWs.close();
+    await closeWs(daemonWs);
+    await closeWs(uiWs);
   });
 
   it("relays UI commands to daemon", async () => {
@@ -35,8 +35,8 @@ describe("DaemonHub", () => {
     const received = await waitForMessage<typeof command>(daemonWs);
     expect(received.rescanGame.gameId).toBe("d2r");
 
-    daemonWs.close();
-    uiWs.close();
+    await closeWs(daemonWs);
+    await closeWs(uiWs);
   });
 
   it("persists daemon events to D1", async () => {
@@ -63,8 +63,8 @@ describe("DaemonHub", () => {
     expect(row.device_id).toBe("steam-deck");
     expect(row.event_type).toBe("daemonOnline");
 
-    daemonWs.close();
-    uiWs.close();
+    await closeWs(daemonWs);
+    await closeWs(uiWs);
   });
 
   it("requires auth for WebSocket connections", async () => {
@@ -91,7 +91,7 @@ describe("DaemonHub", () => {
 
     const ws = resp.webSocket!;
     ws.accept();
-    ws.close();
+    await closeWs(ws);
   });
 
   it("sends DeviceState then activity feed on UI connect (cold start)", async () => {
@@ -112,7 +112,7 @@ describe("DaemonHub", () => {
       await waitForMessage(temporaryUi);
     }
 
-    temporaryUi.close();
+    await closeWs(temporaryUi);
 
     // Fresh UI: first message should be DeviceState, then activity feed with _ts
     const freshUi = await connectWs("/ws/ui", userUuid);
@@ -129,8 +129,8 @@ describe("DaemonHub", () => {
     expect(msg2).toHaveProperty("_ts");
     expect(typeof msg2._ts).toBe("string");
 
-    freshUi.close();
-    daemonWs.close();
+    await closeWs(freshUi);
+    await closeWs(daemonWs);
   });
 
   it("builds DeviceState with online device from daemonOnline", async () => {
@@ -141,7 +141,7 @@ describe("DaemonHub", () => {
 
     daemon.send(JSON.stringify({ daemonOnline: { deviceId: "my-pc", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
-    temporaryUi.close();
+    await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
@@ -152,8 +152,8 @@ describe("DaemonHub", () => {
     expect(ds.devices[0]!.deviceId).toBe("my-pc");
     expect(ds.devices[0]!.online).toBe(true);
 
-    freshUi.close();
-    daemon.close();
+    await closeWs(freshUi);
+    await closeWs(daemon);
   });
 
   it("marks device offline on daemonOffline", async () => {
@@ -167,7 +167,7 @@ describe("DaemonHub", () => {
 
     daemon.send(JSON.stringify({ daemonOffline: { deviceId: "laptop" } }));
     await waitForMessage(temporaryUi);
-    temporaryUi.close();
+    await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
@@ -178,8 +178,8 @@ describe("DaemonHub", () => {
     // Proto3 JSON omits false (the default) — absent online means offline
     expect(device?.online).toBeFalsy();
 
-    freshUi.close();
-    daemon.close();
+    await closeWs(freshUi);
+    await closeWs(daemon);
   });
 
   it("tracks game status from watching event", async () => {
@@ -195,7 +195,7 @@ describe("DaemonHub", () => {
       JSON.stringify({ watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 5 } }),
     );
     await waitForMessage(temporaryUi);
-    temporaryUi.close();
+    await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
@@ -206,8 +206,8 @@ describe("DaemonHub", () => {
     const game = ds.devices[0]?.games.find((g) => g.gameId === "d2r");
     expect(game?.status).toBe("GAME_STATUS_ENUM_WATCHING");
 
-    freshUi.close();
-    daemon.close();
+    await closeWs(freshUi);
+    await closeWs(daemon);
   });
 
   it("tracks saves from pushCompleted", async () => {
@@ -225,7 +225,7 @@ describe("DaemonHub", () => {
       }),
     );
     await waitForMessage(temporaryUi);
-    temporaryUi.close();
+    await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
@@ -236,8 +236,8 @@ describe("DaemonHub", () => {
     const save = ds.devices[0]?.games[0]?.saves.find((s) => s.saveUuid === "save-123");
     expect(save?.summary).toBe("Hammerdin Lv89");
 
-    freshUi.close();
-    daemon.close();
+    await closeWs(freshUi);
+    await closeWs(daemon);
   });
 
   it("marks device offline on daemon WebSocket close", async () => {
@@ -248,15 +248,10 @@ describe("DaemonHub", () => {
 
     daemon.send(JSON.stringify({ daemonOnline: { deviceId: "steamdeck", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
-    temporaryUi.close();
+    await closeWs(temporaryUi);
 
     // Close daemon WS — should mark device offline
-    daemon.close();
-
-    // Allow close handler to process
-    await new Promise((resolve) => {
-      setTimeout(resolve, 100);
-    });
+    await closeWs(daemon);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
@@ -267,7 +262,7 @@ describe("DaemonHub", () => {
     // Proto3 JSON omits false (the default) — absent online means offline
     expect(device?.online).toBeFalsy();
 
-    freshUi.close();
+    await closeWs(freshUi);
   });
 
   it("tracks multiple devices independently", async () => {
@@ -294,7 +289,7 @@ describe("DaemonHub", () => {
       }),
     );
     await waitForMessage(temporaryUi);
-    temporaryUi.close();
+    await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
@@ -315,9 +310,9 @@ describe("DaemonHub", () => {
     expect(steamdeck!.online).toBe(true);
     expect(steamdeck!.games.find((g) => g.gameId === "stardew")).toBeDefined();
 
-    freshUi.close();
-    daemonA.close();
-    daemonB.close();
+    await closeWs(freshUi);
+    await closeWs(daemonA);
+    await closeWs(daemonB);
   });
 
   it("marks only the disconnected device offline", async () => {
@@ -331,13 +326,10 @@ describe("DaemonHub", () => {
     await waitForMessage(temporaryUi);
     daemonB.send(JSON.stringify({ daemonOnline: { deviceId: "steamdeck", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
-    temporaryUi.close();
+    await closeWs(temporaryUi);
 
     // Close only device A
-    daemonA.close();
-    await new Promise((resolve) => {
-      setTimeout(resolve, 100);
-    });
+    await closeWs(daemonA);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
@@ -351,8 +343,8 @@ describe("DaemonHub", () => {
     expect(steamdeck).toBeDefined();
     expect(steamdeck?.online).toBe(true);
 
-    freshUi.close();
-    daemonB.close();
+    await closeWs(freshUi);
+    await closeWs(daemonB);
   });
 
   it("enriches SaveInfo with identity from D1", async () => {
@@ -381,7 +373,7 @@ describe("DaemonHub", () => {
       }),
     );
     await waitForMessage(temporaryUi);
-    temporaryUi.close();
+    await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
@@ -394,8 +386,8 @@ describe("DaemonHub", () => {
     const save = ds.devices[0]?.games[0]?.saves.find((s) => s.saveUuid === "save-abc");
     expect(save?.identity.name).toBe("Hammerdin");
 
-    freshUi.close();
-    daemon.close();
+    await closeWs(freshUi);
+    await closeWs(daemon);
   });
 
   it("scopes configUpdate to the target device only", async () => {
@@ -427,8 +419,70 @@ describe("DaemonHub", () => {
     expect(Object.keys(desktopGames)).toHaveLength(1);
     expect(Object.keys(steamdeckGames)).toHaveLength(0);
 
-    daemonA.close();
-    daemonB.close();
+    await closeWs(daemonA);
+    await closeWs(daemonB);
+  });
+
+  it("injects _deviceId on live relay", async () => {
+    const userUuid = "deviceid-relay-user";
+
+    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const uiWs = await connectWs("/ws/ui", userUuid);
+
+    // Identify the daemon connection
+    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "my-pc", version: "0.1.0" } }));
+    await waitForMessage(uiWs);
+
+    // Send a game event — UI should receive it with _deviceId injected
+    daemonWs.send(
+      JSON.stringify({ watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 5 } }),
+    );
+    const received = await waitForMessage<Record<string, unknown>>(uiWs);
+    expect(received).toHaveProperty("watching");
+    expect(received._deviceId).toBe("my-pc");
+
+    await closeWs(daemonWs);
+    await closeWs(uiWs);
+  });
+
+  it("injects _deviceId on replayed events", async () => {
+    const userUuid = "deviceid-replay-user";
+
+    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const temporaryUi = await connectWs("/ws/ui", userUuid);
+
+    // Identify daemon and send an event
+    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "steam-deck", version: "0.1.0" } }));
+    await waitForMessage(temporaryUi);
+    daemonWs.send(
+      JSON.stringify({ parseCompleted: { gameId: "d2r", summary: "Hammerdin, Level 89" } }),
+    );
+    await waitForMessage(temporaryUi);
+    await closeWs(temporaryUi);
+
+    // Fresh UI should get DeviceState, then replayed events with _deviceId
+    const freshUi = await connectWs("/ws/ui", userUuid);
+
+    // Skip DeviceState
+    await waitForMessage(freshUi);
+
+    // Collect replayed events — at least one should have _deviceId: "steam-deck"
+    const replayed: Record<string, unknown>[] = [];
+    try {
+      while (replayed.length < 10) {
+        const msg = await waitForMessage<Record<string, unknown>>(freshUi, 500);
+        replayed.push(msg);
+      }
+    } catch {
+      // Timeout expected — we've drained all replayed events
+    }
+
+    expect(replayed.length).toBeGreaterThanOrEqual(1);
+    const withDeviceId = replayed.filter((m) => m._deviceId === "steam-deck");
+    expect(withDeviceId.length).toBeGreaterThanOrEqual(1);
+
+    await closeWs(freshUi);
+    await closeWs(daemonWs);
   });
 
   it("isolates users — messages don't leak across DOs", async () => {
@@ -447,8 +501,8 @@ describe("DaemonHub", () => {
     const noMessage = await waitForMessage(uiB, 200).catch(() => null);
     expect(noMessage).toBeNull();
 
-    daemonA.close();
-    uiA.close();
-    uiB.close();
+    await closeWs(daemonA);
+    await closeWs(uiA);
+    await closeWs(uiB);
   });
 });

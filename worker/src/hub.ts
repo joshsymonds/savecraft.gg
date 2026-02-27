@@ -185,12 +185,21 @@ export class DaemonHub extends DurableObject<Env> {
     const msgString = typeof message === "string" ? message : new TextDecoder().decode(message);
 
     if (tags.includes("daemon")) {
-      for (const uiWs of this.ctx.getWebSockets("ui")) {
-        uiWs.send(msgString);
-      }
       const rpc = this.parseMessage(msgString);
-      const mutation = await this.applyDeviceState(tags, rpc);
-      await this.persistEvent(mutation, rpc, msgString);
+      await this.applyDeviceState(tags, rpc);
+
+      // Resolve source deviceId (available after applyDeviceState stores
+      // the conn→deviceId mapping on daemonOnline)
+      const deviceId = await this.getDeviceIdForConnection(tags);
+
+      // Forward to UI with _deviceId injected so the frontend can
+      // attribute game events to the correct device
+      const forwardMsg = this.injectMetadata(msgString, { _deviceId: deviceId });
+      for (const uiWs of this.ctx.getWebSockets("ui")) {
+        uiWs.send(forwardMsg);
+      }
+
+      await this.persistEvent(deviceId, rpc, msgString);
       await this.maybePushConfig(rpc);
     } else if (tags.includes("ui")) {
       for (const daemonWs of this.ctx.getWebSockets("daemon")) {
@@ -390,20 +399,20 @@ export class DaemonHub extends DurableObject<Env> {
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
       const rows = await this.env.DB.prepare(
-        `SELECT event_data, created_at FROM device_events
+        `SELECT event_data, created_at, device_id FROM device_events
          WHERE user_uuid = ?
          ORDER BY created_at DESC
          LIMIT 50`,
       )
         .bind(userUuid)
-        .all<{ event_data: string; created_at: string }>();
+        .all<{ event_data: string; created_at: string; device_id: string }>();
 
       const events = rows.results.toReversed();
       for (const row of events) {
-        // Inject created_at timestamp so the UI can show relative times
-        const parsed = JSON.parse(row.event_data) as Record<string, unknown>;
-        parsed._ts = row.created_at;
-        ws.send(JSON.stringify(parsed));
+        ws.send(this.injectMetadata(row.event_data, {
+          _ts: row.created_at,
+          _deviceId: row.device_id,
+        }));
       }
     } catch {
       // Don't let cold start failures break the connection
@@ -456,8 +465,23 @@ export class DaemonHub extends DurableObject<Env> {
     }
   }
 
+  private injectMetadata(
+    json: string,
+    fields: Record<string, string | undefined>,
+  ): string {
+    try {
+      const parsed = JSON.parse(json) as Record<string, unknown>;
+      for (const [key, value] of Object.entries(fields)) {
+        if (value !== undefined) parsed[key] = value;
+      }
+      return JSON.stringify(parsed);
+    } catch {
+      return json;
+    }
+  }
+
   private async persistEvent(
-    mutation: StateMutation,
+    deviceId: string | undefined,
     rpc: Message | undefined,
     rawMessage: string,
   ): Promise<void> {
@@ -467,15 +491,13 @@ export class DaemonHub extends DurableObject<Env> {
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
 
-      // Use deviceId from the already-resolved mutation; fall back to "unknown"
-      // for events that don't produce state mutations (kind === "none")
-      const deviceId = mutation.kind === "none" ? "unknown" : mutation.deviceId;
+      const resolvedDeviceId = deviceId ?? "unknown";
 
       await this.env.DB.prepare(
         `INSERT INTO device_events (user_uuid, device_id, event_type, event_data)
          VALUES (?, ?, ?, ?)`,
       )
-        .bind(userUuid, deviceId, eventType, rawMessage)
+        .bind(userUuid, resolvedDeviceId, eventType, rawMessage)
         .run();
 
       await this.env.DB.prepare(
@@ -486,7 +508,7 @@ export class DaemonHub extends DurableObject<Env> {
            ORDER BY created_at DESC LIMIT 100
          )`,
       )
-        .bind(userUuid, deviceId, userUuid, deviceId)
+        .bind(userUuid, resolvedDeviceId, userUuid, resolvedDeviceId)
         .run();
     } catch {
       // Don't let persistence failures break the relay

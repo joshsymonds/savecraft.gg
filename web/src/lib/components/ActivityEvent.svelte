@@ -31,6 +31,7 @@
     game_not_found: { icon: "◇", colorVar: "var(--color-text-muted)" },
     scan_started: { icon: "○", colorVar: "var(--color-blue)" },
     scan_completed: { icon: "●", colorVar: "var(--color-green)" },
+    games_discovered: { icon: "◆", colorVar: "var(--color-gold)" },
   };
 
   let config = $derived(iconMap[type]);

@@ -7,9 +7,18 @@
   import { activityEvents } from "$lib/stores/activity";
   import { devices } from "$lib/stores/devices";
   import type { DeviceStatus } from "$lib/types/device";
-  import { connectionStatus, type ConnectionStatus } from "$lib/ws/client";
+  import { connectionStatus, send, type ConnectionStatus } from "$lib/ws/client";
+  import type { Device } from "$lib/types/device";
 
   let configDeviceId = $state<string | null>(null);
+
+  function rescan(device: Device): void {
+    for (const game of device.games) {
+      if (game.status !== "not_found") {
+        send(JSON.stringify({ rescanGame: { gameId: game.gameId } }));
+      }
+    }
+  }
 
   const ACCENT_COLORS: Record<DeviceStatus, string | undefined> = {
     online: "#5abe8a40",
@@ -74,7 +83,11 @@
             </div>
           </div>
           <div class="device-actions">
-            <TinyButton label="RESCAN" />
+            <TinyButton
+              label="RESCAN"
+              onclick={() => rescan(device)}
+              disabled={device.status === "offline"}
+            />
             <TinyButton label="CONFIG" onclick={() => (configDeviceId = device.id)} />
           </div>
         </div>
@@ -94,6 +107,13 @@
               >
                 {game.statusLine}
               </span>
+              {#if game.status === "watching" && game.saves.length > 0}
+                <div class="save-list">
+                  {#each game.saves as save}
+                    <span class="save-name">{save.characterName}</span>
+                  {/each}
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
@@ -296,6 +316,19 @@
 
   .status-muted {
     color: var(--color-text-muted);
+  }
+
+  .save-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 6px;
+    margin-top: 4px;
+  }
+
+  .save-name {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--color-text-dim);
   }
 
   .empty-state {
