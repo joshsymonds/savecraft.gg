@@ -1,4 +1,4 @@
-import { authenticate } from "./auth";
+import { authenticateDaemon, authenticateOAuth, authenticateSession, sha256Hex } from "./auth";
 import { handleMcpRequest } from "./mcp/handler";
 import { indexNote, indexSaveSections, removeNoteFromIndex } from "./mcp/tools";
 import type { Env } from "./types";
@@ -28,6 +28,7 @@ export default {
     const url = new URL(request.url);
     const response =
       (await routePublicEndpoints(request, url, env)) ??
+      (await routeDaemonEndpoints(request, url, env)) ??
       (await routeProtectedEndpoints(request, url, env));
     return corsify(response);
   },
@@ -47,13 +48,23 @@ async function routePublicEndpoints(
   if (url.pathname === "/api/v1/plugins/manifest" && request.method === "GET") {
     return handlePluginManifest(env);
   }
-  if (url.pathname === "/api/v1/push" && request.method === "POST") {
-    return handlePush(request, env);
-  }
   // Match /plugins/:gameId/parser.wasm or /plugins/:gameId/parser.wasm.sig
   const pluginMatch = PLUGIN_DOWNLOAD_RE.exec(url.pathname);
   if (pluginMatch?.[1] && pluginMatch[2] && request.method === "GET") {
     return handlePluginDownload(env, pluginMatch[1], pluginMatch[2]);
+  }
+  return null;
+}
+
+async function routeDaemonEndpoints(
+  request: Request,
+  url: URL,
+  env: Env,
+): Promise<Response | null> {
+  if (url.pathname === "/api/v1/push" && request.method === "POST") {
+    const auth = await authenticateDaemon(request, env);
+    if (!auth) return new Response("Unauthorized", { status: 401 });
+    return handlePush(request, env, auth.userUuid);
   }
   return null;
 }
@@ -71,17 +82,24 @@ async function routeWebSocketEndpoints(
   url: URL,
   env: Env,
 ): Promise<Response | null> {
-  if (url.pathname === "/ws/daemon" || url.pathname === "/ws/ui") {
-    const auth = await authenticate(request, env);
+  if (url.pathname === "/ws/daemon") {
+    const auth = await authenticateDaemon(request, env);
     if (!auth) return new Response("Unauthorized", { status: 401 });
     const id = env.DAEMON_HUB.idFromName(auth.userUuid);
-    // Pass real userUuid to DO (id.toString() is a hex hash, not the original string)
+    const headers = new Headers(request.headers);
+    headers.set("X-User-UUID", auth.userUuid);
+    return env.DAEMON_HUB.get(id).fetch(new Request(request, { headers }));
+  }
+  if (url.pathname === "/ws/ui") {
+    const auth = await authenticateSession(request, env);
+    if (!auth) return new Response("Unauthorized", { status: 401 });
+    const id = env.DAEMON_HUB.idFromName(auth.userUuid);
     const headers = new Headers(request.headers);
     headers.set("X-User-UUID", auth.userUuid);
     return env.DAEMON_HUB.get(id).fetch(new Request(request, { headers }));
   }
   if (url.pathname === "/mcp") {
-    const auth = await authenticate(request, env);
+    const auth = await authenticateOAuth(request, env);
     if (!auth) return unauthorizedMcp(env);
     return handleMcpRequest(request, env, auth.userUuid);
   }
@@ -95,8 +113,12 @@ async function routeApiEndpoints(
 ): Promise<Response | null> {
   if (!url.pathname.startsWith("/api/v1/")) return null;
 
-  const auth = await authenticate(request, env);
+  const auth = await authenticateSession(request, env);
   if (!auth) return new Response("Unauthorized", { status: 401 });
+
+  if (url.pathname === "/api/v1/api-keys" || url.pathname.startsWith("/api/v1/api-keys/")) {
+    return handleApiKeys(request, url, env, auth.userUuid);
+  }
 
   if (url.pathname.startsWith("/api/v1/devices/") && url.pathname.endsWith("/config")) {
     return handleDeviceConfig(request, url, env, auth.userUuid);
@@ -618,6 +640,100 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
   });
 }
 
+// -- API Key CRUD -------------------------------------------------------
+
+async function handleApiKeys(
+  request: Request,
+  url: URL,
+  env: Env,
+  userUuid: string,
+): Promise<Response> {
+  // POST /api/v1/api-keys — create
+  if (url.pathname === "/api/v1/api-keys" && request.method === "POST") {
+    return createApiKey(request, env, userUuid);
+  }
+  // GET /api/v1/api-keys — list
+  if (url.pathname === "/api/v1/api-keys" && request.method === "GET") {
+    return listApiKeys(env, userUuid);
+  }
+  // DELETE /api/v1/api-keys/:keyId — revoke
+  if (url.pathname.startsWith("/api/v1/api-keys/") && request.method === "DELETE") {
+    const keyId = url.pathname.replace("/api/v1/api-keys/", "");
+    if (!keyId) return Response.json({ error: "Missing key_id" }, { status: 400 });
+    return deleteApiKey(env, userUuid, keyId);
+  }
+
+  return new Response("Method Not Allowed", { status: 405 });
+}
+
+async function createApiKey(request: Request, env: Env, userUuid: string): Promise<Response> {
+  let body: { label?: string } = {};
+  const text = await request.text();
+  if (text) {
+    try {
+      body = JSON.parse(text) as { label?: string };
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+  }
+
+  const label = body.label ?? "default";
+  const id = crypto.randomUUID();
+
+  // Generate raw key: sav_ + 32 hex random chars
+  const randomBytes = new Uint8Array(16);
+  crypto.getRandomValues(randomBytes);
+  const hex = [...randomBytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const rawKey = `sav_${hex}`;
+  const prefix = rawKey.slice(0, 8);
+
+  // Hash the key for storage
+  const keyHash = await sha256Hex(rawKey);
+
+  await env.DB.prepare(
+    "INSERT INTO api_keys (id, key_prefix, key_hash, user_uuid, label) VALUES (?, ?, ?, ?, ?)",
+  )
+    .bind(id, prefix, keyHash, userUuid, label)
+    .run();
+
+  return Response.json({ id, key: rawKey, prefix, label }, { status: 201 });
+}
+
+async function listApiKeys(env: Env, userUuid: string): Promise<Response> {
+  const rows = await env.DB.prepare(
+    "SELECT id, key_prefix, label, created_at FROM api_keys WHERE user_uuid = ? ORDER BY created_at DESC",
+  )
+    .bind(userUuid)
+    .all<{ id: string; key_prefix: string; label: string; created_at: string }>();
+
+  const keys = rows.results.map((row) => ({
+    id: row.id,
+    prefix: row.key_prefix,
+    label: row.label,
+    created_at: row.created_at,
+  }));
+
+  return Response.json({ keys });
+}
+
+async function deleteApiKey(env: Env, userUuid: string, keyId: string): Promise<Response> {
+  const existing = await env.DB.prepare(
+    "SELECT id FROM api_keys WHERE id = ? AND user_uuid = ?",
+  )
+    .bind(keyId, userUuid)
+    .first();
+
+  if (!existing) {
+    return Response.json({ error: "Key not found" }, { status: 404 });
+  }
+
+  await env.DB.prepare("DELETE FROM api_keys WHERE id = ? AND user_uuid = ?")
+    .bind(keyId, userUuid)
+    .run();
+
+  return Response.json({ deleted: true });
+}
+
 /**
  * Check if the incoming parsedAt timestamp is newer than the current latest.json.
  * Returns true if there is no existing latest or the incoming timestamp is strictly newer.
@@ -634,12 +750,7 @@ async function isNewerThanLatest(
   return parsedAt > existingParsedAt;
 }
 
-async function handlePush(request: Request, env: Env): Promise<Response> {
-  const auth = await authenticate(request, env);
-  if (!auth) {
-    return new Response("Unauthorized", { status: 401 });
-  }
-
+async function handlePush(request: Request, env: Env, userUuid: string): Promise<Response> {
   const gameId = request.headers.get("X-Game");
   if (!gameId) {
     return Response.json({ error: "Missing X-Game header" }, { status: 400 });
@@ -681,7 +792,7 @@ async function handlePush(request: Request, env: Env): Promise<Response> {
   const existingSave = await env.DB.prepare(
     "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
   )
-    .bind(auth.userUuid, gameId, saveName)
+    .bind(userUuid, gameId, saveName)
     .first<{ uuid: string }>();
 
   let saveUuid: string;
@@ -692,16 +803,16 @@ async function handlePush(request: Request, env: Env): Promise<Response> {
     await env.DB.prepare(
       "INSERT INTO saves (uuid, user_uuid, game_id, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?)",
     )
-      .bind(saveUuid, auth.userUuid, gameId, saveName, summary, parsedAt)
+      .bind(saveUuid, userUuid, gameId, saveName, summary, parsedAt)
       .run();
   }
 
   // Write snapshot to R2 (always — snapshots are immutable)
-  const snapshotKey = `users/${auth.userUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
+  const snapshotKey = `users/${userUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
   await env.SAVES.put(snapshotKey, bodyString);
 
   // Update latest pointer only if incoming timestamp is newer
-  const latestKey = `users/${auth.userUuid}/saves/${saveUuid}/latest.json`;
+  const latestKey = `users/${userUuid}/saves/${saveUuid}/latest.json`;
   const isNewer = await isNewerThanLatest(env.SAVES, latestKey, parsedAt);
   if (isNewer) {
     await env.SAVES.put(latestKey, bodyString, {
@@ -715,7 +826,7 @@ async function handlePush(request: Request, env: Env): Promise<Response> {
     }
     // Re-index save sections in FTS5
     const sectionData = sections as Record<string, { description: string; data: unknown }>;
-    await indexSaveSections(env.DB, auth.userUuid, saveUuid, saveName, sectionData);
+    await indexSaveSections(env.DB, userUuid, saveUuid, saveName, sectionData);
   }
 
   return Response.json({ save_uuid: saveUuid, snapshot_timestamp: parsedAt }, { status: 201 });

@@ -1,12 +1,12 @@
 /**
- * Authentication layer. Provides a uniform interface for extracting
- * user identity from requests. Two implementations:
+ * Authentication layer. Three auth functions, one per endpoint group:
  *
- * - Stub: Bearer token IS the user UUID (development/testing)
- * - Clerk: JWT validation against Clerk's public keys (production)
+ * - authenticateSession: Clerk session JWT (web UI routes)
+ * - authenticateOAuth: Clerk OAuth opaque token via /oauth/userinfo (MCP)
+ * - authenticateApiKey: SHA-256 hashed API key lookup in D1 (daemon routes)
  *
- * The active implementation is selected by the CLERK_ISSUER env var.
- * If set, Clerk JWT validation is used. Otherwise, stub auth.
+ * All resolve to the same AuthResult { userUuid: string }.
+ * When CLERK_ISSUER is unset, authenticateStub is used for all (dev/test).
  */
 import type { Env } from "./types";
 
@@ -14,26 +14,87 @@ export interface AuthResult {
   userUuid: string;
 }
 
+// -- Stub auth (development/testing) --------------------------------------
+
+/** Stub auth: bearer token IS the user UUID. Used when CLERK_ISSUER is unset. */
+function authenticateStub(token: string): AuthResult {
+  return { userUuid: token };
+}
+
+// -- Session auth (Clerk JWT) ---------------------------------------------
+
 /**
- * Extract user identity from the request.
- * Returns null if the request is not authenticated.
- *
- * Two token sources:
- * - Authorization: Bearer TOKEN — used by daemon, REST API, MCP
- * - Sec-WebSocket-Protocol: access_token.TOKEN — used by browser UI
- *   (browser WebSocket API cannot set custom headers)
+ * Validate a Clerk session JWT and extract the user UUID.
+ * Returns null if invalid. Falls back to stub when CLERK_ISSUER is unset.
  */
-export async function authenticate(request: Request, env: Env): Promise<AuthResult | null> {
+export async function authenticateSession(request: Request, env: Env): Promise<AuthResult | null> {
   const token = extractToken(request);
   if (!token) return null;
 
-  // Production: validate Clerk JWT
-  if (env.CLERK_ISSUER) {
-    return validateClerkJwt(token, env);
-  }
+  if (!env.CLERK_ISSUER) return authenticateStub(token);
+  return validateClerkJwt(token, env);
+}
 
-  // Development: bearer token IS the user UUID
-  return { userUuid: token };
+// -- OAuth auth (Clerk opaque token) --------------------------------------
+
+/**
+ * Validate a Clerk OAuth opaque token by calling /oauth/userinfo.
+ * Returns null if invalid. Falls back to stub when CLERK_ISSUER is unset.
+ */
+export async function authenticateOAuth(request: Request, env: Env): Promise<AuthResult | null> {
+  const token = extractToken(request);
+  if (!token) return null;
+
+  if (!env.CLERK_ISSUER) return authenticateStub(token);
+
+  try {
+    const resp = await fetch(`${env.CLERK_ISSUER}/oauth/userinfo`, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    if (!resp.ok) return null;
+
+    const userinfo = await resp.json<{ sub?: string }>();
+    if (!userinfo.sub) return null;
+    return { userUuid: userinfo.sub };
+  } catch {
+    return null;
+  }
+}
+
+// -- API key auth (D1 lookup) ---------------------------------------------
+
+/** Authenticate a daemon API key by hashing it and looking up in D1. Returns null if not found. */
+export async function authenticateApiKey(token: string, db: D1Database): Promise<AuthResult | null> {
+  if (!token) return null;
+
+  const hash = await sha256Hex(token);
+  const row = await db
+    .prepare("SELECT user_uuid FROM api_keys WHERE key_hash = ?")
+    .bind(hash)
+    .first<{ user_uuid: string }>();
+
+  if (!row) return null;
+  return { userUuid: row.user_uuid };
+}
+
+/**
+ * Authenticate a daemon request. Uses API key auth when CLERK_ISSUER is set,
+ * otherwise falls back to stub auth.
+ */
+export async function authenticateDaemon(request: Request, env: Env): Promise<AuthResult | null> {
+  const token = extractToken(request);
+  if (!token) return null;
+
+  if (!env.CLERK_ISSUER) return authenticateStub(token);
+  return authenticateApiKey(token, env.DB);
+}
+
+// -- Helpers --------------------------------------------------------------
+
+export async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 function extractToken(request: Request): string | undefined {

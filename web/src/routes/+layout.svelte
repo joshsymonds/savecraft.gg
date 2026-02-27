@@ -84,7 +84,15 @@
 {:else if showAppShell}
   <div class="app-shell">
     <header class="app-header">
-      <span class="header-title">SAVECRAFT</span>
+      <div class="header-left">
+        <a href="/" class="header-title">SAVECRAFT</a>
+        <nav class="header-nav">
+          <a href="/" class="nav-link" class:active={page.url.pathname === "/"}>DASHBOARD</a>
+          <a href="/saves" class="nav-link" class:active={page.url.pathname === "/saves"}>SAVES</a>
+          <a href="/install" class="nav-link" class:active={page.url.pathname === "/install"}>INSTALL</a>
+          <a href="/connect" class="nav-link" class:active={page.url.pathname === "/connect"}>CONNECT</a>
+        </nav>
+      </div>
       <div bind:this={userButtonEl}></div>
     </header>
     <div class="app-content">
@@ -109,11 +117,43 @@
     background: rgba(5, 7, 26, 0.6);
   }
 
+  .header-left {
+    display: flex;
+    align-items: center;
+    gap: 24px;
+  }
+
   .header-title {
     font-family: var(--font-pixel);
     font-size: 10px;
     color: var(--color-gold);
     letter-spacing: 3px;
+    text-decoration: none;
+  }
+
+  .header-nav {
+    display: flex;
+    gap: 4px;
+  }
+
+  .nav-link {
+    font-family: var(--font-pixel);
+    font-size: 6px;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    letter-spacing: 1px;
+    padding: 4px 8px;
+    border-radius: 3px;
+    transition: all 0.15s;
+  }
+
+  .nav-link:hover {
+    color: var(--color-text-dim);
+  }
+
+  .nav-link.active {
+    color: var(--color-text);
+    background: rgba(74, 90, 173, 0.12);
   }
 
   .app-content {
