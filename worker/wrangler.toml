@@ -55,7 +55,7 @@ new_sqlite_classes = ["DaemonHub"]
 # ── Staging ────────────────────────────────────────────
 [env.staging]
 name = "savecraft-api-staging"
-route = { pattern = "api.staging.savecraft.gg/*", zone_name = "savecraft.gg" }
+route = { pattern = "staging-api.savecraft.gg/*", zone_name = "savecraft.gg" }
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
