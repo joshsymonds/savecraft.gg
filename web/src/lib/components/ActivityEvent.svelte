@@ -16,8 +16,8 @@
   let { type, message, detail, time, isNew = false }: Props = $props();
 
   const iconMap: Record<ActivityEventType, { icon: string; colorVar: string }> = {
-    parse_started: { icon: "◌", colorVar: "var(--color-blue)" },
-    plugin_status: { icon: "»", colorVar: "var(--color-text-dim)" },
+    parse_started: { icon: "○", colorVar: "var(--color-blue)" },
+    plugin_status: { icon: "›", colorVar: "var(--color-text-dim)" },
     parse_completed: { icon: "✓", colorVar: "var(--color-green)" },
     parse_failed: { icon: "✕", colorVar: "var(--color-red)" },
     push_started: { icon: "↑", colorVar: "var(--color-blue)" },
@@ -27,8 +27,8 @@
     daemon_online: { icon: "▶", colorVar: "var(--color-green)" },
     daemon_offline: { icon: "■", colorVar: "var(--color-red)" },
     watching: { icon: "→", colorVar: "var(--color-blue)" },
-    game_detected: { icon: "◈", colorVar: "var(--color-green)" },
-    config_push: { icon: "⟳", colorVar: "var(--color-blue)" },
+    game_detected: { icon: "◆", colorVar: "var(--color-green)" },
+    config_push: { icon: "↻", colorVar: "var(--color-blue)" },
   };
 
   let config = $derived(iconMap[type]);
@@ -59,11 +59,11 @@
   }
 
   .icon {
-    font-family: var(--font-pixel);
-    font-size: 17px;
-    min-width: 18px;
+    font-family: var(--font-body);
+    font-size: 20px;
+    min-width: 20px;
     text-align: center;
-    line-height: 1.3;
+    line-height: 1.1;
   }
 
   .content {
