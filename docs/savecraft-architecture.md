@@ -819,6 +819,27 @@ Returns changes between two snapshots for a section.
 }
 ```
 
+#### `refresh_save(save_id)`
+
+Requests fresh data for a save. The server routes to the appropriate ingest path based on the save's game type — the MCP client never needs to know which path is taken.
+
+- **Daemon-backed saves** (local files: D2R, Stardew, etc.): The Worker sends `RescanGame` to the DaemonHub DO, which forwards it to the daemon over WebSocket. The daemon rescans the save directory, re-parses changed files, and pushes fresh data to R2 via the push API.
+- **API-backed saves** (remote APIs: PoE2, WoW via Battle.net, etc.): The Worker fetches directly from the game's API using stored credentials, parses the response, and writes to R2.
+
+Both paths produce the same result: updated snapshots in R2, updated metadata in D1. Subsequent `get_section` calls return the fresh data.
+
+```json
+{
+  "save_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "refreshed": true,
+  "timestamp": "2026-02-25T21:31:15Z"
+}
+```
+
+**Latency:** API-backed refreshes complete in ~1-2 seconds (single HTTP round-trip to the game API). Daemon-backed refreshes take ~3-5 seconds (WebSocket command → daemon rescan → parse → HTTP push). Both are fast enough for conversational use — the AI says "let me check…" and it feels natural.
+
+**Failure modes:** If the daemon is offline, returns an error with `"daemon_offline": true` so the AI can tell the user to check their daemon. If the game API is rate-limited or down, returns the error from the upstream API. In both cases, the last-known data is still available via normal `get_section` calls.
+
 ### AI Interaction Pattern
 
 When a user asks about their game state, the AI follows this pattern:
@@ -830,7 +851,8 @@ When a user asks about their game state, the AI follows this pattern:
    - "Have I finished Act 3?" → `quest_progress`
    - "How has my build changed this week?" → `get_section_diff` on relevant sections
    - "Am I following my build guide?" → `search` or `list_notes` to find the guide, `get_note` to read it, then relevant sections for comparison
-4. Combine structured save data with the AI's existing game knowledge (item stats, quest walkthroughs, build guides, meta analysis) to give personalized advice.
+4. If the user indicates something just changed ("I just equipped a new item", "I just finished a quest"), call `refresh_save` to get fresh data before reading sections. The AI doesn't need to know whether the save is daemon-backed or API-backed — the server handles routing.
+5. Combine structured save data with the AI's existing game knowledge (item stats, quest walkthroughs, build guides, meta analysis) to give personalized advice.
 
 ## Notes
 
@@ -1273,6 +1295,18 @@ Free tier generous enough for word-of-mouth. Paid tier unlocks infrastructure-in
 | FFXIV | Lodestone (unofficial scrapers) | No local save data. API-based acquisition. |
 
 The "plugin" concept generalizes from "binary file parser" to "data source adapter" — some plugins parse files, some call APIs. The daemon and MCP serving layer are identical either way.
+
+**Dual ingest, single abstraction.** The `refresh_save` MCP tool unifies both paths. For daemon-backed saves (local file parsers), the Worker sends `RescanGame` through the DO to the daemon. For API-backed saves, the Worker fetches from the game API directly. The MCP client — and by extension the AI — never knows which path is taken. One tool, two ingest paths, same R2 result. See [MCP Tools → `refresh_save`](#refresh_savesave_id) for the full contract.
+
+**Conversation pattern is identical for both:**
+
+```
+Player (PoE2, API-backed):  "I just slotted a new skill gem."
+AI: calls refresh_save → Worker hits GGG API → R2 updated → AI reads fresh sections
+
+Player (Stardew, daemon-backed):  "I just finished the Community Center!"
+AI: calls refresh_save → Worker pokes DO → daemon rescans → pushes to R2 → AI reads fresh sections
+```
 
 ## Development Tooling
 
