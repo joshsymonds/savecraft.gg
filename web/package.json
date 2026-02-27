@@ -23,7 +23,6 @@
     "@storybook/addon-svelte-csf": "^5.0.11",
     "@storybook/svelte": "^10.2.13",
     "@storybook/sveltekit": "^10.2.13",
-    "@sveltejs/adapter-auto": "^6.0.0",
     "@sveltejs/kit": "^2.21.1",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@testing-library/jest-dom": "^6.6.3",
@@ -53,6 +52,7 @@
     "vitest": "^3.2.1"
   },
   "dependencies": {
-    "@clerk/clerk-js": "^5.125.2"
+    "@clerk/clerk-js": "^5.125.2",
+    "@sveltejs/adapter-cloudflare": "^7.2.8"
   }
 }
