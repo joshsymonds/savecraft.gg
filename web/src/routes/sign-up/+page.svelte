@@ -3,8 +3,8 @@
   Sign-up page: mounts Clerk's SignUp component.
 -->
 <script lang="ts">
-  import { onMount } from "svelte";
   import { getClerk } from "$lib/auth/clerk";
+  import { onMount } from "svelte";
 
   let container: HTMLDivElement;
 
@@ -17,7 +17,9 @@
       afterSignUpUrl: "/",
     });
 
-    return () => clerk.unmountSignUp(container);
+    return () => {
+      clerk.unmountSignUp(container);
+    };
   });
 </script>
 
