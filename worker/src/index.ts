@@ -100,7 +100,7 @@ function handleOAuthResourceMetadata(env: Env): Response {
 
 async function handlePluginManifest(env: Env): Promise<Response> {
   const serverUrl = env.SERVER_URL ?? "https://mcp.savecraft.gg";
-  const plugins: Record<string, { version: string; sha256: string; url: string }> = {};
+  const plugins: Record<string, Record<string, unknown>> = {};
 
   // List all plugin manifests in R2
   const listed = await env.SNAPSHOTS.list({ prefix: "plugins/" });
@@ -111,17 +111,13 @@ async function handlePluginManifest(env: Env): Promise<Response> {
     const manifest = await env.SNAPSHOTS.get(object.key);
     if (!manifest) continue;
 
-    const data = await manifest.json<{
-      game_id: string;
-      version: string;
-      sha256: string;
-    }>();
+    const data = await manifest.json<Record<string, unknown>>();
+    const gameId = data.game_id as string | undefined;
 
-    if (data.game_id) {
-      plugins[data.game_id] = {
-        version: data.version,
-        sha256: data.sha256,
-        url: `${serverUrl}/plugins/${data.game_id}/parser.wasm`,
+    if (gameId) {
+      plugins[gameId] = {
+        ...data,
+        url: `${serverUrl}/plugins/${gameId}/parser.wasm`,
       };
     }
   }
