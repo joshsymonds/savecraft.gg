@@ -1,17 +1,18 @@
 <script lang="ts">
   import "../app.css";
-  import { onMount } from "svelte";
-  import { page } from "$app/stores";
   import { goto } from "$app/navigation";
-  import { initializeClerk, authState, getClerk } from "$lib/auth/clerk";
+  import { resolve } from "$app/paths";
+  import { page } from "$app/state";
+  import { authState, getClerk, initializeClerk } from "$lib/auth/clerk";
+  import { onMount } from "svelte";
 
   let { children } = $props();
   let userButtonEl: HTMLDivElement | undefined = $state();
 
-  const PUBLIC_ROUTES = ["/sign-in", "/sign-up"];
+  const PUBLIC_ROUTES = new Set(["/sign-in", "/sign-up"]);
 
   onMount(() => {
-    initializeClerk();
+    void initializeClerk();
   });
 
   // Route guard: redirect to /sign-in if not authenticated and not on a public route
@@ -19,9 +20,9 @@
     if (
       $authState.isLoaded &&
       !$authState.isSignedIn &&
-      !PUBLIC_ROUTES.includes($page.url.pathname)
+      !PUBLIC_ROUTES.has(page.url.pathname)
     ) {
-      goto("/sign-up");
+      void goto(resolve("/sign-up"));
     }
   });
 
@@ -29,10 +30,13 @@
   $effect(() => {
     if ($authState.isSignedIn && userButtonEl) {
       const clerk = getClerk();
-      clerk.mountUserButton(userButtonEl, {
+      const el = userButtonEl;
+      clerk.mountUserButton(el, {
         afterSignOutUrl: "/sign-in",
       });
-      return () => clerk.unmountUserButton(userButtonEl!);
+      return () => {
+        clerk.unmountUserButton(el);
+      };
     }
   });
 </script>

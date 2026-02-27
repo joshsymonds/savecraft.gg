@@ -11,6 +11,12 @@ export default defineWorkersConfig({
         // are invisible to env.DB reads (test context) across files.
         singleWorker: true,
         wrangler: { configPath: "./wrangler.toml" },
+        miniflare: {
+          bindings: {
+            // Override .dev.vars: tests use stub auth (bearer token = user UUID)
+            CLERK_ISSUER: "",
+          },
+        },
         // Disabled because Miniflare's storage frame tracker can't handle
         // Durable Object SQLite WAL files. Tests use beforeEach(cleanAll)
         // inside describe blocks for per-test isolation instead.

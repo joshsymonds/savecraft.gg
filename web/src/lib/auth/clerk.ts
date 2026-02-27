@@ -77,7 +77,7 @@ function createAuthState(): {
     },
   );
 
-  function update(clerk: Clerk) {
+  function update(clerk: Clerk): void {
     if (!setter) return;
     const user = clerk.user;
     setter({
@@ -104,8 +104,8 @@ export const authState: Readable<AuthState> = authStateStore;
 export async function initializeClerk(): Promise<void> {
   if (clerkInstance) return;
 
-  const { Clerk: ClerkClass } = await import("@clerk/clerk-js");
-  const clerk = new ClerkClass(PUBLIC_CLERK_PUBLISHABLE_KEY);
+  const clerkModule = await import("@clerk/clerk-js");
+  const clerk = new clerkModule.Clerk(PUBLIC_CLERK_PUBLISHABLE_KEY);
   clerkInstance = clerk;
 
   await clerk.load({
@@ -114,7 +114,9 @@ export async function initializeClerk(): Promise<void> {
   });
 
   updateAuthState(clerk);
-  clerk.addListener(() => updateAuthState(clerk));
+  clerk.addListener(() => {
+    updateAuthState(clerk);
+  });
 }
 
 export function getClerk(): Clerk {
