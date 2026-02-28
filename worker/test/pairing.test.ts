@@ -153,7 +153,7 @@ describe("Pairing Codes", () => {
 
     it("returns 429 after too many failed attempts", async () => {
       // Make 5 failed attempts
-      for (let i = 0; i < 5; i++) {
+      for (let index = 0; index < 5; index++) {
         await SELF.fetch(claimRequest("999999"));
       }
 
