@@ -739,30 +739,43 @@ interface GeneratedApiKey {
   label: string;
 }
 
+interface PreparedApiKey {
+  id: string;
+  key: string;
+  prefix: string;
+  label: string;
+  keyHash: string;
+}
+
+async function prepareApiKey(label: string): Promise<PreparedApiKey> {
+  const id = crypto.randomUUID();
+  const randomBytes = new Uint8Array(16);
+  crypto.getRandomValues(randomBytes);
+  const hex = [...randomBytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const key = `sav_${hex}`;
+  const prefix = key.slice(0, 8);
+  const keyHash = await sha256Hex(key);
+  return { id, key, prefix, label, keyHash };
+}
+
+function apiKeyInsertStatement(
+  env: Env,
+  prepared: PreparedApiKey,
+  userUuid: string,
+): D1PreparedStatement {
+  return env.DB.prepare(
+    "INSERT INTO api_keys (id, key_prefix, key_hash, user_uuid, label) VALUES (?, ?, ?, ?, ?)",
+  ).bind(prepared.id, prepared.prefix, prepared.keyHash, userUuid, prepared.label);
+}
+
 async function generateApiKeyForUser(
   env: Env,
   userUuid: string,
   label: string,
 ): Promise<GeneratedApiKey> {
-  const id = crypto.randomUUID();
-
-  // Generate raw key: sav_ + 32 hex random chars
-  const randomBytes = new Uint8Array(16);
-  crypto.getRandomValues(randomBytes);
-  const hex = [...randomBytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-  const rawKey = `sav_${hex}`;
-  const prefix = rawKey.slice(0, 8);
-
-  // Hash the key for storage
-  const keyHash = await sha256Hex(rawKey);
-
-  await env.DB.prepare(
-    "INSERT INTO api_keys (id, key_prefix, key_hash, user_uuid, label) VALUES (?, ?, ?, ?, ?)",
-  )
-    .bind(id, prefix, keyHash, userUuid, label)
-    .run();
-
-  return { id, key: rawKey, prefix, label };
+  const prepared = await prepareApiKey(label);
+  await apiKeyInsertStatement(env, prepared, userUuid).run();
+  return { id: prepared.id, key: prepared.key, prefix: prepared.prefix, label: prepared.label };
 }
 
 async function createApiKey(request: Request, env: Env, userUuid: string): Promise<Response> {
@@ -860,13 +873,13 @@ async function createPairingCode(env: Env, userUuid: string): Promise<Response> 
   const id = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + PAIRING_CODE_TTL_MINUTES * 60_000).toISOString();
 
-  // One active code per user: delete any existing, then insert
-  await env.DB.prepare("DELETE FROM pairing_codes WHERE user_uuid = ?").bind(userUuid).run();
-  await env.DB.prepare(
-    "INSERT INTO pairing_codes (id, code_hash, user_uuid, expires_at) VALUES (?, ?, ?, ?)",
-  )
-    .bind(id, codeHash, userUuid, expiresAt)
-    .run();
+  // One active code per user: atomically delete any existing + insert new
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM pairing_codes WHERE user_uuid = ?").bind(userUuid),
+    env.DB.prepare(
+      "INSERT INTO pairing_codes (id, code_hash, user_uuid, expires_at) VALUES (?, ?, ?, ?)",
+    ).bind(id, codeHash, userUuid, expiresAt),
+  ]);
 
   return Response.json({ code }, { status: 201 });
 }
@@ -912,16 +925,17 @@ async function claimPairingCode(request: Request, env: Env): Promise<Response> {
     return Response.json({ error: "Invalid or expired code" }, { status: 401 });
   }
 
-  // Delete the pairing code (single-use)
-  await env.DB.prepare("DELETE FROM pairing_codes WHERE id = ?").bind(row.id).run();
-
-  // Create an API key for the user
-  const apiKey = await generateApiKeyForUser(env, row.user_uuid, "paired-device");
+  // Atomically delete the pairing code (single-use) and create the API key
+  const prepared = await prepareApiKey("paired-device");
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM pairing_codes WHERE id = ?").bind(row.id),
+    apiKeyInsertStatement(env, prepared, row.user_uuid),
+  ]);
 
   // Derive server URL from env or request
   const serverUrl = env.SERVER_URL ?? new URL(request.url).origin;
 
-  return Response.json({ token: apiKey.key, serverUrl });
+  return Response.json({ token: prepared.key, serverUrl });
 }
 
 /**
