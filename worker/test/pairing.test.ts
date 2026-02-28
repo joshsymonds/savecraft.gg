@@ -161,6 +161,35 @@ describe("Pairing Codes", () => {
       // 6th attempt should be rate limited
       const resp = await SELF.fetch(claimRequest("999999"));
       expect(resp.status).toBe(429);
+
+      // Verify rate limit state persisted to D1
+      const row = await env.DB.prepare("SELECT failures FROM pairing_rate_limits WHERE ip = ?")
+        .bind("unknown")
+        .first<{ failures: number }>();
+      expect(row).not.toBeNull();
+      expect(row!.failures).toBeGreaterThanOrEqual(5);
+    });
+
+    it("resets rate limit after window expires", async () => {
+      // Record 5 failures
+      for (let index = 0; index < 5; index++) {
+        await SELF.fetch(claimRequest("999999"));
+      }
+
+      // Confirm blocked
+      const blocked = await SELF.fetch(claimRequest("999999"));
+      expect(blocked.status).toBe(429);
+
+      // Expire the window by backdating window_start in D1
+      await env.DB.prepare(
+        "UPDATE pairing_rate_limits SET window_start = datetime('now', '-2 minutes') WHERE ip = ?",
+      )
+        .bind("unknown")
+        .run();
+
+      // Should be allowed again (new window)
+      const allowed = await SELF.fetch(claimRequest("999999"));
+      expect(allowed.status).toBe(401); // wrong code, but NOT 429
     });
 
     it("returns 400 for missing code", async () => {
