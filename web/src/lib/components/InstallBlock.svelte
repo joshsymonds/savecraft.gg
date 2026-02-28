@@ -6,12 +6,7 @@
 -->
 <script lang="ts">
   import { PUBLIC_API_URL } from "$env/static/public";
-  import {
-    createApiKey,
-    deleteApiKey,
-    generatePairingCode,
-    listApiKeys,
-  } from "$lib/api/client";
+  import { createApiKey, deleteApiKey, generatePairingCode, listApiKeys } from "$lib/api/client";
   import type { ApiKey, CreateApiKeyResponse } from "$lib/api/client";
   import { Panel, TinyButton } from "$lib/components";
   import { onMount } from "svelte";
@@ -144,9 +139,7 @@
     </div>
 
     {#if pairingState === "idle"}
-      <p class="step-desc">
-        Generate a pairing code, then enter it on your machine to connect.
-      </p>
+      <p class="step-desc">Generate a pairing code, then enter it on your machine to connect.</p>
       <div class="action-row">
         <TinyButton label="PAIR A DEVICE" onclick={generateCode} />
       </div>
@@ -298,10 +291,7 @@
         {@render pairingFlow()}
         {@render installCommandSection()}
 
-        <button
-          class="api-keys-toggle compact"
-          onclick={() => (showApiKeys = !showApiKeys)}
-        >
+        <button class="api-keys-toggle compact" onclick={() => (showApiKeys = !showApiKeys)}>
           <span class="toggle-icon">{showApiKeys ? "-" : "+"}</span>
           <span class="toggle-label">API KEYS (FOR AUTOMATION)</span>
         </button>
