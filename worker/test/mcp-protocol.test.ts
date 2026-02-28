@@ -148,10 +148,9 @@ describe("MCP Protocol", () => {
       "create_note",
       "delete_note",
       "get_note",
-      "get_save_sections",
+      "get_save",
       "get_section",
       "get_section_diff",
-      "list_notes",
       "list_saves",
       "refresh_save",
       "search_saves",
@@ -206,7 +205,7 @@ describe("MCP Protocol", () => {
         name: "get_section",
         arguments: {
           save_id: SAVE_UUID_HOLDER.value,
-          section: "equipped_gear",
+          sections: ["equipped_gear"],
         },
       }),
     );

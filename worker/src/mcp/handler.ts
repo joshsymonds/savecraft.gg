@@ -12,10 +12,9 @@ import {
   createNote,
   deleteNote,
   getNote,
-  getSaveSections,
+  getSave,
   getSection,
   getSectionDiff,
-  listNotes,
   listSaves,
   refreshSave,
   searchSaves,
@@ -31,7 +30,7 @@ Two interaction modes (same tools, different intent):
 - Companion: The player is talking, venting, or celebrating. React with empathy and context from their actual state. "I FOUND A BER" means more when you know it was on their farming list.
 - Optimizer: The player wants specific advice. Analyze their sections and notes, compare to game knowledge, give personalized recommendations.
 
-Start with list_saves to see what's available. Use get_save_sections to orient on a character — it returns a summary, overview data, and all available section names. Check list_notes and get_note early — notes contain the player's goals, build guides, and context from previous sessions. They are your memory across conversations. Only then fetch specific sections via get_section as needed for the question.
+Start with list_saves to see what's available. Use get_save to orient on a character — it returns a summary, overview data, all available section names, and any attached notes. Notes contain the player's goals, build guides, and context from previous sessions — they are your memory across conversations. Use get_note to read the full content of relevant notes before giving advice. Only then fetch specific sections via get_section as needed for the question.
 
 When the player says something just changed ("I just found a Ber rune", "I just finished the quest"), call refresh_save first to pull fresh data, then re-read the relevant sections.
 
@@ -53,13 +52,19 @@ interface ToolAnnotations {
   openWorldHint?: boolean;
 }
 
+interface SchemaProperty {
+  type: string;
+  description: string;
+  items?: { type: string };
+}
+
 interface ToolDefinition {
   name: string;
   title: string;
   description: string;
   inputSchema: {
     type: "object";
-    properties: Record<string, { type: string; description: string }>;
+    properties: Record<string, SchemaProperty>;
     required?: string[];
   };
   annotations: ToolAnnotations;
@@ -71,12 +76,11 @@ interface ToolDefinition {
 //
 // Progressive disclosure order:
 //   1. list_saves → orient (what characters/games exist)
-//   2. get_save_sections → context on a character (summary, overview, section listing)
-//   3. list_notes → check player's own goals/guides FIRST
-//   4. get_note → read the player's context before giving advice
-//   5. get_section → fetch specific game data as needed
-//   6. refresh_save → pull fresh data when player reports changes
-//   7. search_saves → cross-save or "I don't know where this is" queries
+//   2. get_save → context on a character (summary, overview, sections, notes)
+//   3. get_note → read the player's goals/guides before giving advice
+//   4. get_section → fetch specific game data as needed
+//   5. refresh_save → pull fresh data when player reports changes
+//   6. search_saves → cross-save or "I don't know where this is" queries
 //
 // Two interaction modes (same tools, different intent):
 //   - Companion: player is talking, venting, celebrating. React with context.
@@ -88,19 +92,19 @@ const TOOLS: ToolDefinition[] = [
     name: "list_saves",
     title: "List Saves",
     description:
-      "List all of the player's saves. Start here to see what characters and games are available. Returns game, character name, a short summary, and when the save was last updated.",
+      "List all of the player's saves across all games. Start here to see what characters and games are available. Returns each save's game, character name, a short summary (e.g. 'Hammerdin, Level 89 Paladin'), and when it was last updated. Use the returned save_id to call other tools.",
     inputSchema: { type: "object", properties: {} },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
-    name: "get_save_sections",
-    title: "Get Save Sections",
+    name: "get_save",
+    title: "Get Save",
     description:
-      "Get full context on a save: summary line, overview data, and a listing of all available sections. Use this when the player mentions a character or you need to orient yourself before fetching specific sections. Section names and contents vary by game.",
+      "Get a save's summary, overview data, available sections, and attached notes. Use this when the player mentions a character or you need to orient yourself. The overview includes key stats (level, class, etc.). Notes contain the player's goals, build guides, and context from previous sessions — check them before giving advice. Section names and contents vary by game — use the returned section names with get_section to fetch detailed data.",
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "The save UUID from list_saves" },
+        save_id: { type: "string", description: "Save UUID returned by list_saves" },
       },
       required: ["save_id"],
     },
@@ -111,59 +115,42 @@ const TOOLS: ToolDefinition[] = [
     name: "get_section",
     title: "Get Section Data",
     description:
-      "Fetch section data from a save. Use 'section' for a single section or 'sections' for multiple at once (more efficient than calling repeatedly). Only fetch what's relevant to the question. Supports historical queries via optional timestamp.",
+      "Fetch detailed section data from a save. Pass one or more section names to retrieve. Only fetch sections relevant to the question — don't load everything. Supports historical queries via optional timestamp.",
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "The save UUID from list_saves" },
-        section: { type: "string", description: "A single section name from get_save_sections" },
-        sections: { type: "string", description: "Array of section names to fetch multiple sections at once (JSON array of strings)" },
+        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        sections: { type: "array", description: "Section names to fetch (from get_save's section listing). Pass one name or several.", items: { type: "string" } },
         timestamp: {
           type: "string",
-          description: "Optional ISO 8601 timestamp for a historical snapshot",
+          description: "ISO 8601 timestamp to fetch a historical snapshot instead of the latest data. Timestamps are visible in list_saves last_updated field.",
         },
       },
-      required: ["save_id"],
+      required: ["save_id", "sections"],
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
     name: "get_section_diff",
-    title: "Compare Section Snapshots",
+    title: "Compare Section Changes",
     description:
-      'Compare a section between two snapshots to see what changed. Returns specific fields with old and new values. Use when the player asks about progression, recent changes, or "what\'s different since last time."',
+      'Compare a section\'s data between now and a past point in time. Returns specific fields with old and new values. Use when the player asks about progression, recent changes, or "what\'s different since last session." Specify a time period like "24 hours", "3 days", "1 week", or "last session".',
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "The save UUID from list_saves" },
-        section: { type: "string", description: "The section name to diff" },
-        from_timestamp: { type: "string", description: "ISO 8601 timestamp of the older snapshot" },
-        to_timestamp: { type: "string", description: "ISO 8601 timestamp of the newer snapshot" },
+        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        section: { type: "string", description: "Section name to compare (from get_save)" },
+        period: { type: "string", description: 'How far back to compare. Examples: "24 hours", "3 days", "1 week", "last session", "this week".' },
       },
-      required: ["save_id", "section", "from_timestamp", "to_timestamp"],
+      required: ["save_id", "section", "period"],
     },
     annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
-  // ── Notes (player context — check these first!) ───────────
+  // ── Notes ────────────────────────────────────────────────
   //
   // Notes are the player's goals, build guides, farming lists, and session
-  // memories. When responding to a player, check notes BEFORE looking up
-  // external information — the player's own context is more relevant than
-  // generic advice. Notes are also how you remember things across sessions.
-  {
-    name: "list_notes",
-    title: "List Notes",
-    description:
-      "List notes attached to a save — the player's build guides, goals, farming lists, and memories. Check notes early in any conversation: they contain context the player has already shared (what they're working toward, what build they're following, what happened last session). Returns titles and sizes without content.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        save_id: { type: "string", description: "The save UUID from list_saves" },
-      },
-      required: ["save_id"],
-    },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
-  },
+  // memories. get_save returns note metadata (titles, IDs); use get_note
+  // to read full content before giving advice.
   {
     name: "get_note",
     title: "Get Note",
@@ -172,8 +159,8 @@ const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "The save UUID from list_saves" },
-        note_id: { type: "string", description: "The note ID from list_notes" },
+        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        note_id: { type: "string", description: "Note UUID returned by get_save or search_saves" },
       },
       required: ["save_id", "note_id"],
     },
@@ -183,16 +170,16 @@ const TOOLS: ToolDefinition[] = [
     name: "create_note",
     title: "Create Note",
     description:
-      "Create a note attached to a save. Use for build guides, farming goals, session memories, or anything the player might want recalled later. When a player shares something worth remembering — a goal, a frustration, a milestone, a plan — offer to save it as a note so you can reference it in future sessions. The player shouldn't have to repeat themselves.",
+      "Create a note attached to a save. Use for build guides, farming goals, session memories, or anything the player might want recalled later. When a player shares something worth remembering — a goal, a frustration, a milestone, a plan — offer to save it as a note so you can reference it in future sessions. The player shouldn't have to repeat themselves. Maximum 10 notes per save.",
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "The save UUID from list_saves" },
-        title: { type: "string", description: "Short descriptive title" },
+        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        title: { type: "string", description: "Short descriptive title (e.g. 'Enigma Farming Goals', 'Maxroll Hammerdin Guide')" },
         content: {
           type: "string",
           description:
-            "Note content (markdown). Be structured and specific — future-you will read this to understand context.",
+            "Note content in markdown, max 50KB. Be structured and specific — future-you will read this to understand context.",
         },
       },
       required: ["save_id", "title", "content"],
@@ -207,14 +194,14 @@ const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "The save UUID from list_saves" },
-        note_id: { type: "string", description: "The note ID from list_notes" },
-        title: { type: "string", description: "New title (optional)" },
-        content: { type: "string", description: "New content (optional, markdown)" },
+        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        note_id: { type: "string", description: "Note UUID returned by get_save or search_saves" },
+        title: { type: "string", description: "New title (omit to keep current title)" },
+        content: { type: "string", description: "New content in markdown, max 50KB (omit to keep current content)" },
       },
       required: ["save_id", "note_id"],
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
   },
   {
     name: "delete_note",
@@ -224,8 +211,8 @@ const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "The save UUID from list_saves" },
-        note_id: { type: "string", description: "The note ID from list_notes" },
+        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        note_id: { type: "string", description: "Note UUID returned by get_save or search_saves" },
       },
       required: ["save_id", "note_id"],
     },
@@ -236,15 +223,15 @@ const TOOLS: ToolDefinition[] = [
     name: "refresh_save",
     title: "Refresh Save",
     description:
-      "Request fresh data for a save. Use when the player says something just changed ('I just found a Ber rune', 'I just equipped a new item', 'I just finished the quest'). The server handles whether this goes to the local daemon or a game API — you don't need to know which. After refreshing, re-read the relevant sections to see the updated state.",
+      "Request fresh data for a save from the player's device or game API. Use when the player says something just changed ('I just found a Ber rune', 'I just equipped a new item', 'I just finished the quest'). The server handles whether this goes to the local daemon or a game API — you don't need to know which. After refreshing, re-read the relevant sections to see the updated state.",
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "The save UUID from list_saves" },
+        save_id: { type: "string", description: "Save UUID returned by list_saves" },
       },
       required: ["save_id"],
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
   },
   // ── Search ────────────────────────────────────────────────
   {
@@ -257,12 +244,12 @@ const TOOLS: ToolDefinition[] = [
       properties: {
         query: {
           type: "string",
-          description: "Search query (supports prefix matching and boolean operators like OR)",
+          description: "Keywords to search for. Supports prefix matching (hamm*) and boolean operators (enigma OR grief).",
         },
         save_id: {
           type: "string",
           description:
-            "Optional: scope search to a single save instead of searching across all saves",
+            "Save UUID to scope search to a single save. Omit to search across all saves.",
         },
       },
       required: ["query"],
@@ -307,22 +294,20 @@ async function handleToolCall(
 
   switch (toolName) {
     case "list_saves": { return listSaves(env.DB, userUuid); }
-    case "get_save_sections": { return getSaveSections(env.DB, env.SAVES, userUuid, saveId); }
+    case "get_save": { return getSave(env.DB, env.SAVES, userUuid, saveId); }
     case "get_section": {
       return getSection(
         env.DB, env.SAVES, userUuid, saveId,
-        args.section as string | undefined,
-        parseSectionsArgument(args.sections),
+        parseSectionsArgument(args.sections) ?? [],
         args.timestamp as string | undefined,
       );
     }
     case "get_section_diff": {
       return getSectionDiff(
         env.DB, env.SAVES, userUuid, saveId,
-        args.section as string, args.from_timestamp as string, args.to_timestamp as string,
+        args.section as string, args.period as string,
       );
     }
-    case "list_notes": { return listNotes(env.DB, userUuid, saveId); }
     case "get_note": { return getNote(env.DB, userUuid, saveId, args.note_id as string); }
     case "create_note": {
       return createNote(env.DB, userUuid, saveId, args.title as string, args.content as string);

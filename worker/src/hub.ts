@@ -64,6 +64,23 @@ function getConnTag(tags: string[]): string | undefined {
 }
 
 /**
+ * Compare two semver-like version strings (e.g. "0.2.0" > "0.1.0").
+ * Returns true if `latest` is strictly newer than `current`.
+ */
+function isNewerVersion(latest: string, current: string): boolean {
+  const parse = (v: string): number[] => v.split(".").map(Number);
+  const l = parse(latest);
+  const c = parse(current);
+  for (let i = 0; i < Math.max(l.length, c.length); i++) {
+    const lp = l[i] ?? 0;
+    const cp = c[i] ?? 0;
+    if (lp > cp) return true;
+    if (lp < cp) return false;
+  }
+  return false;
+}
+
+/**
  * Apply a resolved mutation to in-memory state. Pure — no I/O, no async.
  * Exhaustive over StateMutation.kind; the compiler enforces completeness.
  */
@@ -181,7 +198,7 @@ export class DaemonHub extends DurableObject<Env> {
       await this.applyDeviceState(tags, rpc);
 
       // Resolve source deviceId (available after applyDeviceState stores
-      // the conn→deviceId mapping on daemonOnline)
+      // the conn->deviceId mapping on daemonOnline)
       const deviceId = await this.getDeviceIdForConnection(tags);
 
       // Forward to UI with _deviceId injected so the frontend can
@@ -193,6 +210,7 @@ export class DaemonHub extends DurableObject<Env> {
 
       await this.persistEvent(deviceId, rpc, msgString);
       await this.maybePushConfig(rpc);
+      await this.maybePushDaemonUpdate(ws, rpc);
     } else if (tags.includes("ui")) {
       for (const daemonWs of this.ctx.getWebSockets("daemon")) {
         daemonWs.send(msgString);
@@ -307,7 +325,7 @@ export class DaemonHub extends DurableObject<Env> {
     }
   }
 
-  // ── Phase 2: Commit — atomic load → mutate → save ────────────────
+  // ── Phase 2: Commit — atomic load -> mutate -> save ────────────────
 
   /**
    * Atomically load state, apply a pure mutation, and save.
@@ -417,6 +435,40 @@ export class DaemonHub extends DurableObject<Env> {
       await this.pushConfigToDevice(deviceId, userUuid);
     } catch {
       // Don't let config push failures break the relay
+    }
+  }
+
+  private async maybePushDaemonUpdate(ws: WebSocket, rpc: Message | undefined): Promise<void> {
+    if (rpc?.payload?.$case !== "daemonOnline") return;
+    try {
+      const { version: daemonVersion, platform } = rpc.payload.daemonOnline;
+      if (!daemonVersion || !platform) return;
+
+      const manifestObj = await this.env.PLUGINS.get("daemon/manifest.json");
+      if (!manifestObj) return;
+
+      const manifest = await manifestObj.json<{
+        version: string;
+        platforms: Record<string, { url: string; sha256: string; signatureUrl: string }>;
+      }>();
+
+      if (!isNewerVersion(manifest.version, daemonVersion)) return;
+
+      const entry = manifest.platforms[platform];
+      if (!entry) return;
+
+      const updateMsg = JSON.stringify({
+        daemonUpdateAvailable: {
+          version: manifest.version,
+          url: entry.url,
+          signatureUrl: entry.signatureUrl,
+          sha256: entry.sha256,
+        },
+      });
+
+      ws.send(updateMsg);
+    } catch {
+      // Don't let update check failures break the relay
     }
   }
 

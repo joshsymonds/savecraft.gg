@@ -554,4 +554,88 @@ describe("DaemonHub", () => {
     await closeWs(uiA);
     await closeWs(uiB);
   });
+
+  it("sends daemonUpdateAvailable when daemon version is stale", async () => {
+    const userUuid = "update-check-user";
+
+    // Upload a daemon manifest to R2 with a newer version
+    await env.PLUGINS.put(
+      "daemon/manifest.json",
+      JSON.stringify({
+        version: "0.2.0",
+        platforms: {
+          "linux-amd64": {
+            url: "https://api.savecraft.gg/daemon/savecraft-daemon-linux-amd64",
+            sha256: "abc123",
+            signatureUrl: "https://api.savecraft.gg/daemon/savecraft-daemon-linux-amd64.sig",
+          },
+        },
+      }),
+    );
+
+    const daemonWs = await connectWs("/ws/daemon", userUuid);
+
+    // Send daemonOnline with an older version
+    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" } }));
+
+    // Should receive configUpdate first (from maybePushConfig)
+    const msg1 = await waitForMessage<Record<string, unknown>>(daemonWs);
+
+    // Should also receive daemonUpdateAvailable
+    // It might be the first or second message depending on ordering
+    let updateMsg: Record<string, unknown> | undefined;
+    if ("daemonUpdateAvailable" in msg1) {
+      updateMsg = msg1;
+    } else {
+      const msg2 = await waitForMessage<Record<string, unknown>>(daemonWs);
+      if ("daemonUpdateAvailable" in msg2) {
+        updateMsg = msg2;
+      }
+    }
+
+    expect(updateMsg).toBeDefined();
+    const update = (updateMsg as Record<string, unknown>).daemonUpdateAvailable as {
+      version: string;
+      url: string;
+      sha256: string;
+    };
+    expect(update.version).toBe("0.2.0");
+    expect(update.url).toBe("https://api.savecraft.gg/daemon/savecraft-daemon-linux-amd64");
+    expect(update.sha256).toBe("abc123");
+
+    await closeWs(daemonWs);
+  });
+
+  it("does not send daemonUpdateAvailable when daemon is current", async () => {
+    const userUuid = "update-current-user";
+
+    await env.PLUGINS.put(
+      "daemon/manifest.json",
+      JSON.stringify({
+        version: "0.1.0",
+        platforms: {
+          "linux-amd64": {
+            url: "https://api.savecraft.gg/daemon/savecraft-daemon-linux-amd64",
+            sha256: "abc123",
+            signatureUrl: "https://api.savecraft.gg/daemon/savecraft-daemon-linux-amd64.sig",
+          },
+        },
+      }),
+    );
+
+    const daemonWs = await connectWs("/ws/daemon", userUuid);
+
+    // Send daemonOnline with current version
+    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" } }));
+
+    // Should receive configUpdate
+    const msg1 = await waitForMessage<Record<string, unknown>>(daemonWs);
+    expect(msg1).toHaveProperty("configUpdate");
+
+    // Should NOT receive daemonUpdateAvailable — wait briefly
+    const noUpdate = await waitForMessage(daemonWs, 200).catch(() => null);
+    expect(noUpdate).toBeNull();
+
+    await closeWs(daemonWs);
+  });
 });

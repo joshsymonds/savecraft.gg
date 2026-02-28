@@ -905,7 +905,7 @@ Returns all saves the user has pushed, with metadata.
 
 The `scope` field distinguishes character saves (`"character"`) from game-level saves (`"game"`). Game saves have `name: null`. AI consumers can correlate game saves with character saves by matching `game_id`.
 
-#### `get_save_sections(save_id)`
+#### `get_save(save_id)`
 
 Returns available sections and their descriptions for a save. The AI uses this to decide which sections to fetch.
 
@@ -998,7 +998,7 @@ Players interact with Savecraft in two distinct modes — often in the same conv
 **Optimizer mode** — the player wants specific build/progression advice:
 
 1. Call `list_saves` to see what's available, or `search(query)` to find specific content across saves.
-2. Call `get_save_sections(save_id)` to see available sections for a save.
+2. Call `get_save(save_id)` to see available sections for a save.
 3. Based on the question, fetch only the relevant sections:
    - "What should I upgrade?" → `equipped_gear` + `inventory` + `skills`
    - "Have I finished Act 3?" → `quest_progress`
