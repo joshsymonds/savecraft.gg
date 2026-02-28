@@ -6,6 +6,7 @@
   import {
     ActivityEvent,
     ConfigModal,
+    ConnectCard,
     InstallBlock,
     Panel,
     StatusDot,
@@ -69,6 +70,8 @@
       <span class="section-label">DEVICES</span>
       <span class="device-count">{$devices.length} connected</span>
     </div>
+
+    <ConnectCard />
 
     {#each $devices as device (device.id)}
       <Panel accent={ACCENT_COLORS[device.status]}>

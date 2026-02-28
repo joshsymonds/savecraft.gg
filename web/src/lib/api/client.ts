@@ -161,3 +161,13 @@ export async function listApiKeys(): Promise<ApiKey[]> {
 export async function deleteApiKey(keyId: string): Promise<void> {
   await mutate<{ deleted: boolean }>("DELETE", `/api/v1/api-keys/${keyId}`);
 }
+
+// ── MCP Status ────────────────────────────────────────────────
+
+export interface McpStatus {
+  connected: boolean;
+}
+
+export async function fetchMcpStatus(): Promise<McpStatus> {
+  return request<McpStatus>("/api/v1/mcp-status");
+}

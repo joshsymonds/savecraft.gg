@@ -8,6 +8,7 @@ export const CLEANUP_TABLES = [
   "device_events",
   "pairing_rate_limits",
   "pairing_codes",
+  "mcp_activity",
   "api_keys",
   "saves",
 ] as const;

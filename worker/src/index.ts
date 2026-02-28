@@ -160,22 +160,36 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
   if (url.pathname === "/api/v1/api-keys" || url.pathname.startsWith("/api/v1/api-keys/")) {
     return handleApiKeys(request, url, env, auth.userUuid);
   }
-
   if (url.pathname.startsWith("/api/v1/devices/") && url.pathname.endsWith("/config")) {
     return handleDeviceConfig(request, url, env, auth.userUuid);
   }
   if (url.pathname.startsWith("/api/v1/notes/")) {
     return handleNotes(request, url, env, auth.userUuid);
   }
+
+  return routeReadEndpoints(request, url, env, auth.userUuid);
+}
+
+function routeReadEndpoints(
+  request: Request,
+  url: URL,
+  env: Env,
+  userUuid: string,
+): Promise<Response | null> {
   if (url.pathname === "/api/v1/saves" && request.method === "GET") {
-    return handleListSaves(env, auth.userUuid);
+    return handleListSaves(env, userUuid);
   }
   if (url.pathname.startsWith("/api/v1/saves/") && request.method === "GET") {
     const saveId = url.pathname.replace("/api/v1/saves/", "");
-    if (!validateId(saveId)) return Response.json({ error: "Invalid save_id" }, { status: 400 });
-    return handleGetSave(env, auth.userUuid, saveId);
+    if (!validateId(saveId)) {
+      return Promise.resolve(Response.json({ error: "Invalid save_id" }, { status: 400 }));
+    }
+    return handleGetSave(env, userUuid, saveId);
   }
-  return null;
+  if (url.pathname === "/api/v1/mcp-status" && request.method === "GET") {
+    return handleMcpStatus(env, userUuid);
+  }
+  return Promise.resolve(null);
 }
 
 /**
@@ -706,6 +720,15 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
   });
 }
 
+// -- MCP Status ------------------------------------------------------------
+
+async function handleMcpStatus(env: Env, userUuid: string): Promise<Response> {
+  const row = await env.DB.prepare("SELECT 1 FROM mcp_activity WHERE user_uuid = ?")
+    .bind(userUuid)
+    .first();
+  return Response.json({ connected: row !== null });
+}
+
 // -- API Key CRUD -------------------------------------------------------
 
 async function handleApiKeys(
@@ -890,7 +913,7 @@ async function createPairingCode(env: Env, userUuid: string): Promise<Response> 
 }
 
 async function claimPairingCode(request: Request, env: Env): Promise<Response> {
-  // Parse and validate body BEFORE rate limiting — malformed requests get 400,
+  // Parse and validate body BEFORE rate limiting -- malformed requests get 400,
   // only well-formed code attempts count toward rate limits.
   let body: { code?: string } = {};
   const text = await request.text();
@@ -912,7 +935,7 @@ async function claimPairingCode(request: Request, env: Env): Promise<Response> {
   }
 
   const codeHash = await sha256Hex(body.code);
-  // Expiry check in SQL — avoids timezone parsing issues between D1 datetime and JS Date
+  // Expiry check in SQL -- avoids timezone parsing issues between D1 datetime and JS Date
   const row = await env.DB.prepare(
     "SELECT id, user_uuid FROM pairing_codes WHERE code_hash = ? AND expires_at > datetime('now')",
   )
