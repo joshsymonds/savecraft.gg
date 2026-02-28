@@ -62,11 +62,7 @@ export default {
 const PLUGIN_DOWNLOAD_RE = /^\/plugins\/([^/]+)\/(parser\.wasm(?:\.sig)?)$/;
 const DAEMON_DOWNLOAD_RE = /^\/daemon\/([^/]+)$/;
 
-function routeDownload(
-  request: Request,
-  url: URL,
-  env: Env,
-): Promise<Response> | null {
+function routeDownload(request: Request, url: URL, env: Env): Promise<Response> | null {
   const pluginMatch = PLUGIN_DOWNLOAD_RE.exec(url.pathname);
   if (pluginMatch?.[1] && pluginMatch[2] && request.method === "GET") {
     return handlePluginDownload(env, pluginMatch[1], pluginMatch[2]);
@@ -899,7 +895,9 @@ async function claimPairingCode(request: Request, env: Env): Promise<Response> {
   if (!row) {
     recordRateLimitFailure(ip);
     // Clean up any expired codes for this hash
-    await env.DB.prepare("DELETE FROM pairing_codes WHERE code_hash = ? AND expires_at <= datetime('now')")
+    await env.DB.prepare(
+      "DELETE FROM pairing_codes WHERE code_hash = ? AND expires_at <= datetime('now')",
+    )
       .bind(codeHash)
       .run();
     return Response.json({ error: "Invalid or expired code" }, { status: 401 });
