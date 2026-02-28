@@ -859,9 +859,9 @@ async function recordRateLimitFailure(env: Env, ip: string): Promise<void> {
          END`,
     ).bind(ip, windowParameter, windowParameter),
     // Clean up expired entries from other IPs
-    env.DB.prepare(
-      "DELETE FROM pairing_rate_limits WHERE window_start <= datetime('now', ?)",
-    ).bind(windowParameter),
+    env.DB.prepare("DELETE FROM pairing_rate_limits WHERE window_start <= datetime('now', ?)").bind(
+      windowParameter,
+    ),
   ]);
 }
 
