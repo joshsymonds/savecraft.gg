@@ -10,6 +10,7 @@ const statements = [
     uuid TEXT PRIMARY KEY,
     user_uuid TEXT NOT NULL,
     game_id TEXT NOT NULL,
+    game_name TEXT NOT NULL DEFAULT '',
     save_name TEXT NOT NULL,
     summary TEXT NOT NULL DEFAULT '',
     last_updated TEXT NOT NULL DEFAULT (datetime('now')),

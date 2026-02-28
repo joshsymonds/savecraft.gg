@@ -15,7 +15,8 @@
   let { children } = $props();
   let userButtonEl: HTMLDivElement | undefined = $state();
 
-  const PUBLIC_ROUTES = new Set(["/sign-in", "/sign-up"]);
+  const PUBLIC_ROUTES = new Set(["/", "/sign-in", "/sign-up"]);
+  const AUTH_ROUTES = new Set(["/sign-in", "/sign-up"]);
 
   /** Check Clerk's session cookie to infer auth state before the SDK loads. */
   function hasClerkSession(): boolean {
@@ -42,8 +43,8 @@
 
   // Reverse guard: redirect authenticated users away from auth pages
   $effect(() => {
-    if ($authState.isLoaded && $authState.isSignedIn && PUBLIC_ROUTES.has(page.url.pathname)) {
-      void goto(resolve("/"));
+    if ($authState.isLoaded && $authState.isSignedIn && AUTH_ROUTES.has(page.url.pathname)) {
+      void goto(resolve("/dashboard"));
     }
   });
 
@@ -85,9 +86,9 @@
   <div class="app-shell">
     <header class="app-header">
       <div class="header-left">
-        <a href="/" class="header-title">SAVECRAFT</a>
+        <a href="/dashboard" class="header-title">SAVECRAFT</a>
         <nav class="header-nav">
-          <a href="/" class="nav-link" class:active={page.url.pathname === "/"}>DASHBOARD</a>
+          <a href="/dashboard" class="nav-link" class:active={page.url.pathname === "/dashboard"}>DASHBOARD</a>
           <a href="/saves" class="nav-link" class:active={page.url.pathname === "/saves"}>SAVES</a>
           <a href="/install" class="nav-link" class:active={page.url.pathname === "/install"}>INSTALL</a>
           <a href="/connect" class="nav-link" class:active={page.url.pathname === "/connect"}>CONNECT</a>

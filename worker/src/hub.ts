@@ -135,17 +135,9 @@ export class DaemonHub extends DurableObject<Env> {
       await this.ctx.storage.put(USER_UUID_KEY, userUuidHeader);
     }
 
-    // Handle push-config poke from the config API endpoint
+    // Handle non-WebSocket requests (internal DO endpoints)
     if (request.headers.get("Upgrade") !== "websocket") {
-      const url = new URL(request.url);
-      if (url.pathname === "/push-config" && request.method === "POST") {
-        const body = await request.json<{ deviceId: string }>();
-        const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
-        if (!userUuid) return Response.json({ error: "No user context" }, { status: 400 });
-        await this.pushConfigToDevice(body.deviceId, userUuid);
-        return Response.json({ ok: true });
-      }
-      return new Response("Expected WebSocket upgrade", { status: 426 });
+      return this.routeHttpRequest(request);
     }
 
     const url = new URL(request.url);
@@ -228,6 +220,23 @@ export class DaemonHub extends DurableObject<Env> {
       await this.handleDaemonDisconnect(tags);
     }
     ws.close(1011, "Unexpected error");
+  }
+
+  // ── HTTP endpoints (non-WebSocket) ──────────────────────────────
+
+  private async routeHttpRequest(request: Request): Promise<Response> {
+    const url = new URL(request.url);
+    if (url.pathname === "/push-config" && request.method === "POST") {
+      const body = await request.json<{ deviceId: string }>();
+      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
+      if (!userUuid) return Response.json({ error: "No user context" }, { status: 400 });
+      await this.pushConfigToDevice(body.deviceId, userUuid);
+      return Response.json({ ok: true });
+    }
+    if (url.pathname === "/rescan" && request.method === "POST") {
+      return this.handleRescan(request);
+    }
+    return new Response("Expected WebSocket upgrade", { status: 426 });
   }
 
   // ── Phase 1: Resolve — all async I/O, no state mutation ──────────
@@ -443,6 +452,19 @@ export class DaemonHub extends DurableObject<Env> {
         daemonWs.send(msg);
       }
     }
+  }
+
+  private async handleRescan(request: Request): Promise<Response> {
+    const body = await request.json<{ gameId: string }>();
+    const daemonSockets = this.ctx.getWebSockets("daemon");
+    if (daemonSockets.length === 0) {
+      return Response.json({ sent: false, daemon_online: false });
+    }
+    const msg = JSON.stringify({ rescanGame: { gameId: body.gameId } });
+    for (const ws of daemonSockets) {
+      ws.send(msg);
+    }
+    return Response.json({ sent: true, daemon_count: daemonSockets.length });
   }
 
   private injectMetadata(

@@ -7,12 +7,12 @@ import {
   deleteNote,
   getNote,
   getSaveSections,
-  getSaveSummary,
   getSection,
   getSectionDiff,
   listNotes,
   listSaves,
-  search,
+  refreshSave,
+  searchSaves,
   updateNote,
 } from "../src/mcp/tools";
 
@@ -51,20 +51,23 @@ async function seedSave(options: {
   saveUuid: string;
   userUuid: string;
   gameId: string;
+  gameName?: string;
   saveName: string;
   summary: string;
   lastUpdated?: string;
   gameState?: typeof sampleGameState;
 }): Promise<void> {
   const lastUpdated = options.lastUpdated ?? "2026-02-25T21:30:00Z";
+  const gameName = options.gameName ?? options.gameId;
 
   await env.DB.prepare(
-    "INSERT INTO saves (uuid, user_uuid, game_id, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?)",
+    "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       options.saveUuid,
       options.userUuid,
       options.gameId,
+      gameName,
       options.saveName,
       options.summary,
       lastUpdated,
@@ -170,7 +173,7 @@ describe("MCP Tools", () => {
   // ── get_save_sections ─────────────────────────────────────────
 
   describe("getSaveSections", () => {
-    it("returns section names and descriptions", async () => {
+    it("returns summary, overview, and section listing", async () => {
       await seedSave({
         saveUuid: "save-sections",
         userUuid: USER_A,
@@ -185,17 +188,24 @@ describe("MCP Tools", () => {
       const data = parseResult(result) as {
         save_id: string;
         game_id: string;
+        name: string;
+        summary: string;
+        overview: Record<string, unknown>;
         sections: { name: string; description: string }[];
       };
       expect(data.save_id).toBe("save-sections");
       expect(data.game_id).toBe("d2r");
+      expect(data.name).toBe("Hammerdin");
+      expect(data.summary).toBe("Hammerdin, Level 89 Paladin");
+      expect(data.overview).toBeDefined();
+      expect(data.overview.name).toBe("Hammerdin");
       expect(data.sections).toHaveLength(3);
 
       const names = data.sections.map((s) => s.name).toSorted((a, b) => a.localeCompare(b));
       expect(names).toEqual(["character_overview", "equipped_gear", "skills"]);
 
-      const overview = data.sections.find((s) => s.name === "character_overview");
-      expect(overview!.description).toBe("Level, class, difficulty, play time");
+      const overviewSection = data.sections.find((s) => s.name === "character_overview");
+      expect(overviewSection!.description).toBe("Level, class, difficulty, play time");
     });
 
     it("R2 snapshots use daemon-format identity (camelCase gameId)", async () => {
@@ -332,6 +342,7 @@ describe("MCP Tools", () => {
         USER_A,
         "save-section-ts",
         "equipped_gear",
+        undefined,
         "2026-02-24T12:00:00Z",
       );
       expect(result.isError).toBeUndefined();
@@ -359,6 +370,7 @@ describe("MCP Tools", () => {
         USER_A,
         "save-section-ts-missing",
         "equipped_gear",
+        undefined,
         "2099-01-01T00:00:00Z",
       );
       expect(result.isError).toBe(true);
@@ -503,39 +515,6 @@ describe("MCP Tools", () => {
         "2026-02-24T12:00:00Z",
         "2099-01-01T00:00:00Z",
       );
-      expect(result.isError).toBe(true);
-    });
-  });
-
-  // ── get_save_summary ──────────────────────────────────────────
-
-  describe("getSaveSummary", () => {
-    it("returns save summary and overview section", async () => {
-      await seedSave({
-        saveUuid: "save-summary",
-        userUuid: USER_A,
-        gameId: "d2r",
-        saveName: "Hammerdin",
-        summary: "Hammerdin, Level 89 Paladin",
-      });
-
-      const result = await getSaveSummary(env.DB, env.SAVES, USER_A, "save-summary");
-      expect(result.isError).toBeUndefined();
-
-      const data = parseResult(result) as {
-        save_id: string;
-        game_id: string;
-        summary: string;
-        overview: Record<string, unknown>;
-      };
-      expect(data.save_id).toBe("save-summary");
-      expect(data.summary).toBe("Hammerdin, Level 89 Paladin");
-      expect(data.overview).toBeDefined();
-      expect(data.overview.name).toBe("Hammerdin");
-    });
-
-    it("returns error for non-existent save", async () => {
-      const result = await getSaveSummary(env.DB, env.SAVES, USER_A, "nonexistent");
       expect(result.isError).toBe(true);
     });
   });
@@ -774,7 +753,7 @@ describe("MCP Tools", () => {
         )
         .run();
 
-      const result = await search(env.DB, USER_A, "Harlequin");
+      const result = await searchSaves(env.DB, USER_A, "Harlequin");
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -808,7 +787,7 @@ describe("MCP Tools", () => {
         )
         .run();
 
-      const result = await search(env.DB, USER_A, "Enigma");
+      const result = await searchSaves(env.DB, USER_A, "Enigma");
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -863,14 +842,14 @@ describe("MCP Tools", () => {
         .run();
 
       // Search scoped to save A
-      const result = await search(env.DB, USER_A, "Shako", "save-search-scope-a");
+      const result = await searchSaves(env.DB, USER_A, "Shako", "save-search-scope-a");
       const data = parseResult(result) as { results: { save_id: string }[] };
       expect(data.results).toHaveLength(1);
       expect(data.results[0]!.save_id).toBe("save-search-scope-a");
     });
 
     it("returns empty results for no matches", async () => {
-      const result = await search(env.DB, USER_A, "nonexistenttermxyz123");
+      const result = await searchSaves(env.DB, USER_A, "nonexistenttermxyz123");
       const data = parseResult(result) as { results: unknown[] };
       expect(data.results).toEqual([]);
     });
@@ -898,7 +877,7 @@ describe("MCP Tools", () => {
         )
         .run();
 
-      const result = await search(env.DB, USER_A, "secret");
+      const result = await searchSaves(env.DB, USER_A, "secret");
       const data = parseResult(result) as { results: unknown[] };
       expect(data.results).toEqual([]);
     });
@@ -923,7 +902,7 @@ describe("MCP Tools", () => {
       expect(createResult.isError).toBeUndefined();
 
       // Search should find it
-      const result = await search(env.DB, USER_A, "Infinity");
+      const result = await searchSaves(env.DB, USER_A, "Infinity");
       const data = parseResult(result) as { results: { type: string; ref_title: string }[] };
       expect(data.results.length).toBeGreaterThanOrEqual(1);
       const noteResult = data.results.find((r) => r.ref_title === "Runeword Priorities");
@@ -952,13 +931,13 @@ describe("MCP Tools", () => {
       await updateNote(env.DB, USER_A, "save-search-mcp-update", note_id, "Need Cham rune instead");
 
       // Old content should not match
-      const oldResult = await search(env.DB, USER_A, "Zod");
+      const oldResult = await searchSaves(env.DB, USER_A, "Zod");
       const oldData = parseResult(oldResult) as { results: { ref_id: string }[] };
       const oldMatch = oldData.results.find((r) => r.ref_id === note_id);
       expect(oldMatch).toBeUndefined();
 
       // New content should match
-      const newResult = await search(env.DB, USER_A, "Cham");
+      const newResult = await searchSaves(env.DB, USER_A, "Cham");
       const newData = parseResult(newResult) as { results: { ref_id: string }[] };
       const newMatch = newData.results.find((r) => r.ref_id === note_id);
       expect(newMatch).toBeDefined();
@@ -986,10 +965,35 @@ describe("MCP Tools", () => {
       await deleteNote(env.DB, USER_A, "save-search-mcp-delete", note_id);
 
       // Should no longer be searchable
-      const result = await search(env.DB, USER_A, "Windforce");
+      const result = await searchSaves(env.DB, USER_A, "Windforce");
       const data = parseResult(result) as { results: { ref_id: string }[] };
       const match = data.results.find((r) => r.ref_id === note_id);
       expect(match).toBeUndefined();
     });
   });
+  // ── refresh_save ──────────────────────────────────────────
+  describe("refreshSave", () => {
+    beforeEach(cleanAll);
+
+    it("returns error for nonexistent save", async () => {
+      const result = await refreshSave(env.DB, env.DAEMON_HUB, USER_A, "no-such-save");
+      expect(result.isError).toBe(true);
+      expect(result.content[0]!.text).toContain("Save not found");
+    });
+
+    it("returns daemon offline error when no daemon is connected", async () => {
+      await seedSave({
+        saveUuid: "save-refresh-offline",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Hammerdin",
+        summary: "Hammerdin, Level 89 Paladin",
+      });
+
+      const result = await refreshSave(env.DB, env.DAEMON_HUB, USER_A, "save-refresh-offline");
+      expect(result.isError).toBe(true);
+      expect(result.content[0]!.text).toContain("daemon is offline");
+    });
+  });
+
 }); // MCP Tools
