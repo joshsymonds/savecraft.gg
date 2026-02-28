@@ -8,6 +8,7 @@ import sonarjs from "eslint-plugin-sonarjs";
 import svelte from "eslint-plugin-svelte";
 import unicorn from "eslint-plugin-unicorn";
 import vitest from "@vitest/eslint-plugin";
+import globals from "globals";
 import tseslint from "typescript-eslint";
 import svelteParser from "svelte-eslint-parser";
 
@@ -42,6 +43,7 @@ export default tseslint.config(
   // ── Parser settings ──────────────────────────────────────
   {
     languageOptions: {
+      globals: globals.browser,
       parserOptions: {
         projectService: true,
         tsconfigRootDir,
@@ -191,6 +193,7 @@ export default tseslint.config(
           },
         },
       ],
+      "unicorn/catch-error-name": ["error", { ignore: ["^err$"] }],
       "unicorn/filename-case": ["error", { case: "kebabCase" }],
     },
   },

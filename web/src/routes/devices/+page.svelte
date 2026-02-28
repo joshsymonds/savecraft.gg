@@ -1,14 +1,22 @@
 <!--
   @component
-  Dashboard: device cards + activity feed sidebar.
+  Devices page: device cards, activity feed sidebar, inline install flow.
 -->
 <script lang="ts">
-  import { ActivityEvent, ConfigModal, Panel, StatusDot, TinyButton } from "$lib/components";
+  import {
+    ActivityEvent,
+    ConfigModal,
+    InstallBlock,
+    Panel,
+    StatusDot,
+    TinyButton,
+  } from "$lib/components";
   import { activityEvents } from "$lib/stores/activity";
   import { devices } from "$lib/stores/devices";
+  import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
   import type { DeviceStatus } from "$lib/types/device";
-  import { connectionStatus, send, type ConnectionStatus } from "$lib/ws/client";
   import type { Device } from "$lib/types/device";
+  import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
 
   let configDeviceId = $state<string | null>(null);
 
@@ -21,6 +29,7 @@
   }
 
   function discover(): void {
+    startDiscovery();
     send(JSON.stringify({ discoverGames: {} }));
   }
 
@@ -53,7 +62,7 @@
   }
 </script>
 
-<div class="dashboard">
+<div class="devices-layout">
   <!-- Main: device cards -->
   <main class="devices">
     <div class="section-header">
@@ -81,20 +90,24 @@
               <span class="device-meta">
                 {#if device.version}{device.version}{/if}
                 {#if device.status === "offline"}
-                  {#if device.version} · {/if}last seen {device.lastSeen}
+                  {#if device.version}
+                    ·
+                  {/if}last seen {device.lastSeen}
                 {/if}
               </span>
             </div>
           </div>
           <div class="device-actions">
             <TinyButton
-              label="DISCOVER"
+              label={$discoveryPending ? "SCANNING..." : "DISCOVER"}
               onclick={discover}
-              disabled={device.status === "offline"}
+              disabled={device.status === "offline" || $discoveryPending}
             />
             <TinyButton
               label="RESCAN"
-              onclick={() => rescan(device)}
+              onclick={() => {
+                rescan(device);
+              }}
               disabled={device.status === "offline"}
             />
             <TinyButton label="CONFIG" onclick={() => (configDeviceId = device.id)} />
@@ -118,7 +131,7 @@
               </span>
               {#if game.status === "watching" && game.saves.length > 0}
                 <div class="save-list">
-                  {#each game.saves as save}
+                  {#each game.saves as save (save.saveUuid)}
                     <span class="save-name">{save.saveName}</span>
                   {/each}
                 </div>
@@ -130,15 +143,19 @@
     {/each}
 
     {#if $devices.length === 0}
-      <div class="empty-state">
-        {#if $connectionStatus === "connecting"}
+      {#if $connectionStatus === "connecting"}
+        <div class="empty-state">
           <span class="empty-text">Connecting...</span>
-        {:else if $connectionStatus === "connected"}
-          <span class="empty-text">No devices connected. Install the daemon to get started.</span>
-        {:else}
+        </div>
+      {:else if $connectionStatus === "connected"}
+        <InstallBlock prominent={true} />
+      {:else}
+        <div class="empty-state">
           <span class="empty-text">Offline. Check your connection.</span>
-        {/if}
-      </div>
+        </div>
+      {/if}
+    {:else}
+      <InstallBlock prominent={false} />
     {/if}
   </main>
 
@@ -180,7 +197,7 @@
 {/if}
 
 <style>
-  .dashboard {
+  .devices-layout {
     display: grid;
     grid-template-columns: 1fr 380px;
     min-height: 100vh;

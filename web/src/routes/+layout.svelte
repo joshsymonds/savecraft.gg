@@ -21,7 +21,7 @@
   /** Check Clerk's session cookie to infer auth state before the SDK loads. */
   function hasClerkSession(): boolean {
     if (!browser) return false;
-    const match = document.cookie.match(/__client_uat=(\d+)/);
+    const match = /__client_uat=(\d+)/.exec(document.cookie);
     return !!match && match[1] !== "0";
   }
 
@@ -34,9 +34,9 @@
   // Uses the session cookie for an instant check before Clerk finishes loading.
   $effect(() => {
     if (PUBLIC_ROUTES.has(page.url.pathname)) return;
-    if ($authState.isLoaded && !$authState.isSignedIn) {
-      void goto(resolve("/sign-up"));
-    } else if (!$authState.isLoaded && !hasClerkSession()) {
+    const isSignedOut = $authState.isLoaded && !$authState.isSignedIn;
+    const likelySignedOut = !$authState.isLoaded && !hasClerkSession();
+    if (isSignedOut || likelySignedOut) {
       void goto(resolve("/sign-up"));
     }
   });
@@ -44,7 +44,7 @@
   // Reverse guard: redirect authenticated users away from auth pages
   $effect(() => {
     if ($authState.isLoaded && $authState.isSignedIn && AUTH_ROUTES.has(page.url.pathname)) {
-      void goto(resolve("/dashboard"));
+      void goto(resolve("/devices"));
     }
   });
 
@@ -75,9 +75,7 @@
   });
 
   // Show the app shell if Clerk confirms signed-in, or optimistically if session cookie exists
-  const showAppShell = $derived(
-    $authState.isLoaded ? $authState.isSignedIn : hasClerkSession(),
-  );
+  const showAppShell = $derived($authState.isLoaded ? $authState.isSignedIn : hasClerkSession());
 </script>
 
 {#if PUBLIC_ROUTES.has(page.url.pathname)}
@@ -86,12 +84,21 @@
   <div class="app-shell">
     <header class="app-header">
       <div class="header-left">
-        <a href="/dashboard" class="header-title">SAVECRAFT</a>
+        <a href={resolve("/devices")} class="header-title">SAVECRAFT</a>
         <nav class="header-nav">
-          <a href="/dashboard" class="nav-link" class:active={page.url.pathname === "/dashboard"}>DASHBOARD</a>
-          <a href="/saves" class="nav-link" class:active={page.url.pathname === "/saves"}>SAVES</a>
-          <a href="/install" class="nav-link" class:active={page.url.pathname === "/install"}>INSTALL</a>
-          <a href="/connect" class="nav-link" class:active={page.url.pathname === "/connect"}>CONNECT</a>
+          <a
+            href={resolve("/devices")}
+            class="nav-link"
+            class:active={page.url.pathname === "/devices"}>DEVICES</a
+          >
+          <a href={resolve("/saves")} class="nav-link" class:active={page.url.pathname === "/saves"}
+            >SAVES</a
+          >
+          <a
+            href={resolve("/connect")}
+            class="nav-link"
+            class:active={page.url.pathname === "/connect"}>CONNECT</a
+          >
         </nav>
       </div>
       <div bind:this={userButtonEl}></div>

@@ -1,17 +1,17 @@
-import { fetchSaves, type ApiSave } from "$lib/api/client";
+import { type ApiSave, fetchSaves } from "$lib/api/client";
 import { gameDisplayName } from "$lib/stores/plugins";
 import type { Save } from "$lib/types/save";
-import { writable, type Readable } from "svelte/store";
+import { type Readable, writable } from "svelte/store";
 
 function relativeTime(isoString: string): string {
   const seconds = Math.floor((Date.now() - new Date(isoString).getTime()) / 1000);
   if (seconds < 60) return "just now";
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return `${String(minutes)}m ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${String(hours)}h ago`;
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return `${String(days)}d ago`;
 }
 
 function toSave(row: ApiSave): Save {
@@ -36,7 +36,7 @@ export async function loadSaves(): Promise<void> {
   savesError.set(null);
   try {
     const rows = await fetchSaves();
-    set(rows.map(toSave));
+    set(rows.map((row) => toSave(row)));
   } catch (error) {
     savesError.set(error instanceof Error ? error.message : "Failed to load saves");
   } finally {

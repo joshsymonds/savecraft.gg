@@ -102,8 +102,12 @@ export async function fetchPluginManifest(): Promise<Record<string, PluginManife
   return data.plugins;
 }
 
-export async function fetchDeviceConfig(deviceId: string): Promise<Record<string, GameConfigInput>> {
-  const data = await request<{ games: Record<string, GameConfigInput> }>(`/api/v1/devices/${deviceId}/config`);
+export async function fetchDeviceConfig(
+  deviceId: string,
+): Promise<Record<string, GameConfigInput>> {
+  const data = await request<{ games: Record<string, GameConfigInput> }>(
+    `/api/v1/devices/${deviceId}/config`,
+  );
   return data.games;
 }
 
