@@ -86,6 +86,10 @@ async function routePublicEndpoints(
   if (daemonMatch?.[1] && request.method === "GET") {
     return handleDaemonDownload(env, daemonMatch[1]);
   }
+  // Pairing claim is unauthenticated (the daemon has no token yet)
+  if (url.pathname === "/api/v1/pair/claim" && request.method === "POST") {
+    return claimPairingCode(request, env);
+  }
   return null;
 }
 
@@ -145,6 +149,9 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
   const auth = await authenticateSession(request, env);
   if (!auth) return new Response("Unauthorized", { status: 401 });
 
+  if (url.pathname === "/api/v1/pair" && request.method === "POST") {
+    return createPairingCode(env, auth.userUuid);
+  }
   if (url.pathname === "/api/v1/api-keys" || url.pathname.startsWith("/api/v1/api-keys/")) {
     return handleApiKeys(request, url, env, auth.userUuid);
   }
@@ -720,18 +727,18 @@ async function handleApiKeys(
   return new Response("Method Not Allowed", { status: 405 });
 }
 
-async function createApiKey(request: Request, env: Env, userUuid: string): Promise<Response> {
-  let body: { label?: string } = {};
-  const text = await request.text();
-  if (text) {
-    try {
-      body = JSON.parse(text) as { label?: string };
-    } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
-    }
-  }
+interface GeneratedApiKey {
+  id: string;
+  key: string;
+  prefix: string;
+  label: string;
+}
 
-  const label = body.label ?? "default";
+async function generateApiKeyForUser(
+  env: Env,
+  userUuid: string,
+  label: string,
+): Promise<GeneratedApiKey> {
   const id = crypto.randomUUID();
 
   // Generate raw key: sav_ + 32 hex random chars
@@ -750,7 +757,22 @@ async function createApiKey(request: Request, env: Env, userUuid: string): Promi
     .bind(id, prefix, keyHash, userUuid, label)
     .run();
 
-  return Response.json({ id, key: rawKey, prefix, label }, { status: 201 });
+  return { id, key: rawKey, prefix, label };
+}
+
+async function createApiKey(request: Request, env: Env, userUuid: string): Promise<Response> {
+  let body: { label?: string } = {};
+  const text = await request.text();
+  if (text) {
+    try {
+      body = JSON.parse(text) as { label?: string };
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+  }
+
+  const generated = await generateApiKeyForUser(env, userUuid, body.label ?? "default");
+  return Response.json(generated, { status: 201 });
 }
 
 async function listApiKeys(env: Env, userUuid: string): Promise<Response> {
@@ -784,6 +806,106 @@ async function deleteApiKey(env: Env, userUuid: string, keyId: string): Promise<
     .run();
 
   return Response.json({ deleted: true });
+}
+
+// -- Pairing Code Flow ------------------------------------------------------
+
+const PAIRING_CODE_TTL_MINUTES = 2;
+const RATE_LIMIT_MAX_FAILURES = 5;
+const RATE_LIMIT_WINDOW_MS = 60_000;
+
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+
+function checkRateLimit(ip: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) return true;
+  return entry.count < RATE_LIMIT_MAX_FAILURES;
+}
+
+function recordRateLimitFailure(ip: string): void {
+  const now = Date.now();
+  const entry = rateLimitMap.get(ip);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+  } else {
+    entry.count++;
+  }
+}
+
+function generateSixDigitCode(): string {
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  const code = (buf[0]! % 900_000) + 100_000;
+  return code.toString();
+}
+
+async function createPairingCode(env: Env, userUuid: string): Promise<Response> {
+  const code = generateSixDigitCode();
+  const codeHash = await sha256Hex(code);
+  const id = crypto.randomUUID();
+  const expiresAt = new Date(Date.now() + PAIRING_CODE_TTL_MINUTES * 60_000).toISOString();
+
+  // One active code per user: delete any existing, then insert
+  await env.DB.prepare("DELETE FROM pairing_codes WHERE user_uuid = ?").bind(userUuid).run();
+  await env.DB.prepare(
+    "INSERT INTO pairing_codes (id, code_hash, user_uuid, expires_at) VALUES (?, ?, ?, ?)",
+  )
+    .bind(id, codeHash, userUuid, expiresAt)
+    .run();
+
+  return Response.json({ code }, { status: 201 });
+}
+
+async function claimPairingCode(request: Request, env: Env): Promise<Response> {
+  // Parse and validate body BEFORE rate limiting — malformed requests get 400,
+  // only well-formed code attempts count toward rate limits.
+  let body: { code?: string } = {};
+  const text = await request.text();
+  if (text) {
+    try {
+      body = JSON.parse(text) as { code?: string };
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+  }
+
+  if (!body.code || !/^\d{6}$/.test(body.code)) {
+    return Response.json({ error: "Invalid code" }, { status: 400 });
+  }
+
+  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
+  if (!checkRateLimit(ip)) {
+    return Response.json({ error: "Too many attempts" }, { status: 429 });
+  }
+
+  const codeHash = await sha256Hex(body.code);
+  // Expiry check in SQL — avoids timezone parsing issues between D1 datetime and JS Date
+  const row = await env.DB.prepare(
+    "SELECT id, user_uuid FROM pairing_codes WHERE code_hash = ? AND expires_at > datetime('now')",
+  )
+    .bind(codeHash)
+    .first<{ id: string; user_uuid: string }>();
+
+  if (!row) {
+    recordRateLimitFailure(ip);
+    // Clean up any expired codes for this hash
+    await env.DB.prepare("DELETE FROM pairing_codes WHERE code_hash = ? AND expires_at <= datetime('now')")
+      .bind(codeHash)
+      .run();
+    return Response.json({ error: "Invalid or expired code" }, { status: 401 });
+  }
+
+  // Delete the pairing code (single-use)
+  await env.DB.prepare("DELETE FROM pairing_codes WHERE id = ?").bind(row.id).run();
+
+  // Create an API key for the user
+  const apiKey = await generateApiKeyForUser(env, row.user_uuid, "paired-device");
+
+  // Derive server URL from env or request
+  const serverUrl = env.SERVER_URL ?? new URL(request.url).origin;
+
+  return Response.json({ token: apiKey.key, serverUrl });
 }
 
 /**
