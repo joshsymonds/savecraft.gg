@@ -479,6 +479,61 @@ describe("DaemonHub", () => {
     await closeWs(daemonWs);
   });
 
+  it("sends rescanGame to daemon via /rescan endpoint", async () => {
+    const userUuid = "rescan-test-user";
+
+    const daemonWs = await connectWs("/ws/daemon", userUuid);
+
+    // Identify the daemon and consume the configUpdate response
+    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "my-pc", version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // configUpdate from maybePushConfig
+
+    // Register listener BEFORE the /rescan call — the DO sends the message
+    // synchronously within the fetch, so the listener must already be waiting.
+    const rescanPromise = waitForMessage<{ rescanGame: { gameId: string } }>(daemonWs);
+
+    // Call the /rescan endpoint (as the worker would from the MCP tool)
+    const doId = env.DAEMON_HUB.idFromName(userUuid);
+    const doStub = env.DAEMON_HUB.get(doId);
+    const resp = await doStub.fetch(
+      new Request("https://do/rescan", {
+        method: "POST",
+        headers: { "X-User-UUID": userUuid },
+        body: JSON.stringify({ gameId: "d2r" }),
+      }),
+    );
+
+    expect(resp.status).toBe(200);
+    const body = await resp.json<{ sent: boolean; daemon_count: number }>();
+    expect(body.sent).toBe(true);
+    expect(body.daemon_count).toBe(1);
+
+    // Daemon should have received the rescanGame message
+    const received = await rescanPromise;
+    expect(received.rescanGame.gameId).toBe("d2r");
+
+    await closeWs(daemonWs);
+  });
+
+  it("returns daemon_online: false from /rescan when no daemon connected", async () => {
+    const userUuid = "rescan-offline-user";
+
+    const doId = env.DAEMON_HUB.idFromName(userUuid);
+    const doStub = env.DAEMON_HUB.get(doId);
+    const resp = await doStub.fetch(
+      new Request("https://do/rescan", {
+        method: "POST",
+        headers: { "X-User-UUID": userUuid },
+        body: JSON.stringify({ gameId: "d2r" }),
+      }),
+    );
+
+    expect(resp.status).toBe(200);
+    const body = await resp.json<{ sent: boolean; daemon_online: boolean }>();
+    expect(body.sent).toBe(false);
+    expect(body.daemon_online).toBe(false);
+  });
+
   it("isolates users — messages don't leak across DOs", async () => {
     const daemonA = await connectWs("/ws/daemon", "user-a");
     const uiA = await connectWs("/ws/ui", "user-a");

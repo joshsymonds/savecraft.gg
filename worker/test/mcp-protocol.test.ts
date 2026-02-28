@@ -149,12 +149,12 @@ describe("MCP Protocol", () => {
       "delete_note",
       "get_note",
       "get_save_sections",
-      "get_save_summary",
       "get_section",
       "get_section_diff",
       "list_notes",
       "list_saves",
-      "search",
+      "refresh_save",
+      "search_saves",
       "update_note",
     ]);
   });

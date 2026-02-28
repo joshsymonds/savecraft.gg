@@ -14,6 +14,7 @@ interface SaveRow {
   uuid: string;
   user_uuid: string;
   game_id: string;
+  game_name: string;
   save_name: string;
   summary: string;
   last_updated: string;
@@ -79,7 +80,7 @@ async function loadSnapshotAtTimestamp(
 export async function listSaves(db: D1Database, userUuid: string): Promise<ToolResult> {
   const rows = await db
     .prepare(
-      "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
+      "SELECT uuid, game_id, game_name, save_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
     )
     .bind(userUuid)
     .all<SaveRow>();
@@ -87,6 +88,7 @@ export async function listSaves(db: D1Database, userUuid: string): Promise<ToolR
   const saves = rows.results.map((row) => ({
     save_id: row.uuid,
     game_id: row.game_id,
+    game_name: row.game_name || row.game_id,
     name: row.save_name,
     summary: row.summary,
     last_updated: row.last_updated,
@@ -95,6 +97,8 @@ export async function listSaves(db: D1Database, userUuid: string): Promise<ToolR
   return textResult({ saves });
 }
 
+const OVERVIEW_SECTION_NAMES = ["character_overview", "player_summary", "overview", "summary"];
+
 export async function getSaveSections(
   db: D1Database,
   snapshots: R2Bucket,
@@ -102,17 +106,79 @@ export async function getSaveSections(
   saveId: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found");
+  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const state = await loadLatestSnapshot(snapshots, userUuid, saveId);
-  if (!state) return errorResult("No snapshot data available");
+  if (!state) return errorResult("No snapshot data available for this save. The daemon may not have pushed data yet.");
 
   const sections = Object.entries(state.sections).map(([name, section]) => ({
     name,
     description: section.description,
   }));
 
-  return textResult({ save_id: saveId, game_id: save.game_id, sections });
+  // Find overview section data for quick context
+  let overview: unknown = null;
+  for (const name of OVERVIEW_SECTION_NAMES) {
+    if (state.sections[name]) {
+      overview = state.sections[name].data;
+      break;
+    }
+  }
+  if (!overview) {
+    const firstSection = Object.values(state.sections)[0];
+    if (firstSection) {
+      overview = firstSection.data;
+    }
+  }
+
+  return textResult({
+    save_id: saveId,
+    game_id: save.game_id,
+    name: save.save_name,
+    summary: save.summary,
+    overview,
+    sections,
+  });
+}
+
+function fetchMultipleSections(
+  allSections: Record<string, GameStateSection>,
+  names: string[],
+  saveId: string,
+  timestamp?: string,
+): ToolResult {
+  const result: Record<string, unknown> = {};
+  const missing: string[] = [];
+  for (const name of names) {
+    const sectionData = allSections[name];
+    if (sectionData) {
+      result[name] = sectionData.data;
+    } else {
+      missing.push(name);
+    }
+  }
+  if (missing.length > 0 && Object.keys(result).length === 0) {
+    return errorResult(`None of the requested sections were found: ${missing.join(", ")}. Call get_save_sections to see available section names.`);
+  }
+  const response: Record<string, unknown> = { save_id: saveId, sections: result };
+  if (missing.length > 0) response.missing = missing;
+  if (timestamp) response.timestamp = timestamp;
+  return textResult(response);
+}
+
+function fetchSingleSection(
+  allSections: Record<string, GameStateSection>,
+  name: string,
+  saveId: string,
+  timestamp?: string,
+): ToolResult {
+  const sectionData = allSections[name];
+  if (!sectionData) {
+    return errorResult(`Section '${name}' not found in this save. Call get_save_sections to see available section names.`);
+  }
+  const result: Record<string, unknown> = { save_id: saveId, section: name, data: sectionData.data };
+  if (timestamp) result.timestamp = timestamp;
+  return textResult(result);
 }
 
 export async function getSection(
@@ -120,26 +186,34 @@ export async function getSection(
   snapshots: R2Bucket,
   userUuid: string,
   saveId: string,
-  section: string,
+  section?: string,
+  sections?: string[],
   timestamp?: string,
 ): Promise<ToolResult> {
+  if (!section && (!sections || sections.length === 0)) {
+    return errorResult("Provide either 'section' (single name) or 'sections' (array of names).");
+  }
+
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found");
+  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const state = timestamp
     ? await loadSnapshotAtTimestamp(snapshots, userUuid, saveId, timestamp)
     : await loadLatestSnapshot(snapshots, userUuid, saveId);
-  if (!state)
-    return errorResult(timestamp ? `No snapshot at ${timestamp}` : "No snapshot data available");
-
-  const sectionData = state.sections[section];
-  if (!sectionData) return errorResult(`Section '${section}' not found`);
-
-  const result: Record<string, unknown> = { save_id: saveId, section, data: sectionData.data };
-  if (timestamp) {
-    result.timestamp = timestamp;
+  if (!state) {
+    return errorResult(
+      timestamp
+        ? `No snapshot found at ${timestamp}. The save may not have been updated at that time.`
+        : "No snapshot data available for this save. The daemon may not have pushed data yet.",
+    );
   }
-  return textResult(result);
+
+  if (sections && sections.length > 0) {
+    return fetchMultipleSections(state.sections, sections, saveId, timestamp);
+  }
+
+  // Guard at function entry ensures section is defined when sections is not
+  return fetchSingleSection(state.sections, section ?? "", saveId, timestamp);
 }
 
 export async function getSectionDiff(
@@ -152,20 +226,20 @@ export async function getSectionDiff(
   toTimestamp: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found");
+  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const fromState = await loadSnapshotAtTimestamp(snapshots, userUuid, saveId, fromTimestamp);
-  if (!fromState) return errorResult(`No snapshot at ${fromTimestamp}`);
+  if (!fromState) return errorResult(`No snapshot found at ${fromTimestamp}. The save may not have been updated at that time.`);
 
   const toState = await loadSnapshotAtTimestamp(snapshots, userUuid, saveId, toTimestamp);
-  if (!toState) return errorResult(`No snapshot at ${toTimestamp}`);
+  if (!toState) return errorResult(`No snapshot found at ${toTimestamp}. The save may not have been updated at that time.`);
 
   const fromSection = fromState.sections[section];
   if (!fromSection)
-    return errorResult(`Section '${section}' not found in snapshot ${fromTimestamp}`);
+    return errorResult(`Section '${section}' not found in snapshot ${fromTimestamp}. Call get_save_sections to see available section names.`);
 
   const toSection = toState.sections[section];
-  if (!toSection) return errorResult(`Section '${section}' not found in snapshot ${toTimestamp}`);
+  if (!toSection) return errorResult(`Section '${section}' not found in snapshot ${toTimestamp}. Call get_save_sections to see available section names.`);
 
   const changes = diffObjects(fromSection.data, toSection.data, "");
 
@@ -243,7 +317,7 @@ export async function listNotes(
   saveId: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found");
+  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const rows = await db
     .prepare(
@@ -276,14 +350,14 @@ export async function getNote(
   noteId: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found");
+  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const note = await db
     .prepare("SELECT * FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
     .bind(noteId, saveId, userUuid)
     .first<NoteRow>();
 
-  if (!note) return errorResult("Note not found");
+  if (!note) return errorResult("Note not found. Call list_notes to see available notes for this save.");
 
   return textResult({
     note_id: note.note_id,
@@ -301,11 +375,11 @@ export async function createNote(
   content: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found");
+  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   // Check 50KB limit
   if (new TextEncoder().encode(content).length > 50 * 1024) {
-    return errorResult("Content exceeds 50KB limit");
+    return errorResult("Content exceeds the 50KB limit. Try splitting into multiple notes or trimming the content.");
   }
 
   // Check 10 notes per save limit
@@ -315,7 +389,7 @@ export async function createNote(
     .first<{ cnt: number }>();
 
   if (count && count.cnt >= 10) {
-    return errorResult("Maximum 10 notes per save");
+    return errorResult("This save already has 10 notes (the maximum). Delete an existing note first using delete_note.");
   }
 
   const noteId = crypto.randomUUID();
@@ -341,17 +415,17 @@ export async function updateNote(
   title?: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found");
+  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const existing = await db
     .prepare("SELECT note_id FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
     .bind(noteId, saveId, userUuid)
     .first<NoteRow>();
 
-  if (!existing) return errorResult("Note not found");
+  if (!existing) return errorResult("Note not found. Call list_notes to see available notes for this save.");
 
   if (content !== undefined && new TextEncoder().encode(content).length > 50 * 1024) {
-    return errorResult("Content exceeds 50KB limit");
+    return errorResult("Content exceeds the 50KB limit. Try splitting into multiple notes or trimming the content.");
   }
 
   const updates: string[] = [];
@@ -404,14 +478,14 @@ export async function deleteNote(
   noteId: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found");
+  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const existing = await db
     .prepare("SELECT note_id FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
     .bind(noteId, saveId, userUuid)
     .first<NoteRow>();
 
-  if (!existing) return errorResult("Note not found");
+  if (!existing) return errorResult("Note not found. Call list_notes to see available notes for this save.");
 
   await db
     .prepare("DELETE FROM notes WHERE note_id = ? AND user_uuid = ?")
@@ -424,42 +498,39 @@ export async function deleteNote(
   return textResult({ deleted: true, note_id: noteId });
 }
 
-export async function getSaveSummary(
+// ── Refresh ──────────────────────────────────────────────────
+
+export async function refreshSave(
   db: D1Database,
-  snapshots: R2Bucket,
+  daemonHub: DurableObjectNamespace,
   userUuid: string,
   saveId: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found");
+  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
-  // Find the overview section — convention is first section or one matching common names
-  const state = await loadLatestSnapshot(snapshots, userUuid, saveId);
-  const overviewNames = ["character_overview", "player_summary", "overview", "summary"];
-  let overview: unknown = null;
+  const id = daemonHub.idFromName(userUuid);
+  const stub = daemonHub.get(id);
+  const resp = await stub.fetch(
+    new Request("https://do/rescan", {
+      method: "POST",
+      headers: { "X-User-UUID": userUuid },
+      body: JSON.stringify({ gameId: save.game_id }),
+    }),
+  );
 
-  if (state) {
-    for (const name of overviewNames) {
-      if (state.sections[name]) {
-        overview = state.sections[name].data;
-        break;
-      }
-    }
-    // Fallback: use first section's data
-    if (!overview) {
-      const firstSection = Object.values(state.sections)[0];
-      if (firstSection) {
-        overview = firstSection.data;
-      }
-    }
+  const result = await resp.json<{ sent: boolean; daemon_online?: boolean }>();
+
+  if (!result.sent) {
+    return errorResult(
+      "The player's daemon is offline — they need to start the Savecraft desktop app for live save syncing. The last-known data is still available via get_section.",
+    );
   }
 
   return textResult({
     save_id: saveId,
-    game_id: save.game_id,
-    name: save.save_name,
-    summary: save.summary,
-    overview,
+    refreshed: true,
+    timestamp: new Date().toISOString(),
   });
 }
 
@@ -474,14 +545,14 @@ interface SearchRow {
   content: string;
 }
 
-export async function search(
+export async function searchSaves(
   db: D1Database,
   userUuid: string,
   query: string,
   saveId?: string,
 ): Promise<ToolResult> {
   if (!query.trim()) {
-    return errorResult("Query is required");
+    return errorResult("A search query is required. Provide keywords to search across saves and notes.");
   }
 
   let sql: string;

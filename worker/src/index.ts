@@ -750,6 +750,17 @@ async function isNewerThanLatest(
   return parsedAt > existingParsedAt;
 }
 
+/**
+ * Look up the human-readable game name from the plugin manifest in R2.
+ * Falls back to game_id if no manifest exists (e.g. in tests).
+ */
+async function resolveGameName(plugins: R2Bucket, gameId: string): Promise<string> {
+  const manifest = await plugins.get(`plugins/${gameId}/manifest.json`);
+  if (!manifest) return gameId;
+  const data = await manifest.json<{ name?: string }>();
+  return data.name ?? gameId;
+}
+
 async function handlePush(request: Request, env: Env, userUuid: string): Promise<Response> {
   const gameId = request.headers.get("X-Game");
   if (!gameId) {
@@ -800,10 +811,12 @@ async function handlePush(request: Request, env: Env, userUuid: string): Promise
     saveUuid = existingSave.uuid;
   } else {
     saveUuid = crypto.randomUUID();
+    // Resolve human-readable game name from plugin manifest (falls back to game_id)
+    const gameName = await resolveGameName(env.PLUGINS, gameId);
     await env.DB.prepare(
-      "INSERT INTO saves (uuid, user_uuid, game_id, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
-      .bind(saveUuid, userUuid, gameId, saveName, summary, parsedAt)
+      .bind(saveUuid, userUuid, gameId, gameName, saveName, summary, parsedAt)
       .run();
   }
 
