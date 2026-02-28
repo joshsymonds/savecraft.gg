@@ -843,21 +843,26 @@ async function checkRateLimit(env: Env, ip: string): Promise<boolean> {
 }
 
 async function recordRateLimitFailure(env: Env, ip: string): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO pairing_rate_limits (ip, failures, window_start)
-     VALUES (?, 1, datetime('now'))
-     ON CONFLICT(ip) DO UPDATE SET
-       failures = CASE
-         WHEN window_start <= datetime('now', ?) THEN 1
-         ELSE failures + 1
-       END,
-       window_start = CASE
-         WHEN window_start <= datetime('now', ?) THEN datetime('now')
-         ELSE window_start
-       END`,
-  )
-    .bind(ip, `-${String(RATE_LIMIT_WINDOW_SECONDS)} seconds`, `-${String(RATE_LIMIT_WINDOW_SECONDS)} seconds`)
-    .run();
+  const windowParam = `-${String(RATE_LIMIT_WINDOW_SECONDS)} seconds`;
+  await env.DB.batch([
+    env.DB.prepare(
+      `INSERT INTO pairing_rate_limits (ip, failures, window_start)
+       VALUES (?, 1, datetime('now'))
+       ON CONFLICT(ip) DO UPDATE SET
+         failures = CASE
+           WHEN window_start <= datetime('now', ?) THEN 1
+           ELSE failures + 1
+         END,
+         window_start = CASE
+           WHEN window_start <= datetime('now', ?) THEN datetime('now')
+           ELSE window_start
+         END`,
+    ).bind(ip, windowParam, windowParam),
+    // Clean up expired entries from other IPs
+    env.DB.prepare(
+      "DELETE FROM pairing_rate_limits WHERE window_start <= datetime('now', ?)",
+    ).bind(windowParam),
+  ]);
 }
 
 function generateSixDigitCode(): string {
