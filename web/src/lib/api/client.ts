@@ -27,17 +27,20 @@ async function request<T>(path: string): Promise<T> {
   return response.json() as Promise<T>;
 }
 
-async function mutate<T>(method: string, path: string, body: unknown): Promise<T> {
+async function mutate<T>(method: string, path: string, body?: unknown): Promise<T> {
   const token = await getToken();
   if (!token) throw new ApiError(401, "Not authenticated");
 
+  const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+  const hasBody = body !== undefined;
+  if (hasBody) {
+    headers["Content-Type"] = "application/json";
+  }
+
   const response = await fetch(`${PUBLIC_API_URL}${path}`, {
     method,
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify(body),
+    headers,
+    body: hasBody ? JSON.stringify(body) : undefined,
   });
 
   if (!response.ok) {
@@ -156,5 +159,5 @@ export async function listApiKeys(): Promise<ApiKey[]> {
 }
 
 export async function deleteApiKey(keyId: string): Promise<void> {
-  await mutate<{ deleted: boolean }>("DELETE", `/api/v1/api-keys/${keyId}`, {});
+  await mutate<{ deleted: boolean }>("DELETE", `/api/v1/api-keys/${keyId}`);
 }
