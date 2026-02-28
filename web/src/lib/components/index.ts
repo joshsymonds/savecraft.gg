@@ -1,5 +1,6 @@
 export { default as ActivityEvent } from "./ActivityEvent.svelte";
 export { default as ConfigModal } from "./ConfigModal.svelte";
+export { default as ConnectCard } from "./ConnectCard.svelte";
 export { default as InstallBlock } from "./InstallBlock.svelte";
 export { default as Panel } from "./Panel.svelte";
 export { default as StatusDot } from "./StatusDot.svelte";

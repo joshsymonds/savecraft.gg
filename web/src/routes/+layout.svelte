@@ -94,11 +94,6 @@
           <a href={resolve("/saves")} class="nav-link" class:active={page.url.pathname === "/saves"}
             >SAVES</a
           >
-          <a
-            href={resolve("/connect")}
-            class="nav-link"
-            class:active={page.url.pathname === "/connect"}>CONNECT</a
-          >
         </nav>
       </div>
       <div bind:this={userButtonEl}></div>
