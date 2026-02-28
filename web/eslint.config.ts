@@ -213,6 +213,9 @@ export default tseslint.config(
       // SvelteKit layout children and $props() can be implicitly any
       "@typescript-eslint/no-unsafe-assignment": "off",
       "@typescript-eslint/no-unsafe-call": "off",
+      // {@render snippet()} is Svelte 5 template syntax — not a void expression misuse
+      "@typescript-eslint/no-confusing-void-expression": "off",
+      "sonarjs/no-use-of-empty-return-value": "off",
     },
   },
 

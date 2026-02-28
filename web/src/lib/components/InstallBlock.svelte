@@ -62,13 +62,15 @@
       }
     }, 1000);
 
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+    };
   });
 
   function formatTime(seconds: number): string {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, "0")}`;
+    return `${String(mins)}:${secs.toString().padStart(2, "0")}`;
   }
 
   async function generateCode(): Promise<void> {
