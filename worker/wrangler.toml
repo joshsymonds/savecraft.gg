@@ -36,6 +36,7 @@ route = { pattern = "api.savecraft.gg/*", zone_name = "savecraft.gg" }
 
 [env.production.vars]
 ENVIRONMENT = "production"
+ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg"
 
 [[env.production.d1_databases]]
 binding = "DB"
@@ -67,6 +68,7 @@ route = { pattern = "staging-api.savecraft.gg/*", zone_name = "savecraft.gg" }
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
+ALLOWED_ORIGINS = "https://staging.savecraft.gg"
 
 [[env.staging.d1_databases]]
 binding = "DB"

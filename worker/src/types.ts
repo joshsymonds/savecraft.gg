@@ -8,4 +8,6 @@ export interface Env {
   CLERK_ISSUER?: string;
   /** Public-facing server URL for OAuth discovery (e.g. "https://mcp.savecraft.gg"). */
   SERVER_URL?: string;
+  /** Comma-separated list of allowed CORS origins. Unset = wildcard (dev only). */
+  ALLOWED_ORIGINS?: string;
 }
