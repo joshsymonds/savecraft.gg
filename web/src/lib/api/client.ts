@@ -144,7 +144,7 @@ export interface PairingCodeResponse {
 }
 
 export async function generatePairingCode(): Promise<PairingCodeResponse> {
-  return mutate<PairingCodeResponse>("POST", "/api/v1/pair", {});
+  return mutate<PairingCodeResponse>("POST", "/api/v1/pair");
 }
 
 // ── API Key endpoints ─────────────────────────────────────────

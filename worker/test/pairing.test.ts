@@ -190,6 +190,15 @@ describe("Pairing Codes", () => {
       // Should be allowed again (new window)
       const allowed = await SELF.fetch(claimRequest("999999"));
       expect(allowed.status).toBe(401); // wrong code, but NOT 429
+
+      // Verify D1 state: counter should have reset to 1 (this new failure)
+      const resetRow = await env.DB.prepare(
+        "SELECT failures FROM pairing_rate_limits WHERE ip = ?",
+      )
+        .bind("unknown")
+        .first<{ failures: number }>();
+      expect(resetRow).not.toBeNull();
+      expect(resetRow!.failures).toBe(1);
     });
 
     it("returns 400 for missing code", async () => {

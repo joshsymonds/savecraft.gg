@@ -921,12 +921,6 @@ async function claimPairingCode(request: Request, env: Env): Promise<Response> {
 
   if (!row) {
     await recordRateLimitFailure(env, ip);
-    // Clean up any expired codes for this hash
-    await env.DB.prepare(
-      "DELETE FROM pairing_codes WHERE code_hash = ? AND expires_at <= datetime('now')",
-    )
-      .bind(codeHash)
-      .run();
     return Response.json({ error: "Invalid or expired code" }, { status: 401 });
   }
 
