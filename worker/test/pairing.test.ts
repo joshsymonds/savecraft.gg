@@ -100,8 +100,9 @@ describe("Pairing Codes", () => {
       const { code } = await pairResp.json<PairResponse>();
 
       // Manually expire the code in D1
-      await env.DB.prepare("UPDATE pairing_codes SET expires_at = datetime('now', '-1 minute')")
-        .run();
+      await env.DB.prepare(
+        "UPDATE pairing_codes SET expires_at = datetime('now', '-1 minute')",
+      ).run();
 
       const claimResp = await SELF.fetch(claimRequest(code));
       expect(claimResp.status).toBe(401);
