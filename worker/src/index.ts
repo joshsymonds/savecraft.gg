@@ -817,25 +817,34 @@ async function deleteApiKey(env: Env, userUuid: string, keyId: string): Promise<
 
 const PAIRING_CODE_TTL_MINUTES = 2;
 const RATE_LIMIT_MAX_FAILURES = 5;
-const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_WINDOW_SECONDS = 60;
 
-const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
-
-function checkRateLimit(ip: string): boolean {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetAt) return true;
-  return entry.count < RATE_LIMIT_MAX_FAILURES;
+async function checkRateLimit(env: Env, ip: string): Promise<boolean> {
+  const row = await env.DB.prepare(
+    "SELECT failures FROM pairing_rate_limits WHERE ip = ? AND window_start > datetime('now', ?)",
+  )
+    .bind(ip, `-${String(RATE_LIMIT_WINDOW_SECONDS)} seconds`)
+    .first<{ failures: number }>();
+  if (!row) return true;
+  return row.failures < RATE_LIMIT_MAX_FAILURES;
 }
 
-function recordRateLimitFailure(ip: string): void {
-  const now = Date.now();
-  const entry = rateLimitMap.get(ip);
-  if (!entry || now > entry.resetAt) {
-    rateLimitMap.set(ip, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
-  } else {
-    entry.count++;
-  }
+async function recordRateLimitFailure(env: Env, ip: string): Promise<void> {
+  await env.DB.prepare(
+    `INSERT INTO pairing_rate_limits (ip, failures, window_start)
+     VALUES (?, 1, datetime('now'))
+     ON CONFLICT(ip) DO UPDATE SET
+       failures = CASE
+         WHEN window_start <= datetime('now', ?) THEN 1
+         ELSE failures + 1
+       END,
+       window_start = CASE
+         WHEN window_start <= datetime('now', ?) THEN datetime('now')
+         ELSE window_start
+       END`,
+  )
+    .bind(ip, `-${String(RATE_LIMIT_WINDOW_SECONDS)} seconds`, `-${String(RATE_LIMIT_WINDOW_SECONDS)} seconds`)
+    .run();
 }
 
 function generateSixDigitCode(): string {
@@ -880,7 +889,7 @@ async function claimPairingCode(request: Request, env: Env): Promise<Response> {
   }
 
   const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-  if (!checkRateLimit(ip)) {
+  if (!(await checkRateLimit(env, ip))) {
     return Response.json({ error: "Too many attempts" }, { status: 429 });
   }
 
@@ -893,7 +902,7 @@ async function claimPairingCode(request: Request, env: Env): Promise<Response> {
     .first<{ id: string; user_uuid: string }>();
 
   if (!row) {
-    recordRateLimitFailure(ip);
+    await recordRateLimitFailure(env, ip);
     // Clean up any expired codes for this hash
     await env.DB.prepare(
       "DELETE FROM pairing_codes WHERE code_hash = ? AND expires_at <= datetime('now')",
