@@ -124,6 +124,20 @@ func handleCharacter(enc *json.Encoder, data []byte) {
 		}
 	}
 
+	if len(save.CorpseItems) > 0 {
+		sections["corpse"] = map[string]any{
+			"description": "Items on character's corpse (died and hasn't retrieved body)",
+			"data":        buildItemList(save.CorpseItems),
+		}
+	}
+
+	if save.GolemItem != nil {
+		sections["golem"] = map[string]any{
+			"description": "Iron Golem item (Necromancer golem created from this item)",
+			"data":        buildItemMap(*save.GolemItem),
+		}
+	}
+
 	summary := buildSummary(save)
 
 	if err := enc.Encode(map[string]any{
@@ -220,10 +234,45 @@ func buildEquipmentSection(save *d2s.D2S) []map[string]any {
 	var equipped []map[string]any
 	for _, item := range save.Items {
 		if item.Location == 0x01 { // equipped
-			equipped = append(equipped, buildItemMap(item))
+			m := buildItemMap(item)
+			if slot := equipSlotName(item.EquipSlot); slot != "" {
+				m["slot"] = slot
+			}
+			equipped = append(equipped, m)
 		}
 	}
 	return equipped
+}
+
+func equipSlotName(slot byte) string {
+	switch slot {
+	case 1:
+		return "Helm"
+	case 2:
+		return "Amulet"
+	case 3:
+		return "Body Armor"
+	case 4:
+		return "Right Hand"
+	case 5:
+		return "Left Hand"
+	case 6:
+		return "Right Ring"
+	case 7:
+		return "Left Ring"
+	case 8:
+		return "Belt"
+	case 9:
+		return "Boots"
+	case 10:
+		return "Gloves"
+	case 11:
+		return "Right Hand (Swap)"
+	case 12:
+		return "Left Hand (Swap)"
+	default:
+		return ""
+	}
 }
 
 func buildInventorySection(save *d2s.D2S) map[string]any {
@@ -325,6 +374,17 @@ func buildItemMap(item d2s.Item) map[string]any {
 	}
 	if len(item.RunewordAttributes) > 0 {
 		m["runewordProperties"] = buildPropertyList(item.RunewordAttributes)
+	}
+	if len(item.SetAttributes) > 0 {
+		var setBonuses [][]map[string]any
+		for _, setList := range item.SetAttributes {
+			if len(setList) > 0 {
+				setBonuses = append(setBonuses, buildPropertyList(setList))
+			}
+		}
+		if len(setBonuses) > 0 {
+			m["setBonuses"] = setBonuses
+		}
 	}
 
 	// Socketed items
