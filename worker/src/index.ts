@@ -62,6 +62,25 @@ export default {
 const PLUGIN_DOWNLOAD_RE = /^\/plugins\/([^/]+)\/(parser\.wasm(?:\.sig)?)$/;
 const DAEMON_DOWNLOAD_RE = /^\/daemon\/([^/]+)$/;
 
+function routeDownload(
+  request: Request,
+  url: URL,
+  env: Env,
+): Promise<Response> | null {
+  const pluginMatch = PLUGIN_DOWNLOAD_RE.exec(url.pathname);
+  if (pluginMatch?.[1] && pluginMatch[2] && request.method === "GET") {
+    return handlePluginDownload(env, pluginMatch[1], pluginMatch[2]);
+  }
+  if (url.pathname === "/api/v1/daemon/manifest" && request.method === "GET") {
+    return handleDaemonManifest(env);
+  }
+  const daemonMatch = DAEMON_DOWNLOAD_RE.exec(url.pathname);
+  if (daemonMatch?.[1] && request.method === "GET") {
+    return handleDaemonDownload(env, daemonMatch[1]);
+  }
+  return null;
+}
+
 async function routePublicEndpoints(
   request: Request,
   url: URL,
@@ -74,18 +93,8 @@ async function routePublicEndpoints(
   if (url.pathname === "/api/v1/plugins/manifest" && request.method === "GET") {
     return handlePluginManifest(env);
   }
-  // Match /plugins/:gameId/parser.wasm or /plugins/:gameId/parser.wasm.sig
-  const pluginMatch = PLUGIN_DOWNLOAD_RE.exec(url.pathname);
-  if (pluginMatch?.[1] && pluginMatch[2] && request.method === "GET") {
-    return handlePluginDownload(env, pluginMatch[1], pluginMatch[2]);
-  }
-  if (url.pathname === "/api/v1/daemon/manifest" && request.method === "GET") {
-    return handleDaemonManifest(env);
-  }
-  const daemonMatch = DAEMON_DOWNLOAD_RE.exec(url.pathname);
-  if (daemonMatch?.[1] && request.method === "GET") {
-    return handleDaemonDownload(env, daemonMatch[1]);
-  }
+  const downloadResponse = routeDownload(request, url, env);
+  if (downloadResponse) return downloadResponse;
   // Pairing claim is unauthenticated (the daemon has no token yet)
   if (url.pathname === "/api/v1/pair/claim" && request.method === "POST") {
     return claimPairingCode(request, env);
@@ -836,7 +845,7 @@ function recordRateLimitFailure(ip: string): void {
 function generateSixDigitCode(): string {
   const buf = new Uint32Array(1);
   crypto.getRandomValues(buf);
-  const code = (buf[0]! % 900_000) + 100_000;
+  const code = ((buf[0] ?? 0) % 900_000) + 100_000;
   return code.toString();
 }
 
