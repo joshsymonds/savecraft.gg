@@ -1,8 +1,8 @@
-import type { Device, DeviceGame, DeviceStatus, GameStatus, SaveSummary } from "$lib/types/device";
 import { gameDisplayName } from "$lib/stores/plugins";
-import type { WireDeviceInfo, WireMessage } from "$lib/types/wire";
+import type { Device, DeviceGame, DeviceStatus, GameStatus, SaveSummary } from "$lib/types/device";
+import type { WireDeviceInfo, WireMessage, WireMessageType } from "$lib/types/wire";
 import { getMessageType } from "$lib/types/wire";
-import { writable, type Readable } from "svelte/store";
+import { type Readable, writable } from "svelte/store";
 
 const { subscribe, set, update } = writable<Device[]>([]);
 
@@ -17,38 +17,36 @@ function relativeTime(iso: string | undefined): string {
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (seconds < 60) return "just now";
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return `${String(minutes)}m ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${String(hours)}h ago`;
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return `${String(days)}d ago`;
 }
 
 function wireStatusToGameStatus(wireStatus: string | undefined): GameStatus {
-  switch (wireStatus) {
-    case "GAME_STATUS_ENUM_WATCHING":
-      return "watching";
-    case "GAME_STATUS_ENUM_ERROR":
-      return "error";
-    case "GAME_STATUS_ENUM_NOT_FOUND":
-      return "not_found";
-    default:
-      return "detected";
-  }
+  if (wireStatus === "GAME_STATUS_ENUM_WATCHING") return "watching";
+  if (wireStatus === "GAME_STATUS_ENUM_ERROR") return "error";
+  if (wireStatus === "GAME_STATUS_ENUM_NOT_FOUND") return "not_found";
+  return "detected";
 }
 
 function gameStatusLine(status: GameStatus, saves: SaveSummary[]): string {
   switch (status) {
-    case "watching":
-      return saves.length > 0
-        ? `${saves.length} character${saves.length !== 1 ? "s" : ""}`
-        : "watching";
-    case "detected":
+    case "watching": {
+      if (saves.length === 0) return "watching";
+      const suffix = saves.length === 1 ? "" : "s";
+      return `${String(saves.length)} character${suffix}`;
+    }
+    case "detected": {
       return "scanning...";
-    case "error":
+    }
+    case "error": {
       return "parse error";
-    case "not_found":
+    }
+    case "not_found": {
       return "not installed";
+    }
   }
 }
 
@@ -67,7 +65,7 @@ function mapDeviceInfo(d: WireDeviceInfo): Device {
     }));
     return {
       gameId: g.gameId ?? "",
-      name: g.gameName || gameDisplayName(g.gameId ?? ""),
+      name: g.gameName ?? gameDisplayName(g.gameId ?? ""),
       status,
       statusLine: gameStatusLine(status, saves),
       saves,
@@ -117,148 +115,175 @@ function findOrCreateGame(device: Device, gameId: string): DeviceGame {
   return game;
 }
 
+function handleDeviceState(msg: WireMessage): void {
+  const ds = msg.deviceState;
+  if (!ds?.devices) return;
+  set(ds.devices.map((d) => mapDeviceInfo(d)));
+}
+
+function handleDaemonOnline(msg: WireMessage): void {
+  const data = msg.daemonOnline;
+  if (!data?.deviceId) return;
+  const { deviceId, version } = data;
+  update((devs) => {
+    const device = findOrCreateDevice(devs, deviceId);
+    device.status = "online";
+    device.version = version ?? device.version;
+    device.lastSeen = "now";
+    return [...devs];
+  });
+}
+
+function handleDaemonOffline(msg: WireMessage): void {
+  const data = msg.daemonOffline;
+  if (!data?.deviceId) return;
+  const { deviceId } = data;
+  update((devs) => {
+    const device = devs.find((d) => d.id === deviceId);
+    if (!device) return devs;
+    device.status = "offline";
+    device.lastSeen = "just now";
+    return [...devs];
+  });
+}
+
+function handleGameStatusChange(
+  msg: WireMessage,
+  type: "watching" | "gameDetected" | "gameNotFound",
+): void {
+  const deviceId = resolveDeviceId(msg);
+  if (!deviceId) return;
+
+  let gameId: string | undefined;
+  let status: GameStatus;
+
+  if (type === "watching") {
+    gameId = msg.watching?.gameId;
+    status = "watching";
+  } else if (type === "gameDetected") {
+    gameId = msg.gameDetected?.gameId;
+    status = "detected";
+  } else {
+    gameId = msg.gameNotFound?.gameId;
+    status = "not_found";
+  }
+
+  if (!gameId) return;
+
+  update((devs) => {
+    const device = devs.find((d) => d.id === deviceId);
+    if (!device) return devs;
+
+    const game = findOrCreateGame(device, gameId);
+    game.status = status;
+    game.statusLine = gameStatusLine(status, game.saves);
+    return [...devs];
+  });
+}
+
+function handleParseFailed(msg: WireMessage): void {
+  const pf = msg.parseFailed;
+  if (!pf) return;
+  const deviceId = resolveDeviceId(msg);
+  const gameId = pf.gameId;
+  if (!deviceId || !gameId) return;
+
+  update((devs) => {
+    const device = devs.find((d) => d.id === deviceId);
+    if (!device) return devs;
+
+    const game = findOrCreateGame(device, gameId);
+    game.status = "error";
+    game.statusLine = pf.message ?? "parse error";
+    return [...devs];
+  });
+}
+
+function handleParseCompleted(msg: WireMessage): void {
+  const pc = msg.parseCompleted;
+  if (!pc) return;
+  const deviceId = resolveDeviceId(msg);
+  const gameId = pc.gameId;
+  if (!deviceId || !gameId) return;
+
+  update((devs) => {
+    const device = devs.find((d) => d.id === deviceId);
+    if (!device) return devs;
+
+    const game = findOrCreateGame(device, gameId);
+    if (game.status === "detected" || game.status === "error") {
+      game.status = "watching";
+      game.statusLine = gameStatusLine("watching", game.saves);
+    }
+    return [...devs];
+  });
+}
+
+function handlePushCompleted(msg: WireMessage): void {
+  const pc = msg.pushCompleted;
+  if (!pc) return;
+  const deviceId = resolveDeviceId(msg);
+  const gameId = pc.gameId;
+  if (!deviceId || !gameId) return;
+
+  update((devs) => {
+    const targetDevice = devs.find((d) => d.id === deviceId);
+    if (!targetDevice) return devs;
+
+    const game = findOrCreateGame(targetDevice, gameId);
+
+    if (pc.saveUuid) {
+      const existing = game.saves.find((s) => s.saveUuid === pc.saveUuid);
+      if (existing) {
+        existing.summary = pc.summary ?? existing.summary;
+        if (pc.identity?.name) existing.saveName = pc.identity.name;
+        existing.lastUpdated = "just now";
+      } else {
+        game.saves.push({
+          saveUuid: pc.saveUuid,
+          saveName: pc.identity?.name ?? "Unknown",
+          summary: pc.summary ?? "",
+          lastUpdated: "just now",
+        });
+      }
+      game.statusLine = gameStatusLine(game.status, game.saves);
+    }
+
+    return [...devs];
+  });
+}
+
+type DeviceHandler = (msg: WireMessage) => void;
+
+function handleWatching(msg: WireMessage): void {
+  handleGameStatusChange(msg, "watching");
+}
+
+function handleGameDetected(msg: WireMessage): void {
+  handleGameStatusChange(msg, "gameDetected");
+}
+
+function handleGameNotFound(msg: WireMessage): void {
+  handleGameStatusChange(msg, "gameNotFound");
+}
+
+const DEVICE_HANDLERS: Partial<Record<WireMessageType, DeviceHandler>> = {
+  deviceState: handleDeviceState,
+  daemonOnline: handleDaemonOnline,
+  daemonOffline: handleDaemonOffline,
+  watching: handleWatching,
+  gameDetected: handleGameDetected,
+  gameNotFound: handleGameNotFound,
+  parseFailed: handleParseFailed,
+  parseCompleted: handleParseCompleted,
+  pushCompleted: handlePushCompleted,
+};
+
 export function dispatchToDevices(msg: WireMessage): void {
   const type = getMessageType(msg);
   if (!type) return;
-
-  switch (type) {
-    case "deviceState": {
-      const ds = msg.deviceState;
-      if (!ds?.devices) return;
-      set(ds.devices.map(mapDeviceInfo));
-      break;
-    }
-
-    case "daemonOnline": {
-      const { deviceId, version } = msg.daemonOnline!;
-      if (!deviceId) return;
-      update((devs) => {
-        const device = findOrCreateDevice(devs, deviceId);
-        device.status = "online";
-        device.version = version ?? device.version;
-        device.lastSeen = "now";
-        return devs;
-      });
-      break;
-    }
-
-    case "daemonOffline": {
-      const { deviceId } = msg.daemonOffline!;
-      if (!deviceId) return;
-      update((devs) => {
-        const device = devs.find((d) => d.id === deviceId);
-        if (device) {
-          device.status = "offline";
-          device.lastSeen = "just now";
-        }
-        return devs;
-      });
-      break;
-    }
-
-    case "watching":
-    case "gameDetected":
-    case "gameNotFound": {
-      const deviceId = resolveDeviceId(msg);
-      if (!deviceId) return;
-
-      let gameId: string | undefined;
-      let status: GameStatus;
-
-      if (type === "watching") {
-        gameId = msg.watching!.gameId;
-        status = "watching";
-      } else if (type === "gameDetected") {
-        gameId = msg.gameDetected!.gameId;
-        status = "detected";
-      } else {
-        gameId = msg.gameNotFound!.gameId;
-        status = "not_found";
-      }
-
-      if (!gameId) return;
-
-      update((devs) => {
-        const device = devs.find((d) => d.id === deviceId);
-        if (!device) return devs;
-
-        const game = findOrCreateGame(device, gameId);
-        game.status = status;
-        game.statusLine = gameStatusLine(status, game.saves);
-        return devs;
-      });
-      break;
-    }
-
-    case "parseFailed": {
-      const pf = msg.parseFailed!;
-      const deviceId = resolveDeviceId(msg);
-      if (!deviceId || !pf.gameId) return;
-
-      update((devs) => {
-        const device = devs.find((d) => d.id === deviceId);
-        if (!device) return devs;
-
-        const game = findOrCreateGame(device, pf.gameId!);
-        game.status = "error";
-        game.statusLine = pf.message ?? "parse error";
-        return devs;
-      });
-      break;
-    }
-
-    case "parseCompleted": {
-      const pc = msg.parseCompleted!;
-      const deviceId = resolveDeviceId(msg);
-      if (!deviceId || !pc.gameId) return;
-
-      update((devs) => {
-        const device = devs.find((d) => d.id === deviceId);
-        if (!device) return devs;
-
-        const game = findOrCreateGame(device, pc.gameId!);
-        if (game.status === "detected" || game.status === "error") {
-          game.status = "watching";
-          game.statusLine = gameStatusLine("watching", game.saves);
-        }
-        return devs;
-      });
-      break;
-    }
-
-    case "pushCompleted": {
-      const pc = msg.pushCompleted!;
-      const deviceId = resolveDeviceId(msg);
-      if (!deviceId || !pc.gameId) return;
-
-      update((devs) => {
-        const targetDevice = devs.find((d) => d.id === deviceId);
-        if (!targetDevice) return devs;
-
-        const game = findOrCreateGame(targetDevice, pc.gameId!);
-
-        if (pc.saveUuid) {
-          const existing = game.saves.find((s) => s.saveUuid === pc.saveUuid);
-          if (existing) {
-            existing.summary = pc.summary ?? existing.summary;
-            if (pc.identity?.name) existing.saveName = pc.identity.name;
-            existing.lastUpdated = "just now";
-          } else {
-            game.saves.push({
-              saveUuid: pc.saveUuid,
-              saveName: pc.identity?.name ?? "Unknown",
-              summary: pc.summary ?? "",
-              lastUpdated: "just now",
-            });
-          }
-          game.statusLine = gameStatusLine(game.status, game.saves);
-        }
-
-        return devs;
-      });
-      break;
-    }
-  }
+  const handler = DEVICE_HANDLERS[type];
+  if (handler) handler(msg);
 }
 
 export function resetDevices(): void {

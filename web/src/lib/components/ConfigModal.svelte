@@ -4,12 +4,14 @@
   set save paths, and test paths against the connected daemon.
 -->
 <script lang="ts">
-  import { fetchDeviceConfig, saveDeviceConfig, type GameConfigInput } from "$lib/api/client";
+  import { fetchDeviceConfig, type GameConfigInput, saveDeviceConfig } from "$lib/api/client";
   import type { PluginManifest } from "$lib/api/client";
   import { discoveredGames } from "$lib/stores/discovery";
   import { loadPlugins, plugins } from "$lib/stores/plugins";
-  import { testPathResult, clearTestPathResult } from "$lib/stores/testpath";
+  import { clearTestPathResult, testPathResult } from "$lib/stores/testpath";
   import { send } from "$lib/ws/client";
+  import { SvelteMap } from "svelte/reactivity";
+
   import Panel from "./Panel.svelte";
   import TinyButton from "./TinyButton.svelte";
 
@@ -21,23 +23,25 @@
   let { deviceId, onclose }: Props = $props();
 
   // Local editing state: gameId → config
-  let games = $state<Map<string, GameConfigInput>>(new Map());
+  let games = new SvelteMap<string, GameConfigInput>();
   let loading = $state(true);
   let saving = $state(false);
+  let saved = $state(false);
   let error = $state<string | null>(null);
   let testingGameId = $state<string | null>(null);
 
   // Track which game's test result we're showing
   let testResult = $derived.by(() => {
     const result = $testPathResult;
-    if (!result || result.gameId !== testingGameId) return null;
+    if (!result) return null;
+    if ((result.gameId ?? null) !== testingGameId) return null;
     return result;
   });
 
   function detectOS(): "windows" | "linux" | "darwin" {
-    const platform = navigator.platform.toLowerCase();
-    if (platform.startsWith("win")) return "windows";
-    if (platform.startsWith("mac")) return "darwin";
+    const ua = navigator.userAgent.toLowerCase();
+    if (ua.includes("win")) return "windows";
+    if (ua.includes("mac")) return "darwin";
     return "linux";
   }
 
@@ -59,26 +63,24 @@
       }
 
       const existing = await fetchDeviceConfig(deviceId);
-      const map = new Map<string, GameConfigInput>();
+      games.clear();
 
       // Start with all available plugins
       for (const [gameId, plugin] of $plugins) {
         const saved = existing[gameId];
         if (saved) {
-          map.set(gameId, { ...saved });
+          games.set(gameId, { ...saved });
         } else {
           // Default: disabled, pre-fill path from discovery or manifest
           const os = detectOS();
           const discovered = $discoveredGames.get(gameId);
-          map.set(gameId, {
+          games.set(gameId, {
             savePath: discovered?.path ?? plugin.default_paths[os] ?? "",
             enabled: false,
             fileExtensions: plugin.file_extensions,
           });
         }
       }
-
-      games = map;
     } catch (err) {
       error = err instanceof Error ? err.message : "Failed to load config";
     } finally {
@@ -101,15 +103,12 @@
     }
 
     games.set(gameId, updated);
-    // Trigger reactivity
-    games = new Map(games);
   }
 
   function updatePath(gameId: string, value: string): void {
     const config = games.get(gameId);
     if (!config) return;
     games.set(gameId, { ...config, savePath: value });
-    games = new Map(games);
   }
 
   function testPath(gameId: string): void {
@@ -119,9 +118,11 @@
     testingGameId = gameId;
     clearTestPathResult();
 
-    send(JSON.stringify({
-      testPath: { gameId, path: config.savePath },
-    }));
+    send(
+      JSON.stringify({
+        testPath: { gameId, path: config.savePath },
+      }),
+    );
   }
 
   async function handleSave(): Promise<void> {
@@ -133,10 +134,13 @@
       // keep their config so the user can re-enable without re-entering paths.
       const toSave: Record<string, GameConfigInput> = Object.fromEntries(games);
       await saveDeviceConfig(deviceId, toSave);
-      onclose();
+      saving = false;
+      saved = true;
+      setTimeout(() => {
+        onclose();
+      }, 600);
     } catch (err) {
       error = err instanceof Error ? err.message : "Failed to save config";
-    } finally {
       saving = false;
     }
   }
@@ -160,7 +164,6 @@
 
 <svelte:window onkeydown={handleKeydown} />
 
-<!-- svelte-ignore a11y_click_events_have_key_events -->
 <div class="backdrop" role="presentation" onclick={handleBackdropClick}>
   <div class="modal">
     <Panel>
@@ -187,13 +190,15 @@
                     <input
                       type="checkbox"
                       checked={config.enabled}
-                      onchange={() => toggleGame(gameId)}
+                      onchange={() => {
+                        toggleGame(gameId);
+                      }}
                     />
                     <span class="game-name-label">{pluginName(gameId, plugin)}</span>
                   </label>
                   <div class="ext-chips">
-                    {#each config.fileExtensions as ext}
-                      <span class="ext-chip">{ext}</span>
+                    {#each config.fileExtensions as extension (extension)}
+                      <span class="ext-chip">{extension}</span>
                     {/each}
                   </div>
                 </div>
@@ -201,7 +206,9 @@
                 {#if !config.enabled}
                   {@const discovered = $discoveredGames.get(gameId)}
                   {#if discovered && discovered.fileCount > 0}
-                    <div class="discovery-hint">Found at {discovered.path} ({discovered.fileCount} files)</div>
+                    <div class="discovery-hint">
+                      Found at {discovered.path} ({discovered.fileCount} files)
+                    </div>
                   {/if}
                 {/if}
 
@@ -212,9 +219,16 @@
                       type="text"
                       placeholder="Save directory path..."
                       value={config.savePath}
-                      oninput={(e) => updatePath(gameId, e.currentTarget.value)}
+                      oninput={(inputEvent) => {
+                        updatePath(gameId, inputEvent.currentTarget.value);
+                      }}
                     />
-                    <TinyButton label="TEST" onclick={() => testPath(gameId)} />
+                    <TinyButton
+                      label="TEST"
+                      onclick={() => {
+                        testPath(gameId);
+                      }}
+                    />
                   </div>
 
                   {#if testResult && testingGameId === gameId}
@@ -224,7 +238,7 @@
                       class:invalid={!testResult.valid}
                     >
                       {#if testResult.valid}
-                        Found {testResult.filesFound} file{testResult.filesFound !== 1 ? "s" : ""}
+                        Found {testResult.filesFound} file{testResult.filesFound === 1 ? "" : "s"}
                       {:else}
                         No matching files found
                       {/if}
@@ -246,8 +260,13 @@
           <div class="modal-footer">
             <TinyButton label="CANCEL" onclick={onclose} />
             <TinyButton
-              label={saving ? "SAVING..." : "SAVE"}
+              label={(() => {
+                if (saved) return "SAVED \u2713";
+                if (saving) return "SAVING...";
+                return "SAVE";
+              })()}
               onclick={handleSave}
+              disabled={saving || saved}
             />
           </div>
         {/if}

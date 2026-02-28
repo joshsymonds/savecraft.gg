@@ -32,6 +32,7 @@
     scan_started: { icon: "○", colorVar: "var(--color-blue)" },
     scan_completed: { icon: "●", colorVar: "var(--color-green)" },
     games_discovered: { icon: "◆", colorVar: "var(--color-gold)" },
+    plugin_download_failed: { icon: "✕", colorVar: "var(--color-red)" },
   };
 
   let config = $derived(iconMap[type]);

@@ -151,7 +151,6 @@
   </div>
 </Story>
 
-
 <Story name="ScanStarted">
   <div style="width: 420px;">
     <Panel>

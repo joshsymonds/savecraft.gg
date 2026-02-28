@@ -5,7 +5,7 @@
 <script lang="ts">
   import { authState, getClerk } from "$lib/auth/clerk";
 
-  let container: HTMLDivElement;
+  let container: HTMLDivElement | undefined = $state();
 
   // Mount Clerk's SignUp widget once the SDK is ready (page chrome renders immediately)
   $effect(() => {

@@ -10,15 +10,25 @@
   let copied = $state(false);
   let copyError = $state(false);
 
+  let copyLabel = $derived.by(() => {
+    if (copyError) return "FAILED";
+    if (copied) return "COPIED";
+    return "COPY";
+  });
+
   async function copyUrl(): Promise<void> {
     try {
       await navigator.clipboard.writeText(mcpUrl);
       copied = true;
       copyError = false;
-      setTimeout(() => { copied = false; }, 2000);
+      setTimeout(() => {
+        copied = false;
+      }, 2000);
     } catch {
       copyError = true;
-      setTimeout(() => { copyError = false; }, 2000);
+      setTimeout(() => {
+        copyError = false;
+      }, 2000);
     }
   }
 </script>
@@ -51,7 +61,7 @@
       <p class="step-desc">Click <strong>"Add custom connector"</strong> and enter this URL:</p>
       <div class="url-block">
         <code class="url-text">{mcpUrl}</code>
-        <TinyButton label={copyError ? "FAILED" : copied ? "COPIED" : "COPY"} onclick={copyUrl} />
+        <TinyButton label={copyLabel} onclick={copyUrl} />
       </div>
     </div>
   </Panel>
@@ -63,8 +73,8 @@
         <span class="step-title">Sign In</span>
       </div>
       <p class="step-desc">
-        Click <strong>Add</strong>, then sign in with your Savecraft account when prompted.
-        Use the same account you signed up with here.
+        Click <strong>Add</strong>, then sign in with your Savecraft account when prompted. Use the
+        same account you signed up with here.
       </p>
     </div>
   </Panel>
@@ -75,9 +85,7 @@
         <span class="step-number">4</span>
         <span class="step-title">Start Chatting</span>
       </div>
-      <p class="step-desc">
-        Once connected, try asking Claude about your game data:
-      </p>
+      <p class="step-desc">Once connected, try asking Claude about your game data:</p>
       <div class="examples">
         <div class="example">"What games do I have?"</div>
         <div class="example">"Tell me about my Warlock"</div>

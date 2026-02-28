@@ -1,5 +1,5 @@
 import { fetchPluginManifest, type PluginManifest } from "$lib/api/client";
-import { writable, type Readable } from "svelte/store";
+import { type Readable, writable } from "svelte/store";
 
 const { subscribe, set } = writable<Map<string, PluginManifest>>(new Map());
 
@@ -14,7 +14,7 @@ export async function loadPlugins(): Promise<void> {
   }
 }
 
-let pluginSnapshot: Map<string, PluginManifest> = new Map();
+let pluginSnapshot = new Map<string, PluginManifest>();
 subscribe((value) => {
   pluginSnapshot = value;
 });

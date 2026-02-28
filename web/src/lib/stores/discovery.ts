@@ -1,5 +1,5 @@
 import type { WireGamesDiscovered } from "$lib/types/wire";
-import { writable, type Readable } from "svelte/store";
+import { type Readable, writable } from "svelte/store";
 
 export interface DiscoveredGame {
   gameId: string;
@@ -11,6 +11,13 @@ export interface DiscoveredGame {
 const { subscribe, set } = writable<Map<string, DiscoveredGame>>(new Map());
 
 export const discoveredGames: Readable<Map<string, DiscoveredGame>> = { subscribe };
+
+const pending = writable(false);
+export const discoveryPending: Readable<boolean> = { subscribe: pending.subscribe };
+
+export function startDiscovery(): void {
+  pending.set(true);
+}
 
 export function setDiscoveredGames(data: WireGamesDiscovered): void {
   const map = new Map<string, DiscoveredGame>();
@@ -25,4 +32,5 @@ export function setDiscoveredGames(data: WireGamesDiscovered): void {
     }
   }
   set(map);
+  pending.set(false);
 }

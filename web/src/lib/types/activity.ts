@@ -15,4 +15,5 @@ export type ActivityEventType =
   | "game_not_found"
   | "scan_started"
   | "scan_completed"
-  | "games_discovered";
+  | "games_discovered"
+  | "plugin_download_failed";

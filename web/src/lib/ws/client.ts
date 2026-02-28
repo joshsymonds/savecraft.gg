@@ -16,7 +16,7 @@ const MAX_DELAY = 30_000;
 let intentionalClose = false;
 
 function wsUrl(): string {
-  return PUBLIC_API_URL.replace(/^http/, "ws") + "/ws/ui";
+  return `${PUBLIC_API_URL.replace(/^http/, "ws")}/ws/ui`;
 }
 
 function scheduleReconnect(): void {

@@ -126,7 +126,7 @@
     let s = seed;
     const LCG_MUL = 1_664_525;
     const LCG_INC = 1_013_904_223;
-    const LCG_MASK = 0x7F_FF_FF_FF;
+    const LCG_MASK = 0x7f_ff_ff_ff;
 
     for (let n = 0; n < count; n++) {
       s = (s * LCG_MUL + LCG_INC) & LCG_MASK;
@@ -152,7 +152,8 @@
   let starCount = $state("");
 
   onMount(() => {
-    globalThis.fetch("https://api.github.com/repos/joshsymonds/savecraft.gg")
+    globalThis
+      .fetch("https://api.github.com/repos/joshsymonds/savecraft.gg")
       .then((r) => {
         if (!r.ok) return;
         return r.json();
@@ -189,84 +190,110 @@
       {/each}
     </div>
 
-  <!-- ═══ NAV ═══ -->
-  <nav class="nav">
-    <div class="nav-inner">
-      <div class="nav-left">
-        <img src="/icon.png" alt="Savecraft" class="nav-icon" width="28" height="28" />
-        <span class="nav-title">SAVECRAFT</span>
-      </div>
-      <div class="nav-right">
-        <a href="https://discord.gg/YnC8stpEmF" class="nav-icon-link" target="_blank" rel="noopener">
-          <svg width="18" height="14" viewBox="0 0 71 55" fill="currentColor"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.2a58.9 58.9 0 0017.7 9 .2.2 0 00.3-.1 42.1 42.1 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.7.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.7.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1 58.7 58.7 0 0017.7-9 .2.2 0 00.1-.2c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.7 7.1-6.3 7.1z"/></svg>
-          DISCORD
-        </a>
-        <a href="https://github.com/joshsymonds/savecraft.gg" class="nav-icon-link" target="_blank" rel="noopener">
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-          GITHUB{#if starCount}<span class="star-count">{starCount}</span>{/if}
-        </a>
-        <a href={resolve("/sign-up")} class="nav-cta">GET STARTED</a>
-      </div>
-    </div>
-  </nav>
-
-  <!-- ═══ HERO ═══ -->
-  <section class="hero">
-    <div class="hero-grid">
-      <div class="hero-text">
-        <div class="hero-eyebrow">PLAYER 2 HAS ENTERED THE GAME</div>
-        <h1 class="hero-title">
-          Your AI already<br />knows your build.
-        </h1>
-        <p class="hero-sub">
-          Savecraft connects your AI to your actual game state — gear, skills, quests, progress.
-          Not screenshots. Not memory. Real data, updated live.
-        </p>
-        <p class="hero-sub hero-sub-second">
-          Celebrate a drop. Plan your next move. The conversation goes wherever you take it.
-        </p>
-        <div class="hero-actions">
-          <a href={resolve("/sign-up")} class="btn-gold">START YOUR JOURNEY</a>
-          <a href="#how" class="btn-outline">SEE HOW IT WORKS</a>
+    <!-- ═══ NAV ═══ -->
+    <nav class="nav">
+      <div class="nav-inner">
+        <div class="nav-left">
+          <img src="/icon.png" alt="Savecraft" class="nav-icon" width="28" height="28" />
+          <span class="nav-title">SAVECRAFT</span>
+        </div>
+        <div class="nav-right">
+          <a
+            href="https://discord.gg/YnC8stpEmF"
+            class="nav-icon-link"
+            target="_blank"
+            rel="noopener"
+          >
+            <svg width="18" height="14" viewBox="0 0 71 55" fill="currentColor"
+              ><path
+                d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.2a58.9 58.9 0 0017.7 9 .2.2 0 00.3-.1 42.1 42.1 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.7.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.7.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1 58.7 58.7 0 0017.7-9 .2.2 0 00.1-.2c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.7 7.1-6.3 7.1z"
+              /></svg
+            >
+            DISCORD
+          </a>
+          <a
+            href="https://github.com/joshsymonds/savecraft.gg"
+            class="nav-icon-link"
+            target="_blank"
+            rel="noopener"
+          >
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor"
+              ><path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+              /></svg
+            >
+            GITHUB{#if starCount}<span class="star-count">{starCount}</span>{/if}
+          </a>
+          <a href={resolve("/sign-up")} class="nav-cta">GET STARTED</a>
         </div>
       </div>
+    </nav>
 
-      <!-- Conversation demo -->
-      <div class="demo-panel">
-        <div class="demo-header">
-          <span class="demo-dot green"></span>
-          <span class="demo-label">STARDEW VALLEY — SUNRISE FARM, YEAR 3</span>
+    <!-- ═══ HERO ═══ -->
+    <section class="hero">
+      <div class="hero-grid">
+        <div class="hero-text">
+          <div class="hero-eyebrow">PLAYER 2 HAS ENTERED THE GAME</div>
+          <h1 class="hero-title">
+            Your AI already<br />knows your build.
+          </h1>
+          <p class="hero-sub">
+            Savecraft connects your AI to your actual game state — gear, skills, quests, progress.
+            Not screenshots. Not memory. Real data, updated live.
+          </p>
+          <p class="hero-sub hero-sub-second">
+            Celebrate a drop. Plan your next move. The conversation goes wherever you take it.
+          </p>
+          <div class="hero-actions">
+            <a href={resolve("/sign-up")} class="btn-gold">START YOUR JOURNEY</a>
+            <a href="#how" class="btn-outline">SEE HOW IT WORKS</a>
+          </div>
         </div>
-        <div class="demo-body">
-          {#each conversation.slice(0, visibleCount) as msg (msg.text)}
-            <div class="demo-msg" class:demo-player={msg.role === "player"} class:demo-ai={msg.role === "ai"}>
-              <span class="demo-role">{msg.role === "player" ? "YOU" : "AI"}</span>
-              <span class="demo-text">{msg.text}</span>
-            </div>
-          {/each}
-          {#if typingIndex >= 0}
-            {@const msg = conversation[typingIndex]}
-            {#if msg}
-              <div class="demo-msg" class:demo-player={msg.role === "player"} class:demo-ai={msg.role === "ai"}>
+
+        <!-- Conversation demo -->
+        <div class="demo-panel">
+          <div class="demo-header">
+            <span class="demo-dot green"></span>
+            <span class="demo-label">STARDEW VALLEY — SUNRISE FARM, YEAR 3</span>
+          </div>
+          <div class="demo-body">
+            {#each conversation.slice(0, visibleCount) as msg (msg.text)}
+              <div
+                class="demo-msg"
+                class:demo-player={msg.role === "player"}
+                class:demo-ai={msg.role === "ai"}
+              >
                 <span class="demo-role">{msg.role === "player" ? "YOU" : "AI"}</span>
-                <span class="demo-text">
-                  {typedText}<span class="cursor">|</span>
-                </span>
+                <span class="demo-text">{msg.text}</span>
+              </div>
+            {/each}
+            {#if typingIndex >= 0}
+              {@const msg = conversation[typingIndex]}
+              {#if msg}
+                <div
+                  class="demo-msg"
+                  class:demo-player={msg.role === "player"}
+                  class:demo-ai={msg.role === "ai"}
+                >
+                  <span class="demo-role">{msg.role === "player" ? "YOU" : "AI"}</span>
+                  <span class="demo-text">
+                    {typedText}<span class="cursor">|</span>
+                  </span>
+                </div>
+              {/if}
+            {/if}
+            {#if !demoStarted}
+              <div class="demo-msg demo-player">
+                <span class="demo-role">YOU</span>
+                <span class="demo-text"><span class="cursor">|</span></span>
               </div>
             {/if}
-          {/if}
-          {#if !demoStarted}
-            <div class="demo-msg demo-player">
-              <span class="demo-role">YOU</span>
-              <span class="demo-text"><span class="cursor">|</span></span>
-            </div>
-          {/if}
+          </div>
         </div>
       </div>
-    </div>
-  </section>
-
-  </div><!-- /hero-bg -->
+    </section>
+  </div>
+  <!-- /hero-bg -->
 
   <!-- ═══ SOCIAL PROOF LINE (divider between hero and content) ═══ -->
   <div class="proof-bar">
@@ -289,16 +316,18 @@
           <div class="step-icon" style="color: var(--color-green);">></div>
           <h3 class="step-name">INSTALL</h3>
           <p class="step-desc">
-            A background daemon watches your save files. Runs on PC, Mac, Steam Deck. One command, zero config.
+            A background daemon watches your save files. Runs on PC, Mac, Steam Deck. One command,
+            zero config.
           </p>
           <code class="step-code">curl -sSL install.savecraft.gg | bash</code>
         </div>
         <div class="step-card">
           <div class="step-num">02</div>
-          <div class="step-icon" style="color: var(--color-blue);">{'{ }'}</div>
+          <div class="step-icon" style="color: var(--color-blue);">{"{ }"}</div>
           <h3 class="step-name">PARSE</h3>
           <p class="step-desc">
-            Plugins read your save files and extract the good stuff — gear, skills, progress, items. They're sandboxed and can't touch anything else on your machine.
+            Plugins read your save files and extract the good stuff — gear, skills, progress, items.
+            They're sandboxed and can't touch anything else on your machine.
           </p>
         </div>
         <div class="step-card">
@@ -306,7 +335,8 @@
           <div class="step-icon" style="color: var(--color-gold);">?</div>
           <h3 class="step-name">ASK</h3>
           <p class="step-desc">
-            Connect Claude, ChatGPT, or Gemini. Your AI reads your actual game state and gives answers grounded in real data — not hallucinated guesses.
+            Connect Claude, ChatGPT, or Gemini. Your AI reads your actual game state and gives
+            answers grounded in real data — not hallucinated guesses.
           </p>
         </div>
       </div>
@@ -318,9 +348,7 @@
     <div class="section-inner" class:visible={visibleSections.has(1)}>
       <div class="section-eyebrow">TWO MODES, ONE CONVERSATION</div>
       <h2 class="section-title">Companion and optimizer</h2>
-      <p class="section-sub">
-        Same tools, same data. The conversation goes wherever you take it.
-      </p>
+      <p class="section-sub">Same tools, same data. The conversation goes wherever you take it.</p>
 
       <div class="modes-grid">
         <div class="mode-card">
@@ -335,7 +363,11 @@
             </div>
             <div class="mode-example">
               <span class="mode-ai">AI</span>
-              <span class="mode-text">"23 runs tracked. She only drops up to Io in Hell though — if you need Shaels, Normal Countess is actually better odds. Your Sorc clears it in 40 seconds. Want to switch it up?"</span>
+              <span class="mode-text"
+                >"23 runs tracked. She only drops up to Io in Hell though — if you need Shaels,
+                Normal Countess is actually better odds. Your Sorc clears it in 40 seconds. Want to
+                switch it up?"</span
+              >
             </div>
           </div>
         </div>
@@ -352,7 +384,10 @@
             </div>
             <div class="mode-example">
               <span class="mode-ai">AI</span>
-              <span class="mode-text">"You're at 75% FCR — one breakpoint short of 125%. Swapping your Spirit shield for a 35% FCR one would get you there. Or craft a 20% amulet to keep the resistances."</span>
+              <span class="mode-text"
+                >"You're at 75% FCR — one breakpoint short of 125%. Swapping your Spirit shield for
+                a 35% FCR one would get you there. Or craft a 20% amulet to keep the resistances."</span
+              >
             </div>
           </div>
         </div>
@@ -373,7 +408,10 @@
             <div class="game-info">
               <span class="game-name">{game.name}</span>
             </div>
-            <span class="game-status" style="color: {game.color}; border-color: {game.color}40; background: {game.color}10;">
+            <span
+              class="game-status"
+              style="color: {game.color}; border-color: {game.color}40; background: {game.color}10;"
+            >
               {game.status}
             </span>
           </div>
@@ -382,7 +420,12 @@
 
       <p class="games-note">
         Savecraft is open source. Know a game we should support?
-        <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link" target="_blank" rel="noopener">Contribute a plugin</a>
+        <a
+          href="https://github.com/joshsymonds/savecraft.gg"
+          class="text-link"
+          target="_blank"
+          rel="noopener">Contribute a plugin</a
+        >
       </p>
     </div>
   </section>
@@ -398,28 +441,40 @@
           <span class="security-check">+</span>
           <div>
             <span class="security-label">Fully Sandboxed</span>
-            <span class="security-desc">Plugins are isolated in a sandbox. They can read your save file and nothing else — no filesystem access, no network access, no exceptions.</span>
+            <span class="security-desc"
+              >Plugins are isolated in a sandbox. They can read your save file and nothing else — no
+              filesystem access, no network access, no exceptions.</span
+            >
           </div>
         </div>
         <div class="security-item">
           <span class="security-check">+</span>
           <div>
             <span class="security-label">Tamper-Proof Plugins</span>
-            <span class="security-desc">Every plugin is cryptographically signed and verified before it runs. If anything's been modified, it won't load.</span>
+            <span class="security-desc"
+              >Every plugin is cryptographically signed and verified before it runs. If anything's
+              been modified, it won't load.</span
+            >
           </div>
         </div>
         <div class="security-item">
           <span class="security-check">+</span>
           <div>
             <span class="security-label">Read-Only by Design</span>
-            <span class="security-desc">Savecraft can never modify your save files. It watches and reads, that's it. Open source — inspect it yourself.</span>
+            <span class="security-desc"
+              >Savecraft can never modify your save files. It watches and reads, that's it. Open
+              source — inspect it yourself.</span
+            >
           </div>
         </div>
         <div class="security-item">
           <span class="security-check">+</span>
           <div>
             <span class="security-label">AI Sees Data, Not Files</span>
-            <span class="security-desc">Your AI gets game state — items, skills, progress — never your local files or folder paths.</span>
+            <span class="security-desc"
+              >Your AI gets game state — items, skills, progress — never your local files or folder
+              paths.</span
+            >
           </div>
         </div>
       </div>
@@ -432,13 +487,23 @@
       <div class="section-eyebrow">COMMUNITY</div>
       <h2 class="section-title">Join us</h2>
       <p class="section-sub">
-        Savecraft is open source and community-driven. Come hang out, request games, report bugs, or just talk builds.
+        Savecraft is open source and community-driven. Come hang out, request games, report bugs, or
+        just talk builds.
       </p>
 
       <div class="community-grid">
-        <a href="https://discord.gg/YnC8stpEmF" class="community-card" target="_blank" rel="noopener">
+        <a
+          href="https://discord.gg/YnC8stpEmF"
+          class="community-card"
+          target="_blank"
+          rel="noopener"
+        >
           <div class="community-icon discord-icon">
-            <svg width="28" height="22" viewBox="0 0 71 55" fill="currentColor"><path d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.2a58.9 58.9 0 0017.7 9 .2.2 0 00.3-.1 42.1 42.1 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.7.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.7.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1 58.7 58.7 0 0017.7-9 .2.2 0 00.1-.2c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.7 7.1-6.3 7.1z"/></svg>
+            <svg width="28" height="22" viewBox="0 0 71 55" fill="currentColor"
+              ><path
+                d="M60.1 4.9A58.5 58.5 0 0045.4.2a.2.2 0 00-.2.1 40.8 40.8 0 00-1.8 3.7 54 54 0 00-16.2 0A37.4 37.4 0 0025.4.3a.2.2 0 00-.2-.1A58.4 58.4 0 0010.5 4.9a.2.2 0 00-.1.1C1.5 18.7-.9 32.2.3 45.5v.2a58.9 58.9 0 0017.7 9 .2.2 0 00.3-.1 42.1 42.1 0 003.6-5.9.2.2 0 00-.1-.3 38.8 38.8 0 01-5.5-2.7.2.2 0 01 0-.4l1.1-.9a.2.2 0 01.2 0 42 42 0 0035.6 0 .2.2 0 01.2 0l1.1.9a.2.2 0 010 .4 36.4 36.4 0 01-5.5 2.7.2.2 0 00-.1.3 47.2 47.2 0 003.6 5.9.2.2 0 00.3.1 58.7 58.7 0 0017.7-9 .2.2 0 00.1-.2c1.4-15-2.3-28.4-9.8-40.1a.2.2 0 00-.1-.1zM23.7 37.3c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.8 7.1-6.3 7.1zm23.3 0c-3.5 0-6.3-3.2-6.3-7.1s2.8-7.1 6.3-7.1 6.4 3.2 6.3 7.1c0 3.9-2.7 7.1-6.3 7.1z"
+              /></svg
+            >
           </div>
           <div class="community-info">
             <span class="community-name">Discord</span>
@@ -447,9 +512,18 @@
           <span class="community-arrow">&rarr;</span>
         </a>
 
-        <a href="https://github.com/joshsymonds/savecraft.gg" class="community-card" target="_blank" rel="noopener">
+        <a
+          href="https://github.com/joshsymonds/savecraft.gg"
+          class="community-card"
+          target="_blank"
+          rel="noopener"
+        >
           <div class="community-icon github-icon">
-            <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+            <svg width="24" height="24" viewBox="0 0 16 16" fill="currentColor"
+              ><path
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"
+              /></svg
+            >
           </div>
           <div class="community-info">
             <span class="community-name">GitHub</span>
@@ -479,8 +553,15 @@
   <footer class="footer">
     <span class="footer-text">savecraft.gg — an Autotome.ai project</span>
     <div class="footer-links">
-      <a href="https://discord.gg/YnC8stpEmF" class="footer-link" target="_blank" rel="noopener">DISCORD</a>
-      <a href="https://github.com/joshsymonds/savecraft.gg" class="footer-link" target="_blank" rel="noopener">GITHUB</a>
+      <a href="https://discord.gg/YnC8stpEmF" class="footer-link" target="_blank" rel="noopener"
+        >DISCORD</a
+      >
+      <a
+        href="https://github.com/joshsymonds/savecraft.gg"
+        class="footer-link"
+        target="_blank"
+        rel="noopener">GITHUB</a
+      >
     </div>
   </footer>
 </div>
@@ -1195,7 +1276,9 @@
     border: 1px solid var(--color-border);
     border-radius: 4px;
     text-decoration: none;
-    transition: border-color 0.3s, transform 0.2s;
+    transition:
+      border-color 0.3s,
+      transform 0.2s;
   }
 
   .community-card:hover {
@@ -1247,7 +1330,9 @@
   .community-arrow {
     font-size: 20px;
     color: var(--color-text-muted);
-    transition: color 0.2s, transform 0.2s;
+    transition:
+      color 0.2s,
+      transform 0.2s;
   }
 
   .community-card:hover .community-arrow {

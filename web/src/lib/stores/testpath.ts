@@ -1,5 +1,5 @@
 import type { WireTestPathResult } from "$lib/types/wire";
-import { writable, type Readable } from "svelte/store";
+import { type Readable, writable } from "svelte/store";
 
 const { subscribe, set } = writable<WireTestPathResult | null>(null);
 

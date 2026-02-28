@@ -1,7 +1,7 @@
 import type { ActivityEventType } from "$lib/types/activity";
 import type { WireMessage, WireMessageType } from "$lib/types/wire";
 import { getMessageType } from "$lib/types/wire";
-import { writable, type Readable } from "svelte/store";
+import { type Readable, writable } from "svelte/store";
 
 export interface ActivityEventData {
   id: string;
@@ -33,6 +33,7 @@ const TYPE_MAP: Partial<Record<WireMessageType, ActivityEventType>> = {
   pushCompleted: "push_completed",
   pushFailed: "push_failed",
   pluginUpdated: "plugin_updated",
+  pluginDownloadFailed: "plugin_download_failed",
   gamesDiscovered: "games_discovered",
 };
 
@@ -40,8 +41,8 @@ function formatBytes(bytes: number | string | undefined): string {
   if (bytes === undefined) return "";
   const n = typeof bytes === "string" ? Number.parseInt(bytes, 10) : bytes;
   if (Number.isNaN(n)) return "";
-  if (n < 1024) return `${n}B`;
-  if (n < 1024 * 1024) return `${Math.round(n / 1024)}KB`;
+  if (n < 1024) return `${String(n)}B`;
+  if (n < 1024 * 1024) return `${String(Math.round(n / 1024))}KB`;
   return `${(n / (1024 * 1024)).toFixed(1)}MB`;
 }
 
@@ -49,137 +50,223 @@ function relativeTime(iso: string | undefined): string {
   if (!iso) return "now";
   const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
   if (seconds < 5) return "now";
-  if (seconds < 60) return `${seconds}s ago`;
+  if (seconds < 60) return `${String(seconds)}s ago`;
   const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${minutes}m ago`;
+  if (minutes < 60) return `${String(minutes)}m ago`;
   const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
+  if (hours < 24) return `${String(hours)}h ago`;
   const days = Math.floor(hours / 24);
-  return `${days}d ago`;
+  return `${String(days)}d ago`;
 }
+
+// --- Per-type event builders ---
+
+interface EventContent {
+  message: string;
+  detail?: string;
+}
+
+type EventBuilder = (msg: WireMessage) => EventContent | null;
+
+function buildDaemonOnline(msg: WireMessage): EventContent | null {
+  const d = msg.daemonOnline;
+  if (!d) return null;
+  return {
+    message: `${d.deviceId ?? "Device"} connected`,
+    detail: d.version ?? undefined,
+  };
+}
+
+function buildDaemonOffline(msg: WireMessage): EventContent | null {
+  const d = msg.daemonOffline;
+  if (!d) return null;
+  return {
+    message: `${d.deviceId ?? "Device"} disconnected`,
+  };
+}
+
+function buildScanStarted(msg: WireMessage): EventContent | null {
+  const s = msg.scanStarted;
+  if (!s) return null;
+  return {
+    message: `Scanning ${s.gameId ?? "game"}`,
+    detail: s.path ?? undefined,
+  };
+}
+
+function buildScanCompleted(msg: WireMessage): EventContent | null {
+  const s = msg.scanCompleted;
+  if (!s) return null;
+  return {
+    message: `Scan complete: ${s.gameId ?? "game"}`,
+    detail: s.filesFound === undefined ? undefined : `${String(s.filesFound)} files`,
+  };
+}
+
+function buildGameDetected(msg: WireMessage): EventContent | null {
+  const g = msg.gameDetected;
+  if (!g) return null;
+  return {
+    message: `Found ${g.gameId ?? "game"}`,
+    detail: g.saveCount === undefined ? undefined : `${String(g.saveCount)} save files`,
+  };
+}
+
+function buildGameNotFound(msg: WireMessage): EventContent | null {
+  const g = msg.gameNotFound;
+  if (!g) return null;
+  return {
+    message: `${g.gameId ?? "Game"} not found`,
+  };
+}
+
+function buildWatching(msg: WireMessage): EventContent | null {
+  const w = msg.watching;
+  if (!w) return null;
+  return {
+    message: `Watching ${w.gameId ?? "game"} saves`,
+    detail: w.path ?? undefined,
+  };
+}
+
+function buildParseStarted(msg: WireMessage): EventContent | null {
+  const p = msg.parseStarted;
+  if (!p) return null;
+  return {
+    message: `Parsing ${p.fileName ?? "file"}`,
+    detail: p.gameId ?? undefined,
+  };
+}
+
+function buildPluginStatus(msg: WireMessage): EventContent | null {
+  const p = msg.pluginStatus;
+  if (!p) return null;
+  return {
+    message: p.message ?? "Plugin status",
+    detail: p.fileName ?? undefined,
+  };
+}
+
+function buildParseCompleted(msg: WireMessage): EventContent | null {
+  const p = msg.parseCompleted;
+  if (!p) return null;
+  return {
+    message: p.summary ?? `Parsed ${p.fileName ?? "file"}`,
+    detail:
+      [
+        p.sectionsCount === undefined ? null : `${String(p.sectionsCount)} sections`,
+        p.sizeBytes ? formatBytes(p.sizeBytes) : null,
+      ]
+        .filter(Boolean)
+        .join(" · ") || undefined,
+  };
+}
+
+function buildParseFailed(msg: WireMessage): EventContent | null {
+  const p = msg.parseFailed;
+  if (!p) return null;
+  return {
+    message: `${p.fileName ?? "File"} — ${p.message ?? "parse error"}`,
+  };
+}
+
+function buildPushStarted(msg: WireMessage): EventContent | null {
+  const p = msg.pushStarted;
+  if (!p) return null;
+  return {
+    message: `Uploading ${p.summary ?? "save"}`,
+    detail: p.sizeBytes ? formatBytes(p.sizeBytes) : undefined,
+  };
+}
+
+function buildPushCompleted(msg: WireMessage): EventContent | null {
+  const p = msg.pushCompleted;
+  if (!p) return null;
+  return {
+    message: p.summary ?? "Upload complete",
+    detail:
+      [
+        p.snapshotSizeBytes ? formatBytes(p.snapshotSizeBytes) : null,
+        p.durationMs === undefined ? null : `${String(p.durationMs)}ms`,
+      ]
+        .filter(Boolean)
+        .join(" · ") || undefined,
+  };
+}
+
+function buildPushFailed(msg: WireMessage): EventContent | null {
+  const p = msg.pushFailed;
+  if (!p) return null;
+  return {
+    message: p.message ?? "Upload failed",
+    detail: p.willRetry ? "will retry" : undefined,
+  };
+}
+
+function buildPluginUpdated(msg: WireMessage): EventContent | null {
+  const p = msg.pluginUpdated;
+  if (!p) return null;
+  return {
+    message: `${p.gameId ?? "Plugin"} updated`,
+    detail: p.version ? `v${p.version}` : undefined,
+  };
+}
+
+function buildPluginDownloadFailed(msg: WireMessage): EventContent | null {
+  const p = msg.pluginDownloadFailed;
+  if (!p) return null;
+  return {
+    message: `${p.gameId ?? "Plugin"} download failed`,
+    detail: p.message ?? undefined,
+  };
+}
+
+function buildGamesDiscovered(msg: WireMessage): EventContent | null {
+  const g = msg.gamesDiscovered;
+  if (!g) return null;
+  const count = g.games?.length ?? 0;
+  return {
+    message: `Discovered ${String(count)} game${count === 1 ? "" : "s"}`,
+  };
+}
+
+const EVENT_BUILDERS: Partial<Record<WireMessageType, EventBuilder>> = {
+  daemonOnline: buildDaemonOnline,
+  daemonOffline: buildDaemonOffline,
+  scanStarted: buildScanStarted,
+  scanCompleted: buildScanCompleted,
+  gameDetected: buildGameDetected,
+  gameNotFound: buildGameNotFound,
+  watching: buildWatching,
+  parseStarted: buildParseStarted,
+  pluginStatus: buildPluginStatus,
+  parseCompleted: buildParseCompleted,
+  parseFailed: buildParseFailed,
+  pushStarted: buildPushStarted,
+  pushCompleted: buildPushCompleted,
+  pushFailed: buildPushFailed,
+  pluginUpdated: buildPluginUpdated,
+  pluginDownloadFailed: buildPluginDownloadFailed,
+  gamesDiscovered: buildGamesDiscovered,
+  deviceState: () => null,
+  testPathResult: () => null,
+};
 
 function buildEvent(type: WireMessageType, msg: WireMessage): ActivityEventData | null {
   const activityType = TYPE_MAP[type];
   if (!activityType) return null;
 
-  let message = "";
-  let detail: string | undefined;
+  const builder = EVENT_BUILDERS[type];
+  if (!builder) return null;
 
-  switch (type) {
-    case "daemonOnline": {
-      const d = msg.daemonOnline!;
-      message = `${d.deviceId ?? "Device"} connected`;
-      detail = d.version ?? undefined;
-      break;
-    }
-    case "daemonOffline": {
-      const d = msg.daemonOffline!;
-      message = `${d.deviceId ?? "Device"} disconnected`;
-      break;
-    }
-    case "scanStarted": {
-      const s = msg.scanStarted!;
-      message = `Scanning ${s.gameId ?? "game"}`;
-      detail = s.path ?? undefined;
-      break;
-    }
-    case "scanCompleted": {
-      const s = msg.scanCompleted!;
-      message = `Scan complete: ${s.gameId ?? "game"}`;
-      detail = s.filesFound !== undefined ? `${s.filesFound} files` : undefined;
-      break;
-    }
-    case "gameDetected": {
-      const g = msg.gameDetected!;
-      message = `Found ${g.gameId ?? "game"}`;
-      detail = g.saveCount !== undefined ? `${g.saveCount} save files` : undefined;
-      break;
-    }
-    case "gameNotFound": {
-      const g = msg.gameNotFound!;
-      message = `${g.gameId ?? "Game"} not found`;
-      break;
-    }
-    case "watching": {
-      const w = msg.watching!;
-      message = `Watching ${w.gameId ?? "game"} saves`;
-      detail = w.path ?? undefined;
-      break;
-    }
-    case "parseStarted": {
-      const p = msg.parseStarted!;
-      message = `Parsing ${p.fileName ?? "file"}`;
-      detail = p.gameId ?? undefined;
-      break;
-    }
-    case "pluginStatus": {
-      const p = msg.pluginStatus!;
-      message = p.message ?? "Plugin status";
-      detail = p.fileName ?? undefined;
-      break;
-    }
-    case "parseCompleted": {
-      const p = msg.parseCompleted!;
-      message = p.summary ?? `Parsed ${p.fileName ?? "file"}`;
-      detail =
-        [
-          p.sectionsCount !== undefined ? `${p.sectionsCount} sections` : null,
-          p.sizeBytes ? formatBytes(p.sizeBytes) : null,
-        ]
-          .filter(Boolean)
-          .join(" · ") || undefined;
-      break;
-    }
-    case "parseFailed": {
-      const p = msg.parseFailed!;
-      message = `${p.fileName ?? "File"} — ${p.message ?? "parse error"}`;
-      break;
-    }
-    case "pushStarted": {
-      const p = msg.pushStarted!;
-      message = `Uploading ${p.summary ?? "save"}`;
-      detail = p.sizeBytes ? formatBytes(p.sizeBytes) : undefined;
-      break;
-    }
-    case "pushCompleted": {
-      const p = msg.pushCompleted!;
-      message = p.summary ?? "Upload complete";
-      detail =
-        [
-          p.snapshotSizeBytes ? formatBytes(p.snapshotSizeBytes) : null,
-          p.durationMs !== undefined ? `${p.durationMs}ms` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ") || undefined;
-      break;
-    }
-    case "pushFailed": {
-      const p = msg.pushFailed!;
-      message = p.message ?? "Upload failed";
-      detail = p.willRetry ? "will retry" : undefined;
-      break;
-    }
-    case "pluginUpdated": {
-      const p = msg.pluginUpdated!;
-      message = `${p.gameId ?? "Plugin"} updated`;
-      detail = p.version ? `v${p.version}` : undefined;
-      break;
-    }
-    case "gamesDiscovered": {
-      const g = msg.gamesDiscovered!;
-      const count = g.games?.length ?? 0;
-      message = `Discovered ${count} game${count !== 1 ? "s" : ""}`;
-      break;
-    }
-    default:
-      return null;
-  }
+  const result = builder(msg);
+  if (!result) return null;
 
   return {
     id: crypto.randomUUID(),
     type: activityType,
-    message,
-    detail,
+    message: result.message,
+    detail: result.detail,
     time: relativeTime(msg._ts),
   };
 }

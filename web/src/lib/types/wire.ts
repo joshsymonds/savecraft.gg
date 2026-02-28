@@ -114,6 +114,11 @@ export interface WirePluginUpdated {
   version?: string;
 }
 
+export interface WirePluginDownloadFailed {
+  gameId?: string;
+  message?: string;
+}
+
 // --- State: server → UI ---
 
 export interface WireSaveInfo {
@@ -192,6 +197,7 @@ export interface WirePayload {
   pushCompleted?: WirePushCompleted;
   pushFailed?: WirePushFailed;
   pluginUpdated?: WirePluginUpdated;
+  pluginDownloadFailed?: WirePluginDownloadFailed;
   deviceState?: WireDeviceState;
   testPathResult?: WireTestPathResult;
   gamesDiscovered?: WireGamesDiscovered;
@@ -217,6 +223,7 @@ const MESSAGE_KEYS = [
   "pushCompleted",
   "pushFailed",
   "pluginUpdated",
+  "pluginDownloadFailed",
   "testPathResult",
   "gamesDiscovered",
 ] as const satisfies readonly WireMessageType[];

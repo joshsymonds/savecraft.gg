@@ -4,13 +4,13 @@
 -->
 <script lang="ts">
   import { Panel } from "$lib/components";
-  import { saves, savesLoading, savesError, loadSaves } from "$lib/stores/saves";
+  import { loadSaves, saves, savesError, savesLoading } from "$lib/stores/saves";
   import type { Save } from "$lib/types/save";
-  import { SvelteMap } from "svelte/reactivity";
   import { onMount } from "svelte";
+  import { SvelteMap } from "svelte/reactivity";
 
   onMount(() => {
-    loadSaves();
+    void loadSaves();
   });
 
   /** Group saves by gameName, preserving insertion order. */
