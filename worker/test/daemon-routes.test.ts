@@ -24,7 +24,7 @@ describe("Daemon routes", () => {
 
     const body = await resp.json<typeof manifest>();
     expect(body.version).toBe("0.2.0");
-    expect(body.platforms["linux-amd64"]?.sha256).toBe("abc123");
+    expect(body.platforms["linux-amd64"].sha256).toBe("abc123");
   });
 
   it("GET /api/v1/daemon/manifest returns 404 when no manifest", async () => {

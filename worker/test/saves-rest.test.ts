@@ -5,11 +5,7 @@ import { cleanAll } from "./helpers";
 
 const TEST_USER = "saves-rest-user";
 
-function pushSave(
-  saveName: string,
-  summary: string,
-  parsedAt: string,
-): Request {
+function pushSave(saveName: string, summary: string, parsedAt: string): Request {
   return new Request("https://test-host/api/v1/push", {
     method: "POST",
     headers: {
@@ -57,23 +53,64 @@ describe("Saves REST API", () => {
     expect(body.saves).toEqual([]);
   });
 
-  it("returns CORS headers", async () => {
-    const resp = await SELF.fetch(getSaves());
-    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  it("reflects allowed origin in CORS headers", async () => {
+    const resp = await SELF.fetch(
+      new Request("https://test-host/api/v1/saves", {
+        headers: {
+          Authorization: `Bearer ${TEST_USER}`,
+          Origin: "https://savecraft.gg",
+        },
+      }),
+    );
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("https://savecraft.gg");
   });
 
-  it("handles OPTIONS preflight", async () => {
+  it("omits CORS headers for disallowed origin", async () => {
     const resp = await SELF.fetch(
-      new Request("https://test-host/api/v1/saves", { method: "OPTIONS" }),
+      new Request("https://test-host/api/v1/saves", {
+        headers: {
+          Authorization: `Bearer ${TEST_USER}`,
+          Origin: "https://evil.com",
+        },
+      }),
+    );
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+
+  it("omits CORS headers when no Origin header", async () => {
+    const resp = await SELF.fetch(
+      new Request("https://test-host/api/v1/saves", {
+        headers: { Authorization: `Bearer ${TEST_USER}` },
+      }),
+    );
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+
+  it("handles OPTIONS preflight for allowed origin", async () => {
+    const resp = await SELF.fetch(
+      new Request("https://test-host/api/v1/saves", {
+        method: "OPTIONS",
+        headers: { Origin: "https://savecraft.gg" },
+      }),
     );
     expect(resp.status).toBe(204);
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("https://savecraft.gg");
     expect(resp.headers.get("Access-Control-Allow-Methods")).toContain("GET");
   });
 
-  it("requires authentication", async () => {
+  it("returns empty OPTIONS for disallowed origin", async () => {
     const resp = await SELF.fetch(
-      new Request("https://test-host/api/v1/saves"),
+      new Request("https://test-host/api/v1/saves", {
+        method: "OPTIONS",
+        headers: { Origin: "https://evil.com" },
+      }),
     );
+    expect(resp.status).toBe(204);
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBeNull();
+  });
+
+  it("requires authentication", async () => {
+    const resp = await SELF.fetch(new Request("https://test-host/api/v1/saves"));
     expect(resp.status).toBe(401);
   });
 
@@ -86,7 +123,13 @@ describe("Saves REST API", () => {
     expect(resp.status).toBe(200);
 
     const body = await resp.json<{
-      saves: { id: string; game_id: string; save_name: string; summary: string; last_updated: string }[];
+      saves: {
+        id: string;
+        game_id: string;
+        save_name: string;
+        summary: string;
+        last_updated: string;
+      }[];
     }>();
 
     expect(body.saves).toHaveLength(2);
@@ -127,6 +170,18 @@ describe("Saves REST API", () => {
   it("returns 404 for unknown save", async () => {
     const resp = await SELF.fetch(getSave("nonexistent-uuid"));
     expect(resp.status).toBe(404);
+  });
+
+  it("rejects save ID with path traversal pattern", async () => {
+    const resp = await SELF.fetch(getSave("..evil"));
+    expect(resp.status).toBe(400);
+    const body = await resp.json<{ error: string }>();
+    expect(body.error).toBe("Invalid save_id");
+  });
+
+  it("rejects overlong save ID", async () => {
+    const resp = await SELF.fetch(getSave("a".repeat(257)));
+    expect(resp.status).toBe(400);
   });
 
   it("isolates saves between users", async () => {

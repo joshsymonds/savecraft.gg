@@ -576,7 +576,11 @@ describe("DaemonHub", () => {
     const daemonWs = await connectWs("/ws/daemon", userUuid);
 
     // Send daemonOnline with an older version
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" } }));
+    daemonWs.send(
+      JSON.stringify({
+        daemonOnline: { deviceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" },
+      }),
+    );
 
     // Should receive configUpdate first (from maybePushConfig)
     const msg1 = await waitForMessage<Record<string, unknown>>(daemonWs);
@@ -594,7 +598,7 @@ describe("DaemonHub", () => {
     }
 
     expect(updateMsg).toBeDefined();
-    const update = (updateMsg as Record<string, unknown>).daemonUpdateAvailable as {
+    const update = updateMsg!.daemonUpdateAvailable as {
       version: string;
       url: string;
       sha256: string;
@@ -626,7 +630,11 @@ describe("DaemonHub", () => {
     const daemonWs = await connectWs("/ws/daemon", userUuid);
 
     // Send daemonOnline with current version
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" } }));
+    daemonWs.send(
+      JSON.stringify({
+        daemonOnline: { deviceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" },
+      }),
+    );
 
     // Should receive configUpdate
     const msg1 = await waitForMessage<Record<string, unknown>>(daemonWs);

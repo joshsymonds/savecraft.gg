@@ -109,10 +109,14 @@ export async function getSave(
   saveId: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+  if (!save)
+    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const state = await loadLatestSnapshot(snapshots, userUuid, saveId);
-  if (!state) return errorResult("No snapshot data available for this save. The daemon may not have pushed data yet.");
+  if (!state)
+    return errorResult(
+      "No snapshot data available for this save. The daemon may not have pushed data yet.",
+    );
 
   const sections = Object.entries(state.sections).map(([name, section]) => ({
     name,
@@ -182,7 +186,9 @@ function fetchMultipleSections(
     }
   }
   if (missing.length > 0 && Object.keys(result).length === 0 && oversized.length === 0) {
-    return errorResult(`None of the requested sections were found: ${missing.join(", ")}. Call get_save to see available section names.`);
+    return errorResult(
+      `None of the requested sections were found: ${missing.join(", ")}. Call get_save to see available section names.`,
+    );
   }
   const response: Record<string, unknown> = { save_id: saveId, sections: result };
   if (missing.length > 0) response.missing = missing;
@@ -199,7 +205,9 @@ function fetchSingleSection(
 ): ToolResult {
   const sectionData = allSections[name];
   if (!sectionData) {
-    return errorResult(`Section '${name}' not found in this save. Call get_save to see available section names.`);
+    return errorResult(
+      `Section '${name}' not found in this save. Call get_save to see available section names.`,
+    );
   }
 
   const json = JSON.stringify(sectionData.data);
@@ -212,7 +220,11 @@ function fetchSingleSection(
     );
   }
 
-  const result: Record<string, unknown> = { save_id: saveId, section: name, data: sectionData.data };
+  const result: Record<string, unknown> = {
+    save_id: saveId,
+    section: name,
+    data: sectionData.data,
+  };
   if (timestamp) result.timestamp = timestamp;
   return textResult(result);
 }
@@ -226,11 +238,14 @@ export async function getSection(
   timestamp?: string,
 ): Promise<ToolResult> {
   if (sections.length === 0) {
-    return errorResult("Provide at least one section name in the 'sections' array. Call get_save to see available section names.");
+    return errorResult(
+      "Provide at least one section name in the 'sections' array. Call get_save to see available section names.",
+    );
   }
 
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+  if (!save)
+    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const state = timestamp
     ? await loadSnapshotAtTimestamp(snapshots, userUuid, saveId, timestamp)
@@ -260,8 +275,8 @@ function parsePeriod(period: string): number | null {
     // Named shortcuts
     const shortcuts: Record<string, number> = {
       "last session": 24 * 60 * 60 * 1000,
-      "today": 24 * 60 * 60 * 1000,
-      "yesterday": 48 * 60 * 60 * 1000,
+      today: 24 * 60 * 60 * 1000,
+      yesterday: 48 * 60 * 60 * 1000,
       "this week": 7 * 24 * 60 * 60 * 1000,
       "last week": 14 * 24 * 60 * 60 * 1000,
     };
@@ -273,10 +288,17 @@ function parsePeriod(period: string): number | null {
 
   const unit = match[2] ?? "";
   const unitMs: Record<string, number> = {
-    hour: 3_600_000, hr: 3_600_000, h: 3_600_000,
-    day: 86_400_000, d: 86_400_000,
-    week: 604_800_000, wk: 604_800_000, w: 604_800_000,
-    month: 2_592_000_000, mo: 2_592_000_000, m: 2_592_000_000,
+    hour: 3_600_000,
+    hr: 3_600_000,
+    h: 3_600_000,
+    day: 86_400_000,
+    d: 86_400_000,
+    week: 604_800_000,
+    wk: 604_800_000,
+    w: 604_800_000,
+    month: 2_592_000_000,
+    mo: 2_592_000_000,
+    m: 2_592_000_000,
   };
 
   return amount * (unitMs[unit] ?? 0);
@@ -345,7 +367,8 @@ export async function getSectionDiff(
   period: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+  if (!save)
+    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const periodMs = parsePeriod(period);
   if (!periodMs) {
@@ -387,10 +410,15 @@ export async function getSectionDiff(
 
   const fromSection = fromState.sections[section];
   if (!fromSection)
-    return errorResult(`Section '${section}' not found in older snapshot. Call get_save to see available section names.`);
+    return errorResult(
+      `Section '${section}' not found in older snapshot. Call get_save to see available section names.`,
+    );
 
   const toSection = toState.sections[section];
-  if (!toSection) return errorResult(`Section '${section}' not found in newer snapshot. Call get_save to see available section names.`);
+  if (!toSection)
+    return errorResult(
+      `Section '${section}' not found in newer snapshot. Call get_save to see available section names.`,
+    );
 
   const changes = diffObjects(fromSection.data, toSection.data, "");
 
@@ -481,14 +509,18 @@ export async function getNote(
   noteId: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+  if (!save)
+    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const note = await db
     .prepare("SELECT * FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
     .bind(noteId, saveId, userUuid)
     .first<NoteRow>();
 
-  if (!note) return errorResult("Note not found. Call get_save to see available notes and their IDs for this save.");
+  if (!note)
+    return errorResult(
+      "Note not found. Call get_save to see available notes and their IDs for this save.",
+    );
 
   return textResult({
     note_id: note.note_id,
@@ -506,11 +538,14 @@ export async function createNote(
   content: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+  if (!save)
+    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   // Check 50KB limit
   if (new TextEncoder().encode(content).length > 50 * 1024) {
-    return errorResult("Content exceeds the 50KB limit. Try splitting into multiple notes or trimming the content.");
+    return errorResult(
+      "Content exceeds the 50KB limit. Try splitting into multiple notes or trimming the content.",
+    );
   }
 
   // Check 10 notes per save limit
@@ -520,7 +555,9 @@ export async function createNote(
     .first<{ cnt: number }>();
 
   if (count && count.cnt >= 10) {
-    return errorResult("This save already has 10 notes (the maximum). Delete an existing note first using delete_note.");
+    return errorResult(
+      "This save already has 10 notes (the maximum). Delete an existing note first using delete_note.",
+    );
   }
 
   const noteId = crypto.randomUUID();
@@ -546,17 +583,23 @@ export async function updateNote(
   title?: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+  if (!save)
+    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const existing = await db
     .prepare("SELECT note_id FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
     .bind(noteId, saveId, userUuid)
     .first<NoteRow>();
 
-  if (!existing) return errorResult("Note not found. Call get_save to see available notes and their IDs for this save.");
+  if (!existing)
+    return errorResult(
+      "Note not found. Call get_save to see available notes and their IDs for this save.",
+    );
 
   if (content !== undefined && new TextEncoder().encode(content).length > 50 * 1024) {
-    return errorResult("Content exceeds the 50KB limit. Try splitting into multiple notes or trimming the content.");
+    return errorResult(
+      "Content exceeds the 50KB limit. Try splitting into multiple notes or trimming the content.",
+    );
   }
 
   const updates: string[] = [];
@@ -588,15 +631,7 @@ export async function updateNote(
     .bind(noteId)
     .first<{ title: string; content: string }>();
   if (updated) {
-    await indexNote(
-      db,
-      userUuid,
-      saveId,
-      save.save_name,
-      noteId,
-      updated.title,
-      updated.content,
-    );
+    await indexNote(db, userUuid, saveId, save.save_name, noteId, updated.title, updated.content);
   }
 
   return textResult({ note_id: noteId });
@@ -609,14 +644,18 @@ export async function deleteNote(
   noteId: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+  if (!save)
+    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const existing = await db
     .prepare("SELECT note_id FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
     .bind(noteId, saveId, userUuid)
     .first<NoteRow>();
 
-  if (!existing) return errorResult("Note not found. Call get_save to see available notes and their IDs for this save.");
+  if (!existing)
+    return errorResult(
+      "Note not found. Call get_save to see available notes and their IDs for this save.",
+    );
 
   await db
     .prepare("DELETE FROM notes WHERE note_id = ? AND user_uuid = ?")
@@ -638,7 +677,8 @@ export async function refreshSave(
   saveId: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save) return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+  if (!save)
+    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
 
   const id = daemonHub.idFromName(userUuid);
   const stub = daemonHub.get(id);
@@ -683,7 +723,9 @@ export async function searchSaves(
   saveId?: string,
 ): Promise<ToolResult> {
   if (!query.trim()) {
-    return errorResult("A search query is required. Provide keywords to search across saves and notes.");
+    return errorResult(
+      "A search query is required. Provide keywords to search across saves and notes.",
+    );
   }
 
   let sql: string;
@@ -743,14 +785,7 @@ export async function indexSaveSections(
       .prepare(
         "INSERT INTO search_index (user_uuid, save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, 'section', ?, ?, ?)",
       )
-      .bind(
-        userUuid,
-        saveId,
-        saveName,
-        name,
-        section.description,
-        JSON.stringify(section.data),
-      )
+      .bind(userUuid, saveId, saveName, name, section.description, JSON.stringify(section.data))
       .run();
   }
 }

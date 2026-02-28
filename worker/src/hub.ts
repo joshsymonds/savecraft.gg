@@ -67,13 +67,16 @@ function getConnTag(tags: string[]): string | undefined {
  * Compare two semver-like version strings (e.g. "0.2.0" > "0.1.0").
  * Returns true if `latest` is strictly newer than `current`.
  */
+function parseSemver(v: string): number[] {
+  return v.split(".").map(Number);
+}
+
 function isNewerVersion(latest: string, current: string): boolean {
-  const parse = (v: string): number[] => v.split(".").map(Number);
-  const l = parse(latest);
-  const c = parse(current);
-  for (let i = 0; i < Math.max(l.length, c.length); i++) {
-    const lp = l[i] ?? 0;
-    const cp = c[i] ?? 0;
+  const l = parseSemver(latest);
+  const c = parseSemver(current);
+  for (let index = 0; index < Math.max(l.length, c.length); index++) {
+    const lp = l[index] ?? 0;
+    const cp = c[index] ?? 0;
     if (lp > cp) return true;
     if (lp < cp) return false;
   }
@@ -416,10 +419,12 @@ export class DaemonHub extends DurableObject<Env> {
 
       const events = rows.results.toReversed();
       for (const row of events) {
-        ws.send(this.injectMetadata(row.event_data, {
-          _ts: row.created_at,
-          _deviceId: row.device_id,
-        }));
+        ws.send(
+          this.injectMetadata(row.event_data, {
+            _ts: row.created_at,
+            _deviceId: row.device_id,
+          }),
+        );
       }
     } catch {
       // Don't let cold start failures break the connection
@@ -444,10 +449,10 @@ export class DaemonHub extends DurableObject<Env> {
       const { version: daemonVersion, platform } = rpc.payload.daemonOnline;
       if (!daemonVersion || !platform) return;
 
-      const manifestObj = await this.env.PLUGINS.get("daemon/manifest.json");
-      if (!manifestObj) return;
+      const manifestObject = await this.env.PLUGINS.get("daemon/manifest.json");
+      if (!manifestObject) return;
 
-      const manifest = await manifestObj.json<{
+      const manifest = await manifestObject.json<{
         version: string;
         platforms: Record<string, { url: string; sha256: string; signatureUrl: string }>;
       }>();
@@ -519,10 +524,7 @@ export class DaemonHub extends DurableObject<Env> {
     return Response.json({ sent: true, daemon_count: daemonSockets.length });
   }
 
-  private injectMetadata(
-    json: string,
-    fields: Record<string, string | undefined>,
-  ): string {
+  private injectMetadata(json: string, fields: Record<string, string | undefined>): string {
     try {
       const parsed = JSON.parse(json) as Record<string, unknown>;
       for (const [key, value] of Object.entries(fields)) {

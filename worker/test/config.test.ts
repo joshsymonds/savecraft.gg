@@ -169,10 +169,7 @@ describe("Device Config API", () => {
     expect(getResp.status).toBe(200);
 
     const body = await getResp.json<{
-      games: Record<
-        string,
-        { savePath: string; enabled: boolean; fileExtensions: string[] }
-      >;
+      games: Record<string, { savePath: string; enabled: boolean; fileExtensions: string[] }>;
     }>();
 
     expect(body.games.d2r).toEqual({

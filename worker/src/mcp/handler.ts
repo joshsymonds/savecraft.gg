@@ -94,7 +94,12 @@ const TOOLS: ToolDefinition[] = [
     description:
       "List all of the player's saves across all games. Start here to see what characters and games are available. Returns each save's game, character name, a short summary (e.g. 'Hammerdin, Level 89 Paladin'), and when it was last updated. Use the returned save_id to call other tools.",
     inputSchema: { type: "object", properties: {} },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   {
     name: "get_save",
@@ -108,7 +113,12 @@ const TOOLS: ToolDefinition[] = [
       },
       required: ["save_id"],
     },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   // ── Reading save data ─────────────────────────────────────
   {
@@ -120,15 +130,26 @@ const TOOLS: ToolDefinition[] = [
       type: "object",
       properties: {
         save_id: { type: "string", description: "Save UUID returned by list_saves" },
-        sections: { type: "array", description: "Section names to fetch (from get_save's section listing). Pass one name or several.", items: { type: "string" } },
+        sections: {
+          type: "array",
+          description:
+            "Section names to fetch (from get_save's section listing). Pass one name or several.",
+          items: { type: "string" },
+        },
         timestamp: {
           type: "string",
-          description: "ISO 8601 timestamp to fetch a historical snapshot instead of the latest data. Timestamps are visible in list_saves last_updated field.",
+          description:
+            "ISO 8601 timestamp to fetch a historical snapshot instead of the latest data. Timestamps are visible in list_saves last_updated field.",
         },
       },
       required: ["save_id", "sections"],
     },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   {
     name: "get_section_diff",
@@ -140,11 +161,20 @@ const TOOLS: ToolDefinition[] = [
       properties: {
         save_id: { type: "string", description: "Save UUID returned by list_saves" },
         section: { type: "string", description: "Section name to compare (from get_save)" },
-        period: { type: "string", description: 'How far back to compare. Examples: "24 hours", "3 days", "1 week", "last session", "this week".' },
+        period: {
+          type: "string",
+          description:
+            'How far back to compare. Examples: "24 hours", "3 days", "1 week", "last session", "this week".',
+        },
       },
       required: ["save_id", "section", "period"],
     },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   // ── Notes ────────────────────────────────────────────────
   //
@@ -164,7 +194,12 @@ const TOOLS: ToolDefinition[] = [
       },
       required: ["save_id", "note_id"],
     },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   {
     name: "create_note",
@@ -175,7 +210,11 @@ const TOOLS: ToolDefinition[] = [
       type: "object",
       properties: {
         save_id: { type: "string", description: "Save UUID returned by list_saves" },
-        title: { type: "string", description: "Short descriptive title (e.g. 'Enigma Farming Goals', 'Maxroll Hammerdin Guide')" },
+        title: {
+          type: "string",
+          description:
+            "Short descriptive title (e.g. 'Enigma Farming Goals', 'Maxroll Hammerdin Guide')",
+        },
         content: {
           type: "string",
           description:
@@ -184,7 +223,12 @@ const TOOLS: ToolDefinition[] = [
       },
       required: ["save_id", "title", "content"],
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: false,
+      openWorldHint: false,
+    },
   },
   {
     name: "update_note",
@@ -197,11 +241,19 @@ const TOOLS: ToolDefinition[] = [
         save_id: { type: "string", description: "Save UUID returned by list_saves" },
         note_id: { type: "string", description: "Note UUID returned by get_save or search_saves" },
         title: { type: "string", description: "New title (omit to keep current title)" },
-        content: { type: "string", description: "New content in markdown, max 50KB (omit to keep current content)" },
+        content: {
+          type: "string",
+          description: "New content in markdown, max 50KB (omit to keep current content)",
+        },
       },
       required: ["save_id", "note_id"],
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   {
     name: "delete_note",
@@ -216,7 +268,12 @@ const TOOLS: ToolDefinition[] = [
       },
       required: ["save_id", "note_id"],
     },
-    annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: true,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
   // ── Refresh ───────────────────────────────────────────────
   {
@@ -231,7 +288,12 @@ const TOOLS: ToolDefinition[] = [
       },
       required: ["save_id"],
     },
-    annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: true },
+    annotations: {
+      readOnlyHint: false,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: true,
+    },
   },
   // ── Search ────────────────────────────────────────────────
   {
@@ -244,7 +306,8 @@ const TOOLS: ToolDefinition[] = [
       properties: {
         query: {
           type: "string",
-          description: "Keywords to search for. Supports prefix matching (hamm*) and boolean operators (enigma OR grief).",
+          description:
+            "Keywords to search for. Supports prefix matching (hamm*) and boolean operators (enigma OR grief).",
         },
         save_id: {
           type: "string",
@@ -254,7 +317,12 @@ const TOOLS: ToolDefinition[] = [
       },
       required: ["query"],
     },
-    annotations: { readOnlyHint: true, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
   },
 ];
 
@@ -293,35 +361,61 @@ async function handleToolCall(
   const saveId = args.save_id as string;
 
   switch (toolName) {
-    case "list_saves": { return listSaves(env.DB, userUuid); }
-    case "get_save": { return getSave(env.DB, env.SAVES, userUuid, saveId); }
+    case "list_saves": {
+      return listSaves(env.DB, userUuid);
+    }
+    case "get_save": {
+      return getSave(env.DB, env.SAVES, userUuid, saveId);
+    }
     case "get_section": {
       return getSection(
-        env.DB, env.SAVES, userUuid, saveId,
+        env.DB,
+        env.SAVES,
+        userUuid,
+        saveId,
         parseSectionsArgument(args.sections) ?? [],
         args.timestamp as string | undefined,
       );
     }
     case "get_section_diff": {
       return getSectionDiff(
-        env.DB, env.SAVES, userUuid, saveId,
-        args.section as string, args.period as string,
+        env.DB,
+        env.SAVES,
+        userUuid,
+        saveId,
+        args.section as string,
+        args.period as string,
       );
     }
-    case "get_note": { return getNote(env.DB, userUuid, saveId, args.note_id as string); }
+    case "get_note": {
+      return getNote(env.DB, userUuid, saveId, args.note_id as string);
+    }
     case "create_note": {
       return createNote(env.DB, userUuid, saveId, args.title as string, args.content as string);
     }
     case "update_note": {
       return updateNote(
-        env.DB, userUuid, saveId, args.note_id as string,
-        args.content as string | undefined, args.title as string | undefined,
+        env.DB,
+        userUuid,
+        saveId,
+        args.note_id as string,
+        args.content as string | undefined,
+        args.title as string | undefined,
       );
     }
-    case "delete_note": { return deleteNote(env.DB, userUuid, saveId, args.note_id as string); }
-    case "refresh_save": { return refreshSave(env.DB, env.DAEMON_HUB, userUuid, saveId); }
+    case "delete_note": {
+      return deleteNote(env.DB, userUuid, saveId, args.note_id as string);
+    }
+    case "refresh_save": {
+      return refreshSave(env.DB, env.DAEMON_HUB, userUuid, saveId);
+    }
     case "search_saves": {
-      return searchSaves(env.DB, userUuid, args.query as string, args.save_id as string | undefined);
+      return searchSaves(
+        env.DB,
+        userUuid,
+        args.query as string,
+        args.save_id as string | undefined,
+      );
     }
     default: {
       return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
