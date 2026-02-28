@@ -843,7 +843,7 @@ async function checkRateLimit(env: Env, ip: string): Promise<boolean> {
 }
 
 async function recordRateLimitFailure(env: Env, ip: string): Promise<void> {
-  const windowParam = `-${String(RATE_LIMIT_WINDOW_SECONDS)} seconds`;
+  const windowParameter = `-${String(RATE_LIMIT_WINDOW_SECONDS)} seconds`;
   await env.DB.batch([
     env.DB.prepare(
       `INSERT INTO pairing_rate_limits (ip, failures, window_start)
@@ -857,11 +857,11 @@ async function recordRateLimitFailure(env: Env, ip: string): Promise<void> {
            WHEN window_start <= datetime('now', ?) THEN datetime('now')
            ELSE window_start
          END`,
-    ).bind(ip, windowParam, windowParam),
+    ).bind(ip, windowParameter, windowParameter),
     // Clean up expired entries from other IPs
     env.DB.prepare(
       "DELETE FROM pairing_rate_limits WHERE window_start <= datetime('now', ?)",
-    ).bind(windowParam),
+    ).bind(windowParameter),
   ]);
 }
 
