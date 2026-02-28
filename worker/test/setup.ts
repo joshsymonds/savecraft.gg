@@ -69,6 +69,12 @@ const statements = [
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
   `CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_uuid)`,
+  `CREATE TABLE IF NOT EXISTS pairing_codes (
+    id TEXT PRIMARY KEY,
+    code_hash TEXT NOT NULL UNIQUE,
+    user_uuid TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL
+  )`,
 ];
 
 for (const sql of statements) {
