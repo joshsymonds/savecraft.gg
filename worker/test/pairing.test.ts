@@ -192,9 +192,7 @@ describe("Pairing Codes", () => {
       expect(allowed.status).toBe(401); // wrong code, but NOT 429
 
       // Verify D1 state: counter should have reset to 1 (this new failure)
-      const resetRow = await env.DB.prepare(
-        "SELECT failures FROM pairing_rate_limits WHERE ip = ?",
-      )
+      const resetRow = await env.DB.prepare("SELECT failures FROM pairing_rate_limits WHERE ip = ?")
         .bind("unknown")
         .first<{ failures: number }>();
       expect(resetRow).not.toBeNull();
