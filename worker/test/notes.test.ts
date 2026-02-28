@@ -223,6 +223,21 @@ describe("Notes REST API", () => {
     expect(resp.status).toBe(409);
   });
 
+  it("rejects path traversal in save ID", async () => {
+    const resp = await SELF.fetch(notesRequest("GET", "/api/v1/notes/..evil"));
+    expect(resp.status).toBe(400);
+    const body = await resp.json<{ error: string }>();
+    expect(body.error).toBe("Invalid save_id");
+  });
+
+  it("rejects path traversal in note ID", async () => {
+    await seedSave(SAVE_ID, TEST_USER);
+    const resp = await SELF.fetch(notesRequest("GET", `/api/v1/notes/${SAVE_ID}/..evil`));
+    expect(resp.status).toBe(400);
+    const body = await resp.json<{ error: string }>();
+    expect(body.error).toBe("Invalid note_id");
+  });
+
   it("requires auth for all note operations", async () => {
     const resp = await SELF.fetch(
       new Request("https://test-host/api/v1/notes/some-save", {

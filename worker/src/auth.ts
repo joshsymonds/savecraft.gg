@@ -64,7 +64,10 @@ export async function authenticateOAuth(request: Request, env: Env): Promise<Aut
 // -- API key auth (D1 lookup) ---------------------------------------------
 
 /** Authenticate a daemon API key by hashing it and looking up in D1. Returns null if not found. */
-export async function authenticateApiKey(token: string, db: D1Database): Promise<AuthResult | null> {
+export async function authenticateApiKey(
+  token: string,
+  db: D1Database,
+): Promise<AuthResult | null> {
   if (!token) return null;
 
   const hash = await sha256Hex(token);

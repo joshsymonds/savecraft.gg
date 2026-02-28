@@ -12,7 +12,6 @@ import {
   listSaves,
   refreshSave,
   searchSaves,
-  SECTION_SIZE_LIMIT,
   updateNote,
 } from "../src/mcp/tools";
 
@@ -325,13 +324,9 @@ describe("MCP Tools", () => {
         summary: "Hammerdin, Level 89 Paladin",
       });
 
-      const result = await getSection(
-        env.DB,
-        env.SAVES,
-        USER_A,
-        "save-section-missing",
-        ["nonexistent_section"],
-      );
+      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section-missing", [
+        "nonexistent_section",
+      ]);
       expect(result.isError).toBe(true);
     });
 
@@ -417,10 +412,10 @@ describe("MCP Tools", () => {
     });
 
     it("returns error when single section exceeds size limit", async () => {
-      // Create a section with data larger than SECTION_SIZE_LIMIT
+      // Create a section with data larger than the size limit
       const largeData: Record<string, string> = {};
-      for (let i = 0; i < 2000; i++) {
-        largeData[`item_${i}`] = "x".repeat(50);
+      for (let index = 0; index < 2000; index++) {
+        largeData[`item_${String(index)}`] = "x".repeat(50);
       }
       const largeState = {
         ...sampleGameState,
@@ -442,15 +437,17 @@ describe("MCP Tools", () => {
         gameState: largeState,
       });
 
-      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section-large", ["huge_inventory"]);
+      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section-large", [
+        "huge_inventory",
+      ]);
       expect(result.isError).toBe(true);
       expect(result.content[0]!.text).toContain("too large");
     });
 
     it("omits oversized sections when fetching multiple, returns the rest", async () => {
       const largeData: Record<string, string> = {};
-      for (let i = 0; i < 2000; i++) {
-        largeData[`item_${i}`] = "x".repeat(50);
+      for (let index = 0; index < 2000; index++) {
+        largeData[`item_${String(index)}`] = "x".repeat(50);
       }
       const mixedState = {
         ...sampleGameState,
@@ -472,10 +469,10 @@ describe("MCP Tools", () => {
         gameState: mixedState,
       });
 
-      const result = await getSection(
-        env.DB, env.SAVES, USER_A, "save-section-mixed",
-        ["equipped_gear", "huge_inventory"],
-      );
+      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section-mixed", [
+        "equipped_gear",
+        "huge_inventory",
+      ]);
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -497,10 +494,10 @@ describe("MCP Tools", () => {
         summary: "Test",
       });
 
-      const result = await getSection(
-        env.DB, env.SAVES, USER_A, "save-section-partial",
-        ["equipped_gear", "nonexistent_section"],
-      );
+      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section-partial", [
+        "equipped_gear",
+        "nonexistent_section",
+      ]);
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -521,7 +518,9 @@ describe("MCP Tools", () => {
       });
 
       // Normal sections from sampleGameState are well under 80KB
-      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section-ok", ["equipped_gear"]);
+      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section-ok", [
+        "equipped_gear",
+      ]);
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as { data: Record<string, unknown> };
@@ -534,7 +533,7 @@ describe("MCP Tools", () => {
   describe("getSectionDiff", () => {
     // Use timestamps relative to now for period-based diff
     function hoursAgo(hours: number): string {
-      return new Date(Date.now() - hours * 3600_000).toISOString();
+      return new Date(Date.now() - hours * 3_600_000).toISOString();
     }
 
     it("returns changed fields using period-based comparison", async () => {
@@ -577,8 +576,12 @@ describe("MCP Tools", () => {
       await seedSnapshot(USER_A, "save-diff", hoursAgo(1), newerState);
 
       const result = await getSectionDiff(
-        env.DB, env.SAVES, USER_A, "save-diff",
-        "equipped_gear", "24 hours",
+        env.DB,
+        env.SAVES,
+        USER_A,
+        "save-diff",
+        "equipped_gear",
+        "24 hours",
       );
       expect(result.isError).toBeUndefined();
 
@@ -612,8 +615,12 @@ describe("MCP Tools", () => {
       await seedSnapshot(USER_A, "save-diff-same", hoursAgo(1), sampleGameState);
 
       const result = await getSectionDiff(
-        env.DB, env.SAVES, USER_A, "save-diff-same",
-        "equipped_gear", "24 hours",
+        env.DB,
+        env.SAVES,
+        USER_A,
+        "save-diff-same",
+        "equipped_gear",
+        "24 hours",
       );
       expect(result.isError).toBeUndefined();
 
@@ -623,8 +630,12 @@ describe("MCP Tools", () => {
 
     it("returns error for non-existent save", async () => {
       const result = await getSectionDiff(
-        env.DB, env.SAVES, USER_A, "nonexistent",
-        "skills", "24 hours",
+        env.DB,
+        env.SAVES,
+        USER_A,
+        "nonexistent",
+        "skills",
+        "24 hours",
       );
       expect(result.isError).toBe(true);
     });
@@ -639,8 +650,12 @@ describe("MCP Tools", () => {
       });
 
       const result = await getSectionDiff(
-        env.DB, env.SAVES, USER_A, "save-diff-bad-period",
-        "equipped_gear", "whenever",
+        env.DB,
+        env.SAVES,
+        USER_A,
+        "save-diff-bad-period",
+        "equipped_gear",
+        "whenever",
       );
       expect(result.isError).toBe(true);
       expect(result.content[0]!.text).toContain("Unrecognized period");
@@ -658,8 +673,12 @@ describe("MCP Tools", () => {
       await seedSnapshot(USER_A, "save-diff-one-snap", hoursAgo(1), sampleGameState);
 
       const result = await getSectionDiff(
-        env.DB, env.SAVES, USER_A, "save-diff-one-snap",
-        "equipped_gear", "24 hours",
+        env.DB,
+        env.SAVES,
+        USER_A,
+        "save-diff-one-snap",
+        "equipped_gear",
+        "24 hours",
       );
       expect(result.isError).toBe(true);
       expect(result.content[0]!.text).toContain("Not enough snapshots");
@@ -675,8 +694,12 @@ describe("MCP Tools", () => {
       });
 
       const result = await getSectionDiff(
-        env.DB, env.SAVES, USER_A, "save-diff-zero",
-        "equipped_gear", "0 hours",
+        env.DB,
+        env.SAVES,
+        USER_A,
+        "save-diff-zero",
+        "equipped_gear",
+        "0 hours",
       );
       expect(result.isError).toBe(true);
       expect(result.content[0]!.text).toContain("Unrecognized period");
@@ -697,8 +720,12 @@ describe("MCP Tools", () => {
 
       for (const period of ["yesterday", "this week", "last week"]) {
         const result = await getSectionDiff(
-          env.DB, env.SAVES, USER_A, "save-diff-shortcuts",
-          "equipped_gear", period,
+          env.DB,
+          env.SAVES,
+          USER_A,
+          "save-diff-shortcuts",
+          "equipped_gear",
+          period,
         );
         expect(result.isError, `period "${period}" should not error`).toBeUndefined();
       }
@@ -718,15 +745,23 @@ describe("MCP Tools", () => {
 
       // "3 days" should work and find both snapshots
       const result = await getSectionDiff(
-        env.DB, env.SAVES, USER_A, "save-diff-periods",
-        "equipped_gear", "3 days",
+        env.DB,
+        env.SAVES,
+        USER_A,
+        "save-diff-periods",
+        "equipped_gear",
+        "3 days",
       );
       expect(result.isError).toBeUndefined();
 
       // "last session" should also work
       const result2 = await getSectionDiff(
-        env.DB, env.SAVES, USER_A, "save-diff-periods",
-        "equipped_gear", "last session",
+        env.DB,
+        env.SAVES,
+        USER_A,
+        "save-diff-periods",
+        "equipped_gear",
+        "last session",
       );
       expect(result2.isError).toBeUndefined();
     });
@@ -1151,5 +1186,4 @@ describe("MCP Tools", () => {
       expect(result.content[0]!.text).toContain("daemon is offline");
     });
   });
-
 }); // MCP Tools

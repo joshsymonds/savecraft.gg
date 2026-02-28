@@ -97,9 +97,7 @@ describe("Push API", () => {
   });
 
   it("rejects body without sections", async () => {
-    const resp = await SELF.fetch(
-      pushRequest({ identity: { saveName: "Test", gameId: "d2r" } }),
-    );
+    const resp = await SELF.fetch(pushRequest({ identity: { saveName: "Test", gameId: "d2r" } }));
     expect(resp.status).toBe(400);
   });
 

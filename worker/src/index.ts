@@ -5,32 +5,57 @@ import type { Env } from "./types";
 
 export { DaemonHub } from "./hub";
 
-const CORS_HEADERS: Record<string, string> = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-  "Access-Control-Allow-Headers": "Authorization, Content-Type",
-  "Access-Control-Max-Age": "86400",
-};
+function getAllowedOrigin(request: Request, env: Env): string | null {
+  const origin = request.headers.get("Origin");
+  if (!origin) return null;
 
-function corsify(response: Response): Response {
+  const allowList = env.ALLOWED_ORIGINS;
+  if (!allowList) return "*"; // dev fallback
+
+  const allowed = allowList.split(",").map((s) => s.trim());
+  return allowed.includes(origin) ? origin : null;
+}
+
+function corsHeaders(origin: string): Record<string, string> {
+  return {
+    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Headers": "Authorization, Content-Type",
+    "Access-Control-Max-Age": "86400",
+  };
+}
+
+function corsify(response: Response, request: Request, env: Env): Response {
+  const origin = getAllowedOrigin(request, env);
+  if (!origin) return response;
+
   const patched = new Response(response.body, response);
-  for (const [key, value] of Object.entries(CORS_HEADERS)) {
+  for (const [key, value] of Object.entries(corsHeaders(origin))) {
     patched.headers.set(key, value);
   }
   return patched;
 }
 
+function validateId(id: string | undefined): id is string {
+  if (!id?.trim()) return false;
+  if (id.length > 256) return false;
+  if (id.includes("..") || id.includes("/")) return false;
+  return true;
+}
+
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     if (request.method === "OPTIONS") {
-      return new Response(null, { status: 204, headers: CORS_HEADERS });
+      const origin = getAllowedOrigin(request, env);
+      if (!origin) return new Response(null, { status: 204 });
+      return new Response(null, { status: 204, headers: corsHeaders(origin) });
     }
     const url = new URL(request.url);
     const response =
       (await routePublicEndpoints(request, url, env)) ??
       (await routeDaemonEndpoints(request, url, env)) ??
       (await routeProtectedEndpoints(request, url, env));
-    return corsify(response);
+    return corsify(response, request, env);
   },
 } satisfies ExportedHandler<Env>;
 
@@ -114,11 +139,7 @@ async function routeWebSocketEndpoints(
   return null;
 }
 
-async function routeApiEndpoints(
-  request: Request,
-  url: URL,
-  env: Env,
-): Promise<Response | null> {
+async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<Response | null> {
   if (!url.pathname.startsWith("/api/v1/")) return null;
 
   const auth = await authenticateSession(request, env);
@@ -139,7 +160,7 @@ async function routeApiEndpoints(
   }
   if (url.pathname.startsWith("/api/v1/saves/") && request.method === "GET") {
     const saveId = url.pathname.replace("/api/v1/saves/", "");
-    if (!saveId) return Response.json({ error: "Missing save_id" }, { status: 400 });
+    if (!validateId(saveId)) return Response.json({ error: "Invalid save_id" }, { status: 400 });
     return handleGetSave(env, auth.userUuid, saveId);
   }
   return null;
@@ -261,8 +282,8 @@ async function handleDeviceConfig(
   // Parse device ID from /api/v1/devices/:deviceId/config
   const pathParts = url.pathname.split("/");
   const deviceId = pathParts[4];
-  if (!deviceId) {
-    return Response.json({ error: "Missing device_id" }, { status: 400 });
+  if (!validateId(deviceId)) {
+    return Response.json({ error: "Invalid device_id" }, { status: 400 });
   }
 
   if (request.method === "GET") {
@@ -292,7 +313,7 @@ async function handleGetDeviceConfig(
     try {
       fileExtensions = JSON.parse(row.file_extensions) as string[];
     } catch {
-      // Malformed JSON in D1 — fall back to empty array
+      // Malformed JSON in D1 -- fall back to empty array
     }
     games[row.game_id] = {
       savePath: row.save_path,
@@ -369,8 +390,8 @@ async function handleNotes(
   const saveId = parts[0];
   const noteId = parts[1];
 
-  if (!saveId) {
-    return Response.json({ error: "Missing save_id" }, { status: 400 });
+  if (!validateId(saveId)) {
+    return Response.json({ error: "Invalid save_id" }, { status: 400 });
   }
 
   // Verify save exists and belongs to user
@@ -383,6 +404,9 @@ async function handleNotes(
   }
 
   if (noteId) {
+    if (!validateId(noteId)) {
+      return Response.json({ error: "Invalid note_id" }, { status: 400 });
+    }
     return handleSingleNote(request, env, userUuid, saveId, noteId);
   }
 
@@ -678,18 +702,18 @@ async function handleApiKeys(
   env: Env,
   userUuid: string,
 ): Promise<Response> {
-  // POST /api/v1/api-keys — create
+  // POST /api/v1/api-keys -- create
   if (url.pathname === "/api/v1/api-keys" && request.method === "POST") {
     return createApiKey(request, env, userUuid);
   }
-  // GET /api/v1/api-keys — list
+  // GET /api/v1/api-keys -- list
   if (url.pathname === "/api/v1/api-keys" && request.method === "GET") {
     return listApiKeys(env, userUuid);
   }
-  // DELETE /api/v1/api-keys/:keyId — revoke
+  // DELETE /api/v1/api-keys/:keyId -- revoke
   if (url.pathname.startsWith("/api/v1/api-keys/") && request.method === "DELETE") {
     const keyId = url.pathname.replace("/api/v1/api-keys/", "");
-    if (!keyId) return Response.json({ error: "Missing key_id" }, { status: 400 });
+    if (!validateId(keyId)) return Response.json({ error: "Invalid key_id" }, { status: 400 });
     return deleteApiKey(env, userUuid, keyId);
   }
 
@@ -747,9 +771,7 @@ async function listApiKeys(env: Env, userUuid: string): Promise<Response> {
 }
 
 async function deleteApiKey(env: Env, userUuid: string, keyId: string): Promise<Response> {
-  const existing = await env.DB.prepare(
-    "SELECT id FROM api_keys WHERE id = ? AND user_uuid = ?",
-  )
+  const existing = await env.DB.prepare("SELECT id FROM api_keys WHERE id = ? AND user_uuid = ?")
     .bind(keyId, userUuid)
     .first();
 
@@ -850,7 +872,7 @@ async function handlePush(request: Request, env: Env, userUuid: string): Promise
       .run();
   }
 
-  // Write snapshot to R2 (always — snapshots are immutable)
+  // Write snapshot to R2 (always -- snapshots are immutable)
   const snapshotKey = `users/${userUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
   await env.SAVES.put(snapshotKey, bodyString);
 
