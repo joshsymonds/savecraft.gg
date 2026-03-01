@@ -114,8 +114,8 @@ describe("InstallBlock", () => {
 
     it("renders what happens next steps", () => {
       render(InstallBlock, { props: { prominent: true } });
-      expect(screen.getByText(/systemd user service/)).toBeInTheDocument();
-      expect(screen.getByText(/appears on this page/)).toBeInTheDocument();
+      expect(screen.getByText(/systemd service/)).toBeInTheDocument();
+      expect(screen.getByText(/appears on this page/i)).toBeInTheDocument();
     });
 
     it("renders step numbers", () => {
