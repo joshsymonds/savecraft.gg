@@ -66,85 +66,6 @@
 <div class="devices-layout">
   <!-- Main: device cards -->
   <main class="devices">
-    <div class="section-header">
-      <span class="section-label">DEVICES</span>
-      <span class="device-count">{$devices.length} connected</span>
-    </div>
-
-    <ConnectCard />
-
-    {#each $devices as device (device.id)}
-      <Panel accent={ACCENT_COLORS[device.status]}>
-        <!-- Title bar -->
-        <div class="device-title-bar">
-          <div class="device-info">
-            <span
-              class="device-icon"
-              class:online={device.status === "online"}
-              class:error={device.status === "error"}
-            >
-              {DEVICE_ICONS[device.status]}</span
-            >
-            <div>
-              <div class="device-name-row">
-                <span class="device-name">{device.name}</span>
-                <StatusDot status={device.status} size={7} />
-              </div>
-              <span class="device-meta">
-                {#if device.version}{device.version}{/if}
-                {#if device.status === "offline"}
-                  {#if device.version}
-                    ·
-                  {/if}last seen {device.lastSeen}
-                {/if}
-              </span>
-            </div>
-          </div>
-          <div class="device-actions">
-            <TinyButton
-              label={$discoveryPending ? "SCANNING..." : "DISCOVER"}
-              onclick={discover}
-              disabled={device.status === "offline" || $discoveryPending}
-            />
-            <TinyButton
-              label="RESCAN"
-              onclick={() => {
-                rescan(device);
-              }}
-              disabled={device.status === "offline"}
-            />
-            <TinyButton label="CONFIG" onclick={() => (configDeviceId = device.id)} />
-          </div>
-        </div>
-
-        <!-- Game grid -->
-        <div class="game-grid">
-          {#each device.games as game (game.gameId)}
-            <div class="game-card" class:dimmed={game.status === "not_found"}>
-              <span class="game-icon">{gameIcon(game.name)}</span>
-              <span class="game-name">{game.name}</span>
-              <span
-                class="game-status"
-                class:status-green={game.status === "watching"}
-                class:status-blue={game.status === "detected"}
-                class:status-yellow={game.status === "error"}
-                class:status-muted={game.status === "not_found"}
-              >
-                {game.statusLine}
-              </span>
-              {#if game.status === "watching" && game.saves.length > 0}
-                <div class="save-list">
-                  {#each game.saves as save (save.saveUuid)}
-                    <span class="save-name">{save.saveName}</span>
-                  {/each}
-                </div>
-              {/if}
-            </div>
-          {/each}
-        </div>
-      </Panel>
-    {/each}
-
     {#if $devices.length === 0}
       {#if $connectionStatus === "connecting"}
         <div class="empty-state">
@@ -158,6 +79,85 @@
         </div>
       {/if}
     {:else}
+      <ConnectCard />
+
+      <div class="section-header">
+        <span class="section-label">DEVICES</span>
+        <span class="device-count">{$devices.length} connected</span>
+      </div>
+
+      {#each $devices as device (device.id)}
+        <Panel accent={ACCENT_COLORS[device.status]}>
+          <!-- Title bar -->
+          <div class="device-title-bar">
+            <div class="device-info">
+              <span
+                class="device-icon"
+                class:online={device.status === "online"}
+                class:error={device.status === "error"}
+              >
+                {DEVICE_ICONS[device.status]}</span
+              >
+              <div>
+                <div class="device-name-row">
+                  <span class="device-name">{device.name}</span>
+                  <StatusDot status={device.status} size={7} />
+                </div>
+                <span class="device-meta">
+                  {#if device.version}{device.version}{/if}
+                  {#if device.status === "offline"}
+                    {#if device.version}
+                      ·
+                    {/if}last seen {device.lastSeen}
+                  {/if}
+                </span>
+              </div>
+            </div>
+            <div class="device-actions">
+              <TinyButton
+                label={$discoveryPending ? "SCANNING..." : "DISCOVER"}
+                onclick={discover}
+                disabled={device.status === "offline" || $discoveryPending}
+              />
+              <TinyButton
+                label="RESCAN"
+                onclick={() => {
+                  rescan(device);
+                }}
+                disabled={device.status === "offline"}
+              />
+              <TinyButton label="CONFIG" onclick={() => (configDeviceId = device.id)} />
+            </div>
+          </div>
+
+          <!-- Game grid -->
+          <div class="game-grid">
+            {#each device.games as game (game.gameId)}
+              <div class="game-card" class:dimmed={game.status === "not_found"}>
+                <span class="game-icon">{gameIcon(game.name)}</span>
+                <span class="game-name">{game.name}</span>
+                <span
+                  class="game-status"
+                  class:status-green={game.status === "watching"}
+                  class:status-blue={game.status === "detected"}
+                  class:status-yellow={game.status === "error"}
+                  class:status-muted={game.status === "not_found"}
+                >
+                  {game.statusLine}
+                </span>
+                {#if game.status === "watching" && game.saves.length > 0}
+                  <div class="save-list">
+                    {#each game.saves as save (save.saveUuid)}
+                      <span class="save-name">{save.saveName}</span>
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {/each}
+          </div>
+        </Panel>
+      {/each}
+
       <InstallBlock prominent={false} />
     {/if}
   </main>
@@ -224,7 +224,7 @@
 
   .section-label {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 11px;
     color: var(--color-gold);
     letter-spacing: 2px;
   }
@@ -273,7 +273,7 @@
 
   .device-name {
     font-family: var(--font-pixel);
-    font-size: 9px;
+    font-size: 11px;
     color: var(--color-text);
     letter-spacing: 0.5px;
   }
@@ -320,7 +320,7 @@
 
   .game-name {
     font-family: var(--font-pixel);
-    font-size: 6px;
+    font-size: 9px;
     color: var(--color-text-dim);
     letter-spacing: 0.5px;
     margin-bottom: 4px;
@@ -393,14 +393,14 @@
 
   .activity-label {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 11px;
     color: var(--color-gold);
     letter-spacing: 2px;
   }
 
   .live-indicator {
     font-family: var(--font-pixel);
-    font-size: 6px;
+    font-size: 9px;
     display: flex;
     align-items: center;
     gap: 5px;

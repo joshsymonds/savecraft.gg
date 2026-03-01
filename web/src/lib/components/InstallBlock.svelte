@@ -240,7 +240,11 @@
   <div class="install-hero">
     <div class="hero-header">
       <span class="hero-label">GET STARTED</span>
-      <span class="hero-subtitle">Connect your gaming machine to Savecraft</span>
+      <h2 class="hero-title">Install Savecraft on your gaming machine</h2>
+      <p class="hero-subtitle">
+        A small daemon watches your save files and streams them to the cloud.
+        Takes about two minutes — pair, install, done.
+      </p>
     </div>
 
     <Panel>
@@ -320,21 +324,33 @@
   .hero-header {
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    gap: 8px;
     margin-bottom: 8px;
   }
 
   .hero-label {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 11px;
     color: var(--color-gold);
     letter-spacing: 2px;
   }
 
+  .hero-title {
+    font-family: var(--font-body);
+    font-size: 22px;
+    font-weight: 600;
+    color: var(--color-text);
+    margin: 0;
+    line-height: 1.3;
+  }
+
   .hero-subtitle {
     font-family: var(--font-body);
-    font-size: 20px;
+    font-size: 15px;
     color: var(--color-text-dim);
+    line-height: 1.5;
+    margin: 0;
+    max-width: 480px;
   }
 
   /* ── Compact (non-prominent) ────────────────────────────── */
@@ -468,7 +484,7 @@
 
   .toggle-label {
     font-family: var(--font-pixel);
-    font-size: 6px;
+    font-size: 9px;
     color: var(--color-text-muted);
     letter-spacing: 1px;
   }
@@ -499,7 +515,7 @@
 
   .step-title {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 10px;
     color: var(--color-text);
     letter-spacing: 1px;
   }
@@ -587,7 +603,7 @@
     left: 0;
     color: var(--color-gold);
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 10px;
     top: 4px;
   }
 
