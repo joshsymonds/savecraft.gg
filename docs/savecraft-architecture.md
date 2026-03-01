@@ -138,7 +138,8 @@ savecraft/
 ├── install/
 │   ├── install.sh               # Linux/Steam Deck curl installer
 │   ├── savecraft.service        # systemd user unit template
-│   └── build/                   # MSI (WiX), .pkg, signing scripts
+│   └── worker/                  # Cloudflare Worker (UA-based install router)
+│       └── src/index.ts         # Serves script from R2, redirects browsers
 ├── web/                         # SvelteKit frontend: device status, settings, notes
 ├── go.mod
 └── go.sum
