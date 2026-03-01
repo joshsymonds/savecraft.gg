@@ -785,19 +785,38 @@ Uses `nhooyr.io/websocket` for context-aware WebSocket with clean shutdown.
 
 **Graceful degradation:** If the WebSocket is down, the daemon continues operating locally — watching files, parsing saves, queuing push API calls. Status events are dropped (not queued) during disconnection. The push API (HTTP POST) is independent of the WebSocket; save data always reaches R2 even if the real-time channel is down.
 
-### Web UI: Device Status Page
+### Web UI: Dashboard & Onboarding
 
-Located at `savecraft.gg/devices`. This is the first page users see after installing the daemon. It is the onboarding experience.
+The root page (`/`) is both the dashboard and the onboarding experience. What renders depends on the user's setup state, managed as a simple state machine:
+
+**Onboarding state machine:**
+
+| State | Condition | What renders |
+|-------|-----------|--------------|
+| **No devices** | `devices.length === 0` | `InstallBlock prominent=true` — full hero with pairing code flow, install command, and "what happens next" in a single consolidated Panel |
+| **Has device(s), no MCP** | `devices.length > 0 && !mcpConnected` | `ConnectCard` (prominent CTA with numbered steps) → device cards → `InstallBlock prominent=false` (compact collapsible) |
+| **Has device(s) + MCP** | `devices.length > 0 && mcpConnected` | `ConnectCard` (compact: green dot + URL) → device cards → `InstallBlock prominent=false` (compact collapsible) |
+
+The state machine is implicit — the page template checks device count and MCP status, rendering the appropriate component variants. No explicit state variable; the reactive stores (`$devices`, MCP status from API) drive the UI.
+
+**InstallBlock (`prominent` prop):**
+- `prominent=true`: Hero treatment — numbered steps (1: Pair, 2: Install, 3: What Happens Next) in a single Panel with section dividers, gold-bordered primary action button for pairing. API keys toggle at bottom.
+- `prominent=false`: Compact collapsible "ADD ANOTHER DEVICE" row. Expands to show pairing + install flow inline.
+
+**ConnectCard (MCP status):**
+- Not connected: Gold-accented Panel with numbered steps (1: Copy MCP URL, 2: Paste into AI client). Prominent URL copy area with per-client instructions (Claude.ai, Claude Code, ChatGPT).
+- Connected: Compact row — green status dot, "AI CONNECTED" label, URL with copy button.
 
 **Device cards:**
 - Device name, online/offline indicator, last seen timestamp
 - Per-game status: game detected (green), watching (green with file count), parse errors (yellow with error message), game not found (gray)
 - Per-game, saves found with identity preview: "Hammerdin, Paladin 87" / "Farm, Year 3, Spring"
 
-**Activity feed:**
+**Activity feed (sidebar):**
 - Real-time scrolling log of status events, newest at top
 - Friendly formatting: "✓ Parsed Hammerdin (42KB)" / "⚠ Parse error: SharedStash.d2i — unsupported format" / "→ Watching 3 files in /home/deck/.local/share/..."
 - Updates live via WebSocket as events arrive
+- Connection status indicator: LIVE (green) / CONNECTING (yellow) / OFFLINE (gray)
 
 **Setup wizard integration:**
 When a user adds a game or changes a save path:
