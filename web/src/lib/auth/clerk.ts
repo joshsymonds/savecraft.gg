@@ -40,6 +40,15 @@ const SAVECRAFT_APPEARANCE = {
       fontSize: "18px",
       textDecoration: "underline",
     },
+    userButtonPopoverActionButton: {
+      color: "#e8e0d0",
+    },
+    userButtonPopoverActionButtonText: {
+      color: "#e8e0d0",
+    },
+    userButtonPopoverFooter: {
+      display: "none",
+    },
   },
 } as const;
 
