@@ -860,7 +860,7 @@ async function deleteApiKey(env: Env, userUuid: string, keyId: string): Promise<
 
 // -- Pairing Code Flow ------------------------------------------------------
 
-const PAIRING_CODE_TTL_MINUTES = 2;
+const PAIRING_CODE_TTL_MINUTES = 20;
 const RATE_LIMIT_MAX_FAILURES = 5;
 const RATE_LIMIT_WINDOW_SECONDS = 60;
 

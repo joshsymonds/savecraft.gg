@@ -43,7 +43,7 @@
   const installUrl = PUBLIC_API_URL.includes("staging")
     ? "https://install-staging.savecraft.gg"
     : "https://install.savecraft.gg";
-  const CODE_TTL_SECONDS = 120;
+  const CODE_TTL_SECONDS = 1200;
 
   onMount(() => {
     if (initialState) return;
