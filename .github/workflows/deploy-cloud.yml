@@ -8,6 +8,7 @@ on:
       - 'worker/**'
       - 'web/**'
       - 'site/**'
+      - '.github/workflows/deploy-cloud.yml'
 
 permissions:
   contents: write
