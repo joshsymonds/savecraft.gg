@@ -64,19 +64,11 @@ export default {
 } satisfies ExportedHandler<Env>;
 
 const PLUGIN_DOWNLOAD_RE = /^\/plugins\/([^/]+)\/(parser\.wasm(?:\.sig)?)$/;
-const DAEMON_DOWNLOAD_RE = /^\/daemon\/([^/]+)$/;
 
 function routeDownload(request: Request, url: URL, env: Env): Promise<Response> | null {
   const pluginMatch = PLUGIN_DOWNLOAD_RE.exec(url.pathname);
   if (pluginMatch?.[1] && pluginMatch[2] && request.method === "GET") {
     return handlePluginDownload(env, pluginMatch[1], pluginMatch[2]);
-  }
-  if (url.pathname === "/api/v1/daemon/manifest" && request.method === "GET") {
-    return handleDaemonManifest(env);
-  }
-  const daemonMatch = DAEMON_DOWNLOAD_RE.exec(url.pathname);
-  if (daemonMatch?.[1] && request.method === "GET") {
-    return handleDaemonDownload(env, daemonMatch[1]);
   }
   return null;
 }
@@ -275,28 +267,6 @@ async function handlePluginDownload(env: Env, gameId: string, filename: string):
   const contentType = filename.endsWith(".wasm") ? "application/wasm" : "application/octet-stream";
   return new Response(object.body, {
     headers: { "Content-Type": contentType },
-  });
-}
-
-// -- Daemon Binary Registry ----------------------------------------
-
-async function handleDaemonManifest(env: Env): Promise<Response> {
-  const object = await env.PLUGINS.get("daemon/manifest.json");
-  if (!object) {
-    return Response.json({ error: "Daemon manifest not found" }, { status: 404 });
-  }
-  const data = await object.json();
-  return Response.json(data);
-}
-
-async function handleDaemonDownload(env: Env, filename: string): Promise<Response> {
-  const key = `daemon/${filename}`;
-  const object = await env.PLUGINS.get(key);
-  if (!object) {
-    return Response.json({ error: "Daemon binary not found" }, { status: 404 });
-  }
-  return new Response(object.body, {
-    headers: { "Content-Type": "application/octet-stream" },
   });
 }
 

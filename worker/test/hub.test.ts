@@ -1,4 +1,4 @@
-import { env, SELF } from "cloudflare:test";
+import { env, fetchMock, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { cleanAll, closeWs, connectWs, waitForMessage } from "./helpers";
@@ -558,20 +558,25 @@ describe("DaemonHub", () => {
   it("sends daemonUpdateAvailable when daemon version is stale", async () => {
     const userUuid = "update-check-user";
 
-    // Upload a daemon manifest to R2 with a newer version
-    await env.PLUGINS.put(
-      "daemon/manifest.json",
-      JSON.stringify({
-        version: "0.2.0",
-        platforms: {
-          "linux-amd64": {
-            url: "https://api.savecraft.gg/daemon/savecraft-daemon-linux-amd64",
-            sha256: "abc123",
-            signatureUrl: "https://api.savecraft.gg/daemon/savecraft-daemon-linux-amd64.sig",
-          },
+    // Mock the install worker manifest endpoint
+    const manifest = {
+      version: "0.2.0",
+      platforms: {
+        "linux-amd64": {
+          url: "https://install.savecraft.gg/daemon/savecraft-daemon-linux-amd64",
+          sha256: "abc123",
+          signatureUrl: "https://install.savecraft.gg/daemon/savecraft-daemon-linux-amd64.sig",
         },
-      }),
-    );
+      },
+    };
+    fetchMock.activate();
+    fetchMock.disableNetConnect();
+    fetchMock
+      .get("https://install.savecraft.gg")
+      .intercept({ path: "/daemon/manifest.json", method: "GET" })
+      .reply(200, JSON.stringify(manifest), {
+        headers: { "content-type": "application/json" },
+      });
 
     const daemonWs = await connectWs("/ws/daemon", userUuid);
 
@@ -604,28 +609,35 @@ describe("DaemonHub", () => {
       sha256: string;
     };
     expect(update.version).toBe("0.2.0");
-    expect(update.url).toBe("https://api.savecraft.gg/daemon/savecraft-daemon-linux-amd64");
+    expect(update.url).toBe("https://install.savecraft.gg/daemon/savecraft-daemon-linux-amd64");
     expect(update.sha256).toBe("abc123");
 
     await closeWs(daemonWs);
+    fetchMock.deactivate();
   });
 
   it("does not send daemonUpdateAvailable when daemon is current", async () => {
     const userUuid = "update-current-user";
 
-    await env.PLUGINS.put(
-      "daemon/manifest.json",
-      JSON.stringify({
-        version: "0.1.0",
-        platforms: {
-          "linux-amd64": {
-            url: "https://api.savecraft.gg/daemon/savecraft-daemon-linux-amd64",
-            sha256: "abc123",
-            signatureUrl: "https://api.savecraft.gg/daemon/savecraft-daemon-linux-amd64.sig",
-          },
+    // Mock the install worker manifest endpoint
+    const manifest = {
+      version: "0.1.0",
+      platforms: {
+        "linux-amd64": {
+          url: "https://install.savecraft.gg/daemon/savecraft-daemon-linux-amd64",
+          sha256: "abc123",
+          signatureUrl: "https://install.savecraft.gg/daemon/savecraft-daemon-linux-amd64.sig",
         },
-      }),
-    );
+      },
+    };
+    fetchMock.activate();
+    fetchMock.disableNetConnect();
+    fetchMock
+      .get("https://install.savecraft.gg")
+      .intercept({ path: "/daemon/manifest.json", method: "GET" })
+      .reply(200, JSON.stringify(manifest), {
+        headers: { "content-type": "application/json" },
+      });
 
     const daemonWs = await connectWs("/ws/daemon", userUuid);
 
@@ -645,5 +657,6 @@ describe("DaemonHub", () => {
     expect(noUpdate).toBeNull();
 
     await closeWs(daemonWs);
+    fetchMock.deactivate();
   });
 });

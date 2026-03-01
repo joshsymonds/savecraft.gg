@@ -449,10 +449,13 @@ export class DaemonHub extends DurableObject<Env> {
       const { version: daemonVersion, platform } = rpc.payload.daemonOnline;
       if (!daemonVersion || !platform) return;
 
-      const manifestObject = await this.env.PLUGINS.get("daemon/manifest.json");
-      if (!manifestObject) return;
+      const installUrl = this.env.INSTALL_URL;
+      if (!installUrl) return;
 
-      const manifest = await manifestObject.json<{
+      const resp = await fetch(`${installUrl}/daemon/manifest.json`);
+      if (!resp.ok) return;
+
+      const manifest = await resp.json<{
         version: string;
         platforms: Record<string, { url: string; sha256: string; signatureUrl: string }>;
       }>();
