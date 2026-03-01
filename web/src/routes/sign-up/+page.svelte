@@ -16,7 +16,7 @@
       routing: "path",
       path: "/sign-up",
       signInUrl: "/sign-in",
-      afterSignUpUrl: "/",
+      afterSignUpUrl: "/devices",
     });
     return () => {
       clerk.unmountSignUp(el);

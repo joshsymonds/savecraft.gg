@@ -16,7 +16,6 @@
   let userButtonEl: HTMLDivElement | undefined = $state();
 
   const PUBLIC_ROUTES = new Set(["/", "/sign-in", "/sign-up"]);
-  const AUTH_ROUTES = new Set(["/sign-in", "/sign-up"]);
 
   /** Check Clerk's session cookie to infer auth state before the SDK loads. */
   function hasClerkSession(): boolean {
@@ -41,9 +40,9 @@
     }
   });
 
-  // Reverse guard: redirect authenticated users away from auth pages
+  // Reverse guard: redirect authenticated users away from public/auth pages to the app
   $effect(() => {
-    if ($authState.isLoaded && $authState.isSignedIn && AUTH_ROUTES.has(page.url.pathname)) {
+    if ($authState.isLoaded && $authState.isSignedIn && PUBLIC_ROUTES.has(page.url.pathname)) {
       void goto(resolve("/devices"));
     }
   });
@@ -128,7 +127,7 @@
 
   .header-title {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 14px;
     color: var(--color-gold);
     letter-spacing: 3px;
     text-decoration: none;
@@ -141,11 +140,11 @@
 
   .nav-link {
     font-family: var(--font-pixel);
-    font-size: 6px;
+    font-size: 10px;
     color: var(--color-text-muted);
     text-decoration: none;
     letter-spacing: 1px;
-    padding: 4px 8px;
+    padding: 6px 12px;
     border-radius: 3px;
     transition: all 0.15s;
   }
