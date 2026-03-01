@@ -89,8 +89,8 @@ describe("InstallBlock", () => {
 
       expect(screen.getByText("123 456")).toBeInTheDocument();
 
-      // Advance past 2-minute TTL
-      await vi.advanceTimersByTimeAsync(121_000);
+      // Advance past 20-minute TTL
+      await vi.advanceTimersByTimeAsync(1_201_000);
 
       expect(screen.getByText("Code expired")).toBeInTheDocument();
       expect(screen.getByText("GET NEW CODE")).toBeInTheDocument();
