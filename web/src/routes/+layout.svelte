@@ -66,8 +66,10 @@
     }
   });
 
-  // Show the app shell if Clerk confirms signed-in, or optimistically if session cookie exists
-  const showAppShell = $derived($authState.isLoaded ? $authState.isSignedIn : hasClerkSession());
+  // Only show the app shell once Clerk has confirmed the user is signed in.
+  // Never render protected content optimistically — a stale session cookie would flash the
+  // homepage before the redirect to /sign-in fires.
+  const showAppShell = $derived($authState.isLoaded && $authState.isSignedIn);
 </script>
 
 {#if PUBLIC_ROUTES.has(page.url.pathname)}
