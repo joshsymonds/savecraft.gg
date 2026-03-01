@@ -73,16 +73,8 @@
         <div class="empty-state">
           <span class="empty-text">Connecting...</span>
         </div>
-      {:else if $connectionStatus === "connected"}
-        <InstallBlock prominent={true} />
-      {:else if $connectionStatus === "reconnecting"}
-        <div class="empty-state">
-          <span class="empty-text">Reconnecting...</span>
-        </div>
       {:else}
-        <div class="empty-state">
-          <span class="empty-text">Offline. Check your connection.</span>
-        </div>
+        <InstallBlock prominent={true} />
       {/if}
     {:else}
       <ConnectCard />
