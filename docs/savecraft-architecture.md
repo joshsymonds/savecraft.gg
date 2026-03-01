@@ -1577,7 +1577,7 @@ Triggered by `daemon-v*` tags. Four parallel-then-sequential jobs:
 
 1. **Build:** Cross-compile for 5 platforms (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64)
 2. **Sign:** Ed25519 signature on each binary, SHA256 checksums
-3. **Upload to R2:** Binaries + signatures + daemon manifest to `savecraft-plugins/daemon/`
+3. **Upload to R2:** Binaries + signatures + daemon manifest to `savecraft-install/daemon/`
 4. **GitHub Release:** Bake public key + version into `install.sh`, create release with all artifacts, notify Discord
 
 #### Plugin Deploy Pipeline (`deploy-plugin.yml`)
@@ -1596,7 +1596,7 @@ These are policy decisions, not architecture decisions. Nothing about them chang
 
 - **Snapshot retention policy:** Keep everything for now. Implement thinning later.
 - **Free tier game locking:** Can the user switch their one free game? Locked on first push? TBD.
-- **Daemon auto-update mechanism:** Binary is signed and distributed via installers, but self-update (daemon downloads its own replacement) needs a strategy. Go self-update libraries exist. TBD.
+- **Daemon auto-update mechanism:** Self-update is implemented (`internal/selfupdate/`). The daemon fetches `manifest.json` from the install worker, verifies Ed25519 signatures, and replaces its own binary. Pre-release version comparison (e.g. `1.0.0-dev.1` → `1.0.0`) is not yet handled by `isNewer()`.
 - **Strategy site partnerships:** Approach Maxroll/Icy Veins as distribution partners or build scraper pipeline? TBD.
 - **Anthropic Connectors Directory submission:** After dogfooding or immediately?
 - **Multi-device support:** What happens when a user has the daemon on both a Windows PC and a Steam Deck? Same games, different saves? Same saves synced via Steam Cloud? The DO hub supports multiple daemon connections per user, but the UX for choosing "which device's save" in the MCP needs thought.
