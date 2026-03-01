@@ -82,9 +82,11 @@ async function doConnect(): Promise<void> {
   });
 
   socket.addEventListener("close", () => {
-    hasFailedOnce = true;
     ws = null;
-    scheduleReconnect();
+    if (!intentionalClose) {
+      hasFailedOnce = true;
+      scheduleReconnect();
+    }
   });
 
   socket.addEventListener("error", () => {
@@ -103,7 +105,6 @@ function handleVisibilityChange(): void {
     reconnectTimer = null;
   }
   reconnectDelay = INITIAL_DELAY;
-  hasFailedOnce = false;
   void doConnect();
 }
 
