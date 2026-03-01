@@ -1,0 +1,40 @@
+{
+  "name": "savecraft-site",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "test": "vitest run",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.28.0",
+    "@sveltejs/adapter-static": "^3.0.0",
+    "@sveltejs/kit": "^2.21.1",
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/svelte": "^5.2.7",
+    "@types/node": "^25.3.3",
+    "eslint": "^9.28.0",
+    "eslint-config-prettier": "^10.1.5",
+    "eslint-plugin-svelte": "^3.9.1",
+    "globals": "^16.0.0",
+    "jiti": "^2.6.1",
+    "jsdom": "^26.1.0",
+    "prettier": "^3.5.3",
+    "prettier-plugin-svelte": "^3.5.0",
+    "svelte": "^5.33.0",
+    "svelte-check": "^4.2.1",
+    "svelte-eslint-parser": "^1.5.1",
+    "typescript": "~5.8.3",
+    "typescript-eslint": "^8.32.1",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.1"
+  }
+}

@@ -13,20 +13,20 @@
 
   let { prominent = true }: { prominent?: boolean } = $props();
 
-  // ── Pairing code state ──────────────────────────────────
+  // -- Pairing code state ------------------------------------
   type PairingState = "idle" | "generating" | "active" | "expired";
   let pairingState = $state<PairingState>("idle");
   let pairingCode = $state<string | null>(null);
   let expiresAt = $state(0);
   let remainingSeconds = $state(0);
 
-  // ── API key state (secondary) ───────────────────────────
+  // -- API key state (secondary) -----------------------------
   let generatedKey = $state<CreateApiKeyResponse | null>(null);
   let existingKeys = $state<ApiKey[]>([]);
   let apiKeyLoading = $state(false);
   let showApiKeys = $state(false);
 
-  // ── Shared state ────────────────────────────────────────
+  // -- Shared state ------------------------------------------
   let copied = $state<string | null>(null);
   let error = $state<string | null>(null);
   let expanded = $state(false);
@@ -40,7 +40,7 @@
     void loadKeys();
   });
 
-  // Countdown timer — re-runs when pairingState or expiresAt change.
+  // Countdown timer -- re-runs when pairingState or expiresAt change.
   $effect(() => {
     if (pairingState !== "active") return;
 
@@ -87,7 +87,7 @@
     try {
       existingKeys = await listApiKeys();
     } catch {
-      // Ignore — will show empty
+      // Ignore -- will show empty
     }
   }
 
@@ -310,7 +310,7 @@
 {/if}
 
 <style>
-  /* ── Hero (prominent) ───────────────────────────────────── */
+  /* -- Hero (prominent) ------------------------------------- */
 
   .install-hero {
     display: flex;
@@ -330,7 +330,7 @@
 
   .hero-label {
     font-family: var(--font-pixel);
-    font-size: 11px;
+    font-size: 12px;
     color: var(--color-gold);
     letter-spacing: 2px;
   }
@@ -353,7 +353,7 @@
     max-width: 480px;
   }
 
-  /* ── Compact (non-prominent) ────────────────────────────── */
+  /* -- Compact (non-prominent) ------------------------------ */
 
   .add-device-toggle {
     display: flex;
@@ -375,7 +375,7 @@
     border-top: 1px solid rgba(74, 90, 173, 0.12);
   }
 
-  /* ── Pairing code display ───────────────────────────────── */
+  /* -- Pairing code display --------------------------------- */
 
   .code-display {
     display: flex;
@@ -441,7 +441,7 @@
     margin-top: 8px;
   }
 
-  /* ── API keys toggle ────────────────────────────────────── */
+  /* -- API keys toggle -------------------------------------- */
 
   .api-keys-toggle {
     display: flex;
@@ -467,11 +467,11 @@
     border-top: 1px solid rgba(74, 90, 173, 0.12);
   }
 
-  /* ── Shared ─────────────────────────────────────────────── */
+  /* -- Shared ----------------------------------------------- */
 
   .toggle-icon {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-gold);
     width: 20px;
     height: 20px;
@@ -484,7 +484,7 @@
 
   .toggle-label {
     font-family: var(--font-pixel);
-    font-size: 9px;
+    font-size: 12px;
     color: var(--color-text-muted);
     letter-spacing: 1px;
   }
@@ -502,7 +502,7 @@
 
   .step-number {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-gold);
     width: 24px;
     height: 24px;
@@ -515,7 +515,7 @@
 
   .step-title {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-text);
     letter-spacing: 1px;
   }

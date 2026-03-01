@@ -22,7 +22,7 @@
 
   let { deviceId, onclose }: Props = $props();
 
-  // Local editing state: gameId → config
+  // Local editing state: gameId -> config
   let games = new SvelteMap<string, GameConfigInput>();
   let loading = $state(true);
   let saving = $state(false);
@@ -130,7 +130,7 @@
     error = null;
     try {
       // Send all games (enabled + disabled) to preserve paths.
-      // The server stores the enabled flag per row — disabled games
+      // The server stores the enabled flag per row -- disabled games
       // keep their config so the user can re-enable without re-entering paths.
       const toSave: Record<string, GameConfigInput> = Object.fromEntries(games);
       await saveDeviceConfig(deviceId, toSave);
@@ -246,7 +246,9 @@
                   {/if}
 
                   {#if plugin?.coverage === "partial"}
-                    <div class="coverage-note">Partial coverage — some features may be missing</div>
+                    <div class="coverage-note">
+                      Partial coverage -- some features may be missing
+                    </div>
                   {/if}
                 {/if}
               </div>
@@ -308,7 +310,7 @@
 
   .modal-title {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 12px;
     color: var(--color-gold);
     letter-spacing: 2px;
   }
@@ -352,7 +354,7 @@
     border-bottom: 1px solid rgba(232, 90, 90, 0.2);
   }
 
-  /* ── Game list ───────────────────────────────────────── */
+  /* -- Game list -------------------------------------------- */
 
   .game-list {
     padding: 8px 0;
@@ -390,7 +392,7 @@
 
   .game-name-label {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 12px;
     color: var(--color-text);
     letter-spacing: 0.5px;
   }
@@ -410,7 +412,7 @@
     padding: 1px 6px;
   }
 
-  /* ── Path input ──────────────────────────────────────── */
+  /* -- Path input ------------------------------------------- */
 
   .path-row {
     display: flex;
@@ -440,7 +442,7 @@
     border-color: var(--color-border-light);
   }
 
-  /* ── Test result ─────────────────────────────────────── */
+  /* -- Test result ------------------------------------------ */
 
   .test-result {
     font-family: var(--font-body);
@@ -472,7 +474,7 @@
     margin-top: 4px;
   }
 
-  /* ── Footer ──────────────────────────────────────────── */
+  /* -- Footer ----------------------------------------------- */
 
   .modal-footer {
     display: flex;

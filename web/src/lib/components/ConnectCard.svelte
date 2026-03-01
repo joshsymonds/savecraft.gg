@@ -60,7 +60,7 @@
         </div>
         <div class="url-block compact-url">
           <code class="url-text">{mcpUrl}</code>
-          <button class="copy-btn" onclick={copyUrl}>{copyLabel}</button>
+          <button class="copy-btn" class:copied onclick={copyUrl}>{copyLabel}</button>
         </div>
       </div>
     </Panel>
@@ -116,7 +116,7 @@
 {/if}
 
 <style>
-  /* ── Compact (connected) ────────────────────────────────── */
+  /* -- Compact (connected) ---------------------------------- */
 
   .compact {
     padding: 14px 18px;
@@ -142,7 +142,7 @@
 
   .connected-label {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-green);
     letter-spacing: 2px;
     white-space: nowrap;
@@ -152,7 +152,7 @@
     flex: 1;
   }
 
-  /* ── CTA (not connected) ────────────────────────────────── */
+  /* -- CTA (not connected) ---------------------------------- */
 
   .cta {
     padding: 24px 24px 20px;
@@ -169,7 +169,7 @@
 
   .cta-badge {
     font-family: var(--font-pixel);
-    font-size: 9px;
+    font-size: 12px;
     color: var(--color-gold);
     letter-spacing: 3px;
     background: rgba(200, 168, 78, 0.1);
@@ -197,7 +197,7 @@
     max-width: 540px;
   }
 
-  /* ── URL section ─────────────────────────────────────────── */
+  /* -- URL section ------------------------------------------ */
 
   .url-section {
     display: flex;
@@ -207,7 +207,7 @@
 
   .url-label {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 12px;
     color: var(--color-text-muted);
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -241,7 +241,7 @@
     padding: 6px 14px;
     cursor: pointer;
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-text-dim);
     letter-spacing: 1px;
     transition: all 0.15s;
@@ -260,7 +260,7 @@
     border-color: rgba(90, 190, 138, 0.3);
   }
 
-  /* ── Instructions ─────────────────────────────────────────── */
+  /* -- Instructions ----------------------------------------- */
 
   .instructions {
     display: flex;
@@ -272,7 +272,7 @@
 
   .instructions-label {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 12px;
     color: var(--color-text-muted);
     letter-spacing: 2px;
     text-transform: uppercase;
@@ -295,7 +295,7 @@
 
   .client-name {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-text);
     letter-spacing: 1px;
     min-width: 100px;

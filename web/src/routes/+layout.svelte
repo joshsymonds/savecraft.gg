@@ -15,7 +15,7 @@
   let { children } = $props();
   let userButtonEl: HTMLDivElement | undefined = $state();
 
-  const PUBLIC_ROUTES = new Set(["/", "/sign-in", "/sign-up"]);
+  const PUBLIC_ROUTES = new Set(["/sign-in", "/sign-up"]);
 
   /** Check Clerk's session cookie to infer auth state before the SDK loads. */
   function hasClerkSession(): boolean {
@@ -36,14 +36,7 @@
     const isSignedOut = $authState.isLoaded && !$authState.isSignedIn;
     const likelySignedOut = !$authState.isLoaded && !hasClerkSession();
     if (isSignedOut || likelySignedOut) {
-      void goto(resolve("/sign-up"));
-    }
-  });
-
-  // Reverse guard: redirect authenticated users away from public/auth pages to the app
-  $effect(() => {
-    if ($authState.isLoaded && $authState.isSignedIn && PUBLIC_ROUTES.has(page.url.pathname)) {
-      void goto(resolve("/devices"));
+      void goto(resolve("/sign-in"));
     }
   });
 
@@ -82,19 +75,7 @@
 {:else if showAppShell}
   <div class="app-shell">
     <header class="app-header">
-      <div class="header-left">
-        <a href={resolve("/devices")} class="header-title">SAVECRAFT</a>
-        <nav class="header-nav">
-          <a
-            href={resolve("/devices")}
-            class="nav-link"
-            class:active={page.url.pathname === "/devices"}>DEVICES</a
-          >
-          <a href={resolve("/saves")} class="nav-link" class:active={page.url.pathname === "/saves"}
-            >SAVES</a
-          >
-        </nav>
-      </div>
+      <a href={resolve("/")} class="header-title">SAVECRAFT</a>
       <div bind:this={userButtonEl}></div>
     </header>
     <div class="app-content">
@@ -119,43 +100,12 @@
     background: rgba(5, 7, 26, 0.6);
   }
 
-  .header-left {
-    display: flex;
-    align-items: center;
-    gap: 24px;
-  }
-
   .header-title {
     font-family: var(--font-pixel);
     font-size: 14px;
     color: var(--color-gold);
     letter-spacing: 3px;
     text-decoration: none;
-  }
-
-  .header-nav {
-    display: flex;
-    gap: 4px;
-  }
-
-  .nav-link {
-    font-family: var(--font-pixel);
-    font-size: 10px;
-    color: var(--color-text-muted);
-    text-decoration: none;
-    letter-spacing: 1px;
-    padding: 6px 12px;
-    border-radius: 3px;
-    transition: all 0.15s;
-  }
-
-  .nav-link:hover {
-    color: var(--color-text-dim);
-  }
-
-  .nav-link.active {
-    color: var(--color-text);
-    background: rgba(74, 90, 173, 0.12);
   }
 
   .app-content {
