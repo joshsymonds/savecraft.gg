@@ -1,13 +1,44 @@
-name: Release Cloud
+name: Deploy Cloud
 
 on:
   push:
+    branches: [main]
     tags: ["cloud-v*"]
+    paths:
+      - 'worker/**'
+      - 'web/**'
 
 permissions:
   contents: write
 
 jobs:
+  environment:
+    name: Detect environment
+    runs-on: ubuntu-latest
+    outputs:
+      is_production: ${{ steps.detect.outputs.is_production }}
+      wrangler_env: ${{ steps.detect.outputs.wrangler_env }}
+      d1_database: ${{ steps.detect.outputs.d1_database }}
+      pages_branch: ${{ steps.detect.outputs.pages_branch }}
+      public_api_url: ${{ steps.detect.outputs.public_api_url }}
+    steps:
+      - name: Detect environment from ref
+        id: detect
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/cloud-v* ]]; then
+            echo "is_production=true" >> "$GITHUB_OUTPUT"
+            echo "wrangler_env=production" >> "$GITHUB_OUTPUT"
+            echo "d1_database=savecraft" >> "$GITHUB_OUTPUT"
+            echo "pages_branch=main" >> "$GITHUB_OUTPUT"
+            echo "public_api_url=https://api.savecraft.gg" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_production=false" >> "$GITHUB_OUTPUT"
+            echo "wrangler_env=staging" >> "$GITHUB_OUTPUT"
+            echo "d1_database=savecraft-staging" >> "$GITHUB_OUTPUT"
+            echo "pages_branch=staging" >> "$GITHUB_OUTPUT"
+            echo "public_api_url=https://staging-api.savecraft.gg" >> "$GITHUB_OUTPUT"
+          fi
+
   test-worker:
     name: Worker (lint + test)
     runs-on: ubuntu-latest
@@ -84,8 +115,8 @@ jobs:
         working-directory: .
 
   deploy:
-    name: Deploy to Production
-    needs: [test-worker, test-web]
+    name: Deploy
+    needs: [environment, test-worker, test-web]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -101,14 +132,14 @@ jobs:
         working-directory: worker
 
       - name: Apply D1 migrations
-        run: npx wrangler d1 migrations apply savecraft --env production --remote
+        run: npx wrangler d1 migrations apply ${{ needs.environment.outputs.d1_database }} --env ${{ needs.environment.outputs.wrangler_env }} --remote
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy worker
-        run: npx wrangler deploy --env production
+        run: npx wrangler deploy --env ${{ needs.environment.outputs.wrangler_env }}
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -122,10 +153,11 @@ jobs:
         run: npm run build
         working-directory: web
         env:
-          PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ needs.environment.outputs.is_production == 'true' && secrets.PUBLIC_CLERK_PUBLISHABLE_KEY || secrets.PUBLIC_CLERK_PUBLISHABLE_KEY_STAGING }}
+          PUBLIC_API_URL: ${{ needs.environment.outputs.public_api_url }}
 
       - name: Deploy web to Pages
-        run: npx wrangler pages deploy .svelte-kit/cloudflare --project-name savecraft-web --branch main
+        run: npx wrangler pages deploy .svelte-kit/cloudflare --project-name savecraft-web --branch ${{ needs.environment.outputs.pages_branch }}
         working-directory: web
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
@@ -133,7 +165,8 @@ jobs:
 
   release:
     name: GitHub Release
-    needs: deploy
+    needs: [environment, deploy]
+    if: needs.environment.outputs.is_production == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

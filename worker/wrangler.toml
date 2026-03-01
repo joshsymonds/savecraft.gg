@@ -33,11 +33,15 @@ new_classes = ["DaemonHub"]
 # ── Production ─────────────────────────────────────────
 [env.production]
 name = "savecraft-api"
-route = { pattern = "api.savecraft.gg/*", zone_name = "savecraft.gg" }
+routes = [
+  { pattern = "api.savecraft.gg/*", zone_name = "savecraft.gg" },
+  { pattern = "mcp.savecraft.gg/*", zone_name = "savecraft.gg" },
+]
 
 [env.production.vars]
 ENVIRONMENT = "production"
 ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg"
+CLERK_ISSUER = "https://intent-earwig-38.clerk.accounts.dev"
 
 [[env.production.d1_databases]]
 binding = "DB"
@@ -65,11 +69,16 @@ new_sqlite_classes = ["DaemonHub"]
 # ── Staging ────────────────────────────────────────────
 [env.staging]
 name = "savecraft-api-staging"
-route = { pattern = "staging-api.savecraft.gg/*", zone_name = "savecraft.gg" }
+routes = [
+  { pattern = "staging-api.savecraft.gg/*", zone_name = "savecraft.gg" },
+  { pattern = "mcp-staging.savecraft.gg/*", zone_name = "savecraft.gg" },
+]
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
 ALLOWED_ORIGINS = "https://staging.savecraft.gg"
+SERVER_URL = "https://staging-api.savecraft.gg"
+CLERK_ISSUER = "https://dominant-frog-65.clerk.accounts.dev"
 
 [[env.staging.d1_databases]]
 binding = "DB"

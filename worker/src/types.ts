@@ -4,9 +4,9 @@ export interface Env {
   PLUGINS: R2Bucket;
   DAEMON_HUB: DurableObjectNamespace;
   ENVIRONMENT: string;
-  /** Clerk issuer URL (e.g. "https://clerk.savecraft.gg"). When set, enables JWT validation. Unset = stub auth. */
+  /** Clerk issuer URL (e.g. "https://intent-earwig-38.clerk.accounts.dev"). When set, enables JWT validation. Unset = stub auth. */
   CLERK_ISSUER?: string;
-  /** Public-facing server URL for OAuth discovery (e.g. "https://mcp.savecraft.gg"). */
+  /** Public-facing server URL for OAuth discovery (e.g. "https://api.savecraft.gg"). */
   SERVER_URL?: string;
   /** Comma-separated list of allowed CORS origins. Unset = wildcard (dev only). */
   ALLOWED_ORIGINS?: string;

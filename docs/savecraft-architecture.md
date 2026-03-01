@@ -776,7 +776,7 @@ CREATE TABLE saves (
 Uses `nhooyr.io/websocket` for context-aware WebSocket with clean shutdown.
 
 **Connection lifecycle:**
-1. On startup, connect to `wss://mcp.savecraft.gg/ws/daemon` with bearer token in header.
+1. On startup, connect to `wss://api.savecraft.gg/ws/daemon` (or `wss://staging-api.savecraft.gg/ws/daemon` for staging) with bearer token in header.
 2. On connect success, send `daemon_online` event.
 3. Listen for incoming messages (config updates, rescan commands) in a goroutine.
 4. Send status events as they occur (parse results, errors, game detection).
@@ -1531,9 +1531,9 @@ Production deploys use tag-prefix namespaces. Each component has its own tag for
 
 | Component | Tag format | Workflow | Artifacts |
 |-----------|-----------|----------|-----------|
-| Daemon | `daemon-v*` | `release-daemon.yml` | Binaries + install.sh + checksums |
-| Worker + Web | `cloud-v*` | `release-cloud.yml` | Changelog only (no binary artifacts) |
-| Plugins | `plugin-v*` | `release-plugin.yml` | Changelog only (plugins uploaded to R2) |
+| Daemon | `daemon-v*` | `deploy-daemon.yml` | Binaries + install.sh + checksums |
+| Worker + Web | `cloud-v*` | `deploy-cloud.yml` | Changelog only (no binary artifacts) |
+| Plugins | `plugin-v*` | `deploy-plugin.yml` | Changelog only (plugins uploaded to R2) |
 
 **To release:**
 ```bash
@@ -1551,7 +1551,7 @@ git tag plugin-v1.0.0 && git push --tags
 
 **`cloud-v*` re-runs tests** before deploying to production. `daemon-v*` and `plugin-v*` do not re-run tests — daemon builds from source and plugins build WASM, so the artifacts are fresh regardless.
 
-#### Daemon Release Pipeline (`release-daemon.yml`)
+#### Daemon Deploy Pipeline (`deploy-daemon.yml`)
 
 Triggered by `daemon-v*` tags. Four parallel-then-sequential jobs:
 
@@ -1560,7 +1560,7 @@ Triggered by `daemon-v*` tags. Four parallel-then-sequential jobs:
 3. **Upload to R2:** Binaries + signatures + daemon manifest to `savecraft-plugins/daemon/`
 4. **GitHub Release:** Bake public key + version into `install.sh`, create release with all artifacts, notify Discord
 
-#### Plugin Release Pipeline (`release-plugin.yml`)
+#### Plugin Deploy Pipeline (`deploy-plugin.yml`)
 
 Triggered by `plugin-v*` tags or `workflow_dispatch` (manual, specify game_id). Iterates all plugins with a `plugin.toml`, compares each version against the production R2 manifest, and skips plugins whose version already matches. For changed plugins: build WASM → sign with Ed25519 → generate manifest → upload to production R2. Creates a GitHub Release and notifies Discord.
 
