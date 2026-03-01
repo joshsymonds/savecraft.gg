@@ -24,6 +24,10 @@
   });
 </script>
 
+<svelte:head>
+  <title>Sign In — Savecraft</title>
+</svelte:head>
+
 <div class="sign-in-page">
   <div class="hero">
     <div class="logo">SAVECRAFT</div>
