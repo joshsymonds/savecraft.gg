@@ -3,6 +3,8 @@
   Install flow: pairing code (primary), API key management (secondary).
   prominent=true: full hero treatment (empty state)
   prominent=false: compact collapsible row (below device list)
+
+  Pass `initialState` to bypass API calls and seed reactive state (for Storybook).
 -->
 <script lang="ts">
   import { PUBLIC_API_URL } from "$env/static/public";
@@ -11,14 +13,21 @@
   import { Panel, TinyButton } from "$lib/components";
   import { onMount } from "svelte";
 
-  let { prominent = true }: { prominent?: boolean } = $props();
-
   // -- Pairing code state ------------------------------------
   type PairingState = "idle" | "generating" | "active" | "expired";
-  let pairingState = $state<PairingState>("idle");
-  let pairingCode = $state<string | null>(null);
+
+  let {
+    prominent = true,
+    initialState,
+  }: {
+    prominent?: boolean;
+    initialState?: { pairingState: PairingState; pairingCode?: string; remainingSeconds?: number };
+  } = $props();
+
+  let pairingState = $state<PairingState>(initialState?.pairingState ?? "idle");
+  let pairingCode = $state<string | null>(initialState?.pairingCode ?? null);
   let expiresAt = $state(0);
-  let remainingSeconds = $state(0);
+  let remainingSeconds = $state(initialState?.remainingSeconds ?? 0);
 
   // -- API key state (secondary) -----------------------------
   let generatedKey = $state<CreateApiKeyResponse | null>(null);
@@ -37,12 +46,14 @@
   const CODE_TTL_SECONDS = 120;
 
   onMount(() => {
+    if (initialState) return;
     void loadKeys();
   });
 
   // Countdown timer -- re-runs when pairingState or expiresAt change.
   $effect(() => {
     if (pairingState !== "active") return;
+    if (initialState) return; // Static display in Storybook
 
     const target = expiresAt;
 
@@ -141,11 +152,24 @@
     {#if pairingState === "idle"}
       <p class="step-desc">Generate a pairing code, then enter it on your machine to connect.</p>
       <div class="action-row">
-        <TinyButton label="PAIR A DEVICE" onclick={generateCode} />
+        {#if prominent}
+          <button class="primary-action" onclick={generateCode}>
+            <span class="primary-action-icon">&gt;</span>
+            <span class="primary-action-label">PAIR A DEVICE</span>
+          </button>
+        {:else}
+          <TinyButton label="PAIR A DEVICE" onclick={generateCode} />
+        {/if}
       </div>
     {:else if pairingState === "generating"}
       <div class="action-row">
-        <TinyButton label="GENERATING..." disabled={true} />
+        {#if prominent}
+          <button class="primary-action" disabled>
+            <span class="primary-action-label">GENERATING...</span>
+          </button>
+        {:else}
+          <TinyButton label="GENERATING..." disabled={true} />
+        {/if}
       </div>
     {:else if pairingState === "active" && pairingCode}
       <div class="code-display">
@@ -186,6 +210,22 @@
       />
     </div>
     <p class="command-hint">The installer will prompt you for the pairing code.</p>
+  </div>
+{/snippet}
+
+{#snippet nextStepsSection()}
+  <div class="section next-steps-section">
+    <div class="step-header">
+      <span class="step-number">3</span>
+      <span class="step-title">What Happens Next</span>
+    </div>
+    <div class="next-steps-inline">
+      <span class="next-step-item">Installs to <code>~/.local/bin/</code></span>
+      <span class="next-step-sep">&middot;</span>
+      <span class="next-step-item">Starts as a systemd service</span>
+      <span class="next-step-sep">&middot;</span>
+      <span class="next-step-item">Appears on this page automatically</span>
+    </div>
   </div>
 {/snippet}
 
@@ -236,41 +276,24 @@
 {/snippet}
 
 {#if prominent}
-  <!-- Full hero install flow -->
+  <!-- Full hero install flow — single consolidated Panel -->
   <div class="install-hero">
     <div class="hero-header">
       <span class="hero-label">GET STARTED</span>
-      <h2 class="hero-title">Install Savecraft on your gaming machine</h2>
+      <h2 class="hero-title">Connect your gaming machine to Savecraft</h2>
       <p class="hero-subtitle">
-        A small daemon watches your save files and streams them to the cloud. Takes about two
-        minutes — pair, install, done.
+        Pair your device, run one command, and the daemon starts watching your saves. Takes two
+        minutes.
       </p>
     </div>
 
     <Panel>
       {@render pairingFlow()}
-    </Panel>
-
-    <Panel>
+      <div class="section-divider"></div>
       {@render installCommandSection()}
-    </Panel>
-
-    <Panel>
-      <div class="section">
-        <div class="step-header">
-          <span class="step-number">3</span>
-          <span class="step-title">What Happens Next</span>
-        </div>
-        <ul class="next-steps">
-          <li>The daemon installs to <code>~/.local/bin/savecraft-daemon</code></li>
-          <li>A systemd user service starts automatically</li>
-          <li>The daemon connects to Savecraft and appears on this page</li>
-          <li>Configure games from the device card — the daemon watches for save changes</li>
-        </ul>
-      </div>
-    </Panel>
-
-    <Panel>
+      <div class="section-divider"></div>
+      {@render nextStepsSection()}
+      <div class="section-divider faint"></div>
       <button class="api-keys-toggle" onclick={() => (showApiKeys = !showApiKeys)}>
         <span class="toggle-icon">{showApiKeys ? "-" : "+"}</span>
         <span class="toggle-label">API KEYS (FOR AUTOMATION)</span>
@@ -351,6 +374,85 @@
     line-height: 1.5;
     margin: 0;
     max-width: 480px;
+  }
+
+  /* -- Section dividers inside the consolidated Panel ------- */
+
+  .section-divider {
+    height: 1px;
+    background: rgba(74, 90, 173, 0.15);
+    margin: 0 20px;
+  }
+
+  .section-divider.faint {
+    background: rgba(74, 90, 173, 0.08);
+  }
+
+  /* -- Primary action button (hero only) -------------------- */
+
+  .primary-action {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 28px;
+    background: rgba(200, 168, 78, 0.08);
+    border: 2px solid var(--color-gold);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 0 12px rgba(200, 168, 78, 0.1);
+  }
+
+  .primary-action:hover:not(:disabled) {
+    background: rgba(200, 168, 78, 0.15);
+    box-shadow: 0 0 20px rgba(200, 168, 78, 0.2);
+  }
+
+  .primary-action:disabled {
+    opacity: 0.4;
+    cursor: default;
+  }
+
+  .primary-action-icon {
+    font-family: var(--font-pixel);
+    font-size: 14px;
+    color: var(--color-gold);
+  }
+
+  .primary-action-label {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    color: var(--color-gold);
+    letter-spacing: 2px;
+  }
+
+  /* -- "What happens next" inline section ------------------- */
+
+  .next-steps-section {
+    padding-bottom: 14px;
+  }
+
+  .next-steps-inline {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .next-step-item {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-text-muted);
+  }
+
+  .next-step-item code {
+    color: var(--color-text-dim);
+    font-size: 13px;
+  }
+
+  .next-step-sep {
+    color: rgba(74, 90, 173, 0.3);
+    font-size: 14px;
   }
 
   /* -- Compact (non-prominent) ------------------------------ */
@@ -522,10 +624,10 @@
 
   .step-desc {
     font-family: var(--font-body);
-    font-size: 18px;
+    font-size: 15px;
     color: var(--color-text-dim);
     margin-bottom: 12px;
-    line-height: 1.4;
+    line-height: 1.5;
   }
 
   .action-row {
@@ -580,36 +682,6 @@
     word-break: break-all;
     flex: 1;
     line-height: 1.5;
-  }
-
-  .next-steps {
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .next-steps li {
-    font-family: var(--font-body);
-    font-size: 18px;
-    color: var(--color-text-dim);
-    padding-left: 16px;
-    position: relative;
-  }
-
-  .next-steps li::before {
-    content: ">";
-    position: absolute;
-    left: 0;
-    color: var(--color-gold);
-    font-family: var(--font-pixel);
-    font-size: 10px;
-    top: 4px;
-  }
-
-  .next-steps code {
-    color: var(--color-text);
-    font-size: 16px;
   }
 
   .error-msg {

@@ -1,6 +1,8 @@
 <!--
   @component
   MCP connect card: prominent CTA when no AI client connected, compact reminder once connected.
+
+  Pass `initialState` to bypass API calls and show a specific visual state (for Storybook).
 -->
 <script lang="ts">
   import { PUBLIC_MCP_URL } from "$env/static/public";
@@ -8,10 +10,12 @@
   import { Panel } from "$lib/components";
   import { onMount } from "svelte";
 
+  let { initialState }: { initialState?: { connected: boolean } } = $props();
+
   const mcpUrl = PUBLIC_MCP_URL;
 
-  let loading = $state(true);
-  let connected = $state(false);
+  let loading = $state(!initialState);
+  let connected = $state(initialState?.connected ?? false);
   let copied = $state(false);
   let copyError = $state(false);
 
@@ -22,6 +26,7 @@
   });
 
   onMount(async () => {
+    if (initialState) return;
     try {
       const status = await fetchMcpStatus();
       connected = status.connected;
@@ -78,35 +83,45 @@
           </p>
         </div>
 
-        <div class="url-section">
-          <span class="url-label">Your MCP server URL</span>
-          <div class="url-block">
-            <code class="url-text">{mcpUrl}</code>
-            <button class="copy-btn" class:copied onclick={copyUrl}>{copyLabel}</button>
+        <div class="cta-steps">
+          <div class="cta-step">
+            <span class="cta-step-number">1</span>
+            <div class="cta-step-content">
+              <span class="cta-step-label">COPY YOUR MCP SERVER URL</span>
+              <div class="url-block url-block-prominent">
+                <code class="url-text">{mcpUrl}</code>
+                <button class="copy-btn copy-btn-prominent" class:copied onclick={copyUrl}
+                  >{copyLabel}</button
+                >
+              </div>
+            </div>
           </div>
-        </div>
 
-        <div class="instructions">
-          <span class="instructions-label">Paste it into your AI client</span>
-          <div class="instruction-list">
-            <div class="instruction">
-              <span class="client-name">Claude.ai</span>
-              <span class="client-arrow">&rarr;</span>
-              <span class="client-steps"
-                >Settings &rarr; Connectors &rarr; Add custom connector</span
-              >
-            </div>
-            <div class="instruction">
-              <span class="client-name">Claude Code</span>
-              <span class="client-arrow">&rarr;</span>
-              <span class="client-steps">
-                <code class="inline-code">claude mcp add-remote savecraft {mcpUrl}</code>
-              </span>
-            </div>
-            <div class="instruction">
-              <span class="client-name">ChatGPT</span>
-              <span class="client-arrow">&rarr;</span>
-              <span class="client-steps">Settings &rarr; MCP &rarr; Add remote server</span>
+          <div class="cta-step">
+            <span class="cta-step-number">2</span>
+            <div class="cta-step-content">
+              <span class="cta-step-label">PASTE IT INTO YOUR AI CLIENT</span>
+              <div class="instruction-list">
+                <div class="instruction">
+                  <span class="client-name">Claude.ai</span>
+                  <span class="client-arrow">&rarr;</span>
+                  <span class="client-steps"
+                    >Settings &rarr; Connectors &rarr; Add custom connector</span
+                  >
+                </div>
+                <div class="instruction">
+                  <span class="client-name">Claude Code</span>
+                  <span class="client-arrow">&rarr;</span>
+                  <span class="client-steps">
+                    <code class="inline-code">claude mcp add-remote savecraft {mcpUrl}</code>
+                  </span>
+                </div>
+                <div class="instruction">
+                  <span class="client-name">ChatGPT</span>
+                  <span class="client-arrow">&rarr;</span>
+                  <span class="client-steps">Settings &rarr; MCP &rarr; Add remote server</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -158,7 +173,7 @@
     padding: 24px 24px 20px;
     display: flex;
     flex-direction: column;
-    gap: 20px;
+    gap: 24px;
   }
 
   .cta-header {
@@ -197,21 +212,51 @@
     max-width: 540px;
   }
 
-  /* -- URL section ------------------------------------------ */
+  /* -- Numbered steps --------------------------------------- */
 
-  .url-section {
+  .cta-steps {
     display: flex;
     flex-direction: column;
-    gap: 6px;
+    gap: 20px;
   }
 
-  .url-label {
+  .cta-step {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+  }
+
+  .cta-step-number {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    color: var(--color-gold);
+    width: 28px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-gold);
+    border-radius: 3px;
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+
+  .cta-step-content {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .cta-step-label {
     font-family: var(--font-pixel);
     font-size: 12px;
     color: var(--color-text-muted);
     letter-spacing: 2px;
-    text-transform: uppercase;
   }
+
+  /* -- URL section ------------------------------------------ */
 
   .url-block {
     display: flex;
@@ -221,6 +266,12 @@
     padding: 12px 14px;
     border-radius: 4px;
     border: 1px solid rgba(74, 90, 173, 0.2);
+  }
+
+  .url-block-prominent {
+    padding: 14px 16px;
+    border-color: rgba(200, 168, 78, 0.2);
+    background: rgba(5, 7, 26, 0.7);
   }
 
   .url-text {
@@ -260,23 +311,21 @@
     border-color: rgba(90, 190, 138, 0.3);
   }
 
+  .copy-btn-prominent {
+    padding: 8px 18px;
+    font-size: 11px;
+    border-color: rgba(200, 168, 78, 0.3);
+    color: var(--color-gold);
+    background: rgba(200, 168, 78, 0.08);
+  }
+
+  .copy-btn-prominent:hover {
+    border-color: var(--color-gold);
+    background: rgba(200, 168, 78, 0.15);
+    color: var(--color-gold);
+  }
+
   /* -- Instructions ----------------------------------------- */
-
-  .instructions {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-    border-top: 1px solid rgba(74, 90, 173, 0.1);
-    padding-top: 16px;
-  }
-
-  .instructions-label {
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    color: var(--color-text-muted);
-    letter-spacing: 2px;
-    text-transform: uppercase;
-  }
 
   .instruction-list {
     display: flex;
