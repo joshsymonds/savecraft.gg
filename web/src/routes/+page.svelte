@@ -55,7 +55,7 @@
 
   const CONNECTION_STATUS: Record<ConnectionStatus, "online" | "error" | "offline"> = {
     connected: "online",
-    connecting: "error",
+    connecting: "offline",
     reconnecting: "offline",
     disconnected: "offline",
   };
@@ -171,8 +171,7 @@
       <span
         class="live-indicator"
         class:live={$connectionStatus === "connected"}
-        class:connecting={$connectionStatus === "connecting"}
-        class:offline={$connectionStatus === "disconnected" || $connectionStatus === "reconnecting"}
+        class:offline={$connectionStatus !== "connected"}
       >
         <StatusDot status={CONNECTION_STATUS[$connectionStatus]} size={5} />
         {CONNECTION_LABEL[$connectionStatus]}
@@ -408,10 +407,6 @@
 
   .live-indicator.live {
     color: var(--color-green);
-  }
-
-  .live-indicator.connecting {
-    color: var(--color-yellow);
   }
 
   .live-indicator.offline {
