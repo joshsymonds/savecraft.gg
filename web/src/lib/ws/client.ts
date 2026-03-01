@@ -31,9 +31,12 @@ function scheduleReconnect(): void {
 }
 
 async function doConnect(): Promise<void> {
+  if (intentionalClose) return;
+
   const token = await getToken();
-  if (!token || intentionalClose) {
-    connectionStatus.set("disconnected");
+  if (!token) {
+    // Clerk session may be refreshing — retry instead of giving up
+    scheduleReconnect();
     return;
   }
 
