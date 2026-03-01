@@ -939,7 +939,7 @@ export default function SavecraftHomepage() {
           fontSize: "16px",
           color: "#4a5aad",
         }}>
-          savecraft.gg — an Autotome.ai project
+          savecraft.gg — by @joshsymonds
         </div>
         <div style={{ display: "flex", gap: "20px" }}>
           {["GitHub", "Discord", "Docs"].map((link) => (
