@@ -40,9 +40,9 @@
   let error = $state<string | null>(null);
   let expanded = $state(false);
 
-  const serverUrl = PUBLIC_API_URL;
-  const installRepo =
-    "https://raw.githubusercontent.com/joshsymonds/savecraft.gg/main/install/install.sh";
+  const installUrl = PUBLIC_API_URL.includes("staging")
+    ? "https://install-staging.savecraft.gg"
+    : "https://install.savecraft.gg";
   const CODE_TTL_SECONDS = 120;
 
   onMount(() => {
@@ -126,7 +126,7 @@
   }
 
   function installCommand(): string {
-    return `curl -sSL ${installRepo} | SAVECRAFT_SERVER_URL=${serverUrl} bash`;
+    return `curl -sSL ${installUrl} | bash`;
   }
 
   async function copyToClipboard(text: string, label: string): Promise<void> {
