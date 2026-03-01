@@ -242,8 +242,8 @@
       <span class="hero-label">GET STARTED</span>
       <h2 class="hero-title">Install Savecraft on your gaming machine</h2>
       <p class="hero-subtitle">
-        A small daemon watches your save files and streams them to the cloud.
-        Takes about two minutes — pair, install, done.
+        A small daemon watches your save files and streams them to the cloud. Takes about two
+        minutes — pair, install, done.
       </p>
     </div>
 

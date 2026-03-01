@@ -72,9 +72,9 @@
           <span class="cta-badge">SETUP</span>
           <h2 class="cta-title">Give your AI eyes on your saves</h2>
           <p class="cta-subtitle">
-            Connect Claude, ChatGPT, or any MCP-compatible assistant.
-            It'll read your game state in real time — builds, stats, progress, inventory — and
-            give you advice that actually knows what's in your save file.
+            Connect Claude, ChatGPT, or any MCP-compatible assistant. It'll read your game state in
+            real time — builds, stats, progress, inventory — and give you advice that actually knows
+            what's in your save file.
           </p>
         </div>
 
@@ -92,7 +92,9 @@
             <div class="instruction">
               <span class="client-name">Claude.ai</span>
               <span class="client-arrow">&rarr;</span>
-              <span class="client-steps">Settings &rarr; Connectors &rarr; Add custom connector</span>
+              <span class="client-steps"
+                >Settings &rarr; Connectors &rarr; Add custom connector</span
+              >
             </div>
             <div class="instruction">
               <span class="client-name">Claude Code</span>
