@@ -2,7 +2,7 @@ import { PUBLIC_API_URL } from "$env/static/public";
 import { getToken } from "$lib/auth/clerk";
 import { writable } from "svelte/store";
 
-export type ConnectionStatus = "disconnected" | "connecting" | "connected";
+export type ConnectionStatus = "disconnected" | "connecting" | "reconnecting" | "connected";
 
 export const connectionStatus = writable<ConnectionStatus>("disconnected");
 
@@ -14,6 +14,7 @@ let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
 let reconnectDelay = 1000;
 const MAX_DELAY = 30_000;
 let intentionalClose = false;
+let hasFailedOnce = false;
 
 function wsUrl(): string {
   return `${PUBLIC_API_URL.replace(/^http/, "ws")}/ws/ui`;
@@ -21,6 +22,7 @@ function wsUrl(): string {
 
 function scheduleReconnect(): void {
   if (intentionalClose) return;
+  connectionStatus.set("reconnecting");
   reconnectTimer = setTimeout(() => {
     reconnectDelay = Math.min(reconnectDelay * 2, MAX_DELAY);
     void doConnect();
@@ -34,7 +36,10 @@ async function doConnect(): Promise<void> {
     return;
   }
 
-  connectionStatus.set("connecting");
+  // Only show "connecting" on the initial attempt; stay "reconnecting" on retries
+  if (!hasFailedOnce) {
+    connectionStatus.set("connecting");
+  }
 
   // Pass JWT via Sec-WebSocket-Protocol header (not URL query param)
   // to avoid token exposure in access logs and browser history.
@@ -44,6 +49,7 @@ async function doConnect(): Promise<void> {
   socket.addEventListener("open", () => {
     connectionStatus.set("connected");
     reconnectDelay = 1000;
+    hasFailedOnce = false;
   });
 
   socket.addEventListener("message", (event: MessageEvent) => {
@@ -53,7 +59,7 @@ async function doConnect(): Promise<void> {
   });
 
   socket.addEventListener("close", () => {
-    connectionStatus.set("disconnected");
+    hasFailedOnce = true;
     ws = null;
     scheduleReconnect();
   });
@@ -66,6 +72,7 @@ async function doConnect(): Promise<void> {
 export function connect(onMessage: MessageHandler): void {
   handler = onMessage;
   intentionalClose = false;
+  hasFailedOnce = false;
   void doConnect();
 }
 
