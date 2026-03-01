@@ -65,6 +65,10 @@
   }
 </script>
 
+<svelte:head>
+  <title>Devices — Savecraft</title>
+</svelte:head>
+
 <div class="devices-layout">
   <!-- Main: device cards -->
   <main class="devices">

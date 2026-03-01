@@ -133,7 +133,7 @@ describe("InstallBlock", () => {
       const { container } = render(InstallBlock, { props: { prominent: true } });
       const cmdText = container.querySelector(".command-text")!.textContent!;
       expect(cmdText).toContain("curl -sSL");
-      expect(cmdText).toContain("SAVECRAFT_SERVER_URL=");
+      expect(cmdText).toContain("install.savecraft.gg");
       expect(cmdText).not.toContain("SAVECRAFT_AUTH_TOKEN");
     });
 
