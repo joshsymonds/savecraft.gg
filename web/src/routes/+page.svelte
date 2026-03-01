@@ -49,12 +49,14 @@
   const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
     connected: "LIVE",
     connecting: "CONNECTING",
+    reconnecting: "RECONNECTING",
     disconnected: "OFFLINE",
   };
 
   const CONNECTION_STATUS: Record<ConnectionStatus, "online" | "error" | "offline"> = {
     connected: "online",
     connecting: "error",
+    reconnecting: "offline",
     disconnected: "offline",
   };
 
@@ -73,6 +75,10 @@
         </div>
       {:else if $connectionStatus === "connected"}
         <InstallBlock prominent={true} />
+      {:else if $connectionStatus === "reconnecting"}
+        <div class="empty-state">
+          <span class="empty-text">Reconnecting...</span>
+        </div>
       {:else}
         <div class="empty-state">
           <span class="empty-text">Offline. Check your connection.</span>
@@ -170,7 +176,7 @@
         class="live-indicator"
         class:live={$connectionStatus === "connected"}
         class:connecting={$connectionStatus === "connecting"}
-        class:offline={$connectionStatus === "disconnected"}
+        class:offline={$connectionStatus === "disconnected" || $connectionStatus === "reconnecting"}
       >
         <StatusDot status={CONNECTION_STATUS[$connectionStatus]} size={5} />
         {CONNECTION_LABEL[$connectionStatus]}
@@ -203,7 +209,7 @@
   .devices-layout {
     display: grid;
     grid-template-columns: 1fr 380px;
-    min-height: 100vh;
+    height: 100%;
   }
 
   /* -- Devices area ----------------------------------------- */
@@ -213,6 +219,7 @@
     display: flex;
     flex-direction: column;
     gap: 16px;
+    overflow-y: auto;
   }
 
   .section-header {
@@ -378,9 +385,6 @@
     background: rgba(5, 7, 26, 0.3);
     display: flex;
     flex-direction: column;
-    height: 100vh;
-    position: sticky;
-    top: 0;
   }
 
   .activity-header {

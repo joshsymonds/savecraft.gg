@@ -83,6 +83,21 @@
     <div class="app-content">
       {@render children()}
     </div>
+    <footer class="app-footer">
+      <span class="footer-text">savecraft.gg — an Autotome.ai project</span>
+      <div class="footer-links">
+        <a href="https://savecraft.gg" class="footer-link">HOME</a>
+        <a href="https://discord.gg/YnC8stpEmF" class="footer-link" target="_blank" rel="noopener"
+          >DISCORD</a
+        >
+        <a
+          href="https://github.com/joshsymonds/savecraft.gg"
+          class="footer-link"
+          target="_blank"
+          rel="noopener">GITHUB</a
+        >
+      </div>
+    </footer>
   </div>
 {/if}
 
@@ -90,7 +105,7 @@
   .app-shell {
     display: flex;
     flex-direction: column;
-    min-height: 100vh;
+    height: 100vh;
   }
 
   .app-header {
@@ -112,5 +127,41 @@
 
   .app-content {
     flex: 1;
+    min-height: 0;
+  }
+
+  .app-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 20px;
+    border-top: 1px solid rgba(74, 90, 173, 0.15);
+    background: rgba(5, 7, 26, 0.6);
+  }
+
+  .footer-text {
+    font-family: var(--font-heading);
+    font-size: 12px;
+    color: var(--color-text-muted);
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 16px;
+  }
+
+  .footer-link {
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    text-decoration: none;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    transition: color 0.2s;
+  }
+
+  .footer-link:hover {
+    color: var(--color-border-light);
   }
 </style>
