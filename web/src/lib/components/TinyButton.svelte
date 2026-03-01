@@ -24,7 +24,7 @@
     padding: 5px 11px;
     cursor: pointer;
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-text-muted);
     letter-spacing: 1px;
     transition: all 0.15s;

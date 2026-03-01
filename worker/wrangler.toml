@@ -5,7 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "development"
-ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg,http://localhost:5173"
+ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg,https://my.savecraft.gg,http://localhost:5173"
 
 [[d1_databases]]
 binding = "DB"
@@ -40,7 +40,7 @@ routes = [
 
 [env.production.vars]
 ENVIRONMENT = "production"
-ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg"
+ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg,https://my.savecraft.gg"
 CLERK_ISSUER = "https://intent-earwig-38.clerk.accounts.dev"
 
 [[env.production.d1_databases]]
@@ -76,7 +76,7 @@ routes = [
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
-ALLOWED_ORIGINS = "https://staging.savecraft.gg"
+ALLOWED_ORIGINS = "https://staging.savecraft.gg,https://my-staging.savecraft.gg"
 SERVER_URL = "https://staging-api.savecraft.gg"
 CLERK_ISSUER = "https://dominant-frog-65.clerk.accounts.dev"
 
