@@ -17,12 +17,24 @@ let reconnectDelay = INITIAL_DELAY;
 let intentionalClose = false;
 let hasFailedOnce = false;
 
-// eslint-disable-next-line no-console
-const log = console.log.bind(console, "[ws]");
-// eslint-disable-next-line no-console
-const warn = console.warn.bind(console, "[ws]");
-// eslint-disable-next-line no-console
-const err = console.error.bind(console, "[ws]");
+// Debounce "reconnecting" so brief disconnects (tab switch) are invisible.
+// All other statuses update immediately.
+const RECONNECTING_DEBOUNCE = 2000;
+let statusDebounceTimer: ReturnType<typeof setTimeout> | null = null;
+
+function setStatus(status: ConnectionStatus): void {
+  if (statusDebounceTimer) {
+    clearTimeout(statusDebounceTimer);
+    statusDebounceTimer = null;
+  }
+  if (status === "reconnecting") {
+    statusDebounceTimer = setTimeout(() => {
+      connectionStatus.set("reconnecting");
+    }, RECONNECTING_DEBOUNCE);
+  } else {
+    connectionStatus.set(status);
+  }
+}
 
 function wsUrl(): string {
   return `${PUBLIC_API_URL.replace(/^http/, "ws")}/ws/ui`;
@@ -30,8 +42,7 @@ function wsUrl(): string {
 
 function scheduleReconnect(): void {
   if (intentionalClose) return;
-  connectionStatus.set("reconnecting");
-  log("scheduling reconnect in", reconnectDelay, "ms");
+  setStatus("reconnecting");
   reconnectTimer = setTimeout(() => {
     reconnectDelay = Math.min(reconnectDelay * 2, MAX_DELAY);
     void doConnect();
@@ -41,31 +52,25 @@ function scheduleReconnect(): void {
 async function doConnect(): Promise<void> {
   if (intentionalClose) return;
 
-  log("doConnect: fetching token…");
   const token = await getToken();
   if (!token) {
-    warn("doConnect: no token — will retry");
+    // Clerk session may be refreshing — retry instead of giving up
     scheduleReconnect();
     return;
   }
-  log("doConnect: got token, hasFailedOnce =", hasFailedOnce);
 
   // Only show "connecting" on the initial attempt; stay "reconnecting" on retries
   if (!hasFailedOnce) {
-    connectionStatus.set("connecting");
+    setStatus("connecting");
   }
-
-  const url = wsUrl();
-  log("opening WebSocket to", url);
 
   // Pass JWT via Sec-WebSocket-Protocol header (not URL query param)
   // to avoid token exposure in access logs and browser history.
-  const socket = new WebSocket(url, [`access_token.${token}`]);
+  const socket = new WebSocket(wsUrl(), [`access_token.${token}`]);
   ws = socket;
 
   socket.addEventListener("open", () => {
-    log("open");
-    connectionStatus.set("connected");
+    setStatus("connected");
     reconnectDelay = INITIAL_DELAY;
     hasFailedOnce = false;
   });
@@ -76,15 +81,13 @@ async function doConnect(): Promise<void> {
     }
   });
 
-  socket.addEventListener("close", (event: CloseEvent) => {
-    log("close: code =", event.code, "reason =", event.reason, "wasClean =", event.wasClean);
+  socket.addEventListener("close", () => {
     hasFailedOnce = true;
     ws = null;
     scheduleReconnect();
   });
 
-  socket.addEventListener("error", (event) => {
-    err("error:", event);
+  socket.addEventListener("error", () => {
     socket.close();
   });
 }
@@ -101,12 +104,10 @@ function handleVisibilityChange(): void {
   }
   reconnectDelay = INITIAL_DELAY;
   hasFailedOnce = false;
-  log("tab visible — reconnecting immediately");
   void doConnect();
 }
 
 export function connect(onMessage: MessageHandler): void {
-  log("connect() called");
   handler = onMessage;
   intentionalClose = false;
   hasFailedOnce = false;
@@ -115,7 +116,6 @@ export function connect(onMessage: MessageHandler): void {
 }
 
 export function disconnect(): void {
-  log("disconnect() called");
   intentionalClose = true;
   handler = null;
   document.removeEventListener("visibilitychange", handleVisibilityChange);
@@ -123,11 +123,15 @@ export function disconnect(): void {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
   }
+  if (statusDebounceTimer) {
+    clearTimeout(statusDebounceTimer);
+    statusDebounceTimer = null;
+  }
   if (ws) {
     ws.close();
     ws = null;
   }
-  connectionStatus.set("disconnected");
+  setStatus("disconnected");
 }
 
 export function send(data: string): void {

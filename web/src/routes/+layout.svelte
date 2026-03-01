@@ -41,9 +41,12 @@
     }
   });
 
+  // Derive a stable boolean so effects below don't re-fire on every Clerk token refresh
+  const isSignedIn = $derived($authState.isSignedIn);
+
   // WebSocket lifecycle: connect on sign-in, disconnect + reset on sign-out
   $effect(() => {
-    if ($authState.isSignedIn) {
+    if (isSignedIn) {
       connect(handleMessage);
       return () => {
         disconnect();
@@ -55,7 +58,7 @@
 
   // Mount/unmount Clerk's UserButton when signed in
   $effect(() => {
-    if ($authState.isSignedIn && userButtonEl) {
+    if (isSignedIn && userButtonEl) {
       const clerk = getClerk();
       const el = userButtonEl;
       clerk.mountUserButton(el, {
