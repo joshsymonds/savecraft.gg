@@ -84,7 +84,7 @@ async function routePublicEndpoints(
 ): Promise<Response | null> {
   if (url.pathname === "/health") return Response.json({ status: "ok" });
   if (url.pathname === "/.well-known/oauth-protected-resource") {
-    return handleOAuthResourceMetadata(env);
+    return handleOAuthResourceMetadata(request, env);
   }
   if (url.pathname === "/api/v1/plugins/manifest" && request.method === "GET") {
     return handlePluginManifest(env);
@@ -140,9 +140,9 @@ async function routeWebSocketEndpoints(
     headers.set("X-User-UUID", auth.userUuid);
     return env.DAEMON_HUB.get(id).fetch(new Request(request, { headers }));
   }
-  if (url.pathname === "/mcp") {
+  if (url.pathname === "/mcp" || (isMcpHost(url) && url.pathname === "/")) {
     const auth = await authenticateOAuth(request, env);
-    if (!auth) return unauthorizedMcp(env);
+    if (!auth) return unauthorizedMcp(request);
     return handleMcpRequest(request, env, auth.userUuid);
   }
   return null;
@@ -192,12 +192,17 @@ function routeReadEndpoints(
   return Promise.resolve(null);
 }
 
+/** Returns true when the request targets a dedicated MCP subdomain. */
+function isMcpHost(url: URL): boolean {
+  return url.hostname.startsWith("mcp");
+}
+
 /**
  * Returns 401 with MCP-spec WWW-Authenticate header pointing
  * to the OAuth protected resource metadata endpoint.
  */
-function unauthorizedMcp(env: Env): Response {
-  const serverUrl = env.SERVER_URL ?? "https://mcp.savecraft.gg";
+function unauthorizedMcp(request: Request): Response {
+  const serverUrl = new URL(request.url).origin;
   return new Response("Unauthorized", {
     status: 401,
     headers: {
@@ -210,9 +215,9 @@ function unauthorizedMcp(env: Env): Response {
  * RFC 9728 OAuth Protected Resource Metadata.
  * Points MCP clients to the authorization server (Clerk).
  */
-function handleOAuthResourceMetadata(env: Env): Response {
-  const serverUrl = env.SERVER_URL ?? "https://mcp.savecraft.gg";
-  const clerkIssuer = env.CLERK_ISSUER ?? "https://clerk.savecraft.gg";
+function handleOAuthResourceMetadata(request: Request, env: Env): Response {
+  const serverUrl = new URL(request.url).origin;
+  const clerkIssuer = env.CLERK_ISSUER ?? "https://intent-earwig-38.clerk.accounts.dev";
 
   return Response.json(
     {
@@ -231,7 +236,7 @@ function handleOAuthResourceMetadata(env: Env): Response {
 // -- Plugin Registry -----------------------------------------------
 
 async function handlePluginManifest(env: Env): Promise<Response> {
-  const serverUrl = env.SERVER_URL ?? "https://mcp.savecraft.gg";
+  const serverUrl = env.SERVER_URL ?? "https://api.savecraft.gg";
   const plugins: Record<string, Record<string, unknown>> = {};
 
   // List all plugin manifests in R2
