@@ -9,6 +9,10 @@ const config = {
     env: {
       dir: "..",
     },
+    version: {
+      name: Date.now().toString(),
+      pollInterval: 60_000,
+    },
   },
 };
 

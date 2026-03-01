@@ -3,8 +3,9 @@
   import { browser } from "$app/environment";
   import { goto } from "$app/navigation";
   import { resolve } from "$app/paths";
-  import { page } from "$app/state";
+  import { page, updated } from "$app/state";
   import { authState, getClerk, initializeClerk } from "$lib/auth/clerk";
+  import UpdateBanner from "$lib/components/UpdateBanner.svelte";
   import { resetActivity } from "$lib/stores/activity";
   import { resetDevices } from "$lib/stores/devices";
   import { loadPlugins } from "$lib/stores/plugins";
@@ -80,6 +81,9 @@
       <a href={resolve("/")} class="header-title">SAVECRAFT</a>
       <div bind:this={userButtonEl}></div>
     </header>
+    {#if updated.current}
+      <UpdateBanner />
+    {/if}
     <div class="app-content">
       {@render children()}
     </div>

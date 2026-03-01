@@ -11,8 +11,9 @@ type MessageHandler = (data: string) => void;
 let ws: WebSocket | null = null;
 let handler: MessageHandler | null = null;
 let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
-let reconnectDelay = 1000;
-const MAX_DELAY = 30_000;
+const INITIAL_DELAY = 100;
+const MAX_DELAY = 15_000;
+let reconnectDelay = INITIAL_DELAY;
 let intentionalClose = false;
 let hasFailedOnce = false;
 
@@ -48,7 +49,7 @@ async function doConnect(): Promise<void> {
 
   socket.addEventListener("open", () => {
     connectionStatus.set("connected");
-    reconnectDelay = 1000;
+    reconnectDelay = INITIAL_DELAY;
     hasFailedOnce = false;
   });
 
@@ -69,16 +70,33 @@ async function doConnect(): Promise<void> {
   });
 }
 
+function handleVisibilityChange(): void {
+  if (document.visibilityState !== "visible") return;
+  if (intentionalClose || !handler) return;
+  // Already connected or connecting — nothing to do
+  if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return;
+  // Page is visible again — reset backoff and reconnect immediately
+  if (reconnectTimer) {
+    clearTimeout(reconnectTimer);
+    reconnectTimer = null;
+  }
+  reconnectDelay = INITIAL_DELAY;
+  hasFailedOnce = false;
+  void doConnect();
+}
+
 export function connect(onMessage: MessageHandler): void {
   handler = onMessage;
   intentionalClose = false;
   hasFailedOnce = false;
+  document.addEventListener("visibilitychange", handleVisibilityChange);
   void doConnect();
 }
 
 export function disconnect(): void {
   intentionalClose = true;
   handler = null;
+  document.removeEventListener("visibilitychange", handleVisibilityChange);
   if (reconnectTimer) {
     clearTimeout(reconnectTimer);
     reconnectTimer = null;
