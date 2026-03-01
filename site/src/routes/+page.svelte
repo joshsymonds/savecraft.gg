@@ -562,7 +562,7 @@
 
   <!-- ═══ FOOTER ═══ -->
   <footer class="footer">
-    <span class="footer-text">savecraft.gg — an Autotome.ai project</span>
+    <span class="footer-text">savecraft.gg — by <a href="https://joshsymonds.com" class="footer-link" target="_blank" rel="noopener">@joshsymonds</a></span>
     <div class="footer-links">
       <a href="https://discord.gg/YnC8stpEmF" class="footer-link" target="_blank" rel="noopener"
         >DISCORD</a

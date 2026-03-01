@@ -14,7 +14,7 @@ Two modes of use emerge naturally from the same data:
 Both modes use the same MCP tools, the same save data, the same notes. The architecture doesn't distinguish between them — it just serves structured state and lets the conversation go wherever the player takes it.
 
 **Domains:** savecraft.gg (primary), savecraft.ai (redirect)
-**Parent company:** Autotome.ai
+**Creator:** [Josh Symonds](https://joshsymonds.com)
 
 ## System Architecture
 
