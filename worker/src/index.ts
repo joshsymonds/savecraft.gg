@@ -26,6 +26,10 @@ function corsHeaders(origin: string): Record<string, string> {
 }
 
 function corsify(response: Response, request: Request, env: Env): Response {
+  // WebSocket 101 responses carry a non-standard `webSocket` property that
+  // new Response() would strip. CORS doesn't apply to WebSocket anyway.
+  if (response.status === 101) return response;
+
   const origin = getAllowedOrigin(request, env);
   if (!origin) return response;
 
