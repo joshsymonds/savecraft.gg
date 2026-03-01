@@ -19,14 +19,123 @@ describe("OAuth Discovery", () => {
       scopes_supported: string[];
     }>();
 
+    expect(body.resource).toBe("https://test-host");
     expect(body.authorization_servers).toHaveLength(1);
     expect(body.bearer_methods_supported).toContain("header");
     expect(body.scopes_supported).toContain("savecraft:read");
   });
 
+  it("derives resource URL from request origin", async () => {
+    const resp = await SELF.fetch("https://mcp.savecraft.gg/.well-known/oauth-protected-resource");
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json<{ resource: string }>();
+    expect(body.resource).toBe("https://mcp.savecraft.gg");
+  });
+
   it("allows CORS on the discovery endpoint", async () => {
     const resp = await SELF.fetch("https://test-host/.well-known/oauth-protected-resource");
     expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+});
+
+describe("MCP Subdomain Routing", () => {
+  it("routes root path to MCP handler on mcp.* hosts", async () => {
+    const resp = await SELF.fetch(
+      new Request("https://mcp.savecraft.gg/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer test-user-uuid",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-11-25",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+          },
+        }),
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json<{ result: { serverInfo: unknown } }>();
+    expect(body.result.serverInfo).toBeDefined();
+  });
+
+  it("routes root path to MCP handler on mcp-staging.* hosts", async () => {
+    const resp = await SELF.fetch(
+      new Request("https://mcp-staging.savecraft.gg/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer test-user-uuid",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-11-25",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+          },
+        }),
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json<{ result: { serverInfo: unknown } }>();
+    expect(body.result.serverInfo).toBeDefined();
+  });
+
+  it("does not route root path to MCP on non-mcp hosts", async () => {
+    const resp = await SELF.fetch(
+      new Request("https://api.savecraft.gg/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer test-user-uuid",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-11-25",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+          },
+        }),
+      }),
+    );
+    expect(resp.status).toBe(404);
+  });
+
+  it("returns 401 with correct origin in WWW-Authenticate on mcp subdomain", async () => {
+    const resp = await SELF.fetch(
+      new Request("https://mcp.savecraft.gg/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-11-25",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+          },
+        }),
+      }),
+    );
+    expect(resp.status).toBe(401);
+
+    const wwwAuth = resp.headers.get("WWW-Authenticate");
+    expect(wwwAuth).toContain("https://mcp.savecraft.gg/.well-known/oauth-protected-resource");
   });
 });
 
