@@ -1545,6 +1545,15 @@ A web-only PR skips Go and Worker checks entirely. Deploy jobs run only on `main
 - Web: `staging.savecraft.gg` (Cloudflare Pages `staging` branch)
 - Plugins: `savecraft-plugins-staging` R2 bucket (unsigned, for testing)
 
+#### Unified Versioning
+
+All four deploy workflows share a single version computation via `.github/actions/compute-version/action.yml`. The composite action takes a `tag_prefix` input and outputs `version` and `environment`:
+
+- **Production:** When the git ref matches `{tag_prefix}*`, it extracts the semver from the tag.
+- **Staging:** Otherwise, it computes `0.0.0-dev.{GITHUB_RUN_NUMBER}.{SHORT_SHA}`.
+
+Versions are user-visible everywhere: daemon CLI (`--version`), install banner, MCP `serverInfo.version`, and `X-Savecraft-Version` response header on all API responses. Cloud version is injected at deploy time via `wrangler deploy --var VERSION:{version}` (local dev defaults to `VERSION = "dev"` in `wrangler.toml`).
+
 #### Production Releases
 
 Production deploys use tag-prefix namespaces. Each component has its own tag format, release workflow, GitHub Release with auto-generated changelog, and Discord notification.
@@ -1553,7 +1562,7 @@ Production deploys use tag-prefix namespaces. Each component has its own tag for
 |-----------|-----------|----------|-----------|
 | Daemon | `daemon-v*` | `deploy-daemon.yml` | Binaries + install.sh + checksums |
 | Worker + Web | `cloud-v*` | `deploy-cloud.yml` | Changelog only (no binary artifacts) |
-| Plugins | `plugin-v*` | `deploy-plugin.yml` | Changelog only (plugins uploaded to R2) |
+| Plugins | `plugin-{game_id}-v*` | `deploy-plugin.yml` | Changelog only (plugins uploaded to R2) |
 
 **To release:**
 ```bash
@@ -1563,13 +1572,13 @@ git tag daemon-v1.2.3 && git push --tags
 # Deploy worker + web to production
 git tag cloud-v1.0.0 && git push --tags
 
-# Release plugin updates to production
-git tag plugin-v1.0.0 && git push --tags
+# Release a specific plugin to production
+git tag plugin-d2r-v0.0.3 && git push --tags
 ```
 
 **Changelog scoping:** All release workflows use `gh release create --generate-notes --notes-start-tag <previous-tag-of-same-prefix>`. This ensures changelogs only include commits since the last release of that component, not commits from other components' tags.
 
-**`cloud-v*` re-runs tests** before deploying to production. `daemon-v*` and `plugin-v*` do not re-run tests — daemon builds from source and plugins build WASM, so the artifacts are fresh regardless.
+**`cloud-v*` re-runs tests** before deploying to production. `daemon-v*` and `plugin-*-v*` do not re-run tests — daemon builds from source and plugins build WASM, so the artifacts are fresh regardless.
 
 #### Daemon Deploy Pipeline (`deploy-daemon.yml`)
 
@@ -1578,13 +1587,13 @@ Triggered by `daemon-v*` tags. Four parallel-then-sequential jobs:
 1. **Build:** Cross-compile for 5 platforms (linux/amd64, linux/arm64, darwin/amd64, darwin/arm64, windows/amd64)
 2. **Sign:** Ed25519 signature on each binary, SHA256 checksums
 3. **Upload to R2:** Binaries + signatures + daemon manifest to `savecraft-install/daemon/`
-4. **GitHub Release:** Bake public key + version into `install.sh`, create release with all artifacts, notify Discord
+4. **GitHub Release:** Create release with all artifacts, notify Discord
 
 #### Plugin Deploy Pipeline (`deploy-plugin.yml`)
 
-Triggered by `plugin-v*` tags or `workflow_dispatch` (manual, specify game_id). Iterates all plugins with a `plugin.toml`, compares each version against the production R2 manifest, and skips plugins whose version already matches. For changed plugins: build WASM → sign with Ed25519 → generate manifest → upload to production R2. Creates a GitHub Release and notifies Discord.
+Triggered by per-game tags (`plugin-{game_id}-v*`) or `workflow_dispatch` (manual, specify game_id). Production deploys the single tagged game; staging deploys all plugins with a `plugin.toml`. For each plugin: build WASM → sign with Ed25519 → generate manifest (version from tag/computed) → upload to R2. Creates a GitHub Release and notifies Discord.
 
-**Plugin versioning:** The version in `plugin.toml` is the source of truth. The R2 version check is a safety gate — if a plugin's version hasn't changed, it's skipped even if the tag was pushed.
+**Plugin versioning:** Version comes from git tags via the shared composite action, same as every other component. `plugin.toml` contains metadata (name, description, file extensions, etc.) but not version. The `cmd/plugin-manifest` tool accepts `--version` as a CLI argument to stamp the manifest.
 
 #### Signing Key
 

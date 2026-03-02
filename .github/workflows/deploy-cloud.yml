@@ -140,19 +140,30 @@ jobs:
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
     outputs:
-      is_production: ${{ steps.detect.outputs.is_production }}
-      wrangler_env: ${{ steps.detect.outputs.wrangler_env }}
-      d1_database: ${{ steps.detect.outputs.d1_database }}
-      web_pages_project: ${{ steps.detect.outputs.web_pages_project }}
-      site_pages_project: ${{ steps.detect.outputs.site_pages_project }}
-      public_api_url: ${{ steps.detect.outputs.public_api_url }}
-      public_mcp_url: ${{ steps.detect.outputs.public_mcp_url }}
-      public_app_url: ${{ steps.detect.outputs.public_app_url }}
+      version: ${{ steps.version.outputs.version }}
+      is_production: ${{ steps.config.outputs.is_production }}
+      wrangler_env: ${{ steps.config.outputs.wrangler_env }}
+      d1_database: ${{ steps.config.outputs.d1_database }}
+      web_pages_project: ${{ steps.config.outputs.web_pages_project }}
+      site_pages_project: ${{ steps.config.outputs.site_pages_project }}
+      public_api_url: ${{ steps.config.outputs.public_api_url }}
+      public_mcp_url: ${{ steps.config.outputs.public_mcp_url }}
+      public_app_url: ${{ steps.config.outputs.public_app_url }}
     steps:
-      - name: Detect environment from ref
-        id: detect
+      - uses: actions/checkout@v4
+
+      - name: Compute version
+        id: version
+        uses: ./.github/actions/compute-version
+        with:
+          tag_prefix: "cloud-v"
+
+      - name: Set cloud configuration
+        id: config
+        env:
+          DETECTED_ENV: ${{ steps.version.outputs.environment }}
         run: |
-          if [[ "${GITHUB_REF}" == refs/tags/cloud-v* ]]; then
+          if [ "$DETECTED_ENV" = "production" ]; then
             echo "is_production=true" >> "$GITHUB_OUTPUT"
             echo "wrangler_env=production" >> "$GITHUB_OUTPUT"
             echo "d1_database=savecraft" >> "$GITHUB_OUTPUT"
@@ -197,11 +208,12 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy worker
-        run: npx wrangler deploy --env ${{ needs.environment.outputs.wrangler_env }}
+        run: npx wrangler deploy --env ${{ needs.environment.outputs.wrangler_env }} --var "VERSION:$VERSION"
         working-directory: worker
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          VERSION: ${{ needs.environment.outputs.version }}
 
       - name: Install web dependencies
         run: npm ci
@@ -245,12 +257,14 @@ jobs:
         env:
           WEBHOOK_URL: ${{ secrets.DISCORD_DEPLOY_WEBHOOK }}
           IS_PROD: ${{ needs.environment.outputs.is_production }}
+          VERSION: ${{ needs.environment.outputs.version }}
         run: |
           env_label="staging"
           if [ "$IS_PROD" = "true" ]; then env_label="production"; fi
           jq -n \
+            --arg ver "$VERSION" \
             --arg env "$env_label" \
-            '{embeds: [{title: ("Cloud deployed to " + $env), color: 3447003}]}' \
+            '{embeds: [{title: ("Cloud v" + $ver + " deployed to " + $env), color: 3447003}]}' \
             | curl -s -X POST "$WEBHOOK_URL" -H "Content-Type: application/json" -d @-
 
   release:

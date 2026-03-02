@@ -5,6 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 ENVIRONMENT = "development"
+VERSION = "dev"
 ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg,https://my.savecraft.gg,http://localhost:5173"
 INSTALL_URL = "https://install.savecraft.gg"
 

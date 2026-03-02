@@ -21,7 +21,6 @@ import {
   updateNote,
 } from "./tools";
 
-const SERVER_INFO = { name: "savecraft", version: "1.0.0" };
 const PROTOCOL_VERSION = "2025-11-25";
 
 const SERVER_INSTRUCTIONS = `Savecraft gives you access to the player's actual game state — their characters, gear, progress, and goals — parsed from real save files. You are their gaming companion.
@@ -436,7 +435,7 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
         jsonRpcResponse(id, {
           protocolVersion: PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
-          serverInfo: SERVER_INFO,
+          serverInfo: { name: "savecraft", version: env.VERSION ?? "dev" },
           instructions: SERVER_INSTRUCTIONS,
         }),
       );

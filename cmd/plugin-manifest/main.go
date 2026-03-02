@@ -2,8 +2,7 @@
 //
 // Usage:
 //
-//	plugin-manifest <plugin-dir>            # writes <plugin-dir>/manifest.json
-//	plugin-manifest --aggregate <out-file>  # writes aggregate manifest for all plugins
+//	plugin-manifest [--version <version>] <plugin-dir>  # writes <plugin-dir>/manifest.json
 package main
 
 import (
@@ -24,7 +23,6 @@ type pluginTOML struct {
 	GameID         string   `toml:"game_id"         json:"game_id"`
 	Name           string   `toml:"name"            json:"name"`
 	Description    string   `toml:"description"     json:"description"`
-	Version        string   `toml:"version"         json:"version"`
 	Channel        string   `toml:"channel"         json:"channel"`
 	Coverage       string   `toml:"coverage"        json:"coverage"`
 	FileExtensions []string `toml:"file_extensions" json:"file_extensions"`
@@ -48,62 +46,47 @@ type defaultPaths struct {
 
 type pluginManifest struct {
 	pluginTOML
-	SHA256 string `json:"sha256"`
-	URL    string `json:"url"`
+	Version string `json:"version"`
+	SHA256  string `json:"sha256"`
+	URL     string `json:"url"`
 }
 
 func main() {
-	if len(os.Args) < 2 {
-		fmt.Fprintln(os.Stderr, "usage: plugin-manifest <plugin-dir>")
-		fmt.Fprintln(os.Stderr, "       plugin-manifest --aggregate <out-file>")
+	args := os.Args[1:]
+
+	// Parse --version flag (must appear before positional args).
+	var versionOverride string
+	for i, arg := range args {
+		if arg == "--version" && i+1 < len(args) {
+			versionOverride = args[i+1]
+			args = append(args[:i], args[i+2:]...)
+			break
+		}
+	}
+
+	if len(args) < 1 {
+		fmt.Fprintln(os.Stderr, "usage: plugin-manifest [--version <version>] <plugin-dir>")
 		os.Exit(1)
 	}
 
-	if os.Args[1] == "--aggregate" {
-		if len(os.Args) < 3 {
-			fmt.Fprintln(os.Stderr, "usage: plugin-manifest --aggregate <out-file>")
-			os.Exit(1)
-		}
-		if err := runAggregate(os.Args[2]); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
-		}
-		return
-	}
-
-	if err := runSingle(os.Args[1]); err != nil {
+	if err := runSingle(args[0], versionOverride); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
 		os.Exit(1)
 	}
 }
 
-func runSingle(pluginDir string) error {
+func runSingle(pluginDir string, versionOverride string) error {
 	manifest, err := buildManifest(pluginDir)
 	if err != nil {
 		return err
 	}
 
+	if versionOverride != "" {
+		manifest.Version = versionOverride
+	}
+
 	outPath := filepath.Join(pluginDir, "manifest.json")
 	return writeJSON(outPath, manifest)
-}
-
-func runAggregate(outFile string) error {
-	matches, err := filepath.Glob("plugins/*/plugin.toml")
-	if err != nil {
-		return fmt.Errorf("glob plugins: %w", err)
-	}
-
-	aggregate := map[string]pluginManifest{}
-	for _, tomlPath := range matches {
-		pluginDir := filepath.Dir(tomlPath)
-		manifest, err := buildManifest(pluginDir)
-		if err != nil {
-			return fmt.Errorf("plugin %s: %w", pluginDir, err)
-		}
-		aggregate[manifest.GameID] = manifest
-	}
-
-	return writeJSON(outFile, aggregate)
 }
 
 func buildManifest(pluginDir string) (pluginManifest, error) {

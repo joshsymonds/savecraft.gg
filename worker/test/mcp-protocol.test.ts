@@ -108,7 +108,7 @@ describe("MCP Protocol", () => {
     expect(body.jsonrpc).toBe("2.0");
     expect(body.id).toBe(1);
     expect(body.result.protocolVersion).toBeDefined();
-    expect(body.result.serverInfo).toBeDefined();
+    expect(body.result.serverInfo).toEqual({ name: "savecraft", version: "dev" });
     expect(body.result.capabilities).toBeDefined();
   });
 
