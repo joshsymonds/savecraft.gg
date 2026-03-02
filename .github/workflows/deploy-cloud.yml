@@ -239,6 +239,19 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+      - name: Notify Discord (deploy)
+        if: success()
+        env:
+          WEBHOOK_URL: ${{ secrets.DISCORD_DEPLOY_WEBHOOK }}
+          IS_PROD: ${{ needs.environment.outputs.is_production }}
+        run: |
+          env_label="staging"
+          if [ "$IS_PROD" = "true" ]; then env_label="production"; fi
+          jq -n \
+            --arg env "$env_label" \
+            '{embeds: [{title: ("Cloud deployed to " + $env), color: 3447003}]}' \
+            | curl -s -X POST "$WEBHOOK_URL" -H "Content-Type: application/json" -d @-
+
   release:
     name: GitHub Release
     needs: [environment, deploy]
@@ -270,7 +283,7 @@ jobs:
             --generate-notes \
             $notes_flag
 
-      - name: Notify Discord
+      - name: Notify Discord (release)
         if: success()
         env:
           WEBHOOK_URL: ${{ secrets.DISCORD_CHANGELOG_WEBHOOK }}
@@ -282,5 +295,5 @@ jobs:
             --arg tag "$TAG" \
             --arg body "$body" \
             --arg url "https://github.com/joshsymonds/savecraft.gg/releases/tag/$TAG" \
-            '{embeds: [{title: ("Cloud " + $tag + " deployed"), description: $body, url: $url, color: 5793266}]}' \
+            '{embeds: [{title: ("Cloud " + $tag + " released"), description: $body, url: $url, color: 5793266}]}' \
             | curl -s -X POST "$WEBHOOK_URL" -H "Content-Type: application/json" -d @-
