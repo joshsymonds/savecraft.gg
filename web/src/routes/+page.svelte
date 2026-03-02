@@ -28,6 +28,11 @@
   let configDeviceId = $state<string | null>(null);
   let activityExpanded = $state(false);
 
+  let visibleEvents = $derived(
+    activityExpanded ? $activityEvents : $activityEvents.slice(0, COLLAPSED_EVENT_COUNT),
+  );
+  let hiddenCount = $derived($activityEvents.length - COLLAPSED_EVENT_COUNT);
+
   let activateStates = new SvelteMap<string, ActivateState>();
 
   async function handleActivate(deviceId: string, gameId: string): Promise<void> {
@@ -190,10 +195,6 @@
       </span>
     </div>
     <div class="activity-feed">
-      {@const visibleEvents = activityExpanded
-        ? $activityEvents
-        : $activityEvents.slice(0, COLLAPSED_EVENT_COUNT)}
-      {@const hiddenCount = $activityEvents.length - COLLAPSED_EVENT_COUNT}
       {#each visibleEvents as activityEvent, index (activityEvent.id)}
         <ActivityEvent
           type={activityEvent.type}
