@@ -1077,7 +1077,14 @@ async function handlePush(request: Request, env: Env, userUuid: string): Promise
 
   try {
     const { saveUuid } = await storePush(
-      env, userUuid, gameId, saveName, summary, parsedAt, bodyString, sections,
+      env,
+      userUuid,
+      gameId,
+      saveName,
+      summary,
+      parsedAt,
+      bodyString,
+      sections,
     );
     return Response.json({ save_uuid: saveUuid, snapshot_timestamp: parsedAt }, { status: 201 });
   } catch (error) {
