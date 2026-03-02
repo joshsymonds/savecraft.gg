@@ -103,6 +103,11 @@ async function routeDaemonEndpoints(
   url: URL,
   env: Env,
 ): Promise<Response | null> {
+  if (url.pathname === "/api/v1/verify" && request.method === "GET") {
+    const auth = await authenticateDaemon(request, env);
+    if (!auth) return new Response("Unauthorized", { status: 401 });
+    return Response.json({ status: "ok" });
+  }
   if (url.pathname === "/api/v1/push" && request.method === "POST") {
     const auth = await authenticateDaemon(request, env);
     if (!auth) return new Response("Unauthorized", { status: 401 });
@@ -970,6 +975,70 @@ async function resolveGameName(plugins: R2Bucket, gameId: string): Promise<strin
   return data.name ?? gameId;
 }
 
+/** Read the request body, decompressing gzip if Content-Encoding says so. */
+async function readPushBody(request: Request): Promise<Record<string, unknown>> {
+  let raw: string;
+  if (request.headers.get("Content-Encoding") === "gzip" && request.body) {
+    const ds = new DecompressionStream("gzip");
+    const decompressed = request.body.pipeThrough(ds);
+    raw = await new Response(decompressed).text();
+  } else {
+    raw = await request.text();
+  }
+  return JSON.parse(raw) as Record<string, unknown>;
+}
+
+/** Upsert save row + write R2 snapshots + update FTS5 index. */
+async function storePush(
+  env: Env,
+  userUuid: string,
+  gameId: string,
+  saveName: string,
+  summary: string,
+  parsedAt: string,
+  bodyString: string,
+  sections: unknown,
+): Promise<{ saveUuid: string }> {
+  const existingSave = await env.DB.prepare(
+    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
+  )
+    .bind(userUuid, gameId, saveName)
+    .first<{ uuid: string }>();
+
+  let saveUuid: string;
+  if (existingSave) {
+    saveUuid = existingSave.uuid;
+  } else {
+    saveUuid = crypto.randomUUID();
+    const gameName = await resolveGameName(env.PLUGINS, gameId);
+    await env.DB.prepare(
+      "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+      .bind(saveUuid, userUuid, gameId, gameName, saveName, summary, parsedAt)
+      .run();
+  }
+
+  // Write snapshot to R2 (always -- snapshots are immutable)
+  const snapshotKey = `users/${userUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
+  await env.SAVES.put(snapshotKey, bodyString);
+
+  // Update latest pointer only if incoming timestamp is newer
+  const latestKey = `users/${userUuid}/saves/${saveUuid}/latest.json`;
+  const isNewer = await isNewerThanLatest(env.SAVES, latestKey, parsedAt);
+  if (isNewer) {
+    await env.SAVES.put(latestKey, bodyString, { customMetadata: { parsedAt } });
+    if (existingSave) {
+      await env.DB.prepare("UPDATE saves SET summary = ?, last_updated = ? WHERE uuid = ?")
+        .bind(summary, parsedAt, saveUuid)
+        .run();
+    }
+    const sectionData = sections as Record<string, { description: string; data: unknown }>;
+    await indexSaveSections(env.DB, userUuid, saveUuid, saveName, sectionData);
+  }
+
+  return { saveUuid };
+}
+
 async function handlePush(request: Request, env: Env, userUuid: string): Promise<Response> {
   const gameId = request.headers.get("X-Game");
   if (!gameId) {
@@ -978,18 +1047,9 @@ async function handlePush(request: Request, env: Env, userUuid: string): Promise
 
   const parsedAt = request.headers.get("X-Parsed-At") ?? new Date().toISOString();
 
-  // Validate body — decompress gzip if the daemon sent Content-Encoding: gzip.
   let body: Record<string, unknown>;
   try {
-    let raw: string;
-    if (request.headers.get("Content-Encoding") === "gzip" && request.body) {
-      const ds = new DecompressionStream("gzip");
-      const decompressed = request.body.pipeThrough(ds);
-      raw = await new Response(decompressed).text();
-    } else {
-      raw = await request.text();
-    }
-    body = JSON.parse(raw) as Record<string, unknown>;
+    body = await readPushBody(request);
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }
@@ -1010,54 +1070,18 @@ async function handlePush(request: Request, env: Env, userUuid: string): Promise
     return Response.json({ error: "identity.saveName is required" }, { status: 400 });
   }
 
-  // Size check (5MB limit)
   const bodyString = JSON.stringify(body);
   if (bodyString.length > 5 * 1024 * 1024) {
     return Response.json({ error: "Body exceeds 5MB limit" }, { status: 413 });
   }
 
-  // Upsert save in D1, get save UUID
-  const existingSave = await env.DB.prepare(
-    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
-  )
-    .bind(userUuid, gameId, saveName)
-    .first<{ uuid: string }>();
-
-  let saveUuid: string;
-  if (existingSave) {
-    saveUuid = existingSave.uuid;
-  } else {
-    saveUuid = crypto.randomUUID();
-    // Resolve human-readable game name from plugin manifest (falls back to game_id)
-    const gameName = await resolveGameName(env.PLUGINS, gameId);
-    await env.DB.prepare(
-      "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
-    )
-      .bind(saveUuid, userUuid, gameId, gameName, saveName, summary, parsedAt)
-      .run();
+  try {
+    const { saveUuid } = await storePush(
+      env, userUuid, gameId, saveName, summary, parsedAt, bodyString, sections,
+    );
+    return Response.json({ save_uuid: saveUuid, snapshot_timestamp: parsedAt }, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown error";
+    return Response.json({ error: `Push failed: ${message}` }, { status: 500 });
   }
-
-  // Write snapshot to R2 (always -- snapshots are immutable)
-  const snapshotKey = `users/${userUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
-  await env.SAVES.put(snapshotKey, bodyString);
-
-  // Update latest pointer only if incoming timestamp is newer
-  const latestKey = `users/${userUuid}/saves/${saveUuid}/latest.json`;
-  const isNewer = await isNewerThanLatest(env.SAVES, latestKey, parsedAt);
-  if (isNewer) {
-    await env.SAVES.put(latestKey, bodyString, {
-      customMetadata: { parsedAt },
-    });
-    // Update D1 summary only when latest changes
-    if (existingSave) {
-      await env.DB.prepare("UPDATE saves SET summary = ?, last_updated = ? WHERE uuid = ?")
-        .bind(summary, parsedAt, saveUuid)
-        .run();
-    }
-    // Re-index save sections in FTS5
-    const sectionData = sections as Record<string, { description: string; data: unknown }>;
-    await indexSaveSections(env.DB, userUuid, saveUuid, saveName, sectionData);
-  }
-
-  return Response.json({ save_uuid: saveUuid, snapshot_timestamp: parsedAt }, { status: 201 });
 }
