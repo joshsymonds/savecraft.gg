@@ -86,6 +86,9 @@ async function routePublicEndpoints(
   if (url.pathname === "/.well-known/oauth-protected-resource") {
     return handleOAuthResourceMetadata(request, env);
   }
+  if (url.pathname === "/.well-known/oauth-authorization-server") {
+    return handleOAuthServerMetadata(env);
+  }
   if (url.pathname === "/api/v1/plugins/manifest" && request.method === "GET") {
     return handlePluginManifest(env);
   }
@@ -222,7 +225,7 @@ function unauthorizedMcp(request: Request): Response {
  */
 function handleOAuthResourceMetadata(request: Request, env: Env): Response {
   const serverUrl = new URL(request.url).origin;
-  const clerkIssuer = env.CLERK_ISSUER ?? "https://intent-earwig-38.clerk.accounts.dev";
+  const clerkIssuer = env.CLERK_ISSUER || "https://intent-earwig-38.clerk.accounts.dev";
 
   return Response.json(
     {
@@ -236,6 +239,50 @@ function handleOAuthResourceMetadata(request: Request, env: Env): Response {
       headers: { "Access-Control-Allow-Origin": "*" },
     },
   );
+}
+
+/**
+ * RFC 8414 OAuth Authorization Server Metadata.
+ * Proxies Clerk's AS metadata so MCP clients that discover endpoints
+ * from the resource server's domain (rather than following
+ * authorization_servers) can find DCR, authorization, and token URLs.
+ *
+ * Stub mode (CLERK_ISSUER unset): returns minimal metadata for dev/test,
+ * mirroring the auth stub pattern where Bearer token = user UUID.
+ */
+async function handleOAuthServerMetadata(env: Env): Promise<Response> {
+  const clerkIssuer = env.CLERK_ISSUER;
+  const headers = { "Access-Control-Allow-Origin": "*" };
+
+  if (!clerkIssuer) {
+    // Dev/test stub — matches auth stub mode
+    const stub = "https://stub.clerk.accounts.dev";
+    return Response.json(
+      {
+        issuer: stub,
+        authorization_endpoint: `${stub}/oauth/authorize`,
+        token_endpoint: `${stub}/oauth/token`,
+        registration_endpoint: `${stub}/oauth/register`,
+        response_types_supported: ["code"],
+        grant_types_supported: ["authorization_code"],
+        code_challenge_methods_supported: ["S256"],
+      },
+      { headers },
+    );
+  }
+
+  try {
+    const resp = await fetch(`${clerkIssuer}/.well-known/oauth-authorization-server`);
+    if (!resp.ok) {
+      return new Response("Authorization server metadata unavailable", { status: 502 });
+    }
+    const metadata = await resp.json();
+    return Response.json(metadata, {
+      headers: { ...headers, "Cache-Control": "public, max-age=3600" },
+    });
+  } catch {
+    return new Response("Authorization server metadata unavailable", { status: 502 });
+  }
 }
 
 // -- Plugin Registry -----------------------------------------------

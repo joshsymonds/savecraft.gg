@@ -39,6 +39,32 @@ describe("OAuth Discovery", () => {
   });
 });
 
+describe("OAuth Authorization Server Metadata", () => {
+  it("serves AS metadata at well-known endpoint (stub mode)", async () => {
+    const resp = await SELF.fetch("https://test-host/.well-known/oauth-authorization-server");
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json<{
+      issuer: string;
+      authorization_endpoint: string;
+      token_endpoint: string;
+      registration_endpoint: string;
+      code_challenge_methods_supported: string[];
+    }>();
+
+    expect(body.issuer).toBeDefined();
+    expect(body.authorization_endpoint).toContain("/oauth/authorize");
+    expect(body.token_endpoint).toContain("/oauth/token");
+    expect(body.registration_endpoint).toContain("/oauth/register");
+    expect(body.code_challenge_methods_supported).toContain("S256");
+  });
+
+  it("allows CORS on the AS metadata endpoint", async () => {
+    const resp = await SELF.fetch("https://test-host/.well-known/oauth-authorization-server");
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+});
+
 describe("MCP Subdomain Routing", () => {
   it("routes root path to MCP handler on mcp.* hosts", async () => {
     const resp = await SELF.fetch(
