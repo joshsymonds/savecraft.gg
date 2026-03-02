@@ -86,7 +86,10 @@ async function routePublicEndpoints(
   if (url.pathname === "/.well-known/oauth-protected-resource") {
     return handleOAuthResourceMetadata(request, env);
   }
-  if (url.pathname === "/.well-known/oauth-authorization-server") {
+  if (
+    url.pathname === "/.well-known/oauth-authorization-server" ||
+    url.pathname === "/.well-known/openid-configuration"
+  ) {
     return handleOAuthServerMetadata(env);
   }
   if (url.pathname === "/api/v1/plugins/manifest" && request.method === "GET") {
@@ -223,14 +226,13 @@ function unauthorizedMcp(request: Request): Response {
  * RFC 9728 OAuth Protected Resource Metadata.
  * Points MCP clients to the authorization server (Clerk).
  */
-function handleOAuthResourceMetadata(request: Request, env: Env): Response {
+function handleOAuthResourceMetadata(request: Request, _env: Env): Response {
   const serverUrl = new URL(request.url).origin;
-  const clerkIssuer = env.CLERK_ISSUER ?? "https://intent-earwig-38.clerk.accounts.dev";
 
   return Response.json(
     {
       resource: serverUrl,
-      authorization_servers: [clerkIssuer],
+      authorization_servers: [serverUrl],
       bearer_methods_supported: ["header"],
       scopes_supported: ["savecraft:read"],
       resource_name: "Savecraft MCP Server",
