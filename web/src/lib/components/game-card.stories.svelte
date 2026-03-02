@@ -62,7 +62,7 @@
         statusLine: "Detected",
         saves: [],
       }}
-      onactivate={() => {}}
+      onactivate={() => { /* noop */ }}
       activateState="activating"
     />
   </div>
@@ -78,7 +78,7 @@
         statusLine: "Detected",
         saves: [],
       }}
-      onactivate={() => {}}
+      onactivate={() => { /* noop */ }}
       activateState="failed"
     />
   </div>
