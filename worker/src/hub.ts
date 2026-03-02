@@ -204,9 +204,12 @@ export class DaemonHub extends DurableObject<Env> {
       // the conn->deviceId mapping on daemonOnline)
       const deviceId = await this.getDeviceIdForConnection(tags);
 
-      // Forward to UI with _deviceId injected so the frontend can
-      // attribute game events to the correct device
-      const forwardMsg = this.injectMetadata(msgString, { _deviceId: deviceId });
+      // Forward to UI with _deviceId and _ts injected so the frontend can
+      // attribute game events to the correct device and show timestamps
+      const forwardMsg = this.injectMetadata(msgString, {
+        _deviceId: deviceId,
+        _ts: new Date().toISOString(),
+      });
       for (const uiWs of this.ctx.getWebSockets("ui")) {
         uiWs.send(forwardMsg);
       }
@@ -563,6 +566,15 @@ export class DaemonHub extends DurableObject<Env> {
     }
   }
 
+  /** Internal pipeline events that are too noisy for the activity feed / D1. */
+  private static readonly SKIP_PERSIST = new Set([
+    "scanStarted",
+    "scanCompleted",
+    "parseStarted",
+    "pluginStatus",
+    "pushStarted",
+  ]);
+
   private async persistEvent(
     deviceId: string | undefined,
     rpc: Message | undefined,
@@ -571,6 +583,7 @@ export class DaemonHub extends DurableObject<Env> {
     if (!rpc?.payload) return;
     try {
       const eventType = rpc.payload.$case;
+      if (DaemonHub.SKIP_PERSIST.has(eventType)) return;
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
 

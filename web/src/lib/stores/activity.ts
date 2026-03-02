@@ -20,16 +20,11 @@ export const activityEvents: Readable<ActivityEventData[]> = { subscribe };
 const TYPE_MAP: Partial<Record<WireMessageType, ActivityEventType>> = {
   daemonOnline: "daemon_online",
   daemonOffline: "daemon_offline",
-  scanStarted: "scan_started",
-  scanCompleted: "scan_completed",
   gameDetected: "game_detected",
   gameNotFound: "game_not_found",
   watching: "watching",
-  parseStarted: "parse_started",
-  pluginStatus: "plugin_status",
   parseCompleted: "parse_completed",
   parseFailed: "parse_failed",
-  pushStarted: "push_started",
   pushCompleted: "push_completed",
   pushFailed: "push_failed",
   pluginUpdated: "plugin_updated",
@@ -85,24 +80,6 @@ function buildDaemonOffline(msg: WireMessage): EventContent | null {
   };
 }
 
-function buildScanStarted(msg: WireMessage): EventContent | null {
-  const s = msg.scanStarted;
-  if (!s) return null;
-  return {
-    message: `Scanning ${s.gameId ?? "game"}`,
-    detail: s.path ?? undefined,
-  };
-}
-
-function buildScanCompleted(msg: WireMessage): EventContent | null {
-  const s = msg.scanCompleted;
-  if (!s) return null;
-  return {
-    message: `Scan complete: ${s.gameId ?? "game"}`,
-    detail: s.filesFound === undefined ? undefined : `${String(s.filesFound)} files`,
-  };
-}
-
 function buildGameDetected(msg: WireMessage): EventContent | null {
   const g = msg.gameDetected;
   if (!g) return null;
@@ -129,24 +106,6 @@ function buildWatching(msg: WireMessage): EventContent | null {
   };
 }
 
-function buildParseStarted(msg: WireMessage): EventContent | null {
-  const p = msg.parseStarted;
-  if (!p) return null;
-  return {
-    message: `Parsing ${p.fileName ?? "file"}`,
-    detail: p.gameId ?? undefined,
-  };
-}
-
-function buildPluginStatus(msg: WireMessage): EventContent | null {
-  const p = msg.pluginStatus;
-  if (!p) return null;
-  return {
-    message: p.message ?? "Plugin status",
-    detail: p.fileName ?? undefined,
-  };
-}
-
 function buildParseCompleted(msg: WireMessage): EventContent | null {
   const p = msg.parseCompleted;
   if (!p) return null;
@@ -167,15 +126,6 @@ function buildParseFailed(msg: WireMessage): EventContent | null {
   if (!p) return null;
   return {
     message: `${p.fileName ?? "File"} — ${p.message ?? "parse error"}`,
-  };
-}
-
-function buildPushStarted(msg: WireMessage): EventContent | null {
-  const p = msg.pushStarted;
-  if (!p) return null;
-  return {
-    message: `Uploading ${p.summary ?? "save"}`,
-    detail: p.sizeBytes ? formatBytes(p.sizeBytes) : undefined,
   };
 }
 
@@ -233,16 +183,11 @@ function buildGamesDiscovered(msg: WireMessage): EventContent | null {
 const EVENT_BUILDERS: Partial<Record<WireMessageType, EventBuilder>> = {
   daemonOnline: buildDaemonOnline,
   daemonOffline: buildDaemonOffline,
-  scanStarted: buildScanStarted,
-  scanCompleted: buildScanCompleted,
   gameDetected: buildGameDetected,
   gameNotFound: buildGameNotFound,
   watching: buildWatching,
-  parseStarted: buildParseStarted,
-  pluginStatus: buildPluginStatus,
   parseCompleted: buildParseCompleted,
   parseFailed: buildParseFailed,
-  pushStarted: buildPushStarted,
   pushCompleted: buildPushCompleted,
   pushFailed: buildPushFailed,
   pluginUpdated: buildPluginUpdated,
