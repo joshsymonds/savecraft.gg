@@ -16,7 +16,7 @@
   import type { ActivateState } from "$lib/components/GameCard.svelte";
   import { activateGame } from "$lib/stores/activation";
   import { activityEvents } from "$lib/stores/activity";
-  import { devices } from "$lib/stores/devices";
+  import { devices, setGameStatus } from "$lib/stores/devices";
   import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
   import type { DeviceStatus } from "$lib/types/device";
   import type { Device } from "$lib/types/device";
@@ -32,6 +32,7 @@
     try {
       await activateGame(deviceId, gameId);
       activateStates.delete(gameId);
+      setGameStatus(deviceId, gameId, "activating");
     } catch {
       activateStates.set(gameId, "failed");
       setTimeout(() => {

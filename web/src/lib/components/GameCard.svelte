@@ -1,8 +1,8 @@
 <!--
   @component
   Game card: displays a single game within a device panel's game grid.
-  Three visual states: watching (active), detected (dimmed + ACTIVATE CTA),
-  error (yellow).
+  Visual states: watching (active), detected (dimmed + ACTIVATE CTA),
+  activating (pulsing, no button), error (yellow).
 -->
 <script lang="ts">
   import type { DeviceGame } from "$lib/types/device";
@@ -32,13 +32,13 @@
   }
 </script>
 
-<div class="game-card" class:detected={game.status === "detected"}>
+<div class="game-card" class:detected={game.status === "detected"} class:activating={game.status === "activating"}>
   <span class="game-icon">{gameIcon(game.name)}</span>
   <span class="game-name">{game.name}</span>
   <span
     class="game-status"
     class:status-green={game.status === "watching"}
-    class:status-blue={game.status === "detected"}
+    class:status-blue={game.status === "detected" || game.status === "activating"}
     class:status-yellow={game.status === "error"}
   >
     {game.statusLine}
@@ -77,6 +77,23 @@
     opacity: 0.5;
     border-style: dashed;
     border-color: rgba(74, 90, 173, 0.15);
+  }
+
+  .game-card.activating {
+    opacity: 0.6;
+    border-style: dashed;
+    border-color: rgba(74, 90, 173, 0.25);
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 0.85;
+    }
   }
 
   .game-icon {
