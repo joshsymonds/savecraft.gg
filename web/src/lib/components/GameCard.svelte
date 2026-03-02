@@ -1,0 +1,129 @@
+<!--
+  @component
+  Game card: displays a single game within a device panel's game grid.
+  Four visual states: watching (active), detected (dimmed + ACTIVATE CTA),
+  error (yellow), not_found (very dimmed).
+-->
+<script lang="ts">
+  import type { DeviceGame } from "$lib/types/device";
+
+  import TinyButton from "./TinyButton.svelte";
+
+  let {
+    game,
+    onactivate,
+  }: {
+    game: DeviceGame;
+    onactivate?: (gameId: string) => void;
+  } = $props();
+
+  function gameIcon(name: string): string {
+    return name.charAt(0).toUpperCase();
+  }
+</script>
+
+<div
+  class="game-card"
+  class:dimmed={game.status === "not_found"}
+  class:detected={game.status === "detected"}
+>
+  <span class="game-icon">{gameIcon(game.name)}</span>
+  <span class="game-name">{game.name}</span>
+  <span
+    class="game-status"
+    class:status-green={game.status === "watching"}
+    class:status-blue={game.status === "detected"}
+    class:status-yellow={game.status === "error"}
+    class:status-muted={game.status === "not_found"}
+  >
+    {game.statusLine}
+  </span>
+  {#if game.status === "watching" && game.saves.length > 0}
+    <div class="save-list">
+      {#each game.saves as save (save.saveUuid)}
+        <span class="save-name">{save.saveName}</span>
+      {/each}
+    </div>
+  {/if}
+  {#if game.status === "detected" && onactivate}
+    <div class="activate-row">
+      <TinyButton label="ACTIVATE" onclick={() => onactivate(game.gameId)} />
+    </div>
+  {/if}
+</div>
+
+<style>
+  .game-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 12px 10px;
+    border-radius: 4px;
+    background: rgba(74, 90, 173, 0.03);
+    border: 1px solid rgba(74, 90, 173, 0.06);
+    min-width: 110px;
+  }
+
+  .game-card.dimmed {
+    opacity: 0.3;
+  }
+
+  .game-card.detected {
+    opacity: 0.5;
+    border-style: dashed;
+    border-color: rgba(74, 90, 173, 0.15);
+  }
+
+  .game-icon {
+    font-family: var(--font-pixel);
+    font-size: 18px;
+    margin-bottom: 6px;
+    color: var(--color-gold-light);
+  }
+
+  .game-name {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    color: var(--color-text-dim);
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+
+  .game-status {
+    font-family: var(--font-body);
+    font-size: 15px;
+  }
+
+  .status-green {
+    color: var(--color-green);
+  }
+
+  .status-blue {
+    color: var(--color-blue);
+  }
+
+  .status-yellow {
+    color: var(--color-yellow);
+  }
+
+  .status-muted {
+    color: var(--color-text-muted);
+  }
+
+  .save-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 2px 6px;
+    margin-top: 4px;
+  }
+
+  .save-name {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--color-text-dim);
+  }
+
+  .activate-row {
+    margin-top: 8px;
+  }
+</style>
