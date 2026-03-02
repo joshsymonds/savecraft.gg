@@ -42,6 +42,7 @@ routes = [
 
 [env.production.vars]
 ENVIRONMENT = "production"
+VERSION = "dev"
 ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg,https://my.savecraft.gg"
 CLERK_ISSUER = "https://intent-earwig-38.clerk.accounts.dev"
 INSTALL_URL = "https://install.savecraft.gg"
@@ -79,6 +80,7 @@ routes = [
 
 [env.staging.vars]
 ENVIRONMENT = "staging"
+VERSION = "dev"
 ALLOWED_ORIGINS = "https://staging.savecraft.gg,https://my-staging.savecraft.gg"
 SERVER_URL = "https://staging-api.savecraft.gg"
 CLERK_ISSUER = "https://dominant-frog-65.clerk.accounts.dev"
