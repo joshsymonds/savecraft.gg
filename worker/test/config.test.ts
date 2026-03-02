@@ -314,9 +314,7 @@ describe("Config push via DaemonHub", () => {
     expect(device).toBeDefined();
     // Disabled game should not appear with ACTIVATING — games may be omitted (proto3 empty array)
     const games = device!.games ?? [];
-    const activatingGames = games.filter(
-      (g) => g.status === "GAME_STATUS_ENUM_ACTIVATING",
-    );
+    const activatingGames = games.filter((g) => g.status === "GAME_STATUS_ENUM_ACTIVATING");
     expect(activatingGames).toHaveLength(0);
 
     await closeWs(uiWs);
