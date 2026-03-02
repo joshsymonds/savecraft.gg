@@ -32,10 +32,7 @@
   }
 </script>
 
-<div
-  class="game-card"
-  class:detected={game.status === "detected"}
->
+<div class="game-card" class:detected={game.status === "detected"}>
   <span class="game-icon">{gameIcon(game.name)}</span>
   <span class="game-name">{game.name}</span>
   <span

@@ -78,7 +78,6 @@
     reconnecting: "offline",
     disconnected: "offline",
   };
-
 </script>
 
 <svelte:head>
