@@ -209,5 +209,15 @@ describe("Pairing Codes", () => {
       );
       expect(resp.status).toBe(400);
     });
+
+    it("returns 400 for code containing spaces", async () => {
+      const resp = await SELF.fetch(claimRequest("298 663"));
+      expect(resp.status).toBe(400);
+    });
+
+    it("returns 400 for non-numeric code", async () => {
+      const resp = await SELF.fetch(claimRequest("abcdef"));
+      expect(resp.status).toBe(400);
+    });
   });
 });

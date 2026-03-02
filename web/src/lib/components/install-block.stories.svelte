@@ -48,3 +48,10 @@
     <InstallBlock prominent={false} initialState={{ pairingState: "idle" }} />
   </div>
 </Story>
+
+<!-- Compact: device connected celebration -->
+<Story name="CompactClaimed">
+  <div style="width: 720px;">
+    <InstallBlock prominent={false} initialState={{ pairingState: "claimed" }} />
+  </div>
+</Story>
