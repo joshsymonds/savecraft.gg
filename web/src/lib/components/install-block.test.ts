@@ -82,6 +82,7 @@ describe("InstallBlock", () => {
     });
 
     it("copy button copies raw code without space", async () => {
+      // eslint-disable-next-line unicorn/no-useless-undefined
       const writeText = vi.fn().mockResolvedValue(undefined);
       Object.assign(navigator, {
         clipboard: { writeText },
