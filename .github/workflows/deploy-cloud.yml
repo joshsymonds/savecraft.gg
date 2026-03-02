@@ -15,6 +15,7 @@ on:
       - 'web/**'
       - 'site/**'
       - '.github/workflows/deploy-cloud.yml'
+  workflow_dispatch:
 
 permissions:
   contents: write
