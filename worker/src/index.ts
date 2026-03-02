@@ -225,7 +225,7 @@ function unauthorizedMcp(request: Request): Response {
  */
 function handleOAuthResourceMetadata(request: Request, env: Env): Response {
   const serverUrl = new URL(request.url).origin;
-  const clerkIssuer = env.CLERK_ISSUER || "https://intent-earwig-38.clerk.accounts.dev";
+  const clerkIssuer = env.CLERK_ISSUER ?? "https://intent-earwig-38.clerk.accounts.dev";
 
   return Response.json(
     {
