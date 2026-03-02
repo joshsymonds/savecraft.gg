@@ -40,7 +40,7 @@ describe("OAuth Discovery", () => {
 });
 
 describe("OAuth Authorization Server Metadata", () => {
-  it("serves AS metadata at well-known endpoint (stub mode)", async () => {
+  it("issuer matches request origin (RFC 8414)", async () => {
     const resp = await SELF.fetch("https://test-host/.well-known/oauth-authorization-server");
     expect(resp.status).toBe(200);
 
@@ -52,15 +52,125 @@ describe("OAuth Authorization Server Metadata", () => {
       code_challenge_methods_supported: string[];
     }>();
 
-    expect(body.issuer).toBeDefined();
-    expect(body.authorization_endpoint).toContain("/oauth/authorize");
-    expect(body.token_endpoint).toContain("/oauth/token");
-    expect(body.registration_endpoint).toContain("/oauth/register");
+    // RFC 8414: issuer MUST match the URL the metadata was fetched from
+    expect(body.issuer).toBe("https://test-host");
+    // Endpoints point to OUR domain (proxy), not Clerk
+    expect(body.authorization_endpoint).toBe("https://test-host/oauth/authorize");
+    expect(body.token_endpoint).toBe("https://test-host/oauth/token");
+    expect(body.registration_endpoint).toBe("https://test-host/oauth/register");
     expect(body.code_challenge_methods_supported).toContain("S256");
+  });
+
+  it("also serves under openid-configuration path", async () => {
+    const resp = await SELF.fetch("https://test-host/.well-known/openid-configuration");
+    expect(resp.status).toBe(200);
+    const body = await resp.json<{ issuer: string }>();
+    expect(body.issuer).toBe("https://test-host");
   });
 
   it("allows CORS on the AS metadata endpoint", async () => {
     const resp = await SELF.fetch("https://test-host/.well-known/oauth-authorization-server");
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+});
+
+// -- OAuth Proxy Endpoints (stub mode) ------------------------------------
+
+describe("OAuth Proxy - DCR", () => {
+  it("registers a client and returns client_id", async () => {
+    const resp = await SELF.fetch(
+      new Request("https://test-host/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_name: "Test Client",
+          redirect_uris: ["https://example.com/callback"],
+          grant_types: ["authorization_code"],
+          response_types: ["code"],
+        }),
+      }),
+    );
+    expect(resp.status).toBe(201);
+
+    const body = await resp.json<{
+      client_id: string;
+      client_name: string;
+      redirect_uris: string[];
+    }>();
+    expect(body.client_id).toBeDefined();
+    expect(body.client_name).toBe("Test Client");
+    expect(body.redirect_uris).toContain("https://example.com/callback");
+  });
+
+  it("allows CORS on DCR endpoint", async () => {
+    const resp = await SELF.fetch(
+      new Request("https://test-host/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_name: "CORS Test",
+          redirect_uris: ["https://example.com/cb"],
+        }),
+      }),
+    );
+    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+});
+
+describe("OAuth Proxy - Authorize", () => {
+  it("redirects to redirect_uri with code and state", async () => {
+    const resp = await SELF.fetch(
+      new Request(
+        "https://test-host/oauth/authorize?response_type=code&client_id=test-client&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&state=abc123&code_challenge=xyz&code_challenge_method=S256",
+        { redirect: "manual" },
+      ),
+    );
+    expect(resp.status).toBe(302);
+
+    const location = new URL(resp.headers.get("Location")!);
+    expect(location.origin + location.pathname).toBe("https://example.com/callback");
+    expect(location.searchParams.get("state")).toBe("abc123");
+    expect(location.searchParams.get("code")).toBeDefined();
+  });
+});
+
+describe("OAuth Proxy - Token", () => {
+  it("exchanges code for access token", async () => {
+    const resp = await SELF.fetch(
+      new Request("https://test-host/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code: "stub-code",
+          redirect_uri: "https://example.com/callback",
+          client_id: "test-client",
+          code_verifier: "test-verifier",
+        }),
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json<{
+      access_token: string;
+      token_type: string;
+    }>();
+    expect(body.access_token).toBeDefined();
+    expect(body.token_type).toBe("Bearer");
+  });
+
+  it("allows CORS on token endpoint", async () => {
+    const resp = await SELF.fetch(
+      new Request("https://test-host/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({
+          grant_type: "authorization_code",
+          code: "stub",
+          client_id: "test",
+        }),
+      }),
+    );
     expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
   });
 });
