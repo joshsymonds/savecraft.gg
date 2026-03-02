@@ -74,6 +74,23 @@ Every layer must be fully testable in isolation and in integration.
 - `web/` — SvelteKit frontend
 - `plugins/` — WASM plugin sources
 
+## Storybook Screenshots
+
+Capture component screenshots for visual auditing using the custom Playwright-based tool at `web/scripts/screenshot.ts`. Requires Storybook running on port 6006.
+
+```bash
+# Start Storybook (in web/ directory)
+npm run storybook
+
+# Screenshot a single story (story path: lowercase, hyphens)
+cd web && npx tsx scripts/screenshot.ts components-gamecard--watching
+
+# Screenshot all stories
+cd web && npx tsx scripts/screenshot.ts --all
+```
+
+Output goes to `web/screenshots/<story-path>.png`. Story paths follow `category-component--story-name` pattern. The tool uses system chromium via `findChromium()` (works on NixOS). Do NOT use Playwright's bundled chromium — it won't work on NixOS due to dynamic linking.
+
 ## Commands
 
 All targets in `Justfile`. Run `just --list` for full list.

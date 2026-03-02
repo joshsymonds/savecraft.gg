@@ -6,6 +6,7 @@
 <script lang="ts">
   import { fetchDeviceConfig, type GameConfigInput, saveDeviceConfig } from "$lib/api/client";
   import type { PluginManifest } from "$lib/api/client";
+  import { detectOS } from "$lib/platform";
   import { discoveredGames } from "$lib/stores/discovery";
   import { loadPlugins, plugins } from "$lib/stores/plugins";
   import { clearTestPathResult, testPathResult } from "$lib/stores/testpath";
@@ -37,13 +38,6 @@
     if ((result.gameId ?? null) !== testingGameId) return null;
     return result;
   });
-
-  function detectOS(): "windows" | "linux" | "darwin" {
-    const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes("win")) return "windows";
-    if (ua.includes("mac")) return "darwin";
-    return "linux";
-  }
 
   // Load current config on mount
   $effect(() => {

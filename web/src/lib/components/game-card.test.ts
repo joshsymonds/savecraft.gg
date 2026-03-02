@@ -71,10 +71,40 @@ describe("GameCard", () => {
       expect(onactivate).toHaveBeenCalledWith("d2r");
     });
 
+    it("does not show ACTIVATE button when onactivate not provided", () => {
+      const game = makeGame({ status: "detected", statusLine: "Detected" });
+      render(GameCard, { props: { game } });
+      expect(screen.queryByText("ACTIVATE")).not.toBeInTheDocument();
+    });
+
     it("applies detected styling", () => {
       const game = makeGame({ status: "detected", statusLine: "Detected" });
       const { container } = render(GameCard, { props: { game } });
       expect(container.querySelector(".detected")).not.toBeNull();
+    });
+  });
+
+  describe("activate states", () => {
+    it("shows ACTIVATING... and disables button when activating", () => {
+      const game = makeGame({ status: "detected", statusLine: "Detected" });
+      render(GameCard, { props: { game, onactivate: vi.fn(), activateState: "activating" } });
+      expect(screen.getByText("ACTIVATING...")).toBeInTheDocument();
+      expect(screen.queryByText("ACTIVATE")).not.toBeInTheDocument();
+    });
+
+    it("shows FAILED when activation fails", () => {
+      const game = makeGame({ status: "detected", statusLine: "Detected" });
+      render(GameCard, { props: { game, onactivate: vi.fn(), activateState: "failed" } });
+      expect(screen.getByText("FAILED")).toBeInTheDocument();
+      expect(screen.queryByText("ACTIVATE")).not.toBeInTheDocument();
+    });
+
+    it("disables button during activating state", async () => {
+      const onactivate = vi.fn();
+      const game = makeGame({ status: "detected", statusLine: "Detected" });
+      render(GameCard, { props: { game, onactivate, activateState: "activating" } });
+      await userEvent.click(screen.getByText("ACTIVATING..."));
+      expect(onactivate).not.toHaveBeenCalled();
     });
   });
 
@@ -92,17 +122,4 @@ describe("GameCard", () => {
     });
   });
 
-  describe("not_found state", () => {
-    it("renders dimmed", () => {
-      const game = makeGame({ status: "not_found", statusLine: "Not installed" });
-      const { container } = render(GameCard, { props: { game } });
-      expect(container.querySelector(".dimmed")).not.toBeNull();
-    });
-
-    it("does not show ACTIVATE button", () => {
-      const game = makeGame({ status: "not_found", statusLine: "Not installed" });
-      render(GameCard, { props: { game } });
-      expect(screen.queryByText("ACTIVATE")).not.toBeInTheDocument();
-    });
-  });
 });

@@ -14,10 +14,16 @@
 
   const mcpUrl = PUBLIC_MCP_URL;
 
-  let loading = $state(!initialState);
-  let connected = $state(initialState?.connected ?? false);
+  let loading = $state(true);
+  let connected = $state(false);
   let copied = $state(false);
   let copyError = $state(false);
+
+  $effect.pre(() => {
+    if (!initialState) return;
+    loading = false;
+    connected = initialState.connected;
+  });
 
   let copyLabel = $derived.by(() => {
     if (copyError) return "FAILED";
