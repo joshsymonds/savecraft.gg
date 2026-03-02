@@ -12,4 +12,6 @@ export interface Env {
   INSTALL_URL?: string;
   /** Comma-separated list of allowed CORS origins. Unset = wildcard (dev only). */
   ALLOWED_ORIGINS?: string;
+  /** Application version injected at deploy time via --var VERSION:{version}. */
+  VERSION?: string;
 }

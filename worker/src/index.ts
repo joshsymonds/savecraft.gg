@@ -59,7 +59,11 @@ export default {
       (await routePublicEndpoints(request, url, env)) ??
       (await routeDaemonEndpoints(request, url, env)) ??
       (await routeProtectedEndpoints(request, url, env));
-    return corsify(response, request, env);
+    const final = corsify(response, request, env);
+    if (final.status !== 101) {
+      final.headers.set("X-Savecraft-Version", env.VERSION ?? "dev");
+    }
+    return final;
   },
 } satisfies ExportedHandler<Env>;
 

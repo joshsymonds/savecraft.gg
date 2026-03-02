@@ -13,4 +13,9 @@ describe("Health check", () => {
     const resp = await SELF.fetch("https://test-host/nonexistent");
     expect(resp.status).toBe(404);
   });
+
+  it("includes X-Savecraft-Version header", async () => {
+    const resp = await SELF.fetch("https://test-host/health");
+    expect(resp.headers.get("X-Savecraft-Version")).toBe("dev");
+  });
 });
