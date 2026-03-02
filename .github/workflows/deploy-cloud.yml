@@ -241,6 +241,7 @@ jobs:
 
       - name: Notify Discord (deploy)
         if: success()
+        continue-on-error: true
         env:
           WEBHOOK_URL: ${{ secrets.DISCORD_DEPLOY_WEBHOOK }}
           IS_PROD: ${{ needs.environment.outputs.is_production }}
