@@ -58,14 +58,10 @@
       game={{
         gameId: "d2r",
         name: "Diablo II: Resurrected",
-        status: "detected",
-        statusLine: "Detected",
+        status: "activating",
+        statusLine: "activating...",
         saves: [],
       }}
-      onactivate={() => {
-        /* noop */
-      }}
-      activateState="activating"
     />
   </div>
 </Story>

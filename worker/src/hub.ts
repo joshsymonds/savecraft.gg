@@ -504,6 +504,30 @@ export class DaemonHub extends DurableObject<Env> {
       };
     }
 
+    // Set ACTIVATING status for enabled games
+    const enabledGameIds = Object.entries(games)
+      .filter(([, cfg]) => cfg.enabled)
+      .map(([id]) => id);
+
+    if (enabledGameIds.length > 0) {
+      const state = await this.loadState();
+      for (const gameId of enabledGameIds) {
+        applyMutation(state, {
+          kind: "gameStatus",
+          deviceId,
+          gameId,
+          status: GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING,
+        });
+      }
+      await this.saveState(state);
+
+      // Broadcast updated state to all UI WebSockets
+      for (const uiWs of this.ctx.getWebSockets("ui")) {
+        await this.sendDeviceState(uiWs);
+      }
+    }
+
+    // Send config to daemon
     const msg = JSON.stringify({ configUpdate: { games } });
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
       const wsTags = this.ctx.getTags(daemonWs);

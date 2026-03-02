@@ -250,6 +250,114 @@ describe("Config push via DaemonHub", () => {
     await closeWs(daemonWs);
   });
 
+  it("sets ACTIVATING status in DeviceState when pushing config", async () => {
+    const userUuid = "config-activating-user";
+    const deviceId = "my-pc";
+
+    // Pre-populate config with an enabled game
+    await env.DB.prepare(
+      `INSERT INTO device_configs (user_uuid, device_id, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(userUuid, deviceId, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
+      .run();
+
+    // Connect daemon and identify it
+    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId, version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // configUpdate
+
+    // Connect a fresh UI and check DeviceState — game should be ACTIVATING
+    const uiWs = await connectWs("/ws/ui", userUuid);
+    const msg = await waitForMessage<Record<string, unknown>>(uiWs);
+
+    expect(msg).toHaveProperty("deviceState");
+    const ds = msg.deviceState as {
+      devices: { deviceId: string; games: { gameId: string; status: string }[] }[];
+    };
+    const device = ds.devices.find((d) => d.deviceId === deviceId);
+    expect(device).toBeDefined();
+    const game = device!.games.find((g) => g.gameId === "d2r");
+    expect(game).toBeDefined();
+    expect(game!.status).toBe("GAME_STATUS_ENUM_ACTIVATING");
+
+    await closeWs(uiWs);
+    await closeWs(daemonWs);
+  });
+
+  it("does not set ACTIVATING for disabled games", async () => {
+    const userUuid = "config-disabled-user";
+    const deviceId = "my-pc";
+
+    // Pre-populate config with a disabled game
+    await env.DB.prepare(
+      `INSERT INTO device_configs (user_uuid, device_id, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(userUuid, deviceId, "stardew", "/saves/stardew", 0, JSON.stringify([".xml"]))
+      .run();
+
+    // Connect daemon and identify it
+    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId, version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // configUpdate
+
+    // Connect a fresh UI — disabled game should NOT appear with ACTIVATING
+    const uiWs = await connectWs("/ws/ui", userUuid);
+    const msg = await waitForMessage<Record<string, unknown>>(uiWs);
+
+    expect(msg).toHaveProperty("deviceState");
+    const ds = msg.deviceState as {
+      devices: { deviceId: string; games?: { gameId: string; status: string }[] }[];
+    };
+    const device = ds.devices.find((d) => d.deviceId === deviceId);
+    expect(device).toBeDefined();
+    // Disabled game should not appear with ACTIVATING — games may be omitted (proto3 empty array)
+    const games = device!.games ?? [];
+    const game = games.find((g) => g.gameId === "stardew");
+    if (game) {
+      expect(game.status).not.toBe("GAME_STATUS_ENUM_ACTIVATING");
+    }
+
+    await closeWs(uiWs);
+    await closeWs(daemonWs);
+  });
+
+  it("ACTIVATING persists and is visible to new UI connections after push-config", async () => {
+    const userUuid = "config-broadcast-user";
+    const deviceId = "my-pc";
+
+    // Pre-populate config with an enabled game
+    await env.DB.prepare(
+      `INSERT INTO device_configs (user_uuid, device_id, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(userUuid, deviceId, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
+      .run();
+
+    // Connect daemon, identify it (triggers push-config which sets ACTIVATING)
+    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId, version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // configUpdate
+
+    // Close daemon — ACTIVATING should survive in persisted state
+    await closeWs(daemonWs);
+
+    // Fresh UI connect should see ACTIVATING in cold-start DeviceState
+    const freshUi = await connectWs("/ws/ui", userUuid);
+    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
+
+    expect(msg).toHaveProperty("deviceState");
+    const ds = msg.deviceState as {
+      devices: { games: { gameId: string; status: string }[] }[];
+    };
+    const game = ds.devices[0]?.games.find((g) => g.gameId === "d2r");
+    expect(game).toBeDefined();
+    expect(game!.status).toBe("GAME_STATUS_ENUM_ACTIVATING");
+
+    await closeWs(freshUi);
+  });
+
   it("pushes config update when API writes new config", async () => {
     const userUuid = "config-live-push-user";
     const deviceId = "my-pc";

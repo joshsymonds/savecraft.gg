@@ -28,6 +28,7 @@ function wireStatusToGameStatus(wireStatus: string | undefined): GameStatus {
   if (wireStatus === "GAME_STATUS_ENUM_WATCHING") return "watching";
   if (wireStatus === "GAME_STATUS_ENUM_ERROR") return "error";
   if (wireStatus === "GAME_STATUS_ENUM_NOT_FOUND") return "not_found";
+  if (wireStatus === "GAME_STATUS_ENUM_ACTIVATING") return "activating";
   return "detected";
 }
 
@@ -40,6 +41,9 @@ function gameStatusLine(status: GameStatus, saves: SaveSummary[]): string {
     }
     case "detected": {
       return "scanning...";
+    }
+    case "activating": {
+      return "activating...";
     }
     case "error": {
       return "parse error";
@@ -211,7 +215,7 @@ function handleParseCompleted(msg: WireMessage): void {
     if (!device) return devs;
 
     const game = findOrCreateGame(device, gameId);
-    if (game.status === "detected" || game.status === "error") {
+    if (game.status === "detected" || game.status === "activating" || game.status === "error") {
       game.status = "watching";
       game.statusLine = gameStatusLine("watching", game.saves);
     }
@@ -231,6 +235,10 @@ function handlePushCompleted(msg: WireMessage): void {
     if (!targetDevice) return devs;
 
     const game = findOrCreateGame(targetDevice, gameId);
+
+    if (game.status === "activating") {
+      game.status = "watching";
+    }
 
     if (pc.saveUuid) {
       const existing = game.saves.find((s) => s.saveUuid === pc.saveUuid);
@@ -320,6 +328,18 @@ export function dispatchToDevices(msg: WireMessage): void {
   if (!type) return;
   const handler = DEVICE_HANDLERS[type];
   if (handler) handler(msg);
+}
+
+export function setGameStatus(deviceId: string, gameId: string, status: GameStatus): void {
+  update((devs) => {
+    const device = devs.find((d) => d.id === deviceId);
+    if (!device) return devs;
+    const game = device.games.find((g) => g.gameId === gameId);
+    if (!game) return devs;
+    game.status = status;
+    game.statusLine = gameStatusLine(status, game.saves);
+    return [...devs];
+  });
 }
 
 export function resetDevices(): void {

@@ -1,6 +1,6 @@
 export type DeviceStatus = "online" | "error" | "offline";
 
-export type GameStatus = "watching" | "error" | "detected" | "not_found";
+export type GameStatus = "watching" | "error" | "detected" | "not_found" | "activating";
 
 export interface SaveSummary {
   saveUuid: string;

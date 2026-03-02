@@ -62,6 +62,7 @@ export enum GameStatusEnum {
   GAME_STATUS_ENUM_WATCHING = 2,
   GAME_STATUS_ENUM_ERROR = 3,
   GAME_STATUS_ENUM_NOT_FOUND = 4,
+  GAME_STATUS_ENUM_ACTIVATING = 5,
   UNRECOGNIZED = -1,
 }
 
@@ -82,6 +83,9 @@ export function gameStatusEnumFromJSON(object: any): GameStatusEnum {
     case 4:
     case "GAME_STATUS_ENUM_NOT_FOUND":
       return GameStatusEnum.GAME_STATUS_ENUM_NOT_FOUND;
+    case 5:
+    case "GAME_STATUS_ENUM_ACTIVATING":
+      return GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -101,6 +105,8 @@ export function gameStatusEnumToJSON(object: GameStatusEnum): string {
       return "GAME_STATUS_ENUM_ERROR";
     case GameStatusEnum.GAME_STATUS_ENUM_NOT_FOUND:
       return "GAME_STATUS_ENUM_NOT_FOUND";
+    case GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING:
+      return "GAME_STATUS_ENUM_ACTIVATING";
     case GameStatusEnum.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
