@@ -83,8 +83,8 @@
           <span class="cta-badge">SETUP</span>
           <h2 class="cta-title">Give your AI eyes on your saves</h2>
           <p class="cta-subtitle">
-            Connect Claude, ChatGPT, or any MCP-compatible assistant. It'll read your game state in
-            real time — builds, stats, progress, inventory — and give you advice that actually knows
+            Connect Claude, ChatGPT, or any MCP-compatible assistant. It reads your game state in
+            real time — builds, stats, progress, inventory — and gives advice that actually knows
             what's in your save file.
           </p>
         </div>
@@ -176,16 +176,16 @@
   /* -- CTA (not connected) ---------------------------------- */
 
   .cta {
-    padding: 24px 24px 20px;
+    padding: 28px 28px 24px;
     display: flex;
     flex-direction: column;
-    gap: 24px;
+    gap: 28px;
   }
 
   .cta-header {
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
   }
 
   .cta-badge {
@@ -202,20 +202,20 @@
 
   .cta-title {
     font-family: var(--font-body);
-    font-size: 22px;
+    font-size: 28px;
     font-weight: 600;
     color: var(--color-text);
     margin: 0;
-    line-height: 1.3;
+    line-height: 1.2;
   }
 
   .cta-subtitle {
     font-family: var(--font-body);
-    font-size: 15px;
-    color: var(--color-text-dim);
-    line-height: 1.5;
-    margin: 0;
-    max-width: 540px;
+    font-size: 22px;
+    color: var(--color-text);
+    line-height: 1.4;
+    margin: 4px 0 0;
+    opacity: 0.7;
   }
 
   /* -- Numbered steps --------------------------------------- */
@@ -258,7 +258,7 @@
   .cta-step-label {
     font-family: var(--font-pixel);
     font-size: 12px;
-    color: var(--color-text-muted);
+    color: var(--color-text-dim);
     letter-spacing: 2px;
   }
 
@@ -282,7 +282,7 @@
 
   .url-text {
     font-family: var(--font-body);
-    font-size: 15px;
+    font-size: 18px;
     color: var(--color-green);
     flex: 1;
     overflow: hidden;
@@ -343,17 +343,17 @@
     display: flex;
     align-items: baseline;
     gap: 10px;
-    padding: 8px 12px;
+    padding: 10px 14px;
     border-radius: 3px;
     background: rgba(5, 7, 26, 0.3);
   }
 
   .client-name {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 11px;
     color: var(--color-text);
     letter-spacing: 1px;
-    min-width: 100px;
+    min-width: 110px;
     flex-shrink: 0;
   }
 
@@ -364,7 +364,7 @@
 
   .client-steps {
     font-family: var(--font-body);
-    font-size: 14px;
+    font-size: 16px;
     color: var(--color-text-dim);
   }
 
