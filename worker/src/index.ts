@@ -978,10 +978,18 @@ async function handlePush(request: Request, env: Env, userUuid: string): Promise
 
   const parsedAt = request.headers.get("X-Parsed-At") ?? new Date().toISOString();
 
-  // Validate body
+  // Validate body — decompress gzip if the daemon sent Content-Encoding: gzip.
   let body: Record<string, unknown>;
   try {
-    body = await request.json<Record<string, unknown>>();
+    let raw: string;
+    if (request.headers.get("Content-Encoding") === "gzip" && request.body) {
+      const ds = new DecompressionStream("gzip");
+      const decompressed = request.body.pipeThrough(ds);
+      raw = await new Response(decompressed).text();
+    } else {
+      raw = await request.text();
+    }
+    body = JSON.parse(raw) as Record<string, unknown>;
   } catch {
     return Response.json({ error: "Invalid JSON body" }, { status: 400 });
   }

@@ -3,6 +3,14 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { cleanAll } from "./helpers";
 
+async function gzipBody(data: string): Promise<Uint8Array> {
+  const cs = new CompressionStream("gzip");
+  const writer = cs.writable.getWriter();
+  writer.write(new TextEncoder().encode(data));
+  writer.close();
+  return new Uint8Array(await new Response(cs.readable).arrayBuffer());
+}
+
 const TEST_USER = "push-test-user";
 
 function pushRequest(body: unknown, headers?: Record<string, string>): Request {
@@ -184,6 +192,27 @@ describe("Push API", () => {
     expect(snapshot.identity.saveName).toBe("FormatCheck");
     // snake_case game_id should NOT be present — daemon sends camelCase
     expect(snapshot.identity.game_id).toBeUndefined();
+  });
+
+  it("accepts gzip-compressed push body", async () => {
+    const compressed = await gzipBody(JSON.stringify(validGameState));
+
+    const resp = await SELF.fetch(
+      new Request("https://test-host/api/v1/push", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Content-Encoding": "gzip",
+          Authorization: `Bearer ${TEST_USER}`,
+          "X-Game": "d2r",
+          "X-Parsed-At": "2026-02-25T21:30:00Z",
+        },
+        body: compressed,
+      }),
+    );
+    expect(resp.status).toBe(201);
+    const body = await resp.json<{ save_uuid: string }>();
+    expect(body.save_uuid).toBeTruthy();
   });
 
   it("always writes the immutable snapshot regardless of timestamp order", async () => {
