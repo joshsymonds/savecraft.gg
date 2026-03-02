@@ -9,47 +9,17 @@ on:
       - 'web/**'
       - 'site/**'
       - '.github/workflows/deploy-cloud.yml'
+  pull_request:
+    paths:
+      - 'worker/**'
+      - 'web/**'
+      - 'site/**'
+      - '.github/workflows/deploy-cloud.yml'
 
 permissions:
   contents: write
 
 jobs:
-  environment:
-    name: Detect environment
-    runs-on: ubuntu-latest
-    outputs:
-      is_production: ${{ steps.detect.outputs.is_production }}
-      wrangler_env: ${{ steps.detect.outputs.wrangler_env }}
-      d1_database: ${{ steps.detect.outputs.d1_database }}
-      web_pages_project: ${{ steps.detect.outputs.web_pages_project }}
-      site_pages_project: ${{ steps.detect.outputs.site_pages_project }}
-      public_api_url: ${{ steps.detect.outputs.public_api_url }}
-      public_mcp_url: ${{ steps.detect.outputs.public_mcp_url }}
-      public_app_url: ${{ steps.detect.outputs.public_app_url }}
-    steps:
-      - name: Detect environment from ref
-        id: detect
-        run: |
-          if [[ "${GITHUB_REF}" == refs/tags/cloud-v* ]]; then
-            echo "is_production=true" >> "$GITHUB_OUTPUT"
-            echo "wrangler_env=production" >> "$GITHUB_OUTPUT"
-            echo "d1_database=savecraft" >> "$GITHUB_OUTPUT"
-            echo "web_pages_project=savecraft-web" >> "$GITHUB_OUTPUT"
-            echo "site_pages_project=savecraft-site" >> "$GITHUB_OUTPUT"
-            echo "public_api_url=https://api.savecraft.gg" >> "$GITHUB_OUTPUT"
-            echo "public_mcp_url=https://mcp.savecraft.gg" >> "$GITHUB_OUTPUT"
-            echo "public_app_url=https://my.savecraft.gg" >> "$GITHUB_OUTPUT"
-          else
-            echo "is_production=false" >> "$GITHUB_OUTPUT"
-            echo "wrangler_env=staging" >> "$GITHUB_OUTPUT"
-            echo "d1_database=savecraft-staging" >> "$GITHUB_OUTPUT"
-            echo "web_pages_project=savecraft-web-staging" >> "$GITHUB_OUTPUT"
-            echo "site_pages_project=savecraft-site-staging" >> "$GITHUB_OUTPUT"
-            echo "public_api_url=https://staging-api.savecraft.gg" >> "$GITHUB_OUTPUT"
-            echo "public_mcp_url=https://mcp-staging.savecraft.gg" >> "$GITHUB_OUTPUT"
-            echo "public_app_url=https://my-staging.savecraft.gg" >> "$GITHUB_OUTPUT"
-          fi
-
   test-worker:
     name: Worker (lint + test)
     runs-on: ubuntu-latest
@@ -164,6 +134,43 @@ jobs:
       - name: Test
         run: just test-site
         working-directory: .
+
+  environment:
+    name: Detect environment
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    outputs:
+      is_production: ${{ steps.detect.outputs.is_production }}
+      wrangler_env: ${{ steps.detect.outputs.wrangler_env }}
+      d1_database: ${{ steps.detect.outputs.d1_database }}
+      web_pages_project: ${{ steps.detect.outputs.web_pages_project }}
+      site_pages_project: ${{ steps.detect.outputs.site_pages_project }}
+      public_api_url: ${{ steps.detect.outputs.public_api_url }}
+      public_mcp_url: ${{ steps.detect.outputs.public_mcp_url }}
+      public_app_url: ${{ steps.detect.outputs.public_app_url }}
+    steps:
+      - name: Detect environment from ref
+        id: detect
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/cloud-v* ]]; then
+            echo "is_production=true" >> "$GITHUB_OUTPUT"
+            echo "wrangler_env=production" >> "$GITHUB_OUTPUT"
+            echo "d1_database=savecraft" >> "$GITHUB_OUTPUT"
+            echo "web_pages_project=savecraft-web" >> "$GITHUB_OUTPUT"
+            echo "site_pages_project=savecraft-site" >> "$GITHUB_OUTPUT"
+            echo "public_api_url=https://api.savecraft.gg" >> "$GITHUB_OUTPUT"
+            echo "public_mcp_url=https://mcp.savecraft.gg" >> "$GITHUB_OUTPUT"
+            echo "public_app_url=https://my.savecraft.gg" >> "$GITHUB_OUTPUT"
+          else
+            echo "is_production=false" >> "$GITHUB_OUTPUT"
+            echo "wrangler_env=staging" >> "$GITHUB_OUTPUT"
+            echo "d1_database=savecraft-staging" >> "$GITHUB_OUTPUT"
+            echo "web_pages_project=savecraft-web-staging" >> "$GITHUB_OUTPUT"
+            echo "site_pages_project=savecraft-site-staging" >> "$GITHUB_OUTPUT"
+            echo "public_api_url=https://staging-api.savecraft.gg" >> "$GITHUB_OUTPUT"
+            echo "public_mcp_url=https://mcp-staging.savecraft.gg" >> "$GITHUB_OUTPUT"
+            echo "public_app_url=https://my-staging.savecraft.gg" >> "$GITHUB_OUTPUT"
+          fi
 
   deploy:
     name: Deploy
