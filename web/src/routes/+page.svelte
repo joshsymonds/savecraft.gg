@@ -208,9 +208,7 @@
           Show {hiddenCount} more
         </button>
       {:else if activityExpanded && $activityEvents.length > COLLAPSED_EVENT_COUNT}
-        <button class="show-more" onclick={() => (activityExpanded = false)}>
-          Show less
-        </button>
+        <button class="show-more" onclick={() => (activityExpanded = false)}> Show less </button>
       {/if}
       {#if $activityEvents.length === 0}
         <div class="empty-feed">
