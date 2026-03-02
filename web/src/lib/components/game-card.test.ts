@@ -121,5 +121,4 @@ describe("GameCard", () => {
       expect(screen.queryByText("ACTIVATE")).not.toBeInTheDocument();
     });
   });
-
 });
