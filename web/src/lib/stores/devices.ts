@@ -267,6 +267,41 @@ function handleGameNotFound(msg: WireMessage): void {
   handleGameStatusChange(msg, "gameNotFound");
 }
 
+function handleGamesDiscovered(msg: WireMessage): void {
+  const data = msg.gamesDiscovered;
+  if (!data?.games) return;
+  const deviceId = resolveDeviceId(msg);
+  if (!deviceId) return;
+  const games = data.games;
+
+  update((devs) => {
+    const device = devs.find((d) => d.id === deviceId);
+    if (!device) return devs;
+
+    for (const discovered of games) {
+      if (!discovered.gameId) continue;
+      const existing = device.games.find((g) => g.gameId === discovered.gameId);
+      if (existing) {
+        // Don't downgrade from watching/error — only upgrade from not_found
+        if (existing.status === "not_found") {
+          existing.status = "detected";
+          existing.statusLine = gameStatusLine("detected", existing.saves);
+        }
+        if (discovered.name) existing.name = discovered.name;
+      } else {
+        device.games.push({
+          gameId: discovered.gameId,
+          name: discovered.name ?? gameDisplayName(discovered.gameId),
+          status: "detected",
+          statusLine: gameStatusLine("detected", []),
+          saves: [],
+        });
+      }
+    }
+    return [...devs];
+  });
+}
+
 const DEVICE_HANDLERS: Partial<Record<WireMessageType, DeviceHandler>> = {
   deviceState: handleDeviceState,
   daemonOnline: handleDaemonOnline,
@@ -274,6 +309,7 @@ const DEVICE_HANDLERS: Partial<Record<WireMessageType, DeviceHandler>> = {
   watching: handleWatching,
   gameDetected: handleGameDetected,
   gameNotFound: handleGameNotFound,
+  gamesDiscovered: handleGamesDiscovered,
   parseFailed: handleParseFailed,
   parseCompleted: handleParseCompleted,
   pushCompleted: handlePushCompleted,

@@ -158,6 +158,12 @@
                 }}
               />
             {/each}
+            {#if device.games.filter((g) => g.status !== "not_found").length === 0}
+              <button class="add-game-card" disabled>
+                <span class="add-game-icon">+</span>
+                <span class="add-game-label">Add a game...</span>
+              </button>
+            {/if}
           </div>
         </Panel>
       {/each}
@@ -298,6 +304,35 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
+  }
+
+  .add-game-card {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 10px;
+    border-radius: 4px;
+    background: transparent;
+    border: 1px dashed rgba(74, 90, 173, 0.2);
+    min-width: 110px;
+    min-height: 80px;
+    cursor: not-allowed;
+    opacity: 0.5;
+  }
+
+  .add-game-icon {
+    font-family: var(--font-pixel);
+    font-size: 22px;
+    color: var(--color-text-muted);
+    margin-bottom: 4px;
+  }
+
+  .add-game-label {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--color-text-muted);
+    letter-spacing: 0.5px;
   }
 
   .empty-state {
