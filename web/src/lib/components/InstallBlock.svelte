@@ -25,10 +25,17 @@
     initialState?: { pairingState: PairingState; pairingCode?: string; remainingSeconds?: number };
   } = $props();
 
-  let pairingState = $state<PairingState>(initialState?.pairingState ?? "idle");
-  let pairingCode = $state<string | null>(initialState?.pairingCode ?? null);
+  let pairingState = $state<PairingState>("idle");
+  let pairingCode = $state<string | null>(null);
   let expiresAt = $state(0);
-  let remainingSeconds = $state(initialState?.remainingSeconds ?? 0);
+  let remainingSeconds = $state(0);
+
+  $effect.pre(() => {
+    if (!initialState) return;
+    pairingState = initialState.pairingState;
+    pairingCode = initialState.pairingCode ?? null;
+    remainingSeconds = initialState.remainingSeconds ?? 0;
+  });
 
   // -- API key state (secondary) -----------------------------
   let generatedKey = $state<CreateApiKeyResponse | null>(null);

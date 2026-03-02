@@ -7,19 +7,38 @@
     ActivityEvent,
     ConfigModal,
     ConnectCard,
+    GameCard,
     InstallBlock,
     Panel,
     StatusDot,
     TinyButton,
   } from "$lib/components";
+  import type { ActivateState } from "$lib/components/GameCard.svelte";
+  import { activateGame } from "$lib/stores/activation";
   import { activityEvents } from "$lib/stores/activity";
   import { devices } from "$lib/stores/devices";
   import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
   import type { DeviceStatus } from "$lib/types/device";
   import type { Device } from "$lib/types/device";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
+  import { SvelteMap } from "svelte/reactivity";
 
   let configDeviceId = $state<string | null>(null);
+
+  let activateStates = new SvelteMap<string, ActivateState>();
+
+  async function handleActivate(deviceId: string, gameId: string): Promise<void> {
+    activateStates.set(gameId, "activating");
+    try {
+      await activateGame(deviceId, gameId);
+      activateStates.delete(gameId);
+    } catch {
+      activateStates.set(gameId, "failed");
+      setTimeout(() => {
+        activateStates.delete(gameId);
+      }, 3000);
+    }
+  }
 
   function rescan(device: Device): void {
     for (const game of device.games) {
@@ -60,9 +79,6 @@
     disconnected: "offline",
   };
 
-  function gameIcon(name: string): string {
-    return name.charAt(0).toUpperCase();
-  }
 </script>
 
 <svelte:head>
@@ -134,27 +150,14 @@
 
           <!-- Game grid -->
           <div class="game-grid">
-            {#each device.games as game (game.gameId)}
-              <div class="game-card" class:dimmed={game.status === "not_found"}>
-                <span class="game-icon">{gameIcon(game.name)}</span>
-                <span class="game-name">{game.name}</span>
-                <span
-                  class="game-status"
-                  class:status-green={game.status === "watching"}
-                  class:status-blue={game.status === "detected"}
-                  class:status-yellow={game.status === "error"}
-                  class:status-muted={game.status === "not_found"}
-                >
-                  {game.statusLine}
-                </span>
-                {#if game.status === "watching" && game.saves.length > 0}
-                  <div class="save-list">
-                    {#each game.saves as save (save.saveUuid)}
-                      <span class="save-name">{save.saveName}</span>
-                    {/each}
-                  </div>
-                {/if}
-              </div>
+            {#each device.games.filter((g) => g.status !== "not_found") as game (game.gameId)}
+              <GameCard
+                {game}
+                activateState={activateStates.get(game.gameId) ?? "idle"}
+                onactivate={(gameId: string) => {
+                  void handleActivate(device.id, gameId);
+                }}
+              />
             {/each}
           </div>
         </Panel>
@@ -296,70 +299,6 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-  }
-
-  .game-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: 12px 10px;
-    border-radius: 4px;
-    background: rgba(74, 90, 173, 0.03);
-    border: 1px solid rgba(74, 90, 173, 0.06);
-    min-width: 110px;
-  }
-
-  .game-card.dimmed {
-    opacity: 0.3;
-  }
-
-  .game-icon {
-    font-family: var(--font-pixel);
-    font-size: 18px;
-    margin-bottom: 6px;
-    color: var(--color-gold-light);
-  }
-
-  .game-name {
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    color: var(--color-text-dim);
-    letter-spacing: 0.5px;
-    margin-bottom: 4px;
-  }
-
-  .game-status {
-    font-family: var(--font-body);
-    font-size: 15px;
-  }
-
-  .status-green {
-    color: var(--color-green);
-  }
-
-  .status-blue {
-    color: var(--color-blue);
-  }
-
-  .status-yellow {
-    color: var(--color-yellow);
-  }
-
-  .status-muted {
-    color: var(--color-text-muted);
-  }
-
-  .save-list {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 2px 6px;
-    margin-top: 4px;
-  }
-
-  .save-name {
-    font-family: var(--font-body);
-    font-size: 13px;
-    color: var(--color-text-dim);
   }
 
   .empty-state {

@@ -52,6 +52,38 @@
   </div>
 </Story>
 
+<Story name="Activating">
+  <div style="width: 200px;">
+    <GameCard
+      game={{
+        gameId: "d2r",
+        name: "Diablo II: Resurrected",
+        status: "detected",
+        statusLine: "Detected",
+        saves: [],
+      }}
+      onactivate={() => {}}
+      activateState="activating"
+    />
+  </div>
+</Story>
+
+<Story name="ActivateFailed">
+  <div style="width: 200px;">
+    <GameCard
+      game={{
+        gameId: "d2r",
+        name: "Diablo II: Resurrected",
+        status: "detected",
+        statusLine: "Detected",
+        saves: [],
+      }}
+      onactivate={() => {}}
+      activateState="failed"
+    />
+  </div>
+</Story>
+
 <Story name="Error">
   <div style="width: 200px;">
     <GameCard
@@ -66,16 +98,3 @@
   </div>
 </Story>
 
-<Story name="NotFound">
-  <div style="width: 200px;">
-    <GameCard
-      game={{
-        gameId: "stardew",
-        name: "Stardew Valley",
-        status: "not_found",
-        statusLine: "Not installed",
-        saves: [],
-      }}
-    />
-  </div>
-</Story>

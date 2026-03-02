@@ -1,21 +1,31 @@
 <!--
   @component
   Game card: displays a single game within a device panel's game grid.
-  Four visual states: watching (active), detected (dimmed + ACTIVATE CTA),
-  error (yellow), not_found (very dimmed).
+  Three visual states: watching (active), detected (dimmed + ACTIVATE CTA),
+  error (yellow).
 -->
 <script lang="ts">
   import type { DeviceGame } from "$lib/types/device";
 
   import TinyButton from "./TinyButton.svelte";
 
+  export type ActivateState = "idle" | "activating" | "failed";
+
   let {
     game,
     onactivate,
+    activateState = "idle",
   }: {
     game: DeviceGame;
     onactivate?: (gameId: string) => void;
+    activateState?: ActivateState;
   } = $props();
+
+  const ACTIVATE_LABELS: Record<ActivateState, string> = {
+    idle: "ACTIVATE",
+    activating: "ACTIVATING...",
+    failed: "FAILED",
+  };
 
   function gameIcon(name: string): string {
     return name.charAt(0).toUpperCase();
@@ -24,7 +34,6 @@
 
 <div
   class="game-card"
-  class:dimmed={game.status === "not_found"}
   class:detected={game.status === "detected"}
 >
   <span class="game-icon">{gameIcon(game.name)}</span>
@@ -34,7 +43,6 @@
     class:status-green={game.status === "watching"}
     class:status-blue={game.status === "detected"}
     class:status-yellow={game.status === "error"}
-    class:status-muted={game.status === "not_found"}
   >
     {game.statusLine}
   </span>
@@ -47,7 +55,11 @@
   {/if}
   {#if game.status === "detected" && onactivate}
     <div class="activate-row">
-      <TinyButton label="ACTIVATE" onclick={() => onactivate(game.gameId)} />
+      <TinyButton
+        label={ACTIVATE_LABELS[activateState]}
+        onclick={() => onactivate(game.gameId)}
+        disabled={activateState !== "idle"}
+      />
     </div>
   {/if}
 </div>
@@ -62,10 +74,6 @@
     background: rgba(74, 90, 173, 0.03);
     border: 1px solid rgba(74, 90, 173, 0.06);
     min-width: 110px;
-  }
-
-  .game-card.dimmed {
-    opacity: 0.3;
   }
 
   .game-card.detected {
@@ -104,10 +112,6 @@
 
   .status-yellow {
     color: var(--color-yellow);
-  }
-
-  .status-muted {
-    color: var(--color-text-muted);
   }
 
   .save-list {
