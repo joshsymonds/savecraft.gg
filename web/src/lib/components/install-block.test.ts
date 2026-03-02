@@ -66,6 +66,43 @@ describe("InstallBlock", () => {
       });
     });
 
+    it("shows COPY button next to pairing code", async () => {
+      render(InstallBlock, { props: { prominent: true } });
+
+      await userEvent.click(screen.getByText("PAIR A DEVICE"));
+      await vi.waitFor(() => {
+        expect(screen.getByText("123 456")).toBeInTheDocument();
+      });
+
+      // The code-display area should have a COPY button
+      const codeDisplay = document.querySelector(".code-display")!;
+      const copyButton = codeDisplay.querySelector("button");
+      expect(copyButton).not.toBeNull();
+      expect(copyButton!.textContent).toContain("COPY");
+    });
+
+    it("copy button copies raw code without space", async () => {
+      const writeText = vi.fn().mockResolvedValue(undefined);
+      Object.assign(navigator, {
+        clipboard: { writeText },
+      });
+
+      render(InstallBlock, { props: { prominent: true } });
+
+      await userEvent.click(screen.getByText("PAIR A DEVICE"));
+      await vi.waitFor(() => {
+        expect(screen.getByText("123 456")).toBeInTheDocument();
+      });
+
+      // Click the copy button in the code display
+      const codeDisplay = document.querySelector(".code-display")!;
+      const copyButton = codeDisplay.querySelector("button")!;
+      await userEvent.click(copyButton);
+
+      // Should copy "123456" NOT "123 456"
+      expect(writeText).toHaveBeenCalledWith("123456");
+    });
+
     it("shows code hint after generating", async () => {
       render(InstallBlock, { props: { prominent: true } });
 

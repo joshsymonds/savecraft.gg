@@ -11,10 +11,11 @@
   import { createApiKey, deleteApiKey, generatePairingCode, listApiKeys } from "$lib/api/client";
   import type { ApiKey, CreateApiKeyResponse } from "$lib/api/client";
   import { Panel, TinyButton } from "$lib/components";
+  import { devices } from "$lib/stores/devices";
   import { onMount } from "svelte";
 
   // -- Pairing code state ------------------------------------
-  type PairingState = "idle" | "generating" | "active" | "expired";
+  type PairingState = "idle" | "generating" | "active" | "expired" | "claimed";
 
   let {
     prominent = true,
@@ -72,6 +73,26 @@
       clearInterval(interval);
     };
   });
+
+  // Device connection detection — when a device appears while code is active, celebrate.
+  // knownDeviceCount is intentionally non-reactive to avoid re-triggering the effect.
+  let knownDeviceCount = -1;
+
+  $effect(() => {
+    if (initialState) return;
+    const count = $devices.length;
+
+    if (pairingState === "active" && knownDeviceCount >= 0 && count > knownDeviceCount) {
+      pairingState = "claimed";
+    }
+
+    knownDeviceCount = count;
+  });
+
+  function dismiss(): void {
+    pairingState = "idle";
+    pairingCode = null;
+  }
 
   function formatTime(seconds: number): string {
     const mins = Math.floor(seconds / 60);
@@ -142,6 +163,17 @@
   }
 </script>
 
+{#snippet claimedFlow()}
+  <div class="claimed-section">
+    <span class="claimed-stars">&#10038; &#10038; &#10038;</span>
+    <span class="claimed-banner">DEVICE CONNECTED</span>
+    <p class="claimed-desc">Your daemon is online and watching for saves.</p>
+    <div class="claimed-actions">
+      <TinyButton label="PAIR ANOTHER" onclick={dismiss} />
+    </div>
+  </div>
+{/snippet}
+
 {#snippet pairingFlow()}
   <div class="section">
     <div class="step-header">
@@ -173,7 +205,15 @@
       </div>
     {:else if pairingState === "active" && pairingCode}
       <div class="code-display">
-        <div class="code-digits">{pairingCode.slice(0, 3)} {pairingCode.slice(3)}</div>
+        <div class="code-top-row">
+          <div class="code-digits">{pairingCode.slice(0, 3)} {pairingCode.slice(3)}</div>
+          <TinyButton
+            label={copied === "code" ? "COPIED" : "COPY"}
+            onclick={() => {
+              if (pairingCode) void copyToClipboard(pairingCode, "code");
+            }}
+          />
+        </div>
         <div class="code-timer">
           <span class="timer-label">Expires in</span>
           <span class="timer-value">{formatTime(remainingSeconds)}</span>
@@ -308,26 +348,30 @@
 {:else}
   <!-- Compact collapsible row -->
   <Panel>
-    <button class="add-device-toggle" onclick={() => (expanded = !expanded)}>
-      <span class="toggle-icon">{expanded ? "-" : "+"}</span>
-      <span class="toggle-label">ADD ANOTHER DEVICE</span>
-    </button>
+    {#if pairingState === "claimed"}
+      {@render claimedFlow()}
+    {:else}
+      <button class="add-device-toggle" onclick={() => (expanded = !expanded)}>
+        <span class="toggle-icon">{expanded ? "-" : "+"}</span>
+        <span class="toggle-label">ADD ANOTHER DEVICE</span>
+      </button>
 
-    {#if expanded}
-      <div class="compact-install">
-        {@render pairingFlow()}
-        {@render installCommandSection()}
+      {#if expanded}
+        <div class="compact-install">
+          {@render pairingFlow()}
+          {@render installCommandSection()}
 
-        <button class="api-keys-toggle compact" onclick={() => (showApiKeys = !showApiKeys)}>
-          <span class="toggle-icon">{showApiKeys ? "-" : "+"}</span>
-          <span class="toggle-label">API KEYS (FOR AUTOMATION)</span>
-        </button>
-        {#if showApiKeys}
-          <div class="api-keys-content">
-            {@render apiKeysSection()}
-          </div>
-        {/if}
-      </div>
+          <button class="api-keys-toggle compact" onclick={() => (showApiKeys = !showApiKeys)}>
+            <span class="toggle-icon">{showApiKeys ? "-" : "+"}</span>
+            <span class="toggle-label">API KEYS (FOR AUTOMATION)</span>
+          </button>
+          {#if showApiKeys}
+            <div class="api-keys-content">
+              {@render apiKeysSection()}
+            </div>
+          {/if}
+        </div>
+      {/if}
     {/if}
   </Panel>
 {/if}
@@ -455,6 +499,43 @@
     font-size: 14px;
   }
 
+  /* -- Claimed / celebration -------------------------------- */
+
+  .claimed-section {
+    padding: 32px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    text-align: center;
+  }
+
+  .claimed-stars {
+    font-size: 14px;
+    color: var(--color-gold);
+    letter-spacing: 6px;
+    text-shadow: 0 0 10px rgba(200, 168, 78, 0.4);
+  }
+
+  .claimed-banner {
+    font-family: var(--font-pixel);
+    font-size: 14px;
+    color: var(--color-green);
+    letter-spacing: 3px;
+    text-shadow: 0 0 12px rgba(90, 190, 138, 0.4);
+  }
+
+  .claimed-desc {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--color-text-dim);
+    margin: 0;
+  }
+
+  .claimed-actions {
+    margin-top: 8px;
+  }
+
   /* -- Compact (non-prominent) ------------------------------ */
 
   .add-device-toggle {
@@ -488,6 +569,12 @@
     background: rgba(5, 7, 26, 0.5);
     border-radius: 4px;
     border: 1px solid rgba(74, 90, 173, 0.15);
+  }
+
+  .code-top-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
   }
 
   .code-digits {
