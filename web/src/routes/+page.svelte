@@ -23,7 +23,10 @@
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
   import { SvelteMap } from "svelte/reactivity";
 
+  const COLLAPSED_EVENT_COUNT = 8;
+
   let configDeviceId = $state<string | null>(null);
+  let activityExpanded = $state(false);
 
   let activateStates = new SvelteMap<string, ActivateState>();
 
@@ -187,7 +190,11 @@
       </span>
     </div>
     <div class="activity-feed">
-      {#each $activityEvents as activityEvent, index (activityEvent.id)}
+      {@const visibleEvents = activityExpanded
+        ? $activityEvents
+        : $activityEvents.slice(0, COLLAPSED_EVENT_COUNT)}
+      {@const hiddenCount = $activityEvents.length - COLLAPSED_EVENT_COUNT}
+      {#each visibleEvents as activityEvent, index (activityEvent.id)}
         <ActivityEvent
           type={activityEvent.type}
           message={activityEvent.message}
@@ -196,6 +203,15 @@
           isNew={index === 0}
         />
       {/each}
+      {#if !activityExpanded && hiddenCount > 0}
+        <button class="show-more" onclick={() => (activityExpanded = true)}>
+          Show {hiddenCount} more
+        </button>
+      {:else if activityExpanded && $activityEvents.length > COLLAPSED_EVENT_COUNT}
+        <button class="show-more" onclick={() => (activityExpanded = false)}>
+          Show less
+        </button>
+      {/if}
       {#if $activityEvents.length === 0}
         <div class="empty-feed">
           <span class="empty-feed-text">No activity yet</span>
@@ -390,6 +406,26 @@
   .activity-feed {
     flex: 1;
     overflow-y: auto;
+  }
+
+  .show-more {
+    display: block;
+    width: 100%;
+    padding: 10px 14px;
+    background: none;
+    border: none;
+    border-top: 1px solid rgba(74, 90, 173, 0.08);
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--color-text-dim);
+    letter-spacing: 1px;
+    cursor: pointer;
+    text-align: center;
+    transition: color 0.15s;
+  }
+
+  .show-more:hover {
+    color: var(--color-text);
   }
 
   .empty-feed {
