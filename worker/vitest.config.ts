@@ -15,6 +15,9 @@ export default defineWorkersConfig({
           bindings: {
             // Override .dev.vars: tests use stub auth (bearer token = user UUID)
             CLERK_ISSUER: "",
+            // Short intervals for alarm tests (production defaults: 90000 / 30000)
+            STALE_THRESHOLD_MS: 200,
+            ALARM_INTERVAL_MS: 100,
           },
         },
         // Disabled because Miniflare's storage frame tracker can't handle

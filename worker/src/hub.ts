@@ -200,6 +200,10 @@ export class DaemonHub extends DurableObject<Env> {
       const rpc = this.parseMessage(msgString);
       await this.applyDeviceState(tags, rpc);
 
+      // Heartbeat updates lastSeen (via applyDeviceState) but is not
+      // relayed to UI or persisted — it's transport-level only.
+      if (rpc?.payload?.$case === "daemonHeartbeat") return;
+
       // Resolve source deviceId (available after applyDeviceState stores
       // the conn->deviceId mapping on daemonOnline)
       const deviceId = await this.getDeviceIdForConnection(tags);
@@ -268,7 +272,7 @@ export class DaemonHub extends DurableObject<Env> {
   /**
    * Resolve all external data needed to build a StateMutation.
    * This phase performs all async I/O (storage reads, D1 queries)
-   * so that commitStateMutation can run atomically.
+   * so that the subsequent load -> mutate -> save can run atomically.
    */
   private async resolveStateMutation(tags: string[], rpc: Message): Promise<StateMutation> {
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- maps open proto union to closed StateMutation; unhandled events return "none"
@@ -331,24 +335,11 @@ export class DaemonHub extends DurableObject<Env> {
     }
   }
 
-  // ── Phase 2: Commit — atomic load -> mutate -> save ────────────────
-
-  /**
-   * Atomically load state, apply a pure mutation, and save.
-   * No awaits between load and save — the DO input gate stays closed.
-   */
-  private async commitStateMutation(mutation: StateMutation): Promise<void> {
-    if (mutation.kind === "none") return;
-    const state = await this.loadState();
-    applyMutation(state, mutation);
-    await this.saveState(state);
-  }
-
   // ── Disconnect handler ────────────────────────────────────────────
 
   /**
    * Handle daemon WebSocket close/error: resolve deviceId from connection
-   * tag, commit an offline mutation, and clean up the mapping.
+   * tag, mark device offline, clean up mapping, and manage alarm lifecycle.
    */
   private async handleDaemonDisconnect(tags: string[]): Promise<void> {
     const connTag = getConnTag(tags);
@@ -356,8 +347,77 @@ export class DaemonHub extends DurableObject<Env> {
     const deviceId = await this.ctx.storage.get<string>(connTag);
     if (!deviceId) return;
 
-    await this.commitStateMutation({ kind: "deviceOffline", deviceId });
+    const state = await this.loadState();
+    applyMutation(state, { kind: "deviceOffline", deviceId });
+    await this.saveState(state);
     await this.ctx.storage.delete(connTag);
+
+    // Delete alarm if no devices remain online
+    if (!state.devices.some((d) => d.online)) {
+      await this.ctx.storage.deleteAlarm();
+    }
+  }
+
+  /**
+   * DO alarm handler: check for stale daemon connections.
+   * Fires every ALARM_INTERVAL_MS while any device is online.
+   * Evicts devices whose lastSeen exceeds STALE_THRESHOLD_MS.
+   */
+  async alarm(): Promise<void> {
+    const state = await this.loadState();
+    const now = Date.now();
+    const threshold = this.env.STALE_THRESHOLD_MS ?? 90_000;
+
+    const staleDeviceIds: string[] = [];
+    for (const device of state.devices) {
+      if (!device.online || !device.lastSeen) continue;
+      const age = now - new Date(device.lastSeen).getTime();
+      if (age > threshold) {
+        staleDeviceIds.push(device.deviceId);
+      }
+    }
+
+    if (staleDeviceIds.length > 0) {
+      // Apply offline mutations
+      for (const deviceId of staleDeviceIds) {
+        applyMutation(state, { kind: "deviceOffline", deviceId });
+      }
+      await this.saveState(state);
+
+      // Broadcast daemonOffline to UI for each stale device
+      for (const deviceId of staleDeviceIds) {
+        const offlineMsg = JSON.stringify({
+          daemonOffline: { deviceId },
+          _deviceId: deviceId,
+          _ts: new Date().toISOString(),
+        });
+        for (const uiWs of this.ctx.getWebSockets("ui")) {
+          uiWs.send(offlineMsg);
+        }
+      }
+
+      // Close stale daemon WebSockets and clean up conn mappings
+      for (const daemonWs of this.ctx.getWebSockets("daemon")) {
+        const wsTags = this.ctx.getTags(daemonWs);
+        const connTag = getConnTag(wsTags);
+        if (!connTag) continue;
+        const wsDeviceId = await this.ctx.storage.get<string>(connTag);
+        if (wsDeviceId && staleDeviceIds.includes(wsDeviceId)) {
+          await this.ctx.storage.delete(connTag);
+          try {
+            daemonWs.close(1000, "stale connection");
+          } catch {
+            // WebSocket may already be closed
+          }
+        }
+      }
+    }
+
+    // Reschedule if any devices still online
+    if (state.devices.some((d) => d.online)) {
+      const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
+      await this.ctx.storage.setAlarm(Date.now() + interval);
+    }
   }
 
   // ── Internal helpers ──────────────────────────────────────────────
@@ -399,7 +459,32 @@ export class DaemonHub extends DurableObject<Env> {
     if (!rpc) return { kind: "none" };
     try {
       const mutation = await this.resolveStateMutation(tags, rpc);
-      await this.commitStateMutation(mutation);
+
+      // Phase 1 (async I/O): resolve deviceId for lastSeen update
+      let deviceId: string | undefined;
+      if (mutation.kind === "deviceOnline" || mutation.kind === "deviceOffline") {
+        deviceId = mutation.deviceId;
+      } else {
+        deviceId = await this.getDeviceIdForConnection(tags);
+      }
+
+      // Phase 2 (atomic): load -> mutate -> update lastSeen -> save
+      const state = await this.loadState();
+      if (mutation.kind !== "none") {
+        applyMutation(state, mutation);
+      }
+      if (deviceId) {
+        const device = findDevice(state, deviceId);
+        if (device) device.lastSeen = new Date();
+      }
+      await this.saveState(state);
+
+      // Set alarm when a device comes online
+      if (mutation.kind === "deviceOnline") {
+        const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
+        await this.ctx.storage.setAlarm(Date.now() + interval);
+      }
+
       return mutation;
     } catch {
       // Don't let state update failures break the relay
@@ -573,6 +658,7 @@ export class DaemonHub extends DurableObject<Env> {
     "parseStarted",
     "pluginStatus",
     "pushStarted",
+    "daemonHeartbeat",
   ]);
 
   private async persistEvent(
