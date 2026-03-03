@@ -52,14 +52,14 @@ describe("MCP Status", () => {
     expect(body.connected).toBe(true);
   });
 
-  it("does NOT set connected on tools/list", async () => {
+  it("returns connected: true after tools/list (no initialize)", async () => {
     await SELF.fetch(mcpRequest("tools/list", 1));
 
     const resp = await SELF.fetch("https://test-host/api/v1/mcp-status", {
       headers: { Authorization: `Bearer ${TEST_USER}` },
     });
     const body = await resp.json<{ connected: boolean }>();
-    expect(body.connected).toBe(false);
+    expect(body.connected).toBe(true);
   });
 
   it("requires authentication", async () => {
