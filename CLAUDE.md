@@ -4,7 +4,19 @@
 
 Savecraft parses video game save files and serves structured game state to AI assistants via MCP. Two components: a local Go daemon (WASM plugin runtime, filesystem watcher) and a remote Cloudflare Worker (MCP server, push API, Durable Object hub).
 
-Read `docs/savecraft-architecture.md` for the full architecture document. It is the source of truth.
+## Documentation
+
+Read the doc relevant to your current task. Start with `overview.md` for orientation.
+
+- `docs/overview.md` — What Savecraft is, system architecture, data flow, repo structure
+- `docs/daemon.md` — Go daemon: orchestrator, watcher, plugin loading, WebSocket client (`internal/`, `cmd/`)
+- `docs/worker.md` — Cloudflare Worker: push API, SaveHub DO, WebSocket protocol, D1 schemas (`worker/`)
+- `docs/mcp.md` — OAuth architecture, MCP tools, notes, search, AI interaction patterns (`worker/src/mcp/`)
+- `docs/plugins.md` — WASM plugin system, ndjson contract, signing, distribution (`plugins/`)
+- `docs/web.md` — SvelteKit frontend, onboarding, components (`web/`)
+- `docs/infrastructure.md` — CI/CD, deployment, signing, installation, security (`.github/`, `install/`)
+- `docs/roadmap.md` — Planned features: game adapters, reference data, monetization, game roadmap
+- `docs/mcp-design.md` — Cross-platform MCP tool design best practices (external reference)
 
 ## Tech Stack
 
@@ -34,62 +46,17 @@ Read `docs/savecraft-architecture.md` for the full architecture document. It is 
 
 ## Development Principles
 
-### Testing
-
-Every layer must be fully testable in isolation and in integration.
-
-**Unit tests (fast, run on every change):**
-- Go daemon: all external dependencies behind interfaces. Fakes for filesystem, WASM runtime, WebSocket client, HTTP push client. Tests inject fakes.
-- Cloudflare Worker: Miniflare for local D1, R2, Durable Objects, WebSocket. Vitest as test runner.
-- Svelte UI: component tests with mock WebSocket, mock API responses.
-
-**Integration tests (Docker Compose, run in CI + on-demand):**
-- Daemon binary + Miniflare Worker + real WebSocket connections + real file events.
-- End-to-end: write a save file → daemon detects → parses → pushes → MCP tool returns data.
-
-**Principles:**
 - TDD: write the test first, watch it fail, implement, watch it pass.
 - No mocking libraries — hand-written fakes that implement the same interface.
 - Tests assert behavior, not implementation details.
-- Integration tests use real binaries, real protocols, real data formats.
-
-### Code Style
-
-- Idiomatic Go: small interfaces, table-driven tests, error wrapping with `%w`, no globals.
-- Idiomatic TypeScript: strict mode, no `any`, discriminated unions for message types.
-- Svelte: SvelteKit conventions, TypeScript throughout.
+- Domain-specific conventions (Go, TypeScript, D2R, etc.) are in `.claude/skills/`. They load automatically when you're working in the relevant area.
 
 ## Important Paths
 
-- `docs/savecraft-architecture.md` — Architecture source of truth
-- `docs/wireframes/` — UI wireframes (React/JSX reference designs)
+- `docs/` — Architecture docs (see Documentation section above)
 - `proto/savecraft/v1/protocol.proto` — Canonical WebSocket protocol definition
 - `internal/proto/savecraft/v1/` — Generated Go protobuf code (do not edit)
 - `worker/src/proto/savecraft/v1/` — Generated TypeScript protobuf code (do not edit)
-- `internal/daemon/` — Daemon orchestrator, domain types (GameState), interfaces
-- `internal/runner/` — WASM plugin execution via wazero
-- `cmd/savecraftd/` — Daemon entrypoint
-- `plugins/echo/` — Reference plugin for testing the ndjson contract
-- `worker/` — Cloudflare Worker + Durable Object (TypeScript)
-- `web/` — SvelteKit frontend
-- `plugins/` — WASM plugin sources
-
-## Storybook Screenshots
-
-Capture component screenshots for visual auditing using the custom Playwright-based tool at `web/scripts/screenshot.ts`. Requires Storybook running on port 6006.
-
-```bash
-# Start Storybook (in web/ directory)
-npm run storybook
-
-# Screenshot a single story (story path: lowercase, hyphens)
-cd web && npx tsx scripts/screenshot.ts components-gamecard--watching
-
-# Screenshot all stories
-cd web && npx tsx scripts/screenshot.ts --all
-```
-
-Output goes to `web/screenshots/<story-path>.png`. Story paths follow `category-component--story-name` pattern. The tool uses system chromium via `findChromium()` (works on NixOS). Do NOT use Playwright's bundled chromium — it won't work on NixOS due to dynamic linking.
 
 ## Commands
 
