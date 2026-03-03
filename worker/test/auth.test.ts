@@ -19,8 +19,8 @@ describe("OAuth Discovery", () => {
       bearer_methods_supported: string[];
     }>();
 
-    expect(body.resource).toBe("https://test-host");
-    expect(body.authorization_servers).toEqual(["https://test-host"]);
+    expect(body.resource).toBe("https://test-host/");
+    expect(body.authorization_servers).toEqual(["https://test-host/"]);
     expect(body.bearer_methods_supported).toContain("header");
   });
 
@@ -39,7 +39,7 @@ describe("OAuth Discovery", () => {
       jwks_uri: string;
     }>();
 
-    expect(body.resource).toBe("https://test-host");
+    expect(body.resource).toBe("https://test-host/");
     expect(body.authorization_servers).toEqual(["https://fake-clerk.example.com"]);
     expect(body.jwks_uri).toBe("https://fake-clerk.example.com/.well-known/jwks.json");
   });
@@ -49,7 +49,7 @@ describe("OAuth Discovery", () => {
     expect(resp.status).toBe(200);
 
     const body = await resp.json<{ resource: string }>();
-    expect(body.resource).toBe("https://mcp.savecraft.gg");
+    expect(body.resource).toBe("https://mcp.savecraft.gg/");
   });
 
   it("allows CORS on the discovery endpoint", async () => {
