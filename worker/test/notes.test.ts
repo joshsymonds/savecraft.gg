@@ -86,7 +86,14 @@ describe("Notes REST API", () => {
     expect(resp.status).toBe(200);
 
     const body = await resp.json<{
-      notes: { note_id: string; title: string; content: string; source: string; size_bytes: number; updated_at: string }[];
+      notes: {
+        note_id: string;
+        title: string;
+        content: string;
+        source: string;
+        size_bytes: number;
+        updated_at: string;
+      }[];
     }>();
     expect(body.notes).toHaveLength(2);
     expect(body.notes[0]!.title).toBeTruthy();

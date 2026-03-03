@@ -422,7 +422,14 @@ async function handleNoteCollection(
       "SELECT note_id, title, content, source, LENGTH(content) as size_bytes, updated_at FROM notes WHERE save_id = ? AND user_uuid = ? ORDER BY updated_at DESC",
     )
       .bind(saveId, userUuid)
-      .all<{ note_id: string; title: string; content: string; source: string; size_bytes: number; updated_at: string }>();
+      .all<{
+        note_id: string;
+        title: string;
+        content: string;
+        source: string;
+        size_bytes: number;
+        updated_at: string;
+      }>();
 
     return Response.json({ notes: rows.results });
   }
