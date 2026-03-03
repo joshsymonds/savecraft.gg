@@ -16,13 +16,11 @@ describe("OAuth Discovery", () => {
       resource: string;
       authorization_servers: string[];
       bearer_methods_supported: string[];
-      scopes_supported: string[];
     }>();
 
     expect(body.resource).toBe("https://test-host");
     expect(body.authorization_servers).toHaveLength(1);
     expect(body.bearer_methods_supported).toContain("header");
-    expect(body.scopes_supported).toContain("savecraft:read");
   });
 
   it("derives resource URL from request origin", async () => {

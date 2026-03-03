@@ -236,7 +236,6 @@ function handleOAuthResourceMetadata(request: Request, _env: Env): Response {
       resource: serverUrl,
       authorization_servers: [serverUrl],
       bearer_methods_supported: ["header"],
-      scopes_supported: ["savecraft:read"],
       resource_name: "Savecraft MCP Server",
     },
     {
