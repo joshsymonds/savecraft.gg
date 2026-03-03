@@ -29,9 +29,9 @@ type pluginTOML struct {
 	Homepage       string   `toml:"homepage"        json:"homepage"`
 	Limitations    []string `toml:"limitations"     json:"limitations"`
 
-	Author       authorInfo   `toml:"author"        json:"author"`
-	DefaultPaths defaultPaths `toml:"default_paths" json:"default_paths"`
-	Reference    referenceTOML `toml:"reference"    json:"-"`
+	Author       authorInfo    `toml:"author"        json:"author"`
+	DefaultPaths defaultPaths  `toml:"default_paths" json:"default_paths"`
+	Reference    referenceTOML `toml:"reference"     json:"-"`
 }
 
 type authorInfo struct {
@@ -52,8 +52,8 @@ type referenceModule struct {
 }
 
 type referenceAttribution struct {
-	Author      string           `toml:"author"       json:"author,omitempty"`
-	DataSources []referenceSource `toml:"data_sources" json:"data_sources,omitempty"`
+	Author      string            `toml:"author"       json:"author,omitempty"`
+	DataSources []referenceSource `toml:"data_sources" json:"dataSources,omitempty"`
 }
 
 type referenceSource struct {
