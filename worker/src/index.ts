@@ -97,8 +97,25 @@ const oauthProvider = buildOAuthProvider({
 
 export default {
   async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    const url = new URL(request.url);
+    const mcpHost = isMcpHost(url, env);
+
+    // Serve protected resource metadata with trailing-slash resource URL.
+    // The library generates resource from url.origin (no trailing slash), but
+    // MCP clients send resource=https://host/ (with slash) in authorize requests.
+    // RFC 8707 uses exact string comparison — mismatch causes Claude Desktop to
+    // silently discard the token after a successful OAuth flow.
+    if (url.pathname === "/.well-known/oauth-protected-resource") {
+      return Response.json({
+        resource: `${url.origin}/`,
+        authorization_servers: [url.origin],
+        bearer_methods_supported: ["header"],
+        resource_name: "Savecraft MCP Server",
+      });
+    }
+
     // Rewrite MCP subdomain root to /mcp so the library's apiRoute matches
-    if (isMcpHost(new URL(request.url), env) && new URL(request.url).pathname === "/") {
+    if (mcpHost && url.pathname === "/") {
       const rewritten = new URL(request.url);
       rewritten.pathname = "/mcp";
       request = new Request(rewritten.toString(), request);

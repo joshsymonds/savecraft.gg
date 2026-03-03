@@ -20,7 +20,9 @@ describe("OAuth Discovery", () => {
       authorization_servers: string[];
     }>();
 
-    expect(body.resource).toBe("https://test-host");
+    // Trailing slash on resource is required: MCP clients send resource=https://host/
+    // in authorize requests, and RFC 8707 uses exact string comparison.
+    expect(body.resource).toBe("https://test-host/");
     expect(body.authorization_servers).toEqual(["https://test-host"]);
   });
 
