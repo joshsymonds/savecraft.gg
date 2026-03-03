@@ -29,8 +29,22 @@ describe("GameCard", () => {
     it("renders save names when present", () => {
       const game = makeGame({
         saves: [
-          { saveUuid: "1", saveName: "Atmus", summary: "Level 74 Warlock", lastUpdated: "now" },
-          { saveUuid: "2", saveName: "Bowazon", summary: "Level 89 Amazon", lastUpdated: "now" },
+          {
+            saveUuid: "1",
+            saveName: "Atmus",
+            summary: "Level 74 Warlock",
+            lastUpdated: "now",
+            status: "success" as const,
+            notes: [],
+          },
+          {
+            saveUuid: "2",
+            saveName: "Bowazon",
+            summary: "Level 89 Amazon",
+            lastUpdated: "now",
+            status: "success" as const,
+            notes: [],
+          },
         ],
       });
       render(GameCard, { props: { game } });

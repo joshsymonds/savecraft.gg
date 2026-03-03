@@ -7,21 +7,16 @@
     ActivityEvent,
     ConfigModal,
     ConnectCard,
-    GameCard,
+    DeviceWindow,
     InstallBlock,
-    Panel,
     StatusDot,
-    TinyButton,
   } from "$lib/components";
-  import type { ActivateState } from "$lib/components/GameCard.svelte";
   import { activateGame } from "$lib/stores/activation";
   import { activityEvents } from "$lib/stores/activity";
   import { devices, setGameStatus } from "$lib/stores/devices";
   import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
-  import type { DeviceStatus } from "$lib/types/device";
   import type { Device } from "$lib/types/device";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
-  import { SvelteMap } from "svelte/reactivity";
 
   const COLLAPSED_EVENT_COUNT = 8;
 
@@ -32,22 +27,6 @@
     activityExpanded ? $activityEvents : $activityEvents.slice(0, COLLAPSED_EVENT_COUNT),
   );
   let hiddenCount = $derived($activityEvents.length - COLLAPSED_EVENT_COUNT);
-
-  let activateStates = new SvelteMap<string, ActivateState>();
-
-  async function handleActivate(deviceId: string, gameId: string): Promise<void> {
-    activateStates.set(gameId, "activating");
-    try {
-      await activateGame(deviceId, gameId);
-      activateStates.delete(gameId);
-      setGameStatus(deviceId, gameId, "activating");
-    } catch {
-      activateStates.set(gameId, "failed");
-      setTimeout(() => {
-        activateStates.delete(gameId);
-      }, 3000);
-    }
-  }
 
   function rescan(device: Device): void {
     for (const game of device.games) {
@@ -62,17 +41,14 @@
     send(JSON.stringify({ discoverGames: {} }));
   }
 
-  const ACCENT_COLORS: Record<DeviceStatus, string | undefined> = {
-    online: "#5abe8a40",
-    error: "#e8c44e40",
-    offline: undefined,
-  };
-
-  const DEVICE_ICONS: Record<DeviceStatus, string> = {
-    online: "*",
-    error: "!",
-    offline: "#",
-  };
+  async function handleActivate(deviceId: string, gameId: string): Promise<void> {
+    try {
+      await activateGame(deviceId, gameId);
+      setGameStatus(deviceId, gameId, "activating");
+    } catch {
+      // DeviceWindow handles its own activate states internally
+    }
+  }
 
   const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
     connected: "LIVE",
@@ -113,68 +89,14 @@
       </div>
 
       {#each $devices as device (device.id)}
-        <Panel accent={ACCENT_COLORS[device.status]}>
-          <!-- Title bar -->
-          <div class="device-title-bar">
-            <div class="device-info">
-              <span
-                class="device-icon"
-                class:online={device.status === "online"}
-                class:error={device.status === "error"}
-              >
-                {DEVICE_ICONS[device.status]}</span
-              >
-              <div>
-                <div class="device-name-row">
-                  <span class="device-name">{device.name}</span>
-                  <StatusDot status={device.status} size={7} />
-                </div>
-                <span class="device-meta">
-                  {#if device.version}{device.version}{/if}
-                  {#if device.status === "offline"}
-                    {#if device.version}
-                      ·
-                    {/if}last seen {device.lastSeen}
-                  {/if}
-                </span>
-              </div>
-            </div>
-            <div class="device-actions">
-              <TinyButton
-                label={$discoveryPending ? "SCANNING..." : "DISCOVER"}
-                onclick={discover}
-                disabled={device.status === "offline" || $discoveryPending}
-              />
-              <TinyButton
-                label="RESCAN"
-                onclick={() => {
-                  rescan(device);
-                }}
-                disabled={device.status === "offline"}
-              />
-              <TinyButton label="CONFIG" onclick={() => (configDeviceId = device.id)} />
-            </div>
-          </div>
-
-          <!-- Game grid -->
-          <div class="game-grid">
-            {#each device.games.filter((g) => g.status !== "not_found") as game (game.gameId)}
-              <GameCard
-                {game}
-                activateState={activateStates.get(game.gameId) ?? "idle"}
-                onactivate={(gameId: string) => {
-                  void handleActivate(device.id, gameId);
-                }}
-              />
-            {/each}
-            {#if device.games.filter((g) => g.status !== "not_found").length === 0}
-              <button class="add-game-card" disabled>
-                <span class="add-game-icon">+</span>
-                <span class="add-game-label">Add a game...</span>
-              </button>
-            {/if}
-          </div>
-        </Panel>
+        <DeviceWindow
+          {device}
+          onrescan={() => rescan(device)}
+          ondiscover={discover}
+          onconfig={() => (configDeviceId = device.id)}
+          onactivate={(gameId: string) => void handleActivate(device.id, gameId)}
+          discoveryPending={$discoveryPending}
+        />
       {/each}
 
       <InstallBlock prominent={false} />
@@ -259,96 +181,6 @@
     font-family: var(--font-body);
     font-size: 16px;
     color: var(--color-text-dim);
-  }
-
-  .device-title-bar {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 14px;
-    background: rgba(5, 7, 26, 0.4);
-    border-bottom: 1px solid rgba(74, 90, 173, 0.12);
-    min-height: 52px;
-  }
-
-  .device-info {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .device-icon {
-    font-family: var(--font-pixel);
-    font-size: 14px;
-    color: var(--color-text-muted);
-  }
-
-  .device-icon.online {
-    color: var(--color-green);
-  }
-
-  .device-icon.error {
-    color: var(--color-yellow);
-  }
-
-  .device-name-row {
-    display: flex;
-    align-items: center;
-    gap: 7px;
-  }
-
-  .device-name {
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    color: var(--color-text);
-    letter-spacing: 0.5px;
-  }
-
-  .device-meta {
-    font-family: var(--font-body);
-    font-size: 15px;
-    color: var(--color-text-dim);
-  }
-
-  .device-actions {
-    display: flex;
-    gap: 5px;
-  }
-
-  .game-grid {
-    padding: 14px 12px;
-    display: flex;
-    gap: 8px;
-    flex-wrap: wrap;
-  }
-
-  .add-game-card {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    padding: 12px 10px;
-    border-radius: 4px;
-    background: transparent;
-    border: 1px dashed rgba(74, 90, 173, 0.2);
-    min-width: 110px;
-    min-height: 80px;
-    cursor: not-allowed;
-    opacity: 0.5;
-  }
-
-  .add-game-icon {
-    font-family: var(--font-pixel);
-    font-size: 22px;
-    color: var(--color-text-muted);
-    margin-bottom: 4px;
-  }
-
-  .add-game-label {
-    font-family: var(--font-pixel);
-    font-size: 10px;
-    color: var(--color-text-muted);
-    letter-spacing: 0.5px;
   }
 
   .empty-state {
