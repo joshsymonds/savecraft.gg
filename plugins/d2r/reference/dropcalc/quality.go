@@ -146,7 +146,8 @@ func (c *Calculator) ComputeQuality(baseItemCode string, mlvl, mf int, tcQuality
 
 // ResolveWithQuality resolves a monster's drops and applies quality determination.
 // Returns a list of ItemDrops with per-quality probabilities.
-func (c *Calculator) ResolveWithQuality(monsterID string, difficulty, tcType, nPlayers, partySize, mf int) ([]ItemDrop, error) {
+// If area is non-empty, the area's monster level overrides the monster's base level.
+func (c *Calculator) ResolveWithQuality(monsterID string, difficulty, tcType, nPlayers, partySize, mf int, area ...string) ([]ItemDrop, error) {
 	mon := c.monsterByID[monsterID]
 	if mon == nil {
 		return nil, fmt.Errorf("unknown monster: %s", monsterID)
@@ -170,8 +171,14 @@ func (c *Calculator) ResolveWithQuality(monsterID string, difficulty, tcType, nP
 		tcQuality = tc.Quality
 	}
 
-	// Upgrade TC based on monster level.
+	// Monster level: use area level if specified, else base monster level.
 	mlvl := mon.Levels[difficulty]
+	if len(area) > 0 && area[0] != "" {
+		if a := c.areaByName[area[0]]; a != nil {
+			mlvl = a.Levels[difficulty]
+		}
+	}
+
 	if difficulty > 0 && mlvl > 0 {
 		tcName = c.upgradeTCByLevel(tcName, mlvl)
 		// Re-check quality ratios after upgrade — take max.
@@ -205,6 +212,14 @@ func (c *Calculator) ResolveWithQuality(monsterID string, difficulty, tcType, nP
 	}
 
 	return drops, nil
+}
+
+// AreaLevel returns the monster level for an area at a given difficulty, or 0 if not found.
+func (c *Calculator) AreaLevel(areaName string, difficulty int) int {
+	if a := c.areaByName[areaName]; a != nil && difficulty >= 0 && difficulty <= 2 {
+		return a.Levels[difficulty]
+	}
+	return 0
 }
 
 func mergeQuality(a, b data.QualityRatios) data.QualityRatios {
