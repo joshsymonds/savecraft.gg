@@ -59,9 +59,10 @@ func handleDropCalc(enc *json.Encoder, query map[string]any) {
 	players := intParam(query, "players", 1)
 	partySize := intParam(query, "party_size", players)
 	mf := intParam(query, "mf", 0)
+	area, _ := query["area"].(string)
 
 	calc := dropcalc.NewCalculator()
-	drops, err := calc.ResolveWithQuality(monster, difficulty, 0, players, partySize, mf)
+	drops, err := calc.ResolveWithQuality(monster, difficulty, 0, players, partySize, mf, area)
 	if err != nil {
 		writeError(enc, "calc_error", err.Error())
 		os.Exit(1)
@@ -158,6 +159,11 @@ func schema() map[string]any {
 						"required":    false,
 						"default":     0,
 						"description": "Magic find percentage",
+					},
+					"area": map[string]any{
+						"type":        "string",
+						"required":    false,
+						"description": "Area name to override monster level (e.g. 'Drifter Cavern', 'Pit Level 1')",
 					},
 				},
 			},
