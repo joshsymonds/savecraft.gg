@@ -153,7 +153,7 @@ async function routeWebSocketEndpoints(
     headers.set("X-User-UUID", auth.userUuid);
     return env.DAEMON_HUB.get(id).fetch(new Request(request, { headers }));
   }
-  if (url.pathname === "/mcp" || (isMcpHost(url) && url.pathname === "/")) {
+  if (url.pathname === "/mcp" || (isMcpHost(url, env) && url.pathname === "/")) {
     const auth = await authenticateOAuth(request, env);
     if (!auth) return unauthorizedMcp(request);
     return handleMcpRequest(request, env, auth.userUuid);
@@ -206,8 +206,8 @@ function routeReadEndpoints(
 }
 
 /** Returns true when the request targets a dedicated MCP subdomain. */
-function isMcpHost(url: URL): boolean {
-  return url.hostname.startsWith("mcp");
+function isMcpHost(url: URL, env: Env): boolean {
+  return !!env.MCP_HOSTNAME && url.hostname === env.MCP_HOSTNAME;
 }
 
 /**

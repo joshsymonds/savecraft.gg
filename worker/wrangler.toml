@@ -46,6 +46,7 @@ VERSION = "dev"
 ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg,https://my.savecraft.gg"
 CLERK_ISSUER = "https://intent-earwig-38.clerk.accounts.dev"
 INSTALL_URL = "https://install.savecraft.gg"
+MCP_HOSTNAME = "mcp.savecraft.gg"
 
 [[env.production.d1_databases]]
 binding = "DB"
@@ -75,7 +76,7 @@ new_sqlite_classes = ["DaemonHub"]
 name = "savecraft-api-staging"
 routes = [
   { pattern = "staging-api.savecraft.gg/*", zone_name = "savecraft.gg" },
-  { pattern = "mcp-staging.savecraft.gg/*", zone_name = "savecraft.gg" },
+  { pattern = "staging-mcp.savecraft.gg/*", zone_name = "savecraft.gg" },
 ]
 
 [env.staging.vars]
@@ -85,6 +86,7 @@ ALLOWED_ORIGINS = "https://staging.savecraft.gg,https://my-staging.savecraft.gg"
 SERVER_URL = "https://staging-api.savecraft.gg"
 CLERK_ISSUER = "https://dominant-frog-65.clerk.accounts.dev"
 INSTALL_URL = "https://install-staging.savecraft.gg"
+MCP_HOSTNAME = "staging-mcp.savecraft.gg"
 
 [[env.staging.d1_databases]]
 binding = "DB"

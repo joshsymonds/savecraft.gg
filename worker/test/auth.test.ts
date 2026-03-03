@@ -196,25 +196,30 @@ describe("OAuth Proxy - Token", () => {
 });
 
 describe("MCP Subdomain Routing", () => {
-  it("routes root path to MCP handler on mcp.* hosts", async () => {
-    const resp = await SELF.fetch(
+  const mcpInit = {
+    jsonrpc: "2.0",
+    id: 1,
+    method: "initialize",
+    params: {
+      protocolVersion: "2025-11-25",
+      capabilities: {},
+      clientInfo: { name: "test", version: "1.0" },
+    },
+  };
+
+  it("routes root path to MCP handler when hostname matches MCP_HOSTNAME", async () => {
+    const fakeEnv = { ...env, MCP_HOSTNAME: "mcp.savecraft.gg" } as typeof env;
+    const resp = await worker.fetch(
       new Request("https://mcp.savecraft.gg/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer test-user-uuid",
         },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "initialize",
-          params: {
-            protocolVersion: "2025-11-25",
-            capabilities: {},
-            clientInfo: { name: "test", version: "1.0" },
-          },
-        }),
+        body: JSON.stringify(mcpInit),
       }),
+      fakeEnv,
+      {} as ExecutionContext,
     );
     expect(resp.status).toBe(200);
 
@@ -222,71 +227,49 @@ describe("MCP Subdomain Routing", () => {
     expect(body.result.serverInfo).toBeDefined();
   });
 
-  it("routes root path to MCP handler on mcp-staging.* hosts", async () => {
-    const resp = await SELF.fetch(
-      new Request("https://mcp-staging.savecraft.gg/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer test-user-uuid",
-        },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "initialize",
-          params: {
-            protocolVersion: "2025-11-25",
-            capabilities: {},
-            clientInfo: { name: "test", version: "1.0" },
-          },
-        }),
-      }),
-    );
-    expect(resp.status).toBe(200);
-
-    const body = await resp.json<{ result: { serverInfo: unknown } }>();
-    expect(body.result.serverInfo).toBeDefined();
-  });
-
-  it("does not route root path to MCP on non-mcp hosts", async () => {
-    const resp = await SELF.fetch(
+  it("does not route root path to MCP on non-MCP hosts", async () => {
+    const fakeEnv = { ...env, MCP_HOSTNAME: "mcp.savecraft.gg" } as typeof env;
+    const resp = await worker.fetch(
       new Request("https://api.savecraft.gg/", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: "Bearer test-user-uuid",
         },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "initialize",
-          params: {
-            protocolVersion: "2025-11-25",
-            capabilities: {},
-            clientInfo: { name: "test", version: "1.0" },
-          },
-        }),
+        body: JSON.stringify(mcpInit),
       }),
+      fakeEnv,
+      {} as ExecutionContext,
+    );
+    expect(resp.status).toBe(404);
+  });
+
+  it("does not route root path to MCP when MCP_HOSTNAME is unset", async () => {
+    const resp = await worker.fetch(
+      new Request("https://mcp.savecraft.gg/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: "Bearer test-user-uuid",
+        },
+        body: JSON.stringify(mcpInit),
+      }),
+      env,
+      {} as ExecutionContext,
     );
     expect(resp.status).toBe(404);
   });
 
   it("returns 401 with correct origin in WWW-Authenticate on mcp subdomain", async () => {
-    const resp = await SELF.fetch(
+    const fakeEnv = { ...env, MCP_HOSTNAME: "mcp.savecraft.gg" } as typeof env;
+    const resp = await worker.fetch(
       new Request("https://mcp.savecraft.gg/", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jsonrpc: "2.0",
-          id: 1,
-          method: "initialize",
-          params: {
-            protocolVersion: "2025-11-25",
-            capabilities: {},
-            clientInfo: { name: "test", version: "1.0" },
-          },
-        }),
+        body: JSON.stringify(mcpInit),
       }),
+      fakeEnv,
+      {} as ExecutionContext,
     );
     expect(resp.status).toBe(401);
 

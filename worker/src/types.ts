@@ -8,6 +8,8 @@ export interface Env {
   CLERK_ISSUER?: string;
   /** Public-facing server URL for OAuth discovery (e.g. "https://api.savecraft.gg"). */
   SERVER_URL?: string;
+  /** Hostname that serves MCP (e.g. "mcp.savecraft.gg"). When set, root path "/" on this host routes to the MCP handler. */
+  MCP_HOSTNAME?: string;
   /** Install worker URL for daemon distribution (e.g. "https://install.savecraft.gg"). */
   INSTALL_URL?: string;
   /** Comma-separated list of allowed CORS origins. Unset = wildcard (dev only). */
