@@ -28,11 +28,17 @@ type Calculator struct {
 	tcByName       map[string]*data.TreasureClass
 	tcsByGroup     map[int][]*data.TreasureClass // group → sorted by level
 	baseItemByCode map[string]*data.BaseItem
+	itemNameToCode map[string]string // display name → code (case-sensitive)
 	itemTypeByCode map[string]*data.ItemType
 	monsterByID    map[string]*data.MonsterEntry
 	areaByName     map[string]*data.Area // keyed by display name (e.g. "Drifter Cavern")
 	allTypeCodes   map[string]map[string]bool // code → set of (self + all ancestor codes)
 	virtualTCs     map[string]*virtualTC
+
+	// Reverse index for item → source lookups.
+	reverseTCParents map[string][]string       // child TC/item → parent TC names
+	itemVirtualTCs   map[string][]string       // item code → virtual TC names containing it
+	tcToEntries      map[string][]*monsterEntry // upgraded TC name → monster-area entries
 }
 
 // NewCalculator builds indexes from embedded data tables.
@@ -41,6 +47,7 @@ func NewCalculator() *Calculator {
 		tcByName:       make(map[string]*data.TreasureClass, len(data.TreasureClasses)),
 		tcsByGroup:     make(map[int][]*data.TreasureClass),
 		baseItemByCode: make(map[string]*data.BaseItem, len(data.BaseItems)),
+		itemNameToCode: make(map[string]string, len(data.BaseItems)),
 		itemTypeByCode: make(map[string]*data.ItemType, len(data.ItemTypes)),
 		monsterByID:    make(map[string]*data.MonsterEntry, len(data.Monsters)),
 		areaByName:     make(map[string]*data.Area, len(data.Areas)),
@@ -54,7 +61,9 @@ func NewCalculator() *Calculator {
 		}
 	}
 	for i := range data.BaseItems {
-		c.baseItemByCode[data.BaseItems[i].Code] = &data.BaseItems[i]
+		bi := &data.BaseItems[i]
+		c.baseItemByCode[bi.Code] = bi
+		c.itemNameToCode[bi.Name] = bi.Code
 	}
 	for i := range data.ItemTypes {
 		c.itemTypeByCode[data.ItemTypes[i].Code] = &data.ItemTypes[i]
@@ -70,6 +79,7 @@ func NewCalculator() *Calculator {
 
 	c.buildTypeCodeHierarchy()
 	c.buildVirtualTCs()
+	c.buildReverseIndex()
 
 	return c
 }
@@ -391,6 +401,17 @@ func (c *Calculator) ItemName(code string) string {
 		return bi.Name
 	}
 	return code
+}
+
+// ItemCode resolves an item name or code to a code. Returns "" if not found.
+func (c *Calculator) ItemCode(nameOrCode string) string {
+	if _, ok := c.baseItemByCode[nameOrCode]; ok {
+		return nameOrCode
+	}
+	if code, ok := c.itemNameToCode[nameOrCode]; ok {
+		return code
+	}
+	return ""
 }
 
 // IsBaseItem reports whether the given code is a known base item.
