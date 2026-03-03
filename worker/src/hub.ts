@@ -465,13 +465,13 @@ export class DaemonHub extends DurableObject<Env> {
     try {
       const mutation = await this.resolveStateMutation(tags, rpc);
 
-      // Phase 1 (async I/O): resolve deviceId for lastSeen update
+      // Resolve deviceId for lastSeen update
       const deviceId =
         mutation.kind === "deviceOnline" || mutation.kind === "deviceOffline"
           ? mutation.deviceId
           : await this.getDeviceIdForConnection(tags);
 
-      // Phase 2 (atomic): load -> mutate -> update lastSeen -> save
+      // Load -> mutate -> update lastSeen -> save
       const state = await this.loadState();
       if (mutation.kind !== "none") {
         applyMutation(state, mutation);
@@ -661,7 +661,6 @@ export class DaemonHub extends DurableObject<Env> {
     "parseStarted",
     "pluginStatus",
     "pushStarted",
-    "daemonHeartbeat",
   ]);
 
   private async persistEvent(
