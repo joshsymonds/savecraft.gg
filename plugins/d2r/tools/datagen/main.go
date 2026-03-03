@@ -9,7 +9,7 @@
 //
 // Usage:
 //
-//	go run ./plugins/d2r/tools/datagen -input reference/d2r-rotw-excel -output plugins/d2r/reference/data
+//	go run ./plugins/d2r/tools/datagen -input .reference/d2r-rotw-excel -output plugins/d2r/reference/data
 package main
 
 import (
@@ -23,7 +23,7 @@ import (
 )
 
 func main() {
-	inputDir := "reference/d2r-rotw-excel"
+	inputDir := ".reference/d2r-rotw-excel"
 	outputDir := "plugins/d2r/reference/data"
 
 	for i := 1; i < len(os.Args); i++ {
