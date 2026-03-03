@@ -431,6 +431,10 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
 
   switch (rpc.method) {
     case "initialize": {
+      env.DB.prepare("INSERT OR IGNORE INTO mcp_activity (user_uuid) VALUES (?)")
+        .bind(userUuid)
+        .run()
+        .catch(Function.prototype as () => void);
       return Promise.resolve(
         jsonRpcResponse(id, {
           protocolVersion: PROTOCOL_VERSION,
@@ -453,13 +457,7 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
       if (!rpc.params) {
         return Promise.resolve(jsonRpcError(id, -32_602, "Missing params for tools/call"));
       }
-      return handleToolCall(rpc.params, env, userUuid).then((result) => {
-        env.DB.prepare("INSERT OR IGNORE INTO mcp_activity (user_uuid) VALUES (?)")
-          .bind(userUuid)
-          .run()
-          .catch(Function.prototype as () => void);
-        return jsonRpcResponse(id, result);
-      });
+      return handleToolCall(rpc.params, env, userUuid).then((result) => jsonRpcResponse(id, result));
     }
 
     default: {

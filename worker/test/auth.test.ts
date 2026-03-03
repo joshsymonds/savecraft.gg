@@ -2,6 +2,7 @@ import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { authenticateApiKey, sha256Hex } from "../src/auth";
+import worker from "../src/index";
 
 import { cleanAll } from "./helpers";
 
@@ -129,6 +130,27 @@ describe("OAuth Proxy - Authorize", () => {
     expect(location.origin + location.pathname).toBe("https://example.com/callback");
     expect(location.searchParams.get("state")).toBe("abc123");
     expect(location.searchParams.get("code")).toBeDefined();
+  });
+
+  it("strips scope parameter before redirecting to Clerk", async () => {
+    const fakeEnv = { ...env, CLERK_ISSUER: "https://fake-clerk.example.com" } as typeof env;
+    const resp = await worker.fetch(
+      new Request(
+        "https://test-host/oauth/authorize?response_type=code&client_id=test-client&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&state=abc123&scope=openid+profile+email&code_challenge=xyz&code_challenge_method=S256",
+        { redirect: "manual" },
+      ),
+      fakeEnv,
+      {} as ExecutionContext,
+    );
+    expect(resp.status).toBe(302);
+
+    const location = new URL(resp.headers.get("Location")!);
+    expect(location.origin).toBe("https://fake-clerk.example.com");
+    expect(location.pathname).toBe("/oauth/authorize");
+    expect(location.searchParams.get("scope")).toBeNull();
+    expect(location.searchParams.get("client_id")).toBe("test-client");
+    expect(location.searchParams.get("state")).toBe("abc123");
+    expect(location.searchParams.get("redirect_uri")).toBe("https://example.com/callback");
   });
 });
 

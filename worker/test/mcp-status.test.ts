@@ -31,36 +31,7 @@ describe("MCP Status", () => {
     expect(body.connected).toBe(false);
   });
 
-  it("returns connected: true after a tools/call", async () => {
-    // First push a save so tools/call has data
-    await SELF.fetch("https://test-host/api/v1/push", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${TEST_USER}`,
-        "X-Game": "d2r",
-        "X-Parsed-At": "2026-02-25T21:30:00Z",
-      },
-      body: JSON.stringify({
-        identity: { saveName: "TestChar", gameId: "d2r" },
-        summary: "Test Character",
-        sections: { overview: { description: "Overview", data: { level: 1 } } },
-      }),
-    });
-
-    // Make a tools/call via MCP
-    await SELF.fetch(mcpRequest("tools/call", 1, { name: "list_saves", arguments: {} }));
-
-    // Now check status
-    const resp = await SELF.fetch("https://test-host/api/v1/mcp-status", {
-      headers: { Authorization: `Bearer ${TEST_USER}` },
-    });
-    expect(resp.status).toBe(200);
-    const body = await resp.json<{ connected: boolean }>();
-    expect(body.connected).toBe(true);
-  });
-
-  it("does NOT set connected on initialize", async () => {
+  it("returns connected: true after initialize", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {
         protocolVersion: "2025-11-25",
@@ -72,8 +43,9 @@ describe("MCP Status", () => {
     const resp = await SELF.fetch("https://test-host/api/v1/mcp-status", {
       headers: { Authorization: `Bearer ${TEST_USER}` },
     });
+    expect(resp.status).toBe(200);
     const body = await resp.json<{ connected: boolean }>();
-    expect(body.connected).toBe(false);
+    expect(body.connected).toBe(true);
   });
 
   it("does NOT set connected on tools/list", async () => {
