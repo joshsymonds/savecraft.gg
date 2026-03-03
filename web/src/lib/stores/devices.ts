@@ -162,12 +162,15 @@ function handleGameStatusChange(
 
   let gameId: string | undefined;
   let status: GameStatus;
+  let path: string | undefined;
 
   if (type === "watching") {
     gameId = msg.watching?.gameId;
+    path = msg.watching?.path;
     status = "watching";
   } else if (type === "gameDetected") {
     gameId = msg.gameDetected?.gameId;
+    path = msg.gameDetected?.path;
     status = "detected";
   } else {
     gameId = msg.gameNotFound?.gameId;
@@ -183,6 +186,8 @@ function handleGameStatusChange(
     const game = findOrCreateGame(device, gameId);
     game.status = status;
     game.statusLine = gameStatusLine(status, game.saves);
+    if (path) game.path = path;
+    if (status === "watching") game.error = undefined;
     return [...devs];
   });
 }
@@ -201,6 +206,7 @@ function handleParseFailed(msg: WireMessage): void {
     const game = findOrCreateGame(device, gameId);
     game.status = "error";
     game.statusLine = pf.message ?? "parse error";
+    game.error = pf.message;
     return [...devs];
   });
 }
@@ -220,6 +226,7 @@ function handleParseCompleted(msg: WireMessage): void {
     if (game.status === "detected" || game.status === "activating" || game.status === "error") {
       game.status = "watching";
       game.statusLine = gameStatusLine("watching", game.saves);
+      game.error = undefined;
     }
     return [...devs];
   });

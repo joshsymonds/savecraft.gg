@@ -44,6 +44,7 @@
           },
         ],
       }}
+      onclick={() => alert("Drill into D2R")}
     />
   </div>
 </Story>
@@ -109,26 +110,16 @@
   </div>
 </Story>
 
-<Story name="Clickable">
+<Story name="NotFound">
   <div style="width: 200px;">
     <GameCard
       game={{
-        gameId: "d2r",
-        name: "Diablo II: Resurrected",
-        status: "watching",
-        statusLine: "Watching 3 saves",
-        saves: [
-          {
-            saveUuid: "1",
-            saveName: "Atmus",
-            summary: "Level 74 Warlock",
-            lastUpdated: "2m ago",
-            status: "success",
-            notes: [],
-          },
-        ],
+        gameId: "bg3",
+        name: "Baldur's Gate 3",
+        status: "not_found",
+        statusLine: "not installed",
+        saves: [],
       }}
-      onclick={() => alert("Drill into D2R")}
     />
   </div>
 </Story>

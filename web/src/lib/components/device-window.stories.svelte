@@ -164,6 +164,48 @@
       },
     ],
   };
+
+  const errorDevice: Device = {
+    id: "broken-pc",
+    name: "BROKEN-PC",
+    status: "error",
+    version: "v0.1.0",
+    lastSeen: "5m ago",
+    games: [
+      {
+        gameId: "d2r",
+        name: "Diablo II: Resurrected",
+        status: "error",
+        statusLine: "parse error",
+        error: "SharedStash.d2i — unsupported format version 0x62",
+        saves: [],
+      },
+    ],
+  };
+
+  const detectedDevice: Device = {
+    id: "fresh-install",
+    name: "FRESH-INSTALL",
+    status: "online",
+    version: "v0.1.0",
+    lastSeen: "now",
+    games: [
+      {
+        gameId: "d2r",
+        name: "Diablo II: Resurrected",
+        status: "detected",
+        statusLine: "scanning...",
+        saves: [],
+      },
+      {
+        gameId: "stardew",
+        name: "Stardew Valley",
+        status: "not_found",
+        statusLine: "not installed",
+        saves: [],
+      },
+    ],
+  };
 </script>
 
 <Story name="DeviceOnline">
@@ -204,5 +246,20 @@
 <Story name="SaveEmpty">
   <div style="width: 700px;">
     <DeviceWindow device={onlineDevice} initialGameId="d2r" initialSaveUuid="s2" />
+  </div>
+</Story>
+
+<Story name="DeviceError">
+  <div style="width: 700px;">
+    <DeviceWindow device={errorDevice} />
+  </div>
+</Story>
+
+<Story name="DeviceWithDetected">
+  <div style="width: 700px;">
+    <DeviceWindow
+      device={detectedDevice}
+      onactivate={(gameId) => alert(`Activate ${String(gameId)}`)}
+    />
   </div>
 </Story>

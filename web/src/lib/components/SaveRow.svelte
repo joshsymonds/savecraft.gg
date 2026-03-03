@@ -30,7 +30,7 @@
   </div>
   <div class="save-right">
     {#if save.notes.length > 0}
-      <span class="notes-badge">{save.notes.length}</span>
+      <span class="notes-badge">📝 {save.notes.length}</span>
     {/if}
     <span class="last-updated">{save.lastUpdated}</span>
     <span class="hover-arrow">&#9654;</span>
@@ -54,6 +54,12 @@
 
   .save-row:hover {
     background: rgba(74, 90, 173, 0.1);
+  }
+
+  .save-row:focus-visible {
+    background: rgba(74, 90, 173, 0.1);
+    outline: 2px solid var(--color-blue);
+    outline-offset: -2px;
   }
 
   .save-left {

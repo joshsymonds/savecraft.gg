@@ -23,6 +23,8 @@
     ondiscover,
     onconfig,
     onactivate,
+    onnotecreate,
+    onnotedelete,
     discoveryPending = false,
     initialGameId,
     initialSaveUuid,
@@ -32,6 +34,10 @@
     ondiscover?: () => void;
     onconfig?: () => void;
     onactivate?: (gameId: string) => void;
+    /** Called when user submits the add-note form. */
+    onnotecreate?: (saveUuid: string, title: string, content: string) => void;
+    /** Called when user confirms note deletion. */
+    onnotedelete?: (saveUuid: string, noteId: string) => void;
     discoveryPending?: boolean;
     /** Pre-navigate to a game (for storybook). */
     initialGameId?: string;
@@ -51,6 +57,20 @@
   // Activate state tracking
   let activateStates = new SvelteMap<string, ActivateState>();
 
+  // Clear activateStates when the game transitions away from "activating"
+  $effect(() => {
+    for (const game of device.games) {
+      if (game.status !== "activating" && activateStates.has(game.gameId)) {
+        activateStates.delete(game.gameId);
+      }
+    }
+  });
+
+  function resolvedActivateState(gameId: string, gameStatus: string): ActivateState {
+    if (gameStatus === "activating") return "activating";
+    return activateStates.get(gameId) ?? "idle";
+  }
+
   function handleActivate(gameId: string): void {
     activateStates.set(gameId, "activating");
     onactivate?.(gameId);
@@ -60,9 +80,11 @@
   let showAddNote = $state(false);
   let newTitle = $state("");
   let newContent = $state("");
+  let contentBytes = $derived(new Blob([newContent]).size);
 
   function handleSaveNote(): void {
-    if (!newTitle.trim()) return;
+    if (!newTitle.trim() || !navSaveUuid) return;
+    onnotecreate?.(navSaveUuid, newTitle.trim(), newContent);
     newTitle = "";
     newContent = "";
     showAddNote = false;
@@ -80,18 +102,14 @@
     offline: undefined,
   };
 
-  const DEVICE_ICONS: Record<DeviceStatus, string> = {
-    online: "*",
-    error: "!",
-    offline: "#",
-  };
+  const DEVICE_ICON = "🖥";
 
   // Title bar config
   let parents = $derived.by((): Parent[] => {
     if (saveData && gameData) {
       return [
         {
-          icon: DEVICE_ICONS[device.status],
+          icon: DEVICE_ICON,
           label: device.name,
           onclick: () => {
             navGameId = null;
@@ -109,7 +127,7 @@
     if (gameData) {
       return [
         {
-          icon: DEVICE_ICONS[device.status],
+          icon: DEVICE_ICON,
           label: device.name,
           onclick: () => {
             navGameId = null;
@@ -122,7 +140,7 @@
 
   let activeIcon = $derived.by(() => {
     if (saveData || gameData) return;
-    return DEVICE_ICONS[device.status];
+    return DEVICE_ICON;
   });
 
   let activeLabel = $derived.by(() => {
@@ -144,8 +162,6 @@
     if (saveData || gameData) return;
     return device.status;
   });
-
-  let visibleGames = $derived(device.games.filter((g) => g.status !== "not_found"));
 </script>
 
 <Panel accent={ACCENT_COLORS[device.status]}>
@@ -218,15 +234,11 @@
             ></textarea>
             <div class="note-form-footer">
               <span class="byte-counter">
-                {new Blob([newContent]).size.toLocaleString()} / 50,000 bytes
+                {contentBytes.toLocaleString()} / 50,000 bytes
               </span>
               <div class="note-form-actions">
                 <button class="note-cancel-btn" onclick={handleCancelNote}>CANCEL</button>
-                <button
-                  class="note-save-btn"
-                  class:disabled={!newTitle.trim()}
-                  onclick={handleSaveNote}
-                >
+                <button class="note-save-btn" disabled={!newTitle.trim()} onclick={handleSaveNote}>
                   SAVE NOTE
                 </button>
               </div>
@@ -236,7 +248,12 @@
 
         <div class="notes-list">
           {#each saveData.notes as note (note.id)}
-            <NoteCard {note} ondelete={(id: string) => alert(`Delete note ${id}`)} />
+            <NoteCard
+              {note}
+              ondelete={(noteId) => {
+                if (navSaveUuid) onnotedelete?.(navSaveUuid, noteId);
+              }}
+            />
           {/each}
         </div>
 
@@ -271,17 +288,17 @@
       {/if}
       {#if gameData.path}
         <div class="path-footer">
-          <span class="path-text">{gameData.path}</span>
+          <span class="path-text">📁 {gameData.path}</span>
         </div>
       {/if}
     </div>
   {:else}
     <!-- Device level: game grid -->
     <div class="game-grid">
-      {#each visibleGames as game (game.gameId)}
+      {#each device.games as game (game.gameId)}
         <GameCard
           {game}
-          activateState={activateStates.get(game.gameId) ?? "idle"}
+          activateState={resolvedActivateState(game.gameId, game.status)}
           onactivate={(gameId: string) => {
             handleActivate(gameId);
           }}
@@ -290,11 +307,11 @@
           }}
         />
       {/each}
-      {#if visibleGames.length === 0}
-        <button class="add-game-card" disabled>
+      {#if device.games.length === 0}
+        <div class="add-game-card" aria-hidden="true">
           <span class="add-game-icon">+</span>
           <span class="add-game-label">Add a game...</span>
-        </button>
+        </div>
       {/if}
     </div>
   {/if}
@@ -584,8 +601,9 @@
     letter-spacing: 1px;
   }
 
-  .note-save-btn.disabled {
+  .note-save-btn:disabled {
     opacity: 0.4;
+    cursor: not-allowed;
   }
 
   /* -- Empty state ------------------------------------------- */

@@ -22,18 +22,24 @@
     return `${(bytes / 1024).toFixed(1)} KB`;
   }
 
-  function handleMouseLeave(): void {
+  function resetConfirm(): void {
     confirmDelete = false;
   }
 </script>
 
-<!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="note-card" onmouseleave={handleMouseLeave}>
+<div
+  class="note-card"
+  role="group"
+  aria-label={note.title}
+  onmouseleave={resetConfirm}
+  onfocusout={resetConfirm}
+>
   <div class="note-header">
     <span class="note-title">{note.title}</span>
     {#if !confirmDelete}
       <button
         class="delete-x"
+        aria-label={`Delete note: ${note.title}`}
         onclick={(clickEvent) => {
           clickEvent.stopPropagation();
           confirmDelete = true;
@@ -45,6 +51,7 @@
       <div class="confirm-buttons">
         <button
           class="confirm-delete"
+          aria-label={`Confirm delete: ${note.title}`}
           onclick={(clickEvent) => {
             clickEvent.stopPropagation();
             ondelete?.(note.id);
@@ -118,8 +125,9 @@
     opacity: 0.7;
   }
 
-  .delete-x:hover {
-    opacity: 1 !important;
+  .note-card:hover .delete-x:hover,
+  .delete-x:focus-visible {
+    opacity: 1;
   }
 
   .confirm-buttons {

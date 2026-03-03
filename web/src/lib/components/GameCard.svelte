@@ -113,11 +113,25 @@
     border-color: rgba(74, 90, 173, 0.15);
   }
 
+  .game-card.not-found {
+    opacity: 0.3;
+    border-style: dashed;
+    border-color: rgba(74, 90, 173, 0.1);
+    cursor: default;
+  }
+
   .game-card.activating {
     opacity: 0.6;
     border-style: dashed;
     border-color: rgba(74, 90, 173, 0.25);
     animation: pulse 2s ease-in-out infinite;
+  }
+
+  .game-card.clickable:focus-visible {
+    background: rgba(74, 90, 173, 0.12);
+    border-color: rgba(74, 90, 173, 0.25);
+    outline: 2px solid var(--color-blue);
+    outline-offset: 2px;
   }
 
   @keyframes pulse {
