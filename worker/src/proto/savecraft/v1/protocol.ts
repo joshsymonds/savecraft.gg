@@ -124,6 +124,7 @@ export interface Message {
     /** Daemon lifecycle (1-9) */
     { $case: "daemonOnline"; daemonOnline: DaemonOnline }
     | { $case: "daemonOffline"; daemonOffline: DaemonOffline }
+    | { $case: "daemonHeartbeat"; daemonHeartbeat: DaemonHeartbeat }
     | //
     /** Game discovery (10-19) */
     { $case: "scanStarted"; scanStarted: ScanStarted }
@@ -179,6 +180,10 @@ export interface DaemonOnline {
 export interface DaemonOffline {
   deviceId: string;
   timestamp: Date | undefined;
+}
+
+/** Periodic keepalive from daemon. Hub updates lastSeen but does not relay to UI. */
+export interface DaemonHeartbeat {
 }
 
 /** Daemon is scanning a directory for save files. */
@@ -413,6 +418,9 @@ export const Message: MessageFns<Message> = {
       case "daemonOffline":
         DaemonOffline.encode(message.payload.daemonOffline, writer.uint32(18).fork()).join();
         break;
+      case "daemonHeartbeat":
+        DaemonHeartbeat.encode(message.payload.daemonHeartbeat, writer.uint32(26).fork()).join();
+        break;
       case "scanStarted":
         ScanStarted.encode(message.payload.scanStarted, writer.uint32(82).fork()).join();
         break;
@@ -510,6 +518,17 @@ export const Message: MessageFns<Message> = {
           }
 
           message.payload = { $case: "daemonOffline", daemonOffline: DaemonOffline.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.payload = {
+            $case: "daemonHeartbeat",
+            daemonHeartbeat: DaemonHeartbeat.decode(reader, reader.uint32()),
+          };
           continue;
         }
         case 10: {
@@ -738,6 +757,10 @@ export const Message: MessageFns<Message> = {
         ? { $case: "daemonOffline", daemonOffline: DaemonOffline.fromJSON(object.daemonOffline) }
         : isSet(object.daemon_offline)
         ? { $case: "daemonOffline", daemonOffline: DaemonOffline.fromJSON(object.daemon_offline) }
+        : isSet(object.daemonHeartbeat)
+        ? { $case: "daemonHeartbeat", daemonHeartbeat: DaemonHeartbeat.fromJSON(object.daemonHeartbeat) }
+        : isSet(object.daemon_heartbeat)
+        ? { $case: "daemonHeartbeat", daemonHeartbeat: DaemonHeartbeat.fromJSON(object.daemon_heartbeat) }
         : isSet(object.scanStarted)
         ? { $case: "scanStarted", scanStarted: ScanStarted.fromJSON(object.scanStarted) }
         : isSet(object.scan_started)
@@ -854,6 +877,8 @@ export const Message: MessageFns<Message> = {
       obj.daemonOnline = DaemonOnline.toJSON(message.payload.daemonOnline);
     } else if (message.payload?.$case === "daemonOffline") {
       obj.daemonOffline = DaemonOffline.toJSON(message.payload.daemonOffline);
+    } else if (message.payload?.$case === "daemonHeartbeat") {
+      obj.daemonHeartbeat = DaemonHeartbeat.toJSON(message.payload.daemonHeartbeat);
     } else if (message.payload?.$case === "scanStarted") {
       obj.scanStarted = ScanStarted.toJSON(message.payload.scanStarted);
     } else if (message.payload?.$case === "scanCompleted") {
@@ -926,6 +951,15 @@ export const Message: MessageFns<Message> = {
           message.payload = {
             $case: "daemonOffline",
             daemonOffline: DaemonOffline.fromPartial(object.payload.daemonOffline),
+          };
+        }
+        break;
+      }
+      case "daemonHeartbeat": {
+        if (object.payload?.daemonHeartbeat !== undefined && object.payload?.daemonHeartbeat !== null) {
+          message.payload = {
+            $case: "daemonHeartbeat",
+            daemonHeartbeat: DaemonHeartbeat.fromPartial(object.payload.daemonHeartbeat),
           };
         }
         break;
@@ -1315,6 +1349,49 @@ export const DaemonOffline: MessageFns<DaemonOffline> = {
     const message = createBaseDaemonOffline();
     message.deviceId = object.deviceId ?? "";
     message.timestamp = object.timestamp ?? undefined;
+    return message;
+  },
+};
+
+function createBaseDaemonHeartbeat(): DaemonHeartbeat {
+  return {};
+}
+
+export const DaemonHeartbeat: MessageFns<DaemonHeartbeat> = {
+  encode(_: DaemonHeartbeat, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DaemonHeartbeat {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDaemonHeartbeat();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): DaemonHeartbeat {
+    return {};
+  },
+
+  toJSON(_: DaemonHeartbeat): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DaemonHeartbeat>, I>>(base?: I): DaemonHeartbeat {
+    return DaemonHeartbeat.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<DaemonHeartbeat>, I>>(_: I): DaemonHeartbeat {
+    const message = createBaseDaemonHeartbeat();
     return message;
   },
 };
