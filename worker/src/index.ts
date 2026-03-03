@@ -230,14 +230,14 @@ function unauthorizedMcp(request: Request): Response {
  * authorization server. In stub mode, points to our own domain.
  */
 function handleOAuthResourceMetadata(request: Request, env: Env): Response {
-  const serverUrl = new URL(request.url).origin;
+  const resourceUrl = `${new URL(request.url).origin}/`;
   const clerkIssuer = env.CLERK_ISSUER;
 
   if (!clerkIssuer) {
     return Response.json(
       {
-        resource: serverUrl,
-        authorization_servers: [serverUrl],
+        resource: resourceUrl,
+        authorization_servers: [resourceUrl],
         bearer_methods_supported: ["header"],
         resource_name: "Savecraft MCP Server",
       },
@@ -247,7 +247,7 @@ function handleOAuthResourceMetadata(request: Request, env: Env): Response {
 
   return Response.json(
     {
-      resource: serverUrl,
+      resource: resourceUrl,
       authorization_servers: [clerkIssuer],
       token_types_supported: ["urn:ietf:params:oauth:token-type:access_token"],
       token_introspection_endpoint: `${clerkIssuer}/oauth/token`,
