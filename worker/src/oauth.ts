@@ -33,9 +33,7 @@ export const OAUTH_ENDPOINTS = {
  * - defaultHandler: /oauth/authorize, /oauth/callback, plus all non-MCP routes
  * - Library auto-handles: /.well-known/*, /oauth/register, /oauth/token
  */
-export function buildOAuthProvider(
-  defaultHandler: ExportedHandler<Env>,
-): OAuthProvider<Env> {
+export function buildOAuthProvider(defaultHandler: ExportedHandler<Env>): OAuthProvider<Env> {
   return new OAuthProvider<Env>({
     ...OAUTH_ENDPOINTS,
     apiHandler: {
@@ -82,16 +80,17 @@ export async function handleAuthorize(request: Request, env: Env): Promise<Respo
 
   // Store the MCP client's authorize params so we can complete authorization in the callback
   const stateKey = crypto.randomUUID();
-  await env.OAUTH_KV.put(
-    `clerk-auth-state:${stateKey}`,
-    JSON.stringify(oauthReqInfo),
-    { expirationTtl: 600 },
-  );
+  await env.OAUTH_KV.put(`clerk-auth-state:${stateKey}`, JSON.stringify(oauthReqInfo), {
+    expirationTtl: 600,
+  });
 
   // Redirect to Clerk's OAuth authorize endpoint
   const clerkAuthorizeUrl = new URL(`${env.CLERK_ISSUER}/oauth/authorize`);
   clerkAuthorizeUrl.searchParams.set("client_id", env.CLERK_OAUTH_CLIENT_ID);
-  clerkAuthorizeUrl.searchParams.set("redirect_uri", `${new URL(request.url).origin}/oauth/callback`);
+  clerkAuthorizeUrl.searchParams.set(
+    "redirect_uri",
+    `${new URL(request.url).origin}/oauth/callback`,
+  );
   clerkAuthorizeUrl.searchParams.set("response_type", "code");
   clerkAuthorizeUrl.searchParams.set("state", stateKey);
   clerkAuthorizeUrl.searchParams.set("scope", "openid profile");
