@@ -7,7 +7,7 @@ export type NoteSource = "user" | "ai" | "import";
 export interface NoteSummary {
   id: string;
   title: string;
-  preview: string;
+  content: string;
   source: NoteSource;
   sizeBytes: number;
   updatedAt: string;
@@ -19,7 +19,6 @@ export interface SaveSummary {
   summary: string;
   lastUpdated: string;
   status: "success" | "error";
-  notes: NoteSummary[];
 }
 
 export interface DeviceGame {

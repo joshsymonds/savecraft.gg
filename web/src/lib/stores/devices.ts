@@ -2,6 +2,7 @@ import { gameDisplayName } from "$lib/stores/plugins";
 import type { Device, DeviceGame, DeviceStatus, GameStatus, SaveSummary } from "$lib/types/device";
 import type { WireDeviceInfo, WireMessage, WireMessageType } from "$lib/types/wire";
 import { getMessageType } from "$lib/types/wire";
+import { relativeTime } from "$lib/utils/time";
 import { type Readable, writable } from "svelte/store";
 
 const { subscribe, set, update } = writable<Device[]>([]);
@@ -10,18 +11,6 @@ export const devices: Readable<Device[]> = { subscribe };
 
 function resolveDeviceId(msg: WireMessage): string | null {
   return msg._deviceId ?? null;
-}
-
-function relativeTime(iso: string | undefined): string {
-  if (!iso) return "unknown";
-  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 60) return "just now";
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${String(minutes)}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${String(hours)}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${String(days)}d ago`;
 }
 
 function wireStatusToGameStatus(wireStatus: string | undefined): GameStatus {
@@ -67,7 +56,6 @@ function mapDeviceInfo(d: WireDeviceInfo): Device {
       summary: s.summary ?? "",
       lastUpdated: relativeTime(s.lastUpdated),
       status: "success" as const,
-      notes: [],
     }));
     return {
       gameId: g.gameId ?? "",
@@ -262,7 +250,6 @@ function handlePushCompleted(msg: WireMessage): void {
           summary: pc.summary ?? "",
           lastUpdated: "just now",
           status: "success",
-          notes: [],
         });
       }
       game.statusLine = gameStatusLine(game.status, game.saves);

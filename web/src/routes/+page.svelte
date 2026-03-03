@@ -3,6 +3,7 @@
   Devices page: device cards, activity feed sidebar, inline install flow.
 -->
 <script lang="ts">
+  import { createNote, deleteNote, fetchNotes, toNoteSummary, updateNote } from "$lib/api/client";
   import {
     ActivityEvent,
     ConfigModal,
@@ -96,6 +97,19 @@
           onconfig={() => (configDeviceId = device.id)}
           onactivate={(gameId: string) => void handleActivate(device.id, gameId)}
           discoveryPending={$discoveryPending}
+          loadNotes={async (saveUuid) => {
+            const notes = await fetchNotes(saveUuid);
+            return notes.map((n) => toNoteSummary(n));
+          }}
+          onnotecreate={async (saveUuid, title, content) => {
+            await createNote(saveUuid, title, content);
+          }}
+          onnotedelete={async (saveUuid, noteId) => {
+            await deleteNote(saveUuid, noteId);
+          }}
+          onnoteedit={async (saveUuid, noteId, title, content) => {
+            await updateNote(saveUuid, noteId, { title, content });
+          }}
         />
       {/each}
 

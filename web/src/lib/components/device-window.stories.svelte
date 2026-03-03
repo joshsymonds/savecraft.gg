@@ -1,5 +1,5 @@
 <script module lang="ts">
-  import type { Device } from "$lib/types/device";
+  import type { Device, NoteSummary } from "$lib/types/device";
   import { defineMeta } from "@storybook/addon-svelte-csf";
 
   import DeviceWindow from "./DeviceWindow.svelte";
@@ -8,6 +8,43 @@
     title: "Components/DeviceWindow",
     tags: ["autodocs"],
   });
+
+  const mockNotes: Record<string, NoteSummary[]> = {
+    s1: [
+      {
+        id: "n1",
+        title: "Maxroll Blessed Hammer Build",
+        content:
+          "## Gear Priority\n\nHelm: Harlequin Crest (Shako) — +2 skills, DR, MF. BiS.\nArmor: Enigma in Mage Plate — Teleport, +2 skills.",
+        source: "user",
+        sizeBytes: 8200,
+        updatedAt: "2d ago",
+      },
+      {
+        id: "n2",
+        title: "Farming Goals",
+        content:
+          "Need: Ber rune, 3os Mage Plate\nFound: Jah rune (2/24), Vex (2/20)\n\nBest spots: Travincal, Chaos Sanctuary, Cows",
+        source: "user",
+        sizeBytes: 340,
+        updatedAt: "1d ago",
+      },
+    ],
+    s4: [
+      {
+        id: "n3",
+        title: "Perfection Checklist",
+        content: "Missing: Golden Clock ($10M), 4 Obelisks\nShipping: 6 items remaining",
+        source: "user",
+        sizeBytes: 1100,
+        updatedAt: "3d ago",
+      },
+    ],
+  };
+
+  function mockLoadNotes(saveUuid: string): Promise<NoteSummary[]> {
+    return Promise.resolve(mockNotes[saveUuid] ?? []);
+  }
 
   const onlineDevice: Device = {
     id: "steam-deck",
@@ -30,26 +67,6 @@
             summary: "Paladin · Level 89 · Hell",
             lastUpdated: "2m ago",
             status: "success",
-            notes: [
-              {
-                id: "n1",
-                title: "Maxroll Blessed Hammer Build",
-                preview:
-                  "## Gear Priority\n\nHelm: Harlequin Crest (Shako) — +2 skills, DR, MF. BiS.\nArmor: Enigma in Mage Plate — Teleport, +2 skills.",
-                source: "user",
-                sizeBytes: 8200,
-                updatedAt: "2d ago",
-              },
-              {
-                id: "n2",
-                title: "Farming Goals",
-                preview:
-                  "Need: Ber rune, 3os Mage Plate\nFound: Jah rune (2/24), Vex (2/20)\n\nBest spots: Travincal, Chaos Sanctuary, Cows",
-                source: "user",
-                sizeBytes: 340,
-                updatedAt: "1d ago",
-              },
-            ],
           },
           {
             saveUuid: "s2",
@@ -57,7 +74,6 @@
             summary: "Sorceress · Level 76 · Nightmare",
             lastUpdated: "1d ago",
             status: "success",
-            notes: [],
           },
           {
             saveUuid: "s3",
@@ -65,7 +81,6 @@
             summary: "Shared stash file",
             lastUpdated: "2m ago",
             status: "error",
-            notes: [],
           },
         ],
       },
@@ -82,16 +97,6 @@
             summary: "Year 3 · Fall · 64% Perfection",
             lastUpdated: "4h ago",
             status: "success",
-            notes: [
-              {
-                id: "n3",
-                title: "Perfection Checklist",
-                preview: "Missing: Golden Clock ($10M), 4 Obelisks\nShipping: 6 items remaining",
-                source: "user",
-                sizeBytes: 1100,
-                updatedAt: "3d ago",
-              },
-            ],
           },
         ],
       },
@@ -107,7 +112,6 @@
             summary: "Year 2340 · Federation Builder",
             lastUpdated: "2d ago",
             status: "success",
-            notes: [],
           },
           {
             saveUuid: "s6",
@@ -115,7 +119,6 @@
             summary: "Year 2280 · Militarist Xenophobe",
             lastUpdated: "5d ago",
             status: "success",
-            notes: [],
           },
         ],
       },
@@ -141,7 +144,6 @@
             summary: "Paladin · Level 89 · Hell",
             lastUpdated: "3h ago",
             status: "success",
-            notes: [],
           },
         ],
       },
@@ -212,6 +214,7 @@
   <div style="width: 700px;">
     <DeviceWindow
       device={onlineDevice}
+      loadNotes={mockLoadNotes}
       onrescan={() => alert("rescan")}
       ondiscover={() => alert("discover")}
       onconfig={() => alert("config")}
@@ -221,31 +224,41 @@
 
 <Story name="DeviceOffline">
   <div style="width: 700px;">
-    <DeviceWindow device={offlineDevice} />
+    <DeviceWindow device={offlineDevice} loadNotes={mockLoadNotes} />
   </div>
 </Story>
 
 <Story name="DeviceEmpty">
   <div style="width: 700px;">
-    <DeviceWindow device={emptyDevice} />
+    <DeviceWindow device={emptyDevice} loadNotes={mockLoadNotes} />
   </div>
 </Story>
 
 <Story name="GameLevel">
   <div style="width: 700px;">
-    <DeviceWindow device={onlineDevice} initialGameId="d2r" />
+    <DeviceWindow device={onlineDevice} loadNotes={mockLoadNotes} initialGameId="d2r" />
   </div>
 </Story>
 
 <Story name="SaveWithNotes">
   <div style="width: 700px;">
-    <DeviceWindow device={onlineDevice} initialGameId="d2r" initialSaveUuid="s1" />
+    <DeviceWindow
+      device={onlineDevice}
+      loadNotes={mockLoadNotes}
+      initialGameId="d2r"
+      initialSaveUuid="s1"
+    />
   </div>
 </Story>
 
 <Story name="SaveEmpty">
   <div style="width: 700px;">
-    <DeviceWindow device={onlineDevice} initialGameId="d2r" initialSaveUuid="s2" />
+    <DeviceWindow
+      device={onlineDevice}
+      loadNotes={mockLoadNotes}
+      initialGameId="d2r"
+      initialSaveUuid="s2"
+    />
   </div>
 </Story>
 

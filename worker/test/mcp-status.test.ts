@@ -1,9 +1,10 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll } from "./helpers";
+import { cleanAll, getOAuthToken } from "./helpers";
 
 const TEST_USER = "mcp-status-user";
+const TOKEN_HOLDER: { value: string } = { value: "" };
 
 function mcpRequest(method: string, id: number, params?: unknown): Request {
   const body: Record<string, unknown> = { jsonrpc: "2.0", id, method };
@@ -12,7 +13,7 @@ function mcpRequest(method: string, id: number, params?: unknown): Request {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${TEST_USER}`,
+      Authorization: `Bearer ${TOKEN_HOLDER.value}`,
       Accept: "application/json, text/event-stream",
     },
     body: JSON.stringify(body),
@@ -20,7 +21,10 @@ function mcpRequest(method: string, id: number, params?: unknown): Request {
 }
 
 describe("MCP Status", () => {
-  beforeEach(cleanAll);
+  beforeEach(async () => {
+    await cleanAll();
+    TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
+  });
 
   it("returns connected: false with no MCP activity", async () => {
     const resp = await SELF.fetch("https://test-host/api/v1/mcp-status", {

@@ -1,4 +1,8 @@
+import { getOAuthApi } from "@cloudflare/workers-oauth-provider";
 import { env, SELF } from "cloudflare:test";
+
+import { OAUTH_ENDPOINTS } from "../src/oauth";
+import type { OAuthProps } from "../src/oauth";
 
 /** D1 tables in FK-safe deletion order (children before parents). */
 export const CLEANUP_TABLES = [
@@ -87,4 +91,89 @@ export function waitForMessage<T = unknown>(ws: WebSocket, timeoutMs = 2000): Pr
       { once: true },
     );
   });
+}
+
+// -- OAuth token helpers for MCP tests ----------------------------------------
+
+/**
+ * Get OAuthHelpers for direct token operations in tests.
+ * Uses getOAuthApi() to create helpers that share the same OAUTH_KV as the worker,
+ * bypassing the authorize handler entirely (no Clerk needed in tests).
+ */
+function getTestOAuthHelpers() {
+  return getOAuthApi(
+    {
+      ...OAUTH_ENDPOINTS,
+      apiHandler: { fetch: () => Promise.resolve(new Response()) },
+      defaultHandler: { fetch: () => Promise.resolve(new Response()) },
+    },
+    env,
+  );
+}
+
+async function generatePkce(): Promise<{ codeVerifier: string; codeChallenge: string }> {
+  const codeVerifier = `${crypto.randomUUID()}${crypto.randomUUID()}`.replaceAll("-", "");
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(codeVerifier));
+  const codeChallenge = btoa(String.fromCodePoint(...new Uint8Array(digest)))
+    .replaceAll("+", "-")
+    .replaceAll("/", "_")
+    .replaceAll("=", "");
+  return { codeVerifier, codeChallenge };
+}
+
+/**
+ * Acquire a valid OAuth access token for MCP requests.
+ *
+ * Creates a client + authorization code directly in KV via getOAuthApi(),
+ * then exchanges the code for a token through the library's /oauth/token endpoint.
+ * No Clerk redirect needed — tokens are real library tokens validated identically to production.
+ */
+export async function getOAuthToken(userUuid: string): Promise<string> {
+  const helpers = getTestOAuthHelpers();
+  const { codeVerifier, codeChallenge } = await generatePkce();
+
+  const client = await helpers.createClient({
+    redirectUris: ["https://test.example.com/callback"],
+    clientName: "Test Client",
+    tokenEndpointAuthMethod: "none",
+  });
+
+  const { redirectTo } = await helpers.completeAuthorization({
+    request: {
+      responseType: "code",
+      clientId: client.clientId,
+      redirectUri: "https://test.example.com/callback",
+      scope: [],
+      state: "test-state",
+      codeChallenge,
+      codeChallengeMethod: "S256",
+    },
+    userId: userUuid,
+    metadata: {},
+    scope: [],
+    props: { userUuid } satisfies OAuthProps,
+  });
+
+  const code = new URL(redirectTo).searchParams.get("code");
+  if (!code) throw new Error("No authorization code in redirect URL");
+
+  const tokenResp = await SELF.fetch("https://test-host/oauth/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: "https://test.example.com/callback",
+      client_id: client.clientId,
+      code_verifier: codeVerifier,
+    }),
+  });
+
+  if (!tokenResp.ok) {
+    const text = await tokenResp.text();
+    throw new Error(`Token exchange failed: ${String(tokenResp.status)} ${text}`);
+  }
+
+  const tokenData = await tokenResp.json<{ access_token: string }>();
+  return tokenData.access_token;
 }

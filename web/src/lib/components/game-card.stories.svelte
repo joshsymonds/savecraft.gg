@@ -24,7 +24,6 @@
             summary: "Level 74 Warlock",
             lastUpdated: "2m ago",
             status: "success",
-            notes: [],
           },
           {
             saveUuid: "2",
@@ -32,7 +31,6 @@
             summary: "Level 89 Amazon",
             lastUpdated: "1h ago",
             status: "success",
-            notes: [],
           },
           {
             saveUuid: "3",
@@ -40,7 +38,6 @@
             summary: "Level 92 Paladin",
             lastUpdated: "3h ago",
             status: "success",
-            notes: [],
           },
         ],
       }}

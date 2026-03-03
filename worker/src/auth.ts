@@ -1,12 +1,14 @@
 /**
- * Authentication layer. Three auth functions, one per endpoint group:
+ * Authentication layer for non-MCP endpoints:
  *
  * - authenticateSession: Clerk session JWT (web UI routes)
- * - authenticateOAuth: Clerk OAuth opaque token via /oauth/userinfo (MCP)
  * - authenticateApiKey: SHA-256 hashed API key lookup in D1 (daemon routes)
  *
+ * MCP auth is handled entirely by @cloudflare/workers-oauth-provider
+ * (token validation via KV lookup). This module is not involved.
+ *
  * All resolve to the same AuthResult { userUuid: string }.
- * When CLERK_ISSUER is unset, authenticateStub is used for all (dev/test).
+ * When CLERK_ISSUER is unset, stub auth is used (bearer token = user UUID).
  */
 import type { Env } from "./types";
 
@@ -33,32 +35,6 @@ export async function authenticateSession(request: Request, env: Env): Promise<A
 
   if (!env.CLERK_ISSUER) return authenticateStub(token);
   return validateClerkJwt(token, env);
-}
-
-// -- OAuth auth (Clerk opaque token) --------------------------------------
-
-/**
- * Validate a Clerk OAuth opaque token by calling /oauth/userinfo.
- * Returns null if invalid. Falls back to stub when CLERK_ISSUER is unset.
- */
-export async function authenticateOAuth(request: Request, env: Env): Promise<AuthResult | null> {
-  const token = extractToken(request);
-  if (!token) return null;
-
-  if (!env.CLERK_ISSUER) return authenticateStub(token);
-
-  try {
-    const resp = await fetch(`${env.CLERK_ISSUER}/oauth/userinfo`, {
-      headers: { Authorization: `Bearer ${token}` },
-    });
-    if (!resp.ok) return null;
-
-    const userinfo = await resp.json<{ sub?: string }>();
-    if (!userinfo.sub) return null;
-    return { userUuid: userinfo.sub };
-  } catch {
-    return null;
-  }
 }
 
 // -- API key auth (D1 lookup) ---------------------------------------------
@@ -123,10 +99,6 @@ function extractToken(request: Request): string | undefined {
 /**
  * Validate a Clerk-issued JWT and extract the user UUID.
  * Uses Clerk's JWKS endpoint to verify the signature.
- *
- * The JWT `sub` claim maps to the Clerk user ID.
- * The Savecraft user UUID is stored in Clerk's publicMetadata.
- * For now, we use the Clerk user ID directly as the user UUID.
  */
 async function validateClerkJwt(token: string, env: Env): Promise<AuthResult | null> {
   try {

@@ -1,5 +1,7 @@
 import { PUBLIC_API_URL } from "$env/static/public";
 import { getToken } from "$lib/auth/clerk";
+import type { NoteSource, NoteSummary } from "$lib/types/device";
+import { relativeTime } from "$lib/utils/time";
 
 class ApiError extends Error {
   constructor(
@@ -160,6 +162,53 @@ export async function listApiKeys(): Promise<ApiKey[]> {
 
 export async function deleteApiKey(keyId: string): Promise<void> {
   await mutate<{ deleted: boolean }>("DELETE", `/api/v1/api-keys/${keyId}`);
+}
+
+// ── Notes ─────────────────────────────────────────────────────
+
+export interface ApiNote {
+  note_id: string;
+  title: string;
+  content: string;
+  source: string;
+  size_bytes: number;
+  updated_at: string;
+}
+
+export async function fetchNotes(saveId: string): Promise<ApiNote[]> {
+  const data = await request<{ notes: ApiNote[] }>(`/api/v1/notes/${saveId}`);
+  return data.notes;
+}
+
+export async function createNote(saveId: string, title: string, content: string): Promise<string> {
+  const data = await mutate<{ note_id: string }>("POST", `/api/v1/notes/${saveId}`, {
+    title,
+    content,
+  });
+  return data.note_id;
+}
+
+export async function updateNote(
+  saveId: string,
+  noteId: string,
+  fields: { title?: string; content?: string },
+): Promise<void> {
+  await mutate<{ updated: boolean }>("PUT", `/api/v1/notes/${saveId}/${noteId}`, fields);
+}
+
+export async function deleteNote(saveId: string, noteId: string): Promise<void> {
+  await mutate<{ deleted: boolean }>("DELETE", `/api/v1/notes/${saveId}/${noteId}`);
+}
+
+export function toNoteSummary(note: ApiNote): NoteSummary {
+  return {
+    id: note.note_id,
+    title: note.title,
+    content: note.content,
+    source: note.source as NoteSource,
+    sizeBytes: note.size_bytes,
+    updatedAt: relativeTime(note.updated_at),
+  };
 }
 
 // ── MCP Status ────────────────────────────────────────────────
