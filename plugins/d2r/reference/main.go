@@ -49,31 +49,40 @@ func main() {
 }
 
 func handleDropCalc(enc *json.Encoder, query map[string]any) {
+	calc := dropcalc.NewCalculator()
+
+	// Two modes: "item" (reverse lookup) or "monster" (forward lookup).
+	if item, _ := query["item"].(string); item != "" {
+		handleItemSources(enc, calc, query, item)
+		return
+	}
+
 	monster, _ := query["monster"].(string)
 	if monster == "" {
-		writeError(enc, "missing_param", "monster is required")
+		writeError(enc, "missing_param", "monster or item is required")
 		os.Exit(1)
 	}
 
+	handleMonsterDrops(enc, calc, query, monster)
+}
+
+func handleMonsterDrops(enc *json.Encoder, calc *dropcalc.Calculator, query map[string]any, monster string) {
 	difficulty := parseDifficulty(query["difficulty"])
 	players := intParam(query, "players", 1)
 	partySize := intParam(query, "party_size", players)
 	mf := intParam(query, "mf", 0)
 	area, _ := query["area"].(string)
 
-	calc := dropcalc.NewCalculator()
 	drops, err := calc.ResolveWithQuality(monster, difficulty, 0, players, partySize, mf, area)
 	if err != nil {
 		writeError(enc, "calc_error", err.Error())
 		os.Exit(1)
 	}
 
-	// Sort by unique probability descending for most useful output.
 	sort.Slice(drops, func(i, j int) bool {
 		return drops[i].Quality.Unique > drops[j].Quality.Unique
 	})
 
-	// Emit each item as a separate ndjson line.
 	for _, d := range drops {
 		writeResult(enc, map[string]any{
 			"code":      d.Code,
@@ -85,6 +94,44 @@ func handleDropCalc(enc *json.Encoder, query map[string]any) {
 				"rare":   d.Quality.Rare,
 				"magic":  d.Quality.Magic,
 				"white":  d.Quality.White,
+			},
+		})
+	}
+}
+
+func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[string]any, item string) {
+	code := calc.ItemCode(item)
+	if code == "" {
+		writeError(enc, "unknown_item", "unknown item: "+item)
+		os.Exit(1)
+	}
+
+	sources := calc.FindItemSources(code, dropcalc.FindOptions{
+		Difficulty: parseDifficultyWithAll(query["difficulty"]),
+		TCType:     intParam(query, "tc_type", -1),
+		BossOnly:   boolParam(query, "boss_only"),
+		Area:       stringParam(query, "area"),
+		Players:    intParam(query, "players", 1),
+		PartySize:  intParam(query, "party_size", 1),
+		MF:         intParam(query, "mf", 0),
+	})
+
+	for _, s := range sources {
+		writeResult(enc, map[string]any{
+			"monster_id":   s.MonsterID,
+			"monster_name": s.MonsterName,
+			"is_boss":      s.IsBoss,
+			"tc_type":      s.TCType,
+			"difficulty":   s.Difficulty,
+			"area":         s.Area,
+			"mlvl":         s.MLVL,
+			"base_prob":    s.BaseProb,
+			"quality": map[string]any{
+				"unique": s.Quality.Unique,
+				"set":    s.Quality.Set,
+				"rare":   s.Quality.Rare,
+				"magic":  s.Quality.Magic,
+				"white":  s.Quality.White,
 			},
 		})
 	}
@@ -107,6 +154,25 @@ func parseDifficulty(v any) int {
 	return 2 // default to hell
 }
 
+// parseDifficultyWithAll is like parseDifficulty but returns -1 for "all" or unset.
+func parseDifficultyWithAll(v any) int {
+	if v == nil {
+		return -1
+	}
+	switch d := v.(type) {
+	case string:
+		switch strings.ToLower(d) {
+		case "all", "-1", "":
+			return -1
+		}
+	case float64:
+		if int(d) == -1 {
+			return -1
+		}
+	}
+	return parseDifficulty(v)
+}
+
 func intParam(query map[string]any, key string, defaultVal int) int {
 	v, ok := query[key]
 	if !ok {
@@ -118,13 +184,27 @@ func intParam(query map[string]any, key string, defaultVal int) int {
 	return defaultVal
 }
 
+func boolParam(query map[string]any, key string) bool {
+	v, ok := query[key]
+	if !ok {
+		return false
+	}
+	b, _ := v.(bool)
+	return b
+}
+
+func stringParam(query map[string]any, key string) string {
+	v, _ := query[key].(string)
+	return v
+}
+
 func schema() map[string]any {
 	return map[string]any{
 		"modules": []map[string]any{
 			{
 				"id":          "drop_calc",
 				"name":        "Drop Calculator",
-				"description": "Compute drop probabilities for any item from any farmable source.",
+				"description": "Compute drop probabilities. Use 'monster' for forward lookup (what does X drop?) or 'item' for reverse lookup (where to farm X?).",
 				"parameters": map[string]any{
 					"module": map[string]any{
 						"type":        "string",
@@ -133,37 +213,42 @@ func schema() map[string]any {
 					},
 					"monster": map[string]any{
 						"type":        "string",
-						"required":    true,
-						"description": "Monster ID (e.g. 'mephisto', 'andariel', 'countess')",
+						"description": "Monster ID for forward lookup (e.g. 'mephisto', 'andariel'). Mutually exclusive with 'item'.",
+					},
+					"item": map[string]any{
+						"type":        "string",
+						"description": "Item code or name for reverse lookup (e.g. 'r13', 'Shael', 'xea', 'Serpentskin Armor'). Mutually exclusive with 'monster'.",
 					},
 					"difficulty": map[string]any{
 						"type":        "string",
-						"required":    false,
 						"default":     "hell",
-						"description": "Difficulty: 'normal', 'nightmare', or 'hell'",
+						"description": "Difficulty: 'normal', 'nightmare', 'hell', or 'all'. Default 'hell' for monster mode, 'all' for item mode.",
 					},
 					"players": map[string]any{
-						"type":        "integer",
-						"required":    false,
-						"default":     1,
-						"description": "Number of players in game (1-8)",
+						"type":    "integer",
+						"default": 1,
 					},
 					"party_size": map[string]any{
-						"type":        "integer",
-						"required":    false,
-						"default":     1,
-						"description": "Number of players in party near monster (1-8)",
+						"type":    "integer",
+						"default": 1,
 					},
 					"mf": map[string]any{
-						"type":        "integer",
-						"required":    false,
-						"default":     0,
-						"description": "Magic find percentage",
+						"type":    "integer",
+						"default": 0,
 					},
 					"area": map[string]any{
 						"type":        "string",
-						"required":    false,
-						"description": "Area name to override monster level (e.g. 'Drifter Cavern', 'Pit Level 1')",
+						"description": "Filter to specific area (e.g. 'Pit Level 1', 'Drifter Cavern').",
+					},
+					"boss_only": map[string]any{
+						"type":        "boolean",
+						"default":     false,
+						"description": "Item mode only: filter to boss monsters.",
+					},
+					"tc_type": map[string]any{
+						"type":        "integer",
+						"default":     -1,
+						"description": "Item mode only: 0=regular, 1=champion, 2=unique, 3=quest. -1 for all.",
 					},
 				},
 			},
