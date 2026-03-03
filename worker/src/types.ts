@@ -5,6 +5,8 @@ export interface Env {
   SAVES: R2Bucket;
   PLUGINS: R2Bucket;
   DAEMON_HUB: DurableObjectNamespace;
+  /** Workers for Platforms dispatch namespace for reference plugin Workers. */
+  REFERENCE_PLUGINS: DispatchNamespace;
   /** KV namespace for OAuth token/grant/client storage (used by workers-oauth-provider). */
   OAUTH_KV: KVNamespace;
   /** OAuth helpers injected by the library at runtime. */

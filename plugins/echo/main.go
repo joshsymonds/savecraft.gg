@@ -1,7 +1,7 @@
 // Echo plugin: reads stdin, reflects content back as structured GameState.
 // Used as the reference implementation for testing the ndjson plugin contract.
 //
-// Build: GOOS=wasip1 GOARCH=wasm go build -o echo.wasm ./plugins/echo
+// Build: GOOS=wasip1 GOARCH=wasm go build -o parser.wasm .
 package main
 
 import (

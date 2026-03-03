@@ -5,8 +5,8 @@ import (
 	"testing"
 )
 
-// Cross-validation tests against silospen's drop calculator web UI.
-// These pin our output to match silospen's results within rounding tolerance.
+// Cross-validation tests against known-good D2R drop calculator results.
+// These pin our output to match expected values within rounding tolerance.
 // All tests use: players=3, party_size=1, mf=33.
 
 type crossCheckCase struct {
@@ -14,7 +14,7 @@ type crossCheckCase struct {
 	monster    string
 	difficulty int
 	itemCode   string
-	expected   float64 // silospen's 1:X value
+	expected   float64 // known-good 1:X value
 	area       string  // optional area override
 }
 
@@ -65,7 +65,7 @@ func TestCrossCheckVipermagiUnique(t *testing.T) {
 }
 
 // Magefist (unique Light Gauntlets, code "tgl")
-// Area level override used for Hell difficulty to match silospen's area-specific results.
+// Area level override used for Hell difficulty to match area-specific results.
 func TestCrossCheckMagefistUnique(t *testing.T) {
 	runCrossCheck(t, []crossCheckCase{
 		{"Abominable Normal", "snowyeti2", 0, "tgl", 301807, ""},

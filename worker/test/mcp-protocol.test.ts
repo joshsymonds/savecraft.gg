@@ -1,4 +1,4 @@
-import { SELF } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { cleanAll, getOAuthToken } from "./helpers";
@@ -156,7 +156,9 @@ describe("MCP Protocol", () => {
       "get_save",
       "get_section",
       "get_section_diff",
+      "list_references",
       "list_saves",
+      "query_reference",
       "refresh_save",
       "search_saves",
       "update_note",
@@ -245,5 +247,146 @@ describe("MCP Protocol", () => {
       }),
     );
     expect(resp.status).toBe(401);
+  });
+
+  it("calls list_references with seeded manifest", async () => {
+    // Seed a manifest with reference modules
+    const manifest = {
+      game_id: "d2r",
+      name: "Diablo II: Resurrected",
+      reference: {
+        modules: {
+          drop_calc: {
+            name: "Drop Calculator",
+            description: "Compute drop probabilities",
+          },
+        },
+      },
+    };
+    await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(manifest));
+
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 10, {
+        name: "list_references",
+        arguments: {},
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: { content: { type: string; text: string }[]; isError?: boolean };
+    };
+    expect(body.result.isError).toBeUndefined();
+
+    const data = JSON.parse(body.result.content[0]!.text) as {
+      references: { game_id: string; modules: { id: string; name: string }[] }[];
+    };
+    expect(data.references).toHaveLength(1);
+    expect(data.references[0]!.game_id).toBe("d2r");
+    expect(data.references[0]!.modules[0]!.id).toBe("drop_calc");
+    expect(data.references[0]!.modules[0]!.name).toBe("Drop Calculator");
+  });
+
+  it("list_references returns empty for no reference modules", async () => {
+    // Seed a manifest WITHOUT reference section
+    const manifest = { game_id: "other", name: "Some Game" };
+    await env.PLUGINS.put("plugins/other/manifest.json", JSON.stringify(manifest));
+
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 11, {
+        name: "list_references",
+        arguments: {},
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: { content: { type: string; text: string }[] };
+    };
+    const data = JSON.parse(body.result.content[0]!.text) as {
+      references: unknown[];
+    };
+    expect(data.references).toHaveLength(0);
+  });
+
+  it("list_references filters by game_id", async () => {
+    // Seed two manifests with reference modules
+    const d2rManifest = {
+      game_id: "d2r",
+      name: "Diablo II",
+      reference: { modules: { drop_calc: { name: "Drop Calc", description: "..." } } },
+    };
+    const otherManifest = {
+      game_id: "poe",
+      name: "Path of Exile",
+      reference: { modules: { dps_calc: { name: "DPS Calc", description: "..." } } },
+    };
+    await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(d2rManifest));
+    await env.PLUGINS.put("plugins/poe/manifest.json", JSON.stringify(otherManifest));
+
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 12, {
+        name: "list_references",
+        arguments: { game_id: "d2r" },
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: { content: { type: string; text: string }[] };
+    };
+    const data = JSON.parse(body.result.content[0]!.text) as {
+      references: { game_id: string }[];
+    };
+    expect(data.references).toHaveLength(1);
+    expect(data.references[0]!.game_id).toBe("d2r");
+  });
+
+  it("query_reference returns error for unknown game", async () => {
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 13, {
+        name: "query_reference",
+        arguments: { game_id: "nonexistent", query: "{}" },
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: { content: { type: string; text: string }[]; isError?: boolean };
+    };
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0]!.text).toContain("No reference module found");
   });
 });

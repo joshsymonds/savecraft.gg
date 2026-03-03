@@ -311,7 +311,7 @@ func applyPicks(code string, prob float64, picks int, result map[string]float64)
 
 // ResolveToTCs computes drop probabilities but stops at virtual TC level
 // (armo3, weap6, etc.) instead of expanding to individual base items.
-// Used for cross-validation against silospen's DEFINED mode output.
+// Used for cross-validation against known-good drop calculator output.
 func (c *Calculator) ResolveToTCs(tcName string, nPlayers, partySize int) map[string]float64 {
 	result := make(map[string]float64)
 	c.resolveToTCs(tcName, 1.0, nPlayers, partySize, 1, result)

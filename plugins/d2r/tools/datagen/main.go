@@ -1,9 +1,15 @@
 // Command datagen reads D2R game data TSV files and generates Go source files
 // for the reference module's data package.
 //
+// The input TSV files (TreasureClassEx.txt, itemratio.txt, etc.) are extracted
+// from D2R's CASC archives using the casc-extract tool. To regenerate:
+//
+//	cd plugins/d2r && just extract-gamedata   # extract TSVs from CASC
+//	go run ./plugins/d2r/tools/datagen        # generate Go source
+//
 // Usage:
 //
-//	go run ./plugins/d2r/tools/datagen -input reference/silospen-DropCalc/src/main/resources/d2Files/D2R_ROW_3.0 -output plugins/d2r/reference/data
+//	go run ./plugins/d2r/tools/datagen -input reference/d2r-rotw-excel -output plugins/d2r/reference/data
 package main
 
 import (
@@ -17,7 +23,7 @@ import (
 )
 
 func main() {
-	inputDir := "reference/silospen-DropCalc/src/main/resources/d2Files/D2R_ROW_3.0"
+	inputDir := "reference/d2r-rotw-excel"
 	outputDir := "plugins/d2r/reference/data"
 
 	for i := 1; i < len(os.Args); i++ {

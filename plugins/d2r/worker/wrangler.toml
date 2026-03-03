@@ -1,0 +1,7 @@
+# D2R Reference Worker — pure computation sandbox.
+# Deployed to Workers for Platforms dispatch namespace, NOT as a standalone worker.
+# NO bindings allowed: no R2, D1, KV, secrets. WASM is statically imported.
+name = "d2r-reference"
+main = "src/index.ts"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]

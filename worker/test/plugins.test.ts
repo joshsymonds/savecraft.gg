@@ -82,6 +82,77 @@ describe("Plugin Registry", () => {
     expect(d2r.url).toContain("d2r/parser.wasm");
   });
 
+  it("injects absolute reference URL when manifest has reference field", async () => {
+    const d2rManifest = {
+      game_id: "d2r",
+      version: "1.0.0",
+      sha256: "abc123",
+      reference: {
+        sha256: "ref456",
+        url: "plugins/d2r/reference.wasm",
+        modules: {
+          drop_calc: {
+            name: "Drop Calculator",
+            description: "Compute drop probabilities.",
+          },
+        },
+      },
+    };
+    await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(d2rManifest));
+
+    const resp = await SELF.fetch("https://test-host/api/v1/plugins/manifest");
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json<{
+      plugins: Record<string, { reference?: { sha256: string; url: string; modules: unknown } }>;
+    }>();
+    const reference = body.plugins.d2r!.reference;
+    expect(reference).toBeDefined();
+    expect(reference!.sha256).toBe("ref456");
+    expect(reference!.url).toContain("d2r/reference.wasm");
+    expect(reference!.url).toMatch(/^https?:\/\//);
+    expect(reference!.modules).toBeDefined();
+  });
+
+  it("omits reference field when manifest has no reference", async () => {
+    const d2rManifest = {
+      game_id: "d2r",
+      version: "1.0.0",
+      sha256: "abc123",
+    };
+    await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(d2rManifest));
+
+    const resp = await SELF.fetch("https://test-host/api/v1/plugins/manifest");
+    const body = await resp.json<{
+      plugins: Record<string, { reference?: unknown }>;
+    }>();
+    expect(body.plugins.d2r!.reference).toBeUndefined();
+  });
+
+  it("downloads reference.wasm from R2", async () => {
+    const wasmBytes = new Uint8Array([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
+    await env.PLUGINS.put("plugins/d2r/reference.wasm", wasmBytes);
+
+    const resp = await SELF.fetch("https://test-host/plugins/d2r/reference.wasm");
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toBe("application/wasm");
+
+    const body = new Uint8Array(await resp.arrayBuffer());
+    expect(body).toEqual(wasmBytes);
+  });
+
+  it("downloads reference.wasm.sig from R2", async () => {
+    const sigBytes = new Uint8Array(64).fill(0xbb);
+    await env.PLUGINS.put("plugins/d2r/reference.wasm.sig", sigBytes);
+
+    const resp = await SELF.fetch("https://test-host/plugins/d2r/reference.wasm.sig");
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toBe("application/octet-stream");
+
+    const body = new Uint8Array(await resp.arrayBuffer());
+    expect(body).toEqual(sigBytes);
+  });
+
   it("returns multiple plugins", async () => {
     await env.PLUGINS.put(
       "plugins/d2r/manifest.json",

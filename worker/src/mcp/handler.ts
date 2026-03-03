@@ -15,7 +15,9 @@ import {
   getSave,
   getSection,
   getSectionDiff,
+  listReferences,
   listSaves,
+  queryReference,
   refreshSave,
   searchSaves,
   updateNote,
@@ -35,7 +37,9 @@ When the player says something just changed ("I just found a Ber rune", "I just 
 
 Results from search_saves distinguish between save data (what the player actually has in-game) and notes (what the player wrote, plans, or guides they're following). This distinction matters: "you have Enigma" vs "your guide recommends Enigma" are very different.
 
-When the player shares something worth remembering — a goal, a milestone, a plan — offer to save it as a note via create_note. Keep notes current with update_note when circumstances change. The player shouldn't have to repeat themselves across sessions.`;
+When the player shares something worth remembering — a goal, a milestone, a plan — offer to save it as a note via create_note. Keep notes current with update_note when circumstances change. The player shouldn't have to repeat themselves across sessions.
+
+For questions about game mechanics (drop rates, build calculations, treasure classes), use the reference data tools. Call list_references to discover available computation modules, then query_reference to get authoritative answers computed from actual game data tables. These are more reliable than AI estimation — use them whenever the player asks about probabilities, optimal farming, or build math.`;
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -323,6 +327,60 @@ const TOOLS: ToolDefinition[] = [
       openWorldHint: false,
     },
   },
+  // ── Reference Data ──────────────────────────────────────────
+  //
+  // Reference modules provide computed game data (drop rates, build
+  // calculations) that AIs can't reliably do themselves. These are
+  // authoritative — they use the actual game data tables.
+  {
+    name: "list_references",
+    title: "List Reference Modules",
+    description:
+      "List available reference data modules. These provide authoritative game computations (drop rates, build calculations) using actual game data tables — more reliable than AI estimation. Use query_reference to run a module. Optionally filter by game_id.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        game_id: {
+          type: "string",
+          description:
+            "Filter by game ID (e.g. 'd2r'). Omit to see all available reference modules across all games.",
+        },
+      },
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  {
+    name: "query_reference",
+    title: "Query Reference Module",
+    description:
+      "Execute a reference data query. Sends a JSON query to a game's reference module and returns computed results. Use list_references first to discover available modules and their parameters. For example, query the D2R drop calculator for exact drop probabilities from any monster with specific Magic Find and player count.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        game_id: {
+          type: "string",
+          description: "Game ID (e.g. 'd2r'). Must match a game from list_references.",
+        },
+        query: {
+          type: "string",
+          description:
+            "JSON query string to send to the reference module. Use an empty object '{}' to get the module's self-describing schema with available parameters.",
+        },
+      },
+      required: ["game_id", "query"],
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
 ];
 
 function jsonRpcResponse(id: number | string, result: unknown): Response {
@@ -415,6 +473,12 @@ async function handleToolCall(
         args.query as string,
         args.save_id as string | undefined,
       );
+    }
+    case "list_references": {
+      return listReferences(env.PLUGINS, args.game_id as string | undefined);
+    }
+    case "query_reference": {
+      return queryReference(env.REFERENCE_PLUGINS, args.game_id as string, args.query as string);
     }
     default: {
       return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };

@@ -130,15 +130,14 @@ savecraft/
 ├── plugins/
 │   ├── echo/                    # Reference/test plugin: reflects input as GameState
 │   │   ├── main.go
-│   │   └── Justfile             # just build → echo.wasm
+│   │   └── Justfile             # just build → parser.wasm
 │   └── d2r/                     # D2R plugin
 │       ├── parser/              # Daemon-side: save file parsing
-│       │   ├── main.go          # stdin bytes → ndjson stdout
-│       │   └── Justfile         # just build → parser.wasm
-│       ├── data/                # Shared lookup tables
-│       │   ├── treasure_classes.go
-│       │   ├── items.go
-│       │   └── runewords.go
+│       │   └── main.go          # stdin bytes → ndjson stdout
+│       ├── reference/           # Worker-side: reference data computation
+│       │   └── main.go          # JSON query on stdin → ndjson result
+│       ├── d2s/                 # Shared parsing + data tables
+│       ├── Justfile             # just build → parser.wasm + reference.wasm
 │       └── plugin.toml
 ├── install/
 │   ├── install.sh               # Linux/Steam Deck curl installer
@@ -258,6 +257,8 @@ users/{user_uuid}/saves/{save_uuid}/latest.json
 plugins/{game_id}/manifest.json
 plugins/{game_id}/parser.wasm
 plugins/{game_id}/parser.wasm.sig
+plugins/{game_id}/reference.wasm        # optional, if plugin has reference modules
+plugins/{game_id}/reference.wasm.sig
 ```
 
 - **Snapshots are immutable.** Every push creates a new timestamped object.

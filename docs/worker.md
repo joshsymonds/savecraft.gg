@@ -122,6 +122,34 @@ The DO writes status events to a `device_events` table in D1 (last 100 events pe
 1. **UI cold start:** When the web UI connects, the DO loads recent events from D1 and sends them as initial state, so the page isn't blank even if the daemon hasn't sent anything recently.
 2. **Diagnostics:** Persisted events can be queried for debugging ("when did my daemon last successfully parse?").
 
+## Reference Query API (Workers for Platforms)
+
+### `POST /api/v1/reference/{game_id}/query`
+
+Dispatches a reference data query to a game's reference Worker via Workers for Platforms. Authenticated.
+
+**How it works:** The main Worker calls `env.REFERENCE_PLUGINS.get("{game_id}-reference")` to get a `Fetcher` for the reference Worker, then forwards the request body as a POST. The reference Worker executes the WASM module with the query on stdin and returns ndjson on stdout.
+
+**Response:** The reference Worker's response is passed through — typically `application/x-ndjson` with status 200 (success) or 422 (query error).
+
+**404:** Returned if no reference Worker is deployed for the given game ID.
+
+This endpoint is also accessible via the `query_reference` MCP tool (see `docs/mcp.md`).
+
+### Dispatch Namespace Binding
+
+```toml
+# wrangler.toml
+[[dispatch_namespaces]]
+binding = "REFERENCE_PLUGINS"
+namespace = "savecraft-reference-plugins"        # production
+# staging uses "savecraft-reference-plugins-staging"
+```
+
+The `DispatchNamespace` binding provides `.get(scriptName)` which returns a `Fetcher`. Each reference plugin Worker is deployed to the namespace with the naming convention `{game_id}-reference`.
+
+**Cost:** Workers for Platforms is $25/month flat, included in the Workers Paid plan. No per-dispatch charges beyond standard Workers pricing.
+
 ## D1 Schemas
 
 ```sql
