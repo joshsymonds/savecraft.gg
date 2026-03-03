@@ -431,10 +431,6 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
 
   switch (rpc.method) {
     case "initialize": {
-      env.DB.prepare("INSERT OR IGNORE INTO mcp_activity (user_uuid) VALUES (?)")
-        .bind(userUuid)
-        .run()
-        .catch(Function.prototype as () => void);
       return Promise.resolve(
         jsonRpcResponse(id, {
           protocolVersion: PROTOCOL_VERSION,
@@ -497,6 +493,13 @@ export async function handleMcpRequest(
   if (rpc.jsonrpc !== "2.0") {
     return jsonRpcError(rpc.id ?? null, -32_600, "Invalid Request: expected jsonrpc 2.0");
   }
+
+  // Track MCP activity on every request — some clients (e.g. Claude.ai)
+  // skip the initialize handshake, so we can't rely on it alone.
+  env.DB.prepare("INSERT OR IGNORE INTO mcp_activity (user_uuid) VALUES (?)")
+    .bind(userUuid)
+    .run()
+    .catch(Function.prototype as () => void);
 
   return routeRpc(rpc, env, userUuid);
 }
