@@ -234,6 +234,55 @@ Updates an existing note. For "actually, I got the Jah rune, update my farming g
 
 Removes a note. Requires confirmation from the user in conversation before the AI calls this.
 
+## MCP Tools: Reference Data
+
+Two read-only tools for querying server-side reference modules (drop calculators, breakpoint tables, etc.). Reference modules are WASM plugins that execute server-side via Workers for Platforms — see `docs/plugins.md` for the architecture.
+
+### `list_references(game_id?)`
+
+Discovery tool. Returns available reference modules across all games, optionally filtered by game ID.
+
+```json
+{
+  "references": [
+    {
+      "game_id": "d2r",
+      "game_name": "Diablo II: Resurrected",
+      "modules": [
+        {
+          "id": "drop_calc",
+          "name": "Drop Calculator",
+          "description": "Compute drop probabilities for any item from any farmable source."
+        }
+      ]
+    }
+  ]
+}
+```
+
+The AI calls this to discover what computation is available before querying. An empty result means no reference modules are deployed for the given game.
+
+### `query_reference(game_id, query)`
+
+Computation tool. Passes a JSON query string to the game's reference Worker via Workers for Platforms dispatch. The reference WASM module processes the query via stdin/stdout ndjson contract and returns computed results.
+
+```json
+{
+  "type": "result",
+  "module": "drop_calc",
+  "data": {
+    "item": "Shako",
+    "source": "Mephisto",
+    "base_chance": "1:1432",
+    "with_mf": { "300": "1:676", "400": "1:589" }
+  }
+}
+```
+
+An empty query (`{}`) returns the module's self-describing parameter schema — the AI uses this to learn what parameters are available without hardcoded knowledge.
+
+**Error handling:** If the game ID has no reference Worker deployed, returns an error suggesting `list_references`. If the WASM module returns an error, the error message is passed through.
+
 ## AI Interaction Patterns
 
 Players interact with Savecraft in two distinct modes — often in the same conversation. The tools are identical; the intent is different.

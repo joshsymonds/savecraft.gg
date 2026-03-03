@@ -31,6 +31,7 @@ type pluginTOML struct {
 
 	Author       authorInfo   `toml:"author"        json:"author"`
 	DefaultPaths defaultPaths `toml:"default_paths" json:"default_paths"`
+	Reference    referenceTOML `toml:"reference"    json:"-"`
 }
 
 type authorInfo struct {
@@ -44,11 +45,38 @@ type defaultPaths struct {
 	Darwin  string `toml:"darwin"  json:"darwin"`
 }
 
+type referenceModule struct {
+	Name        string               `toml:"name"        json:"name"`
+	Description string               `toml:"description" json:"description"`
+	Attribution referenceAttribution `toml:"attribution" json:"attribution,omitempty"`
+}
+
+type referenceAttribution struct {
+	Author      string           `toml:"author"       json:"author,omitempty"`
+	DataSources []referenceSource `toml:"data_sources" json:"data_sources,omitempty"`
+}
+
+type referenceSource struct {
+	Name   string `toml:"name"   json:"name"`
+	Origin string `toml:"origin" json:"origin"`
+}
+
+type referenceTOML struct {
+	Modules map[string]referenceModule `toml:"modules" json:"-"`
+}
+
+type referenceManifest struct {
+	SHA256  string                     `json:"sha256"`
+	URL     string                     `json:"url"`
+	Modules map[string]referenceModule `json:"modules"`
+}
+
 type pluginManifest struct {
 	pluginTOML
-	Version string `json:"version"`
-	SHA256  string `json:"sha256"`
-	URL     string `json:"url"`
+	Version   string             `json:"version"`
+	SHA256    string             `json:"sha256"`
+	URL       string             `json:"url"`
+	Reference *referenceManifest `json:"reference,omitempty"`
 }
 
 func main() {
@@ -96,18 +124,34 @@ func buildManifest(pluginDir string) (pluginManifest, error) {
 		return pluginManifest{}, fmt.Errorf("decode %s: %w", tomlPath, err)
 	}
 
-	// Find .wasm file — convention: <game_id>.wasm
-	wasmPath := filepath.Join(pluginDir, cfg.GameID+".wasm")
+	// Find parser .wasm file — convention: parser.wasm in plugin directory.
+	wasmPath := filepath.Join(pluginDir, "parser.wasm")
 	hash, err := fileSHA256(wasmPath)
 	if err != nil {
 		return pluginManifest{}, fmt.Errorf("hash %s: %w", wasmPath, err)
 	}
 
-	return pluginManifest{
+	manifest := pluginManifest{
 		pluginTOML: cfg,
 		SHA256:     hash,
 		URL:        fmt.Sprintf("plugins/%s/parser.wasm", cfg.GameID),
-	}, nil
+	}
+
+	// If reference.wasm exists and plugin.toml declares reference modules, include reference metadata.
+	refWasmPath := filepath.Join(pluginDir, "reference.wasm")
+	if _, statErr := os.Stat(refWasmPath); statErr == nil && len(cfg.Reference.Modules) > 0 {
+		refHash, hashErr := fileSHA256(refWasmPath)
+		if hashErr != nil {
+			return pluginManifest{}, fmt.Errorf("hash %s: %w", refWasmPath, hashErr)
+		}
+		manifest.Reference = &referenceManifest{
+			SHA256:  refHash,
+			URL:     fmt.Sprintf("plugins/%s/reference.wasm", cfg.GameID),
+			Modules: cfg.Reference.Modules,
+		}
+	}
+
+	return manifest, nil
 }
 
 func fileSHA256(path string) (string, error) {

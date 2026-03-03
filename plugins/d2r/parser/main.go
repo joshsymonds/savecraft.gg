@@ -2,7 +2,7 @@
 // Supports both LoD (version <= 0x60) and D2R (version >= 0x61) formats.
 // .d2s = character saves, .d2i = shared stash (game-scoped, saveName from stash kind).
 //
-// Build: GOOS=wasip1 GOARCH=wasm go build -o d2r.wasm .
+// Build: GOOS=wasip1 GOARCH=wasm go build -o parser.wasm ./parser
 package main
 
 import (

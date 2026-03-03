@@ -85,6 +85,12 @@ Game APIs have rate limits (GGG: ~45 req/min, Battle.net: varies by endpoint). A
 
 ## Reference Data System
 
+### Status
+
+**Infrastructure complete. D2R drop calculator not yet implemented.**
+
+Phases 1 and 2 are done — dual WASM build targets, Workers for Platforms dispatch, MCP tools. Phase 3 (D2R drop calculator with full treasure class resolution) is next.
+
 ### Three Categories of Knowledge
 
 Savecraft serves game knowledge across three categories with different architectural needs:
@@ -95,54 +101,31 @@ Savecraft serves game knowledge across three categories with different architect
 
 Category 2 is the gap that reference data fills: the AI combines the player's *actual* MF stat from their save with *exact* drop probability math from the reference module.
 
-### Architecture: Second WASM Build Target
+### Architecture: Workers for Platforms
 
-Reference modules are a second WASM binary shipped by each plugin, running server-side in the Worker under the same sandbox guarantees as daemon-side parsers. Each plugin optionally ships two WASM targets from shared source:
+Reference modules execute server-side via Workers for Platforms (WfP). Each game's reference WASM deploys as its own Worker with a static import (pre-compiled at deploy time). The main Worker dispatches via `env.REFERENCE_PLUGINS.get("{game_id}-reference").fetch(request)`.
 
-```
-plugins/d2r/
-├── parser/              # Daemon-side: save file parsing (existing)
-│   ├── main.go
-│   └── Justfile
-├── reference/           # Worker-side: query computation (new)
-│   ├── main.go
-│   └── Justfile
-├── data/                # Shared lookup tables (both targets import)
-│   ├── treasure_classes.go
-│   ├── runewords.go
-│   └── breakpoints.go
-└── plugin.toml
-```
+**Why WfP?** `WebAssembly.compile()` is blocked by workerd's V8 security policy everywhere. WfP is the Cloudflare-endorsed pattern for dynamically-deployed WASM (used by Shopify, Grafbase, etc.).
 
-The reference contract: JSON query on stdin, JSON result on stdout. An empty query (`{}`) returns the module's self-describing parameter schema.
+See `docs/plugins.md` for reference Worker structure, `docs/worker.md` for dispatch namespace binding, and `docs/mcp.md` for MCP tools.
 
-### Worker-Side WASI Shim
+### What's Built
 
-The Worker executes reference WASM via `WebAssembly.instantiate` with a minimal WASI shim that provides only stdin reads and stdout writes. No filesystem, no network, no environment access. Same sandbox guarantee as the daemon-side wazero runtime. ~100 lines of shim code.
+- **Dual WASM targets:** `plugins/d2r/parser/` and `plugins/d2r/reference/` build separately, sharing `plugins/d2r/d2s/` data code
+- **Reference Worker:** `plugins/d2r/worker/` — standalone Worker package with static WASM import and WASI shim
+- **Dispatch namespaces:** `savecraft-reference-plugins` (production) and `savecraft-reference-plugins-staging` (staging) created
+- **MCP tools:** `list_references` (discovery) and `query_reference` (computation) implemented and tested
+- **plugin.toml:** `[reference.modules.*]` section with name, description, attribution
+- **Manifest generator:** Handles dual binaries (parser.wasm + reference.wasm)
 
-### MCP Tools: Reference Data
+### What's Next: D2R Drop Calculator (Phase 3)
 
-Two read-only tools:
-
-- **`list_references(game_id?)`** — Discovery tool. Returns available reference modules with parameter documentation and attribution.
-- **`query_reference(game_id, module_id, query)`** — Computation tool. Passes query to the reference WASM module, returns results with attribution.
-
-### plugin.toml Reference Section
-
-The `[reference]` section is optional. Plugins without it work exactly as before.
-
-```toml
-[reference.modules.drop_calc]
-name = "Drop Calculator"
-description = "Compute drop probabilities for any item from any farmable source."
-
-[reference.modules.drop_calc.attribution]
-author = "Josh Symonds"
-data_sources = [
-  { name = "TreasureClassEx.txt", origin = "Diablo II game data tables", license = "community-extracted" },
-]
-note = "Drop formulas based on community-documented game mechanics."
-```
+Full treasure class resolution in Go, compiled to `reference.wasm`:
+- TC data tables from CASC extraction (TreasureClassEx.txt, ItemRatio.txt, etc.)
+- TC traversal algorithm: recursive resolution with NoDrop reduction
+- Item ratio application with MF scaling
+- Player count effects on NoDrop
+- End-to-end integration test with known drop probabilities
 
 ## Game Support Roadmap
 

@@ -1,0 +1,3 @@
+node_modules/
+# Copied from parent directory by build step — the source of truth is ../reference.wasm
+reference.wasm

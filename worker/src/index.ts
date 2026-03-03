@@ -125,7 +125,7 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-const PLUGIN_DOWNLOAD_RE = /^\/plugins\/([^/]+)\/(parser\.wasm(?:\.sig)?)$/;
+const PLUGIN_DOWNLOAD_RE = /^\/plugins\/([^/]+)\/((parser|reference)\.wasm(?:\.sig)?)$/;
 
 function routeDownload(request: Request, url: URL, env: Env): Promise<Response> | null {
   const pluginMatch = PLUGIN_DOWNLOAD_RE.exec(url.pathname);
@@ -146,6 +146,10 @@ async function routePublicEndpoints(
   }
   const downloadResponse = routeDownload(request, url, env);
   if (downloadResponse) return downloadResponse;
+  const referenceMatch = /^\/api\/v1\/reference\/([^/]+)\/query$/.exec(url.pathname);
+  if (referenceMatch?.[1] && request.method === "POST") {
+    return handleReferenceQuery(request, env, referenceMatch[1]);
+  }
   if (url.pathname === "/api/v1/pair/claim" && request.method === "POST") {
     return claimPairingCode(request, env);
   }
@@ -264,10 +268,16 @@ async function handlePluginManifest(env: Env): Promise<Response> {
     const gameId = data.game_id as string | undefined;
 
     if (gameId) {
-      plugins[gameId] = {
+      const entry: Record<string, unknown> = {
         ...data,
         url: `${serverUrl}/plugins/${gameId}/parser.wasm`,
       };
+      // Inject absolute URL for reference binary if present.
+      const reference = data.reference as Record<string, unknown> | undefined;
+      if (reference) {
+        entry.reference = { ...reference, url: `${serverUrl}/plugins/${gameId}/reference.wasm` };
+      }
+      plugins[gameId] = entry;
     }
   }
 
@@ -283,6 +293,30 @@ async function handlePluginDownload(env: Env, gameId: string, filename: string):
   const contentType = filename.endsWith(".wasm") ? "application/wasm" : "application/octet-stream";
   return new Response(object.body, {
     headers: { "Content-Type": contentType },
+  });
+}
+
+// -- Reference Query API (WfP dispatch) ----------------------------
+
+async function handleReferenceQuery(request: Request, env: Env, gameId: string): Promise<Response> {
+  let plugin: Fetcher;
+  try {
+    plugin = env.REFERENCE_PLUGINS.get(`${gameId}-reference`);
+  } catch {
+    return Response.json({ error: "Reference module not found" }, { status: 404 });
+  }
+
+  const query = await request.text();
+  const result = await plugin.fetch(
+    new Request("https://internal/query", {
+      method: "POST",
+      body: query,
+    }),
+  );
+
+  return new Response(result.body, {
+    status: result.status,
+    headers: { "Content-Type": result.headers.get("Content-Type") ?? "application/json" },
   });
 }
 

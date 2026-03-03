@@ -1,7 +1,7 @@
 // Error plugin: always emits a structured error and exits with code 1.
 // Used for testing the error path of the ndjson plugin contract.
 //
-// Build: GOOS=wasip1 GOARCH=wasm go build -o error.wasm ./plugins/error
+// Build: GOOS=wasip1 GOARCH=wasm go build -o parser.wasm .
 package main
 
 import (

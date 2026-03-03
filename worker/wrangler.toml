@@ -27,6 +27,10 @@ bucket_name = "savecraft-plugins"
 binding = "OAUTH_KV"
 id = "local"
 
+[[dispatch_namespaces]]
+binding = "REFERENCE_PLUGINS"
+namespace = "savecraft-reference-plugins"
+
 [durable_objects]
 bindings = [
   { name = "DAEMON_HUB", class_name = "DaemonHub" }
@@ -69,6 +73,10 @@ bucket_name = "savecraft-plugins"
 [[env.production.kv_namespaces]]
 binding = "OAUTH_KV"
 id = "8236ba2d016e4112b8fd8ffc5f61e081"
+
+[[env.production.dispatch_namespaces]]
+binding = "REFERENCE_PLUGINS"
+namespace = "savecraft-reference-plugins"
 
 [env.production.durable_objects]
 bindings = [
@@ -113,6 +121,10 @@ bucket_name = "savecraft-plugins-staging"
 [[env.staging.kv_namespaces]]
 binding = "OAUTH_KV"
 id = "ac23010086be4ce99b6349770d9211a0"
+
+[[env.staging.dispatch_namespaces]]
+binding = "REFERENCE_PLUGINS"
+namespace = "savecraft-reference-plugins-staging"
 
 [env.staging.durable_objects]
 bindings = [

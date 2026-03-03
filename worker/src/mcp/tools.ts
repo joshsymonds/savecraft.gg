@@ -764,6 +764,132 @@ export async function searchSaves(
   });
 }
 
+// ── Reference Data ───────────────────────────────────────────
+
+interface ReferenceModule {
+  name: string;
+  description: string;
+  attribution?: unknown;
+}
+
+interface ManifestData {
+  game_id?: string;
+  name?: string;
+  reference?: {
+    modules?: Record<string, ReferenceModule>;
+  };
+}
+
+export async function listReferences(plugins: R2Bucket, gameId?: string): Promise<ToolResult> {
+  const listed = await plugins.list({ prefix: "plugins/" });
+  const references: {
+    game_id: string;
+    game_name: string;
+    modules: { id: string; name: string; description: string }[];
+  }[] = [];
+
+  for (const object of listed.objects) {
+    if (!object.key.endsWith("/manifest.json")) continue;
+
+    const manifest = await plugins.get(object.key);
+    if (!manifest) continue;
+
+    const data = await manifest.json<ManifestData>();
+    if (!data.game_id || !data.reference?.modules) continue;
+    if (gameId && data.game_id !== gameId) continue;
+
+    const modules = Object.entries(data.reference.modules).map(([id, entry]) => ({
+      id,
+      name: entry.name,
+      description: entry.description,
+    }));
+
+    references.push({
+      game_id: data.game_id,
+      game_name: data.name ?? data.game_id,
+      modules,
+    });
+  }
+
+  if (gameId && references.length === 0) {
+    return errorResult(
+      `No reference modules found for game "${gameId}". Call list_references without a game_id to see all available reference modules.`,
+    );
+  }
+
+  return textResult({ references });
+}
+
+export async function queryReference(
+  referencePlugins: DispatchNamespace,
+  gameId: string,
+  query: unknown,
+): Promise<ToolResult> {
+  let plugin: Fetcher;
+  try {
+    plugin = referencePlugins.get(`${gameId}-reference`);
+  } catch {
+    return errorResult(
+      `No reference module found for game "${gameId}". Call list_references to see available reference modules.`,
+    );
+  }
+
+  const queryString = typeof query === "string" ? query : JSON.stringify(query);
+
+  let response: Response;
+  try {
+    response = await plugin.fetch(
+      new Request("https://internal/query", {
+        method: "POST",
+        body: queryString,
+      }),
+    );
+  } catch {
+    return errorResult(
+      `Reference module for "${gameId}" is not available. It may not be deployed yet.`,
+    );
+  }
+
+  const text = await response.text();
+
+  if (response.status !== 200) {
+    // The reference Worker returned an error (exit code != 0)
+    try {
+      const parsed = JSON.parse(text.trim()) as { type: string; message?: string };
+      if (parsed.message) {
+        return errorResult(`Reference module error: ${parsed.message}`);
+      }
+    } catch {
+      // Not valid JSON — return raw
+    }
+    return errorResult(`Reference module returned an error: ${text.trim()}`);
+  }
+
+  // Parse the ndjson response — could be multiple lines
+  const lines = text
+    .trim()
+    .split("\n")
+    .filter((l: string) => l.length > 0);
+  if (lines.length === 1) {
+    try {
+      const parsed = JSON.parse(lines[0] ?? "") as Record<string, unknown>;
+      return textResult(parsed);
+    } catch {
+      return textResult({ raw: lines[0] });
+    }
+  }
+
+  // Multiple ndjson lines — return as array
+  const results = lines.map((line: string) => {
+    try {
+      return JSON.parse(line) as unknown;
+    } catch {
+      return { raw: line };
+    }
+  });
+  return textResult({ results });
+}
+
 // ── Search Indexing Helpers ───────────────────────────────────
 
 export async function indexSaveSections(
