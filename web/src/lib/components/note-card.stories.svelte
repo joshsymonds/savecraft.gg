@@ -43,6 +43,23 @@
   </div>
 </Story>
 
+<Story name="ImportSource">
+  <div style="width: 500px;">
+    <NoteCard
+      note={{
+        id: "n3",
+        title: "D2R Runewords Reference",
+        preview:
+          "Enigma: Jah + Ith + Ber (3os Armor)\nInfinity: Ber + Mal + Ber + Ist (4os Polearm)\nFaith: Ohm + Jah + Lem + Eld (4os Bow)",
+        source: "import",
+        sizeBytes: 24_500,
+        updatedAt: "5d ago",
+      }}
+      ondelete={(id) => alert(`Delete ${String(id)}`)}
+    />
+  </div>
+</Story>
+
 <Story name="InList">
   <div style="width: 500px; display: flex; flex-direction: column; gap: 8px;">
     <NoteCard

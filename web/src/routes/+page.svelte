@@ -15,7 +15,7 @@
   import { activityEvents } from "$lib/stores/activity";
   import { devices, setGameStatus } from "$lib/stores/devices";
   import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
-  import type { Device } from "$lib/types/device";
+  import type { Device, DeviceStatus } from "$lib/types/device";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
 
   const COLLAPSED_EVENT_COUNT = 8;
@@ -57,7 +57,7 @@
     disconnected: "OFFLINE",
   };
 
-  const CONNECTION_STATUS: Record<ConnectionStatus, "online" | "error" | "offline"> = {
+  const CONNECTION_STATUS: Record<ConnectionStatus, DeviceStatus> = {
     connected: "online",
     connecting: "offline",
     reconnecting: "offline",

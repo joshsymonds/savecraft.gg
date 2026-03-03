@@ -122,6 +122,76 @@ describe("GameCard", () => {
     });
   });
 
+  describe("onclick behavior", () => {
+    it("calls onclick when watching card is clicked", async () => {
+      const onclick = vi.fn();
+      const game = makeGame({ status: "watching" });
+      render(GameCard, { props: { game, onclick } });
+      await userEvent.click(screen.getByText("Diablo II: Resurrected"));
+      expect(onclick).toHaveBeenCalledOnce();
+    });
+
+    it("does not call onclick when detected card is clicked", async () => {
+      const onclick = vi.fn();
+      const game = makeGame({ status: "detected", statusLine: "Detected" });
+      render(GameCard, { props: { game, onclick } });
+      await userEvent.click(screen.getByText("Diablo II: Resurrected"));
+      expect(onclick).not.toHaveBeenCalled();
+    });
+
+    it("calls onclick when error card is clicked", async () => {
+      const onclick = vi.fn();
+      const game = makeGame({ status: "error", statusLine: "Parse error" });
+      render(GameCard, { props: { game, onclick } });
+      await userEvent.click(screen.getByText("Diablo II: Resurrected"));
+      expect(onclick).toHaveBeenCalledOnce();
+    });
+
+    it("does not call onclick when not_found card is clicked", async () => {
+      const onclick = vi.fn();
+      const game = makeGame({ status: "not_found", statusLine: "not installed" });
+      render(GameCard, { props: { game, onclick } });
+      await userEvent.click(screen.getByText("Diablo II: Resurrected"));
+      expect(onclick).not.toHaveBeenCalled();
+    });
+
+    it("triggers onclick on Enter key", async () => {
+      const onclick = vi.fn();
+      const game = makeGame({ status: "watching" });
+      const { container } = render(GameCard, { props: { game, onclick } });
+      const card = container.querySelector("[role='button']")!;
+      (card as HTMLElement).focus();
+      await userEvent.keyboard("{Enter}");
+      expect(onclick).toHaveBeenCalledOnce();
+    });
+
+    it("triggers onclick on Space key", async () => {
+      const onclick = vi.fn();
+      const game = makeGame({ status: "watching" });
+      const { container } = render(GameCard, { props: { game, onclick } });
+      const card = container.querySelector("[role='button']")!;
+      (card as HTMLElement).focus();
+      await userEvent.keyboard(" ");
+      expect(onclick).toHaveBeenCalledOnce();
+    });
+
+    it("has role=button and tabindex=0 when clickable", () => {
+      const game = makeGame({ status: "watching" });
+      const { container } = render(GameCard, { props: { game, onclick: vi.fn() } });
+      const card = container.querySelector(".game-card")!;
+      expect(card.getAttribute("role")).toBe("button");
+      expect(card.getAttribute("tabindex")).toBe("0");
+    });
+
+    it("has no role or tabindex when not clickable", () => {
+      const game = makeGame({ status: "watching" });
+      const { container } = render(GameCard, { props: { game } });
+      const card = container.querySelector(".game-card")!;
+      expect(card.getAttribute("role")).toBeNull();
+      expect(card.getAttribute("tabindex")).toBeNull();
+    });
+  });
+
   describe("error state", () => {
     it("renders error status", () => {
       const game = makeGame({ status: "error", statusLine: "Parse error" });

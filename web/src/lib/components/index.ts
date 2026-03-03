@@ -10,4 +10,5 @@ export { default as ParentChip } from "./ParentChip.svelte";
 export { default as SaveRow } from "./SaveRow.svelte";
 export { default as StatusDot } from "./StatusDot.svelte";
 export { default as TinyButton } from "./TinyButton.svelte";
+export { default as UpdateBanner } from "./UpdateBanner.svelte";
 export { default as WindowTitleBar } from "./WindowTitleBar.svelte";

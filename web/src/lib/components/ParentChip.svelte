@@ -40,6 +40,13 @@
     border-color: rgba(74, 90, 173, 0.4);
   }
 
+  .parent-chip:focus-visible {
+    background: rgba(74, 90, 173, 0.22);
+    border-color: rgba(74, 90, 173, 0.4);
+    outline: 2px solid var(--color-blue);
+    outline-offset: 2px;
+  }
+
   .chip-icon {
     font-size: 12px;
     line-height: 1;
