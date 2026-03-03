@@ -63,6 +63,13 @@ function getConnTag(tags: string[]): string | undefined {
   return tags.find((t) => t.startsWith(CONN_PREFIX));
 }
 
+function findStaleDevices(state: DeviceState, thresholdMs: number): string[] {
+  const now = Date.now();
+  return state.devices
+    .filter((d) => d.online && d.lastSeen && now - new Date(d.lastSeen).getTime() > thresholdMs)
+    .map((d) => d.deviceId);
+}
+
 /**
  * Compare two semver-like version strings (e.g. "0.2.0" > "0.1.0").
  * Returns true if `latest` is strictly newer than `current`.
@@ -365,58 +372,56 @@ export class DaemonHub extends DurableObject<Env> {
    */
   async alarm(): Promise<void> {
     const state = await this.loadState();
-    const now = Date.now();
-    const threshold = this.env.STALE_THRESHOLD_MS ?? 90_000;
-
-    const staleDeviceIds: string[] = [];
-    for (const device of state.devices) {
-      if (!device.online || !device.lastSeen) continue;
-      const age = now - new Date(device.lastSeen).getTime();
-      if (age > threshold) {
-        staleDeviceIds.push(device.deviceId);
-      }
-    }
+    const staleDeviceIds = findStaleDevices(state, this.env.STALE_THRESHOLD_MS ?? 90_000);
 
     if (staleDeviceIds.length > 0) {
-      // Apply offline mutations
-      for (const deviceId of staleDeviceIds) {
-        applyMutation(state, { kind: "deviceOffline", deviceId });
-      }
-      await this.saveState(state);
-
-      // Broadcast daemonOffline to UI for each stale device
-      for (const deviceId of staleDeviceIds) {
-        const offlineMsg = JSON.stringify({
-          daemonOffline: { deviceId },
-          _deviceId: deviceId,
-          _ts: new Date().toISOString(),
-        });
-        for (const uiWs of this.ctx.getWebSockets("ui")) {
-          uiWs.send(offlineMsg);
-        }
-      }
-
-      // Close stale daemon WebSockets and clean up conn mappings
-      for (const daemonWs of this.ctx.getWebSockets("daemon")) {
-        const wsTags = this.ctx.getTags(daemonWs);
-        const connTag = getConnTag(wsTags);
-        if (!connTag) continue;
-        const wsDeviceId = await this.ctx.storage.get<string>(connTag);
-        if (wsDeviceId && staleDeviceIds.includes(wsDeviceId)) {
-          await this.ctx.storage.delete(connTag);
-          try {
-            daemonWs.close(1000, "stale connection");
-          } catch {
-            // WebSocket may already be closed
-          }
-        }
-      }
+      await this.evictStaleDevices(state, staleDeviceIds);
     }
 
     // Reschedule if any devices still online
     if (state.devices.some((d) => d.online)) {
       const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
       await this.ctx.storage.setAlarm(Date.now() + interval);
+    }
+  }
+
+  private async evictStaleDevices(state: DeviceState, staleDeviceIds: string[]): Promise<void> {
+    for (const deviceId of staleDeviceIds) {
+      applyMutation(state, { kind: "deviceOffline", deviceId });
+    }
+    await this.saveState(state);
+
+    this.broadcastStaleOffline(staleDeviceIds);
+    await this.closeStaleConnections(staleDeviceIds);
+  }
+
+  private broadcastStaleOffline(staleDeviceIds: string[]): void {
+    for (const deviceId of staleDeviceIds) {
+      const offlineMsg = JSON.stringify({
+        daemonOffline: { deviceId },
+        _deviceId: deviceId,
+        _ts: new Date().toISOString(),
+      });
+      for (const uiWs of this.ctx.getWebSockets("ui")) {
+        uiWs.send(offlineMsg);
+      }
+    }
+  }
+
+  private async closeStaleConnections(staleDeviceIds: string[]): Promise<void> {
+    for (const daemonWs of this.ctx.getWebSockets("daemon")) {
+      const wsTags = this.ctx.getTags(daemonWs);
+      const connTag = getConnTag(wsTags);
+      if (!connTag) continue;
+      const wsDeviceId = await this.ctx.storage.get<string>(connTag);
+      if (wsDeviceId && staleDeviceIds.includes(wsDeviceId)) {
+        await this.ctx.storage.delete(connTag);
+        try {
+          daemonWs.close(1000, "stale connection");
+        } catch {
+          // WebSocket may already be closed
+        }
+      }
     }
   }
 
@@ -461,12 +466,10 @@ export class DaemonHub extends DurableObject<Env> {
       const mutation = await this.resolveStateMutation(tags, rpc);
 
       // Phase 1 (async I/O): resolve deviceId for lastSeen update
-      let deviceId: string | undefined;
-      if (mutation.kind === "deviceOnline" || mutation.kind === "deviceOffline") {
-        deviceId = mutation.deviceId;
-      } else {
-        deviceId = await this.getDeviceIdForConnection(tags);
-      }
+      const deviceId =
+        mutation.kind === "deviceOnline" || mutation.kind === "deviceOffline"
+          ? mutation.deviceId
+          : await this.getDeviceIdForConnection(tags);
 
       // Phase 2 (atomic): load -> mutate -> update lastSeen -> save
       const state = await this.loadState();
