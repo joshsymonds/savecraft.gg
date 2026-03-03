@@ -338,12 +338,21 @@ async function handleOAuthRegister(request: Request, env: Env): Promise<Response
     );
   }
 
+  /* eslint-disable no-console -- temporary diagnostic logging */
+  console.log("[DCR] redirect_uris:", JSON.stringify(body.redirect_uris));
+  console.log("[DCR] full body:", JSON.stringify(body));
+  /* eslint-enable no-console */
+
   const resp = await fetch(`${clerkIssuer}/oauth/register`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
   });
   const result = await resp.text();
+  /* eslint-disable no-console -- temporary diagnostic logging */
+  console.log("[DCR] Clerk response status:", resp.status);
+  console.log("[DCR] Clerk response:", result);
+  /* eslint-enable no-console */
   return new Response(result, {
     status: resp.status,
     headers: {
@@ -379,10 +388,19 @@ function handleOAuthAuthorize(request: Request, env: Env): Response {
   }
 
   // Prod: redirect to Clerk's authorize endpoint, preserving all params
+  /* eslint-disable no-console -- temporary diagnostic logging */
+  console.log("[Authorize] redirect_uri:", url.searchParams.get("redirect_uri"));
+  console.log("[Authorize] client_id:", url.searchParams.get("client_id"));
+  console.log("[Authorize] all params:", url.search);
+  /* eslint-enable no-console */
+
   const clerkUrl = new URL(`${clerkIssuer}/oauth/authorize`);
   for (const [key, value] of url.searchParams) {
     clerkUrl.searchParams.set(key, value);
   }
+  /* eslint-disable no-console -- temporary diagnostic logging */
+  console.log("[Authorize] redirecting to:", clerkUrl.toString());
+  /* eslint-enable no-console */
   return new Response(null, {
     status: 302,
     headers: { Location: clerkUrl.toString(), "Access-Control-Allow-Origin": "*" },
