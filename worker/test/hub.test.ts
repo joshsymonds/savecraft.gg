@@ -616,6 +616,137 @@ describe("DaemonHub", () => {
     fetchMock.deactivate();
   });
 
+  it("does not relay daemonHeartbeat to UI", async () => {
+    const userUuid = "heartbeat-relay-user";
+
+    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const uiWs = await connectWs("/ws/ui", userUuid);
+
+    // Identify daemon
+    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "deck", version: "0.1.0" } }));
+    await waitForMessage(uiWs); // daemonOnline relayed
+
+    // Send heartbeat — should NOT be relayed to UI
+    daemonWs.send(JSON.stringify({ daemonHeartbeat: {} }));
+
+    // Wait briefly — UI should NOT receive anything
+    const noMessage = await waitForMessage(uiWs, 200).catch(() => null);
+    expect(noMessage).toBeNull();
+
+    await closeWs(daemonWs);
+    await closeWs(uiWs);
+  });
+
+  it("updates lastSeen on heartbeat", async () => {
+    const userUuid = "heartbeat-lastseen-user";
+
+    const daemon = await connectWs("/ws/daemon", userUuid);
+    const temporaryUi = await connectWs("/ws/ui", userUuid);
+
+    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "deck", version: "0.1.0" } }));
+    await waitForMessage(temporaryUi);
+    await closeWs(temporaryUi);
+
+    // Get initial lastSeen
+    const ui1 = await connectWs("/ws/ui", userUuid);
+    const msg1 = await waitForMessage<Record<string, unknown>>(ui1);
+    const ds1 = msg1.deviceState as { devices: { lastSeen: string }[] };
+    const initialLastSeen = ds1.devices[0]!.lastSeen;
+    await closeWs(ui1);
+
+    // Wait a bit then send heartbeat
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
+    daemon.send(JSON.stringify({ daemonHeartbeat: {} }));
+
+    // Give DO time to process
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
+
+    // Check lastSeen was updated
+    const ui2 = await connectWs("/ws/ui", userUuid);
+    const msg2 = await waitForMessage<Record<string, unknown>>(ui2);
+    const ds2 = msg2.deviceState as { devices: { lastSeen: string }[] };
+    const updatedLastSeen = ds2.devices[0]!.lastSeen;
+
+    expect(updatedLastSeen).not.toBe(initialLastSeen);
+
+    await closeWs(ui2);
+    await closeWs(daemon);
+  });
+
+  it("evicts stale device via alarm", async () => {
+    const userUuid = "alarm-evict-user";
+
+    const daemon = await connectWs("/ws/daemon", userUuid);
+    const uiWs = await connectWs("/ws/ui", userUuid);
+
+    // Send daemonOnline — sets alarm (100ms in test config)
+    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "deck", version: "0.1.0" } }));
+    await waitForMessage(uiWs); // daemonOnline relayed
+
+    // Close daemon WS without sending daemonOffline (simulates suspend)
+    // But we can't truly simulate suspend — the DO will see webSocketClose.
+    // Instead, verify the alarm fires and marks device offline when lastSeen is stale.
+    // The test config has STALE_THRESHOLD_MS=200, ALARM_INTERVAL_MS=100.
+    // So if we don't send any messages for 300ms, the alarm should evict.
+    await closeWs(uiWs);
+
+    // Wait for stale threshold + alarm interval to pass
+    // STALE_THRESHOLD_MS=200, ALARM_INTERVAL_MS=100, so after ~300ms the device
+    // should be evicted (alarm fires at 100ms, device not stale yet; fires again
+    // at 200ms, still not stale; fires at 300ms, lastSeen is now >200ms ago).
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+
+    // Check device is offline
+    const freshUi = await connectWs("/ws/ui", userUuid);
+    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
+    const ds = msg.deviceState as { devices: { deviceId: string; online?: boolean }[] };
+    const device = ds.devices.find((d) => d.deviceId === "deck");
+    expect(device).toBeDefined();
+    expect(device?.online).toBeFalsy();
+
+    await closeWs(freshUi);
+    await closeWs(daemon);
+  });
+
+  it("alarm does not fire when all devices are offline", async () => {
+    const userUuid = "alarm-lifecycle-user";
+
+    const daemon = await connectWs("/ws/daemon", userUuid);
+    const uiWs = await connectWs("/ws/ui", userUuid);
+
+    // Device comes online (sets alarm)
+    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "deck", version: "0.1.0" } }));
+    await waitForMessage(uiWs);
+
+    // Device goes offline gracefully (should delete alarm)
+    daemon.send(JSON.stringify({ daemonOffline: { deviceId: "deck" } }));
+    await waitForMessage(uiWs);
+
+    await closeWs(daemon);
+    await closeWs(uiWs);
+
+    // Wait past the alarm interval — alarm should NOT fire since device is offline
+    await new Promise((resolve) => {
+      setTimeout(resolve, 300);
+    });
+
+    // Verify device is still offline (not re-evicted or errored)
+    const freshUi = await connectWs("/ws/ui", userUuid);
+    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
+    const ds = msg.deviceState as { devices: { deviceId: string; online?: boolean }[] };
+    const device = ds.devices.find((d) => d.deviceId === "deck");
+    expect(device).toBeDefined();
+    expect(device?.online).toBeFalsy();
+
+    await closeWs(freshUi);
+  });
+
   it("does not send daemonUpdateAvailable when daemon is current", async () => {
     const userUuid = "update-current-user";
 
