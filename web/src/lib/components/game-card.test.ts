@@ -35,7 +35,6 @@ describe("GameCard", () => {
             summary: "Level 74 Warlock",
             lastUpdated: "now",
             status: "success" as const,
-            notes: [],
           },
           {
             saveUuid: "2",
@@ -43,7 +42,6 @@ describe("GameCard", () => {
             summary: "Level 89 Amazon",
             lastUpdated: "now",
             status: "success" as const,
-            notes: [],
           },
         ],
       });

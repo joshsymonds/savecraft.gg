@@ -4,62 +4,27 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { authenticateApiKey, sha256Hex } from "../src/auth";
 import worker from "../src/index";
 
-import { cleanAll } from "./helpers";
+import { cleanAll, getOAuthToken } from "./helpers";
 
 const AUTH_TEST_USER = "auth-test-user";
 
+// -- Library-managed metadata endpoints ---------------------------------------
+
 describe("OAuth Discovery", () => {
-  it("serves protected resource metadata at well-known endpoint (stub mode)", async () => {
+  it("serves protected resource metadata", async () => {
     const resp = await SELF.fetch("https://test-host/.well-known/oauth-protected-resource");
     expect(resp.status).toBe(200);
 
     const body = await resp.json<{
       resource: string;
       authorization_servers: string[];
-      bearer_methods_supported: string[];
     }>();
 
-    expect(body.resource).toBe("https://test-host/");
-    expect(body.authorization_servers).toEqual(["https://test-host/"]);
-    expect(body.bearer_methods_supported).toContain("header");
+    expect(body.resource).toBe("https://test-host");
+    expect(body.authorization_servers).toEqual(["https://test-host"]);
   });
 
-  it("points authorization_servers to Clerk when CLERK_ISSUER is set", async () => {
-    const fakeEnv = { ...env, CLERK_ISSUER: "https://fake-clerk.example.com" } as typeof env;
-    const resp = await worker.fetch(
-      new Request("https://test-host/.well-known/oauth-protected-resource"),
-      fakeEnv,
-      {} as ExecutionContext,
-    );
-    expect(resp.status).toBe(200);
-
-    const body = await resp.json<{
-      resource: string;
-      authorization_servers: string[];
-      jwks_uri: string;
-    }>();
-
-    expect(body.resource).toBe("https://test-host/");
-    expect(body.authorization_servers).toEqual(["https://fake-clerk.example.com"]);
-    expect(body.jwks_uri).toBe("https://fake-clerk.example.com/.well-known/jwks.json");
-  });
-
-  it("derives resource URL from request origin", async () => {
-    const resp = await SELF.fetch("https://mcp.savecraft.gg/.well-known/oauth-protected-resource");
-    expect(resp.status).toBe(200);
-
-    const body = await resp.json<{ resource: string }>();
-    expect(body.resource).toBe("https://mcp.savecraft.gg/");
-  });
-
-  it("allows CORS on the discovery endpoint", async () => {
-    const resp = await SELF.fetch("https://test-host/.well-known/oauth-protected-resource");
-    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
-  });
-});
-
-describe("OAuth Authorization Server Metadata", () => {
-  it("issuer matches request origin (RFC 8414)", async () => {
+  it("serves AS metadata with our domain as issuer", async () => {
     const resp = await SELF.fetch("https://test-host/.well-known/oauth-authorization-server");
     expect(resp.status).toBe(200);
 
@@ -71,74 +36,17 @@ describe("OAuth Authorization Server Metadata", () => {
       code_challenge_methods_supported: string[];
     }>();
 
-    // RFC 8414: issuer MUST match the URL the metadata was fetched from
     expect(body.issuer).toBe("https://test-host");
-    // Endpoints point to OUR domain (proxy), not Clerk
     expect(body.authorization_endpoint).toBe("https://test-host/oauth/authorize");
     expect(body.token_endpoint).toBe("https://test-host/oauth/token");
     expect(body.registration_endpoint).toBe("https://test-host/oauth/register");
     expect(body.code_challenge_methods_supported).toContain("S256");
   });
-
-  it("also serves under openid-configuration path", async () => {
-    const resp = await SELF.fetch("https://test-host/.well-known/openid-configuration");
-    expect(resp.status).toBe(200);
-    const body = await resp.json<{ issuer: string }>();
-    expect(body.issuer).toBe("https://test-host");
-  });
-
-  it("allows CORS on the AS metadata endpoint", async () => {
-    const resp = await SELF.fetch("https://test-host/.well-known/oauth-authorization-server");
-    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
-  });
 });
 
-// -- OAuth Proxy Endpoints (Clerk mode: 404) --------------------------------
+// -- Library-managed DCR endpoint ---------------------------------------------
 
-describe("OAuth Proxy - Clerk mode", () => {
-  const fakeEnv = { ...env, CLERK_ISSUER: "https://fake-clerk.example.com" } as typeof env;
-
-  it("returns 404 for /oauth/register when CLERK_ISSUER is set", async () => {
-    const resp = await worker.fetch(
-      new Request("https://test-host/oauth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client_name: "Test" }),
-      }),
-      fakeEnv,
-      {} as ExecutionContext,
-    );
-    expect(resp.status).toBe(404);
-  });
-
-  it("returns 404 for /oauth/authorize when CLERK_ISSUER is set", async () => {
-    const resp = await worker.fetch(
-      new Request("https://test-host/oauth/authorize?response_type=code&client_id=test", {
-        redirect: "manual",
-      }),
-      fakeEnv,
-      {} as ExecutionContext,
-    );
-    expect(resp.status).toBe(404);
-  });
-
-  it("returns 404 for /oauth/token when CLERK_ISSUER is set", async () => {
-    const resp = await worker.fetch(
-      new Request("https://test-host/oauth/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({ grant_type: "authorization_code", code: "test" }),
-      }),
-      fakeEnv,
-      {} as ExecutionContext,
-    );
-    expect(resp.status).toBe(404);
-  });
-});
-
-// -- OAuth Proxy Endpoints (stub mode) ------------------------------------
-
-describe("OAuth Proxy - DCR", () => {
+describe("OAuth DCR", () => {
   it("registers a client and returns client_id", async () => {
     const resp = await SELF.fetch(
       new Request("https://test-host/oauth/register", {
@@ -163,178 +71,29 @@ describe("OAuth Proxy - DCR", () => {
     expect(body.client_name).toBe("Test Client");
     expect(body.redirect_uris).toContain("https://example.com/callback");
   });
-
-  it("allows CORS on DCR endpoint", async () => {
-    const resp = await SELF.fetch(
-      new Request("https://test-host/oauth/register", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          client_name: "CORS Test",
-          redirect_uris: ["https://example.com/cb"],
-        }),
-      }),
-    );
-    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
-  });
 });
 
-describe("OAuth Proxy - Authorize", () => {
-  it("redirects to redirect_uri with code and state", async () => {
+// -- Our authorize handler (Clerk delegation) ---------------------------------
+
+describe("OAuth Authorize", () => {
+  it("returns 503 when Clerk is not configured", async () => {
     const resp = await SELF.fetch(
       new Request(
-        "https://test-host/oauth/authorize?response_type=code&client_id=test-client&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&state=abc123&code_challenge=xyz&code_challenge_method=S256",
+        "https://test-host/oauth/authorize?response_type=code&client_id=test&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&state=abc&code_challenge=xyz&code_challenge_method=S256",
         { redirect: "manual" },
       ),
     );
-    expect(resp.status).toBe(302);
+    expect(resp.status).toBe(503);
 
-    const location = new URL(resp.headers.get("Location")!);
-    expect(location.origin + location.pathname).toBe("https://example.com/callback");
-    expect(location.searchParams.get("state")).toBe("abc123");
-    expect(location.searchParams.get("code")).toBeDefined();
-  });
-
-  it("returns 404 when CLERK_ISSUER is set (clients talk to Clerk directly)", async () => {
-    const fakeEnv = { ...env, CLERK_ISSUER: "https://fake-clerk.example.com" } as typeof env;
-    const resp = await worker.fetch(
-      new Request(
-        "https://test-host/oauth/authorize?response_type=code&client_id=test-client&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&state=abc123",
-        { redirect: "manual" },
-      ),
-      fakeEnv,
-      {} as ExecutionContext,
-    );
-    expect(resp.status).toBe(404);
+    const body = await resp.json<{ error: string }>();
+    expect(body.error).toContain("Clerk OAuth not configured");
   });
 });
 
-describe("OAuth Proxy - Token", () => {
-  it("exchanges code for access token", async () => {
-    const resp = await SELF.fetch(
-      new Request("https://test-host/oauth/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          code: "stub-code",
-          redirect_uri: "https://example.com/callback",
-          client_id: "test-client",
-          code_verifier: "test-verifier",
-        }),
-      }),
-    );
-    expect(resp.status).toBe(200);
-
-    const body = await resp.json<{
-      access_token: string;
-      token_type: string;
-    }>();
-    expect(body.access_token).toBeDefined();
-    expect(body.token_type).toBe("Bearer");
-  });
-
-  it("allows CORS on token endpoint", async () => {
-    const resp = await SELF.fetch(
-      new Request("https://test-host/oauth/token", {
-        method: "POST",
-        headers: { "Content-Type": "application/x-www-form-urlencoded" },
-        body: new URLSearchParams({
-          grant_type: "authorization_code",
-          code: "stub",
-          client_id: "test",
-        }),
-      }),
-    );
-    expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
-  });
-});
-
-describe("MCP Subdomain Routing", () => {
-  const mcpInit = {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "initialize",
-    params: {
-      protocolVersion: "2025-11-25",
-      capabilities: {},
-      clientInfo: { name: "test", version: "1.0" },
-    },
-  };
-
-  it("routes root path to MCP handler when hostname matches MCP_HOSTNAME", async () => {
-    const fakeEnv = { ...env, MCP_HOSTNAME: "mcp.savecraft.gg" } as typeof env;
-    const resp = await worker.fetch(
-      new Request("https://mcp.savecraft.gg/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer test-user-uuid",
-        },
-        body: JSON.stringify(mcpInit),
-      }),
-      fakeEnv,
-      {} as ExecutionContext,
-    );
-    expect(resp.status).toBe(200);
-
-    const body = await resp.json<{ result: { serverInfo: unknown } }>();
-    expect(body.result.serverInfo).toBeDefined();
-  });
-
-  it("does not route root path to MCP on non-MCP hosts", async () => {
-    const fakeEnv = { ...env, MCP_HOSTNAME: "mcp.savecraft.gg" } as typeof env;
-    const resp = await worker.fetch(
-      new Request("https://api.savecraft.gg/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer test-user-uuid",
-        },
-        body: JSON.stringify(mcpInit),
-      }),
-      fakeEnv,
-      {} as ExecutionContext,
-    );
-    expect(resp.status).toBe(404);
-  });
-
-  it("does not route root path to MCP when MCP_HOSTNAME is unset", async () => {
-    const resp = await worker.fetch(
-      new Request("https://mcp.savecraft.gg/", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: "Bearer test-user-uuid",
-        },
-        body: JSON.stringify(mcpInit),
-      }),
-      env,
-      {} as ExecutionContext,
-    );
-    expect(resp.status).toBe(404);
-  });
-
-  it("returns 401 with correct origin in WWW-Authenticate on mcp subdomain", async () => {
-    const fakeEnv = { ...env, MCP_HOSTNAME: "mcp.savecraft.gg" } as typeof env;
-    const resp = await worker.fetch(
-      new Request("https://mcp.savecraft.gg/", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(mcpInit),
-      }),
-      fakeEnv,
-      {} as ExecutionContext,
-    );
-    expect(resp.status).toBe(401);
-
-    const wwwAuth = resp.headers.get("WWW-Authenticate");
-    expect(wwwAuth).toContain("https://mcp.savecraft.gg/.well-known/oauth-protected-resource");
-  });
-});
+// -- MCP Auth (library token validation) --------------------------------------
 
 describe("MCP Auth", () => {
-  it("returns 401 with WWW-Authenticate header for unauthenticated MCP requests", async () => {
+  it("returns 401 for unauthenticated MCP requests", async () => {
     const resp = await SELF.fetch("https://test-host/mcp", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -357,12 +116,15 @@ describe("MCP Auth", () => {
     expect(wwwAuth).toContain("/.well-known/oauth-protected-resource");
   });
 
-  it("accepts Bearer token auth in stub mode", async () => {
+  it("accepts valid OAuth token and returns MCP response", async () => {
+    const token = await getOAuthToken(AUTH_TEST_USER);
+
     const resp = await SELF.fetch("https://test-host/mcp", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: "Bearer test-user-uuid",
+        Authorization: `Bearer ${token}`,
+        Accept: "application/json, text/event-stream",
       },
       body: JSON.stringify({
         jsonrpc: "2.0",
@@ -377,9 +139,113 @@ describe("MCP Auth", () => {
     });
     expect(resp.status).toBe(200);
   });
+
+  it("rejects invalid Bearer token", async () => {
+    const resp = await SELF.fetch("https://test-host/mcp", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer totally-fake-token",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: {
+          protocolVersion: "2025-11-25",
+          capabilities: {},
+          clientInfo: { name: "test", version: "1.0" },
+        },
+      }),
+    });
+    expect(resp.status).toBe(401);
+  });
 });
 
-// -- API Key Auth Functions -----------------------------------------------
+// -- MCP Subdomain Routing ----------------------------------------------------
+
+describe("MCP Subdomain Routing", () => {
+  it("routes root path to MCP handler when hostname matches MCP_HOSTNAME", async () => {
+    const token = await getOAuthToken("subdomain-test-user");
+    const fakeEnv = { ...env, MCP_HOSTNAME: "mcp.savecraft.gg" } as typeof env;
+
+    const resp = await worker.fetch(
+      new Request("https://mcp.savecraft.gg/", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+          Accept: "application/json, text/event-stream",
+        },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-11-25",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+          },
+        }),
+      }),
+      fakeEnv,
+      {} as ExecutionContext,
+    );
+    expect(resp.status).toBe(200);
+  });
+
+  it("does not route root path to MCP on non-MCP hosts", async () => {
+    const fakeEnv = { ...env, MCP_HOSTNAME: "mcp.savecraft.gg" } as typeof env;
+    const resp = await worker.fetch(
+      new Request("https://api.savecraft.gg/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
+      }),
+      fakeEnv,
+      {} as ExecutionContext,
+    );
+    expect(resp.status).toBe(404);
+  });
+
+  it("does not route root path to MCP when MCP_HOSTNAME is unset", async () => {
+    const resp = await worker.fetch(
+      new Request("https://mcp.savecraft.gg/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize" }),
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+    expect(resp.status).toBe(404);
+  });
+
+  it("returns 401 on mcp subdomain without auth", async () => {
+    const fakeEnv = { ...env, MCP_HOSTNAME: "mcp.savecraft.gg" } as typeof env;
+    const resp = await worker.fetch(
+      new Request("https://mcp.savecraft.gg/", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "initialize",
+          params: {
+            protocolVersion: "2025-11-25",
+            capabilities: {},
+            clientInfo: { name: "test", version: "1.0" },
+          },
+        }),
+      }),
+      fakeEnv,
+      {} as ExecutionContext,
+    );
+    expect(resp.status).toBe(401);
+  });
+});
+
+// -- API Key Auth Functions ---------------------------------------------------
 
 describe("authenticateApiKey", () => {
   beforeEach(cleanAll);
@@ -425,7 +291,7 @@ describe("authenticateApiKey", () => {
   });
 });
 
-// -- API Key Auth Integration (push endpoint) -----------------------------
+// -- API Key Auth Integration (push endpoint) ---------------------------------
 
 describe("API key auth integration", () => {
   beforeEach(cleanAll);

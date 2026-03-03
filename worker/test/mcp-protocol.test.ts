@@ -1,14 +1,18 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll } from "./helpers";
+import { cleanAll, getOAuthToken } from "./helpers";
 
 const TEST_USER = "mcp-proto-user";
 const SAVE_UUID_HOLDER: { value: string } = { value: "" };
+const TOKEN_HOLDER: { value: string } = { value: "" };
 
 /**
  * Seed a save by pushing through the actual push API,
  * which populates both D1 and R2 correctly.
+ *
+ * Uses stub daemon auth (Bearer = user UUID) since CLERK_ISSUER is unset in tests.
+ * The UUID matches getOAuthToken(TEST_USER) so both auth paths resolve to the same user.
  */
 async function pushSave(): Promise<string> {
   const resp = await SELF.fetch("https://test-host/api/v1/push", {
@@ -55,7 +59,7 @@ function mcpRequest(method: string, id?: number, params?: unknown): Request {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${TEST_USER}`,
+      Authorization: `Bearer ${TOKEN_HOLDER.value}`,
       Accept: "application/json, text/event-stream",
     },
     body: JSON.stringify(body),
@@ -87,6 +91,7 @@ async function parseJsonResponse(resp: Response): Promise<unknown> {
 describe("MCP Protocol", () => {
   beforeEach(async () => {
     await cleanAll();
+    TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
     SAVE_UUID_HOLDER.value = await pushSave();
   });
 

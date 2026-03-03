@@ -5,7 +5,7 @@
   Wraps Panel + WindowTitleBar + content area.
 -->
 <script lang="ts">
-  import type { Device, DeviceStatus } from "$lib/types/device";
+  import type { Device, DeviceStatus, NoteSummary } from "$lib/types/device";
   import { SvelteMap } from "svelte/reactivity";
 
   import type { ActivateState } from "./GameCard.svelte";
@@ -25,6 +25,8 @@
     onactivate,
     onnotecreate,
     onnotedelete,
+    onnoteedit,
+    loadNotes,
     discoveryPending = false,
     initialGameId,
     initialSaveUuid,
@@ -35,9 +37,18 @@
     onconfig?: () => void;
     onactivate?: (gameId: string) => void;
     /** Called when user submits the add-note form. */
-    onnotecreate?: (saveUuid: string, title: string, content: string) => void;
+    onnotecreate?: (saveUuid: string, title: string, content: string) => Promise<void>;
     /** Called when user confirms note deletion. */
-    onnotedelete?: (saveUuid: string, noteId: string) => void;
+    onnotedelete?: (saveUuid: string, noteId: string) => Promise<void>;
+    /** Called when user edits a note inline. */
+    onnoteedit?: (
+      saveUuid: string,
+      noteId: string,
+      title: string,
+      content: string,
+    ) => Promise<void>;
+    /** Fetch notes for a save from the API. */
+    loadNotes?: (saveUuid: string) => Promise<NoteSummary[]>;
     discoveryPending?: boolean;
     /** Pre-navigate to a game (for storybook). */
     initialGameId?: string;
@@ -76,18 +87,59 @@
     onactivate?.(gameId);
   }
 
+  // Async notes state
+  let loadedNotes = $state<NoteSummary[]>([]);
+  let notesLoading = $state(false);
+  let notesError = $state<string | null>(null);
+  let notesRequestId = 0;
+
+  async function refreshNotes(saveUuid: string): Promise<void> {
+    if (!loadNotes) return;
+    const requestId = ++notesRequestId;
+    notesLoading = true;
+    notesError = null;
+    try {
+      const notes = await loadNotes(saveUuid);
+      if (requestId !== notesRequestId) return; // stale
+      loadedNotes = notes;
+    } catch (error) {
+      if (requestId !== notesRequestId) return; // stale
+      notesError = error instanceof Error ? error.message : "Failed to load notes";
+    } finally {
+      if (requestId === notesRequestId) {
+        notesLoading = false;
+      }
+    }
+  }
+
+  $effect(() => {
+    if (navSaveUuid) {
+      void refreshNotes(navSaveUuid);
+    } else {
+      notesRequestId++;
+      loadedNotes = [];
+      notesError = null;
+      notesLoading = false;
+    }
+  });
+
   // Note add form state
   let showAddNote = $state(false);
   let newTitle = $state("");
   let newContent = $state("");
   let contentBytes = $derived(new Blob([newContent]).size);
 
-  function handleSaveNote(): void {
+  async function handleSaveNote(): Promise<void> {
     if (!newTitle.trim() || !navSaveUuid) return;
-    onnotecreate?.(navSaveUuid, newTitle.trim(), newContent);
-    newTitle = "";
-    newContent = "";
-    showAddNote = false;
+    try {
+      await onnotecreate?.(navSaveUuid, newTitle.trim(), newContent);
+      newTitle = "";
+      newContent = "";
+      showAddNote = false;
+      await refreshNotes(navSaveUuid);
+    } catch (error) {
+      notesError = error instanceof Error ? error.message : "Failed to create note";
+    }
   }
 
   function handleCancelNote(): void {
@@ -212,8 +264,8 @@
     <div class="save-content">
       <div class="notes-section">
         <div class="notes-header">
-          <span class="notes-label">NOTES ({saveData.notes.length}/10)</span>
-          {#if !showAddNote && saveData.notes.length < 10}
+          <span class="notes-label">NOTES ({loadedNotes.length}/10)</span>
+          {#if !showAddNote && loadedNotes.length < 10}
             <button class="add-note-btn" onclick={() => (showAddNote = true)}>+ ADD NOTE</button>
           {/if}
         </div>
@@ -246,18 +298,39 @@
           </div>
         {/if}
 
+        {#if notesLoading}
+          <div class="notes-loading">Loading notes...</div>
+        {:else if notesError}
+          <div class="notes-error">{notesError}</div>
+        {/if}
+
         <div class="notes-list">
-          {#each saveData.notes as note (note.id)}
+          {#each loadedNotes as note (note.id)}
             <NoteCard
               {note}
-              ondelete={(noteId) => {
-                if (navSaveUuid) onnotedelete?.(navSaveUuid, noteId);
+              ondelete={async (noteId) => {
+                if (!navSaveUuid) return;
+                try {
+                  await onnotedelete?.(navSaveUuid, noteId);
+                  await refreshNotes(navSaveUuid);
+                } catch (error) {
+                  notesError = error instanceof Error ? error.message : "Failed to delete note";
+                }
+              }}
+              onedit={async (noteId, title, content) => {
+                if (!navSaveUuid) return;
+                try {
+                  await onnoteedit?.(navSaveUuid, noteId, title, content);
+                  await refreshNotes(navSaveUuid);
+                } catch (error) {
+                  notesError = error instanceof Error ? error.message : "Failed to update note";
+                }
               }}
             />
           {/each}
         </div>
 
-        {#if saveData.notes.length === 0 && !showAddNote}
+        {#if loadedNotes.length === 0 && !showAddNote && !notesLoading}
           <div class="empty-notes">
             <span class="empty-notes-title">No notes yet</span>
             <span class="empty-notes-sub">
@@ -329,9 +402,9 @@
 
   .game-grid {
     padding: 14px 12px;
-    display: flex;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
     gap: 8px;
-    flex-wrap: wrap;
   }
 
   .add-game-card {
@@ -343,7 +416,6 @@
     border-radius: 4px;
     background: transparent;
     border: 1px dashed rgba(74, 90, 173, 0.2);
-    min-width: 110px;
     min-height: 80px;
     cursor: not-allowed;
     opacity: 0.5;
@@ -604,6 +676,25 @@
   .note-save-btn:disabled {
     opacity: 0.4;
     cursor: not-allowed;
+  }
+
+  .notes-loading {
+    text-align: center;
+    padding: 16px;
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--color-text-muted);
+  }
+
+  .notes-error {
+    padding: 8px 12px;
+    margin-bottom: 8px;
+    background: rgba(232, 90, 90, 0.04);
+    border: 1px solid rgba(232, 90, 90, 0.13);
+    border-radius: 3px;
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--color-red, #e85a5a);
   }
 
   /* -- Empty state ------------------------------------------- */

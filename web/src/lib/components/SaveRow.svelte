@@ -1,6 +1,6 @@
 <!--
   @component
-  Clickable save row: status icon, name, summary, notes badge, lastUpdated, hover arrow.
+  Clickable save row: status icon, name, summary, lastUpdated, hover arrow.
 -->
 <script lang="ts">
   import type { SaveSummary } from "$lib/types/device";
@@ -29,9 +29,6 @@
     </div>
   </div>
   <div class="save-right">
-    {#if save.notes.length > 0}
-      <span class="notes-badge">📝 {save.notes.length}</span>
-    {/if}
     <span class="last-updated">{save.lastUpdated}</span>
     <span class="hover-arrow">&#9654;</span>
   </div>
@@ -109,16 +106,6 @@
     align-items: center;
     gap: 10px;
     flex-shrink: 0;
-  }
-
-  .notes-badge {
-    font-family: var(--font-body);
-    font-size: 14px;
-    color: var(--color-gold);
-    background: rgba(200, 168, 78, 0.07);
-    border: 1px solid rgba(200, 168, 78, 0.15);
-    border-radius: 2px;
-    padding: 1px 6px;
   }
 
   .last-updated {

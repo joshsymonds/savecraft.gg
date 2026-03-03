@@ -1,6 +1,6 @@
-import { authenticateDaemon, authenticateOAuth, authenticateSession, sha256Hex } from "./auth";
-import { handleMcpRequest } from "./mcp/handler";
+import { authenticateDaemon, authenticateSession, sha256Hex } from "./auth";
 import { indexNote, indexSaveSections, removeNoteFromIndex } from "./mcp/tools";
+import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
 import type { Env } from "./types";
 
 export { DaemonHub } from "./hub";
@@ -26,8 +26,6 @@ function corsHeaders(origin: string): Record<string, string> {
 }
 
 function corsify(response: Response, request: Request, env: Env): Response {
-  // WebSocket 101 responses carry a non-standard `webSocket` property that
-  // new Response() would strip. CORS doesn't apply to WebSocket anyway.
   if (response.status === 101) return response;
 
   const origin = getAllowedOrigin(request, env);
@@ -47,23 +45,66 @@ function validateId(id: string | undefined): id is string {
   return true;
 }
 
-export default {
+/** Returns true when the request targets a dedicated MCP subdomain. */
+function isMcpHost(url: URL, env: Env): boolean {
+  return !!env.MCP_HOSTNAME && url.hostname === env.MCP_HOSTNAME;
+}
+
+/**
+ * Non-MCP, non-OAuth request handler.
+ * Called by the library's defaultHandler for all routes it doesn't own.
+ */
+async function handleNonMcpRequest(request: Request, env: Env): Promise<Response> {
+  if (request.method === "OPTIONS") {
+    const origin = getAllowedOrigin(request, env);
+    if (!origin) return new Response(null, { status: 204 });
+    return new Response(null, { status: 204, headers: corsHeaders(origin) });
+  }
+  const url = new URL(request.url);
+  const response =
+    (await routePublicEndpoints(request, url, env)) ??
+    (await routeDaemonEndpoints(request, url, env)) ??
+    (await routeProtectedEndpoints(request, url, env));
+  const final = corsify(response, request, env);
+  if (final.status !== 101) {
+    final.headers.set("X-Savecraft-Version", env.VERSION ?? "dev");
+  }
+  return final;
+}
+
+/**
+ * The OAuthProvider wraps the entire Worker.
+ *
+ * - /mcp: library validates token from KV, passes props.userUuid to MCP handler
+ * - /.well-known/*, /oauth/register, /oauth/token: library handles natively
+ * - /oauth/authorize, /oauth/callback: defaultHandler delegates to Clerk
+ * - Everything else: defaultHandler delegates to handleNonMcpRequest
+ */
+const oauthProvider = buildOAuthProvider({
   async fetch(request: Request, env: Env): Promise<Response> {
-    if (request.method === "OPTIONS") {
-      const origin = getAllowedOrigin(request, env);
-      if (!origin) return new Response(null, { status: 204 });
-      return new Response(null, { status: 204, headers: corsHeaders(origin) });
-    }
     const url = new URL(request.url);
-    const response =
-      (await routePublicEndpoints(request, url, env)) ??
-      (await routeDaemonEndpoints(request, url, env)) ??
-      (await routeProtectedEndpoints(request, url, env));
-    const final = corsify(response, request, env);
-    if (final.status !== 101) {
-      final.headers.set("X-Savecraft-Version", env.VERSION ?? "dev");
+
+    if (url.pathname === "/oauth/authorize") {
+      return handleAuthorize(request, env);
     }
-    return final;
+    if (url.pathname === "/oauth/callback") {
+      return handleCallback(request, env);
+    }
+
+    return handleNonMcpRequest(request, env);
+  },
+});
+
+export default {
+  async fetch(request: Request, env: Env, ctx: ExecutionContext): Promise<Response> {
+    // Rewrite MCP subdomain root to /mcp so the library's apiRoute matches
+    if (isMcpHost(new URL(request.url), env) && new URL(request.url).pathname === "/") {
+      const rewritten = new URL(request.url);
+      rewritten.pathname = "/mcp";
+      request = new Request(rewritten.toString(), request);
+    }
+
+    return oauthProvider.fetch(request, env, ctx);
   },
 } satisfies ExportedHandler<Env>;
 
@@ -83,23 +124,11 @@ async function routePublicEndpoints(
   env: Env,
 ): Promise<Response | null> {
   if (url.pathname === "/health") return Response.json({ status: "ok" });
-  if (url.pathname === "/.well-known/oauth-protected-resource") {
-    return handleOAuthResourceMetadata(request, env);
-  }
-  if (
-    url.pathname === "/.well-known/oauth-authorization-server" ||
-    url.pathname === "/.well-known/openid-configuration"
-  ) {
-    return handleOAuthServerMetadata(request, env);
-  }
-  const oauthResponse = routeOAuthProxy(request, url, env);
-  if (oauthResponse) return oauthResponse;
   if (url.pathname === "/api/v1/plugins/manifest" && request.method === "GET") {
     return handlePluginManifest(env);
   }
   const downloadResponse = routeDownload(request, url, env);
   if (downloadResponse) return downloadResponse;
-  // Pairing claim is unauthenticated (the daemon has no token yet)
   if (url.pathname === "/api/v1/pair/claim" && request.method === "POST") {
     return claimPairingCode(request, env);
   }
@@ -153,11 +182,6 @@ async function routeWebSocketEndpoints(
     headers.set("X-User-UUID", auth.userUuid);
     return env.DAEMON_HUB.get(id).fetch(new Request(request, { headers }));
   }
-  if (url.pathname === "/mcp" || (isMcpHost(url, env) && url.pathname === "/")) {
-    const auth = await authenticateOAuth(request, env);
-    if (!auth) return unauthorizedMcp(request);
-    return handleMcpRequest(request, env, auth.userUuid);
-  }
   return null;
 }
 
@@ -205,193 +229,12 @@ function routeReadEndpoints(
   return Promise.resolve(null);
 }
 
-/** Returns true when the request targets a dedicated MCP subdomain. */
-function isMcpHost(url: URL, env: Env): boolean {
-  return !!env.MCP_HOSTNAME && url.hostname === env.MCP_HOSTNAME;
-}
-
-/**
- * Returns 401 with MCP-spec WWW-Authenticate header pointing
- * to the OAuth protected resource metadata endpoint.
- */
-function unauthorizedMcp(request: Request): Response {
-  const serverUrl = new URL(request.url).origin;
-  return new Response("Unauthorized", {
-    status: 401,
-    headers: {
-      "WWW-Authenticate": `Bearer resource_metadata="${serverUrl}/.well-known/oauth-protected-resource"`,
-    },
-  });
-}
-
-/**
- * RFC 9728 OAuth Protected Resource Metadata.
- * When CLERK_ISSUER is set, points MCP clients directly to Clerk as the
- * authorization server. In stub mode, points to our own domain.
- */
-function handleOAuthResourceMetadata(request: Request, env: Env): Response {
-  const resourceUrl = `${new URL(request.url).origin}/`;
-  const clerkIssuer = env.CLERK_ISSUER;
-
-  if (!clerkIssuer) {
-    return Response.json(
-      {
-        resource: resourceUrl,
-        authorization_servers: [resourceUrl],
-        bearer_methods_supported: ["header"],
-        resource_name: "Savecraft MCP Server",
-      },
-      { headers: { "Access-Control-Allow-Origin": "*" } },
-    );
-  }
-
-  return Response.json(
-    {
-      resource: resourceUrl,
-      authorization_servers: [clerkIssuer],
-      token_types_supported: ["urn:ietf:params:oauth:token-type:access_token"],
-      token_introspection_endpoint: `${clerkIssuer}/oauth/token`,
-      token_introspection_endpoint_auth_methods_supported: [
-        "client_secret_post",
-        "client_secret_basic",
-      ],
-      jwks_uri: `${clerkIssuer}/.well-known/jwks.json`,
-      authorization_data_types_supported: ["oauth_scope"],
-      authorization_data_locations_supported: ["header", "body"],
-      key_challenges_supported: [
-        {
-          challenge_type: "urn:ietf:params:oauth:pkce:code_challenge",
-          challenge_algs: ["S256"],
-        },
-      ],
-    },
-    { headers: { "Access-Control-Allow-Origin": "*" } },
-  );
-}
-
-/**
- * OAuth proxy endpoints only run in stub mode (CLERK_ISSUER unset).
- * When Clerk is configured, clients talk to Clerk directly.
- */
-function routeOAuthProxy(
-  request: Request,
-  url: URL,
-  env: Env,
-): Promise<Response> | Response | null {
-  if (env.CLERK_ISSUER) return null;
-
-  if (url.pathname === "/oauth/register" && request.method === "POST") {
-    return handleOAuthRegister(request);
-  }
-  if (url.pathname === "/oauth/authorize" && request.method === "GET") {
-    return handleOAuthAuthorize(request);
-  }
-  if (url.pathname === "/oauth/token" && request.method === "POST") {
-    return handleOAuthToken(request);
-  }
-  return null;
-}
-
-/**
- * RFC 8414 OAuth Authorization Server Metadata.
- * When CLERK_ISSUER is set, fetches Clerk's metadata and returns it
- * unmodified — issuer will be Clerk's URL, matching their tokens.
- * In stub mode, returns static metadata with our own URLs.
- */
-async function handleOAuthServerMetadata(request: Request, env: Env): Promise<Response> {
-  const clerkIssuer = env.CLERK_ISSUER;
-  const headers = { "Access-Control-Allow-Origin": "*" };
-
-  if (!clerkIssuer) {
-    const serverUrl = new URL(request.url).origin;
-    return Response.json(
-      {
-        issuer: serverUrl,
-        authorization_endpoint: `${serverUrl}/oauth/authorize`,
-        token_endpoint: `${serverUrl}/oauth/token`,
-        registration_endpoint: `${serverUrl}/oauth/register`,
-        response_types_supported: ["code"],
-        grant_types_supported: ["authorization_code", "refresh_token"],
-        code_challenge_methods_supported: ["S256"],
-      },
-      { headers },
-    );
-  }
-
-  try {
-    const resp = await fetch(`${clerkIssuer}/.well-known/oauth-authorization-server`);
-    if (!resp.ok) {
-      return new Response("Upstream metadata unavailable", { status: 502, headers });
-    }
-    const upstream = await resp.text();
-    return new Response(upstream, {
-      headers: {
-        "Content-Type": "application/json",
-        "Cache-Control": "public, max-age=3600",
-        ...headers,
-      },
-    });
-  } catch {
-    return new Response("Upstream metadata unavailable", { status: 502, headers });
-  }
-}
-
-/** Stub-mode DCR: returns a synthetic client registration. */
-async function handleOAuthRegister(request: Request): Promise<Response> {
-  const body = await request.json<Record<string, unknown>>();
-  const clientId = `stub-client-${crypto.randomUUID().slice(0, 8)}`;
-  return Response.json(
-    {
-      client_id: clientId,
-      client_name: body.client_name ?? "unnamed",
-      redirect_uris: body.redirect_uris ?? [],
-      grant_types: body.grant_types ?? ["authorization_code"],
-      response_types: body.response_types ?? ["code"],
-      token_endpoint_auth_method: "none",
-    },
-    { status: 201, headers: { "Access-Control-Allow-Origin": "*" } },
-  );
-}
-
-/** Stub-mode authorize: redirects to redirect_uri with a fake code. */
-function handleOAuthAuthorize(request: Request): Response {
-  const url = new URL(request.url);
-  const redirectUri = url.searchParams.get("redirect_uri");
-  if (!redirectUri) {
-    return Response.json({ error: "missing redirect_uri" }, { status: 400 });
-  }
-  const target = new URL(redirectUri);
-  target.searchParams.set("code", `stub-code-${crypto.randomUUID().slice(0, 8)}`);
-  const state = url.searchParams.get("state");
-  if (state) target.searchParams.set("state", state);
-  return new Response(null, {
-    status: 302,
-    headers: { Location: target.toString(), "Access-Control-Allow-Origin": "*" },
-  });
-}
-
-/** Stub-mode token exchange: returns a synthetic access token. */
-async function handleOAuthToken(request: Request): Promise<Response> {
-  const formData = await request.formData();
-  const rawClientId = formData.get("client_id");
-  const clientId = typeof rawClientId === "string" ? rawClientId : "unknown";
-  return Response.json(
-    {
-      access_token: `stub-token-${clientId}`,
-      token_type: "Bearer",
-      expires_in: 3600,
-    },
-    { headers: { "Access-Control-Allow-Origin": "*" } },
-  );
-}
-
 // -- Plugin Registry -----------------------------------------------
 
 async function handlePluginManifest(env: Env): Promise<Response> {
   const serverUrl = env.SERVER_URL ?? "https://api.savecraft.gg";
   const plugins: Record<string, Record<string, unknown>> = {};
 
-  // List all plugin manifests in R2
   const listed = await env.PLUGINS.list({ prefix: "plugins/" });
 
   for (const object of listed.objects) {
@@ -440,7 +283,6 @@ async function handleDeviceConfig(
   env: Env,
   userUuid: string,
 ): Promise<Response> {
-  // Parse device ID from /api/v1/devices/:deviceId/config
   const pathParts = url.pathname.split("/");
   const deviceId = pathParts[4];
   if (!validateId(deviceId)) {
@@ -474,7 +316,7 @@ async function handleGetDeviceConfig(
     try {
       fileExtensions = JSON.parse(row.file_extensions) as string[];
     } catch {
-      // Malformed JSON in D1 -- fall back to empty array
+      // Malformed JSON in D1
     }
     games[row.game_id] = {
       savePath: row.save_path,
@@ -501,8 +343,6 @@ async function handlePutDeviceConfig(
 
   const games = body.games ?? {};
 
-  // Delete existing configs for this device, then insert new ones.
-  // This ensures removed games are cleaned up.
   await env.DB.prepare("DELETE FROM device_configs WHERE user_uuid = ? AND device_id = ?")
     .bind(userUuid, deviceId)
     .run();
@@ -523,7 +363,6 @@ async function handlePutDeviceConfig(
       .run();
   }
 
-  // Poke the user's DaemonHub DO to push the config to connected daemons.
   const doId = env.DAEMON_HUB.idFromName(userUuid);
   const doStub = env.DAEMON_HUB.get(doId);
   const doResp = await doStub.fetch(
@@ -546,7 +385,6 @@ async function handleNotes(
   env: Env,
   userUuid: string,
 ): Promise<Response> {
-  // Parse path: /api/v1/notes/{save_id} or /api/v1/notes/{save_id}/{note_id}
   const parts = url.pathname.replace("/api/v1/notes/", "").split("/");
   const saveId = parts[0];
   const noteId = parts[1];
@@ -555,7 +393,6 @@ async function handleNotes(
     return Response.json({ error: "Invalid save_id" }, { status: 400 });
   }
 
-  // Verify save exists and belongs to user
   const save = await env.DB.prepare("SELECT uuid FROM saves WHERE uuid = ? AND user_uuid = ?")
     .bind(saveId, userUuid)
     .first<{ uuid: string }>();
@@ -582,10 +419,10 @@ async function handleNoteCollection(
 ): Promise<Response> {
   if (request.method === "GET") {
     const rows = await env.DB.prepare(
-      "SELECT note_id, title, source, LENGTH(content) as size_bytes FROM notes WHERE save_id = ? AND user_uuid = ? ORDER BY created_at DESC",
+      "SELECT note_id, title, content, source, LENGTH(content) as size_bytes, updated_at FROM notes WHERE save_id = ? AND user_uuid = ? ORDER BY updated_at DESC",
     )
       .bind(saveId, userUuid)
-      .all<{ note_id: string; title: string; source: string; size_bytes: number }>();
+      .all<{ note_id: string; title: string; content: string; source: string; size_bytes: number; updated_at: string }>();
 
     return Response.json({ notes: rows.results });
   }
@@ -602,12 +439,10 @@ async function handleNoteCollection(
       return Response.json({ error: "title and content required" }, { status: 400 });
     }
 
-    // 50KB content limit
     if (new TextEncoder().encode(body.content).length > 50 * 1024) {
       return Response.json({ error: "Content exceeds 50KB limit" }, { status: 413 });
     }
 
-    // 10 notes per save limit
     const count = await env.DB.prepare(
       "SELECT COUNT(*) as cnt FROM notes WHERE save_id = ? AND user_uuid = ?",
     )
@@ -625,7 +460,6 @@ async function handleNoteCollection(
       .bind(noteId, saveId, userUuid, body.title, body.content)
       .run();
 
-    // Index note in FTS5
     const saveRow = await env.DB.prepare("SELECT save_name FROM saves WHERE uuid = ?")
       .bind(saveId)
       .first<{ save_name: string }>();
@@ -742,7 +576,6 @@ async function updateOneNote(
       .bind(...values, noteId, userUuid)
       .run();
 
-    // Re-index note in FTS5
     const updated = await env.DB.prepare(
       "SELECT n.title, n.content, s.save_name FROM notes n JOIN saves s ON n.save_id = s.uuid WHERE n.note_id = ?",
     )
@@ -784,7 +617,6 @@ async function deleteOneNote(
     .bind(noteId, userUuid)
     .run();
 
-  // Remove from FTS5 index
   await removeNoteFromIndex(env.DB, userUuid, noteId);
 
   return Response.json({ deleted: true });
@@ -831,7 +663,6 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
 
   if (!save) return Response.json({ error: "Save not found" }, { status: 404 });
 
-  // Load section list from latest snapshot
   const key = `users/${userUuid}/saves/${saveId}/latest.json`;
   const object = await env.SAVES.get(key);
   let sections: { name: string; description: string }[] = [];
@@ -872,15 +703,12 @@ async function handleApiKeys(
   env: Env,
   userUuid: string,
 ): Promise<Response> {
-  // POST /api/v1/api-keys -- create
   if (url.pathname === "/api/v1/api-keys" && request.method === "POST") {
     return createApiKey(request, env, userUuid);
   }
-  // GET /api/v1/api-keys -- list
   if (url.pathname === "/api/v1/api-keys" && request.method === "GET") {
     return listApiKeys(env, userUuid);
   }
-  // DELETE /api/v1/api-keys/:keyId -- revoke
   if (url.pathname.startsWith("/api/v1/api-keys/") && request.method === "DELETE") {
     const keyId = url.pathname.replace("/api/v1/api-keys/", "");
     if (!validateId(keyId)) return Response.json({ error: "Invalid key_id" }, { status: 400 });
@@ -1016,7 +844,6 @@ async function recordRateLimitFailure(env: Env, ip: string): Promise<void> {
            ELSE window_start
          END`,
     ).bind(ip, windowParameter, windowParameter),
-    // Clean up expired entries from other IPs
     env.DB.prepare("DELETE FROM pairing_rate_limits WHERE window_start <= datetime('now', ?)").bind(
       windowParameter,
     ),
@@ -1036,7 +863,6 @@ async function createPairingCode(env: Env, userUuid: string): Promise<Response> 
   const id = crypto.randomUUID();
   const expiresAt = new Date(Date.now() + PAIRING_CODE_TTL_MINUTES * 60_000).toISOString();
 
-  // One active code per user: atomically delete any existing + insert new
   await env.DB.batch([
     env.DB.prepare("DELETE FROM pairing_codes WHERE user_uuid = ?").bind(userUuid),
     env.DB.prepare(
@@ -1048,8 +874,6 @@ async function createPairingCode(env: Env, userUuid: string): Promise<Response> 
 }
 
 async function claimPairingCode(request: Request, env: Env): Promise<Response> {
-  // Parse and validate body BEFORE rate limiting -- malformed requests get 400,
-  // only well-formed code attempts count toward rate limits.
   let body: { code?: string } = {};
   const text = await request.text();
   if (text) {
@@ -1070,7 +894,6 @@ async function claimPairingCode(request: Request, env: Env): Promise<Response> {
   }
 
   const codeHash = await sha256Hex(body.code);
-  // Expiry check in SQL -- avoids timezone parsing issues between D1 datetime and JS Date
   const row = await env.DB.prepare(
     "SELECT id, user_uuid FROM pairing_codes WHERE code_hash = ? AND expires_at > datetime('now')",
   )
@@ -1082,14 +905,12 @@ async function claimPairingCode(request: Request, env: Env): Promise<Response> {
     return Response.json({ error: "Invalid or expired code" }, { status: 401 });
   }
 
-  // Atomically delete the pairing code (single-use) and create the API key
   const prepared = await prepareApiKey("paired-device");
   await env.DB.batch([
     env.DB.prepare("DELETE FROM pairing_codes WHERE id = ?").bind(row.id),
     apiKeyInsertStatement(env, prepared, row.user_uuid),
   ]);
 
-  // Derive server URL from env or request
   const serverUrl = env.SERVER_URL ?? new URL(request.url).origin;
 
   return Response.json({ token: prepared.key, serverUrl });
@@ -1097,7 +918,6 @@ async function claimPairingCode(request: Request, env: Env): Promise<Response> {
 
 /**
  * Check if the incoming parsedAt timestamp is newer than the current latest.json.
- * Returns true if there is no existing latest or the incoming timestamp is strictly newer.
  */
 async function isNewerThanLatest(
   snapshots: R2Bucket,
@@ -1111,10 +931,6 @@ async function isNewerThanLatest(
   return parsedAt > existingParsedAt;
 }
 
-/**
- * Look up the human-readable game name from the plugin manifest in R2.
- * Falls back to game_id if no manifest exists (e.g. in tests).
- */
 async function resolveGameName(plugins: R2Bucket, gameId: string): Promise<string> {
   const manifest = await plugins.get(`plugins/${gameId}/manifest.json`);
   if (!manifest) return gameId;
@@ -1122,7 +938,6 @@ async function resolveGameName(plugins: R2Bucket, gameId: string): Promise<strin
   return data.name ?? gameId;
 }
 
-/** Read the request body, decompressing gzip if Content-Encoding says so. */
 async function readPushBody(request: Request): Promise<Record<string, unknown>> {
   let raw: string;
   if (request.headers.get("Content-Encoding") === "gzip" && request.body) {
@@ -1135,7 +950,6 @@ async function readPushBody(request: Request): Promise<Record<string, unknown>> 
   return JSON.parse(raw) as Record<string, unknown>;
 }
 
-/** Upsert save row + write R2 snapshots + update FTS5 index. */
 async function storePush(
   env: Env,
   userUuid: string,
@@ -1165,11 +979,9 @@ async function storePush(
       .run();
   }
 
-  // Write snapshot to R2 (always -- snapshots are immutable)
   const snapshotKey = `users/${userUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
   await env.SAVES.put(snapshotKey, bodyString);
 
-  // Update latest pointer only if incoming timestamp is newer
   const latestKey = `users/${userUuid}/saves/${saveUuid}/latest.json`;
   const isNewer = await isNewerThanLatest(env.SAVES, latestKey, parsedAt);
   if (isNewer) {
