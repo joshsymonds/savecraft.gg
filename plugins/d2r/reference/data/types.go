@@ -74,14 +74,14 @@ type MonsterEntry struct {
 	ID     string
 	Name   string
 	IsBoss bool
-	Levels [3]int      // [Normal, Nightmare, Hell]
+	Levels [3]int       // [Normal, Nightmare, Hell]
 	TCs    [3][4]string // [difficulty][regular, champ, unique, quest]
 }
 
 // Area represents an area from levels.txt with monster levels and spawn lists.
 type Area struct {
-	ID       string // internal name (e.g. "Act 5 - Ice Cave 2A")
-	Name     string // display name from *StringName (e.g. "Drifter Cavern")
-	Levels   [3]int // MonLvlEx per difficulty [Normal, Nightmare, Hell]
+	ID       string      // internal name (e.g. "Act 5 - Ice Cave 2A")
+	Name     string      // display name from *StringName (e.g. "Drifter Cavern")
+	Levels   [3]int      // MonLvlEx per difficulty [Normal, Nightmare, Hell]
 	Monsters [3][]string // monster IDs that spawn per difficulty [N, NM, H]
 }

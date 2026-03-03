@@ -31,13 +31,13 @@ type Calculator struct {
 	itemNameToCode map[string]string // display name → code (case-sensitive)
 	itemTypeByCode map[string]*data.ItemType
 	monsterByID    map[string]*data.MonsterEntry
-	areaByName     map[string]*data.Area // keyed by display name (e.g. "Drifter Cavern")
+	areaByName     map[string]*data.Area      // keyed by display name (e.g. "Drifter Cavern")
 	allTypeCodes   map[string]map[string]bool // code → set of (self + all ancestor codes)
 	virtualTCs     map[string]*virtualTC
 
 	// Reverse index for item → source lookups.
-	reverseTCParents map[string][]string       // child TC/item → parent TC names
-	itemVirtualTCs   map[string][]string       // item code → virtual TC names containing it
+	reverseTCParents map[string][]string        // child TC/item → parent TC names
+	itemVirtualTCs   map[string][]string        // item code → virtual TC names containing it
 	tcToEntries      map[string][]*monsterEntry // upgraded TC name → monster-area entries
 }
 
