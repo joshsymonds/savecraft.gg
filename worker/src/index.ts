@@ -354,11 +354,14 @@ async function handleOAuthRegister(request: Request, env: Env): Promise<Response
 
 /**
  * OAuth authorize proxy.
- * Redirects the user to Clerk's authorize endpoint with all query params.
+ * Redirects the user to Clerk's authorize endpoint, stripping `scope`.
+ * MCP clients send default OIDC scopes (openid, profile, email) that Clerk
+ * rejects for dynamically registered clients. We don't use scopes.
  * In stub mode, redirects directly to redirect_uri with a stub code.
  */
 function handleOAuthAuthorize(request: Request, env: Env): Response {
   const url = new URL(request.url);
+  url.searchParams.delete("scope");
   const clerkIssuer = env.CLERK_ISSUER;
 
   if (!clerkIssuer) {
@@ -377,8 +380,7 @@ function handleOAuthAuthorize(request: Request, env: Env): Response {
     });
   }
 
-  // Prod: redirect to Clerk's authorize endpoint, preserving raw query string
-  // to avoid URLSearchParams re-encoding (which corrupts redirect_uri)
+  // Prod: redirect to Clerk's authorize endpoint
   const clerkLocation = `${clerkIssuer}/oauth/authorize${url.search}`;
   return new Response(null, {
     status: 302,
