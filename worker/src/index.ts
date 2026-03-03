@@ -226,207 +226,163 @@ function unauthorizedMcp(request: Request): Response {
 
 /**
  * RFC 9728 OAuth Protected Resource Metadata.
- * Points MCP clients to the authorization server (Clerk).
+ * When CLERK_ISSUER is set, points MCP clients directly to Clerk as the
+ * authorization server. In stub mode, points to our own domain.
  */
-function handleOAuthResourceMetadata(request: Request, _env: Env): Response {
+function handleOAuthResourceMetadata(request: Request, env: Env): Response {
   const serverUrl = new URL(request.url).origin;
+  const clerkIssuer = env.CLERK_ISSUER;
+
+  if (!clerkIssuer) {
+    return Response.json(
+      {
+        resource: serverUrl,
+        authorization_servers: [serverUrl],
+        bearer_methods_supported: ["header"],
+        resource_name: "Savecraft MCP Server",
+      },
+      { headers: { "Access-Control-Allow-Origin": "*" } },
+    );
+  }
 
   return Response.json(
     {
       resource: serverUrl,
-      authorization_servers: [serverUrl],
-      bearer_methods_supported: ["header"],
-      resource_name: "Savecraft MCP Server",
+      authorization_servers: [clerkIssuer],
+      token_types_supported: ["urn:ietf:params:oauth:token-type:access_token"],
+      token_introspection_endpoint: `${clerkIssuer}/oauth/token`,
+      token_introspection_endpoint_auth_methods_supported: [
+        "client_secret_post",
+        "client_secret_basic",
+      ],
+      jwks_uri: `${clerkIssuer}/.well-known/jwks.json`,
+      authorization_data_types_supported: ["oauth_scope"],
+      authorization_data_locations_supported: ["header", "body"],
+      key_challenges_supported: [
+        {
+          challenge_type: "urn:ietf:params:oauth:pkce:code_challenge",
+          challenge_algs: ["S256"],
+        },
+      ],
     },
-    {
-      headers: { "Access-Control-Allow-Origin": "*" },
-    },
+    { headers: { "Access-Control-Allow-Origin": "*" } },
   );
 }
 
+/**
+ * OAuth proxy endpoints only run in stub mode (CLERK_ISSUER unset).
+ * When Clerk is configured, clients talk to Clerk directly.
+ */
 function routeOAuthProxy(
   request: Request,
   url: URL,
   env: Env,
 ): Promise<Response> | Response | null {
+  if (env.CLERK_ISSUER) return null;
+
   if (url.pathname === "/oauth/register" && request.method === "POST") {
-    return handleOAuthRegister(request, env);
+    return handleOAuthRegister(request);
   }
   if (url.pathname === "/oauth/authorize" && request.method === "GET") {
-    return handleOAuthAuthorize(request, env);
+    return handleOAuthAuthorize(request);
   }
   if (url.pathname === "/oauth/token" && request.method === "POST") {
-    return handleOAuthToken(request, env);
+    return handleOAuthToken(request);
   }
   return null;
 }
 
 /**
  * RFC 8414 OAuth Authorization Server Metadata.
- * Returns metadata with OUR origin as issuer and OUR URLs as endpoints,
- * so MCP clients pass the RFC 8414 issuer-match check. The actual OAuth
- * flow is proxied to Clerk via /oauth/register, /oauth/authorize, /oauth/token.
- *
- * In prod, fetches Clerk's AS metadata to pick up supported features
- * (scopes, grant types, etc.) and rewrites issuer + endpoint URLs.
- * In stub mode (CLERK_ISSUER unset), returns static metadata for dev/test.
+ * When CLERK_ISSUER is set, fetches Clerk's metadata and returns it
+ * unmodified — issuer will be Clerk's URL, matching their tokens.
+ * In stub mode, returns static metadata with our own URLs.
  */
 async function handleOAuthServerMetadata(request: Request, env: Env): Promise<Response> {
-  const serverUrl = new URL(request.url).origin;
   const clerkIssuer = env.CLERK_ISSUER;
   const headers = { "Access-Control-Allow-Origin": "*" };
 
-  const baseMetadata = {
-    issuer: serverUrl,
-    authorization_endpoint: `${serverUrl}/oauth/authorize`,
-    token_endpoint: `${serverUrl}/oauth/token`,
-    registration_endpoint: `${serverUrl}/oauth/register`,
-    response_types_supported: ["code"],
-    grant_types_supported: ["authorization_code", "refresh_token"],
-    code_challenge_methods_supported: ["S256"],
-  };
-
   if (!clerkIssuer) {
-    return Response.json(baseMetadata, { headers });
+    const serverUrl = new URL(request.url).origin;
+    return Response.json(
+      {
+        issuer: serverUrl,
+        authorization_endpoint: `${serverUrl}/oauth/authorize`,
+        token_endpoint: `${serverUrl}/oauth/token`,
+        registration_endpoint: `${serverUrl}/oauth/register`,
+        response_types_supported: ["code"],
+        grant_types_supported: ["authorization_code", "refresh_token"],
+        code_challenge_methods_supported: ["S256"],
+      },
+      { headers },
+    );
   }
 
   try {
     const resp = await fetch(`${clerkIssuer}/.well-known/oauth-authorization-server`);
     if (!resp.ok) {
-      return Response.json(baseMetadata, { headers });
+      return new Response("Upstream metadata unavailable", { status: 502, headers });
     }
-    const upstream = await resp.json<Record<string, unknown>>();
-    return Response.json(
-      {
-        ...upstream,
-        // Rewrite issuer + endpoints to our domain (proxy)
-        issuer: serverUrl,
-        authorization_endpoint: `${serverUrl}/oauth/authorize`,
-        token_endpoint: `${serverUrl}/oauth/token`,
-        registration_endpoint: `${serverUrl}/oauth/register`,
+    const upstream = await resp.text();
+    return new Response(upstream, {
+      headers: {
+        "Content-Type": "application/json",
+        "Cache-Control": "public, max-age=3600",
+        ...headers,
       },
-      { headers: { ...headers, "Cache-Control": "public, max-age=3600" } },
-    );
-  } catch {
-    return Response.json(baseMetadata, { headers });
-  }
-}
-
-/**
- * RFC 7591 Dynamic Client Registration proxy.
- * Forwards the registration request to Clerk and returns the response.
- * In stub mode, returns a synthetic client registration.
- */
-async function handleOAuthRegister(request: Request, env: Env): Promise<Response> {
-  const clerkIssuer = env.CLERK_ISSUER;
-  const body = await request.json<Record<string, unknown>>();
-
-  if (!clerkIssuer) {
-    // Stub: generate a fake client registration
-    const clientId = `stub-client-${crypto.randomUUID().slice(0, 8)}`;
-    return Response.json(
-      {
-        client_id: clientId,
-        client_name: body.client_name ?? "unnamed",
-        redirect_uris: body.redirect_uris ?? [],
-        grant_types: body.grant_types ?? ["authorization_code"],
-        response_types: body.response_types ?? ["code"],
-        token_endpoint_auth_method: "none",
-      },
-      { status: 201, headers: { "Access-Control-Allow-Origin": "*" } },
-    );
-  }
-
-  const resp = await fetch(`${clerkIssuer}/oauth/register`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  const result = await resp.text();
-  return new Response(result, {
-    status: resp.status,
-    headers: {
-      "Content-Type": resp.headers.get("Content-Type") ?? "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
-}
-
-/**
- * OAuth authorize proxy.
- * Redirects the user to Clerk's authorize endpoint, stripping `scope`.
- * MCP clients send default OIDC scopes (openid, profile, email) that Clerk
- * rejects for dynamically registered clients. We don't use scopes.
- * In stub mode, redirects directly to redirect_uri with a stub code.
- */
-function handleOAuthAuthorize(request: Request, env: Env): Response {
-  const url = new URL(request.url);
-  url.searchParams.delete("scope");
-  const clerkIssuer = env.CLERK_ISSUER;
-
-  if (!clerkIssuer) {
-    // Stub: redirect to redirect_uri with a fake code
-    const redirectUri = url.searchParams.get("redirect_uri");
-    if (!redirectUri) {
-      return Response.json({ error: "missing redirect_uri" }, { status: 400 });
-    }
-    const target = new URL(redirectUri);
-    target.searchParams.set("code", `stub-code-${crypto.randomUUID().slice(0, 8)}`);
-    const state = url.searchParams.get("state");
-    if (state) target.searchParams.set("state", state);
-    return new Response(null, {
-      status: 302,
-      headers: { Location: target.toString(), "Access-Control-Allow-Origin": "*" },
     });
+  } catch {
+    return new Response("Upstream metadata unavailable", { status: 502, headers });
   }
+}
 
-  // Prod: redirect to Clerk's authorize endpoint
-  const clerkLocation = `${clerkIssuer}/oauth/authorize${url.search}`;
+/** Stub-mode DCR: returns a synthetic client registration. */
+async function handleOAuthRegister(request: Request): Promise<Response> {
+  const body = await request.json<Record<string, unknown>>();
+  const clientId = `stub-client-${crypto.randomUUID().slice(0, 8)}`;
+  return Response.json(
+    {
+      client_id: clientId,
+      client_name: body.client_name ?? "unnamed",
+      redirect_uris: body.redirect_uris ?? [],
+      grant_types: body.grant_types ?? ["authorization_code"],
+      response_types: body.response_types ?? ["code"],
+      token_endpoint_auth_method: "none",
+    },
+    { status: 201, headers: { "Access-Control-Allow-Origin": "*" } },
+  );
+}
+
+/** Stub-mode authorize: redirects to redirect_uri with a fake code. */
+function handleOAuthAuthorize(request: Request): Response {
+  const url = new URL(request.url);
+  const redirectUri = url.searchParams.get("redirect_uri");
+  if (!redirectUri) {
+    return Response.json({ error: "missing redirect_uri" }, { status: 400 });
+  }
+  const target = new URL(redirectUri);
+  target.searchParams.set("code", `stub-code-${crypto.randomUUID().slice(0, 8)}`);
+  const state = url.searchParams.get("state");
+  if (state) target.searchParams.set("state", state);
   return new Response(null, {
     status: 302,
-    headers: { Location: clerkLocation, "Access-Control-Allow-Origin": "*" },
+    headers: { Location: target.toString(), "Access-Control-Allow-Origin": "*" },
   });
 }
 
-/**
- * OAuth token proxy.
- * Forwards the token exchange to Clerk and returns the response.
- * In stub mode, returns a synthetic access token.
- */
-async function handleOAuthToken(request: Request, env: Env): Promise<Response> {
-  const clerkIssuer = env.CLERK_ISSUER;
-
-  if (!clerkIssuer) {
-    // Stub: return a fake token
-    const formData = await request.formData();
-    const rawClientId = formData.get("client_id");
-    const clientId = typeof rawClientId === "string" ? rawClientId : "unknown";
-    return Response.json(
-      {
-        access_token: `stub-token-${clientId}`,
-        token_type: "Bearer",
-        expires_in: 3600,
-      },
-      { headers: { "Access-Control-Allow-Origin": "*" } },
-    );
-  }
-
-  const body = await request.text();
-  const resp = await fetch(`${clerkIssuer}/oauth/token`, {
-    method: "POST",
-    headers: {
-      "Content-Type": request.headers.get("Content-Type") ?? "application/x-www-form-urlencoded",
+/** Stub-mode token exchange: returns a synthetic access token. */
+async function handleOAuthToken(request: Request): Promise<Response> {
+  const formData = await request.formData();
+  const rawClientId = formData.get("client_id");
+  const clientId = typeof rawClientId === "string" ? rawClientId : "unknown";
+  return Response.json(
+    {
+      access_token: `stub-token-${clientId}`,
+      token_type: "Bearer",
+      expires_in: 3600,
     },
-    body,
-  });
-  const result = await resp.text();
-  return new Response(result, {
-    status: resp.status,
-    headers: {
-      "Content-Type": resp.headers.get("Content-Type") ?? "application/json",
-      "Access-Control-Allow-Origin": "*",
-    },
-  });
+    { headers: { "Access-Control-Allow-Origin": "*" } },
+  );
 }
 
 // -- Plugin Registry -----------------------------------------------
