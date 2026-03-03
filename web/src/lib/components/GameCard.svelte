@@ -14,12 +14,20 @@
   let {
     game,
     onactivate,
+    onclick,
     activateState = "idle",
   }: {
     game: DeviceGame;
     onactivate?: (gameId: string) => void;
+    onclick?: () => void;
     activateState?: ActivateState;
   } = $props();
+
+  let clickable = $derived(
+    onclick !== undefined && (game.status === "watching" || game.status === "error"),
+  );
+
+  let notFound = $derived(game.status === "not_found");
 
   const ACTIVATE_LABELS: Record<ActivateState, string> = {
     idle: "ACTIVATE",
@@ -36,6 +44,19 @@
   class="game-card"
   class:detected={game.status === "detected"}
   class:activating={game.status === "activating"}
+  class:not-found={notFound}
+  class:clickable
+  role={clickable ? "button" : undefined}
+  tabindex={clickable ? 0 : undefined}
+  onclick={clickable ? onclick : undefined}
+  onkeydown={clickable
+    ? (keyEvent) => {
+        if (keyEvent.key === "Enter" || keyEvent.key === " ") {
+          keyEvent.preventDefault();
+          onclick?.();
+        }
+      }
+    : undefined}
 >
   <span class="game-icon">{gameIcon(game.name)}</span>
   <span class="game-name">{game.name}</span>
@@ -75,6 +96,15 @@
     background: rgba(74, 90, 173, 0.03);
     border: 1px solid rgba(74, 90, 173, 0.06);
     min-width: 110px;
+  }
+
+  .game-card.clickable {
+    cursor: pointer;
+  }
+
+  .game-card.clickable:hover {
+    background: rgba(74, 90, 173, 0.12);
+    border-color: rgba(74, 90, 173, 0.25);
   }
 
   .game-card.detected {

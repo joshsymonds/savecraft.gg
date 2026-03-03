@@ -2,11 +2,24 @@ export type DeviceStatus = "online" | "error" | "offline";
 
 export type GameStatus = "watching" | "error" | "detected" | "not_found" | "activating";
 
+export type NoteSource = "user" | "ai" | "import";
+
+export interface NoteSummary {
+  id: string;
+  title: string;
+  preview: string;
+  source: NoteSource;
+  sizeBytes: number;
+  updatedAt: string;
+}
+
 export interface SaveSummary {
   saveUuid: string;
   saveName: string;
   summary: string;
   lastUpdated: string;
+  status: "success" | "error";
+  notes: NoteSummary[];
 }
 
 export interface DeviceGame {
@@ -15,6 +28,8 @@ export interface DeviceGame {
   status: GameStatus;
   statusLine: string;
   saves: SaveSummary[];
+  path?: string;
+  error?: string;
 }
 
 export interface Device {

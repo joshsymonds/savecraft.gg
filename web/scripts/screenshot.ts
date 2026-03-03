@@ -2,12 +2,19 @@
  * Screenshot utility for capturing Storybook components
  *
  * Usage:
- *   npx tsx scripts/screenshot.ts [story-path]
- *   npx tsx scripts/screenshot.ts --all
+ *   npx tsx scripts/screenshot.ts <story-id>              # single story
+ *   npx tsx scripts/screenshot.ts <id1> <id2> ...         # multiple stories
+ *   npx tsx scripts/screenshot.ts --grep <pattern>        # filter by substring/regex
+ *   npx tsx scripts/screenshot.ts --all                   # every story
+ *
+ * Options:
+ *   --port <number>   Storybook port (default: 6006)
  *
  * Examples:
  *   npx tsx scripts/screenshot.ts components-panel--default
- *   npx tsx scripts/screenshot.ts --all
+ *   npx tsx scripts/screenshot.ts --grep devicewindow
+ *   npx tsx scripts/screenshot.ts --grep "notecard|saverow"
+ *   npx tsx scripts/screenshot.ts --all --port 6007
  *
  * Story paths follow the pattern: category-component--story-name (lowercase, hyphens)
  *
@@ -47,8 +54,42 @@ function findChromium(): string | undefined {
   return undefined;
 }
 
-async function getAllStoryIds(): Promise<string[]> {
-  const response = await fetch("http://localhost:6006/index.json");
+function parseArgs(): { mode: "all" | "grep" | "ids"; port: number; pattern?: string; ids?: string[] } {
+  const args = process.argv.slice(2);
+  let port = 6006;
+  const ids: string[] = [];
+  let mode: "all" | "grep" | "ids" = "ids";
+  let pattern: string | undefined;
+
+  for (let index = 0; index < args.length; index++) {
+    const arg = args[index];
+    if (arg === "--port") {
+      port = Number(args[++index]);
+    } else if (arg === "--all") {
+      mode = "all";
+    } else if (arg === "--grep") {
+      mode = "grep";
+      pattern = args[++index];
+    } else if (!arg.startsWith("-")) {
+      ids.push(arg);
+    }
+  }
+
+  if (mode === "ids" && ids.length === 0) {
+    console.log("Usage:");
+    console.log("  npx tsx scripts/screenshot.ts <story-id>          # single story");
+    console.log("  npx tsx scripts/screenshot.ts <id1> <id2> ...     # multiple stories");
+    console.log("  npx tsx scripts/screenshot.ts --grep <pattern>    # filter by substring/regex");
+    console.log("  npx tsx scripts/screenshot.ts --all               # every story");
+    console.log("  --port <number>  Storybook port (default: 6006)");
+    process.exit(1);
+  }
+
+  return { mode, port, pattern, ids: ids.length > 0 ? ids : undefined };
+}
+
+async function getAllStoryIds(port: number): Promise<string[]> {
+  const response = await fetch(`http://localhost:${String(port)}/index.json`);
   const index = (await response.json()) as {
     entries: Record<string, { id: string; type: string }>;
   };
@@ -57,7 +98,7 @@ async function getAllStoryIds(): Promise<string[]> {
     .map((entry) => entry.id);
 }
 
-async function screenshot(storyPath: string): Promise<void> {
+async function captureStories(storyIds: string[], port: number): Promise<void> {
   await mkdir(screenshotsDir, { recursive: true });
 
   const executablePath = findChromium();
@@ -69,41 +110,10 @@ async function screenshot(storyPath: string): Promise<void> {
     viewport: { width: 1200, height: 900 },
   });
 
-  const url = `http://localhost:6006/iframe.html?id=${storyPath}&viewMode=story`;
-  console.log(`Capturing: ${url}`);
-
-  try {
-    await page.goto(url, { waitUntil: "networkidle" });
-    await page.waitForTimeout(500);
-
-    const outputPath = join(screenshotsDir, `${storyPath}.png`);
-    await page.screenshot({ path: outputPath, fullPage: true });
-
-    console.log(`Saved: ${outputPath}`);
-  } catch (error) {
-    console.error(`Failed to capture ${storyPath}:`, error);
-  }
-
-  await browser.close();
-}
-
-async function screenshotAll(): Promise<void> {
-  await mkdir(screenshotsDir, { recursive: true });
-
-  const storyIds = await getAllStoryIds();
-  console.log(`Found ${storyIds.length} stories to capture\n`);
-
-  const executablePath = findChromium();
-  const browser = await chromium.launch({
-    executablePath,
-    channel: executablePath ? undefined : "chromium",
-  });
-  const page = await browser.newPage({
-    viewport: { width: 1200, height: 900 },
-  });
+  console.log(`Capturing ${String(storyIds.length)} ${storyIds.length === 1 ? "story" : "stories"}\n`);
 
   for (const storyId of storyIds) {
-    const url = `http://localhost:6006/iframe.html?id=${storyId}&viewMode=story`;
+    const url = `http://localhost:${String(port)}/iframe.html?id=${storyId}&viewMode=story`;
     console.log(`Capturing: ${storyId}`);
 
     try {
@@ -113,25 +123,34 @@ async function screenshotAll(): Promise<void> {
       const outputPath = join(screenshotsDir, `${storyId}.png`);
       await page.screenshot({ path: outputPath, fullPage: true });
     } catch (error) {
-      console.error(`  Failed: ${error}`);
+      console.error(`  Failed: ${String(error)}`);
     }
   }
 
   await browser.close();
-  console.log(`\nDone! ${storyIds.length} screenshots in ${screenshotsDir}`);
+  console.log(`\nDone! ${String(storyIds.length)} screenshots in ${screenshotsDir}`);
 }
 
-const arg = process.argv[2];
+async function main(): Promise<void> {
+  const { mode, port, pattern, ids } = parseArgs();
 
-if (!arg) {
-  console.log("Usage:");
-  console.log("  npx tsx scripts/screenshot.ts <story-path>");
-  console.log("  npx tsx scripts/screenshot.ts --all");
-  process.exit(1);
+  let storyIds: string[];
+
+  if (mode === "all") {
+    storyIds = await getAllStoryIds(port);
+  } else if (mode === "grep") {
+    const allIds = await getAllStoryIds(port);
+    const regex = new RegExp(pattern!, "i");
+    storyIds = allIds.filter((id) => regex.test(id));
+    if (storyIds.length === 0) {
+      console.error(`No stories match pattern: ${pattern!}`);
+      process.exit(1);
+    }
+  } else {
+    storyIds = ids!;
+  }
+
+  await captureStories(storyIds, port);
 }
 
-if (arg === "--all") {
-  void screenshotAll();
-} else {
-  void screenshot(arg);
-}
+void main();

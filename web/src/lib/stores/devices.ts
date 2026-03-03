@@ -66,6 +66,8 @@ function mapDeviceInfo(d: WireDeviceInfo): Device {
       saveName: s.identity?.name ?? "Unknown",
       summary: s.summary ?? "",
       lastUpdated: relativeTime(s.lastUpdated),
+      status: "success" as const,
+      notes: [],
     }));
     return {
       gameId: g.gameId ?? "",
@@ -252,6 +254,8 @@ function handlePushCompleted(msg: WireMessage): void {
           saveName: pc.identity?.name ?? "Unknown",
           summary: pc.summary ?? "",
           lastUpdated: "just now",
+          status: "success",
+          notes: [],
         });
       }
       game.statusLine = gameStatusLine(game.status, game.saves);
