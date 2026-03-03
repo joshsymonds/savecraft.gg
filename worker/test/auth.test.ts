@@ -9,7 +9,7 @@ import { cleanAll } from "./helpers";
 const AUTH_TEST_USER = "auth-test-user";
 
 describe("OAuth Discovery", () => {
-  it("serves protected resource metadata at well-known endpoint", async () => {
+  it("serves protected resource metadata at well-known endpoint (stub mode)", async () => {
     const resp = await SELF.fetch("https://test-host/.well-known/oauth-protected-resource");
     expect(resp.status).toBe(200);
 
@@ -20,8 +20,28 @@ describe("OAuth Discovery", () => {
     }>();
 
     expect(body.resource).toBe("https://test-host");
-    expect(body.authorization_servers).toHaveLength(1);
+    expect(body.authorization_servers).toEqual(["https://test-host"]);
     expect(body.bearer_methods_supported).toContain("header");
+  });
+
+  it("points authorization_servers to Clerk when CLERK_ISSUER is set", async () => {
+    const fakeEnv = { ...env, CLERK_ISSUER: "https://fake-clerk.example.com" } as typeof env;
+    const resp = await worker.fetch(
+      new Request("https://test-host/.well-known/oauth-protected-resource"),
+      fakeEnv,
+      {} as ExecutionContext,
+    );
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json<{
+      resource: string;
+      authorization_servers: string[];
+      jwks_uri: string;
+    }>();
+
+    expect(body.resource).toBe("https://test-host");
+    expect(body.authorization_servers).toEqual(["https://fake-clerk.example.com"]);
+    expect(body.jwks_uri).toBe("https://fake-clerk.example.com/.well-known/jwks.json");
   });
 
   it("derives resource URL from request origin", async () => {
@@ -70,6 +90,49 @@ describe("OAuth Authorization Server Metadata", () => {
   it("allows CORS on the AS metadata endpoint", async () => {
     const resp = await SELF.fetch("https://test-host/.well-known/oauth-authorization-server");
     expect(resp.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+});
+
+// -- OAuth Proxy Endpoints (Clerk mode: 404) --------------------------------
+
+describe("OAuth Proxy - Clerk mode", () => {
+  const fakeEnv = { ...env, CLERK_ISSUER: "https://fake-clerk.example.com" } as typeof env;
+
+  it("returns 404 for /oauth/register when CLERK_ISSUER is set", async () => {
+    const resp = await worker.fetch(
+      new Request("https://test-host/oauth/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_name: "Test" }),
+      }),
+      fakeEnv,
+      {} as ExecutionContext,
+    );
+    expect(resp.status).toBe(404);
+  });
+
+  it("returns 404 for /oauth/authorize when CLERK_ISSUER is set", async () => {
+    const resp = await worker.fetch(
+      new Request("https://test-host/oauth/authorize?response_type=code&client_id=test", {
+        redirect: "manual",
+      }),
+      fakeEnv,
+      {} as ExecutionContext,
+    );
+    expect(resp.status).toBe(404);
+  });
+
+  it("returns 404 for /oauth/token when CLERK_ISSUER is set", async () => {
+    const resp = await worker.fetch(
+      new Request("https://test-host/oauth/token", {
+        method: "POST",
+        headers: { "Content-Type": "application/x-www-form-urlencoded" },
+        body: new URLSearchParams({ grant_type: "authorization_code", code: "test" }),
+      }),
+      fakeEnv,
+      {} as ExecutionContext,
+    );
+    expect(resp.status).toBe(404);
   });
 });
 
@@ -132,25 +195,17 @@ describe("OAuth Proxy - Authorize", () => {
     expect(location.searchParams.get("code")).toBeDefined();
   });
 
-  it("strips scope parameter before redirecting to Clerk", async () => {
+  it("returns 404 when CLERK_ISSUER is set (clients talk to Clerk directly)", async () => {
     const fakeEnv = { ...env, CLERK_ISSUER: "https://fake-clerk.example.com" } as typeof env;
     const resp = await worker.fetch(
       new Request(
-        "https://test-host/oauth/authorize?response_type=code&client_id=test-client&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&state=abc123&scope=openid+profile+email&code_challenge=xyz&code_challenge_method=S256",
+        "https://test-host/oauth/authorize?response_type=code&client_id=test-client&redirect_uri=https%3A%2F%2Fexample.com%2Fcallback&state=abc123",
         { redirect: "manual" },
       ),
       fakeEnv,
       {} as ExecutionContext,
     );
-    expect(resp.status).toBe(302);
-
-    const location = new URL(resp.headers.get("Location")!);
-    expect(location.origin).toBe("https://fake-clerk.example.com");
-    expect(location.pathname).toBe("/oauth/authorize");
-    expect(location.searchParams.get("scope")).toBeNull();
-    expect(location.searchParams.get("client_id")).toBe("test-client");
-    expect(location.searchParams.get("state")).toBe("abc123");
-    expect(location.searchParams.get("redirect_uri")).toBe("https://example.com/callback");
+    expect(resp.status).toBe(404);
   });
 });
 
