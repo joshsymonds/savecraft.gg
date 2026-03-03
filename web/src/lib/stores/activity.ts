@@ -41,17 +41,9 @@ function formatBytes(bytes: number | string | undefined): string {
   return `${(n / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function relativeTime(iso: string | undefined): string {
-  if (!iso) return "now";
-  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
-  if (seconds < 5) return "now";
-  if (seconds < 60) return `${String(seconds)}s ago`;
-  const minutes = Math.floor(seconds / 60);
-  if (minutes < 60) return `${String(minutes)}m ago`;
-  const hours = Math.floor(minutes / 60);
-  if (hours < 24) return `${String(hours)}h ago`;
-  const days = Math.floor(hours / 24);
-  return `${String(days)}d ago`;
+function formatTime(iso: string | undefined): string {
+  const date = iso ? new Date(iso) : new Date();
+  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
 
 // --- Per-type event builders ---
@@ -212,7 +204,7 @@ function buildEvent(type: WireMessageType, msg: WireMessage): ActivityEventData 
     type: activityType,
     message: result.message,
     detail: result.detail,
-    time: relativeTime(msg._ts),
+    time: formatTime(msg._ts),
   };
 }
 

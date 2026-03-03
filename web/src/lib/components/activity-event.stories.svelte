@@ -13,7 +13,7 @@
 <Story name="ParseStarted">
   <div style="width: 420px;">
     <Panel>
-      <ActivityEvent type="parse_started" message="Parsing Atmus.d2s" detail="d2r" time="now" />
+      <ActivityEvent type="parse_started" message="Parsing Atmus.d2s" detail="d2r" time="2:34 PM" />
     </Panel>
   </div>
 </Story>
@@ -25,7 +25,7 @@
         type="plugin_status"
         message="Character: Atmus, Level 74 Warlock"
         detail="Atmus.d2s"
-        time="now"
+        time="2:34 PM"
       />
     </Panel>
   </div>
@@ -38,7 +38,7 @@
         type="parse_completed"
         message="Atmus, Level 74 Warlock (Hell)"
         detail="6 sections · 48KB"
-        time="now"
+        time="2:34 PM"
       />
     </Panel>
   </div>
@@ -51,7 +51,7 @@
         type="parse_failed"
         message="Corrupt.d2s — corrupt file"
         detail="item 12: unexpected end of bitstream"
-        time="3s"
+        time="2:31 PM"
       />
     </Panel>
   </div>
@@ -64,7 +64,7 @@
         type="push_started"
         message="Uploading Atmus, Level 74 Warlock (Hell)"
         detail="48KB"
-        time="now"
+        time="2:34 PM"
       />
     </Panel>
   </div>
@@ -77,7 +77,7 @@
         type="push_completed"
         message="Atmus, Level 74 Warlock (Hell)"
         detail="48KB · 340ms"
-        time="now"
+        time="2:34 PM"
       />
     </Panel>
   </div>
@@ -90,7 +90,7 @@
         type="push_failed"
         message="Upload failed — retrying"
         detail="d2r · timeout"
-        time="5s"
+        time="2:29 PM"
       />
     </Panel>
   </div>
@@ -102,7 +102,7 @@
       <ActivityEvent
         type="plugin_updated"
         message="D2R plugin updated to v1.2.0"
-        time="3s"
+        time="2:31 PM"
         isNew={true}
       />
     </Panel>
@@ -116,7 +116,7 @@
         type="daemon_online"
         message="STEAM-DECK connected"
         detail="v0.1.0 · SteamOS 3.5"
-        time="4h"
+        time="10:34 AM"
       />
     </Panel>
   </div>
@@ -125,7 +125,7 @@
 <Story name="DaemonOffline">
   <div style="width: 420px;">
     <Panel>
-      <ActivityEvent type="daemon_offline" message="DESKTOP-PC disconnected" time="3h" />
+      <ActivityEvent type="daemon_offline" message="DESKTOP-PC disconnected" time="11:34 AM" />
     </Panel>
   </div>
 </Story>
@@ -137,7 +137,7 @@
         type="game_detected"
         message="Diablo II: Resurrected found"
         detail="~/.local/share/Diablo II Resurrected/Save"
-        time="4h"
+        time="10:34 AM"
       />
     </Panel>
   </div>
@@ -146,7 +146,7 @@
 <Story name="Watching">
   <div style="width: 420px;">
     <Panel>
-      <ActivityEvent type="watching" message="Re-watching 5 files in D2R saves" time="5s" />
+      <ActivityEvent type="watching" message="Re-watching 5 files in D2R saves" time="2:29 PM" />
     </Panel>
   </div>
 </Story>
@@ -158,7 +158,7 @@
         type="scan_started"
         message="Scanning Diablo II: Resurrected"
         detail="~/.local/share/Diablo II Resurrected/Save"
-        time="now"
+        time="2:34 PM"
       />
     </Panel>
   </div>
@@ -171,7 +171,7 @@
         type="scan_completed"
         message="Scan complete: D2R"
         detail="3 files"
-        time="now"
+        time="2:34 PM"
       />
     </Panel>
   </div>
@@ -180,7 +180,7 @@
 <Story name="GameNotFound">
   <div style="width: 420px;">
     <Panel>
-      <ActivityEvent type="game_not_found" message="Stardew Valley not found" time="4h" />
+      <ActivityEvent type="game_not_found" message="Stardew Valley not found" time="10:34 AM" />
     </Panel>
   </div>
 </Story>

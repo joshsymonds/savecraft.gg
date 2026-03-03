@@ -9,7 +9,7 @@ describe("ActivityEvent", () => {
       props: {
         type: "daemon_online",
         message: "STEAM-DECK connected",
-        time: "4h",
+        time: "10:34 AM",
       },
     });
 
@@ -22,7 +22,7 @@ describe("ActivityEvent", () => {
         type: "parse_completed",
         message: "Atmus, Level 74 Warlock (Hell)",
         detail: "6 sections · 48KB",
-        time: "now",
+        time: "2:34 PM",
       },
     });
 
@@ -34,7 +34,7 @@ describe("ActivityEvent", () => {
       props: {
         type: "daemon_offline",
         message: "DESKTOP disconnected",
-        time: "3h",
+        time: "11:34 AM",
       },
     });
 
@@ -46,7 +46,7 @@ describe("ActivityEvent", () => {
       props: {
         type: "parse_started",
         message: "Parsing Atmus.d2s",
-        time: "now",
+        time: "2:34 PM",
       },
     });
 
@@ -59,7 +59,7 @@ describe("ActivityEvent", () => {
       props: {
         type: "parse_failed",
         message: "Corrupt.d2s — corrupt file",
-        time: "1h",
+        time: "1:34 PM",
       },
     });
 
@@ -72,7 +72,7 @@ describe("ActivityEvent", () => {
       props: {
         type: "plugin_status",
         message: "45 items, 4 socketed",
-        time: "now",
+        time: "2:34 PM",
       },
     });
 
@@ -85,10 +85,10 @@ describe("ActivityEvent", () => {
       props: {
         type: "watching",
         message: "Watching 5 files",
-        time: "2m",
+        time: "2:32 PM",
       },
     });
 
-    expect(screen.getByText("2m")).toBeInTheDocument();
+    expect(screen.getByText("2:32 PM")).toBeInTheDocument();
   });
 });
