@@ -68,7 +68,7 @@ bucket_name = "savecraft-plugins"
 
 [[env.production.kv_namespaces]]
 binding = "OAUTH_KV"
-id = "PLACEHOLDER_PRODUCTION_KV_ID"
+id = "8236ba2d016e4112b8fd8ffc5f61e081"
 
 [env.production.durable_objects]
 bindings = [
@@ -112,7 +112,7 @@ bucket_name = "savecraft-plugins-staging"
 
 [[env.staging.kv_namespaces]]
 binding = "OAUTH_KV"
-id = "PLACEHOLDER_STAGING_KV_ID"
+id = "ac23010086be4ce99b6349770d9211a0"
 
 [env.staging.durable_objects]
 bindings = [
