@@ -180,7 +180,7 @@ jobs:
             echo "web_pages_project=savecraft-web-staging" >> "$GITHUB_OUTPUT"
             echo "site_pages_project=savecraft-site-staging" >> "$GITHUB_OUTPUT"
             echo "public_api_url=https://staging-api.savecraft.gg" >> "$GITHUB_OUTPUT"
-            echo "public_mcp_url=https://mcp-staging.savecraft.gg" >> "$GITHUB_OUTPUT"
+            echo "public_mcp_url=https://staging-mcp.savecraft.gg" >> "$GITHUB_OUTPUT"
             echo "public_app_url=https://my-staging.savecraft.gg" >> "$GITHUB_OUTPUT"
           fi
 
