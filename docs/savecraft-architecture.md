@@ -39,7 +39,7 @@ Savecraft has two fully separate components that share a user account and a data
 └─────────────────────┘         │                              │
                                 │  ┌────────────────────────┐  │
 ┌─────────────────────┐         │  │  MCP Server (Worker)   │  │
-│   AI Client          │  HTTPS  │  │  - OAuth via Clerk     │  │
+│   AI Client          │  HTTPS  │  │  - OAuth AS (own keys) │  │
 │   (Claude, ChatGPT,  │ <────> │  │  - serves MCP tools    │  │
 │    Gemini)           │  MCP   │  │  - reads from R2       │  │
 └─────────────────────┘         │  └────────────────────────┘  │
@@ -77,10 +77,15 @@ The daemon push API and MCP server run as a **single Cloudflare Worker** (or sin
 
 - `/api/v1/*` — Daemon push API (authenticated via API key/bearer token)
 - `/api/v1/notes/*` — Note CRUD for web UI and MCP write tools (authenticated via Clerk session or OAuth)
-- `/mcp/*` — MCP tool-serving endpoint (authenticated via OAuth)
+- `/mcp/*` — MCP tool-serving endpoint (authenticated via OAuth access token from our AS)
+- `/oauth/authorize` — Redirects to Clerk for user login, then completes authorization
+- `/oauth/callback` — Receives Clerk auth code, exchanges for Clerk token, issues our own OAuth grant
+- `/oauth/token` — Token endpoint (authorization code → access token exchange, refresh token support)
+- `/oauth/register` — Dynamic Client Registration (RFC 7591) for AI clients
+- `/.well-known/oauth-authorization-server` — AS metadata (auto-served by library)
+- `/.well-known/oauth-protected-resource` — Protected resource metadata (auto-served by library)
 - `/ws/daemon` — WebSocket upgrade for daemon real-time connection (authenticated via bearer token, routed to per-user Durable Object)
 - `/ws/ui` — WebSocket upgrade for web UI live status (authenticated via Clerk session, routed to same per-user Durable Object)
-- `/.well-known/oauth-protected-resource` — OAuth discovery metadata
 
 This is not microservices. One binary, shared auth middleware, shared R2 client. The Durable Object is a separate class in the same Worker bundle.
 
@@ -845,40 +850,57 @@ Estimated ~300K DO requests/day at 1K active users → ~9M/month → **$1.35/mon
 
 ## MCP Server
 
-### OAuth Discovery Chain
+### OAuth Architecture
 
-The MCP server participates in the standard OAuth 2.0 discovery flow required by Claude, ChatGPT, and Gemini:
+The Worker is itself an **OAuth 2.1 Authorization Server**, powered by `@cloudflare/workers-oauth-provider`. Clerk is the upstream Identity Provider — users authenticate via Clerk, but the Worker issues its own opaque access tokens stored in KV. This is a deliberate split-domain architecture: MCP clients (Claude, ChatGPT, Gemini) never interact with Clerk directly.
+
+**Why not use Clerk as the AS directly?** MCP clients need to discover the AS from the MCP server's `/.well-known/oauth-protected-resource` metadata. If that points to Clerk, the MCP client does DCR + authorize + token exchange with Clerk, gets a Clerk JWT, then sends it to our Worker. This fails in practice because Claude Desktop's OAuth flow can't handle the split-domain redirect (MCP server on `mcp.savecraft.gg`, AS on `clerk.accounts.dev`). Making the Worker the AS keeps everything on one origin.
+
+**Components:**
+- **`@cloudflare/workers-oauth-provider`** — Library that wraps the Worker as the entry point. Handles DCR (`/oauth/register`), token exchange (`/oauth/token`), AS metadata (`/.well-known/oauth-authorization-server`), protected resource metadata (`/.well-known/oauth-protected-resource`), and token validation on the `/mcp` route.
+- **`OAUTH_KV`** (KV namespace) — Stores registered clients, authorization codes, access tokens, refresh tokens. Managed entirely by the library.
+- **`OAuthProvider`** — Wraps the entire Worker. Intercepts OAuth protocol routes, validates tokens on the API route (`/mcp`), and passes `ctx.props.userUuid` to the MCP handler after successful validation.
+
+**OAuth Discovery Flow:**
 
 1. AI client hits MCP endpoint unauthenticated.
-2. Server returns `401 Unauthorized` with header:
-   ```
-   WWW-Authenticate: Bearer resource_metadata="https://mcp.savecraft.gg/.well-known/oauth-protected-resource"
-   ```
-3. AI client fetches that URL and gets:
+2. Library returns `401` with `WWW-Authenticate: Bearer` header pointing to `/.well-known/oauth-protected-resource`.
+3. AI client fetches protected resource metadata:
    ```json
    {
      "resource": "https://mcp.savecraft.gg",
-     "authorization_servers": ["https://<clerk-instance>.clerk.accounts.dev"],
-     "scopes_supported": ["savecraft:read"],
+     "authorization_servers": ["https://mcp.savecraft.gg"],
      "bearer_methods_supported": ["header"],
-     "mcp_protocol_version": "2025-06-18",
-     "resource_type": "mcp-server"
+     "resource_name": "Savecraft MCP Server"
    }
    ```
-4. AI client discovers Clerk's endpoints via `/.well-known/openid-configuration` on the Clerk instance.
-5. AI client dynamically registers itself via RFC 7591 DCR (Clerk supports this).
-6. User authenticates via Clerk (magic link email, or Discord OAuth if added later).
-7. AI client receives access token (JWT signed by Clerk).
-8. Subsequent MCP requests include `Authorization: Bearer <jwt>`.
-9. MCP server validates JWT locally using Clerk's cached public keys. No network hop per request.
-10. JWT `sub` claim + Clerk `publicMetadata` → Savecraft user UUID → R2 prefix `users/{user_uuid}/`.
+4. AI client fetches AS metadata from `/.well-known/oauth-authorization-server` (same origin) — gets DCR, authorize, and token endpoints.
+5. AI client dynamically registers via RFC 7591 DCR at `/oauth/register`.
+6. AI client opens `/oauth/authorize` with PKCE code challenge.
+7. Worker redirects to Clerk's OAuth authorize endpoint (scope: `openid profile`).
+8. User authenticates via Clerk (magic link email, or Discord OAuth if added later).
+9. Clerk redirects back to `/oauth/callback` with authorization code.
+10. Worker exchanges Clerk code for Clerk access token (server-to-server, confidential client).
+11. Worker calls Clerk's `/oauth/userinfo` to get the user's `sub` claim → Savecraft user UUID.
+12. Worker calls `completeAuthorization()` with `props: { userUuid }`, which creates an authorization code in KV.
+13. Library redirects back to the AI client's callback with the authorization code.
+14. AI client exchanges code + PKCE verifier at `/oauth/token` → receives opaque access token (+ refresh token if `offline_access` scope requested).
+15. Subsequent MCP requests include `Authorization: Bearer <access_token>`.
+16. Library validates token from KV, injects `ctx.props.userUuid`, passes request to MCP handler.
+
+**Key properties:**
+- Zero Clerk interaction after initial login. Token validation is a KV lookup, not a JWT signature check or network call.
+- AI clients never see Clerk. The entire OAuth dance happens against `mcp.savecraft.gg`.
+- `props.userUuid` flows from Clerk's `sub` claim through to R2 prefix scoping (`users/{user_uuid}/`).
+- No skip-Clerk code paths in production. The authorize handler returns 503 if Clerk secrets are missing.
 
 ### Authentication Provider: Clerk
 
+- **Role:** Upstream Identity Provider for MCP OAuth. Also provides session auth for the web UI and magic link login.
 - **Signup/login:** Email magic links. No passwords.
 - **Future addition:** Discord OAuth (toggle in Clerk dashboard). High-signal for gaming audience.
-- **MCP OAuth support:** Clerk supports RFC 7591 DCR, PKCE, and the full discovery chain. Validated by Context7's production MCP server using Clerk.
-- **User metadata:** Clerk's `publicMetadata` carries the Savecraft user ID and subscription tier, flowing through to JWT claims.
+- **OAuth app configuration:** One Clerk OAuth Application per environment (staging, production). Confidential client with redirect URI pointing to `/oauth/callback` on the MCP hostname.
+- **User identity:** Clerk's `sub` claim from the userinfo endpoint is the Savecraft user UUID.
 - **Free tier:** Clerk covers 10K MAU on free plan.
 
 ### MCP Tools
@@ -1283,7 +1305,7 @@ Neither R2 bucket has public access. The Worker (with R2 bindings) is the only r
 - Rate limiting per user.
 - Input validation on tool parameters (save_id and section validated against known values).
 - No user-supplied query language — tools are fixed-function.
-- JWT validation with cached Clerk public keys (no external call per request).
+- OAuth token validation via KV lookup (no external call per request). Tokens are opaque, issued by our AS.
 
 ### Privacy Advantage
 
