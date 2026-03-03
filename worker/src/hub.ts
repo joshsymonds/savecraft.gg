@@ -512,7 +512,7 @@ export class DaemonHub extends DurableObject<Env> {
       for (const row of events) {
         ws.send(
           this.injectMetadata(row.event_data, {
-            _ts: row.created_at,
+            _ts: row.created_at.endsWith("Z") ? row.created_at : `${row.created_at}Z`,
             _deviceId: row.device_id,
           }),
         );
