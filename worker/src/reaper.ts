@@ -36,16 +36,10 @@ export async function reapOrphanDevices(
     }
 
     // Delete saves belonging to this device
-    await db
-      .prepare("DELETE FROM saves WHERE device_uuid = ?")
-      .bind(orphan.device_uuid)
-      .run();
+    await db.prepare("DELETE FROM saves WHERE device_uuid = ?").bind(orphan.device_uuid).run();
 
     // Delete the device itself
-    await db
-      .prepare("DELETE FROM devices WHERE device_uuid = ?")
-      .bind(orphan.device_uuid)
-      .run();
+    await db.prepare("DELETE FROM devices WHERE device_uuid = ?").bind(orphan.device_uuid).run();
   }
 
   return { deleted: orphans.results.length };

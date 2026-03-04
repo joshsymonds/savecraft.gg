@@ -552,7 +552,12 @@ export async function getSectionDiff(
     );
   }
 
-  const fromState = await loadSnapshotAtTimestamp(snapshots, save.device_uuid, saveId, fromTimestamp);
+  const fromState = await loadSnapshotAtTimestamp(
+    snapshots,
+    save.device_uuid,
+    saveId,
+    fromTimestamp,
+  );
   const toState = await loadSnapshotAtTimestamp(snapshots, save.device_uuid, saveId, toTimestamp);
 
   if (!fromState || !toState) {
@@ -1053,10 +1058,7 @@ export async function indexNote(
     .run();
 }
 
-export async function removeNoteFromIndex(
-  db: D1Database,
-  noteId: string,
-): Promise<void> {
+export async function removeNoteFromIndex(db: D1Database, noteId: string): Promise<void> {
   await db
     .prepare("DELETE FROM search_index WHERE ref_id = ? AND type = 'note'")
     .bind(noteId)

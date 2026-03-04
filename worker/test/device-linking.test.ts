@@ -15,9 +15,7 @@ describe("Device Linking", () => {
       const { deviceUuid } = await seedDevice();
 
       // Get the device's link code
-      const device = await env.DB.prepare(
-        "SELECT link_code FROM devices WHERE device_uuid = ?",
-      )
+      const device = await env.DB.prepare("SELECT link_code FROM devices WHERE device_uuid = ?")
         .bind(deviceUuid)
         .first<{ link_code: string }>();
 
@@ -67,9 +65,7 @@ describe("Device Linking", () => {
         .bind(deviceUuid)
         .run();
 
-      const device = await env.DB.prepare(
-        "SELECT link_code FROM devices WHERE device_uuid = ?",
-      )
+      const device = await env.DB.prepare("SELECT link_code FROM devices WHERE device_uuid = ?")
         .bind(deviceUuid)
         .first<{ link_code: string }>();
 
@@ -144,9 +140,7 @@ describe("Device Linking", () => {
     it("clears link code after successful link", async () => {
       const { deviceUuid } = await seedDevice();
 
-      const device = await env.DB.prepare(
-        "SELECT link_code FROM devices WHERE device_uuid = ?",
-      )
+      const device = await env.DB.prepare("SELECT link_code FROM devices WHERE device_uuid = ?")
         .bind(deviceUuid)
         .first<{ link_code: string }>();
 
@@ -234,9 +228,7 @@ describe("Device Linking", () => {
       const { deviceUuid, deviceToken } = await seedDevice();
 
       // Verify device already has a link code from seeding before we overwrite it.
-      const before = await env.DB.prepare(
-        "SELECT link_code FROM devices WHERE device_uuid = ?",
-      )
+      const before = await env.DB.prepare("SELECT link_code FROM devices WHERE device_uuid = ?")
         .bind(deviceUuid)
         .first<{ link_code: string }>();
       expect(before!.link_code).toBeTruthy();
@@ -251,9 +243,7 @@ describe("Device Linking", () => {
       expect(resp.status).toBe(200);
       const body = await resp.json<{ link_code: string }>();
       // New code may or may not differ (random), but D1 should have the new one
-      const newDevice = await env.DB.prepare(
-        "SELECT link_code FROM devices WHERE device_uuid = ?",
-      )
+      const newDevice = await env.DB.prepare("SELECT link_code FROM devices WHERE device_uuid = ?")
         .bind(deviceUuid)
         .first<{ link_code: string }>();
       expect(newDevice!.link_code).toBe(body.link_code);
@@ -334,9 +324,7 @@ describe("Device Linking", () => {
     });
 
     it("requires device auth", async () => {
-      const resp = await SELF.fetch(
-        new Request("https://test-host/api/v1/device/status"),
-      );
+      const resp = await SELF.fetch(new Request("https://test-host/api/v1/device/status"));
 
       expect(resp.status).toBe(401);
     });

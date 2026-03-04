@@ -104,7 +104,9 @@
           <span class="primary-action-label">DOWNLOAD FOR WINDOWS</span>
         </a>
       </div>
-      <p class="command-hint">After install, follow the link in the system tray to connect your device.</p>
+      <p class="command-hint">
+        After install, follow the link in the system tray to connect your device.
+      </p>
     {:else}
       <p class="step-desc">Run this command on your Linux machine or Steam Deck:</p>
       <div class="command-block">
@@ -162,7 +164,9 @@
         </div>
       </div>
     {:else}
-      <p class="step-desc">For headless or automated setups, use an API key instead of device linking.</p>
+      <p class="step-desc">
+        For headless or automated setups, use an API key instead of device linking.
+      </p>
       <div class="action-row">
         <TinyButton
           label={apiKeyLoading ? "GENERATING..." : "GENERATE KEY"}
