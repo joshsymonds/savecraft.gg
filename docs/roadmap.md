@@ -50,6 +50,76 @@ Full treasure class resolution in Go, compiled to `reference.wasm`:
 - Player count effects on NoDrop
 - End-to-end integration test with known drop probabilities
 
+## Mod-as-Device (Direct Push)
+
+A new data source type alongside daemon parsers and API adapters. For games with unsandboxed modding frameworks, a Savecraft mod runs inside the game, pairs as a device, and pushes state directly to the push API. No daemon involved at all.
+
+The mod *is* a device. From the server's perspective, there's no difference between a push from the daemon and a push from a RimWorld mod — they both authenticate with a device token and POST GameState JSON.
+
+### How It Works
+
+1. **Install:** User installs the Savecraft mod from the game's mod portal (Steam Workshop, CurseForge, etc.). One click.
+2. **Register + Link:** Mod calls `POST /api/v1/device/register` on first launch, gets a device token and 6-digit link code. User enters the code at `savecraft.gg/setup`. Same device linking flow the daemon uses.
+3. **Push:** Mod hooks the game's save event (Forge's `WorldEvent.Save`, Harmony's save patch). On save, mod serializes game state to JSON and POSTs directly to the push API. For games without a save hook, a conservative timer (60s) with server-side hash dedup.
+4. **Done.** No daemon, no system service, no OS-specific installer.
+
+### Why This Exists
+
+- **Zero friction beyond the mod.** The daemon is the biggest install hurdle for Savecraft. Mod-as-device eliminates it entirely for supported games.
+- **Complete access.** Mods see runtime state that never hits disk — active production rates, logistics throughput, circuit network state.
+- **Correct by construction.** The game's own API guarantees data accuracy. No reverse-engineering binary formats.
+- **Survives format changes.** Mods use stable APIs. Save format changes don't matter.
+- **Works everywhere the game runs.** Steam Deck, Linux, anywhere — no daemon platform support needed.
+
+### Candidate Games
+
+| Game | Mod Framework | Network API | Notes |
+|------|--------------|------------|-------|
+| Rimworld | C# (Harmony) | `HttpClient` | Colony state, pawn skills/health, research, wealth tracker. |
+| Minecraft (Java) | Java (Fabric/Forge) | `java.net` | Inventory, advancements, world stats. |
+| Kerbal Space Program | C# (Unity mods) | `UnityWebRequest` | Vessel stats, science progress, contracts, funds. |
+| Cities: Skylines II | C# (PDX Mods) | `HttpClient` | City stats, budget, services, traffic. |
+| Terraria | C# (tModLoader) | `HttpClient` | Character gear, boss progress, world state. |
+
+### Open Questions
+
+- **Distribution:** Ship via each game's mod portal. This is the natural discovery channel.
+- **Versioning:** How does the mod signal its schema version? Probably a header on the push request.
+- **Rate limiting:** Mods are user-installed code making HTTP calls. Need per-device rate limits to prevent runaway mods from hammering the server.
+
+## Mod-as-Emitter (Daemon-Assisted)
+
+A variant of the existing daemon parser pipeline for games with sandboxed modding frameworks that block network access. The mod writes pre-structured GameState JSON to the game's output directory. The daemon watches that directory and pushes on change — same pipeline as save file parsing, but the WASM plugin step is replaced by the mod's output.
+
+This is not a new architecture. It's an optimization of the parser path: instead of the daemon running a WASM plugin to transform an opaque binary save, the mod inside the game does the transformation and writes structured output that the daemon pushes as-is.
+
+### How It Works
+
+1. **Install:** User installs both the Savecraft mod (from the game's mod portal) and the daemon.
+2. **Configure:** Daemon watches the game's mod output directory (e.g. Factorio's `script-output/savecraft/`).
+3. **Emit:** Mod hooks the game's save event (Factorio's `on_game_saved`). On save, mod serializes game state to JSON and writes it via the game's file output API (`game.write_file()`).
+4. **Push:** Daemon detects the file change via fsnotify, reads the pre-structured JSON, and pushes to the push API. Same debounce + hash dedup as save files. No WASM plugin execution.
+
+### Why Not Just Parse the Save?
+
+Some save formats are not practically parseable:
+
+- **Factorio's `level.dat`:** Compressed, versioned binary format that changes every major update. The mod API exposes everything the save contains and more (runtime production stats, logistics network state). A standalone parser would be thousands of lines and perpetually broken.
+- **Any game with encrypted or proprietary saves:** If the game exposes state via mod API but locks down the save format, the emitter path is the only viable option.
+
+### Candidate Games
+
+| Game | Mod Framework | Output API | Notes |
+|------|--------------|-----------|-------|
+| Factorio | Lua (official API) | `game.write_file()` → `script-output/` | Strict sandbox: no `socket`, no `io`, no `os`. File output is the only way out. |
+
+Factorio is currently the only identified candidate. If other sandboxed frameworks emerge, they'd use this same pattern.
+
+### Open Questions
+
+- **Directory convention:** The mod writes to its game's natural output directory (Factorio's `script-output/savecraft/`). The daemon config needs to know this per-game. Could be part of the game's plugin metadata even though no WASM plugin is involved.
+- **Schema contract:** The mod writes the same GameState JSON shape that a WASM plugin would produce. Should this be validated by the daemon before push, or trust the mod?
+
 ## Game Support Roadmap
 
 ### Tier 1: Proof of Concept
@@ -82,6 +152,24 @@ Full treasure class resolution in Go, compiled to `reference.wasm`:
 | WoW (via API) | Battle.net OAuth API | Character profiles, gear, stats, achievements, mythic+ scores. |
 | WoW (via addons) | `SavedVariables/*.lua` local files | Daemon-backed parser — Tier 3 complexity, not an adapter. |
 | FFXIV | Lodestone / XIVAPI (unofficial) | No local save data. Community APIs, fragile but viable. |
+
+### Tier 5: Mod-as-Device (No Daemon)
+
+| Game | Mod Framework | Notes |
+|------|--------------|-------|
+| Rimworld | C# (Harmony) | Colony sim — pawns, research, wealth. Natural advisory fit. |
+| Minecraft (Java) | Java (Fabric/Forge) | Inventory, advancements, world stats. |
+| Terraria | C# (tModLoader) | Gear, boss progress, world state. |
+
+Mod pairs as a device, pushes directly to the push API. No daemon required. See [Mod-as-Device](#mod-as-device-direct-push).
+
+### Tier 6: Mod-as-Emitter (Daemon-Assisted)
+
+| Game | Mod Framework | Notes |
+|------|--------------|-------|
+| Factorio | Lua (official API) | Production stats, research, logistics. Sandboxed — needs daemon relay. |
+
+Mod writes structured JSON to disk; daemon watches and pushes. For games with sandboxed modding frameworks. See [Mod-as-Emitter](#mod-as-emitter-daemon-assisted).
 
 ## Monetization
 
@@ -116,7 +204,7 @@ These are policy decisions, not architecture decisions. Nothing about them chang
 - **Daemon auto-update mechanism:** Self-update is implemented (`internal/selfupdate/`). Pre-release version comparison not yet handled.
 - **Strategy site partnerships:** Approach Maxroll/Icy Veins as distribution partners or build scraper pipeline? TBD.
 - **Anthropic Connectors Directory submission:** After dogfooding or immediately?
-- **Multi-device support:** What happens when a user has the daemon on both a Windows PC and a Steam Deck? The DO hub supports multiple daemon connections per user, but the UX for choosing "which device's save" in the MCP needs thought.
+- **Multi-device support:** Solved by device-centric architecture. Each device self-registers and pushes saves under its own `device_uuid`. A user with a Windows PC and Steam Deck sees saves from both via the device→user JOIN. The MCP and web UI surface saves from all linked devices transparently.
 
 ## Platform-Specific Installation (Not Yet Implemented)
 

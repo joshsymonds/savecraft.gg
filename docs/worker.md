@@ -8,7 +8,7 @@ Daemon pushes parsed game state to the cloud.
 
 **Headers:**
 ```
-Authorization: Bearer <daemon-api-token>
+Authorization: Bearer dvt_<device-token>
 Content-Type: application/json
 X-Game: d2r
 X-Parsed-At: 2026-02-25T21:30:00Z
@@ -17,12 +17,12 @@ X-Parsed-At: 2026-02-25T21:30:00Z
 **Body:** Full GameState JSON (all sections in one push). The `identity` block in the body is used by the server to resolve or create the save UUID.
 
 **Server validation:**
-1. Authenticate token → resolve user UUID.
+1. Authenticate device token → resolve device UUID (SHA-256 hash lookup in D1 `devices` table).
 2. Validate: is body valid JSON? Is it under 5MB?
 3. Validate structure: does top-level have `identity` and `sections` keys?
 4. Validate `X-Game` matches a known plugin.
-5. Look up save UUID from identity in D1: `(user_uuid, game_id, save_name)`. Create if first push.
-6. Write snapshot to `users/{user_uuid}/saves/{save_uuid}/snapshots/{timestamp}.json` in R2.
+5. Look up save UUID from identity in D1: `(device_uuid, game_id, save_name)`. Create if first push.
+6. Write snapshot to `devices/{device_uuid}/saves/{save_uuid}/snapshots/{timestamp}.json` in R2.
 7. Compare `X-Parsed-At` to current `latest.json` timestamp. Only update latest pointer if incoming is newer.
 8. Re-index save sections in FTS5 (DELETE old rows for this save, INSERT new rows per section).
 
@@ -39,9 +39,9 @@ X-Parsed-At: 2026-02-25T21:30:00Z
 
 The daemon and web UI maintain persistent WebSocket connections to a per-user Durable Object (DO) that acts as a message hub. This enables real-time config delivery, live status reporting, and an interactive setup experience where users see immediate feedback as the daemon discovers and parses saves.
 
-### Architecture: SaveHub Durable Object
+### Architecture: DaemonHub Durable Object
 
-Each user gets a single Durable Object (`SaveHub`), keyed by user UUID (`env.SAVE_HUB.get(env.SAVE_HUB.idFromName(userUUID))`). The SaveHub is the per-user coordination point for all save updates, regardless of source.
+Each user gets a single Durable Object (`DaemonHub`), keyed by user UUID (`env.DAEMON_HUB.get(env.DAEMON_HUB.idFromName(userUUID))`). The DaemonHub is the per-user coordination point for all save updates, regardless of source.
 
 **Two roles:**
 
@@ -50,7 +50,7 @@ Each user gets a single Durable Object (`SaveHub`), keyed by user UUID (`env.SAV
    - **`"ui"` connection:** One per active web UI session. The browser connects when the user opens the device status page and disconnects when they navigate away.
    - Receives messages from one side, inspects the tag, forwards to the other. For `refresh_save` on daemon-backed games, sends `RescanGame` to the daemon.
 
-2. **API fetch coordinator** for API-backed saves. When `refresh_save` targets an API-backed game, the SaveHub calls the game adapter directly — fetches from the game API, shapes the response into GameState, writes to R2, and updates D1. Status events flow to the UI WebSocket the same as daemon events.
+2. **API fetch coordinator** for API-backed saves. When `refresh_save` targets an API-backed game, the DaemonHub calls the game adapter directly — fetches from the game API, shapes the response into GameState, writes to R2, and updates D1. Status events flow to the UI WebSocket the same as daemon events.
 
 When no connections are active and no fetches are in progress, the DO hibernates and incurs zero cost.
 
@@ -152,6 +152,44 @@ The `DispatchNamespace` binding provides `.get(scriptName)` which returns a `Fet
 
 ## D1 Schemas
 
+**Devices table (device registration + linking):**
+
+```sql
+CREATE TABLE devices (
+  device_uuid TEXT PRIMARY KEY,
+  user_uuid TEXT,                    -- NULL until linked to a user
+  token_hash TEXT NOT NULL UNIQUE,   -- SHA-256 of dvt_* token
+  device_name TEXT NOT NULL DEFAULT '',
+  link_code TEXT,                    -- 6-digit code, NULL after linking
+  link_code_expires_at TEXT,         -- 20-minute TTL
+  user_email TEXT,                   -- set during linking
+  user_display_name TEXT,            -- set during linking
+  last_push_at TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+```
+
+Devices start unlinked (`user_uuid IS NULL`) with a 6-digit `link_code`. When the user enters the code in the web UI, the device is linked (`user_uuid` set, `link_code` cleared). The daemon can refresh an expired link code via `POST /api/v1/device/link-code`.
+
+**Saves table (identity → save UUID mapping):**
+
+```sql
+CREATE TABLE saves (
+  uuid TEXT PRIMARY KEY,
+  device_uuid TEXT NOT NULL,
+  game_id TEXT NOT NULL,
+  save_name TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '',
+  last_updated TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (device_uuid, game_id, save_name),
+  FOREIGN KEY (device_uuid) REFERENCES devices(device_uuid)
+);
+```
+
+Saves belong to devices. To find all saves for a user, JOIN through devices: `saves JOIN devices ON saves.device_uuid = devices.device_uuid WHERE devices.user_uuid = ?`.
+
+**Device events table (status persistence):**
+
 ```sql
 CREATE TABLE device_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -159,26 +197,91 @@ CREATE TABLE device_events (
   device_id TEXT NOT NULL,
   event_type TEXT NOT NULL,
   event_data TEXT NOT NULL,  -- JSON
-  created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (user_uuid) REFERENCES users(uuid)
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX idx_device_events_user_device ON device_events(user_uuid, device_id, created_at DESC);
 ```
 
-**Saves table (identity → save UUID mapping):**
+## Device API Endpoints
 
-```sql
-CREATE TABLE saves (
-  uuid TEXT PRIMARY KEY,
-  user_uuid TEXT NOT NULL,
-  game_id TEXT NOT NULL,
-  save_name TEXT NOT NULL,
-  summary TEXT NOT NULL DEFAULT '',
-  last_updated TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE (user_uuid, game_id, save_name)
-);
+### `POST /api/v1/device/register` (unauthenticated)
+
+Daemon calls this on first boot to self-register. Returns a device token and 6-digit link code.
+
+**Request body:**
+```json
+{ "device_name": "Josh's PC" }
 ```
+
+**Response (201):**
+```json
+{
+  "device_uuid": "d1e2f3a4-...",
+  "token": "dvt_abc123...",
+  "link_code": "482913",
+  "link_code_expires_at": "2026-03-03T12:20:00Z"
+}
+```
+
+The daemon persists the `device_uuid` and `token` locally. The token is the only credential — it authenticates all subsequent API calls.
+
+### `POST /api/v1/device/link` (Clerk session auth)
+
+Web UI calls this when the user enters a 6-digit code. Links the device to the authenticated user.
+
+**Request body:**
+```json
+{
+  "code": "482913",
+  "email": "josh@example.com",
+  "display_name": "Josh"
+}
+```
+
+**Response (200):**
+```json
+{ "device_uuid": "d1e2f3a4-..." }
+```
+
+Linking is idempotent — a device can be re-linked to a different user (overwrites the previous association).
+
+### `POST /api/v1/device/link-code` (device token auth)
+
+Daemon calls this to refresh an expired link code. Returns a new 6-digit code with a fresh 20-minute TTL.
+
+**Response (200):**
+```json
+{
+  "link_code": "719284",
+  "expires_at": "2026-03-03T12:40:00Z"
+}
+```
+
+### `GET /api/v1/device/status` (device token auth)
+
+Returns the device's current state: whether it's linked, the associated user, and any active link code.
+
+**Response (200):**
+```json
+{
+  "linked": true,
+  "user": { "email": "josh@example.com", "display_name": "Josh" },
+  "link_code": null,
+  "link_code_expires_at": null
+}
+```
+
+## Orphan Device Reaper
+
+A daily Cron Trigger (4 AM UTC) cleans up orphan devices — unlinked devices with no push activity for 7+ days. The reaper:
+
+1. Finds devices where `user_uuid IS NULL` and both `created_at` and `last_push_at` are older than 7 days
+2. Deletes R2 data under `devices/{device_uuid}/`
+3. Deletes D1 saves belonging to the device
+4. Deletes the device row
+
+This prevents abandoned registrations from accumulating. Active unlinked devices (still pushing) and linked devices (regardless of activity) are never reaped.
 
 ## Cost
 

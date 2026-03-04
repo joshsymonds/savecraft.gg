@@ -41,7 +41,7 @@ The Worker is itself an **OAuth 2.1 Authorization Server**, powered by `@cloudfl
 **Key properties:**
 - Zero Clerk interaction after initial login. Token validation is a KV lookup, not a JWT signature check or network call.
 - AI clients never see Clerk. The entire OAuth dance happens against `mcp.savecraft.gg`.
-- `props.userUuid` flows from Clerk's `sub` claim through to R2 prefix scoping (`users/{user_uuid}/`).
+- `props.userUuid` flows from Clerk's `sub` claim through to save access (JOINing devices → saves → R2 at `devices/{device_uuid}/`).
 - No skip-Clerk code paths in production. The authorize handler returns 503 if Clerk secrets are missing.
 
 ### Authentication Provider: Clerk
@@ -145,7 +145,7 @@ Returns changes between two snapshots for a section.
 
 Requests fresh data for a save. The server routes to the appropriate ingest path based on the save's game type — the MCP client never needs to know which path is taken.
 
-- **Daemon-backed saves** (local files: D2R, Stardew, etc.): The Worker sends `RescanGame` to the SaveHub DO, which forwards it to the daemon over WebSocket. The daemon rescans the save directory, re-parses changed files, and pushes fresh data to R2 via the push API.
+- **Daemon-backed saves** (local files: D2R, Stardew, etc.): The Worker sends `RescanGame` to the DaemonHub DO, which forwards it to the daemon over WebSocket. The daemon rescans the save directory, re-parses changed files, and pushes fresh data to R2 via the push API.
 - **API-backed saves** (remote APIs: PoE2, WoW via Battle.net, etc.): The Worker fetches directly from the game's API using stored credentials, parses the response, and writes to R2.
 
 Both paths produce the same result: updated snapshots in R2, updated metadata in D1. Subsequent `get_section` calls return the fresh data.
@@ -316,7 +316,6 @@ D1 is SQLite at the edge. FTS5 is available out of the box — no external servi
 
 ```sql
 CREATE VIRTUAL TABLE search_index USING fts5(
-  user_uuid UNINDEXED,
   save_id UNINDEXED,
   save_name UNINDEXED,
   type UNINDEXED,           -- 'section' or 'note'
@@ -326,6 +325,8 @@ CREATE VIRTUAL TABLE search_index USING fts5(
   tokenize='porter unicode61'
 );
 ```
+
+User scoping is done via a subquery JOINing through devices: `WHERE save_id IN (SELECT uuid FROM saves JOIN devices ON saves.device_uuid = devices.device_uuid WHERE devices.user_uuid = ?)`.
 
 **Indexing:**
 - **Save sections:** Re-indexed on every push. DELETE existing rows for that save, INSERT new rows per section.

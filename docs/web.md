@@ -8,7 +8,7 @@ The root page (`/`) is both the dashboard and the onboarding experience. What re
 
 | State | Condition | What renders |
 |-------|-----------|--------------|
-| **No devices** | `devices.length === 0` | `InstallBlock prominent=true` — full hero with pairing code flow, install command, and "what happens next" in a single consolidated Panel |
+| **No devices** | `devices.length === 0` | `InstallBlock prominent=true` — full hero with install command, device linking flow (enter 6-digit code), and "what happens next" in a single consolidated Panel |
 | **Has device(s), no MCP** | `devices.length > 0 && !mcpConnected` | `ConnectCard` (prominent CTA with numbered steps) → device cards → `InstallBlock prominent=false` (compact collapsible) |
 | **Has device(s) + MCP** | `devices.length > 0 && mcpConnected` | `ConnectCard` (compact: green dot + URL) → device cards → `InstallBlock prominent=false` (compact collapsible) |
 
@@ -18,8 +18,8 @@ The state machine is implicit — the page template checks device count and MCP 
 
 ### InstallBlock (`prominent` prop)
 
-- `prominent=true`: Hero treatment — numbered steps (1: Pair, 2: Install, 3: What Happens Next) in a single Panel with section dividers, gold-bordered primary action button for pairing. API keys toggle at bottom.
-- `prominent=false`: Compact collapsible "ADD ANOTHER DEVICE" row. Expands to show pairing + install flow inline.
+- `prominent=true`: Hero treatment — numbered steps (1: Install, 2: Link Device, 3: What Happens Next) in a single Panel with section dividers. The link step shows a text field where the user enters the 6-digit code displayed by their daemon.
+- `prominent=false`: Compact collapsible "ADD ANOTHER DEVICE" row. Expands to show install + device linking flow inline.
 
 ### ConnectCard (MCP status)
 
