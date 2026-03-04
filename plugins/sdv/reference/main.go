@@ -40,6 +40,8 @@ func main() {
 	switch module {
 	case "gift_preferences":
 		handleGiftPreferences(enc, query)
+	case "crop_planner":
+		handleCropPlanner(enc, query)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -61,6 +63,37 @@ func handleGiftPreferences(enc *json.Encoder, query map[string]any) {
 	}
 
 	handleItemQuery(enc, item)
+}
+
+func handleCropPlanner(enc *json.Encoder, query map[string]any) {
+	crop, _ := query["crop"].(string)
+	season, _ := query["season"].(string)
+
+	if crop == "" && season == "" {
+		writeError(enc, "missing_param", "crop or season is required")
+		os.Exit(1)
+	}
+
+	if crop != "" {
+		result := lookupCrop(crop)
+		if result == nil {
+			writeError(enc, "unknown_crop", "unknown crop: "+crop)
+			os.Exit(1)
+		}
+		writeResult(enc, map[string]any{
+			"formatted": formatCropResult(result),
+		})
+		return
+	}
+
+	result := lookupSeason(season)
+	if result == nil {
+		writeError(enc, "unknown_season", "unknown season: "+season)
+		os.Exit(1)
+	}
+	writeResult(enc, map[string]any{
+		"formatted": formatSeasonResult(result),
+	})
 }
 
 func handleNPCQuery(enc *json.Encoder, npc string) {
@@ -177,6 +210,21 @@ func schema() map[string]any {
 					"item": map[string]any{
 						"type":        "string",
 						"description": "Item name for reverse lookup (e.g. 'Diamond', 'Pumpkin', 'Prismatic Shard'). Returns which NPCs love/like/dislike/hate it.",
+					},
+				},
+			},
+			{
+				"id":          "crop_planner",
+				"name":        "Crop Planner",
+				"description": "Look up crop growth data and profitability. Use 'crop' to see a specific crop's stats, or 'season' to see all crops ranked by gold/day.",
+				"parameters": map[string]any{
+					"crop": map[string]any{
+						"type":        "string",
+						"description": "Crop name for forward lookup (e.g. 'Pumpkin', 'Starfruit'). Returns growth time, seasons, sell prices, gold/day, and artisan goods values.",
+					},
+					"season": map[string]any{
+						"type":        "string",
+						"description": "Season name for reverse lookup ('Spring', 'Summer', 'Fall', 'Winter'). Returns all crops for that season ranked by gold/day.",
 					},
 				},
 			},
