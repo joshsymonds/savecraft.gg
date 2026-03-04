@@ -3,6 +3,7 @@
   Sign-in page: mounts Clerk's SignIn component.
 -->
 <script lang="ts">
+  import { page } from "$app/state";
   import { authState, getClerk } from "$lib/auth/clerk";
 
   let container: HTMLDivElement | undefined = $state();
@@ -12,11 +13,12 @@
     if (!$authState.isLoaded || !container) return;
     const clerk = getClerk();
     const el = container;
+    const redirectUrl = page.url.searchParams.get("redirect_url") ?? "/";
     clerk.mountSignIn(el, {
       routing: "path",
       path: "/sign-in",
       signUpUrl: "/sign-up",
-      afterSignInUrl: "/",
+      afterSignInUrl: redirectUrl,
     });
     return () => {
       clerk.unmountSignIn(el);
