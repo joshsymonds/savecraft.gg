@@ -55,36 +55,45 @@ The Worker is itself an **OAuth 2.1 Authorization Server**, powered by `@cloudfl
 
 ## MCP Tools
 
-### `list_saves`
+### `list_games(filter?)`
 
-Returns all saves the user has pushed, with metadata.
+Single discovery entry point. Returns all games the player has, with saves (including note titles), and reference modules with parameter schemas. Optional `filter` for case-insensitive substring matching on game ID or name.
 
 ```json
 {
-  "saves": [
+  "games": [
     {
-      "save_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       "game_id": "d2r",
       "game_name": "Diablo II: Resurrected",
-      "scope": "character",
-      "name": "Hammerdin",
-      "last_updated": "2026-02-25T21:30:00Z",
-      "summary": "Hammerdin, Level 89 Paladin"
-    },
-    {
-      "save_id": "c3d4e5f6-a7b8-9012-cdef-123456789012",
-      "game_id": "d2r",
-      "game_name": "Diablo II: Resurrected",
-      "scope": "game",
-      "name": null,
-      "last_updated": "2026-02-25T21:30:00Z",
-      "summary": "Shared Stash (3 tabs, 47 items)"
+      "saves": [
+        {
+          "save_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+          "name": "Hammerdin",
+          "summary": "Hammerdin, Level 89 Paladin",
+          "last_updated": "2026-02-25T21:30:00Z",
+          "notes": [
+            { "note_id": "n1", "title": "Enigma Farming Goals" }
+          ]
+        }
+      ],
+      "references": [
+        {
+          "id": "drop_calc",
+          "name": "Drop Calculator",
+          "description": "Compute drop probabilities for any item from any farmable source.",
+          "parameters": {
+            "monster": { "type": "string", "description": "Monster ID" },
+            "item": { "type": "string", "description": "Item code for reverse lookup" },
+            "difficulty": { "type": "string", "enum": ["normal", "nightmare", "hell"] }
+          }
+        }
+      ]
     }
   ]
 }
 ```
 
-The `scope` field distinguishes character saves (`"character"`) from game-level saves (`"game"`). Game saves have `name: null`. AI consumers can correlate game saves with character saves by matching `game_id`.
+Games without saves but with reference modules still appear. Reference module parameter schemas are embedded at build time from the WASM's self-describing output.
 
 ### `get_save(save_id)`
 
@@ -236,40 +245,15 @@ Removes a note. Requires confirmation from the user in conversation before the A
 
 ## MCP Tools: Reference Data
 
-Two read-only tools for querying server-side reference modules (drop calculators, breakpoint tables, etc.). Reference modules are WASM plugins that execute server-side via Workers for Platforms — see `docs/plugins.md` for the architecture.
+Read-only tool for querying server-side reference modules (drop calculators, breakpoint tables, etc.). Reference modules are WASM plugins that execute server-side via Workers for Platforms — see `docs/plugins.md` for the architecture. Available modules and their parameter schemas are discovered via `list_games`.
 
-### `list_references(game_id?)`
+### `query_reference(game_id, module, query)`
 
-Discovery tool. Returns available reference modules across all games, optionally filtered by game ID.
-
-```json
-{
-  "references": [
-    {
-      "game_id": "d2r",
-      "game_name": "Diablo II: Resurrected",
-      "modules": [
-        {
-          "id": "drop_calc",
-          "name": "Drop Calculator",
-          "description": "Compute drop probabilities for any item from any farmable source."
-        }
-      ]
-    }
-  ]
-}
-```
-
-The AI calls this to discover what computation is available before querying. An empty result means no reference modules are deployed for the given game.
-
-### `query_reference(game_id, query)`
-
-Computation tool. Passes a JSON query string to the game's reference Worker via Workers for Platforms dispatch. The reference WASM module processes the query via stdin/stdout ndjson contract and returns computed results.
+Computation tool. `module` selects which reference module to query (from `list_games`). `query` is a JSON string with module-specific parameters (schemas are in `list_games` response). The reference WASM module processes the query via stdin/stdout ndjson contract and returns computed results.
 
 ```json
 {
   "type": "result",
-  "module": "drop_calc",
   "data": {
     "item": "Shako",
     "source": "Mephisto",
@@ -279,9 +263,7 @@ Computation tool. Passes a JSON query string to the game's reference Worker via 
 }
 ```
 
-An empty query (`{}`) returns the module's self-describing parameter schema — the AI uses this to learn what parameters are available without hardcoded knowledge.
-
-**Error handling:** If the game ID has no reference Worker deployed, returns an error suggesting `list_references`. If the WASM module returns an error, the error message is passed through.
+**Error handling:** If the game ID has no reference Worker deployed, returns an error suggesting `list_games`. If the WASM module returns an error, the error message is passed through.
 
 ## AI Interaction Patterns
 
@@ -304,7 +286,7 @@ Players interact with Savecraft in two distinct modes — often in the same conv
 
 **Optimizer mode** — the player wants specific build/progression advice:
 
-1. Call `list_saves` to see what's available, or `search(query)` to find specific content across saves.
+1. Call `list_games` to see what's available, or `search(query)` to find specific content across saves.
 2. Call `get_save(save_id)` to see available sections for a save.
 3. Based on the question, fetch only the relevant sections:
    - "What should I upgrade?" → `equipped_gear` + `inventory` + `skills`

@@ -114,7 +114,7 @@ See `docs/plugins.md` for reference Worker structure, `docs/worker.md` for dispa
 - **Dual WASM targets:** `plugins/d2r/parser/` and `plugins/d2r/reference/` build separately, sharing `plugins/d2r/d2s/` data code
 - **Reference Worker:** `reference/` — shared WASI shim Worker that executes any game's reference WASM module
 - **Dispatch namespaces:** `savecraft-reference-plugins` (production) and `savecraft-reference-plugins-staging` (staging) created
-- **MCP tools:** `list_references` (discovery) and `query_reference` (computation) implemented and tested
+- **MCP tools:** Reference modules discovered via `list_games`, computed via `query_reference(game_id, module, query)`
 - **plugin.toml:** `[reference.modules.*]` section with name, description, attribution
 - **Manifest generator:** Handles dual binaries (parser.wasm + reference.wasm)
 
