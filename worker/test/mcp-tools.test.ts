@@ -9,6 +9,7 @@ import {
   getSave,
   getSection,
   getSectionDiff,
+  getSetupHelp,
   listGames,
   refreshSave,
   searchSaves,
@@ -1269,6 +1270,334 @@ describe("MCP Tools", () => {
       const result = await refreshSave(env.DB, env.DAEMON_HUB, USER_A, "save-refresh-offline");
       expect(result.isError).toBe(true);
       expect(result.content[0]!.text).toContain("daemon is offline");
+    });
+  });
+
+  // ── get_setup_help ──────────────────────────────────────────
+
+  describe("getSetupHelp", () => {
+    /** Seed a device with full control over fields for setup help tests. */
+    async function seedTestDevice(options: {
+      deviceUuid: string;
+      userUuid?: string | null;
+      hostname?: string;
+      os?: string;
+      arch?: string;
+      linkCode?: string | null;
+      linkCodeExpiresAt?: string | null;
+      lastPushAt?: string | null;
+    }): Promise<void> {
+      await env.DB.prepare(
+        `INSERT INTO devices (device_uuid, user_uuid, token_hash, hostname, os, arch, link_code, link_code_expires_at, last_push_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(
+          options.deviceUuid,
+          options.userUuid ?? null,
+          `hash-${options.deviceUuid}`,
+          options.hostname ?? null,
+          options.os ?? null,
+          options.arch ?? null,
+          options.linkCode ?? null,
+          options.linkCodeExpiresAt ?? null,
+          options.lastPushAt ?? null,
+        )
+        .run();
+    }
+
+    // ── Device listing ──────────────────────────────────────────
+
+    it("returns empty devices list for user with no devices", async () => {
+      const result = await getSetupHelp(env.DB, USER_A);
+      const data = parseResult(result) as { devices: unknown[] };
+      expect(result.isError).toBeUndefined();
+      expect(data.devices).toEqual([]);
+    });
+
+    it("returns linked devices with status info", async () => {
+      const recentPush = new Date(Date.now() - 2 * 60_000).toISOString(); // 2 min ago
+      await seedTestDevice({
+        deviceUuid: "dev-1",
+        userUuid: USER_A,
+        hostname: "gaming-pc",
+        os: "linux",
+        arch: "amd64",
+        lastPushAt: recentPush,
+      });
+
+      const result = await getSetupHelp(env.DB, USER_A);
+      const data = parseResult(result) as {
+        devices: {
+          device_uuid: string;
+          hostname: string;
+          os: string;
+          arch: string;
+          linked: boolean;
+          last_active: string;
+          activity: string;
+        }[];
+      };
+      expect(data.devices).toHaveLength(1);
+      expect(data.devices[0]!.device_uuid).toBe("dev-1");
+      expect(data.devices[0]!.hostname).toBe("gaming-pc");
+      expect(data.devices[0]!.os).toBe("linux");
+      expect(data.devices[0]!.linked).toBe(true);
+      expect(data.devices[0]!.activity).toBe("active");
+    });
+
+    it("derives activity status from last_push_at thresholds", async () => {
+      // active: within 5 min
+      await seedTestDevice({
+        deviceUuid: "dev-active",
+        userUuid: USER_A,
+        lastPushAt: new Date(Date.now() - 2 * 60_000).toISOString(),
+      });
+      // recently_active: within 1 hour
+      await seedTestDevice({
+        deviceUuid: "dev-recent",
+        userUuid: USER_A,
+        lastPushAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+      });
+      // inactive: older than 1 hour
+      await seedTestDevice({
+        deviceUuid: "dev-inactive",
+        userUuid: USER_A,
+        lastPushAt: new Date(Date.now() - 3 * 3_600_000).toISOString(),
+      });
+      // never_pushed: null
+      await seedTestDevice({
+        deviceUuid: "dev-never",
+        userUuid: USER_A,
+        lastPushAt: null,
+      });
+
+      const result = await getSetupHelp(env.DB, USER_A);
+      const data = parseResult(result) as {
+        devices: { device_uuid: string; activity: string }[];
+      };
+
+      const byId = new Map(data.devices.map((d) => [d.device_uuid, d.activity]));
+      expect(byId.get("dev-active")).toBe("active");
+      expect(byId.get("dev-recent")).toBe("recently_active");
+      expect(byId.get("dev-inactive")).toBe("inactive");
+      expect(byId.get("dev-never")).toBe("never_pushed");
+    });
+
+    it("does not return other users' devices", async () => {
+      await seedTestDevice({ deviceUuid: "dev-a", userUuid: USER_A });
+      await seedTestDevice({ deviceUuid: "dev-b", userUuid: USER_B });
+
+      const result = await getSetupHelp(env.DB, USER_A);
+      const data = parseResult(result) as {
+        devices: { device_uuid: string }[];
+      };
+      const ids = data.devices.map((d) => d.device_uuid);
+      expect(ids).toContain("dev-a");
+      expect(ids).not.toContain("dev-b");
+    });
+
+    // ── Link code lookup ────────────────────────────────────────
+
+    it("looks up a valid unexpired link code", async () => {
+      const expires = new Date(Date.now() + 10 * 60_000).toISOString();
+      await seedTestDevice({
+        deviceUuid: "dev-code",
+        userUuid: null,
+        hostname: "new-laptop",
+        os: "windows",
+        arch: "amd64",
+        linkCode: "482913",
+        linkCodeExpiresAt: expires,
+        lastPushAt: new Date(Date.now() - 60_000).toISOString(),
+      });
+
+      const result = await getSetupHelp(env.DB, USER_A, undefined, "482913");
+      const data = parseResult(result) as {
+        lookup: {
+          found: boolean;
+          device_uuid: string;
+          hostname: string;
+          os: string;
+          linked: boolean;
+          link_code_valid: boolean;
+          activity: string;
+        };
+      };
+      expect(data.lookup.found).toBe(true);
+      expect(data.lookup.device_uuid).toBe("dev-code");
+      expect(data.lookup.hostname).toBe("new-laptop");
+      expect(data.lookup.os).toBe("windows");
+      expect(data.lookup.linked).toBe(false);
+      expect(data.lookup.link_code_valid).toBe(true);
+      expect(data.lookup.activity).toBe("active");
+    });
+
+    it("reports expired link code", async () => {
+      const expired = new Date(Date.now() - 5 * 60_000).toISOString();
+      await seedTestDevice({
+        deviceUuid: "dev-expired",
+        linkCode: "111111",
+        linkCodeExpiresAt: expired,
+      });
+
+      const result = await getSetupHelp(env.DB, USER_A, undefined, "111111");
+      const data = parseResult(result) as {
+        lookup: { found: boolean; link_code_valid: boolean };
+      };
+      expect(data.lookup.found).toBe(true);
+      expect(data.lookup.link_code_valid).toBe(false);
+    });
+
+    it("reports nonexistent link code", async () => {
+      const result = await getSetupHelp(env.DB, USER_A, undefined, "999999");
+      const data = parseResult(result) as {
+        lookup: { found: boolean };
+      };
+      expect(data.lookup.found).toBe(false);
+    });
+
+    it("does not leak user info for already-linked device via code", async () => {
+      const expires = new Date(Date.now() + 10 * 60_000).toISOString();
+      await env.DB.prepare(
+        `INSERT INTO devices (device_uuid, user_uuid, user_email, user_display_name, token_hash, link_code, link_code_expires_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+        .bind("dev-linked", USER_B, "secret@example.com", "Secret User", "hash-linked", "222222", expires)
+        .run();
+
+      const result = await getSetupHelp(env.DB, USER_A, undefined, "222222");
+      const data = parseResult(result) as { lookup: Record<string, unknown> };
+      expect(data.lookup.found).toBe(true);
+      expect(data.lookup.linked).toBe(true);
+      // Must NOT contain user PII
+      expect(data.lookup).not.toHaveProperty("user_uuid");
+      expect(data.lookup).not.toHaveProperty("user_email");
+      expect(data.lookup).not.toHaveProperty("user_display_name");
+      const json = JSON.stringify(data.lookup);
+      expect(json).not.toContain("secret@example.com");
+      expect(json).not.toContain("Secret User");
+    });
+
+    // ── Device UUID lookup ──────────────────────────────────────
+
+    it("looks up device by UUID", async () => {
+      await seedTestDevice({
+        deviceUuid: "dev-lookup",
+        userUuid: null,
+        hostname: "my-pc",
+        os: "linux",
+        arch: "arm64",
+      });
+
+      const result = await getSetupHelp(env.DB, USER_A, undefined, undefined, "dev-lookup");
+      const data = parseResult(result) as {
+        lookup: { found: boolean; device_uuid: string; hostname: string };
+      };
+      expect(data.lookup.found).toBe(true);
+      expect(data.lookup.device_uuid).toBe("dev-lookup");
+      expect(data.lookup.hostname).toBe("my-pc");
+    });
+
+    it("reports nonexistent device UUID", async () => {
+      const result = await getSetupHelp(env.DB, USER_A, undefined, undefined, "nonexistent");
+      const data = parseResult(result) as { lookup: { found: boolean } };
+      expect(data.lookup.found).toBe(false);
+    });
+
+    // ── Installation guide ──────────────────────────────────────
+
+    it("returns full guide for all platforms when no platform specified", async () => {
+      const result = await getSetupHelp(env.DB, USER_A);
+      const data = parseResult(result) as {
+        guide: {
+          linux: { install: string; details: string };
+          windows: { install: string; details: string };
+          macos: { install: null; details: string };
+          pairing: string;
+        };
+      };
+      expect(data.guide.linux.install).toContain("curl");
+      expect(data.guide.linux.install).toContain("install.savecraft.gg");
+      expect(data.guide.windows.install).toContain("install.savecraft.gg");
+      expect(data.guide.macos.install).toBeNull();
+      expect(data.guide.macos.details).toContain("not yet available");
+      expect(data.guide.pairing).toContain("6-digit");
+      expect(data.guide.pairing).toContain("savecraft.gg/setup");
+    });
+
+    it("filters guide to requested platform", async () => {
+      const result = await getSetupHelp(env.DB, USER_A, "linux");
+      const data = parseResult(result) as {
+        guide: Record<string, unknown>;
+      };
+      expect(data.guide).toHaveProperty("linux");
+      expect(data.guide).toHaveProperty("pairing");
+      expect(data.guide).not.toHaveProperty("windows");
+      expect(data.guide).not.toHaveProperty("macos");
+    });
+
+    it("always includes pairing instructions regardless of platform", async () => {
+      const result = await getSetupHelp(env.DB, USER_A, "windows");
+      const data = parseResult(result) as {
+        guide: { pairing: string };
+      };
+      expect(data.guide.pairing).toBeTruthy();
+    });
+
+    // ── Edge cases ────────────────────────────────────────────
+
+    it("omits lookup field when neither link_code nor device_uuid provided", async () => {
+      const result = await getSetupHelp(env.DB, USER_A);
+      const data = parseResult(result) as Record<string, unknown>;
+      expect(data).not.toHaveProperty("lookup");
+    });
+
+    it("prefers device_uuid over link_code when both provided", async () => {
+      const expires = new Date(Date.now() + 10 * 60_000).toISOString();
+      await seedTestDevice({
+        deviceUuid: "dev-by-uuid",
+        hostname: "uuid-host",
+        linkCode: "333333",
+        linkCodeExpiresAt: expires,
+      });
+      await seedTestDevice({
+        deviceUuid: "dev-by-code",
+        hostname: "code-host",
+        linkCode: "444444",
+        linkCodeExpiresAt: expires,
+      });
+
+      // Pass both — device_uuid should win
+      const result = await getSetupHelp(env.DB, USER_A, undefined, "444444", "dev-by-uuid");
+      const data = parseResult(result) as {
+        lookup: { device_uuid: string; hostname: string };
+      };
+      expect(data.lookup.device_uuid).toBe("dev-by-uuid");
+      expect(data.lookup.hostname).toBe("uuid-host");
+    });
+
+    it("returns all platforms for invalid platform value", async () => {
+      const result = await getSetupHelp(env.DB, USER_A, "android");
+      const data = parseResult(result) as {
+        guide: Record<string, unknown>;
+      };
+      expect(data.guide).toHaveProperty("linux");
+      expect(data.guide).toHaveProperty("windows");
+      expect(data.guide).toHaveProperty("macos");
+      expect(data.guide).toHaveProperty("pairing");
+    });
+
+    it("never includes token_hash in lookup response", async () => {
+      await seedTestDevice({
+        deviceUuid: "dev-secret",
+        linkCode: "555555",
+        linkCodeExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+      });
+
+      const result = await getSetupHelp(env.DB, USER_A, undefined, "555555");
+      const json = JSON.stringify(parseResult(result));
+      expect(json).not.toContain("token_hash");
+      expect(json).not.toContain(`hash-dev-secret`);
     });
   });
 }); // MCP Tools
