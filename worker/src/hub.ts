@@ -144,13 +144,13 @@ function applyMutation(state: SourceState, mutation: StateMutation): void {
 }
 
 /**
- * SourceHub is a per-user Durable Object that relays WebSocket messages
- * between the source (daemon/mod) and the web UI. Uses WebSocket Hibernation
- * so the DO sleeps when no application messages are in flight.
+ * SourceHub is a per-user Durable Object that handles daemon/mod WebSocket
+ * connections. Uses WebSocket Hibernation so the DO sleeps when no
+ * application messages are in flight.
  *
- * Connections are tagged "daemon" or "ui". Daemon connections also get
- * a unique "conn:{id}" tag to track per-connection source identity.
- * Source state is maintained in DO transactional storage for cold start.
+ * Daemon connections get a unique "conn:{id}" tag to track per-connection
+ * source identity. Source state is maintained in DO transactional storage.
+ * Events and state updates are forwarded to UserHub for UI broadcast.
  */
 export class SourceHub extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
@@ -167,28 +167,19 @@ export class SourceHub extends DurableObject<Env> {
       return this.routeHttpRequest(request);
     }
 
-    const url = new URL(request.url);
-    const tag = url.pathname.includes("/daemon") ? "daemon" : "ui";
-
+    // SourceHub only accepts daemon connections (UI goes to UserHub)
     const pair = new WebSocketPair();
     const client = pair[0];
     const server = pair[1];
 
-    // Daemon connections get a unique connection ID for per-source tracking
-    const tags = tag === "daemon" ? [tag, `${CONN_PREFIX}${crypto.randomUUID()}`] : [tag];
+    const tags = ["daemon", `${CONN_PREFIX}${crypto.randomUUID()}`];
     this.ctx.acceptWebSocket(server, tags);
-
-    if (tag === "ui") {
-      await this.sendSourceState(server);
-      await this.sendRecentEvents(server);
-    }
 
     // Echo Sec-WebSocket-Protocol so browser WS handshake succeeds
     // when using protocol-based auth (access_token.TOKEN)
     const protocol = request.headers.get("Sec-WebSocket-Protocol");
     const headers: HeadersInit = {};
     if (protocol) {
-      // Select only the access_token protocol, not the raw value
       const selected = protocol
         .split(",")
         .map((s) => s.trim())
@@ -203,36 +194,30 @@ export class SourceHub extends DurableObject<Env> {
     const tags = this.ctx.getTags(ws);
     const msgString = typeof message === "string" ? message : new TextDecoder().decode(message);
 
-    if (tags.includes("daemon")) {
-      const rpc = this.parseMessage(msgString);
-      await this.applySourceState(tags, rpc);
+    if (!tags.includes("daemon")) return;
 
-      // Heartbeat updates lastSeen (via applySourceState) but is not
-      // relayed to UI or persisted — it's transport-level only.
-      if (rpc?.payload?.$case === "sourceHeartbeat") return;
+    const rpc = this.parseMessage(msgString);
+    const mutation = await this.applySourceState(tags, rpc);
 
-      // Resolve source sourceId (available after applySourceState stores
-      // the conn->sourceId mapping on sourceOnline)
-      const sourceId = await this.getSourceIdForConnection(tags);
-
-      // Forward to UI with _sourceId and _ts injected so the frontend can
-      // attribute game events to the correct source and show timestamps
-      const forwardMsg = this.injectMetadata(msgString, {
-        _sourceId: sourceId,
-        _ts: new Date().toISOString(),
-      });
-      for (const uiWs of this.ctx.getWebSockets("ui")) {
-        uiWs.send(forwardMsg);
-      }
-
-      await this.persistEvent(sourceId, rpc, msgString);
-      await this.maybePushConfig(rpc);
-      await this.maybePushSourceUpdate(ws, rpc);
-    } else if (tags.includes("ui")) {
-      for (const daemonWs of this.ctx.getWebSockets("daemon")) {
-        daemonWs.send(msgString);
-      }
+    // Forward state to UserHub when meaningful changes occur
+    if (mutation.kind !== "none" || rpc?.payload?.$case === "sourceHeartbeat") {
+      await this.forwardStateToUserHub();
     }
+
+    // Heartbeat updates lastSeen (via applySourceState) but is not
+    // relayed to UI or persisted — it's transport-level only.
+    if (rpc?.payload?.$case === "sourceHeartbeat") return;
+
+    const sourceId = await this.getSourceIdForConnection(tags);
+
+    // Persist before forwarding — ensures D1 is written before UI sees the event
+    await this.persistEvent(sourceId, rpc, msgString);
+
+    // Forward event to UserHub for UI broadcast
+    await this.forwardEventToUserHub(msgString, sourceId);
+
+    await this.maybePushConfig(rpc);
+    await this.maybePushSourceUpdate(ws, rpc);
   }
 
   async webSocketClose(
@@ -359,6 +344,9 @@ export class SourceHub extends DurableObject<Env> {
     await this.saveState(state);
     await this.ctx.storage.delete(connTag);
 
+    // Forward updated state to UserHub
+    await this.forwardStateToUserHub();
+
     // Delete alarm if no sources remain online
     if (!state.sources.some((s) => s.online)) {
       await this.ctx.storage.deleteAlarm();
@@ -391,21 +379,14 @@ export class SourceHub extends DurableObject<Env> {
     }
     await this.saveState(state);
 
-    this.broadcastStaleOffline(staleSourceIds);
-    await this.closeStaleConnections(staleSourceIds);
-  }
-
-  private broadcastStaleOffline(staleSourceIds: string[]): void {
+    // Forward offline events and updated state to UserHub
     for (const sourceId of staleSourceIds) {
-      const offlineMsg = JSON.stringify({
-        sourceOffline: { sourceId },
-        _sourceId: sourceId,
-        _ts: new Date().toISOString(),
-      });
-      for (const uiWs of this.ctx.getWebSockets("ui")) {
-        uiWs.send(offlineMsg);
-      }
+      const offlineMsg = JSON.stringify({ sourceOffline: { sourceId } });
+      await this.forwardEventToUserHub(offlineMsg, sourceId);
     }
+    await this.forwardStateToUserHub();
+
+    await this.closeStaleConnections(staleSourceIds);
   }
 
   private async closeStaleConnections(staleSourceIds: string[]): Promise<void> {
@@ -441,13 +422,6 @@ export class SourceHub extends DurableObject<Env> {
     const connTag = getConnTag(tags);
     if (!connTag) return undefined;
     return this.ctx.storage.get<string>(connTag);
-  }
-
-  private async sendSourceState(ws: WebSocket): Promise<void> {
-    const state = await this.loadState();
-    if (state.sources.length === 0) return;
-    const envelope = Message.toJSON({ payload: { $case: "sourceState", sourceState: state } });
-    ws.send(JSON.stringify(envelope));
   }
 
   private parseMessage(msgString: string): Message | undefined {
@@ -492,33 +466,6 @@ export class SourceHub extends DurableObject<Env> {
     } catch {
       // Don't let state update failures break the relay
       return { kind: "none" };
-    }
-  }
-
-  private async sendRecentEvents(ws: WebSocket): Promise<void> {
-    try {
-      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
-      if (!userUuid) return;
-      const rows = await this.env.DB.prepare(
-        `SELECT event_data, created_at, source_id FROM source_events
-         WHERE user_uuid = ?
-         ORDER BY created_at DESC
-         LIMIT 50`,
-      )
-        .bind(userUuid)
-        .all<{ event_data: string; created_at: string; source_id: string }>();
-
-      const events = rows.results.toReversed();
-      for (const row of events) {
-        ws.send(
-          this.injectMetadata(row.event_data, {
-            _ts: row.created_at.endsWith("Z") ? row.created_at : `${row.created_at}Z`,
-            _sourceId: row.source_id,
-          }),
-        );
-      }
-    } catch {
-      // Don't let cold start failures break the connection
     }
   }
 
@@ -612,10 +559,8 @@ export class SourceHub extends DurableObject<Env> {
       }
       await this.saveState(state);
 
-      // Broadcast updated state to all UI WebSockets
-      for (const uiWs of this.ctx.getWebSockets("ui")) {
-        await this.sendSourceState(uiWs);
-      }
+      // Forward updated state to UserHub
+      await this.forwardStateToUserHub();
     }
 
     // Send config to daemon
@@ -642,15 +587,52 @@ export class SourceHub extends DurableObject<Env> {
     return Response.json({ sent: true, daemon_count: daemonSockets.length });
   }
 
-  private injectMetadata(json: string, fields: Record<string, string | undefined>): string {
+  // ── UserHub forwarding ────────────────────────────────────────────
+
+  private async forwardEventToUserHub(
+    event: string,
+    sourceId: string | undefined,
+  ): Promise<void> {
+    const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
+    if (!userUuid) return;
     try {
-      const parsed = JSON.parse(json) as Record<string, unknown>;
-      for (const [key, value] of Object.entries(fields)) {
-        if (value !== undefined) parsed[key] = value;
-      }
-      return JSON.stringify(parsed);
+      const id = this.env.USER_HUB.idFromName(userUuid);
+      const stub = this.env.USER_HUB.get(id);
+      await stub.fetch(
+        new Request("https://do/forward-event", {
+          method: "POST",
+          headers: { "X-User-UUID": userUuid },
+          body: JSON.stringify({ event, sourceId }),
+        }),
+      );
     } catch {
-      return json;
+      // Don't let forwarding failures break the relay
+    }
+  }
+
+  private async forwardStateToUserHub(): Promise<void> {
+    const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
+    if (!userUuid) return;
+    try {
+      const state = await this.loadState();
+      // Pre-serialize via proto so Date objects become ISO strings.
+      // UserHub stores this string as-is and sends it directly to UI.
+      const envelope = Message.toJSON({
+        payload: { $case: "sourceState", sourceState: state },
+      });
+      const stateJson = JSON.stringify(envelope);
+
+      const id = this.env.USER_HUB.idFromName(userUuid);
+      const stub = this.env.USER_HUB.get(id);
+      await stub.fetch(
+        new Request("https://do/update-state", {
+          method: "POST",
+          headers: { "X-User-UUID": userUuid },
+          body: JSON.stringify({ stateJson }),
+        }),
+      );
+    } catch {
+      // Don't let forwarding failures break the relay
     }
   }
 

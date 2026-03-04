@@ -5,6 +5,7 @@ import { reapOrphanSources } from "./reaper";
 import type { Env } from "./types";
 
 export { SourceHub } from "./hub";
+export { UserHub } from "./user-hub";
 
 function getAllowedOrigin(request: Request, env: Env): string | null {
   const origin = request.headers.get("Origin");
@@ -218,10 +219,10 @@ async function routeWebSocketEndpoints(
   if (url.pathname === "/ws/ui") {
     const auth = await authenticateSession(request, env);
     if (!auth) return new Response("Unauthorized", { status: 401 });
-    const id = env.SOURCE_HUB.idFromName(auth.userUuid);
+    const id = env.USER_HUB.idFromName(auth.userUuid);
     const headers = new Headers(request.headers);
     headers.set("X-User-UUID", auth.userUuid);
-    return env.SOURCE_HUB.get(id).fetch(new Request(request, { headers }));
+    return env.USER_HUB.get(id).fetch(new Request(request, { headers }));
   }
   return null;
 }

@@ -36,12 +36,17 @@ namespace = "savecraft-reference-plugins"
 
 [durable_objects]
 bindings = [
-  { name = "SOURCE_HUB", class_name = "SourceHub" }
+  { name = "SOURCE_HUB", class_name = "SourceHub" },
+  { name = "USER_HUB", class_name = "UserHub" }
 ]
 
 [[migrations]]
 tag = "v1"
 new_classes = ["SourceHub"]
+
+[[migrations]]
+tag = "v2"
+new_classes = ["UserHub"]
 
 # ── Production ─────────────────────────────────────────
 [env.production]
@@ -83,12 +88,17 @@ namespace = "savecraft-reference-plugins"
 
 [env.production.durable_objects]
 bindings = [
-  { name = "SOURCE_HUB", class_name = "SourceHub" }
+  { name = "SOURCE_HUB", class_name = "SourceHub" },
+  { name = "USER_HUB", class_name = "UserHub" }
 ]
 
 [[env.production.migrations]]
 tag = "v1"
 new_sqlite_classes = ["SourceHub"]
+
+[[env.production.migrations]]
+tag = "v2"
+new_sqlite_classes = ["UserHub"]
 
 # ── Staging ────────────────────────────────────────────
 [env.staging]
@@ -131,9 +141,14 @@ namespace = "savecraft-reference-plugins-staging"
 
 [env.staging.durable_objects]
 bindings = [
-  { name = "SOURCE_HUB", class_name = "SourceHub" }
+  { name = "SOURCE_HUB", class_name = "SourceHub" },
+  { name = "USER_HUB", class_name = "UserHub" }
 ]
 
 [[env.staging.migrations]]
 tag = "v1"
 new_sqlite_classes = ["SourceHub"]
+
+[[env.staging.migrations]]
+tag = "v2"
+new_sqlite_classes = ["UserHub"]
