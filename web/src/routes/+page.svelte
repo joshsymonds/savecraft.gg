@@ -32,6 +32,7 @@
 
   let configDeviceId = $state<string | null>(null);
   let activityExpanded = $state(false);
+  let showLinkInput = $state(false);
   let displayCode = $state("");
 
   // Auto-submit pending link code from /link/[code] redirect
@@ -42,6 +43,12 @@
       void submitLinkCode(code);
     }
   });
+
+  function handleManualLink(code: string): void {
+    displayCode = code;
+    showLinkInput = false;
+    void submitLinkCode(code);
+  }
 
   let visibleEvents = $derived(
     activityExpanded ? $activityEvents : $activityEvents.slice(0, COLLAPSED_EVENT_COUNT),
@@ -93,9 +100,11 @@
   <!-- Main: device cards -->
   <main class="devices">
     {#if $linkState === "linking"}
-      <LinkingCard state="linking" code={displayCode} />
+      <LinkingCard cardState="linking" code={displayCode} />
     {:else if $linkState === "error"}
-      <LinkingCard state="error" errorMessage={$linkError} ondismiss={dismissLinkError} />
+      <LinkingCard cardState="error" errorMessage={$linkError} ondismiss={dismissLinkError} />
+    {:else if showLinkInput}
+      <LinkingCard cardState="input" onsubmit={handleManualLink} ondismiss={() => (showLinkInput = false)} />
     {/if}
 
     {#if $devices.length === 0}
@@ -112,6 +121,9 @@
       <div class="section-header">
         <span class="section-label">DEVICES</span>
         <span class="device-count">{$devices.length} connected</span>
+        {#if $linkState === "idle" && !showLinkInput}
+          <button class="add-device-btn" onclick={() => (showLinkInput = true)}>+ ADD DEVICE</button>
+        {/if}
       </div>
 
       {#each $devices as device (device.id)}
@@ -221,6 +233,25 @@
     font-family: var(--font-body);
     font-size: 16px;
     color: var(--color-text-dim);
+    flex: 1;
+  }
+
+  .add-device-btn {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--color-gold);
+    letter-spacing: 1px;
+    background: none;
+    border: 1px solid rgba(200, 168, 78, 0.25);
+    border-radius: 3px;
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .add-device-btn:hover {
+    background: rgba(200, 168, 78, 0.1);
+    border-color: var(--color-gold);
   }
 
   .empty-state {

@@ -51,13 +51,24 @@
     /** Fetch notes for a save from the API. */
     loadNotes?: (saveUuid: string) => Promise<NoteSummary[]>;
     discoveryPending?: boolean;
-    /** Show transient "LINKED" success banner (auto-dismisses). */
+    /** Show transient "LINKED" success banner (auto-dismisses after 5 s). */
     justLinked?: boolean;
     /** Pre-navigate to a game (for storybook). */
     initialGameId?: string;
     /** Pre-navigate to a save (for storybook). Requires initialGameId. */
     initialSaveUuid?: string;
   } = $props();
+
+  // Auto-dismiss the linked banner after 5 s
+  let showLinkedBanner = $state(false);
+  $effect(() => {
+    if (justLinked) {
+      showLinkedBanner = true;
+      const timer = setTimeout(() => (showLinkedBanner = false), 5000);
+      return () => clearTimeout(timer);
+    }
+    showLinkedBanner = false;
+  });
 
   // Nav state
   let navGameId = $state<string | null>(initialGameId ?? null);
@@ -262,7 +273,7 @@
     {/snippet}
   </WindowTitleBar>
 
-  {#if justLinked}
+  {#if showLinkedBanner}
     <div class="linked-banner">
       <span class="linked-icon">&#10003;</span>
       <span class="linked-label">DEVICE LINKED</span>

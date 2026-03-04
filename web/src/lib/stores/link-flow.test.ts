@@ -86,4 +86,16 @@ describe("link-flow", () => {
     expect(get(linkState)).toBe("idle");
     expect(get(linkError)).toBe("");
   });
+
+  it("resetLinkFlow clears linkedDeviceId after success", async () => {
+    vi.mocked(linkDevice).mockResolvedValue({ device_uuid: "dev-456" });
+    await submitLinkCode("482913");
+    expect(get(linkedDeviceId)).toBe("dev-456");
+
+    resetLinkFlow();
+
+    expect(get(linkState)).toBe("idle");
+    expect(get(linkError)).toBe("");
+    expect(get(linkedDeviceId)).toBe(null);
+  });
 });
