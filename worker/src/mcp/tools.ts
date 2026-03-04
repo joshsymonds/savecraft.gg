@@ -108,21 +108,29 @@ function matchesGameFilter(gameId: string, gameName: string, filter: string): bo
   return gameId.toLowerCase().includes(lower) || gameName.toLowerCase().includes(lower);
 }
 
-export async function listGames(
-  db: D1Database,
-  plugins: R2Bucket,
-  userUuid: string,
-  filter?: string,
-): Promise<ToolResult> {
-  // 1. Fetch all saves for the user.
-  const saveRows = await db
-    .prepare(
-      "SELECT uuid, game_id, game_name, save_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
-    )
-    .bind(userUuid)
-    .all<SaveRow>();
+interface GameEntry {
+  game_id: string;
+  game_name: string;
+  saves: {
+    save_id: string;
+    name: string;
+    summary: string;
+    last_updated: string;
+    notes: { note_id: string; title: string }[];
+  }[];
+  references?: {
+    id: string;
+    name: string;
+    description: string;
+    parameters?: Record<string, unknown>;
+  }[];
+}
 
-  // 2. Fetch all note metadata for the user (batch, not per-save).
+/** Fetch note previews and group by save_id. */
+async function fetchNotesBySave(
+  db: D1Database,
+  userUuid: string,
+): Promise<Map<string, { note_id: string; title: string }[]>> {
   const noteRows = await db
     .prepare(
       "SELECT note_id, save_id, title, SUBSTR(content, 1, 100) as preview FROM notes WHERE user_uuid = ? ORDER BY created_at DESC",
@@ -130,7 +138,6 @@ export async function listGames(
     .bind(userUuid)
     .all<NotePreviewRow>();
 
-  // Group notes by save_id.
   const notesBySave = new Map<string, { note_id: string; title: string }[]>();
   for (const note of noteRows.results) {
     const title = note.title || note.preview || "";
@@ -138,37 +145,25 @@ export async function listGames(
     list.push({ note_id: note.note_id, title });
     notesBySave.set(note.save_id, list);
   }
+  return notesBySave;
+}
 
-  // 3. Group saves by game_id.
-  const gameMap = new Map<
-    string,
-    {
-      game_id: string;
-      game_name: string;
-      saves: {
-        save_id: string;
-        name: string;
-        summary: string;
-        last_updated: string;
-        notes: { note_id: string; title: string }[];
-      }[];
-    }
-  >();
-
-  for (const row of saveRows.results) {
+/** Group saves into a game map, applying optional filter. */
+function groupSavesByGame(
+  saves: SaveRow[],
+  notesBySave: Map<string, { note_id: string; title: string }[]>,
+  filter?: string,
+): Map<string, GameEntry> {
+  const gameMap = new Map<string, GameEntry>();
+  for (const row of saves) {
     const gameName = row.game_name || row.game_id;
     if (filter && !matchesGameFilter(row.game_id, gameName, filter)) continue;
 
     let game = gameMap.get(row.game_id);
     if (!game) {
-      game = {
-        game_id: row.game_id,
-        game_name: gameName,
-        saves: [],
-      };
+      game = { game_id: row.game_id, game_name: gameName, saves: [] };
       gameMap.set(row.game_id, game);
     }
-
     game.saves.push({
       save_id: row.uuid,
       name: row.save_name,
@@ -177,20 +172,27 @@ export async function listGames(
       notes: notesBySave.get(row.uuid) ?? [],
     });
   }
+  return gameMap;
+}
 
-  // 4. Scan R2 for reference modules (manifests include parameter schemas).
-  const allPluginObjects: R2Object[] = [];
-  let pluginCursor: string | undefined;
+/** Scan R2 manifests and attach reference modules to game entries. */
+async function attachReferenceModules(
+  plugins: R2Bucket,
+  gameMap: Map<string, GameEntry>,
+  filter?: string,
+): Promise<void> {
+  const allObjects: R2Object[] = [];
+  let cursor: string | undefined;
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- R2 pagination loop
   while (true) {
-    const listed = await plugins.list({ prefix: "plugins/", cursor: pluginCursor });
-    allPluginObjects.push(...listed.objects);
+    const listed = await plugins.list({ prefix: "plugins/", cursor });
+    allObjects.push(...listed.objects);
     if (!listed.truncated) break;
-    pluginCursor = listed.cursor;
+    cursor = listed.cursor;
   }
-  for (const object of allPluginObjects) {
-    if (!object.key.endsWith("/manifest.json")) continue;
 
+  for (const object of allObjects) {
+    if (!object.key.endsWith("/manifest.json")) continue;
     const manifest = await plugins.get(object.key);
     if (!manifest) continue;
 
@@ -202,34 +204,42 @@ export async function listGames(
 
     let game = gameMap.get(data.game_id);
     if (!game) {
-      // Game has reference modules but no saves for this user — still include it.
-      game = {
-        game_id: data.game_id,
-        game_name: manifestGameName,
-        saves: [],
-      };
+      game = { game_id: data.game_id, game_name: manifestGameName, saves: [] };
       gameMap.set(data.game_id, game);
     }
 
-    // Attach references to the game entry.
-    const references = Object.entries(data.reference.modules).map(([id, entry]) => ({
+    game.references = Object.entries(data.reference.modules).map(([id, entry]) => ({
       id,
       name: entry.name,
       description: entry.description,
       parameters: entry.parameters,
     }));
-
-    (game as Record<string, unknown>).references = references;
   }
+}
+
+export async function listGames(
+  db: D1Database,
+  plugins: R2Bucket,
+  userUuid: string,
+  filter?: string,
+): Promise<ToolResult> {
+  const saveRows = await db
+    .prepare(
+      "SELECT uuid, game_id, game_name, save_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
+    )
+    .bind(userUuid)
+    .all<SaveRow>();
+
+  const notesBySave = await fetchNotesBySave(db, userUuid);
+  const gameMap = groupSavesByGame(saveRows.results, notesBySave, filter);
+  await attachReferenceModules(plugins, gameMap, filter);
 
   const games = [...gameMap.values()];
-
   if (filter && games.length === 0) {
     return errorResult(
       `No games matching "${filter}". Call list_games without a filter to see all available games.`,
     );
   }
-
   return textResult({ games });
 }
 
