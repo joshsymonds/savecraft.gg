@@ -28,6 +28,7 @@
     onnoteedit,
     loadNotes,
     discoveryPending = false,
+    justLinked = false,
     initialGameId,
     initialSaveUuid,
   }: {
@@ -50,6 +51,8 @@
     /** Fetch notes for a save from the API. */
     loadNotes?: (saveUuid: string) => Promise<NoteSummary[]>;
     discoveryPending?: boolean;
+    /** Show transient "LINKED" success banner (auto-dismisses). */
+    justLinked?: boolean;
     /** Pre-navigate to a game (for storybook). */
     initialGameId?: string;
     /** Pre-navigate to a save (for storybook). Requires initialGameId. */
@@ -258,6 +261,13 @@
       {/if}
     {/snippet}
   </WindowTitleBar>
+
+  {#if justLinked}
+    <div class="linked-banner">
+      <span class="linked-icon">&#10003;</span>
+      <span class="linked-label">DEVICE LINKED</span>
+    </div>
+  {/if}
 
   {#if saveData}
     <!-- Save level: notes -->
@@ -718,6 +728,31 @@
     font-family: var(--font-body);
     font-size: 16px;
     color: var(--color-text-muted);
+  }
+
+  /* -- Linked success banner ---------------------------------- */
+
+  .linked-banner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: rgba(90, 190, 138, 0.06);
+    border-bottom: 1px solid rgba(90, 190, 138, 0.15);
+    animation: fadeIn 0.3s ease-out;
+  }
+
+  .linked-icon {
+    font-size: 14px;
+    color: var(--color-green);
+    filter: drop-shadow(0 0 4px rgba(90, 190, 138, 0.4));
+  }
+
+  .linked-label {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--color-green);
+    letter-spacing: 2px;
   }
 
   @keyframes fadeIn {
