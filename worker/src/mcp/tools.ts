@@ -80,24 +80,149 @@ async function loadSnapshotAtTimestamp(
   return object.json<GameState>();
 }
 
-export async function listSaves(db: D1Database, userUuid: string): Promise<ToolResult> {
-  const rows = await db
+interface NoteRow {
+  note_id: string;
+  save_id: string;
+  title: string;
+  preview: string;
+}
+
+interface ReferenceModule {
+  name: string;
+  description: string;
+  attribution?: unknown;
+  parameters?: Record<string, unknown>;
+}
+
+interface ManifestData {
+  game_id?: string;
+  name?: string;
+  reference?: {
+    modules?: Record<string, ReferenceModule>;
+  };
+}
+
+/** Test if a game matches a filter pattern (case-insensitive substring on id or name). */
+function matchesGameFilter(gameId: string, gameName: string, filter: string): boolean {
+  const lower = filter.toLowerCase();
+  return gameId.toLowerCase().includes(lower) || gameName.toLowerCase().includes(lower);
+}
+
+export async function listGames(
+  db: D1Database,
+  plugins: R2Bucket,
+  userUuid: string,
+  filter?: string,
+): Promise<ToolResult> {
+  // 1. Fetch all saves for the user.
+  const saveRows = await db
     .prepare(
       "SELECT uuid, game_id, game_name, save_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
     )
     .bind(userUuid)
     .all<SaveRow>();
 
-  const saves = rows.results.map((row) => ({
-    save_id: row.uuid,
-    game_id: row.game_id,
-    game_name: row.game_name || row.game_id,
-    name: row.save_name,
-    summary: row.summary,
-    last_updated: row.last_updated,
-  }));
+  // 2. Fetch all note metadata for the user (batch, not per-save).
+  const noteRows = await db
+    .prepare(
+      "SELECT note_id, save_id, title, SUBSTR(content, 1, 100) as preview FROM notes WHERE user_uuid = ? ORDER BY created_at DESC",
+    )
+    .bind(userUuid)
+    .all<NoteRow>();
 
-  return textResult({ saves });
+  // Group notes by save_id.
+  const notesBySave = new Map<string, { note_id: string; title: string }[]>();
+  for (const note of noteRows.results) {
+    const title = note.title || note.preview || "";
+    const list = notesBySave.get(note.save_id) ?? [];
+    list.push({ note_id: note.note_id, title });
+    notesBySave.set(note.save_id, list);
+  }
+
+  // 3. Group saves by game_id.
+  const gameMap = new Map<
+    string,
+    {
+      game_id: string;
+      game_name: string;
+      saves: {
+        save_id: string;
+        name: string;
+        summary: string;
+        last_updated: string;
+        notes: { note_id: string; title: string }[];
+      }[];
+    }
+  >();
+
+  for (const row of saveRows.results) {
+    const gameName = row.game_name || row.game_id;
+    if (filter && !matchesGameFilter(row.game_id, gameName, filter)) continue;
+
+    let game = gameMap.get(row.game_id);
+    if (!game) {
+      game = {
+        game_id: row.game_id,
+        game_name: gameName,
+        saves: [],
+      };
+      gameMap.set(row.game_id, game);
+    }
+
+    game.saves.push({
+      save_id: row.uuid,
+      name: row.save_name,
+      summary: row.summary,
+      last_updated: row.last_updated,
+      notes: notesBySave.get(row.uuid) ?? [],
+    });
+  }
+
+  // 4. Scan R2 for reference modules (manifests include parameter schemas).
+  const listed = await plugins.list({ prefix: "plugins/" });
+  for (const object of listed.objects) {
+    if (!object.key.endsWith("/manifest.json")) continue;
+
+    const manifest = await plugins.get(object.key);
+    if (!manifest) continue;
+
+    const data = await manifest.json<ManifestData>();
+    if (!data.game_id || !data.reference?.modules) continue;
+
+    const manifestGameName = data.name ?? data.game_id;
+    if (filter && !matchesGameFilter(data.game_id, manifestGameName, filter)) continue;
+
+    let game = gameMap.get(data.game_id);
+    if (!game) {
+      // Game has reference modules but no saves for this user — still include it.
+      game = {
+        game_id: data.game_id,
+        game_name: manifestGameName,
+        saves: [],
+      };
+      gameMap.set(data.game_id, game);
+    }
+
+    // Attach references to the game entry.
+    const references = Object.entries(data.reference.modules).map(([id, entry]) => ({
+      id,
+      name: entry.name,
+      description: entry.description,
+      parameters: entry.parameters,
+    }));
+
+    (game as Record<string, unknown>).references = references;
+  }
+
+  const games = [...gameMap.values()];
+
+  if (filter && games.length === 0) {
+    return errorResult(
+      `No games matching "${filter}". Call list_games without a filter to see all available games.`,
+    );
+  }
+
+  return textResult({ games });
 }
 
 const OVERVIEW_SECTION_NAMES = ["character_overview", "player_summary", "overview", "summary"];
@@ -110,7 +235,7 @@ export async function getSave(
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
   const state = await loadLatestSnapshot(snapshots, userUuid, saveId);
   if (!state)
@@ -245,7 +370,7 @@ export async function getSection(
 
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
   const state = timestamp
     ? await loadSnapshotAtTimestamp(snapshots, userUuid, saveId, timestamp)
@@ -368,7 +493,7 @@ export async function getSectionDiff(
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
   const periodMs = parsePeriod(period);
   if (!periodMs) {
@@ -510,7 +635,7 @@ export async function getNote(
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
   const note = await db
     .prepare("SELECT * FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
@@ -539,7 +664,7 @@ export async function createNote(
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
   // Check 50KB limit
   if (new TextEncoder().encode(content).length > 50 * 1024) {
@@ -584,7 +709,7 @@ export async function updateNote(
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
   const existing = await db
     .prepare("SELECT note_id FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
@@ -645,7 +770,7 @@ export async function deleteNote(
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
   const existing = await db
     .prepare("SELECT note_id FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
@@ -678,7 +803,7 @@ export async function refreshSave(
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_saves to see available saves and their IDs.");
+    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
   const id = daemonHub.idFromName(userUuid);
   const stub = daemonHub.get(id);
@@ -766,75 +891,23 @@ export async function searchSaves(
 
 // ── Reference Data ───────────────────────────────────────────
 
-interface ReferenceModule {
-  name: string;
-  description: string;
-  attribution?: unknown;
-}
-
-interface ManifestData {
-  game_id?: string;
-  name?: string;
-  reference?: {
-    modules?: Record<string, ReferenceModule>;
-  };
-}
-
-export async function listReferences(plugins: R2Bucket, gameId?: string): Promise<ToolResult> {
-  const listed = await plugins.list({ prefix: "plugins/" });
-  const references: {
-    game_id: string;
-    game_name: string;
-    modules: { id: string; name: string; description: string }[];
-  }[] = [];
-
-  for (const object of listed.objects) {
-    if (!object.key.endsWith("/manifest.json")) continue;
-
-    const manifest = await plugins.get(object.key);
-    if (!manifest) continue;
-
-    const data = await manifest.json<ManifestData>();
-    if (!data.game_id || !data.reference?.modules) continue;
-    if (gameId && data.game_id !== gameId) continue;
-
-    const modules = Object.entries(data.reference.modules).map(([id, entry]) => ({
-      id,
-      name: entry.name,
-      description: entry.description,
-    }));
-
-    references.push({
-      game_id: data.game_id,
-      game_name: data.name ?? data.game_id,
-      modules,
-    });
-  }
-
-  if (gameId && references.length === 0) {
-    return errorResult(
-      `No reference modules found for game "${gameId}". Call list_references without a game_id to see all available reference modules.`,
-    );
-  }
-
-  return textResult({ references });
-}
-
 export async function queryReference(
   referencePlugins: DispatchNamespace,
   gameId: string,
-  query: unknown,
+  module: string,
+  query: Record<string, unknown>,
 ): Promise<ToolResult> {
   let plugin: Fetcher;
   try {
     plugin = referencePlugins.get(`${gameId}-reference`);
   } catch {
     return errorResult(
-      `No reference module found for game "${gameId}". Call list_references to see available reference modules.`,
+      `No reference module found for game "${gameId}". Call list_games to see available games and their reference modules.`,
     );
   }
 
-  const queryString = typeof query === "string" ? query : JSON.stringify(query);
+  const queryBody = { ...query, module };
+  const queryString = JSON.stringify(queryBody);
 
   let response: Response;
   try {
@@ -846,7 +919,7 @@ export async function queryReference(
     );
   } catch {
     return errorResult(
-      `Reference module for "${gameId}" is not available. It may not be deployed yet.`,
+      `Reference module for "${gameId}" is not available. It may not be deployed yet. Call list_games to see available games and their reference modules.`,
     );
   }
 
