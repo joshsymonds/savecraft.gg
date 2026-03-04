@@ -222,6 +222,13 @@
   </div>
 </Story>
 
+<!-- Just linked: green success banner below title bar -->
+<Story name="JustLinked">
+  <div style="width: 700px;">
+    <DeviceWindow device={onlineDevice} loadNotes={mockLoadNotes} justLinked={true} />
+  </div>
+</Story>
+
 <Story name="DeviceOffline">
   <div style="width: 700px;">
     <DeviceWindow device={offlineDevice} loadNotes={mockLoadNotes} />
