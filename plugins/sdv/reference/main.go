@@ -84,6 +84,9 @@ func handleNPCQuery(enc *json.Encoder, npc string) {
 	b.WriteString("\n--- Universal (all NPCs unless overridden) ---\n")
 	formatTasteSection(&b, "Universal Love", prefs["universalLove"])
 	formatTasteSection(&b, "Universal Like", prefs["universalLike"])
+	formatTasteSection(&b, "Universal Neutral", prefs["universalNeutral"])
+	formatTasteSection(&b, "Universal Dislike", prefs["universalDislike"])
+	formatTasteSection(&b, "Universal Hate", prefs["universalHate"])
 
 	writeResult(enc, map[string]any{
 		"formatted": b.String(),
