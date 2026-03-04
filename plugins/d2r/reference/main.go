@@ -9,6 +9,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"sort"
@@ -16,6 +17,8 @@ import (
 
 	"github.com/joshsymonds/savecraft.gg/plugins/d2r/reference/dropcalc"
 )
+
+const pageSize = 50
 
 func main() {
 	enc := json.NewEncoder(os.Stdout)
@@ -72,31 +75,83 @@ func handleMonsterDrops(enc *json.Encoder, calc *dropcalc.Calculator, query map[
 	partySize := intParam(query, "party_size", players)
 	mf := intParam(query, "mf", 0)
 	area, _ := query["area"].(string)
+	offset := intParam(query, "offset", 0)
+	sortOrder := stringParam(query, "sort")
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
 
-	drops, err := calc.ResolveWithQuality(monster, difficulty, 0, players, partySize, mf, area)
+	drops, err := calc.ResolveWithQuality(monster, difficulty, 0,
+		players, partySize, mf, area)
 	if err != nil {
 		writeError(enc, "calc_error", err.Error())
 		os.Exit(1)
 	}
 
-	sort.Slice(drops, func(i, j int) bool {
-		return drops[i].Quality.Unique > drops[j].Quality.Unique
-	})
-
-	for _, d := range drops {
-		writeResult(enc, map[string]any{
-			"code":      d.Code,
-			"name":      d.Name,
-			"base_prob": d.BaseProb,
-			"quality": map[string]any{
-				"unique": d.Quality.Unique,
-				"set":    d.Quality.Set,
-				"rare":   d.Quality.Rare,
-				"magic":  d.Quality.Magic,
-				"white":  d.Quality.White,
-			},
+	if sortOrder == "asc" {
+		sort.Slice(drops, func(i, j int) bool {
+			return drops[i].Quality.Unique < drops[j].Quality.Unique
+		})
+	} else {
+		sort.Slice(drops, func(i, j int) bool {
+			return drops[i].Quality.Unique > drops[j].Quality.Unique
 		})
 	}
+
+	total := len(drops)
+	drops = paginate(drops, offset)
+
+	// Format header.
+	diffName := difficultyName(difficulty)
+	var b strings.Builder
+	fmt.Fprintf(&b, "Drops for %s (%s) — %d MF, %d player",
+		monster, diffName, mf, players)
+	if players > 1 {
+		b.WriteString("s")
+	}
+	b.WriteString("\n")
+
+	sortDesc := "unique chance, best first"
+	if sortOrder == "asc" {
+		sortDesc = "unique chance, worst first"
+	}
+
+	if total == 0 {
+		b.WriteString("No results found.\n")
+	} else {
+		fmt.Fprintf(&b, "Showing %d-%d of %d (sorted by %s)\n\n",
+			offset+1, offset+len(drops), total, sortDesc)
+
+		fmt.Fprintf(&b, "%4s  %-24s %9s %9s %9s %9s %9s\n",
+			"#", "Item", "Unique", "Set", "Rare", "Magic", "Base")
+
+		for i, d := range drops {
+			name := d.Name
+			if len(name) > 24 {
+				name = name[:21] + "..."
+			}
+			fmt.Fprintf(&b, "%4d. %-24s %9s %9s %9s %9s %9s\n",
+				offset+i+1, name,
+				fmtChance(d.Quality.Unique),
+				fmtChance(d.Quality.Set),
+				fmtChance(d.Quality.Rare),
+				fmtChance(d.Quality.Magic),
+				fmtChance(d.BaseProb))
+		}
+
+		remaining := total - offset - len(drops)
+		if remaining > 0 {
+			fmt.Fprintf(&b, "\n%d more results. Use offset=%d for next page.",
+				remaining, offset+pageSize)
+		}
+	}
+
+	writeResult(enc, map[string]any{
+		"formatted": b.String(),
+		"total":     total,
+		"offset":    offset,
+		"limit":     pageSize,
+	})
 }
 
 func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[string]any, item string) {
@@ -106,35 +161,116 @@ func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[s
 		os.Exit(1)
 	}
 
+	offset := intParam(query, "offset", 0)
+	sortOrder := stringParam(query, "sort")
+	if sortOrder == "" {
+		sortOrder = "desc"
+	}
+	mf := intParam(query, "mf", 0)
+	players := intParam(query, "players", 1)
+	diffVal := parseDifficultyWithAll(query["difficulty"])
+
 	sources := calc.FindItemSources(code, dropcalc.FindOptions{
-		Difficulty: parseDifficultyWithAll(query["difficulty"]),
+		Difficulty: diffVal,
 		TCType:     intParam(query, "tc_type", -1),
 		BossOnly:   boolParam(query, "boss_only"),
 		Area:       stringParam(query, "area"),
-		Players:    intParam(query, "players", 1),
+		Players:    players,
 		PartySize:  intParam(query, "party_size", 1),
-		MF:         intParam(query, "mf", 0),
+		MF:         mf,
 	})
 
-	for _, s := range sources {
-		writeResult(enc, map[string]any{
-			"monster_id":   s.MonsterID,
-			"monster_name": s.MonsterName,
-			"is_boss":      s.IsBoss,
-			"tc_type":      s.TCType,
-			"difficulty":   s.Difficulty,
-			"area":         s.Area,
-			"mlvl":         s.MLVL,
-			"base_prob":    s.BaseProb,
-			"quality": map[string]any{
-				"unique": s.Quality.Unique,
-				"set":    s.Quality.Set,
-				"rare":   s.Quality.Rare,
-				"magic":  s.Quality.Magic,
-				"white":  s.Quality.White,
-			},
+	// FindItemSources returns desc by unique. Re-sort explicitly for both cases
+	// so we don't depend on the internal sort order.
+	if sortOrder == "asc" {
+		sort.Slice(sources, func(i, j int) bool {
+			return sources[i].Quality.Unique < sources[j].Quality.Unique
+		})
+	} else {
+		sort.Slice(sources, func(i, j int) bool {
+			return sources[i].Quality.Unique > sources[j].Quality.Unique
 		})
 	}
+
+	total := len(sources)
+	sources = paginate(sources, offset)
+
+	// Format header.
+	itemName := calc.ItemName(code)
+	diffLabel := "all difficulties"
+	if diffVal >= 0 {
+		diffLabel = difficultyName(diffVal)
+	}
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "Drop sources for %s (%s) — %s, %d MF, %d player",
+		itemName, code, diffLabel, mf, players)
+	if players > 1 {
+		b.WriteString("s")
+	}
+	b.WriteString("\n")
+
+	sortDesc := "unique chance, best first"
+	if sortOrder == "asc" {
+		sortDesc = "unique chance, worst first"
+	}
+
+	if total == 0 {
+		b.WriteString("No results found.\n")
+	} else {
+		fmt.Fprintf(&b, "Showing %d-%d of %d (sorted by %s)\n\n",
+			offset+1, offset+len(sources), total, sortDesc)
+
+		fmt.Fprintf(&b, "%4s  %-20s %-5s %-8s %-20s %9s %9s %9s\n",
+			"#", "Monster", "Diff", "Type", "Area", "Unique", "Set", "Base")
+
+		for i, s := range sources {
+			name := s.MonsterName
+			if len(name) > 20 {
+				name = name[:17] + "..."
+			}
+			area := s.Area
+			if area == "" {
+				area = "—"
+			}
+			if len(area) > 20 {
+				area = area[:17] + "..."
+			}
+			fmt.Fprintf(&b, "%4d. %-20s %-5s %-8s %-20s %9s %9s %9s\n",
+				offset+i+1, name,
+				shortDiff(s.Difficulty),
+				tcTypeName(s.TCType),
+				area,
+				fmtChance(s.Quality.Unique),
+				fmtChance(s.Quality.Set),
+				fmtChance(s.BaseProb))
+		}
+
+		remaining := total - offset - len(sources)
+		if remaining > 0 {
+			fmt.Fprintf(&b, "\n%d more results. Use offset=%d for next page.",
+				remaining, offset+pageSize)
+		}
+	}
+
+	writeResult(enc, map[string]any{
+		"formatted": b.String(),
+		"total":     total,
+		"offset":    offset,
+		"limit":     pageSize,
+	})
+}
+
+// paginate returns a slice of up to pageSize elements starting at offset.
+func paginate[T any](items []T, offset int) []T {
+	if offset >= len(items) {
+		return nil
+	}
+	end := offset + pageSize
+	if end > len(items) {
+		end = len(items)
+	}
+	return items[offset:end]
 }
 
 func parseDifficulty(v any) int {
@@ -198,6 +334,55 @@ func stringParam(query map[string]any, key string) string {
 	return v
 }
 
+func difficultyName(d int) string {
+	switch d {
+	case 0:
+		return "Normal"
+	case 1:
+		return "Nightmare"
+	default:
+		return "Hell"
+	}
+}
+
+func shortDiff(d int) string {
+	switch d {
+	case 0:
+		return "Norm"
+	case 1:
+		return "NM"
+	default:
+		return "Hell"
+	}
+}
+
+func tcTypeName(t int) string {
+	switch t {
+	case 0:
+		return "Regular"
+	case 1:
+		return "Champion"
+	case 2:
+		return "Unique"
+	case 3:
+		return "Quest"
+	default:
+		return "Unknown"
+	}
+}
+
+// fmtChance formats a probability as "1:N" or "—" if zero.
+func fmtChance(p float64) string {
+	if p <= 0 {
+		return "—"
+	}
+	n := 1.0 / p
+	if n < 10 {
+		return fmt.Sprintf("1:%.1f", n)
+	}
+	return fmt.Sprintf("1:%.0f", n)
+}
+
 func schema() map[string]any {
 	return map[string]any{
 		"modules": []map[string]any{
@@ -212,12 +397,11 @@ func schema() map[string]any {
 					},
 					"item": map[string]any{
 						"type":        "string",
-						"description": "Item code or name for reverse lookup (e.g. 'r13', 'Shael', 'xea', 'Serpentskin Armor'). Mutually exclusive with 'monster'.",
+						"description": "Item code, base item name, unique item name, or set item name for reverse lookup (e.g. 'r13', 'Shael', 'xea', 'Serpentskin Armor', 'Skin of the Vipermagi', 'Magefist', 'Tal Rasha's Horadric Crest'). Mutually exclusive with 'monster'.",
 					},
 					"difficulty": map[string]any{
 						"type":        "string",
-						"default":     "hell",
-						"description": "Difficulty: 'normal', 'nightmare', 'hell', or 'all'. Default 'hell' for monster mode, 'all' for item mode.",
+						"description": "Difficulty: 'normal', 'nightmare', 'hell', or 'all'. Omit or use 'all' to search all difficulties (recommended for finding best farming spots). Specifying a difficulty restricts results to ONLY that difficulty. Default 'hell' for monster mode, 'all' for item mode.",
 					},
 					"players": map[string]any{
 						"type":    "integer",
@@ -244,6 +428,16 @@ func schema() map[string]any {
 						"type":        "integer",
 						"default":     -1,
 						"description": "Item mode only: 0=regular, 1=champion, 2=unique, 3=quest. -1 for all.",
+					},
+					"offset": map[string]any{
+						"type":        "integer",
+						"default":     0,
+						"description": "Pagination offset. Results are returned in pages of 50.",
+					},
+					"sort": map[string]any{
+						"type":        "string",
+						"default":     "desc",
+						"description": "Sort order for unique chance: 'desc' (best first) or 'asc' (worst first).",
 					},
 				},
 			},
