@@ -122,6 +122,67 @@ func TestAllNPCsHavePrefs(t *testing.T) {
 	}
 }
 
+func TestTasteResolutionPriority(t *testing.T) {
+	// The game resolves taste conflicts with priority: love > hate > like > dislike > neutral.
+	// Jodi has item 18 (Daffodil) in both Like and Hate lists.
+	// Hate takes priority over Like, so Jodi should HATE Daffodil.
+	results := lookupItem("Daffodil")
+	if results == nil {
+		t.Fatal("expected results for Daffodil")
+	}
+	npcs := results["npcs"].([]any)
+	for _, r := range npcs {
+		m := r.(map[string]any)
+		if m["npc"] == "Jodi" {
+			if m["taste"] != "hate" {
+				t.Errorf("Jodi's taste for Daffodil = %q, want %q (hate > like in priority)", m["taste"], "hate")
+			}
+			return
+		}
+	}
+	t.Error("Jodi not found in Daffodil results")
+}
+
+func TestTasteResolutionDirectItemOverridesCategory(t *testing.T) {
+	// Elliott has -79 (Fruit) in Like, but Salmonberry (296) directly in Hate.
+	// Direct item match in Hate trumps category match in Like.
+	results := lookupItem("Salmonberry")
+	if results == nil {
+		t.Fatal("expected results for Salmonberry")
+	}
+	npcs := results["npcs"].([]any)
+	for _, r := range npcs {
+		m := r.(map[string]any)
+		if m["npc"] == "Elliott" {
+			if m["taste"] != "hate" {
+				t.Errorf("Elliott's taste for Salmonberry = %q, want %q (direct item hate > category like)", m["taste"], "hate")
+			}
+			return
+		}
+	}
+	t.Error("Elliott not found in Salmonberry results")
+}
+
+func TestTasteResolutionCategoryConflict(t *testing.T) {
+	// Elliott has -79 (Fruit) in both Like and Dislike lists.
+	// Like takes priority over Dislike, so Elliott should LIKE Apple (a fruit not in any specific list).
+	results := lookupItem("Apple")
+	if results == nil {
+		t.Fatal("expected results for Apple")
+	}
+	npcs := results["npcs"].([]any)
+	for _, r := range npcs {
+		m := r.(map[string]any)
+		if m["npc"] == "Elliott" {
+			if m["taste"] != "like" {
+				t.Errorf("Elliott's taste for Apple = %q, want %q (like > dislike in priority)", m["taste"], "like")
+			}
+			return
+		}
+	}
+	t.Error("Elliott not found in Apple results")
+}
+
 func TestCategoryName(t *testing.T) {
 	tests := []struct {
 		cat  int

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strconv"
 	"strings"
 )
 
@@ -46,10 +47,10 @@ func lookupNPC(name string) map[string]any {
 
 	// Universal preferences (apply to all NPCs unless overridden)
 	result["universalLove"] = resolveItems(universalTastes.Love.Items)
-	result["universalLike"] = resolveItemsCompact(universalTastes.Like.Items)
-	result["universalNeutral"] = resolveItemsCompact(universalTastes.Neutral.Items)
-	result["universalDislike"] = resolveItemsCompact(universalTastes.Dislike.Items)
-	result["universalHate"] = resolveItemsCompact(universalTastes.Hate.Items)
+	result["universalLike"] = resolveItems(universalTastes.Like.Items)
+	result["universalNeutral"] = resolveItems(universalTastes.Neutral.Items)
+	result["universalDislike"] = resolveItems(universalTastes.Dislike.Items)
+	result["universalHate"] = resolveItems(universalTastes.Hate.Items)
 
 	return result
 }
@@ -79,7 +80,7 @@ func lookupItem(name string) map[string]any {
 	}
 
 	// Check universal taste for NPCs not in the personal results
-	uTaste := resolveItemTasteFromPref(itemID, itemCat, universalTastes)
+	uTaste := resolveItemTaste(itemID, itemCat, universalTastes)
 
 	// Add NPCs who get the universal taste (i.e., no personal override)
 	personalNPCs := make(map[string]bool)
@@ -124,31 +125,26 @@ func lookupItem(name string) map[string]any {
 	return result
 }
 
-// resolveItemTaste checks NPC-specific preferences for an item.
-// Returns the taste level or "" if no personal preference.
+// resolveItemTaste checks preferences for an item using the game's priority order.
+// The game resolves taste as: love > hate > like > dislike > neutral.
+// Returns the taste level or "" if no match.
 func resolveItemTaste(itemID string, itemCat int, prefs npcGiftTaste) string {
-	// Check in order: love, like, neutral, dislike, hate
 	if matchesPref(itemID, itemCat, prefs.Love) {
 		return "love"
-	}
-	if matchesPref(itemID, itemCat, prefs.Like) {
-		return "like"
-	}
-	if matchesPref(itemID, itemCat, prefs.Neutral) {
-		return "neutral"
-	}
-	if matchesPref(itemID, itemCat, prefs.Dislike) {
-		return "dislike"
 	}
 	if matchesPref(itemID, itemCat, prefs.Hate) {
 		return "hate"
 	}
+	if matchesPref(itemID, itemCat, prefs.Like) {
+		return "like"
+	}
+	if matchesPref(itemID, itemCat, prefs.Dislike) {
+		return "dislike"
+	}
+	if matchesPref(itemID, itemCat, prefs.Neutral) {
+		return "neutral"
+	}
 	return ""
-}
-
-// resolveItemTasteFromPref checks universal preferences.
-func resolveItemTasteFromPref(itemID string, itemCat int, prefs npcGiftTaste) string {
-	return resolveItemTaste(itemID, itemCat, prefs)
 }
 
 // matchesPref checks if an item matches a taste preference list.
@@ -160,9 +156,7 @@ func matchesPref(itemID string, itemCat int, pref tastePref) bool {
 		}
 		// Category match (negative numbers)
 		if len(ref) > 1 && ref[0] == '-' && itemCat != 0 {
-			catStr := ref
-			cat := parseCategoryID(catStr)
-			if cat != 0 && cat == itemCat {
+			if cat, err := strconv.Atoi(ref); err == nil && cat == itemCat {
 				return true
 			}
 		}
@@ -233,17 +227,12 @@ func resolveItems(ids []string) []any {
 	return result
 }
 
-// resolveItemsCompact returns a compact representation for universal lists.
-func resolveItemsCompact(ids []string) []any {
-	return resolveItems(ids)
-}
-
 // resolveRef resolves a single item/category/tag reference.
 func resolveRef(ref string) map[string]any {
 	// Category reference
 	if len(ref) > 1 && ref[0] == '-' {
-		cat := parseCategoryID(ref)
-		if cat != 0 {
+		cat, err := strconv.Atoi(ref)
+		if err == nil && cat != 0 {
 			name := categoryName(cat)
 			if name == "" {
 				name = "Category " + ref
@@ -282,27 +271,6 @@ func resolveRef(ref string) map[string]any {
 // categoryName returns the human-readable name for a category ID.
 func categoryName(cat int) string {
 	return categoryNames[cat]
-}
-
-// parseCategoryID parses a string like "-75" into an int.
-func parseCategoryID(s string) int {
-	n := 0
-	neg := false
-	i := 0
-	if i < len(s) && s[i] == '-' {
-		neg = true
-		i++
-	}
-	for ; i < len(s); i++ {
-		if s[i] < '0' || s[i] > '9' {
-			return 0
-		}
-		n = n*10 + int(s[i]-'0')
-	}
-	if neg {
-		return -n
-	}
-	return n
 }
 
 // isNumericRef checks if a reference is numeric (possibly with leading '-').
