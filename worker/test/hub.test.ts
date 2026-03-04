@@ -23,21 +23,8 @@ describe("SourceHub", () => {
     await closeWs(uiWs);
   });
 
-  it("relays UI commands to daemon", async () => {
-    const userUuid = "relay-ui-test-user";
-
-    const daemonWs = await connectWs("/ws/daemon", userUuid);
-    const uiWs = await connectWs("/ws/ui", userUuid);
-
-    const command = { rescanGame: { gameId: "d2r" } };
-    uiWs.send(JSON.stringify(command));
-
-    const received = await waitForMessage<typeof command>(daemonWs);
-    expect(received.rescanGame.gameId).toBe("d2r");
-
-    await closeWs(daemonWs);
-    await closeWs(uiWs);
-  });
+  // UI→daemon relay is temporarily removed — UserHub's webSocketMessage
+  // is a no-op until SourceHub is rekeyed by source_uuid.
 
   it("persists daemon events to D1", async () => {
     const userUuid = "persist-test-user";
