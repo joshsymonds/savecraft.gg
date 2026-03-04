@@ -151,8 +151,161 @@ func TestCropProfitabilityRegrow(t *testing.T) {
 	}
 }
 
+func TestNetProfitability(t *testing.T) {
+	result := lookupCrop("Parsnip")
+	if result == nil {
+		t.Fatal("expected result for Parsnip")
+	}
+
+	// Parsnip: 35g sell, 20g seed, 4 days
+	// Net = (35 - 20) / 4 = 3.75
+	net := result["netGoldPerDay"].(float64)
+	if net < 3.5 || net > 4.0 {
+		t.Errorf("netGoldPerDay = %v, want ~3.75", net)
+	}
+
+	if result["seedCost"] != 20 {
+		t.Errorf("seedCost = %v, want 20", result["seedCost"])
+	}
+}
+
+func TestNetProfitabilityRegrow(t *testing.T) {
+	result := lookupCrop("Corn")
+	if result == nil {
+		t.Fatal("expected result for Corn")
+	}
+
+	// Corn: 50g sell, 150g seed, 14 days first, 4 day regrow
+	// Harvests in 28 days: 1 + (28-14)/4 = 4
+	// Revenue: 50 * 4 = 200, minus seed 150 = 50 net over 28 days
+	// Net/day = 50/28 ≈ 1.79
+	net := result["netGoldPerDay"].(float64)
+	if net < 1.5 || net > 2.1 {
+		t.Errorf("netGoldPerDay for Corn = %v, want ~1.79", net)
+	}
+}
+
+func TestNetProfitabilityUnbuyableSeed(t *testing.T) {
+	result := lookupCrop("Ancient Fruit")
+	if result == nil {
+		t.Fatal("expected result for Ancient Fruit")
+	}
+
+	// Ancient Fruit seeds aren't buyable (seedCost = -1)
+	// Net gold/day should equal gross gold/day (no seed to subtract)
+	if result["seedCost"] != -1 {
+		t.Errorf("seedCost = %v, want -1", result["seedCost"])
+	}
+	gross := result["goldPerDay"].(float64)
+	net := result["netGoldPerDay"].(float64)
+	if gross != net {
+		t.Errorf("unbuyable seed: netGoldPerDay (%v) != goldPerDay (%v)", net, gross)
+	}
+}
+
+func TestSpeedGroEffect(t *testing.T) {
+	result := lookupCrop("Parsnip")
+	if result == nil {
+		t.Fatal("expected result for Parsnip")
+	}
+
+	speedGro := result["speedGro"].(map[string]any)
+
+	// Parsnip: 4 days base
+	// Speed-Gro: floor(4 * 0.9) = 3 days → 35/3 = 11.67 g/day
+	sgDays := speedGro["growthDays"].(int)
+	if sgDays != 3 {
+		t.Errorf("Speed-Gro growthDays = %v, want 3", sgDays)
+	}
+	sgGPD := speedGro["goldPerDay"].(float64)
+	if sgGPD < 11.5 || sgGPD > 12.0 {
+		t.Errorf("Speed-Gro goldPerDay = %v, want ~11.67", sgGPD)
+	}
+
+	// Deluxe: floor(4 * 0.75) = 3 days
+	dsg := result["deluxeSpeedGro"].(map[string]any)
+	dsgDays := dsg["growthDays"].(int)
+	if dsgDays != 3 {
+		t.Errorf("Deluxe Speed-Gro growthDays = %v, want 3", dsgDays)
+	}
+
+	// Hyper: floor(4 * 0.67) = 2 days
+	hsg := result["hyperSpeedGro"].(map[string]any)
+	hsgDays := hsg["growthDays"].(int)
+	if hsgDays != 2 {
+		t.Errorf("Hyper Speed-Gro growthDays = %v, want 2", hsgDays)
+	}
+}
+
+func TestSpeedGroRegrowUnchanged(t *testing.T) {
+	result := lookupCrop("Strawberry")
+	if result == nil {
+		t.Fatal("expected result for Strawberry")
+	}
+
+	// Speed-Gro only reduces initial growth, regrow is unchanged
+	speedGro := result["speedGro"].(map[string]any)
+	// Strawberry: 8 days → floor(8*0.9) = 7 days, but regrow stays 4
+	if speedGro["growthDays"].(int) >= 8 {
+		t.Errorf("Speed-Gro should reduce growth days from 8")
+	}
+	// More harvests because earlier first harvest
+	baseHarvests := result["harvests"].(int)
+	sgHarvests := speedGro["harvests"].(int)
+	if sgHarvests < baseHarvests {
+		t.Errorf("Speed-Gro harvests (%d) should be >= base (%d)", sgHarvests, baseHarvests)
+	}
+}
+
+func TestProcessingInfo(t *testing.T) {
+	result := lookupCrop("Hops")
+	if result == nil {
+		t.Fatal("expected result for Hops")
+	}
+
+	proc := result["processing"].(map[string]any)
+	// Hops are vegetable → Pickles (jar) or Juice (keg)
+	// But Hops are special: they make Pale Ale in the keg
+	// For our generic calc: keg time for vegetable juice = 4 days
+	// Hops regrow every 1 day, keg takes 4 days → need 4 kegs per plant
+	kegRatio := proc["kegsPerPlant"].(float64)
+	if kegRatio < 1.0 {
+		t.Errorf("kegsPerPlant for Hops = %v, expected >= 1.0", kegRatio)
+	}
+}
+
+func TestProcessingSingleHarvest(t *testing.T) {
+	result := lookupCrop("Pumpkin")
+	if result == nil {
+		t.Fatal("expected result for Pumpkin")
+	}
+
+	proc := result["processing"].(map[string]any)
+	// Single harvest → no ongoing ratio needed, just processing time
+	if _, ok := proc["kegsPerPlant"]; ok {
+		t.Error("single harvest crop should not have kegsPerPlant")
+	}
+}
+
+func TestSeasonRankingIncludesNet(t *testing.T) {
+	results := lookupSeason("Spring")
+	if results == nil {
+		t.Fatal("expected results for Spring")
+	}
+
+	crops := results["crops"].([]any)
+	for _, c := range crops {
+		m := c.(map[string]any)
+		if _, ok := m["netGoldPerDay"]; !ok {
+			t.Errorf("season crop %q missing netGoldPerDay", m["name"])
+		}
+	}
+}
+
 func TestAllCropsHaveRequiredFields(t *testing.T) {
-	required := []string{"name", "seed", "seasons", "growthDays", "regrowDays", "sellPrice", "category"}
+	required := []string{"name", "seed", "seasons", "growthDays", "regrowDays",
+		"sellPrice", "seedCost", "category", "goldPerDay", "netGoldPerDay",
+		"speedGro", "deluxeSpeedGro", "hyperSpeedGro", "processing"}
 	for name := range cropData {
 		result := lookupCrop(name)
 		if result == nil {
