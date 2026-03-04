@@ -13,6 +13,7 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 - `docs/worker.md` — Cloudflare Worker: push API, SaveHub DO, WebSocket protocol, D1 schemas (`worker/`)
 - `docs/mcp.md` — OAuth architecture, MCP tools, notes, search, AI interaction patterns (`worker/src/mcp/`)
 - `docs/plugins.md` — WASM plugin system, ndjson contract, signing, distribution (`plugins/`)
+- `docs/adapters.md` — API game adapters: server-side TypeScript modules for API-backed games (`worker/src/adapters/`)
 - `docs/web.md` — SvelteKit frontend, onboarding, components (`web/`)
 - `docs/infrastructure.md` — CI/CD, deployment, signing, installation, security (`.github/`, `install/`)
 - `docs/roadmap.md` — Planned features: game adapters, reference data, monetization, game roadmap
