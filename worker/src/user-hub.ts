@@ -51,17 +51,17 @@ export class UserHub extends DurableObject<Env> {
     // No-op — UI→daemon commands will be added later
   }
 
-  async webSocketClose(
+  webSocketClose(
     ws: WebSocket,
     code: number,
     reason: string,
     _wasClean: boolean,
-  ): Promise<void> {
+  ): void {
     const safeCode = code === 1005 ? 1000 : code;
     ws.close(safeCode, reason);
   }
 
-  async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
+  webSocketError(ws: WebSocket, _error: unknown): void {
     ws.close(1011, "Unexpected error");
   }
 

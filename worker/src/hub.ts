@@ -1,10 +1,10 @@
 import { DurableObject } from "cloudflare:workers";
 
 import type {
-  SourceInfo,
-  SourceState,
   GameInfo,
   SaveIdentity,
+  SourceInfo,
+  SourceState,
 } from "./proto/savecraft/v1/protocol";
 import { GameStatusEnum, Message } from "./proto/savecraft/v1/protocol";
 import type { Env } from "./types";
@@ -631,7 +631,7 @@ export class SourceHub extends DurableObject<Env> {
     return Response.json({ sent: true, daemon_count: daemonSockets.length });
   }
 
-  private async handleStatus(): Promise<Response> {
+  private handleStatus(): Response {
     const hasDaemon = this.ctx.getWebSockets("daemon").length > 0;
     return Response.json({ daemon_online: hasDaemon });
   }

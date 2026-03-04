@@ -1,4 +1,4 @@
-import { authenticateDaemon, authenticateSource, authenticateSession, sha256Hex } from "./auth";
+import { authenticateDaemon, authenticateSession, authenticateSource, sha256Hex } from "./auth";
 import { indexNote, indexSaveSections, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
 import { reapOrphanSources } from "./reaper";

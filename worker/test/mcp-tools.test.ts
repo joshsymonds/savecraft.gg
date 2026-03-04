@@ -398,11 +398,11 @@ describe("MCP Tools", () => {
         summary: "Format test",
       });
 
-      const obj = await env.SAVES.get(
+      const object = await env.SAVES.get(
         `sources/${sourceUuidFor(USER_A)}/saves/save-fmt-check/latest.json`,
       );
-      expect(obj).not.toBeNull();
-      const data = await obj!.json<{ identity: Record<string, unknown> }>();
+      expect(object).not.toBeNull();
+      const data = await object!.json<{ identity: Record<string, unknown> }>();
       expect(data.identity.gameId).toBe("d2r");
     });
   });
