@@ -6,9 +6,12 @@
 package main
 
 import (
+	"bytes"
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -16,6 +19,9 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/tetratelabs/wazero"
+	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
+	"github.com/tetratelabs/wazero/sys"
 )
 
 //nolint:tagliatelle // manifest JSON uses snake_case to match plugin.toml field names
@@ -49,6 +55,7 @@ type referenceModule struct {
 	Name        string               `toml:"name"        json:"name"`
 	Description string               `toml:"description" json:"description"`
 	Attribution referenceAttribution `toml:"attribution" json:"attribution,omitempty"`
+	Parameters  map[string]any       `toml:"-"           json:"parameters,omitempty"`
 }
 
 type referenceAttribution struct {
@@ -140,18 +147,106 @@ func buildManifest(pluginDir string) (pluginManifest, error) {
 	// If reference.wasm exists and plugin.toml declares reference modules, include reference metadata.
 	refWasmPath := filepath.Join(pluginDir, "reference.wasm")
 	if _, statErr := os.Stat(refWasmPath); statErr == nil && len(cfg.Reference.Modules) > 0 {
-		refHash, hashErr := fileSHA256(refWasmPath)
-		if hashErr != nil {
-			return pluginManifest{}, fmt.Errorf("hash %s: %w", refWasmPath, hashErr)
+		ref, refErr := buildReferenceManifest(refWasmPath, cfg.GameID, cfg.Reference.Modules)
+		if refErr != nil {
+			return pluginManifest{}, refErr
 		}
-		manifest.Reference = &referenceManifest{
-			SHA256:  refHash,
-			URL:     fmt.Sprintf("plugins/%s/reference.wasm", cfg.GameID),
-			Modules: cfg.Reference.Modules,
-		}
+		manifest.Reference = ref
 	}
 
 	return manifest, nil
+}
+
+func buildReferenceManifest(wasmPath, gameID string, modules map[string]referenceModule) (*referenceManifest, error) {
+	refHash, err := fileSHA256(wasmPath)
+	if err != nil {
+		return nil, fmt.Errorf("hash %s: %w", wasmPath, err)
+	}
+
+	// Execute the WASM to extract parameter schemas (single source of truth).
+	schemas, schemaErr := extractReferenceSchema(wasmPath)
+	if schemaErr != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not extract reference schema: %v\n", schemaErr)
+	} else {
+		for id, mod := range modules {
+			if params, ok := schemas[id]; ok {
+				mod.Parameters = params
+				modules[id] = mod
+			}
+		}
+	}
+
+	return &referenceManifest{
+		SHA256:  refHash,
+		URL:     fmt.Sprintf("plugins/%s/reference.wasm", gameID),
+		Modules: modules,
+	}, nil
+}
+
+// extractReferenceSchema executes a reference WASM module with empty JSON input
+// and extracts the parameter schemas from its self-describing response.
+// Returns a map of module_id → parameters map.
+func extractReferenceSchema(wasmPath string) (map[string]map[string]any, error) {
+	wasmBytes, err := os.ReadFile(wasmPath)
+	if err != nil {
+		return nil, fmt.Errorf("read wasm: %w", err)
+	}
+
+	ctx := context.Background()
+	rt := wazero.NewRuntime(ctx)
+	defer rt.Close(ctx)
+
+	if _, err := wasi_snapshot_preview1.Instantiate(ctx, rt); err != nil {
+		return nil, fmt.Errorf("instantiate wasi: %w", err)
+	}
+
+	compiled, err := rt.CompileModule(ctx, wasmBytes)
+	if err != nil {
+		return nil, fmt.Errorf("compile wasm: %w", err)
+	}
+
+	var stdout bytes.Buffer
+	config := wazero.NewModuleConfig().
+		WithName("schema-extract").
+		WithStdin(bytes.NewReader([]byte("{}"))).
+		WithStdout(&stdout).
+		WithStderr(io.Discard)
+
+	_, instantiateErr := rt.InstantiateModule(ctx, compiled, config)
+	if instantiateErr != nil {
+		var exitErr *sys.ExitError
+		if errors.As(instantiateErr, &exitErr) && exitErr.ExitCode() == 0 {
+			instantiateErr = nil
+		}
+		if instantiateErr != nil {
+			return nil, fmt.Errorf("execute wasm: %w", instantiateErr)
+		}
+	}
+
+	// Parse ndjson output — expect a single {"type":"result","data":{...}} line.
+	var line struct {
+		Type string `json:"type"`
+		Data struct {
+			Modules []struct {
+				ID         string         `json:"id"`
+				Parameters map[string]any `json:"parameters"`
+			} `json:"modules"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &line); err != nil {
+		return nil, fmt.Errorf("parse schema output: %w", err)
+	}
+	if line.Type != "result" {
+		return nil, fmt.Errorf("unexpected response type: %q", line.Type)
+	}
+
+	schemas := make(map[string]map[string]any, len(line.Data.Modules))
+	for _, mod := range line.Data.Modules {
+		if mod.ID != "" && mod.Parameters != nil {
+			schemas[mod.ID] = mod.Parameters
+		}
+	}
+	return schemas, nil
 }
 
 func fileSHA256(path string) (string, error) {
