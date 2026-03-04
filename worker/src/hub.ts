@@ -261,6 +261,9 @@ export class SourceHub extends DurableObject<Env> {
     if (url.pathname === "/rescan" && request.method === "POST") {
       return this.handleRescan(request);
     }
+    if (url.pathname === "/set-user" && request.method === "POST") {
+      return this.handleSetUser(request);
+    }
     return new Response("Expected WebSocket upgrade", { status: 426 });
   }
 
@@ -590,6 +593,17 @@ export class SourceHub extends DurableObject<Env> {
       ws.send(msg);
     }
     return Response.json({ sent: true, daemon_count: daemonSockets.length });
+  }
+
+  /**
+   * Called by the worker when a source is linked to a user mid-session.
+   * Stores the new user_uuid and immediately forwards current state to UserHub.
+   */
+  private async handleSetUser(request: Request): Promise<Response> {
+    const body = await request.json<{ userUuid: string }>();
+    await this.ctx.storage.put(USER_UUID_KEY, body.userUuid);
+    await this.forwardStateToUserHub();
+    return Response.json({ ok: true });
   }
 
   // ── UserHub forwarding ────────────────────────────────────────────
