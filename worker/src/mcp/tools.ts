@@ -828,7 +828,7 @@ export async function deleteNote(
 
 export async function refreshSave(
   db: D1Database,
-  daemonHub: DurableObjectNamespace,
+  sourceHub: DurableObjectNamespace,
   userUuid: string,
   saveId: string,
 ): Promise<ToolResult> {
@@ -836,8 +836,8 @@ export async function refreshSave(
   if (!save)
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
-  const id = daemonHub.idFromName(userUuid);
-  const stub = daemonHub.get(id);
+  const id = sourceHub.idFromName(userUuid);
+  const stub = sourceHub.get(id);
   const resp = await stub.fetch(
     new Request("https://do/rescan", {
       method: "POST",

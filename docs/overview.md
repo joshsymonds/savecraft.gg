@@ -147,7 +147,7 @@ savecraft/
 ├── worker/                      # Cloudflare Worker + Durable Object (TypeScript)
 │   ├── src/
 │   │   ├── index.ts             # Worker routes, request handling
-│   │   ├── hub.ts               # DaemonHub Durable Object class
+│   │   ├── hub.ts               # SourceHub Durable Object class
 │   │   └── proto/               # Generated TypeScript from protobuf (do not edit)
 │   │       └── savecraft/v1/
 │   │           └── protocol.ts

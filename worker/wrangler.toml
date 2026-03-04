@@ -36,12 +36,12 @@ namespace = "savecraft-reference-plugins"
 
 [durable_objects]
 bindings = [
-  { name = "DAEMON_HUB", class_name = "DaemonHub" }
+  { name = "SOURCE_HUB", class_name = "SourceHub" }
 ]
 
 [[migrations]]
 tag = "v1"
-new_classes = ["DaemonHub"]
+new_classes = ["SourceHub"]
 
 # ── Production ─────────────────────────────────────────
 [env.production]
@@ -83,12 +83,12 @@ namespace = "savecraft-reference-plugins"
 
 [env.production.durable_objects]
 bindings = [
-  { name = "DAEMON_HUB", class_name = "DaemonHub" }
+  { name = "SOURCE_HUB", class_name = "SourceHub" }
 ]
 
 [[env.production.migrations]]
 tag = "v1"
-new_sqlite_classes = ["DaemonHub"]
+new_sqlite_classes = ["SourceHub"]
 
 # ── Staging ────────────────────────────────────────────
 [env.staging]
@@ -131,9 +131,9 @@ namespace = "savecraft-reference-plugins-staging"
 
 [env.staging.durable_objects]
 bindings = [
-  { name = "DAEMON_HUB", class_name = "DaemonHub" }
+  { name = "SOURCE_HUB", class_name = "SourceHub" }
 ]
 
 [[env.staging.migrations]]
 tag = "v1"
-new_sqlite_classes = ["DaemonHub"]
+new_sqlite_classes = ["SourceHub"]
