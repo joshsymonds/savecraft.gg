@@ -35,6 +35,15 @@ type virtualTCItem struct {
 	Weight int
 }
 
+// ItemResolveType identifies how an item name was resolved.
+type ItemResolveType int
+
+const (
+	ResolveBase   ItemResolveType = iota // matched as a base item name or code
+	ResolveUnique                        // matched as a unique item alias
+	ResolveSet                           // matched as a set item alias
+)
+
 // Calculator holds indexed game data and performs drop probability computation.
 type Calculator struct {
 	tcByName       map[string]*data.TreasureClass
@@ -46,6 +55,7 @@ type Calculator struct {
 	areaByName     map[string]*data.Area      // keyed by display name (e.g. "Drifter Cavern")
 	allTypeCodes   map[string]map[string]bool // code → set of (self + all ancestor codes)
 	virtualTCs     map[string]*virtualTC
+	isSetAlias     map[string]bool // alias name → true if set item
 
 	// Reverse index for item → source lookups.
 	reverseTCParents map[string][]string        // child TC/item → parent TC names
@@ -98,8 +108,12 @@ func NewCalculator() *Calculator {
 
 	// Add unique and set item name → base code aliases so players can
 	// look up items by their well-known names (e.g. "Skin of the Vipermagi").
+	c.isSetAlias = make(map[string]bool)
 	for _, alias := range data.ItemAliases {
 		c.itemNameToCode[alias.Name] = alias.Code
+		if alias.IsSet {
+			c.isSetAlias[alias.Name] = true
+		}
 	}
 
 	// Blizzard shipped these typos in the game data. Add corrected spellings
@@ -447,6 +461,26 @@ func (c *Calculator) ItemCode(nameOrCode string) string {
 		return code
 	}
 	return ""
+}
+
+// ResolveItem resolves an item name or code and reports how it was matched.
+func (c *Calculator) ResolveItem(nameOrCode string) (code string, resolveType ItemResolveType) {
+	// Direct base item code match.
+	if _, ok := c.baseItemByCode[nameOrCode]; ok {
+		return nameOrCode, ResolveBase
+	}
+	// Name lookup — could be a base item name, unique alias, or set alias.
+	if code, ok := c.itemNameToCode[nameOrCode]; ok {
+		// Check if it's a base item name (not an alias).
+		if bi := c.baseItemByCode[code]; bi != nil && bi.Name == nameOrCode {
+			return code, ResolveBase
+		}
+		if c.isSetAlias[nameOrCode] {
+			return code, ResolveSet
+		}
+		return code, ResolveUnique
+	}
+	return "", ResolveBase
 }
 
 // IsBaseItem reports whether the given code is a known base item.
