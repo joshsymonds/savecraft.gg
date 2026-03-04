@@ -382,7 +382,7 @@ const TOOLS: ToolDefinition[] = [
     name: "get_setup_help",
     title: "Setup Help",
     description:
-      "Check the player's device and installation status, look up a pairing code, and get platform-specific installation instructions. Use this when the player asks about installing Savecraft, when list_games returns no saves, when the player mentions a pairing code or device code, or when the player is confused about why their game data isn't appearing. Returns the player's linked devices with activity status, optional link code or device lookup results, and a full installation guide. If you know the player's operating system, pass it as the platform parameter to get targeted instructions.",
+      "Check the player's device and installation status, look up a pairing code, and get platform-specific installation instructions. Use this when the player asks about installing Savecraft, when list_games returns no saves, when the player mentions a pairing code or device code, or when the player is confused about why their game data isn't appearing. Returns the player's linked devices with activity status, optional link code or source lookup results, and a full installation guide. If you know the player's operating system, pass it as the platform parameter to get targeted instructions.",
     inputSchema: {
       type: "object",
       properties: {
@@ -397,10 +397,10 @@ const TOOLS: ToolDefinition[] = [
           description:
             "6-digit pairing code displayed by the Savecraft daemon during setup. Look this up to check if the device is registered, paired, or has an expired code.",
         },
-        device_uuid: {
+        source_uuid: {
           type: "string",
           description:
-            "Device UUID to check directly. Use if you already have the UUID from a previous interaction.",
+            "Source UUID to check directly. Use if you already have the UUID from a previous interaction.",
         },
       },
     },
@@ -508,7 +508,7 @@ async function handleToolCall(
       return handleQueryReference(env, args);
     }
     case "get_setup_help": {
-      return getSetupHelp(env.DB, userUuid, args.platform as string | undefined, args.link_code as string | undefined, args.device_uuid as string | undefined);
+      return getSetupHelp(env.DB, userUuid, args.platform as string | undefined, args.link_code as string | undefined, args.source_uuid as string | undefined);
     }
     default: {
       return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };

@@ -1,7 +1,7 @@
-import { authenticateDaemon, authenticateDevice, authenticateSession, sha256Hex } from "./auth";
+import { authenticateDaemon, authenticateSource, authenticateSession, sha256Hex } from "./auth";
 import { indexNote, indexSaveSections, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
-import { reapOrphanDevices } from "./reaper";
+import { reapOrphanSources } from "./reaper";
 import type { Env } from "./types";
 
 export { DaemonHub } from "./hub";
@@ -129,7 +129,7 @@ export default {
     env: Env,
     _ctx: ExecutionContext,
   ): Promise<void> {
-    await reapOrphanDevices(env.DB, env.SAVES);
+    await reapOrphanSources(env.DB, env.SAVES);
   },
 } satisfies ExportedHandler<Env>;
 
@@ -158,11 +158,11 @@ async function routePublicEndpoints(
   if (referenceMatch?.[1] && request.method === "POST") {
     return handleReferenceQuery(request, env, referenceMatch[1]);
   }
-  if (url.pathname === "/api/v1/device/register" && request.method === "POST") {
-    return handleDeviceRegister(request, env);
+  if (url.pathname === "/api/v1/source/register" && request.method === "POST") {
+    return handleSourceRegister(request, env);
   }
-  if (url.pathname === "/api/v1/device/verify" && request.method === "GET") {
-    return handleDeviceVerify(request, env);
+  if (url.pathname === "/api/v1/source/verify" && request.method === "GET") {
+    return handleSourceVerify(request, env);
   }
   return null;
 }
@@ -178,20 +178,20 @@ async function routeDaemonEndpoints(
     return Response.json({ status: "ok" });
   }
 
-  // Check route match before authenticating so non-daemon paths fall through.
-  const isDeviceRoute =
+  // Check route match before authenticating so non-source paths fall through.
+  const isSourceRoute =
     (url.pathname === "/api/v1/push" && request.method === "POST") ||
-    (url.pathname === "/api/v1/device/link-code" && request.method === "POST") ||
-    (url.pathname === "/api/v1/device/status" && request.method === "GET");
-  if (!isDeviceRoute) return null;
+    (url.pathname === "/api/v1/source/link-code" && request.method === "POST") ||
+    (url.pathname === "/api/v1/source/status" && request.method === "GET");
+  if (!isSourceRoute) return null;
 
-  const auth = await authenticateDevice(request, env);
+  const auth = await authenticateSource(request, env);
   if (!auth) return new Response("Unauthorized", { status: 401 });
 
-  if (url.pathname === "/api/v1/push") return handlePush(request, env, auth.deviceUuid);
-  if (url.pathname === "/api/v1/device/link-code")
-    return handleDeviceLinkCode(env, auth.deviceUuid);
-  return handleDeviceStatus(env, auth.deviceUuid);
+  if (url.pathname === "/api/v1/push") return handlePush(request, env, auth.sourceUuid);
+  if (url.pathname === "/api/v1/source/link-code")
+    return handleSourceLinkCode(env, auth.sourceUuid);
+  return handleSourceStatus(env, auth.sourceUuid);
 }
 
 async function routeProtectedEndpoints(request: Request, url: URL, env: Env): Promise<Response> {
@@ -232,14 +232,14 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
   const auth = await authenticateSession(request, env);
   if (!auth) return new Response("Unauthorized", { status: 401 });
 
-  if (url.pathname === "/api/v1/device/link" && request.method === "POST") {
-    return handleDeviceLink(request, env, auth.userUuid);
+  if (url.pathname === "/api/v1/source/link" && request.method === "POST") {
+    return handleSourceLink(request, env, auth.userUuid);
   }
   if (url.pathname === "/api/v1/api-keys" || url.pathname.startsWith("/api/v1/api-keys/")) {
     return handleApiKeys(request, url, env, auth.userUuid);
   }
-  if (url.pathname.startsWith("/api/v1/devices/") && url.pathname.endsWith("/config")) {
-    return handleDeviceConfig(request, url, env, auth.userUuid);
+  if (url.pathname.startsWith("/api/v1/sources/") && url.pathname.endsWith("/config")) {
+    return handleSourceConfig(request, url, env, auth.userUuid);
   }
   if (url.pathname.startsWith("/api/v1/notes/")) {
     return handleNotes(request, url, env, auth.userUuid);
@@ -340,7 +340,7 @@ async function handleReferenceQuery(request: Request, env: Env, gameId: string):
   });
 }
 
-// -- Device Config API ---------------------------------------------
+// -- Source Config API ---------------------------------------------
 
 interface GameConfigInput {
   savePath: string;
@@ -348,37 +348,37 @@ interface GameConfigInput {
   fileExtensions: string[];
 }
 
-async function handleDeviceConfig(
+async function handleSourceConfig(
   request: Request,
   url: URL,
   env: Env,
   userUuid: string,
 ): Promise<Response> {
   const pathParts = url.pathname.split("/");
-  const deviceId = pathParts[4];
-  if (!validateId(deviceId)) {
-    return Response.json({ error: "Invalid device_id" }, { status: 400 });
+  const sourceId = pathParts[4];
+  if (!validateId(sourceId)) {
+    return Response.json({ error: "Invalid source_id" }, { status: 400 });
   }
 
   if (request.method === "GET") {
-    return handleGetDeviceConfig(env, userUuid, deviceId);
+    return handleGetSourceConfig(env, userUuid, sourceId);
   }
   if (request.method === "PUT") {
-    return handlePutDeviceConfig(request, env, userUuid, deviceId);
+    return handlePutSourceConfig(request, env, userUuid, sourceId);
   }
 
   return new Response("Method Not Allowed", { status: 405 });
 }
 
-async function handleGetDeviceConfig(
+async function handleGetSourceConfig(
   env: Env,
   userUuid: string,
-  deviceId: string,
+  sourceId: string,
 ): Promise<Response> {
   const rows = await env.DB.prepare(
-    "SELECT game_id, save_path, enabled, file_extensions FROM device_configs WHERE user_uuid = ? AND device_id = ?",
+    "SELECT game_id, save_path, enabled, file_extensions FROM source_configs WHERE user_uuid = ? AND source_id = ?",
   )
-    .bind(userUuid, deviceId)
+    .bind(userUuid, sourceId)
     .all<{ game_id: string; save_path: string; enabled: number; file_extensions: string }>();
 
   const games: Record<string, GameConfigInput> = {};
@@ -399,11 +399,11 @@ async function handleGetDeviceConfig(
   return Response.json({ games });
 }
 
-async function handlePutDeviceConfig(
+async function handlePutSourceConfig(
   request: Request,
   env: Env,
   userUuid: string,
-  deviceId: string,
+  sourceId: string,
 ): Promise<Response> {
   let body: { games?: Record<string, GameConfigInput> };
   try {
@@ -414,18 +414,18 @@ async function handlePutDeviceConfig(
 
   const games = body.games ?? {};
 
-  await env.DB.prepare("DELETE FROM device_configs WHERE user_uuid = ? AND device_id = ?")
-    .bind(userUuid, deviceId)
+  await env.DB.prepare("DELETE FROM source_configs WHERE user_uuid = ? AND source_id = ?")
+    .bind(userUuid, sourceId)
     .run();
 
   for (const [gameId, config] of Object.entries(games)) {
     await env.DB.prepare(
-      `INSERT INTO device_configs (user_uuid, device_id, game_id, save_path, enabled, file_extensions, updated_at)
+      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
     )
       .bind(
         userUuid,
-        deviceId,
+        sourceId,
         gameId,
         config.savePath,
         config.enabled ? 1 : 0,
@@ -440,7 +440,7 @@ async function handlePutDeviceConfig(
     new Request("https://do/push-config", {
       method: "POST",
       headers: { "X-User-UUID": userUuid },
-      body: JSON.stringify({ deviceId }),
+      body: JSON.stringify({ sourceId }),
     }),
   );
   await doResp.text();
@@ -466,7 +466,7 @@ async function handleNotes(
 
   const save = await env.DB.prepare(
     `SELECT s.uuid FROM saves s
-     JOIN devices d ON s.device_uuid = d.device_uuid
+     JOIN sources d ON s.source_uuid = d.source_uuid
      WHERE s.uuid = ? AND d.user_uuid = ?`,
   )
     .bind(saveId, userUuid)
@@ -694,7 +694,7 @@ async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
   const rows = await env.DB.prepare(
     `SELECT s.uuid, s.game_id, s.save_name, s.summary, s.last_updated
      FROM saves s
-     JOIN devices d ON s.device_uuid = d.device_uuid
+     JOIN sources d ON s.source_uuid = d.source_uuid
      WHERE d.user_uuid = ?
      ORDER BY s.last_updated DESC`,
   )
@@ -720,15 +720,15 @@ async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
 
 async function handleGetSave(env: Env, userUuid: string, saveId: string): Promise<Response> {
   const save = await env.DB.prepare(
-    `SELECT s.uuid, s.device_uuid, s.game_id, s.save_name, s.summary, s.last_updated
+    `SELECT s.uuid, s.source_uuid, s.game_id, s.save_name, s.summary, s.last_updated
      FROM saves s
-     JOIN devices d ON s.device_uuid = d.device_uuid
+     JOIN sources d ON s.source_uuid = d.source_uuid
      WHERE s.uuid = ? AND d.user_uuid = ?`,
   )
     .bind(saveId, userUuid)
     .first<{
       uuid: string;
-      device_uuid: string;
+      source_uuid: string;
       game_id: string;
       save_name: string;
       summary: string;
@@ -737,7 +737,7 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
 
   if (!save) return Response.json({ error: "Save not found" }, { status: 404 });
 
-  const key = `devices/${save.device_uuid}/saves/${saveId}/latest.json`;
+  const key = `sources/${save.source_uuid}/saves/${saveId}/latest.json`;
   const object = await env.SAVES.get(key);
   let sections: { name: string; description: string }[] = [];
   if (object) {
@@ -893,19 +893,19 @@ function generateSixDigitCode(): string {
   return code.toString();
 }
 
-async function handleDeviceVerify(request: Request, env: Env): Promise<Response> {
-  const auth = await authenticateDevice(request, env);
+async function handleSourceVerify(request: Request, env: Env): Promise<Response> {
+  const auth = await authenticateSource(request, env);
   if (!auth) return new Response("Unauthorized", { status: 401 });
   return Response.json({
     status: "ok",
-    device_uuid: auth.deviceUuid,
+    source_uuid: auth.sourceUuid,
     user_uuid: auth.userUuid,
   });
 }
 
 const LINK_CODE_TTL_MINUTES = 20;
 
-async function handleDeviceLink(request: Request, env: Env, userUuid: string): Promise<Response> {
+async function handleSourceLink(request: Request, env: Env, userUuid: string): Promise<Response> {
   let body: { code?: string; email?: string; display_name?: string };
   try {
     body = await request.json<{ code?: string; email?: string; display_name?: string }>();
@@ -917,43 +917,43 @@ async function handleDeviceLink(request: Request, env: Env, userUuid: string): P
     return Response.json({ error: "Invalid code" }, { status: 400 });
   }
 
-  const device = await env.DB.prepare(
-    "SELECT device_uuid FROM devices WHERE link_code = ? AND link_code_expires_at > datetime('now')",
+  const source = await env.DB.prepare(
+    "SELECT source_uuid FROM sources WHERE link_code = ? AND link_code_expires_at > datetime('now')",
   )
     .bind(body.code)
-    .first<{ device_uuid: string }>();
+    .first<{ source_uuid: string }>();
 
-  if (!device) {
+  if (!source) {
     return Response.json({ error: "Invalid or expired code" }, { status: 404 });
   }
 
   await env.DB.prepare(
-    "UPDATE devices SET user_uuid = ?, user_email = ?, user_display_name = ?, link_code = NULL, link_code_expires_at = NULL WHERE device_uuid = ?",
+    "UPDATE sources SET user_uuid = ?, user_email = ?, user_display_name = ?, link_code = NULL, link_code_expires_at = NULL WHERE source_uuid = ?",
   )
-    .bind(userUuid, body.email ?? null, body.display_name ?? null, device.device_uuid)
+    .bind(userUuid, body.email ?? null, body.display_name ?? null, source.source_uuid)
     .run();
 
-  return Response.json({ device_uuid: device.device_uuid });
+  return Response.json({ source_uuid: source.source_uuid });
 }
 
-async function handleDeviceLinkCode(env: Env, deviceUuid: string): Promise<Response> {
+async function handleSourceLinkCode(env: Env, sourceUuid: string): Promise<Response> {
   const linkCode = generateSixDigitCode();
   const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000).toISOString();
 
   await env.DB.prepare(
-    "UPDATE devices SET link_code = ?, link_code_expires_at = ? WHERE device_uuid = ?",
+    "UPDATE sources SET link_code = ?, link_code_expires_at = ? WHERE source_uuid = ?",
   )
-    .bind(linkCode, expiresAt, deviceUuid)
+    .bind(linkCode, expiresAt, sourceUuid)
     .run();
 
   return Response.json({ link_code: linkCode, expires_at: expiresAt });
 }
 
-async function handleDeviceStatus(env: Env, deviceUuid: string): Promise<Response> {
-  const device = await env.DB.prepare(
-    "SELECT user_uuid, user_email, user_display_name, link_code, link_code_expires_at FROM devices WHERE device_uuid = ?",
+async function handleSourceStatus(env: Env, sourceUuid: string): Promise<Response> {
+  const source = await env.DB.prepare(
+    "SELECT user_uuid, user_email, user_display_name, link_code, link_code_expires_at FROM sources WHERE source_uuid = ?",
   )
-    .bind(deviceUuid)
+    .bind(sourceUuid)
     .first<{
       user_uuid: string | null;
       user_email: string | null;
@@ -962,29 +962,29 @@ async function handleDeviceStatus(env: Env, deviceUuid: string): Promise<Respons
       link_code_expires_at: string | null;
     }>();
 
-  if (!device) {
-    return Response.json({ error: "Device not found" }, { status: 404 });
+  if (!source) {
+    return Response.json({ error: "Source not found" }, { status: 404 });
   }
 
-  const linked = device.user_uuid !== null;
+  const linked = source.user_uuid !== null;
   const result: Record<string, unknown> = { linked };
 
   if (linked) {
     result.user = {
-      email: device.user_email,
-      display_name: device.user_display_name,
+      email: source.user_email,
+      display_name: source.user_display_name,
     };
   }
 
-  if (device.link_code) {
-    result.link_code = device.link_code;
-    result.link_code_expires_at = device.link_code_expires_at;
+  if (source.link_code) {
+    result.link_code = source.link_code;
+    result.link_code_expires_at = source.link_code_expires_at;
   }
 
   return Response.json(result);
 }
 
-async function handleDeviceRegister(request: Request, env: Env): Promise<Response> {
+async function handleSourceRegister(request: Request, env: Env): Promise<Response> {
   let body: { hostname?: string; os?: string; arch?: string } = {};
   const text = await request.text();
   if (text) {
@@ -995,22 +995,22 @@ async function handleDeviceRegister(request: Request, env: Env): Promise<Respons
     }
   }
 
-  const deviceUuid = crypto.randomUUID();
+  const sourceUuid = crypto.randomUUID();
   const randomBytes = new Uint8Array(16);
   crypto.getRandomValues(randomBytes);
   const hex = [...randomBytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-  const deviceToken = `dvt_${hex}`;
-  const tokenHash = await sha256Hex(deviceToken);
+  const sourceToken = `sct_${hex}`;
+  const tokenHash = await sha256Hex(sourceToken);
 
   const linkCode = generateSixDigitCode();
   const linkCodeExpiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000).toISOString();
 
   await env.DB.prepare(
-    `INSERT INTO devices (device_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch)
+    `INSERT INTO sources (source_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
-      deviceUuid,
+      sourceUuid,
       tokenHash,
       linkCode,
       linkCodeExpiresAt,
@@ -1022,8 +1022,8 @@ async function handleDeviceRegister(request: Request, env: Env): Promise<Respons
 
   return Response.json(
     {
-      device_uuid: deviceUuid,
-      device_token: deviceToken,
+      source_uuid: sourceUuid,
+      source_token: sourceToken,
       link_code: linkCode,
       link_code_expires_at: linkCodeExpiresAt,
     },
@@ -1067,7 +1067,7 @@ async function readPushBody(request: Request): Promise<Record<string, unknown>> 
 
 async function storePush(
   env: Env,
-  deviceUuid: string,
+  sourceUuid: string,
   gameId: string,
   saveName: string,
   summary: string,
@@ -1076,9 +1076,9 @@ async function storePush(
   sections: unknown,
 ): Promise<{ saveUuid: string }> {
   const existingSave = await env.DB.prepare(
-    "SELECT uuid FROM saves WHERE device_uuid = ? AND game_id = ? AND save_name = ?",
+    "SELECT uuid FROM saves WHERE source_uuid = ? AND game_id = ? AND save_name = ?",
   )
-    .bind(deviceUuid, gameId, saveName)
+    .bind(sourceUuid, gameId, saveName)
     .first<{ uuid: string }>();
 
   let saveUuid: string;
@@ -1088,16 +1088,16 @@ async function storePush(
     saveUuid = crypto.randomUUID();
     const gameName = await resolveGameName(env.PLUGINS, gameId);
     await env.DB.prepare(
-      "INSERT INTO saves (uuid, device_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO saves (uuid, source_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
-      .bind(saveUuid, deviceUuid, gameId, gameName, saveName, summary, parsedAt)
+      .bind(saveUuid, sourceUuid, gameId, gameName, saveName, summary, parsedAt)
       .run();
   }
 
-  const snapshotKey = `devices/${deviceUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
+  const snapshotKey = `sources/${sourceUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
   await env.SAVES.put(snapshotKey, bodyString);
 
-  const latestKey = `devices/${deviceUuid}/saves/${saveUuid}/latest.json`;
+  const latestKey = `sources/${sourceUuid}/saves/${saveUuid}/latest.json`;
   const isNewer = await isNewerThanLatest(env.SAVES, latestKey, parsedAt);
   if (isNewer) {
     await env.SAVES.put(latestKey, bodyString, { customMetadata: { parsedAt } });
@@ -1113,7 +1113,7 @@ async function storePush(
   return { saveUuid };
 }
 
-async function handlePush(request: Request, env: Env, deviceUuid: string): Promise<Response> {
+async function handlePush(request: Request, env: Env, sourceUuid: string): Promise<Response> {
   const gameId = request.headers.get("X-Game");
   if (!gameId) {
     return Response.json({ error: "Missing X-Game header" }, { status: 400 });
@@ -1152,7 +1152,7 @@ async function handlePush(request: Request, env: Env, deviceUuid: string): Promi
   try {
     const { saveUuid } = await storePush(
       env,
-      deviceUuid,
+      sourceUuid,
       gameId,
       saveName,
       summary,

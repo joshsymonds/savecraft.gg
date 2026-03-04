@@ -1,7 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, seedDevice } from "./helpers";
+import { cleanAll, seedSource } from "./helpers";
 
 async function gzipBody(data: string): Promise<Uint8Array> {
   const cs = new CompressionStream("gzip");
@@ -11,15 +11,15 @@ async function gzipBody(data: string): Promise<Uint8Array> {
   return new Uint8Array(await new Response(cs.readable).arrayBuffer());
 }
 
-let DEVICE_UUID: string;
-let DEVICE_TOKEN: string;
+let SOURCE_UUID: string;
+let SOURCE_TOKEN: string;
 
 function pushRequest(body: unknown, headers?: Record<string, string>): Request {
   return new Request("https://test-host/api/v1/push", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${DEVICE_TOKEN}`,
+      Authorization: `Bearer ${SOURCE_TOKEN}`,
       "X-Game": "d2r",
       "X-Parsed-At": "2026-02-25T21:30:00Z",
       ...headers,
@@ -46,9 +46,9 @@ const validGameState = {
 describe("Push API", () => {
   beforeEach(async () => {
     await cleanAll();
-    const device = await seedDevice();
-    DEVICE_UUID = device.deviceUuid;
-    DEVICE_TOKEN = device.deviceToken;
+    const source = await seedSource();
+    SOURCE_UUID = source.sourceUuid;
+    SOURCE_TOKEN = source.sourceToken;
   });
 
   it("accepts valid game state and returns 201", async () => {
@@ -79,9 +79,9 @@ describe("Push API", () => {
 
     // D1 should have exactly one save row for this character
     const rows = await env.DB.prepare(
-      "SELECT * FROM saves WHERE device_uuid = ? AND game_id = 'd2r' AND save_name = 'Hammerdin'",
+      "SELECT * FROM saves WHERE source_uuid = ? AND game_id = 'd2r' AND save_name = 'Hammerdin'",
     )
-      .bind(DEVICE_UUID)
+      .bind(SOURCE_UUID)
       .all();
     expect(rows.results).toHaveLength(1);
     expect(rows.results[0]!.summary).toBe("Hammerdin, Level 90 Paladin");
@@ -138,7 +138,7 @@ describe("Push API", () => {
     expect(resp2.status).toBe(201);
 
     // latest.json should still have the newer push's data
-    const latestKey = `devices/${DEVICE_UUID}/saves/${body1.save_uuid}/latest.json`;
+    const latestKey = `sources/${SOURCE_UUID}/saves/${body1.save_uuid}/latest.json`;
     const latest = await env.SAVES.get(latestKey);
     expect(latest).not.toBeNull();
     const latestData = await latest!.json<{ summary: string }>();
@@ -173,7 +173,7 @@ describe("Push API", () => {
     );
     expect(resp2.status).toBe(201);
 
-    const latestKey = `devices/${DEVICE_UUID}/saves/${body1.save_uuid}/latest.json`;
+    const latestKey = `sources/${SOURCE_UUID}/saves/${body1.save_uuid}/latest.json`;
     const latest = await env.SAVES.get(latestKey);
     const latestData = await latest!.json<{ summary: string }>();
     expect(latestData.summary).toBe("Second push");
@@ -190,7 +190,7 @@ describe("Push API", () => {
     const { save_uuid } = await resp.json<{ save_uuid: string }>();
 
     // Read back from R2 and verify identity uses camelCase (daemon convention)
-    const latestKey = `devices/${DEVICE_UUID}/saves/${save_uuid}/latest.json`;
+    const latestKey = `sources/${SOURCE_UUID}/saves/${save_uuid}/latest.json`;
     const object = await env.SAVES.get(latestKey);
     expect(object).not.toBeNull();
     const snapshot = await object!.json<{ identity: Record<string, unknown> }>();
@@ -209,7 +209,7 @@ describe("Push API", () => {
         headers: {
           "Content-Type": "application/json",
           "Content-Encoding": "gzip",
-          Authorization: `Bearer ${DEVICE_TOKEN}`,
+          Authorization: `Bearer ${SOURCE_TOKEN}`,
           "X-Game": "d2r",
           "X-Parsed-At": "2026-02-25T21:30:00Z",
         },

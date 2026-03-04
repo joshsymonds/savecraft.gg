@@ -12,7 +12,7 @@ export interface ToolResult {
 
 interface SaveRow {
   uuid: string;
-  device_uuid: string;
+  source_uuid: string;
   game_id: string;
   game_name: string;
   save_name: string;
@@ -54,7 +54,7 @@ async function lookupSave(
   return db
     .prepare(
       `SELECT s.* FROM saves s
-       JOIN devices d ON s.device_uuid = d.device_uuid
+       JOIN sources d ON s.source_uuid = d.source_uuid
        WHERE s.uuid = ? AND d.user_uuid = ?`,
     )
     .bind(saveId, userUuid)
@@ -63,10 +63,10 @@ async function lookupSave(
 
 async function loadLatestSnapshot(
   snapshots: R2Bucket,
-  deviceUuid: string,
+  sourceUuid: string,
   saveId: string,
 ): Promise<GameState | null> {
-  const key = `devices/${deviceUuid}/saves/${saveId}/latest.json`;
+  const key = `sources/${sourceUuid}/saves/${saveId}/latest.json`;
   const object = await snapshots.get(key);
   if (!object) return null;
   return object.json<GameState>();
@@ -74,11 +74,11 @@ async function loadLatestSnapshot(
 
 async function loadSnapshotAtTimestamp(
   snapshots: R2Bucket,
-  deviceUuid: string,
+  sourceUuid: string,
   saveId: string,
   timestamp: string,
 ): Promise<GameState | null> {
-  const key = `devices/${deviceUuid}/saves/${saveId}/snapshots/${timestamp}.json`;
+  const key = `sources/${sourceUuid}/saves/${saveId}/snapshots/${timestamp}.json`;
   const object = await snapshots.get(key);
   if (!object) return null;
   return object.json<GameState>();
@@ -229,9 +229,9 @@ export async function listGames(
 ): Promise<ToolResult> {
   const saveRows = await db
     .prepare(
-      `SELECT s.uuid, s.device_uuid, s.game_id, s.game_name, s.save_name, s.summary, s.last_updated
+      `SELECT s.uuid, s.source_uuid, s.game_id, s.game_name, s.save_name, s.summary, s.last_updated
        FROM saves s
-       JOIN devices d ON s.device_uuid = d.device_uuid
+       JOIN sources d ON s.source_uuid = d.source_uuid
        WHERE d.user_uuid = ?
        ORDER BY s.last_updated DESC`,
     )
@@ -263,7 +263,7 @@ export async function getSave(
   if (!save)
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
-  const state = await loadLatestSnapshot(snapshots, save.device_uuid, saveId);
+  const state = await loadLatestSnapshot(snapshots, save.source_uuid, saveId);
   if (!state)
     return errorResult(
       "No snapshot data available for this save. The daemon may not have pushed data yet.",
@@ -399,8 +399,8 @@ export async function getSection(
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
   const state = timestamp
-    ? await loadSnapshotAtTimestamp(snapshots, save.device_uuid, saveId, timestamp)
-    : await loadLatestSnapshot(snapshots, save.device_uuid, saveId);
+    ? await loadSnapshotAtTimestamp(snapshots, save.source_uuid, saveId, timestamp)
+    : await loadLatestSnapshot(snapshots, save.source_uuid, saveId);
   if (!state) {
     return errorResult(
       timestamp
@@ -457,14 +457,14 @@ function parsePeriod(period: string): number | null {
 
 /**
  * List available snapshot timestamps for a save in R2, sorted oldest-first.
- * Snapshots live at: users/{userUuid}/saves/{saveId}/snapshots/{timestamp}.json
+ * Snapshots live at: sources/{sourceUuid}/saves/{saveId}/snapshots/{timestamp}.json
  */
 async function listSnapshotTimestamps(
   snapshots: R2Bucket,
-  deviceUuid: string,
+  sourceUuid: string,
   saveId: string,
 ): Promise<string[]> {
-  const prefix = `devices/${deviceUuid}/saves/${saveId}/snapshots/`;
+  const prefix = `sources/${sourceUuid}/saves/${saveId}/snapshots/`;
   const allObjects: R2Object[] = [];
   let cursor: string | undefined;
 
@@ -528,7 +528,7 @@ export async function getSectionDiff(
     );
   }
 
-  const timestamps = await listSnapshotTimestamps(snapshots, save.device_uuid, saveId);
+  const timestamps = await listSnapshotTimestamps(snapshots, save.source_uuid, saveId);
   if (timestamps.length < 2) {
     return errorResult(
       "Not enough snapshots to compare. The save needs at least two snapshots for a diff — this happens automatically as the game is played and saves update.",
@@ -554,11 +554,11 @@ export async function getSectionDiff(
 
   const fromState = await loadSnapshotAtTimestamp(
     snapshots,
-    save.device_uuid,
+    save.source_uuid,
     saveId,
     fromTimestamp,
   );
-  const toState = await loadSnapshotAtTimestamp(snapshots, save.device_uuid, saveId, toTimestamp);
+  const toState = await loadSnapshotAtTimestamp(snapshots, save.source_uuid, saveId, toTimestamp);
 
   if (!fromState || !toState) {
     return errorResult("Failed to load snapshots for comparison.");
@@ -898,7 +898,7 @@ export async function searchSaves(
     sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
            WHERE search_index MATCH ?
-             AND save_id IN (SELECT s.uuid FROM saves s JOIN devices d ON s.device_uuid = d.device_uuid WHERE d.user_uuid = ?)
+             AND save_id IN (SELECT s.uuid FROM saves s JOIN sources d ON s.source_uuid = d.source_uuid WHERE d.user_uuid = ?)
            ORDER BY rank
            LIMIT 20`;
     params.push(userUuid);
@@ -1013,8 +1013,8 @@ function isFormattedResult(data: unknown): boolean {
 
 // ── Setup Help ───────────────────────────────────────────────
 
-interface DeviceRow {
-  device_uuid: string;
+interface SourceRow {
+  source_uuid: string;
   user_uuid: string | null;
   hostname: string | null;
   os: string | null;
@@ -1026,9 +1026,9 @@ interface DeviceRow {
   can_receive_config: number;
 }
 
-/** Safe subset of device info — never includes token_hash, user PII, etc. */
-interface DeviceInfo {
-  device_uuid: string;
+/** Safe subset of source info — never includes token_hash, user PII, etc. */
+interface SourceInfo {
+  source_uuid: string;
   hostname: string | null;
   os: string | null;
   arch: string | null;
@@ -1038,9 +1038,9 @@ interface DeviceInfo {
   capabilities: { can_rescan: boolean; can_receive_config: boolean };
 }
 
-interface DeviceLookupResult {
+interface SourceLookupResult {
   found: boolean;
-  device_uuid?: string;
+  source_uuid?: string;
   hostname?: string | null;
   os?: string | null;
   arch?: string | null;
@@ -1057,15 +1057,15 @@ interface PlatformGuide {
 }
 
 interface SetupGuideResponse {
-  devices: DeviceInfo[];
+  sources: SourceInfo[];
   guide: Record<string, PlatformGuide | string>;
-  lookup?: DeviceLookupResult;
+  lookup?: SourceLookupResult;
 }
 
 const ACTIVE_THRESHOLD_MS = 5 * 60_000; // 5 minutes
 const RECENTLY_ACTIVE_THRESHOLD_MS = 60 * 60_000; // 1 hour
 
-function deriveActivity(lastPushAt: string | null): DeviceInfo["activity"] {
+function deriveActivity(lastPushAt: string | null): SourceInfo["activity"] {
   if (!lastPushAt) return "never_pushed";
   const age = Date.now() - new Date(lastPushAt).getTime();
   if (age < ACTIVE_THRESHOLD_MS) return "active";
@@ -1073,9 +1073,9 @@ function deriveActivity(lastPushAt: string | null): DeviceInfo["activity"] {
   return "inactive";
 }
 
-function formatDeviceInfo(row: DeviceRow): DeviceInfo {
+function formatSourceInfo(row: SourceRow): SourceInfo {
   return {
-    device_uuid: row.device_uuid,
+    source_uuid: row.source_uuid,
     hostname: row.hostname,
     os: row.os,
     arch: row.arch,
@@ -1086,11 +1086,11 @@ function formatDeviceInfo(row: DeviceRow): DeviceInfo {
   };
 }
 
-function buildLookupResult(row: DeviceRow | null, viaCode: boolean): DeviceLookupResult {
+function buildLookupResult(row: SourceRow | null, viaCode: boolean): SourceLookupResult {
   if (!row) return { found: false };
 
-  const info = formatDeviceInfo(row);
-  const result: DeviceLookupResult = { found: true, ...info };
+  const info = formatSourceInfo(row);
+  const result: SourceLookupResult = { found: true, ...info };
 
   if (viaCode) {
     const expired =
@@ -1106,7 +1106,7 @@ const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
   linux: {
     install: "curl -fsSL https://install.savecraft.gg | bash",
     details:
-      "Downloads signed binaries, verifies Ed25519 signatures, installs to ~/.local/bin/, sets up a systemd user service, and auto-registers the device. The daemon starts immediately and displays a pairing code.",
+      "Downloads signed binaries, verifies Ed25519 signatures, installs to ~/.local/bin/, sets up a systemd user service, and auto-registers the source. The daemon starts immediately and displays a pairing code.",
   },
   windows: {
     install: "Download the installer from https://install.savecraft.gg",
@@ -1119,7 +1119,7 @@ const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
 };
 
 const PAIRING_GUIDE =
-  "After installing, the daemon displays a 6-digit pairing code. Visit https://savecraft.gg/setup and enter the code to link the device to your account. Once paired, your game saves appear automatically. Codes expire after 20 minutes — if yours has expired, the tray app can generate a new one.";
+  "After installing, the daemon displays a 6-digit pairing code. Visit https://savecraft.gg/setup and enter the code to link the source to your account. Once paired, your game saves appear automatically. Codes expire after 20 minutes — if yours has expired, the tray app can generate a new one.";
 
 function buildGuide(platform?: string): SetupGuideResponse["guide"] {
   if (platform) {
@@ -1131,43 +1131,43 @@ function buildGuide(platform?: string): SetupGuideResponse["guide"] {
   return { ...PLATFORM_GUIDES, pairing: PAIRING_GUIDE };
 }
 
-const DEVICE_COLS =
-  "device_uuid, user_uuid, hostname, os, arch, last_push_at, link_code, link_code_expires_at, can_rescan, can_receive_config";
+const SOURCE_COLS =
+  "source_uuid, user_uuid, hostname, os, arch, last_push_at, link_code, link_code_expires_at, can_rescan, can_receive_config";
 
 export async function getSetupHelp(
   db: D1Database,
   userUuid: string,
   platform?: string,
   linkCode?: string,
-  deviceUuid?: string,
+  sourceUuid?: string,
 ): Promise<ToolResult> {
-  // 1. User's linked devices
-  const deviceRows = await db
-    .prepare(`SELECT ${DEVICE_COLS} FROM devices WHERE user_uuid = ? ORDER BY last_push_at DESC NULLS LAST`)
+  // 1. User's linked sources
+  const sourceRows = await db
+    .prepare(`SELECT ${SOURCE_COLS} FROM sources WHERE user_uuid = ? ORDER BY last_push_at DESC NULLS LAST`)
     .bind(userUuid)
-    .all<DeviceRow>();
+    .all<SourceRow>();
 
-  const devices = deviceRows.results.map((row) => formatDeviceInfo(row));
+  const sources = sourceRows.results.map((row) => formatSourceInfo(row));
 
-  // 2. Optional lookup (device_uuid takes precedence over link_code)
-  let lookup: DeviceLookupResult | undefined;
+  // 2. Optional lookup (source_uuid takes precedence over link_code)
+  let lookup: SourceLookupResult | undefined;
 
-  if (deviceUuid) {
+  if (sourceUuid) {
     const row = await db
-      .prepare(`SELECT ${DEVICE_COLS} FROM devices WHERE device_uuid = ?`)
-      .bind(deviceUuid)
-      .first<DeviceRow>();
+      .prepare(`SELECT ${SOURCE_COLS} FROM sources WHERE source_uuid = ?`)
+      .bind(sourceUuid)
+      .first<SourceRow>();
     lookup = buildLookupResult(row, false);
   } else if (linkCode) {
     const row = await db
-      .prepare(`SELECT ${DEVICE_COLS} FROM devices WHERE link_code = ?`)
+      .prepare(`SELECT ${SOURCE_COLS} FROM sources WHERE link_code = ?`)
       .bind(linkCode)
-      .first<DeviceRow>();
+      .first<SourceRow>();
     lookup = buildLookupResult(row, true);
   }
 
   // 3. Build response
-  const response: SetupGuideResponse = { devices, guide: buildGuide(platform) };
+  const response: SetupGuideResponse = { sources, guide: buildGuide(platform) };
   if (lookup !== undefined) {
     response.lookup = lookup;
   }

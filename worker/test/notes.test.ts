@@ -8,27 +8,27 @@ const TEST_USER = "notes-test-user";
 // Use unique save names per test to avoid UNIQUE(user_uuid, game_id, save_name) collisions
 let charSeq = 0;
 
-function deviceUuidFor(userUuid: string): string {
-  return `device-${userUuid}`;
+function sourceUuidFor(userUuid: string): string {
+  return `source-${userUuid}`;
 }
 
-async function ensureDevice(userUuid: string): Promise<void> {
+async function ensureSource(userUuid: string): Promise<void> {
   await env.DB.prepare(
-    "INSERT OR IGNORE INTO devices (device_uuid, user_uuid, token_hash) VALUES (?, ?, ?)",
+    "INSERT OR IGNORE INTO sources (source_uuid, user_uuid, token_hash) VALUES (?, ?, ?)",
   )
-    .bind(deviceUuidFor(userUuid), userUuid, `hash-${userUuid}`)
+    .bind(sourceUuidFor(userUuid), userUuid, `hash-${userUuid}`)
     .run();
 }
 
 async function seedSave(saveUuid: string, userUuid: string): Promise<void> {
   charSeq++;
-  await ensureDevice(userUuid);
+  await ensureSource(userUuid);
   await env.DB.prepare(
-    "INSERT INTO saves (uuid, device_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO saves (uuid, source_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       saveUuid,
-      deviceUuidFor(userUuid),
+      sourceUuidFor(userUuid),
       "d2r",
       "Diablo II: Resurrected",
       `Char-${String(charSeq)}`,

@@ -16,8 +16,8 @@ export interface AuthResult {
   userUuid: string;
 }
 
-export interface DeviceAuthResult {
-  deviceUuid: string;
+export interface SourceAuthResult {
+  sourceUuid: string;
   userUuid: string | null;
 }
 
@@ -73,35 +73,35 @@ export async function authenticateDaemon(request: Request, env: Env): Promise<Au
   return authenticateApiKey(token, env.DB);
 }
 
-// -- Device token auth (D1 lookup) ----------------------------------------
+// -- Source token auth (D1 lookup) ----------------------------------------
 
 /**
- * Authenticate a device token (`dvt_` prefix) by hashing and looking up in D1.
- * Always does D1 lookup — no stub mode for device tokens.
+ * Authenticate a source token (`sct_` prefix) by hashing and looking up in D1.
+ * Always does D1 lookup — no stub mode for source tokens.
  * Updates last_push_at on successful auth.
  */
-export async function authenticateDevice(
+export async function authenticateSource(
   request: Request,
   env: Env,
-): Promise<DeviceAuthResult | null> {
+): Promise<SourceAuthResult | null> {
   const token = extractToken(request);
   if (!token) return null;
 
   const hash = await sha256Hex(token);
   const row = await env.DB.prepare(
-    "SELECT device_uuid, user_uuid FROM devices WHERE token_hash = ?",
+    "SELECT source_uuid, user_uuid FROM sources WHERE token_hash = ?",
   )
     .bind(hash)
-    .first<{ device_uuid: string; user_uuid: string | null }>();
+    .first<{ source_uuid: string; user_uuid: string | null }>();
 
   if (!row) return null;
 
   // Update last activity timestamp (best-effort, don't fail auth on update error)
-  await env.DB.prepare("UPDATE devices SET last_push_at = datetime('now') WHERE device_uuid = ?")
-    .bind(row.device_uuid)
+  await env.DB.prepare("UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?")
+    .bind(row.source_uuid)
     .run();
 
-  return { deviceUuid: row.device_uuid, userUuid: row.user_uuid };
+  return { sourceUuid: row.source_uuid, userUuid: row.user_uuid };
 }
 
 // -- Helpers --------------------------------------------------------------

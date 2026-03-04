@@ -16,14 +16,14 @@ interface ConfigUpdateMsg {
   };
 }
 
-describe("Device Config API", () => {
+describe("Source Config API", () => {
   beforeEach(cleanAll);
 
   it("saves config to D1 via PUT", async () => {
     const userUuid = "config-put-user";
-    const deviceId = "steam-deck";
+    const sourceId = "steam-deck";
 
-    const resp = await SELF.fetch(`https://test-host/api/v1/devices/${deviceId}/config`, {
+    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${userUuid}`,
@@ -43,9 +43,9 @@ describe("Device Config API", () => {
     expect(resp.status).toBe(200);
 
     const rows = await env.DB.prepare(
-      "SELECT * FROM device_configs WHERE user_uuid = ? AND device_id = ?",
+      "SELECT * FROM source_configs WHERE user_uuid = ? AND source_id = ?",
     )
-      .bind(userUuid, deviceId)
+      .bind(userUuid, sourceId)
       .all<{
         game_id: string;
         save_path: string;
@@ -62,10 +62,10 @@ describe("Device Config API", () => {
 
   it("upserts config on repeated PUT", async () => {
     const userUuid = "config-upsert-user";
-    const deviceId = "desktop";
+    const sourceId = "desktop";
 
     const putConfig = async (savePath: string): Promise<Response> =>
-      SELF.fetch(`https://test-host/api/v1/devices/${deviceId}/config`, {
+      SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
         method: "PUT",
         headers: {
           Authorization: `Bearer ${userUuid}`,
@@ -80,9 +80,9 @@ describe("Device Config API", () => {
     await putConfig("/new/path");
 
     const rows = await env.DB.prepare(
-      "SELECT save_path FROM device_configs WHERE user_uuid = ? AND device_id = ? AND game_id = ?",
+      "SELECT save_path FROM source_configs WHERE user_uuid = ? AND source_id = ? AND game_id = ?",
     )
-      .bind(userUuid, deviceId, "d2r")
+      .bind(userUuid, sourceId, "d2r")
       .all<{ save_path: string }>();
 
     expect(rows.results).toHaveLength(1);
@@ -91,10 +91,10 @@ describe("Device Config API", () => {
 
   it("removes games not in the update", async () => {
     const userUuid = "config-remove-user";
-    const deviceId = "pc";
+    const sourceId = "pc";
 
     // First: add two games
-    await SELF.fetch(`https://test-host/api/v1/devices/${deviceId}/config`, {
+    await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${userUuid}`,
@@ -109,7 +109,7 @@ describe("Device Config API", () => {
     });
 
     // Second: update with only d2r — stardew should be removed
-    await SELF.fetch(`https://test-host/api/v1/devices/${deviceId}/config`, {
+    await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${userUuid}`,
@@ -123,9 +123,9 @@ describe("Device Config API", () => {
     });
 
     const rows = await env.DB.prepare(
-      "SELECT game_id FROM device_configs WHERE user_uuid = ? AND device_id = ?",
+      "SELECT game_id FROM source_configs WHERE user_uuid = ? AND source_id = ?",
     )
-      .bind(userUuid, deviceId)
+      .bind(userUuid, sourceId)
       .all<{ game_id: string }>();
 
     expect(rows.results).toHaveLength(1);
@@ -133,7 +133,7 @@ describe("Device Config API", () => {
   });
 
   it("requires auth", async () => {
-    const resp = await SELF.fetch("https://test-host/api/v1/devices/my-pc/config", {
+    const resp = await SELF.fetch("https://test-host/api/v1/sources/my-pc/config", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ games: {} }),
@@ -141,12 +141,12 @@ describe("Device Config API", () => {
     expect(resp.status).toBe(401);
   });
 
-  it("GET /api/v1/devices/:id/config returns saved config", async () => {
+  it("GET /api/v1/sources/:id/config returns saved config", async () => {
     const userUuid = "config-get-user";
-    const deviceId = "my-laptop";
+    const sourceId = "my-laptop";
 
     // PUT a config first
-    const putResp = await SELF.fetch(`https://test-host/api/v1/devices/${deviceId}/config`, {
+    const putResp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${userUuid}`,
@@ -162,7 +162,7 @@ describe("Device Config API", () => {
     expect(putResp.status).toBe(200);
 
     // GET and verify it matches
-    const getResp = await SELF.fetch(`https://test-host/api/v1/devices/${deviceId}/config`, {
+    const getResp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "GET",
       headers: { Authorization: `Bearer ${userUuid}` },
     });
@@ -184,11 +184,11 @@ describe("Device Config API", () => {
     });
   });
 
-  it("GET /api/v1/devices/:id/config returns empty games when no config", async () => {
+  it("GET /api/v1/sources/:id/config returns empty games when no config", async () => {
     const userUuid = "config-empty-get-user";
-    const deviceId = "nonexistent-device";
+    const sourceId = "nonexistent-source";
 
-    const resp = await SELF.fetch(`https://test-host/api/v1/devices/${deviceId}/config`, {
+    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "GET",
       headers: { Authorization: `Bearer ${userUuid}` },
     });
@@ -198,8 +198,8 @@ describe("Device Config API", () => {
     expect(body.games).toEqual({});
   });
 
-  it("GET /api/v1/devices/:id/config requires auth", async () => {
-    const resp = await SELF.fetch("https://test-host/api/v1/devices/my-pc/config", {
+  it("GET /api/v1/sources/:id/config requires auth", async () => {
+    const resp = await SELF.fetch("https://test-host/api/v1/sources/my-pc/config", {
       method: "GET",
     });
     expect(resp.status).toBe(401);
@@ -211,19 +211,19 @@ describe("Config push via DaemonHub", () => {
 
   it("pushes config to daemon on daemonOnline", async () => {
     const userUuid = "config-push-user";
-    const deviceId = "steam-deck";
+    const sourceId = "steam-deck";
 
     // Pre-populate config in D1
     await env.DB.prepare(
-      `INSERT INTO device_configs (user_uuid, device_id, game_id, save_path, enabled, file_extensions)
+      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
-      .bind(userUuid, deviceId, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
+      .bind(userUuid, sourceId, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
     // Connect daemon and send daemonOnline
     const daemonWs = await connectWs("/ws/daemon", userUuid);
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId, version: "0.1.0" } }));
 
     // Daemon should receive a configUpdate message
     const msg = await waitForMessage<ConfigUpdateMsg>(daemonWs);
@@ -238,10 +238,10 @@ describe("Config push via DaemonHub", () => {
 
   it("pushes empty config when no configs exist", async () => {
     const userUuid = "config-empty-user";
-    const deviceId = "unknown-device";
+    const sourceId = "unknown-source";
 
     const daemonWs = await connectWs("/ws/daemon", userUuid);
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId, version: "0.1.0" } }));
 
     const msg = await waitForMessage<ConfigUpdateMsg>(daemonWs);
     expect(msg.configUpdate).toBeDefined();
@@ -250,34 +250,34 @@ describe("Config push via DaemonHub", () => {
     await closeWs(daemonWs);
   });
 
-  it("sets ACTIVATING status in DeviceState when pushing config", async () => {
+  it("sets ACTIVATING status in SourceState when pushing config", async () => {
     const userUuid = "config-activating-user";
-    const deviceId = "my-pc";
+    const sourceId = "my-pc";
 
     // Pre-populate config with an enabled game
     await env.DB.prepare(
-      `INSERT INTO device_configs (user_uuid, device_id, game_id, save_path, enabled, file_extensions)
+      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
-      .bind(userUuid, deviceId, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
+      .bind(userUuid, sourceId, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
     // Connect daemon and identify it
     const daemonWs = await connectWs("/ws/daemon", userUuid);
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId, version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
-    // Connect a fresh UI and check DeviceState — game should be ACTIVATING
+    // Connect a fresh UI and check SourceState — game should be ACTIVATING
     const uiWs = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(uiWs);
 
-    expect(msg).toHaveProperty("deviceState");
-    const ds = msg.deviceState as {
-      devices: { deviceId: string; games: { gameId: string; status: string }[] }[];
+    expect(msg).toHaveProperty("sourceState");
+    const ds = msg.sourceState as {
+      sources: { sourceId: string; games: { gameId: string; status: string }[] }[];
     };
-    const device = ds.devices.find((d) => d.deviceId === deviceId);
-    expect(device).toBeDefined();
-    const game = device!.games.find((g) => g.gameId === "d2r");
+    const source = ds.sources.find((d) => d.sourceId === sourceId);
+    expect(source).toBeDefined();
+    const game = source!.games.find((g) => g.gameId === "d2r");
     expect(game).toBeDefined();
     expect(game!.status).toBe("GAME_STATUS_ENUM_ACTIVATING");
 
@@ -287,33 +287,33 @@ describe("Config push via DaemonHub", () => {
 
   it("does not set ACTIVATING for disabled games", async () => {
     const userUuid = "config-disabled-user";
-    const deviceId = "my-pc";
+    const sourceId = "my-pc";
 
     // Pre-populate config with a disabled game
     await env.DB.prepare(
-      `INSERT INTO device_configs (user_uuid, device_id, game_id, save_path, enabled, file_extensions)
+      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
-      .bind(userUuid, deviceId, "stardew", "/saves/stardew", 0, JSON.stringify([".xml"]))
+      .bind(userUuid, sourceId, "stardew", "/saves/stardew", 0, JSON.stringify([".xml"]))
       .run();
 
     // Connect daemon and identify it
     const daemonWs = await connectWs("/ws/daemon", userUuid);
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId, version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Connect a fresh UI — disabled game should NOT appear with ACTIVATING
     const uiWs = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(uiWs);
 
-    expect(msg).toHaveProperty("deviceState");
-    const ds = msg.deviceState as {
-      devices: { deviceId: string; games?: { gameId: string; status: string }[] }[];
+    expect(msg).toHaveProperty("sourceState");
+    const ds = msg.sourceState as {
+      sources: { sourceId: string; games?: { gameId: string; status: string }[] }[];
     };
-    const device = ds.devices.find((d) => d.deviceId === deviceId);
-    expect(device).toBeDefined();
+    const source = ds.sources.find((d) => d.sourceId === sourceId);
+    expect(source).toBeDefined();
     // Disabled game should not appear with ACTIVATING — games may be omitted (proto3 empty array)
-    const games = device!.games ?? [];
+    const games = source!.games ?? [];
     const activatingGames = games.filter((g) => g.status === "GAME_STATUS_ENUM_ACTIVATING");
     expect(activatingGames).toHaveLength(0);
 
@@ -323,33 +323,33 @@ describe("Config push via DaemonHub", () => {
 
   it("ACTIVATING persists and is visible to new UI connections after push-config", async () => {
     const userUuid = "config-broadcast-user";
-    const deviceId = "my-pc";
+    const sourceId = "my-pc";
 
     // Pre-populate config with an enabled game
     await env.DB.prepare(
-      `INSERT INTO device_configs (user_uuid, device_id, game_id, save_path, enabled, file_extensions)
+      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
-      .bind(userUuid, deviceId, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
+      .bind(userUuid, sourceId, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
     // Connect daemon, identify it (triggers push-config which sets ACTIVATING)
     const daemonWs = await connectWs("/ws/daemon", userUuid);
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId, version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Close daemon — ACTIVATING should survive in persisted state
     await closeWs(daemonWs);
 
-    // Fresh UI connect should see ACTIVATING in cold-start DeviceState
+    // Fresh UI connect should see ACTIVATING in cold-start SourceState
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
-    expect(msg).toHaveProperty("deviceState");
-    const ds = msg.deviceState as {
-      devices: { games: { gameId: string; status: string }[] }[];
+    expect(msg).toHaveProperty("sourceState");
+    const ds = msg.sourceState as {
+      sources: { games: { gameId: string; status: string }[] }[];
     };
-    const game = ds.devices[0]?.games.find((g) => g.gameId === "d2r");
+    const game = ds.sources[0]?.games.find((g) => g.gameId === "d2r");
     expect(game).toBeDefined();
     expect(game!.status).toBe("GAME_STATUS_ENUM_ACTIVATING");
 
@@ -358,13 +358,13 @@ describe("Config push via DaemonHub", () => {
 
   it("pushes config update when API writes new config", async () => {
     const userUuid = "config-live-push-user";
-    const deviceId = "my-pc";
+    const sourceId = "my-pc";
 
     // Connect daemon first
     const daemonWs = await connectWs("/ws/daemon", userUuid);
 
     // Send daemonOnline (initial empty config push)
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId, version: "0.1.0" } }));
     // Consume the initial (empty) configUpdate
     await waitForMessage<ConfigUpdateMsg>(daemonWs);
 
@@ -373,7 +373,7 @@ describe("Config push via DaemonHub", () => {
     const configPromise = waitForMessage<ConfigUpdateMsg>(daemonWs);
 
     // Now save config via API — this should trigger a push to the daemon
-    const resp = await SELF.fetch(`https://test-host/api/v1/devices/${deviceId}/config`, {
+    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
       headers: {
         Authorization: `Bearer ${userUuid}`,

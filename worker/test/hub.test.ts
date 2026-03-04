@@ -46,7 +46,7 @@ describe("DaemonHub", () => {
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     const event = {
-      daemonOnline: { deviceId: "steam-deck", version: "0.1.0" },
+      sourceOnline: { sourceId: "steam-deck", version: "0.1.0" },
     };
     daemonWs.send(JSON.stringify(event));
 
@@ -55,13 +55,13 @@ describe("DaemonHub", () => {
 
     // Check D1
     const rows = await env.DB.prepare(
-      "SELECT * FROM device_events WHERE event_type = 'daemonOnline'",
+      "SELECT * FROM source_events WHERE event_type = 'sourceOnline'",
     ).all();
 
     expect(rows.results.length).toBeGreaterThanOrEqual(1);
     const row = rows.results[0]!;
-    expect(row.device_id).toBe("steam-deck");
-    expect(row.event_type).toBe("daemonOnline");
+    expect(row.source_id).toBe("steam-deck");
+    expect(row.event_type).toBe("sourceOnline");
 
     await closeWs(daemonWs);
     await closeWs(uiWs);
@@ -94,7 +94,7 @@ describe("DaemonHub", () => {
     await closeWs(ws);
   });
 
-  it("sends DeviceState then activity feed on UI connect (cold start)", async () => {
+  it("sends SourceState then activity feed on UI connect (cold start)", async () => {
     const userUuid = "coldstart-test-user";
 
     // Send some events via a daemon WS to populate state and D1
@@ -102,7 +102,7 @@ describe("DaemonHub", () => {
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     const events = [
-      { daemonOnline: { deviceId: "my-pc", version: "0.1.0" } },
+      { sourceOnline: { sourceId: "my-pc", version: "0.1.0" } },
       { scanCompleted: { gameId: "d2r", filesFound: 3 } },
       { parseCompleted: { gameId: "d2r", summary: "Hammerdin, Level 89" } },
     ];
@@ -114,17 +114,17 @@ describe("DaemonHub", () => {
 
     await closeWs(temporaryUi);
 
-    // Fresh UI: first message should be DeviceState, then activity feed with _ts
+    // Fresh UI: first message should be SourceState, then activity feed with _ts
     const freshUi = await connectWs("/ws/ui", userUuid);
 
     const msg1 = await waitForMessage<Record<string, unknown>>(freshUi);
-    expect(msg1).toHaveProperty("deviceState");
-    // DeviceState snapshot does NOT have _ts (it's not a replayed event)
+    expect(msg1).toHaveProperty("sourceState");
+    // SourceState snapshot does NOT have _ts (it's not a replayed event)
     expect(msg1).not.toHaveProperty("_ts");
 
     const msg2 = await waitForMessage<Record<string, unknown>>(freshUi);
     const firstKey = Object.keys(msg2).find((k) => k !== "_ts");
-    expect(["daemonOnline", "scanCompleted", "parseCompleted"]).toContain(firstKey);
+    expect(["sourceOnline", "scanCompleted", "parseCompleted"]).toContain(firstKey);
     // Replayed events MUST have _ts injected from D1 created_at
     expect(msg2).toHaveProperty("_ts");
     expect(typeof msg2._ts).toBe("string");
@@ -133,50 +133,50 @@ describe("DaemonHub", () => {
     await closeWs(daemonWs);
   });
 
-  it("builds DeviceState with online device from daemonOnline", async () => {
+  it("builds SourceState with online source from sourceOnline", async () => {
     const userUuid = "ds-online-user";
 
     const daemon = await connectWs("/ws/daemon", userUuid);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "my-pc", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
-    expect(msg).toHaveProperty("deviceState");
-    const ds = msg.deviceState as { devices: { deviceId: string; online: boolean }[] };
-    expect(ds.devices).toHaveLength(1);
-    expect(ds.devices[0]!.deviceId).toBe("my-pc");
-    expect(ds.devices[0]!.online).toBe(true);
+    expect(msg).toHaveProperty("sourceState");
+    const ds = msg.sourceState as { sources: { sourceId: string; online: boolean }[] };
+    expect(ds.sources).toHaveLength(1);
+    expect(ds.sources[0]!.sourceId).toBe("my-pc");
+    expect(ds.sources[0]!.online).toBe(true);
 
     await closeWs(freshUi);
     await closeWs(daemon);
   });
 
-  it("marks device offline on daemonOffline", async () => {
+  it("marks source offline on sourceOffline", async () => {
     const userUuid = "ds-offline-user";
 
     const daemon = await connectWs("/ws/daemon", userUuid);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "laptop", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "laptop", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
 
-    daemon.send(JSON.stringify({ daemonOffline: { deviceId: "laptop" } }));
+    daemon.send(JSON.stringify({ sourceOffline: { sourceId: "laptop" } }));
     await waitForMessage(temporaryUi);
     await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
-    const ds = msg.deviceState as { devices: { deviceId: string; online?: boolean }[] };
-    const device = ds.devices.find((d) => d.deviceId === "laptop");
-    expect(device).toBeDefined();
+    const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
+    const source = ds.sources.find((d) => d.sourceId === "laptop");
+    expect(source).toBeDefined();
     // Proto3 JSON omits false (the default) — absent online means offline
-    expect(device?.online).toBeFalsy();
+    expect(source?.online).toBeFalsy();
 
     await closeWs(freshUi);
     await closeWs(daemon);
@@ -188,7 +188,7 @@ describe("DaemonHub", () => {
     const daemon = await connectWs("/ws/daemon", userUuid);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "desktop", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "desktop", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
 
     daemon.send(
@@ -200,10 +200,10 @@ describe("DaemonHub", () => {
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
-    const ds = msg.deviceState as {
-      devices: { games: { gameId: string; status: string }[] }[];
+    const ds = msg.sourceState as {
+      sources: { games: { gameId: string; status: string }[] }[];
     };
-    const game = ds.devices[0]?.games.find((g) => g.gameId === "d2r");
+    const game = ds.sources[0]?.games.find((g) => g.gameId === "d2r");
     expect(game?.status).toBe("GAME_STATUS_ENUM_WATCHING");
 
     await closeWs(freshUi);
@@ -216,7 +216,7 @@ describe("DaemonHub", () => {
     const daemon = await connectWs("/ws/daemon", userUuid);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "pc", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "pc", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
 
     daemon.send(
@@ -230,58 +230,58 @@ describe("DaemonHub", () => {
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
-    const ds = msg.deviceState as {
-      devices: { games: { saves: { saveUuid: string; summary: string }[] }[] }[];
+    const ds = msg.sourceState as {
+      sources: { games: { saves: { saveUuid: string; summary: string }[] }[] }[];
     };
-    const save = ds.devices[0]?.games[0]?.saves.find((s) => s.saveUuid === "save-123");
+    const save = ds.sources[0]?.games[0]?.saves.find((s) => s.saveUuid === "save-123");
     expect(save?.summary).toBe("Hammerdin Lv89");
 
     await closeWs(freshUi);
     await closeWs(daemon);
   });
 
-  it("marks device offline on daemon WebSocket close", async () => {
+  it("marks source offline on daemon WebSocket close", async () => {
     const userUuid = "ds-wsclose-user";
 
     const daemon = await connectWs("/ws/daemon", userUuid);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "steamdeck", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "steamdeck", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     await closeWs(temporaryUi);
 
-    // Close daemon WS — should mark device offline
+    // Close daemon WS — should mark source offline
     await closeWs(daemon);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
-    const ds = msg.deviceState as { devices: { deviceId: string; online?: boolean }[] };
-    const device = ds.devices.find((d) => d.deviceId === "steamdeck");
-    expect(device).toBeDefined();
+    const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
+    const source = ds.sources.find((d) => d.sourceId === "steamdeck");
+    expect(source).toBeDefined();
     // Proto3 JSON omits false (the default) — absent online means offline
-    expect(device?.online).toBeFalsy();
+    expect(source?.online).toBeFalsy();
 
     await closeWs(freshUi);
   });
 
-  it("tracks multiple devices independently", async () => {
-    const userUuid = "ds-multi-device-user";
+  it("tracks multiple sources independently", async () => {
+    const userUuid = "ds-multi-source-user";
 
     const daemonA = await connectWs("/ws/daemon", userUuid);
     const daemonB = await connectWs("/ws/daemon", userUuid);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    // Device A comes online and watches d2r
-    daemonA.send(JSON.stringify({ daemonOnline: { deviceId: "desktop", version: "0.1.0" } }));
+    // Source A comes online and watches d2r
+    daemonA.send(JSON.stringify({ sourceOnline: { sourceId: "desktop", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     daemonA.send(
       JSON.stringify({ watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 3 } }),
     );
     await waitForMessage(temporaryUi);
 
-    // Device B comes online and watches stardew
-    daemonB.send(JSON.stringify({ daemonOnline: { deviceId: "steamdeck", version: "0.1.0" } }));
+    // Source B comes online and watches stardew
+    daemonB.send(JSON.stringify({ sourceOnline: { sourceId: "steamdeck", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     daemonB.send(
       JSON.stringify({
@@ -294,13 +294,13 @@ describe("DaemonHub", () => {
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
-    const ds = msg.deviceState as {
-      devices: { deviceId: string; online: boolean; games: { gameId: string }[] }[];
+    const ds = msg.sourceState as {
+      sources: { sourceId: string; online: boolean; games: { gameId: string }[] }[];
     };
-    expect(ds.devices).toHaveLength(2);
+    expect(ds.sources).toHaveLength(2);
 
-    const desktop = ds.devices.find((d) => d.deviceId === "desktop");
-    const steamdeck = ds.devices.find((d) => d.deviceId === "steamdeck");
+    const desktop = ds.sources.find((d) => d.sourceId === "desktop");
+    const steamdeck = ds.sources.find((d) => d.sourceId === "steamdeck");
 
     expect(desktop).toBeDefined();
     expect(desktop!.online).toBe(true);
@@ -315,28 +315,28 @@ describe("DaemonHub", () => {
     await closeWs(daemonB);
   });
 
-  it("marks only the disconnected device offline", async () => {
+  it("marks only the disconnected source offline", async () => {
     const userUuid = "ds-multi-close-user";
 
     const daemonA = await connectWs("/ws/daemon", userUuid);
     const daemonB = await connectWs("/ws/daemon", userUuid);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemonA.send(JSON.stringify({ daemonOnline: { deviceId: "desktop", version: "0.1.0" } }));
+    daemonA.send(JSON.stringify({ sourceOnline: { sourceId: "desktop", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
-    daemonB.send(JSON.stringify({ daemonOnline: { deviceId: "steamdeck", version: "0.1.0" } }));
+    daemonB.send(JSON.stringify({ sourceOnline: { sourceId: "steamdeck", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     await closeWs(temporaryUi);
 
-    // Close only device A
+    // Close only source A
     await closeWs(daemonA);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
-    const ds = msg.deviceState as { devices: { deviceId: string; online?: boolean }[] };
-    const desktop = ds.devices.find((d) => d.deviceId === "desktop");
-    const steamdeck = ds.devices.find((d) => d.deviceId === "steamdeck");
+    const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
+    const desktop = ds.sources.find((d) => d.sourceId === "desktop");
+    const steamdeck = ds.sources.find((d) => d.sourceId === "steamdeck");
 
     expect(desktop).toBeDefined();
     expect(desktop?.online).toBeFalsy();
@@ -347,13 +347,13 @@ describe("DaemonHub", () => {
     await closeWs(daemonB);
   });
 
-  it("stores identity from pushCompleted in DeviceState", async () => {
+  it("stores identity from pushCompleted in SourceState", async () => {
     const userUuid = "ds-identity-user";
 
     const daemon = await connectWs("/ws/daemon", userUuid);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "pc", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "pc", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
 
     daemon.send(
@@ -372,24 +372,24 @@ describe("DaemonHub", () => {
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
-    const ds = msg.deviceState as {
-      devices: {
+    const ds = msg.sourceState as {
+      sources: {
         games: { saves: { saveUuid: string; identity: { name: string } }[] }[];
       }[];
     };
-    const save = ds.devices[0]?.games[0]?.saves.find((s) => s.saveUuid === "save-abc");
+    const save = ds.sources[0]?.games[0]?.saves.find((s) => s.saveUuid === "save-abc");
     expect(save?.identity.name).toBe("Hammerdin");
 
     await closeWs(freshUi);
     await closeWs(daemon);
   });
 
-  it("scopes configUpdate to the target device only", async () => {
+  it("scopes configUpdate to the target source only", async () => {
     const userUuid = "config-scope-user";
 
     // Pre-populate config for desktop only
     await env.DB.prepare(
-      `INSERT INTO device_configs (user_uuid, device_id, game_id, save_path, enabled, file_extensions)
+      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
       .bind(userUuid, "desktop", "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
@@ -399,11 +399,11 @@ describe("DaemonHub", () => {
     const daemonB = await connectWs("/ws/daemon", userUuid);
 
     // Both daemons identify themselves
-    daemonA.send(JSON.stringify({ daemonOnline: { deviceId: "desktop", version: "0.1.0" } }));
+    daemonA.send(JSON.stringify({ sourceOnline: { sourceId: "desktop", version: "0.1.0" } }));
     const configA = await waitForMessage<Record<string, unknown>>(daemonA);
     expect(configA).toHaveProperty("configUpdate");
 
-    daemonB.send(JSON.stringify({ daemonOnline: { deviceId: "steamdeck", version: "0.1.0" } }));
+    daemonB.send(JSON.stringify({ sourceOnline: { sourceId: "steamdeck", version: "0.1.0" } }));
     const configB = await waitForMessage<Record<string, unknown>>(daemonB);
     expect(configB).toHaveProperty("configUpdate");
 
@@ -417,36 +417,36 @@ describe("DaemonHub", () => {
     await closeWs(daemonB);
   });
 
-  it("injects _deviceId on live relay", async () => {
+  it("injects _sourceId on live relay", async () => {
     const userUuid = "deviceid-relay-user";
 
     const daemonWs = await connectWs("/ws/daemon", userUuid);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     // Identify the daemon connection
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "my-pc", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
     await waitForMessage(uiWs);
 
-    // Send a game event — UI should receive it with _deviceId injected
+    // Send a game event — UI should receive it with _sourceId injected
     daemonWs.send(
       JSON.stringify({ watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 5 } }),
     );
     const received = await waitForMessage<Record<string, unknown>>(uiWs);
     expect(received).toHaveProperty("watching");
-    expect(received._deviceId).toBe("my-pc");
+    expect(received._sourceId).toBe("my-pc");
 
     await closeWs(daemonWs);
     await closeWs(uiWs);
   });
 
-  it("injects _deviceId on replayed events", async () => {
+  it("injects _sourceId on replayed events", async () => {
     const userUuid = "deviceid-replay-user";
 
     const daemonWs = await connectWs("/ws/daemon", userUuid);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     // Identify daemon and send an event
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "steam-deck", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "steam-deck", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     daemonWs.send(
       JSON.stringify({ parseCompleted: { gameId: "d2r", summary: "Hammerdin, Level 89" } }),
@@ -454,13 +454,13 @@ describe("DaemonHub", () => {
     await waitForMessage(temporaryUi);
     await closeWs(temporaryUi);
 
-    // Fresh UI should get DeviceState, then replayed events with _deviceId
+    // Fresh UI should get SourceState, then replayed events with _sourceId
     const freshUi = await connectWs("/ws/ui", userUuid);
 
-    // Skip DeviceState
+    // Skip SourceState
     await waitForMessage(freshUi);
 
-    // Collect replayed events — at least one should have _deviceId: "steam-deck"
+    // Collect replayed events — at least one should have _sourceId: "steam-deck"
     const replayed: Record<string, unknown>[] = [];
     try {
       while (replayed.length < 10) {
@@ -472,8 +472,8 @@ describe("DaemonHub", () => {
     }
 
     expect(replayed.length).toBeGreaterThanOrEqual(1);
-    const withDeviceId = replayed.filter((m) => m._deviceId === "steam-deck");
-    expect(withDeviceId.length).toBeGreaterThanOrEqual(1);
+    const withSourceId = replayed.filter((m) => m._sourceId === "steam-deck");
+    expect(withSourceId.length).toBeGreaterThanOrEqual(1);
 
     await closeWs(freshUi);
     await closeWs(daemonWs);
@@ -485,7 +485,7 @@ describe("DaemonHub", () => {
     const daemonWs = await connectWs("/ws/daemon", userUuid);
 
     // Identify the daemon and consume the configUpdate response
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "my-pc", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate from maybePushConfig
 
     // Register listener BEFORE the /rescan call — the DO sends the message
@@ -555,7 +555,7 @@ describe("DaemonHub", () => {
     await closeWs(uiB);
   });
 
-  it("sends daemonUpdateAvailable when daemon version is stale", async () => {
+  it("sends sourceUpdateAvailable when daemon version is stale", async () => {
     const userUuid = "update-check-user";
 
     // Mock the install worker manifest endpoint
@@ -580,30 +580,30 @@ describe("DaemonHub", () => {
 
     const daemonWs = await connectWs("/ws/daemon", userUuid);
 
-    // Send daemonOnline with an older version
+    // Send sourceOnline with an older version
     daemonWs.send(
       JSON.stringify({
-        daemonOnline: { deviceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" },
+        sourceOnline: { sourceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" },
       }),
     );
 
     // Should receive configUpdate first (from maybePushConfig)
     const msg1 = await waitForMessage<Record<string, unknown>>(daemonWs);
 
-    // Should also receive daemonUpdateAvailable
+    // Should also receive sourceUpdateAvailable
     // It might be the first or second message depending on ordering
     let updateMsg: Record<string, unknown> | undefined;
-    if ("daemonUpdateAvailable" in msg1) {
+    if ("sourceUpdateAvailable" in msg1) {
       updateMsg = msg1;
     } else {
       const msg2 = await waitForMessage<Record<string, unknown>>(daemonWs);
-      if ("daemonUpdateAvailable" in msg2) {
+      if ("sourceUpdateAvailable" in msg2) {
         updateMsg = msg2;
       }
     }
 
     expect(updateMsg).toBeDefined();
-    const update = updateMsg!.daemonUpdateAvailable as {
+    const update = updateMsg!.sourceUpdateAvailable as {
       version: string;
       url: string;
       sha256: string;
@@ -616,18 +616,18 @@ describe("DaemonHub", () => {
     fetchMock.deactivate();
   });
 
-  it("does not relay daemonHeartbeat to UI", async () => {
+  it("does not relay sourceHeartbeat to UI", async () => {
     const userUuid = "heartbeat-relay-user";
 
     const daemonWs = await connectWs("/ws/daemon", userUuid);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     // Identify daemon
-    daemonWs.send(JSON.stringify({ daemonOnline: { deviceId: "deck", version: "0.1.0" } }));
-    await waitForMessage(uiWs); // daemonOnline relayed
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "deck", version: "0.1.0" } }));
+    await waitForMessage(uiWs); // sourceOnline relayed
 
     // Send heartbeat — should NOT be relayed to UI
-    daemonWs.send(JSON.stringify({ daemonHeartbeat: {} }));
+    daemonWs.send(JSON.stringify({ sourceHeartbeat: {} }));
 
     // Wait briefly — UI should NOT receive anything
     const noMessage = await waitForMessage(uiWs, 200).catch(() => null);
@@ -643,22 +643,22 @@ describe("DaemonHub", () => {
     const daemon = await connectWs("/ws/daemon", userUuid);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "deck", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "deck", version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     await closeWs(temporaryUi);
 
     // Get initial lastSeen
     const ui1 = await connectWs("/ws/ui", userUuid);
     const msg1 = await waitForMessage<Record<string, unknown>>(ui1);
-    const ds1 = msg1.deviceState as { devices: { lastSeen: string }[] };
-    const initialLastSeen = new Date(ds1.devices[0]!.lastSeen).getTime();
+    const ds1 = msg1.sourceState as { sources: { lastSeen: string }[] };
+    const initialLastSeen = new Date(ds1.sources[0]!.lastSeen).getTime();
     await closeWs(ui1);
 
     // Wait enough to guarantee temporal separation, then send heartbeat
     await new Promise((resolve) => {
       setTimeout(resolve, 100);
     });
-    daemon.send(JSON.stringify({ daemonHeartbeat: {} }));
+    daemon.send(JSON.stringify({ sourceHeartbeat: {} }));
 
     // Give DO time to process
     await new Promise((resolve) => {
@@ -668,8 +668,8 @@ describe("DaemonHub", () => {
     // Check lastSeen was updated — assert strictly newer (not just different)
     const ui2 = await connectWs("/ws/ui", userUuid);
     const msg2 = await waitForMessage<Record<string, unknown>>(ui2);
-    const ds2 = msg2.deviceState as { devices: { lastSeen: string }[] };
-    const updatedLastSeen = new Date(ds2.devices[0]!.lastSeen).getTime();
+    const ds2 = msg2.sourceState as { sources: { lastSeen: string }[] };
+    const updatedLastSeen = new Date(ds2.sources[0]!.lastSeen).getTime();
 
     expect(updatedLastSeen).toBeGreaterThan(initialLastSeen);
 
@@ -677,41 +677,41 @@ describe("DaemonHub", () => {
     await closeWs(daemon);
   });
 
-  it("evicts stale device via alarm", async () => {
+  it("evicts stale source via alarm", async () => {
     const userUuid = "alarm-evict-user";
 
     const daemon = await connectWs("/ws/daemon", userUuid);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
-    // Send daemonOnline — sets alarm (100ms in test config)
-    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "deck", version: "0.1.0" } }));
-    await waitForMessage(uiWs); // daemonOnline relayed
+    // Send sourceOnline — sets alarm (100ms in test config)
+    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "deck", version: "0.1.0" } }));
+    await waitForMessage(uiWs); // sourceOnline relayed
     await closeWs(uiWs);
 
-    // Pre-assertion: device must be online before we test eviction
+    // Pre-assertion: source must be online before we test eviction
     const preUi = await connectWs("/ws/ui", userUuid);
     const preMsg = await waitForMessage<Record<string, unknown>>(preUi);
-    const preDs = preMsg.deviceState as { devices: { deviceId: string; online?: boolean }[] };
-    const preDevice = preDs.devices.find((d) => d.deviceId === "deck");
-    expect(preDevice).toBeDefined();
-    expect(preDevice?.online).toBe(true);
+    const preDs = preMsg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
+    const preSource = preDs.sources.find((d) => d.sourceId === "deck");
+    expect(preSource).toBeDefined();
+    expect(preSource?.online).toBe(true);
     await closeWs(preUi);
 
     // Wait for stale threshold + alarm interval to pass
-    // STALE_THRESHOLD_MS=200, ALARM_INTERVAL_MS=100, so after ~300ms the device
-    // should be evicted (alarm fires at 100ms, device not stale yet; fires again
+    // STALE_THRESHOLD_MS=200, ALARM_INTERVAL_MS=100, so after ~300ms the source
+    // should be evicted (alarm fires at 100ms, source not stale yet; fires again
     // at 200ms, still not stale; fires at 300ms, lastSeen is now >200ms ago).
     await new Promise((resolve) => {
       setTimeout(resolve, 500);
     });
 
-    // Post-assertion: device must now be offline (evicted by alarm)
+    // Post-assertion: source must now be offline (evicted by alarm)
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
-    const ds = msg.deviceState as { devices: { deviceId: string; online?: boolean }[] };
-    const device = ds.devices.find((d) => d.deviceId === "deck");
-    expect(device).toBeDefined();
-    expect(device?.online).toBeFalsy();
+    const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
+    const source = ds.sources.find((d) => d.sourceId === "deck");
+    expect(source).toBeDefined();
+    expect(source?.online).toBeFalsy();
 
     await closeWs(freshUi);
     await closeWs(daemon);
@@ -723,12 +723,12 @@ describe("DaemonHub", () => {
     const daemon = await connectWs("/ws/daemon", userUuid);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
-    // Device comes online (sets alarm)
-    daemon.send(JSON.stringify({ daemonOnline: { deviceId: "deck", version: "0.1.0" } }));
+    // Source comes online (sets alarm)
+    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "deck", version: "0.1.0" } }));
     await waitForMessage(uiWs);
 
-    // Device goes offline gracefully (should delete alarm)
-    daemon.send(JSON.stringify({ daemonOffline: { deviceId: "deck" } }));
+    // Source goes offline gracefully (should delete alarm)
+    daemon.send(JSON.stringify({ sourceOffline: { sourceId: "deck" } }));
     await waitForMessage(uiWs);
 
     await closeWs(daemon);
@@ -737,27 +737,27 @@ describe("DaemonHub", () => {
     // Snapshot lastSeen immediately after offline
     const ui1 = await connectWs("/ws/ui", userUuid);
     const msg1 = await waitForMessage<Record<string, unknown>>(ui1);
-    const ds1 = msg1.deviceState as { devices: { deviceId: string; lastSeen?: string }[] };
-    const lastSeenBefore = ds1.devices.find((d) => d.deviceId === "deck")?.lastSeen;
+    const ds1 = msg1.sourceState as { sources: { sourceId: string; lastSeen?: string }[] };
+    const lastSeenBefore = ds1.sources.find((d) => d.sourceId === "deck")?.lastSeen;
     expect(lastSeenBefore).toBeDefined();
     await closeWs(ui1);
 
-    // Wait past the alarm interval — alarm should NOT fire since device is offline
+    // Wait past the alarm interval — alarm should NOT fire since source is offline
     await new Promise((resolve) => {
       setTimeout(resolve, 300);
     });
 
-    // lastSeen must be identical — proves no alarm fired and re-processed the device
+    // lastSeen must be identical — proves no alarm fired and re-processed the source
     const ui2 = await connectWs("/ws/ui", userUuid);
     const msg2 = await waitForMessage<Record<string, unknown>>(ui2);
-    const ds2 = msg2.deviceState as { devices: { deviceId: string; lastSeen?: string }[] };
-    const lastSeenAfter = ds2.devices.find((d) => d.deviceId === "deck")?.lastSeen;
+    const ds2 = msg2.sourceState as { sources: { sourceId: string; lastSeen?: string }[] };
+    const lastSeenAfter = ds2.sources.find((d) => d.sourceId === "deck")?.lastSeen;
     expect(lastSeenAfter).toBe(lastSeenBefore);
 
     await closeWs(ui2);
   });
 
-  it("does not send daemonUpdateAvailable when daemon is current", async () => {
+  it("does not send sourceUpdateAvailable when daemon is current", async () => {
     const userUuid = "update-current-user";
 
     // Mock the install worker manifest endpoint
@@ -782,10 +782,10 @@ describe("DaemonHub", () => {
 
     const daemonWs = await connectWs("/ws/daemon", userUuid);
 
-    // Send daemonOnline with current version
+    // Send sourceOnline with current version
     daemonWs.send(
       JSON.stringify({
-        daemonOnline: { deviceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" },
+        sourceOnline: { sourceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" },
       }),
     );
 
@@ -793,7 +793,7 @@ describe("DaemonHub", () => {
     const msg1 = await waitForMessage<Record<string, unknown>>(daemonWs);
     expect(msg1).toHaveProperty("configUpdate");
 
-    // Should NOT receive daemonUpdateAvailable — wait briefly
+    // Should NOT receive sourceUpdateAvailable — wait briefly
     const noUpdate = await waitForMessage(daemonWs, 200).catch(() => null);
     expect(noUpdate).toBeNull();
 

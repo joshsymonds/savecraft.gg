@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { authenticateApiKey, sha256Hex } from "../src/auth";
 import worker from "../src/index";
 
-import { cleanAll, getOAuthToken, seedDevice } from "./helpers";
+import { cleanAll, getOAuthToken, seedSource } from "./helpers";
 
 const AUTH_TEST_USER = "auth-test-user";
 
@@ -298,20 +298,20 @@ describe("authenticateApiKey", () => {
 describe("API key auth integration", () => {
   beforeEach(cleanAll);
 
-  it("push endpoint with valid device token returns 201", async () => {
-    const { deviceToken } = await seedDevice();
+  it("push endpoint with valid source token returns 201", async () => {
+    const { sourceToken } = await seedSource();
 
     const resp = await SELF.fetch(
       new Request("https://test-host/api/v1/push", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${deviceToken}`,
+          Authorization: `Bearer ${sourceToken}`,
           "X-Game": "d2r",
           "X-Parsed-At": "2026-02-25T21:30:00Z",
         },
         body: JSON.stringify({
-          identity: { saveName: "DeviceTokenChar", gameId: "d2r" },
+          identity: { saveName: "SourceTokenChar", gameId: "d2r" },
           summary: "Test character",
           sections: { overview: { description: "test", data: {} } },
         }),
