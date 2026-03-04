@@ -33,8 +33,8 @@ export async function cleanAll(): Promise<void> {
 }
 
 /**
- * Connect a WebSocket through the Worker routes.
- * Returns the client-side WebSocket after accepting.
+ * Connect a UI WebSocket through the Worker routes.
+ * Authenticates with stub auth (bearer token = user UUID).
  */
 export async function connectWs(path: string, userUuid: string): Promise<WebSocket> {
   const resp = await SELF.fetch(`https://test-host${path}`, {
@@ -48,6 +48,28 @@ export async function connectWs(path: string, userUuid: string): Promise<WebSock
   if (!ws) {
     throw new Error(
       `WebSocket upgrade failed for ${path}: ${String(resp.status)} ${resp.statusText}`,
+    );
+  }
+  ws.accept();
+  return ws;
+}
+
+/**
+ * Connect a daemon WebSocket using a source token.
+ * authenticateSource() does D1 lookup — source must be seeded first via seedSource().
+ */
+export async function connectDaemonWs(sourceToken: string): Promise<WebSocket> {
+  const resp = await SELF.fetch("https://test-host/ws/daemon", {
+    headers: {
+      Upgrade: "websocket",
+      Authorization: `Bearer ${sourceToken}`,
+    },
+  });
+
+  const ws = resp.webSocket;
+  if (!ws) {
+    throw new Error(
+      `Daemon WebSocket upgrade failed: ${String(resp.status)} ${resp.statusText}`,
     );
   }
   ws.accept();

@@ -2,13 +2,16 @@ import { DurableObject } from "cloudflare:workers";
 
 import type { Env } from "./types";
 
-const STATE_KEY = "sourceState";
+const SOURCE_STATE_PREFIX = "source:";
 const USER_UUID_KEY = "userUuid";
 
 /**
  * UserHub is a per-user Durable Object that handles UI WebSocket connections.
  * It receives forwarded events and state updates from SourceHub DOs and
  * broadcasts them to connected UI clients. Uses WebSocket Hibernation.
+ *
+ * State is stored per-source (keyed by sourceUuid) and merged into a single
+ * SourceState envelope when sent to UI clients.
  */
 export class UserHub extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
@@ -45,7 +48,7 @@ export class UserHub extends DurableObject<Env> {
   }
 
   async webSocketMessage(_ws: WebSocket, _message: string | ArrayBuffer): Promise<void> {
-    // No-op — UI→daemon commands will be added when SourceHub is rekeyed
+    // No-op — UI→daemon commands will be added later
   }
 
   async webSocketClose(
@@ -92,22 +95,52 @@ export class UserHub extends DurableObject<Env> {
   }
 
   /**
-   * Receive pre-serialized SourceState JSON from SourceHub and store it.
-   * New UI connections will receive this string as-is on connect.
+   * Receive pre-serialized SourceState JSON from a single SourceHub.
+   * Stored per-source so multiple SourceHubs can contribute state.
    * Pre-serialized to avoid Date→string round-trip issues with proto Timestamps.
    */
   private async handleUpdateState(request: Request): Promise<Response> {
-    const body = await request.json<{ stateJson: string }>();
-    await this.ctx.storage.put(STATE_KEY, body.stateJson);
+    const body = await request.json<{ sourceUuid: string; stateJson: string }>();
+    await this.ctx.storage.put(`${SOURCE_STATE_PREFIX}${body.sourceUuid}`, body.stateJson);
     return Response.json({ ok: true });
   }
 
   // ── Internal helpers ──────────────────────────────────────────────
 
+  /**
+   * Load all per-source state entries, merge their sources[] arrays into
+   * a single SourceState envelope, and send to the UI client.
+   */
   private async sendSourceState(ws: WebSocket): Promise<void> {
-    const stateJson = await this.ctx.storage.get<string>(STATE_KEY);
-    if (!stateJson) return;
-    ws.send(stateJson);
+    const entries = await this.ctx.storage.list<string>({
+      prefix: SOURCE_STATE_PREFIX,
+    });
+    if (entries.size === 0) return;
+
+    // Each entry is a pre-serialized SourceState envelope like:
+    // {"sourceState":{"sources":[...]}}
+    // Merge all sources[] arrays into one.
+    const allSources: unknown[] = [];
+    for (const stateJson of entries.values()) {
+      try {
+        const parsed = JSON.parse(stateJson) as {
+          sourceState?: { sources?: unknown[] };
+        };
+        if (parsed.sourceState?.sources) {
+          allSources.push(...parsed.sourceState.sources);
+        }
+      } catch {
+        // Skip malformed entries
+      }
+    }
+
+    if (allSources.length === 0 && entries.size > 0) {
+      // If we have entries but no sources (all offline/empty), still send
+      // an empty SourceState so UI knows the connection is fresh
+    }
+
+    const merged = JSON.stringify({ sourceState: { sources: allSources } });
+    ws.send(merged);
   }
 
   private async sendRecentEvents(ws: WebSocket): Promise<void> {
