@@ -46,7 +46,9 @@
       <h2>Who we are</h2>
       <p>Savecraft is operated by Josh Symonds ("we," "us," "our").</p>
       <p>
-        <strong>Contact:</strong>
+        <strong>General contact:</strong>
+        <a href="mailto:josh@savecraft.gg" class="text-link">josh@savecraft.gg</a><br />
+        <strong>Privacy contact:</strong>
         <a href="mailto:privacy@savecraft.gg" class="text-link">privacy@savecraft.gg</a>
       </p>
       <p>
