@@ -229,9 +229,9 @@ describe("Config push via SourceHub", () => {
     const msg = await waitForMessage<ConfigUpdateMsg>(daemonWs);
     expect(msg.configUpdate).toBeDefined();
     expect(msg.configUpdate.games.d2r).toBeDefined();
-    expect(msg.configUpdate.games.d2r.savePath).toBe("/saves/d2r");
-    expect(msg.configUpdate.games.d2r.enabled).toBe(true);
-    expect(msg.configUpdate.games.d2r.fileExtensions).toEqual([".d2s"]);
+    expect(msg.configUpdate.games.d2r!.savePath).toBe("/saves/d2r");
+    expect(msg.configUpdate.games.d2r!.enabled).toBe(true);
+    expect(msg.configUpdate.games.d2r!.fileExtensions).toEqual([".d2s"]);
 
     await closeWs(daemonWs);
   });
@@ -390,7 +390,7 @@ describe("Config push via SourceHub", () => {
     // Daemon should receive the updated config
     const msg = await configPromise;
     expect(msg.configUpdate.games.d2r).toBeDefined();
-    expect(msg.configUpdate.games.d2r.savePath).toBe("/saves/d2r");
+    expect(msg.configUpdate.games.d2r!.savePath).toBe("/saves/d2r");
 
     await closeWs(daemonWs);
   });
