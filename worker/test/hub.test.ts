@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { cleanAll, closeWs, connectWs, waitForMessage } from "./helpers";
 
-describe("DaemonHub", () => {
+describe("SourceHub", () => {
   beforeEach(cleanAll);
 
   it("relays daemon messages to UI", async () => {
@@ -493,8 +493,8 @@ describe("DaemonHub", () => {
     const rescanPromise = waitForMessage<{ rescanGame: { gameId: string } }>(daemonWs);
 
     // Call the /rescan endpoint (as the worker would from the MCP tool)
-    const doId = env.DAEMON_HUB.idFromName(userUuid);
-    const doStub = env.DAEMON_HUB.get(doId);
+    const doId = env.SOURCE_HUB.idFromName(userUuid);
+    const doStub = env.SOURCE_HUB.get(doId);
     const resp = await doStub.fetch(
       new Request("https://do/rescan", {
         method: "POST",
@@ -518,8 +518,8 @@ describe("DaemonHub", () => {
   it("returns daemon_online: false from /rescan when no daemon connected", async () => {
     const userUuid = "rescan-offline-user";
 
-    const doId = env.DAEMON_HUB.idFromName(userUuid);
-    const doStub = env.DAEMON_HUB.get(doId);
+    const doId = env.SOURCE_HUB.idFromName(userUuid);
+    const doStub = env.SOURCE_HUB.get(doId);
     const resp = await doStub.fetch(
       new Request("https://do/rescan", {
         method: "POST",

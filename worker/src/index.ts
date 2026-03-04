@@ -4,7 +4,7 @@ import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
 import { reapOrphanSources } from "./reaper";
 import type { Env } from "./types";
 
-export { DaemonHub } from "./hub";
+export { SourceHub } from "./hub";
 
 function getAllowedOrigin(request: Request, env: Env): string | null {
   const origin = request.headers.get("Origin");
@@ -210,18 +210,18 @@ async function routeWebSocketEndpoints(
   if (url.pathname === "/ws/daemon") {
     const auth = await authenticateDaemon(request, env);
     if (!auth) return new Response("Unauthorized", { status: 401 });
-    const id = env.DAEMON_HUB.idFromName(auth.userUuid);
+    const id = env.SOURCE_HUB.idFromName(auth.userUuid);
     const headers = new Headers(request.headers);
     headers.set("X-User-UUID", auth.userUuid);
-    return env.DAEMON_HUB.get(id).fetch(new Request(request, { headers }));
+    return env.SOURCE_HUB.get(id).fetch(new Request(request, { headers }));
   }
   if (url.pathname === "/ws/ui") {
     const auth = await authenticateSession(request, env);
     if (!auth) return new Response("Unauthorized", { status: 401 });
-    const id = env.DAEMON_HUB.idFromName(auth.userUuid);
+    const id = env.SOURCE_HUB.idFromName(auth.userUuid);
     const headers = new Headers(request.headers);
     headers.set("X-User-UUID", auth.userUuid);
-    return env.DAEMON_HUB.get(id).fetch(new Request(request, { headers }));
+    return env.SOURCE_HUB.get(id).fetch(new Request(request, { headers }));
   }
   return null;
 }
@@ -434,8 +434,8 @@ async function handlePutSourceConfig(
       .run();
   }
 
-  const doId = env.DAEMON_HUB.idFromName(userUuid);
-  const doStub = env.DAEMON_HUB.get(doId);
+  const doId = env.SOURCE_HUB.idFromName(userUuid);
+  const doStub = env.SOURCE_HUB.get(doId);
   const doResp = await doStub.fetch(
     new Request("https://do/push-config", {
       method: "POST",

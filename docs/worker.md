@@ -39,9 +39,9 @@ X-Parsed-At: 2026-02-25T21:30:00Z
 
 The daemon and web UI maintain persistent WebSocket connections to a per-user Durable Object (DO) that acts as a message hub. This enables real-time config delivery, live status reporting, and an interactive setup experience where users see immediate feedback as the daemon discovers and parses saves.
 
-### Architecture: DaemonHub Durable Object
+### Architecture: SourceHub Durable Object
 
-Each user gets a single Durable Object (`DaemonHub`), keyed by user UUID (`env.DAEMON_HUB.get(env.DAEMON_HUB.idFromName(userUUID))`). The DaemonHub is the per-user coordination point for all save updates, regardless of source.
+Each user gets a single Durable Object (`SourceHub`), keyed by user UUID (`env.SOURCE_HUB.get(env.SOURCE_HUB.idFromName(userUUID))`). The SourceHub is the per-user coordination point for all save updates, regardless of source.
 
 **Two roles:**
 
@@ -50,7 +50,7 @@ Each user gets a single Durable Object (`DaemonHub`), keyed by user UUID (`env.D
    - **`"ui"` connection:** One per active web UI session. The browser connects when the user opens the device status page and disconnects when they navigate away.
    - Receives messages from one side, inspects the tag, forwards to the other. For `refresh_save` on daemon-backed games, sends `RescanGame` to the daemon.
 
-2. **API fetch coordinator** for API-backed saves. When `refresh_save` targets an API-backed game, the DaemonHub calls the game adapter directly — fetches from the game API, shapes the response into GameState, writes to R2, and updates D1. Status events flow to the UI WebSocket the same as daemon events.
+2. **API fetch coordinator** for API-backed saves. When `refresh_save` targets an API-backed game, the SourceHub calls the game adapter directly — fetches from the game API, shapes the response into GameState, writes to R2, and updates D1. Status events flow to the UI WebSocket the same as daemon events.
 
 When no connections are active and no fetches are in progress, the DO hibernates and incurs zero cost.
 

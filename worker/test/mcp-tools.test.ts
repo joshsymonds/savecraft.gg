@@ -729,7 +729,7 @@ describe("MCP Tools", () => {
 
   describe("refreshSave", () => {
     it("returns error when save not found", async () => {
-      const result = await refreshSave(env.DB, env.DAEMON_HUB, USER_A, "nonexistent");
+      const result = await refreshSave(env.DB, env.SOURCE_HUB, USER_A, "nonexistent");
       expect(result.isError).toBe(true);
     });
 
@@ -742,7 +742,7 @@ describe("MCP Tools", () => {
         summary: "Level 89",
       });
 
-      const result = await refreshSave(env.DB, env.DAEMON_HUB, USER_A, "save-refresh-offline");
+      const result = await refreshSave(env.DB, env.SOURCE_HUB, USER_A, "save-refresh-offline");
       expect(result.isError).toBe(true);
       expect(result.content[0]!.text).toContain("daemon is offline");
     });

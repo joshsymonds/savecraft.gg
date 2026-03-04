@@ -206,7 +206,7 @@ describe("Source Config API", () => {
   });
 });
 
-describe("Config push via DaemonHub", () => {
+describe("Config push via SourceHub", () => {
   beforeEach(cleanAll);
 
   it("pushes config to daemon on daemonOnline", async () => {

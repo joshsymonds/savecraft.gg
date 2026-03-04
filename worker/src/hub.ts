@@ -144,7 +144,7 @@ function applyMutation(state: SourceState, mutation: StateMutation): void {
 }
 
 /**
- * DaemonHub is a per-user Durable Object that relays WebSocket messages
+ * SourceHub is a per-user Durable Object that relays WebSocket messages
  * between the source (daemon/mod) and the web UI. Uses WebSocket Hibernation
  * so the DO sleeps when no application messages are in flight.
  *
@@ -152,7 +152,7 @@ function applyMutation(state: SourceState, mutation: StateMutation): void {
  * a unique "conn:{id}" tag to track per-connection source identity.
  * Source state is maintained in DO transactional storage for cold start.
  */
-export class DaemonHub extends DurableObject<Env> {
+export class SourceHub extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
     // Persist userUuid from the worker on every authenticated request.
     // The worker sets X-User-UUID after verifying auth; storing it here
@@ -671,7 +671,7 @@ export class DaemonHub extends DurableObject<Env> {
     if (!rpc?.payload) return;
     try {
       const eventType = rpc.payload.$case;
-      if (DaemonHub.SKIP_PERSIST.has(eventType)) return;
+      if (SourceHub.SKIP_PERSIST.has(eventType)) return;
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
 
