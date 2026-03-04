@@ -206,11 +206,6 @@ func schema() map[string]any {
 				"name":        "Drop Calculator",
 				"description": "Compute drop probabilities. Use 'monster' for forward lookup (what does X drop?) or 'item' for reverse lookup (where to farm X?).",
 				"parameters": map[string]any{
-					"module": map[string]any{
-						"type":        "string",
-						"required":    true,
-						"description": "Must be 'drop_calc'",
-					},
 					"monster": map[string]any{
 						"type":        "string",
 						"description": "Monster ID for forward lookup (e.g. 'mephisto', 'andariel'). Mutually exclusive with 'item'.",
