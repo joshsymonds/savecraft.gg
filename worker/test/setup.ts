@@ -68,17 +68,6 @@ const statements = [
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
   `CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_uuid)`,
-  `CREATE TABLE IF NOT EXISTS pairing_codes (
-    id TEXT PRIMARY KEY,
-    code_hash TEXT NOT NULL UNIQUE,
-    user_uuid TEXT NOT NULL UNIQUE,
-    expires_at TEXT NOT NULL
-  )`,
-  `CREATE TABLE IF NOT EXISTS pairing_rate_limits (
-    ip TEXT PRIMARY KEY,
-    failures INTEGER NOT NULL DEFAULT 0,
-    window_start TEXT NOT NULL DEFAULT (datetime('now'))
-  )`,
   `CREATE TABLE IF NOT EXISTS mcp_activity (user_uuid TEXT PRIMARY KEY)`,
   `CREATE TABLE IF NOT EXISTS devices (
     device_uuid TEXT PRIMARY KEY,

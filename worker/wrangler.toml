@@ -3,6 +3,9 @@ main = "src/index.ts"
 compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
+[triggers]
+crons = ["0 4 * * *"]  # Daily at 4 AM UTC
+
 [vars]
 ENVIRONMENT = "development"
 VERSION = "dev"
