@@ -46,6 +46,19 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 - Durable Objects use WebSocket Hibernation — no application-layer heartbeats
 - Plugins provide a `summary` string for UI display (e.g. "Hammerdin, Level 89 Paladin")
 
+## Worktrees
+
+Feature branches use `.worktrees/` (gitignored). Nix devenv + direnv handles the environment automatically. Worktrees need `.env.local` copied (gitignored secrets) and `npm ci` for each JS subdirectory.
+
+```
+git worktree add .worktrees/feature/my-branch -b feature/my-branch
+cd .worktrees/feature/my-branch
+direnv allow
+cp ../../.env.local .env.local          # gitignored secrets needed by SvelteKit / Storybook
+cd web && npm ci && cd ..               # install from lockfile exactly
+cd worker && npm ci && cd ..            # install from lockfile exactly
+```
+
 ## Development Principles
 
 - TDD: write the test first, watch it fail, implement, watch it pass.
