@@ -122,7 +122,11 @@
     {:else if $linkState === "error"}
       <LinkingCard cardState="error" errorMessage={$linkError} ondismiss={handleDismissError} />
     {:else if showLinkInput}
-      <LinkingCard cardState="input" onsubmit={handleManualLink} ondismiss={() => (showLinkInput = false)} />
+      <LinkingCard
+        cardState="input"
+        onsubmit={handleManualLink}
+        ondismiss={() => (showLinkInput = false)}
+      />
     {/if}
 
     {#if $devices.length === 0}
@@ -140,7 +144,8 @@
         <span class="section-label">DEVICES</span>
         <span class="device-count">{$devices.length} connected</span>
         {#if $linkState === "idle" && !showLinkInput}
-          <button class="add-device-btn" onclick={() => (showLinkInput = true)}>+ ADD DEVICE</button>
+          <button class="add-device-btn" onclick={() => (showLinkInput = true)}>+ ADD DEVICE</button
+          >
         {/if}
       </div>
 
