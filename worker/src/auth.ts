@@ -16,6 +16,11 @@ export interface AuthResult {
   userUuid: string;
 }
 
+export interface DeviceAuthResult {
+  deviceUuid: string;
+  userUuid: string | null;
+}
+
 // -- Stub auth (development/testing) --------------------------------------
 
 /** Stub auth: bearer token IS the user UUID. Used when CLERK_ISSUER is unset. */
@@ -66,6 +71,37 @@ export async function authenticateDaemon(request: Request, env: Env): Promise<Au
 
   if (!env.CLERK_ISSUER) return authenticateStub(token);
   return authenticateApiKey(token, env.DB);
+}
+
+// -- Device token auth (D1 lookup) ----------------------------------------
+
+/**
+ * Authenticate a device token (`dvt_` prefix) by hashing and looking up in D1.
+ * Always does D1 lookup — no stub mode for device tokens.
+ * Updates last_push_at on successful auth.
+ */
+export async function authenticateDevice(
+  request: Request,
+  env: Env,
+): Promise<DeviceAuthResult | null> {
+  const token = extractToken(request);
+  if (!token) return null;
+
+  const hash = await sha256Hex(token);
+  const row = await env.DB
+    .prepare("SELECT device_uuid, user_uuid FROM devices WHERE token_hash = ?")
+    .bind(hash)
+    .first<{ device_uuid: string; user_uuid: string | null }>();
+
+  if (!row) return null;
+
+  // Update last activity timestamp (best-effort, don't fail auth on update error)
+  await env.DB
+    .prepare("UPDATE devices SET last_push_at = datetime('now') WHERE device_uuid = ?")
+    .bind(row.device_uuid)
+    .run();
+
+  return { deviceUuid: row.device_uuid, userUuid: row.user_uuid };
 }
 
 // -- Helpers --------------------------------------------------------------

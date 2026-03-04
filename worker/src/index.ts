@@ -1,4 +1,4 @@
-import { authenticateDaemon, authenticateSession, sha256Hex } from "./auth";
+import { authenticateDaemon, authenticateDevice, authenticateSession, sha256Hex } from "./auth";
 import { indexNote, indexSaveSections, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
 import type { Env } from "./types";
@@ -155,6 +155,9 @@ async function routePublicEndpoints(
   }
   if (url.pathname === "/api/v1/device/register" && request.method === "POST") {
     return handleDeviceRegister(request, env);
+  }
+  if (url.pathname === "/api/v1/device/verify" && request.method === "GET") {
+    return handleDeviceVerify(request, env);
   }
   return null;
 }
@@ -932,6 +935,16 @@ async function createPairingCode(env: Env, userUuid: string): Promise<Response> 
   ]);
 
   return Response.json({ code }, { status: 201 });
+}
+
+async function handleDeviceVerify(request: Request, env: Env): Promise<Response> {
+  const auth = await authenticateDevice(request, env);
+  if (!auth) return new Response("Unauthorized", { status: 401 });
+  return Response.json({
+    status: "ok",
+    device_uuid: auth.deviceUuid,
+    user_uuid: auth.userUuid,
+  });
 }
 
 const LINK_CODE_TTL_MINUTES = 20;
