@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
+import { cleanup, render, screen } from "@testing-library/svelte";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -12,15 +12,11 @@ const mockCreateApiKey = vi.fn().mockResolvedValue({
   label: "daemon",
 });
 const mockDeleteApiKey = vi.fn((_keyId: string) => Promise.resolve());
-const mockGeneratePairingCode = vi.fn().mockResolvedValue({
-  code: "123456",
-});
 
 vi.mock("$lib/api/client", () => ({
   listApiKeys: () => mockListApiKeys(),
   createApiKey: (label?: string) => mockCreateApiKey(label),
   deleteApiKey: (keyId: string) => mockDeleteApiKey(keyId),
-  generatePairingCode: () => mockGeneratePairingCode(),
 }));
 
 vi.mock("$env/static/public", () => ({
@@ -42,117 +38,10 @@ describe("InstallBlock", () => {
     mockListApiKeys.mockResolvedValue([]);
   });
 
-  describe("prominent mode — pairing flow", () => {
+  describe("prominent mode — install flow", () => {
     it("renders GET STARTED heading", () => {
       render(InstallBlock, { props: { prominent: true } });
       expect(screen.getByText("GET STARTED")).toBeInTheDocument();
-    });
-
-    it("renders PAIR A DEVICE button", () => {
-      render(InstallBlock, { props: { prominent: true } });
-      expect(screen.getByText("PAIR A DEVICE")).toBeInTheDocument();
-    });
-
-    it("shows pairing code after clicking PAIR A DEVICE", async () => {
-      render(InstallBlock, { props: { prominent: true } });
-
-      await userEvent.click(screen.getByText("PAIR A DEVICE"));
-      await vi.waitFor(() => {
-        expect(screen.getByText("123 456")).toBeInTheDocument();
-      });
-    });
-
-    it("shows countdown timer with code", async () => {
-      render(InstallBlock, { props: { prominent: true } });
-
-      await userEvent.click(screen.getByText("PAIR A DEVICE"));
-      await vi.waitFor(() => {
-        expect(screen.getByText("Expires in")).toBeInTheDocument();
-      });
-    });
-
-    it("shows COPY button next to pairing code", async () => {
-      render(InstallBlock, { props: { prominent: true } });
-
-      await userEvent.click(screen.getByText("PAIR A DEVICE"));
-      await vi.waitFor(() => {
-        expect(screen.getByText("123 456")).toBeInTheDocument();
-      });
-
-      // The code-display area should have a COPY button
-      const codeDisplay = document.querySelector(".code-display")!;
-      const copyButton = codeDisplay.querySelector("button");
-      expect(copyButton).not.toBeNull();
-      expect(copyButton!.textContent).toContain("COPY");
-    });
-
-    it("copy button copies raw code without space", async () => {
-      // eslint-disable-next-line unicorn/no-useless-undefined
-      const writeText = vi.fn().mockResolvedValue(undefined);
-      Object.assign(navigator, {
-        clipboard: { writeText },
-      });
-
-      render(InstallBlock, { props: { prominent: true } });
-
-      await userEvent.click(screen.getByText("PAIR A DEVICE"));
-      await vi.waitFor(() => {
-        expect(screen.getByText("123 456")).toBeInTheDocument();
-      });
-
-      // Click the copy button in the code display
-      const codeDisplay = document.querySelector(".code-display")!;
-      const copyButton = codeDisplay.querySelector("button")!;
-      await userEvent.click(copyButton);
-
-      // Should copy "123456" NOT "123 456"
-      expect(writeText).toHaveBeenCalledWith("123456");
-    });
-
-    it("shows code hint after generating", async () => {
-      render(InstallBlock, { props: { prominent: true } });
-
-      await userEvent.click(screen.getByText("PAIR A DEVICE"));
-      await vi.waitFor(() => {
-        expect(
-          screen.getByText("Enter this code when the installer prompts you."),
-        ).toBeInTheDocument();
-      });
-    });
-
-    it("shows expired state after countdown", async () => {
-      vi.useFakeTimers();
-
-      render(InstallBlock, { props: { prominent: true } });
-
-      fireEvent.click(screen.getByText("PAIR A DEVICE"));
-
-      // Flush promise microtasks to let the mock resolve
-      await vi.advanceTimersByTimeAsync(0);
-
-      expect(screen.getByText("123 456")).toBeInTheDocument();
-
-      // Advance past 20-minute TTL
-      await vi.advanceTimersByTimeAsync(1_201_000);
-
-      expect(screen.getByText("Code expired")).toBeInTheDocument();
-      expect(screen.getByText("GET NEW CODE")).toBeInTheDocument();
-
-      vi.useRealTimers();
-    });
-
-    it("shows error on generation failure", async () => {
-      mockGeneratePairingCode.mockRejectedValueOnce(new Error("Network error"));
-
-      render(InstallBlock, { props: { prominent: true } });
-
-      await userEvent.click(screen.getByText("PAIR A DEVICE"));
-      await vi.waitFor(() => {
-        expect(screen.getByText("Network error")).toBeInTheDocument();
-      });
-
-      // Should return to idle state with button available
-      expect(screen.getByText("PAIR A DEVICE")).toBeInTheDocument();
     });
 
     it("renders what happens next steps", () => {
@@ -164,26 +53,24 @@ describe("InstallBlock", () => {
     it("renders step numbers", () => {
       const { container } = render(InstallBlock, { props: { prominent: true } });
       const steps = container.querySelectorAll(".step-number");
-      expect(steps).toHaveLength(3);
+      expect(steps).toHaveLength(2);
       expect(steps[0]!.textContent).toBe("1");
       expect(steps[1]!.textContent).toBe("2");
-      expect(steps[2]!.textContent).toBe("3");
     });
   });
 
   describe("prominent mode — install command (Linux)", () => {
-    it("shows install command without API key", () => {
+    it("shows install command", () => {
       const { container } = render(InstallBlock, { props: { prominent: true } });
       const cmdText = container.querySelector(".command-text")!.textContent!;
       expect(cmdText).toContain("curl -sSL");
       expect(cmdText).toContain("install.savecraft.gg");
-      expect(cmdText).not.toContain("SAVECRAFT_AUTH_TOKEN");
     });
 
-    it("shows install hint about pairing code", () => {
+    it("shows install hint about linking", () => {
       render(InstallBlock, { props: { prominent: true } });
       expect(
-        screen.getByText("The installer will prompt you for the pairing code."),
+        screen.getByText("The installer shows a link to connect your device."),
       ).toBeInTheDocument();
     });
 
@@ -224,7 +111,7 @@ describe("InstallBlock", () => {
 
     it("shows Windows-specific install hint", () => {
       render(InstallBlock, { props: { prominent: true } });
-      expect(screen.getByText(/enter your pairing code in the system tray/i)).toBeInTheDocument();
+      expect(screen.getByText(/follow the link in the system tray/i)).toBeInTheDocument();
     });
   });
 
@@ -234,26 +121,26 @@ describe("InstallBlock", () => {
       expect(screen.getByText("ADD ANOTHER DEVICE")).toBeInTheDocument();
     });
 
-    it("does not show pairing content when collapsed", () => {
+    it("does not show install content when collapsed", () => {
       render(InstallBlock, { props: { prominent: false } });
-      expect(screen.queryByText("PAIR A DEVICE")).not.toBeInTheDocument();
+      expect(screen.queryByText("Install Daemon")).not.toBeInTheDocument();
     });
 
-    it("shows pairing flow when expanded", async () => {
+    it("shows install flow when expanded", async () => {
       render(InstallBlock, { props: { prominent: false } });
 
       await userEvent.click(screen.getByText("ADD ANOTHER DEVICE"));
-      expect(screen.getByText("PAIR A DEVICE")).toBeInTheDocument();
+      expect(screen.getByText("Install Daemon")).toBeInTheDocument();
     });
 
     it("collapses when toggle clicked again", async () => {
       render(InstallBlock, { props: { prominent: false } });
 
       await userEvent.click(screen.getByText("ADD ANOTHER DEVICE"));
-      expect(screen.getByText("PAIR A DEVICE")).toBeInTheDocument();
+      expect(screen.getByText("Install Daemon")).toBeInTheDocument();
 
       await userEvent.click(screen.getByText("ADD ANOTHER DEVICE"));
-      expect(screen.queryByText("PAIR A DEVICE")).not.toBeInTheDocument();
+      expect(screen.queryByText("Install Daemon")).not.toBeInTheDocument();
     });
   });
 

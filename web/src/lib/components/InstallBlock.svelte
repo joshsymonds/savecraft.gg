@@ -1,42 +1,22 @@
 <!--
   @component
-  Install flow: pairing code (primary), API key management (secondary).
+  Install flow: install command (primary), API key management (secondary).
   prominent=true: full hero treatment (empty state)
   prominent=false: compact collapsible row (below device list)
-
-  Pass `initialState` to bypass API calls and seed reactive state (for Storybook).
 -->
 <script lang="ts">
   import { PUBLIC_API_URL } from "$env/static/public";
-  import { createApiKey, deleteApiKey, generatePairingCode, listApiKeys } from "$lib/api/client";
+  import { createApiKey, deleteApiKey, listApiKeys } from "$lib/api/client";
   import type { ApiKey, CreateApiKeyResponse } from "$lib/api/client";
   import { Panel, TinyButton } from "$lib/components";
   import { detectOS } from "$lib/platform";
-  import { devices } from "$lib/stores/devices";
   import { onMount } from "svelte";
-
-  // -- Pairing code state ------------------------------------
-  type PairingState = "idle" | "generating" | "active" | "expired" | "claimed";
 
   let {
     prominent = true,
-    initialState,
   }: {
     prominent?: boolean;
-    initialState?: { pairingState: PairingState; pairingCode?: string; remainingSeconds?: number };
   } = $props();
-
-  let pairingState = $state<PairingState>("idle");
-  let pairingCode = $state<string | null>(null);
-  let expiresAt = $state(0);
-  let remainingSeconds = $state(0);
-
-  $effect.pre(() => {
-    if (!initialState) return;
-    pairingState = initialState.pairingState;
-    pairingCode = initialState.pairingCode ?? null;
-    remainingSeconds = initialState.remainingSeconds ?? 0;
-  });
 
   // -- API key state (secondary) -----------------------------
   let generatedKey = $state<CreateApiKeyResponse | null>(null);
@@ -56,76 +36,10 @@
   const appName = isStaging ? "savecraft-staging" : "savecraft";
   const msiUrl = `${installUrl}/daemon/${appName}.msi`;
   const os = detectOS();
-  const CODE_TTL_SECONDS = 1200;
 
   onMount(() => {
-    if (initialState) return;
     void loadKeys();
   });
-
-  // Countdown timer -- re-runs when pairingState or expiresAt change.
-  $effect(() => {
-    if (pairingState !== "active") return;
-    if (initialState) return; // Static display in Storybook
-
-    const target = expiresAt;
-
-    const interval = setInterval(() => {
-      const now = Math.floor(Date.now() / 1000);
-      const remaining = Math.max(0, target - now);
-      remainingSeconds = remaining;
-
-      if (remaining <= 0) {
-        pairingState = "expired";
-        clearInterval(interval);
-      }
-    }, 1000);
-
-    return () => {
-      clearInterval(interval);
-    };
-  });
-
-  // Device connection detection — when a device appears while code is active, celebrate.
-  // knownDeviceCount is intentionally non-reactive to avoid re-triggering the effect.
-  let knownDeviceCount = -1;
-
-  $effect(() => {
-    if (initialState) return;
-    const count = $devices.length;
-
-    if (pairingState === "active" && knownDeviceCount >= 0 && count > knownDeviceCount) {
-      pairingState = "claimed";
-    }
-
-    knownDeviceCount = count;
-  });
-
-  function dismiss(): void {
-    pairingState = "idle";
-    pairingCode = null;
-  }
-
-  function formatTime(seconds: number): string {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${String(mins)}:${secs.toString().padStart(2, "0")}`;
-  }
-
-  async function generateCode(): Promise<void> {
-    pairingState = "generating";
-    error = null;
-    try {
-      const result = await generatePairingCode();
-      pairingCode = result.code;
-      expiresAt = Math.floor(Date.now() / 1000) + CODE_TTL_SECONDS;
-      remainingSeconds = CODE_TTL_SECONDS;
-      pairingState = "active";
-    } catch (err) {
-      error = err instanceof Error ? err.message : "Failed to generate pairing code";
-      pairingState = "idle";
-    }
-  }
 
   async function loadKeys(): Promise<void> {
     try {
@@ -175,80 +89,10 @@
   }
 </script>
 
-{#snippet claimedFlow()}
-  <div class="claimed-section">
-    <span class="claimed-stars">&#10038; &#10038; &#10038;</span>
-    <span class="claimed-banner">DEVICE CONNECTED</span>
-    <p class="claimed-desc">Your daemon is online and watching for saves.</p>
-    <div class="claimed-actions">
-      <TinyButton label="PAIR ANOTHER" onclick={dismiss} />
-    </div>
-  </div>
-{/snippet}
-
-{#snippet pairingFlow()}
-  <div class="section">
-    <div class="step-header">
-      {#if prominent}<span class="step-number">1</span>{/if}
-      <span class="step-title">Pair Your Device</span>
-    </div>
-
-    {#if pairingState === "idle"}
-      <p class="step-desc">Generate a pairing code, then enter it on your machine to connect.</p>
-      <div class="action-row">
-        {#if prominent}
-          <button class="primary-action" onclick={generateCode}>
-            <span class="primary-action-icon">&gt;</span>
-            <span class="primary-action-label">PAIR A DEVICE</span>
-          </button>
-        {:else}
-          <TinyButton label="PAIR A DEVICE" onclick={generateCode} />
-        {/if}
-      </div>
-    {:else if pairingState === "generating"}
-      <div class="action-row">
-        {#if prominent}
-          <button class="primary-action" disabled>
-            <span class="primary-action-label">GENERATING...</span>
-          </button>
-        {:else}
-          <TinyButton label="GENERATING..." disabled={true} />
-        {/if}
-      </div>
-    {:else if pairingState === "active" && pairingCode}
-      <div class="code-display">
-        <div class="code-top-row">
-          <div class="code-digits">{pairingCode.slice(0, 3)} {pairingCode.slice(3)}</div>
-          <TinyButton
-            label={copied === "code" ? "COPIED" : "COPY"}
-            onclick={() => {
-              if (pairingCode) void copyToClipboard(pairingCode, "code");
-            }}
-          />
-        </div>
-        <div class="code-timer">
-          <span class="timer-label">Expires in</span>
-          <span class="timer-value">{formatTime(remainingSeconds)}</span>
-        </div>
-      </div>
-      <p class="code-hint">Enter this code when the installer prompts you.</p>
-    {:else if pairingState === "expired"}
-      <div class="code-expired">
-        <span class="expired-text">Code expired</span>
-        <TinyButton label="GET NEW CODE" onclick={generateCode} />
-      </div>
-    {/if}
-
-    {#if error}
-      <div class="error-msg">{error}</div>
-    {/if}
-  </div>
-{/snippet}
-
 {#snippet installCommandSection()}
   <div class="section">
     <div class="step-header">
-      {#if prominent}<span class="step-number">2</span>{/if}
+      {#if prominent}<span class="step-number">1</span>{/if}
       <span class="step-title">Install Daemon</span>
     </div>
     {#if os === "windows"}
@@ -260,7 +104,7 @@
           <span class="primary-action-label">DOWNLOAD FOR WINDOWS</span>
         </a>
       </div>
-      <p class="command-hint">After install, enter your pairing code in the system tray app.</p>
+      <p class="command-hint">After install, follow the link in the system tray to connect your device.</p>
     {:else}
       <p class="step-desc">Run this command on your Linux machine or Steam Deck:</p>
       <div class="command-block">
@@ -272,7 +116,7 @@
           }}
         />
       </div>
-      <p class="command-hint">The installer will prompt you for the pairing code.</p>
+      <p class="command-hint">The installer shows a link to connect your device.</p>
     {/if}
   </div>
 {/snippet}
@@ -280,7 +124,7 @@
 {#snippet nextStepsSection()}
   <div class="section next-steps-section">
     <div class="step-header">
-      <span class="step-number">3</span>
+      <span class="step-number">2</span>
       <span class="step-title">What Happens Next</span>
     </div>
     <div class="next-steps-inline">
@@ -293,6 +137,8 @@
         <span class="next-step-sep">&middot;</span>
         <span class="next-step-item">Starts as a systemd service</span>
       {/if}
+      <span class="next-step-sep">&middot;</span>
+      <span class="next-step-item">Shows a link to connect your device</span>
       <span class="next-step-sep">&middot;</span>
       <span class="next-step-item">Appears on this page automatically</span>
     </div>
@@ -316,7 +162,7 @@
         </div>
       </div>
     {:else}
-      <p class="step-desc">For headless or automated setups, use an API key instead of pairing.</p>
+      <p class="step-desc">For headless or automated setups, use an API key instead of device linking.</p>
       <div class="action-row">
         <TinyButton
           label={apiKeyLoading ? "GENERATING..." : "GENERATE KEY"}
@@ -353,18 +199,14 @@
       <h2 class="hero-title">Connect your gaming machine to Savecraft</h2>
       <p class="hero-subtitle">
         {#if os === "windows"}
-          Pair your device, download the installer, and the daemon starts watching your saves. Takes
-          two minutes.
+          Download the installer, and the daemon starts watching your saves. Takes two minutes.
         {:else}
-          Pair your device, run one command, and the daemon starts watching your saves. Takes two
-          minutes.
+          Run one command, and the daemon starts watching your saves. Takes two minutes.
         {/if}
       </p>
     </div>
 
     <Panel>
-      {@render pairingFlow()}
-      <div class="section-divider"></div>
       {@render installCommandSection()}
       <div class="section-divider"></div>
       {@render nextStepsSection()}
@@ -383,32 +225,31 @@
 {:else}
   <!-- Compact collapsible row -->
   <Panel>
-    {#if pairingState === "claimed"}
-      {@render claimedFlow()}
-    {:else}
-      <button class="add-device-toggle" onclick={() => (expanded = !expanded)}>
-        <span class="toggle-icon">{expanded ? "-" : "+"}</span>
-        <span class="toggle-label">ADD ANOTHER DEVICE</span>
-      </button>
+    <button class="add-device-toggle" onclick={() => (expanded = !expanded)}>
+      <span class="toggle-icon">{expanded ? "-" : "+"}</span>
+      <span class="toggle-label">ADD ANOTHER DEVICE</span>
+    </button>
 
-      {#if expanded}
-        <div class="compact-install">
-          {@render pairingFlow()}
-          {@render installCommandSection()}
+    {#if expanded}
+      <div class="compact-install">
+        {@render installCommandSection()}
 
-          <button class="api-keys-toggle compact" onclick={() => (showApiKeys = !showApiKeys)}>
-            <span class="toggle-icon">{showApiKeys ? "-" : "+"}</span>
-            <span class="toggle-label">API KEYS (FOR AUTOMATION)</span>
-          </button>
-          {#if showApiKeys}
-            <div class="api-keys-content">
-              {@render apiKeysSection()}
-            </div>
-          {/if}
-        </div>
-      {/if}
+        <button class="api-keys-toggle compact" onclick={() => (showApiKeys = !showApiKeys)}>
+          <span class="toggle-icon">{showApiKeys ? "-" : "+"}</span>
+          <span class="toggle-label">API KEYS (FOR AUTOMATION)</span>
+        </button>
+        {#if showApiKeys}
+          <div class="api-keys-content">
+            {@render apiKeysSection()}
+          </div>
+        {/if}
+      </div>
     {/if}
   </Panel>
+{/if}
+
+{#if error}
+  <div class="error-msg">{error}</div>
 {/if}
 
 <style>
@@ -534,43 +375,6 @@
     font-size: 14px;
   }
 
-  /* -- Claimed / celebration -------------------------------- */
-
-  .claimed-section {
-    padding: 32px 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    text-align: center;
-  }
-
-  .claimed-stars {
-    font-size: 14px;
-    color: var(--color-gold);
-    letter-spacing: 6px;
-    text-shadow: 0 0 10px rgba(200, 168, 78, 0.4);
-  }
-
-  .claimed-banner {
-    font-family: var(--font-pixel);
-    font-size: 14px;
-    color: var(--color-green);
-    letter-spacing: 3px;
-    text-shadow: 0 0 12px rgba(90, 190, 138, 0.4);
-  }
-
-  .claimed-desc {
-    font-family: var(--font-body);
-    font-size: 15px;
-    color: var(--color-text-dim);
-    margin: 0;
-  }
-
-  .claimed-actions {
-    margin-top: 8px;
-  }
-
   /* -- Compact (non-prominent) ------------------------------ */
 
   .add-device-toggle {
@@ -591,71 +395,6 @@
 
   .compact-install {
     border-top: 1px solid rgba(74, 90, 173, 0.12);
-  }
-
-  /* -- Pairing code display --------------------------------- */
-
-  .code-display {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    padding: 24px;
-    background: rgba(5, 7, 26, 0.5);
-    border-radius: 4px;
-    border: 1px solid rgba(74, 90, 173, 0.15);
-  }
-
-  .code-top-row {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .code-digits {
-    font-family: var(--font-body);
-    font-size: 48px;
-    letter-spacing: 8px;
-    color: var(--color-gold);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .code-timer {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .timer-label {
-    font-family: var(--font-body);
-    font-size: 14px;
-    color: var(--color-text-muted);
-  }
-
-  .timer-value {
-    font-family: var(--font-body);
-    font-size: 16px;
-    color: var(--color-text-dim);
-    font-variant-numeric: tabular-nums;
-  }
-
-  .code-hint {
-    font-family: var(--font-body);
-    font-size: 15px;
-    color: var(--color-text-muted);
-    margin-top: 8px;
-  }
-
-  .code-expired {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-  }
-
-  .expired-text {
-    font-family: var(--font-body);
-    font-size: 16px;
-    color: var(--color-text-muted);
   }
 
   .command-hint {
