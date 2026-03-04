@@ -150,6 +150,7 @@ jobs:
       public_api_url: ${{ steps.config.outputs.public_api_url }}
       public_mcp_url: ${{ steps.config.outputs.public_mcp_url }}
       public_app_url: ${{ steps.config.outputs.public_app_url }}
+      public_install_url: ${{ steps.config.outputs.public_install_url }}
     steps:
       - uses: actions/checkout@v4
 
@@ -173,6 +174,7 @@ jobs:
             echo "public_api_url=https://api.savecraft.gg" >> "$GITHUB_OUTPUT"
             echo "public_mcp_url=https://mcp.savecraft.gg" >> "$GITHUB_OUTPUT"
             echo "public_app_url=https://my.savecraft.gg" >> "$GITHUB_OUTPUT"
+            echo "public_install_url=https://install.savecraft.gg" >> "$GITHUB_OUTPUT"
           else
             echo "is_production=false" >> "$GITHUB_OUTPUT"
             echo "wrangler_env=staging" >> "$GITHUB_OUTPUT"
@@ -181,7 +183,8 @@ jobs:
             echo "site_pages_project=savecraft-site-staging" >> "$GITHUB_OUTPUT"
             echo "public_api_url=https://staging-api.savecraft.gg" >> "$GITHUB_OUTPUT"
             echo "public_mcp_url=https://staging-mcp.savecraft.gg" >> "$GITHUB_OUTPUT"
-            echo "public_app_url=https://my-staging.savecraft.gg" >> "$GITHUB_OUTPUT"
+            echo "public_app_url=https://staging-my.savecraft.gg" >> "$GITHUB_OUTPUT"
+            echo "public_install_url=https://staging-install.savecraft.gg" >> "$GITHUB_OUTPUT"
           fi
 
   deploy:
@@ -245,6 +248,7 @@ jobs:
         working-directory: site
         env:
           PUBLIC_APP_URL: ${{ needs.environment.outputs.public_app_url }}
+          PUBLIC_INSTALL_URL: ${{ needs.environment.outputs.public_install_url }}
 
       - name: Deploy marketing site to Pages
         run: npx --prefix worker wrangler pages deploy site/build/ --project-name ${{ needs.environment.outputs.site_pages_project }} --branch main

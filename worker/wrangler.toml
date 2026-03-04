@@ -101,10 +101,10 @@ routes = [
 [env.staging.vars]
 ENVIRONMENT = "staging"
 VERSION = "dev"
-ALLOWED_ORIGINS = "https://staging.savecraft.gg,https://my-staging.savecraft.gg"
+ALLOWED_ORIGINS = "https://staging.savecraft.gg,https://staging-my.savecraft.gg"
 SERVER_URL = "https://staging-api.savecraft.gg"
 CLERK_ISSUER = "https://dominant-frog-65.clerk.accounts.dev"
-INSTALL_URL = "https://install-staging.savecraft.gg"
+INSTALL_URL = "https://staging-install.savecraft.gg"
 MCP_HOSTNAME = "staging-mcp.savecraft.gg"
 
 [[env.staging.d1_databases]]

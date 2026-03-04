@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { browser } from "$app/environment";
-  import { PUBLIC_APP_URL } from "$env/static/public";
+  import { PUBLIC_APP_URL, PUBLIC_INSTALL_URL } from "$env/static/public";
   import { onMount } from "svelte";
 
   // ── Auth-aware nav ─────────────────────────────────────────
@@ -330,7 +330,7 @@
             A background daemon watches your save files. Runs on PC, Mac, Steam Deck. One command,
             zero config.
           </p>
-          <code class="step-code">curl -sSL https://install.savecraft.gg | bash</code>
+          <code class="step-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
         </div>
         <div class="step-card">
           <div class="step-num">02</div>
@@ -555,7 +555,7 @@
         <a href={`${PUBLIC_APP_URL}/sign-up`} class="btn-gold btn-large">GET STARTED</a>
       </div>
       <div class="cta-install">
-        <code class="install-code">curl -sSL https://install.savecraft.gg | bash</code>
+        <code class="install-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
       </div>
     </div>
   </section>
