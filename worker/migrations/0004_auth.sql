@@ -1,3 +1,4 @@
+-- API keys for MCP authentication.
 CREATE TABLE api_keys (
   id TEXT PRIMARY KEY,
   key_prefix TEXT NOT NULL,
@@ -6,5 +7,7 @@ CREATE TABLE api_keys (
   label TEXT NOT NULL DEFAULT 'default',
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
 CREATE INDEX idx_api_keys_user ON api_keys(user_uuid);
+
+-- MCP activity tracking.
+CREATE TABLE mcp_activity (user_uuid TEXT PRIMARY KEY);
