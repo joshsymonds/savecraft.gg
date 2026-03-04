@@ -836,12 +836,11 @@ export async function refreshSave(
   if (!save)
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
-  const id = sourceHub.idFromName(userUuid);
+  const id = sourceHub.idFromName(save.source_uuid);
   const stub = sourceHub.get(id);
   const resp = await stub.fetch(
     new Request("https://do/rescan", {
       method: "POST",
-      headers: { "X-User-UUID": userUuid },
       body: JSON.stringify({ gameId: save.game_id }),
     }),
   );

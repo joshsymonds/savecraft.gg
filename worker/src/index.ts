@@ -209,11 +209,12 @@ async function routeWebSocketEndpoints(
   env: Env,
 ): Promise<Response | null> {
   if (url.pathname === "/ws/daemon") {
-    const auth = await authenticateDaemon(request, env);
+    const auth = await authenticateSource(request, env);
     if (!auth) return new Response("Unauthorized", { status: 401 });
-    const id = env.SOURCE_HUB.idFromName(auth.userUuid);
+    const id = env.SOURCE_HUB.idFromName(auth.sourceUuid);
     const headers = new Headers(request.headers);
-    headers.set("X-User-UUID", auth.userUuid);
+    headers.set("X-Source-UUID", auth.sourceUuid);
+    if (auth.userUuid) headers.set("X-User-UUID", auth.userUuid);
     return env.SOURCE_HUB.get(id).fetch(new Request(request, { headers }));
   }
   if (url.pathname === "/ws/ui") {
@@ -435,7 +436,7 @@ async function handlePutSourceConfig(
       .run();
   }
 
-  const doId = env.SOURCE_HUB.idFromName(userUuid);
+  const doId = env.SOURCE_HUB.idFromName(sourceId);
   const doStub = env.SOURCE_HUB.get(doId);
   const doResp = await doStub.fetch(
     new Request("https://do/push-config", {

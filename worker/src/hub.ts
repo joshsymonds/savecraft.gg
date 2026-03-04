@@ -12,6 +12,7 @@ import type { Env } from "./types";
 const STATE_KEY = "sourceState";
 const CONN_PREFIX = "conn:";
 const USER_UUID_KEY = "userUuid";
+const SOURCE_UUID_KEY = "sourceUuid";
 
 // ── StateMutation: closed discriminated union ────────────────────────
 
@@ -154,9 +155,13 @@ function applyMutation(state: SourceState, mutation: StateMutation): void {
  */
 export class SourceHub extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
-    // Persist userUuid from the worker on every authenticated request.
-    // The worker sets X-User-UUID after verifying auth; storing it here
-    // ensures it survives DO hibernation regardless of request order.
+    // Persist source and user UUIDs from the worker on every authenticated request.
+    // The worker sets these headers after verifying auth; storing them here
+    // ensures they survive DO hibernation regardless of request order.
+    const sourceUuidHeader = request.headers.get("X-Source-UUID");
+    if (sourceUuidHeader) {
+      await this.ctx.storage.put(SOURCE_UUID_KEY, sourceUuidHeader);
+    }
     const userUuidHeader = request.headers.get("X-User-UUID");
     if (userUuidHeader) {
       await this.ctx.storage.put(USER_UUID_KEY, userUuidHeader);
@@ -613,10 +618,12 @@ export class SourceHub extends DurableObject<Env> {
   private async forwardStateToUserHub(): Promise<void> {
     const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
     if (!userUuid) return;
+    const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+    if (!sourceUuid) return;
     try {
       const state = await this.loadState();
       // Pre-serialize via proto so Date objects become ISO strings.
-      // UserHub stores this string as-is and sends it directly to UI.
+      // UserHub stores per-source state keyed by sourceUuid and merges on send.
       const envelope = Message.toJSON({
         payload: { $case: "sourceState", sourceState: state },
       });
@@ -628,7 +635,7 @@ export class SourceHub extends DurableObject<Env> {
         new Request("https://do/update-state", {
           method: "POST",
           headers: { "X-User-UUID": userUuid },
-          body: JSON.stringify({ stateJson }),
+          body: JSON.stringify({ sourceUuid, stateJson }),
         }),
       );
     } catch {

@@ -1,15 +1,16 @@
 import { env, fetchMock, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, closeWs, connectWs, waitForMessage } from "./helpers";
+import { cleanAll, closeWs, connectDaemonWs, connectWs, seedSource, waitForMessage } from "./helpers";
 
 describe("SourceHub", () => {
   beforeEach(cleanAll);
 
   it("relays daemon messages to UI", async () => {
     const userUuid = "relay-test-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     const event = { parseCompleted: { gameId: "d2r", summary: "Hammerdin, Level 89 Paladin" } };
@@ -24,12 +25,13 @@ describe("SourceHub", () => {
   });
 
   // UI→daemon relay is temporarily removed — UserHub's webSocketMessage
-  // is a no-op until SourceHub is rekeyed by source_uuid.
+  // is a no-op until bi-directional commands are implemented.
 
   it("persists daemon events to D1", async () => {
     const userUuid = "persist-test-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     const event = {
@@ -83,9 +85,10 @@ describe("SourceHub", () => {
 
   it("sends SourceState then activity feed on UI connect (cold start)", async () => {
     const userUuid = "coldstart-test-user";
+    const { sourceToken } = await seedSource(userUuid);
 
     // Send some events via a daemon WS to populate state and D1
-    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const daemonWs = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     const events = [
@@ -122,8 +125,9 @@ describe("SourceHub", () => {
 
   it("builds SourceState with online source from sourceOnline", async () => {
     const userUuid = "ds-online-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemon = await connectWs("/ws/daemon", userUuid);
+    const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     daemon.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
@@ -145,8 +149,9 @@ describe("SourceHub", () => {
 
   it("marks source offline on sourceOffline", async () => {
     const userUuid = "ds-offline-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemon = await connectWs("/ws/daemon", userUuid);
+    const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     daemon.send(JSON.stringify({ sourceOnline: { sourceId: "laptop", version: "0.1.0" } }));
@@ -171,8 +176,9 @@ describe("SourceHub", () => {
 
   it("tracks game status from watching event", async () => {
     const userUuid = "ds-watching-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemon = await connectWs("/ws/daemon", userUuid);
+    const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     daemon.send(JSON.stringify({ sourceOnline: { sourceId: "desktop", version: "0.1.0" } }));
@@ -199,8 +205,9 @@ describe("SourceHub", () => {
 
   it("tracks saves from pushCompleted", async () => {
     const userUuid = "ds-push-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemon = await connectWs("/ws/daemon", userUuid);
+    const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     daemon.send(JSON.stringify({ sourceOnline: { sourceId: "pc", version: "0.1.0" } }));
@@ -229,8 +236,9 @@ describe("SourceHub", () => {
 
   it("marks source offline on daemon WebSocket close", async () => {
     const userUuid = "ds-wsclose-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemon = await connectWs("/ws/daemon", userUuid);
+    const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     daemon.send(JSON.stringify({ sourceOnline: { sourceId: "steamdeck", version: "0.1.0" } }));
@@ -252,11 +260,15 @@ describe("SourceHub", () => {
     await closeWs(freshUi);
   });
 
-  it("tracks multiple sources independently", async () => {
+  it("tracks multiple sources independently via UserHub aggregation", async () => {
     const userUuid = "ds-multi-source-user";
 
-    const daemonA = await connectWs("/ws/daemon", userUuid);
-    const daemonB = await connectWs("/ws/daemon", userUuid);
+    // Two separate sources → two separate SourceHub DOs, same UserHub
+    const sourceA = await seedSource(userUuid);
+    const sourceB = await seedSource(userUuid);
+
+    const daemonA = await connectDaemonWs(sourceA.sourceToken);
+    const daemonB = await connectDaemonWs(sourceB.sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     // Source A comes online and watches d2r
@@ -305,8 +317,11 @@ describe("SourceHub", () => {
   it("marks only the disconnected source offline", async () => {
     const userUuid = "ds-multi-close-user";
 
-    const daemonA = await connectWs("/ws/daemon", userUuid);
-    const daemonB = await connectWs("/ws/daemon", userUuid);
+    const sourceA = await seedSource(userUuid);
+    const sourceB = await seedSource(userUuid);
+
+    const daemonA = await connectDaemonWs(sourceA.sourceToken);
+    const daemonB = await connectDaemonWs(sourceB.sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     daemonA.send(JSON.stringify({ sourceOnline: { sourceId: "desktop", version: "0.1.0" } }));
@@ -336,8 +351,9 @@ describe("SourceHub", () => {
 
   it("stores identity from pushCompleted in SourceState", async () => {
     const userUuid = "ds-identity-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemon = await connectWs("/ws/daemon", userUuid);
+    const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     daemon.send(JSON.stringify({ sourceOnline: { sourceId: "pc", version: "0.1.0" } }));
@@ -374,27 +390,30 @@ describe("SourceHub", () => {
   it("scopes configUpdate to the target source only", async () => {
     const userUuid = "config-scope-user";
 
-    // Pre-populate config for desktop only
+    const sourceA = await seedSource(userUuid);
+    const sourceB = await seedSource(userUuid);
+
+    // Pre-populate config for sourceA only (using sourceA.sourceUuid as the sourceId)
     await env.DB.prepare(
       `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
-      .bind(userUuid, "desktop", "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
+      .bind(userUuid, sourceA.sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
-    const daemonA = await connectWs("/ws/daemon", userUuid);
-    const daemonB = await connectWs("/ws/daemon", userUuid);
+    const daemonA = await connectDaemonWs(sourceA.sourceToken);
+    const daemonB = await connectDaemonWs(sourceB.sourceToken);
 
     // Both daemons identify themselves
-    daemonA.send(JSON.stringify({ sourceOnline: { sourceId: "desktop", version: "0.1.0" } }));
+    daemonA.send(JSON.stringify({ sourceOnline: { sourceId: sourceA.sourceUuid, version: "0.1.0" } }));
     const configA = await waitForMessage<Record<string, unknown>>(daemonA);
     expect(configA).toHaveProperty("configUpdate");
 
-    daemonB.send(JSON.stringify({ sourceOnline: { sourceId: "steamdeck", version: "0.1.0" } }));
+    daemonB.send(JSON.stringify({ sourceOnline: { sourceId: sourceB.sourceUuid, version: "0.1.0" } }));
     const configB = await waitForMessage<Record<string, unknown>>(daemonB);
     expect(configB).toHaveProperty("configUpdate");
 
-    // Desktop's configUpdate should have d2r, steamdeck's should be empty
+    // Source A's configUpdate should have d2r, source B's should be empty
     const desktopGames = (configA.configUpdate as { games: Record<string, unknown> }).games;
     const steamdeckGames = (configB.configUpdate as { games: Record<string, unknown> }).games;
     expect(Object.keys(desktopGames)).toHaveLength(1);
@@ -406,8 +425,9 @@ describe("SourceHub", () => {
 
   it("injects _sourceId on live relay", async () => {
     const userUuid = "deviceid-relay-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     // Identify the daemon connection
@@ -428,8 +448,9 @@ describe("SourceHub", () => {
 
   it("injects _sourceId on replayed events", async () => {
     const userUuid = "deviceid-replay-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const daemonWs = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     // Identify daemon and send an event
@@ -468,8 +489,9 @@ describe("SourceHub", () => {
 
   it("sends rescanGame to daemon via /rescan endpoint", async () => {
     const userUuid = "rescan-test-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const daemonWs = await connectDaemonWs(sourceToken);
 
     // Identify the daemon and consume the configUpdate response
     daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
@@ -479,13 +501,12 @@ describe("SourceHub", () => {
     // synchronously within the fetch, so the listener must already be waiting.
     const rescanPromise = waitForMessage<{ rescanGame: { gameId: string } }>(daemonWs);
 
-    // Call the /rescan endpoint (as the worker would from the MCP tool)
-    const doId = env.SOURCE_HUB.idFromName(userUuid);
+    // Call the /rescan endpoint keyed by source_uuid
+    const doId = env.SOURCE_HUB.idFromName(sourceUuid);
     const doStub = env.SOURCE_HUB.get(doId);
     const resp = await doStub.fetch(
       new Request("https://do/rescan", {
         method: "POST",
-        headers: { "X-User-UUID": userUuid },
         body: JSON.stringify({ gameId: "d2r" }),
       }),
     );
@@ -503,14 +524,13 @@ describe("SourceHub", () => {
   });
 
   it("returns daemon_online: false from /rescan when no daemon connected", async () => {
-    const userUuid = "rescan-offline-user";
+    const { sourceUuid } = await seedSource(null);
 
-    const doId = env.SOURCE_HUB.idFromName(userUuid);
+    const doId = env.SOURCE_HUB.idFromName(sourceUuid);
     const doStub = env.SOURCE_HUB.get(doId);
     const resp = await doStub.fetch(
       new Request("https://do/rescan", {
         method: "POST",
-        headers: { "X-User-UUID": userUuid },
         body: JSON.stringify({ gameId: "d2r" }),
       }),
     );
@@ -522,7 +542,8 @@ describe("SourceHub", () => {
   });
 
   it("isolates users — messages don't leak across DOs", async () => {
-    const daemonA = await connectWs("/ws/daemon", "user-a");
+    const { sourceToken: tokenA } = await seedSource("user-a");
+    const daemonA = await connectDaemonWs(tokenA);
     const uiA = await connectWs("/ws/ui", "user-a");
     const uiB = await connectWs("/ws/ui", "user-b");
 
@@ -544,6 +565,7 @@ describe("SourceHub", () => {
 
   it("sends sourceUpdateAvailable when daemon version is stale", async () => {
     const userUuid = "update-check-user";
+    const { sourceToken } = await seedSource(userUuid);
 
     // Mock the install worker manifest endpoint
     const manifest = {
@@ -565,7 +587,7 @@ describe("SourceHub", () => {
         headers: { "content-type": "application/json" },
       });
 
-    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const daemonWs = await connectDaemonWs(sourceToken);
 
     // Send sourceOnline with an older version
     daemonWs.send(
@@ -605,8 +627,9 @@ describe("SourceHub", () => {
 
   it("does not relay sourceHeartbeat to UI", async () => {
     const userUuid = "heartbeat-relay-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     // Identify daemon
@@ -626,8 +649,9 @@ describe("SourceHub", () => {
 
   it("updates lastSeen on heartbeat", async () => {
     const userUuid = "heartbeat-lastseen-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemon = await connectWs("/ws/daemon", userUuid);
+    const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     daemon.send(JSON.stringify({ sourceOnline: { sourceId: "deck", version: "0.1.0" } }));
@@ -666,8 +690,9 @@ describe("SourceHub", () => {
 
   it("evicts stale source via alarm", async () => {
     const userUuid = "alarm-evict-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemon = await connectWs("/ws/daemon", userUuid);
+    const daemon = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     // Send sourceOnline — sets alarm (100ms in test config)
@@ -706,8 +731,9 @@ describe("SourceHub", () => {
 
   it("graceful offline deletes alarm — lastSeen unchanged after wait", async () => {
     const userUuid = "alarm-lifecycle-user";
+    const { sourceToken } = await seedSource(userUuid);
 
-    const daemon = await connectWs("/ws/daemon", userUuid);
+    const daemon = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     // Source comes online (sets alarm)
@@ -746,6 +772,7 @@ describe("SourceHub", () => {
 
   it("does not send sourceUpdateAvailable when daemon is current", async () => {
     const userUuid = "update-current-user";
+    const { sourceToken } = await seedSource(userUuid);
 
     // Mock the install worker manifest endpoint
     const manifest = {
@@ -767,7 +794,7 @@ describe("SourceHub", () => {
         headers: { "content-type": "application/json" },
       });
 
-    const daemonWs = await connectWs("/ws/daemon", userUuid);
+    const daemonWs = await connectDaemonWs(sourceToken);
 
     // Send sourceOnline with current version
     daemonWs.send(
