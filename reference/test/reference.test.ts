@@ -30,20 +30,13 @@ describe("D2R Reference Worker", () => {
     expect(response.status).toBe(200);
 
     const text = await response.text();
-    const lines = text
-      .trim()
-      .split("\n")
-      .filter((l: string) => l.length > 0);
-    expect(lines.length).toBeGreaterThan(10);
-
-    const first = JSON.parse(lines[0]!) as {
+    const parsed = JSON.parse(text.trim()) as {
       type: string;
-      data: { code: string; name: string; base_prob: number; quality: { unique: number } };
+      data: { formatted: string; total: number; offset: number; limit: number };
     };
-    expect(first.type).toBe("result");
-    expect(first.data.code).toBeTruthy();
-    expect(first.data.base_prob).toBeGreaterThan(0);
-    expect(first.data.quality.unique).toBeGreaterThan(0);
+    expect(parsed.type).toBe("result");
+    expect(parsed.data.formatted).toContain("mephisto");
+    expect(parsed.data.total).toBeGreaterThan(10);
   });
 
   it("finds item sources via reverse lookup", async () => {
@@ -57,19 +50,13 @@ describe("D2R Reference Worker", () => {
     expect(response.status).toBe(200);
 
     const text = await response.text();
-    const lines = text
-      .trim()
-      .split("\n")
-      .filter((l: string) => l.length > 0);
-    expect(lines.length).toBeGreaterThan(0);
-
-    const first = JSON.parse(lines[0]!) as {
+    const parsed = JSON.parse(text.trim()) as {
       type: string;
-      data: { monster_id: string; is_boss: boolean; base_prob: number };
+      data: { formatted: string; total: number };
     };
-    expect(first.type).toBe("result");
-    expect(first.data.is_boss).toBe(true);
-    expect(first.data.base_prob).toBeGreaterThan(0);
+    expect(parsed.type).toBe("result");
+    expect(parsed.data.formatted).toContain("Shael Rune");
+    expect(parsed.data.total).toBeGreaterThan(0);
   });
 
   it("returns error on invalid JSON input", async () => {
