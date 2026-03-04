@@ -153,6 +153,9 @@ async function routePublicEndpoints(
   if (url.pathname === "/api/v1/pair/claim" && request.method === "POST") {
     return claimPairingCode(request, env);
   }
+  if (url.pathname === "/api/v1/device/register" && request.method === "POST") {
+    return handleDeviceRegister(request, env);
+  }
   return null;
 }
 
@@ -929,6 +932,55 @@ async function createPairingCode(env: Env, userUuid: string): Promise<Response> 
   ]);
 
   return Response.json({ code }, { status: 201 });
+}
+
+const LINK_CODE_TTL_MINUTES = 20;
+
+async function handleDeviceRegister(request: Request, env: Env): Promise<Response> {
+  let body: { hostname?: string; os?: string; arch?: string } = {};
+  const text = await request.text();
+  if (text) {
+    try {
+      body = JSON.parse(text) as { hostname?: string; os?: string; arch?: string };
+    } catch {
+      return Response.json({ error: "Invalid JSON" }, { status: 400 });
+    }
+  }
+
+  const deviceUuid = crypto.randomUUID();
+  const randomBytes = new Uint8Array(16);
+  crypto.getRandomValues(randomBytes);
+  const hex = [...randomBytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+  const deviceToken = `dvt_${hex}`;
+  const tokenHash = await sha256Hex(deviceToken);
+
+  const linkCode = generateSixDigitCode();
+  const linkCodeExpiresAt = new Date(
+    Date.now() + LINK_CODE_TTL_MINUTES * 60_000,
+  ).toISOString();
+
+  await env.DB.prepare(
+    `INSERT INTO devices (device_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  ).bind(
+    deviceUuid,
+    tokenHash,
+    linkCode,
+    linkCodeExpiresAt,
+    body.hostname ?? null,
+    body.os ?? null,
+    body.arch ?? null,
+  ).run();
+
+  return Response.json(
+    {
+      device_uuid: deviceUuid,
+      device_token: deviceToken,
+      link_code: linkCode,
+      link_code_expires_at: linkCodeExpiresAt,
+    },
+    { status: 201 },
+  );
 }
 
 async function claimPairingCode(request: Request, env: Env): Promise<Response> {
