@@ -155,7 +155,7 @@ func handleMonsterDrops(enc *json.Encoder, calc *dropcalc.Calculator, query map[
 }
 
 func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[string]any, item string) {
-	code := calc.ItemCode(item)
+	code, resolveType := calc.ResolveItem(item)
 	if code == "" {
 		writeError(enc, "unknown_item", "unknown item: "+item)
 		os.Exit(1)
@@ -180,49 +180,63 @@ func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[s
 		MF:         mf,
 	})
 
-	// FindItemSources returns desc by unique. Re-sort explicitly for both cases
-	// so we don't depend on the internal sort order.
+	// Pick the probability field that matches what the user searched for.
+	chanceOf := func(s dropcalc.ItemSource) float64 {
+		switch resolveType {
+		case dropcalc.ResolveSet:
+			return s.Quality.Set
+		case dropcalc.ResolveUnique:
+			return s.Quality.Unique
+		default:
+			return s.BaseProb
+		}
+	}
+
 	if sortOrder == "asc" {
 		sort.Slice(sources, func(i, j int) bool {
-			return sources[i].Quality.Unique < sources[j].Quality.Unique
+			return chanceOf(sources[i]) < chanceOf(sources[j])
 		})
 	} else {
 		sort.Slice(sources, func(i, j int) bool {
-			return sources[i].Quality.Unique > sources[j].Quality.Unique
+			return chanceOf(sources[i]) > chanceOf(sources[j])
 		})
 	}
 
 	total := len(sources)
 	sources = paginate(sources, offset)
 
-	// Format header.
-	itemName := calc.ItemName(code)
+	// Format header: show the searched name if it differs from the base item.
+	baseName := calc.ItemName(code)
+	headerName := baseName
+	if resolveType != dropcalc.ResolveBase {
+		headerName = item + " (" + baseName + ")"
+	}
 	diffLabel := "all difficulties"
 	if diffVal >= 0 {
 		diffLabel = difficultyName(diffVal)
 	}
 
 	var b strings.Builder
-	fmt.Fprintf(&b, "Drop sources for %s (%s) — %s, %d MF, %d player",
-		itemName, code, diffLabel, mf, players)
+	fmt.Fprintf(&b, "Drop sources for %s — %s, %d MF, %d player",
+		headerName, diffLabel, mf, players)
 	if players > 1 {
 		b.WriteString("s")
 	}
 	b.WriteString("\n")
 
-	sortDesc := "unique chance, best first"
+	sortDesc := "best first"
 	if sortOrder == "asc" {
-		sortDesc = "unique chance, worst first"
+		sortDesc = "worst first"
 	}
 
 	if total == 0 {
 		b.WriteString("No results found.\n")
 	} else {
-		fmt.Fprintf(&b, "Showing %d-%d of %d (sorted by %s)\n\n",
+		fmt.Fprintf(&b, "Showing %d-%d of %d (sorted by chance, %s)\n\n",
 			offset+1, offset+len(sources), total, sortDesc)
 
-		fmt.Fprintf(&b, "%4s  %-20s %-5s %-8s %-20s %9s %9s %9s\n",
-			"#", "Monster", "Diff", "Type", "Area", "Unique", "Set", "Base")
+		fmt.Fprintf(&b, "%4s  %-20s %-5s %-8s %-23s %9s\n",
+			"#", "Monster", "Diff", "Type", "Area", "Chance")
 
 		for i, s := range sources {
 			name := s.MonsterName
@@ -233,17 +247,15 @@ func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[s
 			if area == "" {
 				area = "—"
 			}
-			if len(area) > 20 {
-				area = area[:17] + "..."
+			if len(area) > 23 {
+				area = area[:20] + "..."
 			}
-			fmt.Fprintf(&b, "%4d. %-20s %-5s %-8s %-20s %9s %9s %9s\n",
+			fmt.Fprintf(&b, "%4d. %-20s %-5s %-8s %-23s %9s\n",
 				offset+i+1, name,
 				shortDiff(s.Difficulty),
 				tcTypeName(s.TCType),
 				area,
-				fmtChance(s.Quality.Unique),
-				fmtChance(s.Quality.Set),
-				fmtChance(s.BaseProb))
+				fmtChance(chanceOf(s)))
 		}
 
 		remaining := total - offset - len(sources)
@@ -437,7 +449,7 @@ func schema() map[string]any {
 					"sort": map[string]any{
 						"type":        "string",
 						"default":     "desc",
-						"description": "Sort order for unique chance: 'desc' (best first) or 'asc' (worst first).",
+						"description": "Sort order for drop chance: 'desc' (best first) or 'asc' (worst first).",
 					},
 				},
 			},

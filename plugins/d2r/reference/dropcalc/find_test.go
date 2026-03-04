@@ -208,3 +208,53 @@ func TestItemCodeSetNames(t *testing.T) {
 		}
 	}
 }
+
+func TestResolveItem(t *testing.T) {
+	c := NewCalculator()
+
+	tests := []struct {
+		input    string
+		wantCode string
+		wantType ItemResolveType
+	}{
+		// Base item by code.
+		{"xea", "xea", ResolveBase},
+		// Base item by name.
+		{"Serpentskin Armor", "xea", ResolveBase},
+		// Unique item by name.
+		{"Skin of the Vipermagi", "xea", ResolveUnique},
+		{"Magefist", "tgl", ResolveUnique},
+		// Set item by name.
+		{"Tal Rasha's Horadric Crest", "xsk", ResolveSet},
+		{"Civerb's Ward", "lrg", ResolveSet},
+		// Unknown.
+		{"nonexistent", "", ResolveBase},
+	}
+
+	for _, tt := range tests {
+		code, rt := c.ResolveItem(tt.input)
+		if code != tt.wantCode {
+			t.Errorf("ResolveItem(%q) code = %q, want %q", tt.input, code, tt.wantCode)
+		}
+		if rt != tt.wantType {
+			t.Errorf("ResolveItem(%q) type = %d, want %d", tt.input, rt, tt.wantType)
+		}
+	}
+}
+
+func TestFindItemSourcesUberDiabloDistinct(t *testing.T) {
+	c := NewCalculator()
+
+	sources := c.FindItemSources("xea", FindOptions{
+		Difficulty: -1,
+		TCType:     -1,
+		Players:    1,
+		MF:         50,
+	})
+
+	for _, s := range sources {
+		if s.MonsterID == "diabloclone" && s.MonsterName != "Uber Diablo" {
+			t.Errorf("diabloclone should be named 'Uber Diablo', got %q", s.MonsterName)
+		}
+	}
+}

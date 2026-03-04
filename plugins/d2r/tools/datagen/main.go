@@ -351,6 +351,12 @@ func genMonsters(inputDir, outputDir string) error {
 	b.WriteString("// Monsters contains monster data relevant for drop calculations.\n")
 	b.WriteString("var Monsters = []MonsterEntry{\n")
 
+	// Override display names for monsters whose game-data NameStr is
+	// ambiguous or misleading in a drop calculator context.
+	monsterNameOverrides := map[string]string{
+		"diabloclone": "Uber Diablo",
+	}
+
 	for _, row := range rows {
 		id := row["Id"]
 		if id == "" {
@@ -368,6 +374,9 @@ func genMonsters(inputDir, outputDir string) error {
 		}
 
 		name := row["NameStr"]
+		if override, ok := monsterNameOverrides[id]; ok {
+			name = override
+		}
 		isBoss := row["boss"] == "1"
 		levelN := atoi(row["Level"])
 		levelNM := atoi(row["Level(N)"])
@@ -536,7 +545,7 @@ func genItemAliases(inputDir, outputDir string) error {
 		if row["spawnable"] != "1" {
 			continue
 		}
-		fmt.Fprintf(&b, "\t{Name: %s, Code: %s},\n", goStr(name), goStr(code))
+		fmt.Fprintf(&b, "\t{Name: %s, Code: %s, IsSet: true},\n", goStr(name), goStr(code))
 	}
 
 	b.WriteString("}\n")

@@ -80,8 +80,9 @@ type MonsterEntry struct {
 
 // ItemAlias maps a unique or set item name to its base item code.
 type ItemAlias struct {
-	Name string
-	Code string
+	Name  string
+	Code  string
+	IsSet bool // true for set items, false for unique items
 }
 
 // Area represents an area from levels.txt with monster levels and spawn lists.
