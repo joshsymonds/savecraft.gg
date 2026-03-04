@@ -5,8 +5,8 @@ package dropcalc
 import (
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/d2r/reference/data"
 )
@@ -59,6 +59,13 @@ func NewCalculator() *Calculator {
 		if tc.Group != 0 {
 			c.tcsByGroup[tc.Group] = append(c.tcsByGroup[tc.Group], tc)
 		}
+	}
+	// Enforce ascending level order within each group — upgradeTCByLevel
+	// depends on this for correct TC promotion in NM/Hell.
+	for _, group := range c.tcsByGroup {
+		sort.Slice(group, func(i, j int) bool {
+			return group[i].Level < group[j].Level
+		})
 	}
 	for i := range data.BaseItems {
 		bi := &data.BaseItems[i]
@@ -301,7 +308,9 @@ func applyPicks(code string, prob float64, picks int, result map[string]float64)
 		result[code] += prob
 		return
 	}
-	// P(at least 1) = 1 - (1-p)^picks, capped at 6 picks.
+	// P(at least 1) = 1 - (1-p)^picks.
+	// D2R caps effective picks at 6 to prevent probability overflow in
+	// deeply nested TC trees (e.g., Act bosses with high pick counts).
 	effectivePicks := picks
 	if effectivePicks > 6 {
 		effectivePicks = 6
@@ -420,14 +429,3 @@ func (c *Calculator) IsBaseItem(code string) bool {
 	return ok
 }
 
-// FormatResults converts a probability map to a sorted human-readable string.
-// This is a convenience for debugging; the real output will be JSON.
-func FormatResults(results map[string]float64) string {
-	var b strings.Builder
-	for code, prob := range results {
-		if prob > 0 {
-			fmt.Fprintf(&b, "%s: 1:%d\n", code, int(math.Round(1/prob)))
-		}
-	}
-	return b.String()
-}

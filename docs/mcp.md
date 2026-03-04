@@ -124,10 +124,6 @@ Returns a single section's data. Optional `timestamp` for historical queries.
 }
 ```
 
-### `get_save_summary(save_id)`
-
-Shortcut for the `character_overview` / `player_summary` / equivalent overview section. Every plugin must emit an overview section.
-
 ### `get_section_diff(save_id, section, from_timestamp, to_timestamp)`
 
 Returns changes between two snapshots for a section.
@@ -202,20 +198,6 @@ Notes are **not** vectorized, chunked, or RAG'd. A typical note is 200 bytes to 
 
 Read tools:
 
-#### `list_notes(save_id)`
-
-Returns metadata for all notes attached to a save. No content — use `get_note` to fetch full content.
-
-```json
-{
-  "save_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "notes": [
-    { "note_id": "f7a8b9c0-...", "title": "Maxroll Helltide Warlock Build", "source": "user", "size_bytes": 12400 },
-    { "note_id": "a2b3c4d5-...", "title": "Current Farming Goals", "source": "user", "size_bytes": 340 }
-  ]
-}
-```
-
 #### `get_note(save_id, note_id)`
 
 Returns one note's full content.
@@ -273,7 +255,7 @@ Players interact with Savecraft in two distinct modes — often in the same conv
 
 1. "Another Countess run and ZERO SHAELS. Wtf."
    - AI calls `get_section(save_id, "character_overview")` to see current level/difficulty
-   - AI calls `list_notes` or `search("farming")` to check if there's a farming goal
+   - AI calls `search_saves("farming")` to check if there's a farming goal
    - AI commiserates with context: "You've been Hell Countess farming at level 74 — that's rough. She only drops up to Io in Hell. If you need Shaels specifically, Normal Countess is actually more reliable. Want me to update your farming note?"
 
 2. "I JUST FOUND A BER RUNE"
@@ -281,7 +263,7 @@ Players interact with Savecraft in two distinct modes — often in the same conv
    - AI reacts: "That's your Enigma Ber! One down. You still need Jah and a 3os Mage Plate. Want me to update your farming note?"
 
 3. "I think I'm done with this character for a while."
-   - AI calls `get_save_summary` to recap the character's state
+   - AI calls `get_save` to recap the character's state
    - AI gives a send-off: "Level 89 Hammerdin with Enigma and HotO — that's a complete build. If you come back, your biggest upgrade path is probably torch farming."
 
 **Optimizer mode** — the player wants specific build/progression advice:
@@ -292,7 +274,7 @@ Players interact with Savecraft in two distinct modes — often in the same conv
    - "What should I upgrade?" → `equipped_gear` + `inventory` + `skills`
    - "Have I finished Act 3?" → `quest_progress`
    - "How has my build changed this week?" → `get_section_diff` on relevant sections
-   - "Am I following my build guide?" → `search` or `list_notes` to find the guide, `get_note` to read it, then relevant sections for comparison
+   - "Am I following my build guide?" → `search_saves` to find the guide, `get_note` to read it, then relevant sections for comparison
 4. If the user indicates something just changed, call `refresh_save` to get fresh data before reading sections.
 5. Combine structured save data with the AI's existing game knowledge to give personalized advice.
 
@@ -310,7 +292,7 @@ Players interact with Savecraft in two distinct modes — often in the same conv
 **Companion: Setting a goal through conversation:**
 1. User: "I need to farm for Enigma. Remember that — I need Jah, Ber, and a 3-socket Mage Plate."
 2. AI calls `create_note(save_id, "Enigma Farming Goals", "Need: Jah rune, Ber rune, 3os Mage Plate")`
-3. Next session, user says "ugh, still no Jah" → AI calls `list_notes` or `search("farming")`, knows exactly what they're talking about
+3. Next session, user says "ugh, still no Jah" → AI calls `search_saves("farming")`, knows exactly what they're talking about
 
 **Companion → Optimizer: Celebrating a drop leads to planning:**
 1. User: "I JUST FOUND A BER RUNE"

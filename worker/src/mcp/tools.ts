@@ -80,7 +80,7 @@ async function loadSnapshotAtTimestamp(
   return object.json<GameState>();
 }
 
-interface NoteRow {
+interface NotePreviewRow {
   note_id: string;
   save_id: string;
   title: string;
@@ -128,7 +128,7 @@ export async function listGames(
       "SELECT note_id, save_id, title, SUBSTR(content, 1, 100) as preview FROM notes WHERE user_uuid = ? ORDER BY created_at DESC",
     )
     .bind(userUuid)
-    .all<NoteRow>();
+    .all<NotePreviewRow>();
 
   // Group notes by save_id.
   const notesBySave = new Map<string, { note_id: string; title: string }[]>();
@@ -179,8 +179,16 @@ export async function listGames(
   }
 
   // 4. Scan R2 for reference modules (manifests include parameter schemas).
-  const listed = await plugins.list({ prefix: "plugins/" });
-  for (const object of listed.objects) {
+  const allPluginObjects: R2Object[] = [];
+  let pluginCursor: string | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- R2 pagination loop
+  while (true) {
+    const listed = await plugins.list({ prefix: "plugins/", cursor: pluginCursor });
+    allPluginObjects.push(...listed.objects);
+    if (!listed.truncated) break;
+    pluginCursor = listed.cursor;
+  }
+  for (const object of allPluginObjects) {
     if (!object.key.endsWith("/manifest.json")) continue;
 
     const manifest = await plugins.get(object.key);

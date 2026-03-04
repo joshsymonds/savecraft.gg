@@ -471,7 +471,10 @@ async function handleToolCall(
       try {
         queryObj = JSON.parse(args.query as string) as Record<string, unknown>;
       } catch {
-        queryObj = {};
+        return {
+          content: [{ type: "text", text: "Invalid query: must be a valid JSON object string." }],
+          isError: true,
+        };
       }
       return queryReference(
         env.REFERENCE_PLUGINS,
