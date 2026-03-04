@@ -8,7 +8,10 @@
 
 <svelte:head>
   <title>Privacy Policy - Savecraft</title>
-  <meta name="description" content="Savecraft privacy policy. What we collect, why, and what we don't." />
+  <meta
+    name="description"
+    content="Savecraft privacy policy. What we collect, why, and what we don't."
+  />
 </svelte:head>
 
 <div class="page">
@@ -31,34 +34,40 @@
     <p class="privacy-updated">Last updated: March 4, 2026</p>
 
     <div class="privacy-tldr">
-      <strong>TL;DR:</strong> Savecraft collects the minimum data needed to connect your game saves to
-      AI assistants. We store your email address, your game save data (which you push to us), and notes
-      you create. We do not run analytics, do not track you, do not sell your data, and do not see your
-      conversations with AI assistants. Our code is
-      <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">open source</a> — you
-      can verify all of this yourself.
+      <strong>TL;DR:</strong> Savecraft collects the minimum data needed to connect your game saves
+      to AI assistants. We store your email address, your game save data (which you push to us), and
+      notes you create. We do not run analytics, do not track you, do not sell your data, and do not
+      see your conversations with AI assistants. Our code is
+      <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">open source</a> — you can
+      verify all of this yourself.
     </div>
 
     <section class="privacy-section">
       <h2>Who we are</h2>
       <p>Savecraft is operated by Josh Symonds ("we," "us," "our").</p>
-      <p><strong>Contact:</strong> <a href="mailto:privacy@savecraft.gg" class="text-link">privacy@savecraft.gg</a></p>
       <p>
-        Savecraft is a gaming companion tool that parses your game save files and serves structured game
-        state data to AI assistants (Claude, ChatGPT, Gemini) via the Model Context Protocol (MCP). It
-        consists of a local daemon that runs on your gaming device, a cloud service that stores and
-        serves your data, and a web interface for managing your devices and settings.
+        <strong>Contact:</strong>
+        <a href="mailto:privacy@savecraft.gg" class="text-link">privacy@savecraft.gg</a>
       </p>
       <p>
-        This policy applies to the hosted service at <strong>savecraft.gg</strong> and the Savecraft
-        daemon software. If you self-host Savecraft from our open-source repository, your deployment is
-        governed by your own privacy practices, not this policy.
+        Savecraft is a gaming companion tool that parses your game save files and serves structured
+        game state data to AI assistants (Claude, ChatGPT, Gemini) via the Model Context Protocol
+        (MCP). It consists of a local daemon that runs on your gaming device, a cloud service that
+        stores and serves your data, and a web interface for managing your devices and settings.
+      </p>
+      <p>
+        This policy applies to the hosted service at <strong>savecraft.gg</strong> and the Savecraft daemon
+        software. If you self-host Savecraft from our open-source repository, your deployment is governed
+        by your own privacy practices, not this policy.
       </p>
     </section>
 
     <section class="privacy-section">
       <h2>What we collect and why</h2>
-      <p>We collect only what's necessary to provide the service. Here is everything, with nothing omitted:</p>
+      <p>
+        We collect only what's necessary to provide the service. Here is everything, with nothing
+        omitted:
+      </p>
 
       <h3>Account data</h3>
       <p>
@@ -66,7 +75,10 @@
         <strong>display name</strong> through our authentication provider, Clerk. We use this to identify
         your account and display which account your devices are linked to.
       </p>
-      <p class="legal-basis"><strong>Legal basis (GDPR):</strong> Contract performance — you provide this to create and use your account.</p>
+      <p class="legal-basis">
+        <strong>Legal basis (GDPR):</strong> Contract performance — you provide this to create and use
+        your account.
+      </p>
       <p class="retention"><strong>Retention:</strong> Until you delete your account.</p>
 
       <h3>Device data</h3>
@@ -76,8 +88,13 @@
         "linux"), and <strong>architecture</strong> (e.g., "arm64"). A device-specific authentication
         token is generated; we store only a SHA-256 hash of this token, never the token itself.
       </p>
-      <p class="legal-basis"><strong>Legal basis:</strong> Contract performance — device identification is required for the daemon to push save data.</p>
-      <p class="retention"><strong>Retention:</strong> Until you unlink the device, plus a 7-day cleanup period.</p>
+      <p class="legal-basis">
+        <strong>Legal basis:</strong> Contract performance — device identification is required for the
+        daemon to push save data.
+      </p>
+      <p class="retention">
+        <strong>Retention:</strong> Until you unlink the device, plus a 7-day cleanup period.
+      </p>
 
       <h3>API keys</h3>
       <p>
@@ -90,27 +107,30 @@
 
       <h3>Game save data</h3>
       <p>
-        This is the core of the service. When the daemon detects a save file change, it parses the file
-        locally on your device, converts it to structured JSON (character stats, gear, skills, quest
-        progress — whatever the game plugin extracts), and pushes that JSON to our cloud. We store every
-        snapshot as an immutable record so you can track changes over time.
+        This is the core of the service. When the daemon detects a save file change, it parses the
+        file locally on your device, converts it to structured JSON (character stats, gear, skills,
+        quest progress — whatever the game plugin extracts), and pushes that JSON to our cloud. We
+        store every snapshot as an immutable record so you can track changes over time.
       </p>
       <p>
         The daemon reads your save files in <strong>read-only</strong> mode. It cannot modify your saves.
         The raw save file never leaves your device — only the parsed JSON output is transmitted.
       </p>
-      <p class="legal-basis"><strong>Legal basis:</strong> Contract performance — serving your game state to AI assistants is the entire service.</p>
+      <p class="legal-basis">
+        <strong>Legal basis:</strong> Contract performance — serving your game state to AI assistants
+        is the entire service.
+      </p>
       <p class="retention">
-        <strong>Retention:</strong> All snapshots are currently retained for the life of your account. We
-        may introduce time-based thinning in the future (e.g., keeping daily snapshots for a month, then
-        weekly) and will update this policy before doing so.
+        <strong>Retention:</strong> All snapshots are currently retained for the life of your account.
+        We may introduce time-based thinning in the future (e.g., keeping daily snapshots for a month,
+        then weekly) and will update this policy before doing so.
       </p>
 
       <h3>Notes</h3>
       <p>
-        You (or an AI assistant acting on your behalf during conversation) can create notes attached to
-        your saves — build guides, farming goals, session reminders. Notes are user-authored markdown
-        stored alongside your save data.
+        You (or an AI assistant acting on your behalf during conversation) can create notes attached
+        to your saves — build guides, farming goals, session reminders. Notes are user-authored
+        markdown stored alongside your save data.
       </p>
       <p class="legal-basis"><strong>Legal basis:</strong> Contract performance.</p>
       <p class="retention"><strong>Retention:</strong> Until you delete them.</p>
@@ -119,48 +139,81 @@
       <p>
         When you connect an AI assistant via MCP, the OAuth handshake creates client registrations,
         authorization codes, and access tokens. These are stored in Cloudflare KV with automatic
-        expiration (TTL-managed). A single-column record tracks whether you've connected an MCP client,
-        used to show connection status in the web UI.
+        expiration (TTL-managed). A single-column record tracks whether you've connected an MCP
+        client, used to show connection status in the web UI.
       </p>
-      <p class="legal-basis"><strong>Legal basis:</strong> Contract performance (MCP authentication is required for the service to function).</p>
-      <p class="retention"><strong>Retention:</strong> Tokens expire automatically per their TTL. The MCP activity flag persists until your account is deleted.</p>
+      <p class="legal-basis">
+        <strong>Legal basis:</strong> Contract performance (MCP authentication is required for the service
+        to function).
+      </p>
+      <p class="retention">
+        <strong>Retention:</strong> Tokens expire automatically per their TTL. The MCP activity flag persists
+        until your account is deleted.
+      </p>
 
       <h3>Device status events</h3>
       <p>
-        The daemon reports operational status (online/offline, parse success/failure, push status) to
-        power the real-time activity feed in the web UI. We retain the last 100 events per device.
+        The daemon reports operational status (online/offline, parse success/failure, push status)
+        to power the real-time activity feed in the web UI. We retain the last 100 events per
+        device.
       </p>
-      <p class="legal-basis"><strong>Legal basis:</strong> Legitimate interest — operational monitoring helps you verify your daemon is working and helps us debug issues.</p>
-      <p class="retention"><strong>Retention:</strong> Rolling window of 100 events per device, pruned on insert.</p>
+      <p class="legal-basis">
+        <strong>Legal basis:</strong> Legitimate interest — operational monitoring helps you verify your
+        daemon is working and helps us debug issues.
+      </p>
+      <p class="retention">
+        <strong>Retention:</strong> Rolling window of 100 events per device, pruned on insert.
+      </p>
     </section>
 
     <section class="privacy-section">
       <h2>What we do NOT collect</h2>
       <p>This matters as much as what we do collect:</p>
       <ul>
-        <li><strong>No analytics or telemetry.</strong> No Google Analytics, no Posthog, no tracking pixels, no third-party scripts.</li>
-        <li><strong>No IP addresses.</strong> Cloudflare sees IP addresses at the network edge, but our application code never reads, stores, or logs them.</li>
-        <li><strong>No conversation history.</strong> We never see what you say to Claude, ChatGPT, or Gemini. The AI assistant requests specific data from us (e.g., "get this character's equipped gear"), and we return structured JSON. The conversation itself stays entirely between you and the AI provider.</li>
-        <li><strong>No device fingerprinting.</strong> We do not collect User-Agent strings, screen dimensions, installed fonts, or any browser fingerprint data.</li>
-        <li><strong>No behavioral tracking.</strong> No click tracking, session recording, heatmaps, or funnel analysis.</li>
+        <li>
+          <strong>No analytics or telemetry.</strong> No Google Analytics, no Posthog, no tracking pixels,
+          no third-party scripts.
+        </li>
+        <li>
+          <strong>No IP addresses.</strong> Cloudflare sees IP addresses at the network edge, but our
+          application code never reads, stores, or logs them.
+        </li>
+        <li>
+          <strong>No conversation history.</strong> We never see what you say to Claude, ChatGPT, or Gemini.
+          The AI assistant requests specific data from us (e.g., "get this character's equipped gear"),
+          and we return structured JSON. The conversation itself stays entirely between you and the AI
+          provider.
+        </li>
+        <li>
+          <strong>No device fingerprinting.</strong> We do not collect User-Agent strings, screen dimensions,
+          installed fonts, or any browser fingerprint data.
+        </li>
+        <li>
+          <strong>No behavioral tracking.</strong> No click tracking, session recording, heatmaps, or
+          funnel analysis.
+        </li>
       </ul>
     </section>
 
     <section class="privacy-section">
       <h2>How data flows through MCP</h2>
-      <p>This is worth explaining clearly because it's a new kind of data flow that most privacy policies don't address.</p>
       <p>
-        When you connect an AI assistant to Savecraft, the assistant can use our MCP tools to request
-        your game data. A typical interaction looks like this: you ask the AI a question about your
-        character, the AI calls our <code>get_section</code> tool with your save ID, we return the
-        requested JSON data (e.g., your equipped gear), and the AI uses that data to answer your question.
+        This is worth explaining clearly because it's a new kind of data flow that most privacy
+        policies don't address.
       </p>
       <p>
-        We serve data to the AI assistant <strong>on your behalf and under your authorization.</strong>
+        When you connect an AI assistant to Savecraft, the assistant can use our MCP tools to
+        request your game data. A typical interaction looks like this: you ask the AI a question
+        about your character, the AI calls our <code>get_section</code> tool with your save ID, we return
+        the requested JSON data (e.g., your equipped gear), and the AI uses that data to answer your question.
+      </p>
+      <p>
+        We serve data to the AI assistant <strong
+          >on your behalf and under your authorization.</strong
+        >
         We do not control what the AI provider does with the data after receiving it — that is governed
-        by your agreement with the AI provider (Anthropic, OpenAI, Google, etc.). We do not cache
-        requests from AI providers, and we do not retain logs of which tools are called or what data is
-        returned.
+        by your agreement with the AI provider (Anthropic, OpenAI, Google, etc.). We do not cache requests
+        from AI providers, and we do not retain logs of which tools are called or what data is returned.
       </p>
     </section>
 
@@ -183,10 +236,10 @@
         </table>
       </div>
       <p>
-        This cookie is <strong>strictly necessary</strong> for the service to function (it keeps you
-        logged in) and is exempt from consent requirements under the ePrivacy Directive. We do not use
-        any analytics, advertising, or tracking cookies. No cookie consent banner is needed or shown
-        because there are no optional cookies to consent to.
+        This cookie is <strong>strictly necessary</strong> for the service to function (it keeps you logged
+        in) and is exempt from consent requirements under the ePrivacy Directive. We do not use any analytics,
+        advertising, or tracking cookies. No cookie consent banner is needed or shown because there are
+        no optional cookies to consent to.
       </p>
     </section>
 
@@ -197,27 +250,35 @@
       <h3>Cloudflare</h3>
       <p><strong>Role:</strong> Infrastructure provider (data processor under GDPR).</p>
       <p>
-        <strong>What they process:</strong> All application data — save snapshots, account metadata,
-        notes, authentication tokens, device events. Cloudflare Workers execute your API requests; R2
-        stores save snapshots; D1 (SQLite) stores account and device metadata, notes, and the search
-        index; KV stores OAuth tokens.
+        <strong>What they process:</strong> All application data — save snapshots, account metadata, notes,
+        authentication tokens, device events. Cloudflare Workers execute your API requests; R2 stores
+        save snapshots; D1 (SQLite) stores account and device metadata, notes, and the search index; KV
+        stores OAuth tokens.
       </p>
-      <p><strong>Data location:</strong> Your data is stored and processed on Cloudflare's global network, including in the United States.</p>
       <p>
-        <strong>Transfer safeguards:</strong> Cloudflare is certified under the EU-U.S. Data Privacy
-        Framework and incorporates EU Standard Contractual Clauses in its Data Processing Addendum,
-        which applies automatically to all customers.
+        <strong>Data location:</strong> Your data is stored and processed on Cloudflare's global network,
+        including in the United States.
+      </p>
+      <p>
+        <strong>Transfer safeguards:</strong> Cloudflare is certified under the EU-U.S. Data Privacy Framework
+        and incorporates EU Standard Contractual Clauses in its Data Processing Addendum, which applies
+        automatically to all customers.
       </p>
       <p>
         <strong>Their privacy policy:</strong>
-        <a href="https://www.cloudflare.com/privacypolicy/" class="text-link">cloudflare.com/privacypolicy</a>
+        <a href="https://www.cloudflare.com/privacypolicy/" class="text-link"
+          >cloudflare.com/privacypolicy</a
+        >
       </p>
 
       <h3>Clerk</h3>
-      <p><strong>Role:</strong> Authentication provider (data processor for authentication services; independent data controller for its own account management).</p>
       <p>
-        <strong>What they receive:</strong> Your email address, display name, and authentication
-        credentials (hashed). Clerk also processes session data and device metadata as part of authentication.
+        <strong>Role:</strong> Authentication provider (data processor for authentication services; independent
+        data controller for its own account management).
+      </p>
+      <p>
+        <strong>What they receive:</strong> Your email address, display name, and authentication credentials
+        (hashed). Clerk also processes session data and device metadata as part of authentication.
       </p>
       <p><strong>Data location:</strong> United States (Google Cloud Platform).</p>
       <p>
@@ -232,30 +293,38 @@
 
       <h3>Stripe (future)</h3>
       <p>
-        When we add paid subscriptions, Stripe will process payments. Stripe will receive your payment
-        card details, billing address, and transaction data directly — we will not store payment
-        information ourselves. Stripe acts as both a data processor (handling transactions on our behalf)
-        and an independent data controller (for fraud prevention and regulatory compliance). We will
-        update this policy before adding Stripe.
+        When we add paid subscriptions, Stripe will process payments. Stripe will receive your
+        payment card details, billing address, and transaction data directly — we will not store
+        payment information ourselves. Stripe acts as both a data processor (handling transactions
+        on our behalf) and an independent data controller (for fraud prevention and regulatory
+        compliance). We will update this policy before adding Stripe.
       </p>
 
       <p>
-        <strong>No other third parties have access to your data.</strong> We do not use advertising
-        networks, data brokers, marketing platforms, or social media integrations.
+        <strong>No other third parties have access to your data.</strong> We do not use advertising networks,
+        data brokers, marketing platforms, or social media integrations.
       </p>
     </section>
 
     <section class="privacy-section">
       <h2>International data transfers</h2>
       <p>
-        If you are in the EU/EEA or UK, your data is transferred to and processed in the United States
-        and potentially other countries where Cloudflare operates edge infrastructure. These transfers
-        are protected by:
+        If you are in the EU/EEA or UK, your data is transferred to and processed in the United
+        States and potentially other countries where Cloudflare operates edge infrastructure. These
+        transfers are protected by:
       </p>
       <ul>
-        <li>The <strong>EU-U.S. Data Privacy Framework</strong> adequacy decision (European Commission, July 10, 2023), under which both Cloudflare and Clerk are certified.</li>
-        <li><strong>EU Standard Contractual Clauses</strong> (Commission Decision 2021/914) incorporated into both Cloudflare's and Clerk's data processing agreements, as a fallback mechanism.</li>
-        <li>The <strong>UK International Data Transfer Addendum</strong> for UK-originating data.</li>
+        <li>
+          The <strong>EU-U.S. Data Privacy Framework</strong> adequacy decision (European Commission,
+          July 10, 2023), under which both Cloudflare and Clerk are certified.
+        </li>
+        <li>
+          <strong>EU Standard Contractual Clauses</strong> (Commission Decision 2021/914) incorporated
+          into both Cloudflare's and Clerk's data processing agreements, as a fallback mechanism.
+        </li>
+        <li>
+          The <strong>UK International Data Transfer Addendum</strong> for UK-originating data.
+        </li>
       </ul>
     </section>
 
@@ -266,8 +335,9 @@
       <p>
         You can request a copy of all data we hold about you, ask us to correct inaccurate data, or
         delete your account and all associated data by emailing
-        <a href="mailto:privacy@savecraft.gg" class="text-link">privacy@savecraft.gg</a>. You can also
-        delete individual saves, notes, and devices directly through the web UI or MCP tools at any time.
+        <a href="mailto:privacy@savecraft.gg" class="text-link">privacy@savecraft.gg</a>. You can
+        also delete individual saves, notes, and devices directly through the web UI or MCP tools at
+        any time.
       </p>
 
       <h3>EU/EEA and UK residents</h3>
@@ -278,36 +348,44 @@
         <li><strong>Erase</strong> your data ("right to be forgotten")</li>
         <li><strong>Restrict</strong> processing in certain circumstances</li>
         <li><strong>Object</strong> to processing based on legitimate interest</li>
-        <li><strong>Data portability</strong> — receive your data in a structured, machine-readable format (your game state is already structured JSON)</li>
-        <li><strong>Lodge a complaint</strong> with your local data protection supervisory authority</li>
+        <li>
+          <strong>Data portability</strong> — receive your data in a structured, machine-readable format
+          (your game state is already structured JSON)
+        </li>
+        <li>
+          <strong>Lodge a complaint</strong> with your local data protection supervisory authority
+        </li>
       </ul>
       <p>
         We respond to all data rights requests within <strong>one month</strong>. If a request is
-        complex, we may extend this by up to two additional months with notice. Requests are free of charge.
+        complex, we may extend this by up to two additional months with notice. Requests are free of
+        charge.
       </p>
       <p>
-        We do not have a Data Protection Officer, as our processing activities do not involve large-scale
-        systematic monitoring or special category data. For any privacy concerns, contact us directly at
+        We do not have a Data Protection Officer, as our processing activities do not involve
+        large-scale systematic monitoring or special category data. For any privacy concerns,
+        contact us directly at
         <a href="mailto:privacy@savecraft.gg" class="text-link">privacy@savecraft.gg</a>.
       </p>
 
       <h3>California residents</h3>
       <p>
         We do not currently meet the applicability thresholds of the California Consumer Privacy Act
-        (CCPA/CPRA). Regardless, we voluntarily state: <strong>we do not sell or share your personal
-        information</strong> as defined under California law, and we have never done so. If the CCPA
-        becomes applicable to us, we will update this policy with the required disclosures.
+        (CCPA/CPRA). Regardless, we voluntarily state: <strong
+          >we do not sell or share your personal information</strong
+        > as defined under California law, and we have never done so. If the CCPA becomes applicable to
+        us, we will update this policy with the required disclosures.
       </p>
     </section>
 
     <section class="privacy-section">
       <h2>Children's privacy</h2>
       <p>
-        Savecraft is not directed at children under 13. We do not knowingly collect personal information
-        from children under 13. If you are under 13, please do not use Savecraft or provide any
-        information to us. If we learn that we have collected personal information from a child under 13,
-        we will delete that data promptly. If you believe a child under 13 has provided us with personal
-        information, please contact us at
+        Savecraft is not directed at children under 13. We do not knowingly collect personal
+        information from children under 13. If you are under 13, please do not use Savecraft or
+        provide any information to us. If we learn that we have collected personal information from
+        a child under 13, we will delete that data promptly. If you believe a child under 13 has
+        provided us with personal information, please contact us at
         <a href="mailto:privacy@savecraft.gg" class="text-link">privacy@savecraft.gg</a>.
       </p>
       <p>
@@ -319,36 +397,48 @@
     <section class="privacy-section">
       <h2>Data security</h2>
       <p>
-        Save data and notes are stored in Cloudflare's infrastructure, which provides encryption at rest
-        and in transit. Authentication tokens are hashed (SHA-256 for device tokens; bcrypt for Clerk
-        credentials). OAuth tokens are opaque and stored with automatic expiration. The daemon runs with
-        minimal system permissions — on Linux/Steam Deck, kernel-enforced sandboxing (via systemd)
-        restricts it to read-only access to save file directories and write access only to its own
-        configuration. WASM plugins that parse save files are sandboxed and cannot access the filesystem,
-        network, or environment variables.
+        Save data and notes are stored in Cloudflare's infrastructure, which provides encryption at
+        rest and in transit. Authentication tokens are hashed (SHA-256 for device tokens; bcrypt for
+        Clerk credentials). OAuth tokens are opaque and stored with automatic expiration. The daemon
+        runs with minimal system permissions — on Linux/Steam Deck, kernel-enforced sandboxing (via
+        systemd) restricts it to read-only access to save file directories and write access only to
+        its own configuration. WASM plugins that parse save files are sandboxed and cannot access
+        the filesystem, network, or environment variables.
       </p>
-      <p>Our source code is publicly available. You can inspect exactly what data the daemon collects, how plugins parse saves, and how the server handles requests.</p>
+      <p>
+        Our source code is publicly available. You can inspect exactly what data the daemon
+        collects, how plugins parse saves, and how the server handles requests.
+      </p>
     </section>
 
     <section class="privacy-section">
       <h2>Changes to this policy</h2>
       <p>
         We will update this policy when our data practices change. For material changes — new data
-        collection, new third-party services, changes to retention periods — we will notify you via email
-        and/or a prominent notice on savecraft.gg at least 30 days before the changes take effect. For
-        minor clarifications or formatting changes, we will update the "Last updated" date at the top.
+        collection, new third-party services, changes to retention periods — we will notify you via
+        email and/or a prominent notice on savecraft.gg at least 30 days before the changes take
+        effect. For minor clarifications or formatting changes, we will update the "Last updated"
+        date at the top.
       </p>
       <p>
         Previous versions of this policy will be available in our
-        <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">public Git repository</a>.
+        <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link"
+          >public Git repository</a
+        >.
       </p>
     </section>
 
     <section class="privacy-section">
       <h2>Contact</h2>
       <p>For any privacy-related questions, concerns, or data rights requests:</p>
-      <p><strong>Email:</strong> <a href="mailto:privacy@savecraft.gg" class="text-link">privacy@savecraft.gg</a></p>
-      <p>We aim to respond to all inquiries within 5 business days and to all formal data rights requests within one month.</p>
+      <p>
+        <strong>Email:</strong>
+        <a href="mailto:privacy@savecraft.gg" class="text-link">privacy@savecraft.gg</a>
+      </p>
+      <p>
+        We aim to respond to all inquiries within 5 business days and to all formal data rights
+        requests within one month.
+      </p>
     </section>
   </article>
 
@@ -364,8 +454,15 @@
     >
     <div class="footer-links">
       <a href="/privacy" class="footer-link">PRIVACY</a>
-      <a href="https://discord.gg/YnC8stpEmF" class="footer-link" target="_blank" rel="noopener">DISCORD</a>
-      <a href="https://github.com/joshsymonds/savecraft.gg" class="footer-link" target="_blank" rel="noopener">GITHUB</a>
+      <a href="https://discord.gg/YnC8stpEmF" class="footer-link" target="_blank" rel="noopener"
+        >DISCORD</a
+      >
+      <a
+        href="https://github.com/joshsymonds/savecraft.gg"
+        class="footer-link"
+        target="_blank"
+        rel="noopener">GITHUB</a
+      >
     </div>
   </footer>
 </div>
