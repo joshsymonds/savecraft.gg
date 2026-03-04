@@ -10,12 +10,23 @@
     ConnectCard,
     DeviceWindow,
     InstallBlock,
+    LinkingCard,
     StatusDot,
   } from "$lib/components";
   import { activateGame } from "$lib/stores/activation";
   import { activityEvents } from "$lib/stores/activity";
   import { devices, setGameStatus } from "$lib/stores/devices";
   import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
+  import { pendingLinkCode } from "$lib/stores/link-code";
+  import {
+    cancelLink,
+    dismissLinkError,
+    linkCode,
+    linkedDeviceId,
+    linkError,
+    linkState,
+    submitLinkCode,
+  } from "$lib/stores/link-flow";
   import type { Device, DeviceStatus } from "$lib/types/device";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
 
@@ -23,6 +34,39 @@
 
   let configDeviceId = $state<string | null>(null);
   let activityExpanded = $state(false);
+  let showLinkInput = $state(false);
+  let wasManualInput = $state(false);
+
+  // Auto-submit pending link code from /link/[code] redirect
+  $effect(() => {
+    const code = $pendingLinkCode;
+    if (code && $linkState === "idle") {
+      wasManualInput = false;
+      void submitLinkCode(code);
+    }
+  });
+
+  function handleManualLink(code: string): void {
+    wasManualInput = true;
+    showLinkInput = false;
+    void submitLinkCode(code);
+  }
+
+  function handleDismissError(): void {
+    dismissLinkError();
+    if (wasManualInput) {
+      showLinkInput = true;
+      wasManualInput = false;
+    }
+  }
+
+  function handleCancelLink(): void {
+    cancelLink();
+    if (wasManualInput) {
+      showLinkInput = true;
+      wasManualInput = false;
+    }
+  }
 
   let visibleEvents = $derived(
     activityExpanded ? $activityEvents : $activityEvents.slice(0, COLLAPSED_EVENT_COUNT),
@@ -73,12 +117,20 @@
 <div class="devices-layout">
   <!-- Main: device cards -->
   <main class="devices">
+    {#if $linkState === "linking"}
+      <LinkingCard cardState="linking" code={$linkCode} ondismiss={handleCancelLink} />
+    {:else if $linkState === "error"}
+      <LinkingCard cardState="error" errorMessage={$linkError} ondismiss={handleDismissError} />
+    {:else if showLinkInput}
+      <LinkingCard cardState="input" onsubmit={handleManualLink} ondismiss={() => (showLinkInput = false)} />
+    {/if}
+
     {#if $devices.length === 0}
       {#if $connectionStatus === "connecting"}
         <div class="empty-state">
           <span class="empty-text">Connecting...</span>
         </div>
-      {:else}
+      {:else if $linkState !== "linking"}
         <InstallBlock prominent={true} />
       {/if}
     {:else}
@@ -87,11 +139,15 @@
       <div class="section-header">
         <span class="section-label">DEVICES</span>
         <span class="device-count">{$devices.length} connected</span>
+        {#if $linkState === "idle" && !showLinkInput}
+          <button class="add-device-btn" onclick={() => (showLinkInput = true)}>+ ADD DEVICE</button>
+        {/if}
       </div>
 
       {#each $devices as device (device.id)}
         <DeviceWindow
           {device}
+          justLinked={device.id === $linkedDeviceId}
           onrescan={() => rescan(device)}
           ondiscover={discover}
           onconfig={() => (configDeviceId = device.id)}
@@ -195,6 +251,25 @@
     font-family: var(--font-body);
     font-size: 16px;
     color: var(--color-text-dim);
+    flex: 1;
+  }
+
+  .add-device-btn {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--color-gold);
+    letter-spacing: 1px;
+    background: none;
+    border: 1px solid rgba(200, 168, 78, 0.25);
+    border-radius: 3px;
+    padding: 4px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .add-device-btn:hover {
+    background: rgba(200, 168, 78, 0.1);
+    border-color: var(--color-gold);
   }
 
   .empty-state {

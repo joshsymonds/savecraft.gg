@@ -9,49 +9,16 @@
   });
 </script>
 
-<!-- Hero: idle state — the main "PAIR A DEVICE" CTA -->
+<!-- Hero: full "GET STARTED" CTA for empty state (no devices yet) -->
 <Story name="HeroIdle">
   <div style="width: 720px;">
-    <InstallBlock prominent={true} initialState={{ pairingState: "idle" }} />
+    <InstallBlock prominent={true} />
   </div>
 </Story>
 
-<!-- Hero: active pairing code with countdown timer -->
-<Story name="HeroWithCode">
-  <div style="width: 720px;">
-    <InstallBlock
-      prominent={true}
-      initialState={{ pairingState: "active", pairingCode: "847293", remainingSeconds: 97 }}
-    />
-  </div>
-</Story>
-
-<!-- Hero: expired code -->
-<Story name="HeroExpired">
-  <div style="width: 720px;">
-    <InstallBlock prominent={true} initialState={{ pairingState: "expired" }} />
-  </div>
-</Story>
-
-<!-- Compact: collapsed "ADD ANOTHER DEVICE" row -->
+<!-- Compact: collapsed "ADD ANOTHER DEVICE" row (below device list) -->
 <Story name="CompactCollapsed">
   <div style="width: 720px;">
-    <InstallBlock prominent={false} initialState={{ pairingState: "idle" }} />
-  </div>
-</Story>
-
-<!-- Compact: expanded with pairing flow visible -->
-<Story name="CompactExpanded">
-  <div style="width: 720px;">
-    <!-- Note: compact mode starts collapsed, user must click to expand.
-         Storybook will show the collapsed state; click "ADD ANOTHER DEVICE" to see the flow. -->
-    <InstallBlock prominent={false} initialState={{ pairingState: "idle" }} />
-  </div>
-</Story>
-
-<!-- Compact: device connected celebration -->
-<Story name="CompactClaimed">
-  <div style="width: 720px;">
-    <InstallBlock prominent={false} initialState={{ pairingState: "claimed" }} />
+    <InstallBlock prominent={false} />
   </div>
 </Story>
