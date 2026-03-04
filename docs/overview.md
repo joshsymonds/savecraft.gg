@@ -123,8 +123,9 @@ savecraft/
 ├── buf.gen.yaml                 # buf codegen config (Go + TypeScript targets)
 ├── Justfile                     # Command runner targets
 ├── cmd/
-│   └── savecraftd/              # Local daemon binary
-│       └── main.go
+│   ├── savecraftd/              # Local daemon binary (headless, no GUI)
+│   │   └── main.go
+│   └── savecraft-tray/          # System tray app (polls daemon, shows status)
 ├── internal/
 │   ├── proto/                   # Generated Go code from protobuf (do not edit)
 │   │   └── savecraft/v1/
@@ -139,8 +140,10 @@ savecraft/
 │   ├── push/                    # HTTP client for /api/v1/push
 │   │   └── client.go
 │   ├── pluginmgr/              # Plugin download, verification, caching, manifest access
-│   └── wsconn/                  # WebSocket client for /ws/daemon
-│       └── client.go
+│   ├── wsconn/                  # WebSocket client for /ws/daemon
+│   │   └── client.go
+│   ├── localapi/               # Localhost HTTP API (server + client for tray↔daemon IPC)
+│   └── svcmgr/                 # Cross-platform service management (systemd, launchd, registry)
 ├── worker/                      # Cloudflare Worker + Durable Object (TypeScript)
 │   ├── src/
 │   │   ├── index.ts             # Worker routes, request handling
@@ -164,7 +167,8 @@ savecraft/
 │       └── plugin.toml
 ├── install/
 │   ├── install.sh               # Linux/Steam Deck curl installer
-│   ├── savecraft.service        # systemd user unit template
+│   ├── windows/                 # WiX MSI installer definition
+│   │   └── savecraft.wxs
 │   └── worker/                  # Cloudflare Worker (UA-based install router)
 │       └── src/index.ts
 ├── web/                         # SvelteKit frontend: device status, settings, notes
@@ -172,11 +176,17 @@ savecraft/
 └── go.sum
 ```
 
-Cross-compilation for daemon:
+Cross-compilation:
 ```bash
-GOOS=windows GOARCH=amd64 go build -o savecraft-daemon.exe ./cmd/savecraftd
-GOOS=linux GOARCH=amd64 go build -o savecraft-daemon-linux ./cmd/savecraftd
-GOOS=linux GOARCH=arm64 go build -o savecraft-daemon-deck ./cmd/savecraftd
+# Daemon (CGO_ENABLED=0 on all platforms — no GUI dependencies)
+just build-daemon linux amd64
+just build-daemon darwin arm64
+just build-daemon windows amd64
+
+# Tray app (CGO only needed on macOS for Cocoa; pure Go on Linux/Windows)
+just build-tray linux amd64
+just build-tray darwin arm64
+just build-tray windows amd64
 ```
 
 Go `internal/` packages are daemon-only. The server is a TypeScript Cloudflare Worker (`worker/`), not a Go binary.
