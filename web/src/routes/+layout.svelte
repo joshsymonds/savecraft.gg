@@ -37,7 +37,10 @@
     const isSignedOut = $authState.isLoaded && !$authState.isSignedIn;
     const likelySignedOut = !$authState.isLoaded && !hasClerkSession();
     if (isSignedOut || likelySignedOut) {
-      void goto(resolve("/sign-in"));
+      const returnPath = page.url.pathname;
+      const signInUrl =
+        returnPath === "/" ? "/sign-in" : `/sign-in?redirect_url=${encodeURIComponent(returnPath)}`;
+      void goto(resolve(signInUrl));
     }
   });
 

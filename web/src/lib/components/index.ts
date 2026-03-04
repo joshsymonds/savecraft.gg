@@ -4,6 +4,7 @@ export { default as ConnectCard } from "./ConnectCard.svelte";
 export { default as DeviceWindow } from "./DeviceWindow.svelte";
 export { default as GameCard } from "./GameCard.svelte";
 export { default as InstallBlock } from "./InstallBlock.svelte";
+export { default as LinkingCard } from "./LinkingCard.svelte";
 export { default as NoteCard } from "./NoteCard.svelte";
 export { default as Panel } from "./Panel.svelte";
 export { default as ParentChip } from "./ParentChip.svelte";

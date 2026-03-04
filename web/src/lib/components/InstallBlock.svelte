@@ -1,6 +1,7 @@
 <!--
   @component
-  Install flow: install command (primary), API key management (secondary).
+  Install flow: install command (primary), API key management (automation escape hatch).
+  Device linking via URL is the primary pairing method; API keys are for headless setups.
   prominent=true: full hero treatment (empty state)
   prominent=false: compact collapsible row (below device list)
 -->

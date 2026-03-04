@@ -201,6 +201,16 @@ export function toNoteSummary(note: ApiNote): NoteSummary {
   };
 }
 
+// ── Device Linking ────────────────────────────────────────────
+
+export interface LinkDeviceResponse {
+  device_uuid: string;
+}
+
+export async function linkDevice(code: string): Promise<LinkDeviceResponse> {
+  return mutate<LinkDeviceResponse>("POST", "/api/v1/device/link", { code });
+}
+
 // ── MCP Status ────────────────────────────────────────────────
 
 export interface McpStatus {
