@@ -15,6 +15,7 @@ import {
   getSave,
   getSection,
   getSectionDiff,
+  getSetupHelp,
   listGames,
   queryReference,
   refreshSave,
@@ -39,7 +40,9 @@ Results from search_saves distinguish between save data (what the player actuall
 
 When the player shares something worth remembering — a goal, a milestone, a plan — offer to save it as a note via create_note. Keep notes current with update_note when circumstances change. The player shouldn't have to repeat themselves across sessions.
 
-For questions about game mechanics (drop rates, build calculations, treasure classes), use query_reference. The list_games response includes available reference modules and their parameter schemas, so you already know what queries are possible — no extra discovery step needed. These computations use actual game data tables and are more reliable than AI estimation.`;
+For questions about game mechanics (drop rates, build calculations, treasure classes), use query_reference. The list_games response includes available reference modules and their parameter schemas, so you already know what queries are possible — no extra discovery step needed. These computations use actual game data tables and are more reliable than AI estimation.
+
+If the player has no saves, asks about installing Savecraft, mentions a pairing code, or seems confused about why their data isn't showing up, use get_setup_help. It returns their device status, can look up a pairing code, and provides platform-specific installation instructions.`;
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -59,6 +62,7 @@ interface SchemaProperty {
   type: string;
   description: string;
   items?: { type: string };
+  enum?: string[];
 }
 
 interface ToolDefinition {
@@ -373,6 +377,40 @@ const TOOLS: ToolDefinition[] = [
       openWorldHint: false,
     },
   },
+  // ── Setup Help ──────────────────────────────────────────────
+  {
+    name: "get_setup_help",
+    title: "Setup Help",
+    description:
+      "Check the player's device and installation status, look up a pairing code, and get platform-specific installation instructions. Use this when the player asks about installing Savecraft, when list_games returns no saves, when the player mentions a pairing code or device code, or when the player is confused about why their game data isn't appearing. Returns the player's linked devices with activity status, optional link code or device lookup results, and a full installation guide. If you know the player's operating system, pass it as the platform parameter to get targeted instructions.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        platform: {
+          type: "string",
+          description:
+            "Operating system for targeted install instructions. Infer from conversation context (e.g. Windows paths, Linux commands).",
+          enum: ["linux", "windows", "macos"],
+        },
+        link_code: {
+          type: "string",
+          description:
+            "6-digit pairing code displayed by the Savecraft daemon during setup. Look this up to check if the device is registered, paired, or has an expired code.",
+        },
+        device_uuid: {
+          type: "string",
+          description:
+            "Device UUID to check directly. Use if you already have the UUID from a previous interaction.",
+        },
+      },
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
 ];
 
 function jsonRpcResponse(id: number | string, result: unknown): Response {
@@ -468,6 +506,9 @@ async function handleToolCall(
     }
     case "query_reference": {
       return handleQueryReference(env, args);
+    }
+    case "get_setup_help": {
+      return getSetupHelp(env.DB, userUuid, args.platform as string | undefined, args.link_code as string | undefined, args.device_uuid as string | undefined);
     }
     default: {
       return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };

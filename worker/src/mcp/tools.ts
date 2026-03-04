@@ -1011,6 +1011,170 @@ function isFormattedResult(data: unknown): boolean {
   );
 }
 
+// ── Setup Help ───────────────────────────────────────────────
+
+interface DeviceRow {
+  device_uuid: string;
+  user_uuid: string | null;
+  hostname: string | null;
+  os: string | null;
+  arch: string | null;
+  last_push_at: string | null;
+  link_code: string | null;
+  link_code_expires_at: string | null;
+  can_rescan: number;
+  can_receive_config: number;
+}
+
+/** Safe subset of device info — never includes token_hash, user PII, etc. */
+interface DeviceInfo {
+  device_uuid: string;
+  hostname: string | null;
+  os: string | null;
+  arch: string | null;
+  linked: boolean;
+  last_active: string | null;
+  activity: "active" | "recently_active" | "inactive" | "never_pushed";
+  capabilities: { can_rescan: boolean; can_receive_config: boolean };
+}
+
+interface DeviceLookupResult {
+  found: boolean;
+  device_uuid?: string;
+  hostname?: string | null;
+  os?: string | null;
+  arch?: string | null;
+  linked?: boolean;
+  last_active?: string | null;
+  activity?: string;
+  link_code_valid?: boolean;
+  link_code_expires_at?: string | null;
+}
+
+interface PlatformGuide {
+  install: string | null;
+  details: string;
+}
+
+interface SetupGuideResponse {
+  devices: DeviceInfo[];
+  guide: Record<string, PlatformGuide | string>;
+  lookup?: DeviceLookupResult;
+}
+
+const ACTIVE_THRESHOLD_MS = 5 * 60_000; // 5 minutes
+const RECENTLY_ACTIVE_THRESHOLD_MS = 60 * 60_000; // 1 hour
+
+function deriveActivity(lastPushAt: string | null): DeviceInfo["activity"] {
+  if (!lastPushAt) return "never_pushed";
+  const age = Date.now() - new Date(lastPushAt).getTime();
+  if (age < ACTIVE_THRESHOLD_MS) return "active";
+  if (age < RECENTLY_ACTIVE_THRESHOLD_MS) return "recently_active";
+  return "inactive";
+}
+
+function formatDeviceInfo(row: DeviceRow): DeviceInfo {
+  return {
+    device_uuid: row.device_uuid,
+    hostname: row.hostname,
+    os: row.os,
+    arch: row.arch,
+    linked: row.user_uuid !== null,
+    last_active: row.last_push_at,
+    activity: deriveActivity(row.last_push_at),
+    capabilities: { can_rescan: row.can_rescan === 1, can_receive_config: row.can_receive_config === 1 },
+  };
+}
+
+function buildLookupResult(row: DeviceRow | null, viaCode: boolean): DeviceLookupResult {
+  if (!row) return { found: false };
+
+  const info = formatDeviceInfo(row);
+  const result: DeviceLookupResult = { found: true, ...info };
+
+  if (viaCode) {
+    const expired =
+      !row.link_code_expires_at || new Date(row.link_code_expires_at).getTime() < Date.now();
+    result.link_code_valid = !expired;
+    result.link_code_expires_at = row.link_code_expires_at;
+  }
+
+  return result;
+}
+
+const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
+  linux: {
+    install: "curl -fsSL https://install.savecraft.gg | bash",
+    details:
+      "Downloads signed binaries, verifies Ed25519 signatures, installs to ~/.local/bin/, sets up a systemd user service, and auto-registers the device. The daemon starts immediately and displays a pairing code.",
+  },
+  windows: {
+    install: "Download the installer from https://install.savecraft.gg",
+    details: String.raw`Downloads an MSI installer. Installs the daemon and tray app to C:\Program Files\Savecraft\. Both start automatically on login. The tray app displays a pairing code.`,
+  },
+  macos: {
+    install: null,
+    details: "macOS support is not yet available. It's on the roadmap.",
+  },
+};
+
+const PAIRING_GUIDE =
+  "After installing, the daemon displays a 6-digit pairing code. Visit https://savecraft.gg/setup and enter the code to link the device to your account. Once paired, your game saves appear automatically. Codes expire after 20 minutes — if yours has expired, the tray app can generate a new one.";
+
+function buildGuide(platform?: string): SetupGuideResponse["guide"] {
+  if (platform) {
+    const guide = PLATFORM_GUIDES[platform];
+    if (guide) {
+      return { [platform]: guide, pairing: PAIRING_GUIDE };
+    }
+  }
+  return { ...PLATFORM_GUIDES, pairing: PAIRING_GUIDE };
+}
+
+const DEVICE_COLS =
+  "device_uuid, user_uuid, hostname, os, arch, last_push_at, link_code, link_code_expires_at, can_rescan, can_receive_config";
+
+export async function getSetupHelp(
+  db: D1Database,
+  userUuid: string,
+  platform?: string,
+  linkCode?: string,
+  deviceUuid?: string,
+): Promise<ToolResult> {
+  // 1. User's linked devices
+  const deviceRows = await db
+    .prepare(`SELECT ${DEVICE_COLS} FROM devices WHERE user_uuid = ? ORDER BY last_push_at DESC NULLS LAST`)
+    .bind(userUuid)
+    .all<DeviceRow>();
+
+  const devices = deviceRows.results.map((row) => formatDeviceInfo(row));
+
+  // 2. Optional lookup (device_uuid takes precedence over link_code)
+  let lookup: DeviceLookupResult | undefined;
+
+  if (deviceUuid) {
+    const row = await db
+      .prepare(`SELECT ${DEVICE_COLS} FROM devices WHERE device_uuid = ?`)
+      .bind(deviceUuid)
+      .first<DeviceRow>();
+    lookup = buildLookupResult(row, false);
+  } else if (linkCode) {
+    const row = await db
+      .prepare(`SELECT ${DEVICE_COLS} FROM devices WHERE link_code = ?`)
+      .bind(linkCode)
+      .first<DeviceRow>();
+    lookup = buildLookupResult(row, true);
+  }
+
+  // 3. Build response
+  const response: SetupGuideResponse = { devices, guide: buildGuide(platform) };
+  if (lookup !== undefined) {
+    response.lookup = lookup;
+  }
+
+  return textResult(response);
+}
+
 // ── Search Indexing Helpers ───────────────────────────────────
 
 export async function indexSaveSections(
