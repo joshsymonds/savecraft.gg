@@ -110,7 +110,9 @@ export async function seedDevice(
   const deviceUuid = crypto.randomUUID();
   const deviceToken = `dvt_${crypto.randomUUID()}`;
   const tokenHash = await sha256Hex(deviceToken);
-  const linkCode = String(Math.floor(Math.random() * 900_000) + 100_000);
+  const randomBytes = new Uint32Array(1);
+  crypto.getRandomValues(randomBytes);
+  const linkCode = String((randomBytes[0]! % 900_000) + 100_000);
   const linkCodeExpiresAt = new Date(Date.now() + 20 * 60_000).toISOString();
   await env.DB.prepare(
     "INSERT INTO devices (device_uuid, user_uuid, token_hash, link_code, link_code_expires_at) VALUES (?, ?, ?, ?, ?)",
