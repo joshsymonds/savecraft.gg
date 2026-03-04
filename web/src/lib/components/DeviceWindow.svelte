@@ -59,16 +59,8 @@
     initialSaveUuid?: string;
   } = $props();
 
-  // Auto-dismiss the linked banner after 5 s
-  let showLinkedBanner = $state(false);
-  $effect(() => {
-    if (justLinked) {
-      showLinkedBanner = true;
-      const timer = setTimeout(() => (showLinkedBanner = false), 5000);
-      return () => clearTimeout(timer);
-    }
-    showLinkedBanner = false;
-  });
+  // Show linked banner while justLinked is true (store auto-resets after 5 s)
+  let showLinkedBanner = $derived(justLinked);
 
   // Nav state
   let navGameId = $state<string | null>(initialGameId ?? null);

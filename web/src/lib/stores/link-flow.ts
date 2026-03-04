@@ -9,25 +9,38 @@ export type LinkState = "idle" | "linking" | "success" | "error";
 const stateStore = writable<LinkState>("idle");
 const errorStore = writable("");
 const deviceIdStore = writable<string | null>(null);
+const codeStore = writable("");
 
 export const linkState: Readable<LinkState> = stateStore;
 export const linkError: Readable<string> = errorStore;
 export const linkedDeviceId: Readable<string | null> = deviceIdStore;
+export const linkCode: Readable<string> = codeStore;
 
 function hasStatus(err: unknown): err is { status: number } {
   return typeof err === "object" && err !== null && "status" in err;
 }
 
+// Generation counter — incremented on each submit/cancel to ignore stale results
+let generation = 0;
+
 export async function submitLinkCode(code: string): Promise<void> {
+  const gen = ++generation;
+  codeStore.set(code);
   stateStore.set("linking");
   errorStore.set("");
   pendingLinkCode.set(null);
 
   try {
     const result = await linkDevice(code);
+    if (gen !== generation) return;
     deviceIdStore.set(result.device_uuid);
     stateStore.set("success");
+    // Auto-reset after 5 s so linkedDeviceId and success state don't persist
+    setTimeout(() => {
+      if (gen === generation) resetLinkFlow();
+    }, 5000);
   } catch (err: unknown) {
+    if (gen !== generation) return;
     if (hasStatus(err) && err.status === 400) {
       errorStore.set("Invalid code \u2014 check and try again");
     } else if (hasStatus(err) && err.status === 404) {
@@ -39,6 +52,13 @@ export async function submitLinkCode(code: string): Promise<void> {
   }
 }
 
+export function cancelLink(): void {
+  generation++;
+  stateStore.set("idle");
+  errorStore.set("");
+  codeStore.set("");
+}
+
 export function dismissLinkError(): void {
   stateStore.set("idle");
   errorStore.set("");
@@ -48,4 +68,5 @@ export function resetLinkFlow(): void {
   stateStore.set("idle");
   errorStore.set("");
   deviceIdStore.set(null);
+  codeStore.set("");
 }

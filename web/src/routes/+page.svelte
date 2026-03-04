@@ -19,7 +19,9 @@
   import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
   import { pendingLinkCode } from "$lib/stores/link-code";
   import {
+    cancelLink,
     dismissLinkError,
+    linkCode,
     linkedDeviceId,
     linkError,
     linkState,
@@ -33,21 +35,37 @@
   let configDeviceId = $state<string | null>(null);
   let activityExpanded = $state(false);
   let showLinkInput = $state(false);
-  let displayCode = $state("");
+  let wasManualInput = $state(false);
 
   // Auto-submit pending link code from /link/[code] redirect
   $effect(() => {
     const code = $pendingLinkCode;
-    if (code) {
-      displayCode = code;
+    if (code && $linkState === "idle") {
+      wasManualInput = false;
       void submitLinkCode(code);
     }
   });
 
   function handleManualLink(code: string): void {
-    displayCode = code;
+    wasManualInput = true;
     showLinkInput = false;
     void submitLinkCode(code);
+  }
+
+  function handleDismissError(): void {
+    dismissLinkError();
+    if (wasManualInput) {
+      showLinkInput = true;
+      wasManualInput = false;
+    }
+  }
+
+  function handleCancelLink(): void {
+    cancelLink();
+    if (wasManualInput) {
+      showLinkInput = true;
+      wasManualInput = false;
+    }
   }
 
   let visibleEvents = $derived(
@@ -100,9 +118,9 @@
   <!-- Main: device cards -->
   <main class="devices">
     {#if $linkState === "linking"}
-      <LinkingCard cardState="linking" code={displayCode} />
+      <LinkingCard cardState="linking" code={$linkCode} ondismiss={handleCancelLink} />
     {:else if $linkState === "error"}
-      <LinkingCard cardState="error" errorMessage={$linkError} ondismiss={dismissLinkError} />
+      <LinkingCard cardState="error" errorMessage={$linkError} ondismiss={handleDismissError} />
     {:else if showLinkInput}
       <LinkingCard cardState="input" onsubmit={handleManualLink} ondismiss={() => (showLinkInput = false)} />
     {/if}

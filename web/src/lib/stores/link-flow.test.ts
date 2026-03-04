@@ -7,8 +7,16 @@ vi.mock("$lib/api/client", () => ({
 
 const { linkDevice } = await import("$lib/api/client");
 const { pendingLinkCode } = await import("./link-code");
-const { dismissLinkError, linkedDeviceId, linkError, linkState, resetLinkFlow, submitLinkCode } =
-  await import("./link-flow");
+const {
+  cancelLink,
+  dismissLinkError,
+  linkedDeviceId,
+  linkCode,
+  linkError,
+  linkState,
+  resetLinkFlow,
+  submitLinkCode,
+} = await import("./link-flow");
 
 describe("link-flow", () => {
   beforeEach(() => {
@@ -97,5 +105,64 @@ describe("link-flow", () => {
     expect(get(linkState)).toBe("idle");
     expect(get(linkError)).toBe("");
     expect(get(linkedDeviceId)).toBe(null);
+  });
+
+  it("exposes submitted code via linkCode store", async () => {
+    vi.mocked(linkDevice).mockResolvedValue({ device_uuid: "dev-123" });
+
+    expect(get(linkCode)).toBe("");
+    await submitLinkCode("482913");
+    expect(get(linkCode)).toBe("482913");
+  });
+
+  it("cancelLink resets to idle from linking", () => {
+    vi.mocked(linkDevice).mockReturnValue(
+      new Promise(() => {
+        /* never resolves */
+      }),
+    );
+    void submitLinkCode("482913");
+    expect(get(linkState)).toBe("linking");
+
+    cancelLink();
+
+    expect(get(linkState)).toBe("idle");
+    expect(get(linkError)).toBe("");
+    expect(get(linkCode)).toBe("");
+  });
+
+  it("ignores stale API result after cancelLink", async () => {
+    let resolveLink: (v: { device_uuid: string }) => void;
+    vi.mocked(linkDevice).mockReturnValue(
+      new Promise((resolve) => {
+        resolveLink = resolve;
+      }),
+    );
+
+    void submitLinkCode("482913");
+    cancelLink();
+
+    // Resolve the original promise — should be ignored
+    resolveLink!({ device_uuid: "dev-stale" });
+    await Promise.resolve();
+
+    expect(get(linkState)).toBe("idle");
+    expect(get(linkedDeviceId)).toBe(null);
+  });
+
+  it("auto-resets to idle after success", async () => {
+    vi.useFakeTimers();
+    vi.mocked(linkDevice).mockResolvedValue({ device_uuid: "dev-789" });
+
+    await submitLinkCode("482913");
+    expect(get(linkState)).toBe("success");
+    expect(get(linkedDeviceId)).toBe("dev-789");
+
+    await vi.advanceTimersByTimeAsync(5000);
+
+    expect(get(linkState)).toBe("idle");
+    expect(get(linkedDeviceId)).toBe(null);
+
+    vi.useRealTimers();
   });
 });

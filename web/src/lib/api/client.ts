@@ -207,15 +207,8 @@ export interface LinkDeviceResponse {
   device_uuid: string;
 }
 
-export async function linkDevice(
-  code: string,
-  email?: string,
-  displayName?: string,
-): Promise<LinkDeviceResponse> {
-  const body: Record<string, string> = { code };
-  if (email) body.email = email;
-  if (displayName) body.display_name = displayName;
-  return mutate<LinkDeviceResponse>("POST", "/api/v1/device/link", body);
+export async function linkDevice(code: string): Promise<LinkDeviceResponse> {
+  return mutate<LinkDeviceResponse>("POST", "/api/v1/device/link", { code });
 }
 
 // ── MCP Status ────────────────────────────────────────────────
