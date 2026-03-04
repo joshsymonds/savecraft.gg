@@ -11,6 +11,7 @@
   import { createApiKey, deleteApiKey, generatePairingCode, listApiKeys } from "$lib/api/client";
   import type { ApiKey, CreateApiKeyResponse } from "$lib/api/client";
   import { Panel, TinyButton } from "$lib/components";
+  import { detectOS } from "$lib/platform";
   import { devices } from "$lib/stores/devices";
   import { onMount } from "svelte";
 
@@ -48,9 +49,11 @@
   let error = $state<string | null>(null);
   let expanded = $state(false);
 
-  const installUrl = PUBLIC_API_URL.includes("staging")
-    ? "https://install-staging.savecraft.gg"
-    : "https://install.savecraft.gg";
+  const isStaging = PUBLIC_API_URL.includes("staging");
+  const installUrl = isStaging ? "https://install-staging.savecraft.gg" : "https://install.savecraft.gg";
+  const appName = isStaging ? "savecraft-staging" : "savecraft";
+  const msiUrl = `${installUrl}/daemon/${appName}.msi`;
+  const os = detectOS();
   const CODE_TTL_SECONDS = 1200;
 
   onMount(() => {
@@ -246,17 +249,28 @@
       {#if prominent}<span class="step-number">2</span>{/if}
       <span class="step-title">Install Daemon</span>
     </div>
-    <p class="step-desc">Run this command on your Linux machine or Steam Deck:</p>
-    <div class="command-block">
-      <code class="command-text">{installCommand()}</code>
-      <TinyButton
-        label={copied === "cmd" ? "COPIED" : "COPY"}
-        onclick={() => {
-          void copyToClipboard(installCommand(), "cmd");
-        }}
-      />
-    </div>
-    <p class="command-hint">The installer will prompt you for the pairing code.</p>
+    {#if os === "windows"}
+      <p class="step-desc">Download and install Savecraft for Windows:</p>
+      <div class="action-row">
+        <a class="primary-action" href={msiUrl}>
+          <span class="primary-action-icon">&darr;</span>
+          <span class="primary-action-label">DOWNLOAD FOR WINDOWS</span>
+        </a>
+      </div>
+      <p class="command-hint">After install, enter your pairing code in the system tray app.</p>
+    {:else}
+      <p class="step-desc">Run this command on your Linux machine or Steam Deck:</p>
+      <div class="command-block">
+        <code class="command-text">{installCommand()}</code>
+        <TinyButton
+          label={copied === "cmd" ? "COPIED" : "COPY"}
+          onclick={() => {
+            void copyToClipboard(installCommand(), "cmd");
+          }}
+        />
+      </div>
+      <p class="command-hint">The installer will prompt you for the pairing code.</p>
+    {/if}
   </div>
 {/snippet}
 
@@ -267,9 +281,15 @@
       <span class="step-title">What Happens Next</span>
     </div>
     <div class="next-steps-inline">
-      <span class="next-step-item">Installs to <code>~/.local/bin/</code></span>
-      <span class="next-step-sep">&middot;</span>
-      <span class="next-step-item">Starts as a systemd service</span>
+      {#if os === "windows"}
+        <span class="next-step-item">Installs to <code>Program Files</code></span>
+        <span class="next-step-sep">&middot;</span>
+        <span class="next-step-item">Starts on login</span>
+      {:else}
+        <span class="next-step-item">Installs to <code>~/.local/bin/</code></span>
+        <span class="next-step-sep">&middot;</span>
+        <span class="next-step-item">Starts as a systemd service</span>
+      {/if}
       <span class="next-step-sep">&middot;</span>
       <span class="next-step-item">Appears on this page automatically</span>
     </div>
@@ -329,8 +349,13 @@
       <span class="hero-label">GET STARTED</span>
       <h2 class="hero-title">Connect your gaming machine to Savecraft</h2>
       <p class="hero-subtitle">
-        Pair your device, run one command, and the daemon starts watching your saves. Takes two
-        minutes.
+        {#if os === "windows"}
+          Pair your device, download the installer, and the daemon starts watching your saves. Takes
+          two minutes.
+        {:else}
+          Pair your device, run one command, and the daemon starts watching your saves. Takes two
+          minutes.
+        {/if}
       </p>
     </div>
 

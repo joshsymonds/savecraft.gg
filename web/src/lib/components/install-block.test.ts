@@ -27,6 +27,11 @@ vi.mock("$env/static/public", () => ({
   PUBLIC_API_URL: "https://api.test.savecraft.gg",
 }));
 
+const mockDetectOS = vi.fn<() => string>().mockReturnValue("linux");
+vi.mock("$lib/platform", () => ({
+  detectOS: () => mockDetectOS(),
+}));
+
 describe("InstallBlock", () => {
   afterEach(() => {
     cleanup();
@@ -166,7 +171,7 @@ describe("InstallBlock", () => {
     });
   });
 
-  describe("prominent mode — install command", () => {
+  describe("prominent mode — install command (Linux)", () => {
     it("shows install command without API key", () => {
       const { container } = render(InstallBlock, { props: { prominent: true } });
       const cmdText = container.querySelector(".command-text")!.textContent!;
@@ -179,6 +184,48 @@ describe("InstallBlock", () => {
       render(InstallBlock, { props: { prominent: true } });
       expect(
         screen.getByText("The installer will prompt you for the pairing code."),
+      ).toBeInTheDocument();
+    });
+
+    it("does not show Windows download button", () => {
+      render(InstallBlock, { props: { prominent: true } });
+      expect(screen.queryByText("DOWNLOAD FOR WINDOWS")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("prominent mode — install command (Windows)", () => {
+    beforeEach(() => {
+      mockDetectOS.mockReturnValue("windows");
+    });
+
+    afterEach(() => {
+      mockDetectOS.mockReturnValue("linux");
+    });
+
+    it("shows download button instead of curl command", () => {
+      const { container } = render(InstallBlock, { props: { prominent: true } });
+      expect(screen.getByText("DOWNLOAD FOR WINDOWS")).toBeInTheDocument();
+      expect(container.querySelector(".command-text")).toBeNull();
+    });
+
+    it("download button links to MSI", () => {
+      render(InstallBlock, { props: { prominent: true } });
+      const link = screen.getByText("DOWNLOAD FOR WINDOWS").closest("a");
+      expect(link).not.toBeNull();
+      expect(link!.href).toContain("install.savecraft.gg/daemon/");
+      expect(link!.href).toMatch(/\.msi$/);
+    });
+
+    it("shows Windows-specific next steps", () => {
+      render(InstallBlock, { props: { prominent: true } });
+      expect(screen.getByText(/Program Files/)).toBeInTheDocument();
+      expect(screen.getByText(/Starts on login/)).toBeInTheDocument();
+    });
+
+    it("shows Windows-specific install hint", () => {
+      render(InstallBlock, { props: { prominent: true } });
+      expect(
+        screen.getByText(/enter your pairing code in the system tray/i),
       ).toBeInTheDocument();
     });
   });
