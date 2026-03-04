@@ -11,23 +11,23 @@ async function sha256Hex(input: string): Promise<string> {
   return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-async function insertDevice(opts: {
+async function insertDevice(options: {
   deviceUuid: string;
   userUuid?: string | null;
   createdAt: string;
   lastPushAt?: string | null;
 }): Promise<void> {
-  const tokenHash = await sha256Hex(`dvt_${opts.deviceUuid}`);
+  const tokenHash = await sha256Hex(`dvt_${options.deviceUuid}`);
   await env.DB.prepare(
     `INSERT INTO devices (device_uuid, user_uuid, token_hash, created_at, last_push_at)
      VALUES (?, ?, ?, ?, ?)`,
   )
     .bind(
-      opts.deviceUuid,
-      opts.userUuid ?? null,
+      options.deviceUuid,
+      options.userUuid ?? null,
       tokenHash,
-      opts.createdAt,
-      opts.lastPushAt ?? null,
+      options.createdAt,
+      options.lastPushAt ?? null,
     )
     .run();
 }

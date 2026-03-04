@@ -233,11 +233,13 @@ describe("Device Linking", () => {
     it("overwrites existing link code", async () => {
       const { deviceUuid, deviceToken } = await seedDevice();
 
-      const oldDevice = await env.DB.prepare(
+      // Verify device already has a link code from seeding before we overwrite it.
+      const before = await env.DB.prepare(
         "SELECT link_code FROM devices WHERE device_uuid = ?",
       )
         .bind(deviceUuid)
         .first<{ link_code: string }>();
+      expect(before!.link_code).toBeTruthy();
 
       const resp = await SELF.fetch(
         new Request("https://test-host/api/v1/device/link-code", {

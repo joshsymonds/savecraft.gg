@@ -173,22 +173,20 @@ async function routeDaemonEndpoints(
     if (!auth) return new Response("Unauthorized", { status: 401 });
     return Response.json({ status: "ok" });
   }
-  if (url.pathname === "/api/v1/push" && request.method === "POST") {
-    const auth = await authenticateDevice(request, env);
-    if (!auth) return new Response("Unauthorized", { status: 401 });
-    return handlePush(request, env, auth.deviceUuid);
-  }
-  if (url.pathname === "/api/v1/device/link-code" && request.method === "POST") {
-    const auth = await authenticateDevice(request, env);
-    if (!auth) return new Response("Unauthorized", { status: 401 });
-    return handleDeviceLinkCode(env, auth.deviceUuid);
-  }
-  if (url.pathname === "/api/v1/device/status" && request.method === "GET") {
-    const auth = await authenticateDevice(request, env);
-    if (!auth) return new Response("Unauthorized", { status: 401 });
-    return handleDeviceStatus(env, auth.deviceUuid);
-  }
-  return null;
+
+  // Check route match before authenticating so non-daemon paths fall through.
+  const isDeviceRoute =
+    (url.pathname === "/api/v1/push" && request.method === "POST") ||
+    (url.pathname === "/api/v1/device/link-code" && request.method === "POST") ||
+    (url.pathname === "/api/v1/device/status" && request.method === "GET");
+  if (!isDeviceRoute) return null;
+
+  const auth = await authenticateDevice(request, env);
+  if (!auth) return new Response("Unauthorized", { status: 401 });
+
+  if (url.pathname === "/api/v1/push") return handlePush(request, env, auth.deviceUuid);
+  if (url.pathname === "/api/v1/device/link-code") return handleDeviceLinkCode(env, auth.deviceUuid);
+  return handleDeviceStatus(env, auth.deviceUuid);
 }
 
 async function routeProtectedEndpoints(request: Request, url: URL, env: Env): Promise<Response> {
