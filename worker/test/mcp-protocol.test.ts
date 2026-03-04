@@ -156,8 +156,7 @@ describe("MCP Protocol", () => {
       "get_save",
       "get_section",
       "get_section_diff",
-      "list_references",
-      "list_saves",
+      "list_games",
       "query_reference",
       "refresh_save",
       "search_saves",
@@ -165,7 +164,7 @@ describe("MCP Protocol", () => {
     ]);
   });
 
-  it("calls list_saves and returns seeded data", async () => {
+  it("calls list_games and returns seeded data grouped by game", async () => {
     // Initialize
     await SELF.fetch(
       mcpRequest("initialize", 1, {
@@ -177,7 +176,7 @@ describe("MCP Protocol", () => {
 
     const resp = await SELF.fetch(
       mcpRequest("tools/call", 3, {
-        name: "list_saves",
+        name: "list_games",
         arguments: {},
       }),
     );
@@ -187,13 +186,18 @@ describe("MCP Protocol", () => {
       result: { content: { type: string; text: string }[] };
     };
     const data = JSON.parse(body.result.content[0]!.text) as {
-      saves: { save_id: string; game_id: string; name: string }[];
+      games: {
+        game_id: string;
+        game_name: string;
+        saves: { save_id: string; name: string }[];
+      }[];
     };
-    expect(data.saves.length).toBeGreaterThanOrEqual(1);
+    expect(data.games.length).toBeGreaterThanOrEqual(1);
 
-    const save = data.saves.find((s) => s.save_id === SAVE_UUID_HOLDER.value);
+    const d2r = data.games.find((g) => g.game_id === "d2r");
+    expect(d2r).toBeDefined();
+    const save = d2r!.saves.find((s) => s.save_id === SAVE_UUID_HOLDER.value);
     expect(save).toBeDefined();
-    expect(save!.game_id).toBe("d2r");
     expect(save!.name).toBe("Hammerdin");
   });
 
@@ -249,7 +253,7 @@ describe("MCP Protocol", () => {
     expect(resp.status).toBe(401);
   });
 
-  it("calls list_references with seeded manifest", async () => {
+  it("list_games includes reference modules from seeded manifest", async () => {
     // Seed a manifest with reference modules
     const manifest = {
       game_id: "d2r",
@@ -275,7 +279,7 @@ describe("MCP Protocol", () => {
 
     const resp = await SELF.fetch(
       mcpRequest("tools/call", 10, {
-        name: "list_references",
+        name: "list_games",
         arguments: {},
       }),
     );
@@ -287,45 +291,20 @@ describe("MCP Protocol", () => {
     expect(body.result.isError).toBeUndefined();
 
     const data = JSON.parse(body.result.content[0]!.text) as {
-      references: { game_id: string; modules: { id: string; name: string }[] }[];
+      games: {
+        game_id: string;
+        references?: { id: string; name: string }[];
+      }[];
     };
-    expect(data.references).toHaveLength(1);
-    expect(data.references[0]!.game_id).toBe("d2r");
-    expect(data.references[0]!.modules[0]!.id).toBe("drop_calc");
-    expect(data.references[0]!.modules[0]!.name).toBe("Drop Calculator");
+    const d2r = data.games.find((g) => g.game_id === "d2r");
+    expect(d2r).toBeDefined();
+    expect(d2r!.references).toBeDefined();
+    expect(d2r!.references).toHaveLength(1);
+    expect(d2r!.references![0]!.id).toBe("drop_calc");
+    expect(d2r!.references![0]!.name).toBe("Drop Calculator");
   });
 
-  it("list_references returns empty for no reference modules", async () => {
-    // Seed a manifest WITHOUT reference section
-    const manifest = { game_id: "other", name: "Some Game" };
-    await env.PLUGINS.put("plugins/other/manifest.json", JSON.stringify(manifest));
-
-    await SELF.fetch(
-      mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
-        capabilities: {},
-        clientInfo: { name: "test-client", version: "1.0.0" },
-      }),
-    );
-
-    const resp = await SELF.fetch(
-      mcpRequest("tools/call", 11, {
-        name: "list_references",
-        arguments: {},
-      }),
-    );
-    expect(resp.status).toBe(200);
-
-    const body = (await parseJsonResponse(resp)) as {
-      result: { content: { type: string; text: string }[] };
-    };
-    const data = JSON.parse(body.result.content[0]!.text) as {
-      references: unknown[];
-    };
-    expect(data.references).toHaveLength(0);
-  });
-
-  it("list_references filters by game_id", async () => {
+  it("list_games filters by game name substring", async () => {
     // Seed two manifests with reference modules
     const d2rManifest = {
       game_id: "d2r",
@@ -350,8 +329,8 @@ describe("MCP Protocol", () => {
 
     const resp = await SELF.fetch(
       mcpRequest("tools/call", 12, {
-        name: "list_references",
-        arguments: { game_id: "d2r" },
+        name: "list_games",
+        arguments: { filter: "diablo" },
       }),
     );
     expect(resp.status).toBe(200);
@@ -360,10 +339,10 @@ describe("MCP Protocol", () => {
       result: { content: { type: string; text: string }[] };
     };
     const data = JSON.parse(body.result.content[0]!.text) as {
-      references: { game_id: string }[];
+      games: { game_id: string }[];
     };
-    expect(data.references).toHaveLength(1);
-    expect(data.references[0]!.game_id).toBe("d2r");
+    expect(data.games).toHaveLength(1);
+    expect(data.games[0]!.game_id).toBe("d2r");
   });
 
   it("query_reference returns error for unknown game", async () => {
@@ -378,7 +357,7 @@ describe("MCP Protocol", () => {
     const resp = await SELF.fetch(
       mcpRequest("tools/call", 13, {
         name: "query_reference",
-        arguments: { game_id: "nonexistent", query: "{}" },
+        arguments: { game_id: "nonexistent", module: "drop_calc", query: "{}" },
       }),
     );
     expect(resp.status).toBe(200);

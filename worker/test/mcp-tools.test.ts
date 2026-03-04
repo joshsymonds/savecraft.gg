@@ -9,7 +9,7 @@ import {
   getSave,
   getSection,
   getSectionDiff,
-  listSaves,
+  listGames,
   refreshSave,
   searchSaves,
   updateNote,
@@ -99,20 +99,34 @@ function parseResult(result: ToolResult): unknown {
 describe("MCP Tools", () => {
   beforeEach(cleanAll);
 
-  // ── list_saves ──────────────────────────────────────────────
+  // ── list_games ──────────────────────────────────────────────
 
-  describe("listSaves", () => {
+  interface GameEntry {
+    game_id: string;
+    game_name: string;
+    saves: {
+      save_id: string;
+      name: string;
+      summary: string;
+      last_updated: string;
+      notes: { note_id: string; title: string }[];
+    }[];
+    references?: { id: string; name: string; description: string; parameters?: unknown }[];
+  }
+
+  describe("listGames", () => {
     it("returns empty array when user has no saves", async () => {
-      const result = await listSaves(env.DB, "no-saves-user");
-      const data = parseResult(result) as { saves: unknown[] };
-      expect(data.saves).toEqual([]);
+      const result = await listGames(env.DB, env.PLUGINS, "no-saves-user");
+      const data = parseResult(result) as { games: GameEntry[] };
+      expect(data.games).toEqual([]);
     });
 
-    it("returns all saves for the authenticated user", async () => {
+    it("groups saves by game_id", async () => {
       await seedSave({
         saveUuid: "save-1",
         userUuid: USER_A,
         gameId: "d2r",
+        gameName: "Diablo II: Resurrected",
         saveName: "Hammerdin",
         summary: "Hammerdin, Level 89 Paladin",
       });
@@ -120,16 +134,43 @@ describe("MCP Tools", () => {
         saveUuid: "save-2",
         userUuid: USER_A,
         gameId: "stardew",
+        gameName: "Stardew Valley",
         saveName: "Berry Farm",
         summary: "Berry Farm, Year 3 Fall",
       });
 
-      const result = await listSaves(env.DB, USER_A);
-      const data = parseResult(result) as { saves: { save_id: string; game_id: string }[] };
-      expect(data.saves).toHaveLength(2);
+      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      expect(data.games).toHaveLength(2);
 
-      const gameIds = data.saves.map((s) => s.game_id).toSorted((a, b) => a.localeCompare(b));
+      const gameIds = data.games.map((g) => g.game_id).toSorted((a, b) => a.localeCompare(b));
       expect(gameIds).toEqual(["d2r", "stardew"]);
+
+      const d2r = data.games.find((g) => g.game_id === "d2r")!;
+      expect(d2r.game_name).toBe("Diablo II: Resurrected");
+      expect(d2r.saves).toHaveLength(1);
+      expect(d2r.saves[0]!.name).toBe("Hammerdin");
+    });
+
+    it("includes note titles per save", async () => {
+      await seedSave({
+        saveUuid: "save-notes",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Hammerdin",
+        summary: "Hammerdin, Level 89",
+      });
+      await seedNote("save-notes", USER_A, "note-1", "Build Guide", "## Gear section");
+      await seedNote("save-notes", USER_A, "note-2", "Farming Goals", "Need Ber rune");
+
+      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      const game = data.games.find((g) => g.game_id === "d2r")!;
+      const save = game.saves.find((s) => s.save_id === "save-notes")!;
+      expect(save.notes).toHaveLength(2);
+
+      const titles = save.notes.map((n) => n.title).toSorted((a, b) => a.localeCompare(b));
+      expect(titles).toEqual(["Build Guide", "Farming Goals"]);
     });
 
     it("does not return saves from other users", async () => {
@@ -141,11 +182,10 @@ describe("MCP Tools", () => {
         summary: "Sorceress, Level 80",
       });
 
-      const result = await listSaves(env.DB, USER_A);
-      const data = parseResult(result) as { saves: { save_id: string }[] };
-      // Should only see USER_A saves (if any seeded in this test), not USER_B
-      const allIds = data.saves.map((s) => s.save_id);
-      expect(allIds).not.toContain("save-other");
+      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      const allSaveIds = data.games.flatMap((g) => g.saves.map((s) => s.save_id));
+      expect(allSaveIds).not.toContain("save-other");
     });
 
     it("includes save metadata in response", async () => {
@@ -158,14 +198,66 @@ describe("MCP Tools", () => {
         lastUpdated: "2026-02-25T21:30:00Z",
       });
 
-      const result = await listSaves(env.DB, USER_A);
-      const data = parseResult(result) as { saves: Record<string, unknown>[] };
-      const save = data.saves.find((s) => s.save_id === "save-meta");
-      expect(save).toBeDefined();
-      expect(save!.game_id).toBe("d2r");
-      expect(save!.name).toBe("Hammerdin");
-      expect(save!.summary).toBe("Hammerdin, Level 89 Paladin");
-      expect(save!.last_updated).toBe("2026-02-25T21:30:00Z");
+      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      const game = data.games.find((g) => g.game_id === "d2r")!;
+      const save = game.saves.find((s) => s.save_id === "save-meta")!;
+      expect(save.name).toBe("Hammerdin");
+      expect(save.summary).toBe("Hammerdin, Level 89 Paladin");
+      expect(save.last_updated).toBe("2026-02-25T21:30:00Z");
+    });
+
+    it("filters games by name (case-insensitive substring)", async () => {
+      await seedSave({
+        saveUuid: "save-filter-1",
+        userUuid: USER_A,
+        gameId: "d2r",
+        gameName: "Diablo II: Resurrected",
+        saveName: "Hammerdin",
+        summary: "Hammerdin, Level 89",
+      });
+      await seedSave({
+        saveUuid: "save-filter-2",
+        userUuid: USER_A,
+        gameId: "stardew",
+        gameName: "Stardew Valley",
+        saveName: "Berry Farm",
+        summary: "Berry Farm, Year 3",
+      });
+
+      const result = await listGames(env.DB, env.PLUGINS, USER_A, "diablo");
+      const data = parseResult(result) as { games: GameEntry[] };
+      expect(data.games).toHaveLength(1);
+      expect(data.games[0]!.game_id).toBe("d2r");
+    });
+
+    it("filters games by game_id (case-insensitive substring)", async () => {
+      await seedSave({
+        saveUuid: "save-filter-id",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Hammerdin",
+        summary: "Hammerdin, Level 89",
+      });
+
+      const result = await listGames(env.DB, env.PLUGINS, USER_A, "D2R");
+      const data = parseResult(result) as { games: GameEntry[] };
+      expect(data.games).toHaveLength(1);
+      expect(data.games[0]!.game_id).toBe("d2r");
+    });
+
+    it("returns error when filter matches no games", async () => {
+      await seedSave({
+        saveUuid: "save-no-match",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Hammerdin",
+        summary: "Test",
+      });
+
+      const result = await listGames(env.DB, env.PLUGINS, USER_A, "nonexistent_game_xyz");
+      expect(result.isError).toBe(true);
+      expect(result.content[0]!.text).toContain("No games matching");
     });
   });
 

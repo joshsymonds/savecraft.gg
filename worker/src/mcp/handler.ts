@@ -15,8 +15,7 @@ import {
   getSave,
   getSection,
   getSectionDiff,
-  listReferences,
-  listSaves,
+  listGames,
   queryReference,
   refreshSave,
   searchSaves,
@@ -31,7 +30,7 @@ Two interaction modes (same tools, different intent):
 - Companion: The player is talking, venting, or celebrating. React with empathy and context from their actual state. "I FOUND A BER" means more when you know it was on their farming list.
 - Optimizer: The player wants specific advice. Analyze their sections and notes, compare to game knowledge, give personalized recommendations.
 
-Start with list_saves to see what's available. Use get_save to orient on a character — it returns a summary, overview data, all available section names, and any attached notes. Notes contain the player's goals, build guides, and context from previous sessions — they are your memory across conversations. Use get_note to read the full content of relevant notes before giving advice. Only then fetch specific sections via get_section as needed for the question.
+Start with list_games to see what's available — it returns all games, saves (with note titles), and reference modules (with parameter schemas) in one call. Use get_save to orient on a character — it returns a summary, overview data, all available section names, and attached notes. Notes contain the player's goals, build guides, and context from previous sessions — they are your memory across conversations. Use get_note to read the full content of relevant notes before giving advice. Only then fetch specific sections via get_section as needed for the question.
 
 When the player says something just changed ("I just found a Ber rune", "I just finished the quest"), call refresh_save first to pull fresh data, then re-read the relevant sections.
 
@@ -39,7 +38,7 @@ Results from search_saves distinguish between save data (what the player actuall
 
 When the player shares something worth remembering — a goal, a milestone, a plan — offer to save it as a note via create_note. Keep notes current with update_note when circumstances change. The player shouldn't have to repeat themselves across sessions.
 
-For questions about game mechanics (drop rates, build calculations, treasure classes), use the reference data tools. Call list_references to discover available computation modules, then query_reference to get authoritative answers computed from actual game data tables. These are more reliable than AI estimation — use them whenever the player asks about probabilities, optimal farming, or build math.`;
+For questions about game mechanics (drop rates, build calculations, treasure classes), use query_reference. The list_games response includes available reference modules and their parameter schemas, so you already know what queries are possible — no extra discovery step needed. These computations use actual game data tables and are more reliable than AI estimation.`;
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -78,12 +77,13 @@ interface ToolDefinition {
 // Savecraft — these descriptions are its entire playbook.
 //
 // Progressive disclosure order:
-//   1. list_saves → orient (what characters/games exist)
+//   1. list_games → orient (what games, characters, saves, references exist)
 //   2. get_save → context on a character (summary, overview, sections, notes)
 //   3. get_note → read the player's goals/guides before giving advice
 //   4. get_section → fetch specific game data as needed
 //   5. refresh_save → pull fresh data when player reports changes
 //   6. search_saves → cross-save or "I don't know where this is" queries
+//   7. query_reference → authoritative game calculations (drop rates, builds)
 //
 // Two interaction modes (same tools, different intent):
 //   - Companion: player is talking, venting, celebrating. React with context.
@@ -92,11 +92,20 @@ interface ToolDefinition {
 const TOOLS: ToolDefinition[] = [
   // ── Discovery ─────────────────────────────────────────────
   {
-    name: "list_saves",
-    title: "List Saves",
+    name: "list_games",
+    title: "List Games",
     description:
-      "List all of the player's saves across all games. Start here to see what characters and games are available. Returns each save's game, character name, a short summary (e.g. 'Hammerdin, Level 89 Paladin'), and when it was last updated. Use the returned save_id to call other tools.",
-    inputSchema: { type: "object", properties: {} },
+      "List all games the player has, with their saves, notes, and available reference modules. Start here to orient yourself. Each game includes its saves (with note titles per save), and reference modules with parameter schemas showing what computations are available. Use the returned save_id with other tools. Optionally filter by game name or ID.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        filter: {
+          type: "string",
+          description:
+            "Filter games by name or ID (case-insensitive substring match). Omit to see all games.",
+        },
+      },
+    },
     annotations: {
       readOnlyHint: true,
       destructiveHint: false,
@@ -112,7 +121,7 @@ const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        save_id: { type: "string", description: "Save UUID returned by list_games" },
       },
       required: ["save_id"],
     },
@@ -132,7 +141,7 @@ const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        save_id: { type: "string", description: "Save UUID returned by list_games" },
         sections: {
           type: "array",
           description:
@@ -142,7 +151,7 @@ const TOOLS: ToolDefinition[] = [
         timestamp: {
           type: "string",
           description:
-            "ISO 8601 timestamp to fetch a historical snapshot instead of the latest data. Timestamps are visible in list_saves last_updated field.",
+            "ISO 8601 timestamp to fetch a historical snapshot instead of the latest data. Timestamps are visible in list_games last_updated field.",
         },
       },
       required: ["save_id", "sections"],
@@ -162,7 +171,7 @@ const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        save_id: { type: "string", description: "Save UUID returned by list_games" },
         section: { type: "string", description: "Section name to compare (from get_save)" },
         period: {
           type: "string",
@@ -192,7 +201,7 @@ const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        save_id: { type: "string", description: "Save UUID returned by list_games" },
         note_id: { type: "string", description: "Note UUID returned by get_save or search_saves" },
       },
       required: ["save_id", "note_id"],
@@ -212,7 +221,7 @@ const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        save_id: { type: "string", description: "Save UUID returned by list_games" },
         title: {
           type: "string",
           description:
@@ -241,7 +250,7 @@ const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        save_id: { type: "string", description: "Save UUID returned by list_games" },
         note_id: { type: "string", description: "Note UUID returned by get_save or search_saves" },
         title: { type: "string", description: "New title (omit to keep current title)" },
         content: {
@@ -266,7 +275,7 @@ const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        save_id: { type: "string", description: "Save UUID returned by list_games" },
         note_id: { type: "string", description: "Note UUID returned by get_save or search_saves" },
       },
       required: ["save_id", "note_id"],
@@ -287,7 +296,7 @@ const TOOLS: ToolDefinition[] = [
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_saves" },
+        save_id: { type: "string", description: "Save UUID returned by list_games" },
       },
       required: ["save_id"],
     },
@@ -333,46 +342,29 @@ const TOOLS: ToolDefinition[] = [
   // calculations) that AIs can't reliably do themselves. These are
   // authoritative — they use the actual game data tables.
   {
-    name: "list_references",
-    title: "List Reference Modules",
-    description:
-      "List available reference data modules. These provide authoritative game computations (drop rates, build calculations) using actual game data tables — more reliable than AI estimation. Use query_reference to run a module. Optionally filter by game_id.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        game_id: {
-          type: "string",
-          description:
-            "Filter by game ID (e.g. 'd2r'). Omit to see all available reference modules across all games.",
-        },
-      },
-    },
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-  },
-  {
     name: "query_reference",
     title: "Query Reference Module",
     description:
-      "Execute a reference data query. Sends a JSON query to a game's reference module and returns computed results. Use list_references first to discover available modules and their parameters. For example, query the D2R drop calculator for exact drop probabilities from any monster with specific Magic Find and player count.",
+      "Execute a reference data computation for a game. Returns authoritative results computed from actual game data tables — more reliable than AI estimation. The list_games response includes each game's available reference modules and their parameter schemas, so check there first to see what queries are possible.",
     inputSchema: {
       type: "object",
       properties: {
         game_id: {
           type: "string",
-          description: "Game ID (e.g. 'd2r'). Must match a game from list_references.",
+          description: "Game ID from list_games (e.g. 'd2r').",
+        },
+        module: {
+          type: "string",
+          description:
+            "Reference module ID from list_games (e.g. 'drop_calc').",
         },
         query: {
           type: "string",
           description:
-            "JSON query string to send to the reference module. Use an empty object '{}' to get the module's self-describing schema with available parameters.",
+            "JSON query string with module-specific parameters. See the module's parameter schema from list_games for available fields.",
         },
       },
-      required: ["game_id", "query"],
+      required: ["game_id", "module", "query"],
     },
     annotations: {
       readOnlyHint: true,
@@ -418,8 +410,8 @@ async function handleToolCall(
   const saveId = args.save_id as string;
 
   switch (toolName) {
-    case "list_saves": {
-      return listSaves(env.DB, userUuid);
+    case "list_games": {
+      return listGames(env.DB, env.PLUGINS, userUuid, args.filter as string | undefined);
     }
     case "get_save": {
       return getSave(env.DB, env.SAVES, userUuid, saveId);
@@ -474,11 +466,19 @@ async function handleToolCall(
         args.save_id as string | undefined,
       );
     }
-    case "list_references": {
-      return listReferences(env.PLUGINS, args.game_id as string | undefined);
-    }
     case "query_reference": {
-      return queryReference(env.REFERENCE_PLUGINS, args.game_id as string, args.query as string);
+      let queryObj: Record<string, unknown>;
+      try {
+        queryObj = JSON.parse(args.query as string) as Record<string, unknown>;
+      } catch {
+        queryObj = {};
+      }
+      return queryReference(
+        env.REFERENCE_PLUGINS,
+        args.game_id as string,
+        args.module as string,
+        queryObj,
+      );
     }
     default: {
       return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
