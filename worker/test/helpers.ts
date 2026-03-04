@@ -94,6 +94,32 @@ export function waitForMessage<T = unknown>(ws: WebSocket, timeoutMs = 2000): Pr
   });
 }
 
+// -- Device helpers for tests --------------------------------------------------
+
+async function sha256Hex(input: string): Promise<string> {
+  const data = new TextEncoder().encode(input);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return [...new Uint8Array(hash)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * Create a device in D1 linked to a user. Returns deviceUuid and a real device token
+ * that will pass authenticateDevice().
+ */
+export async function seedDevice(
+  userUuid: string | null = null,
+): Promise<{ deviceUuid: string; deviceToken: string }> {
+  const deviceUuid = crypto.randomUUID();
+  const deviceToken = `dvt_${crypto.randomUUID()}`;
+  const tokenHash = await sha256Hex(deviceToken);
+  await env.DB.prepare(
+    "INSERT INTO devices (device_uuid, user_uuid, token_hash) VALUES (?, ?, ?)",
+  )
+    .bind(deviceUuid, userUuid, tokenHash)
+    .run();
+  return { deviceUuid, deviceToken };
+}
+
 // -- OAuth token helpers for MCP tests ----------------------------------------
 
 /**

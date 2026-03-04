@@ -1,25 +1,23 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, getOAuthToken } from "./helpers";
+import { cleanAll, getOAuthToken, seedDevice } from "./helpers";
 
 const TEST_USER = "mcp-proto-user";
 const SAVE_UUID_HOLDER: { value: string } = { value: "" };
 const TOKEN_HOLDER: { value: string } = { value: "" };
+const DEVICE_TOKEN_HOLDER: { value: string } = { value: "" };
 
 /**
- * Seed a save by pushing through the actual push API,
- * which populates both D1 and R2 correctly.
- *
- * Uses stub daemon auth (Bearer = user UUID) since CLERK_ISSUER is unset in tests.
- * The UUID matches getOAuthToken(TEST_USER) so both auth paths resolve to the same user.
+ * Seed a save by pushing through the actual push API.
+ * Uses device token auth since push now uses authenticateDevice.
  */
 async function pushSave(): Promise<string> {
   const resp = await SELF.fetch("https://test-host/api/v1/push", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${TEST_USER}`,
+      Authorization: `Bearer ${DEVICE_TOKEN_HOLDER.value}`,
       "X-Game": "d2r",
       "X-Parsed-At": "2026-02-25T21:30:00Z",
     },
@@ -91,6 +89,8 @@ async function parseJsonResponse(resp: Response): Promise<unknown> {
 describe("MCP Protocol", () => {
   beforeEach(async () => {
     await cleanAll();
+    const device = await seedDevice(TEST_USER);
+    DEVICE_TOKEN_HOLDER.value = device.deviceToken;
     TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
     SAVE_UUID_HOLDER.value = await pushSave();
   });
