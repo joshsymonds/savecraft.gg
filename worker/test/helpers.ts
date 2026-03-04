@@ -15,6 +15,7 @@ export const CLEANUP_TABLES = [
   "mcp_activity",
   "api_keys",
   "saves",
+  "devices",
 ] as const;
 
 /**
