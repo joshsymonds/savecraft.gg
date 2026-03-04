@@ -6,7 +6,7 @@
   Pass `state`, `code`, `errorMessage`, `deviceName` props to bypass internal logic (for Storybook).
 -->
 <script lang="ts">
-  import { Panel } from "$lib/components";
+  import Panel from "./Panel.svelte";
 
   type BannerState = "idle" | "linking" | "success" | "error";
 

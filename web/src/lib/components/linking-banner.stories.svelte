@@ -5,7 +5,6 @@
 
   const { Story } = defineMeta({
     title: "Components/LinkingBanner",
-    component: LinkingBanner,
     tags: ["autodocs"],
   });
 
