@@ -11,12 +11,12 @@ const seasonDays = 28
 
 // Speed-Gro reduction multipliers (applied to initial growth only, not regrow).
 const (
-	speedGroMult        = 0.90
-	deluxeSpeedGroMult  = 0.75
-	hyperSpeedGroMult   = 0.67
-	kegDaysFruit        = 7 // days to process fruit in keg (wine)
-	kegDaysVegetable    = 4 // days to process vegetable in keg (juice)
-	preservesJarDays    = 4 // days for preserves jar (jelly/pickles)
+	speedGroMult       = 0.90
+	deluxeSpeedGroMult = 0.75
+	hyperSpeedGroMult  = 0.67
+	kegDaysFruit       = 7 // days to process fruit in keg (wine)
+	kegDaysVegetable   = 4 // days to process vegetable in keg (juice)
+	preservesJarDays   = 4 // days for preserves jar (jelly/pickles)
 )
 
 // lookupCrop returns crop data with profitability calculations.
