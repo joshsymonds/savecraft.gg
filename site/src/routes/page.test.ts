@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 vi.mock("$env/static/public", () => ({
   PUBLIC_APP_URL: "https://test-app.savecraft.gg",
+  PUBLIC_INSTALL_URL: "https://test-install.savecraft.gg",
 }));
 
 import Page from "./+page.svelte";
