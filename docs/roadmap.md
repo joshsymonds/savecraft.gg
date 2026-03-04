@@ -50,22 +50,22 @@ Full treasure class resolution in Go, compiled to `reference.wasm`:
 - Player count effects on NoDrop
 - End-to-end integration test with known drop probabilities
 
-## Mod-as-Device (Direct Push)
+## Mod-as-Source (Direct Push)
 
-A new data source type alongside daemon parsers and API adapters. For games with unsandboxed modding frameworks, a Savecraft mod runs inside the game, pairs as a device, and pushes state directly to the push API. No daemon involved at all.
+A new data source type alongside daemon parsers and API adapters. For games with unsandboxed modding frameworks, a Savecraft mod runs inside the game, pairs as a source, and pushes state directly to the push API. No daemon involved at all.
 
-The mod *is* a device. From the server's perspective, there's no difference between a push from the daemon and a push from a RimWorld mod — they both authenticate with a device token and POST GameState JSON.
+The mod *is* a source. From the server's perspective, there's no difference between a push from the daemon and a push from a RimWorld mod — they both authenticate with a source token and POST GameState JSON.
 
 ### How It Works
 
 1. **Install:** User installs the Savecraft mod from the game's mod portal (Steam Workshop, CurseForge, etc.). One click.
-2. **Register + Link:** Mod calls `POST /api/v1/device/register` on first launch, gets a device token and 6-digit link code. User enters the code at `savecraft.gg/setup`. Same device linking flow the daemon uses.
+2. **Register + Link:** Mod calls `POST /api/v1/source/register` on first launch, gets a source token and 6-digit link code. User enters the code at `savecraft.gg/setup`. Same source linking flow the daemon uses.
 3. **Push:** Mod hooks the game's save event (Forge's `WorldEvent.Save`, Harmony's save patch). On save, mod serializes game state to JSON and POSTs directly to the push API. For games without a save hook, a conservative timer (60s) with server-side hash dedup.
 4. **Done.** No daemon, no system service, no OS-specific installer.
 
 ### Why This Exists
 
-- **Zero friction beyond the mod.** The daemon is the biggest install hurdle for Savecraft. Mod-as-device eliminates it entirely for supported games.
+- **Zero friction beyond the mod.** The daemon is the biggest install hurdle for Savecraft. Mod-as-source eliminates it entirely for supported games.
 - **Complete access.** Mods see runtime state that never hits disk — active production rates, logistics throughput, circuit network state.
 - **Correct by construction.** The game's own API guarantees data accuracy. No reverse-engineering binary formats.
 - **Survives format changes.** Mods use stable APIs. Save format changes don't matter.
@@ -85,7 +85,7 @@ The mod *is* a device. From the server's perspective, there's no difference betw
 
 - **Distribution:** Ship via each game's mod portal. This is the natural discovery channel.
 - **Versioning:** How does the mod signal its schema version? Probably a header on the push request.
-- **Rate limiting:** Mods are user-installed code making HTTP calls. Need per-device rate limits to prevent runaway mods from hammering the server.
+- **Rate limiting:** Mods are user-installed code making HTTP calls. Need per-source rate limits to prevent runaway mods from hammering the server.
 
 ## Mod-as-Emitter (Daemon-Assisted)
 
@@ -153,7 +153,7 @@ Factorio is currently the only identified candidate. If other sandboxed framewor
 | WoW (via addons) | `SavedVariables/*.lua` local files | Daemon-backed parser — Tier 3 complexity, not an adapter. |
 | FFXIV | Lodestone / XIVAPI (unofficial) | No local save data. Community APIs, fragile but viable. |
 
-### Tier 5: Mod-as-Device (No Daemon)
+### Tier 5: Mod-as-Source (No Daemon)
 
 | Game | Mod Framework | Notes |
 |------|--------------|-------|
@@ -161,7 +161,7 @@ Factorio is currently the only identified candidate. If other sandboxed framewor
 | Minecraft (Java) | Java (Fabric/Forge) | Inventory, advancements, world stats. |
 | Terraria | C# (tModLoader) | Gear, boss progress, world state. |
 
-Mod pairs as a device, pushes directly to the push API. No daemon required. See [Mod-as-Device](#mod-as-device-direct-push).
+Mod pairs as a source, pushes directly to the push API. No daemon required. See [Mod-as-Source](#mod-as-source-direct-push).
 
 ### Tier 6: Mod-as-Emitter (Daemon-Assisted)
 
@@ -204,7 +204,7 @@ These are policy decisions, not architecture decisions. Nothing about them chang
 - **Daemon auto-update mechanism:** Self-update is implemented (`internal/selfupdate/`). Pre-release version comparison not yet handled.
 - **Strategy site partnerships:** Approach Maxroll/Icy Veins as distribution partners or build scraper pipeline? TBD.
 - **Anthropic Connectors Directory submission:** After dogfooding or immediately?
-- **Multi-device support:** Solved by device-centric architecture. Each device self-registers and pushes saves under its own `device_uuid`. A user with a Windows PC and Steam Deck sees saves from both via the device→user JOIN. The MCP and web UI surface saves from all linked devices transparently.
+- **Multi-source support:** Solved by source-centric architecture. Each source self-registers and pushes saves under its own `source_uuid`. A user with a Windows PC and Steam Deck sees saves from both via the source→user JOIN. The MCP and web UI surface saves from all linked sources transparently.
 
 ## Platform-Specific Installation (Not Yet Implemented)
 

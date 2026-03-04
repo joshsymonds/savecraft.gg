@@ -8,27 +8,27 @@ The root page (`/`) is both the dashboard and the onboarding experience. What re
 
 | State | Condition | What renders |
 |-------|-----------|--------------|
-| **No devices** | `devices.length === 0` | `InstallBlock prominent=true` — full hero with install command, device linking flow (enter 6-digit code), and "what happens next" in a single consolidated Panel |
-| **Has device(s), no MCP** | `devices.length > 0 && !mcpConnected` | `ConnectCard` (prominent CTA with numbered steps) → device cards → `InstallBlock prominent=false` (compact collapsible) |
-| **Has device(s) + MCP** | `devices.length > 0 && mcpConnected` | `ConnectCard` (compact: green dot + URL) → device cards → `InstallBlock prominent=false` (compact collapsible) |
+| **No sources** | `sources.length === 0` | `InstallBlock prominent=true` — full hero with install command, source linking flow (enter 6-digit code), and "what happens next" in a single consolidated Panel |
+| **Has source(s), no MCP** | `sources.length > 0 && !mcpConnected` | `ConnectCard` (prominent CTA with numbered steps) → source cards → `InstallBlock prominent=false` (compact collapsible) |
+| **Has source(s) + MCP** | `sources.length > 0 && mcpConnected` | `ConnectCard` (compact: green dot + URL) → source cards → `InstallBlock prominent=false` (compact collapsible) |
 
-The state machine is implicit — the page template checks device count and MCP status, rendering the appropriate component variants. No explicit state variable; the reactive stores (`$devices`, MCP status from API) drive the UI.
+The state machine is implicit — the page template checks source count and MCP status, rendering the appropriate component variants. No explicit state variable; the reactive stores (`$sources`, MCP status from API) drive the UI.
 
 ## Components
 
 ### InstallBlock (`prominent` prop)
 
-- `prominent=true`: Hero treatment — numbered steps (1: Install, 2: Link Device, 3: What Happens Next) in a single Panel with section dividers. The link step shows a text field where the user enters the 6-digit code displayed by their daemon.
-- `prominent=false`: Compact collapsible "ADD ANOTHER DEVICE" row. Expands to show install + device linking flow inline.
+- `prominent=true`: Hero treatment — numbered steps (1: Install, 2: Link Source, 3: What Happens Next) in a single Panel with section dividers. The link step shows a text field where the user enters the 6-digit code displayed by their daemon.
+- `prominent=false`: Compact collapsible "ADD ANOTHER SOURCE" row. Expands to show install + source linking flow inline.
 
 ### ConnectCard (MCP status)
 
 - Not connected: Gold-accented Panel with numbered steps (1: Copy MCP URL, 2: Paste into AI client). Prominent URL copy area with per-client instructions (Claude.ai, Claude Code, ChatGPT).
 - Connected: Compact row — green status dot, "AI CONNECTED" label, URL with copy button.
 
-### Device Cards
+### Source Cards
 
-- Device name, online/offline indicator, last seen timestamp
+- Source name, online/offline indicator, last seen timestamp
 - Per-game status: game detected (green), watching (green with file count), parse errors (yellow with error message), game not found (gray)
 - Per-game, saves found with identity preview: "Hammerdin, Paladin 87" / "Farm, Year 3, Spring"
 

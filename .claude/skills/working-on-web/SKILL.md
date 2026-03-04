@@ -19,7 +19,7 @@ cd web && npm run test            # Component tests
 
 - SvelteKit conventions throughout. TypeScript strict mode.
 - Component tests use mock WebSocket and mock API responses.
-- Reactive stores (`$devices`, MCP status) drive the UI — no explicit state machines.
+- Reactive stores (`$sources`, MCP status) drive the UI — no explicit state machines.
 
 ## Storybook
 
