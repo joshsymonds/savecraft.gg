@@ -115,16 +115,16 @@ export function gameStatusEnumToJSON(object: GameStatusEnum): string {
 
 /**
  * Message is the top-level WebSocket envelope.
- * All messages on the daemon↔server↔UI channel use this wrapper.
+ * All messages on the source↔server↔UI channel use this wrapper.
  * The oneof field numbers are grouped by category with gaps for future additions.
  */
 export interface Message {
   payload:
     | //
-    /** Daemon lifecycle (1-9) */
-    { $case: "daemonOnline"; daemonOnline: DaemonOnline }
-    | { $case: "daemonOffline"; daemonOffline: DaemonOffline }
-    | { $case: "daemonHeartbeat"; daemonHeartbeat: DaemonHeartbeat }
+    /** Source lifecycle (1-9) */
+    { $case: "sourceOnline"; sourceOnline: SourceOnline }
+    | { $case: "sourceOffline"; sourceOffline: SourceOffline }
+    | { $case: "sourceHeartbeat"; sourceHeartbeat: SourceHeartbeat }
     | //
     /** Game discovery (10-19) */
     { $case: "scanStarted"; scanStarted: ScanStarted }
@@ -148,45 +148,45 @@ export interface Message {
     /** Plugin management (40-49) */
     { $case: "pluginUpdated"; pluginUpdated: PluginUpdated }
     | //
-    /** Daemon management (41-43) */
-    { $case: "daemonUpdateAvailable"; daemonUpdateAvailable: DaemonUpdateAvailable }
-    | { $case: "daemonUpdateStarted"; daemonUpdateStarted: DaemonUpdateStarted }
-    | { $case: "daemonUpdateFailed"; daemonUpdateFailed: DaemonUpdateFailed }
+    /** Source update management (41-43) */
+    { $case: "sourceUpdateAvailable"; sourceUpdateAvailable: SourceUpdateAvailable }
+    | { $case: "sourceUpdateStarted"; sourceUpdateStarted: SourceUpdateStarted }
+    | { $case: "sourceUpdateFailed"; sourceUpdateFailed: SourceUpdateFailed }
     | //
-    /** Commands: server → daemon (50-59) */
+    /** Commands: server → source (50-59) */
     { $case: "configUpdate"; configUpdate: ConfigUpdate }
     | { $case: "rescanGame"; rescanGame: RescanGame }
     | { $case: "pluginAvailable"; pluginAvailable: PluginAvailable }
     | { $case: "discoverGames"; discoverGames: DiscoverGames }
     | //
     /** State: server → UI (60-69) */
-    { $case: "deviceState"; deviceState: DeviceState }
+    { $case: "sourceState"; sourceState: SourceState }
     | //
-    /** User actions: UI → server → daemon (70-79) */
+    /** User actions: UI → server → source (70-79) */
     { $case: "testPath"; testPath: TestPath }
     | { $case: "testPathResult"; testPathResult: TestPathResult }
     | undefined;
 }
 
-/** Daemon process started and connected to the server. */
-export interface DaemonOnline {
-  deviceId: string;
+/** Source connected to the server (daemon started, mod loaded, etc.). */
+export interface SourceOnline {
+  sourceId: string;
   version: string;
   timestamp: Date | undefined;
   platform: string;
 }
 
-/** Daemon shutting down gracefully (SIGTERM). */
-export interface DaemonOffline {
-  deviceId: string;
+/** Source disconnecting gracefully. */
+export interface SourceOffline {
+  sourceId: string;
   timestamp: Date | undefined;
 }
 
-/** Periodic keepalive from daemon. Hub updates lastSeen but does not relay to UI. */
-export interface DaemonHeartbeat {
+/** Periodic keepalive from source. Hub updates lastSeen but does not relay to UI. */
+export interface SourceHeartbeat {
 }
 
-/** Daemon is scanning a directory for save files. */
+/** Source is scanning a directory for save files. */
 export interface ScanStarted {
   gameId: string;
   path: string;
@@ -213,14 +213,14 @@ export interface GameNotFound {
   pathsChecked: string[];
 }
 
-/** Daemon is actively watching a directory for changes. */
+/** Source is actively watching a directory for changes. */
 export interface Watching {
   gameId: string;
   path: string;
   filesMonitored: number;
 }
 
-/** Results of daemon auto-discovery of save directories. */
+/** Results of source auto-discovery of save directories. */
 export interface GamesDiscovered {
   games: DiscoveredGame[];
 }
@@ -232,7 +232,7 @@ export interface DiscoveredGame {
   fileCount: number;
 }
 
-/** Daemon detected a file change and is feeding it to the WASM plugin. */
+/** Source detected a file change and is feeding it to the WASM plugin. */
 export interface ParseStarted {
   gameId: string;
   fileName: string;
@@ -266,7 +266,7 @@ export interface ParseFailed {
   message: string;
 }
 
-/** Daemon is uploading parsed game state to the server via HTTP POST. */
+/** Source is uploading parsed game state to the server via HTTP POST. */
 export interface PushStarted {
   gameId: string;
   summary: string;
@@ -283,14 +283,14 @@ export interface PushCompleted {
   identity: SaveIdentity | undefined;
 }
 
-/** Upload failed. will_retry indicates if the daemon will retry automatically. */
+/** Upload failed. will_retry indicates if the source will retry automatically. */
 export interface PushFailed {
   gameId: string;
   message: string;
   willRetry: boolean;
 }
 
-/** Daemon successfully updated a plugin to a new version. */
+/** Source successfully updated a plugin to a new version. */
 export interface PluginUpdated {
   gameId: string;
   version: string;
@@ -312,32 +312,32 @@ export interface GameConfig {
   fileExtensions: string[];
 }
 
-/** Request the daemon to rescan a game's save directory. */
+/** Request the source to rescan a game's save directory. */
 export interface RescanGame {
   gameId: string;
 }
 
-/** Notify daemon that a plugin update is available for download. */
+/** Notify source that a plugin update is available for download. */
 export interface PluginAvailable {
   gameId: string;
   version: string;
   url: string;
 }
 
-/** Request the daemon to re-run save directory discovery. */
+/** Request the source to re-run save directory discovery. */
 export interface DiscoverGames {
 }
 
 /**
- * Full device state snapshot. Sent to UI on WebSocket connect for cold start.
+ * Full source state snapshot. Sent to UI on WebSocket connect for cold start.
  * Constructed from D1 persisted events so the page isn't blank.
  */
-export interface DeviceState {
-  devices: DeviceInfo[];
+export interface SourceState {
+  sources: SourceInfo[];
 }
 
-export interface DeviceInfo {
-  deviceId: string;
+export interface SourceInfo {
+  sourceId: string;
   online: boolean;
   lastSeen: Date | undefined;
   games: GameInfo[];
@@ -373,21 +373,21 @@ export interface TestPathResult {
   fileNames: string[];
 }
 
-/** Server notifies daemon that a newer binary is available. */
-export interface DaemonUpdateAvailable {
+/** Server notifies source that a newer binary is available. */
+export interface SourceUpdateAvailable {
   version: string;
   url: string;
   signatureUrl: string;
   sha256: string;
 }
 
-/** Daemon acknowledges it is downloading and applying the update. */
-export interface DaemonUpdateStarted {
+/** Source acknowledges it is downloading and applying the update. */
+export interface SourceUpdateStarted {
   version: string;
 }
 
-/** Daemon failed to apply the update. */
-export interface DaemonUpdateFailed {
+/** Source failed to apply the update. */
+export interface SourceUpdateFailed {
   version: string;
   message: string;
 }
@@ -412,14 +412,14 @@ function createBaseMessage(): Message {
 export const Message: MessageFns<Message> = {
   encode(message: Message, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     switch (message.payload?.$case) {
-      case "daemonOnline":
-        DaemonOnline.encode(message.payload.daemonOnline, writer.uint32(10).fork()).join();
+      case "sourceOnline":
+        SourceOnline.encode(message.payload.sourceOnline, writer.uint32(10).fork()).join();
         break;
-      case "daemonOffline":
-        DaemonOffline.encode(message.payload.daemonOffline, writer.uint32(18).fork()).join();
+      case "sourceOffline":
+        SourceOffline.encode(message.payload.sourceOffline, writer.uint32(18).fork()).join();
         break;
-      case "daemonHeartbeat":
-        DaemonHeartbeat.encode(message.payload.daemonHeartbeat, writer.uint32(26).fork()).join();
+      case "sourceHeartbeat":
+        SourceHeartbeat.encode(message.payload.sourceHeartbeat, writer.uint32(26).fork()).join();
         break;
       case "scanStarted":
         ScanStarted.encode(message.payload.scanStarted, writer.uint32(82).fork()).join();
@@ -463,14 +463,14 @@ export const Message: MessageFns<Message> = {
       case "pluginUpdated":
         PluginUpdated.encode(message.payload.pluginUpdated, writer.uint32(322).fork()).join();
         break;
-      case "daemonUpdateAvailable":
-        DaemonUpdateAvailable.encode(message.payload.daemonUpdateAvailable, writer.uint32(330).fork()).join();
+      case "sourceUpdateAvailable":
+        SourceUpdateAvailable.encode(message.payload.sourceUpdateAvailable, writer.uint32(330).fork()).join();
         break;
-      case "daemonUpdateStarted":
-        DaemonUpdateStarted.encode(message.payload.daemonUpdateStarted, writer.uint32(338).fork()).join();
+      case "sourceUpdateStarted":
+        SourceUpdateStarted.encode(message.payload.sourceUpdateStarted, writer.uint32(338).fork()).join();
         break;
-      case "daemonUpdateFailed":
-        DaemonUpdateFailed.encode(message.payload.daemonUpdateFailed, writer.uint32(346).fork()).join();
+      case "sourceUpdateFailed":
+        SourceUpdateFailed.encode(message.payload.sourceUpdateFailed, writer.uint32(346).fork()).join();
         break;
       case "configUpdate":
         ConfigUpdate.encode(message.payload.configUpdate, writer.uint32(402).fork()).join();
@@ -484,8 +484,8 @@ export const Message: MessageFns<Message> = {
       case "discoverGames":
         DiscoverGames.encode(message.payload.discoverGames, writer.uint32(426).fork()).join();
         break;
-      case "deviceState":
-        DeviceState.encode(message.payload.deviceState, writer.uint32(482).fork()).join();
+      case "sourceState":
+        SourceState.encode(message.payload.sourceState, writer.uint32(482).fork()).join();
         break;
       case "testPath":
         TestPath.encode(message.payload.testPath, writer.uint32(562).fork()).join();
@@ -509,7 +509,7 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "daemonOnline", daemonOnline: DaemonOnline.decode(reader, reader.uint32()) };
+          message.payload = { $case: "sourceOnline", sourceOnline: SourceOnline.decode(reader, reader.uint32()) };
           continue;
         }
         case 2: {
@@ -517,7 +517,7 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "daemonOffline", daemonOffline: DaemonOffline.decode(reader, reader.uint32()) };
+          message.payload = { $case: "sourceOffline", sourceOffline: SourceOffline.decode(reader, reader.uint32()) };
           continue;
         }
         case 3: {
@@ -526,8 +526,8 @@ export const Message: MessageFns<Message> = {
           }
 
           message.payload = {
-            $case: "daemonHeartbeat",
-            daemonHeartbeat: DaemonHeartbeat.decode(reader, reader.uint32()),
+            $case: "sourceHeartbeat",
+            sourceHeartbeat: SourceHeartbeat.decode(reader, reader.uint32()),
           };
           continue;
         }
@@ -652,8 +652,8 @@ export const Message: MessageFns<Message> = {
           }
 
           message.payload = {
-            $case: "daemonUpdateAvailable",
-            daemonUpdateAvailable: DaemonUpdateAvailable.decode(reader, reader.uint32()),
+            $case: "sourceUpdateAvailable",
+            sourceUpdateAvailable: SourceUpdateAvailable.decode(reader, reader.uint32()),
           };
           continue;
         }
@@ -663,8 +663,8 @@ export const Message: MessageFns<Message> = {
           }
 
           message.payload = {
-            $case: "daemonUpdateStarted",
-            daemonUpdateStarted: DaemonUpdateStarted.decode(reader, reader.uint32()),
+            $case: "sourceUpdateStarted",
+            sourceUpdateStarted: SourceUpdateStarted.decode(reader, reader.uint32()),
           };
           continue;
         }
@@ -674,8 +674,8 @@ export const Message: MessageFns<Message> = {
           }
 
           message.payload = {
-            $case: "daemonUpdateFailed",
-            daemonUpdateFailed: DaemonUpdateFailed.decode(reader, reader.uint32()),
+            $case: "sourceUpdateFailed",
+            sourceUpdateFailed: SourceUpdateFailed.decode(reader, reader.uint32()),
           };
           continue;
         }
@@ -719,7 +719,7 @@ export const Message: MessageFns<Message> = {
             break;
           }
 
-          message.payload = { $case: "deviceState", deviceState: DeviceState.decode(reader, reader.uint32()) };
+          message.payload = { $case: "sourceState", sourceState: SourceState.decode(reader, reader.uint32()) };
           continue;
         }
         case 70: {
@@ -749,18 +749,18 @@ export const Message: MessageFns<Message> = {
 
   fromJSON(object: any): Message {
     return {
-      payload: isSet(object.daemonOnline)
-        ? { $case: "daemonOnline", daemonOnline: DaemonOnline.fromJSON(object.daemonOnline) }
-        : isSet(object.daemon_online)
-        ? { $case: "daemonOnline", daemonOnline: DaemonOnline.fromJSON(object.daemon_online) }
-        : isSet(object.daemonOffline)
-        ? { $case: "daemonOffline", daemonOffline: DaemonOffline.fromJSON(object.daemonOffline) }
-        : isSet(object.daemon_offline)
-        ? { $case: "daemonOffline", daemonOffline: DaemonOffline.fromJSON(object.daemon_offline) }
-        : isSet(object.daemonHeartbeat)
-        ? { $case: "daemonHeartbeat", daemonHeartbeat: DaemonHeartbeat.fromJSON(object.daemonHeartbeat) }
-        : isSet(object.daemon_heartbeat)
-        ? { $case: "daemonHeartbeat", daemonHeartbeat: DaemonHeartbeat.fromJSON(object.daemon_heartbeat) }
+      payload: isSet(object.sourceOnline)
+        ? { $case: "sourceOnline", sourceOnline: SourceOnline.fromJSON(object.sourceOnline) }
+        : isSet(object.source_online)
+        ? { $case: "sourceOnline", sourceOnline: SourceOnline.fromJSON(object.source_online) }
+        : isSet(object.sourceOffline)
+        ? { $case: "sourceOffline", sourceOffline: SourceOffline.fromJSON(object.sourceOffline) }
+        : isSet(object.source_offline)
+        ? { $case: "sourceOffline", sourceOffline: SourceOffline.fromJSON(object.source_offline) }
+        : isSet(object.sourceHeartbeat)
+        ? { $case: "sourceHeartbeat", sourceHeartbeat: SourceHeartbeat.fromJSON(object.sourceHeartbeat) }
+        : isSet(object.source_heartbeat)
+        ? { $case: "sourceHeartbeat", sourceHeartbeat: SourceHeartbeat.fromJSON(object.source_heartbeat) }
         : isSet(object.scanStarted)
         ? { $case: "scanStarted", scanStarted: ScanStarted.fromJSON(object.scanStarted) }
         : isSet(object.scan_started)
@@ -815,30 +815,30 @@ export const Message: MessageFns<Message> = {
         ? { $case: "pluginUpdated", pluginUpdated: PluginUpdated.fromJSON(object.pluginUpdated) }
         : isSet(object.plugin_updated)
         ? { $case: "pluginUpdated", pluginUpdated: PluginUpdated.fromJSON(object.plugin_updated) }
-        : isSet(object.daemonUpdateAvailable)
+        : isSet(object.sourceUpdateAvailable)
         ? {
-          $case: "daemonUpdateAvailable",
-          daemonUpdateAvailable: DaemonUpdateAvailable.fromJSON(object.daemonUpdateAvailable),
+          $case: "sourceUpdateAvailable",
+          sourceUpdateAvailable: SourceUpdateAvailable.fromJSON(object.sourceUpdateAvailable),
         }
-        : isSet(object.daemon_update_available)
+        : isSet(object.source_update_available)
         ? {
-          $case: "daemonUpdateAvailable",
-          daemonUpdateAvailable: DaemonUpdateAvailable.fromJSON(object.daemon_update_available),
+          $case: "sourceUpdateAvailable",
+          sourceUpdateAvailable: SourceUpdateAvailable.fromJSON(object.source_update_available),
         }
-        : isSet(object.daemonUpdateStarted)
+        : isSet(object.sourceUpdateStarted)
         ? {
-          $case: "daemonUpdateStarted",
-          daemonUpdateStarted: DaemonUpdateStarted.fromJSON(object.daemonUpdateStarted),
+          $case: "sourceUpdateStarted",
+          sourceUpdateStarted: SourceUpdateStarted.fromJSON(object.sourceUpdateStarted),
         }
-        : isSet(object.daemon_update_started)
+        : isSet(object.source_update_started)
         ? {
-          $case: "daemonUpdateStarted",
-          daemonUpdateStarted: DaemonUpdateStarted.fromJSON(object.daemon_update_started),
+          $case: "sourceUpdateStarted",
+          sourceUpdateStarted: SourceUpdateStarted.fromJSON(object.source_update_started),
         }
-        : isSet(object.daemonUpdateFailed)
-        ? { $case: "daemonUpdateFailed", daemonUpdateFailed: DaemonUpdateFailed.fromJSON(object.daemonUpdateFailed) }
-        : isSet(object.daemon_update_failed)
-        ? { $case: "daemonUpdateFailed", daemonUpdateFailed: DaemonUpdateFailed.fromJSON(object.daemon_update_failed) }
+        : isSet(object.sourceUpdateFailed)
+        ? { $case: "sourceUpdateFailed", sourceUpdateFailed: SourceUpdateFailed.fromJSON(object.sourceUpdateFailed) }
+        : isSet(object.source_update_failed)
+        ? { $case: "sourceUpdateFailed", sourceUpdateFailed: SourceUpdateFailed.fromJSON(object.source_update_failed) }
         : isSet(object.configUpdate)
         ? { $case: "configUpdate", configUpdate: ConfigUpdate.fromJSON(object.configUpdate) }
         : isSet(object.config_update)
@@ -855,10 +855,10 @@ export const Message: MessageFns<Message> = {
         ? { $case: "discoverGames", discoverGames: DiscoverGames.fromJSON(object.discoverGames) }
         : isSet(object.discover_games)
         ? { $case: "discoverGames", discoverGames: DiscoverGames.fromJSON(object.discover_games) }
-        : isSet(object.deviceState)
-        ? { $case: "deviceState", deviceState: DeviceState.fromJSON(object.deviceState) }
-        : isSet(object.device_state)
-        ? { $case: "deviceState", deviceState: DeviceState.fromJSON(object.device_state) }
+        : isSet(object.sourceState)
+        ? { $case: "sourceState", sourceState: SourceState.fromJSON(object.sourceState) }
+        : isSet(object.source_state)
+        ? { $case: "sourceState", sourceState: SourceState.fromJSON(object.source_state) }
         : isSet(object.testPath)
         ? { $case: "testPath", testPath: TestPath.fromJSON(object.testPath) }
         : isSet(object.test_path)
@@ -873,12 +873,12 @@ export const Message: MessageFns<Message> = {
 
   toJSON(message: Message): unknown {
     const obj: any = {};
-    if (message.payload?.$case === "daemonOnline") {
-      obj.daemonOnline = DaemonOnline.toJSON(message.payload.daemonOnline);
-    } else if (message.payload?.$case === "daemonOffline") {
-      obj.daemonOffline = DaemonOffline.toJSON(message.payload.daemonOffline);
-    } else if (message.payload?.$case === "daemonHeartbeat") {
-      obj.daemonHeartbeat = DaemonHeartbeat.toJSON(message.payload.daemonHeartbeat);
+    if (message.payload?.$case === "sourceOnline") {
+      obj.sourceOnline = SourceOnline.toJSON(message.payload.sourceOnline);
+    } else if (message.payload?.$case === "sourceOffline") {
+      obj.sourceOffline = SourceOffline.toJSON(message.payload.sourceOffline);
+    } else if (message.payload?.$case === "sourceHeartbeat") {
+      obj.sourceHeartbeat = SourceHeartbeat.toJSON(message.payload.sourceHeartbeat);
     } else if (message.payload?.$case === "scanStarted") {
       obj.scanStarted = ScanStarted.toJSON(message.payload.scanStarted);
     } else if (message.payload?.$case === "scanCompleted") {
@@ -907,12 +907,12 @@ export const Message: MessageFns<Message> = {
       obj.pushFailed = PushFailed.toJSON(message.payload.pushFailed);
     } else if (message.payload?.$case === "pluginUpdated") {
       obj.pluginUpdated = PluginUpdated.toJSON(message.payload.pluginUpdated);
-    } else if (message.payload?.$case === "daemonUpdateAvailable") {
-      obj.daemonUpdateAvailable = DaemonUpdateAvailable.toJSON(message.payload.daemonUpdateAvailable);
-    } else if (message.payload?.$case === "daemonUpdateStarted") {
-      obj.daemonUpdateStarted = DaemonUpdateStarted.toJSON(message.payload.daemonUpdateStarted);
-    } else if (message.payload?.$case === "daemonUpdateFailed") {
-      obj.daemonUpdateFailed = DaemonUpdateFailed.toJSON(message.payload.daemonUpdateFailed);
+    } else if (message.payload?.$case === "sourceUpdateAvailable") {
+      obj.sourceUpdateAvailable = SourceUpdateAvailable.toJSON(message.payload.sourceUpdateAvailable);
+    } else if (message.payload?.$case === "sourceUpdateStarted") {
+      obj.sourceUpdateStarted = SourceUpdateStarted.toJSON(message.payload.sourceUpdateStarted);
+    } else if (message.payload?.$case === "sourceUpdateFailed") {
+      obj.sourceUpdateFailed = SourceUpdateFailed.toJSON(message.payload.sourceUpdateFailed);
     } else if (message.payload?.$case === "configUpdate") {
       obj.configUpdate = ConfigUpdate.toJSON(message.payload.configUpdate);
     } else if (message.payload?.$case === "rescanGame") {
@@ -921,8 +921,8 @@ export const Message: MessageFns<Message> = {
       obj.pluginAvailable = PluginAvailable.toJSON(message.payload.pluginAvailable);
     } else if (message.payload?.$case === "discoverGames") {
       obj.discoverGames = DiscoverGames.toJSON(message.payload.discoverGames);
-    } else if (message.payload?.$case === "deviceState") {
-      obj.deviceState = DeviceState.toJSON(message.payload.deviceState);
+    } else if (message.payload?.$case === "sourceState") {
+      obj.sourceState = SourceState.toJSON(message.payload.sourceState);
     } else if (message.payload?.$case === "testPath") {
       obj.testPath = TestPath.toJSON(message.payload.testPath);
     } else if (message.payload?.$case === "testPathResult") {
@@ -937,29 +937,29 @@ export const Message: MessageFns<Message> = {
   fromPartial<I extends Exact<DeepPartial<Message>, I>>(object: I): Message {
     const message = createBaseMessage();
     switch (object.payload?.$case) {
-      case "daemonOnline": {
-        if (object.payload?.daemonOnline !== undefined && object.payload?.daemonOnline !== null) {
+      case "sourceOnline": {
+        if (object.payload?.sourceOnline !== undefined && object.payload?.sourceOnline !== null) {
           message.payload = {
-            $case: "daemonOnline",
-            daemonOnline: DaemonOnline.fromPartial(object.payload.daemonOnline),
+            $case: "sourceOnline",
+            sourceOnline: SourceOnline.fromPartial(object.payload.sourceOnline),
           };
         }
         break;
       }
-      case "daemonOffline": {
-        if (object.payload?.daemonOffline !== undefined && object.payload?.daemonOffline !== null) {
+      case "sourceOffline": {
+        if (object.payload?.sourceOffline !== undefined && object.payload?.sourceOffline !== null) {
           message.payload = {
-            $case: "daemonOffline",
-            daemonOffline: DaemonOffline.fromPartial(object.payload.daemonOffline),
+            $case: "sourceOffline",
+            sourceOffline: SourceOffline.fromPartial(object.payload.sourceOffline),
           };
         }
         break;
       }
-      case "daemonHeartbeat": {
-        if (object.payload?.daemonHeartbeat !== undefined && object.payload?.daemonHeartbeat !== null) {
+      case "sourceHeartbeat": {
+        if (object.payload?.sourceHeartbeat !== undefined && object.payload?.sourceHeartbeat !== null) {
           message.payload = {
-            $case: "daemonHeartbeat",
-            daemonHeartbeat: DaemonHeartbeat.fromPartial(object.payload.daemonHeartbeat),
+            $case: "sourceHeartbeat",
+            sourceHeartbeat: SourceHeartbeat.fromPartial(object.payload.sourceHeartbeat),
           };
         }
         break;
@@ -1075,29 +1075,29 @@ export const Message: MessageFns<Message> = {
         }
         break;
       }
-      case "daemonUpdateAvailable": {
-        if (object.payload?.daemonUpdateAvailable !== undefined && object.payload?.daemonUpdateAvailable !== null) {
+      case "sourceUpdateAvailable": {
+        if (object.payload?.sourceUpdateAvailable !== undefined && object.payload?.sourceUpdateAvailable !== null) {
           message.payload = {
-            $case: "daemonUpdateAvailable",
-            daemonUpdateAvailable: DaemonUpdateAvailable.fromPartial(object.payload.daemonUpdateAvailable),
+            $case: "sourceUpdateAvailable",
+            sourceUpdateAvailable: SourceUpdateAvailable.fromPartial(object.payload.sourceUpdateAvailable),
           };
         }
         break;
       }
-      case "daemonUpdateStarted": {
-        if (object.payload?.daemonUpdateStarted !== undefined && object.payload?.daemonUpdateStarted !== null) {
+      case "sourceUpdateStarted": {
+        if (object.payload?.sourceUpdateStarted !== undefined && object.payload?.sourceUpdateStarted !== null) {
           message.payload = {
-            $case: "daemonUpdateStarted",
-            daemonUpdateStarted: DaemonUpdateStarted.fromPartial(object.payload.daemonUpdateStarted),
+            $case: "sourceUpdateStarted",
+            sourceUpdateStarted: SourceUpdateStarted.fromPartial(object.payload.sourceUpdateStarted),
           };
         }
         break;
       }
-      case "daemonUpdateFailed": {
-        if (object.payload?.daemonUpdateFailed !== undefined && object.payload?.daemonUpdateFailed !== null) {
+      case "sourceUpdateFailed": {
+        if (object.payload?.sourceUpdateFailed !== undefined && object.payload?.sourceUpdateFailed !== null) {
           message.payload = {
-            $case: "daemonUpdateFailed",
-            daemonUpdateFailed: DaemonUpdateFailed.fromPartial(object.payload.daemonUpdateFailed),
+            $case: "sourceUpdateFailed",
+            sourceUpdateFailed: SourceUpdateFailed.fromPartial(object.payload.sourceUpdateFailed),
           };
         }
         break;
@@ -1135,9 +1135,9 @@ export const Message: MessageFns<Message> = {
         }
         break;
       }
-      case "deviceState": {
-        if (object.payload?.deviceState !== undefined && object.payload?.deviceState !== null) {
-          message.payload = { $case: "deviceState", deviceState: DeviceState.fromPartial(object.payload.deviceState) };
+      case "sourceState": {
+        if (object.payload?.sourceState !== undefined && object.payload?.sourceState !== null) {
+          message.payload = { $case: "sourceState", sourceState: SourceState.fromPartial(object.payload.sourceState) };
         }
         break;
       }
@@ -1161,14 +1161,14 @@ export const Message: MessageFns<Message> = {
   },
 };
 
-function createBaseDaemonOnline(): DaemonOnline {
-  return { deviceId: "", version: "", timestamp: undefined, platform: "" };
+function createBaseSourceOnline(): SourceOnline {
+  return { sourceId: "", version: "", timestamp: undefined, platform: "" };
 }
 
-export const DaemonOnline: MessageFns<DaemonOnline> = {
-  encode(message: DaemonOnline, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.deviceId !== "") {
-      writer.uint32(10).string(message.deviceId);
+export const SourceOnline: MessageFns<SourceOnline> = {
+  encode(message: SourceOnline, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sourceId !== "") {
+      writer.uint32(10).string(message.sourceId);
     }
     if (message.version !== "") {
       writer.uint32(18).string(message.version);
@@ -1182,10 +1182,10 @@ export const DaemonOnline: MessageFns<DaemonOnline> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): DaemonOnline {
+  decode(input: BinaryReader | Uint8Array, length?: number): SourceOnline {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDaemonOnline();
+    const message = createBaseSourceOnline();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1194,7 +1194,7 @@ export const DaemonOnline: MessageFns<DaemonOnline> = {
             break;
           }
 
-          message.deviceId = reader.string();
+          message.sourceId = reader.string();
           continue;
         }
         case 2: {
@@ -1230,12 +1230,12 @@ export const DaemonOnline: MessageFns<DaemonOnline> = {
     return message;
   },
 
-  fromJSON(object: any): DaemonOnline {
+  fromJSON(object: any): SourceOnline {
     return {
-      deviceId: isSet(object.deviceId)
-        ? globalThis.String(object.deviceId)
-        : isSet(object.device_id)
-        ? globalThis.String(object.device_id)
+      sourceId: isSet(object.sourceId)
+        ? globalThis.String(object.sourceId)
+        : isSet(object.source_id)
+        ? globalThis.String(object.source_id)
         : "",
       version: isSet(object.version) ? globalThis.String(object.version) : "",
       timestamp: isSet(object.timestamp) ? fromJsonTimestamp(object.timestamp) : undefined,
@@ -1243,10 +1243,10 @@ export const DaemonOnline: MessageFns<DaemonOnline> = {
     };
   },
 
-  toJSON(message: DaemonOnline): unknown {
+  toJSON(message: SourceOnline): unknown {
     const obj: any = {};
-    if (message.deviceId !== "") {
-      obj.deviceId = message.deviceId;
+    if (message.sourceId !== "") {
+      obj.sourceId = message.sourceId;
     }
     if (message.version !== "") {
       obj.version = message.version;
@@ -1260,12 +1260,12 @@ export const DaemonOnline: MessageFns<DaemonOnline> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DaemonOnline>, I>>(base?: I): DaemonOnline {
-    return DaemonOnline.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<SourceOnline>, I>>(base?: I): SourceOnline {
+    return SourceOnline.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<DaemonOnline>, I>>(object: I): DaemonOnline {
-    const message = createBaseDaemonOnline();
-    message.deviceId = object.deviceId ?? "";
+  fromPartial<I extends Exact<DeepPartial<SourceOnline>, I>>(object: I): SourceOnline {
+    const message = createBaseSourceOnline();
+    message.sourceId = object.sourceId ?? "";
     message.version = object.version ?? "";
     message.timestamp = object.timestamp ?? undefined;
     message.platform = object.platform ?? "";
@@ -1273,14 +1273,14 @@ export const DaemonOnline: MessageFns<DaemonOnline> = {
   },
 };
 
-function createBaseDaemonOffline(): DaemonOffline {
-  return { deviceId: "", timestamp: undefined };
+function createBaseSourceOffline(): SourceOffline {
+  return { sourceId: "", timestamp: undefined };
 }
 
-export const DaemonOffline: MessageFns<DaemonOffline> = {
-  encode(message: DaemonOffline, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.deviceId !== "") {
-      writer.uint32(10).string(message.deviceId);
+export const SourceOffline: MessageFns<SourceOffline> = {
+  encode(message: SourceOffline, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sourceId !== "") {
+      writer.uint32(10).string(message.sourceId);
     }
     if (message.timestamp !== undefined) {
       Timestamp.encode(toTimestamp(message.timestamp), writer.uint32(18).fork()).join();
@@ -1288,10 +1288,10 @@ export const DaemonOffline: MessageFns<DaemonOffline> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): DaemonOffline {
+  decode(input: BinaryReader | Uint8Array, length?: number): SourceOffline {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDaemonOffline();
+    const message = createBaseSourceOffline();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1300,7 +1300,7 @@ export const DaemonOffline: MessageFns<DaemonOffline> = {
             break;
           }
 
-          message.deviceId = reader.string();
+          message.sourceId = reader.string();
           continue;
         }
         case 2: {
@@ -1320,21 +1320,21 @@ export const DaemonOffline: MessageFns<DaemonOffline> = {
     return message;
   },
 
-  fromJSON(object: any): DaemonOffline {
+  fromJSON(object: any): SourceOffline {
     return {
-      deviceId: isSet(object.deviceId)
-        ? globalThis.String(object.deviceId)
-        : isSet(object.device_id)
-        ? globalThis.String(object.device_id)
+      sourceId: isSet(object.sourceId)
+        ? globalThis.String(object.sourceId)
+        : isSet(object.source_id)
+        ? globalThis.String(object.source_id)
         : "",
       timestamp: isSet(object.timestamp) ? fromJsonTimestamp(object.timestamp) : undefined,
     };
   },
 
-  toJSON(message: DaemonOffline): unknown {
+  toJSON(message: SourceOffline): unknown {
     const obj: any = {};
-    if (message.deviceId !== "") {
-      obj.deviceId = message.deviceId;
+    if (message.sourceId !== "") {
+      obj.sourceId = message.sourceId;
     }
     if (message.timestamp !== undefined) {
       obj.timestamp = message.timestamp.toISOString();
@@ -1342,30 +1342,30 @@ export const DaemonOffline: MessageFns<DaemonOffline> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DaemonOffline>, I>>(base?: I): DaemonOffline {
-    return DaemonOffline.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<SourceOffline>, I>>(base?: I): SourceOffline {
+    return SourceOffline.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<DaemonOffline>, I>>(object: I): DaemonOffline {
-    const message = createBaseDaemonOffline();
-    message.deviceId = object.deviceId ?? "";
+  fromPartial<I extends Exact<DeepPartial<SourceOffline>, I>>(object: I): SourceOffline {
+    const message = createBaseSourceOffline();
+    message.sourceId = object.sourceId ?? "";
     message.timestamp = object.timestamp ?? undefined;
     return message;
   },
 };
 
-function createBaseDaemonHeartbeat(): DaemonHeartbeat {
+function createBaseSourceHeartbeat(): SourceHeartbeat {
   return {};
 }
 
-export const DaemonHeartbeat: MessageFns<DaemonHeartbeat> = {
-  encode(_: DaemonHeartbeat, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const SourceHeartbeat: MessageFns<SourceHeartbeat> = {
+  encode(_: SourceHeartbeat, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): DaemonHeartbeat {
+  decode(input: BinaryReader | Uint8Array, length?: number): SourceHeartbeat {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDaemonHeartbeat();
+    const message = createBaseSourceHeartbeat();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -1378,20 +1378,20 @@ export const DaemonHeartbeat: MessageFns<DaemonHeartbeat> = {
     return message;
   },
 
-  fromJSON(_: any): DaemonHeartbeat {
+  fromJSON(_: any): SourceHeartbeat {
     return {};
   },
 
-  toJSON(_: DaemonHeartbeat): unknown {
+  toJSON(_: SourceHeartbeat): unknown {
     const obj: any = {};
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DaemonHeartbeat>, I>>(base?: I): DaemonHeartbeat {
-    return DaemonHeartbeat.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<SourceHeartbeat>, I>>(base?: I): SourceHeartbeat {
+    return SourceHeartbeat.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<DaemonHeartbeat>, I>>(_: I): DaemonHeartbeat {
-    const message = createBaseDaemonHeartbeat();
+  fromPartial<I extends Exact<DeepPartial<SourceHeartbeat>, I>>(_: I): SourceHeartbeat {
+    const message = createBaseSourceHeartbeat();
     return message;
   },
 };
@@ -3422,22 +3422,22 @@ export const DiscoverGames: MessageFns<DiscoverGames> = {
   },
 };
 
-function createBaseDeviceState(): DeviceState {
-  return { devices: [] };
+function createBaseSourceState(): SourceState {
+  return { sources: [] };
 }
 
-export const DeviceState: MessageFns<DeviceState> = {
-  encode(message: DeviceState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    for (const v of message.devices) {
-      DeviceInfo.encode(v!, writer.uint32(10).fork()).join();
+export const SourceState: MessageFns<SourceState> = {
+  encode(message: SourceState, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    for (const v of message.sources) {
+      SourceInfo.encode(v!, writer.uint32(10).fork()).join();
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): DeviceState {
+  decode(input: BinaryReader | Uint8Array, length?: number): SourceState {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDeviceState();
+    const message = createBaseSourceState();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -3446,7 +3446,7 @@ export const DeviceState: MessageFns<DeviceState> = {
             break;
           }
 
-          message.devices.push(DeviceInfo.decode(reader, reader.uint32()));
+          message.sources.push(SourceInfo.decode(reader, reader.uint32()));
           continue;
         }
       }
@@ -3458,38 +3458,38 @@ export const DeviceState: MessageFns<DeviceState> = {
     return message;
   },
 
-  fromJSON(object: any): DeviceState {
+  fromJSON(object: any): SourceState {
     return {
-      devices: globalThis.Array.isArray(object?.devices) ? object.devices.map((e: any) => DeviceInfo.fromJSON(e)) : [],
+      sources: globalThis.Array.isArray(object?.sources) ? object.sources.map((e: any) => SourceInfo.fromJSON(e)) : [],
     };
   },
 
-  toJSON(message: DeviceState): unknown {
+  toJSON(message: SourceState): unknown {
     const obj: any = {};
-    if (message.devices?.length) {
-      obj.devices = message.devices.map((e) => DeviceInfo.toJSON(e));
+    if (message.sources?.length) {
+      obj.sources = message.sources.map((e) => SourceInfo.toJSON(e));
     }
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DeviceState>, I>>(base?: I): DeviceState {
-    return DeviceState.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<SourceState>, I>>(base?: I): SourceState {
+    return SourceState.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<DeviceState>, I>>(object: I): DeviceState {
-    const message = createBaseDeviceState();
-    message.devices = object.devices?.map((e) => DeviceInfo.fromPartial(e)) || [];
+  fromPartial<I extends Exact<DeepPartial<SourceState>, I>>(object: I): SourceState {
+    const message = createBaseSourceState();
+    message.sources = object.sources?.map((e) => SourceInfo.fromPartial(e)) || [];
     return message;
   },
 };
 
-function createBaseDeviceInfo(): DeviceInfo {
-  return { deviceId: "", online: false, lastSeen: undefined, games: [] };
+function createBaseSourceInfo(): SourceInfo {
+  return { sourceId: "", online: false, lastSeen: undefined, games: [] };
 }
 
-export const DeviceInfo: MessageFns<DeviceInfo> = {
-  encode(message: DeviceInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.deviceId !== "") {
-      writer.uint32(10).string(message.deviceId);
+export const SourceInfo: MessageFns<SourceInfo> = {
+  encode(message: SourceInfo, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sourceId !== "") {
+      writer.uint32(10).string(message.sourceId);
     }
     if (message.online !== false) {
       writer.uint32(16).bool(message.online);
@@ -3503,10 +3503,10 @@ export const DeviceInfo: MessageFns<DeviceInfo> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): DeviceInfo {
+  decode(input: BinaryReader | Uint8Array, length?: number): SourceInfo {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDeviceInfo();
+    const message = createBaseSourceInfo();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -3515,7 +3515,7 @@ export const DeviceInfo: MessageFns<DeviceInfo> = {
             break;
           }
 
-          message.deviceId = reader.string();
+          message.sourceId = reader.string();
           continue;
         }
         case 2: {
@@ -3551,12 +3551,12 @@ export const DeviceInfo: MessageFns<DeviceInfo> = {
     return message;
   },
 
-  fromJSON(object: any): DeviceInfo {
+  fromJSON(object: any): SourceInfo {
     return {
-      deviceId: isSet(object.deviceId)
-        ? globalThis.String(object.deviceId)
-        : isSet(object.device_id)
-        ? globalThis.String(object.device_id)
+      sourceId: isSet(object.sourceId)
+        ? globalThis.String(object.sourceId)
+        : isSet(object.source_id)
+        ? globalThis.String(object.source_id)
         : "",
       online: isSet(object.online) ? globalThis.Boolean(object.online) : false,
       lastSeen: isSet(object.lastSeen)
@@ -3568,10 +3568,10 @@ export const DeviceInfo: MessageFns<DeviceInfo> = {
     };
   },
 
-  toJSON(message: DeviceInfo): unknown {
+  toJSON(message: SourceInfo): unknown {
     const obj: any = {};
-    if (message.deviceId !== "") {
-      obj.deviceId = message.deviceId;
+    if (message.sourceId !== "") {
+      obj.sourceId = message.sourceId;
     }
     if (message.online !== false) {
       obj.online = message.online;
@@ -3585,12 +3585,12 @@ export const DeviceInfo: MessageFns<DeviceInfo> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DeviceInfo>, I>>(base?: I): DeviceInfo {
-    return DeviceInfo.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<SourceInfo>, I>>(base?: I): SourceInfo {
+    return SourceInfo.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<DeviceInfo>, I>>(object: I): DeviceInfo {
-    const message = createBaseDeviceInfo();
-    message.deviceId = object.deviceId ?? "";
+  fromPartial<I extends Exact<DeepPartial<SourceInfo>, I>>(object: I): SourceInfo {
+    const message = createBaseSourceInfo();
+    message.sourceId = object.sourceId ?? "";
     message.online = object.online ?? false;
     message.lastSeen = object.lastSeen ?? undefined;
     message.games = object.games?.map((e) => GameInfo.fromPartial(e)) || [];
@@ -4068,12 +4068,12 @@ export const TestPathResult: MessageFns<TestPathResult> = {
   },
 };
 
-function createBaseDaemonUpdateAvailable(): DaemonUpdateAvailable {
+function createBaseSourceUpdateAvailable(): SourceUpdateAvailable {
   return { version: "", url: "", signatureUrl: "", sha256: "" };
 }
 
-export const DaemonUpdateAvailable: MessageFns<DaemonUpdateAvailable> = {
-  encode(message: DaemonUpdateAvailable, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const SourceUpdateAvailable: MessageFns<SourceUpdateAvailable> = {
+  encode(message: SourceUpdateAvailable, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.version !== "") {
       writer.uint32(10).string(message.version);
     }
@@ -4089,10 +4089,10 @@ export const DaemonUpdateAvailable: MessageFns<DaemonUpdateAvailable> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): DaemonUpdateAvailable {
+  decode(input: BinaryReader | Uint8Array, length?: number): SourceUpdateAvailable {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDaemonUpdateAvailable();
+    const message = createBaseSourceUpdateAvailable();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -4137,7 +4137,7 @@ export const DaemonUpdateAvailable: MessageFns<DaemonUpdateAvailable> = {
     return message;
   },
 
-  fromJSON(object: any): DaemonUpdateAvailable {
+  fromJSON(object: any): SourceUpdateAvailable {
     return {
       version: isSet(object.version) ? globalThis.String(object.version) : "",
       url: isSet(object.url) ? globalThis.String(object.url) : "",
@@ -4150,7 +4150,7 @@ export const DaemonUpdateAvailable: MessageFns<DaemonUpdateAvailable> = {
     };
   },
 
-  toJSON(message: DaemonUpdateAvailable): unknown {
+  toJSON(message: SourceUpdateAvailable): unknown {
     const obj: any = {};
     if (message.version !== "") {
       obj.version = message.version;
@@ -4167,11 +4167,11 @@ export const DaemonUpdateAvailable: MessageFns<DaemonUpdateAvailable> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DaemonUpdateAvailable>, I>>(base?: I): DaemonUpdateAvailable {
-    return DaemonUpdateAvailable.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<SourceUpdateAvailable>, I>>(base?: I): SourceUpdateAvailable {
+    return SourceUpdateAvailable.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<DaemonUpdateAvailable>, I>>(object: I): DaemonUpdateAvailable {
-    const message = createBaseDaemonUpdateAvailable();
+  fromPartial<I extends Exact<DeepPartial<SourceUpdateAvailable>, I>>(object: I): SourceUpdateAvailable {
+    const message = createBaseSourceUpdateAvailable();
     message.version = object.version ?? "";
     message.url = object.url ?? "";
     message.signatureUrl = object.signatureUrl ?? "";
@@ -4180,22 +4180,22 @@ export const DaemonUpdateAvailable: MessageFns<DaemonUpdateAvailable> = {
   },
 };
 
-function createBaseDaemonUpdateStarted(): DaemonUpdateStarted {
+function createBaseSourceUpdateStarted(): SourceUpdateStarted {
   return { version: "" };
 }
 
-export const DaemonUpdateStarted: MessageFns<DaemonUpdateStarted> = {
-  encode(message: DaemonUpdateStarted, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const SourceUpdateStarted: MessageFns<SourceUpdateStarted> = {
+  encode(message: SourceUpdateStarted, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.version !== "") {
       writer.uint32(10).string(message.version);
     }
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): DaemonUpdateStarted {
+  decode(input: BinaryReader | Uint8Array, length?: number): SourceUpdateStarted {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDaemonUpdateStarted();
+    const message = createBaseSourceUpdateStarted();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -4216,11 +4216,11 @@ export const DaemonUpdateStarted: MessageFns<DaemonUpdateStarted> = {
     return message;
   },
 
-  fromJSON(object: any): DaemonUpdateStarted {
+  fromJSON(object: any): SourceUpdateStarted {
     return { version: isSet(object.version) ? globalThis.String(object.version) : "" };
   },
 
-  toJSON(message: DaemonUpdateStarted): unknown {
+  toJSON(message: SourceUpdateStarted): unknown {
     const obj: any = {};
     if (message.version !== "") {
       obj.version = message.version;
@@ -4228,22 +4228,22 @@ export const DaemonUpdateStarted: MessageFns<DaemonUpdateStarted> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DaemonUpdateStarted>, I>>(base?: I): DaemonUpdateStarted {
-    return DaemonUpdateStarted.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<SourceUpdateStarted>, I>>(base?: I): SourceUpdateStarted {
+    return SourceUpdateStarted.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<DaemonUpdateStarted>, I>>(object: I): DaemonUpdateStarted {
-    const message = createBaseDaemonUpdateStarted();
+  fromPartial<I extends Exact<DeepPartial<SourceUpdateStarted>, I>>(object: I): SourceUpdateStarted {
+    const message = createBaseSourceUpdateStarted();
     message.version = object.version ?? "";
     return message;
   },
 };
 
-function createBaseDaemonUpdateFailed(): DaemonUpdateFailed {
+function createBaseSourceUpdateFailed(): SourceUpdateFailed {
   return { version: "", message: "" };
 }
 
-export const DaemonUpdateFailed: MessageFns<DaemonUpdateFailed> = {
-  encode(message: DaemonUpdateFailed, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+export const SourceUpdateFailed: MessageFns<SourceUpdateFailed> = {
+  encode(message: SourceUpdateFailed, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
     if (message.version !== "") {
       writer.uint32(10).string(message.version);
     }
@@ -4253,10 +4253,10 @@ export const DaemonUpdateFailed: MessageFns<DaemonUpdateFailed> = {
     return writer;
   },
 
-  decode(input: BinaryReader | Uint8Array, length?: number): DaemonUpdateFailed {
+  decode(input: BinaryReader | Uint8Array, length?: number): SourceUpdateFailed {
     const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
     const end = length === undefined ? reader.len : reader.pos + length;
-    const message = createBaseDaemonUpdateFailed();
+    const message = createBaseSourceUpdateFailed();
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
@@ -4285,14 +4285,14 @@ export const DaemonUpdateFailed: MessageFns<DaemonUpdateFailed> = {
     return message;
   },
 
-  fromJSON(object: any): DaemonUpdateFailed {
+  fromJSON(object: any): SourceUpdateFailed {
     return {
       version: isSet(object.version) ? globalThis.String(object.version) : "",
       message: isSet(object.message) ? globalThis.String(object.message) : "",
     };
   },
 
-  toJSON(message: DaemonUpdateFailed): unknown {
+  toJSON(message: SourceUpdateFailed): unknown {
     const obj: any = {};
     if (message.version !== "") {
       obj.version = message.version;
@@ -4303,11 +4303,11 @@ export const DaemonUpdateFailed: MessageFns<DaemonUpdateFailed> = {
     return obj;
   },
 
-  create<I extends Exact<DeepPartial<DaemonUpdateFailed>, I>>(base?: I): DaemonUpdateFailed {
-    return DaemonUpdateFailed.fromPartial(base ?? ({} as any));
+  create<I extends Exact<DeepPartial<SourceUpdateFailed>, I>>(base?: I): SourceUpdateFailed {
+    return SourceUpdateFailed.fromPartial(base ?? ({} as any));
   },
-  fromPartial<I extends Exact<DeepPartial<DaemonUpdateFailed>, I>>(object: I): DaemonUpdateFailed {
-    const message = createBaseDaemonUpdateFailed();
+  fromPartial<I extends Exact<DeepPartial<SourceUpdateFailed>, I>>(object: I): SourceUpdateFailed {
+    const message = createBaseSourceUpdateFailed();
     message.version = object.version ?? "";
     message.message = object.message ?? "";
     return message;

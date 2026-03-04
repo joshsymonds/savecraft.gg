@@ -1,27 +1,27 @@
 import { DurableObject } from "cloudflare:workers";
 
 import type {
-  DeviceInfo,
-  DeviceState,
+  SourceInfo,
+  SourceState,
   GameInfo,
   SaveIdentity,
 } from "./proto/savecraft/v1/protocol";
 import { GameStatusEnum, Message } from "./proto/savecraft/v1/protocol";
 import type { Env } from "./types";
 
-const STATE_KEY = "deviceState";
+const STATE_KEY = "sourceState";
 const CONN_PREFIX = "conn:";
 const USER_UUID_KEY = "userUuid";
 
 // ── StateMutation: closed discriminated union ────────────────────────
 
 type StateMutation =
-  | { kind: "deviceOnline"; deviceId: string }
-  | { kind: "deviceOffline"; deviceId: string }
-  | { kind: "gameStatus"; deviceId: string; gameId: string; status: GameStatusEnum }
+  | { kind: "sourceOnline"; sourceId: string }
+  | { kind: "sourceOffline"; sourceId: string }
+  | { kind: "gameStatus"; sourceId: string; gameId: string; status: GameStatusEnum }
   | {
       kind: "pushCompleted";
-      deviceId: string;
+      sourceId: string;
       gameId: string;
       saveUuid: string;
       summary: string;
@@ -31,21 +31,21 @@ type StateMutation =
 
 // ── Pure state helpers ───────────────────────────────────────────────
 
-function findDevice(state: DeviceState, deviceId: string): DeviceInfo | undefined {
-  return state.devices.find((d) => d.deviceId === deviceId);
+function findSource(state: SourceState, sourceId: string): SourceInfo | undefined {
+  return state.sources.find((s) => s.sourceId === sourceId);
 }
 
-function findOrCreateDevice(state: DeviceState, deviceId: string): DeviceInfo {
-  let device = findDevice(state, deviceId);
-  if (!device) {
-    device = { deviceId, online: false, lastSeen: undefined, games: [] };
-    state.devices.push(device);
+function findOrCreateSource(state: SourceState, sourceId: string): SourceInfo {
+  let source = findSource(state, sourceId);
+  if (!source) {
+    source = { sourceId, online: false, lastSeen: undefined, games: [] };
+    state.sources.push(source);
   }
-  return device;
+  return source;
 }
 
-function findOrCreateGame(device: DeviceInfo, gameId: string): GameInfo {
-  let game = device.games.find((g) => g.gameId === gameId);
+function findOrCreateGame(source: SourceInfo, gameId: string): GameInfo {
+  let game = source.games.find((g) => g.gameId === gameId);
   if (!game) {
     game = {
       gameId,
@@ -54,7 +54,7 @@ function findOrCreateGame(device: DeviceInfo, gameId: string): GameInfo {
       saves: [],
       lastActivity: undefined,
     };
-    device.games.push(game);
+    source.games.push(game);
   }
   return game;
 }
@@ -63,11 +63,11 @@ function getConnTag(tags: string[]): string | undefined {
   return tags.find((t) => t.startsWith(CONN_PREFIX));
 }
 
-function findStaleDevices(state: DeviceState, thresholdMs: number): string[] {
+function findStaleSources(state: SourceState, thresholdMs: number): string[] {
   const now = Date.now();
-  return state.devices
-    .filter((d) => d.online && d.lastSeen && now - new Date(d.lastSeen).getTime() > thresholdMs)
-    .map((d) => d.deviceId);
+  return state.sources
+    .filter((s) => s.online && s.lastSeen && now - new Date(s.lastSeen).getTime() > thresholdMs)
+    .map((s) => s.sourceId);
 }
 
 /**
@@ -94,33 +94,33 @@ function isNewerVersion(latest: string, current: string): boolean {
  * Apply a resolved mutation to in-memory state. Pure — no I/O, no async.
  * Exhaustive over StateMutation.kind; the compiler enforces completeness.
  */
-function applyMutation(state: DeviceState, mutation: StateMutation): void {
+function applyMutation(state: SourceState, mutation: StateMutation): void {
   const now = new Date();
 
   switch (mutation.kind) {
-    case "deviceOnline": {
-      const device = findOrCreateDevice(state, mutation.deviceId);
-      device.online = true;
-      device.lastSeen = now;
+    case "sourceOnline": {
+      const source = findOrCreateSource(state, mutation.sourceId);
+      source.online = true;
+      source.lastSeen = now;
       break;
     }
-    case "deviceOffline": {
-      const device = findDevice(state, mutation.deviceId);
-      if (!device) return;
-      device.online = false;
-      device.lastSeen = now;
+    case "sourceOffline": {
+      const source = findSource(state, mutation.sourceId);
+      if (!source) return;
+      source.online = false;
+      source.lastSeen = now;
       break;
     }
     case "gameStatus": {
-      const device = findOrCreateDevice(state, mutation.deviceId);
-      const game = findOrCreateGame(device, mutation.gameId);
+      const source = findOrCreateSource(state, mutation.sourceId);
+      const game = findOrCreateGame(source, mutation.gameId);
       game.status = mutation.status;
       game.lastActivity = now;
       break;
     }
     case "pushCompleted": {
-      const device = findOrCreateDevice(state, mutation.deviceId);
-      const game = findOrCreateGame(device, mutation.gameId);
+      const source = findOrCreateSource(state, mutation.sourceId);
+      const game = findOrCreateGame(source, mutation.gameId);
       const existing = game.saves.find((s) => s.saveUuid === mutation.saveUuid);
       if (existing) {
         existing.summary = mutation.summary;
@@ -145,12 +145,12 @@ function applyMutation(state: DeviceState, mutation: StateMutation): void {
 
 /**
  * DaemonHub is a per-user Durable Object that relays WebSocket messages
- * between the daemon and the web UI. Uses WebSocket Hibernation so the
- * DO sleeps when no application messages are in flight.
+ * between the source (daemon/mod) and the web UI. Uses WebSocket Hibernation
+ * so the DO sleeps when no application messages are in flight.
  *
  * Connections are tagged "daemon" or "ui". Daemon connections also get
- * a unique "conn:{id}" tag to track per-connection device identity.
- * Device state is maintained in DO transactional storage for cold start.
+ * a unique "conn:{id}" tag to track per-connection source identity.
+ * Source state is maintained in DO transactional storage for cold start.
  */
 export class DaemonHub extends DurableObject<Env> {
   async fetch(request: Request): Promise<Response> {
@@ -174,12 +174,12 @@ export class DaemonHub extends DurableObject<Env> {
     const client = pair[0];
     const server = pair[1];
 
-    // Daemon connections get a unique connection ID for per-device tracking
+    // Daemon connections get a unique connection ID for per-source tracking
     const tags = tag === "daemon" ? [tag, `${CONN_PREFIX}${crypto.randomUUID()}`] : [tag];
     this.ctx.acceptWebSocket(server, tags);
 
     if (tag === "ui") {
-      await this.sendDeviceState(server);
+      await this.sendSourceState(server);
       await this.sendRecentEvents(server);
     }
 
@@ -205,29 +205,29 @@ export class DaemonHub extends DurableObject<Env> {
 
     if (tags.includes("daemon")) {
       const rpc = this.parseMessage(msgString);
-      await this.applyDeviceState(tags, rpc);
+      await this.applySourceState(tags, rpc);
 
-      // Heartbeat updates lastSeen (via applyDeviceState) but is not
+      // Heartbeat updates lastSeen (via applySourceState) but is not
       // relayed to UI or persisted — it's transport-level only.
-      if (rpc?.payload?.$case === "daemonHeartbeat") return;
+      if (rpc?.payload?.$case === "sourceHeartbeat") return;
 
-      // Resolve source deviceId (available after applyDeviceState stores
-      // the conn->deviceId mapping on daemonOnline)
-      const deviceId = await this.getDeviceIdForConnection(tags);
+      // Resolve source sourceId (available after applySourceState stores
+      // the conn->sourceId mapping on sourceOnline)
+      const sourceId = await this.getSourceIdForConnection(tags);
 
-      // Forward to UI with _deviceId and _ts injected so the frontend can
-      // attribute game events to the correct device and show timestamps
+      // Forward to UI with _sourceId and _ts injected so the frontend can
+      // attribute game events to the correct source and show timestamps
       const forwardMsg = this.injectMetadata(msgString, {
-        _deviceId: deviceId,
+        _sourceId: sourceId,
         _ts: new Date().toISOString(),
       });
       for (const uiWs of this.ctx.getWebSockets("ui")) {
         uiWs.send(forwardMsg);
       }
 
-      await this.persistEvent(deviceId, rpc, msgString);
+      await this.persistEvent(sourceId, rpc, msgString);
       await this.maybePushConfig(rpc);
-      await this.maybePushDaemonUpdate(ws, rpc);
+      await this.maybePushSourceUpdate(ws, rpc);
     } else if (tags.includes("ui")) {
       for (const daemonWs of this.ctx.getWebSockets("daemon")) {
         daemonWs.send(msgString);
@@ -262,10 +262,10 @@ export class DaemonHub extends DurableObject<Env> {
   private async routeHttpRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
     if (url.pathname === "/push-config" && request.method === "POST") {
-      const body = await request.json<{ deviceId: string }>();
+      const body = await request.json<{ sourceId: string }>();
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return Response.json({ error: "No user context" }, { status: 400 });
-      await this.pushConfigToDevice(body.deviceId, userUuid);
+      await this.pushConfigToSource(body.sourceId, userUuid);
       return Response.json({ ok: true });
     }
     if (url.pathname === "/rescan" && request.method === "POST") {
@@ -284,52 +284,52 @@ export class DaemonHub extends DurableObject<Env> {
   private async resolveStateMutation(tags: string[], rpc: Message): Promise<StateMutation> {
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- maps open proto union to closed StateMutation; unhandled events return "none"
     switch (rpc.payload?.$case) {
-      case "daemonOnline": {
-        const { deviceId } = rpc.payload.daemonOnline;
+      case "sourceOnline": {
+        const { sourceId } = rpc.payload.sourceOnline;
         const connTag = getConnTag(tags);
-        if (connTag) await this.ctx.storage.put(connTag, deviceId);
-        return { kind: "deviceOnline", deviceId };
+        if (connTag) await this.ctx.storage.put(connTag, sourceId);
+        return { kind: "sourceOnline", sourceId };
       }
-      case "daemonOffline": {
-        return { kind: "deviceOffline", deviceId: rpc.payload.daemonOffline.deviceId };
+      case "sourceOffline": {
+        return { kind: "sourceOffline", sourceId: rpc.payload.sourceOffline.sourceId };
       }
       case "gameDetected": {
-        const deviceId = await this.getDeviceIdForConnection(tags);
-        if (!deviceId) return { kind: "none" };
+        const sourceId = await this.getSourceIdForConnection(tags);
+        if (!sourceId) return { kind: "none" };
         return {
           kind: "gameStatus",
-          deviceId,
+          sourceId,
           gameId: rpc.payload.gameDetected.gameId,
           status: GameStatusEnum.GAME_STATUS_ENUM_DETECTED,
         };
       }
       case "watching": {
-        const deviceId = await this.getDeviceIdForConnection(tags);
-        if (!deviceId) return { kind: "none" };
+        const sourceId = await this.getSourceIdForConnection(tags);
+        if (!sourceId) return { kind: "none" };
         return {
           kind: "gameStatus",
-          deviceId,
+          sourceId,
           gameId: rpc.payload.watching.gameId,
           status: GameStatusEnum.GAME_STATUS_ENUM_WATCHING,
         };
       }
       case "gameNotFound": {
-        const deviceId = await this.getDeviceIdForConnection(tags);
-        if (!deviceId) return { kind: "none" };
+        const sourceId = await this.getSourceIdForConnection(tags);
+        if (!sourceId) return { kind: "none" };
         return {
           kind: "gameStatus",
-          deviceId,
+          sourceId,
           gameId: rpc.payload.gameNotFound.gameId,
           status: GameStatusEnum.GAME_STATUS_ENUM_NOT_FOUND,
         };
       }
       case "pushCompleted": {
-        const deviceId = await this.getDeviceIdForConnection(tags);
-        if (!deviceId) return { kind: "none" };
+        const sourceId = await this.getSourceIdForConnection(tags);
+        if (!sourceId) return { kind: "none" };
         const { gameId, saveUuid, summary, identity } = rpc.payload.pushCompleted;
         return {
           kind: "pushCompleted",
-          deviceId,
+          sourceId,
           gameId,
           saveUuid,
           summary,
@@ -345,61 +345,61 @@ export class DaemonHub extends DurableObject<Env> {
   // ── Disconnect handler ────────────────────────────────────────────
 
   /**
-   * Handle daemon WebSocket close/error: resolve deviceId from connection
-   * tag, mark device offline, clean up mapping, and manage alarm lifecycle.
+   * Handle daemon WebSocket close/error: resolve sourceId from connection
+   * tag, mark source offline, clean up mapping, and manage alarm lifecycle.
    */
   private async handleDaemonDisconnect(tags: string[]): Promise<void> {
     const connTag = getConnTag(tags);
     if (!connTag) return;
-    const deviceId = await this.ctx.storage.get<string>(connTag);
-    if (!deviceId) return;
+    const sourceId = await this.ctx.storage.get<string>(connTag);
+    if (!sourceId) return;
 
     const state = await this.loadState();
-    applyMutation(state, { kind: "deviceOffline", deviceId });
+    applyMutation(state, { kind: "sourceOffline", sourceId });
     await this.saveState(state);
     await this.ctx.storage.delete(connTag);
 
-    // Delete alarm if no devices remain online
-    if (!state.devices.some((d) => d.online)) {
+    // Delete alarm if no sources remain online
+    if (!state.sources.some((s) => s.online)) {
       await this.ctx.storage.deleteAlarm();
     }
   }
 
   /**
    * DO alarm handler: check for stale daemon connections.
-   * Fires every ALARM_INTERVAL_MS while any device is online.
-   * Evicts devices whose lastSeen exceeds STALE_THRESHOLD_MS.
+   * Fires every ALARM_INTERVAL_MS while any source is online.
+   * Evicts sources whose lastSeen exceeds STALE_THRESHOLD_MS.
    */
   async alarm(): Promise<void> {
     const state = await this.loadState();
-    const staleDeviceIds = findStaleDevices(state, this.env.STALE_THRESHOLD_MS ?? 90_000);
+    const staleSourceIds = findStaleSources(state, this.env.STALE_THRESHOLD_MS ?? 90_000);
 
-    if (staleDeviceIds.length > 0) {
-      await this.evictStaleDevices(state, staleDeviceIds);
+    if (staleSourceIds.length > 0) {
+      await this.evictStaleSources(state, staleSourceIds);
     }
 
-    // Reschedule if any devices still online
-    if (state.devices.some((d) => d.online)) {
+    // Reschedule if any sources still online
+    if (state.sources.some((s) => s.online)) {
       const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
       await this.ctx.storage.setAlarm(Date.now() + interval);
     }
   }
 
-  private async evictStaleDevices(state: DeviceState, staleDeviceIds: string[]): Promise<void> {
-    for (const deviceId of staleDeviceIds) {
-      applyMutation(state, { kind: "deviceOffline", deviceId });
+  private async evictStaleSources(state: SourceState, staleSourceIds: string[]): Promise<void> {
+    for (const sourceId of staleSourceIds) {
+      applyMutation(state, { kind: "sourceOffline", sourceId });
     }
     await this.saveState(state);
 
-    this.broadcastStaleOffline(staleDeviceIds);
-    await this.closeStaleConnections(staleDeviceIds);
+    this.broadcastStaleOffline(staleSourceIds);
+    await this.closeStaleConnections(staleSourceIds);
   }
 
-  private broadcastStaleOffline(staleDeviceIds: string[]): void {
-    for (const deviceId of staleDeviceIds) {
+  private broadcastStaleOffline(staleSourceIds: string[]): void {
+    for (const sourceId of staleSourceIds) {
       const offlineMsg = JSON.stringify({
-        daemonOffline: { deviceId },
-        _deviceId: deviceId,
+        sourceOffline: { sourceId },
+        _sourceId: sourceId,
         _ts: new Date().toISOString(),
       });
       for (const uiWs of this.ctx.getWebSockets("ui")) {
@@ -408,13 +408,13 @@ export class DaemonHub extends DurableObject<Env> {
     }
   }
 
-  private async closeStaleConnections(staleDeviceIds: string[]): Promise<void> {
+  private async closeStaleConnections(staleSourceIds: string[]): Promise<void> {
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
       const wsTags = this.ctx.getTags(daemonWs);
       const connTag = getConnTag(wsTags);
       if (!connTag) continue;
-      const wsDeviceId = await this.ctx.storage.get<string>(connTag);
-      if (wsDeviceId && staleDeviceIds.includes(wsDeviceId)) {
+      const wsSourceId = await this.ctx.storage.get<string>(connTag);
+      if (wsSourceId && staleSourceIds.includes(wsSourceId)) {
         await this.ctx.storage.delete(connTag);
         try {
           daemonWs.close(1000, "stale connection");
@@ -427,26 +427,26 @@ export class DaemonHub extends DurableObject<Env> {
 
   // ── Internal helpers ──────────────────────────────────────────────
 
-  private async loadState(): Promise<DeviceState> {
+  private async loadState(): Promise<SourceState> {
     const stored = await this.ctx.storage.get(STATE_KEY);
-    if (!stored) return { devices: [] };
-    return stored as DeviceState;
+    if (!stored) return { sources: [] };
+    return stored as SourceState;
   }
 
-  private async saveState(state: DeviceState): Promise<void> {
+  private async saveState(state: SourceState): Promise<void> {
     await this.ctx.storage.put(STATE_KEY, state);
   }
 
-  private async getDeviceIdForConnection(tags: string[]): Promise<string | undefined> {
+  private async getSourceIdForConnection(tags: string[]): Promise<string | undefined> {
     const connTag = getConnTag(tags);
     if (!connTag) return undefined;
     return this.ctx.storage.get<string>(connTag);
   }
 
-  private async sendDeviceState(ws: WebSocket): Promise<void> {
+  private async sendSourceState(ws: WebSocket): Promise<void> {
     const state = await this.loadState();
-    if (state.devices.length === 0) return;
-    const envelope = Message.toJSON({ payload: { $case: "deviceState", deviceState: state } });
+    if (state.sources.length === 0) return;
+    const envelope = Message.toJSON({ payload: { $case: "sourceState", sourceState: state } });
     ws.send(JSON.stringify(envelope));
   }
 
@@ -460,30 +460,30 @@ export class DaemonHub extends DurableObject<Env> {
     }
   }
 
-  private async applyDeviceState(tags: string[], rpc: Message | undefined): Promise<StateMutation> {
+  private async applySourceState(tags: string[], rpc: Message | undefined): Promise<StateMutation> {
     if (!rpc) return { kind: "none" };
     try {
       const mutation = await this.resolveStateMutation(tags, rpc);
 
-      // Resolve deviceId for lastSeen update
-      const deviceId =
-        mutation.kind === "deviceOnline" || mutation.kind === "deviceOffline"
-          ? mutation.deviceId
-          : await this.getDeviceIdForConnection(tags);
+      // Resolve sourceId for lastSeen update
+      const sourceId =
+        mutation.kind === "sourceOnline" || mutation.kind === "sourceOffline"
+          ? mutation.sourceId
+          : await this.getSourceIdForConnection(tags);
 
       // Load -> mutate -> update lastSeen -> save
       const state = await this.loadState();
       if (mutation.kind !== "none") {
         applyMutation(state, mutation);
       }
-      if (deviceId) {
-        const device = findDevice(state, deviceId);
-        if (device) device.lastSeen = new Date();
+      if (sourceId) {
+        const source = findSource(state, sourceId);
+        if (source) source.lastSeen = new Date();
       }
       await this.saveState(state);
 
-      // Set alarm when a device comes online
-      if (mutation.kind === "deviceOnline") {
+      // Set alarm when a source comes online
+      if (mutation.kind === "sourceOnline") {
         const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
         await this.ctx.storage.setAlarm(Date.now() + interval);
       }
@@ -500,20 +500,20 @@ export class DaemonHub extends DurableObject<Env> {
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
       const rows = await this.env.DB.prepare(
-        `SELECT event_data, created_at, device_id FROM device_events
+        `SELECT event_data, created_at, source_id FROM source_events
          WHERE user_uuid = ?
          ORDER BY created_at DESC
          LIMIT 50`,
       )
         .bind(userUuid)
-        .all<{ event_data: string; created_at: string; device_id: string }>();
+        .all<{ event_data: string; created_at: string; source_id: string }>();
 
       const events = rows.results.toReversed();
       for (const row of events) {
         ws.send(
           this.injectMetadata(row.event_data, {
             _ts: row.created_at.endsWith("Z") ? row.created_at : `${row.created_at}Z`,
-            _deviceId: row.device_id,
+            _sourceId: row.source_id,
           }),
         );
       }
@@ -523,22 +523,22 @@ export class DaemonHub extends DurableObject<Env> {
   }
 
   private async maybePushConfig(rpc: Message | undefined): Promise<void> {
-    if (rpc?.payload?.$case !== "daemonOnline") return;
+    if (rpc?.payload?.$case !== "sourceOnline") return;
     try {
-      const { deviceId } = rpc.payload.daemonOnline;
+      const { sourceId } = rpc.payload.sourceOnline;
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
-      await this.pushConfigToDevice(deviceId, userUuid);
+      await this.pushConfigToSource(sourceId, userUuid);
     } catch {
       // Don't let config push failures break the relay
     }
   }
 
-  private async maybePushDaemonUpdate(ws: WebSocket, rpc: Message | undefined): Promise<void> {
-    if (rpc?.payload?.$case !== "daemonOnline") return;
+  private async maybePushSourceUpdate(ws: WebSocket, rpc: Message | undefined): Promise<void> {
+    if (rpc?.payload?.$case !== "sourceOnline") return;
     try {
-      const { version: daemonVersion, platform } = rpc.payload.daemonOnline;
-      if (!daemonVersion || !platform) return;
+      const { version: sourceVersion, platform } = rpc.payload.sourceOnline;
+      if (!sourceVersion || !platform) return;
 
       const installUrl = this.env.INSTALL_URL;
       if (!installUrl) return;
@@ -551,13 +551,13 @@ export class DaemonHub extends DurableObject<Env> {
         platforms: Record<string, { url: string; sha256: string; signatureUrl: string }>;
       }>();
 
-      if (!isNewerVersion(manifest.version, daemonVersion)) return;
+      if (!isNewerVersion(manifest.version, sourceVersion)) return;
 
       const entry = manifest.platforms[platform];
       if (!entry) return;
 
       const updateMsg = JSON.stringify({
-        daemonUpdateAvailable: {
+        sourceUpdateAvailable: {
           version: manifest.version,
           url: entry.url,
           signatureUrl: entry.signatureUrl,
@@ -571,13 +571,13 @@ export class DaemonHub extends DurableObject<Env> {
     }
   }
 
-  private async pushConfigToDevice(deviceId: string, userUuid: string): Promise<void> {
+  private async pushConfigToSource(sourceId: string, userUuid: string): Promise<void> {
     const rows = await this.env.DB.prepare(
       `SELECT game_id, save_path, enabled, file_extensions
-       FROM device_configs
-       WHERE user_uuid = ? AND device_id = ?`,
+       FROM source_configs
+       WHERE user_uuid = ? AND source_id = ?`,
     )
-      .bind(userUuid, deviceId)
+      .bind(userUuid, sourceId)
       .all<{
         game_id: string;
         save_path: string;
@@ -605,7 +605,7 @@ export class DaemonHub extends DurableObject<Env> {
       for (const gameId of enabledGameIds) {
         applyMutation(state, {
           kind: "gameStatus",
-          deviceId,
+          sourceId,
           gameId,
           status: GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING,
         });
@@ -614,7 +614,7 @@ export class DaemonHub extends DurableObject<Env> {
 
       // Broadcast updated state to all UI WebSockets
       for (const uiWs of this.ctx.getWebSockets("ui")) {
-        await this.sendDeviceState(uiWs);
+        await this.sendSourceState(uiWs);
       }
     }
 
@@ -622,8 +622,8 @@ export class DaemonHub extends DurableObject<Env> {
     const msg = JSON.stringify({ configUpdate: { games } });
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
       const wsTags = this.ctx.getTags(daemonWs);
-      const wsDeviceId = await this.getDeviceIdForConnection(wsTags);
-      if (wsDeviceId === deviceId) {
+      const wsSourceId = await this.getSourceIdForConnection(wsTags);
+      if (wsSourceId === sourceId) {
         daemonWs.send(msg);
       }
     }
@@ -664,7 +664,7 @@ export class DaemonHub extends DurableObject<Env> {
   ]);
 
   private async persistEvent(
-    deviceId: string | undefined,
+    sourceId: string | undefined,
     rpc: Message | undefined,
     rawMessage: string,
   ): Promise<void> {
@@ -675,24 +675,24 @@ export class DaemonHub extends DurableObject<Env> {
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
 
-      const resolvedDeviceId = deviceId ?? "unknown";
+      const resolvedSourceId = sourceId ?? "unknown";
 
       await this.env.DB.prepare(
-        `INSERT INTO device_events (user_uuid, device_id, event_type, event_data)
+        `INSERT INTO source_events (user_uuid, source_id, event_type, event_data)
          VALUES (?, ?, ?, ?)`,
       )
-        .bind(userUuid, resolvedDeviceId, eventType, rawMessage)
+        .bind(userUuid, resolvedSourceId, eventType, rawMessage)
         .run();
 
       await this.env.DB.prepare(
-        `DELETE FROM device_events
-         WHERE user_uuid = ? AND device_id = ? AND id NOT IN (
-           SELECT id FROM device_events
-           WHERE user_uuid = ? AND device_id = ?
+        `DELETE FROM source_events
+         WHERE user_uuid = ? AND source_id = ? AND id NOT IN (
+           SELECT id FROM source_events
+           WHERE user_uuid = ? AND source_id = ?
            ORDER BY created_at DESC LIMIT 100
          )`,
       )
-        .bind(userUuid, resolvedDeviceId, userUuid, resolvedDeviceId)
+        .bind(userUuid, resolvedSourceId, userUuid, resolvedSourceId)
         .run();
     } catch {
       // Don't let persistence failures break the relay
