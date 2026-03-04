@@ -4,6 +4,8 @@
  * Tested independently of the MCP protocol layer.
  */
 
+import type { Env } from "../types";
+
 /** MCP tool result — matches the MCP spec's ToolResult shape. */
 export interface ToolResult {
   content: { type: "text"; text: string }[];
@@ -1046,6 +1048,7 @@ interface SourceLookupResult {
   linked?: boolean;
   last_active?: string | null;
   activity?: string;
+  daemon_online?: boolean;
   link_code_valid?: boolean;
   link_code_expires_at?: string | null;
 }
@@ -1134,12 +1137,14 @@ const SOURCE_COLS =
   "source_uuid, user_uuid, hostname, os, arch, last_push_at, link_code, link_code_expires_at, can_rescan, can_receive_config";
 
 export async function getSetupHelp(
-  db: D1Database,
+  env: Env,
   userUuid: string,
   platform?: string,
   linkCode?: string,
   sourceUuid?: string,
 ): Promise<ToolResult> {
+  const db = env.DB;
+
   // 1. User's linked sources
   const sourceRows = await db
     .prepare(`SELECT ${SOURCE_COLS} FROM sources WHERE user_uuid = ? ORDER BY last_push_at DESC NULLS LAST`)
@@ -1150,6 +1155,7 @@ export async function getSetupHelp(
 
   // 2. Optional lookup (source_uuid takes precedence over link_code)
   let lookup: SourceLookupResult | undefined;
+  let resolvedSourceUuid: string | undefined;
 
   if (sourceUuid) {
     const row = await db
@@ -1157,15 +1163,33 @@ export async function getSetupHelp(
       .bind(sourceUuid)
       .first<SourceRow>();
     lookup = buildLookupResult(row, false);
+    if (row) resolvedSourceUuid = row.source_uuid;
   } else if (linkCode) {
     const row = await db
       .prepare(`SELECT ${SOURCE_COLS} FROM sources WHERE link_code = ?`)
       .bind(linkCode)
       .first<SourceRow>();
     lookup = buildLookupResult(row, true);
+    if (row) resolvedSourceUuid = row.source_uuid;
   }
 
-  // 3. Build response
+  // 3. Check live source status via SourceHub DO
+  if (lookup?.found && resolvedSourceUuid) {
+    try {
+      const doId = env.SOURCE_HUB.idFromName(resolvedSourceUuid);
+      const resp = await env.SOURCE_HUB.get(doId).fetch(
+        new Request("https://do/status", { method: "GET" }),
+      );
+      if (resp.ok) {
+        const status = await resp.json<{ daemon_online: boolean }>();
+        lookup.daemon_online = status.daemon_online;
+      }
+    } catch {
+      // Don't let live status check failures break setup help
+    }
+  }
+
+  // 4. Build response
   const response: SetupGuideResponse = { sources, guide: buildGuide(platform) };
   if (lookup !== undefined) {
     response.lookup = lookup;

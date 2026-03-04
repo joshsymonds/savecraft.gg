@@ -13,6 +13,12 @@ const STATE_KEY = "sourceState";
 const CONN_PREFIX = "conn:";
 const USER_UUID_KEY = "userUuid";
 const SOURCE_UUID_KEY = "sourceUuid";
+const CAPS_KEY = "capabilities";
+
+interface Capabilities {
+  canRescan: boolean;
+  canReceiveConfig: boolean;
+}
 
 // ── StateMutation: closed discriminated union ────────────────────────
 
@@ -264,6 +270,9 @@ export class SourceHub extends DurableObject<Env> {
     if (url.pathname === "/set-user" && request.method === "POST") {
       return this.handleSetUser(request);
     }
+    if (url.pathname === "/status" && request.method === "GET") {
+      return this.handleStatus();
+    }
     return new Response("Expected WebSocket upgrade", { status: 426 });
   }
 
@@ -426,6 +435,27 @@ export class SourceHub extends DurableObject<Env> {
     await this.ctx.storage.put(STATE_KEY, state);
   }
 
+  private async getCapabilities(): Promise<Capabilities> {
+    const cached = await this.ctx.storage.get<Capabilities>(CAPS_KEY);
+    if (cached) return cached;
+
+    const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+    if (!sourceUuid) return { canRescan: true, canReceiveConfig: true };
+
+    const row = await this.env.DB.prepare(
+      "SELECT can_rescan, can_receive_config FROM sources WHERE source_uuid = ?",
+    )
+      .bind(sourceUuid)
+      .first<{ can_rescan: number; can_receive_config: number }>();
+
+    const caps: Capabilities = {
+      canRescan: row?.can_rescan !== 0,
+      canReceiveConfig: row?.can_receive_config !== 0,
+    };
+    await this.ctx.storage.put(CAPS_KEY, caps);
+    return caps;
+  }
+
   private async getSourceIdForConnection(tags: string[]): Promise<string | undefined> {
     const connTag = getConnTag(tags);
     if (!connTag) return undefined;
@@ -480,6 +510,8 @@ export class SourceHub extends DurableObject<Env> {
   private async maybePushConfig(rpc: Message | undefined): Promise<void> {
     if (rpc?.payload?.$case !== "sourceOnline") return;
     try {
+      const caps = await this.getCapabilities();
+      if (!caps.canReceiveConfig) return;
       const { sourceId } = rpc.payload.sourceOnline;
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
@@ -583,6 +615,10 @@ export class SourceHub extends DurableObject<Env> {
   }
 
   private async handleRescan(request: Request): Promise<Response> {
+    const caps = await this.getCapabilities();
+    if (!caps.canRescan) {
+      return Response.json({ sent: false, reason: "rescan_not_supported" });
+    }
     const body = await request.json<{ gameId: string }>();
     const daemonSockets = this.ctx.getWebSockets("daemon");
     if (daemonSockets.length === 0) {
@@ -593,6 +629,11 @@ export class SourceHub extends DurableObject<Env> {
       ws.send(msg);
     }
     return Response.json({ sent: true, daemon_count: daemonSockets.length });
+  }
+
+  private async handleStatus(): Promise<Response> {
+    const hasDaemon = this.ctx.getWebSockets("daemon").length > 0;
+    return Response.json({ daemon_online: hasDaemon });
   }
 
   /**
