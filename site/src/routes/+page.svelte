@@ -560,22 +560,6 @@
     </div>
   </section>
 
-  <!-- ═══ ORIGIN ═══ -->
-  <section class="section origin-section">
-    <div class="section-inner origin-inner" class:visible={true}>
-      <p class="origin-text">
-        I kept alt-tabbing to ask Claude about my Diablo II: Resurrected character — breakpoints,
-        runeword options, what to farm next — and realized the AI would be a lot more useful if it
-        could just <em>see</em> my save file. So I built Savecraft.
-      </p>
-      <p class="origin-credit">
-        — <a href="https://joshsymonds.com" class="text-link" target="_blank" rel="noopener"
-          >Josh Symonds</a
-        >
-      </p>
-    </div>
-  </section>
-
   <!-- ═══ FOOTER ═══ -->
   <footer class="footer">
     <span class="footer-text"
@@ -1419,36 +1403,6 @@
     font-family: var(--font-body);
     font-size: 20px;
     color: var(--color-green);
-  }
-
-  /* ── Origin ──────────────────────────────────────────── */
-  .origin-section {
-    padding: 60px 32px 40px;
-  }
-
-  .origin-inner {
-    max-width: 600px;
-    margin: 0 auto;
-    text-align: center;
-    opacity: 1;
-    transform: none;
-  }
-
-  .origin-text {
-    font-family: var(--font-heading);
-    font-size: 17px;
-    font-weight: 400;
-    color: var(--color-text-dim);
-    line-height: 1.7;
-    font-style: italic;
-  }
-
-  .origin-credit {
-    margin-top: 16px;
-    font-family: var(--font-heading);
-    font-size: 15px;
-    font-weight: 500;
-    color: var(--color-text-muted);
   }
 
   /* ── Footer ──────────────────────────────────────────── */
