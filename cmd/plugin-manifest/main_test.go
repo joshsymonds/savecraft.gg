@@ -3,7 +3,9 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"testing"
 )
 
@@ -205,6 +207,201 @@ description = "Drops."
 	}
 	if _, ok := ref["modules"]; !ok {
 		t.Error("reference.modules missing from JSON")
+	}
+}
+
+// buildTestWASM compiles a minimal Go program to WASI WASM that outputs a
+// known schema on empty JSON input. Returns the path to the compiled WASM.
+func buildTestWASM(t *testing.T) string {
+	t.Helper()
+
+	if runtime.GOOS == "windows" {
+		t.Skip("WASM cross-compilation test not supported on Windows")
+	}
+
+	dir := t.TempDir()
+	src := filepath.Join(dir, "main.go")
+	writeFile(t, src, `package main
+
+import (
+	"encoding/json"
+	"os"
+)
+
+func main() {
+	enc := json.NewEncoder(os.Stdout)
+	_ = enc.Encode(map[string]any{
+		"type": "result",
+		"data": map[string]any{
+			"modules": []map[string]any{
+				{
+					"id":          "test_mod",
+					"name":        "Test Module",
+					"description": "A test module",
+					"parameters": map[string]any{
+						"query": map[string]any{
+							"type":        "string",
+							"description": "Test query parameter",
+						},
+						"limit": map[string]any{
+							"type":    "integer",
+							"default": float64(10),
+						},
+					},
+				},
+			},
+		},
+	})
+}
+`)
+	writeFile(t, filepath.Join(dir, "go.mod"), "module testschema\ngo 1.26\n")
+
+	wasmPath := filepath.Join(dir, "reference.wasm")
+	cmd := exec.Command("go", "build", "-o", wasmPath, ".")
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "GOOS=wasip1", "GOARCH=wasm")
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		t.Fatalf("compile test WASM: %v\n%s", err, out)
+	}
+	return wasmPath
+}
+
+func TestExtractReferenceSchema(t *testing.T) {
+	wasmPath := buildTestWASM(t)
+
+	schemas, err := extractReferenceSchema(wasmPath)
+	if err != nil {
+		t.Fatalf("extractReferenceSchema: %v", err)
+	}
+
+	if len(schemas) != 1 {
+		t.Fatalf("got %d modules, want 1", len(schemas))
+	}
+
+	mod, ok := schemas["test_mod"]
+	if !ok {
+		t.Fatalf("module 'test_mod' not found in schemas: %v", schemas)
+	}
+
+	query, ok := mod["query"].(map[string]any)
+	if !ok {
+		t.Fatal("parameter 'query' not found or wrong type")
+	}
+	if query["type"] != "string" {
+		t.Errorf("query.type = %v, want string", query["type"])
+	}
+	if query["description"] != "Test query parameter" {
+		t.Errorf("query.description = %v", query["description"])
+	}
+
+	limit, ok := mod["limit"].(map[string]any)
+	if !ok {
+		t.Fatal("parameter 'limit' not found or wrong type")
+	}
+	if limit["type"] != "integer" {
+		t.Errorf("limit.type = %v, want integer", limit["type"])
+	}
+}
+
+func TestBuildManifest_WithReferenceSchema(t *testing.T) {
+	wasmPath := buildTestWASM(t)
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "plugin.toml"), `
+game_id = "test"
+name = "Test Game"
+description = "Test with schema extraction"
+channel = "beta"
+coverage = "partial"
+file_extensions = [".sav"]
+homepage = "https://example.com"
+[author]
+name = "Test"
+github = "test"
+[default_paths]
+windows = "C:/test"
+linux = "/test"
+darwin = "/test"
+
+[reference.modules.test_mod]
+name = "Test Module"
+description = "A test module"
+`)
+	writeFile(t, filepath.Join(dir, "parser.wasm"), "fake parser wasm")
+
+	// Copy the real WASM binary into the plugin directory.
+	wasmBytes, err := os.ReadFile(wasmPath)
+	if err != nil {
+		t.Fatalf("read test wasm: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "reference.wasm"), wasmBytes, 0o644); err != nil {
+		t.Fatalf("write reference.wasm: %v", err)
+	}
+
+	m, err := buildManifest(dir)
+	if err != nil {
+		t.Fatalf("buildManifest: %v", err)
+	}
+
+	if m.Reference == nil {
+		t.Fatal("reference is nil")
+	}
+
+	mod := m.Reference.Modules["test_mod"]
+	if mod.Parameters == nil {
+		t.Fatal("module parameters is nil — schema extraction didn't work")
+	}
+
+	query, ok := mod.Parameters["query"].(map[string]any)
+	if !ok {
+		t.Fatal("parameter 'query' not in manifest")
+	}
+	if query["type"] != "string" {
+		t.Errorf("query.type = %v, want string", query["type"])
+	}
+
+	// Verify JSON serialization includes parameters.
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	ref, ok := raw["reference"].(map[string]any)
+	if !ok {
+		t.Fatal("reference field missing or wrong type in JSON")
+	}
+	modules, ok := ref["modules"].(map[string]any)
+	if !ok {
+		t.Fatal("modules field missing or wrong type in JSON")
+	}
+	testMod, ok := modules["test_mod"].(map[string]any)
+	if !ok {
+		t.Fatal("test_mod missing or wrong type in JSON")
+	}
+	params, ok := testMod["parameters"].(map[string]any)
+	if !ok {
+		t.Fatal("parameters not present in JSON output")
+	}
+	if _, ok := params["query"]; !ok {
+		t.Error("query parameter missing from JSON")
+	}
+}
+
+func TestExtractReferenceSchema_InvalidWASM(t *testing.T) {
+	dir := t.TempDir()
+	badWasm := filepath.Join(dir, "bad.wasm")
+	writeFile(t, badWasm, "not a valid wasm binary")
+
+	schemas, err := extractReferenceSchema(badWasm)
+	if err == nil {
+		t.Fatal("expected error for invalid WASM, got nil")
+	}
+	if schemas != nil {
+		t.Error("expected nil schemas for invalid WASM")
 	}
 }
 
