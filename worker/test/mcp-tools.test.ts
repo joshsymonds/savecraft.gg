@@ -783,7 +783,7 @@ describe("MCP Tools", () => {
     // ── Source listing ──────────────────────────────────────────
 
     it("returns empty sources list for user with no sources", async () => {
-      const result = await getSetupHelp(env.DB, USER_A);
+      const result = await getSetupHelp(env, USER_A);
       const data = parseResult(result) as { sources: unknown[] };
       expect(result.isError).toBeUndefined();
       expect(data.sources).toEqual([]);
@@ -800,7 +800,7 @@ describe("MCP Tools", () => {
         lastPushAt: recentPush,
       });
 
-      const result = await getSetupHelp(env.DB, USER_A);
+      const result = await getSetupHelp(env, USER_A);
       const data = parseResult(result) as {
         sources: {
           source_uuid: string;
@@ -846,7 +846,7 @@ describe("MCP Tools", () => {
         lastPushAt: null,
       });
 
-      const result = await getSetupHelp(env.DB, USER_A);
+      const result = await getSetupHelp(env, USER_A);
       const data = parseResult(result) as {
         sources: { source_uuid: string; activity: string }[];
       };
@@ -862,7 +862,7 @@ describe("MCP Tools", () => {
       await seedTestSource({ sourceUuid: "dev-a", userUuid: USER_A });
       await seedTestSource({ sourceUuid: "dev-b", userUuid: USER_B });
 
-      const result = await getSetupHelp(env.DB, USER_A);
+      const result = await getSetupHelp(env, USER_A);
       const data = parseResult(result) as {
         sources: { source_uuid: string }[];
       };
@@ -886,7 +886,7 @@ describe("MCP Tools", () => {
         lastPushAt: new Date(Date.now() - 60_000).toISOString(),
       });
 
-      const result = await getSetupHelp(env.DB, USER_A, undefined, "482913");
+      const result = await getSetupHelp(env, USER_A, undefined, "482913");
       const data = parseResult(result) as {
         lookup: {
           found: boolean;
@@ -915,7 +915,7 @@ describe("MCP Tools", () => {
         linkCodeExpiresAt: expired,
       });
 
-      const result = await getSetupHelp(env.DB, USER_A, undefined, "111111");
+      const result = await getSetupHelp(env, USER_A, undefined, "111111");
       const data = parseResult(result) as {
         lookup: { found: boolean; link_code_valid: boolean };
       };
@@ -924,7 +924,7 @@ describe("MCP Tools", () => {
     });
 
     it("reports nonexistent link code", async () => {
-      const result = await getSetupHelp(env.DB, USER_A, undefined, "999999");
+      const result = await getSetupHelp(env, USER_A, undefined, "999999");
       const data = parseResult(result) as {
         lookup: { found: boolean };
       };
@@ -940,7 +940,7 @@ describe("MCP Tools", () => {
         .bind("dev-linked", USER_B, "secret@example.com", "Secret User", "hash-linked", "222222", expires)
         .run();
 
-      const result = await getSetupHelp(env.DB, USER_A, undefined, "222222");
+      const result = await getSetupHelp(env, USER_A, undefined, "222222");
       const data = parseResult(result) as { lookup: Record<string, unknown> };
       expect(data.lookup.found).toBe(true);
       expect(data.lookup.linked).toBe(true);
@@ -964,7 +964,7 @@ describe("MCP Tools", () => {
         arch: "arm64",
       });
 
-      const result = await getSetupHelp(env.DB, USER_A, undefined, undefined, "dev-lookup");
+      const result = await getSetupHelp(env, USER_A, undefined, undefined, "dev-lookup");
       const data = parseResult(result) as {
         lookup: { found: boolean; source_uuid: string; hostname: string };
       };
@@ -974,7 +974,7 @@ describe("MCP Tools", () => {
     });
 
     it("reports nonexistent source UUID", async () => {
-      const result = await getSetupHelp(env.DB, USER_A, undefined, undefined, "nonexistent");
+      const result = await getSetupHelp(env, USER_A, undefined, undefined, "nonexistent");
       const data = parseResult(result) as { lookup: { found: boolean } };
       expect(data.lookup.found).toBe(false);
     });
@@ -982,7 +982,7 @@ describe("MCP Tools", () => {
     // ── Installation guide ──────────────────────────────────────
 
     it("returns full guide for all platforms when no platform specified", async () => {
-      const result = await getSetupHelp(env.DB, USER_A);
+      const result = await getSetupHelp(env, USER_A);
       const data = parseResult(result) as {
         guide: {
           linux: { install: string; details: string };
@@ -1001,7 +1001,7 @@ describe("MCP Tools", () => {
     });
 
     it("filters guide to requested platform", async () => {
-      const result = await getSetupHelp(env.DB, USER_A, "linux");
+      const result = await getSetupHelp(env, USER_A, "linux");
       const data = parseResult(result) as {
         guide: Record<string, unknown>;
       };
@@ -1012,7 +1012,7 @@ describe("MCP Tools", () => {
     });
 
     it("always includes pairing instructions regardless of platform", async () => {
-      const result = await getSetupHelp(env.DB, USER_A, "windows");
+      const result = await getSetupHelp(env, USER_A, "windows");
       const data = parseResult(result) as {
         guide: { pairing: string };
       };
@@ -1022,7 +1022,7 @@ describe("MCP Tools", () => {
     // ── Edge cases ────────────────────────────────────────────
 
     it("omits lookup field when neither link_code nor source_uuid provided", async () => {
-      const result = await getSetupHelp(env.DB, USER_A);
+      const result = await getSetupHelp(env, USER_A);
       const data = parseResult(result) as Record<string, unknown>;
       expect(data).not.toHaveProperty("lookup");
     });
@@ -1043,7 +1043,7 @@ describe("MCP Tools", () => {
       });
 
       // Pass both — source_uuid should win
-      const result = await getSetupHelp(env.DB, USER_A, undefined, "444444", "dev-by-uuid");
+      const result = await getSetupHelp(env, USER_A, undefined, "444444", "dev-by-uuid");
       const data = parseResult(result) as {
         lookup: { source_uuid: string; hostname: string };
       };
@@ -1052,7 +1052,7 @@ describe("MCP Tools", () => {
     });
 
     it("returns all platforms for invalid platform value", async () => {
-      const result = await getSetupHelp(env.DB, USER_A, "android");
+      const result = await getSetupHelp(env, USER_A, "android");
       const data = parseResult(result) as {
         guide: Record<string, unknown>;
       };
@@ -1069,7 +1069,7 @@ describe("MCP Tools", () => {
         linkCodeExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
       });
 
-      const result = await getSetupHelp(env.DB, USER_A, undefined, "555555");
+      const result = await getSetupHelp(env, USER_A, undefined, "555555");
       const json = JSON.stringify(parseResult(result));
       expect(json).not.toContain("token_hash");
       expect(json).not.toContain(`hash-dev-secret`);

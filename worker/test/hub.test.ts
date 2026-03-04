@@ -855,6 +855,86 @@ describe("SourceHub", () => {
     await closeWs(daemonWs);
   });
 
+  it("rescan returns error when can_rescan is false", async () => {
+    const userUuid = "no-rescan-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Disable can_rescan for this source
+    await env.DB.prepare("UPDATE sources SET can_rescan = 0 WHERE source_uuid = ?")
+      .bind(sourceUuid)
+      .run();
+
+    const daemonWs = await connectDaemonWs(sourceToken);
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // configUpdate
+
+    const doId = env.SOURCE_HUB.idFromName(sourceUuid);
+    const doStub = env.SOURCE_HUB.get(doId);
+    const resp = await doStub.fetch(
+      new Request("https://do/rescan", {
+        method: "POST",
+        body: JSON.stringify({ gameId: "d2r" }),
+      }),
+    );
+
+    expect(resp.status).toBe(200);
+    const body = await resp.json<{ sent: boolean; reason?: string }>();
+    expect(body.sent).toBe(false);
+    expect(body.reason).toBe("rescan_not_supported");
+
+    await closeWs(daemonWs);
+  });
+
+  it("skips config push when can_receive_config is false", async () => {
+    const userUuid = "no-config-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Disable can_receive_config and add a config that would normally be pushed
+    await env.DB.prepare("UPDATE sources SET can_receive_config = 0 WHERE source_uuid = ?")
+      .bind(sourceUuid)
+      .run();
+    await env.DB.prepare(
+      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    )
+      .bind(userUuid, sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
+      .run();
+
+    const daemonWs = await connectDaemonWs(sourceToken);
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+
+    // Should NOT receive configUpdate — wait briefly, expect timeout
+    const noConfig = await waitForMessage(daemonWs, 500).catch(() => null);
+    expect(noConfig).toBeNull();
+
+    await closeWs(daemonWs);
+  });
+
+  it("returns live source status via /status endpoint", async () => {
+    const userUuid = "status-endpoint-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Before daemon connects — should report offline
+    const doId = env.SOURCE_HUB.idFromName(sourceUuid);
+    const doStub = env.SOURCE_HUB.get(doId);
+    const offlineResp = await doStub.fetch(new Request("https://do/status", { method: "GET" }));
+    expect(offlineResp.status).toBe(200);
+    const offlineBody = await offlineResp.json<{ daemon_online: boolean }>();
+    expect(offlineBody.daemon_online).toBe(false);
+
+    // Connect daemon
+    const daemonWs = await connectDaemonWs(sourceToken);
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // configUpdate
+
+    // Should now report online
+    const onlineResp = await doStub.fetch(new Request("https://do/status", { method: "GET" }));
+    const onlineBody = await onlineResp.json<{ daemon_online: boolean }>();
+    expect(onlineBody.daemon_online).toBe(true);
+
+    await closeWs(daemonWs);
+  });
+
   it("does not send sourceUpdateAvailable when daemon is current", async () => {
     const userUuid = "update-current-user";
     const { sourceToken } = await seedSource(userUuid);
