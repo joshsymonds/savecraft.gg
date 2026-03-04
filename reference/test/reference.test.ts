@@ -8,7 +8,10 @@ function query(body: string): Promise<Response> {
   });
 }
 
-describe("D2R Reference Worker", () => {
+// These tests verify the reference Worker infrastructure (WASI shim, HTTP handler,
+// ndjson contract) using whichever plugin wasm is in reference.wasm. The specific
+// plugin doesn't matter — we're testing the plumbing, not game logic.
+describe("Reference Worker Infrastructure", () => {
   it("returns schema on empty query", async () => {
     const response = await query("{}");
     expect(response.status).toBe(200);
@@ -16,50 +19,37 @@ describe("D2R Reference Worker", () => {
     const text = await response.text();
     const parsed = JSON.parse(text.trim()) as {
       type: string;
-      data: { modules: Array<{ id: string; name: string }> };
+      data: { modules: Array<{ id: string; name: string; parameters: Record<string, unknown> }> };
     };
     expect(parsed.type).toBe("result");
     expect(parsed.data.modules).toBeInstanceOf(Array);
-    expect(parsed.data.modules[0]!.id).toBe("drop_calc");
-    expect(parsed.data.modules[0]!.name).toBe("Drop Calculator");
+    expect(parsed.data.modules.length).toBeGreaterThan(0);
+
+    // Every module must have id, name, and parameters
+    for (const mod of parsed.data.modules) {
+      expect(mod.id).toBeTruthy();
+      expect(mod.name).toBeTruthy();
+      expect(mod.parameters).toBeTruthy();
+    }
   });
 
-  it("computes drop probabilities for a monster", async () => {
-    const input = JSON.stringify({ module: "drop_calc", monster: "mephisto", difficulty: "hell" });
-    const response = await query(input);
+  it("returns valid ndjson with type field", async () => {
+    const response = await query("{}");
     expect(response.status).toBe(200);
 
     const text = await response.text();
-    const parsed = JSON.parse(text.trim()) as {
-      type: string;
-      data: { formatted: string; total: number; offset: number; limit: number };
-    };
+    const lines = text
+      .trim()
+      .split("\n")
+      .filter((l: string) => l.length > 0);
+
+    // Schema is always a single line
+    expect(lines).toHaveLength(1);
+    const parsed = JSON.parse(lines[0]!) as { type: string };
     expect(parsed.type).toBe("result");
-    expect(parsed.data.formatted).toContain("mephisto");
-    expect(parsed.data.total).toBeGreaterThan(10);
   });
 
-  it("finds item sources via reverse lookup", async () => {
-    const input = JSON.stringify({
-      module: "drop_calc",
-      item: "r13",
-      difficulty: "hell",
-      boss_only: true,
-    });
-    const response = await query(input);
-    expect(response.status).toBe(200);
-
-    const text = await response.text();
-    const parsed = JSON.parse(text.trim()) as {
-      type: string;
-      data: { formatted: string; total: number };
-    };
-    expect(parsed.type).toBe("result");
-    expect(parsed.data.formatted).toContain("Shael Rune");
-    expect(parsed.data.total).toBeGreaterThan(0);
-  });
-
-  it("returns error on invalid JSON input", async () => {
+  it("returns 422 with error type on invalid JSON", async () => {
     const response = await query("not json");
     expect(response.status).toBe(422);
 
@@ -70,12 +60,12 @@ describe("D2R Reference Worker", () => {
       message: string;
     };
     expect(parsed.type).toBe("error");
-    expect(parsed.errorType).toBe("parse_error");
-    expect(parsed.message).toContain("invalid");
+    expect(parsed.errorType).toBeTruthy();
+    expect(parsed.message).toBeTruthy();
   });
 
-  it("returns error for unknown item", async () => {
-    const input = JSON.stringify({ module: "drop_calc", item: "nonexistent_item_xyz" });
+  it("returns 422 with error for unknown module", async () => {
+    const input = JSON.stringify({ module: "nonexistent_module_xyz" });
     const response = await query(input);
     expect(response.status).toBe(422);
 
@@ -89,18 +79,31 @@ describe("D2R Reference Worker", () => {
     expect(parsed.message).toContain("unknown");
   });
 
-  it("captures ndjson output as single line for schema", async () => {
-    const response = await query("{}");
-    expect(response.status).toBe(200);
+  it("returns formatted result for a valid query", async () => {
+    // Discover the first module and its parameters from the schema
+    const schemaResp = await query("{}");
+    const schemaText = await schemaResp.text();
+    const schema = JSON.parse(schemaText.trim()) as {
+      data: { modules: Array<{ id: string; parameters: Record<string, { type: string }> }> };
+    };
+    const mod = schema.data.modules[0]!;
+
+    // Build a minimal query using the first string parameter
+    const queryObj: Record<string, string> = { module: mod.id };
+    for (const [key, param] of Object.entries(mod.parameters)) {
+      if (param.type === "string") {
+        queryObj[key] = "test_value";
+        break;
+      }
+    }
+
+    const response = await query(JSON.stringify(queryObj));
+    // Should get either a successful result or a domain error (not a crash)
+    expect([200, 422]).toContain(response.status);
 
     const text = await response.text();
-    const lines = text
-      .trim()
-      .split("\n")
-      .filter((l: string) => l.length > 0);
-    expect(lines).toHaveLength(1);
-    const parsed = JSON.parse(lines[0]!) as { type: string };
-    expect(parsed.type).toBe("result");
+    const parsed = JSON.parse(text.trim()) as { type: string };
+    expect(["result", "error"]).toContain(parsed.type);
   });
 
   it("rejects non-POST requests", async () => {

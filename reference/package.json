@@ -1,5 +1,5 @@
 {
-  "name": "d2r-reference-worker",
+  "name": "reference-worker",
   "private": true,
   "type": "module",
   "scripts": {
