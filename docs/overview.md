@@ -36,6 +36,12 @@ Savecraft has two fully separate components that share a user account and a data
 │  - D2R .d2s          │        │  │  - latest.json (ptr)   │  │
 │  - Stardew XML       │        │  │  - plugins (.wasm)     │  │
 │  - etc.              │        │  └────────────────────────┘  │
+│                      │        │                              │
+│  Some games need no  │        │  ┌────────────────────────┐  │
+│  daemon — API-backed │        │  │  API Adapters (Worker)  │  │
+│  games (WoW, PoE2)   │        │  │  - fetch game APIs     │  │
+│  are served directly │        │  │  - same GameState out   │  │
+│  by the Worker.      │        │  └────────────────────────┘  │
 └─────────────────────┘         │                              │
                                 │  ┌────────────────────────┐  │
 ┌─────────────────────┐         │  │  MCP Server (Worker)   │  │
