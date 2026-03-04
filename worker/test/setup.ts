@@ -81,7 +81,9 @@ const statements = [
     os TEXT,
     arch TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    last_push_at TEXT
+    last_push_at TEXT,
+    can_rescan INTEGER NOT NULL DEFAULT 1,
+    can_receive_config INTEGER NOT NULL DEFAULT 1
   )`,
   `CREATE INDEX IF NOT EXISTS idx_devices_user ON devices(user_uuid)`,
   `CREATE INDEX IF NOT EXISTS idx_devices_link_code ON devices(link_code) WHERE link_code IS NOT NULL`,
