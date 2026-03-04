@@ -10,12 +10,21 @@
     ConnectCard,
     DeviceWindow,
     InstallBlock,
+    LinkingCard,
     StatusDot,
   } from "$lib/components";
   import { activateGame } from "$lib/stores/activation";
   import { activityEvents } from "$lib/stores/activity";
   import { devices, setGameStatus } from "$lib/stores/devices";
   import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
+  import { pendingLinkCode } from "$lib/stores/link-code";
+  import {
+    dismissLinkError,
+    linkedDeviceId,
+    linkError,
+    linkState,
+    submitLinkCode,
+  } from "$lib/stores/link-flow";
   import type { Device, DeviceStatus } from "$lib/types/device";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
 
@@ -23,6 +32,16 @@
 
   let configDeviceId = $state<string | null>(null);
   let activityExpanded = $state(false);
+  let displayCode = $state("");
+
+  // Auto-submit pending link code from /link/[code] redirect
+  $effect(() => {
+    const code = $pendingLinkCode;
+    if (code) {
+      displayCode = code;
+      void submitLinkCode(code);
+    }
+  });
 
   let visibleEvents = $derived(
     activityExpanded ? $activityEvents : $activityEvents.slice(0, COLLAPSED_EVENT_COUNT),
@@ -73,12 +92,18 @@
 <div class="devices-layout">
   <!-- Main: device cards -->
   <main class="devices">
+    {#if $linkState === "linking"}
+      <LinkingCard state="linking" code={displayCode} />
+    {:else if $linkState === "error"}
+      <LinkingCard state="error" errorMessage={$linkError} ondismiss={dismissLinkError} />
+    {/if}
+
     {#if $devices.length === 0}
       {#if $connectionStatus === "connecting"}
         <div class="empty-state">
           <span class="empty-text">Connecting...</span>
         </div>
-      {:else}
+      {:else if $linkState !== "linking"}
         <InstallBlock prominent={true} />
       {/if}
     {:else}
@@ -92,6 +117,7 @@
       {#each $devices as device (device.id)}
         <DeviceWindow
           {device}
+          justLinked={device.id === $linkedDeviceId}
           onrescan={() => rescan(device)}
           ondiscover={discover}
           onconfig={() => (configDeviceId = device.id)}
