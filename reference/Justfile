@@ -1,0 +1,7 @@
+# Copy a plugin's reference.wasm for infrastructure testing.
+# Uses D2R by default; any conformant plugin would work.
+prepare game="d2r":
+    cp ../plugins/{{game}}/reference.wasm reference.wasm
+
+test: prepare
+    npm test
