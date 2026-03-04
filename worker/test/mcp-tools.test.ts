@@ -46,6 +46,19 @@ const sampleGameState = {
   },
 };
 
+/** Map user UUID to a deterministic device UUID for test consistency. */
+function deviceUuidFor(userUuid: string): string {
+  return `device-${userUuid}`;
+}
+
+async function ensureDevice(userUuid: string): Promise<void> {
+  await env.DB.prepare(
+    "INSERT OR IGNORE INTO devices (device_uuid, user_uuid, token_hash) VALUES (?, ?, ?)",
+  )
+    .bind(deviceUuidFor(userUuid), userUuid, `hash-${userUuid}`)
+    .run();
+}
+
 async function seedSave(options: {
   saveUuid: string;
   userUuid: string;
@@ -58,13 +71,16 @@ async function seedSave(options: {
 }): Promise<void> {
   const lastUpdated = options.lastUpdated ?? "2026-02-25T21:30:00Z";
   const gameName = options.gameName ?? options.gameId;
+  const deviceUuid = deviceUuidFor(options.userUuid);
+
+  await ensureDevice(options.userUuid);
 
   await env.DB.prepare(
-    "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO saves (uuid, device_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       options.saveUuid,
-      options.userUuid,
+      deviceUuid,
       options.gameId,
       gameName,
       options.saveName,
@@ -74,7 +90,7 @@ async function seedSave(options: {
     .run();
 
   const state = options.gameState ?? sampleGameState;
-  const key = `users/${options.userUuid}/saves/${options.saveUuid}/latest.json`;
+  const key = `devices/${deviceUuid}/saves/${options.saveUuid}/latest.json`;
   await env.SAVES.put(key, JSON.stringify(state));
 }
 
@@ -84,7 +100,8 @@ async function seedSnapshot(
   timestamp: string,
   gameState: typeof sampleGameState,
 ): Promise<void> {
-  const key = `users/${userUuid}/saves/${saveUuid}/snapshots/${timestamp}.json`;
+  const deviceUuid = deviceUuidFor(userUuid);
+  const key = `devices/${deviceUuid}/saves/${saveUuid}/snapshots/${timestamp}.json`;
   await env.SAVES.put(key, JSON.stringify(gameState));
 }
 
@@ -351,7 +368,7 @@ describe("MCP Tools", () => {
         summary: "Format check",
       });
 
-      const object = await env.SAVES.get(`users/${USER_A}/saves/save-fmt-check/latest.json`);
+      const object = await env.SAVES.get(`devices/${deviceUuidFor(USER_A)}/saves/save-fmt-check/latest.json`);
       const snapshot = await object!.json<{ identity: Record<string, unknown> }>();
       // Daemon sends camelCase — R2 should store exactly that
       expect(snapshot.identity.gameId).toBe("d2r");
@@ -1023,10 +1040,9 @@ describe("MCP Tools", () => {
 
       // Manually index a section
       await env.DB.prepare(
-        "INSERT INTO search_index (user_uuid, save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?)",
       )
         .bind(
-          USER_A,
           "save-search-1",
           "SearchChar",
           "section",
@@ -1057,10 +1073,9 @@ describe("MCP Tools", () => {
       });
 
       await env.DB.prepare(
-        "INSERT INTO search_index (user_uuid, save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?)",
       )
         .bind(
-          USER_A,
           "save-search-2",
           "SearchNoteChar",
           "note",
@@ -1098,10 +1113,9 @@ describe("MCP Tools", () => {
       });
 
       await env.DB.prepare(
-        "INSERT INTO search_index (user_uuid, save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?)",
       )
         .bind(
-          USER_A,
           "save-search-scope-a",
           "ScopeCharA",
           "section",
@@ -1111,10 +1125,9 @@ describe("MCP Tools", () => {
         )
         .run();
       await env.DB.prepare(
-        "INSERT INTO search_index (user_uuid, save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?)",
       )
         .bind(
-          USER_A,
           "save-search-scope-b",
           "ScopeCharB",
           "section",
@@ -1147,10 +1160,9 @@ describe("MCP Tools", () => {
       });
 
       await env.DB.prepare(
-        "INSERT INTO search_index (user_uuid, save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?, ?)",
+        "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?)",
       )
         .bind(
-          USER_B,
           "save-search-other",
           "OtherUserChar",
           "section",

@@ -173,9 +173,9 @@ async function routeDaemonEndpoints(
     return Response.json({ status: "ok" });
   }
   if (url.pathname === "/api/v1/push" && request.method === "POST") {
-    const auth = await authenticateDaemon(request, env);
+    const auth = await authenticateDevice(request, env);
     if (!auth) return new Response("Unauthorized", { status: 401 });
-    return handlePush(request, env, auth.userUuid);
+    return handlePush(request, env, auth.deviceUuid);
   }
   return null;
 }
@@ -450,7 +450,11 @@ async function handleNotes(
     return Response.json({ error: "Invalid save_id" }, { status: 400 });
   }
 
-  const save = await env.DB.prepare("SELECT uuid FROM saves WHERE uuid = ? AND user_uuid = ?")
+  const save = await env.DB.prepare(
+    `SELECT s.uuid FROM saves s
+     JOIN devices d ON s.device_uuid = d.device_uuid
+     WHERE s.uuid = ? AND d.user_uuid = ?`,
+  )
     .bind(saveId, userUuid)
     .first<{ uuid: string }>();
 
@@ -529,7 +533,6 @@ async function handleNoteCollection(
       .first<{ save_name: string }>();
     await indexNote(
       env.DB,
-      userUuid,
       saveId,
       saveRow?.save_name ?? "",
       noteId,
@@ -648,7 +651,6 @@ async function updateOneNote(
     if (updated) {
       await indexNote(
         env.DB,
-        userUuid,
         saveId,
         updated.save_name,
         noteId,
@@ -681,7 +683,7 @@ async function deleteOneNote(
     .bind(noteId, userUuid)
     .run();
 
-  await removeNoteFromIndex(env.DB, userUuid, noteId);
+  await removeNoteFromIndex(env.DB, noteId);
 
   return Response.json({ deleted: true });
 }
@@ -690,7 +692,11 @@ async function deleteOneNote(
 
 async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
   const rows = await env.DB.prepare(
-    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
+    `SELECT s.uuid, s.game_id, s.save_name, s.summary, s.last_updated
+     FROM saves s
+     JOIN devices d ON s.device_uuid = d.device_uuid
+     WHERE d.user_uuid = ?
+     ORDER BY s.last_updated DESC`,
   )
     .bind(userUuid)
     .all<{
@@ -714,11 +720,15 @@ async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
 
 async function handleGetSave(env: Env, userUuid: string, saveId: string): Promise<Response> {
   const save = await env.DB.prepare(
-    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE uuid = ? AND user_uuid = ?",
+    `SELECT s.uuid, s.device_uuid, s.game_id, s.save_name, s.summary, s.last_updated
+     FROM saves s
+     JOIN devices d ON s.device_uuid = d.device_uuid
+     WHERE s.uuid = ? AND d.user_uuid = ?`,
   )
     .bind(saveId, userUuid)
     .first<{
       uuid: string;
+      device_uuid: string;
       game_id: string;
       save_name: string;
       summary: string;
@@ -727,7 +737,7 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
 
   if (!save) return Response.json({ error: "Save not found" }, { status: 404 });
 
-  const key = `users/${userUuid}/saves/${saveId}/latest.json`;
+  const key = `devices/${save.device_uuid}/saves/${saveId}/latest.json`;
   const object = await env.SAVES.get(key);
   let sections: { name: string; description: string }[] = [];
   if (object) {
@@ -1075,7 +1085,7 @@ async function readPushBody(request: Request): Promise<Record<string, unknown>> 
 
 async function storePush(
   env: Env,
-  userUuid: string,
+  deviceUuid: string,
   gameId: string,
   saveName: string,
   summary: string,
@@ -1084,9 +1094,9 @@ async function storePush(
   sections: unknown,
 ): Promise<{ saveUuid: string }> {
   const existingSave = await env.DB.prepare(
-    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
+    "SELECT uuid FROM saves WHERE device_uuid = ? AND game_id = ? AND save_name = ?",
   )
-    .bind(userUuid, gameId, saveName)
+    .bind(deviceUuid, gameId, saveName)
     .first<{ uuid: string }>();
 
   let saveUuid: string;
@@ -1096,16 +1106,16 @@ async function storePush(
     saveUuid = crypto.randomUUID();
     const gameName = await resolveGameName(env.PLUGINS, gameId);
     await env.DB.prepare(
-      "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO saves (uuid, device_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
     )
-      .bind(saveUuid, userUuid, gameId, gameName, saveName, summary, parsedAt)
+      .bind(saveUuid, deviceUuid, gameId, gameName, saveName, summary, parsedAt)
       .run();
   }
 
-  const snapshotKey = `users/${userUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
+  const snapshotKey = `devices/${deviceUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
   await env.SAVES.put(snapshotKey, bodyString);
 
-  const latestKey = `users/${userUuid}/saves/${saveUuid}/latest.json`;
+  const latestKey = `devices/${deviceUuid}/saves/${saveUuid}/latest.json`;
   const isNewer = await isNewerThanLatest(env.SAVES, latestKey, parsedAt);
   if (isNewer) {
     await env.SAVES.put(latestKey, bodyString, { customMetadata: { parsedAt } });
@@ -1115,13 +1125,13 @@ async function storePush(
         .run();
     }
     const sectionData = sections as Record<string, { description: string; data: unknown }>;
-    await indexSaveSections(env.DB, userUuid, saveUuid, saveName, sectionData);
+    await indexSaveSections(env.DB, saveUuid, saveName, sectionData);
   }
 
   return { saveUuid };
 }
 
-async function handlePush(request: Request, env: Env, userUuid: string): Promise<Response> {
+async function handlePush(request: Request, env: Env, deviceUuid: string): Promise<Response> {
   const gameId = request.headers.get("X-Game");
   if (!gameId) {
     return Response.json({ error: "Missing X-Game header" }, { status: 400 });
@@ -1160,7 +1170,7 @@ async function handlePush(request: Request, env: Env, userUuid: string): Promise
   try {
     const { saveUuid } = await storePush(
       env,
-      userUuid,
+      deviceUuid,
       gameId,
       saveName,
       summary,

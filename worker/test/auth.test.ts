@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { authenticateApiKey, sha256Hex } from "../src/auth";
 import worker from "../src/index";
 
-import { cleanAll, getOAuthToken } from "./helpers";
+import { cleanAll, getOAuthToken, seedDevice } from "./helpers";
 
 const AUTH_TEST_USER = "auth-test-user";
 
@@ -298,26 +298,20 @@ describe("authenticateApiKey", () => {
 describe("API key auth integration", () => {
   beforeEach(cleanAll);
 
-  it("push endpoint with valid API key returns 201", async () => {
-    const rawKey = "sav_pushtest123456789012345678";
-    const hash = await sha256Hex(rawKey);
-    await env.DB.prepare(
-      "INSERT INTO api_keys (id, key_prefix, key_hash, user_uuid, label) VALUES (?, ?, ?, ?, ?)",
-    )
-      .bind("key-push", "sav_push", hash, AUTH_TEST_USER, "push test")
-      .run();
+  it("push endpoint with valid device token returns 201", async () => {
+    const { deviceToken } = await seedDevice();
 
     const resp = await SELF.fetch(
       new Request("https://test-host/api/v1/push", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${rawKey}`,
+          Authorization: `Bearer ${deviceToken}`,
           "X-Game": "d2r",
           "X-Parsed-At": "2026-02-25T21:30:00Z",
         },
         body: JSON.stringify({
-          identity: { saveName: "ApiKeyChar", gameId: "d2r" },
+          identity: { saveName: "DeviceTokenChar", gameId: "d2r" },
           summary: "Test character",
           sections: { overview: { description: "test", data: {} } },
         }),

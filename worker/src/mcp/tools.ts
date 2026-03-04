@@ -12,7 +12,7 @@ export interface ToolResult {
 
 interface SaveRow {
   uuid: string;
-  user_uuid: string;
+  device_uuid: string;
   game_id: string;
   game_name: string;
   save_name: string;
@@ -52,17 +52,21 @@ async function lookupSave(
   saveId: string,
 ): Promise<SaveRow | null> {
   return db
-    .prepare("SELECT * FROM saves WHERE uuid = ? AND user_uuid = ?")
+    .prepare(
+      `SELECT s.* FROM saves s
+       JOIN devices d ON s.device_uuid = d.device_uuid
+       WHERE s.uuid = ? AND d.user_uuid = ?`,
+    )
     .bind(saveId, userUuid)
     .first<SaveRow>();
 }
 
 async function loadLatestSnapshot(
   snapshots: R2Bucket,
-  userUuid: string,
+  deviceUuid: string,
   saveId: string,
 ): Promise<GameState | null> {
-  const key = `users/${userUuid}/saves/${saveId}/latest.json`;
+  const key = `devices/${deviceUuid}/saves/${saveId}/latest.json`;
   const object = await snapshots.get(key);
   if (!object) return null;
   return object.json<GameState>();
@@ -70,11 +74,11 @@ async function loadLatestSnapshot(
 
 async function loadSnapshotAtTimestamp(
   snapshots: R2Bucket,
-  userUuid: string,
+  deviceUuid: string,
   saveId: string,
   timestamp: string,
 ): Promise<GameState | null> {
-  const key = `users/${userUuid}/saves/${saveId}/snapshots/${timestamp}.json`;
+  const key = `devices/${deviceUuid}/saves/${saveId}/snapshots/${timestamp}.json`;
   const object = await snapshots.get(key);
   if (!object) return null;
   return object.json<GameState>();
@@ -225,7 +229,11 @@ export async function listGames(
 ): Promise<ToolResult> {
   const saveRows = await db
     .prepare(
-      "SELECT uuid, game_id, game_name, save_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
+      `SELECT s.uuid, s.device_uuid, s.game_id, s.game_name, s.save_name, s.summary, s.last_updated
+       FROM saves s
+       JOIN devices d ON s.device_uuid = d.device_uuid
+       WHERE d.user_uuid = ?
+       ORDER BY s.last_updated DESC`,
     )
     .bind(userUuid)
     .all<SaveRow>();
@@ -255,7 +263,7 @@ export async function getSave(
   if (!save)
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
-  const state = await loadLatestSnapshot(snapshots, userUuid, saveId);
+  const state = await loadLatestSnapshot(snapshots, save.device_uuid, saveId);
   if (!state)
     return errorResult(
       "No snapshot data available for this save. The daemon may not have pushed data yet.",
@@ -391,8 +399,8 @@ export async function getSection(
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
   const state = timestamp
-    ? await loadSnapshotAtTimestamp(snapshots, userUuid, saveId, timestamp)
-    : await loadLatestSnapshot(snapshots, userUuid, saveId);
+    ? await loadSnapshotAtTimestamp(snapshots, save.device_uuid, saveId, timestamp)
+    : await loadLatestSnapshot(snapshots, save.device_uuid, saveId);
   if (!state) {
     return errorResult(
       timestamp
@@ -453,10 +461,10 @@ function parsePeriod(period: string): number | null {
  */
 async function listSnapshotTimestamps(
   snapshots: R2Bucket,
-  userUuid: string,
+  deviceUuid: string,
   saveId: string,
 ): Promise<string[]> {
-  const prefix = `users/${userUuid}/saves/${saveId}/snapshots/`;
+  const prefix = `devices/${deviceUuid}/saves/${saveId}/snapshots/`;
   const allObjects: R2Object[] = [];
   let cursor: string | undefined;
 
@@ -520,7 +528,7 @@ export async function getSectionDiff(
     );
   }
 
-  const timestamps = await listSnapshotTimestamps(snapshots, userUuid, saveId);
+  const timestamps = await listSnapshotTimestamps(snapshots, save.device_uuid, saveId);
   if (timestamps.length < 2) {
     return errorResult(
       "Not enough snapshots to compare. The save needs at least two snapshots for a diff — this happens automatically as the game is played and saves update.",
@@ -544,8 +552,8 @@ export async function getSectionDiff(
     );
   }
 
-  const fromState = await loadSnapshotAtTimestamp(snapshots, userUuid, saveId, fromTimestamp);
-  const toState = await loadSnapshotAtTimestamp(snapshots, userUuid, saveId, toTimestamp);
+  const fromState = await loadSnapshotAtTimestamp(snapshots, save.device_uuid, saveId, fromTimestamp);
+  const toState = await loadSnapshotAtTimestamp(snapshots, save.device_uuid, saveId, toTimestamp);
 
   if (!fromState || !toState) {
     return errorResult("Failed to load snapshots for comparison.");
@@ -712,7 +720,7 @@ export async function createNote(
     .run();
 
   // Index in FTS5
-  await indexNote(db, userUuid, saveId, save.save_name, noteId, title, content);
+  await indexNote(db, saveId, save.save_name, noteId, title, content);
 
   return textResult({ note_id: noteId });
 }
@@ -774,7 +782,7 @@ export async function updateNote(
     .bind(noteId)
     .first<{ title: string; content: string }>();
   if (updated) {
-    await indexNote(db, userUuid, saveId, save.save_name, noteId, updated.title, updated.content);
+    await indexNote(db, saveId, save.save_name, noteId, updated.title, updated.content);
   }
 
   return textResult({ note_id: noteId });
@@ -806,7 +814,7 @@ export async function deleteNote(
     .run();
 
   // Remove from FTS5 index
-  await removeNoteFromIndex(db, userUuid, noteId);
+  await removeNoteFromIndex(db, noteId);
 
   return textResult({ deleted: true, note_id: noteId });
 }
@@ -872,21 +880,23 @@ export async function searchSaves(
   }
 
   let sql: string;
-  const params: string[] = [userUuid];
+  const params: string[] = [];
 
   if (saveId) {
-    sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 6, '**', '**', '...', 32) as snippet
+    sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
-           WHERE search_index MATCH ? AND user_uuid = ? AND save_id = ?
+           WHERE search_index MATCH ? AND save_id = ?
            ORDER BY rank
            LIMIT 20`;
     params.push(saveId);
   } else {
-    sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 6, '**', '**', '...', 32) as snippet
+    sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
-           WHERE search_index MATCH ? AND user_uuid = ?
+           WHERE search_index MATCH ?
+             AND save_id IN (SELECT s.uuid FROM saves s JOIN devices d ON s.device_uuid = d.device_uuid WHERE d.user_uuid = ?)
            ORDER BY rank
            LIMIT 20`;
+    params.push(userUuid);
   }
 
   const rows = await db
@@ -1000,31 +1010,29 @@ function isFormattedResult(data: unknown): boolean {
 
 export async function indexSaveSections(
   db: D1Database,
-  userUuid: string,
   saveId: string,
   saveName: string,
   sections: Record<string, { description: string; data: unknown }>,
 ): Promise<void> {
   // Delete old section index entries for this save
   await db
-    .prepare("DELETE FROM search_index WHERE save_id = ? AND user_uuid = ? AND type = 'section'")
-    .bind(saveId, userUuid)
+    .prepare("DELETE FROM search_index WHERE save_id = ? AND type = 'section'")
+    .bind(saveId)
     .run();
 
   // Insert new entries per section
   for (const [name, section] of Object.entries(sections)) {
     await db
       .prepare(
-        "INSERT INTO search_index (user_uuid, save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, 'section', ?, ?, ?)",
+        "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, 'section', ?, ?, ?)",
       )
-      .bind(userUuid, saveId, saveName, name, section.description, JSON.stringify(section.data))
+      .bind(saveId, saveName, name, section.description, JSON.stringify(section.data))
       .run();
   }
 }
 
 export async function indexNote(
   db: D1Database,
-  userUuid: string,
   saveId: string,
   saveName: string,
   noteId: string,
@@ -1033,25 +1041,24 @@ export async function indexNote(
 ): Promise<void> {
   // Delete old index entry for this note
   await db
-    .prepare("DELETE FROM search_index WHERE ref_id = ? AND user_uuid = ? AND type = 'note'")
-    .bind(noteId, userUuid)
+    .prepare("DELETE FROM search_index WHERE ref_id = ? AND type = 'note'")
+    .bind(noteId)
     .run();
 
   await db
     .prepare(
-      "INSERT INTO search_index (user_uuid, save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, 'note', ?, ?, ?)",
+      "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, 'note', ?, ?, ?)",
     )
-    .bind(userUuid, saveId, saveName, noteId, title, content)
+    .bind(saveId, saveName, noteId, title, content)
     .run();
 }
 
 export async function removeNoteFromIndex(
   db: D1Database,
-  userUuid: string,
   noteId: string,
 ): Promise<void> {
   await db
-    .prepare("DELETE FROM search_index WHERE ref_id = ? AND user_uuid = ? AND type = 'note'")
-    .bind(noteId, userUuid)
+    .prepare("DELETE FROM search_index WHERE ref_id = ? AND type = 'note'")
+    .bind(noteId)
     .run();
 }

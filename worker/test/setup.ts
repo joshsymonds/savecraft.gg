@@ -8,13 +8,13 @@ import { CLEANUP_TABLES } from "./helpers";
 const statements = [
   `CREATE TABLE IF NOT EXISTS saves (
     uuid TEXT PRIMARY KEY,
-    user_uuid TEXT NOT NULL,
+    device_uuid TEXT NOT NULL,
     game_id TEXT NOT NULL,
     game_name TEXT NOT NULL DEFAULT '',
     save_name TEXT NOT NULL,
     summary TEXT NOT NULL DEFAULT '',
     last_updated TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE (user_uuid, game_id, save_name)
+    UNIQUE (device_uuid, game_id, save_name)
   )`,
   `CREATE TABLE IF NOT EXISTS device_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -51,7 +51,6 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_device_configs_user_device
     ON device_configs(user_uuid, device_id)`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS search_index USING fts5(
-    user_uuid UNINDEXED,
     save_id UNINDEXED,
     save_name UNINDEXED,
     type UNINDEXED,

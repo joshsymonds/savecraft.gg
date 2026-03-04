@@ -1,16 +1,17 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll } from "./helpers";
+import { cleanAll, seedDevice } from "./helpers";
 
 const TEST_USER = "saves-rest-user";
+let DEVICE_TOKEN: string;
 
 function pushSave(saveName: string, summary: string, parsedAt: string): Request {
   return new Request("https://test-host/api/v1/push", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${TEST_USER}`,
+      Authorization: `Bearer ${DEVICE_TOKEN}`,
       "X-Game": "d2r",
       "X-Parsed-At": parsedAt,
     },
@@ -44,7 +45,12 @@ function getSave(saveId: string): Request {
 }
 
 describe("Saves REST API", () => {
-  beforeEach(cleanAll);
+  beforeEach(async () => {
+    await cleanAll();
+    // Device linked to TEST_USER so push creates saves visible to session auth
+    const device = await seedDevice(TEST_USER);
+    DEVICE_TOKEN = device.deviceToken;
+  });
 
   it("returns empty saves list for new user", async () => {
     const resp = await SELF.fetch(getSaves());
