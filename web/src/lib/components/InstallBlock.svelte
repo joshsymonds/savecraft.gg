@@ -32,7 +32,7 @@
 
   const isStaging = PUBLIC_API_URL.includes("staging");
   const installUrl = isStaging
-    ? "https://install-staging.savecraft.gg"
+    ? "https://staging-install.savecraft.gg"
     : "https://install.savecraft.gg";
   const appName = isStaging ? "savecraft-staging" : "savecraft";
   const msiUrl = `${installUrl}/daemon/${appName}.msi`;
