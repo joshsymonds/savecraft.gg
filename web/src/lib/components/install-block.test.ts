@@ -224,9 +224,7 @@ describe("InstallBlock", () => {
 
     it("shows Windows-specific install hint", () => {
       render(InstallBlock, { props: { prominent: true } });
-      expect(
-        screen.getByText(/enter your pairing code in the system tray/i),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/enter your pairing code in the system tray/i)).toBeInTheDocument();
     });
   });
 
