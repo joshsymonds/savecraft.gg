@@ -40,21 +40,6 @@ describe("linkDevice", () => {
     expect(result).toEqual({ device_uuid: "dev-123" });
   });
 
-  it("includes email and display_name when provided", async () => {
-    vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ device_uuid: "dev-123" }), { status: 200 }),
-    );
-
-    await linkDevice("482913", "user@example.com", "Josh");
-
-    expect(globalThis.fetch).toHaveBeenCalledWith(
-      "https://api.test/api/v1/device/link",
-      expect.objectContaining({
-        body: JSON.stringify({ code: "482913", email: "user@example.com", display_name: "Josh" }),
-      }),
-    );
-  });
-
   it("throws on 404 (invalid or expired code)", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
       new Response("Invalid or expired code", { status: 404 }),

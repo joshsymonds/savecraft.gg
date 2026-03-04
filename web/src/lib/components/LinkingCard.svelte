@@ -76,10 +76,13 @@
     {:else if cardState === "linking"}
       <WindowTitleBar activeIcon="🔗" activeLabel="LINKING DEVICE" activeSublabel="Code {code}">
         {#snippet right()}
-          <div class="spinner-badge">
-            <span class="spinner-dot"></span>
-            <span class="spinner-dot"></span>
-            <span class="spinner-dot"></span>
+          <div class="linking-actions">
+            <div class="spinner-badge">
+              <span class="spinner-dot"></span>
+              <span class="spinner-dot"></span>
+              <span class="spinner-dot"></span>
+            </div>
+            <button class="dismiss-btn" onclick={ondismiss}>CANCEL</button>
           </div>
         {/snippet}
       </WindowTitleBar>
@@ -198,6 +201,12 @@
     50% {
       opacity: 1;
     }
+  }
+
+  .linking-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   /* -- Spinner badge (title bar right slot) ------------------- */
