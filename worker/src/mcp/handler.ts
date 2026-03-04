@@ -21,6 +21,7 @@ import {
   searchSaves,
   updateNote,
 } from "./tools";
+import type { ToolResult } from "./tools";
 
 const PROTOCOL_VERSION = "2025-11-25";
 
@@ -355,8 +356,7 @@ const TOOLS: ToolDefinition[] = [
         },
         module: {
           type: "string",
-          description:
-            "Reference module ID from list_games (e.g. 'drop_calc').",
+          description: "Reference module ID from list_games (e.g. 'drop_calc').",
         },
         query: {
           type: "string",
@@ -467,26 +467,33 @@ async function handleToolCall(
       );
     }
     case "query_reference": {
-      let queryObj: Record<string, unknown>;
-      try {
-        queryObj = JSON.parse(args.query as string) as Record<string, unknown>;
-      } catch {
-        return {
-          content: [{ type: "text", text: "Invalid query: must be a valid JSON object string." }],
-          isError: true,
-        };
-      }
-      return queryReference(
-        env.REFERENCE_PLUGINS,
-        args.game_id as string,
-        args.module as string,
-        queryObj,
-      );
+      return handleQueryReference(env, args);
     }
     default: {
       return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
     }
   }
+}
+
+function handleQueryReference(
+  env: Env,
+  args: Record<string, unknown>,
+): Promise<ToolResult> | ToolResult {
+  let queryObject: Record<string, unknown>;
+  try {
+    queryObject = JSON.parse(args.query as string) as Record<string, unknown>;
+  } catch {
+    return {
+      content: [{ type: "text", text: "Invalid query: must be a valid JSON object string." }],
+      isError: true,
+    };
+  }
+  return queryReference(
+    env.REFERENCE_PLUGINS,
+    args.game_id as string,
+    args.module as string,
+    queryObject,
+  );
 }
 
 function parseRpc(request: Request): Promise<JsonRpcRequest> {

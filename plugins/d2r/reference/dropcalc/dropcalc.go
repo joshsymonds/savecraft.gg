@@ -428,4 +428,3 @@ func (c *Calculator) IsBaseItem(code string) bool {
 	_, ok := c.baseItemByCode[code]
 	return ok
 }
-
