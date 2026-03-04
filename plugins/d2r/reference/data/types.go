@@ -78,6 +78,12 @@ type MonsterEntry struct {
 	TCs    [3][4]string // [difficulty][regular, champ, unique, quest]
 }
 
+// ItemAlias maps a unique or set item name to its base item code.
+type ItemAlias struct {
+	Name string
+	Code string
+}
+
 // Area represents an area from levels.txt with monster levels and spawn lists.
 type Area struct {
 	ID       string      // internal name (e.g. "Act 5 - Ice Cave 2A")

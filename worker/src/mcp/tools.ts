@@ -964,6 +964,12 @@ export async function queryReference(
   if (lines.length === 1) {
     try {
       const parsed = JSON.parse(lines[0] ?? "") as Record<string, unknown>;
+      // If the WASM returned pre-formatted text, pass it through directly
+      // instead of JSON.stringify-ing it (which would escape newlines).
+      if (parsed.type === "result" && isFormattedResult(parsed.data)) {
+        const data = parsed.data as { formatted: string };
+        return { content: [{ type: "text" as const, text: data.formatted }] };
+      }
       return textResult(parsed);
     } catch {
       return textResult({ raw: lines[0] });
@@ -979,6 +985,15 @@ export async function queryReference(
     }
   });
   return textResult({ results });
+}
+
+function isFormattedResult(data: unknown): boolean {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    "formatted" in data &&
+    typeof (data as { formatted: unknown }).formatted === "string"
+  );
 }
 
 // ── Search Indexing Helpers ───────────────────────────────────

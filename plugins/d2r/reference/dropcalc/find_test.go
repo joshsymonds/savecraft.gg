@@ -159,3 +159,52 @@ func TestItemCode(t *testing.T) {
 		t.Error("ItemCode should return empty for unknown")
 	}
 }
+
+func TestItemCodeUniqueNames(t *testing.T) {
+	c := NewCalculator()
+
+	tests := []struct {
+		name string
+		want string
+	}{
+		{"Skin of the Vipermagi", "xea"},
+		{"Magefist", "tgl"},
+		{"Shako", "uap"},
+		{"Arachnid Mesh", "ulc"},
+		// Corrected spellings of Blizzard typos.
+		{"Peasant Crown", "xap"},
+		{"Valkyrie Wing", "xhm"},
+		{"Que-Hegan's Wisdom", "xtp"},
+		{"Thundergod's Vigor", "zhb"},
+		{"Death's Web", "7gw"},
+		{"Steel Carapace", "uul"},
+	}
+
+	for _, tt := range tests {
+		got := c.ItemCode(tt.name)
+		if got != tt.want {
+			t.Errorf("ItemCode(%q) = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}
+
+func TestItemCodeSetNames(t *testing.T) {
+	c := NewCalculator()
+
+	tests := []struct {
+		name string
+		want string
+	}{
+		{"Tal Rasha's Horadric Crest", "xsk"},
+		{"Civerb's Ward", "lrg"},
+		// Corrected spelling of Blizzard typo.
+		{"Griswold's Redemption", "7ws"},
+	}
+
+	for _, tt := range tests {
+		got := c.ItemCode(tt.name)
+		if got != tt.want {
+			t.Errorf("ItemCode(%q) = %q, want %q", tt.name, got, tt.want)
+		}
+	}
+}

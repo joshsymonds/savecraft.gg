@@ -11,6 +11,18 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/d2r/reference/data"
 )
 
+// itemNameCorrections maps Blizzard's typos in game data to corrected spellings.
+// Both the original (typo'd) name and the corrected name resolve to the same code.
+var itemNameCorrections = map[string]string{
+	"Peasent Crown":          "Peasant Crown",
+	"Valkiry Wing":           "Valkyrie Wing",
+	"Que-Hegan's Wisdon":     "Que-Hegan's Wisdom",
+	"Thudergod's Vigor":      "Thundergod's Vigor",
+	"Deaths's Web":           "Death's Web",
+	"Steel Carapice":         "Steel Carapace",
+	"Griswolds's Redemption": "Griswold's Redemption",
+}
+
 // virtualTC represents a dynamically-generated treasure class for item
 // categories like "armo3" or "weap6".
 type virtualTC struct {
@@ -82,6 +94,20 @@ func NewCalculator() *Calculator {
 		a := &data.Areas[i]
 		c.areaByName[a.Name] = a
 		c.areaByName[a.ID] = a // also index by internal ID
+	}
+
+	// Add unique and set item name → base code aliases so players can
+	// look up items by their well-known names (e.g. "Skin of the Vipermagi").
+	for _, alias := range data.ItemAliases {
+		c.itemNameToCode[alias.Name] = alias.Code
+	}
+
+	// Blizzard shipped these typos in the game data. Add corrected spellings
+	// so players can find items with the names they'd naturally type.
+	for typo, fix := range itemNameCorrections {
+		if code, ok := c.itemNameToCode[typo]; ok {
+			c.itemNameToCode[fix] = code
+		}
 	}
 
 	c.buildTypeCodeHierarchy()
