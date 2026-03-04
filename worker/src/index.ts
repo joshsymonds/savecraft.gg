@@ -1,6 +1,7 @@
 import { authenticateDaemon, authenticateDevice, authenticateSession, sha256Hex } from "./auth";
 import { indexNote, indexSaveSections, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
+import { reapOrphanDevices } from "./reaper";
 import type { Env } from "./types";
 
 export { DaemonHub } from "./hub";
@@ -123,6 +124,9 @@ export default {
 
     return oauthProvider.fetch(request, env, ctx);
   },
+  async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+    await reapOrphanDevices(env.DB, env.SAVES);
+  },
 } satisfies ExportedHandler<Env>;
 
 const PLUGIN_DOWNLOAD_RE = /^\/plugins\/([^/]+)\/((parser|reference)\.wasm(?:\.sig)?)$/;
@@ -149,9 +153,6 @@ async function routePublicEndpoints(
   const referenceMatch = /^\/api\/v1\/reference\/([^/]+)\/query$/.exec(url.pathname);
   if (referenceMatch?.[1] && request.method === "POST") {
     return handleReferenceQuery(request, env, referenceMatch[1]);
-  }
-  if (url.pathname === "/api/v1/pair/claim" && request.method === "POST") {
-    return claimPairingCode(request, env);
   }
   if (url.pathname === "/api/v1/device/register" && request.method === "POST") {
     return handleDeviceRegister(request, env);
@@ -228,9 +229,6 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
   const auth = await authenticateSession(request, env);
   if (!auth) return new Response("Unauthorized", { status: 401 });
 
-  if (url.pathname === "/api/v1/pair" && request.method === "POST") {
-    return createPairingCode(env, auth.userUuid);
-  }
   if (url.pathname === "/api/v1/device/link" && request.method === "POST") {
     return handleDeviceLink(request, env, auth.userUuid);
   }
@@ -899,65 +897,11 @@ async function deleteApiKey(env: Env, userUuid: string, keyId: string): Promise<
   return Response.json({ deleted: true });
 }
 
-// -- Pairing Code Flow ------------------------------------------------------
-
-const PAIRING_CODE_TTL_MINUTES = 20;
-const RATE_LIMIT_MAX_FAILURES = 5;
-const RATE_LIMIT_WINDOW_SECONDS = 60;
-
-async function checkRateLimit(env: Env, ip: string): Promise<boolean> {
-  const row = await env.DB.prepare(
-    "SELECT failures FROM pairing_rate_limits WHERE ip = ? AND window_start > datetime('now', ?)",
-  )
-    .bind(ip, `-${String(RATE_LIMIT_WINDOW_SECONDS)} seconds`)
-    .first<{ failures: number }>();
-  if (!row) return true;
-  return row.failures < RATE_LIMIT_MAX_FAILURES;
-}
-
-async function recordRateLimitFailure(env: Env, ip: string): Promise<void> {
-  const windowParameter = `-${String(RATE_LIMIT_WINDOW_SECONDS)} seconds`;
-  await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO pairing_rate_limits (ip, failures, window_start)
-       VALUES (?, 1, datetime('now'))
-       ON CONFLICT(ip) DO UPDATE SET
-         failures = CASE
-           WHEN window_start <= datetime('now', ?) THEN 1
-           ELSE failures + 1
-         END,
-         window_start = CASE
-           WHEN window_start <= datetime('now', ?) THEN datetime('now')
-           ELSE window_start
-         END`,
-    ).bind(ip, windowParameter, windowParameter),
-    env.DB.prepare("DELETE FROM pairing_rate_limits WHERE window_start <= datetime('now', ?)").bind(
-      windowParameter,
-    ),
-  ]);
-}
-
 function generateSixDigitCode(): string {
   const buf = new Uint32Array(1);
   crypto.getRandomValues(buf);
   const code = ((buf[0] ?? 0) % 900_000) + 100_000;
   return code.toString();
-}
-
-async function createPairingCode(env: Env, userUuid: string): Promise<Response> {
-  const code = generateSixDigitCode();
-  const codeHash = await sha256Hex(code);
-  const id = crypto.randomUUID();
-  const expiresAt = new Date(Date.now() + PAIRING_CODE_TTL_MINUTES * 60_000).toISOString();
-
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM pairing_codes WHERE user_uuid = ?").bind(userUuid),
-    env.DB.prepare(
-      "INSERT INTO pairing_codes (id, code_hash, user_uuid, expires_at) VALUES (?, ?, ?, ?)",
-    ).bind(id, codeHash, userUuid, expiresAt),
-  ]);
-
-  return Response.json({ code }, { status: 201 });
 }
 
 async function handleDeviceVerify(request: Request, env: Env): Promise<Response> {
@@ -1096,49 +1040,6 @@ async function handleDeviceRegister(request: Request, env: Env): Promise<Respons
     },
     { status: 201 },
   );
-}
-
-async function claimPairingCode(request: Request, env: Env): Promise<Response> {
-  let body: { code?: string } = {};
-  const text = await request.text();
-  if (text) {
-    try {
-      body = JSON.parse(text) as { code?: string };
-    } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
-    }
-  }
-
-  if (!body.code || !/^\d{6}$/.test(body.code)) {
-    return Response.json({ error: "Invalid code" }, { status: 400 });
-  }
-
-  const ip = request.headers.get("CF-Connecting-IP") ?? "unknown";
-  if (!(await checkRateLimit(env, ip))) {
-    return Response.json({ error: "Too many attempts" }, { status: 429 });
-  }
-
-  const codeHash = await sha256Hex(body.code);
-  const row = await env.DB.prepare(
-    "SELECT id, user_uuid FROM pairing_codes WHERE code_hash = ? AND expires_at > datetime('now')",
-  )
-    .bind(codeHash)
-    .first<{ id: string; user_uuid: string }>();
-
-  if (!row) {
-    await recordRateLimitFailure(env, ip);
-    return Response.json({ error: "Invalid or expired code" }, { status: 401 });
-  }
-
-  const prepared = await prepareApiKey("paired-device");
-  await env.DB.batch([
-    env.DB.prepare("DELETE FROM pairing_codes WHERE id = ?").bind(row.id),
-    apiKeyInsertStatement(env, prepared, row.user_uuid),
-  ]);
-
-  const serverUrl = env.SERVER_URL ?? new URL(request.url).origin;
-
-  return Response.json({ token: prepared.key, serverUrl });
 }
 
 /**
