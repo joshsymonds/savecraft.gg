@@ -177,6 +177,16 @@ async function routeDaemonEndpoints(
     if (!auth) return new Response("Unauthorized", { status: 401 });
     return handlePush(request, env, auth.deviceUuid);
   }
+  if (url.pathname === "/api/v1/device/link-code" && request.method === "POST") {
+    const auth = await authenticateDevice(request, env);
+    if (!auth) return new Response("Unauthorized", { status: 401 });
+    return handleDeviceLinkCode(env, auth.deviceUuid);
+  }
+  if (url.pathname === "/api/v1/device/status" && request.method === "GET") {
+    const auth = await authenticateDevice(request, env);
+    if (!auth) return new Response("Unauthorized", { status: 401 });
+    return handleDeviceStatus(env, auth.deviceUuid);
+  }
   return null;
 }
 
@@ -220,6 +230,9 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
 
   if (url.pathname === "/api/v1/pair" && request.method === "POST") {
     return createPairingCode(env, auth.userUuid);
+  }
+  if (url.pathname === "/api/v1/device/link" && request.method === "POST") {
+    return handleDeviceLink(request, env, auth.userUuid);
   }
   if (url.pathname === "/api/v1/api-keys" || url.pathname.startsWith("/api/v1/api-keys/")) {
     return handleApiKeys(request, url, env, auth.userUuid);
@@ -958,6 +971,85 @@ async function handleDeviceVerify(request: Request, env: Env): Promise<Response>
 }
 
 const LINK_CODE_TTL_MINUTES = 20;
+
+async function handleDeviceLink(request: Request, env: Env, userUuid: string): Promise<Response> {
+  let body: { code?: string; email?: string; display_name?: string };
+  try {
+    body = await request.json<{ code?: string; email?: string; display_name?: string }>();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  if (!body.code || !/^\d{6}$/.test(body.code)) {
+    return Response.json({ error: "Invalid code" }, { status: 400 });
+  }
+
+  const device = await env.DB.prepare(
+    "SELECT device_uuid FROM devices WHERE link_code = ? AND link_code_expires_at > datetime('now')",
+  )
+    .bind(body.code)
+    .first<{ device_uuid: string }>();
+
+  if (!device) {
+    return Response.json({ error: "Invalid or expired code" }, { status: 404 });
+  }
+
+  await env.DB.prepare(
+    "UPDATE devices SET user_uuid = ?, user_email = ?, user_display_name = ?, link_code = NULL, link_code_expires_at = NULL WHERE device_uuid = ?",
+  )
+    .bind(userUuid, body.email ?? null, body.display_name ?? null, device.device_uuid)
+    .run();
+
+  return Response.json({ device_uuid: device.device_uuid });
+}
+
+async function handleDeviceLinkCode(env: Env, deviceUuid: string): Promise<Response> {
+  const linkCode = generateSixDigitCode();
+  const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000).toISOString();
+
+  await env.DB.prepare(
+    "UPDATE devices SET link_code = ?, link_code_expires_at = ? WHERE device_uuid = ?",
+  )
+    .bind(linkCode, expiresAt, deviceUuid)
+    .run();
+
+  return Response.json({ link_code: linkCode, expires_at: expiresAt });
+}
+
+async function handleDeviceStatus(env: Env, deviceUuid: string): Promise<Response> {
+  const device = await env.DB.prepare(
+    "SELECT user_uuid, user_email, user_display_name, link_code, link_code_expires_at FROM devices WHERE device_uuid = ?",
+  )
+    .bind(deviceUuid)
+    .first<{
+      user_uuid: string | null;
+      user_email: string | null;
+      user_display_name: string | null;
+      link_code: string | null;
+      link_code_expires_at: string | null;
+    }>();
+
+  if (!device) {
+    return Response.json({ error: "Device not found" }, { status: 404 });
+  }
+
+  const linked = device.user_uuid !== null;
+  const result: Record<string, unknown> = { linked };
+
+  if (linked) {
+    result.user = {
+      email: device.user_email,
+      display_name: device.user_display_name,
+    };
+  }
+
+  if (device.link_code) {
+    result.link_code = device.link_code;
+    result.link_code_expires_at = device.link_code_expires_at;
+  }
+
+  return Response.json(result);
+}
 
 async function handleDeviceRegister(request: Request, env: Env): Promise<Response> {
   let body: { hostname?: string; os?: string; arch?: string } = {};

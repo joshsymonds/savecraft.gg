@@ -83,6 +83,8 @@ const statements = [
   `CREATE TABLE IF NOT EXISTS devices (
     device_uuid TEXT PRIMARY KEY,
     user_uuid TEXT,
+    user_email TEXT,
+    user_display_name TEXT,
     token_hash TEXT NOT NULL UNIQUE,
     link_code TEXT,
     link_code_expires_at TEXT,
