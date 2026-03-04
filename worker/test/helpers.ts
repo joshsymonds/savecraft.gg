@@ -8,12 +8,12 @@ import type { OAuthProps } from "../src/oauth";
 export const CLEANUP_TABLES = [
   "search_index",
   "notes",
-  "device_configs",
-  "device_events",
+  "source_configs",
+  "source_events",
   "mcp_activity",
   "api_keys",
   "saves",
-  "devices",
+  "sources",
 ] as const;
 
 /**
@@ -92,7 +92,7 @@ export function waitForMessage<T = unknown>(ws: WebSocket, timeoutMs = 2000): Pr
   });
 }
 
-// -- Device helpers for tests --------------------------------------------------
+// -- Source helpers for tests --------------------------------------------------
 
 async function sha256Hex(input: string): Promise<string> {
   const data = new TextEncoder().encode(input);
@@ -101,25 +101,25 @@ async function sha256Hex(input: string): Promise<string> {
 }
 
 /**
- * Create a device in D1 linked to a user. Returns deviceUuid and a real device token
- * that will pass authenticateDevice().
+ * Create a source in D1 linked to a user. Returns sourceUuid and a real source token
+ * that will pass authenticateSource().
  */
-export async function seedDevice(
+export async function seedSource(
   userUuid: string | null = null,
-): Promise<{ deviceUuid: string; deviceToken: string }> {
-  const deviceUuid = crypto.randomUUID();
-  const deviceToken = `dvt_${crypto.randomUUID()}`;
-  const tokenHash = await sha256Hex(deviceToken);
+): Promise<{ sourceUuid: string; sourceToken: string }> {
+  const sourceUuid = crypto.randomUUID();
+  const sourceToken = `sct_${crypto.randomUUID()}`;
+  const tokenHash = await sha256Hex(sourceToken);
   const randomBytes = new Uint32Array(1);
   crypto.getRandomValues(randomBytes);
   const linkCode = String((randomBytes[0]! % 900_000) + 100_000);
   const linkCodeExpiresAt = new Date(Date.now() + 20 * 60_000).toISOString();
   await env.DB.prepare(
-    "INSERT INTO devices (device_uuid, user_uuid, token_hash, link_code, link_code_expires_at) VALUES (?, ?, ?, ?, ?)",
+    "INSERT INTO sources (source_uuid, user_uuid, token_hash, link_code, link_code_expires_at) VALUES (?, ?, ?, ?, ?)",
   )
-    .bind(deviceUuid, userUuid, tokenHash, linkCode, linkCodeExpiresAt)
+    .bind(sourceUuid, userUuid, tokenHash, linkCode, linkCodeExpiresAt)
     .run();
-  return { deviceUuid, deviceToken };
+  return { sourceUuid, sourceToken };
 }
 
 // -- OAuth token helpers for MCP tests ----------------------------------------

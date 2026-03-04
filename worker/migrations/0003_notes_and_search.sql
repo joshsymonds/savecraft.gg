@@ -1,4 +1,4 @@
--- Notes: user-supplied reference material attached to saves
+-- Notes: user-supplied reference material attached to saves.
 CREATE TABLE notes (
   note_id TEXT PRIMARY KEY,
   save_id TEXT NOT NULL REFERENCES saves(uuid),
@@ -9,12 +9,10 @@ CREATE TABLE notes (
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
-
 CREATE INDEX idx_notes_save ON notes(save_id, user_uuid);
 
--- FTS5 full-text search across save sections and notes
+-- FTS5 full-text search across save sections and notes.
 CREATE VIRTUAL TABLE search_index USING fts5(
-  user_uuid UNINDEXED,
   save_id UNINDEXED,
   save_name UNINDEXED,
   type UNINDEXED,
