@@ -8,7 +8,7 @@ Daemon pushes parsed game state to the cloud.
 
 **Headers:**
 ```
-Authorization: Bearer dvt_<device-token>
+Authorization: Bearer sct_<source-token>
 Content-Type: application/json
 X-Game: d2r
 X-Parsed-At: 2026-02-25T21:30:00Z
@@ -17,12 +17,12 @@ X-Parsed-At: 2026-02-25T21:30:00Z
 **Body:** Full GameState JSON (all sections in one push). The `identity` block in the body is used by the server to resolve or create the save UUID.
 
 **Server validation:**
-1. Authenticate device token → resolve device UUID (SHA-256 hash lookup in D1 `devices` table).
+1. Authenticate source token → resolve source UUID (SHA-256 hash lookup in D1 `sources` table).
 2. Validate: is body valid JSON? Is it under 5MB?
 3. Validate structure: does top-level have `identity` and `sections` keys?
 4. Validate `X-Game` matches a known plugin.
-5. Look up save UUID from identity in D1: `(device_uuid, game_id, save_name)`. Create if first push.
-6. Write snapshot to `devices/{device_uuid}/saves/{save_uuid}/snapshots/{timestamp}.json` in R2.
+5. Look up save UUID from identity in D1: `(source_uuid, game_id, save_name)`. Create if first push.
+6. Write snapshot to `sources/{source_uuid}/saves/{save_uuid}/snapshots/{timestamp}.json` in R2.
 7. Compare `X-Parsed-At` to current `latest.json` timestamp. Only update latest pointer if incoming is newer.
 8. Re-index save sections in FTS5 (DELETE old rows for this save, INSERT new rows per section).
 
@@ -46,7 +46,7 @@ Each user gets a single Durable Object (`DaemonHub`), keyed by user UUID (`env.D
 **Two roles:**
 
 1. **WebSocket relay** for daemon-backed saves. Holds up to two tagged WebSocket connections:
-   - **`"daemon"` connection:** One per device. The daemon connects on startup and maintains the connection for the lifetime of the process.
+   - **`"daemon"` connection:** One per source. The daemon connects on startup and maintains the connection for the lifetime of the process.
    - **`"ui"` connection:** One per active web UI session. The browser connects when the user opens the device status page and disconnects when they navigate away.
    - Receives messages from one side, inspects the tag, forwards to the other. For `refresh_save` on daemon-backed games, sends `RescanGame` to the daemon.
 
@@ -108,16 +108,16 @@ PushCompleted     → "✓ Uploaded Hammerdin (47KB) in 280ms"
 | 30-39 | daemon → server | Push lifecycle | `PushStarted`, `PushCompleted`, `PushFailed` |
 | 40-49 | daemon → server | Plugin mgmt | `PluginUpdated` |
 | 50-59 | server → daemon | Commands | `ConfigUpdate`, `RescanGame`, `PluginAvailable`, `DiscoverGames` |
-| 60-69 | server → UI | State | `DeviceState` (cold-start snapshot) |
+| 60-69 | server → UI | State | `SourceState` (cold-start snapshot) |
 | 70-79 | UI → server → daemon | User actions | `TestPath`, `TestPathResult` |
 
-The DO forwards all daemon status events (ranges 1-49) to the UI WebSocket if connected. On UI connect, the DO sends a `DeviceState` snapshot constructed from D1 persisted events.
+The DO forwards all daemon status events (ranges 1-49) to the UI WebSocket if connected. On UI connect, the DO sends a `SourceState` snapshot constructed from D1 persisted events.
 
 **Coordination:** The daemon sends `PushStarted` before the HTTP POST, `PushCompleted`/`PushFailed` after. It only sends `PushStarted` after a successful parse. If the push fails and will be retried, the daemon sends `PushFailed` with `will_retry: true`, then `PushStarted` again on retry.
 
 ### Status Persistence
 
-The DO writes status events to a `device_events` table in D1 (last 100 events per device, older rows pruned on insert). This serves two purposes:
+The DO writes status events to a `source_events` table in D1 (last 100 events per source, older rows pruned on insert). This serves two purposes:
 
 1. **UI cold start:** When the web UI connects, the DO loads recent events from D1 and sends them as initial state, so the page isn't blank even if the daemon hasn't sent anything recently.
 2. **Diagnostics:** Persisted events can be queried for debugging ("when did my daemon last successfully parse?").
@@ -152,14 +152,14 @@ The `DispatchNamespace` binding provides `.get(scriptName)` which returns a `Fet
 
 ## D1 Schemas
 
-**Devices table (device registration + linking):**
+**Sources table (source registration + linking):**
 
 ```sql
-CREATE TABLE devices (
-  device_uuid TEXT PRIMARY KEY,
+CREATE TABLE sources (
+  source_uuid TEXT PRIMARY KEY,
   user_uuid TEXT,                    -- NULL until linked to a user
-  token_hash TEXT NOT NULL UNIQUE,   -- SHA-256 of dvt_* token
-  device_name TEXT NOT NULL DEFAULT '',
+  token_hash TEXT NOT NULL UNIQUE,   -- SHA-256 of sct_* token
+  source_name TEXT NOT NULL DEFAULT '',
   link_code TEXT,                    -- 6-digit code, NULL after linking
   link_code_expires_at TEXT,         -- 20-minute TTL
   user_email TEXT,                   -- set during linking
@@ -169,66 +169,66 @@ CREATE TABLE devices (
 );
 ```
 
-Devices start unlinked (`user_uuid IS NULL`) with a 6-digit `link_code`. When the user enters the code in the web UI, the device is linked (`user_uuid` set, `link_code` cleared). The daemon can refresh an expired link code via `POST /api/v1/device/link-code`.
+Sources start unlinked (`user_uuid IS NULL`) with a 6-digit `link_code`. When the user enters the code in the web UI, the source is linked (`user_uuid` set, `link_code` cleared). The daemon can refresh an expired link code via `POST /api/v1/source/link-code`.
 
 **Saves table (identity → save UUID mapping):**
 
 ```sql
 CREATE TABLE saves (
   uuid TEXT PRIMARY KEY,
-  device_uuid TEXT NOT NULL,
+  source_uuid TEXT NOT NULL,
   game_id TEXT NOT NULL,
   save_name TEXT NOT NULL,
   summary TEXT NOT NULL DEFAULT '',
   last_updated TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE (device_uuid, game_id, save_name),
-  FOREIGN KEY (device_uuid) REFERENCES devices(device_uuid)
+  UNIQUE (source_uuid, game_id, save_name),
+  FOREIGN KEY (source_uuid) REFERENCES sources(source_uuid)
 );
 ```
 
-Saves belong to devices. To find all saves for a user, JOIN through devices: `saves JOIN devices ON saves.device_uuid = devices.device_uuid WHERE devices.user_uuid = ?`.
+Saves belong to sources. To find all saves for a user, JOIN through sources: `saves JOIN sources ON saves.source_uuid = sources.source_uuid WHERE sources.user_uuid = ?`.
 
-**Device events table (status persistence):**
+**Source events table (status persistence):**
 
 ```sql
-CREATE TABLE device_events (
+CREATE TABLE source_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_uuid TEXT NOT NULL,
-  device_id TEXT NOT NULL,
+  source_id TEXT NOT NULL,
   event_type TEXT NOT NULL,
   event_data TEXT NOT NULL,  -- JSON
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_device_events_user_device ON device_events(user_uuid, device_id, created_at DESC);
+CREATE INDEX idx_source_events_user_source ON source_events(user_uuid, source_id, created_at DESC);
 ```
 
-## Device API Endpoints
+## Source API Endpoints
 
-### `POST /api/v1/device/register` (unauthenticated)
+### `POST /api/v1/source/register` (unauthenticated)
 
-Daemon calls this on first boot to self-register. Returns a device token and 6-digit link code.
+Daemon calls this on first boot to self-register. Returns a source token and 6-digit link code.
 
 **Request body:**
 ```json
-{ "device_name": "Josh's PC" }
+{ "source_name": "Josh's PC" }
 ```
 
 **Response (201):**
 ```json
 {
-  "device_uuid": "d1e2f3a4-...",
-  "token": "dvt_abc123...",
+  "source_uuid": "d1e2f3a4-...",
+  "token": "sct_abc123...",
   "link_code": "482913",
   "link_code_expires_at": "2026-03-03T12:20:00Z"
 }
 ```
 
-The daemon persists the `device_uuid` and `token` locally. The token is the only credential — it authenticates all subsequent API calls.
+The daemon persists the `source_uuid` and `token` locally. The token is the only credential — it authenticates all subsequent API calls.
 
-### `POST /api/v1/device/link` (Clerk session auth)
+### `POST /api/v1/source/link` (Clerk session auth)
 
-Web UI calls this when the user enters a 6-digit code. Links the device to the authenticated user.
+Web UI calls this when the user enters a 6-digit code. Links the source to the authenticated user.
 
 **Request body:**
 ```json
@@ -241,12 +241,12 @@ Web UI calls this when the user enters a 6-digit code. Links the device to the a
 
 **Response (200):**
 ```json
-{ "device_uuid": "d1e2f3a4-..." }
+{ "source_uuid": "d1e2f3a4-..." }
 ```
 
-Linking is idempotent — a device can be re-linked to a different user (overwrites the previous association).
+Linking is idempotent — a source can be re-linked to a different user (overwrites the previous association).
 
-### `POST /api/v1/device/link-code` (device token auth)
+### `POST /api/v1/source/link-code` (source token auth)
 
 Daemon calls this to refresh an expired link code. Returns a new 6-digit code with a fresh 20-minute TTL.
 
@@ -258,9 +258,9 @@ Daemon calls this to refresh an expired link code. Returns a new 6-digit code wi
 }
 ```
 
-### `GET /api/v1/device/status` (device token auth)
+### `GET /api/v1/source/status` (source token auth)
 
-Returns the device's current state: whether it's linked, the associated user, and any active link code.
+Returns the source's current state: whether it's linked, the associated user, and any active link code.
 
 **Response (200):**
 ```json
@@ -272,16 +272,16 @@ Returns the device's current state: whether it's linked, the associated user, an
 }
 ```
 
-## Orphan Device Reaper
+## Orphan Source Reaper
 
-A daily Cron Trigger (4 AM UTC) cleans up orphan devices — unlinked devices with no push activity for 7+ days. The reaper:
+A daily Cron Trigger (4 AM UTC) cleans up orphan sources — unlinked sources with no push activity for 7+ days. The reaper:
 
-1. Finds devices where `user_uuid IS NULL` and both `created_at` and `last_push_at` are older than 7 days
-2. Deletes R2 data under `devices/{device_uuid}/`
-3. Deletes D1 saves belonging to the device
-4. Deletes the device row
+1. Finds sources where `user_uuid IS NULL` and both `created_at` and `last_push_at` are older than 7 days
+2. Deletes R2 data under `sources/{source_uuid}/`
+3. Deletes D1 saves belonging to the source
+4. Deletes the source row
 
-This prevents abandoned registrations from accumulating. Active unlinked devices (still pushing) and linked devices (regardless of activity) are never reaped.
+This prevents abandoned registrations from accumulating. Active unlinked sources (still pushing) and linked sources (regardless of activity) are never reaped.
 
 ## Cost
 

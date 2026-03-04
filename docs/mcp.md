@@ -41,7 +41,7 @@ The Worker is itself an **OAuth 2.1 Authorization Server**, powered by `@cloudfl
 **Key properties:**
 - Zero Clerk interaction after initial login. Token validation is a KV lookup, not a JWT signature check or network call.
 - AI clients never see Clerk. The entire OAuth dance happens against `mcp.savecraft.gg`.
-- `props.userUuid` flows from Clerk's `sub` claim through to save access (JOINing devices → saves → R2 at `devices/{device_uuid}/`).
+- `props.userUuid` flows from Clerk's `sub` claim through to save access (JOINing sources → saves → R2 at `sources/{source_uuid}/`).
 - No skip-Clerk code paths in production. The authorize handler returns 503 if Clerk secrets are missing.
 
 ### Authentication Provider: Clerk
@@ -326,7 +326,7 @@ CREATE VIRTUAL TABLE search_index USING fts5(
 );
 ```
 
-User scoping is done via a subquery JOINing through devices: `WHERE save_id IN (SELECT uuid FROM saves JOIN devices ON saves.device_uuid = devices.device_uuid WHERE devices.user_uuid = ?)`.
+User scoping is done via a subquery JOINing through sources: `WHERE save_id IN (SELECT uuid FROM saves JOIN sources ON saves.source_uuid = sources.source_uuid WHERE sources.user_uuid = ?)`.
 
 **Indexing:**
 - **Save sections:** Re-indexed on every push. DELETE existing rows for that save, INSERT new rows per section.

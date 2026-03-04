@@ -52,33 +52,33 @@ Savecraft has two fully separate components that share a user account and a data
                                 │                              │
                                 │  ┌────────────────────────┐  │
                                 │  │  D1 (SQLite at edge)   │  │
-                                │  │  - devices + users       │  │
+                                │  │  - sources + users      │  │
                                 │  │  - saves + notes      │  │
                                 │  │  - plugin registry     │  │
                                 │  └────────────────────────┘  │
                                 └──────────────────────────────┘
 ```
 
-### Device-Centric Architecture
+### Source-Centric Architecture
 
-Savecraft uses a device-centric ownership model. Devices own saves; users own devices. The daemon self-registers as a device on first boot, receives a device token (`dvt_*`), and pushes saves under its own device UUID. Users link devices to their account via a 6-digit link code displayed by the daemon.
+Savecraft uses a source-centric ownership model. A "source" is any authenticated entity that posts GameState JSON to the push API — the local daemon, a server-side API adapter, or a game mod. Sources own saves; users own sources. The daemon self-registers as a source on first boot, receives a source token (`sct_*`), and pushes saves under its own source UUID. Users link sources to their account via a 6-digit link code displayed by the daemon.
 
-**Ownership chain:** `User → Devices → Saves`. MCP and web UI access saves by JOINing through the user's linked devices. A user with two devices (PC + Steam Deck) sees saves from both.
+**Ownership chain:** `User → Sources → Saves`. MCP and web UI access saves by JOINing through the user's linked sources. A user with two sources (PC daemon + Steam Deck daemon) sees saves from both.
 
-**Device lifecycle:**
-1. **Register:** Daemon calls `POST /api/v1/device/register` (unauthenticated). Server creates a device row, issues a `dvt_*` token, and generates a 6-digit link code (20-minute TTL).
-2. **Link:** User enters the 6-digit code at `savecraft.gg/setup` (or the web dashboard). `POST /api/v1/device/link` associates the device with the user's account.
-3. **Push:** Daemon pushes saves using the device token. Saves are stored under `devices/{device_uuid}/` in R2.
-4. **Reap:** Unlinked devices with no push activity for 7+ days are automatically cleaned up by a daily Cron Trigger.
+**Source lifecycle:**
+1. **Register:** Daemon calls `POST /api/v1/source/register` (unauthenticated). Server creates a source row, issues a `sct_*` token, and generates a 6-digit link code (20-minute TTL).
+2. **Link:** User enters the 6-digit code at `savecraft.gg/setup` (or the web dashboard). `POST /api/v1/source/link` associates the source with the user's account.
+3. **Push:** Daemon pushes saves using the source token. Saves are stored under `sources/{source_uuid}/` in R2.
+4. **Reap:** Unlinked sources with no push activity for 7+ days are automatically cleaned up by a daily Cron Trigger.
 
 ### Component 1: Local Daemon
 
-Runs on the gaming device (Windows PC, Linux PC, Steam Deck). Background process that watches save file directories, parses saves using WASM plugins, and pushes structured JSON to the cloud API. Self-registers as a device on first boot, then maintains a persistent WebSocket connection to a per-user Durable Object for real-time config updates and status reporting.
+Runs on the gaming device (Windows PC, Linux PC, Steam Deck). Background process that watches save file directories, parses saves using WASM plugins, and pushes structured JSON to the cloud API. Self-registers as a source on first boot, then maintains a persistent WebSocket connection to a per-user Durable Object for real-time config updates and status reporting.
 
 - **No MCP involvement.** Pure background service.
 - **Linux / Steam Deck:** Static binary installed to `~/.local/bin/` + systemd user unit. Sandboxed via systemd directives. See `docs/infrastructure.md`.
-- **First boot:** Daemon calls `/api/v1/device/register` to get a device token. Displays a 6-digit link code for the user to enter in the web UI. Token is persisted locally; subsequent boots use the existing token.
-- **Configuration:** All configuration happens via the web interface at savecraft.gg/settings. Config changes push to daemon in real time via WebSocket. Per-device configs stored server-side in D1.
+- **First boot:** Daemon calls `/api/v1/source/register` to get a source token. Displays a 6-digit link code for the user to enter in the web UI. Token is persisted locally; subsequent boots use the existing token.
+- **Configuration:** All configuration happens via the web interface at savecraft.gg/settings. Config changes push to daemon in real time via WebSocket. Per-source configs stored server-side in D1.
 
 ### Component 2: Remote MCP Server
 
@@ -92,11 +92,11 @@ Cloud-hosted HTTPS endpoint that serves game state to AI clients. This is a stan
 
 The daemon push API and MCP server run as a **single Cloudflare Worker**. Two route groups on the same deployment:
 
-- `/api/v1/device/register` — Device self-registration (unauthenticated, returns device token `dvt_*`)
-- `/api/v1/device/link` — Link device to user account via 6-digit code (Clerk session auth)
-- `/api/v1/device/link-code` — Refresh device link code (device token auth)
-- `/api/v1/device/status` — Device status: linked user, link code (device token auth)
-- `/api/v1/push` — Daemon pushes parsed save state (device token auth)
+- `/api/v1/source/register` — Source self-registration (unauthenticated, returns source token `sct_*`)
+- `/api/v1/source/link` — Link source to user account via 6-digit code (Clerk session auth)
+- `/api/v1/source/link-code` — Refresh source link code (source token auth)
+- `/api/v1/source/status` — Source status: linked user, link code (source token auth)
+- `/api/v1/push` — Daemon pushes parsed save state (source token auth)
 - `/api/v1/notes/*` — Note CRUD for web UI and MCP write tools (Clerk session or OAuth)
 - `/mcp/*` — MCP tool-serving endpoint (OAuth access token from our AS)
 - `/oauth/authorize` — Redirects to Clerk for user login, then completes authorization
@@ -171,7 +171,7 @@ savecraft/
 │   │   └── savecraft.wxs
 │   └── worker/                  # Cloudflare Worker (UA-based install router)
 │       └── src/index.ts
-├── web/                         # SvelteKit frontend: device status, settings, notes
+├── web/                         # SvelteKit frontend: source status, settings, notes
 ├── go.mod
 └── go.sum
 ```
@@ -255,7 +255,7 @@ All plugins emit a `result` line on stdout conforming to this structure (the `ty
 }
 ```
 
-Every save has a `saveName` provided by the plugin. For character saves this is the character name (e.g. "Hammerdin"). For game-scoped saves it's a descriptive label (e.g. "Shared Stash (Softcore)"). The unique identity is always `(device_uuid, game_id, save_name)` — saves belong to the device that pushes them, and are accessible to the user who has linked that device.
+Every save has a `saveName` provided by the plugin. For character saves this is the character name (e.g. "Hammerdin"). For game-scoped saves it's a descriptive label (e.g. "Shared Stash (Softcore)"). The unique identity is always `(source_uuid, game_id, save_name)` — saves belong to the source that pushes them, and are accessible to the user who has linked that source.
 
 **Design principles:**
 
@@ -264,7 +264,7 @@ Every save has a `saveName` provided by the plugin. For character saves this is 
 - **Plugin-defined schema.** The server does not validate section contents. Each game's sections have different shapes. The plugin is the authority on what data looks like.
 - **No cross-game normalization.** D2R gear and Stardew crops are fundamentally different data. Attempting to normalize into a universal schema would lose information and add complexity for zero benefit.
 - **Plugin-authored summaries.** The `summary` field is a human-readable display string authored by the plugin. Examples: `"Hammerdin, Level 89 Paladin"` (D2R), `"Berry Merry Farm, Year 3 Fall — 69% Perfection"` (Stardew), `"Emperor Halfdan of Scandinavia, 847 AD"` (CK3). The server stores summaries in D1 for fast UI rendering and MCP tool responses.
-- **Plugin-named saves.** Every save is identified by `(device_uuid, game_id, save_name)`. The plugin always provides a `saveName`. Saves belong to the device that pushes them; the user accesses saves through their linked devices.
+- **Plugin-named saves.** Every save is identified by `(source_uuid, game_id, save_name)`. The plugin always provides a `saveName`. Saves belong to the source that pushes them; the user accesses saves through their linked sources.
 
 ### R2 Storage
 
@@ -272,7 +272,7 @@ Two separate R2 buckets per environment, split by access pattern:
 
 | Bucket | Binding | Contents |
 |--------|---------|----------|
-| `savecraft-saves` | `SAVES` | Save snapshots — private, scoped to `devices/{device_uuid}/` |
+| `savecraft-saves` | `SAVES` | Save snapshots — private, scoped to `sources/{source_uuid}/` |
 | `savecraft-plugins` | `PLUGINS` | Plugin binaries and manifests — public-read via API |
 
 Staging uses `-staging` suffix (`savecraft-saves-staging`, `savecraft-plugins-staging`).
@@ -280,8 +280,8 @@ Staging uses `-staging` suffix (`savecraft-saves-staging`, `savecraft-plugins-st
 **Saves bucket layout:**
 
 ```
-devices/{device_uuid}/saves/{save_uuid}/snapshots/{timestamp}.json
-devices/{device_uuid}/saves/{save_uuid}/latest.json
+sources/{source_uuid}/saves/{save_uuid}/snapshots/{timestamp}.json
+sources/{source_uuid}/saves/{save_uuid}/latest.json
 ```
 
 **Plugins bucket layout:**
@@ -296,8 +296,8 @@ plugins/{game_id}/reference.wasm.sig
 
 - **Snapshots are immutable.** Every push creates a new timestamped object.
 - **`latest.json`** is a copy of the most recent snapshot for fast reads. Updated only if the incoming `parsed_at` timestamp is newer than the current latest.
-- **Save UUID** is assigned by the server when a save is first pushed. Identity resolved in D1: `(device_uuid, game_id, save_name)` → `UNIQUE` constraint.
-- **Device UUID** is assigned at device registration. All R2 save access scoped to `devices/{device_uuid}/`.
+- **Save UUID** is assigned by the server when a save is first pushed. Identity resolved in D1: `(source_uuid, game_id, save_name)` → `UNIQUE` constraint.
+- **Source UUID** is assigned at source registration. All R2 save access scoped to `sources/{source_uuid}/`.
 
 ### Historical Data and Diffs
 

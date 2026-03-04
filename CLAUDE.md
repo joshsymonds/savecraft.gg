@@ -40,9 +40,9 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 - GameState types (plugin output) are hand-written Go/TS — section data is arbitrary JSON per game. Types live next to their consumers, not in grab-bag packages.
 - Plugin stdout is ndjson: `{"type": "status"|"result"|"error", ...}` per line
 - Save data pushed via HTTP POST, not WebSocket. WS carries lightweight status events only.
-- All R2 save access scoped to `devices/{device_uuid}/` prefix
-- Save identity resolved by `(device_uuid, game_id, save_name)` → save UUID
-- Devices own saves; users own devices. MCP/web access saves via device→user JOIN.
+- All R2 save access scoped to `sources/{source_uuid}/` prefix
+- Save identity resolved by `(source_uuid, game_id, save_name)` → save UUID
+- Sources own saves; users own sources. MCP/web access saves via source→user JOIN.
 - Durable Objects use WebSocket Hibernation — no application-layer heartbeats
 - Plugins provide a `summary` string for UI display (e.g. "Hammerdin, Level 89 Paladin")
 
