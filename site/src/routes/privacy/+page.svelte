@@ -19,7 +19,7 @@
   <nav class="nav">
     <div class="nav-inner">
       <a href="/" class="nav-left">
-        <img src="/icon-32.png" alt="" width="24" height="24" class="nav-icon" />
+        <img src="/icon.png" alt="Savecraft" class="nav-icon" width="28" height="28" />
         <span class="nav-title">SAVECRAFT</span>
       </a>
       <div class="nav-right">
