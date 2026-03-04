@@ -39,7 +39,9 @@
     if (isSignedOut || likelySignedOut) {
       const returnPath = page.url.pathname;
       const signInUrl =
-        returnPath === "/" ? "/sign-in" : `/sign-in?redirect_url=${encodeURIComponent(returnPath)}`;
+        returnPath === "/"
+          ? "/sign-in"
+          : (`/sign-in?redirect_url=${encodeURIComponent(returnPath)}` as "/sign-in");
       void goto(resolve(signInUrl));
     }
   });
