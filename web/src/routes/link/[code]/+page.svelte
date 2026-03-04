@@ -11,7 +11,7 @@
   import { onMount } from "svelte";
 
   onMount(() => {
-    pendingLinkCode.set(page.params.code);
+    pendingLinkCode.set(page.params.code ?? null);
     void goto(resolve("/"));
   });
 </script>
