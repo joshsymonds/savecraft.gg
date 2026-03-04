@@ -253,7 +253,7 @@
       <p class="step-desc">Download and install Savecraft for Windows:</p>
       <div class="action-row">
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external download URL, not SvelteKit navigation -->
-        <a class="primary-action" href={msiUrl}>
+        <a class="primary-action" href={msiUrl} download="savecraft.msi">
           <span class="primary-action-icon">&darr;</span>
           <span class="primary-action-label">DOWNLOAD FOR WINDOWS</span>
         </a>
