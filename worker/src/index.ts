@@ -935,6 +935,15 @@ async function handleSourceLink(request: Request, env: Env, userUuid: string): P
     .bind(userUuid, body.email ?? null, body.display_name ?? null, source.source_uuid)
     .run();
 
+  // Notify the SourceHub DO so it starts forwarding to UserHub
+  const doId = env.SOURCE_HUB.idFromName(source.source_uuid);
+  await env.SOURCE_HUB.get(doId).fetch(
+    new Request("https://do/set-user", {
+      method: "POST",
+      body: JSON.stringify({ userUuid }),
+    }),
+  );
+
   return Response.json({ source_uuid: source.source_uuid });
 }
 

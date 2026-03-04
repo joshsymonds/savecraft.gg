@@ -770,6 +770,91 @@ describe("SourceHub", () => {
     await closeWs(ui2);
   });
 
+  it("unlinked source can connect and process events locally", async () => {
+    // Source with no user_uuid — should still accept daemon WS
+    const { sourceUuid, sourceToken } = await seedSource(null);
+
+    const daemonWs = await connectDaemonWs(sourceToken);
+    daemonWs.send(
+      JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }),
+    );
+
+    // SourceHub should process the event without error (no UserHub to forward to)
+    // Verify state was stored by accessing the DO directly
+    const doId = env.SOURCE_HUB.idFromName(sourceUuid);
+    const doStub = env.SOURCE_HUB.get(doId);
+    const resp = await doStub.fetch(
+      new Request("https://do/rescan", {
+        method: "POST",
+        body: JSON.stringify({ gameId: "d2r" }),
+      }),
+    );
+    const body = await resp.json<{ sent: boolean; daemon_count: number }>();
+    expect(body.sent).toBe(true);
+    expect(body.daemon_count).toBe(1);
+
+    await closeWs(daemonWs);
+  });
+
+  it("source linking mid-session starts forwarding to UserHub", async () => {
+    const userUuid = "link-mid-session-user";
+
+    // Create unlinked source with a link code
+    const { sourceUuid, sourceToken } = await seedSource(null);
+    const linkCode = "123456";
+    await env.DB.prepare(
+      "UPDATE sources SET link_code = ?, link_code_expires_at = datetime('now', '+20 minutes') WHERE source_uuid = ?",
+    )
+      .bind(linkCode, sourceUuid)
+      .run();
+
+    // Connect daemon before linking
+    const daemonWs = await connectDaemonWs(sourceToken);
+    daemonWs.send(
+      JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }),
+    );
+
+    // Give DO time to process sourceOnline
+    await new Promise((resolve) => {
+      setTimeout(resolve, 50);
+    });
+
+    // Link the source to the user via the API
+    const linkResp = await SELF.fetch("https://test-host/api/v1/source/link", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${userUuid}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ code: linkCode }),
+    });
+    expect(linkResp.status).toBe(200);
+
+    // Now connect UI — the SourceHub should have forwarded state to UserHub
+    const uiWs = await connectWs("/ws/ui", userUuid);
+    const msg = await waitForMessage<Record<string, unknown>>(uiWs);
+
+    expect(msg).toHaveProperty("sourceState");
+    const ds = msg.sourceState as {
+      sources: { sourceId: string; online: boolean }[];
+    };
+    const source = ds.sources.find((s) => s.sourceId === sourceUuid);
+    expect(source).toBeDefined();
+    expect(source!.online).toBe(true);
+
+    // Send another event after linking — should forward to UI
+    daemonWs.send(
+      JSON.stringify({
+        watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 3 },
+      }),
+    );
+    const relayed = await waitForMessage<Record<string, unknown>>(uiWs);
+    expect(relayed).toHaveProperty("watching");
+
+    await closeWs(uiWs);
+    await closeWs(daemonWs);
+  });
+
   it("does not send sourceUpdateAvailable when daemon is current", async () => {
     const userUuid = "update-current-user";
     const { sourceToken } = await seedSource(userUuid);
