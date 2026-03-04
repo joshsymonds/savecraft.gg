@@ -368,7 +368,9 @@ describe("MCP Tools", () => {
         summary: "Format check",
       });
 
-      const object = await env.SAVES.get(`devices/${deviceUuidFor(USER_A)}/saves/save-fmt-check/latest.json`);
+      const object = await env.SAVES.get(
+        `devices/${deviceUuidFor(USER_A)}/saves/save-fmt-check/latest.json`,
+      );
       const snapshot = await object!.json<{ identity: Record<string, unknown> }>();
       // Daemon sends camelCase — R2 should store exactly that
       expect(snapshot.identity.gameId).toBe("d2r");
@@ -1115,26 +1117,12 @@ describe("MCP Tools", () => {
       await env.DB.prepare(
         "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?)",
       )
-        .bind(
-          "save-search-scope-a",
-          "ScopeCharA",
-          "section",
-          "gear",
-          "Gear",
-          "Shako helmet",
-        )
+        .bind("save-search-scope-a", "ScopeCharA", "section", "gear", "Gear", "Shako helmet")
         .run();
       await env.DB.prepare(
         "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?)",
       )
-        .bind(
-          "save-search-scope-b",
-          "ScopeCharB",
-          "section",
-          "gear",
-          "Gear",
-          "Shako helmet",
-        )
+        .bind("save-search-scope-b", "ScopeCharB", "section", "gear", "Gear", "Shako helmet")
         .run();
 
       // Search scoped to save A
@@ -1162,14 +1150,7 @@ describe("MCP Tools", () => {
       await env.DB.prepare(
         "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?)",
       )
-        .bind(
-          "save-search-other",
-          "OtherUserChar",
-          "section",
-          "gear",
-          "Gear",
-          "Unique secret item",
-        )
+        .bind("save-search-other", "OtherUserChar", "section", "gear", "Gear", "Unique secret item")
         .run();
 
       const result = await searchSaves(env.DB, USER_A, "secret");

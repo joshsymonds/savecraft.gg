@@ -88,16 +88,16 @@ export async function authenticateDevice(
   if (!token) return null;
 
   const hash = await sha256Hex(token);
-  const row = await env.DB
-    .prepare("SELECT device_uuid, user_uuid FROM devices WHERE token_hash = ?")
+  const row = await env.DB.prepare(
+    "SELECT device_uuid, user_uuid FROM devices WHERE token_hash = ?",
+  )
     .bind(hash)
     .first<{ device_uuid: string; user_uuid: string | null }>();
 
   if (!row) return null;
 
   // Update last activity timestamp (best-effort, don't fail auth on update error)
-  await env.DB
-    .prepare("UPDATE devices SET last_push_at = datetime('now') WHERE device_uuid = ?")
+  await env.DB.prepare("UPDATE devices SET last_push_at = datetime('now') WHERE device_uuid = ?")
     .bind(row.device_uuid)
     .run();
 

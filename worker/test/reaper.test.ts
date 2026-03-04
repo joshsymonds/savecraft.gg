@@ -155,8 +155,9 @@ describe("Orphan Device Reaper", () => {
     const result = await reapOrphanDevices(env.DB, env.SAVES);
     expect(result.deleted).toBe(2);
 
-    const remaining = await env.DB.prepare("SELECT device_uuid FROM devices")
-      .all<{ device_uuid: string }>();
+    const remaining = await env.DB.prepare("SELECT device_uuid FROM devices").all<{
+      device_uuid: string;
+    }>();
     expect(remaining.results).toHaveLength(1);
     expect(remaining.results[0]!.device_uuid).toBe("keep-me");
   });

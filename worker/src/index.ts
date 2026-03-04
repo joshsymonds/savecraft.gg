@@ -124,7 +124,11 @@ export default {
 
     return oauthProvider.fetch(request, env, ctx);
   },
-  async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext): Promise<void> {
+  async scheduled(
+    _controller: ScheduledController,
+    env: Env,
+    _ctx: ExecutionContext,
+  ): Promise<void> {
     await reapOrphanDevices(env.DB, env.SAVES);
   },
 } satisfies ExportedHandler<Env>;
@@ -185,7 +189,8 @@ async function routeDaemonEndpoints(
   if (!auth) return new Response("Unauthorized", { status: 401 });
 
   if (url.pathname === "/api/v1/push") return handlePush(request, env, auth.deviceUuid);
-  if (url.pathname === "/api/v1/device/link-code") return handleDeviceLinkCode(env, auth.deviceUuid);
+  if (url.pathname === "/api/v1/device/link-code")
+    return handleDeviceLinkCode(env, auth.deviceUuid);
   return handleDeviceStatus(env, auth.deviceUuid);
 }
 
@@ -540,14 +545,7 @@ async function handleNoteCollection(
     const saveRow = await env.DB.prepare("SELECT save_name FROM saves WHERE uuid = ?")
       .bind(saveId)
       .first<{ save_name: string }>();
-    await indexNote(
-      env.DB,
-      saveId,
-      saveRow?.save_name ?? "",
-      noteId,
-      body.title,
-      body.content,
-    );
+    await indexNote(env.DB, saveId, saveRow?.save_name ?? "", noteId, body.title, body.content);
 
     return Response.json({ note_id: noteId }, { status: 201 });
   }
@@ -658,14 +656,7 @@ async function updateOneNote(
       .bind(noteId)
       .first<{ title: string; content: string; save_name: string }>();
     if (updated) {
-      await indexNote(
-        env.DB,
-        saveId,
-        updated.save_name,
-        noteId,
-        updated.title,
-        updated.content,
-      );
+      await indexNote(env.DB, saveId, updated.save_name, noteId, updated.title, updated.content);
     }
   }
 
@@ -1012,22 +1003,22 @@ async function handleDeviceRegister(request: Request, env: Env): Promise<Respons
   const tokenHash = await sha256Hex(deviceToken);
 
   const linkCode = generateSixDigitCode();
-  const linkCodeExpiresAt = new Date(
-    Date.now() + LINK_CODE_TTL_MINUTES * 60_000,
-  ).toISOString();
+  const linkCodeExpiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000).toISOString();
 
   await env.DB.prepare(
     `INSERT INTO devices (device_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  ).bind(
-    deviceUuid,
-    tokenHash,
-    linkCode,
-    linkCodeExpiresAt,
-    body.hostname ?? null,
-    body.os ?? null,
-    body.arch ?? null,
-  ).run();
+  )
+    .bind(
+      deviceUuid,
+      tokenHash,
+      linkCode,
+      linkCodeExpiresAt,
+      body.hostname ?? null,
+      body.os ?? null,
+      body.arch ?? null,
+    )
+    .run();
 
   return Response.json(
     {
