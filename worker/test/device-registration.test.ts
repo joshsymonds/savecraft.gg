@@ -123,6 +123,21 @@ describe("Device Registration", () => {
       expect(body1.device_token).not.toBe(body2.device_token);
     });
 
+    it("sets capability flags to defaults (can_rescan=1, can_receive_config=1)", async () => {
+      const resp = await SELF.fetch(registerRequest());
+      const body = await resp.json<RegisterResponse>();
+
+      const row = await env.DB.prepare(
+        "SELECT can_rescan, can_receive_config FROM devices WHERE device_uuid = ?",
+      )
+        .bind(body.device_uuid)
+        .first<{ can_rescan: number; can_receive_config: number }>();
+
+      expect(row).not.toBeNull();
+      expect(row!.can_rescan).toBe(1);
+      expect(row!.can_receive_config).toBe(1);
+    });
+
     it("does not accept GET method", async () => {
       const resp = await SELF.fetch(
         new Request("https://test-host/api/v1/device/register", { method: "GET" }),
