@@ -107,7 +107,7 @@ describe("Device Linking", () => {
     it("re-links device to different user (overwrites)", async () => {
       const { deviceUuid } = await seedDevice(TEST_USER);
 
-      // Device is already linked to TEST_USER. Generate a fresh code for re-pairing.
+      // Device is already linked to TEST_USER. Generate a fresh code for re-linking.
       const code = "654321";
       await env.DB.prepare(
         "UPDATE devices SET link_code = ?, link_code_expires_at = datetime('now', '+20 minutes') WHERE device_uuid = ?",
