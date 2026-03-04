@@ -28,7 +28,7 @@ export interface Env {
   ALLOWED_ORIGINS?: string;
   /** Application version injected at deploy time via --var VERSION:{version}. */
   VERSION?: string;
-  /** Stale device threshold in ms. Devices with no message for this long are evicted. Default 90000 (90s). */
+  /** Stale source threshold in ms. Sources with no message for this long are evicted. Default 90000 (90s). */
   STALE_THRESHOLD_MS?: number;
   /** DO alarm interval in ms for checking stale connections. Default 30000 (30s). */
   ALARM_INTERVAL_MS?: number;

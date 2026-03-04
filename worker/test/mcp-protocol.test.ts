@@ -1,23 +1,23 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, getOAuthToken, seedDevice } from "./helpers";
+import { cleanAll, getOAuthToken, seedSource } from "./helpers";
 
 const TEST_USER = "mcp-proto-user";
 const SAVE_UUID_HOLDER: { value: string } = { value: "" };
 const TOKEN_HOLDER: { value: string } = { value: "" };
-const DEVICE_TOKEN_HOLDER: { value: string } = { value: "" };
+const SOURCE_TOKEN_HOLDER: { value: string } = { value: "" };
 
 /**
  * Seed a save by pushing through the actual push API.
- * Uses device token auth since push now uses authenticateDevice.
+ * Uses source token auth since push now uses authenticateSource.
  */
 async function pushSave(): Promise<string> {
   const resp = await SELF.fetch("https://test-host/api/v1/push", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${DEVICE_TOKEN_HOLDER.value}`,
+      Authorization: `Bearer ${SOURCE_TOKEN_HOLDER.value}`,
       "X-Game": "d2r",
       "X-Parsed-At": "2026-02-25T21:30:00Z",
     },
@@ -89,8 +89,8 @@ async function parseJsonResponse(resp: Response): Promise<unknown> {
 describe("MCP Protocol", () => {
   beforeEach(async () => {
     await cleanAll();
-    const device = await seedDevice(TEST_USER);
-    DEVICE_TOKEN_HOLDER.value = device.deviceToken;
+    const source = await seedSource(TEST_USER);
+    SOURCE_TOKEN_HOLDER.value = source.sourceToken;
     TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
     SAVE_UUID_HOLDER.value = await pushSave();
   });
