@@ -43,7 +43,7 @@ function gameStatusLine(status: GameStatus, saves: SaveSummary[]): string {
   }
 }
 
-function sourceDisplayName(sourceKind: string | undefined, hostname: string | undefined): string {
+function sourceDisplayName(sourceKind: string | undefined, hostname: string | null | undefined): string {
   const kind = (sourceKind ?? "daemon").toUpperCase();
   if (hostname) return `${kind} · ${hostname.toUpperCase()}`;
   return kind;
@@ -79,8 +79,8 @@ function mapSourceInfo(d: WireSourceInfo): Source {
     version: null,
     lastSeen: relativeTime(d.lastSeen),
     capabilities: {
-      canRescan: d.canRescan ?? true,
-      canReceiveConfig: d.canReceiveConfig ?? true,
+      canRescan: d.canRescan ?? false,
+      canReceiveConfig: d.canReceiveConfig ?? false,
     },
     games,
   };
