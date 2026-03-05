@@ -415,9 +415,7 @@ async function handlePutSourceConfig(
 
   const games = body.games ?? {};
 
-  await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?")
-    .bind(sourceId)
-    .run();
+  await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?").bind(sourceId).run();
 
   for (const [gameId, config] of Object.entries(games)) {
     await env.DB.prepare(

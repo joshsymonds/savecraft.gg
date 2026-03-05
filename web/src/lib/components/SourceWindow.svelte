@@ -423,75 +423,77 @@
 
       <!-- Inline game settings (only for sources that accept config) -->
       {#if source.capabilities.canReceiveConfig}
-      <div class="settings-section">
-        <button class="settings-toggle" onclick={() => (showSettings = !showSettings)}>
-          <span class="settings-label">SETTINGS</span>
-          <span class="settings-chevron" class:open={showSettings}>▸</span>
-        </button>
+        <div class="settings-section">
+          <button class="settings-toggle" onclick={() => (showSettings = !showSettings)}>
+            <span class="settings-label">SETTINGS</span>
+            <span class="settings-chevron" class:open={showSettings}>▸</span>
+          </button>
 
-        {#if showSettings}
-          <div class="settings-content">
-            {#if configLoading}
-              <div class="settings-loading">Loading config...</div>
-            {:else}
-              {#if configError}
-                <div class="settings-error">{configError}</div>
-              {/if}
+          {#if showSettings}
+            <div class="settings-content">
+              {#if configLoading}
+                <div class="settings-loading">Loading config...</div>
+              {:else}
+                {#if configError}
+                  <div class="settings-error">{configError}</div>
+                {/if}
 
-              <label class="settings-field">
-                <span class="field-label">SAVE PATH</span>
-                <div class="path-row">
-                  <input
-                    class="path-input"
-                    type="text"
-                    placeholder="Save directory path..."
-                    bind:value={configSavePath}
-                  />
-                  <TinyButton label="TEST" onclick={handleTestPath} />
-                </div>
-              </label>
-
-              {#if configTestResult}
-                <div
-                  class="test-result"
-                  class:valid={configTestResult.valid}
-                  class:invalid={!configTestResult.valid}
-                >
-                  {#if configTestResult.valid}
-                    Found {configTestResult.filesFound} file{configTestResult.filesFound === 1 ? "" : "s"}
-                  {:else}
-                    No matching files found
-                  {/if}
-                </div>
-              {/if}
-
-              {#if configFileExtensions.length > 0}
-                <div class="settings-field">
-                  <span class="field-label">FILE EXTENSIONS</span>
-                  <div class="ext-chips">
-                    {#each configFileExtensions as extension (extension)}
-                      <span class="ext-chip">{extension}</span>
-                    {/each}
+                <label class="settings-field">
+                  <span class="field-label">SAVE PATH</span>
+                  <div class="path-row">
+                    <input
+                      class="path-input"
+                      type="text"
+                      placeholder="Save directory path..."
+                      bind:value={configSavePath}
+                    />
+                    <TinyButton label="TEST" onclick={handleTestPath} />
                   </div>
+                </label>
+
+                {#if configTestResult}
+                  <div
+                    class="test-result"
+                    class:valid={configTestResult.valid}
+                    class:invalid={!configTestResult.valid}
+                  >
+                    {#if configTestResult.valid}
+                      Found {configTestResult.filesFound} file{configTestResult.filesFound === 1
+                        ? ""
+                        : "s"}
+                    {:else}
+                      No matching files found
+                    {/if}
+                  </div>
+                {/if}
+
+                {#if configFileExtensions.length > 0}
+                  <div class="settings-field">
+                    <span class="field-label">FILE EXTENSIONS</span>
+                    <div class="ext-chips">
+                      {#each configFileExtensions as extension (extension)}
+                        <span class="ext-chip">{extension}</span>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+
+                <label class="settings-field enabled-toggle">
+                  <input type="checkbox" bind:checked={configEnabled} />
+                  <span class="toggle-label">Enabled</span>
+                </label>
+
+                <div class="settings-actions">
+                  <TinyButton
+                    label={configSaving ? "SAVING..." : "SAVE"}
+                    onclick={handleSaveConfig}
+                    disabled={configSaving}
+                  />
                 </div>
               {/if}
-
-              <label class="settings-field enabled-toggle">
-                <input type="checkbox" bind:checked={configEnabled} />
-                <span class="toggle-label">Enabled</span>
-              </label>
-
-              <div class="settings-actions">
-                <TinyButton
-                  label={configSaving ? "SAVING..." : "SAVE"}
-                  onclick={handleSaveConfig}
-                  disabled={configSaving}
-                />
-              </div>
-            {/if}
-          </div>
-        {/if}
-      </div>
+            </div>
+          {/if}
+        </div>
       {/if}
     </div>
   {:else}
