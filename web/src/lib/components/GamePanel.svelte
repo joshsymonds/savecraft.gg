@@ -18,6 +18,7 @@
     showSourceBadges = false,
     onadd,
     loadNotes,
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onnotecreate,
     onnotedelete,
     onnoteedit,
@@ -30,7 +31,12 @@
     loadNotes?: (saveUuid: string) => Promise<NoteSummary[]>;
     onnotecreate?: (saveUuid: string, title: string, content: string) => Promise<void>;
     onnotedelete?: (saveUuid: string, noteId: string) => Promise<void>;
-    onnoteedit?: (saveUuid: string, noteId: string, title: string, content: string) => Promise<void>;
+    onnoteedit?: (
+      saveUuid: string,
+      noteId: string,
+      title: string,
+      content: string,
+    ) => Promise<void>;
     initialGameId?: string;
     initialSaveUuid?: string;
   } = $props();
@@ -76,8 +82,19 @@
     <!-- Save level: notes -->
     <WindowTitleBar
       parents={[
-        { label: "GAMES", onclick: () => { navGameId = null; navSaveUuid = null; } },
-        { label: activeGame.name, onclick: () => { navSaveUuid = null; } },
+        {
+          label: "GAMES",
+          onclick: () => {
+            navGameId = null;
+            navSaveUuid = null;
+          },
+        },
+        {
+          label: activeGame.name,
+          onclick: () => {
+            navSaveUuid = null;
+          },
+        },
       ]}
       activeLabel={activeSave.saveName}
       activeSublabel={activeSave.summary}
@@ -87,9 +104,10 @@
         {#each notes as note (note.id)}
           <NoteCard
             {note}
-            ondelete={onnotedelete ? () => onnotedelete!(activeSave!.saveUuid, note.id) : undefined}
+            ondelete={onnotedelete ? () => onnotedelete(activeSave.saveUuid, note.id) : undefined}
             onedit={onnoteedit
-              ? (_noteId, title, content) => onnoteedit!(activeSave!.saveUuid, note.id, title, content)
+              ? (_noteId, title, content) =>
+                  onnoteedit(activeSave.saveUuid, note.id, title, content)
               : undefined}
           />
         {/each}
@@ -102,7 +120,14 @@
   {:else if activeGame}
     <!-- Game level: saves list -->
     <WindowTitleBar
-      parents={[{ label: "GAMES", onclick: () => { navGameId = null; } }]}
+      parents={[
+        {
+          label: "GAMES",
+          onclick: () => {
+            navGameId = null;
+          },
+        },
+      ]}
       activeLabel={activeGame.name}
       activeSublabel={activeGame.statusLine}
     />
@@ -133,7 +158,9 @@
             statusLine: game.statusLine,
             saves: game.saves,
           }}
-          onclick={() => { navGameId = game.gameId; }}
+          onclick={() => {
+            navGameId = game.gameId;
+          }}
         />
       {/each}
       <button class="add-game-card" onclick={() => onadd?.()}>
@@ -165,7 +192,9 @@
     border: 1px dashed rgba(74, 90, 173, 0.2);
     min-width: 110px;
     cursor: pointer;
-    transition: background 0.1s, border-color 0.15s;
+    transition:
+      background 0.1s,
+      border-color 0.15s;
   }
 
   .add-game-card:hover {

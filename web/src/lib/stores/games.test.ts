@@ -32,7 +32,15 @@ describe("mergeGames", () => {
             name: "Diablo II: Resurrected",
             status: "watching",
             statusLine: "1 save",
-            saves: [{ saveUuid: "s1", saveName: "Atmus", summary: "Paladin", lastUpdated: "now", status: "success" }],
+            saves: [
+              {
+                saveUuid: "s1",
+                saveName: "Atmus",
+                summary: "Paladin",
+                lastUpdated: "now",
+                status: "success",
+              },
+            ],
           },
         ],
       }),
@@ -58,7 +66,15 @@ describe("mergeGames", () => {
             name: "Diablo II: Resurrected",
             status: "watching",
             statusLine: "1 save",
-            saves: [{ saveUuid: "s1", saveName: "Atmus", summary: "Paladin", lastUpdated: "now", status: "success" }],
+            saves: [
+              {
+                saveUuid: "s1",
+                saveName: "Atmus",
+                summary: "Paladin",
+                lastUpdated: "now",
+                status: "success",
+              },
+            ],
           },
         ],
       }),
@@ -70,7 +86,15 @@ describe("mergeGames", () => {
             name: "Diablo II: Resurrected",
             status: "watching",
             statusLine: "1 save",
-            saves: [{ saveUuid: "s2", saveName: "Blizzara", summary: "Sorc", lastUpdated: "1h ago", status: "success" }],
+            saves: [
+              {
+                saveUuid: "s2",
+                saveName: "Blizzara",
+                summary: "Sorc",
+                lastUpdated: "1h ago",
+                status: "success",
+              },
+            ],
           },
         ],
       }),
@@ -90,7 +114,13 @@ describe("mergeGames", () => {
       makeSource({
         id: "src-1",
         games: [
-          { gameId: "d2r", name: "Diablo II: Resurrected", status: "watching", statusLine: "", saves: [] },
+          {
+            gameId: "d2r",
+            name: "Diablo II: Resurrected",
+            status: "watching",
+            statusLine: "",
+            saves: [],
+          },
           { gameId: "sdv", name: "Stardew Valley", status: "watching", statusLine: "", saves: [] },
         ],
       }),
@@ -108,13 +138,23 @@ describe("mergeGames", () => {
         games: [
           { gameId: "sdv", name: "Stardew Valley", status: "watching", statusLine: "", saves: [] },
           { gameId: "bg3", name: "Baldur's Gate 3", status: "watching", statusLine: "", saves: [] },
-          { gameId: "d2r", name: "Diablo II: Resurrected", status: "watching", statusLine: "", saves: [] },
+          {
+            gameId: "d2r",
+            name: "Diablo II: Resurrected",
+            status: "watching",
+            statusLine: "",
+            saves: [],
+          },
         ],
       }),
     ];
 
     const result = mergeGames(sources);
-    expect(result.map((g: MergedGame) => g.name)).toEqual(["Baldur's Gate 3", "Diablo II: Resurrected", "Stardew Valley"]);
+    expect(result.map((g: MergedGame) => g.name)).toEqual([
+      "Baldur's Gate 3",
+      "Diablo II: Resurrected",
+      "Stardew Valley",
+    ]);
   });
 
   it("sets MergedSave sourceId and sourceName correctly", () => {
@@ -128,7 +168,15 @@ describe("mergeGames", () => {
             name: "Diablo II: Resurrected",
             status: "watching",
             statusLine: "",
-            saves: [{ saveUuid: "s1", saveName: "Atmus", summary: "Paladin", lastUpdated: "now", status: "success" }],
+            saves: [
+              {
+                saveUuid: "s1",
+                saveName: "Atmus",
+                summary: "Paladin",
+                lastUpdated: "now",
+                status: "success",
+              },
+            ],
           },
         ],
       }),
@@ -172,7 +220,9 @@ describe("mergeGames", () => {
             name: "Diablo II: Resurrected",
             status: "watching",
             statusLine: "",
-            saves: [{ saveUuid: "s1", saveName: "A", summary: "", lastUpdated: "now", status: "success" }],
+            saves: [
+              { saveUuid: "s1", saveName: "A", summary: "", lastUpdated: "now", status: "success" },
+            ],
           },
         ],
       }),
@@ -186,7 +236,15 @@ describe("mergeGames", () => {
     const sources: Source[] = [
       makeSource({
         id: "src-1",
-        games: [{ gameId: "d2r", name: "Diablo II: Resurrected", status: "watching", statusLine: "", saves: [] }],
+        games: [
+          {
+            gameId: "d2r",
+            name: "Diablo II: Resurrected",
+            status: "watching",
+            statusLine: "",
+            saves: [],
+          },
+        ],
       }),
     ];
 

@@ -62,13 +62,19 @@
 
 <Story name="SingleSourceOnline">
   <div style="width: 700px;">
-    <SourceStrip sources={singleSource} onchipclick={(s) => alert(`Clicked: ${s.hostname ?? s.name}`)} />
+    <SourceStrip
+      sources={singleSource}
+      onchipclick={(s: Source) => alert(`Clicked: ${s.hostname ?? s.name}`)}
+    />
   </div>
 </Story>
 
 <Story name="MultipleSources">
   <div style="width: 700px;">
-    <SourceStrip sources={multipleSources} onchipclick={(s) => alert(`Clicked: ${s.hostname ?? s.name}`)} />
+    <SourceStrip
+      sources={multipleSources}
+      onchipclick={(s: Source) => alert(`Clicked: ${s.hostname ?? s.name}`)}
+    />
   </div>
 </Story>
 

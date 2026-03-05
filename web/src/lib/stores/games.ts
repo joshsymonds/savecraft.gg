@@ -26,8 +26,14 @@ export function mergeGames(sources: Source[]): MergedGame[] {
   const result: MergedGame[] = [];
   for (const [gameId, entry] of map) {
     const count = entry.saves.length;
-    const statusLine =
-      count === 0 ? "No saves" : count === 1 ? "1 save" : `${String(count)} saves`;
+    let statusLine: string;
+    if (count === 0) {
+      statusLine = "No saves";
+    } else if (count === 1) {
+      statusLine = "1 save";
+    } else {
+      statusLine = `${String(count)} saves`;
+    }
 
     result.push({
       gameId,

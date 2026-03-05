@@ -19,13 +19,18 @@
 
   let gameErrors = $derived(source.games.filter((g) => g.error));
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape") onclose?.();
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") onclose?.();
   }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div class="modal-backdrop" role="dialog" aria-label="Source details" tabindex="-1" onkeydown={handleKeydown}>
+<div
+  class="modal-backdrop"
+  role="dialog"
+  aria-label="Source details"
+  tabindex="-1"
+  onkeydown={handleKeydown}
+>
   <div class="modal-content">
     <Panel>
       <!-- Header -->
@@ -43,7 +48,12 @@
         <div class="info-row">
           <div class="info-item">
             <span class="info-label">STATUS</span>
-            <span class="info-value" class:online={source.status === "online"} class:error={source.status === "error"} class:offline={source.status === "offline"}>
+            <span
+              class="info-value"
+              class:online={source.status === "online"}
+              class:error={source.status === "error"}
+              class:offline={source.status === "offline"}
+            >
               {source.status.toUpperCase()}
             </span>
           </div>
@@ -81,8 +91,14 @@
             <div class="config-game">
               <div class="config-game-header">
                 <span class="config-game-name">{game.name}</span>
-                <span class="config-game-status" class:watching={game.status === "watching"} class:game-error={game.status === "error"} class:not-found={game.status === "not_found"}>
-                  {game.status === "watching" ? "WATCHING" : game.status === "error" ? "ERROR" : "NOT FOUND"}
+                <span
+                  class="config-game-status"
+                  class:watching={game.status === "watching"}
+                  class:game-error={game.status === "error"}
+                  class:not-found={game.status === "not_found"}
+                >
+                  {#if game.status === "watching"}WATCHING{:else if game.status === "error"}ERROR{:else}NOT
+                    FOUND{/if}
                 </span>
               </div>
               {#if game.path}
@@ -93,7 +109,9 @@
               {/if}
               <div class="config-field">
                 <span class="field-label">SAVES</span>
-                <span class="field-value">{game.saves.length} {game.saves.length === 1 ? "save" : "saves"}</span>
+                <span class="field-value"
+                  >{game.saves.length} {game.saves.length === 1 ? "save" : "saves"}</span
+                >
               </div>
             </div>
           {:else}

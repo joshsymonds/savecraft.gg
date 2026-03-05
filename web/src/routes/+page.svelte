@@ -22,7 +22,6 @@
     cancelLink,
     dismissLinkError,
     linkCode,
-    linkedSourceId,
     linkError,
     linkState,
     submitLinkCode,
@@ -124,7 +123,9 @@
     {#if $sources.length > 0}
       <SourceStrip
         sources={$sources}
-        onchipclick={(source) => { selectedSource = source; }}
+        onchipclick={(source) => {
+          selectedSource = source;
+        }}
       />
     {/if}
 
@@ -155,7 +156,9 @@
         <GamePanel
           games={mergedGames}
           {showSourceBadges}
-          onadd={() => { pickerOpen = true; }}
+          onadd={() => {
+            pickerOpen = true;
+          }}
           loadNotes={async (saveUuid) => {
             const notes = await fetchNotes(saveUuid);
             return notes.map((n) => toNoteSummary(n));
@@ -219,15 +222,22 @@
 {#if selectedSource}
   <SourceDetailModal
     source={selectedSource}
-    onclose={() => { selectedSource = null; }}
+    onclose={() => {
+      selectedSource = null;
+    }}
   />
 {/if}
 
 {#if pickerOpen}
   <GamePickerModal
     games={pickerGames}
-    onselect={(game) => { pickerOpen = false; alert(`Selected: ${game.name} — config wiring coming soon`); }}
-    onclose={() => { pickerOpen = false; }}
+    onselect={(game: PickerGame) => {
+      pickerOpen = false;
+      alert(`Selected: ${game.name} — config wiring coming soon`);
+    }}
+    onclose={() => {
+      pickerOpen = false;
+    }}
   />
 {/if}
 
