@@ -33,6 +33,8 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 
 **Pre-launch. Treat main as a feature branch.** No backwards compatibility required for anything — wire protocol, API contracts, DB schema, plugin format. Everything is subject to change. Delete old code, don't version it. This note will be removed when the project ships.
 
+**Pre-launch does NOT mean cut corners.** Always prefer the architecturally correct solution. "No backwards compatibility" means you can freely change schemas, protocols, and APIs without migration shims — it does NOT mean quick hacks, skipping proper design, or lowering code quality. When presenting options, lead with the best architectural choice and explain why. You may also note a simpler alternative, but never default to it without asking.
+
 ## Key Conventions
 
 - Monorepo, single Go module
