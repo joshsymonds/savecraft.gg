@@ -234,9 +234,6 @@
     onselect={() => {
       pickerOpen = false;
     }}
-    onconfigure={() => {
-      pickerOpen = false;
-    }}
     onclose={() => {
       pickerOpen = false;
     }}
