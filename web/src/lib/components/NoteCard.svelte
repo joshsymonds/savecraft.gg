@@ -6,7 +6,7 @@
   Click edit to inline-edit title + content. Click X → DELETE/KEEP confirmation.
 -->
 <script lang="ts">
-  import type { NoteSummary } from "$lib/types/device";
+  import type { NoteSummary } from "$lib/types/source";
 
   let {
     note,

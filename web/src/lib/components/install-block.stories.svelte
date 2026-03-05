@@ -9,16 +9,16 @@
   });
 </script>
 
-<!-- Hero: full "GET STARTED" CTA for empty state (no devices yet) -->
+<!-- Hero: full "GET STARTED" with install + pairing code (empty state) -->
 <Story name="HeroIdle">
   <div style="width: 720px;">
-    <InstallBlock prominent={true} />
+    <InstallBlock prominent={true} onsubmit={(code) => alert(`Pairing with code: ${String(code)}`)} />
   </div>
 </Story>
 
-<!-- Compact: collapsed "ADD ANOTHER DEVICE" row (below device list) -->
+<!-- Compact: collapsed "ADD ANOTHER SOURCE" row (below source list) -->
 <Story name="CompactCollapsed">
   <div style="width: 720px;">
-    <InstallBlock prominent={false} />
+    <InstallBlock prominent={false} onsubmit={(code) => alert(`Pairing with code: ${String(code)}`)} />
   </div>
 </Story>

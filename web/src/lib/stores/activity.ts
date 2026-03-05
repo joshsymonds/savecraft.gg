@@ -18,8 +18,8 @@ const { subscribe, update, set } = writable<ActivityEventData[]>([]);
 export const activityEvents: Readable<ActivityEventData[]> = { subscribe };
 
 const TYPE_MAP: Partial<Record<WireMessageType, ActivityEventType>> = {
-  daemonOnline: "daemon_online",
-  daemonOffline: "daemon_offline",
+  sourceOnline: "daemon_online",
+  sourceOffline: "daemon_offline",
   gameDetected: "game_detected",
   gameNotFound: "game_not_found",
   watching: "watching",
@@ -55,20 +55,20 @@ interface EventContent {
 
 type EventBuilder = (msg: WireMessage) => EventContent | null;
 
-function buildDaemonOnline(msg: WireMessage): EventContent | null {
-  const d = msg.daemonOnline;
+function buildSourceOnline(msg: WireMessage): EventContent | null {
+  const d = msg.sourceOnline;
   if (!d) return null;
   return {
-    message: `${d.deviceId ?? "Device"} connected`,
+    message: `${d.sourceId ?? "Source"} connected`,
     detail: d.version ?? undefined,
   };
 }
 
-function buildDaemonOffline(msg: WireMessage): EventContent | null {
-  const d = msg.daemonOffline;
+function buildSourceOffline(msg: WireMessage): EventContent | null {
+  const d = msg.sourceOffline;
   if (!d) return null;
   return {
-    message: `${d.deviceId ?? "Device"} disconnected`,
+    message: `${d.sourceId ?? "Source"} disconnected`,
   };
 }
 
@@ -173,8 +173,8 @@ function buildGamesDiscovered(msg: WireMessage): EventContent | null {
 }
 
 const EVENT_BUILDERS: Partial<Record<WireMessageType, EventBuilder>> = {
-  daemonOnline: buildDaemonOnline,
-  daemonOffline: buildDaemonOffline,
+  sourceOnline: buildSourceOnline,
+  sourceOffline: buildSourceOffline,
   gameDetected: buildGameDetected,
   gameNotFound: buildGameNotFound,
   watching: buildWatching,
@@ -185,7 +185,7 @@ const EVENT_BUILDERS: Partial<Record<WireMessageType, EventBuilder>> = {
   pluginUpdated: buildPluginUpdated,
   pluginDownloadFailed: buildPluginDownloadFailed,
   gamesDiscovered: buildGamesDiscovered,
-  deviceState: () => null,
+  sourceState: () => null,
   testPathResult: () => null,
 };
 
@@ -212,8 +212,8 @@ export function dispatchToActivity(msg: WireMessage): void {
   const type = getMessageType(msg);
   if (!type) return;
 
-  // deviceState is a snapshot, not an activity event
-  if (type === "deviceState") return;
+  // sourceState is a snapshot, not an activity event
+  if (type === "sourceState") return;
 
   const event = buildEvent(type, msg);
   if (!event) return;

@@ -1,11 +1,11 @@
 <!--
   @component
-  Game card: displays a single game within a device panel's game grid.
+  Game card: displays a single game within a source panel's game grid.
   Visual states: watching (active), detected (dimmed + ACTIVATE CTA),
   activating (pulsing, no button), error (yellow).
 -->
 <script lang="ts">
-  import type { DeviceGame } from "$lib/types/device";
+  import type { SourceGame } from "$lib/types/source";
 
   import TinyButton from "./TinyButton.svelte";
 
@@ -17,7 +17,7 @@
     onclick,
     activateState = "idle",
   }: {
-    game: DeviceGame;
+    game: SourceGame;
     onactivate?: (gameId: string) => void;
     onclick?: () => void;
     activateState?: ActivateState;

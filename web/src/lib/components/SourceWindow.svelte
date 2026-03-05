@@ -1,11 +1,11 @@
 <!--
   @component
-  Device window orchestrator: 3-level progressive disclosure.
-  Device level → Game level → Save level.
+  Source window orchestrator: 3-level progressive disclosure.
+  Source level → Game level → Save level.
   Wraps Panel + WindowTitleBar + content area.
 -->
 <script lang="ts">
-  import type { Device, DeviceStatus, NoteSummary } from "$lib/types/device";
+  import type { NoteSummary, Source, SourceStatus } from "$lib/types/source";
   import { SvelteMap } from "svelte/reactivity";
 
   import type { ActivateState } from "./GameCard.svelte";
@@ -18,7 +18,7 @@
   import WindowTitleBar from "./WindowTitleBar.svelte";
 
   let {
-    device,
+    source,
     onrescan,
     ondiscover,
     onconfig,
@@ -32,7 +32,7 @@
     initialGameId,
     initialSaveUuid,
   }: {
-    device: Device;
+    source: Source;
     onrescan?: () => void;
     ondiscover?: () => void;
     onconfig?: () => void;
@@ -66,7 +66,7 @@
   let navGameId = $state<string | null>(initialGameId ?? null);
   let navSaveUuid = $state<string | null>(initialSaveUuid ?? null);
 
-  let gameData = $derived(navGameId ? device.games.find((g) => g.gameId === navGameId) : undefined);
+  let gameData = $derived(navGameId ? source.games.find((g) => g.gameId === navGameId) : undefined);
   let saveData = $derived(
     navSaveUuid && gameData ? gameData.saves.find((s) => s.saveUuid === navSaveUuid) : undefined,
   );
@@ -76,7 +76,7 @@
 
   // Clear activateStates when the game transitions away from "activating"
   $effect(() => {
-    for (const game of device.games) {
+    for (const game of source.games) {
       if (game.status !== "activating" && activateStates.has(game.gameId)) {
         activateStates.delete(game.gameId);
       }
@@ -154,21 +154,21 @@
     showAddNote = false;
   }
 
-  const ACCENT_COLORS: Record<DeviceStatus, string | undefined> = {
+  const ACCENT_COLORS: Record<SourceStatus, string | undefined> = {
     online: "#5abe8a40",
     error: "#e8c44e40",
     offline: undefined,
   };
 
-  const DEVICE_ICON = "🖥";
+  const SOURCE_ICON = "🖥";
 
   // Title bar config
   let parents = $derived.by((): Parent[] => {
     if (saveData && gameData) {
       return [
         {
-          icon: DEVICE_ICON,
-          label: device.name,
+          icon: SOURCE_ICON,
+          label: source.name,
           onclick: () => {
             navGameId = null;
             navSaveUuid = null;
@@ -185,8 +185,8 @@
     if (gameData) {
       return [
         {
-          icon: DEVICE_ICON,
-          label: device.name,
+          icon: SOURCE_ICON,
+          label: source.name,
           onclick: () => {
             navGameId = null;
           },
@@ -198,31 +198,31 @@
 
   let activeIcon = $derived.by(() => {
     if (saveData || gameData) return;
-    return DEVICE_ICON;
+    return SOURCE_ICON;
   });
 
   let activeLabel = $derived.by(() => {
     if (saveData) return saveData.saveName;
     if (gameData) return gameData.name;
-    return device.name;
+    return source.name;
   });
 
   let activeSublabel = $derived.by(() => {
     if (saveData) return saveData.summary;
     if (gameData) return gameData.statusLine;
     const parts: string[] = [];
-    if (device.version) parts.push(device.version);
-    if (device.status === "offline") parts.push(`last seen ${device.lastSeen}`);
+    if (source.version) parts.push(source.version);
+    if (source.status === "offline") parts.push(`last seen ${source.lastSeen}`);
     return parts.join(" · ");
   });
 
   let statusDot = $derived.by((): "online" | "error" | "offline" | undefined => {
     if (saveData || gameData) return;
-    return device.status;
+    return source.status;
   });
 </script>
 
-<Panel accent={ACCENT_COLORS[device.status]}>
+<Panel accent={ACCENT_COLORS[source.status]}>
   <WindowTitleBar {parents} {activeIcon} {activeLabel} {activeSublabel} {statusDot}>
     {#snippet right()}
       {#if saveData}
@@ -252,13 +252,13 @@
           {/if}
         </span>
       {:else}
-        <div class="device-actions">
+        <div class="source-actions">
           <TinyButton
             label={discoveryPending ? "SCANNING..." : "DISCOVER"}
             onclick={ondiscover}
-            disabled={device.status === "offline" || discoveryPending}
+            disabled={source.status === "offline" || discoveryPending}
           />
-          <TinyButton label="RESCAN" onclick={onrescan} disabled={device.status === "offline"} />
+          <TinyButton label="RESCAN" onclick={onrescan} disabled={source.status === "offline"} />
           <TinyButton label="CONFIG" onclick={onconfig} />
         </div>
       {/if}
@@ -268,7 +268,7 @@
   {#if showLinkedBanner}
     <div class="linked-banner">
       <span class="linked-icon">&#10003;</span>
-      <span class="linked-label">DEVICE LINKED</span>
+      <span class="linked-label">SOURCE LINKED</span>
     </div>
   {/if}
 
@@ -379,9 +379,9 @@
       {/if}
     </div>
   {:else}
-    <!-- Device level: game grid -->
+    <!-- Source level: game grid -->
     <div class="game-grid">
-      {#each device.games as game (game.gameId)}
+      {#each source.games as game (game.gameId)}
         <GameCard
           {game}
           activateState={resolvedActivateState(game.gameId, game.status)}
@@ -393,7 +393,7 @@
           }}
         />
       {/each}
-      {#if device.games.length === 0}
+      {#if source.games.length === 0}
         <div class="add-game-card" aria-hidden="true">
           <span class="add-game-icon">+</span>
           <span class="add-game-label">Add a game...</span>
@@ -404,14 +404,14 @@
 </Panel>
 
 <style>
-  /* -- Device actions ---------------------------------------- */
+  /* -- Source actions ---------------------------------------- */
 
-  .device-actions {
+  .source-actions {
     display: flex;
     gap: 5px;
   }
 
-  /* -- Game grid (device level) ------------------------------ */
+  /* -- Game grid (source level) ------------------------------ */
 
   .game-grid {
     padding: 14px 12px;

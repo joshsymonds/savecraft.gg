@@ -1,11 +1,11 @@
 <script module lang="ts">
-  import type { Device, NoteSummary } from "$lib/types/device";
+  import type { NoteSummary, Source } from "$lib/types/source";
   import { defineMeta } from "@storybook/addon-svelte-csf";
 
-  import DeviceWindow from "./DeviceWindow.svelte";
+  import SourceWindow from "./SourceWindow.svelte";
 
   const { Story } = defineMeta({
-    title: "Components/DeviceWindow",
+    title: "Components/SourceWindow",
     tags: ["autodocs"],
   });
 
@@ -46,12 +46,17 @@
     return Promise.resolve(mockNotes[saveUuid] ?? []);
   }
 
-  const onlineDevice: Device = {
+  // --- Daemon source (full capabilities, multi-game) ---
+
+  const daemonSource: Source = {
     id: "steam-deck",
-    name: "STEAM-DECK",
+    name: "DAEMON · STEAM-DECK",
+    sourceKind: "daemon",
+    hostname: "steam-deck",
     status: "online",
     version: "v0.1.0",
     lastSeen: "now",
+    capabilities: { canRescan: true, canReceiveConfig: true },
     games: [
       {
         gameId: "d2r",
@@ -125,12 +130,15 @@
     ],
   };
 
-  const offlineDevice: Device = {
+  const offlineSource: Source = {
     id: "desktop-pc",
-    name: "DESKTOP-PC",
+    name: "DAEMON · DESKTOP-PC",
+    sourceKind: "daemon",
+    hostname: "desktop-pc",
     status: "offline",
     version: "v0.1.0",
     lastSeen: "3 hours ago",
+    capabilities: { canRescan: true, canReceiveConfig: true },
     games: [
       {
         gameId: "d2r",
@@ -150,12 +158,15 @@
     ],
   };
 
-  const emptyDevice: Device = {
+  const emptySource: Source = {
     id: "new-pc",
-    name: "NEW-PC",
+    name: "DAEMON · NEW-PC",
+    sourceKind: "daemon",
+    hostname: "new-pc",
     status: "online",
     version: "v0.1.0",
     lastSeen: "now",
+    capabilities: { canRescan: true, canReceiveConfig: true },
     games: [
       {
         gameId: "bg3",
@@ -167,12 +178,15 @@
     ],
   };
 
-  const errorDevice: Device = {
+  const errorSource: Source = {
     id: "broken-pc",
-    name: "BROKEN-PC",
+    name: "DAEMON · BROKEN-PC",
+    sourceKind: "daemon",
+    hostname: "broken-pc",
     status: "error",
     version: "v0.1.0",
     lastSeen: "5m ago",
+    capabilities: { canRescan: true, canReceiveConfig: true },
     games: [
       {
         gameId: "d2r",
@@ -185,12 +199,15 @@
     ],
   };
 
-  const detectedDevice: Device = {
+  const detectedSource: Source = {
     id: "fresh-install",
-    name: "FRESH-INSTALL",
+    name: "DAEMON · FRESH-INSTALL",
+    sourceKind: "daemon",
+    hostname: "fresh-install",
     status: "online",
     version: "v0.1.0",
     lastSeen: "now",
+    capabilities: { canRescan: true, canReceiveConfig: true },
     games: [
       {
         gameId: "d2r",
@@ -208,12 +225,73 @@
       },
     ],
   };
+
+  // --- Plugin source (no rescan, no config, single game) ---
+
+  const pluginSource: Source = {
+    id: "rimworld-plugin",
+    name: "PLUGIN · GAMING-RIG",
+    sourceKind: "plugin",
+    hostname: "gaming-rig",
+    status: "online",
+    version: "v1.0.0",
+    lastSeen: "now",
+    capabilities: { canRescan: false, canReceiveConfig: false },
+    games: [
+      {
+        gameId: "rimworld",
+        name: "RimWorld",
+        status: "watching",
+        statusLine: "1 colony",
+        saves: [
+          {
+            saveUuid: "s8",
+            saveName: "New Beginnings",
+            summary: "Crashlanded · Year 5 · 12 colonists",
+            lastUpdated: "10m ago",
+            status: "success",
+          },
+        ],
+      },
+    ],
+  };
+
+  // --- API source (no hostname, no rescan, no config) ---
+
+  const apiSource: Source = {
+    id: "api-adapter",
+    name: "API",
+    sourceKind: "api",
+    hostname: null,
+    status: "online",
+    version: null,
+    lastSeen: "now",
+    capabilities: { canRescan: false, canReceiveConfig: false },
+    games: [
+      {
+        gameId: "poe2",
+        name: "Path of Exile 2",
+        status: "watching",
+        statusLine: "1 character",
+        saves: [
+          {
+            saveUuid: "s9",
+            saveName: "WitchBlaster",
+            summary: "Witch · Level 85 · Mapworthy",
+            lastUpdated: "1h ago",
+            status: "success",
+          },
+        ],
+      },
+    ],
+  };
 </script>
 
-<Story name="DeviceOnline">
+<!-- Daemon source: online, multi-game, full capabilities -->
+<Story name="DaemonOnline">
   <div style="width: 700px;">
-    <DeviceWindow
-      device={onlineDevice}
+    <SourceWindow
+      source={daemonSource}
       loadNotes={mockLoadNotes}
       onrescan={() => alert("rescan")}
       ondiscover={() => alert("discover")}
@@ -225,32 +303,32 @@
 <!-- Just linked: green success banner below title bar -->
 <Story name="JustLinked">
   <div style="width: 700px;">
-    <DeviceWindow device={onlineDevice} loadNotes={mockLoadNotes} justLinked={true} />
+    <SourceWindow source={daemonSource} loadNotes={mockLoadNotes} justLinked={true} />
   </div>
 </Story>
 
-<Story name="DeviceOffline">
+<Story name="DaemonOffline">
   <div style="width: 700px;">
-    <DeviceWindow device={offlineDevice} loadNotes={mockLoadNotes} />
+    <SourceWindow source={offlineSource} loadNotes={mockLoadNotes} />
   </div>
 </Story>
 
-<Story name="DeviceEmpty">
+<Story name="DaemonEmpty">
   <div style="width: 700px;">
-    <DeviceWindow device={emptyDevice} loadNotes={mockLoadNotes} />
+    <SourceWindow source={emptySource} loadNotes={mockLoadNotes} />
   </div>
 </Story>
 
 <Story name="GameLevel">
   <div style="width: 700px;">
-    <DeviceWindow device={onlineDevice} loadNotes={mockLoadNotes} initialGameId="d2r" />
+    <SourceWindow source={daemonSource} loadNotes={mockLoadNotes} initialGameId="d2r" />
   </div>
 </Story>
 
 <Story name="SaveWithNotes">
   <div style="width: 700px;">
-    <DeviceWindow
-      device={onlineDevice}
+    <SourceWindow
+      source={daemonSource}
       loadNotes={mockLoadNotes}
       initialGameId="d2r"
       initialSaveUuid="s1"
@@ -260,8 +338,8 @@
 
 <Story name="SaveEmpty">
   <div style="width: 700px;">
-    <DeviceWindow
-      device={onlineDevice}
+    <SourceWindow
+      source={daemonSource}
       loadNotes={mockLoadNotes}
       initialGameId="d2r"
       initialSaveUuid="s2"
@@ -269,17 +347,31 @@
   </div>
 </Story>
 
-<Story name="DeviceError">
+<Story name="DaemonError">
   <div style="width: 700px;">
-    <DeviceWindow device={errorDevice} />
+    <SourceWindow source={errorSource} />
   </div>
 </Story>
 
-<Story name="DeviceWithDetected">
+<Story name="DaemonWithDetected">
   <div style="width: 700px;">
-    <DeviceWindow
-      device={detectedDevice}
+    <SourceWindow
+      source={detectedSource}
       onactivate={(gameId) => alert(`Activate ${String(gameId)}`)}
     />
+  </div>
+</Story>
+
+<!-- Plugin source: single game, no rescan/config capabilities -->
+<Story name="PluginSource">
+  <div style="width: 700px;">
+    <SourceWindow source={pluginSource} loadNotes={mockLoadNotes} />
+  </div>
+</Story>
+
+<!-- API source: no hostname, no rescan/config -->
+<Story name="ApiSource">
+  <div style="width: 700px;">
+    <SourceWindow source={apiSource} loadNotes={mockLoadNotes} />
   </div>
 </Story>

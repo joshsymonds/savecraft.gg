@@ -19,7 +19,7 @@
 
 <Story name="Breadcrumb">
   <div style="display: flex; align-items: center; gap: 6px;">
-    <ParentChip icon="🖥" label="DESKTOP-PC" onclick={() => alert("device")} />
+    <ParentChip icon="🖥" label="DESKTOP-PC" onclick={() => alert("source")} />
     <span style="font-family: var(--font-pixel); font-size: 10px; color: var(--color-text-muted);"
       >▸</span
     >

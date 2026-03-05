@@ -13,6 +13,9 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
+    // Drain initial empty SourceState sent on UI connect
+    await waitForMessage(uiWs);
+
     const event = { parseCompleted: { gameId: "d2r", summary: "Hammerdin, Level 89 Paladin" } };
     daemonWs.send(JSON.stringify(event));
 
@@ -29,10 +32,13 @@ describe("SourceHub", () => {
 
   it("persists daemon events to D1", async () => {
     const userUuid = "persist-test-user";
-    const { sourceToken } = await seedSource(userUuid);
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
+
+    // Drain initial empty SourceState sent on UI connect
+    await waitForMessage(uiWs);
 
     const event = {
       sourceOnline: { sourceId: "steam-deck", version: "0.1.0" },
@@ -42,14 +48,14 @@ describe("SourceHub", () => {
     // Wait for the UI to receive (ensures the DO processed the message)
     await waitForMessage(uiWs);
 
-    // Check D1
+    // Check D1 — source_uuid should be the server-authoritative UUID, not "steam-deck"
     const rows = await env.DB.prepare(
       "SELECT * FROM source_events WHERE event_type = 'sourceOnline'",
     ).all();
 
     expect(rows.results.length).toBeGreaterThanOrEqual(1);
     const row = rows.results[0]!;
-    expect(row.source_uuid).toBe("steam-deck");
+    expect(row.source_uuid).toBe(sourceUuid);
     expect(row.event_type).toBe("sourceOnline");
 
     await closeWs(daemonWs);
@@ -125,7 +131,7 @@ describe("SourceHub", () => {
 
   it("builds SourceState with online source from sourceOnline", async () => {
     const userUuid = "ds-online-user";
-    const { sourceToken } = await seedSource(userUuid);
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
@@ -140,7 +146,7 @@ describe("SourceHub", () => {
     expect(msg).toHaveProperty("sourceState");
     const ds = msg.sourceState as { sources: { sourceId: string; online: boolean }[] };
     expect(ds.sources).toHaveLength(1);
-    expect(ds.sources[0]!.sourceId).toBe("my-pc");
+    expect(ds.sources[0]!.sourceId).toBe(sourceUuid);
     expect(ds.sources[0]!.online).toBe(true);
 
     await closeWs(freshUi);
@@ -149,7 +155,7 @@ describe("SourceHub", () => {
 
   it("marks source offline on sourceOffline", async () => {
     const userUuid = "ds-offline-user";
-    const { sourceToken } = await seedSource(userUuid);
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
@@ -165,7 +171,7 @@ describe("SourceHub", () => {
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
     const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
-    const source = ds.sources.find((d) => d.sourceId === "laptop");
+    const source = ds.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
     // Proto3 JSON omits false (the default) — absent online means offline
     expect(source?.online).toBeFalsy();
@@ -236,7 +242,7 @@ describe("SourceHub", () => {
 
   it("marks source offline on daemon WebSocket close", async () => {
     const userUuid = "ds-wsclose-user";
-    const { sourceToken } = await seedSource(userUuid);
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
@@ -252,7 +258,7 @@ describe("SourceHub", () => {
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
     const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
-    const source = ds.sources.find((d) => d.sourceId === "steamdeck");
+    const source = ds.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
     // Proto3 JSON omits false (the default) — absent online means offline
     expect(source?.online).toBeFalsy();
@@ -298,16 +304,16 @@ describe("SourceHub", () => {
     };
     expect(ds.sources).toHaveLength(2);
 
-    const desktop = ds.sources.find((d) => d.sourceId === "desktop");
-    const steamdeck = ds.sources.find((d) => d.sourceId === "steamdeck");
+    const sourceAState = ds.sources.find((d) => d.sourceId === sourceA.sourceUuid);
+    const sourceBState = ds.sources.find((d) => d.sourceId === sourceB.sourceUuid);
 
-    expect(desktop).toBeDefined();
-    expect(desktop!.online).toBe(true);
-    expect(desktop!.games.find((g) => g.gameId === "d2r")).toBeDefined();
+    expect(sourceAState).toBeDefined();
+    expect(sourceAState!.online).toBe(true);
+    expect(sourceAState!.games.find((g) => g.gameId === "d2r")).toBeDefined();
 
-    expect(steamdeck).toBeDefined();
-    expect(steamdeck!.online).toBe(true);
-    expect(steamdeck!.games.find((g) => g.gameId === "stardew")).toBeDefined();
+    expect(sourceBState).toBeDefined();
+    expect(sourceBState!.online).toBe(true);
+    expect(sourceBState!.games.find((g) => g.gameId === "stardew")).toBeDefined();
 
     await closeWs(freshUi);
     await closeWs(daemonA);
@@ -337,13 +343,13 @@ describe("SourceHub", () => {
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
     const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
-    const desktop = ds.sources.find((d) => d.sourceId === "desktop");
-    const steamdeck = ds.sources.find((d) => d.sourceId === "steamdeck");
+    const sourceAState = ds.sources.find((d) => d.sourceId === sourceA.sourceUuid);
+    const sourceBState = ds.sources.find((d) => d.sourceId === sourceB.sourceUuid);
 
-    expect(desktop).toBeDefined();
-    expect(desktop?.online).toBeFalsy();
-    expect(steamdeck).toBeDefined();
-    expect(steamdeck?.online).toBe(true);
+    expect(sourceAState).toBeDefined();
+    expect(sourceAState?.online).toBeFalsy();
+    expect(sourceBState).toBeDefined();
+    expect(sourceBState?.online).toBe(true);
 
     await closeWs(freshUi);
     await closeWs(daemonB);
@@ -425,23 +431,24 @@ describe("SourceHub", () => {
 
   it("injects _sourceId on live relay", async () => {
     const userUuid = "sourceid-relay-user";
-    const { sourceToken } = await seedSource(userUuid);
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
+    await waitForMessage(uiWs); // initial empty SourceState
 
     // Identify the daemon connection
     daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
     await waitForMessage(uiWs); // sourceOnline event
     await waitForMessage(uiWs); // SourceState broadcast
 
-    // Send a game event — UI should receive it with _sourceId injected
+    // Send a game event — UI should receive it with _sourceId = sourceUuid (not daemon's "my-pc")
     daemonWs.send(
       JSON.stringify({ watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 5 } }),
     );
     const received = await waitForMessage<Record<string, unknown>>(uiWs);
     expect(received).toHaveProperty("watching");
-    expect(received._sourceId).toBe("my-pc");
+    expect(received._sourceId).toBe(sourceUuid);
 
     await closeWs(daemonWs);
     await closeWs(uiWs);
@@ -449,18 +456,20 @@ describe("SourceHub", () => {
 
   it("injects _sourceId on replayed events", async () => {
     const userUuid = "sourceid-replay-user";
-    const { sourceToken } = await seedSource(userUuid);
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemonWs = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
+    await waitForMessage(temporaryUi); // initial empty SourceState
 
     // Identify daemon and send an event
     daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "steam-deck", version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
+    await waitForMessage(temporaryUi); // sourceOnline event
+    await waitForMessage(temporaryUi); // SourceState broadcast
     daemonWs.send(
       JSON.stringify({ parseCompleted: { gameId: "d2r", summary: "Hammerdin, Level 89" } }),
     );
-    await waitForMessage(temporaryUi);
+    await waitForMessage(temporaryUi); // parseCompleted
     await closeWs(temporaryUi);
 
     // Fresh UI should get SourceState, then replayed events with _sourceId
@@ -469,7 +478,7 @@ describe("SourceHub", () => {
     // Skip SourceState
     await waitForMessage(freshUi);
 
-    // Collect replayed events — at least one should have _sourceId: "steam-deck"
+    // Collect replayed events — at least one should have _sourceId = sourceUuid
     const replayed: Record<string, unknown>[] = [];
     try {
       while (replayed.length < 10) {
@@ -481,7 +490,7 @@ describe("SourceHub", () => {
     }
 
     expect(replayed.length).toBeGreaterThanOrEqual(1);
-    const withSourceId = replayed.filter((m) => m._sourceId === "steam-deck");
+    const withSourceId = replayed.filter((m) => m._sourceId === sourceUuid);
     expect(withSourceId.length).toBeGreaterThanOrEqual(1);
 
     await closeWs(freshUi);
@@ -703,7 +712,7 @@ describe("SourceHub", () => {
 
   it("evicts stale source via alarm", async () => {
     const userUuid = "alarm-evict-user";
-    const { sourceToken } = await seedSource(userUuid);
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemon = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
@@ -717,7 +726,7 @@ describe("SourceHub", () => {
     const preUi = await connectWs("/ws/ui", userUuid);
     const preMsg = await waitForMessage<Record<string, unknown>>(preUi);
     const preDs = preMsg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
-    const preSource = preDs.sources.find((d) => d.sourceId === "deck");
+    const preSource = preDs.sources.find((d) => d.sourceId === sourceUuid);
     expect(preSource).toBeDefined();
     expect(preSource?.online).toBe(true);
     await closeWs(preUi);
@@ -734,7 +743,7 @@ describe("SourceHub", () => {
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
     const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
-    const source = ds.sources.find((d) => d.sourceId === "deck");
+    const source = ds.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
     expect(source?.online).toBeFalsy();
 
@@ -744,7 +753,7 @@ describe("SourceHub", () => {
 
   it("graceful offline deletes alarm — lastSeen unchanged after wait", async () => {
     const userUuid = "alarm-lifecycle-user";
-    const { sourceToken } = await seedSource(userUuid);
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemon = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
@@ -764,7 +773,7 @@ describe("SourceHub", () => {
     const ui1 = await connectWs("/ws/ui", userUuid);
     const msg1 = await waitForMessage<Record<string, unknown>>(ui1);
     const ds1 = msg1.sourceState as { sources: { sourceId: string; lastSeen?: string }[] };
-    const lastSeenBefore = ds1.sources.find((d) => d.sourceId === "deck")?.lastSeen;
+    const lastSeenBefore = ds1.sources.find((d) => d.sourceId === sourceUuid)?.lastSeen;
     expect(lastSeenBefore).toBeDefined();
     await closeWs(ui1);
 
@@ -777,7 +786,7 @@ describe("SourceHub", () => {
     const ui2 = await connectWs("/ws/ui", userUuid);
     const msg2 = await waitForMessage<Record<string, unknown>>(ui2);
     const ds2 = msg2.sourceState as { sources: { sourceId: string; lastSeen?: string }[] };
-    const lastSeenAfter = ds2.sources.find((d) => d.sourceId === "deck")?.lastSeen;
+    const lastSeenAfter = ds2.sources.find((d) => d.sourceId === sourceUuid)?.lastSeen;
     expect(lastSeenAfter).toBe(lastSeenBefore);
 
     await closeWs(ui2);

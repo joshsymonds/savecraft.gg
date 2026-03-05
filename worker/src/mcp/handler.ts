@@ -297,7 +297,7 @@ const TOOLS: ToolDefinition[] = [
     name: "refresh_save",
     title: "Refresh Save",
     description:
-      "Request fresh data for a save from the player's device or game API. Use when the player says something just changed ('I just found a Ber rune', 'I just equipped a new item', 'I just finished the quest'). The server handles whether this goes to the local daemon or a game API — you don't need to know which. After refreshing, re-read the relevant sections to see the updated state.",
+      "Request fresh data for a save from the player's source or game API. Use when the player says something just changed ('I just found a Ber rune', 'I just equipped a new item', 'I just finished the quest'). The server handles whether this goes to the local daemon or a game API — you don't need to know which. After refreshing, re-read the relevant sections to see the updated state.",
     inputSchema: {
       type: "object",
       properties: {

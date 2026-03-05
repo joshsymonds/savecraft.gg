@@ -1,7 +1,7 @@
 export { default as ActivityEvent } from "./ActivityEvent.svelte";
 export { default as ConfigModal } from "./ConfigModal.svelte";
 export { default as ConnectCard } from "./ConnectCard.svelte";
-export { default as DeviceWindow } from "./DeviceWindow.svelte";
+export { default as SourceWindow } from "./SourceWindow.svelte";
 export { default as GameCard } from "./GameCard.svelte";
 export { default as InstallBlock } from "./InstallBlock.svelte";
 export { default as LinkingCard } from "./LinkingCard.svelte";

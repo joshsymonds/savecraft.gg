@@ -102,9 +102,10 @@ export class UserHub extends DurableObject<Env> {
   private async handleUpdateState(request: Request): Promise<Response> {
     const body = await request.json<{ sourceUuid: string; stateJson: string }>();
     await this.ctx.storage.put(`${SOURCE_STATE_PREFIX}${body.sourceUuid}`, body.stateJson);
-    // Broadcast updated state to all connected UI clients
+    // Build merged state once, broadcast to all connected UI clients
+    const merged = await this.buildMergedSourceState();
     for (const ws of this.ctx.getWebSockets("ui")) {
-      await this.sendSourceState(ws);
+      ws.send(merged);
     }
     return Response.json({ ok: true });
   }
@@ -112,15 +113,13 @@ export class UserHub extends DurableObject<Env> {
   // ── Internal helpers ──────────────────────────────────────────────
 
   /**
-   * Load all per-source state entries, merge their sources[] arrays into
-   * a single SourceState envelope, and send to the UI client.
+   * Build merged SourceState JSON from all per-source storage entries.
+   * Returns a single JSON string ready to send to UI clients.
    */
-  private async sendSourceState(ws: WebSocket): Promise<void> {
+  private async buildMergedSourceState(): Promise<string> {
     const entries = await this.ctx.storage.list<string>({
       prefix: SOURCE_STATE_PREFIX,
     });
-    if (entries.size === 0) return;
-
     // Each entry is a pre-serialized SourceState envelope like:
     // {"sourceState":{"sources":[...]}}
     // Merge all sources[] arrays into one.
@@ -138,8 +137,15 @@ export class UserHub extends DurableObject<Env> {
       }
     }
 
-    // Always send SourceState (even with empty sources) so UI sees a fresh snapshot
-    const merged = JSON.stringify({ sourceState: { sources: allSources } });
+    return JSON.stringify({ sourceState: { sources: allSources } });
+  }
+
+  /**
+   * Load all per-source state entries, merge their sources[] arrays into
+   * a single SourceState envelope, and send to the UI client.
+   */
+  private async sendSourceState(ws: WebSocket): Promise<void> {
+    const merged = await this.buildMergedSourceState();
     ws.send(merged);
   }
 

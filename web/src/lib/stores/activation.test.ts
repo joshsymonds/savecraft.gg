@@ -9,8 +9,8 @@ const discoveredStore = writable(
 );
 
 vi.mock("$lib/api/client", () => ({
-  fetchDeviceConfig: vi.fn(),
-  saveDeviceConfig: vi.fn(),
+  fetchSourceConfig: vi.fn(),
+  saveSourceConfig: vi.fn(),
 }));
 
 vi.mock("$lib/stores/plugins", () => ({
@@ -21,7 +21,7 @@ vi.mock("$lib/stores/discovery", () => ({
   discoveredGames: { subscribe: discoveredStore.subscribe },
 }));
 
-const { fetchDeviceConfig, saveDeviceConfig } = await import("$lib/api/client");
+const { fetchSourceConfig, saveSourceConfig } = await import("$lib/api/client");
 const { activateGame } = await import("./activation");
 
 function makePlugin(overrides: Partial<PluginManifest> = {}): PluginManifest {
@@ -41,8 +41,8 @@ function makePlugin(overrides: Partial<PluginManifest> = {}): PluginManifest {
 
 describe("activateGame", () => {
   beforeEach(() => {
-    vi.mocked(fetchDeviceConfig).mockResolvedValue({});
-    vi.mocked(saveDeviceConfig).mockResolvedValue();
+    vi.mocked(fetchSourceConfig).mockResolvedValue({});
+    vi.mocked(saveSourceConfig).mockResolvedValue();
     pluginsStore.set(new Map([["d2r", makePlugin()]]));
     discoveredStore.set(new Map());
   });
@@ -52,10 +52,10 @@ describe("activateGame", () => {
   });
 
   it("fetches existing config and PUTs with game enabled", async () => {
-    await activateGame("device-1", "d2r");
+    await activateGame("source-1", "d2r");
 
-    expect(fetchDeviceConfig).toHaveBeenCalledWith("device-1");
-    expect(saveDeviceConfig).toHaveBeenCalledWith("device-1", {
+    expect(fetchSourceConfig).toHaveBeenCalledWith("source-1");
+    expect(saveSourceConfig).toHaveBeenCalledWith("source-1", {
       d2r: {
         savePath: "/home/user/Saved Games/Diablo II Resurrected/",
         enabled: true,
@@ -72,11 +72,11 @@ describe("activateGame", () => {
         fileExtensions: [".xml"],
       },
     };
-    vi.mocked(fetchDeviceConfig).mockResolvedValue(existingConfig);
+    vi.mocked(fetchSourceConfig).mockResolvedValue(existingConfig);
 
-    await activateGame("device-1", "d2r");
+    await activateGame("source-1", "d2r");
 
-    const putCall = vi.mocked(saveDeviceConfig).mock.calls[0]!;
+    const putCall = vi.mocked(saveSourceConfig).mock.calls[0]!;
     expect(putCall[1]).toHaveProperty("stardew", existingConfig.stardew);
     expect(putCall[1]).toHaveProperty("d2r");
     expect(putCall[1].d2r!.enabled).toBe(true);
@@ -87,30 +87,30 @@ describe("activateGame", () => {
       new Map([["d2r", { gameId: "d2r", name: "D2R", path: "/discovered/path", fileCount: 3 }]]),
     );
 
-    await activateGame("device-1", "d2r");
+    await activateGame("source-1", "d2r");
 
-    const putCall = vi.mocked(saveDeviceConfig).mock.calls[0]!;
+    const putCall = vi.mocked(saveSourceConfig).mock.calls[0]!;
     expect(putCall[1].d2r!.savePath).toBe("/discovered/path");
   });
 
   it("falls back to plugin default path when no discovery", async () => {
-    await activateGame("device-1", "d2r");
+    await activateGame("source-1", "d2r");
 
-    const putCall = vi.mocked(saveDeviceConfig).mock.calls[0]!;
+    const putCall = vi.mocked(saveSourceConfig).mock.calls[0]!;
     // Test env has no real navigator, so detectOS() falls through to "linux"
     expect(putCall[1].d2r!.savePath).toBe("/home/user/Saved Games/Diablo II Resurrected/");
   });
 
   it("propagates fetch errors to caller", async () => {
-    vi.mocked(fetchDeviceConfig).mockRejectedValue(new Error("network error"));
+    vi.mocked(fetchSourceConfig).mockRejectedValue(new Error("network error"));
 
-    await expect(activateGame("device-1", "d2r")).rejects.toThrow("network error");
-    expect(saveDeviceConfig).not.toHaveBeenCalled();
+    await expect(activateGame("source-1", "d2r")).rejects.toThrow("network error");
+    expect(saveSourceConfig).not.toHaveBeenCalled();
   });
 
   it("propagates save errors to caller", async () => {
-    vi.mocked(saveDeviceConfig).mockRejectedValue(new Error("save failed"));
+    vi.mocked(saveSourceConfig).mockRejectedValue(new Error("save failed"));
 
-    await expect(activateGame("device-1", "d2r")).rejects.toThrow("save failed");
+    await expect(activateGame("source-1", "d2r")).rejects.toThrow("save failed");
   });
 });

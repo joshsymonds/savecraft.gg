@@ -262,12 +262,13 @@ describe("Config push via SourceHub", () => {
       .bind(userUuid, sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
-    // Connect daemon and identify it
+    // Connect daemon and identify it — daemon sends any hostname, server ignores it
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "any-hostname", version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Connect a fresh UI and check SourceState — game should be ACTIVATING
+    // sourceId in state should be the real sourceUuid, not the daemon's hostname
     const uiWs = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(uiWs);
 
@@ -297,9 +298,9 @@ describe("Config push via SourceHub", () => {
       .bind(userUuid, sourceUuid, "stardew", "/saves/stardew", 0, JSON.stringify([".xml"]))
       .run();
 
-    // Connect daemon and identify it
+    // Connect daemon and identify it — daemon sends any hostname, server uses sourceUuid
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "any-hostname", version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Connect a fresh UI — disabled game should NOT appear with ACTIVATING
@@ -334,8 +335,9 @@ describe("Config push via SourceHub", () => {
       .run();
 
     // Connect daemon, identify it (triggers push-config which sets ACTIVATING)
+    // Daemon sends any hostname — server uses sourceUuid from storage
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "any-hostname", version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Close daemon — ACTIVATING should survive in persisted state
@@ -347,9 +349,11 @@ describe("Config push via SourceHub", () => {
 
     expect(msg).toHaveProperty("sourceState");
     const ds = msg.sourceState as {
-      sources: { games: { gameId: string; status: string }[] }[];
+      sources: { sourceId: string; games: { gameId: string; status: string }[] }[];
     };
-    const game = ds.sources[0]?.games.find((g) => g.gameId === "d2r");
+    const source = ds.sources.find((d) => d.sourceId === sourceUuid);
+    expect(source).toBeDefined();
+    const game = source!.games.find((g) => g.gameId === "d2r");
     expect(game).toBeDefined();
     expect(game!.status).toBe("GAME_STATUS_ENUM_ACTIVATING");
 

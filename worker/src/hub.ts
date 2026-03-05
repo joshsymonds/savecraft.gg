@@ -291,13 +291,18 @@ export class SourceHub extends DurableObject<Env> {
     // eslint-disable-next-line @typescript-eslint/switch-exhaustiveness-check -- maps open proto union to closed StateMutation; unhandled events return "none"
     switch (rpc.payload?.$case) {
       case "sourceOnline": {
-        const { sourceId } = rpc.payload.sourceOnline;
+        // Use the server-authoritative source_uuid, not the daemon's self-reported sourceId.
+        // The SourceHub DO is keyed by source_uuid and always has it in storage.
+        const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+        if (!sourceUuid) return { kind: "none" };
         const connTag = getConnTag(tags);
-        if (connTag) await this.ctx.storage.put(connTag, sourceId);
-        return { kind: "sourceOnline", sourceId };
+        if (connTag) await this.ctx.storage.put(connTag, sourceUuid);
+        return { kind: "sourceOnline", sourceId: sourceUuid };
       }
       case "sourceOffline": {
-        return { kind: "sourceOffline", sourceId: rpc.payload.sourceOffline.sourceId };
+        const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+        if (!sourceUuid) return { kind: "none" };
+        return { kind: "sourceOffline", sourceId: sourceUuid };
       }
       case "gameDetected": {
         const sourceId = await this.getSourceIdForConnection(tags);
@@ -518,10 +523,11 @@ export class SourceHub extends DurableObject<Env> {
     try {
       const caps = await this.getCapabilities();
       if (!caps.canReceiveConfig) return;
-      const { sourceId } = rpc.payload.sourceOnline;
+      const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+      if (!sourceUuid) return;
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
-      await this.pushConfigToSource(sourceId, userUuid);
+      await this.pushConfigToSource(sourceUuid, userUuid);
     } catch {
       // Don't let config push failures break the relay
     }
@@ -664,13 +670,14 @@ export class SourceHub extends DurableObject<Env> {
     try {
       const id = this.env.USER_HUB.idFromName(userUuid);
       const stub = this.env.USER_HUB.get(id);
-      await stub.fetch(
+      const resp = await stub.fetch(
         new Request("https://do/forward-event", {
           method: "POST",
           headers: { "X-User-UUID": userUuid },
           body: JSON.stringify({ event, sourceId }),
         }),
       );
+      await resp.text();
     } catch {
       // Don't let forwarding failures break the relay
     }
@@ -692,13 +699,14 @@ export class SourceHub extends DurableObject<Env> {
 
       const id = this.env.USER_HUB.idFromName(userUuid);
       const stub = this.env.USER_HUB.get(id);
-      await stub.fetch(
+      const resp = await stub.fetch(
         new Request("https://do/update-state", {
           method: "POST",
           headers: { "X-User-UUID": userUuid },
           body: JSON.stringify({ sourceUuid, stateJson }),
         }),
       );
+      await resp.text();
     } catch {
       // Don't let forwarding failures break the relay
     }
@@ -722,16 +730,15 @@ export class SourceHub extends DurableObject<Env> {
     try {
       const eventType = rpc.payload.$case;
       if (SourceHub.SKIP_PERSIST.has(eventType)) return;
+      if (!sourceId) return;
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
-
-      const resolvedSourceId = sourceId ?? "unknown";
 
       await this.env.DB.prepare(
         `INSERT INTO source_events (user_uuid, source_uuid, event_type, event_data)
          VALUES (?, ?, ?, ?)`,
       )
-        .bind(userUuid, resolvedSourceId, eventType, rawMessage)
+        .bind(userUuid, sourceId, eventType, rawMessage)
         .run();
 
       await this.env.DB.prepare(
@@ -742,7 +749,7 @@ export class SourceHub extends DurableObject<Env> {
            ORDER BY created_at DESC LIMIT 100
          )`,
       )
-        .bind(userUuid, resolvedSourceId, userUuid, resolvedSourceId)
+        .bind(userUuid, sourceId, userUuid, sourceId)
         .run();
     } catch {
       // Don't let persistence failures break the relay

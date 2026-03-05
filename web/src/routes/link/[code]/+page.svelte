@@ -1,6 +1,6 @@
 <!--
   @component
-  Device linking redirect: captures the link code from the URL and redirects to the homepage.
+  Source pairing redirect: captures the link code from the URL and redirects to the homepage.
   The homepage reads the pendingLinkCode store and auto-submits the linking request.
 -->
 <script lang="ts">

@@ -1,9 +1,8 @@
 <!--
   @component
-  Install flow: install command (primary), API key management (automation escape hatch).
-  Device linking via URL is the primary pairing method; API keys are for headless setups.
-  prominent=true: full hero treatment (empty state)
-  prominent=false: compact collapsible row (below device list)
+  Install + pairing flow: install command, pairing code entry, API key management.
+  prominent=true: full hero treatment (empty state — no sources yet)
+  prominent=false: compact collapsible row (below source list)
 -->
 <script lang="ts">
   import { PUBLIC_API_URL } from "$env/static/public";
@@ -15,9 +14,29 @@
 
   let {
     prominent = true,
+    onsubmit,
   }: {
     prominent?: boolean;
+    /** Called when user submits the 6-digit pairing code. */
+    onsubmit?: (code: string) => void;
   } = $props();
+
+  // -- Pairing code state -----------------------------------
+  let codeValue = $state("");
+
+  function handleCodeSubmit(): void {
+    const trimmed = codeValue.trim();
+    if (trimmed.length >= 6) {
+      onsubmit?.(trimmed);
+      codeValue = "";
+    }
+  }
+
+  function handleCodeKeydown(event: KeyboardEvent): void {
+    if (event.key === "Enter") {
+      handleCodeSubmit();
+    }
+  }
 
   // -- API key state (secondary) -----------------------------
   let generatedKey = $state<CreateApiKeyResponse | null>(null);
@@ -94,7 +113,7 @@
   <div class="section">
     <div class="step-header">
       {#if prominent}<span class="step-number">1</span>{/if}
-      <span class="step-title">Install Daemon</span>
+      <span class="step-title">Install</span>
     </div>
     {#if os === "windows"}
       <p class="step-desc">Download and install Savecraft for Windows:</p>
@@ -105,8 +124,8 @@
           <span class="primary-action-label">DOWNLOAD FOR WINDOWS</span>
         </a>
       </div>
-      <p class="command-hint">
-        After install, follow the link in the system tray to connect your device.
+      <p class="install-hint">
+        Installs to <code>Program Files</code> &middot; Starts on login
       </p>
     {:else}
       <p class="step-desc">Run this command on your Linux machine or Steam Deck:</p>
@@ -119,31 +138,38 @@
           }}
         />
       </div>
-      <p class="command-hint">The installer shows a link to connect your device.</p>
+      <p class="install-hint">
+        Installs to <code>~/.local/bin/</code> &middot; Starts as a systemd service
+      </p>
     {/if}
   </div>
 {/snippet}
 
-{#snippet nextStepsSection()}
-  <div class="section next-steps-section">
+{#snippet pairingCodeSection()}
+  <div class="section">
     <div class="step-header">
-      <span class="step-number">2</span>
-      <span class="step-title">What Happens Next</span>
+      {#if prominent}<span class="step-number">2</span>{/if}
+      <span class="step-title">Enter Pairing Code</span>
     </div>
-    <div class="next-steps-inline">
-      {#if os === "windows"}
-        <span class="next-step-item">Installs to <code>Program Files</code></span>
-        <span class="next-step-sep">&middot;</span>
-        <span class="next-step-item">Starts on login</span>
-      {:else}
-        <span class="next-step-item">Installs to <code>~/.local/bin/</code></span>
-        <span class="next-step-sep">&middot;</span>
-        <span class="next-step-item">Starts as a systemd service</span>
-      {/if}
-      <span class="next-step-sep">&middot;</span>
-      <span class="next-step-item">Shows a link to connect your device</span>
-      <span class="next-step-sep">&middot;</span>
-      <span class="next-step-item">Appears on this page automatically</span>
+    <p class="step-desc">
+      After install, enter the 6-digit code shown by the daemon:
+    </p>
+    <div class="pairing-row">
+      <input
+        type="text"
+        class="code-input"
+        placeholder="000000"
+        maxlength={6}
+        bind:value={codeValue}
+        onkeydown={handleCodeKeydown}
+      />
+      <button
+        class="pair-btn"
+        onclick={handleCodeSubmit}
+        disabled={codeValue.trim().length < 6}
+      >
+        PAIR
+      </button>
     </div>
   </div>
 {/snippet}
@@ -166,7 +192,7 @@
       </div>
     {:else}
       <p class="step-desc">
-        For headless or automated setups, use an API key instead of device linking.
+        For headless or automated setups, use an API key instead of pairing.
       </p>
       <div class="action-row">
         <TinyButton
@@ -197,7 +223,7 @@
 {/snippet}
 
 {#if prominent}
-  <!-- Full hero install flow — single consolidated Panel -->
+  <!-- Full hero install + pairing flow -->
   <div class="install-hero">
     <div class="hero-header">
       <span class="hero-label">GET STARTED</span>
@@ -214,7 +240,7 @@
     <Panel>
       {@render installCommandSection()}
       <div class="section-divider"></div>
-      {@render nextStepsSection()}
+      {@render pairingCodeSection()}
       <div class="section-divider faint"></div>
       <button class="api-keys-toggle" onclick={() => (showApiKeys = !showApiKeys)}>
         <span class="toggle-icon">{showApiKeys ? "-" : "+"}</span>
@@ -230,14 +256,16 @@
 {:else}
   <!-- Compact collapsible row -->
   <Panel>
-    <button class="add-device-toggle" onclick={() => (expanded = !expanded)}>
+    <button class="add-source-toggle" onclick={() => (expanded = !expanded)}>
       <span class="toggle-icon">{expanded ? "-" : "+"}</span>
-      <span class="toggle-label">ADD ANOTHER DEVICE</span>
+      <span class="toggle-label">ADD ANOTHER SOURCE</span>
     </button>
 
     {#if expanded}
       <div class="compact-install">
         {@render installCommandSection()}
+        <div class="section-divider"></div>
+        {@render pairingCodeSection()}
 
         <button class="api-keys-toggle compact" onclick={() => (showApiKeys = !showApiKeys)}>
           <span class="toggle-icon">{showApiKeys ? "-" : "+"}</span>
@@ -351,38 +379,80 @@
     letter-spacing: 2px;
   }
 
-  /* -- "What happens next" inline section ------------------- */
+  /* -- Install hint (replaces "What Happens Next" section) --- */
 
-  .next-steps-section {
-    padding-bottom: 14px;
-  }
-
-  .next-steps-inline {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .next-step-item {
+  .install-hint {
     font-family: var(--font-body);
-    font-size: 14px;
-    color: var(--color-text-muted);
-  }
-
-  .next-step-item code {
-    color: var(--color-text-dim);
     font-size: 13px;
+    color: var(--color-text-muted);
+    margin-top: 10px;
   }
 
-  .next-step-sep {
-    color: rgba(74, 90, 173, 0.3);
-    font-size: 14px;
+  .install-hint code {
+    color: var(--color-text-dim);
+    font-size: 12px;
+  }
+
+  /* -- Pairing code input ----------------------------------- */
+
+  .pairing-row {
+    display: flex;
+    gap: 10px;
+    align-items: center;
+  }
+
+  .code-input {
+    font-family: var(--font-pixel);
+    font-size: 16px;
+    letter-spacing: 6px;
+    color: var(--color-text);
+    background: rgba(5, 7, 26, 0.6);
+    border: 1px solid rgba(74, 90, 173, 0.3);
+    border-radius: 3px;
+    padding: 10px 14px;
+    width: 150px;
+    text-align: center;
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .code-input::placeholder {
+    color: var(--color-text-muted);
+    opacity: 0.4;
+    letter-spacing: 6px;
+  }
+
+  .code-input:focus {
+    border-color: var(--color-gold);
+  }
+
+  .pair-btn {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    color: var(--color-gold);
+    letter-spacing: 2px;
+    background: rgba(200, 168, 78, 0.1);
+    border: 1px solid rgba(200, 168, 78, 0.3);
+    border-radius: 3px;
+    padding: 10px 22px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+  }
+
+  .pair-btn:hover:not(:disabled) {
+    background: rgba(200, 168, 78, 0.2);
+    border-color: var(--color-gold);
+  }
+
+  .pair-btn:disabled {
+    opacity: 0.3;
+    cursor: default;
   }
 
   /* -- Compact (non-prominent) ------------------------------ */
 
-  .add-device-toggle {
+  .add-source-toggle {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -394,19 +464,12 @@
     text-align: left;
   }
 
-  .add-device-toggle:hover .toggle-label {
+  .add-source-toggle:hover .toggle-label {
     color: var(--color-text-dim);
   }
 
   .compact-install {
     border-top: 1px solid rgba(74, 90, 173, 0.12);
-  }
-
-  .command-hint {
-    font-family: var(--font-body);
-    font-size: 14px;
-    color: var(--color-text-muted);
-    margin-top: 8px;
   }
 
   /* -- API keys toggle -------------------------------------- */
