@@ -75,6 +75,10 @@ cd worker && npm ci && cd ..            # install from lockfile exactly
 - `internal/proto/savecraft/v1/` — Generated Go protobuf code (do not edit)
 - `worker/src/proto/savecraft/v1/` — Generated TypeScript protobuf code (do not edit)
 
+## Scripts
+
+- `web/scripts/screenshot.ts` — Capture Storybook story screenshots via Playwright. Usage: `cd web && npx tsx scripts/screenshot.ts --grep <pattern>` or `--all`. Requires Storybook running. Output in `web/screenshots/`.
+
 ## Commands
 
 All targets in `Justfile`. Run `just --list` for full list.
