@@ -15,13 +15,13 @@
 
   let {
     cardState = "input" as CardState,
-    code = "",
+    displayCode = "",
     errorMessage = "",
     ondismiss,
     onsubmit,
   }: {
     cardState?: CardState;
-    code?: string;
+    displayCode?: string;
     errorMessage?: string;
     ondismiss?: () => void;
     onsubmit?: (code: string) => void;
@@ -74,7 +74,7 @@
         </div>
       </div>
     {:else if cardState === "linking"}
-      <WindowTitleBar activeIcon="🔗" activeLabel="PAIRING" activeSublabel="Code {code}">
+      <WindowTitleBar activeIcon="🔗" activeLabel="PAIRING" activeSublabel="Code {displayCode}">
         {#snippet right()}
           <div class="linking-actions">
             <div class="spinner-badge">

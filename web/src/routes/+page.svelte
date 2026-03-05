@@ -132,7 +132,7 @@
 
     <main class="content">
       {#if $linkState === "linking"}
-        <LinkingCard cardState="linking" code={$linkCode} ondismiss={handleCancelLink} />
+        <LinkingCard cardState="linking" displayCode={$linkCode} ondismiss={handleCancelLink} />
       {:else if $linkState === "error"}
         <LinkingCard cardState="error" errorMessage={$linkError} ondismiss={handleDismissError} />
       {:else if showLinkInput}
