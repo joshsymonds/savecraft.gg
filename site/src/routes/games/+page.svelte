@@ -4,7 +4,7 @@
 -->
 <script lang="ts">
   import { PUBLIC_APP_URL } from "$env/static/public";
-  import type { GameInfo } from "./+page.ts";
+  import type { GameInfo } from "./+page.server.ts";
 
   let { data } = $props<{ data: { games: GameInfo[] } }>();
 
