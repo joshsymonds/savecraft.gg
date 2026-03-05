@@ -48,6 +48,7 @@
 
   // -- Game picker modal --
   let pickerOpen = $state(false);
+  let selectedGameId: string | null = $state(null);
 
   // -- Derived game data --
   let mergedGames = $derived(mergeGames($sources));
@@ -153,26 +154,29 @@
       {:else}
         <ConnectCard />
 
-        <GamePanel
-          games={mergedGames}
-          {showSourceBadges}
-          onadd={() => {
-            pickerOpen = true;
-          }}
-          loadNotes={async (saveUuid) => {
-            const notes = await fetchNotes(saveUuid);
-            return notes.map((n) => toNoteSummary(n));
-          }}
-          onnotecreate={async (saveUuid, title, content) => {
-            await createNote(saveUuid, title, content);
-          }}
-          onnotedelete={async (saveUuid, noteId) => {
-            await deleteNote(saveUuid, noteId);
-          }}
-          onnoteedit={async (saveUuid, noteId, title, content) => {
-            await updateNote(saveUuid, noteId, { title, content });
-          }}
-        />
+        {#key selectedGameId}
+          <GamePanel
+            games={mergedGames}
+            {showSourceBadges}
+            initialGameId={selectedGameId ?? undefined}
+            onadd={() => {
+              pickerOpen = true;
+            }}
+            loadNotes={async (saveUuid) => {
+              const notes = await fetchNotes(saveUuid);
+              return notes.map((n) => toNoteSummary(n));
+            }}
+            onnotecreate={async (saveUuid, title, content) => {
+              await createNote(saveUuid, title, content);
+            }}
+            onnotedelete={async (saveUuid, noteId) => {
+              await deleteNote(saveUuid, noteId);
+            }}
+            onnoteedit={async (saveUuid, noteId, title, content) => {
+              await updateNote(saveUuid, noteId, { title, content });
+            }}
+          />
+        {/key}
 
         <InstallBlock prominent={false} onsubmit={handleManualLink} />
       {/if}
@@ -231,7 +235,8 @@
 {#if pickerOpen}
   <GamePickerModal
     games={pickerGames}
-    onselect={() => {
+    onselect={(game) => {
+      selectedGameId = game.gameId;
       pickerOpen = false;
     }}
     onclose={() => {

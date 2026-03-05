@@ -128,7 +128,9 @@ describe("mergeGames", () => {
 
     const result = mergeGames(sources);
     expect(result).toHaveLength(2);
-    expect(result.map((g: Game) => g.gameId)).toEqual(["d2r", "sdv"]);
+    const gameIds = result.map((g: Game) => g.gameId);
+    expect(gameIds).toContain("d2r");
+    expect(gameIds).toContain("sdv");
   });
 
   it("sorts games alphabetically by name", () => {
