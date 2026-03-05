@@ -1110,7 +1110,7 @@ function buildLookupResult(row: SourceRow | null, viaCode: boolean): SourceLooku
 
 const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
   linux: {
-    install: "curl -fSsL https://install.savecraft.gg | bash",
+    install: "curl -fsSL https://install.savecraft.gg | bash",
     details:
       "Downloads signed binaries, verifies Ed25519 signatures, installs to ~/.local/bin/, sets up a systemd user service, and auto-registers the source. The daemon starts immediately and prints a pairing link.",
   },
@@ -1125,7 +1125,7 @@ const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
 };
 
 const PAIRING_GUIDE =
-  "After installing, the daemon self-registers and displays a pairing link (https://savecraft.gg/link/<code>). Click the link, or enter the 6-digit code on the savecraft.gg homepage. Once paired, your game saves appear automatically. Codes expire after 20 minutes — restart the daemon to generate a new one.";
+  "After installing, the daemon self-registers and displays a pairing link (https://savecraft.gg/link/<code>). Click the link, use the tray app's 'Link Account' button, or enter the 6-digit code on the savecraft.gg homepage. Once paired, your game saves appear automatically. Codes expire after 20 minutes — restart the daemon to generate a new one.";
 
 function buildGuide(platform?: string): SetupGuideResponse["guide"] {
   if (platform) {
