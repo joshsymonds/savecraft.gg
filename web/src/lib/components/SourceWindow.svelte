@@ -251,15 +251,19 @@
             ✓ DETECTED
           {/if}
         </span>
-      {:else}
+      {:else if source.capabilities.canRescan || source.capabilities.canReceiveConfig}
         <div class="source-actions">
-          <TinyButton
-            label={discoveryPending ? "SCANNING..." : "DISCOVER"}
-            onclick={ondiscover}
-            disabled={source.status === "offline" || discoveryPending}
-          />
-          <TinyButton label="RESCAN" onclick={onrescan} disabled={source.status === "offline"} />
-          <TinyButton label="CONFIG" onclick={onconfig} />
+          {#if source.capabilities.canRescan}
+            <TinyButton
+              label={discoveryPending ? "SCANNING..." : "DISCOVER"}
+              onclick={ondiscover}
+              disabled={source.status === "offline" || discoveryPending}
+            />
+            <TinyButton label="RESCAN" onclick={onrescan} disabled={source.status === "offline"} />
+          {/if}
+          {#if source.capabilities.canReceiveConfig}
+            <TinyButton label="CONFIG" onclick={onconfig} />
+          {/if}
         </div>
       {/if}
     {/snippet}

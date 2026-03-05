@@ -23,11 +23,6 @@ vi.mock("$env/static/public", () => ({
   PUBLIC_API_URL: "https://api.test.savecraft.gg",
 }));
 
-const mockDetectOS = vi.fn<() => string>().mockReturnValue("linux");
-vi.mock("$lib/platform", () => ({
-  detectOS: () => mockDetectOS(),
-}));
-
 describe("InstallBlock", () => {
   afterEach(() => {
     cleanup();
@@ -108,39 +103,10 @@ describe("InstallBlock", () => {
     });
   });
 
-  describe("prominent mode — install command (Linux)", () => {
-    it("shows install command", () => {
-      const { container } = render(InstallBlock, { props: { prominent: true } });
-      const cmdText = container.querySelector(".command-text")!.textContent!;
-      expect(cmdText).toContain("curl -sSL");
-      expect(cmdText).toContain("install.savecraft.gg");
-    });
-
-    it("shows install hint with path and service info", () => {
+  describe("prominent mode — install commands (both platforms)", () => {
+    it("shows Windows download button", () => {
       render(InstallBlock, { props: { prominent: true } });
-      expect(screen.getByText(/~\/\.local\/bin\//)).toBeInTheDocument();
-      expect(screen.getByText(/systemd service/)).toBeInTheDocument();
-    });
-
-    it("does not show Windows download button", () => {
-      render(InstallBlock, { props: { prominent: true } });
-      expect(screen.queryByText("DOWNLOAD FOR WINDOWS")).not.toBeInTheDocument();
-    });
-  });
-
-  describe("prominent mode — install command (Windows)", () => {
-    beforeEach(() => {
-      mockDetectOS.mockReturnValue("windows");
-    });
-
-    afterEach(() => {
-      mockDetectOS.mockReturnValue("linux");
-    });
-
-    it("shows download button instead of curl command", () => {
-      const { container } = render(InstallBlock, { props: { prominent: true } });
       expect(screen.getByText("DOWNLOAD FOR WINDOWS")).toBeInTheDocument();
-      expect(container.querySelector(".command-text")).toBeNull();
     });
 
     it("download button links to MSI", () => {
@@ -151,10 +117,23 @@ describe("InstallBlock", () => {
       expect(link!.href).toMatch(/\.msi$/);
     });
 
-    it("shows Windows-specific install hint", () => {
+    it("shows Linux curl command", () => {
+      const { container } = render(InstallBlock, { props: { prominent: true } });
+      const cmdText = container.querySelector(".command-text")!.textContent!;
+      expect(cmdText).toContain("curl -sSL");
+      expect(cmdText).toContain("install.savecraft.gg");
+    });
+
+    it("shows platform labels", () => {
+      render(InstallBlock, { props: { prominent: true } });
+      expect(screen.getByText("WINDOWS")).toBeInTheDocument();
+      expect(screen.getByText("LINUX / STEAM DECK")).toBeInTheDocument();
+    });
+
+    it("shows install hints for both platforms", () => {
       render(InstallBlock, { props: { prominent: true } });
       expect(screen.getByText(/Program Files/)).toBeInTheDocument();
-      expect(screen.getByText(/Starts on login/)).toBeInTheDocument();
+      expect(screen.getByText(/systemd service/)).toBeInTheDocument();
     });
   });
 

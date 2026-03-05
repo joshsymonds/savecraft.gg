@@ -9,7 +9,6 @@
   import { createApiKey, deleteApiKey, listApiKeys } from "$lib/api/client";
   import type { ApiKey, CreateApiKeyResponse } from "$lib/api/client";
   import { Panel, TinyButton } from "$lib/components";
-  import { detectOS } from "$lib/platform";
   import { onMount } from "svelte";
 
   let {
@@ -55,8 +54,6 @@
     : "https://install.savecraft.gg";
   const appName = isStaging ? "savecraft-staging" : "savecraft";
   const msiUrl = `${installUrl}/daemon/${appName}.msi`;
-  const os = detectOS();
-
   onMount(() => {
     void loadKeys();
   });
@@ -115,8 +112,10 @@
       {#if prominent}<span class="step-number">1</span>{/if}
       <span class="step-title">Install</span>
     </div>
-    {#if os === "windows"}
-      <p class="step-desc">Download and install Savecraft for Windows:</p>
+
+    <!-- Windows -->
+    <div class="platform-block">
+      <span class="platform-label">WINDOWS</span>
       <div class="action-row">
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external download URL, not SvelteKit navigation -->
         <a class="primary-action" href={msiUrl} download="savecraft.msi">
@@ -127,8 +126,11 @@
       <p class="install-hint">
         Installs to <code>Program Files</code> &middot; Starts on login
       </p>
-    {:else}
-      <p class="step-desc">Run this command on your Linux machine or Steam Deck:</p>
+    </div>
+
+    <!-- Linux / Steam Deck -->
+    <div class="platform-block">
+      <span class="platform-label">LINUX / STEAM DECK</span>
       <div class="command-block">
         <code class="command-text">{installCommand()}</code>
         <TinyButton
@@ -141,7 +143,7 @@
       <p class="install-hint">
         Installs to <code>~/.local/bin/</code> &middot; Starts as a systemd service
       </p>
-    {/if}
+    </div>
   </div>
 {/snippet}
 
@@ -229,11 +231,7 @@
       <span class="hero-label">GET STARTED</span>
       <h2 class="hero-title">Connect your gaming machine to Savecraft</h2>
       <p class="hero-subtitle">
-        {#if os === "windows"}
-          Download the installer, and the daemon starts watching your saves. Takes two minutes.
-        {:else}
-          Run one command, and the daemon starts watching your saves. Takes two minutes.
-        {/if}
+        Install the daemon and it starts watching your saves. Takes two minutes.
       </p>
     </div>
 
@@ -379,7 +377,26 @@
     letter-spacing: 2px;
   }
 
-  /* -- Install hint (replaces "What Happens Next" section) --- */
+  /* -- Platform blocks --------------------------------------- */
+
+  .platform-block {
+    margin-bottom: 18px;
+  }
+
+  .platform-block:last-child {
+    margin-bottom: 0;
+  }
+
+  .platform-label {
+    display: block;
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--color-text-muted);
+    letter-spacing: 1.5px;
+    margin-bottom: 10px;
+  }
+
+  /* -- Install hint ----------------------------------------- */
 
   .install-hint {
     font-family: var(--font-body);
