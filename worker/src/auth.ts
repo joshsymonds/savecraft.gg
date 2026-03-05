@@ -61,18 +61,6 @@ export async function authenticateApiKey(
   return { userUuid: row.user_uuid };
 }
 
-/**
- * Authenticate a daemon request. Uses API key auth when CLERK_ISSUER is set,
- * otherwise falls back to stub auth.
- */
-export async function authenticateDaemon(request: Request, env: Env): Promise<AuthResult | null> {
-  const token = extractToken(request);
-  if (!token) return null;
-
-  if (!env.CLERK_ISSUER) return authenticateStub(token);
-  return authenticateApiKey(token, env.DB);
-}
-
 // -- Source token auth (D1 lookup) ----------------------------------------
 
 /**

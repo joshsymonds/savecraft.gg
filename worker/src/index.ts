@@ -1,4 +1,4 @@
-import { authenticateDaemon, authenticateSession, authenticateSource, sha256Hex } from "./auth";
+import { authenticateSession, authenticateSource, sha256Hex } from "./auth";
 import { indexNote, indexSaveSections, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
 import { reapOrphanSources } from "./reaper";
@@ -174,7 +174,7 @@ async function routeDaemonEndpoints(
   env: Env,
 ): Promise<Response | null> {
   if (url.pathname === "/api/v1/verify" && request.method === "GET") {
-    const auth = await authenticateDaemon(request, env);
+    const auth = await authenticateSource(request, env);
     if (!auth) return new Response("Unauthorized", { status: 401 });
     return Response.json({ status: "ok" });
   }
