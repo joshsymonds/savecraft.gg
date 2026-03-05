@@ -231,9 +231,11 @@
 {#if pickerOpen}
   <GamePickerModal
     games={pickerGames}
-    onselect={(game: PickerGame) => {
+    onselect={() => {
       pickerOpen = false;
-      alert(`Selected: ${game.name} — config wiring coming soon`);
+    }}
+    onconfigure={() => {
+      pickerOpen = false;
     }}
     onclose={() => {
       pickerOpen = false;
