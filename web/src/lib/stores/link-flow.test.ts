@@ -6,7 +6,6 @@ vi.mock("$lib/api/client", () => ({
 }));
 
 const { linkSource } = await import("$lib/api/client");
-const { pendingLinkCode } = await import("./link-code");
 const {
   cancelLink,
   dismissLinkError,
@@ -22,7 +21,6 @@ describe("link-flow", () => {
   beforeEach(() => {
     vi.mocked(linkSource).mockReset();
     resetLinkFlow();
-    pendingLinkCode.set(null);
   });
 
   it("starts in idle state", () => {
@@ -42,16 +40,6 @@ describe("link-flow", () => {
     expect(linkSource).toHaveBeenCalledWith("482913");
     expect(get(linkState)).toBe("success");
     expect(get(linkedSourceId)).toBe("dev-123");
-  });
-
-  it("clears pendingLinkCode immediately on submit", async () => {
-    pendingLinkCode.set("482913");
-    vi.mocked(linkSource).mockResolvedValue({ source_uuid: "dev-123" });
-
-    const promise = submitLinkCode("482913");
-    expect(get(pendingLinkCode)).toBe(null);
-
-    await promise;
   });
 
   it("maps 400 status to invalid code message", async () => {

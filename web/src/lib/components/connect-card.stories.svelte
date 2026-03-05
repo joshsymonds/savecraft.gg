@@ -9,15 +9,22 @@
   });
 </script>
 
-<!-- CTA: AI client not connected — full setup instructions -->
-<Story name="CTANotConnected">
+<!-- CTA collapsed: pulsing gold border, "NEXT: CONNECT AI" -->
+<Story name="CTACollapsed">
   <div style="width: 720px;">
-    <ConnectCard initialState={{ connected: false }} />
+    <ConnectCard initialState={{ connected: false }} initialExpanded={false} />
   </div>
 </Story>
 
-<!-- Compact: AI connected — green dot + URL -->
-<Story name="CompactConnected">
+<!-- CTA expanded: instructions visible (default on first visit) -->
+<Story name="CTAExpanded">
+  <div style="width: 720px;">
+    <ConnectCard initialState={{ connected: false }} initialExpanded={true} />
+  </div>
+</Story>
+
+<!-- Connected: calm green status -->
+<Story name="Connected">
   <div style="width: 720px;">
     <ConnectCard initialState={{ connected: true }} />
   </div>

@@ -1,8 +1,8 @@
 <!--
   @component
   Game card: displays a single game within a source panel's game grid.
-  Visual states: watching (active), detected (dimmed + ACTIVATE CTA),
-  activating (pulsing, no button), error (yellow).
+  Visual states: watching (active), detected (ACTIVATE CTA),
+  activating (pulsing), error (yellow), not_found (dimmed).
 -->
 <script lang="ts">
   import type { SourceGame } from "$lib/types/source";
@@ -16,11 +16,13 @@
     onactivate,
     onclick,
     activateState = "idle",
+    failReason,
   }: {
     game: SourceGame;
     onactivate?: (gameId: string) => void;
     onclick?: () => void;
     activateState?: ActivateState;
+    failReason?: string;
   } = $props();
 
   let clickable = $derived(
@@ -40,6 +42,7 @@
   }
 </script>
 
+<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   class="game-card"
   class:detected={game.status === "detected"}
@@ -81,7 +84,11 @@
         label={ACTIVATE_LABELS[activateState]}
         onclick={() => onactivate(game.gameId)}
         disabled={activateState !== "idle"}
+        variant={activateState === "failed" ? "danger" : undefined}
       />
+      {#if activateState === "failed" && failReason}
+        <span class="fail-reason">{failReason}</span>
+      {/if}
     </div>
   {/if}
 </div>
@@ -108,9 +115,7 @@
   }
 
   .game-card.detected {
-    opacity: 0.5;
-    border-style: dashed;
-    border-color: rgba(74, 90, 173, 0.15);
+    border-color: rgba(74, 154, 234, 0.25);
   }
 
   .game-card.not-found {
@@ -121,9 +126,7 @@
   }
 
   .game-card.activating {
-    opacity: 0.6;
-    border-style: dashed;
-    border-color: rgba(74, 90, 173, 0.25);
+    border-color: rgba(74, 154, 234, 0.25);
     animation: pulse 2s ease-in-out infinite;
   }
 
@@ -137,10 +140,10 @@
   @keyframes pulse {
     0%,
     100% {
-      opacity: 0.6;
+      opacity: 1;
     }
     50% {
-      opacity: 0.85;
+      opacity: 0.6;
     }
   }
 
@@ -191,5 +194,14 @@
 
   .activate-row {
     margin-top: 8px;
+    text-align: center;
+  }
+
+  .fail-reason {
+    display: block;
+    margin-top: 4px;
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--color-red, #e85a5a);
   }
 </style>
