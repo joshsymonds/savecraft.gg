@@ -23,7 +23,7 @@
 <!-- Linking in-progress: gold accent, spinner + cancel, "Connecting..." -->
 <Story name="Linking">
   <div style="width: 520px;">
-    <LinkingCard cardState="linking" code="482913" ondismiss={noop} />
+    <LinkingCard cardState="linking" displayCode="482913" ondismiss={noop} />
   </div>
 </Story>
 
