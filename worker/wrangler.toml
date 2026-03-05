@@ -48,6 +48,7 @@ new_sqlite_classes = ["SourceHub"]
 tag = "v2"
 new_sqlite_classes = ["UserHub"]
 
+
 # ── Production ─────────────────────────────────────────
 [env.production]
 name = "savecraft-api"
@@ -99,6 +100,10 @@ new_sqlite_classes = ["SourceHub"]
 [[env.production.migrations]]
 tag = "v2"
 new_sqlite_classes = ["UserHub"]
+
+[[env.production.migrations]]
+tag = "v3"
+deleted_classes = ["DaemonHub"]
 
 # ── Staging ────────────────────────────────────────────
 [env.staging]
@@ -152,3 +157,7 @@ new_sqlite_classes = ["SourceHub"]
 [[env.staging.migrations]]
 tag = "v2"
 new_sqlite_classes = ["UserHub"]
+
+[[env.staging.migrations]]
+tag = "v3"
+deleted_classes = ["DaemonHub"]
