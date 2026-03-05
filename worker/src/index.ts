@@ -183,6 +183,7 @@ async function routeDaemonEndpoints(
   const isSourceRoute =
     (url.pathname === "/api/v1/push" && request.method === "POST") ||
     (url.pathname === "/api/v1/source/link-code" && request.method === "POST") ||
+    (url.pathname === "/api/v1/source/unlink" && request.method === "POST") ||
     (url.pathname === "/api/v1/source/status" && request.method === "GET");
   if (!isSourceRoute) return null;
 
@@ -192,6 +193,8 @@ async function routeDaemonEndpoints(
   if (url.pathname === "/api/v1/push") return handlePush(request, env, auth.sourceUuid);
   if (url.pathname === "/api/v1/source/link-code")
     return handleSourceLinkCode(env, auth.sourceUuid);
+  if (url.pathname === "/api/v1/source/unlink")
+    return handleSourceUnlink(env, auth.sourceUuid);
   return handleSourceStatus(env, auth.sourceUuid);
 }
 
@@ -959,6 +962,19 @@ async function handleSourceLinkCode(env: Env, sourceUuid: string): Promise<Respo
     .run();
 
   return Response.json({ link_code: linkCode, expires_at: expiresAt });
+}
+
+async function handleSourceUnlink(env: Env, sourceUuid: string): Promise<Response> {
+  const linkCode = generateSixDigitCode();
+  const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000).toISOString();
+
+  await env.DB.prepare(
+    "UPDATE sources SET user_uuid = NULL, user_email = NULL, user_display_name = NULL, link_code = ?, link_code_expires_at = ? WHERE source_uuid = ?",
+  )
+    .bind(linkCode, expiresAt, sourceUuid)
+    .run();
+
+  return Response.json({ link_code: linkCode, link_code_expires_at: expiresAt });
 }
 
 async function handleSourceStatus(env: Env, sourceUuid: string): Promise<Response> {
