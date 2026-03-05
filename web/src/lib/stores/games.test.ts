@@ -1,4 +1,4 @@
-import type { MergedGame, MergedSave, Source } from "$lib/types/source";
+import type { Game, Save, Source } from "$lib/types/source";
 import { describe, expect, it } from "vitest";
 
 import { mergeGames } from "./games";
@@ -106,7 +106,7 @@ describe("mergeGames", () => {
     expect(game.gameId).toBe("d2r");
     expect(game.sourceCount).toBe(2);
     expect(game.saves).toHaveLength(2);
-    expect(game.saves.map((s: MergedSave) => s.sourceId)).toEqual(["src-1", "src-2"]);
+    expect(game.saves.map((s: Save) => s.sourceId)).toEqual(["src-1", "src-2"]);
   });
 
   it("keeps different games separate", () => {
@@ -128,7 +128,7 @@ describe("mergeGames", () => {
 
     const result = mergeGames(sources);
     expect(result).toHaveLength(2);
-    expect(result.map((g: MergedGame) => g.gameId)).toEqual(["d2r", "sdv"]);
+    expect(result.map((g: Game) => g.gameId)).toEqual(["d2r", "sdv"]);
   });
 
   it("sorts games alphabetically by name", () => {
@@ -150,14 +150,14 @@ describe("mergeGames", () => {
     ];
 
     const result = mergeGames(sources);
-    expect(result.map((g: MergedGame) => g.name)).toEqual([
+    expect(result.map((g: Game) => g.name)).toEqual([
       "Baldur's Gate 3",
       "Diablo II: Resurrected",
       "Stardew Valley",
     ]);
   });
 
-  it("sets MergedSave sourceId and sourceName correctly", () => {
+  it("sets Save sourceId and sourceName correctly", () => {
     const sources: Source[] = [
       makeSource({
         id: "src-1",

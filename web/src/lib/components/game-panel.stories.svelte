@@ -1,5 +1,5 @@
 <script module lang="ts">
-  import type { MergedGame, NoteSummary } from "$lib/types/source";
+  import type { Game, NoteSummary } from "$lib/types/source";
   import { defineMeta } from "@storybook/addon-svelte-csf";
 
   import GamePanel from "./GamePanel.svelte";
@@ -46,7 +46,7 @@
     return Promise.resolve(mockNotes[saveUuid] ?? []);
   }
 
-  const multiSourceGames: MergedGame[] = [
+  const multiSourceGames: Game[] = [
     {
       gameId: "d2r",
       name: "Diablo II: Resurrected",
@@ -127,12 +127,12 @@
     },
   ];
 
-  const singleSourceGames: MergedGame[] = multiSourceGames.map((g) => ({
+  const singleSourceGames: Game[] = multiSourceGames.map((g) => ({
     ...g,
     sourceCount: 1,
   }));
 
-  const emptyGames: MergedGame[] = [];
+  const emptyGames: Game[] = [];
 </script>
 
 <!-- Multi-source: source badges visible on saves -->
