@@ -1,7 +1,7 @@
 <!--
   @component
   Phantom entry shown during the pairing flow.
-  Mimics SourceWindow shape (Panel + WindowTitleBar) with input/linking/error states.
+  Shows a Panel with input/linking/error states during daemon pairing.
 
   - input: pairing code entry field
   - linking: spinner + "Connecting..."

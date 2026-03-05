@@ -2,7 +2,6 @@
   @component
   Game-centric dashboard panel. Shows a grid of games merged across sources.
   Progressive disclosure: games grid -> saves list -> save detail (notes).
-  Replaces the source-level navigation of SourceWindow.
 -->
 <script lang="ts">
   import type { Game, NoteSummary, Save } from "$lib/types/source";
