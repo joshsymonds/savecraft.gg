@@ -5,7 +5,7 @@
   Replaces the source-level navigation of SourceWindow.
 -->
 <script lang="ts">
-  import type { Game, Save, NoteSummary } from "$lib/types/source";
+  import type { Game, NoteSummary, Save } from "$lib/types/source";
 
   import GameCard from "./GameCard.svelte";
   import NoteCard from "./NoteCard.svelte";
@@ -151,13 +151,7 @@
     <div class="game-grid">
       {#each games as game (game.gameId)}
         <GameCard
-          game={{
-            gameId: game.gameId,
-            name: game.name,
-            status: "watching",
-            statusLine: game.statusLine,
-            saves: game.saves,
-          }}
+          {game}
           onclick={() => {
             navGameId = game.gameId;
           }}

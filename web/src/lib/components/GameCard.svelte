@@ -1,24 +1,20 @@
 <!--
   @component
-  Game card: displays a single game within a source panel's game grid.
-  Visual states: watching (active), error (yellow), not_found (dimmed).
+  Game card: displays a single game in the dashboard game grid.
+  Always clickable when onclick is provided.
 -->
 <script lang="ts">
-  import type { SourceGame } from "$lib/types/source";
+  import type { Game } from "$lib/types/source";
 
   let {
     game,
     onclick,
   }: {
-    game: SourceGame;
+    game: Game;
     onclick?: () => void;
   } = $props();
 
-  let clickable = $derived(
-    onclick !== undefined && (game.status === "watching" || game.status === "error"),
-  );
-
-  let notFound = $derived(game.status === "not_found");
+  let clickable = $derived(onclick !== undefined);
 
   function gameIcon(name: string): string {
     return name.charAt(0).toUpperCase();
@@ -28,7 +24,6 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   class="game-card"
-  class:not-found={notFound}
   class:clickable
   role={clickable ? "button" : undefined}
   tabindex={clickable ? 0 : undefined}
@@ -44,14 +39,8 @@
 >
   <span class="game-icon">{gameIcon(game.name)}</span>
   <span class="game-name">{game.name}</span>
-  <span
-    class="game-status"
-    class:status-green={game.status === "watching"}
-    class:status-yellow={game.status === "error"}
-  >
-    {game.statusLine}
-  </span>
-  {#if game.status === "watching" && game.saves.length > 0}
+  <span class="game-status">{game.statusLine}</span>
+  {#if game.saves.length > 0}
     <div class="save-list">
       {#each game.saves as save (save.saveUuid)}
         <span class="save-name">{save.saveName}</span>
@@ -81,13 +70,6 @@
     border-color: rgba(74, 90, 173, 0.25);
   }
 
-  .game-card.not-found {
-    opacity: 0.3;
-    border-style: dashed;
-    border-color: rgba(74, 90, 173, 0.1);
-    cursor: default;
-  }
-
   .game-card.clickable:focus-visible {
     background: rgba(74, 90, 173, 0.12);
     border-color: rgba(74, 90, 173, 0.25);
@@ -113,14 +95,7 @@
   .game-status {
     font-family: var(--font-body);
     font-size: 15px;
-  }
-
-  .status-green {
-    color: var(--color-green);
-  }
-
-  .status-yellow {
-    color: var(--color-yellow);
+    color: var(--color-text-dim);
   }
 
   .save-list {

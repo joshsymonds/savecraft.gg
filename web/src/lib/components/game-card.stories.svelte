@@ -9,14 +9,14 @@
   });
 </script>
 
-<Story name="Watching">
+<Story name="WithSaves">
   <div style="width: 200px;">
     <GameCard
       game={{
         gameId: "d2r",
         name: "Diablo II: Resurrected",
-        status: "watching",
-        statusLine: "Watching 3 saves",
+        statusLine: "3 saves",
+        sourceCount: 1,
         saves: [
           {
             saveUuid: "1",
@@ -24,6 +24,8 @@
             summary: "Level 74 Warlock",
             lastUpdated: "2m ago",
             status: "success",
+            sourceId: "src-1",
+            sourceName: "STEAM-DECK",
           },
           {
             saveUuid: "2",
@@ -31,6 +33,8 @@
             summary: "Level 89 Amazon",
             lastUpdated: "1h ago",
             status: "success",
+            sourceId: "src-1",
+            sourceName: "STEAM-DECK",
           },
           {
             saveUuid: "3",
@@ -38,6 +42,8 @@
             summary: "Level 92 Paladin",
             lastUpdated: "3h ago",
             status: "success",
+            sourceId: "src-1",
+            sourceName: "STEAM-DECK",
           },
         ],
       }}
@@ -46,45 +52,17 @@
   </div>
 </Story>
 
-<Story name="WatchingNoSaves">
+<Story name="NoSaves">
   <div style="width: 200px;">
     <GameCard
       game={{
         gameId: "d2r",
         name: "Diablo II: Resurrected",
-        status: "watching",
-        statusLine: "watching",
+        statusLine: "No saves",
+        sourceCount: 1,
         saves: [],
       }}
       onclick={() => alert("Drill into D2R")}
-    />
-  </div>
-</Story>
-
-<Story name="Error">
-  <div style="width: 200px;">
-    <GameCard
-      game={{
-        gameId: "d2r",
-        name: "Diablo II: Resurrected",
-        status: "error",
-        statusLine: "Parse failed",
-        saves: [],
-      }}
-    />
-  </div>
-</Story>
-
-<Story name="NotFound">
-  <div style="width: 200px;">
-    <GameCard
-      game={{
-        gameId: "bg3",
-        name: "Baldur's Gate 3",
-        status: "not_found",
-        statusLine: "not installed",
-        saves: [],
-      }}
     />
   </div>
 </Story>
