@@ -13,7 +13,6 @@ export { default as SaveRow } from "./SaveRow.svelte";
 export { default as SourceChip } from "./SourceChip.svelte";
 export { default as SourceDetailModal } from "./SourceDetailModal.svelte";
 export { default as SourceStrip } from "./SourceStrip.svelte";
-export { default as SourceWindow } from "./SourceWindow.svelte";
 export { default as StatusDot } from "./StatusDot.svelte";
 export { default as TinyButton } from "./TinyButton.svelte";
 export { default as UpdateBanner } from "./UpdateBanner.svelte";
