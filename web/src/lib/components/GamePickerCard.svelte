@@ -27,7 +27,8 @@
     {#if game.watched}
       <span class="picker-badge watched-badge">
         <span class="check">&#x2713;</span>
-        {game.saveCount} {game.saveCount === 1 ? "save" : "saves"}
+        {game.saveCount}
+        {game.saveCount === 1 ? "save" : "saves"}
       </span>
     {:else}
       <span class="picker-badge unconfigured-badge">Not configured</span>

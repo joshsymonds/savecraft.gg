@@ -44,7 +44,9 @@
     background: rgba(74, 90, 173, 0.06);
     border: 1px solid rgba(74, 90, 173, 0.12);
     cursor: pointer;
-    transition: background 0.1s, border-color 0.15s;
+    transition:
+      background 0.1s,
+      border-color 0.15s;
   }
 
   .source-chip:hover {

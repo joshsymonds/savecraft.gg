@@ -16,7 +16,10 @@
       description: "Parses .d2s character saves and shared stash",
       watched: true,
       saveCount: 3,
-      defaultPaths: { linux: "~/.local/share/Diablo II Resurrected/Save", windows: "%UserProfile%/Saved Games/Diablo II Resurrected" },
+      defaultPaths: {
+        linux: "~/.local/share/Diablo II Resurrected/Save",
+        windows: "%UserProfile%/Saved Games/Diablo II Resurrected",
+      },
     },
     {
       gameId: "sdv",
@@ -24,7 +27,10 @@
       description: "Farm saves, skills, relationships, collections",
       watched: false,
       saveCount: 0,
-      defaultPaths: { linux: "~/.config/StardewValley/Saves", windows: "%AppData%/StardewValley/Saves" },
+      defaultPaths: {
+        linux: "~/.config/StardewValley/Saves",
+        windows: "%AppData%/StardewValley/Saves",
+      },
     },
     {
       gameId: "poe2",
@@ -39,14 +45,17 @@
       description: "Party composition, quest progress, inventory",
       watched: false,
       saveCount: 0,
-      defaultPaths: { linux: "~/.local/share/Larian Studios/Baldur's Gate 3/PlayerProfiles", windows: "%LocalAppData%/Larian Studios/Baldur's Gate 3/PlayerProfiles" },
+      defaultPaths: {
+        linux: "~/.local/share/Larian Studios/Baldur's Gate 3/PlayerProfiles",
+        windows: "%LocalAppData%/Larian Studios/Baldur's Gate 3/PlayerProfiles",
+      },
     },
   ];
 
-  const allWatched: PickerGame[] = catalog.map((g) => ({
+  const allWatched: PickerGame[] = catalog.map((g, index) => ({
     ...g,
     watched: true,
-    saveCount: Math.floor(Math.random() * 5) + 1,
+    saveCount: index + 1,
   }));
 </script>
 
@@ -55,7 +64,7 @@
   <div style="width: 560px; position: relative; height: 500px;">
     <GamePickerModal
       games={catalog}
-      onselect={(g) => alert(`Selected: ${g.name}`)}
+      onselect={(g: PickerGame) => alert(`Selected: ${g.name}`)}
       onclose={() => alert("Close")}
     />
   </div>
@@ -65,7 +74,7 @@
   <div style="width: 560px; position: relative; height: 500px;">
     <GamePickerModal
       games={allWatched}
-      onselect={(g) => alert(`Selected: ${g.name}`)}
+      onselect={(g: PickerGame) => alert(`Selected: ${g.name}`)}
       onclose={() => alert("Close")}
     />
   </div>

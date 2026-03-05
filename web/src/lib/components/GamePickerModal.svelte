@@ -31,13 +31,18 @@
         ),
   );
 
-  function handleKeydown(e: KeyboardEvent) {
-    if (e.key === "Escape") onclose?.();
+  function handleKeydown(event: KeyboardEvent) {
+    if (event.key === "Escape") onclose?.();
   }
 </script>
 
-<!-- svelte-ignore a11y_no_noninteractive_element_interactions -->
-<div class="modal-backdrop" role="dialog" aria-label="Add a game" tabindex="-1" onkeydown={handleKeydown}>
+<div
+  class="modal-backdrop"
+  role="dialog"
+  aria-label="Add a game"
+  tabindex="-1"
+  onkeydown={handleKeydown}
+>
   <div class="modal-content">
     <Panel>
       <div class="modal-header">
@@ -45,12 +50,7 @@
         <button class="modal-close" onclick={() => onclose?.()}>&#x2715;</button>
       </div>
       <div class="modal-search">
-        <input
-          type="text"
-          placeholder="Search games..."
-          bind:value={search}
-          class="search-input"
-        />
+        <input type="text" placeholder="Search games..." bind:value={search} class="search-input" />
       </div>
       <div class="modal-list">
         {#each filtered as game (game.gameId)}

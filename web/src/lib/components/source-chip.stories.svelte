@@ -10,13 +10,28 @@
 </script>
 
 <Story name="Online">
-  <SourceChip name="STEAM-DECK" status="online" lastSeen="now" onclick={() => alert("Clicked: STEAM-DECK")} />
+  <SourceChip
+    name="STEAM-DECK"
+    status="online"
+    lastSeen="now"
+    onclick={() => alert("Clicked: STEAM-DECK")}
+  />
 </Story>
 
 <Story name="Offline">
-  <SourceChip name="DESKTOP-PC" status="offline" lastSeen="3h ago" onclick={() => alert("Clicked: DESKTOP-PC")} />
+  <SourceChip
+    name="DESKTOP-PC"
+    status="offline"
+    lastSeen="3h ago"
+    onclick={() => alert("Clicked: DESKTOP-PC")}
+  />
 </Story>
 
 <Story name="Error">
-  <SourceChip name="LAPTOP" status="error" lastSeen="5m ago" onclick={() => alert("Clicked: LAPTOP")} />
+  <SourceChip
+    name="LAPTOP"
+    status="error"
+    lastSeen="5m ago"
+    onclick={() => alert("Clicked: LAPTOP")}
+  />
 </Story>
