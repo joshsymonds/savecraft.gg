@@ -469,8 +469,8 @@
                 <div class="settings-field">
                   <span class="field-label">FILE EXTENSIONS</span>
                   <div class="ext-chips">
-                    {#each configFileExtensions as ext (ext)}
-                      <span class="ext-chip">{ext}</span>
+                    {#each configFileExtensions as extension (extension)}
+                      <span class="ext-chip">{extension}</span>
                     {/each}
                   </div>
                 </div>
