@@ -11,6 +11,7 @@
   import NoteCard from "./NoteCard.svelte";
   import Panel from "./Panel.svelte";
   import SaveRow from "./SaveRow.svelte";
+  import TinyButton from "./TinyButton.svelte";
   import WindowTitleBar from "./WindowTitleBar.svelte";
 
   let {
@@ -18,7 +19,6 @@
     showSourceBadges = false,
     onadd,
     loadNotes,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     onnotecreate,
     onnotedelete,
     onnoteedit,
@@ -62,6 +62,33 @@
       notes = await loadNotes(saveUuid);
       notesLoaded = true;
     }
+  }
+
+  // -- Note creation --
+
+  let creating = $state(false);
+  let newTitle = $state("");
+  let newContent = $state("");
+  let savingNote = $state(false);
+
+  async function handleCreateNote() {
+    if (!onnotecreate || !activeSave || !newTitle.trim() || savingNote) return;
+    savingNote = true;
+    try {
+      await onnotecreate(activeSave.saveUuid, newTitle.trim(), newContent);
+      creating = false;
+      newTitle = "";
+      newContent = "";
+      await doLoadNotes(activeSave.saveUuid);
+    } finally {
+      savingNote = false;
+    }
+  }
+
+  function cancelCreate() {
+    creating = false;
+    newTitle = "";
+    newContent = "";
   }
 
   async function enterSave(save: Save) {
@@ -115,6 +142,37 @@
         <div class="empty-notes">
           <span class="empty-text">No notes yet</span>
         </div>
+      {/if}
+
+      {#if onnotecreate && notesLoaded}
+        {#if creating}
+          <div class="create-note-form">
+            <input
+              type="text"
+              class="create-title-input"
+              placeholder="Note title..."
+              bind:value={newTitle}
+            />
+            <textarea
+              class="create-content-input"
+              placeholder="Note content..."
+              bind:value={newContent}
+              rows={4}
+            ></textarea>
+            <div class="create-actions">
+              <TinyButton label="CANCEL" onclick={cancelCreate} disabled={savingNote} />
+              <TinyButton
+                label={savingNote ? "SAVING..." : "SAVE"}
+                onclick={handleCreateNote}
+                disabled={!newTitle.trim() || savingNote}
+              />
+            </div>
+          </div>
+        {:else}
+          <div class="create-note-row">
+            <TinyButton label="NEW NOTE" onclick={() => (creating = true)} />
+          </div>
+        {/if}
       {/if}
     </div>
   {:else if activeGame}
@@ -250,6 +308,73 @@
 
   .notes-area {
     padding: 12px 16px;
+  }
+
+  /* -- Note creation -------------------------------------------- */
+
+  .create-note-row {
+    margin-top: 12px;
+  }
+
+  .create-note-form {
+    margin-top: 12px;
+    padding: 12px 14px;
+    background: rgba(200, 168, 78, 0.024);
+    border: 1px solid rgba(200, 168, 78, 0.19);
+    border-radius: 4px;
+  }
+
+  .create-title-input {
+    width: 100%;
+    background: rgba(5, 7, 26, 0.6);
+    border: 1px solid rgba(74, 90, 173, 0.3);
+    border-radius: 3px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--color-text);
+    outline: none;
+    letter-spacing: 0.5px;
+    box-sizing: border-box;
+  }
+
+  .create-title-input:focus {
+    border-color: var(--color-gold);
+  }
+
+  .create-title-input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .create-content-input {
+    width: 100%;
+    background: rgba(5, 7, 26, 0.6);
+    border: 1px solid rgba(74, 90, 173, 0.3);
+    border-radius: 3px;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    resize: vertical;
+    font-family: var(--font-body);
+    font-size: 17px;
+    color: var(--color-text);
+    outline: none;
+    line-height: 1.4;
+    box-sizing: border-box;
+  }
+
+  .create-content-input:focus {
+    border-color: var(--color-gold);
+  }
+
+  .create-content-input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .create-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 6px;
   }
 
   /* -- Empty states --------------------------------------------- */
