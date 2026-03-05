@@ -7,21 +7,21 @@ vi.mock("$lib/api/client", () => ({
   fetchSourceConfig: vi.fn().mockResolvedValue({
     d2r: { savePath: "/saves/d2r", enabled: true, fileExtensions: [".d2s", ".d2i"] },
   }),
-  saveSourceConfig: vi.fn().mockResolvedValue(undefined),
+  saveSourceConfig: vi.fn().mockResolvedValue(null),
 }));
 
 vi.mock("$lib/ws/client", () => ({
   send: vi.fn(),
-  connectionStatus: { subscribe: vi.fn((cb: (v: string) => void) => { cb("connected"); return () => {}; }) },
+  connectionStatus: { subscribe: vi.fn((callback: (v: string) => void) => { callback("connected"); return () => { /* unsubscribe */ }; }) },
 }));
 
-vi.mock("$lib/stores/testpath", () => {
-  const { writable } = require("svelte/store");
-  const store = writable(null);
+vi.mock("$lib/stores/testpath", async () => {
+  const { writable } = await import("svelte/store");
+  const store = writable<unknown>(null);
   return {
     testPathResult: { subscribe: store.subscribe },
-    clearTestPathResult: vi.fn(() => store.set(null)),
-    setTestPathResult: vi.fn((v: unknown) => store.set(v)),
+    clearTestPathResult: vi.fn(() => { store.set(null); }),
+    setTestPathResult: vi.fn((v: unknown) => { store.set(v); }),
   };
 });
 
@@ -176,7 +176,7 @@ describe("SourceWindow inline game settings", () => {
     await userEvent.click(screen.getByText("SETTINGS"));
 
     await vi.waitFor(() => {
-      const input = screen.getByPlaceholderText("Save directory path...") as HTMLInputElement;
+      const input = screen.getByPlaceholderText<HTMLInputElement>("Save directory path...");
       expect(input.value).toBe("/saves/d2r");
     });
   });

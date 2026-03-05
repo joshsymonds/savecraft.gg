@@ -82,6 +82,7 @@
         <article class="game-card">
           <div class="card-header">
             <div class="card-icon">
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -- SVG from build-time manifest import, not user input -->
               {@html game.iconSvg}
             </div>
             <div class="card-title-area">
@@ -102,7 +103,7 @@
             <div class="modules-section">
               <span class="modules-label">REFERENCE TOOLS</span>
               <div class="modules-list">
-                {#each game.referenceModules as mod}
+                {#each game.referenceModules as mod (mod.name)}
                   <div class="module-item">
                     <span class="module-name">{mod.name}</span>
                     <span class="module-desc">{mod.description}</span>
@@ -116,7 +117,7 @@
             <div class="limitations-section">
               <span class="limitations-label">LIMITATIONS</span>
               <ul class="limitations-list">
-                {#each game.limitations as limitation}
+                {#each game.limitations as limitation, index (index)}
                   <li>{limitation}</li>
                 {/each}
               </ul>
