@@ -13,9 +13,11 @@ const STATE_KEY = "sourceState";
 const CONN_PREFIX = "conn:";
 const USER_UUID_KEY = "userUuid";
 const SOURCE_UUID_KEY = "sourceUuid";
-const CAPS_KEY = "capabilities";
+const META_KEY = "sourceMeta";
 
-interface Capabilities {
+interface SourceMeta {
+  sourceKind: string;
+  hostname: string;
   canRescan: boolean;
   canReceiveConfig: boolean;
 }
@@ -45,7 +47,16 @@ function findSource(state: SourceState, sourceId: string): SourceInfo | undefine
 function findOrCreateSource(state: SourceState, sourceId: string): SourceInfo {
   let source = findSource(state, sourceId);
   if (!source) {
-    source = { sourceId, online: false, lastSeen: undefined, games: [] };
+    source = {
+      sourceId,
+      online: false,
+      lastSeen: undefined,
+      games: [],
+      sourceKind: "",
+      hostname: "",
+      canRescan: true,
+      canReceiveConfig: true,
+    };
     state.sources.push(source);
   }
   return source;
@@ -444,27 +455,36 @@ export class SourceHub extends DurableObject<Env> {
     await this.ctx.storage.put(STATE_KEY, state);
   }
 
-  private async getCapabilities(): Promise<Capabilities> {
-    const cached = await this.ctx.storage.get<Capabilities & { cachedAt: number }>(CAPS_KEY);
+  private async getSourceMeta(): Promise<SourceMeta> {
+    const cached = await this.ctx.storage.get<SourceMeta & { cachedAt: number }>(META_KEY);
     if (cached && Date.now() - cached.cachedAt < 5 * 60_000) {
-      return { canRescan: cached.canRescan, canReceiveConfig: cached.canReceiveConfig };
+      return {
+        sourceKind: cached.sourceKind,
+        hostname: cached.hostname,
+        canRescan: cached.canRescan,
+        canReceiveConfig: cached.canReceiveConfig,
+      };
     }
 
     const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
-    if (!sourceUuid) return { canRescan: true, canReceiveConfig: true };
+    if (!sourceUuid) {
+      return { sourceKind: "daemon", hostname: "", canRescan: true, canReceiveConfig: true };
+    }
 
     const row = await this.env.DB.prepare(
-      "SELECT can_rescan, can_receive_config FROM sources WHERE source_uuid = ?",
+      "SELECT source_kind, hostname, can_rescan, can_receive_config FROM sources WHERE source_uuid = ?",
     )
       .bind(sourceUuid)
-      .first<{ can_rescan: number; can_receive_config: number }>();
+      .first<{ source_kind: string; hostname: string | null; can_rescan: number; can_receive_config: number }>();
 
-    const caps: Capabilities = {
+    const meta: SourceMeta = {
+      sourceKind: row?.source_kind ?? "daemon",
+      hostname: row?.hostname ?? "",
       canRescan: row?.can_rescan !== 0,
       canReceiveConfig: row?.can_receive_config !== 0,
     };
-    await this.ctx.storage.put(CAPS_KEY, { ...caps, cachedAt: Date.now() });
-    return caps;
+    await this.ctx.storage.put(META_KEY, { ...meta, cachedAt: Date.now() });
+    return meta;
   }
 
   private async getSourceIdForConnection(tags: string[]): Promise<string | undefined> {
@@ -521,7 +541,7 @@ export class SourceHub extends DurableObject<Env> {
   private async maybePushConfig(rpc: Message | undefined): Promise<void> {
     if (rpc?.payload?.$case !== "sourceOnline") return;
     try {
-      const caps = await this.getCapabilities();
+      const caps = await this.getSourceMeta();
       if (!caps.canReceiveConfig) return;
       const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
       if (!sourceUuid) return;
@@ -627,7 +647,7 @@ export class SourceHub extends DurableObject<Env> {
   }
 
   private async handleRescan(request: Request): Promise<Response> {
-    const caps = await this.getCapabilities();
+    const caps = await this.getSourceMeta();
     if (!caps.canRescan) {
       return Response.json({ sent: false, reason: "rescan_not_supported" });
     }
@@ -690,6 +710,15 @@ export class SourceHub extends DurableObject<Env> {
     if (!sourceUuid) return;
     try {
       const state = await this.loadState();
+      // Decorate SourceInfo with D1 metadata (source_kind, hostname, capabilities)
+      // before serializing — these are static per-source and not part of event state.
+      const meta = await this.getSourceMeta();
+      for (const source of state.sources) {
+        source.sourceKind = meta.sourceKind;
+        source.hostname = meta.hostname;
+        source.canRescan = meta.canRescan;
+        source.canReceiveConfig = meta.canReceiveConfig;
+      }
       // Pre-serialize via proto so Date objects become ISO strings.
       // UserHub stores per-source state keyed by sourceUuid and merges on send.
       const envelope = Message.toJSON({

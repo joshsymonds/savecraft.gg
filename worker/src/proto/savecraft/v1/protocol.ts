@@ -341,6 +341,10 @@ export interface SourceInfo {
   online: boolean;
   lastSeen: Date | undefined;
   games: GameInfo[];
+  sourceKind: string;
+  hostname: string;
+  canRescan: boolean;
+  canReceiveConfig: boolean;
 }
 
 export interface GameInfo {
@@ -3483,7 +3487,16 @@ export const SourceState: MessageFns<SourceState> = {
 };
 
 function createBaseSourceInfo(): SourceInfo {
-  return { sourceId: "", online: false, lastSeen: undefined, games: [] };
+  return {
+    sourceId: "",
+    online: false,
+    lastSeen: undefined,
+    games: [],
+    sourceKind: "",
+    hostname: "",
+    canRescan: false,
+    canReceiveConfig: false,
+  };
 }
 
 export const SourceInfo: MessageFns<SourceInfo> = {
@@ -3499,6 +3512,18 @@ export const SourceInfo: MessageFns<SourceInfo> = {
     }
     for (const v of message.games) {
       GameInfo.encode(v!, writer.uint32(34).fork()).join();
+    }
+    if (message.sourceKind !== "") {
+      writer.uint32(42).string(message.sourceKind);
+    }
+    if (message.hostname !== "") {
+      writer.uint32(50).string(message.hostname);
+    }
+    if (message.canRescan !== false) {
+      writer.uint32(56).bool(message.canRescan);
+    }
+    if (message.canReceiveConfig !== false) {
+      writer.uint32(64).bool(message.canReceiveConfig);
     }
     return writer;
   },
@@ -3542,6 +3567,38 @@ export const SourceInfo: MessageFns<SourceInfo> = {
           message.games.push(GameInfo.decode(reader, reader.uint32()));
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.sourceKind = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.hostname = reader.string();
+          continue;
+        }
+        case 7: {
+          if (tag !== 56) {
+            break;
+          }
+
+          message.canRescan = reader.bool();
+          continue;
+        }
+        case 8: {
+          if (tag !== 64) {
+            break;
+          }
+
+          message.canReceiveConfig = reader.bool();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -3565,6 +3622,22 @@ export const SourceInfo: MessageFns<SourceInfo> = {
         ? fromJsonTimestamp(object.last_seen)
         : undefined,
       games: globalThis.Array.isArray(object?.games) ? object.games.map((e: any) => GameInfo.fromJSON(e)) : [],
+      sourceKind: isSet(object.sourceKind)
+        ? globalThis.String(object.sourceKind)
+        : isSet(object.source_kind)
+        ? globalThis.String(object.source_kind)
+        : "",
+      hostname: isSet(object.hostname) ? globalThis.String(object.hostname) : "",
+      canRescan: isSet(object.canRescan)
+        ? globalThis.Boolean(object.canRescan)
+        : isSet(object.can_rescan)
+        ? globalThis.Boolean(object.can_rescan)
+        : false,
+      canReceiveConfig: isSet(object.canReceiveConfig)
+        ? globalThis.Boolean(object.canReceiveConfig)
+        : isSet(object.can_receive_config)
+        ? globalThis.Boolean(object.can_receive_config)
+        : false,
     };
   },
 
@@ -3582,6 +3655,18 @@ export const SourceInfo: MessageFns<SourceInfo> = {
     if (message.games?.length) {
       obj.games = message.games.map((e) => GameInfo.toJSON(e));
     }
+    if (message.sourceKind !== "") {
+      obj.sourceKind = message.sourceKind;
+    }
+    if (message.hostname !== "") {
+      obj.hostname = message.hostname;
+    }
+    if (message.canRescan !== false) {
+      obj.canRescan = message.canRescan;
+    }
+    if (message.canReceiveConfig !== false) {
+      obj.canReceiveConfig = message.canReceiveConfig;
+    }
     return obj;
   },
 
@@ -3594,6 +3679,10 @@ export const SourceInfo: MessageFns<SourceInfo> = {
     message.online = object.online ?? false;
     message.lastSeen = object.lastSeen ?? undefined;
     message.games = object.games?.map((e) => GameInfo.fromPartial(e)) || [];
+    message.sourceKind = object.sourceKind ?? "";
+    message.hostname = object.hostname ?? "";
+    message.canRescan = object.canRescan ?? false;
+    message.canReceiveConfig = object.canReceiveConfig ?? false;
     return message;
   },
 };
