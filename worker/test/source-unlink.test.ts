@@ -17,7 +17,11 @@ describe("Source Unlinking", () => {
         "SELECT user_uuid, user_email, user_display_name FROM sources WHERE source_uuid = ?",
       )
         .bind(sourceUuid)
-        .first<{ user_uuid: string | null; user_email: string | null; user_display_name: string | null }>();
+        .first<{
+          user_uuid: string | null;
+          user_email: string | null;
+          user_display_name: string | null;
+        }>();
       expect(before!.user_uuid).toBe(TEST_USER);
 
       const resp = await SELF.fetch(
@@ -98,9 +102,7 @@ describe("Source Unlinking", () => {
       );
 
       // Source UUID still exists with same token hash
-      const afterHash = await env.DB.prepare(
-        "SELECT token_hash FROM sources WHERE source_uuid = ?",
-      )
+      const afterHash = await env.DB.prepare("SELECT token_hash FROM sources WHERE source_uuid = ?")
         .bind(sourceUuid)
         .first<{ token_hash: string }>();
       expect(afterHash!.token_hash).toBe(beforeHash!.token_hash);
