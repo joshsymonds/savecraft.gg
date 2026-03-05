@@ -153,9 +153,7 @@
       {#if prominent}<span class="step-number">2</span>{/if}
       <span class="step-title">Enter Pairing Code</span>
     </div>
-    <p class="step-desc">
-      After install, enter the 6-digit code shown by the daemon:
-    </p>
+    <p class="step-desc">After install, enter the 6-digit code shown by the daemon:</p>
     <div class="pairing-row">
       <input
         type="text"
@@ -165,11 +163,7 @@
         bind:value={codeValue}
         onkeydown={handleCodeKeydown}
       />
-      <button
-        class="pair-btn"
-        onclick={handleCodeSubmit}
-        disabled={codeValue.trim().length < 6}
-      >
+      <button class="pair-btn" onclick={handleCodeSubmit} disabled={codeValue.trim().length < 6}>
         PAIR
       </button>
     </div>
@@ -193,9 +187,7 @@
         </div>
       </div>
     {:else}
-      <p class="step-desc">
-        For headless or automated setups, use an API key instead of pairing.
-      </p>
+      <p class="step-desc">For headless or automated setups, use an API key instead of pairing.</p>
       <div class="action-row">
         <TinyButton
           label={apiKeyLoading ? "GENERATING..." : "GENERATE KEY"}
