@@ -47,3 +47,27 @@ export interface Source {
   capabilities: SourceCapabilities;
   games: SourceGame[];
 }
+
+// -- Merged (game-centric) types for the redesigned dashboard --
+
+export interface MergedSave extends SaveSummary {
+  sourceId: string;
+  sourceName: string;
+}
+
+export interface MergedGame {
+  gameId: string;
+  name: string;
+  statusLine: string;
+  saves: MergedSave[];
+  sourceCount: number;
+}
+
+export interface PickerGame {
+  gameId: string;
+  name: string;
+  description: string;
+  watched: boolean;
+  saveCount: number;
+  defaultPaths?: { windows?: string; linux?: string; darwin?: string };
+}
