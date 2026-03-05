@@ -179,7 +179,14 @@ async function routeDaemonEndpoints(
     return Response.json({ status: "ok" });
   }
 
-  // Check route match before authenticating so non-source paths fall through.
+  return routeSourceEndpoints(request, url, env);
+}
+
+async function routeSourceEndpoints(
+  request: Request,
+  url: URL,
+  env: Env,
+): Promise<Response | null> {
   const isSourceRoute =
     (url.pathname === "/api/v1/push" && request.method === "POST") ||
     (url.pathname === "/api/v1/source/link-code" && request.method === "POST") ||
@@ -193,8 +200,7 @@ async function routeDaemonEndpoints(
   if (url.pathname === "/api/v1/push") return handlePush(request, env, auth.sourceUuid);
   if (url.pathname === "/api/v1/source/link-code")
     return handleSourceLinkCode(env, auth.sourceUuid);
-  if (url.pathname === "/api/v1/source/unlink")
-    return handleSourceUnlink(env, auth.sourceUuid);
+  if (url.pathname === "/api/v1/source/unlink") return handleSourceUnlink(env, auth.sourceUuid);
   return handleSourceStatus(env, auth.sourceUuid);
 }
 
