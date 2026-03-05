@@ -43,7 +43,7 @@ function gameStatusLine(status: GameStatus, saves: SaveSummary[]): string {
   }
 }
 
-function sourceDisplayName(sourceKind: string | undefined, hostname: string | null | undefined): string {
+function sourceDisplayName(sourceKind?: string, hostname?: string | null): string {
   const kind = (sourceKind ?? "daemon").toUpperCase();
   if (hostname) return `${kind} · ${hostname.toUpperCase()}`;
   return kind;
@@ -91,7 +91,7 @@ function findOrCreateSource(srcs: Source[], sourceId: string): Source {
   if (!source) {
     source = {
       id: sourceId,
-      name: sourceDisplayName("daemon", undefined),
+      name: sourceDisplayName("daemon"),
       sourceKind: "daemon",
       hostname: null,
       status: "online",

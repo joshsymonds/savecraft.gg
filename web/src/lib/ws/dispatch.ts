@@ -1,6 +1,6 @@
 import { dispatchToActivity } from "$lib/stores/activity";
-import { dispatchToSources } from "$lib/stores/sources";
 import { setDiscoveredGames } from "$lib/stores/discovery";
+import { dispatchToSources } from "$lib/stores/sources";
 import { setTestPathResult } from "$lib/stores/testpath";
 import type { WireMessage } from "$lib/types/wire";
 
