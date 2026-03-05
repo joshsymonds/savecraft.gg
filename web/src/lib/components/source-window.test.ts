@@ -12,7 +12,14 @@ vi.mock("$lib/api/client", () => ({
 
 vi.mock("$lib/ws/client", () => ({
   send: vi.fn(),
-  connectionStatus: { subscribe: vi.fn((callback: (v: string) => void) => { callback("connected"); return () => { /* unsubscribe */ }; }) },
+  connectionStatus: {
+    subscribe: vi.fn((callback: (v: string) => void) => {
+      callback("connected");
+      return () => {
+        /* unsubscribe */
+      };
+    }),
+  },
 }));
 
 vi.mock("$lib/stores/testpath", async () => {
@@ -20,8 +27,12 @@ vi.mock("$lib/stores/testpath", async () => {
   const store = writable<unknown>(null);
   return {
     testPathResult: { subscribe: store.subscribe },
-    clearTestPathResult: vi.fn(() => { store.set(null); }),
-    setTestPathResult: vi.fn((v: unknown) => { store.set(v); }),
+    clearTestPathResult: vi.fn(() => {
+      store.set(null);
+    }),
+    setTestPathResult: vi.fn((v: unknown) => {
+      store.set(v);
+    }),
   };
 });
 
@@ -216,9 +227,12 @@ describe("SourceWindow inline game settings", () => {
     await userEvent.click(screen.getByText("SAVE"));
 
     await vi.waitFor(() => {
-      expect(saveSourceConfig).toHaveBeenCalledWith("test-source", expect.objectContaining({
-        d2r: expect.objectContaining({ savePath: "/saves/d2r", enabled: true }),
-      }));
+      expect(saveSourceConfig).toHaveBeenCalledWith(
+        "test-source",
+        expect.objectContaining({
+          d2r: expect.objectContaining({ savePath: "/saves/d2r", enabled: true }),
+        }),
+      );
     });
   });
 

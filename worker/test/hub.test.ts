@@ -1029,11 +1029,15 @@ describe("SourceHub", () => {
 
     // Send gameDetected — should auto-create config in D1
     daemonWs.send(
-      JSON.stringify({ gameDetected: { gameId: "d2r", path: "/home/user/.d2r/saves", saveCount: 3 } }),
+      JSON.stringify({
+        gameDetected: { gameId: "d2r", path: "/home/user/.d2r/saves", saveCount: 3 },
+      }),
     );
 
     // Give handler time to process (D1 write happens async in webSocketMessage)
-    await new Promise((resolve) => { setTimeout(resolve, 200); });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 200);
+    });
 
     // Verify D1 has the auto-created config row
     const rows = await env.DB.prepare(
@@ -1060,7 +1064,9 @@ describe("SourceHub", () => {
       JSON.stringify({ gameDetected: { gameId: "d2r", path: "/saves/d2r", saveCount: 2 } }),
     );
     // Give handler time to process
-    await new Promise((resolve) => { setTimeout(resolve, 100); });
+    await new Promise((resolve) => {
+      setTimeout(resolve, 100);
+    });
     await closeWs(daemon1);
 
     // Second connection: daemon comes back online and gets the auto-created config

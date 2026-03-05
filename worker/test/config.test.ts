@@ -49,9 +49,7 @@ describe("Source Config API", () => {
 
     expect(resp.status).toBe(200);
 
-    const rows = await env.DB.prepare(
-      "SELECT * FROM source_configs WHERE source_uuid = ?",
-    )
+    const rows = await env.DB.prepare("SELECT * FROM source_configs WHERE source_uuid = ?")
       .bind(sourceId)
       .all<{
         game_id: string;
@@ -129,9 +127,7 @@ describe("Source Config API", () => {
       }),
     });
 
-    const rows = await env.DB.prepare(
-      "SELECT game_id FROM source_configs WHERE source_uuid = ?",
-    )
+    const rows = await env.DB.prepare("SELECT game_id FROM source_configs WHERE source_uuid = ?")
       .bind(sourceId)
       .all<{ game_id: string }>();
 

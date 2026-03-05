@@ -33,8 +33,7 @@
   // Expand by default on first visit; once user collapses, remember via sessionStorage
   // svelte-ignore state_referenced_locally
   let expanded = $state(
-    initialExpanded ??
-      (browser ? !sessionStorage.getItem(DISMISSED_KEY) : true),
+    initialExpanded ?? (browser ? !sessionStorage.getItem(DISMISSED_KEY) : true),
   );
 
   $effect.pre(() => {
@@ -108,8 +107,7 @@
           </div>
           <div class="url-block url-block-cta">
             <code class="url-text">{mcpUrl}</code>
-            <button class="copy-btn copy-btn-cta" class:copied onclick={copyUrl}
-              >{copyLabel}</button
+            <button class="copy-btn copy-btn-cta" class:copied onclick={copyUrl}>{copyLabel}</button
             >
           </div>
           <button class="expand-btn" onclick={toggleExpand}>
@@ -119,9 +117,7 @@
 
         {#if expanded}
           <div class="details">
-            <span class="details-hint"
-              >Copy the URL above, then paste it into your AI client:</span
-            >
+            <span class="details-hint">Copy the URL above, then paste it into your AI client:</span>
             <div class="detail-row">
               <span class="client-name">Claude.ai</span>
               <span class="client-arrow">&rarr;</span>
@@ -159,10 +155,14 @@
   @keyframes pulse-border {
     0%,
     100% {
-      box-shadow: 0 0 0 1px rgba(200, 168, 78, 0.15), 0 0 8px rgba(200, 168, 78, 0.06);
+      box-shadow:
+        0 0 0 1px rgba(200, 168, 78, 0.15),
+        0 0 8px rgba(200, 168, 78, 0.06);
     }
     50% {
-      box-shadow: 0 0 0 1px rgba(200, 168, 78, 0.4), 0 0 16px rgba(200, 168, 78, 0.12);
+      box-shadow:
+        0 0 0 1px rgba(200, 168, 78, 0.4),
+        0 0 16px rgba(200, 168, 78, 0.12);
     }
   }
 

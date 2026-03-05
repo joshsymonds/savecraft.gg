@@ -20,9 +20,7 @@ export interface GameInfo {
   referenceModules: ReferenceModule[];
 }
 
-function extractModules(
-  reference?: ManifestInput["reference"],
-): ReferenceModule[] {
+function extractModules(reference?: ManifestInput["reference"]): ReferenceModule[] {
   if (!reference?.modules) return [];
   return Object.values(reference.modules).map((m) => ({
     name: m.name,
@@ -41,10 +39,7 @@ interface ManifestInput {
   reference?: { modules?: Record<string, { name: string; description: string }> } | null;
 }
 
-function toGameInfo(
-  manifest: ManifestInput,
-  iconSvg: string,
-): GameInfo {
+function toGameInfo(manifest: ManifestInput, iconSvg: string): GameInfo {
   return {
     gameId: manifest.game_id,
     source: manifest.source,
@@ -60,9 +55,6 @@ function toGameInfo(
 
 export function load() {
   return {
-    games: [
-      toGameInfo(d2rManifest, d2rIcon),
-      toGameInfo(sdvManifest, sdvIcon),
-    ],
+    games: [toGameInfo(d2rManifest, d2rIcon), toGameInfo(sdvManifest, sdvIcon)],
   };
 }
