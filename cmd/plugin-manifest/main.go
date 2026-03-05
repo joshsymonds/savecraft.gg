@@ -27,6 +27,8 @@ import (
 //nolint:tagliatelle // manifest JSON uses snake_case to match plugin.toml field names
 type pluginTOML struct {
 	GameID         string   `toml:"game_id"         json:"game_id"`
+	Source         string   `toml:"source"          json:"source"`
+	Icon           string   `toml:"icon"            json:"icon"`
 	Name           string   `toml:"name"            json:"name"`
 	Description    string   `toml:"description"     json:"description"`
 	Channel        string   `toml:"channel"         json:"channel"`
