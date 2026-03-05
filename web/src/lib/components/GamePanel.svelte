@@ -5,7 +5,7 @@
   Replaces the source-level navigation of SourceWindow.
 -->
 <script lang="ts">
-  import type { MergedGame, MergedSave, NoteSummary } from "$lib/types/source";
+  import type { Game, Save, NoteSummary } from "$lib/types/source";
 
   import GameCard from "./GameCard.svelte";
   import NoteCard from "./NoteCard.svelte";
@@ -25,7 +25,7 @@
     initialGameId,
     initialSaveUuid,
   }: {
-    games: MergedGame[];
+    games: Game[];
     showSourceBadges?: boolean;
     onadd?: () => void;
     loadNotes?: (saveUuid: string) => Promise<NoteSummary[]>;
@@ -64,7 +64,7 @@
     }
   }
 
-  async function enterSave(save: MergedSave) {
+  async function enterSave(save: Save) {
     navSaveUuid = save.saveUuid;
     await doLoadNotes(save.saveUuid);
   }

@@ -1,8 +1,8 @@
-import type { MergedGame, MergedSave, Source } from "$lib/types/source";
+import type { Game, Save, Source } from "$lib/types/source";
 
 /** Flatten sources into a game-centric list, merging saves across sources by gameId. */
-export function mergeGames(sources: Source[]): MergedGame[] {
-  const map = new Map<string, { name: string; saves: MergedSave[]; sourceIds: Set<string> }>();
+export function mergeGames(sources: Source[]): Game[] {
+  const map = new Map<string, { name: string; saves: Save[]; sourceIds: Set<string> }>();
 
   for (const source of sources) {
     for (const game of source.games) {
@@ -23,7 +23,7 @@ export function mergeGames(sources: Source[]): MergedGame[] {
     }
   }
 
-  const result: MergedGame[] = [];
+  const result: Game[] = [];
   for (const [gameId, entry] of map) {
     const count = entry.saves.length;
     let statusLine: string;

@@ -48,18 +48,18 @@ export interface Source {
   games: SourceGame[];
 }
 
-// -- Merged (game-centric) types for the redesigned dashboard --
+// -- Game-centric UI types for the dashboard --
 
-export interface MergedSave extends SaveSummary {
+export interface Save extends SaveSummary {
   sourceId: string;
   sourceName: string;
 }
 
-export interface MergedGame {
+export interface Game {
   gameId: string;
   name: string;
   statusLine: string;
-  saves: MergedSave[];
+  saves: Save[];
   sourceCount: number;
 }
 
