@@ -8,14 +8,13 @@
     ActivityEvent,
     ConfigModal,
     ConnectCard,
-    SourceWindow,
     InstallBlock,
     LinkingCard,
+    SourceWindow,
     StatusDot,
   } from "$lib/components";
   import { activateGame } from "$lib/stores/activation";
   import { activityEvents } from "$lib/stores/activity";
-  import { sources, setGameStatus } from "$lib/stores/sources";
   import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
   import { pendingLinkCode } from "$lib/stores/link-code";
   import {
@@ -27,6 +26,7 @@
     linkState,
     submitLinkCode,
   } from "$lib/stores/link-flow";
+  import { setGameStatus, sources } from "$lib/stores/sources";
   import type { Source, SourceStatus } from "$lib/types/source";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
 

@@ -55,7 +55,7 @@ describe("InstallBlock", () => {
 
     it("renders pairing code input with PAIR button", () => {
       const { container } = render(InstallBlock, { props: { prominent: true } });
-      const input = container.querySelector(".code-input") as HTMLInputElement;
+      const input = container.querySelector<HTMLInputElement>(".code-input")!;
       expect(input).not.toBeNull();
       expect(input.maxLength).toBe(6);
       expect(screen.getByText("PAIR")).toBeInTheDocument();
@@ -63,19 +63,19 @@ describe("InstallBlock", () => {
 
     it("PAIR button is disabled until 6 characters entered", async () => {
       const { container } = render(InstallBlock, { props: { prominent: true } });
-      const pairBtn = screen.getByText("PAIR");
-      expect(pairBtn).toBeDisabled();
+      const pairButton = screen.getByText("PAIR");
+      expect(pairButton).toBeDisabled();
 
-      const input = container.querySelector(".code-input") as HTMLInputElement;
+      const input = container.querySelector<HTMLInputElement>(".code-input")!;
       await userEvent.type(input, "482913");
-      expect(pairBtn).not.toBeDisabled();
+      expect(pairButton).not.toBeDisabled();
     });
 
     it("calls onsubmit when PAIR clicked with valid code", async () => {
       const onsubmit = vi.fn();
       const { container } = render(InstallBlock, { props: { prominent: true, onsubmit } });
 
-      const input = container.querySelector(".code-input") as HTMLInputElement;
+      const input = container.querySelector<HTMLInputElement>(".code-input")!;
       await userEvent.type(input, "482913");
       await userEvent.click(screen.getByText("PAIR"));
 
@@ -86,7 +86,7 @@ describe("InstallBlock", () => {
       const onsubmit = vi.fn();
       const { container } = render(InstallBlock, { props: { prominent: true, onsubmit } });
 
-      const input = container.querySelector(".code-input") as HTMLInputElement;
+      const input = container.querySelector<HTMLInputElement>(".code-input")!;
       await userEvent.type(input, "482913{Enter}");
 
       expect(onsubmit).toHaveBeenCalledWith("482913");
@@ -96,7 +96,7 @@ describe("InstallBlock", () => {
       const onsubmit = vi.fn();
       const { container } = render(InstallBlock, { props: { prominent: true, onsubmit } });
 
-      const input = container.querySelector(".code-input") as HTMLInputElement;
+      const input = container.querySelector<HTMLInputElement>(".code-input")!;
       await userEvent.type(input, "482913{Enter}");
 
       expect(input.value).toBe("");

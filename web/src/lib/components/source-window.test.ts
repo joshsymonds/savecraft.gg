@@ -1,7 +1,6 @@
+import type { Source } from "$lib/types/source";
 import { cleanup, render, screen } from "@testing-library/svelte";
 import { afterEach, describe, expect, it } from "vitest";
-
-import type { Source } from "$lib/types/source";
 
 import SourceWindow from "./SourceWindow.svelte";
 
