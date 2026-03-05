@@ -1,5 +1,4 @@
 import { render } from "@testing-library/svelte";
-import { get } from "svelte/store";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mockGoto = vi.fn();
@@ -28,26 +27,26 @@ vi.mock("$env/static/public", () => ({
   PUBLIC_CLERK_PUBLISHABLE_KEY: "pk_test",
 }));
 
-const { pendingLinkCode } = await import("$lib/stores/link-code");
 const linkPageModule = await import("./+page.svelte");
 const LinkPage = linkPageModule.default;
 
 describe("/link/[code] route", () => {
   beforeEach(() => {
-    pendingLinkCode.set(null);
+    sessionStorage.clear();
     mockGoto.mockReset();
   });
 
   afterEach(() => {
+    sessionStorage.clear();
     vi.restoreAllMocks();
   });
 
-  it("sets pendingLinkCode from route params and redirects to /", async () => {
+  it("writes link code to sessionStorage and redirects to /", async () => {
     render(LinkPage);
 
     await vi.waitFor(() => {
-      expect(get(pendingLinkCode)).toBe("482913");
+      expect(sessionStorage.getItem("savecraft:linkCode")).toBe("482913");
     });
-    expect(mockGoto).toHaveBeenCalledWith("/"); // resolve() is a passthrough in test mock
+    expect(mockGoto).toHaveBeenCalledWith("/");
   });
 });

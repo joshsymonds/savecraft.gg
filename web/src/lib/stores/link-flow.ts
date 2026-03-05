@@ -2,8 +2,6 @@ import { linkSource } from "$lib/api/client";
 import type { Readable } from "svelte/store";
 import { writable } from "svelte/store";
 
-import { pendingLinkCode } from "./link-code";
-
 export type LinkState = "idle" | "linking" | "success" | "error";
 
 const stateStore = writable<LinkState>("idle");
@@ -28,7 +26,6 @@ export async function submitLinkCode(code: string): Promise<void> {
   codeStore.set(code);
   stateStore.set("linking");
   errorStore.set("");
-  pendingLinkCode.set(null);
 
   try {
     const result = await linkSource(code);

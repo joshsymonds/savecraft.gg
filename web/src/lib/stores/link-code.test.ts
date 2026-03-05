@@ -1,25 +1,38 @@
-import { get } from "svelte/store";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { pendingLinkCode } from "./link-code";
+vi.mock("$app/environment", () => ({
+  browser: true,
+}));
 
-describe("pendingLinkCode", () => {
+const { consumePendingLinkCode, setPendingLinkCode } = await import("./link-code");
+
+describe("link-code sessionStorage", () => {
   beforeEach(() => {
-    pendingLinkCode.set(null);
+    sessionStorage.clear();
   });
 
-  it("has null as initial value", () => {
-    expect(get(pendingLinkCode)).toBeNull();
+  afterEach(() => {
+    sessionStorage.clear();
   });
 
-  it("stores a link code", () => {
-    pendingLinkCode.set("482913");
-    expect(get(pendingLinkCode)).toBe("482913");
+  it("returns null when no code is pending", () => {
+    expect(consumePendingLinkCode()).toBeNull();
   });
 
-  it("clears when set to null", () => {
-    pendingLinkCode.set("123456");
-    pendingLinkCode.set(null);
-    expect(get(pendingLinkCode)).toBeNull();
+  it("stores and retrieves a link code", () => {
+    setPendingLinkCode("482913");
+    expect(consumePendingLinkCode()).toBe("482913");
+  });
+
+  it("clears the code after consuming it", () => {
+    setPendingLinkCode("482913");
+    consumePendingLinkCode();
+    expect(consumePendingLinkCode()).toBeNull();
+  });
+
+  it("overwrites a previous code", () => {
+    setPendingLinkCode("111111");
+    setPendingLinkCode("222222");
+    expect(consumePendingLinkCode()).toBe("222222");
   });
 });

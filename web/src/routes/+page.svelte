@@ -16,7 +16,7 @@
   import { activateGame } from "$lib/stores/activation";
   import { activityEvents } from "$lib/stores/activity";
   import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
-  import { pendingLinkCode } from "$lib/stores/link-code";
+  import { consumePendingLinkCode } from "$lib/stores/link-code";
   import {
     cancelLink,
     dismissLinkError,
@@ -32,19 +32,17 @@
 
   const COLLAPSED_EVENT_COUNT = 8;
 
+  // Consume pending link code from sessionStorage synchronously on first render.
+  // This fires before any $effect, so the homepage starts in linking mode with no flash.
+  const pendingCode = consumePendingLinkCode();
+  if (pendingCode) {
+    void submitLinkCode(pendingCode);
+  }
+
   let configSourceId = $state<string | null>(null);
   let activityExpanded = $state(false);
   let showLinkInput = $state(false);
   let wasManualInput = $state(false);
-
-  // Auto-submit pending link code from /link/[code] redirect
-  $effect(() => {
-    const code = $pendingLinkCode;
-    if (code && $linkState === "idle") {
-      wasManualInput = false;
-      void submitLinkCode(code);
-    }
-  });
 
   function handleManualLink(code: string): void {
     wasManualInput = true;
@@ -87,12 +85,8 @@
   }
 
   async function handleActivate(sourceId: string, gameId: string): Promise<void> {
-    try {
-      await activateGame(sourceId, gameId);
-      setGameStatus(sourceId, gameId, "activating");
-    } catch {
-      // SourceWindow handles its own activate states internally
-    }
+    await activateGame(sourceId, gameId);
+    setGameStatus(sourceId, gameId, "activating");
   }
 
   const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
@@ -155,7 +149,7 @@
           onrescan={() => rescan(source)}
           ondiscover={discover}
           onconfig={() => (configSourceId = source.id)}
-          onactivate={(gameId: string) => void handleActivate(source.id, gameId)}
+          onactivate={(gameId: string) => handleActivate(source.id, gameId)}
           discoveryPending={$discoveryPending}
           loadNotes={async (saveUuid) => {
             const notes = await fetchNotes(saveUuid);

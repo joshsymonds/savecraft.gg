@@ -1,16 +1,27 @@
 <!--
   @component
-  MCP connect card: prominent CTA when no AI client connected, compact reminder once connected.
+  MCP connect card: compact CTA when no AI client connected, compact status once connected.
+  When not connected, shows a pulsing gold border and expands instructions by default on first visit.
 
   Pass `initialState` to bypass API calls and show a specific visual state (for Storybook).
+  Pass `initialExpanded` to control initial expand state (for Storybook).
 -->
 <script lang="ts">
+  import { browser } from "$app/environment";
   import { PUBLIC_MCP_URL } from "$env/static/public";
   import { fetchMcpStatus } from "$lib/api/client";
   import { Panel } from "$lib/components";
   import { onMount } from "svelte";
 
-  let { initialState }: { initialState?: { connected: boolean } } = $props();
+  const DISMISSED_KEY = "savecraft:mcpHowDismissed";
+
+  let {
+    initialState,
+    initialExpanded,
+  }: {
+    initialState?: { connected: boolean };
+    initialExpanded?: boolean;
+  } = $props();
 
   const mcpUrl = PUBLIC_MCP_URL;
 
@@ -18,6 +29,13 @@
   let connected = $state(false);
   let copied = $state(false);
   let copyError = $state(false);
+
+  // Expand by default on first visit; once user collapses, remember via sessionStorage
+  // svelte-ignore state_referenced_locally
+  let expanded = $state(
+    initialExpanded ??
+      (browser ? !sessionStorage.getItem(DISMISSED_KEY) : true),
+  );
 
   $effect.pre(() => {
     if (!initialState) return;
@@ -37,7 +55,6 @@
       const status = await fetchMcpStatus();
       connected = status.connected;
     } catch {
-      // If fetch fails, show the CTA (assume not connected)
       connected = false;
     }
     loading = false;
@@ -58,95 +75,107 @@
       }, 2000);
     }
   }
+
+  function toggleExpand(): void {
+    expanded = !expanded;
+    if (!expanded && browser) {
+      sessionStorage.setItem(DISMISSED_KEY, "1");
+    }
+  }
 </script>
 
 {#if !loading}
   {#if connected}
-    <!-- Compact: AI connected -->
     <Panel>
-      <div class="compact">
-        <div class="compact-status">
-          <span class="status-dot"></span>
-          <span class="connected-label">AI CONNECTED</span>
+      <div class="row">
+        <div class="status">
+          <span class="status-dot connected"></span>
+          <span class="label connected-label">AI CONNECTED</span>
         </div>
-        <div class="url-block compact-url">
+        <div class="url-block">
           <code class="url-text">{mcpUrl}</code>
           <button class="copy-btn" class:copied onclick={copyUrl}>{copyLabel}</button>
         </div>
       </div>
     </Panel>
   {:else}
-    <!-- CTA: connect an AI client -->
-    <Panel accent="#e8c44e40">
-      <div class="cta">
-        <div class="cta-header">
-          <span class="cta-badge">SETUP</span>
-          <h2 class="cta-title">Give your AI eyes on your saves</h2>
-          <p class="cta-subtitle">
-            Connect Claude, ChatGPT, or any MCP-compatible assistant. It reads your game state in
-            real time — builds, stats, progress, inventory — and gives advice that actually knows
-            what's in your save file.
-          </p>
+    <div class="cta-wrapper">
+      <Panel accent="#e8c44e40">
+        <div class="row">
+          <div class="status">
+            <span class="status-dot pending"></span>
+            <span class="label cta-label">NEXT: CONNECT AI</span>
+          </div>
+          <div class="url-block url-block-cta">
+            <code class="url-text">{mcpUrl}</code>
+            <button class="copy-btn copy-btn-cta" class:copied onclick={copyUrl}
+              >{copyLabel}</button
+            >
+          </div>
+          <button class="expand-btn" onclick={toggleExpand}>
+            {expanded ? "HIDE" : "HOW?"}
+          </button>
         </div>
 
-        <div class="cta-steps">
-          <div class="cta-step">
-            <span class="cta-step-number">1</span>
-            <div class="cta-step-content">
-              <span class="cta-step-label">COPY YOUR MCP SERVER URL</span>
-              <div class="url-block url-block-prominent">
-                <code class="url-text">{mcpUrl}</code>
-                <button class="copy-btn copy-btn-prominent" class:copied onclick={copyUrl}
-                  >{copyLabel}</button
-                >
-              </div>
+        {#if expanded}
+          <div class="details">
+            <span class="details-hint"
+              >Copy the URL above, then paste it into your AI client:</span
+            >
+            <div class="detail-row">
+              <span class="client-name">Claude.ai</span>
+              <span class="client-arrow">&rarr;</span>
+              <span class="client-steps"
+                >Settings &rarr; Connectors &rarr; Add custom connector</span
+              >
+            </div>
+            <div class="detail-row">
+              <span class="client-name">Claude Code</span>
+              <span class="client-arrow">&rarr;</span>
+              <span class="client-steps">
+                <code class="inline-code">claude mcp add-remote savecraft {mcpUrl}</code>
+              </span>
+            </div>
+            <div class="detail-row">
+              <span class="client-name">ChatGPT</span>
+              <span class="client-arrow">&rarr;</span>
+              <span class="client-steps">Settings &rarr; MCP &rarr; Add remote server</span>
             </div>
           </div>
-
-          <div class="cta-step">
-            <span class="cta-step-number">2</span>
-            <div class="cta-step-content">
-              <span class="cta-step-label">PASTE IT INTO YOUR AI CLIENT</span>
-              <div class="instruction-list">
-                <div class="instruction">
-                  <span class="client-name">Claude.ai</span>
-                  <span class="client-arrow">&rarr;</span>
-                  <span class="client-steps"
-                    >Settings &rarr; Connectors &rarr; Add custom connector</span
-                  >
-                </div>
-                <div class="instruction">
-                  <span class="client-name">Claude Code</span>
-                  <span class="client-arrow">&rarr;</span>
-                  <span class="client-steps">
-                    <code class="inline-code">claude mcp add-remote savecraft {mcpUrl}</code>
-                  </span>
-                </div>
-                <div class="instruction">
-                  <span class="client-name">ChatGPT</span>
-                  <span class="client-arrow">&rarr;</span>
-                  <span class="client-steps">Settings &rarr; MCP &rarr; Add remote server</span>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </Panel>
+        {/if}
+      </Panel>
+    </div>
   {/if}
 {/if}
 
 <style>
-  /* -- Compact (connected) ---------------------------------- */
+  /* -- Pulsing wrapper for CTA state -------------------------- */
 
-  .compact {
+  .cta-wrapper {
+    animation: pulse-border 3s ease-in-out infinite;
+    border-radius: 6px;
+  }
+
+  @keyframes pulse-border {
+    0%,
+    100% {
+      box-shadow: 0 0 0 1px rgba(200, 168, 78, 0.15), 0 0 8px rgba(200, 168, 78, 0.06);
+    }
+    50% {
+      box-shadow: 0 0 0 1px rgba(200, 168, 78, 0.4), 0 0 16px rgba(200, 168, 78, 0.12);
+    }
+  }
+
+  /* -- Shared row layout -------------------------------------- */
+
+  .row {
     padding: 14px 18px;
     display: flex;
     align-items: center;
     gap: 16px;
   }
 
-  .compact-status {
+  .status {
     display: flex;
     align-items: center;
     gap: 8px;
@@ -157,132 +186,65 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
+  }
+
+  .status-dot.connected {
     background: var(--color-green);
     box-shadow: 0 0 6px var(--color-green);
   }
 
-  .connected-label {
+  .status-dot.pending {
+    background: var(--color-gold);
+    box-shadow: 0 0 6px rgba(200, 168, 78, 0.4);
+    animation: pulse-dot 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse-dot {
+    0%,
+    100% {
+      opacity: 0.6;
+    }
+    50% {
+      opacity: 1;
+    }
+  }
+
+  .label {
     font-family: var(--font-pixel);
     font-size: 12px;
-    color: var(--color-green);
     letter-spacing: 2px;
     white-space: nowrap;
   }
 
-  .compact-url {
-    flex: 1;
+  .connected-label {
+    color: var(--color-green);
   }
 
-  /* -- CTA (not connected) ---------------------------------- */
-
-  .cta {
-    padding: 28px 28px 24px;
-    display: flex;
-    flex-direction: column;
-    gap: 28px;
-  }
-
-  .cta-header {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .cta-badge {
-    font-family: var(--font-pixel);
-    font-size: 12px;
+  .cta-label {
     color: var(--color-gold);
-    letter-spacing: 3px;
-    background: rgba(200, 168, 78, 0.1);
-    border: 1px solid rgba(200, 168, 78, 0.2);
-    border-radius: 3px;
-    padding: 4px 10px;
-    width: fit-content;
   }
 
-  .cta-title {
-    font-family: var(--font-body);
-    font-size: 28px;
-    font-weight: 600;
-    color: var(--color-text);
-    margin: 0;
-    line-height: 1.2;
-  }
-
-  .cta-subtitle {
-    font-family: var(--font-body);
-    font-size: 22px;
-    color: var(--color-text);
-    line-height: 1.4;
-    margin: 4px 0 0;
-    opacity: 0.7;
-  }
-
-  /* -- Numbered steps --------------------------------------- */
-
-  .cta-steps {
-    display: flex;
-    flex-direction: column;
-    gap: 20px;
-  }
-
-  .cta-step {
-    display: flex;
-    gap: 14px;
-    align-items: flex-start;
-  }
-
-  .cta-step-number {
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    color: var(--color-gold);
-    width: 28px;
-    height: 28px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px solid var(--color-gold);
-    border-radius: 3px;
-    flex-shrink: 0;
-    margin-top: 2px;
-  }
-
-  .cta-step-content {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .cta-step-label {
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    color: var(--color-text-dim);
-    letter-spacing: 2px;
-  }
-
-  /* -- URL section ------------------------------------------ */
+  /* -- URL block ---------------------------------------------- */
 
   .url-block {
+    flex: 1;
     display: flex;
     align-items: center;
     gap: 10px;
     background: rgba(5, 7, 26, 0.6);
-    padding: 12px 14px;
+    padding: 10px 14px;
     border-radius: 4px;
     border: 1px solid rgba(74, 90, 173, 0.2);
+    min-width: 0;
   }
 
-  .url-block-prominent {
-    padding: 14px 16px;
+  .url-block-cta {
     border-color: rgba(200, 168, 78, 0.2);
-    background: rgba(5, 7, 26, 0.7);
   }
 
   .url-text {
     font-family: var(--font-body);
-    font-size: 18px;
+    font-size: 16px;
     color: var(--color-green);
     flex: 1;
     overflow: hidden;
@@ -317,33 +279,71 @@
     border-color: rgba(90, 190, 138, 0.3);
   }
 
-  .copy-btn-prominent {
-    padding: 8px 18px;
-    font-size: 11px;
+  .copy-btn-cta {
     border-color: rgba(200, 168, 78, 0.3);
     color: var(--color-gold);
     background: rgba(200, 168, 78, 0.08);
   }
 
-  .copy-btn-prominent:hover {
+  .copy-btn-cta:hover {
     border-color: var(--color-gold);
     background: rgba(200, 168, 78, 0.15);
     color: var(--color-gold);
   }
 
-  /* -- Instructions ----------------------------------------- */
+  /* -- Expand button ------------------------------------------ */
 
-  .instruction-list {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
+  .expand-btn {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--color-text-muted);
+    letter-spacing: 1px;
+    background: none;
+    border: 1px solid rgba(74, 90, 173, 0.2);
+    border-radius: 3px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+    white-space: nowrap;
+    flex-shrink: 0;
   }
 
-  .instruction {
+  .expand-btn:hover {
+    border-color: var(--color-border-light);
+    color: var(--color-text-dim);
+  }
+
+  /* -- Expandable details ------------------------------------- */
+
+  .details {
+    padding: 0 18px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    animation: fade-in 0.15s ease-out;
+  }
+
+  .details-hint {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-text-muted);
+    margin-bottom: 4px;
+  }
+
+  @keyframes fade-in {
+    from {
+      opacity: 0;
+    }
+    to {
+      opacity: 1;
+    }
+  }
+
+  .detail-row {
     display: flex;
     align-items: baseline;
     gap: 10px;
-    padding: 10px 14px;
+    padding: 8px 12px;
     border-radius: 3px;
     background: rgba(5, 7, 26, 0.3);
   }
@@ -364,7 +364,7 @@
 
   .client-steps {
     font-family: var(--font-body);
-    font-size: 16px;
+    font-size: 15px;
     color: var(--color-text-dim);
   }
 

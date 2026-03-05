@@ -36,7 +36,7 @@
     onrescan?: () => void;
     ondiscover?: () => void;
     onconfig?: () => void;
-    onactivate?: (gameId: string) => void;
+    onactivate?: (gameId: string) => Promise<void>;
     /** Called when user submits the add-note form. */
     onnotecreate?: (saveUuid: string, title: string, content: string) => Promise<void>;
     /** Called when user confirms note deletion. */
@@ -62,8 +62,10 @@
   // Show linked banner while justLinked is true (store auto-resets after 5 s)
   let showLinkedBanner = $derived(justLinked);
 
-  // Nav state
+  // Nav state — intentionally captures initial values (Storybook pre-navigation only)
+  // svelte-ignore state_referenced_locally
   let navGameId = $state<string | null>(initialGameId ?? null);
+  // svelte-ignore state_referenced_locally
   let navSaveUuid = $state<string | null>(initialSaveUuid ?? null);
 
   let gameData = $derived(navGameId ? source.games.find((g) => g.gameId === navGameId) : undefined);
@@ -73,12 +75,15 @@
 
   // Activate state tracking
   let activateStates = new SvelteMap<string, ActivateState>();
+  let failReasons = new SvelteMap<string, string>();
+  let failTimers = new Map<string, ReturnType<typeof setTimeout>>();
 
   // Clear activateStates when the game transitions away from "activating"
   $effect(() => {
     for (const game of source.games) {
       if (game.status !== "activating" && activateStates.has(game.gameId)) {
         activateStates.delete(game.gameId);
+        failReasons.delete(game.gameId);
       }
     }
   });
@@ -88,9 +93,32 @@
     return activateStates.get(gameId) ?? "idle";
   }
 
-  function handleActivate(gameId: string): void {
+  async function handleActivate(gameId: string): Promise<void> {
     activateStates.set(gameId, "activating");
-    onactivate?.(gameId);
+    failReasons.delete(gameId);
+    const existing = failTimers.get(gameId);
+    if (existing) clearTimeout(existing);
+    try {
+      await onactivate?.(gameId);
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : "Activation failed";
+      markActivateFailed(gameId, reason);
+    }
+  }
+
+  function markActivateFailed(gameId: string, reason: string): void {
+    activateStates.set(gameId, "failed");
+    failReasons.set(gameId, reason);
+    const existing = failTimers.get(gameId);
+    if (existing) clearTimeout(existing);
+    failTimers.set(
+      gameId,
+      setTimeout(() => {
+        activateStates.delete(gameId);
+        failReasons.delete(gameId);
+        failTimers.delete(gameId);
+      }, 5000),
+    );
   }
 
   // Async notes state
@@ -389,6 +417,7 @@
         <GameCard
           {game}
           activateState={resolvedActivateState(game.gameId, game.status)}
+          failReason={failReasons.get(game.gameId)}
           onactivate={(gameId: string) => {
             handleActivate(gameId);
           }}
