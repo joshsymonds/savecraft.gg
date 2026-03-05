@@ -1085,7 +1085,10 @@ function formatSourceInfo(row: SourceRow): SourceInfo {
     linked: row.user_uuid !== null,
     last_active: row.last_push_at,
     activity: deriveActivity(row.last_push_at),
-    capabilities: { can_rescan: row.can_rescan === 1, can_receive_config: row.can_receive_config === 1 },
+    capabilities: {
+      can_rescan: row.can_rescan === 1,
+      can_receive_config: row.can_receive_config === 1,
+    },
   };
 }
 
@@ -1107,13 +1110,13 @@ function buildLookupResult(row: SourceRow | null, viaCode: boolean): SourceLooku
 
 const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
   linux: {
-    install: "curl -fsSL https://install.savecraft.gg | bash",
+    install: "curl -fSsL https://install.savecraft.gg | bash",
     details:
-      "Downloads signed binaries, verifies Ed25519 signatures, installs to ~/.local/bin/, sets up a systemd user service, and auto-registers the source. The daemon starts immediately and displays a pairing code.",
+      "Downloads signed binaries, verifies Ed25519 signatures, installs to ~/.local/bin/, sets up a systemd user service, and auto-registers the source. The daemon starts immediately and prints a pairing link.",
   },
   windows: {
     install: "Download the installer from https://install.savecraft.gg",
-    details: String.raw`Downloads an MSI installer. Installs the daemon and tray app to C:\Program Files\Savecraft\. Both start automatically on login. The tray app displays a pairing code.`,
+    details: String.raw`Downloads an MSI installer. Installs the daemon and tray app to C:\Program Files\Savecraft\. Both start automatically on login.`,
   },
   macos: {
     install: null,
@@ -1122,7 +1125,7 @@ const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
 };
 
 const PAIRING_GUIDE =
-  "After installing, the daemon displays a 6-digit pairing code. Visit https://savecraft.gg/setup and enter the code to link the source to your account. Once paired, your game saves appear automatically. Codes expire after 20 minutes — if yours has expired, the tray app can generate a new one.";
+  "After installing, the daemon self-registers and displays a pairing link (https://savecraft.gg/link/<code>). Click the link, or enter the 6-digit code on the savecraft.gg homepage. Once paired, your game saves appear automatically. Codes expire after 20 minutes — restart the daemon to generate a new one.";
 
 function buildGuide(platform?: string): SetupGuideResponse["guide"] {
   if (platform) {
@@ -1148,7 +1151,9 @@ export async function getSetupHelp(
 
   // 1. User's linked sources
   const sourceRows = await db
-    .prepare(`SELECT ${SOURCE_COLS} FROM sources WHERE user_uuid = ? ORDER BY last_push_at DESC NULLS LAST`)
+    .prepare(
+      `SELECT ${SOURCE_COLS} FROM sources WHERE user_uuid = ? ORDER BY last_push_at DESC NULLS LAST`,
+    )
     .bind(userUuid)
     .all<SourceRow>();
 

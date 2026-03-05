@@ -51,12 +51,7 @@ export class UserHub extends DurableObject<Env> {
     // No-op — UI→daemon commands will be added later
   }
 
-  webSocketClose(
-    ws: WebSocket,
-    code: number,
-    reason: string,
-    _wasClean: boolean,
-  ): void {
+  webSocketClose(ws: WebSocket, code: number, reason: string, _wasClean: boolean): void {
     const safeCode = code === 1005 ? 1000 : code;
     ws.close(safeCode, reason);
   }

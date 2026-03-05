@@ -1,7 +1,14 @@
 import { env, fetchMock, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, closeWs, connectDaemonWs, connectWs, seedSource, waitForMessage } from "./helpers";
+import {
+  cleanAll,
+  closeWs,
+  connectDaemonWs,
+  connectWs,
+  seedSource,
+  waitForMessage,
+} from "./helpers";
 
 describe("SourceHub", () => {
   beforeEach(cleanAll);
@@ -411,11 +418,15 @@ describe("SourceHub", () => {
     const daemonB = await connectDaemonWs(sourceB.sourceToken);
 
     // Both daemons identify themselves
-    daemonA.send(JSON.stringify({ sourceOnline: { sourceId: sourceA.sourceUuid, version: "0.1.0" } }));
+    daemonA.send(
+      JSON.stringify({ sourceOnline: { sourceId: sourceA.sourceUuid, version: "0.1.0" } }),
+    );
     const configA = await waitForMessage<Record<string, unknown>>(daemonA);
     expect(configA).toHaveProperty("configUpdate");
 
-    daemonB.send(JSON.stringify({ sourceOnline: { sourceId: sourceB.sourceUuid, version: "0.1.0" } }));
+    daemonB.send(
+      JSON.stringify({ sourceOnline: { sourceId: sourceB.sourceUuid, version: "0.1.0" } }),
+    );
     const configB = await waitForMessage<Record<string, unknown>>(daemonB);
     expect(configB).toHaveProperty("configUpdate");
 
@@ -797,9 +808,7 @@ describe("SourceHub", () => {
     const { sourceUuid, sourceToken } = await seedSource(null);
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(
-      JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }),
-    );
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
 
     // SourceHub should process the event without error (no UserHub to forward to)
     // Verify state was stored by accessing the DO directly
@@ -832,9 +841,7 @@ describe("SourceHub", () => {
 
     // Connect daemon before linking
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(
-      JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }),
-    );
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
 
     // Give DO time to process sourceOnline
     await new Promise((resolve) => {

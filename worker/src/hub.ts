@@ -475,7 +475,12 @@ export class SourceHub extends DurableObject<Env> {
       "SELECT source_kind, hostname, can_rescan, can_receive_config FROM sources WHERE source_uuid = ?",
     )
       .bind(sourceUuid)
-      .first<{ source_kind: string; hostname: string | null; can_rescan: number; can_receive_config: number }>();
+      .first<{
+        source_kind: string;
+        hostname: string | null;
+        can_rescan: number;
+        can_receive_config: number;
+      }>();
 
     const meta: SourceMeta = {
       sourceKind: row?.source_kind ?? "daemon",
@@ -681,10 +686,7 @@ export class SourceHub extends DurableObject<Env> {
 
   // ── UserHub forwarding ────────────────────────────────────────────
 
-  private async forwardEventToUserHub(
-    event: string,
-    sourceId: string | undefined,
-  ): Promise<void> {
+  private async forwardEventToUserHub(event: string, sourceId: string | undefined): Promise<void> {
     const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
     if (!userUuid) return;
     try {
