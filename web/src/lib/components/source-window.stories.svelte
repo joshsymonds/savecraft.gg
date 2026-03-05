@@ -213,7 +213,7 @@
         gameId: "d2r",
         name: "Diablo II: Resurrected",
         status: "detected",
-        statusLine: "scanning...",
+        statusLine: "ready to watch",
         saves: [],
       },
       {
@@ -357,7 +357,7 @@
   <div style="width: 700px;">
     <SourceWindow
       source={detectedSource}
-      onactivate={(gameId) => alert(`Activate ${String(gameId)}`)}
+      onactivate={async (gameId) => alert(`Activate ${String(gameId)}`)}
     />
   </div>
 </Story>

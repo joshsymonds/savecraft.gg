@@ -39,26 +39,22 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_saves_source ON saves(source_uuid)`,
   `CREATE TABLE IF NOT EXISTS source_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_uuid TEXT NOT NULL,
     source_uuid TEXT NOT NULL,
     event_type TEXT NOT NULL,
     event_data TEXT NOT NULL,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_source_events_user_source
-    ON source_events(user_uuid, source_uuid, created_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_source_events_source
+    ON source_events(source_uuid, created_at DESC)`,
   `CREATE TABLE IF NOT EXISTS source_configs (
-    user_uuid TEXT NOT NULL,
     source_uuid TEXT NOT NULL,
     game_id TEXT NOT NULL,
     save_path TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     file_extensions TEXT NOT NULL DEFAULT '[]',
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    PRIMARY KEY (user_uuid, source_uuid, game_id)
+    PRIMARY KEY (source_uuid, game_id)
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_source_configs_user_source
-    ON source_configs(user_uuid, source_uuid)`,
   `CREATE TABLE IF NOT EXISTS notes (
     note_id TEXT PRIMARY KEY,
     save_id TEXT NOT NULL REFERENCES saves(uuid),

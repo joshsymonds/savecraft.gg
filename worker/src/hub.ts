@@ -274,9 +274,7 @@ export class SourceHub extends DurableObject<Env> {
     const url = new URL(request.url);
     if (url.pathname === "/push-config" && request.method === "POST") {
       const body = await request.json<{ sourceId: string }>();
-      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
-      if (!userUuid) return Response.json({ error: "No user context" }, { status: 400 });
-      await this.pushConfigToSource(body.sourceId, userUuid);
+      await this.pushConfigToSource(body.sourceId);
       return Response.json({ ok: true });
     }
     if (url.pathname === "/rescan" && request.method === "POST") {
@@ -550,9 +548,7 @@ export class SourceHub extends DurableObject<Env> {
       if (!caps.canReceiveConfig) return;
       const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
       if (!sourceUuid) return;
-      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
-      if (!userUuid) return;
-      await this.pushConfigToSource(sourceUuid, userUuid);
+      await this.pushConfigToSource(sourceUuid);
     } catch {
       // Don't let config push failures break the relay
     }
@@ -595,13 +591,13 @@ export class SourceHub extends DurableObject<Env> {
     }
   }
 
-  private async pushConfigToSource(sourceId: string, userUuid: string): Promise<void> {
+  private async pushConfigToSource(sourceId: string): Promise<void> {
     const rows = await this.env.DB.prepare(
       `SELECT game_id, save_path, enabled, file_extensions
        FROM source_configs
-       WHERE user_uuid = ? AND source_uuid = ?`,
+       WHERE source_uuid = ?`,
     )
-      .bind(userUuid, sourceId)
+      .bind(sourceId)
       .all<{
         game_id: string;
         save_path: string;
@@ -762,25 +758,23 @@ export class SourceHub extends DurableObject<Env> {
       const eventType = rpc.payload.$case;
       if (SourceHub.SKIP_PERSIST.has(eventType)) return;
       if (!sourceId) return;
-      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
-      if (!userUuid) return;
 
       await this.env.DB.prepare(
-        `INSERT INTO source_events (user_uuid, source_uuid, event_type, event_data)
-         VALUES (?, ?, ?, ?)`,
+        `INSERT INTO source_events (source_uuid, event_type, event_data)
+         VALUES (?, ?, ?)`,
       )
-        .bind(userUuid, sourceId, eventType, rawMessage)
+        .bind(sourceId, eventType, rawMessage)
         .run();
 
       await this.env.DB.prepare(
         `DELETE FROM source_events
-         WHERE user_uuid = ? AND source_uuid = ? AND id NOT IN (
+         WHERE source_uuid = ? AND id NOT IN (
            SELECT id FROM source_events
-           WHERE user_uuid = ? AND source_uuid = ?
+           WHERE source_uuid = ?
            ORDER BY created_at DESC LIMIT 100
          )`,
       )
-        .bind(userUuid, sourceId, userUuid, sourceId)
+        .bind(sourceId, sourceId)
         .run();
     } catch {
       // Don't let persistence failures break the relay

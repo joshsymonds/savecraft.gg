@@ -178,16 +178,16 @@ describe("Orphan Source Reaper", () => {
 
     // Create source_events
     await env.DB.prepare(
-      "INSERT INTO source_events (user_uuid, source_uuid, event_type, event_data) VALUES (?, ?, ?, ?)",
+      "INSERT INTO source_events (source_uuid, event_type, event_data) VALUES (?, ?, ?)",
     )
-      .bind("orphan-user", sourceUuid, "sourceOnline", '{"sourceOnline":{}}')
+      .bind(sourceUuid, "sourceOnline", '{"sourceOnline":{}}')
       .run();
 
     // Create source_configs
     await env.DB.prepare(
-      "INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions) VALUES (?, ?, ?, ?, ?, ?)",
+      "INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions) VALUES (?, ?, ?, ?, ?)",
     )
-      .bind("orphan-user", sourceUuid, "d2r", "/saves/d2r", 1, '[".d2s"]')
+      .bind(sourceUuid, "d2r", "/saves/d2r", 1, '[".d2s"]')
       .run();
 
     // Seed R2 data

@@ -29,7 +29,7 @@ function gameStatusLine(status: GameStatus, saves: SaveSummary[]): string {
       return `${String(saves.length)} character${suffix}`;
     }
     case "detected": {
-      return "scanning...";
+      return "ready to watch";
     }
     case "activating": {
       return "activating...";
@@ -112,7 +112,7 @@ function findOrCreateGame(source: Source, gameId: string): SourceGame {
       gameId,
       name: gameDisplayName(gameId),
       status: "detected",
-      statusLine: "scanning...",
+      statusLine: "ready to watch",
       saves: [],
     };
     source.games.push(game);
