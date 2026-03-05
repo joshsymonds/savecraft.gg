@@ -54,19 +54,11 @@
       </div>
 
       <div class="modal-search">
-        <input
-          type="text"
-          placeholder="Search games..."
-          bind:value={search}
-          class="search-input"
-        />
+        <input type="text" placeholder="Search games..." bind:value={search} class="search-input" />
       </div>
       <div class="modal-list">
         {#each filtered as game (game.gameId)}
-          <GamePickerCard
-            {game}
-            onclick={game.watched ? () => onselect?.(game) : undefined}
-          />
+          <GamePickerCard {game} onclick={game.watched ? () => onselect?.(game) : undefined} />
         {:else}
           <div class="empty-results">
             <span class="empty-text">No games matching "{search}"</span>
