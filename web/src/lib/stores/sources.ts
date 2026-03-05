@@ -1,16 +1,16 @@
 import { gameDisplayName } from "$lib/stores/plugins";
-import type { Device, DeviceGame, DeviceStatus, GameStatus, SaveSummary } from "$lib/types/device";
-import type { WireDeviceInfo, WireMessage, WireMessageType } from "$lib/types/wire";
+import type { GameStatus, SaveSummary, Source, SourceGame, SourceStatus } from "$lib/types/source";
+import type { WireMessage, WireMessageType, WireSourceInfo } from "$lib/types/wire";
 import { getMessageType } from "$lib/types/wire";
 import { relativeTime } from "$lib/utils/time";
 import { type Readable, writable } from "svelte/store";
 
-const { subscribe, set, update } = writable<Device[]>([]);
+const { subscribe, set, update } = writable<Source[]>([]);
 
-export const devices: Readable<Device[]> = { subscribe };
+export const sources: Readable<Source[]> = { subscribe };
 
-function resolveDeviceId(msg: WireMessage): string | null {
-  return msg._deviceId ?? null;
+function resolveSourceId(msg: WireMessage): string | null {
+  return msg._sourceId ?? null;
 }
 
 function wireStatusToGameStatus(wireStatus: string | undefined): GameStatus {
@@ -43,12 +43,14 @@ function gameStatusLine(status: GameStatus, saves: SaveSummary[]): string {
   }
 }
 
-function deviceDisplayName(deviceId: string): string {
-  return deviceId.toUpperCase();
+function sourceDisplayName(sourceKind: string | undefined, hostname: string | undefined): string {
+  const kind = (sourceKind ?? "daemon").toUpperCase();
+  if (hostname) return `${kind} · ${hostname.toUpperCase()}`;
+  return kind;
 }
 
-function mapDeviceInfo(d: WireDeviceInfo): Device {
-  const games: DeviceGame[] = (d.games ?? []).map((g) => {
+function mapSourceInfo(d: WireSourceInfo): Source {
+  const games: SourceGame[] = (d.games ?? []).map((g) => {
     const status = wireStatusToGameStatus(g.status);
     const saves: SaveSummary[] = (g.saves ?? []).map((s) => ({
       saveUuid: s.saveUuid ?? "",
@@ -66,36 +68,45 @@ function mapDeviceInfo(d: WireDeviceInfo): Device {
     };
   });
 
-  const deviceStatus: DeviceStatus = d.online ? "online" : "offline";
+  const sourceStatus: SourceStatus = d.online ? "online" : "offline";
 
   return {
-    id: d.deviceId ?? "",
-    name: deviceDisplayName(d.deviceId ?? "UNKNOWN"),
-    status: deviceStatus,
+    id: d.sourceId ?? "",
+    name: sourceDisplayName(d.sourceKind, d.hostname),
+    sourceKind: d.sourceKind ?? "daemon",
+    hostname: d.hostname ?? null,
+    status: sourceStatus,
     version: null,
     lastSeen: relativeTime(d.lastSeen),
+    capabilities: {
+      canRescan: d.canRescan ?? true,
+      canReceiveConfig: d.canReceiveConfig ?? true,
+    },
     games,
   };
 }
 
-function findOrCreateDevice(devs: Device[], deviceId: string): Device {
-  let device = devs.find((d) => d.id === deviceId);
-  if (!device) {
-    device = {
-      id: deviceId,
-      name: deviceDisplayName(deviceId),
+function findOrCreateSource(srcs: Source[], sourceId: string): Source {
+  let source = srcs.find((s) => s.id === sourceId);
+  if (!source) {
+    source = {
+      id: sourceId,
+      name: sourceDisplayName("daemon", undefined),
+      sourceKind: "daemon",
+      hostname: null,
       status: "online",
       version: null,
       lastSeen: "now",
+      capabilities: { canRescan: true, canReceiveConfig: true },
       games: [],
     };
-    devs.push(device);
+    srcs.push(source);
   }
-  return device;
+  return source;
 }
 
-function findOrCreateGame(device: Device, gameId: string): DeviceGame {
-  let game = device.games.find((g) => g.gameId === gameId);
+function findOrCreateGame(source: Source, gameId: string): SourceGame {
+  let game = source.games.find((g) => g.gameId === gameId);
   if (!game) {
     game = {
       gameId,
@@ -104,40 +115,40 @@ function findOrCreateGame(device: Device, gameId: string): DeviceGame {
       statusLine: "scanning...",
       saves: [],
     };
-    device.games.push(game);
+    source.games.push(game);
   }
   return game;
 }
 
-function handleDeviceState(msg: WireMessage): void {
-  const ds = msg.deviceState;
-  if (!ds?.devices) return;
-  set(ds.devices.map((d) => mapDeviceInfo(d)));
+function handleSourceState(msg: WireMessage): void {
+  const ss = msg.sourceState;
+  if (!ss?.sources) return;
+  set(ss.sources.map((s) => mapSourceInfo(s)));
 }
 
-function handleDaemonOnline(msg: WireMessage): void {
-  const data = msg.daemonOnline;
-  if (!data?.deviceId) return;
-  const { deviceId, version } = data;
-  update((devs) => {
-    const device = findOrCreateDevice(devs, deviceId);
-    device.status = "online";
-    device.version = version ?? device.version;
-    device.lastSeen = "now";
-    return [...devs];
+function handleSourceOnline(msg: WireMessage): void {
+  const data = msg.sourceOnline;
+  if (!data?.sourceId) return;
+  const { sourceId, version } = data;
+  update((srcs) => {
+    const source = findOrCreateSource(srcs, sourceId);
+    source.status = "online";
+    source.version = version ?? source.version;
+    source.lastSeen = "now";
+    return [...srcs];
   });
 }
 
-function handleDaemonOffline(msg: WireMessage): void {
-  const data = msg.daemonOffline;
-  if (!data?.deviceId) return;
-  const { deviceId } = data;
-  update((devs) => {
-    const device = devs.find((d) => d.id === deviceId);
-    if (!device) return devs;
-    device.status = "offline";
-    device.lastSeen = "just now";
-    return [...devs];
+function handleSourceOffline(msg: WireMessage): void {
+  const data = msg.sourceOffline;
+  if (!data?.sourceId) return;
+  const { sourceId } = data;
+  update((srcs) => {
+    const source = srcs.find((s) => s.id === sourceId);
+    if (!source) return srcs;
+    source.status = "offline";
+    source.lastSeen = "just now";
+    return [...srcs];
   });
 }
 
@@ -145,8 +156,8 @@ function handleGameStatusChange(
   msg: WireMessage,
   type: "watching" | "gameDetected" | "gameNotFound",
 ): void {
-  const deviceId = resolveDeviceId(msg);
-  if (!deviceId) return;
+  const sourceId = resolveSourceId(msg);
+  if (!sourceId) return;
 
   let gameId: string | undefined;
   let status: GameStatus;
@@ -167,71 +178,71 @@ function handleGameStatusChange(
 
   if (!gameId) return;
 
-  update((devs) => {
-    const device = devs.find((d) => d.id === deviceId);
-    if (!device) return devs;
+  update((srcs) => {
+    const source = srcs.find((s) => s.id === sourceId);
+    if (!source) return srcs;
 
-    const game = findOrCreateGame(device, gameId);
+    const game = findOrCreateGame(source, gameId);
     game.status = status;
     game.statusLine = gameStatusLine(status, game.saves);
     if (path) game.path = path;
     if (status === "watching") game.error = undefined;
-    return [...devs];
+    return [...srcs];
   });
 }
 
 function handleParseFailed(msg: WireMessage): void {
   const pf = msg.parseFailed;
   if (!pf) return;
-  const deviceId = resolveDeviceId(msg);
+  const sourceId = resolveSourceId(msg);
   const gameId = pf.gameId;
-  if (!deviceId || !gameId) return;
+  if (!sourceId || !gameId) return;
 
-  update((devs) => {
-    const device = devs.find((d) => d.id === deviceId);
-    if (!device) return devs;
+  update((srcs) => {
+    const source = srcs.find((s) => s.id === sourceId);
+    if (!source) return srcs;
 
-    const game = findOrCreateGame(device, gameId);
+    const game = findOrCreateGame(source, gameId);
     game.status = "error";
     game.statusLine = pf.message ?? "parse error";
     game.error = pf.message;
-    return [...devs];
+    return [...srcs];
   });
 }
 
 function handleParseCompleted(msg: WireMessage): void {
   const pc = msg.parseCompleted;
   if (!pc) return;
-  const deviceId = resolveDeviceId(msg);
+  const sourceId = resolveSourceId(msg);
   const gameId = pc.gameId;
-  if (!deviceId || !gameId) return;
+  if (!sourceId || !gameId) return;
 
-  update((devs) => {
-    const device = devs.find((d) => d.id === deviceId);
-    if (!device) return devs;
+  update((srcs) => {
+    const source = srcs.find((s) => s.id === sourceId);
+    if (!source) return srcs;
 
-    const game = findOrCreateGame(device, gameId);
+    const game = findOrCreateGame(source, gameId);
     if (game.status === "detected" || game.status === "activating" || game.status === "error") {
       game.status = "watching";
       game.statusLine = gameStatusLine("watching", game.saves);
       game.error = undefined;
     }
-    return [...devs];
+    return [...srcs];
   });
 }
 
 function handlePushCompleted(msg: WireMessage): void {
   const pc = msg.pushCompleted;
   if (!pc) return;
-  const deviceId = resolveDeviceId(msg);
+  const sourceId = resolveSourceId(msg);
   const gameId = pc.gameId;
-  if (!deviceId || !gameId) return;
+  if (!sourceId || !gameId) return;
 
-  update((devs) => {
-    const targetDevice = devs.find((d) => d.id === deviceId);
-    if (!targetDevice) return devs;
+  update((srcs) => {
+    const targetSource = srcs.find((s) => s.id === sourceId);
+    if (!targetSource) return srcs;
 
-    const game = findOrCreateGame(targetDevice, gameId);
+    const game = findOrCreateGame(targetSource, gameId);
 
     if (game.status === "activating") {
       game.status = "watching";
@@ -255,11 +266,11 @@ function handlePushCompleted(msg: WireMessage): void {
       game.statusLine = gameStatusLine(game.status, game.saves);
     }
 
-    return [...devs];
+    return [...srcs];
   });
 }
 
-type DeviceHandler = (msg: WireMessage) => void;
+type SourceHandler = (msg: WireMessage) => void;
 
 function handleWatching(msg: WireMessage): void {
   handleGameStatusChange(msg, "watching");
@@ -276,17 +287,17 @@ function handleGameNotFound(msg: WireMessage): void {
 function handleGamesDiscovered(msg: WireMessage): void {
   const data = msg.gamesDiscovered;
   if (!data?.games) return;
-  const deviceId = resolveDeviceId(msg);
-  if (!deviceId) return;
+  const sourceId = resolveSourceId(msg);
+  if (!sourceId) return;
   const games = data.games;
 
-  update((devs) => {
-    const device = devs.find((d) => d.id === deviceId);
-    if (!device) return devs;
+  update((srcs) => {
+    const source = srcs.find((s) => s.id === sourceId);
+    if (!source) return srcs;
 
     for (const discovered of games) {
       if (!discovered.gameId) continue;
-      const existing = device.games.find((g) => g.gameId === discovered.gameId);
+      const existing = source.games.find((g) => g.gameId === discovered.gameId);
       if (existing) {
         // Don't downgrade from watching/error — only upgrade from not_found
         if (existing.status === "not_found") {
@@ -295,7 +306,7 @@ function handleGamesDiscovered(msg: WireMessage): void {
         }
         if (discovered.name) existing.name = discovered.name;
       } else {
-        device.games.push({
+        source.games.push({
           gameId: discovered.gameId,
           name: discovered.name ?? gameDisplayName(discovered.gameId),
           status: "detected",
@@ -304,14 +315,14 @@ function handleGamesDiscovered(msg: WireMessage): void {
         });
       }
     }
-    return [...devs];
+    return [...srcs];
   });
 }
 
-const DEVICE_HANDLERS: Partial<Record<WireMessageType, DeviceHandler>> = {
-  deviceState: handleDeviceState,
-  daemonOnline: handleDaemonOnline,
-  daemonOffline: handleDaemonOffline,
+const SOURCE_HANDLERS: Partial<Record<WireMessageType, SourceHandler>> = {
+  sourceState: handleSourceState,
+  sourceOnline: handleSourceOnline,
+  sourceOffline: handleSourceOffline,
   watching: handleWatching,
   gameDetected: handleGameDetected,
   gameNotFound: handleGameNotFound,
@@ -321,25 +332,25 @@ const DEVICE_HANDLERS: Partial<Record<WireMessageType, DeviceHandler>> = {
   pushCompleted: handlePushCompleted,
 };
 
-export function dispatchToDevices(msg: WireMessage): void {
+export function dispatchToSources(msg: WireMessage): void {
   const type = getMessageType(msg);
   if (!type) return;
-  const handler = DEVICE_HANDLERS[type];
+  const handler = SOURCE_HANDLERS[type];
   if (handler) handler(msg);
 }
 
-export function setGameStatus(deviceId: string, gameId: string, status: GameStatus): void {
-  update((devs) => {
-    const device = devs.find((d) => d.id === deviceId);
-    if (!device) return devs;
-    const game = device.games.find((g) => g.gameId === gameId);
-    if (!game) return devs;
+export function setGameStatus(sourceId: string, gameId: string, status: GameStatus): void {
+  update((srcs) => {
+    const source = srcs.find((s) => s.id === sourceId);
+    if (!source) return srcs;
+    const game = source.games.find((g) => g.gameId === gameId);
+    if (!game) return srcs;
     game.status = status;
     game.statusLine = gameStatusLine(status, game.saves);
-    return [...devs];
+    return [...srcs];
   });
 }
 
-export function resetDevices(): void {
+export function resetSources(): void {
   set([]);
 }

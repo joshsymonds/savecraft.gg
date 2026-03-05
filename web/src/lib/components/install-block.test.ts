@@ -38,16 +38,16 @@ describe("InstallBlock", () => {
     mockListApiKeys.mockResolvedValue([]);
   });
 
-  describe("prominent mode — install flow", () => {
+  describe("prominent mode — install + pairing flow", () => {
     it("renders GET STARTED heading", () => {
       render(InstallBlock, { props: { prominent: true } });
       expect(screen.getByText("GET STARTED")).toBeInTheDocument();
     });
 
-    it("renders what happens next steps", () => {
+    it("renders step 1 (Install) and step 2 (Enter Pairing Code)", () => {
       render(InstallBlock, { props: { prominent: true } });
-      expect(screen.getByText(/systemd service/)).toBeInTheDocument();
-      expect(screen.getByText(/appears on this page/i)).toBeInTheDocument();
+      expect(screen.getByText("Install")).toBeInTheDocument();
+      expect(screen.getByText("Enter Pairing Code")).toBeInTheDocument();
     });
 
     it("renders step numbers", () => {
@@ -56,6 +56,55 @@ describe("InstallBlock", () => {
       expect(steps).toHaveLength(2);
       expect(steps[0]!.textContent).toBe("1");
       expect(steps[1]!.textContent).toBe("2");
+    });
+
+    it("renders pairing code input with PAIR button", () => {
+      const { container } = render(InstallBlock, { props: { prominent: true } });
+      const input = container.querySelector(".code-input") as HTMLInputElement;
+      expect(input).not.toBeNull();
+      expect(input.maxLength).toBe(6);
+      expect(screen.getByText("PAIR")).toBeInTheDocument();
+    });
+
+    it("PAIR button is disabled until 6 characters entered", async () => {
+      const { container } = render(InstallBlock, { props: { prominent: true } });
+      const pairBtn = screen.getByText("PAIR");
+      expect(pairBtn).toBeDisabled();
+
+      const input = container.querySelector(".code-input") as HTMLInputElement;
+      await userEvent.type(input, "482913");
+      expect(pairBtn).not.toBeDisabled();
+    });
+
+    it("calls onsubmit when PAIR clicked with valid code", async () => {
+      const onsubmit = vi.fn();
+      const { container } = render(InstallBlock, { props: { prominent: true, onsubmit } });
+
+      const input = container.querySelector(".code-input") as HTMLInputElement;
+      await userEvent.type(input, "482913");
+      await userEvent.click(screen.getByText("PAIR"));
+
+      expect(onsubmit).toHaveBeenCalledWith("482913");
+    });
+
+    it("calls onsubmit when Enter pressed with valid code", async () => {
+      const onsubmit = vi.fn();
+      const { container } = render(InstallBlock, { props: { prominent: true, onsubmit } });
+
+      const input = container.querySelector(".code-input") as HTMLInputElement;
+      await userEvent.type(input, "482913{Enter}");
+
+      expect(onsubmit).toHaveBeenCalledWith("482913");
+    });
+
+    it("clears input after successful submit", async () => {
+      const onsubmit = vi.fn();
+      const { container } = render(InstallBlock, { props: { prominent: true, onsubmit } });
+
+      const input = container.querySelector(".code-input") as HTMLInputElement;
+      await userEvent.type(input, "482913{Enter}");
+
+      expect(input.value).toBe("");
     });
   });
 
@@ -67,11 +116,10 @@ describe("InstallBlock", () => {
       expect(cmdText).toContain("install.savecraft.gg");
     });
 
-    it("shows install hint about linking", () => {
+    it("shows install hint with path and service info", () => {
       render(InstallBlock, { props: { prominent: true } });
-      expect(
-        screen.getByText("The installer shows a link to connect your device."),
-      ).toBeInTheDocument();
+      expect(screen.getByText(/~\/\.local\/bin\//)).toBeInTheDocument();
+      expect(screen.getByText(/systemd service/)).toBeInTheDocument();
     });
 
     it("does not show Windows download button", () => {
@@ -103,44 +151,40 @@ describe("InstallBlock", () => {
       expect(link!.href).toMatch(/\.msi$/);
     });
 
-    it("shows Windows-specific next steps", () => {
+    it("shows Windows-specific install hint", () => {
       render(InstallBlock, { props: { prominent: true } });
       expect(screen.getByText(/Program Files/)).toBeInTheDocument();
       expect(screen.getByText(/Starts on login/)).toBeInTheDocument();
     });
-
-    it("shows Windows-specific install hint", () => {
-      render(InstallBlock, { props: { prominent: true } });
-      expect(screen.getByText(/follow the link in the system tray/i)).toBeInTheDocument();
-    });
   });
 
   describe("compact mode", () => {
-    it("renders ADD ANOTHER DEVICE toggle", () => {
+    it("renders ADD ANOTHER SOURCE toggle", () => {
       render(InstallBlock, { props: { prominent: false } });
-      expect(screen.getByText("ADD ANOTHER DEVICE")).toBeInTheDocument();
+      expect(screen.getByText("ADD ANOTHER SOURCE")).toBeInTheDocument();
     });
 
     it("does not show install content when collapsed", () => {
       render(InstallBlock, { props: { prominent: false } });
-      expect(screen.queryByText("Install Daemon")).not.toBeInTheDocument();
+      expect(screen.queryByText("Install")).not.toBeInTheDocument();
     });
 
-    it("shows install flow when expanded", async () => {
+    it("shows install and pairing sections when expanded", async () => {
       render(InstallBlock, { props: { prominent: false } });
 
-      await userEvent.click(screen.getByText("ADD ANOTHER DEVICE"));
-      expect(screen.getByText("Install Daemon")).toBeInTheDocument();
+      await userEvent.click(screen.getByText("ADD ANOTHER SOURCE"));
+      expect(screen.getByText("Install")).toBeInTheDocument();
+      expect(screen.getByText("Enter Pairing Code")).toBeInTheDocument();
     });
 
     it("collapses when toggle clicked again", async () => {
       render(InstallBlock, { props: { prominent: false } });
 
-      await userEvent.click(screen.getByText("ADD ANOTHER DEVICE"));
-      expect(screen.getByText("Install Daemon")).toBeInTheDocument();
+      await userEvent.click(screen.getByText("ADD ANOTHER SOURCE"));
+      expect(screen.getByText("Install")).toBeInTheDocument();
 
-      await userEvent.click(screen.getByText("ADD ANOTHER DEVICE"));
-      expect(screen.queryByText("Install Daemon")).not.toBeInTheDocument();
+      await userEvent.click(screen.getByText("ADD ANOTHER SOURCE"));
+      expect(screen.queryByText("Install")).not.toBeInTheDocument();
     });
   });
 

@@ -1,6 +1,6 @@
 <!--
   @component
-  Devices page: device cards, activity feed sidebar, inline install flow.
+  Sources page: source cards, activity feed sidebar, inline install flow.
 -->
 <script lang="ts">
   import { createNote, deleteNote, fetchNotes, toNoteSummary, updateNote } from "$lib/api/client";
@@ -8,31 +8,31 @@
     ActivityEvent,
     ConfigModal,
     ConnectCard,
-    DeviceWindow,
+    SourceWindow,
     InstallBlock,
     LinkingCard,
     StatusDot,
   } from "$lib/components";
   import { activateGame } from "$lib/stores/activation";
   import { activityEvents } from "$lib/stores/activity";
-  import { devices, setGameStatus } from "$lib/stores/devices";
+  import { sources, setGameStatus } from "$lib/stores/sources";
   import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
   import { pendingLinkCode } from "$lib/stores/link-code";
   import {
     cancelLink,
     dismissLinkError,
     linkCode,
-    linkedDeviceId,
+    linkedSourceId,
     linkError,
     linkState,
     submitLinkCode,
   } from "$lib/stores/link-flow";
-  import type { Device, DeviceStatus } from "$lib/types/device";
+  import type { Source, SourceStatus } from "$lib/types/source";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
 
   const COLLAPSED_EVENT_COUNT = 8;
 
-  let configDeviceId = $state<string | null>(null);
+  let configSourceId = $state<string | null>(null);
   let activityExpanded = $state(false);
   let showLinkInput = $state(false);
   let wasManualInput = $state(false);
@@ -73,8 +73,8 @@
   );
   let hiddenCount = $derived($activityEvents.length - COLLAPSED_EVENT_COUNT);
 
-  function rescan(device: Device): void {
-    for (const game of device.games) {
+  function rescan(source: Source): void {
+    for (const game of source.games) {
       if (game.status !== "not_found") {
         send(JSON.stringify({ rescanGame: { gameId: game.gameId } }));
       }
@@ -86,12 +86,12 @@
     send(JSON.stringify({ discoverGames: {} }));
   }
 
-  async function handleActivate(deviceId: string, gameId: string): Promise<void> {
+  async function handleActivate(sourceId: string, gameId: string): Promise<void> {
     try {
-      await activateGame(deviceId, gameId);
-      setGameStatus(deviceId, gameId, "activating");
+      await activateGame(sourceId, gameId);
+      setGameStatus(sourceId, gameId, "activating");
     } catch {
-      // DeviceWindow handles its own activate states internally
+      // SourceWindow handles its own activate states internally
     }
   }
 
@@ -102,7 +102,7 @@
     disconnected: "OFFLINE",
   };
 
-  const CONNECTION_STATUS: Record<ConnectionStatus, DeviceStatus> = {
+  const CONNECTION_STATUS: Record<ConnectionStatus, SourceStatus> = {
     connected: "online",
     connecting: "offline",
     reconnecting: "offline",
@@ -111,12 +111,12 @@
 </script>
 
 <svelte:head>
-  <title>Devices — Savecraft</title>
+  <title>Sources — Savecraft</title>
 </svelte:head>
 
-<div class="devices-layout">
-  <!-- Main: device cards -->
-  <main class="devices">
+<div class="sources-layout">
+  <!-- Main: source cards -->
+  <main class="sources">
     {#if $linkState === "linking"}
       <LinkingCard cardState="linking" code={$linkCode} ondismiss={handleCancelLink} />
     {:else if $linkState === "error"}
@@ -129,34 +129,33 @@
       />
     {/if}
 
-    {#if $devices.length === 0}
+    {#if $sources.length === 0}
       {#if $connectionStatus === "connecting"}
         <div class="empty-state">
           <span class="empty-text">Connecting...</span>
         </div>
       {:else if $linkState !== "linking"}
-        <InstallBlock prominent={true} />
+        <InstallBlock prominent={true} onsubmit={handleManualLink} />
       {/if}
     {:else}
       <ConnectCard />
 
       <div class="section-header">
-        <span class="section-label">DEVICES</span>
-        <span class="device-count">{$devices.length} connected</span>
+        <span class="section-label">SOURCES</span>
+        <span class="source-count">{$sources.length} connected</span>
         {#if $linkState === "idle" && !showLinkInput}
-          <button class="add-device-btn" onclick={() => (showLinkInput = true)}>+ ADD DEVICE</button
-          >
+          <button class="add-source-btn" onclick={() => (showLinkInput = true)}>+ PAIR</button>
         {/if}
       </div>
 
-      {#each $devices as device (device.id)}
-        <DeviceWindow
-          {device}
-          justLinked={device.id === $linkedDeviceId}
-          onrescan={() => rescan(device)}
+      {#each $sources as source (source.id)}
+        <SourceWindow
+          {source}
+          justLinked={source.id === $linkedSourceId}
+          onrescan={() => rescan(source)}
           ondiscover={discover}
-          onconfig={() => (configDeviceId = device.id)}
-          onactivate={(gameId: string) => void handleActivate(device.id, gameId)}
+          onconfig={() => (configSourceId = source.id)}
+          onactivate={(gameId: string) => void handleActivate(source.id, gameId)}
           discoveryPending={$discoveryPending}
           loadNotes={async (saveUuid) => {
             const notes = await fetchNotes(saveUuid);
@@ -174,7 +173,7 @@
         />
       {/each}
 
-      <InstallBlock prominent={false} />
+      <InstallBlock prominent={false} onsubmit={handleManualLink} />
     {/if}
   </main>
 
@@ -217,20 +216,20 @@
   </aside>
 </div>
 
-{#if configDeviceId}
-  <ConfigModal deviceId={configDeviceId} onclose={() => (configDeviceId = null)} />
+{#if configSourceId}
+  <ConfigModal sourceId={configSourceId} onclose={() => (configSourceId = null)} />
 {/if}
 
 <style>
-  .devices-layout {
+  .sources-layout {
     display: grid;
     grid-template-columns: 1fr 380px;
     height: 100%;
   }
 
-  /* -- Devices area ----------------------------------------- */
+  /* -- Sources area ----------------------------------------- */
 
-  .devices {
+  .sources {
     padding: 24px 28px;
     display: flex;
     flex-direction: column;
@@ -252,14 +251,14 @@
     letter-spacing: 2px;
   }
 
-  .device-count {
+  .source-count {
     font-family: var(--font-body);
     font-size: 16px;
     color: var(--color-text-dim);
     flex: 1;
   }
 
-  .add-device-btn {
+  .add-source-btn {
     font-family: var(--font-pixel);
     font-size: 10px;
     color: var(--color-gold);
@@ -272,7 +271,7 @@
     transition: all 0.15s;
   }
 
-  .add-device-btn:hover {
+  .add-source-btn:hover {
     background: rgba(200, 168, 78, 0.1);
     border-color: var(--color-gold);
   }

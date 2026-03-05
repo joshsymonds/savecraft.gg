@@ -1,10 +1,10 @@
 <!--
   @component
-  Phantom device entry shown during the device linking flow.
-  Mimics DeviceWindow shape (Panel + WindowTitleBar) with input/linking/error states.
+  Phantom entry shown during the pairing flow.
+  Mimics SourceWindow shape (Panel + WindowTitleBar) with input/linking/error states.
 
-  - input: code entry field for manual linking
-  - linking: spinner + "Connecting to device..."
+  - input: pairing code entry field
+  - linking: spinner + "Connecting..."
   - error: error message + dismiss button
 -->
 <script lang="ts">
@@ -52,13 +52,13 @@
 <div class="linking-card">
   <Panel accent={ACCENT[cardState]}>
     {#if cardState === "input"}
-      <WindowTitleBar activeIcon="🔗" activeLabel="ADD DEVICE">
+      <WindowTitleBar activeIcon="🔗" activeLabel="ENTER PAIRING CODE">
         {#snippet right()}
           <button class="dismiss-btn" onclick={ondismiss}>CANCEL</button>
         {/snippet}
       </WindowTitleBar>
       <div class="input-content">
-        <span class="input-label">Enter the 6-digit code from your daemon</span>
+        <span class="input-label">Enter the 6-digit pairing code</span>
         <div class="input-row">
           <input
             type="text"
@@ -74,7 +74,7 @@
         </div>
       </div>
     {:else if cardState === "linking"}
-      <WindowTitleBar activeIcon="🔗" activeLabel="LINKING DEVICE" activeSublabel="Code {code}">
+      <WindowTitleBar activeIcon="🔗" activeLabel="PAIRING" activeSublabel="Code {code}">
         {#snippet right()}
           <div class="linking-actions">
             <div class="spinner-badge">
@@ -87,10 +87,10 @@
         {/snippet}
       </WindowTitleBar>
       <div class="linking-content">
-        <span class="linking-message">Connecting to device...</span>
+        <span class="linking-message">Connecting...</span>
       </div>
     {:else}
-      <WindowTitleBar activeIcon="🔗" activeLabel="LINKING FAILED">
+      <WindowTitleBar activeIcon="🔗" activeLabel="PAIRING FAILED">
         {#snippet right()}
           <button class="dismiss-btn" onclick={ondismiss}>DISMISS</button>
         {/snippet}

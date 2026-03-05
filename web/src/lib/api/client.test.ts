@@ -10,9 +10,9 @@ vi.mock("$env/static/public", () => ({
 }));
 
 const { getToken } = await import("$lib/auth/clerk");
-const { linkDevice } = await import("./client");
+const { linkSource } = await import("./client");
 
-describe("linkDevice", () => {
+describe("linkSource", () => {
   beforeEach(() => {
     vi.mocked(getToken).mockResolvedValue("test-token");
     globalThis.fetch = vi.fn();
@@ -22,14 +22,14 @@ describe("linkDevice", () => {
     vi.restoreAllMocks();
   });
 
-  it("POSTs to /api/v1/device/link with code and auth", async () => {
+  it("POSTs to /api/v1/source/link with code and auth", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(
-      new Response(JSON.stringify({ device_uuid: "dev-123" }), { status: 200 }),
+      new Response(JSON.stringify({ source_uuid: "dev-123" }), { status: 200 }),
     );
 
-    const result = await linkDevice("482913");
+    const result = await linkSource("482913");
 
-    expect(globalThis.fetch).toHaveBeenCalledWith("https://api.test/api/v1/device/link", {
+    expect(globalThis.fetch).toHaveBeenCalledWith("https://api.test/api/v1/source/link", {
       method: "POST",
       headers: {
         Authorization: "Bearer test-token",
@@ -37,7 +37,7 @@ describe("linkDevice", () => {
       },
       body: JSON.stringify({ code: "482913" }),
     });
-    expect(result).toEqual({ device_uuid: "dev-123" });
+    expect(result).toEqual({ source_uuid: "dev-123" });
   });
 
   it("throws on 404 (invalid or expired code)", async () => {
@@ -45,18 +45,18 @@ describe("linkDevice", () => {
       new Response("Invalid or expired code", { status: 404 }),
     );
 
-    await expect(linkDevice("999999")).rejects.toThrow("Invalid or expired code");
+    await expect(linkSource("999999")).rejects.toThrow("Invalid or expired code");
   });
 
   it("throws on 400 (malformed code)", async () => {
     vi.mocked(globalThis.fetch).mockResolvedValue(new Response("Invalid code", { status: 400 }));
 
-    await expect(linkDevice("abc")).rejects.toThrow("Invalid code");
+    await expect(linkSource("abc")).rejects.toThrow("Invalid code");
   });
 
   it("throws on 401 when not authenticated", async () => {
     vi.mocked(getToken).mockResolvedValue(null);
 
-    await expect(linkDevice("482913")).rejects.toThrow("Not authenticated");
+    await expect(linkSource("482913")).rejects.toThrow("Not authenticated");
   });
 });

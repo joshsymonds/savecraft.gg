@@ -892,9 +892,10 @@ export async function searchSaves(
     sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
            WHERE search_index MATCH ? AND save_id = ?
+             AND save_id IN (SELECT s.uuid FROM saves s JOIN sources src ON s.source_uuid = src.source_uuid WHERE src.user_uuid = ?)
            ORDER BY rank
            LIMIT 20`;
-    params.push(saveId);
+    params.push(saveId, userUuid);
   } else {
     sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index

@@ -48,7 +48,7 @@
       <div
         style="padding: 16px; font-family: var(--font-body); font-size: 18px; color: var(--color-text-muted);"
       >
-        Toolbar buttons shown in a device title bar context.
+        Toolbar buttons shown in a source title bar context.
       </div>
     </Panel>
   </div>

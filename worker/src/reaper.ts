@@ -41,6 +41,27 @@ export async function reapOrphanSources(
       cursor = listed.cursor;
     }
 
+    // Find save UUIDs for this source (needed for FK-dependent tables)
+    const saveRows = await db
+      .prepare("SELECT uuid FROM saves WHERE source_uuid = ?")
+      .bind(orphan.source_uuid)
+      .all<{ uuid: string }>();
+
+    for (const save of saveRows.results) {
+      await db.prepare("DELETE FROM notes WHERE save_id = ?").bind(save.uuid).run();
+      await db.prepare("DELETE FROM search_index WHERE save_id = ?").bind(save.uuid).run();
+    }
+
+    // Delete source-level tables
+    await db
+      .prepare("DELETE FROM source_events WHERE source_uuid = ?")
+      .bind(orphan.source_uuid)
+      .run();
+    await db
+      .prepare("DELETE FROM source_configs WHERE source_uuid = ?")
+      .bind(orphan.source_uuid)
+      .run();
+
     // Delete saves belonging to this source
     await db.prepare("DELETE FROM saves WHERE source_uuid = ?").bind(orphan.source_uuid).run();
 

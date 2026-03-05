@@ -1,6 +1,6 @@
 import { PUBLIC_API_URL } from "$env/static/public";
 import { getToken } from "$lib/auth/clerk";
-import type { NoteSource, NoteSummary } from "$lib/types/device";
+import type { NoteSource, NoteSummary } from "$lib/types/source";
 import { relativeTime } from "$lib/utils/time";
 
 class ApiError extends Error {
@@ -78,7 +78,7 @@ export interface PluginManifest {
   coverage: string;
 }
 
-// ── Device config types ──────────────────────────────────────
+// ── Source config types ──────────────────────────────────────
 
 export interface GameConfigInput {
   savePath: string;
@@ -107,20 +107,20 @@ export async function fetchPluginManifest(): Promise<Record<string, PluginManife
   return data.plugins;
 }
 
-export async function fetchDeviceConfig(
-  deviceId: string,
+export async function fetchSourceConfig(
+  sourceId: string,
 ): Promise<Record<string, GameConfigInput>> {
   const data = await request<{ games: Record<string, GameConfigInput> }>(
-    `/api/v1/devices/${deviceId}/config`,
+    `/api/v1/sources/${sourceId}/config`,
   );
   return data.games;
 }
 
-export async function saveDeviceConfig(
-  deviceId: string,
+export async function saveSourceConfig(
+  sourceId: string,
   games: Record<string, GameConfigInput>,
 ): Promise<void> {
-  await mutate<{ ok: boolean }>("PUT", `/api/v1/devices/${deviceId}/config`, { games });
+  await mutate<{ ok: boolean }>("PUT", `/api/v1/sources/${sourceId}/config`, { games });
 }
 
 // ── API Key types ─────────────────────────────────────────────
@@ -201,14 +201,14 @@ export function toNoteSummary(note: ApiNote): NoteSummary {
   };
 }
 
-// ── Device Linking ────────────────────────────────────────────
+// ── Source Linking ────────────────────────────────────────────
 
-export interface LinkDeviceResponse {
-  device_uuid: string;
+export interface LinkSourceResponse {
+  source_uuid: string;
 }
 
-export async function linkDevice(code: string): Promise<LinkDeviceResponse> {
-  return mutate<LinkDeviceResponse>("POST", "/api/v1/device/link", { code });
+export async function linkSource(code: string): Promise<LinkSourceResponse> {
+  return mutate<LinkSourceResponse>("POST", "/api/v1/source/link", { code });
 }
 
 // ── MCP Status ────────────────────────────────────────────────

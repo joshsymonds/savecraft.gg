@@ -359,7 +359,7 @@ async function handleSourceConfig(
   const pathParts = url.pathname.split("/");
   const sourceId = pathParts[4];
   if (!validateId(sourceId)) {
-    return Response.json({ error: "Invalid source_id" }, { status: 400 });
+    return Response.json({ error: "Invalid source_uuid" }, { status: 400 });
   }
 
   if (request.method === "GET") {

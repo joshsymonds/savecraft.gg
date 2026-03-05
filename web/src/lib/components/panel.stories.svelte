@@ -25,7 +25,7 @@
         <div
           style="font-family: var(--font-body); font-size: 20px; color: var(--color-text); line-height: 1.4;"
         >
-          No devices connected yet. Install the Savecraft daemon on your gaming PC or Steam Deck to
+          No sources connected yet. Install the Savecraft daemon on your gaming PC or Steam Deck to
           get started.
         </div>
       </div>
@@ -33,8 +33,8 @@
   </div>
 </Story>
 
-<!-- Device card — online Steam Deck -->
-<Story name="DeviceCard">
+<!-- Source card — online Steam Deck -->
+<Story name="SourceCard">
   <div style="width: 520px;">
     <Panel accent="#5abe8a40">
       <!-- Title bar -->
@@ -92,8 +92,8 @@
   </div>
 </Story>
 
-<!-- Offline device -->
-<Story name="OfflineDevice">
+<!-- Offline source -->
+<Story name="OfflineSource">
   <div style="width: 520px;">
     <Panel>
       <div
@@ -158,7 +158,7 @@
           * CONNECTED
         </div>
         <div style="font-family: var(--font-body); font-size: 18px; color: var(--color-text);">
-          Device is online and syncing saves.
+          Source is online and syncing saves.
         </div>
       </div>
     </Panel>

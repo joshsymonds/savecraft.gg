@@ -7,7 +7,7 @@
   import { authState, getClerk, initializeClerk } from "$lib/auth/clerk";
   import UpdateBanner from "$lib/components/UpdateBanner.svelte";
   import { resetActivity } from "$lib/stores/activity";
-  import { resetDevices } from "$lib/stores/devices";
+  import { resetSources } from "$lib/stores/sources";
   import { loadPlugins } from "$lib/stores/plugins";
   import { connect, disconnect } from "$lib/ws/client";
   import { handleMessage } from "$lib/ws/dispatch";
@@ -55,7 +55,7 @@
       connect(handleMessage);
       return () => {
         disconnect();
-        resetDevices();
+        resetSources();
         resetActivity();
       };
     }

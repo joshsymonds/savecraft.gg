@@ -11,16 +11,16 @@ export interface WireSaveIdentity {
   extra?: Record<string, unknown>;
 }
 
-// --- Daemon lifecycle ---
+// --- Source lifecycle ---
 
-export interface WireDaemonOnline {
-  deviceId?: string;
+export interface WireSourceOnline {
+  sourceId?: string;
   version?: string;
   timestamp?: string;
 }
 
-export interface WireDaemonOffline {
-  deviceId?: string;
+export interface WireSourceOffline {
+  sourceId?: string;
   timestamp?: string;
 }
 
@@ -136,15 +136,19 @@ export interface WireGameInfo {
   lastActivity?: string;
 }
 
-export interface WireDeviceInfo {
-  deviceId?: string;
+export interface WireSourceInfo {
+  sourceId?: string;
   online?: boolean;
   lastSeen?: string;
   games?: WireGameInfo[];
+  sourceKind?: string;
+  hostname?: string;
+  canRescan?: boolean;
+  canReceiveConfig?: boolean;
 }
 
-export interface WireDeviceState {
-  devices?: WireDeviceInfo[];
+export interface WireSourceState {
+  sources?: WireSourceInfo[];
 }
 
 // --- User actions ---
@@ -176,14 +180,14 @@ export interface WireGamesDiscovered {
 export interface WireMetadata {
   /** Injected by hub on replayed events — D1 created_at timestamp (ISO 8601). */
   _ts?: string;
-  /** Injected by hub — source device ID for the daemon connection that sent this event. */
-  _deviceId?: string;
+  /** Injected by hub — source UUID for the connection that sent this event. */
+  _sourceId?: string;
 }
 
 /** Proto payload fields — one per message type. */
 export interface WirePayload {
-  daemonOnline?: WireDaemonOnline;
-  daemonOffline?: WireDaemonOffline;
+  sourceOnline?: WireSourceOnline;
+  sourceOffline?: WireSourceOffline;
   scanStarted?: WireScanStarted;
   scanCompleted?: WireScanCompleted;
   gameDetected?: WireGameDetected;
@@ -198,7 +202,7 @@ export interface WirePayload {
   pushFailed?: WirePushFailed;
   pluginUpdated?: WirePluginUpdated;
   pluginDownloadFailed?: WirePluginDownloadFailed;
-  deviceState?: WireDeviceState;
+  sourceState?: WireSourceState;
   testPathResult?: WireTestPathResult;
   gamesDiscovered?: WireGamesDiscovered;
 }
@@ -207,9 +211,9 @@ export type WireMessage = WireMetadata & WirePayload;
 export type WireMessageType = keyof WirePayload;
 
 const MESSAGE_KEYS = [
-  "deviceState",
-  "daemonOnline",
-  "daemonOffline",
+  "sourceState",
+  "sourceOnline",
+  "sourceOffline",
   "scanStarted",
   "scanCompleted",
   "gameDetected",

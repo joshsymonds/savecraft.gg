@@ -1,11 +1,11 @@
-import type { DeviceGame } from "$lib/types/device";
+import type { SourceGame } from "$lib/types/source";
 import { cleanup, render, screen } from "@testing-library/svelte";
 import { userEvent } from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import GameCard from "./GameCard.svelte";
 
-function makeGame(overrides: Partial<DeviceGame> = {}): DeviceGame {
+function makeGame(overrides: Partial<SourceGame> = {}): SourceGame {
   return {
     gameId: "d2r",
     name: "Diablo II: Resurrected",

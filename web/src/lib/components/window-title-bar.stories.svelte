@@ -9,7 +9,7 @@
   });
 </script>
 
-<Story name="DeviceLevel">
+<Story name="SourceLevel">
   <div style="width: 700px; background: var(--color-panel-bg);">
     <WindowTitleBar
       activeIcon="🖥"
@@ -23,7 +23,7 @@
 <Story name="GameLevel">
   <div style="width: 700px; background: var(--color-panel-bg);">
     <WindowTitleBar
-      parents={[{ icon: "🖥", label: "DESKTOP-PC", onclick: () => alert("back to device") }]}
+      parents={[{ icon: "🖥", label: "DESKTOP-PC", onclick: () => alert("back to source") }]}
       activeIcon="⚔"
       activeLabel="Diablo II: Resurrected"
       activeSublabel="3 characters loaded"
@@ -35,7 +35,7 @@
   <div style="width: 700px; background: var(--color-panel-bg);">
     <WindowTitleBar
       parents={[
-        { icon: "🖥", label: "DESKTOP-PC", onclick: () => alert("back to device") },
+        { icon: "🖥", label: "DESKTOP-PC", onclick: () => alert("back to source") },
         { icon: "⚔", label: "D2R", onclick: () => alert("back to game") },
       ]}
       activeLabel="Hammerdin"
@@ -44,7 +44,7 @@
   </div>
 </Story>
 
-<Story name="OfflineDevice">
+<Story name="OfflineSource">
   <div style="width: 700px; background: var(--color-panel-bg);">
     <WindowTitleBar
       activeIcon="🖥"

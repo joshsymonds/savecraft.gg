@@ -1,6 +1,6 @@
 <!--
   @component
-  Breadcrumb-aware title bar for device window.
+  Breadcrumb-aware title bar for source window.
   Shows clickable parent chips with ▸ separators, then the active label (not clickable).
 -->
 <script lang="ts">

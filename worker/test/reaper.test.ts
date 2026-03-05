@@ -143,6 +143,83 @@ describe("Orphan Source Reaper", () => {
     expect(save).toBeNull();
   });
 
+  it("cleans up all FK-dependent tables (notes, search_index, source_events, source_configs)", async () => {
+    const sourceUuid = "orphan-full";
+    const saveUuid = "save-full-1";
+    const noteId = "note-full-1";
+
+    await insertSource({ sourceUuid, createdAt: daysAgo(10), lastPushAt: null });
+
+    // Create a save
+    await env.DB.prepare(
+      "INSERT INTO saves (uuid, source_uuid, game_id, save_name) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveUuid, sourceUuid, "d2r", "Hammerdin")
+      .run();
+
+    // Create a note for the save
+    await env.DB.prepare(
+      "INSERT INTO notes (note_id, save_id, user_uuid, title, content, source) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+      .bind(noteId, saveUuid, "orphan-user", "Build Guide", "Hammerdin guide content", "user")
+      .run();
+
+    // Create search index entries
+    await env.DB.prepare(
+      "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+      .bind(saveUuid, "Hammerdin", "section", "skills", "Skills", '{"hammers": 20}')
+      .run();
+    await env.DB.prepare(
+      "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+      .bind(saveUuid, "Hammerdin", "note", noteId, "Build Guide", "Hammerdin guide content")
+      .run();
+
+    // Create source_events
+    await env.DB.prepare(
+      "INSERT INTO source_events (user_uuid, source_uuid, event_type, event_data) VALUES (?, ?, ?, ?)",
+    )
+      .bind("orphan-user", sourceUuid, "sourceOnline", '{"sourceOnline":{}}')
+      .run();
+
+    // Create source_configs
+    await env.DB.prepare(
+      "INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions) VALUES (?, ?, ?, ?, ?, ?)",
+    )
+      .bind("orphan-user", sourceUuid, "d2r", "/saves/d2r", 1, '[".d2s"]')
+      .run();
+
+    // Seed R2 data
+    await env.SAVES.put(`sources/${sourceUuid}/saves/${saveUuid}/latest.json`, "{}");
+
+    const result = await reapOrphanSources(env.DB, env.SAVES);
+    expect(result.deleted).toBe(1);
+
+    // Verify ALL tables are cleaned
+    expect(
+      await env.DB.prepare("SELECT 1 FROM sources WHERE source_uuid = ?").bind(sourceUuid).first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare("SELECT 1 FROM saves WHERE uuid = ?").bind(saveUuid).first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare("SELECT 1 FROM notes WHERE note_id = ?").bind(noteId).first(),
+    ).toBeNull();
+    const searchCount = await env.DB.prepare("SELECT COUNT(*) as cnt FROM search_index WHERE save_id = ?").bind(saveUuid).first<{ cnt: number }>();
+    expect(searchCount?.cnt).toBe(0);
+    expect(
+      await env.DB.prepare("SELECT 1 FROM source_events WHERE source_uuid = ?").bind(sourceUuid).first(),
+    ).toBeNull();
+    expect(
+      await env.DB.prepare("SELECT 1 FROM source_configs WHERE source_uuid = ?").bind(sourceUuid).first(),
+    ).toBeNull();
+
+    // R2 also cleaned
+    const listed = await env.SAVES.list({ prefix: `sources/${sourceUuid}/` });
+    expect(listed.objects).toHaveLength(0);
+  });
+
   it("handles multiple orphans in one run", async () => {
     await insertSource({ sourceUuid: "orphan-a", createdAt: daysAgo(10) });
     await insertSource({ sourceUuid: "orphan-b", createdAt: daysAgo(15) });

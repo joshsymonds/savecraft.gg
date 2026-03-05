@@ -1,4 +1,4 @@
-export type DeviceStatus = "online" | "error" | "offline";
+export type SourceStatus = "online" | "error" | "offline";
 
 export type GameStatus = "watching" | "error" | "detected" | "not_found" | "activating";
 
@@ -21,7 +21,7 @@ export interface SaveSummary {
   status: "success" | "error";
 }
 
-export interface DeviceGame {
+export interface SourceGame {
   gameId: string;
   name: string;
   status: GameStatus;
@@ -31,11 +31,19 @@ export interface DeviceGame {
   error?: string;
 }
 
-export interface Device {
+export interface SourceCapabilities {
+  canRescan: boolean;
+  canReceiveConfig: boolean;
+}
+
+export interface Source {
   id: string;
   name: string;
-  status: DeviceStatus;
+  sourceKind: string;
+  hostname: string | null;
+  status: SourceStatus;
   version: string | null;
   lastSeen: string;
-  games: DeviceGame[];
+  capabilities: SourceCapabilities;
+  games: SourceGame[];
 }

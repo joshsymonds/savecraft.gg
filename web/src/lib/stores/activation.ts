@@ -1,11 +1,11 @@
-import { fetchDeviceConfig, saveDeviceConfig } from "$lib/api/client";
+import { fetchSourceConfig, saveSourceConfig } from "$lib/api/client";
 import { detectOS } from "$lib/platform";
 import { discoveredGames } from "$lib/stores/discovery";
 import { plugins } from "$lib/stores/plugins";
 import { get } from "svelte/store";
 
-export async function activateGame(deviceId: string, gameId: string): Promise<void> {
-  const existing = await fetchDeviceConfig(deviceId);
+export async function activateGame(sourceId: string, gameId: string): Promise<void> {
+  const existing = await fetchSourceConfig(sourceId);
   const plugin = get(plugins).get(gameId);
   const discovered = get(discoveredGames).get(gameId);
   const os = detectOS();
@@ -16,5 +16,5 @@ export async function activateGame(deviceId: string, gameId: string): Promise<vo
     fileExtensions: plugin?.file_extensions ?? [],
   };
 
-  await saveDeviceConfig(deviceId, existing);
+  await saveSourceConfig(sourceId, existing);
 }

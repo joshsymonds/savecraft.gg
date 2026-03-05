@@ -1,10 +1,10 @@
 <!--
   @component
-  Device configuration modal. Lets users enable/disable games,
-  set save paths, and test paths against the connected daemon.
+  Source configuration modal. Lets users enable/disable games,
+  set save paths, and test paths against the connected source.
 -->
 <script lang="ts">
-  import { fetchDeviceConfig, type GameConfigInput, saveDeviceConfig } from "$lib/api/client";
+  import { fetchSourceConfig, type GameConfigInput, saveSourceConfig } from "$lib/api/client";
   import type { PluginManifest } from "$lib/api/client";
   import { detectOS } from "$lib/platform";
   import { discoveredGames } from "$lib/stores/discovery";
@@ -17,11 +17,11 @@
   import TinyButton from "./TinyButton.svelte";
 
   interface Props {
-    deviceId: string;
+    sourceId: string;
     onclose: () => void;
   }
 
-  let { deviceId, onclose }: Props = $props();
+  let { sourceId, onclose }: Props = $props();
 
   // Local editing state: gameId -> config
   let games = new SvelteMap<string, GameConfigInput>();
@@ -56,7 +56,7 @@
         await loadPlugins();
       }
 
-      const existing = await fetchDeviceConfig(deviceId);
+      const existing = await fetchSourceConfig(sourceId);
       games.clear();
 
       // Start with all available plugins
@@ -127,7 +127,7 @@
       // The server stores the enabled flag per row -- disabled games
       // keep their config so the user can re-enable without re-entering paths.
       const toSave: Record<string, GameConfigInput> = Object.fromEntries(games);
-      await saveDeviceConfig(deviceId, toSave);
+      await saveSourceConfig(sourceId, toSave);
       saving = false;
       saved = true;
       setTimeout(() => {
@@ -163,8 +163,8 @@
     <Panel>
       <div class="modal-content">
         <div class="modal-header">
-          <span class="modal-title">DEVICE CONFIG</span>
-          <span class="device-id">{deviceId}</span>
+          <span class="modal-title">SOURCE CONFIG</span>
+          <span class="source-id">{sourceId}</span>
           <button class="close-button" onclick={onclose}>&times;</button>
         </div>
 
@@ -309,7 +309,7 @@
     letter-spacing: 2px;
   }
 
-  .device-id {
+  .source-id {
     font-family: var(--font-body);
     font-size: 16px;
     color: var(--color-text-dim);

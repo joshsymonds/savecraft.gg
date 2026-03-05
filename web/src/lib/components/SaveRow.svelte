@@ -3,7 +3,7 @@
   Clickable save row: status icon, name, summary, lastUpdated, hover arrow.
 -->
 <script lang="ts">
-  import type { SaveSummary } from "$lib/types/device";
+  import type { SaveSummary } from "$lib/types/source";
 
   let {
     save,

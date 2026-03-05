@@ -1,4 +1,4 @@
-import { linkDevice } from "$lib/api/client";
+import { linkSource } from "$lib/api/client";
 import type { Readable } from "svelte/store";
 import { writable } from "svelte/store";
 
@@ -8,12 +8,12 @@ export type LinkState = "idle" | "linking" | "success" | "error";
 
 const stateStore = writable<LinkState>("idle");
 const errorStore = writable("");
-const deviceIdStore = writable<string | null>(null);
+const sourceIdStore = writable<string | null>(null);
 const codeStore = writable("");
 
 export const linkState: Readable<LinkState> = stateStore;
 export const linkError: Readable<string> = errorStore;
-export const linkedDeviceId: Readable<string | null> = deviceIdStore;
+export const linkedSourceId: Readable<string | null> = sourceIdStore;
 export const linkCode: Readable<string> = codeStore;
 
 function hasStatus(err: unknown): err is { status: number } {
@@ -31,11 +31,11 @@ export async function submitLinkCode(code: string): Promise<void> {
   pendingLinkCode.set(null);
 
   try {
-    const result = await linkDevice(code);
+    const result = await linkSource(code);
     if (gen !== generation) return;
-    deviceIdStore.set(result.device_uuid);
+    sourceIdStore.set(result.source_uuid);
     stateStore.set("success");
-    // Auto-reset after 5 s so linkedDeviceId and success state don't persist
+    // Auto-reset after 5 s so linkedSourceId and success state don't persist
     setTimeout(() => {
       if (gen === generation) resetLinkFlow();
     }, 5000);
@@ -44,7 +44,7 @@ export async function submitLinkCode(code: string): Promise<void> {
     if (hasStatus(err) && err.status === 400) {
       errorStore.set("Invalid code \u2014 check and try again");
     } else if (hasStatus(err) && err.status === 404) {
-      errorStore.set("Code expired \u2014 generate a new one from the daemon");
+      errorStore.set("Code expired \u2014 generate a new one");
     } else {
       errorStore.set("Network error \u2014 check your connection");
     }
@@ -67,6 +67,6 @@ export function dismissLinkError(): void {
 export function resetLinkFlow(): void {
   stateStore.set("idle");
   errorStore.set("");
-  deviceIdStore.set(null);
+  sourceIdStore.set(null);
   codeStore.set("");
 }
