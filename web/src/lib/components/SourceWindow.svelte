@@ -421,7 +421,8 @@
         </div>
       {/if}
 
-      <!-- Inline game settings -->
+      <!-- Inline game settings (only for sources that accept config) -->
+      {#if source.capabilities.canReceiveConfig}
       <div class="settings-section">
         <button class="settings-toggle" onclick={() => (showSettings = !showSettings)}>
           <span class="settings-label">SETTINGS</span>
@@ -491,6 +492,7 @@
           </div>
         {/if}
       </div>
+      {/if}
     </div>
   {:else}
     <!-- Source level: game grid -->
