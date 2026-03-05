@@ -206,13 +206,21 @@ describe("Orphan Source Reaper", () => {
     expect(
       await env.DB.prepare("SELECT 1 FROM notes WHERE note_id = ?").bind(noteId).first(),
     ).toBeNull();
-    const searchCount = await env.DB.prepare("SELECT COUNT(*) as cnt FROM search_index WHERE save_id = ?").bind(saveUuid).first<{ cnt: number }>();
+    const searchCount = await env.DB.prepare(
+      "SELECT COUNT(*) as cnt FROM search_index WHERE save_id = ?",
+    )
+      .bind(saveUuid)
+      .first<{ cnt: number }>();
     expect(searchCount?.cnt).toBe(0);
     expect(
-      await env.DB.prepare("SELECT 1 FROM source_events WHERE source_uuid = ?").bind(sourceUuid).first(),
+      await env.DB.prepare("SELECT 1 FROM source_events WHERE source_uuid = ?")
+        .bind(sourceUuid)
+        .first(),
     ).toBeNull();
     expect(
-      await env.DB.prepare("SELECT 1 FROM source_configs WHERE source_uuid = ?").bind(sourceUuid).first(),
+      await env.DB.prepare("SELECT 1 FROM source_configs WHERE source_uuid = ?")
+        .bind(sourceUuid)
+        .first(),
     ).toBeNull();
 
     // R2 also cleaned

@@ -508,7 +508,13 @@ async function handleToolCall(
       return handleQueryReference(env, args);
     }
     case "get_setup_help": {
-      return getSetupHelp(env, userUuid, args.platform as string | undefined, args.link_code as string | undefined, args.source_uuid as string | undefined);
+      return getSetupHelp(
+        env,
+        userUuid,
+        args.platform as string | undefined,
+        args.link_code as string | undefined,
+        args.source_uuid as string | undefined,
+      );
     }
     default: {
       return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };

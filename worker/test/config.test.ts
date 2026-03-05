@@ -1,7 +1,14 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, closeWs, connectDaemonWs, connectWs, seedSource, waitForMessage } from "./helpers";
+import {
+  cleanAll,
+  closeWs,
+  connectDaemonWs,
+  connectWs,
+  seedSource,
+  waitForMessage,
+} from "./helpers";
 
 interface ConfigUpdateMsg {
   configUpdate: {

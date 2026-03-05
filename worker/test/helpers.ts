@@ -68,9 +68,7 @@ export async function connectDaemonWs(sourceToken: string): Promise<WebSocket> {
 
   const ws = resp.webSocket;
   if (!ws) {
-    throw new Error(
-      `Daemon WebSocket upgrade failed: ${String(resp.status)} ${resp.statusText}`,
-    );
+    throw new Error(`Daemon WebSocket upgrade failed: ${String(resp.status)} ${resp.statusText}`);
   }
   ws.accept();
   return ws;

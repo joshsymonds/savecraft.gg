@@ -1175,7 +1175,9 @@ async function handlePush(request: Request, env: Env, sourceUuid: string): Promi
 
     // Update last activity timestamp on successful push (best-effort)
     try {
-      await env.DB.prepare("UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?")
+      await env.DB.prepare(
+        "UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?",
+      )
         .bind(sourceUuid)
         .run();
     } catch {

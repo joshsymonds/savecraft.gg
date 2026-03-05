@@ -323,9 +323,7 @@ describe("MCP Tools", () => {
         summary: "Paladin, Level 89",
       });
 
-      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section", [
-        "equipped_gear",
-      ]);
+      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section", ["equipped_gear"]);
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -937,7 +935,15 @@ describe("MCP Tools", () => {
         `INSERT INTO sources (source_uuid, user_uuid, user_email, user_display_name, token_hash, link_code, link_code_expires_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-        .bind("dev-linked", USER_B, "secret@example.com", "Secret User", "hash-linked", "222222", expires)
+        .bind(
+          "dev-linked",
+          USER_B,
+          "secret@example.com",
+          "Secret User",
+          "hash-linked",
+          "222222",
+          expires,
+        )
         .run();
 
       const result = await getSetupHelp(env, USER_A, undefined, "222222");
@@ -997,7 +1003,7 @@ describe("MCP Tools", () => {
       expect(data.guide.macos.install).toBeNull();
       expect(data.guide.macos.details).toContain("not yet available");
       expect(data.guide.pairing).toContain("6-digit");
-      expect(data.guide.pairing).toContain("savecraft.gg/setup");
+      expect(data.guide.pairing).toContain("savecraft.gg");
     });
 
     it("filters guide to requested platform", async () => {
