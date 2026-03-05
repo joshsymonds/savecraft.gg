@@ -101,7 +101,9 @@ describe("SourceDetailModal", () => {
   });
 
   it("uses name when hostname is null", () => {
-    render(SourceDetailModal, { props: { source: makeSource({ hostname: null, name: "api-src" }) } });
+    render(SourceDetailModal, {
+      props: { source: makeSource({ hostname: null, name: "api-src" }) },
+    });
     expect(screen.getByText("API-SRC")).toBeInTheDocument();
   });
 });
