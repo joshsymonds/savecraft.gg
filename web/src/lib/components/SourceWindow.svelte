@@ -5,10 +5,11 @@
   Wraps Panel + WindowTitleBar + content area.
 -->
 <script lang="ts">
+  import { fetchSourceConfig, type GameConfigInput, saveSourceConfig } from "$lib/api/client";
+  import { clearTestPathResult, testPathResult } from "$lib/stores/testpath";
   import type { NoteSummary, Source, SourceStatus } from "$lib/types/source";
-  import { SvelteMap } from "svelte/reactivity";
+  import { send } from "$lib/ws/client";
 
-  import type { ActivateState } from "./GameCard.svelte";
   import GameCard from "./GameCard.svelte";
   import NoteCard from "./NoteCard.svelte";
   import Panel from "./Panel.svelte";
@@ -20,23 +21,16 @@
   let {
     source,
     onrescan,
-    ondiscover,
-    onconfig,
-    onactivate,
     onnotecreate,
     onnotedelete,
     onnoteedit,
     loadNotes,
-    discoveryPending = false,
     justLinked = false,
     initialGameId,
     initialSaveUuid,
   }: {
     source: Source;
     onrescan?: () => void;
-    ondiscover?: () => void;
-    onconfig?: () => void;
-    onactivate?: (gameId: string) => Promise<void>;
     /** Called when user submits the add-note form. */
     onnotecreate?: (saveUuid: string, title: string, content: string) => Promise<void>;
     /** Called when user confirms note deletion. */
@@ -50,7 +44,6 @@
     ) => Promise<void>;
     /** Fetch notes for a save from the API. */
     loadNotes?: (saveUuid: string) => Promise<NoteSummary[]>;
-    discoveryPending?: boolean;
     /** Show transient "LINKED" success banner (auto-dismisses after 5 s). */
     justLinked?: boolean;
     /** Pre-navigate to a game (for storybook). */
@@ -72,54 +65,6 @@
   let saveData = $derived(
     navSaveUuid && gameData ? gameData.saves.find((s) => s.saveUuid === navSaveUuid) : undefined,
   );
-
-  // Activate state tracking
-  let activateStates = new SvelteMap<string, ActivateState>();
-  let failReasons = new SvelteMap<string, string>();
-  let failTimers = new Map<string, ReturnType<typeof setTimeout>>();
-
-  // Clear activateStates when the game transitions away from "activating"
-  $effect(() => {
-    for (const game of source.games) {
-      if (game.status !== "activating" && activateStates.has(game.gameId)) {
-        activateStates.delete(game.gameId);
-        failReasons.delete(game.gameId);
-      }
-    }
-  });
-
-  function resolvedActivateState(gameId: string, gameStatus: string): ActivateState {
-    if (gameStatus === "activating") return "activating";
-    return activateStates.get(gameId) ?? "idle";
-  }
-
-  async function handleActivate(gameId: string): Promise<void> {
-    activateStates.set(gameId, "activating");
-    failReasons.delete(gameId);
-    const existing = failTimers.get(gameId);
-    if (existing) clearTimeout(existing);
-    try {
-      await onactivate?.(gameId);
-    } catch (error) {
-      const reason = error instanceof Error ? error.message : "Activation failed";
-      markActivateFailed(gameId, reason);
-    }
-  }
-
-  function markActivateFailed(gameId: string, reason: string): void {
-    activateStates.set(gameId, "failed");
-    failReasons.set(gameId, reason);
-    const existing = failTimers.get(gameId);
-    if (existing) clearTimeout(existing);
-    failTimers.set(
-      gameId,
-      setTimeout(() => {
-        activateStates.delete(gameId);
-        failReasons.delete(gameId);
-        failTimers.delete(gameId);
-      }, 5000),
-    );
-  }
 
   // Async notes state
   let loadedNotes = $state<NoteSummary[]>([]);
@@ -180,6 +125,85 @@
     newTitle = "";
     newContent = "";
     showAddNote = false;
+  }
+
+  // Game config state
+  let showSettings = $state(false);
+  let configLoading = $state(false);
+  let configSaving = $state(false);
+  let configError = $state<string | null>(null);
+  let configSavePath = $state("");
+  let configEnabled = $state(true);
+  let configFileExtensions = $state<string[]>([]);
+  let allGamesConfig = $state<Record<string, GameConfigInput>>({});
+
+  // Track which game's test result we're showing
+  let configTestResult = $derived.by(() => {
+    const result = $testPathResult;
+    if (!result || !gameData) return null;
+    if (result.gameId !== gameData.gameId) return null;
+    return result;
+  });
+
+  async function loadGameConfig(): Promise<void> {
+    if (!gameData) return;
+    configLoading = true;
+    configError = null;
+    clearTestPathResult();
+    try {
+      const config = await fetchSourceConfig(source.id);
+      allGamesConfig = config;
+      const gameConfig = config[gameData.gameId];
+      if (gameConfig) {
+        configSavePath = gameConfig.savePath;
+        configEnabled = gameConfig.enabled;
+        configFileExtensions = gameConfig.fileExtensions;
+      } else {
+        configSavePath = gameData.path ?? "";
+        configEnabled = true;
+        configFileExtensions = [];
+      }
+    } catch (err) {
+      configError = err instanceof Error ? err.message : "Failed to load config";
+    } finally {
+      configLoading = false;
+    }
+  }
+
+  // Load config when navigating to a game
+  $effect(() => {
+    if (navGameId) {
+      showSettings = false;
+      void loadGameConfig();
+    }
+  });
+
+  async function handleSaveConfig(): Promise<void> {
+    if (!gameData) return;
+    configSaving = true;
+    configError = null;
+    try {
+      const updated = {
+        ...allGamesConfig,
+        [gameData.gameId]: {
+          savePath: configSavePath,
+          enabled: configEnabled,
+          fileExtensions: configFileExtensions,
+        },
+      };
+      await saveSourceConfig(source.id, updated);
+      allGamesConfig = updated;
+      configSaving = false;
+    } catch (err) {
+      configError = err instanceof Error ? err.message : "Failed to save config";
+      configSaving = false;
+    }
+  }
+
+  function handleTestPath(): void {
+    if (!gameData || !configSavePath) return;
+    clearTestPathResult();
+    send(JSON.stringify({ testPath: { gameId: gameData.gameId, path: configSavePath } }));
   }
 
   const ACCENT_COLORS: Record<SourceStatus, string | undefined> = {
@@ -269,29 +293,16 @@
           class="game-status-badge"
           class:watching={gameData.status === "watching"}
           class:error={gameData.status === "error"}
-          class:detected={gameData.status === "detected"}
         >
           {#if gameData.status === "watching"}
             ● WATCHING
           {:else if gameData.status === "error"}
             ⚠ ERROR
-          {:else}
-            ✓ DETECTED
           {/if}
         </span>
-      {:else if source.capabilities.canRescan || source.capabilities.canReceiveConfig}
+      {:else if source.capabilities.canRescan}
         <div class="source-actions">
-          {#if source.capabilities.canRescan}
-            <TinyButton
-              label={discoveryPending ? "SCANNING..." : "DISCOVER"}
-              onclick={ondiscover}
-              disabled={source.status === "offline" || discoveryPending}
-            />
-            <TinyButton label="RESCAN" onclick={onrescan} disabled={source.status === "offline"} />
-          {/if}
-          {#if source.capabilities.canReceiveConfig}
-            <TinyButton label="CONFIG" onclick={onconfig} />
-          {/if}
+          <TinyButton label="RESCAN" onclick={onrescan} disabled={source.status === "offline"} />
         </div>
       {/if}
     {/snippet}
@@ -409,6 +420,77 @@
           <span class="path-text">📁 {gameData.path}</span>
         </div>
       {/if}
+
+      <!-- Inline game settings -->
+      <div class="settings-section">
+        <button class="settings-toggle" onclick={() => (showSettings = !showSettings)}>
+          <span class="settings-label">SETTINGS</span>
+          <span class="settings-chevron" class:open={showSettings}>▸</span>
+        </button>
+
+        {#if showSettings}
+          <div class="settings-content">
+            {#if configLoading}
+              <div class="settings-loading">Loading config...</div>
+            {:else}
+              {#if configError}
+                <div class="settings-error">{configError}</div>
+              {/if}
+
+              <label class="settings-field">
+                <span class="field-label">SAVE PATH</span>
+                <div class="path-row">
+                  <input
+                    class="path-input"
+                    type="text"
+                    placeholder="Save directory path..."
+                    bind:value={configSavePath}
+                  />
+                  <TinyButton label="TEST" onclick={handleTestPath} />
+                </div>
+              </label>
+
+              {#if configTestResult}
+                <div
+                  class="test-result"
+                  class:valid={configTestResult.valid}
+                  class:invalid={!configTestResult.valid}
+                >
+                  {#if configTestResult.valid}
+                    Found {configTestResult.filesFound} file{configTestResult.filesFound === 1 ? "" : "s"}
+                  {:else}
+                    No matching files found
+                  {/if}
+                </div>
+              {/if}
+
+              {#if configFileExtensions.length > 0}
+                <div class="settings-field">
+                  <span class="field-label">FILE EXTENSIONS</span>
+                  <div class="ext-chips">
+                    {#each configFileExtensions as ext (ext)}
+                      <span class="ext-chip">{ext}</span>
+                    {/each}
+                  </div>
+                </div>
+              {/if}
+
+              <label class="settings-field enabled-toggle">
+                <input type="checkbox" bind:checked={configEnabled} />
+                <span class="toggle-label">Enabled</span>
+              </label>
+
+              <div class="settings-actions">
+                <TinyButton
+                  label={configSaving ? "SAVING..." : "SAVE"}
+                  onclick={handleSaveConfig}
+                  disabled={configSaving}
+                />
+              </div>
+            {/if}
+          </div>
+        {/if}
+      </div>
     </div>
   {:else}
     <!-- Source level: game grid -->
@@ -416,11 +498,6 @@
       {#each source.games as game (game.gameId)}
         <GameCard
           {game}
-          activateState={resolvedActivateState(game.gameId, game.status)}
-          failReason={failReasons.get(game.gameId)}
-          onactivate={(gameId: string) => {
-            handleActivate(gameId);
-          }}
           onclick={() => {
             navGameId = game.gameId;
           }}
@@ -526,6 +603,164 @@
     color: var(--color-text-muted);
   }
 
+  /* -- Inline game settings ---------------------------------- */
+
+  .settings-section {
+    border-top: 1px solid rgba(74, 90, 173, 0.08);
+    margin-top: 4px;
+  }
+
+  .settings-toggle {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    width: 100%;
+    padding: 10px 16px;
+    background: none;
+    border: none;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .settings-toggle:hover {
+    background: rgba(74, 90, 173, 0.04);
+  }
+
+  .settings-label {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--color-gold);
+    letter-spacing: 2px;
+  }
+
+  .settings-chevron {
+    font-size: 10px;
+    color: var(--color-text-muted);
+    transition: transform 0.15s;
+  }
+
+  .settings-chevron.open {
+    transform: rotate(90deg);
+  }
+
+  .settings-content {
+    padding: 0 16px 14px;
+    animation: fadeIn 0.15s ease-out;
+  }
+
+  .settings-loading {
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--color-text-muted);
+    padding: 8px 0;
+  }
+
+  .settings-error {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--color-red, #e85a5a);
+    padding: 6px 0;
+    margin-bottom: 8px;
+  }
+
+  .settings-field {
+    display: block;
+    margin-bottom: 12px;
+  }
+
+  .field-label {
+    display: block;
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--color-text-dim);
+    letter-spacing: 1px;
+    margin-bottom: 6px;
+  }
+
+  .path-row {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .path-input {
+    flex: 1;
+    background: rgba(5, 7, 26, 0.6);
+    border: 1px solid rgba(74, 90, 173, 0.2);
+    border-radius: 3px;
+    padding: 6px 10px;
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--color-text);
+    outline: none;
+    transition: border-color 0.15s;
+  }
+
+  .path-input::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  .path-input:focus {
+    border-color: var(--color-border-light);
+  }
+
+  .test-result {
+    font-family: var(--font-body);
+    font-size: 15px;
+    margin-bottom: 12px;
+    padding: 4px 0;
+  }
+
+  .test-result.valid {
+    color: var(--color-green);
+  }
+
+  .test-result.invalid {
+    color: var(--color-yellow);
+  }
+
+  .ext-chips {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .ext-chip {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-text-muted);
+    background: rgba(74, 90, 173, 0.08);
+    border: 1px solid rgba(74, 90, 173, 0.15);
+    border-radius: 3px;
+    padding: 1px 6px;
+  }
+
+  .enabled-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    cursor: pointer;
+  }
+
+  .enabled-toggle input[type="checkbox"] {
+    accent-color: var(--color-gold);
+    width: 16px;
+    height: 16px;
+    cursor: pointer;
+  }
+
+  .toggle-label {
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--color-text);
+  }
+
+  .settings-actions {
+    display: flex;
+    justify-content: flex-end;
+    margin-top: 4px;
+  }
+
   /* -- Game status badge ------------------------------------- */
 
   .game-status-badge {
@@ -546,12 +781,6 @@
     color: var(--color-yellow);
     background: rgba(232, 196, 78, 0.07);
     border: 1px solid rgba(232, 196, 78, 0.19);
-  }
-
-  .game-status-badge.detected {
-    color: var(--color-blue);
-    background: rgba(74, 154, 234, 0.07);
-    border: 1px solid rgba(74, 154, 234, 0.19);
   }
 
   /* -- Save level status ------------------------------------- */

@@ -1,28 +1,17 @@
 <!--
   @component
   Game card: displays a single game within a source panel's game grid.
-  Visual states: watching (active), detected (ACTIVATE CTA),
-  activating (pulsing), error (yellow), not_found (dimmed).
+  Visual states: watching (active), error (yellow), not_found (dimmed).
 -->
 <script lang="ts">
   import type { SourceGame } from "$lib/types/source";
 
-  import TinyButton from "./TinyButton.svelte";
-
-  export type ActivateState = "idle" | "activating" | "failed";
-
   let {
     game,
-    onactivate,
     onclick,
-    activateState = "idle",
-    failReason,
   }: {
     game: SourceGame;
-    onactivate?: (gameId: string) => void;
     onclick?: () => void;
-    activateState?: ActivateState;
-    failReason?: string;
   } = $props();
 
   let clickable = $derived(
@@ -30,12 +19,6 @@
   );
 
   let notFound = $derived(game.status === "not_found");
-
-  const ACTIVATE_LABELS: Record<ActivateState, string> = {
-    idle: "ACTIVATE",
-    activating: "ACTIVATING...",
-    failed: "FAILED",
-  };
 
   function gameIcon(name: string): string {
     return name.charAt(0).toUpperCase();
@@ -45,8 +28,6 @@
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 <div
   class="game-card"
-  class:detected={game.status === "detected"}
-  class:activating={game.status === "activating"}
   class:not-found={notFound}
   class:clickable
   role={clickable ? "button" : undefined}
@@ -66,7 +47,6 @@
   <span
     class="game-status"
     class:status-green={game.status === "watching"}
-    class:status-blue={game.status === "detected" || game.status === "activating"}
     class:status-yellow={game.status === "error"}
   >
     {game.statusLine}
@@ -76,19 +56,6 @@
       {#each game.saves as save (save.saveUuid)}
         <span class="save-name">{save.saveName}</span>
       {/each}
-    </div>
-  {/if}
-  {#if game.status === "detected" && onactivate}
-    <div class="activate-row">
-      <TinyButton
-        label={ACTIVATE_LABELS[activateState]}
-        onclick={() => onactivate(game.gameId)}
-        disabled={activateState !== "idle"}
-        variant={activateState === "failed" ? "danger" : undefined}
-      />
-      {#if activateState === "failed" && failReason}
-        <span class="fail-reason">{failReason}</span>
-      {/if}
     </div>
   {/if}
 </div>
@@ -114,10 +81,6 @@
     border-color: rgba(74, 90, 173, 0.25);
   }
 
-  .game-card.detected {
-    border-color: rgba(74, 154, 234, 0.25);
-  }
-
   .game-card.not-found {
     opacity: 0.3;
     border-style: dashed;
@@ -125,26 +88,11 @@
     cursor: default;
   }
 
-  .game-card.activating {
-    border-color: rgba(74, 154, 234, 0.25);
-    animation: pulse 2s ease-in-out infinite;
-  }
-
   .game-card.clickable:focus-visible {
     background: rgba(74, 90, 173, 0.12);
     border-color: rgba(74, 90, 173, 0.25);
     outline: 2px solid var(--color-blue);
     outline-offset: 2px;
-  }
-
-  @keyframes pulse {
-    0%,
-    100% {
-      opacity: 1;
-    }
-    50% {
-      opacity: 0.6;
-    }
   }
 
   .game-icon {
@@ -171,10 +119,6 @@
     color: var(--color-green);
   }
 
-  .status-blue {
-    color: var(--color-blue);
-  }
-
   .status-yellow {
     color: var(--color-yellow);
   }
@@ -190,18 +134,5 @@
     font-family: var(--font-body);
     font-size: 13px;
     color: var(--color-text-dim);
-  }
-
-  .activate-row {
-    margin-top: 8px;
-    text-align: center;
-  }
-
-  .fail-reason {
-    display: block;
-    margin-top: 4px;
-    font-family: var(--font-body);
-    font-size: 12px;
-    color: var(--color-red, #e85a5a);
   }
 </style>

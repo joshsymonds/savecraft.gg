@@ -243,6 +243,7 @@ export class SourceHub extends DurableObject<Env> {
     }
 
     await this.maybePushConfig(rpc);
+    await this.maybeAutoEnableGame(rpc);
     await this.maybePushSourceUpdate(ws, rpc);
   }
 
@@ -591,6 +592,44 @@ export class SourceHub extends DurableObject<Env> {
     }
   }
 
+  /**
+   * When daemon reports a newly detected game, auto-create a config entry
+   * (enabled, with the detected path) and push config to start watching.
+   * Skips if config already exists (don't overwrite user's path or re-enable disabled games).
+   */
+  private async maybeAutoEnableGame(rpc: Message | undefined): Promise<void> {
+    if (rpc?.payload?.$case !== "gameDetected") return;
+    const { gameId, path } = rpc.payload.gameDetected;
+    if (!gameId || !path) return;
+
+    try {
+      const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+      if (!sourceUuid) return;
+
+      // Check if config already exists for this source+game
+      const existing = await this.env.DB.prepare(
+        "SELECT 1 FROM source_configs WHERE source_uuid = ? AND game_id = ?",
+      )
+        .bind(sourceUuid, gameId)
+        .first();
+
+      if (existing) return; // Don't overwrite existing config (enabled or disabled)
+
+      // Auto-create enabled config with the detected path
+      await this.env.DB.prepare(
+        `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+         VALUES (?, ?, ?, 1, '[]')`,
+      )
+        .bind(sourceUuid, gameId, path)
+        .run();
+
+      // Push updated config to daemon so it starts watching.
+      await this.pushConfigToSource(sourceUuid);
+    } catch {
+      // Don't let auto-enable failures break the relay
+    }
+  }
+
   private async pushConfigToSource(sourceId: string): Promise<void> {
     const rows = await this.env.DB.prepare(
       `SELECT game_id, save_path, enabled, file_extensions
@@ -615,35 +654,11 @@ export class SourceHub extends DurableObject<Env> {
       };
     }
 
-    // Set ACTIVATING status for enabled games
-    const enabledGameIds = Object.entries(games)
-      .filter(([, cfg]) => cfg.enabled)
-      .map(([id]) => id);
-
-    if (enabledGameIds.length > 0) {
-      const state = await this.loadState();
-      for (const gameId of enabledGameIds) {
-        applyMutation(state, {
-          kind: "gameStatus",
-          sourceId,
-          gameId,
-          status: GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING,
-        });
-      }
-      await this.saveState(state);
-
-      // Forward updated state to UserHub
-      await this.forwardStateToUserHub();
-    }
-
-    // Send config to daemon
+    // Send config to all connected daemon sockets. SourceHub is keyed by
+    // source_uuid, so all daemon connections belong to this source.
     const msg = JSON.stringify({ configUpdate: { games } });
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
-      const wsTags = this.ctx.getTags(daemonWs);
-      const wsSourceId = await this.getSourceIdForConnection(wsTags);
-      if (wsSourceId === sourceId) {
-        daemonWs.send(msg);
-      }
+      daemonWs.send(msg);
     }
   }
 
