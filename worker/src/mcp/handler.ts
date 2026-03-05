@@ -455,12 +455,13 @@ async function handleToolCall(
       return getSave(env.DB, env.SAVES, userUuid, saveId);
     }
     case "get_section": {
+      const sections = parseSectionsArgument(args.sections) ?? [];
       return getSection(
         env.DB,
         env.SAVES,
         userUuid,
         saveId,
-        parseSectionsArgument(args.sections) ?? [],
+        sections,
         args.timestamp as string | undefined,
       );
     }
@@ -508,18 +509,26 @@ async function handleToolCall(
       return handleQueryReference(env, args);
     }
     case "get_setup_help": {
-      return getSetupHelp(
-        env,
-        userUuid,
-        args.platform as string | undefined,
-        args.link_code as string | undefined,
-        args.source_uuid as string | undefined,
-      );
+      return handleGetSetupHelp(env, userUuid, args);
     }
     default: {
       return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
     }
   }
+}
+
+function handleGetSetupHelp(
+  env: Env,
+  userUuid: string,
+  args: Record<string, unknown>,
+): Promise<unknown> {
+  return getSetupHelp(
+    env,
+    userUuid,
+    args.platform as string | undefined,
+    args.link_code as string | undefined,
+    args.source_uuid as string | undefined,
+  );
 }
 
 function handleQueryReference(
