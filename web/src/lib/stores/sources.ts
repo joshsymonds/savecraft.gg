@@ -292,7 +292,6 @@ export function dispatchToSources(msg: WireMessage): void {
   if (handler) handler(msg);
 }
 
-
 export function resetSources(): void {
   set([]);
 }

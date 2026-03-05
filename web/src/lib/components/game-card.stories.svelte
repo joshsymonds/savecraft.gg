@@ -46,49 +46,17 @@
   </div>
 </Story>
 
-<Story name="Detected">
+<Story name="WatchingNoSaves">
   <div style="width: 200px;">
     <GameCard
       game={{
         gameId: "d2r",
         name: "Diablo II: Resurrected",
-        status: "detected",
-        statusLine: "Detected",
+        status: "watching",
+        statusLine: "watching",
         saves: [],
       }}
-      onactivate={(gameId) => alert(`Activate ${String(gameId)}`)}
-    />
-  </div>
-</Story>
-
-<Story name="Activating">
-  <div style="width: 200px;">
-    <GameCard
-      game={{
-        gameId: "d2r",
-        name: "Diablo II: Resurrected",
-        status: "activating",
-        statusLine: "activating...",
-        saves: [],
-      }}
-    />
-  </div>
-</Story>
-
-<Story name="ActivateFailed">
-  <div style="width: 200px;">
-    <GameCard
-      game={{
-        gameId: "d2r",
-        name: "Diablo II: Resurrected",
-        status: "detected",
-        statusLine: "Detected",
-        saves: [],
-      }}
-      onactivate={() => {
-        /* noop */
-      }}
-      activateState="failed"
+      onclick={() => alert("Drill into D2R")}
     />
   </div>
 </Story>

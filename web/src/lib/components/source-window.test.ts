@@ -105,6 +105,26 @@ describe("SourceWindow capability-aware buttons", () => {
     expect(screen.queryByText("CONFIG")).not.toBeInTheDocument();
     expect(container.querySelector(".source-actions")).toBeNull();
   });
+
+  it("hides SETTINGS when canReceiveConfig is false", async () => {
+    render(SourceWindow, {
+      props: {
+        source: makeSource({
+          name: "PLUGIN · GAMING-RIG",
+          sourceKind: "plugin",
+          capabilities: { canRescan: false, canReceiveConfig: false },
+        }),
+        initialGameId: "d2r",
+      },
+    });
+
+    // Give async effects time to settle
+    await vi.waitFor(() => {
+      expect(screen.getByText("Diablo II: Resurrected")).toBeInTheDocument();
+    });
+
+    expect(screen.queryByText("SETTINGS")).not.toBeInTheDocument();
+  });
 });
 
 describe("SourceWindow inline game settings", () => {
