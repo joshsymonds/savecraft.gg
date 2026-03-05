@@ -50,90 +50,9 @@ describe("GameCard", () => {
       expect(screen.getByText("Bowazon")).toBeInTheDocument();
     });
 
-    it("does not show ACTIVATE button", () => {
-      render(GameCard, { props: { game: makeGame() } });
-      expect(screen.queryByText("ACTIVATE")).not.toBeInTheDocument();
-    });
-
     it("does not apply dimmed styling", () => {
       const { container } = render(GameCard, { props: { game: makeGame() } });
-      expect(container.querySelector(".detected")).toBeNull();
-    });
-  });
-
-  describe("detected state", () => {
-    it("renders game name and status", () => {
-      const game = makeGame({ status: "detected", statusLine: "Detected" });
-      render(GameCard, { props: { game } });
-      expect(screen.getByText("Diablo II: Resurrected")).toBeInTheDocument();
-      expect(screen.getByText("Detected")).toBeInTheDocument();
-    });
-
-    it("shows ACTIVATE button when onactivate provided", () => {
-      const game = makeGame({ status: "detected", statusLine: "Detected" });
-      render(GameCard, { props: { game, onactivate: vi.fn() } });
-      expect(screen.getByText("ACTIVATE")).toBeInTheDocument();
-    });
-
-    it("calls onactivate when ACTIVATE clicked", async () => {
-      const onactivate = vi.fn();
-      const game = makeGame({ status: "detected", statusLine: "Detected" });
-      render(GameCard, { props: { game, onactivate } });
-      await userEvent.click(screen.getByText("ACTIVATE"));
-      expect(onactivate).toHaveBeenCalledWith("d2r");
-    });
-
-    it("does not show ACTIVATE button when onactivate not provided", () => {
-      const game = makeGame({ status: "detected", statusLine: "Detected" });
-      render(GameCard, { props: { game } });
-      expect(screen.queryByText("ACTIVATE")).not.toBeInTheDocument();
-    });
-
-    it("applies detected styling", () => {
-      const game = makeGame({ status: "detected", statusLine: "Detected" });
-      const { container } = render(GameCard, { props: { game } });
-      expect(container.querySelector(".detected")).not.toBeNull();
-    });
-  });
-
-  describe("activate states", () => {
-    it("shows ACTIVATING... and disables button when activating", () => {
-      const game = makeGame({ status: "detected", statusLine: "Detected" });
-      render(GameCard, { props: { game, onactivate: vi.fn(), activateState: "activating" } });
-      expect(screen.getByText("ACTIVATING...")).toBeInTheDocument();
-      expect(screen.queryByText("ACTIVATE")).not.toBeInTheDocument();
-    });
-
-    it("shows FAILED when activation fails", () => {
-      const game = makeGame({ status: "detected", statusLine: "Detected" });
-      render(GameCard, { props: { game, onactivate: vi.fn(), activateState: "failed" } });
-      expect(screen.getByText("FAILED")).toBeInTheDocument();
-      expect(screen.queryByText("ACTIVATE")).not.toBeInTheDocument();
-    });
-
-    it("disables button during activating state", async () => {
-      const onactivate = vi.fn();
-      const game = makeGame({ status: "detected", statusLine: "Detected" });
-      render(GameCard, { props: { game, onactivate, activateState: "activating" } });
-      await userEvent.click(screen.getByText("ACTIVATING..."));
-      expect(onactivate).not.toHaveBeenCalled();
-    });
-
-    it("shows fail reason when activation fails with a reason", () => {
-      const game = makeGame({ status: "detected", statusLine: "Detected" });
-      render(GameCard, {
-        props: { game, onactivate: vi.fn(), activateState: "failed", failReason: "network error" },
-      });
-      expect(screen.getByText("FAILED")).toBeInTheDocument();
-      expect(screen.getByText("network error")).toBeInTheDocument();
-    });
-
-    it("does not show fail reason when activateState is not failed", () => {
-      const game = makeGame({ status: "detected", statusLine: "Detected" });
-      render(GameCard, {
-        props: { game, onactivate: vi.fn(), activateState: "idle", failReason: "stale reason" },
-      });
-      expect(screen.queryByText("stale reason")).not.toBeInTheDocument();
+      expect(container.querySelector(".not-found")).toBeNull();
     });
   });
 
@@ -144,14 +63,6 @@ describe("GameCard", () => {
       render(GameCard, { props: { game, onclick } });
       await userEvent.click(screen.getByText("Diablo II: Resurrected"));
       expect(onclick).toHaveBeenCalledOnce();
-    });
-
-    it("does not call onclick when detected card is clicked", async () => {
-      const onclick = vi.fn();
-      const game = makeGame({ status: "detected", statusLine: "Detected" });
-      render(GameCard, { props: { game, onclick } });
-      await userEvent.click(screen.getByText("Diablo II: Resurrected"));
-      expect(onclick).not.toHaveBeenCalled();
     });
 
     it("calls onclick when error card is clicked", async () => {
@@ -212,12 +123,6 @@ describe("GameCard", () => {
       const game = makeGame({ status: "error", statusLine: "Parse error" });
       render(GameCard, { props: { game } });
       expect(screen.getByText("Parse error")).toBeInTheDocument();
-    });
-
-    it("does not show ACTIVATE button", () => {
-      const game = makeGame({ status: "error", statusLine: "Parse error" });
-      render(GameCard, { props: { game } });
-      expect(screen.queryByText("ACTIVATE")).not.toBeInTheDocument();
     });
   });
 });

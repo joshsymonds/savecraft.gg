@@ -14,11 +14,10 @@ function resolveSourceId(msg: WireMessage): string | null {
 }
 
 function wireStatusToGameStatus(wireStatus: string | undefined): GameStatus {
-  if (wireStatus === "GAME_STATUS_ENUM_WATCHING") return "watching";
   if (wireStatus === "GAME_STATUS_ENUM_ERROR") return "error";
   if (wireStatus === "GAME_STATUS_ENUM_NOT_FOUND") return "not_found";
-  if (wireStatus === "GAME_STATUS_ENUM_ACTIVATING") return "activating";
-  return "detected";
+  // WATCHING, ACTIVATING, DETECTED, and unrecognized all map to "watching"
+  return "watching";
 }
 
 function gameStatusLine(status: GameStatus, saves: SaveSummary[]): string {
@@ -27,12 +26,6 @@ function gameStatusLine(status: GameStatus, saves: SaveSummary[]): string {
       if (saves.length === 0) return "watching";
       const suffix = saves.length === 1 ? "" : "s";
       return `${String(saves.length)} character${suffix}`;
-    }
-    case "detected": {
-      return "ready to watch";
-    }
-    case "activating": {
-      return "activating...";
     }
     case "error": {
       return "parse error";
@@ -111,8 +104,8 @@ function findOrCreateGame(source: Source, gameId: string): SourceGame {
     game = {
       gameId,
       name: gameDisplayName(gameId),
-      status: "detected",
-      statusLine: "ready to watch",
+      status: "watching",
+      statusLine: "watching",
       saves: [],
     };
     source.games.push(game);
@@ -170,7 +163,7 @@ function handleGameStatusChange(
   } else if (type === "gameDetected") {
     gameId = msg.gameDetected?.gameId;
     path = msg.gameDetected?.path;
-    status = "detected";
+    status = "watching";
   } else {
     gameId = msg.gameNotFound?.gameId;
     status = "not_found";
@@ -222,7 +215,7 @@ function handleParseCompleted(msg: WireMessage): void {
     if (!source) return srcs;
 
     const game = findOrCreateGame(source, gameId);
-    if (game.status === "detected" || game.status === "activating" || game.status === "error") {
+    if (game.status === "error") {
       game.status = "watching";
       game.statusLine = gameStatusLine("watching", game.saves);
       game.error = undefined;
@@ -243,10 +236,6 @@ function handlePushCompleted(msg: WireMessage): void {
     if (!targetSource) return srcs;
 
     const game = findOrCreateGame(targetSource, gameId);
-
-    if (game.status === "activating") {
-      game.status = "watching";
-    }
 
     if (pc.saveUuid) {
       const existing = game.saves.find((s) => s.saveUuid === pc.saveUuid);
@@ -284,41 +273,6 @@ function handleGameNotFound(msg: WireMessage): void {
   handleGameStatusChange(msg, "gameNotFound");
 }
 
-function handleGamesDiscovered(msg: WireMessage): void {
-  const data = msg.gamesDiscovered;
-  if (!data?.games) return;
-  const sourceId = resolveSourceId(msg);
-  if (!sourceId) return;
-  const games = data.games;
-
-  update((srcs) => {
-    const source = srcs.find((s) => s.id === sourceId);
-    if (!source) return srcs;
-
-    for (const discovered of games) {
-      if (!discovered.gameId) continue;
-      const existing = source.games.find((g) => g.gameId === discovered.gameId);
-      if (existing) {
-        // Don't downgrade from watching/error — only upgrade from not_found
-        if (existing.status === "not_found") {
-          existing.status = "detected";
-          existing.statusLine = gameStatusLine("detected", existing.saves);
-        }
-        if (discovered.name) existing.name = discovered.name;
-      } else {
-        source.games.push({
-          gameId: discovered.gameId,
-          name: discovered.name ?? gameDisplayName(discovered.gameId),
-          status: "detected",
-          statusLine: gameStatusLine("detected", []),
-          saves: [],
-        });
-      }
-    }
-    return [...srcs];
-  });
-}
-
 const SOURCE_HANDLERS: Partial<Record<WireMessageType, SourceHandler>> = {
   sourceState: handleSourceState,
   sourceOnline: handleSourceOnline,
@@ -326,7 +280,6 @@ const SOURCE_HANDLERS: Partial<Record<WireMessageType, SourceHandler>> = {
   watching: handleWatching,
   gameDetected: handleGameDetected,
   gameNotFound: handleGameNotFound,
-  gamesDiscovered: handleGamesDiscovered,
   parseFailed: handleParseFailed,
   parseCompleted: handleParseCompleted,
   pushCompleted: handlePushCompleted,
@@ -339,17 +292,6 @@ export function dispatchToSources(msg: WireMessage): void {
   if (handler) handler(msg);
 }
 
-export function setGameStatus(sourceId: string, gameId: string, status: GameStatus): void {
-  update((srcs) => {
-    const source = srcs.find((s) => s.id === sourceId);
-    if (!source) return srcs;
-    const game = source.games.find((g) => g.gameId === gameId);
-    if (!game) return srcs;
-    game.status = status;
-    game.statusLine = gameStatusLine(status, game.saves);
-    return [...srcs];
-  });
-}
 
 export function resetSources(): void {
   set([]);

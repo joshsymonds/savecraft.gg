@@ -257,7 +257,7 @@ describe("Config push via SourceHub", () => {
     await closeWs(daemonWs);
   });
 
-  it("sets ACTIVATING status in SourceState when pushing config", async () => {
+  it("does not set ACTIVATING status when pushing config", async () => {
     const userUuid = "config-activating-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
@@ -269,25 +269,25 @@ describe("Config push via SourceHub", () => {
       .bind(sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
-    // Connect daemon and identify it — daemon sends any hostname, server ignores it
+    // Connect daemon and identify it — triggers push-config
     const daemonWs = await connectDaemonWs(sourceToken);
     daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "any-hostname", version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
-    // Connect a fresh UI and check SourceState — game should be ACTIVATING
-    // sourceId in state should be the real sourceUuid, not the daemon's hostname
+    // Connect a fresh UI — game should NOT be ACTIVATING (status not set by push)
     const uiWs = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(uiWs);
 
     expect(msg).toHaveProperty("sourceState");
     const ds = msg.sourceState as {
-      sources: { sourceId: string; games: { gameId: string; status: string }[] }[];
+      sources: { sourceId: string; games?: { gameId: string; status: string }[] }[];
     };
     const source = ds.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    const game = source!.games.find((g) => g.gameId === "d2r");
-    expect(game).toBeDefined();
-    expect(game!.status).toBe("GAME_STATUS_ENUM_ACTIVATING");
+    // Config push no longer sets ACTIVATING — games array should be empty or absent
+    const games = source!.games ?? [];
+    const activatingGames = games.filter((g) => g.status === "GAME_STATUS_ENUM_ACTIVATING");
+    expect(activatingGames).toHaveLength(0);
 
     await closeWs(uiWs);
     await closeWs(daemonWs);
@@ -329,7 +329,7 @@ describe("Config push via SourceHub", () => {
     await closeWs(daemonWs);
   });
 
-  it("ACTIVATING persists and is visible to new UI connections after push-config", async () => {
+  it("config push does not create game entries in SourceState", async () => {
     const userUuid = "config-broadcast-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
@@ -341,28 +341,28 @@ describe("Config push via SourceHub", () => {
       .bind(sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
-    // Connect daemon, identify it (triggers push-config which sets ACTIVATING)
-    // Daemon sends any hostname — server uses sourceUuid from storage
+    // Connect daemon, identify it (triggers push-config)
     const daemonWs = await connectDaemonWs(sourceToken);
     daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "any-hostname", version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
-    // Close daemon — ACTIVATING should survive in persisted state
+    // Close daemon
     await closeWs(daemonWs);
 
-    // Fresh UI connect should see ACTIVATING in cold-start SourceState
+    // Fresh UI connect — config push should NOT have created game entries in state
+    // (games only appear when daemon reports them via watching/gameDetected/etc.)
     const freshUi = await connectWs("/ws/ui", userUuid);
     const msg = await waitForMessage<Record<string, unknown>>(freshUi);
 
     expect(msg).toHaveProperty("sourceState");
     const ds = msg.sourceState as {
-      sources: { sourceId: string; games: { gameId: string; status: string }[] }[];
+      sources: { sourceId: string; games?: { gameId: string; status: string }[] }[];
     };
     const source = ds.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    const game = source!.games.find((g) => g.gameId === "d2r");
-    expect(game).toBeDefined();
-    expect(game!.status).toBe("GAME_STATUS_ENUM_ACTIVATING");
+    const games = source!.games ?? [];
+    const activatingGames = games.filter((g) => g.status === "GAME_STATUS_ENUM_ACTIVATING");
+    expect(activatingGames).toHaveLength(0);
 
     await closeWs(freshUi);
   });

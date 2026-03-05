@@ -6,16 +6,13 @@
   import { createNote, deleteNote, fetchNotes, toNoteSummary, updateNote } from "$lib/api/client";
   import {
     ActivityEvent,
-    ConfigModal,
     ConnectCard,
     InstallBlock,
     LinkingCard,
     SourceWindow,
     StatusDot,
   } from "$lib/components";
-  import { activateGame } from "$lib/stores/activation";
   import { activityEvents } from "$lib/stores/activity";
-  import { discoveryPending, startDiscovery } from "$lib/stores/discovery";
   import { consumePendingLinkCode } from "$lib/stores/link-code";
   import {
     cancelLink,
@@ -26,7 +23,7 @@
     linkState,
     submitLinkCode,
   } from "$lib/stores/link-flow";
-  import { setGameStatus, sources } from "$lib/stores/sources";
+  import { sources } from "$lib/stores/sources";
   import type { Source, SourceStatus } from "$lib/types/source";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
 
@@ -39,7 +36,6 @@
     void submitLinkCode(pendingCode);
   }
 
-  let configSourceId = $state<string | null>(null);
   let activityExpanded = $state(false);
   let showLinkInput = $state(false);
   let wasManualInput = $state(false);
@@ -77,16 +73,6 @@
         send(JSON.stringify({ rescanGame: { gameId: game.gameId } }));
       }
     }
-  }
-
-  function discover(): void {
-    startDiscovery();
-    send(JSON.stringify({ discoverGames: {} }));
-  }
-
-  async function handleActivate(sourceId: string, gameId: string): Promise<void> {
-    await activateGame(sourceId, gameId);
-    setGameStatus(sourceId, gameId, "activating");
   }
 
   const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
@@ -147,10 +133,6 @@
           {source}
           justLinked={source.id === $linkedSourceId}
           onrescan={() => rescan(source)}
-          ondiscover={discover}
-          onconfig={() => (configSourceId = source.id)}
-          onactivate={(gameId: string) => handleActivate(source.id, gameId)}
-          discoveryPending={$discoveryPending}
           loadNotes={async (saveUuid) => {
             const notes = await fetchNotes(saveUuid);
             return notes.map((n) => toNoteSummary(n));
@@ -209,10 +191,6 @@
     </div>
   </aside>
 </div>
-
-{#if configSourceId}
-  <ConfigModal sourceId={configSourceId} onclose={() => (configSourceId = null)} />
-{/if}
 
 <style>
   .sources-layout {

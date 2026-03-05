@@ -1017,6 +1017,192 @@ describe("SourceHub", () => {
     await closeWs(daemonWs);
   });
 
+  it("auto-creates config when daemon sends gameDetected", async () => {
+    const userUuid = "auto-enable-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    const daemonWs = await connectDaemonWs(sourceToken);
+
+    // Identify daemon
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // configUpdate
+
+    // Send gameDetected — should auto-create config in D1
+    daemonWs.send(
+      JSON.stringify({ gameDetected: { gameId: "d2r", path: "/home/user/.d2r/saves", saveCount: 3 } }),
+    );
+
+    // Give handler time to process (D1 write happens async in webSocketMessage)
+    await new Promise((resolve) => { setTimeout(resolve, 200); });
+
+    // Verify D1 has the auto-created config row
+    const rows = await env.DB.prepare(
+      "SELECT * FROM source_configs WHERE source_uuid = ? AND game_id = ?",
+    )
+      .bind(sourceUuid, "d2r")
+      .all();
+    expect(rows.results).toHaveLength(1);
+    expect(rows.results[0]!.save_path).toBe("/home/user/.d2r/saves");
+    expect(rows.results[0]!.enabled).toBe(1);
+
+    await closeWs(daemonWs);
+  });
+
+  it("pushes auto-created config to daemon on reconnect", async () => {
+    const userUuid = "auto-enable-reconnect-user";
+    const { sourceToken } = await seedSource(userUuid);
+
+    // First connection: daemon detects a game
+    const daemon1 = await connectDaemonWs(sourceToken);
+    daemon1.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    await waitForMessage(daemon1); // initial empty configUpdate
+    daemon1.send(
+      JSON.stringify({ gameDetected: { gameId: "d2r", path: "/saves/d2r", saveCount: 2 } }),
+    );
+    // Give handler time to process
+    await new Promise((resolve) => { setTimeout(resolve, 100); });
+    await closeWs(daemon1);
+
+    // Second connection: daemon comes back online and gets the auto-created config
+    const daemon2 = await connectDaemonWs(sourceToken);
+    daemon2.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    const configMsg = await waitForMessage<{
+      configUpdate: { games: Record<string, { savePath: string; enabled: boolean }> };
+    }>(daemon2);
+
+    expect(configMsg).toHaveProperty("configUpdate");
+    const d2rConfig = configMsg.configUpdate.games.d2r;
+    expect(d2rConfig).toBeDefined();
+    expect(d2rConfig!.savePath).toBe("/saves/d2r");
+    expect(d2rConfig!.enabled).toBe(true);
+
+    await closeWs(daemon2);
+  });
+
+  it("does not overwrite existing enabled config on gameDetected", async () => {
+    const userUuid = "no-overwrite-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Pre-populate config with a custom path
+    await env.DB.prepare(
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+      .bind(sourceUuid, "d2r", "/custom/path", 1, JSON.stringify([".d2s"]))
+      .run();
+
+    const daemonWs = await connectDaemonWs(sourceToken);
+
+    // Identify daemon and consume configUpdate
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // configUpdate
+
+    // Send gameDetected with a different path
+    daemonWs.send(
+      JSON.stringify({ gameDetected: { gameId: "d2r", path: "/detected/path", saveCount: 1 } }),
+    );
+
+    // Should NOT receive another configUpdate (config already exists and is enabled)
+    const noConfig = await waitForMessage(daemonWs, 500).catch(() => null);
+    expect(noConfig).toBeNull();
+
+    // Verify D1 still has the original path
+    const row = await env.DB.prepare(
+      "SELECT save_path FROM source_configs WHERE source_uuid = ? AND game_id = ?",
+    )
+      .bind(sourceUuid, "d2r")
+      .first<{ save_path: string }>();
+    expect(row!.save_path).toBe("/custom/path");
+
+    await closeWs(daemonWs);
+  });
+
+  it("does not re-enable disabled config on gameDetected", async () => {
+    const userUuid = "no-reenable-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Pre-populate disabled config
+    await env.DB.prepare(
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+      .bind(sourceUuid, "d2r", "/saves/d2r", 0, JSON.stringify([".d2s"]))
+      .run();
+
+    const daemonWs = await connectDaemonWs(sourceToken);
+
+    // Identify daemon and consume configUpdate
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // configUpdate
+
+    // Send gameDetected
+    daemonWs.send(
+      JSON.stringify({ gameDetected: { gameId: "d2r", path: "/detected/path", saveCount: 2 } }),
+    );
+
+    // Should NOT receive a configUpdate (user disabled this game)
+    const noConfig = await waitForMessage(daemonWs, 500).catch(() => null);
+    expect(noConfig).toBeNull();
+
+    // Verify D1 still has enabled = 0
+    const row = await env.DB.prepare(
+      "SELECT enabled FROM source_configs WHERE source_uuid = ? AND game_id = ?",
+    )
+      .bind(sourceUuid, "d2r")
+      .first<{ enabled: number }>();
+    expect(row!.enabled).toBe(0);
+
+    await closeWs(daemonWs);
+  });
+
+  it("does not set ACTIVATING status during pushConfigToSource", async () => {
+    const userUuid = "no-activating-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Pre-populate config
+    await env.DB.prepare(
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+      .bind(sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
+      .run();
+
+    const daemonWs = await connectDaemonWs(sourceToken);
+    const uiWs = await connectWs("/ws/ui", userUuid);
+    await waitForMessage(uiWs); // initial SourceState
+
+    // Identify daemon — triggers maybePushConfig → pushConfigToSource
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // configUpdate
+
+    // Drain all UI messages and check none show ACTIVATING status
+    const messages: Record<string, unknown>[] = [];
+    try {
+      while (messages.length < 10) {
+        const msg = await waitForMessage<Record<string, unknown>>(uiWs, 500);
+        messages.push(msg);
+      }
+    } catch {
+      // Timeout expected
+    }
+
+    // Check SourceState messages — none should have ACTIVATING
+    const stateMessages = messages.filter((m) => "sourceState" in m);
+    for (const stateMsg of stateMessages) {
+      const ds = stateMsg.sourceState as {
+        sources: { games?: { gameId: string; status: string }[] }[];
+      };
+      for (const source of ds.sources) {
+        for (const game of source.games ?? []) {
+          expect(game.status).not.toBe("GAME_STATUS_ENUM_ACTIVATING");
+        }
+      }
+    }
+
+    await closeWs(daemonWs);
+    await closeWs(uiWs);
+  });
+
   it("does not send sourceUpdateAvailable when daemon is current", async () => {
     const userUuid = "update-current-user";
     const { sourceToken } = await seedSource(userUuid);

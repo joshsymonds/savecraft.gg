@@ -1,6 +1,6 @@
 export type SourceStatus = "online" | "error" | "offline";
 
-export type GameStatus = "watching" | "error" | "detected" | "not_found" | "activating";
+export type GameStatus = "watching" | "error" | "not_found";
 
 export type NoteSource = "user" | "ai" | "import";
 

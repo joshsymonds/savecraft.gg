@@ -199,33 +199,6 @@
     ],
   };
 
-  const detectedSource: Source = {
-    id: "fresh-install",
-    name: "DAEMON · FRESH-INSTALL",
-    sourceKind: "daemon",
-    hostname: "fresh-install",
-    status: "online",
-    version: "v0.1.0",
-    lastSeen: "now",
-    capabilities: { canRescan: true, canReceiveConfig: true },
-    games: [
-      {
-        gameId: "d2r",
-        name: "Diablo II: Resurrected",
-        status: "detected",
-        statusLine: "ready to watch",
-        saves: [],
-      },
-      {
-        gameId: "stardew",
-        name: "Stardew Valley",
-        status: "not_found",
-        statusLine: "not installed",
-        saves: [],
-      },
-    ],
-  };
-
   // --- Plugin source (no rescan, no config, single game) ---
 
   const pluginSource: Source = {
@@ -294,8 +267,6 @@
       source={daemonSource}
       loadNotes={mockLoadNotes}
       onrescan={() => alert("rescan")}
-      ondiscover={() => alert("discover")}
-      onconfig={() => alert("config")}
     />
   </div>
 </Story>
@@ -350,15 +321,6 @@
 <Story name="DaemonError">
   <div style="width: 700px;">
     <SourceWindow source={errorSource} />
-  </div>
-</Story>
-
-<Story name="DaemonWithDetected">
-  <div style="width: 700px;">
-    <SourceWindow
-      source={detectedSource}
-      onactivate={async (gameId) => alert(`Activate ${String(gameId)}`)}
-    />
   </div>
 </Story>
 
