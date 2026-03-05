@@ -29,10 +29,16 @@ export async function reapOrphanSources(
   }
 
   for (const orphan of orphans.results) {
-    // Clean up R2 data
-    const listed = await saves.list({ prefix: `sources/${orphan.source_uuid}/` });
-    for (const object of listed.objects) {
-      await saves.delete(object.key);
+    // Clean up R2 data (paginated — R2 list returns max 1000 objects)
+    let cursor: string | undefined;
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- R2 pagination loop
+    while (true) {
+      const listed = await saves.list({ prefix: `sources/${orphan.source_uuid}/`, cursor });
+      for (const object of listed.objects) {
+        await saves.delete(object.key);
+      }
+      if (!listed.truncated) break;
+      cursor = listed.cursor;
     }
 
     // Delete saves belonging to this source

@@ -42,7 +42,7 @@ When the player shares something worth remembering — a goal, a milestone, a pl
 
 For questions about game mechanics (drop rates, build calculations, treasure classes), use query_reference. The list_games response includes available reference modules and their parameter schemas, so you already know what queries are possible — no extra discovery step needed. These computations use actual game data tables and are more reliable than AI estimation.
 
-If the player has no saves, asks about installing Savecraft, mentions a pairing code, or seems confused about why their data isn't showing up, use get_setup_help. It returns their device status, can look up a pairing code, and provides platform-specific installation instructions.`;
+If the player has no saves, asks about installing Savecraft, mentions a pairing code, or seems confused about why their data isn't showing up, use get_setup_help. It returns their source status, can look up a pairing code, and provides platform-specific installation instructions.`;
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -382,7 +382,7 @@ const TOOLS: ToolDefinition[] = [
     name: "get_setup_help",
     title: "Setup Help",
     description:
-      "Check the player's device and installation status, look up a pairing code, and get platform-specific installation instructions. Use this when the player asks about installing Savecraft, when list_games returns no saves, when the player mentions a pairing code or device code, or when the player is confused about why their game data isn't appearing. Returns the player's linked devices with activity status, optional link code or source lookup results, and a full installation guide. If you know the player's operating system, pass it as the platform parameter to get targeted instructions.",
+      "Check the player's source and installation status, look up a pairing code, and get platform-specific installation instructions. Use this when the player asks about installing Savecraft, when list_games returns no saves, when the player mentions a pairing code, or when the player is confused about why their game data isn't appearing. Returns the player's linked sources with activity status, optional link code or source lookup results, and a full installation guide. If you know the player's operating system, pass it as the platform parameter to get targeted instructions.",
     inputSchema: {
       type: "object",
       properties: {
@@ -395,7 +395,7 @@ const TOOLS: ToolDefinition[] = [
         link_code: {
           type: "string",
           description:
-            "6-digit pairing code displayed by the Savecraft daemon during setup. Look this up to check if the device is registered, paired, or has an expired code.",
+            "6-digit pairing code displayed by the Savecraft daemon during setup. Look this up to check if the source is registered, paired, or has an expired code.",
         },
         source_uuid: {
           type: "string",

@@ -43,7 +43,7 @@ describe("Source Config API", () => {
     expect(resp.status).toBe(200);
 
     const rows = await env.DB.prepare(
-      "SELECT * FROM source_configs WHERE user_uuid = ? AND source_id = ?",
+      "SELECT * FROM source_configs WHERE user_uuid = ? AND source_uuid = ?",
     )
       .bind(userUuid, sourceId)
       .all<{
@@ -80,7 +80,7 @@ describe("Source Config API", () => {
     await putConfig("/new/path");
 
     const rows = await env.DB.prepare(
-      "SELECT save_path FROM source_configs WHERE user_uuid = ? AND source_id = ? AND game_id = ?",
+      "SELECT save_path FROM source_configs WHERE user_uuid = ? AND source_uuid = ? AND game_id = ?",
     )
       .bind(userUuid, sourceId, "d2r")
       .all<{ save_path: string }>();
@@ -123,7 +123,7 @@ describe("Source Config API", () => {
     });
 
     const rows = await env.DB.prepare(
-      "SELECT game_id FROM source_configs WHERE user_uuid = ? AND source_id = ?",
+      "SELECT game_id FROM source_configs WHERE user_uuid = ? AND source_uuid = ?",
     )
       .bind(userUuid, sourceId)
       .all<{ game_id: string }>();
@@ -213,9 +213,9 @@ describe("Config push via SourceHub", () => {
     const userUuid = "config-push-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Pre-populate config in D1 using sourceUuid as the source_id
+    // Pre-populate config in D1 using sourceUuid
     await env.DB.prepare(
-      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
+      `INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
       .bind(userUuid, sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
@@ -256,7 +256,7 @@ describe("Config push via SourceHub", () => {
 
     // Pre-populate config with an enabled game
     await env.DB.prepare(
-      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
+      `INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
       .bind(userUuid, sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
@@ -291,7 +291,7 @@ describe("Config push via SourceHub", () => {
 
     // Pre-populate config with a disabled game
     await env.DB.prepare(
-      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
+      `INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
       .bind(userUuid, sourceUuid, "stardew", "/saves/stardew", 0, JSON.stringify([".xml"]))
@@ -327,7 +327,7 @@ describe("Config push via SourceHub", () => {
 
     // Pre-populate config with an enabled game
     await env.DB.prepare(
-      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
+      `INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
       .bind(userUuid, sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))

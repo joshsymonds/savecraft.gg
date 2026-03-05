@@ -102,6 +102,10 @@ export class UserHub extends DurableObject<Env> {
   private async handleUpdateState(request: Request): Promise<Response> {
     const body = await request.json<{ sourceUuid: string; stateJson: string }>();
     await this.ctx.storage.put(`${SOURCE_STATE_PREFIX}${body.sourceUuid}`, body.stateJson);
+    // Broadcast updated state to all connected UI clients
+    for (const ws of this.ctx.getWebSockets("ui")) {
+      await this.sendSourceState(ws);
+    }
     return Response.json({ ok: true });
   }
 
@@ -134,11 +138,7 @@ export class UserHub extends DurableObject<Env> {
       }
     }
 
-    if (allSources.length === 0 && entries.size > 0) {
-      // If we have entries but no sources (all offline/empty), still send
-      // an empty SourceState so UI knows the connection is fresh
-    }
-
+    // Always send SourceState (even with empty sources) so UI sees a fresh snapshot
     const merged = JSON.stringify({ sourceState: { sources: allSources } });
     ws.send(merged);
   }
@@ -148,20 +148,20 @@ export class UserHub extends DurableObject<Env> {
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
       const rows = await this.env.DB.prepare(
-        `SELECT event_data, created_at, source_id FROM source_events
+        `SELECT event_data, created_at, source_uuid FROM source_events
          WHERE user_uuid = ?
          ORDER BY created_at DESC
          LIMIT 50`,
       )
         .bind(userUuid)
-        .all<{ event_data: string; created_at: string; source_id: string }>();
+        .all<{ event_data: string; created_at: string; source_uuid: string }>();
 
       const events = rows.results.toReversed();
       for (const row of events) {
         ws.send(
           this.injectMetadata(row.event_data, {
             _ts: row.created_at.endsWith("Z") ? row.created_at : `${row.created_at}Z`,
-            _sourceId: row.source_id,
+            _sourceId: row.source_uuid,
           }),
         );
       }
