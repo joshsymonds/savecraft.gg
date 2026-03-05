@@ -7,12 +7,13 @@
     label: string;
     onclick?: () => void;
     disabled?: boolean;
+    variant?: "danger";
   }
 
-  let { label, onclick, disabled = false }: Props = $props();
+  let { label, onclick, disabled = false, variant }: Props = $props();
 </script>
 
-<button class="tiny-button" {onclick} {disabled}>
+<button class="tiny-button" class:danger={variant === "danger"} {onclick} {disabled}>
   {label}
 </button>
 
@@ -38,5 +39,11 @@
   .tiny-button:disabled {
     opacity: 0.3;
     cursor: default;
+  }
+
+  .tiny-button.danger {
+    color: var(--color-red, #e85a5a);
+    border-color: rgba(232, 90, 90, 0.3);
+    background: rgba(232, 90, 90, 0.08);
   }
 </style>

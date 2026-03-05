@@ -408,10 +408,10 @@ describe("SourceHub", () => {
 
     // Pre-populate config for sourceA only (using sourceA.sourceUuid as the sourceId)
     await env.DB.prepare(
-      `INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?)`,
     )
-      .bind(userUuid, sourceA.sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
+      .bind(sourceA.sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
     const daemonA = await connectDaemonWs(sourceA.sourceToken);
@@ -871,13 +871,18 @@ describe("SourceHub", () => {
     expect(source).toBeDefined();
     expect(source!.online).toBe(true);
 
-    // Send another event after linking — should forward to UI
+    // Send another event after linking — should forward to UI.
+    // Drain any replayed events from D1 (pre-link events are now persisted)
+    // and any intermediate sourceState updates until we see the live event.
     daemonWs.send(
       JSON.stringify({
         watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 3 },
       }),
     );
-    const relayed = await waitForMessage<Record<string, unknown>>(uiWs);
+    let relayed: Record<string, unknown>;
+    do {
+      relayed = await waitForMessage<Record<string, unknown>>(uiWs);
+    } while (!("watching" in relayed));
     expect(relayed).toHaveProperty("watching");
 
     await closeWs(uiWs);
@@ -923,10 +928,10 @@ describe("SourceHub", () => {
       .bind(sourceUuid)
       .run();
     await env.DB.prepare(
-      `INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions)
-       VALUES (?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?)`,
     )
-      .bind(userUuid, sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
+      .bind(sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
     const daemonWs = await connectDaemonWs(sourceToken);

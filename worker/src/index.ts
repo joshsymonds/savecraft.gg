@@ -250,7 +250,7 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
     return handleApiKeys(request, url, env, auth.userUuid);
   }
   if (url.pathname.startsWith("/api/v1/sources/") && url.pathname.endsWith("/config")) {
-    return handleSourceConfig(request, url, env, auth.userUuid);
+    return handleSourceConfig(request, url, env);
   }
   if (url.pathname.startsWith("/api/v1/notes/")) {
     return handleNotes(request, url, env, auth.userUuid);
@@ -359,12 +359,7 @@ interface GameConfigInput {
   fileExtensions: string[];
 }
 
-async function handleSourceConfig(
-  request: Request,
-  url: URL,
-  env: Env,
-  userUuid: string,
-): Promise<Response> {
+async function handleSourceConfig(request: Request, url: URL, env: Env): Promise<Response> {
   const pathParts = url.pathname.split("/");
   const sourceId = pathParts[4];
   if (!validateId(sourceId)) {
@@ -372,24 +367,20 @@ async function handleSourceConfig(
   }
 
   if (request.method === "GET") {
-    return handleGetSourceConfig(env, userUuid, sourceId);
+    return handleGetSourceConfig(env, sourceId);
   }
   if (request.method === "PUT") {
-    return handlePutSourceConfig(request, env, userUuid, sourceId);
+    return handlePutSourceConfig(request, env, sourceId);
   }
 
   return new Response("Method Not Allowed", { status: 405 });
 }
 
-async function handleGetSourceConfig(
-  env: Env,
-  userUuid: string,
-  sourceId: string,
-): Promise<Response> {
+async function handleGetSourceConfig(env: Env, sourceId: string): Promise<Response> {
   const rows = await env.DB.prepare(
-    "SELECT game_id, save_path, enabled, file_extensions FROM source_configs WHERE user_uuid = ? AND source_uuid = ?",
+    "SELECT game_id, save_path, enabled, file_extensions FROM source_configs WHERE source_uuid = ?",
   )
-    .bind(userUuid, sourceId)
+    .bind(sourceId)
     .all<{ game_id: string; save_path: string; enabled: number; file_extensions: string }>();
 
   const games: Record<string, GameConfigInput> = {};
@@ -413,7 +404,6 @@ async function handleGetSourceConfig(
 async function handlePutSourceConfig(
   request: Request,
   env: Env,
-  userUuid: string,
   sourceId: string,
 ): Promise<Response> {
   let body: { games?: Record<string, GameConfigInput> };
@@ -425,17 +415,16 @@ async function handlePutSourceConfig(
 
   const games = body.games ?? {};
 
-  await env.DB.prepare("DELETE FROM source_configs WHERE user_uuid = ? AND source_uuid = ?")
-    .bind(userUuid, sourceId)
+  await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?")
+    .bind(sourceId)
     .run();
 
   for (const [gameId, config] of Object.entries(games)) {
     await env.DB.prepare(
-      `INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions, updated_at)
+       VALUES (?, ?, ?, ?, ?, datetime('now'))`,
     )
       .bind(
-        userUuid,
         sourceId,
         gameId,
         config.savePath,
@@ -450,13 +439,16 @@ async function handlePutSourceConfig(
   const doResp = await doStub.fetch(
     new Request("https://do/push-config", {
       method: "POST",
-      headers: { "X-User-UUID": userUuid },
       body: JSON.stringify({ sourceId }),
     }),
   );
-  await doResp.text();
 
-  return Response.json({ ok: true, config_pushed: doResp.ok });
+  if (!doResp.ok) {
+    const detail = await doResp.text();
+    return Response.json({ error: "Config push failed", detail }, { status: 502 });
+  }
+
+  return Response.json({ ok: true });
 }
 
 // -- Notes REST API ------------------------------------------------

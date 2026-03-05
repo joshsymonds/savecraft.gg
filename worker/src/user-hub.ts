@@ -149,9 +149,10 @@ export class UserHub extends DurableObject<Env> {
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
       if (!userUuid) return;
       const rows = await this.env.DB.prepare(
-        `SELECT event_data, created_at, source_uuid FROM source_events
-         WHERE user_uuid = ?
-         ORDER BY created_at DESC
+        `SELECT e.event_data, e.created_at, e.source_uuid FROM source_events e
+         JOIN sources s ON e.source_uuid = s.source_uuid
+         WHERE s.user_uuid = ?
+         ORDER BY e.created_at DESC
          LIMIT 50`,
       )
         .bind(userUuid)

@@ -118,6 +118,23 @@ describe("GameCard", () => {
       await userEvent.click(screen.getByText("ACTIVATING..."));
       expect(onactivate).not.toHaveBeenCalled();
     });
+
+    it("shows fail reason when activation fails with a reason", () => {
+      const game = makeGame({ status: "detected", statusLine: "Detected" });
+      render(GameCard, {
+        props: { game, onactivate: vi.fn(), activateState: "failed", failReason: "network error" },
+      });
+      expect(screen.getByText("FAILED")).toBeInTheDocument();
+      expect(screen.getByText("network error")).toBeInTheDocument();
+    });
+
+    it("does not show fail reason when activateState is not failed", () => {
+      const game = makeGame({ status: "detected", statusLine: "Detected" });
+      render(GameCard, {
+        props: { game, onactivate: vi.fn(), activateState: "idle", failReason: "stale reason" },
+      });
+      expect(screen.queryByText("stale reason")).not.toBeInTheDocument();
+    });
   });
 
   describe("onclick behavior", () => {
