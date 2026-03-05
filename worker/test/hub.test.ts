@@ -932,6 +932,54 @@ describe("SourceHub", () => {
     await closeWs(daemonWs);
   });
 
+  it("decorates SourceState with source_kind, hostname, and capabilities from D1", async () => {
+    const userUuid = "meta-decoration-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Set non-default metadata in D1
+    await env.DB.prepare(
+      "UPDATE sources SET source_kind = 'plugin', hostname = 'gaming-rig', can_rescan = 0, can_receive_config = 0 WHERE source_uuid = ?",
+    )
+      .bind(sourceUuid)
+      .run();
+
+    const daemonWs = await connectDaemonWs(sourceToken);
+    const uiWs = await connectWs("/ws/ui", userUuid);
+
+    // Drain initial SourceState (may have stale/empty data)
+    await waitForMessage(uiWs);
+
+    // Trigger sourceOnline → SourceHub decorates state with D1 metadata before forwarding
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+
+    // Drain forwarded event, then get the updated SourceState
+    await waitForMessage(uiWs); // sourceOnline event
+    const stateMsg = await waitForMessage<{
+      sourceState: {
+        sources: {
+          sourceId: string;
+          sourceKind: string;
+          hostname: string;
+          canRescan?: boolean;
+          canReceiveConfig?: boolean;
+          online: boolean;
+        }[];
+      };
+    }>(uiWs);
+
+    const source = stateMsg.sourceState.sources[0]!;
+    expect(source.sourceId).toBe(sourceUuid);
+    expect(source.sourceKind).toBe("plugin");
+    expect(source.hostname).toBe("gaming-rig");
+    // Proto3 JSON omits false booleans — canRescan/canReceiveConfig should be absent (undefined)
+    expect(source.canRescan).toBeUndefined();
+    expect(source.canReceiveConfig).toBeUndefined();
+    expect(source.online).toBe(true);
+
+    await closeWs(daemonWs);
+    await closeWs(uiWs);
+  });
+
   it("returns live source status via /status endpoint", async () => {
     const userUuid = "status-endpoint-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);

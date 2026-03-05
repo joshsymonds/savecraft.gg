@@ -12,7 +12,7 @@
  *
  * Examples:
  *   npx tsx scripts/screenshot.ts components-panel--default
- *   npx tsx scripts/screenshot.ts --grep devicewindow
+ *   npx tsx scripts/screenshot.ts --grep sourcewindow
  *   npx tsx scripts/screenshot.ts --grep "notecard|saverow"
  *   npx tsx scripts/screenshot.ts --all --port 6007
  *
