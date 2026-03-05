@@ -1,18 +1,22 @@
 <!--
   @component
-  Sources page: source cards, activity feed sidebar, inline install flow.
+  Dashboard: source status strip + game-centric main area + activity sidebar.
 -->
 <script lang="ts">
   import { createNote, deleteNote, fetchNotes, toNoteSummary, updateNote } from "$lib/api/client";
   import {
     ActivityEvent,
     ConnectCard,
+    GamePanel,
+    GamePickerModal,
     InstallBlock,
     LinkingCard,
-    SourceWindow,
+    SourceDetailModal,
+    SourceStrip,
     StatusDot,
   } from "$lib/components";
   import { activityEvents } from "$lib/stores/activity";
+  import { mergeGames } from "$lib/stores/games";
   import { consumePendingLinkCode } from "$lib/stores/link-code";
   import {
     cancelLink,
@@ -23,14 +27,14 @@
     linkState,
     submitLinkCode,
   } from "$lib/stores/link-flow";
+  import { plugins } from "$lib/stores/plugins";
   import { sources } from "$lib/stores/sources";
-  import type { Source, SourceStatus } from "$lib/types/source";
-  import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
+  import type { PickerGame, Source, SourceStatus } from "$lib/types/source";
+  import { connectionStatus, type ConnectionStatus } from "$lib/ws/client";
 
   const COLLAPSED_EVENT_COUNT = 8;
 
   // Consume pending link code from sessionStorage synchronously on first render.
-  // This fires before any $effect, so the homepage starts in linking mode with no flash.
   const pendingCode = consumePendingLinkCode();
   if (pendingCode) {
     void submitLinkCode(pendingCode);
@@ -39,6 +43,34 @@
   let activityExpanded = $state(false);
   let showLinkInput = $state(false);
   let wasManualInput = $state(false);
+
+  // -- Source detail modal --
+  let selectedSource: Source | null = $state(null);
+
+  // -- Game picker modal --
+  let pickerOpen = $state(false);
+
+  // -- Derived game data --
+  let mergedGames = $derived(mergeGames($sources));
+  let showSourceBadges = $derived($sources.length > 1);
+
+  // -- Game picker catalog --
+  let pickerGames = $derived.by((): PickerGame[] => {
+    const watchedIds = new Set(mergedGames.map((g) => g.gameId));
+    const result: PickerGame[] = [];
+    for (const [gameId, manifest] of $plugins) {
+      const merged = mergedGames.find((g) => g.gameId === gameId);
+      result.push({
+        gameId,
+        name: manifest.name,
+        description: `Parses ${manifest.file_extensions.join(", ")} files`,
+        watched: watchedIds.has(gameId),
+        saveCount: merged?.saves.length ?? 0,
+        defaultPaths: manifest.default_paths,
+      });
+    }
+    return result.sort((a, b) => a.name.localeCompare(b.name));
+  });
 
   function handleManualLink(code: string): void {
     wasManualInput = true;
@@ -67,14 +99,6 @@
   );
   let hiddenCount = $derived($activityEvents.length - COLLAPSED_EVENT_COUNT);
 
-  function rescan(source: Source): void {
-    for (const game of source.games) {
-      if (game.status !== "not_found") {
-        send(JSON.stringify({ rescanGame: { gameId: game.gameId } }));
-      }
-    }
-  }
-
   const CONNECTION_LABEL: Record<ConnectionStatus, string> = {
     connected: "LIVE",
     connecting: "CONNECTING",
@@ -91,48 +115,47 @@
 </script>
 
 <svelte:head>
-  <title>Sources — Savecraft</title>
+  <title>Dashboard — Savecraft</title>
 </svelte:head>
 
-<div class="sources-layout">
-  <!-- Main: source cards -->
-  <main class="sources">
-    {#if $linkState === "linking"}
-      <LinkingCard cardState="linking" code={$linkCode} ondismiss={handleCancelLink} />
-    {:else if $linkState === "error"}
-      <LinkingCard cardState="error" errorMessage={$linkError} ondismiss={handleDismissError} />
-    {:else if showLinkInput}
-      <LinkingCard
-        cardState="input"
-        onsubmit={handleManualLink}
-        ondismiss={() => (showLinkInput = false)}
+<div class="dashboard-layout">
+  <!-- Main column: strip + content -->
+  <div class="main-column">
+    {#if $sources.length > 0}
+      <SourceStrip
+        sources={$sources}
+        onchipclick={(source) => { selectedSource = source; }}
       />
     {/if}
 
-    {#if $sources.length === 0}
-      {#if $connectionStatus === "connecting"}
-        <div class="empty-state">
-          <span class="empty-text">Connecting...</span>
-        </div>
-      {:else if $linkState !== "linking"}
-        <InstallBlock prominent={true} onsubmit={handleManualLink} />
+    <main class="content">
+      {#if $linkState === "linking"}
+        <LinkingCard cardState="linking" code={$linkCode} ondismiss={handleCancelLink} />
+      {:else if $linkState === "error"}
+        <LinkingCard cardState="error" errorMessage={$linkError} ondismiss={handleDismissError} />
+      {:else if showLinkInput}
+        <LinkingCard
+          cardState="input"
+          onsubmit={handleManualLink}
+          ondismiss={() => (showLinkInput = false)}
+        />
       {/if}
-    {:else}
-      <ConnectCard />
 
-      <div class="section-header">
-        <span class="section-label">SOURCES</span>
-        <span class="source-count">{$sources.length} connected</span>
-        {#if $linkState === "idle" && !showLinkInput}
-          <button class="add-source-btn" onclick={() => (showLinkInput = true)}>+ PAIR</button>
+      {#if $sources.length === 0}
+        {#if $connectionStatus === "connecting"}
+          <div class="empty-state">
+            <span class="empty-text">Connecting...</span>
+          </div>
+        {:else if $linkState !== "linking"}
+          <InstallBlock prominent={true} onsubmit={handleManualLink} />
         {/if}
-      </div>
+      {:else}
+        <ConnectCard />
 
-      {#each $sources as source (source.id)}
-        <SourceWindow
-          {source}
-          justLinked={source.id === $linkedSourceId}
-          onrescan={() => rescan(source)}
+        <GamePanel
+          games={mergedGames}
+          {showSourceBadges}
+          onadd={() => { pickerOpen = true; }}
           loadNotes={async (saveUuid) => {
             const notes = await fetchNotes(saveUuid);
             return notes.map((n) => toNoteSummary(n));
@@ -147,11 +170,11 @@
             await updateNote(saveUuid, noteId, { title, content });
           }}
         />
-      {/each}
 
-      <InstallBlock prominent={false} onsubmit={handleManualLink} />
-    {/if}
-  </main>
+        <InstallBlock prominent={false} onsubmit={handleManualLink} />
+      {/if}
+    </main>
+  </div>
 
   <!-- Sidebar: activity feed -->
   <aside class="activity-sidebar">
@@ -192,60 +215,44 @@
   </aside>
 </div>
 
+<!-- Modals -->
+{#if selectedSource}
+  <SourceDetailModal
+    source={selectedSource}
+    onclose={() => { selectedSource = null; }}
+  />
+{/if}
+
+{#if pickerOpen}
+  <GamePickerModal
+    games={pickerGames}
+    onselect={(game) => { pickerOpen = false; alert(`Selected: ${game.name} — config wiring coming soon`); }}
+    onclose={() => { pickerOpen = false; }}
+  />
+{/if}
+
 <style>
-  .sources-layout {
+  .dashboard-layout {
     display: grid;
     grid-template-columns: 1fr 380px;
     height: 100%;
   }
 
-  /* -- Sources area ----------------------------------------- */
+  .main-column {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
 
-  .sources {
+  /* -- Content area ----------------------------------------- */
+
+  .content {
     padding: 24px 28px;
     display: flex;
     flex-direction: column;
     gap: 16px;
     overflow-y: auto;
-  }
-
-  .section-header {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    margin-bottom: 4px;
-  }
-
-  .section-label {
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    color: var(--color-gold);
-    letter-spacing: 2px;
-  }
-
-  .source-count {
-    font-family: var(--font-body);
-    font-size: 16px;
-    color: var(--color-text-dim);
     flex: 1;
-  }
-
-  .add-source-btn {
-    font-family: var(--font-pixel);
-    font-size: 10px;
-    color: var(--color-gold);
-    letter-spacing: 1px;
-    background: none;
-    border: 1px solid rgba(200, 168, 78, 0.25);
-    border-radius: 3px;
-    padding: 4px 12px;
-    cursor: pointer;
-    transition: all 0.15s;
-  }
-
-  .add-source-btn:hover {
-    background: rgba(200, 168, 78, 0.1);
-    border-color: var(--color-gold);
   }
 
   .empty-state {
