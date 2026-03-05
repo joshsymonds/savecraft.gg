@@ -151,7 +151,7 @@ function applyMutation(state: SourceState, mutation: StateMutation): void {
 }
 
 /**
- * SourceHub is a per-user Durable Object that handles daemon/mod WebSocket
+ * SourceHub is a per-source Durable Object (keyed by source_uuid) that handles daemon/mod WebSocket
  * connections. Uses WebSocket Hibernation so the DO sleeps when no
  * application messages are in flight.
  *
@@ -210,14 +210,12 @@ export class SourceHub extends DurableObject<Env> {
     const rpc = this.parseMessage(msgString);
     const mutation = await this.applySourceState(tags, rpc);
 
-    // Forward state to UserHub when meaningful changes occur
-    if (mutation.kind !== "none" || rpc?.payload?.$case === "sourceHeartbeat") {
-      await this.forwardStateToUserHub();
-    }
-
     // Heartbeat updates lastSeen (via applySourceState) but is not
     // relayed to UI or persisted — it's transport-level only.
-    if (rpc?.payload?.$case === "sourceHeartbeat") return;
+    if (rpc?.payload?.$case === "sourceHeartbeat") {
+      await this.forwardStateToUserHub();
+      return;
+    }
 
     const sourceId = await this.getSourceIdForConnection(tags);
 
@@ -226,6 +224,12 @@ export class SourceHub extends DurableObject<Env> {
 
     // Forward event to UserHub for UI broadcast
     await this.forwardEventToUserHub(msgString, sourceId);
+
+    // Broadcast updated state after event — UI gets the event first,
+    // then the state snapshot reflecting it
+    if (mutation.kind !== "none") {
+      await this.forwardStateToUserHub();
+    }
 
     await this.maybePushConfig(rpc);
     await this.maybePushSourceUpdate(ws, rpc);
@@ -436,8 +440,10 @@ export class SourceHub extends DurableObject<Env> {
   }
 
   private async getCapabilities(): Promise<Capabilities> {
-    const cached = await this.ctx.storage.get<Capabilities>(CAPS_KEY);
-    if (cached) return cached;
+    const cached = await this.ctx.storage.get<Capabilities & { cachedAt: number }>(CAPS_KEY);
+    if (cached && Date.now() - cached.cachedAt < 5 * 60_000) {
+      return { canRescan: cached.canRescan, canReceiveConfig: cached.canReceiveConfig };
+    }
 
     const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
     if (!sourceUuid) return { canRescan: true, canReceiveConfig: true };
@@ -452,7 +458,7 @@ export class SourceHub extends DurableObject<Env> {
       canRescan: row?.can_rescan !== 0,
       canReceiveConfig: row?.can_receive_config !== 0,
     };
-    await this.ctx.storage.put(CAPS_KEY, caps);
+    await this.ctx.storage.put(CAPS_KEY, { ...caps, cachedAt: Date.now() });
     return caps;
   }
 
@@ -562,7 +568,7 @@ export class SourceHub extends DurableObject<Env> {
     const rows = await this.env.DB.prepare(
       `SELECT game_id, save_path, enabled, file_extensions
        FROM source_configs
-       WHERE user_uuid = ? AND source_id = ?`,
+       WHERE user_uuid = ? AND source_uuid = ?`,
     )
       .bind(userUuid, sourceId)
       .all<{
@@ -722,7 +728,7 @@ export class SourceHub extends DurableObject<Env> {
       const resolvedSourceId = sourceId ?? "unknown";
 
       await this.env.DB.prepare(
-        `INSERT INTO source_events (user_uuid, source_id, event_type, event_data)
+        `INSERT INTO source_events (user_uuid, source_uuid, event_type, event_data)
          VALUES (?, ?, ?, ?)`,
       )
         .bind(userUuid, resolvedSourceId, eventType, rawMessage)
@@ -730,9 +736,9 @@ export class SourceHub extends DurableObject<Env> {
 
       await this.env.DB.prepare(
         `DELETE FROM source_events
-         WHERE user_uuid = ? AND source_id = ? AND id NOT IN (
+         WHERE user_uuid = ? AND source_uuid = ? AND id NOT IN (
            SELECT id FROM source_events
-           WHERE user_uuid = ? AND source_id = ?
+           WHERE user_uuid = ? AND source_uuid = ?
            ORDER BY created_at DESC LIMIT 100
          )`,
       )

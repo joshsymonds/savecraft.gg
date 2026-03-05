@@ -244,4 +244,19 @@ describe("Push API", () => {
     expect(resp2.status).toBe(201);
     expect(body1.snapshot_timestamp).toBe("2026-02-25T22:00:00Z");
   });
+
+  it("updates last_push_at on successful push", async () => {
+    const before = await env.DB.prepare("SELECT last_push_at FROM sources WHERE source_uuid = ?")
+      .bind(SOURCE_UUID)
+      .first<{ last_push_at: string | null }>();
+    expect(before!.last_push_at).toBeNull();
+
+    const resp = await SELF.fetch(pushRequest(validGameState));
+    expect(resp.status).toBe(201);
+
+    const after = await env.DB.prepare("SELECT last_push_at FROM sources WHERE source_uuid = ?")
+      .bind(SOURCE_UUID)
+      .first<{ last_push_at: string | null }>();
+    expect(after!.last_push_at).not.toBeNull();
+  });
 });

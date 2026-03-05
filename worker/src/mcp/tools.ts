@@ -56,8 +56,8 @@ async function lookupSave(
   return db
     .prepare(
       `SELECT s.* FROM saves s
-       JOIN sources d ON s.source_uuid = d.source_uuid
-       WHERE s.uuid = ? AND d.user_uuid = ?`,
+       JOIN sources src ON s.source_uuid = src.source_uuid
+       WHERE s.uuid = ? AND src.user_uuid = ?`,
     )
     .bind(saveId, userUuid)
     .first<SaveRow>();
@@ -233,8 +233,8 @@ export async function listGames(
     .prepare(
       `SELECT s.uuid, s.source_uuid, s.game_id, s.game_name, s.save_name, s.summary, s.last_updated
        FROM saves s
-       JOIN sources d ON s.source_uuid = d.source_uuid
-       WHERE d.user_uuid = ?
+       JOIN sources src ON s.source_uuid = src.source_uuid
+       WHERE src.user_uuid = ?
        ORDER BY s.last_updated DESC`,
     )
     .bind(userUuid)
@@ -899,7 +899,7 @@ export async function searchSaves(
     sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
            WHERE search_index MATCH ?
-             AND save_id IN (SELECT s.uuid FROM saves s JOIN sources d ON s.source_uuid = d.source_uuid WHERE d.user_uuid = ?)
+             AND save_id IN (SELECT s.uuid FROM saves s JOIN sources src ON s.source_uuid = src.source_uuid WHERE src.user_uuid = ?)
            ORDER BY rank
            LIMIT 20`;
     params.push(userUuid);

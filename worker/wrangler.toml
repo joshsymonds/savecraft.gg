@@ -42,11 +42,11 @@ bindings = [
 
 [[migrations]]
 tag = "v1"
-new_classes = ["SourceHub"]
+new_sqlite_classes = ["SourceHub"]
 
 [[migrations]]
 tag = "v2"
-new_classes = ["UserHub"]
+new_sqlite_classes = ["UserHub"]
 
 # ── Production ─────────────────────────────────────────
 [env.production]

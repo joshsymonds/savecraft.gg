@@ -78,7 +78,6 @@ export async function authenticateDaemon(request: Request, env: Env): Promise<Au
 /**
  * Authenticate a source token (`sct_` prefix) by hashing and looking up in D1.
  * Always does D1 lookup — no stub mode for source tokens.
- * Updates last_push_at on successful auth.
  */
 export async function authenticateSource(
   request: Request,
@@ -95,12 +94,6 @@ export async function authenticateSource(
     .first<{ source_uuid: string; user_uuid: string | null }>();
 
   if (!row) return null;
-
-  // Update last activity timestamp (best-effort, don't fail auth on update error)
-  await env.DB.prepare("UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?")
-    .bind(row.source_uuid)
-    .run();
-
   return { sourceUuid: row.source_uuid, userUuid: row.user_uuid };
 }
 

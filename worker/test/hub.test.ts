@@ -49,7 +49,7 @@ describe("SourceHub", () => {
 
     expect(rows.results.length).toBeGreaterThanOrEqual(1);
     const row = rows.results[0]!;
-    expect(row.source_id).toBe("steam-deck");
+    expect(row.source_uuid).toBe("steam-deck");
     expect(row.event_type).toBe("sourceOnline");
 
     await closeWs(daemonWs);
@@ -395,7 +395,7 @@ describe("SourceHub", () => {
 
     // Pre-populate config for sourceA only (using sourceA.sourceUuid as the sourceId)
     await env.DB.prepare(
-      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
+      `INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
       .bind(userUuid, sourceA.sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
@@ -414,17 +414,17 @@ describe("SourceHub", () => {
     expect(configB).toHaveProperty("configUpdate");
 
     // Source A's configUpdate should have d2r, source B's should be empty
-    const desktopGames = (configA.configUpdate as { games: Record<string, unknown> }).games;
-    const steamdeckGames = (configB.configUpdate as { games: Record<string, unknown> }).games;
-    expect(Object.keys(desktopGames)).toHaveLength(1);
-    expect(Object.keys(steamdeckGames)).toHaveLength(0);
+    const sourceAGames = (configA.configUpdate as { games: Record<string, unknown> }).games;
+    const sourceBGames = (configB.configUpdate as { games: Record<string, unknown> }).games;
+    expect(Object.keys(sourceAGames)).toHaveLength(1);
+    expect(Object.keys(sourceBGames)).toHaveLength(0);
 
     await closeWs(daemonA);
     await closeWs(daemonB);
   });
 
   it("injects _sourceId on live relay", async () => {
-    const userUuid = "deviceid-relay-user";
+    const userUuid = "sourceid-relay-user";
     const { sourceToken } = await seedSource(userUuid);
 
     const daemonWs = await connectDaemonWs(sourceToken);
@@ -432,7 +432,8 @@ describe("SourceHub", () => {
 
     // Identify the daemon connection
     daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
-    await waitForMessage(uiWs);
+    await waitForMessage(uiWs); // sourceOnline event
+    await waitForMessage(uiWs); // SourceState broadcast
 
     // Send a game event — UI should receive it with _sourceId injected
     daemonWs.send(
@@ -447,7 +448,7 @@ describe("SourceHub", () => {
   });
 
   it("injects _sourceId on replayed events", async () => {
-    const userUuid = "deviceid-replay-user";
+    const userUuid = "sourceid-replay-user";
     const { sourceToken } = await seedSource(userUuid);
 
     const daemonWs = await connectDaemonWs(sourceToken);
@@ -550,9 +551,10 @@ describe("SourceHub", () => {
     const event = { pluginUpdated: { gameId: "d2r", version: "1.0.0" } };
     daemonA.send(JSON.stringify(event));
 
-    // User A's UI should receive it
-    const received = await waitForMessage(uiA);
-    expect(received).toBeTruthy();
+    // User A's UI should receive the pluginUpdated event
+    const received = await waitForMessage<typeof event>(uiA);
+    expect(received.pluginUpdated.gameId).toBe("d2r");
+    expect(received.pluginUpdated.version).toBe("1.0.0");
 
     // User B's UI should NOT receive it (wait briefly, expect timeout)
     const noMessage = await waitForMessage(uiB, 200).catch(() => null);
@@ -634,14 +636,25 @@ describe("SourceHub", () => {
 
     // Identify daemon
     daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "deck", version: "0.1.0" } }));
-    await waitForMessage(uiWs); // sourceOnline relayed
+    await waitForMessage(uiWs); // sourceOnline event
+    await waitForMessage(uiWs); // SourceState broadcast
 
-    // Send heartbeat — should NOT be relayed to UI
+    // Send heartbeat — raw event should NOT be relayed to UI
+    // (heartbeat triggers a SourceState update for lastSeen, but not the event itself)
     daemonWs.send(JSON.stringify({ sourceHeartbeat: {} }));
 
-    // Wait briefly — UI should NOT receive anything
-    const noMessage = await waitForMessage(uiWs, 200).catch(() => null);
-    expect(noMessage).toBeNull();
+    // Drain any messages (SourceState from heartbeat is expected) — none should be sourceHeartbeat
+    const messages: Record<string, unknown>[] = [];
+    try {
+      while (messages.length < 5) {
+        const msg = await waitForMessage<Record<string, unknown>>(uiWs, 200);
+        messages.push(msg);
+      }
+    } catch {
+      // Timeout expected
+    }
+    const heartbeatRelayed = messages.some((m) => "sourceHeartbeat" in m);
+    expect(heartbeatRelayed).toBe(false);
 
     await closeWs(daemonWs);
     await closeWs(uiWs);
@@ -894,7 +907,7 @@ describe("SourceHub", () => {
       .bind(sourceUuid)
       .run();
     await env.DB.prepare(
-      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions)
+      `INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
       .bind(userUuid, sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))

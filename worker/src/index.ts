@@ -378,7 +378,7 @@ async function handleGetSourceConfig(
   sourceId: string,
 ): Promise<Response> {
   const rows = await env.DB.prepare(
-    "SELECT game_id, save_path, enabled, file_extensions FROM source_configs WHERE user_uuid = ? AND source_id = ?",
+    "SELECT game_id, save_path, enabled, file_extensions FROM source_configs WHERE user_uuid = ? AND source_uuid = ?",
   )
     .bind(userUuid, sourceId)
     .all<{ game_id: string; save_path: string; enabled: number; file_extensions: string }>();
@@ -416,13 +416,13 @@ async function handlePutSourceConfig(
 
   const games = body.games ?? {};
 
-  await env.DB.prepare("DELETE FROM source_configs WHERE user_uuid = ? AND source_id = ?")
+  await env.DB.prepare("DELETE FROM source_configs WHERE user_uuid = ? AND source_uuid = ?")
     .bind(userUuid, sourceId)
     .run();
 
   for (const [gameId, config] of Object.entries(games)) {
     await env.DB.prepare(
-      `INSERT INTO source_configs (user_uuid, source_id, game_id, save_path, enabled, file_extensions, updated_at)
+      `INSERT INTO source_configs (user_uuid, source_uuid, game_id, save_path, enabled, file_extensions, updated_at)
        VALUES (?, ?, ?, ?, ?, ?, datetime('now'))`,
     )
       .bind(
@@ -447,7 +447,7 @@ async function handlePutSourceConfig(
   );
   await doResp.text();
 
-  return Response.json({ ok: true });
+  return Response.json({ ok: true, config_pushed: doResp.ok });
 }
 
 // -- Notes REST API ------------------------------------------------
@@ -468,8 +468,8 @@ async function handleNotes(
 
   const save = await env.DB.prepare(
     `SELECT s.uuid FROM saves s
-     JOIN sources d ON s.source_uuid = d.source_uuid
-     WHERE s.uuid = ? AND d.user_uuid = ?`,
+     JOIN sources src ON s.source_uuid = src.source_uuid
+     WHERE s.uuid = ? AND src.user_uuid = ?`,
   )
     .bind(saveId, userUuid)
     .first<{ uuid: string }>();
@@ -696,8 +696,8 @@ async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
   const rows = await env.DB.prepare(
     `SELECT s.uuid, s.game_id, s.save_name, s.summary, s.last_updated
      FROM saves s
-     JOIN sources d ON s.source_uuid = d.source_uuid
-     WHERE d.user_uuid = ?
+     JOIN sources src ON s.source_uuid = src.source_uuid
+     WHERE src.user_uuid = ?
      ORDER BY s.last_updated DESC`,
   )
     .bind(userUuid)
@@ -724,8 +724,8 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
   const save = await env.DB.prepare(
     `SELECT s.uuid, s.source_uuid, s.game_id, s.save_name, s.summary, s.last_updated
      FROM saves s
-     JOIN sources d ON s.source_uuid = d.source_uuid
-     WHERE s.uuid = ? AND d.user_uuid = ?`,
+     JOIN sources src ON s.source_uuid = src.source_uuid
+     WHERE s.uuid = ? AND src.user_uuid = ?`,
   )
     .bind(saveId, userUuid)
     .first<{
@@ -937,12 +937,13 @@ async function handleSourceLink(request: Request, env: Env, userUuid: string): P
 
   // Notify the SourceHub DO so it starts forwarding to UserHub
   const doId = env.SOURCE_HUB.idFromName(source.source_uuid);
-  await env.SOURCE_HUB.get(doId).fetch(
+  const setUserResp = await env.SOURCE_HUB.get(doId).fetch(
     new Request("https://do/set-user", {
       method: "POST",
       body: JSON.stringify({ userUuid }),
     }),
   );
+  await setUserResp.text();
 
   return Response.json({ source_uuid: source.source_uuid });
 }
@@ -1171,6 +1172,16 @@ async function handlePush(request: Request, env: Env, sourceUuid: string): Promi
       bodyString,
       sections,
     );
+
+    // Update last activity timestamp on successful push (best-effort)
+    try {
+      await env.DB.prepare("UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?")
+        .bind(sourceUuid)
+        .run();
+    } catch {
+      // Don't let timestamp update failures break the push response
+    }
+
     return Response.json({ save_uuid: saveUuid, snapshot_timestamp: parsedAt }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";

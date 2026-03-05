@@ -49,25 +49,6 @@ describe("Source Token Authentication", () => {
     expect(resp.status).toBe(401);
   });
 
-  it("updates last_push_at on successful auth", async () => {
-    const source = await registerSource();
-
-    // Verify last_push_at is null before auth
-    const before = await env.DB.prepare("SELECT last_push_at FROM sources WHERE source_uuid = ?")
-      .bind(source.source_uuid)
-      .first<{ last_push_at: string | null }>();
-    expect(before!.last_push_at).toBeNull();
-
-    await SELF.fetch("https://test-host/api/v1/source/verify", {
-      headers: { Authorization: `Bearer ${source.source_token}` },
-    });
-
-    const after = await env.DB.prepare("SELECT last_push_at FROM sources WHERE source_uuid = ?")
-      .bind(source.source_uuid)
-      .first<{ last_push_at: string | null }>();
-    expect(after!.last_push_at).not.toBeNull();
-  });
-
   it("returns null userUuid for unlinked source", async () => {
     const source = await registerSource();
 
