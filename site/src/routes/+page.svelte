@@ -209,6 +209,7 @@
           <span class="nav-title">SAVECRAFT</span>
         </div>
         <div class="nav-right">
+          <a href="/games" class="nav-icon-link">GAMES</a>
           <a
             href="https://discord.gg/YnC8stpEmF"
             class="nav-icon-link"
@@ -571,6 +572,7 @@
       ></span
     >
     <div class="footer-links">
+      <a href="/games" class="footer-link">GAMES</a>
       <a href="/privacy" class="footer-link">PRIVACY</a>
       <a href="https://discord.gg/YnC8stpEmF" class="footer-link" target="_blank" rel="noopener"
         >DISCORD</a
