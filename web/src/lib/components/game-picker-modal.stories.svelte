@@ -65,6 +65,7 @@
     <GamePickerModal
       games={catalog}
       onselect={(g: PickerGame) => alert(`Selected: ${g.name}`)}
+      onconfigure={(gameId: string, path: string) => alert(`Configure: ${gameId} at ${path}`)}
       onclose={() => alert("Close")}
     />
   </div>
@@ -75,6 +76,7 @@
     <GamePickerModal
       games={allWatched}
       onselect={(g: PickerGame) => alert(`Selected: ${g.name}`)}
+      onconfigure={(gameId: string, path: string) => alert(`Configure: ${gameId} at ${path}`)}
       onclose={() => alert("Close")}
     />
   </div>
