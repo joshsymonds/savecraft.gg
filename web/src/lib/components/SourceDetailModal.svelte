@@ -182,18 +182,25 @@
 
   .modal-close {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 14px;
     color: var(--color-text-muted);
     background: none;
-    border: none;
+    border: 1px solid rgba(74, 90, 173, 0.25);
     cursor: pointer;
     padding: 4px 8px;
-    border-radius: 2px;
+    border-radius: 3px;
+    line-height: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 28px;
+    min-height: 28px;
   }
 
   .modal-close:hover {
     color: var(--color-text);
     background: rgba(74, 90, 173, 0.15);
+    border-color: rgba(74, 90, 173, 0.4);
   }
 
   /* -- Info section -------------------------------------------- */
