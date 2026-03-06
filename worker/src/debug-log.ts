@@ -21,6 +21,7 @@ export class DebugLog {
   private readonly maxSize: number;
   private readonly output: LogOutput;
 
+  // eslint-disable-next-line no-console -- Default output for production logging
   constructor(maxSize: number = DEFAULT_MAX_SIZE, output: LogOutput = console.log) {
     this.maxSize = maxSize;
     this.output = output;
@@ -36,7 +37,7 @@ export class DebugLog {
   }
 
   entries(options?: DebugLogFilterOptions): DebugLogEntry[] {
-    let result = [...this.items].reverse();
+    let result = [...this.items].toReversed();
     if (options?.level) {
       result = result.filter((entry) => entry.level === options.level);
     }
