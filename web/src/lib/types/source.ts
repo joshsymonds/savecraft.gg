@@ -48,6 +48,18 @@ export interface Source {
   games: SourceGame[];
 }
 
+// -- Per-source game entry for GameConfigModal --
+
+export interface GameSourceEntry {
+  sourceId: string;
+  sourceName: string;
+  hostname: string | null;
+  status: GameStatus;
+  path?: string;
+  error?: string;
+  saveCount: number;
+}
+
 // -- Game-centric UI types for the dashboard --
 
 export interface Save extends SaveSummary {
@@ -61,6 +73,24 @@ export interface Game {
   statusLine: string;
   saves: Save[];
   sourceCount: number;
+  sources: GameSourceEntry[];
+  needsConfig: boolean;
+}
+
+// -- Config modal types --
+
+export type ValidationState = "idle" | "checking" | "valid" | "invalid" | "error";
+
+export interface AvailableSource {
+  id: string;
+  name: string;
+  hostname: string | null;
+}
+
+export interface TestPathResult {
+  valid: boolean;
+  filesFound: number;
+  fileNames: string[];
 }
 
 export interface PickerGame {

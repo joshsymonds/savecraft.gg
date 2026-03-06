@@ -12,6 +12,8 @@ function makeGame(overrides: Partial<Game> = {}): Game {
     statusLine: "3 saves",
     saves: [],
     sourceCount: 1,
+    sources: [],
+    needsConfig: false,
     ...overrides,
   };
 }
@@ -51,6 +53,12 @@ describe("GameCard", () => {
     render(GameCard, { props: { game } });
     expect(screen.getByText("Atmus")).toBeInTheDocument();
     expect(screen.getByText("Bowazon")).toBeInTheDocument();
+  });
+
+  it("shows 'Needs setup' when needsConfig is true", () => {
+    render(GameCard, { props: { game: makeGame({ needsConfig: true }) } });
+    expect(screen.getByText("Needs setup")).toBeInTheDocument();
+    expect(screen.queryByText("3 saves")).not.toBeInTheDocument();
   });
 
   it("renders first letter as icon", () => {
