@@ -19,7 +19,10 @@
       const next = [...stack, entry];
       if (next.length > 2) {
         // eslint-disable-next-line no-console -- intentional dev warning for deep stacks
-        console.warn("Modal stack depth exceeds 2:", next.map((entry) => entry.id));
+        console.warn(
+          "Modal stack depth exceeds 2:",
+          next.map((entry) => entry.id),
+        );
       }
       return next;
     });
@@ -117,12 +120,12 @@
   tabindex="-1"
   onclick={handleBackdropClick}
   style:z-index={100 + stackIndex * 100}
-  style:--backdrop-bg={stackIndex === 0 ? 'rgba(5, 7, 26, 0.85)' : 'rgba(5, 7, 26, 0.55)'}
+  style:--backdrop-bg={stackIndex === 0 ? "rgba(5, 7, 26, 0.85)" : "rgba(5, 7, 26, 0.55)"}
 >
   <div
     class="modal-content"
     class:behind={!isTopmost}
-    style:width={width}
+    style:width
     style:--offset-x="{offset}px"
     style:--offset-y="{offset}px"
   >

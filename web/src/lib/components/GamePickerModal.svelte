@@ -131,93 +131,88 @@
 </script>
 
 <Modal id="game-picker" onclose={handleModalClose} ariaLabel="Add a game">
-      <div class="modal-header">
-        {#if step === "browsing"}
-          <span class="modal-title">ADD A GAME</span>
-        {:else if step === "selectSource"}
-          <button class="modal-back" onclick={handleBack}>&#x2190;</button>
-          <span class="modal-title">SELECT SOURCE</span>
-        {:else}
-          <button class="modal-back" onclick={handleBack} disabled={configState === "connecting"}
-            >&#x2190;</button
-          >
-          <span class="modal-title">CONNECT {configGame?.name.toUpperCase()}</span>
-        {/if}
-        <button class="modal-close" onclick={() => onclose()}>&#x2715;</button>
-      </div>
+  <div class="modal-header">
+    {#if step === "browsing"}
+      <span class="modal-title">ADD A GAME</span>
+    {:else if step === "selectSource"}
+      <button class="modal-back" onclick={handleBack}>&#x2190;</button>
+      <span class="modal-title">SELECT SOURCE</span>
+    {:else}
+      <button class="modal-back" onclick={handleBack} disabled={configState === "connecting"}
+        >&#x2190;</button
+      >
+      <span class="modal-title">CONNECT {configGame?.name.toUpperCase()}</span>
+    {/if}
+    <button class="modal-close" onclick={() => onclose()}>&#x2715;</button>
+  </div>
 
-      {#if step === "selectSource"}
-        <div class="source-list">
-          {#each configurableSources as source (source.id)}
-            <button class="source-option" onclick={() => handleSourceSelect(source)}>
-              <span class="source-name">{source.name}</span>
-              {#if source.hostname}
-                <span class="source-hostname">{source.hostname}</span>
-              {/if}
-            </button>
-          {/each}
-        </div>
-      {:else if step === "configuring"}
-        <div class="config-form">
-          {#if configState === "success"}
-            <div class="config-success">
-              <span class="success-icon">&#x2713;</span>
-              <span class="success-text">Connected</span>
-            </div>
-          {:else}
-            <label class="config-label" for="save-path">Save directory</label>
-            <input
-              id="save-path"
-              type="text"
-              class="config-input"
-              bind:value={configPath}
-              placeholder="Enter path to save directory..."
-              disabled={configState === "connecting"}
-            />
-            {#if configError}
-              <div class="config-error">{configError}</div>
-            {/if}
-            <button
-              class="config-button"
-              onclick={handleConnect}
-              disabled={configState === "connecting" || !configPath.trim()}
-            >
-              {#if configState === "connecting"}
-                Connecting...
-              {:else if configState === "error" || configState === "timeout"}
-                Retry
-              {:else}
-                Connect Game
-              {/if}
-            </button>
+  {#if step === "selectSource"}
+    <div class="source-list">
+      {#each configurableSources as source (source.id)}
+        <button class="source-option" onclick={() => handleSourceSelect(source)}>
+          <span class="source-name">{source.name}</span>
+          {#if source.hostname}
+            <span class="source-hostname">{source.hostname}</span>
           {/if}
+        </button>
+      {/each}
+    </div>
+  {:else if step === "configuring"}
+    <div class="config-form">
+      {#if configState === "success"}
+        <div class="config-success">
+          <span class="success-icon">&#x2713;</span>
+          <span class="success-text">Connected</span>
         </div>
       {:else}
-        <div class="modal-search">
-          <input
-            type="text"
-            placeholder="Search games..."
-            bind:value={search}
-            class="search-input"
-          />
-        </div>
-        {#if noSourcesError}
-          <div class="no-sources-error">
-            <span class="error-text"
-              >No configurable source connected. Install the Savecraft daemon to add games.</span
-            >
-          </div>
+        <label class="config-label" for="save-path">Save directory</label>
+        <input
+          id="save-path"
+          type="text"
+          class="config-input"
+          bind:value={configPath}
+          placeholder="Enter path to save directory..."
+          disabled={configState === "connecting"}
+        />
+        {#if configError}
+          <div class="config-error">{configError}</div>
         {/if}
-        <div class="modal-list">
-          {#each filtered as game (game.gameId)}
-            <GamePickerCard {game} onclick={() => handleCardClick(game)} />
+        <button
+          class="config-button"
+          onclick={handleConnect}
+          disabled={configState === "connecting" || !configPath.trim()}
+        >
+          {#if configState === "connecting"}
+            Connecting...
+          {:else if configState === "error" || configState === "timeout"}
+            Retry
           {:else}
-            <div class="empty-results">
-              <span class="empty-text">No games matching "{search}"</span>
-            </div>
-          {/each}
-        </div>
+            Connect Game
+          {/if}
+        </button>
       {/if}
+    </div>
+  {:else}
+    <div class="modal-search">
+      <input type="text" placeholder="Search games..." bind:value={search} class="search-input" />
+    </div>
+    {#if noSourcesError}
+      <div class="no-sources-error">
+        <span class="error-text"
+          >No configurable source connected. Install the Savecraft daemon to add games.</span
+        >
+      </div>
+    {/if}
+    <div class="modal-list">
+      {#each filtered as game (game.gameId)}
+        <GamePickerCard {game} onclick={() => handleCardClick(game)} />
+      {:else}
+        <div class="empty-results">
+          <span class="empty-text">No games matching "{search}"</span>
+        </div>
+      {/each}
+    </div>
+  {/if}
 </Modal>
 
 <style>

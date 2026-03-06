@@ -25,10 +25,7 @@
   <WindowTitleBar activeLabel="GAMES" />
   <div class="game-grid">
     {#each games as game (game.gameId)}
-      <GameCard
-        {game}
-        onclick={ongameclick ? () => ongameclick(game) : undefined}
-      />
+      <GameCard {game} onclick={ongameclick ? () => ongameclick(game) : undefined} />
     {/each}
     <button class="add-game-card" onclick={() => onadd?.()}>
       <span class="add-game-icon">+</span>
