@@ -171,17 +171,21 @@ export interface Message {
     | undefined;
 }
 
-/** Source connected to the server (daemon started, mod loaded, etc.). */
+/**
+ * Source connected to the server (daemon started, mod loaded, etc.).
+ * Identity is resolved server-side from the WebSocket connection, not self-reported.
+ */
 export interface SourceOnline {
-  sourceId: string;
   version: string;
   timestamp: Date | undefined;
   platform: string;
 }
 
-/** Source disconnecting gracefully. */
+/**
+ * Source disconnecting gracefully.
+ * Identity is resolved server-side from the WebSocket connection, not self-reported.
+ */
 export interface SourceOffline {
-  sourceId: string;
   timestamp: Date | undefined;
 }
 
@@ -1213,14 +1217,11 @@ export const Message: MessageFns<Message> = {
 };
 
 function createBaseSourceOnline(): SourceOnline {
-  return { sourceId: "", version: "", timestamp: undefined, platform: "" };
+  return { version: "", timestamp: undefined, platform: "" };
 }
 
 export const SourceOnline: MessageFns<SourceOnline> = {
   encode(message: SourceOnline, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.sourceId !== "") {
-      writer.uint32(10).string(message.sourceId);
-    }
     if (message.version !== "") {
       writer.uint32(18).string(message.version);
     }
@@ -1240,14 +1241,6 @@ export const SourceOnline: MessageFns<SourceOnline> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.sourceId = reader.string();
-          continue;
-        }
         case 2: {
           if (tag !== 18) {
             break;
@@ -1283,11 +1276,6 @@ export const SourceOnline: MessageFns<SourceOnline> = {
 
   fromJSON(object: any): SourceOnline {
     return {
-      sourceId: isSet(object.sourceId)
-        ? globalThis.String(object.sourceId)
-        : isSet(object.source_id)
-        ? globalThis.String(object.source_id)
-        : "",
       version: isSet(object.version) ? globalThis.String(object.version) : "",
       timestamp: isSet(object.timestamp) ? fromJsonTimestamp(object.timestamp) : undefined,
       platform: isSet(object.platform) ? globalThis.String(object.platform) : "",
@@ -1296,9 +1284,6 @@ export const SourceOnline: MessageFns<SourceOnline> = {
 
   toJSON(message: SourceOnline): unknown {
     const obj: any = {};
-    if (message.sourceId !== "") {
-      obj.sourceId = message.sourceId;
-    }
     if (message.version !== "") {
       obj.version = message.version;
     }
@@ -1316,7 +1301,6 @@ export const SourceOnline: MessageFns<SourceOnline> = {
   },
   fromPartial<I extends Exact<DeepPartial<SourceOnline>, I>>(object: I): SourceOnline {
     const message = createBaseSourceOnline();
-    message.sourceId = object.sourceId ?? "";
     message.version = object.version ?? "";
     message.timestamp = object.timestamp ?? undefined;
     message.platform = object.platform ?? "";
@@ -1325,14 +1309,11 @@ export const SourceOnline: MessageFns<SourceOnline> = {
 };
 
 function createBaseSourceOffline(): SourceOffline {
-  return { sourceId: "", timestamp: undefined };
+  return { timestamp: undefined };
 }
 
 export const SourceOffline: MessageFns<SourceOffline> = {
   encode(message: SourceOffline, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
-    if (message.sourceId !== "") {
-      writer.uint32(10).string(message.sourceId);
-    }
     if (message.timestamp !== undefined) {
       Timestamp.encode(toTimestamp(message.timestamp), writer.uint32(18).fork()).join();
     }
@@ -1346,14 +1327,6 @@ export const SourceOffline: MessageFns<SourceOffline> = {
     while (reader.pos < end) {
       const tag = reader.uint32();
       switch (tag >>> 3) {
-        case 1: {
-          if (tag !== 10) {
-            break;
-          }
-
-          message.sourceId = reader.string();
-          continue;
-        }
         case 2: {
           if (tag !== 18) {
             break;
@@ -1372,21 +1345,11 @@ export const SourceOffline: MessageFns<SourceOffline> = {
   },
 
   fromJSON(object: any): SourceOffline {
-    return {
-      sourceId: isSet(object.sourceId)
-        ? globalThis.String(object.sourceId)
-        : isSet(object.source_id)
-        ? globalThis.String(object.source_id)
-        : "",
-      timestamp: isSet(object.timestamp) ? fromJsonTimestamp(object.timestamp) : undefined,
-    };
+    return { timestamp: isSet(object.timestamp) ? fromJsonTimestamp(object.timestamp) : undefined };
   },
 
   toJSON(message: SourceOffline): unknown {
     const obj: any = {};
-    if (message.sourceId !== "") {
-      obj.sourceId = message.sourceId;
-    }
     if (message.timestamp !== undefined) {
       obj.timestamp = message.timestamp.toISOString();
     }
@@ -1398,7 +1361,6 @@ export const SourceOffline: MessageFns<SourceOffline> = {
   },
   fromPartial<I extends Exact<DeepPartial<SourceOffline>, I>>(object: I): SourceOffline {
     const message = createBaseSourceOffline();
-    message.sourceId = object.sourceId ?? "";
     message.timestamp = object.timestamp ?? undefined;
     return message;
   },

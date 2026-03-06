@@ -14,13 +14,11 @@ export interface WireSaveIdentity {
 // --- Source lifecycle ---
 
 export interface WireSourceOnline {
-  sourceId?: string;
   version?: string;
   timestamp?: string;
 }
 
 export interface WireSourceOffline {
-  sourceId?: string;
   timestamp?: string;
 }
 

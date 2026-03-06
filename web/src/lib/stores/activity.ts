@@ -56,19 +56,17 @@ interface EventContent {
 type EventBuilder = (msg: WireMessage) => EventContent | null;
 
 function buildSourceOnline(msg: WireMessage): EventContent | null {
-  const d = msg.sourceOnline;
-  if (!d) return null;
+  if (!msg.sourceOnline) return null;
   return {
-    message: `${d.sourceId ?? "Source"} connected`,
-    detail: d.version ?? undefined,
+    message: "Source connected",
+    detail: msg.sourceOnline.version ?? undefined,
   };
 }
 
 function buildSourceOffline(msg: WireMessage): EventContent | null {
-  const d = msg.sourceOffline;
-  if (!d) return null;
+  if (!msg.sourceOffline) return null;
   return {
-    message: `${d.sourceId ?? "Source"} disconnected`,
+    message: "Source disconnected",
   };
 }
 

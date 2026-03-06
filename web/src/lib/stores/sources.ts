@@ -130,9 +130,9 @@ function handleSourceState(msg: WireMessage): void {
 }
 
 function handleSourceOnline(msg: WireMessage): void {
-  const data = msg.sourceOnline;
-  if (!data?.sourceId) return;
-  const { sourceId, version } = data;
+  const sourceId = resolveSourceId(msg);
+  if (!sourceId) return;
+  const version = msg.sourceOnline?.version;
   update((srcs) => {
     const source = findOrCreateSource(srcs, sourceId);
     source.status = "online";
@@ -143,9 +143,8 @@ function handleSourceOnline(msg: WireMessage): void {
 }
 
 function handleSourceOffline(msg: WireMessage): void {
-  const data = msg.sourceOffline;
-  if (!data?.sourceId) return;
-  const { sourceId } = data;
+  const sourceId = resolveSourceId(msg);
+  if (!sourceId) return;
   update((srcs) => {
     const source = srcs.find((s) => s.id === sourceId);
     if (!source) return srcs;

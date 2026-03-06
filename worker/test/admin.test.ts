@@ -127,7 +127,7 @@ describe("Admin API", () => {
       const ws = await connectDaemonWs(sourceToken);
       ws.send(
         JSON.stringify({
-          sourceOnline: { sourceId: sourceUuid, version: "0.1.0", platform: "linux-amd64" },
+          sourceOnline: { version: "0.1.0", platform: "linux-amd64" },
         }),
       );
       // Wait for state broadcast to settle
@@ -194,7 +194,7 @@ describe("Admin API", () => {
       const ws = await connectDaemonWs(sourceToken);
       ws.send(
         JSON.stringify({
-          sourceOnline: { sourceId: sourceUuid, version: "0.1.0", platform: "linux-amd64" },
+          sourceOnline: { version: "0.1.0", platform: "linux-amd64" },
         }),
       );
       await new Promise((resolve) => {
