@@ -1176,7 +1176,12 @@ describe("SourceHub", () => {
       JSON.stringify({
         gamesDiscovered: {
           games: [
-            { gameId: "d2r", name: "Diablo II: Resurrected", path: "/home/user/.d2r/saves", fileCount: 2 },
+            {
+              gameId: "d2r",
+              name: "Diablo II: Resurrected",
+              path: "/home/user/.d2r/saves",
+              fileCount: 2,
+            },
             { gameId: "sdv", name: "Stardew Valley", path: "/home/user/.sdv/saves", fileCount: 1 },
           ],
         },

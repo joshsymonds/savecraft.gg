@@ -229,17 +229,14 @@ describe("Per-game config PATCH", () => {
         .run();
     }
 
-    const resp = await SELF.fetch(
-      `https://test-host/api/v1/sources/${sourceId}/config/d2r`,
-      {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${userUuid}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ enabled: false }),
+    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config/d2r`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${userUuid}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({ enabled: false }),
+    });
 
     expect(resp.status).toBe(200);
 
@@ -261,17 +258,14 @@ describe("Per-game config PATCH", () => {
   });
 
   it("returns 404 for nonexistent config", async () => {
-    const resp = await SELF.fetch(
-      "https://test-host/api/v1/sources/no-source/config/no-game",
-      {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer test-user`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ enabled: false }),
+    const resp = await SELF.fetch("https://test-host/api/v1/sources/no-source/config/no-game", {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer test-user`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({ enabled: false }),
+    });
 
     expect(resp.status).toBe(404);
   });
@@ -286,17 +280,14 @@ describe("Per-game config PATCH", () => {
       .bind(sourceUuid, "d2r", "/d2r")
       .run();
 
-    const resp = await SELF.fetch(
-      `https://test-host/api/v1/sources/${sourceUuid}/config/d2r`,
-      {
-        method: "PATCH",
-        headers: {
-          Authorization: "Bearer attacker-user",
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ enabled: false }),
+    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}/config/d2r`, {
+      method: "PATCH",
+      headers: {
+        Authorization: "Bearer attacker-user",
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({ enabled: false }),
+    });
     expect(resp.status).toBe(403);
 
     // Config should be unchanged
@@ -319,17 +310,14 @@ describe("Per-game config PATCH", () => {
       .bind(sourceUuid, "d2r", "/d2r")
       .run();
 
-    const resp = await SELF.fetch(
-      `https://test-host/api/v1/sources/${sourceUuid}/config/d2r`,
-      {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${userUuid}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ enabled: true }),
+    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}/config/d2r`, {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${userUuid}`,
+        "Content-Type": "application/json",
       },
-    );
+      body: JSON.stringify({ enabled: true }),
+    });
     expect(resp.status).toBe(200);
 
     const config = await env.DB.prepare(
@@ -341,14 +329,11 @@ describe("Per-game config PATCH", () => {
   });
 
   it("requires auth", async () => {
-    const resp = await SELF.fetch(
-      "https://test-host/api/v1/sources/my-pc/config/d2r",
-      {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ enabled: false }),
-      },
-    );
+    const resp = await SELF.fetch("https://test-host/api/v1/sources/my-pc/config/d2r", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: false }),
+    });
     expect(resp.status).toBe(401);
   });
 });

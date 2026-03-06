@@ -17,13 +17,12 @@ export async function reapOrphanSources(env: Env): Promise<{ deleted: number }> 
   const threshold = `-${String(ORPHAN_THRESHOLD_DAYS)} days`;
 
   // Find orphan sources: unlinked, old enough, no recent push
-  const orphans = await env.DB
-    .prepare(
-      `SELECT source_uuid FROM sources
+  const orphans = await env.DB.prepare(
+    `SELECT source_uuid FROM sources
        WHERE user_uuid IS NULL
          AND created_at < datetime('now', ?)
          AND (last_push_at IS NULL OR last_push_at < datetime('now', ?))`,
-    )
+  )
     .bind(threshold, threshold)
     .all<{ source_uuid: string }>();
 
@@ -35,22 +34,20 @@ export async function reapOrphanSources(env: Env): Promise<{ deleted: number }> 
     // Clean up SourceHub DO (close connections, delete alarm, wipe storage)
     const sourceHubId = env.SOURCE_HUB.idFromName(orphan.source_uuid);
     const sourceHubStub = env.SOURCE_HUB.get(sourceHubId);
-    await sourceHubStub.fetch(
-      new Request("https://do/cleanup", { method: "POST" }),
-    );
+    await sourceHubStub.fetch(new Request("https://do/cleanup", { method: "POST" }));
 
     // Delete source-level D1 tables
-    await env.DB
-      .prepare("DELETE FROM source_events WHERE source_uuid = ?")
+    await env.DB.prepare("DELETE FROM source_events WHERE source_uuid = ?")
       .bind(orphan.source_uuid)
       .run();
-    await env.DB
-      .prepare("DELETE FROM source_configs WHERE source_uuid = ?")
+    await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?")
       .bind(orphan.source_uuid)
       .run();
 
     // Delete the source itself
-    await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(orphan.source_uuid).run();
+    await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?")
+      .bind(orphan.source_uuid)
+      .run();
   }
 
   return { deleted: orphans.results.length };
