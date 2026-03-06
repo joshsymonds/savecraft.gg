@@ -182,22 +182,20 @@
         {#if confirmingRemove}
           <div class="confirm-box">
             <p class="confirm-text">
-              Remove <strong>{source.hostname ?? source.name}</strong> from your account?
-              Your saves will be preserved.
+              Remove <strong>{source.hostname ?? source.name}</strong> from your account? Your saves will
+              be preserved.
             </p>
             <div class="confirm-actions">
               <button
                 class="btn-cancel"
-                onclick={() => { confirmingRemove = false; }}
+                onclick={() => {
+                  confirmingRemove = false;
+                }}
                 disabled={removing}
               >
                 CANCEL
               </button>
-              <button
-                class="btn-remove"
-                onclick={handleRemoveSource}
-                disabled={removing}
-              >
+              <button class="btn-remove" onclick={handleRemoveSource} disabled={removing}>
                 {removing ? "REMOVING..." : "REMOVE SOURCE"}
               </button>
             </div>
@@ -205,7 +203,9 @@
         {:else}
           <button
             class="btn-remove-source"
-            onclick={() => { confirmingRemove = true; }}
+            onclick={() => {
+              confirmingRemove = true;
+            }}
           >
             REMOVE SOURCE
           </button>
@@ -474,7 +474,9 @@
     display: flex;
     align-items: center;
     padding: 1px;
-    transition: background 0.15s, border-color 0.15s;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
   }
 
   .toggle-on .toggle-track {
@@ -487,7 +489,9 @@
     height: 10px;
     border-radius: 50%;
     background: var(--color-text-muted);
-    transition: transform 0.15s, background 0.15s;
+    transition:
+      transform 0.15s,
+      background 0.15s;
   }
 
   .toggle-on .toggle-thumb {
@@ -552,7 +556,9 @@
     padding: 8px 14px;
     cursor: pointer;
     width: 100%;
-    transition: background 0.15s, border-color 0.15s;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
   }
 
   .btn-remove-source:hover {
