@@ -2,19 +2,22 @@
  * Orphan source reaper.
  *
  * Deletes sources that are unlinked (user_uuid IS NULL) and have had no push
- * activity for 7+ days. Also cleans up associated source-level data.
+ * activity for 7+ days. Also cleans up associated source-level data and
+ * SourceHub Durable Objects (closes connections, deletes alarms, wipes storage).
  *
  * Saves are user-scoped (keyed by user_uuid, not source_uuid), so orphan
  * sources never have saves to clean up — unlinked sources cannot push saves.
  */
 
+import type { Env } from "./types";
+
 const ORPHAN_THRESHOLD_DAYS = 7;
 
-export async function reapOrphanSources(db: D1Database): Promise<{ deleted: number }> {
+export async function reapOrphanSources(env: Env): Promise<{ deleted: number }> {
   const threshold = `-${String(ORPHAN_THRESHOLD_DAYS)} days`;
 
   // Find orphan sources: unlinked, old enough, no recent push
-  const orphans = await db
+  const orphans = await env.DB
     .prepare(
       `SELECT source_uuid FROM sources
        WHERE user_uuid IS NULL
@@ -29,18 +32,25 @@ export async function reapOrphanSources(db: D1Database): Promise<{ deleted: numb
   }
 
   for (const orphan of orphans.results) {
-    // Delete source-level tables
-    await db
+    // Clean up SourceHub DO (close connections, delete alarm, wipe storage)
+    const sourceHubId = env.SOURCE_HUB.idFromName(orphan.source_uuid);
+    const sourceHubStub = env.SOURCE_HUB.get(sourceHubId);
+    await sourceHubStub.fetch(
+      new Request("https://do/cleanup", { method: "POST" }),
+    );
+
+    // Delete source-level D1 tables
+    await env.DB
       .prepare("DELETE FROM source_events WHERE source_uuid = ?")
       .bind(orphan.source_uuid)
       .run();
-    await db
+    await env.DB
       .prepare("DELETE FROM source_configs WHERE source_uuid = ?")
       .bind(orphan.source_uuid)
       .run();
 
     // Delete the source itself
-    await db.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(orphan.source_uuid).run();
+    await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(orphan.source_uuid).run();
   }
 
   return { deleted: orphans.results.length };
