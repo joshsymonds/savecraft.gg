@@ -48,7 +48,7 @@ describe("SourceHub", () => {
     await waitForMessage(uiWs);
 
     const event = {
-      sourceOnline: { sourceId: "steam-deck", version: "0.1.0" },
+      sourceOnline: { version: "0.1.0" },
     };
     daemonWs.send(JSON.stringify(event));
 
@@ -105,7 +105,7 @@ describe("SourceHub", () => {
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     const events = [
-      { sourceOnline: { sourceId: "my-pc", version: "0.1.0" } },
+      { sourceOnline: { version: "0.1.0" } },
       { scanCompleted: { gameId: "d2r", filesFound: 3 } },
       { parseCompleted: { gameId: "d2r", summary: "Hammerdin, Level 89" } },
     ];
@@ -143,7 +143,7 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     await closeWs(temporaryUi);
 
@@ -167,10 +167,10 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "laptop", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
 
-    daemon.send(JSON.stringify({ sourceOffline: { sourceId: "laptop" } }));
+    daemon.send(JSON.stringify({ sourceOffline: {} }));
     await waitForMessage(temporaryUi);
     await closeWs(temporaryUi);
 
@@ -194,7 +194,7 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "desktop", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
 
     daemon.send(
@@ -223,7 +223,7 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "pc", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
 
     daemon.send(
@@ -254,7 +254,7 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "steamdeck", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     await closeWs(temporaryUi);
 
@@ -285,7 +285,7 @@ describe("SourceHub", () => {
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
     // Source A comes online and watches d2r
-    daemonA.send(JSON.stringify({ sourceOnline: { sourceId: "desktop", version: "0.1.0" } }));
+    daemonA.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     daemonA.send(
       JSON.stringify({ watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 3 } }),
@@ -293,7 +293,7 @@ describe("SourceHub", () => {
     await waitForMessage(temporaryUi);
 
     // Source B comes online and watches stardew
-    daemonB.send(JSON.stringify({ sourceOnline: { sourceId: "steamdeck", version: "0.1.0" } }));
+    daemonB.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     daemonB.send(
       JSON.stringify({
@@ -337,9 +337,9 @@ describe("SourceHub", () => {
     const daemonB = await connectDaemonWs(sourceB.sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemonA.send(JSON.stringify({ sourceOnline: { sourceId: "desktop", version: "0.1.0" } }));
+    daemonA.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
-    daemonB.send(JSON.stringify({ sourceOnline: { sourceId: "steamdeck", version: "0.1.0" } }));
+    daemonB.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     await closeWs(temporaryUi);
 
@@ -369,7 +369,7 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "pc", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
 
     daemon.send(
@@ -418,15 +418,11 @@ describe("SourceHub", () => {
     const daemonB = await connectDaemonWs(sourceB.sourceToken);
 
     // Both daemons identify themselves
-    daemonA.send(
-      JSON.stringify({ sourceOnline: { sourceId: sourceA.sourceUuid, version: "0.1.0" } }),
-    );
+    daemonA.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     const configA = await waitForMessage<Record<string, unknown>>(daemonA);
     expect(configA).toHaveProperty("configUpdate");
 
-    daemonB.send(
-      JSON.stringify({ sourceOnline: { sourceId: sourceB.sourceUuid, version: "0.1.0" } }),
-    );
+    daemonB.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     const configB = await waitForMessage<Record<string, unknown>>(daemonB);
     expect(configB).toHaveProperty("configUpdate");
 
@@ -449,11 +445,11 @@ describe("SourceHub", () => {
     await waitForMessage(uiWs); // initial empty SourceState
 
     // Identify the daemon connection
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(uiWs); // sourceOnline event
     await waitForMessage(uiWs); // SourceState broadcast
 
-    // Send a game event — UI should receive it with _sourceId = sourceUuid (not daemon's "my-pc")
+    // Send a game event — UI should receive it with _sourceId = sourceUuid
     daemonWs.send(
       JSON.stringify({ watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 5 } }),
     );
@@ -474,7 +470,7 @@ describe("SourceHub", () => {
     await waitForMessage(temporaryUi); // initial empty SourceState
 
     // Identify daemon and send an event
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "steam-deck", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi); // sourceOnline event
     await waitForMessage(temporaryUi); // SourceState broadcast
     daemonWs.send(
@@ -515,7 +511,7 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     // Identify the daemon and consume the configUpdate response
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate from maybePushConfig
 
     // Register listener BEFORE the /rescan call — the DO sends the message
@@ -614,7 +610,7 @@ describe("SourceHub", () => {
     // Send sourceOnline with an older version
     daemonWs.send(
       JSON.stringify({
-        sourceOnline: { sourceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" },
+        sourceOnline: { version: "0.1.0", platform: "linux-amd64" },
       }),
     );
 
@@ -655,7 +651,7 @@ describe("SourceHub", () => {
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     // Identify daemon
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "deck", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(uiWs); // sourceOnline event
     await waitForMessage(uiWs); // SourceState broadcast
 
@@ -687,7 +683,7 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "deck", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(temporaryUi);
     await closeWs(temporaryUi);
 
@@ -729,7 +725,7 @@ describe("SourceHub", () => {
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     // Send sourceOnline — sets alarm (100ms in test config)
-    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "deck", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(uiWs); // sourceOnline relayed
     await closeWs(uiWs);
 
@@ -770,11 +766,11 @@ describe("SourceHub", () => {
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     // Source comes online (sets alarm)
-    daemon.send(JSON.stringify({ sourceOnline: { sourceId: "deck", version: "0.1.0" } }));
+    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(uiWs);
 
     // Source goes offline gracefully (should delete alarm)
-    daemon.send(JSON.stringify({ sourceOffline: { sourceId: "deck" } }));
+    daemon.send(JSON.stringify({ sourceOffline: {} }));
     await waitForMessage(uiWs);
 
     await closeWs(daemon);
@@ -808,7 +804,7 @@ describe("SourceHub", () => {
     const { sourceUuid, sourceToken } = await seedSource(null);
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
 
     // SourceHub should process the event without error (no UserHub to forward to)
     // Verify state was stored by accessing the DO directly
@@ -841,7 +837,7 @@ describe("SourceHub", () => {
 
     // Connect daemon before linking
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
 
     // Give DO time to process sourceOnline
     await new Promise((resolve) => {
@@ -899,7 +895,7 @@ describe("SourceHub", () => {
       .run();
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     const doId = env.SOURCE_HUB.idFromName(sourceUuid);
@@ -935,7 +931,7 @@ describe("SourceHub", () => {
       .run();
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
 
     // Should NOT receive configUpdate — wait briefly, expect timeout
     const noConfig = await waitForMessage(daemonWs, 500).catch(() => null);
@@ -962,7 +958,7 @@ describe("SourceHub", () => {
     await waitForMessage(uiWs);
 
     // Trigger sourceOnline → SourceHub decorates state with D1 metadata before forwarding
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
 
     // Drain forwarded event, then get the updated SourceState
     await waitForMessage(uiWs); // sourceOnline event
@@ -1006,7 +1002,7 @@ describe("SourceHub", () => {
 
     // Connect daemon
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Should now report online
@@ -1024,7 +1020,7 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     // Identify daemon
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Send gameDetected — should auto-create config in D1
@@ -1058,7 +1054,7 @@ describe("SourceHub", () => {
 
     // First connection: daemon detects a game
     const daemon1 = await connectDaemonWs(sourceToken);
-    daemon1.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    daemon1.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemon1); // initial empty configUpdate
     daemon1.send(
       JSON.stringify({ gameDetected: { gameId: "d2r", path: "/saves/d2r", saveCount: 2 } }),
@@ -1071,7 +1067,7 @@ describe("SourceHub", () => {
 
     // Second connection: daemon comes back online and gets the auto-created config
     const daemon2 = await connectDaemonWs(sourceToken);
-    daemon2.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    daemon2.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     const configMsg = await waitForMessage<{
       configUpdate: { games: Record<string, { savePath: string; enabled: boolean }> };
     }>(daemon2);
@@ -1100,7 +1096,7 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     // Identify daemon and consume configUpdate
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Send gameDetected with a different path
@@ -1138,7 +1134,7 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     // Identify daemon and consume configUpdate
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Send gameDetected
@@ -1168,7 +1164,7 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     // Identify daemon
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // initial empty configUpdate
 
     // Send gamesDiscovered — should auto-create configs in D1 and push config back
@@ -1229,7 +1225,7 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     // Identify daemon and consume configUpdate
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Send gamesDiscovered with d2r (already exists) and sdv (new)
@@ -1274,7 +1270,7 @@ describe("SourceHub", () => {
     await waitForMessage(uiWs); // initial SourceState
 
     // Identify daemon — triggers maybePushConfig → pushConfigToSource
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Drain all UI messages and check none show ACTIVATING status
@@ -1334,7 +1330,7 @@ describe("SourceHub", () => {
     // Send sourceOnline with current version
     daemonWs.send(
       JSON.stringify({
-        sourceOnline: { sourceId: "steam-deck", version: "0.1.0", platform: "linux-amd64" },
+        sourceOnline: { version: "0.1.0", platform: "linux-amd64" },
       }),
     );
 
@@ -1371,7 +1367,7 @@ describe("SourceHub", () => {
     await waitForMessage(uiWs); // initial SourceState
 
     // Identify daemon
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate push
     await waitForMessage(uiWs); // sourceOnline event
     await waitForMessage(uiWs); // SourceState broadcast

@@ -70,7 +70,7 @@ describe("Source Removal", () => {
 
       // Connect daemon so SourceHub creates state, then push it to UserHub
       const daemonWs = await connectDaemonWs(sourceToken);
-      daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+      daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
       await waitForMessage(daemonWs);
 
       // Connect UI to verify source appears in state
@@ -190,7 +190,7 @@ describe("Source Removal", () => {
 
       // Connect daemon and send sourceOnline so SourceHub has state
       const daemonWs = await connectDaemonWs(sourceToken);
-      daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+      daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
       // Consume configUpdate
       await waitForMessage(daemonWs);
 
@@ -310,7 +310,7 @@ describe("Source Removal", () => {
 
       // Connect daemon and send sourceOnline so SourceHub has state
       const daemonWs = await connectDaemonWs(sourceToken);
-      daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+      daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
       await waitForMessage(daemonWs);
 
       // Connect UI

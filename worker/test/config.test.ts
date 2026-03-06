@@ -355,7 +355,7 @@ describe("Config push via SourceHub", () => {
 
     // Connect daemon and send sourceOnline
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
 
     // Daemon should receive a configUpdate message
     const msg = await waitForMessage<ConfigUpdateMsg>(daemonWs);
@@ -370,10 +370,10 @@ describe("Config push via SourceHub", () => {
 
   it("pushes empty config when no configs exist", async () => {
     const userUuid = "config-empty-user";
-    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+    const { sourceToken } = await seedSource(userUuid);
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
 
     const msg = await waitForMessage<ConfigUpdateMsg>(daemonWs);
     expect(msg.configUpdate).toBeDefined();
@@ -396,7 +396,7 @@ describe("Config push via SourceHub", () => {
 
     // Connect daemon and identify it — triggers push-config
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "any-hostname", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Connect a fresh UI — game should NOT be ACTIVATING (status not set by push)
@@ -432,7 +432,7 @@ describe("Config push via SourceHub", () => {
 
     // Connect daemon and identify it — daemon sends any hostname, server uses sourceUuid
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "any-hostname", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Connect a fresh UI — disabled game should NOT appear with ACTIVATING
@@ -468,7 +468,7 @@ describe("Config push via SourceHub", () => {
 
     // Connect daemon, identify it (triggers push-config)
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "any-hostname", version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate
 
     // Close daemon
@@ -500,7 +500,7 @@ describe("Config push via SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     // Send sourceOnline (initial empty config push)
-    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
     // Consume the initial (empty) configUpdate
     await waitForMessage<ConfigUpdateMsg>(daemonWs);
 

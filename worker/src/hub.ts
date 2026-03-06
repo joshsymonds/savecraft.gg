@@ -499,7 +499,7 @@ export class SourceHub extends DurableObject<Env> {
 
     // Forward offline events and updated state to UserHub
     for (const sourceId of staleSourceIds) {
-      const offlineMsg = JSON.stringify({ sourceOffline: { sourceId } });
+      const offlineMsg = JSON.stringify({ sourceOffline: {} });
       await this.forwardEventToUserHub(offlineMsg, sourceId);
     }
     await this.forwardStateToUserHub();
