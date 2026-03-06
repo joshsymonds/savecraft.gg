@@ -8,7 +8,7 @@
   import type { PickerGame } from "$lib/types/source";
 
   import GamePickerCard from "./GamePickerCard.svelte";
-  import Panel from "./Panel.svelte";
+  import Modal from "./Modal.svelte";
 
   export interface ConfigurableSource {
     id: string;
@@ -27,7 +27,7 @@
     configurableSources?: ConfigurableSource[];
     onselect?: (game: PickerGame) => void;
     onconfigure?: (gameId: string, savePath: string, sourceId: string) => Promise<void>;
-    onclose?: () => void;
+    onclose: () => void;
   } = $props();
 
   type ModalStep = "browsing" | "selectSource" | "configuring";
@@ -94,7 +94,7 @@
     try {
       await onconfigure(configGame.gameId, configPath.trim(), selectedSourceId ?? "");
       configState = "success";
-      setTimeout(() => onclose?.(), 1200);
+      setTimeout(() => onclose(), 1200);
     } catch (err) {
       const message = err instanceof Error ? err.message : "Connection failed";
       if (message.includes("didn't respond")) {
@@ -121,26 +121,16 @@
     }
   }
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      if (step === "browsing") {
-        onclose?.();
-      } else {
-        handleBack();
-      }
+  function handleModalClose() {
+    if (step === "browsing") {
+      onclose();
+    } else {
+      handleBack();
     }
   }
 </script>
 
-<div
-  class="modal-backdrop"
-  role="dialog"
-  aria-label="Add a game"
-  tabindex="-1"
-  onkeydown={handleKeydown}
->
-  <div class="modal-content">
-    <Panel>
+<Modal id="game-picker" onclose={handleModalClose} ariaLabel="Add a game">
       <div class="modal-header">
         {#if step === "browsing"}
           <span class="modal-title">ADD A GAME</span>
@@ -153,7 +143,7 @@
           >
           <span class="modal-title">CONNECT {configGame?.name.toUpperCase()}</span>
         {/if}
-        <button class="modal-close" onclick={() => onclose?.()}>&#x2715;</button>
+        <button class="modal-close" onclick={() => onclose()}>&#x2715;</button>
       </div>
 
       {#if step === "selectSource"}
@@ -228,30 +218,9 @@
           {/each}
         </div>
       {/if}
-    </Panel>
-  </div>
-</div>
+</Modal>
 
 <style>
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(5, 7, 26, 0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    animation: fade-in 0.15s ease-out;
-  }
-
-  .modal-content {
-    width: 520px;
-    max-height: 80vh;
-    display: flex;
-    flex-direction: column;
-    animation: fade-slide-in 0.2s ease-out;
-  }
-
   .modal-header {
     display: flex;
     justify-content: space-between;
@@ -289,29 +258,6 @@
   .modal-back:disabled {
     opacity: 0.5;
     cursor: not-allowed;
-  }
-
-  .modal-close {
-    font-family: var(--font-pixel);
-    font-size: 14px;
-    color: var(--color-text-muted);
-    background: none;
-    border: 1px solid rgba(74, 90, 173, 0.25);
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 3px;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 28px;
-    min-height: 28px;
-  }
-
-  .modal-close:hover {
-    color: var(--color-text);
-    background: rgba(74, 90, 173, 0.15);
-    border-color: rgba(74, 90, 173, 0.4);
   }
 
   .modal-search {

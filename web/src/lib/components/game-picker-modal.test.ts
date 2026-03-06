@@ -35,19 +35,19 @@ describe("GamePickerModal", () => {
   afterEach(cleanup);
 
   it("renders all games", () => {
-    render(GamePickerModal, { props: { games: makeCatalog() } });
+    render(GamePickerModal, { props: { games: makeCatalog(), onclose: vi.fn() } });
     expect(screen.getByText("Diablo II: Resurrected")).toBeInTheDocument();
     expect(screen.getByText("Stardew Valley")).toBeInTheDocument();
     expect(screen.getByText("Baldur's Gate 3")).toBeInTheDocument();
   });
 
   it("renders ADD A GAME title", () => {
-    render(GamePickerModal, { props: { games: makeCatalog() } });
+    render(GamePickerModal, { props: { games: makeCatalog(), onclose: vi.fn() } });
     expect(screen.getByText("ADD A GAME")).toBeInTheDocument();
   });
 
   it("filters games by search", async () => {
-    render(GamePickerModal, { props: { games: makeCatalog() } });
+    render(GamePickerModal, { props: { games: makeCatalog(), onclose: vi.fn() } });
     const searchInput = screen.getByPlaceholderText("Search games...");
     await userEvent.type(searchInput, "stardew");
     expect(screen.getByText("Stardew Valley")).toBeInTheDocument();
@@ -56,7 +56,7 @@ describe("GamePickerModal", () => {
   });
 
   it("shows empty state when search has no matches", async () => {
-    render(GamePickerModal, { props: { games: makeCatalog() } });
+    render(GamePickerModal, { props: { games: makeCatalog(), onclose: vi.fn() } });
     const searchInput = screen.getByPlaceholderText("Search games...");
     await userEvent.type(searchInput, "zzzzz");
     expect(screen.getByText(/No games matching/)).toBeInTheDocument();
@@ -64,7 +64,7 @@ describe("GamePickerModal", () => {
 
   it("calls onselect for watched game click", async () => {
     const onselect = vi.fn();
-    render(GamePickerModal, { props: { games: makeCatalog(), onselect } });
+    render(GamePickerModal, { props: { games: makeCatalog(), onselect, onclose: vi.fn() } });
     await userEvent.click(screen.getByText("Diablo II: Resurrected"));
     expect(onselect).toHaveBeenCalledOnce();
     expect(onselect.mock.calls[0]![0]!.gameId).toBe("d2r");
@@ -72,7 +72,7 @@ describe("GamePickerModal", () => {
 
   it("does not call onselect for unwatched game click", async () => {
     const onselect = vi.fn();
-    render(GamePickerModal, { props: { games: makeCatalog(), onselect } });
+    render(GamePickerModal, { props: { games: makeCatalog(), onselect, onclose: vi.fn() } });
     await userEvent.click(screen.getByText("Stardew Valley"));
     expect(onselect).not.toHaveBeenCalled();
   });
@@ -95,7 +95,7 @@ describe("GamePickerModal", () => {
 
   it("shows source selection when clicking unwatched game with multiple sources", async () => {
     render(GamePickerModal, {
-      props: { games: makeCatalog(), configurableSources: twoSources },
+      props: { games: makeCatalog(), configurableSources: twoSources, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
     expect(screen.getByText("SELECT SOURCE")).toBeInTheDocument();
@@ -105,7 +105,7 @@ describe("GamePickerModal", () => {
 
   it("skips source selection with single source and goes to config form", async () => {
     render(GamePickerModal, {
-      props: { games: makeCatalog(), configurableSources: oneSource },
+      props: { games: makeCatalog(), configurableSources: oneSource, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
     // Should go straight to config form, not source selection
@@ -115,7 +115,7 @@ describe("GamePickerModal", () => {
 
   it("proceeds to config form after selecting a source", async () => {
     render(GamePickerModal, {
-      props: { games: makeCatalog(), configurableSources: twoSources },
+      props: { games: makeCatalog(), configurableSources: twoSources, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
     await userEvent.click(screen.getByText("Desktop"));
@@ -129,6 +129,7 @@ describe("GamePickerModal", () => {
         games: makeCatalog(),
         configurableSources: oneSource,
         onconfigure,
+        onclose: vi.fn(),
       },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
@@ -141,7 +142,7 @@ describe("GamePickerModal", () => {
 
   it("shows error when clicking unwatched game with no configurable sources", async () => {
     render(GamePickerModal, {
-      props: { games: makeCatalog(), configurableSources: [] },
+      props: { games: makeCatalog(), configurableSources: [], onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
     expect(screen.getByText(/No configurable source connected/)).toBeInTheDocument();
@@ -151,7 +152,7 @@ describe("GamePickerModal", () => {
 
   it("back from source selection returns to game list", async () => {
     render(GamePickerModal, {
-      props: { games: makeCatalog(), configurableSources: twoSources },
+      props: { games: makeCatalog(), configurableSources: twoSources, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
     expect(screen.getByText("SELECT SOURCE")).toBeInTheDocument();

@@ -17,9 +17,11 @@
     AddSourceModal,
     ConnectCard,
     EmptySourceState,
+    GameDetailModal,
     GamePanel,
     GamePickerModal,
     LinkingCard,
+    SaveDetailModal,
     SourceDetailModal,
     SourceStrip,
     StatusDot,
@@ -37,7 +39,7 @@
   } from "$lib/stores/link-flow";
   import { plugins } from "$lib/stores/plugins";
   import { configResults, resetConfigResults, sources } from "$lib/stores/sources";
-  import type { PickerGame, Source, SourceStatus } from "$lib/types/source";
+  import type { Game, PickerGame, Save, Source, SourceStatus } from "$lib/types/source";
   import { connectionStatus, type ConnectionStatus } from "$lib/ws/client";
 
   const COLLAPSED_EVENT_COUNT = 8;
@@ -60,7 +62,10 @@
 
   // -- Game picker modal --
   let pickerOpen = $state(false);
-  let selectedGameId: string | null = $state(null);
+
+  // -- Game/save detail modals --
+  let selectedGame: Game | null = $state(null);
+  let selectedSave: Save | null = $state(null);
 
   // -- Derived game data --
   let mergedGames = $derived(mergeGames($sources));
@@ -170,32 +175,15 @@
       {:else}
         <ConnectCard />
 
-        {#key selectedGameId}
-          <GamePanel
-            games={mergedGames}
-            {showSourceBadges}
-            initialGameId={selectedGameId ?? undefined}
-            onadd={() => {
-              pickerOpen = true;
-            }}
-            loadNotes={async (saveUuid) => {
-              const notes = await fetchNotes(saveUuid);
-              return notes.map((n) => toNoteSummary(n));
-            }}
-            onnotecreate={async (saveUuid, title, content) => {
-              await createNote(saveUuid, title, content);
-            }}
-            onnotedelete={async (saveUuid, noteId) => {
-              await deleteNote(saveUuid, noteId);
-            }}
-            onnoteedit={async (saveUuid, noteId, title, content) => {
-              await updateNote(saveUuid, noteId, { title, content });
-            }}
-            onremovegame={async (gameId) => {
-              await deleteGame(gameId);
-            }}
-          />
-        {/key}
+        <GamePanel
+          games={mergedGames}
+          onadd={() => {
+            pickerOpen = true;
+          }}
+          ongameclick={(game) => {
+            selectedGame = game;
+          }}
+        />
       {/if}
     </main>
   </div>
@@ -258,6 +246,45 @@
   />
 {/if}
 
+{#if selectedGame}
+  <GameDetailModal
+    game={selectedGame}
+    showSourceBadges={showSourceBadges && selectedGame.sourceCount > 1}
+    onclose={() => {
+      selectedGame = null;
+      selectedSave = null;
+    }}
+    onsaveclick={(save) => {
+      selectedSave = save;
+    }}
+    onremovegame={async (gameId) => {
+      await deleteGame(gameId);
+    }}
+  />
+{/if}
+
+{#if selectedSave}
+  <SaveDetailModal
+    save={selectedSave}
+    onclose={() => {
+      selectedSave = null;
+    }}
+    loadNotes={async (saveUuid) => {
+      const notes = await fetchNotes(saveUuid);
+      return notes.map((n) => toNoteSummary(n));
+    }}
+    onnotecreate={async (saveUuid, title, content) => {
+      await createNote(saveUuid, title, content);
+    }}
+    onnotedelete={async (saveUuid, noteId) => {
+      await deleteNote(saveUuid, noteId);
+    }}
+    onnoteedit={async (saveUuid, noteId, title, content) => {
+      await updateNote(saveUuid, noteId, { title, content });
+    }}
+  />
+{/if}
+
 {#if pickerOpen}
   <GamePickerModal
     games={pickerGames}
@@ -265,7 +292,8 @@
       .filter((s) => s.capabilities.canReceiveConfig)
       .map((s) => ({ id: s.id, name: s.name, hostname: s.hostname }))}
     onselect={(game) => {
-      selectedGameId = game.gameId;
+      const merged = mergedGames.find((g) => g.gameId === game.gameId);
+      if (merged) selectedGame = merged;
       pickerOpen = false;
     }}
     onconfigure={async (gameId, savePath, sourceId) => {
