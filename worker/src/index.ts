@@ -1,3 +1,4 @@
+import { handleAdminRoute } from "./admin";
 import { authenticateSession, authenticateSource, sha256Hex } from "./auth";
 import { indexNote, indexSaveSections, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
@@ -64,6 +65,7 @@ async function handleNonMcpRequest(request: Request, env: Env): Promise<Response
   }
   const url = new URL(request.url);
   const response =
+    (await handleAdminRoute(request, url, env)) ??
     (await routePublicEndpoints(request, url, env)) ??
     (await routeDaemonEndpoints(request, url, env)) ??
     (await routeProtectedEndpoints(request, url, env));

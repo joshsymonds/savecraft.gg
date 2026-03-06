@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 
+import { DebugLog } from "./debug-log";
 import type { Env } from "./types";
 
 const SOURCE_STATE_PREFIX = "source:";
@@ -14,6 +15,8 @@ const USER_UUID_KEY = "userUuid";
  * SourceState envelope when sent to UI clients.
  */
 export class UserHub extends DurableObject<Env> {
+  private readonly debugLog = new DebugLog();
+
   async fetch(request: Request): Promise<Response> {
     const userUuidHeader = request.headers.get("X-User-UUID");
     if (userUuidHeader) {
@@ -29,6 +32,7 @@ export class UserHub extends DurableObject<Env> {
     const server = pair[1];
 
     this.ctx.acceptWebSocket(server, ["ui"]);
+    this.debugLog.push("info", "UI WebSocket accepted");
 
     await this.sendSourceState(server);
     await this.sendRecentEvents(server);
@@ -52,11 +56,15 @@ export class UserHub extends DurableObject<Env> {
   }
 
   webSocketClose(ws: WebSocket, code: number, reason: string, _wasClean: boolean): void {
+    this.debugLog.push("info", "UI WebSocket closed", { code, reason });
     const safeCode = code === 1005 ? 1000 : code;
     ws.close(safeCode, reason);
   }
 
-  webSocketError(ws: WebSocket, _error: unknown): void {
+  webSocketError(ws: WebSocket, error: unknown): void {
+    this.debugLog.push("error", "UI WebSocket error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     ws.close(1011, "Unexpected error");
   }
 
@@ -76,7 +84,52 @@ export class UserHub extends DurableObject<Env> {
     if (url.pathname === "/refresh-state" && request.method === "POST") {
       return this.handleRefreshState();
     }
+    if (url.pathname.startsWith("/debug/") && request.method === "GET") {
+      return this.routeDebugRequest(url);
+    }
     return new Response("Expected WebSocket upgrade", { status: 426 });
+  }
+
+  private async routeDebugRequest(url: URL): Promise<Response> {
+    const subpath = url.pathname.slice("/debug/".length);
+
+    if (subpath === "state") {
+      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
+      const mergedState = await this.buildMergedSourceState();
+      return Response.json({
+        userUuid: userUuid ?? null,
+        mergedState: JSON.parse(mergedState) as unknown,
+      });
+    }
+
+    if (subpath === "connections") {
+      const uiSockets = this.ctx.getWebSockets("ui");
+      return Response.json({ uiCount: uiSockets.length });
+    }
+
+    if (subpath === "log") {
+      const validLevels = new Set(["debug", "info", "warn", "error"]);
+      const rawLevel = url.searchParams.get("level");
+      const level =
+        rawLevel && validLevels.has(rawLevel)
+          ? (rawLevel as "debug" | "info" | "warn" | "error")
+          : undefined;
+      const rawLimit = url.searchParams.has("limit") ? Number(url.searchParams.get("limit")) : undefined;
+      const limit = rawLimit ? Math.min(rawLimit, 200) : undefined;
+      const entries = this.debugLog.entries({
+        ...(level && { level }),
+        ...(limit && { limit }),
+      });
+      return Response.json({ entries, size: this.debugLog.size });
+    }
+
+    if (subpath === "storage") {
+      const allEntries = await this.ctx.storage.list();
+      const keys = [...allEntries.keys()];
+      return Response.json({ keys });
+    }
+
+    return Response.json({ error: "Unknown debug endpoint" }, { status: 404 });
   }
 
   /**
@@ -85,6 +138,8 @@ export class UserHub extends DurableObject<Env> {
    */
   private async handleForwardEvent(request: Request): Promise<Response> {
     const body = await request.json<{ event: string; sourceId?: string }>();
+    const uiCount = this.ctx.getWebSockets("ui").length;
+    this.debugLog.push("debug", "forwarding event to UI", { sourceId: body.sourceId, uiCount });
     const enriched = this.injectMetadata(body.event, {
       _sourceId: body.sourceId,
       _ts: new Date().toISOString(),
@@ -102,6 +157,7 @@ export class UserHub extends DurableObject<Env> {
    */
   private async handleUpdateState(request: Request): Promise<Response> {
     const body = await request.json<{ sourceUuid: string; stateJson: string }>();
+    this.debugLog.push("debug", "state updated for source", { sourceUuid: body.sourceUuid });
     await this.ctx.storage.put(`${SOURCE_STATE_PREFIX}${body.sourceUuid}`, body.stateJson);
     // Build merged state once, broadcast to all connected UI clients
     const merged = await this.buildMergedSourceState();
@@ -117,6 +173,7 @@ export class UserHub extends DurableObject<Env> {
    */
   private async handleRemoveSource(request: Request): Promise<Response> {
     const body = await request.json<{ sourceUuid: string }>();
+    this.debugLog.push("info", "source removed", { sourceUuid: body.sourceUuid });
     await this.ctx.storage.delete(`${SOURCE_STATE_PREFIX}${body.sourceUuid}`);
     const merged = await this.buildMergedSourceState();
     for (const ws of this.ctx.getWebSockets("ui")) {
@@ -199,8 +256,10 @@ export class UserHub extends DurableObject<Env> {
           }),
         );
       }
-    } catch {
-      // Don't let cold start failures break the connection
+    } catch (error) {
+      this.debugLog.push("error", "recent events load failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
   }
 

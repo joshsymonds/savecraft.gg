@@ -308,3 +308,111 @@ At 1K users with active daemons:
 - Web UI connections: sporadic, only when user is on the status page
 
 Estimated ~300K DO requests/day at 1K active users → ~9M/month → **$1.35/month**. Duration charges are pennies (each handler runs <5ms). At 10K users: ~$13.50/month. Negligible.
+
+## Debug Introspection
+
+Admin endpoints for inspecting Durable Object internal state, connections, and logs. Designed for CLI/curl access and AI agent debugging.
+
+### Architecture
+
+Three complementary layers:
+
+1. **In-memory ring buffer** — Each DO holds the last 200 structured log entries (`{ ts, level, msg, ctx }`). Fast, zero storage cost, lost on DO eviction. Queryable via `/debug/log`. Also emits structured JSON to `console.log` for `wrangler tail`.
+2. **Admin HTTP endpoints** — Worker-level router at `/admin/*` with API key auth. Fans out to the correct DO for state/connection/log inspection, or queries D1 directly for source listing and event history.
+3. **D1 event persistence** — Protocol events and internal errors stored in `source_events` for post-mortem debugging. Internal errors (catch block failures) persisted as `internalError` event type with context and stack trace.
+
+### Auth Setup
+
+```bash
+# Set the admin API key (production)
+wrangler secret put ADMIN_API_KEY --env production
+
+# Set for staging
+wrangler secret put ADMIN_API_KEY --env staging
+
+# For local dev, add to .dev.vars:
+# ADMIN_API_KEY=your-local-dev-key
+```
+
+All admin requests require `Authorization: Bearer <ADMIN_API_KEY>`.
+
+### Endpoints
+
+#### Discovery
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/admin/sources` | List all sources from D1 (uuid, user, hostname, kind, timestamps) |
+| `GET` | `/admin/source/:uuid/events` | D1 source_events for a source. `?limit=N` (default 50, max 500) |
+
+#### SourceHub Debug (per-source DO)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/admin/source/:uuid/debug/state` | Full state snapshot: sourceState, sourceUuid, userUuid, sourceMeta, alarm |
+| `GET` | `/admin/source/:uuid/debug/connections` | Active daemon WebSocket count and connection tags |
+| `GET` | `/admin/source/:uuid/debug/log` | Ring buffer entries. `?level=error&limit=50` |
+| `GET` | `/admin/source/:uuid/debug/storage` | List all DO transactional storage keys |
+
+#### UserHub Debug (per-user DO)
+
+| Method | Path | Description |
+|--------|------|-------------|
+| `GET` | `/admin/user/:uuid/debug/state` | Merged source state, userUuid |
+| `GET` | `/admin/user/:uuid/debug/connections` | Active UI WebSocket count |
+| `GET` | `/admin/user/:uuid/debug/log` | Ring buffer entries. `?level=error&limit=50` |
+| `GET` | `/admin/user/:uuid/debug/storage` | List all DO transactional storage keys |
+
+### Example Debugging Workflow
+
+```bash
+KEY="your-admin-api-key"
+API="https://api.savecraft.gg"
+
+# 1. Find the source UUID
+curl -s -H "Authorization: Bearer $KEY" "$API/admin/sources" | jq '.sources[] | {source_uuid, user_uuid, hostname}'
+
+# 2. Check if daemon is connected
+curl -s -H "Authorization: Bearer $KEY" "$API/admin/source/$UUID/debug/connections" | jq .
+
+# 3. Inspect current state
+curl -s -H "Authorization: Bearer $KEY" "$API/admin/source/$UUID/debug/state" | jq .
+
+# 4. Check recent errors in the ring buffer
+curl -s -H "Authorization: Bearer $KEY" "$API/admin/source/$UUID/debug/log?level=error" | jq '.entries[]'
+
+# 5. Check D1 event history (post-mortem)
+curl -s -H "Authorization: Bearer $KEY" "$API/admin/source/$UUID/events?limit=20" | jq '.events[] | {event_type, created_at}'
+
+# 6. Check internal errors specifically
+curl -s -H "Authorization: Bearer $KEY" "$API/admin/source/$UUID/events?limit=50" | jq '.events[] | select(.event_type == "internalError")'
+
+# 7. Check DO storage keys
+curl -s -H "Authorization: Bearer $KEY" "$API/admin/source/$UUID/debug/storage" | jq .
+
+# 8. Real-time tailing (structured JSON via console.log)
+wrangler tail --env production --format json
+```
+
+### Ring Buffer Behavior
+
+- **Size:** 200 entries per DO instance (configurable)
+- **Ordering:** Newest first when queried
+- **Persistence:** In-memory only — survives WebSocket Hibernation sleep but lost on DO eviction or deployment
+- **Output:** Each entry also written to `console.log` as structured JSON for `wrangler tail`
+- **Levels:** `debug`, `info`, `warn`, `error`
+
+### What Gets Logged
+
+**SourceHub:** daemon WebSocket accepted/closed/error, message received (with payload type), state mutations applied/failed, alarm fired/rescheduled, stale source eviction, UserHub forwarding failures, D1 persistence failures, config push failures, source update availability, game auto-enable events.
+
+**UserHub:** UI WebSocket accepted/closed/error, event forwarding to UI clients, state updates per source, source removal, recent events load failures.
+
+### Internal Error Events
+
+Previously silent `catch {}` blocks now persist `internalError` events to D1 `source_events` with:
+- `context`: which method failed (e.g. `applySourceState`, `forwardEventToUserHub`)
+- `error`: error message
+- `stack`: stack trace (when available)
+
+These are best-effort — if D1 itself is down, the ring buffer still has the error.

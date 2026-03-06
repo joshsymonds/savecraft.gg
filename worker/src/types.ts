@@ -29,6 +29,8 @@ export interface Env {
   ALLOWED_ORIGINS?: string;
   /** Application version injected at deploy time via --var VERSION:{version}. */
   VERSION?: string;
+  /** Admin API key for debug introspection endpoints. Set via `wrangler secret put ADMIN_API_KEY`. */
+  ADMIN_API_KEY?: string;
   /** Stale source threshold in ms. Sources with no message for this long are evicted. Default 90000 (90s). */
   STALE_THRESHOLD_MS?: number;
   /** DO alarm interval in ms for checking stale connections. Default 30000 (30s). */
