@@ -1161,6 +1161,97 @@ describe("SourceHub", () => {
     await closeWs(daemonWs);
   });
 
+  it("auto-creates config from gamesDiscovered and pushes config to daemon", async () => {
+    const userUuid = "auto-discover-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    const daemonWs = await connectDaemonWs(sourceToken);
+
+    // Identify daemon
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // initial empty configUpdate
+
+    // Send gamesDiscovered — should auto-create configs in D1 and push config back
+    daemonWs.send(
+      JSON.stringify({
+        gamesDiscovered: {
+          games: [
+            { gameId: "d2r", name: "Diablo II: Resurrected", path: "/home/user/.d2r/saves", fileCount: 2 },
+            { gameId: "sdv", name: "Stardew Valley", path: "/home/user/.sdv/saves", fileCount: 1 },
+          ],
+        },
+      }),
+    );
+
+    // Should receive a configUpdate with both games
+    const configMsg = await waitForMessage<{
+      configUpdate: { games: Record<string, { savePath: string; enabled: boolean }> };
+    }>(daemonWs);
+
+    expect(configMsg).toHaveProperty("configUpdate");
+    expect(configMsg.configUpdate.games.d2r).toBeDefined();
+    expect(configMsg.configUpdate.games.d2r!.savePath).toBe("/home/user/.d2r/saves");
+    expect(configMsg.configUpdate.games.d2r!.enabled).toBe(true);
+    expect(configMsg.configUpdate.games.sdv).toBeDefined();
+    expect(configMsg.configUpdate.games.sdv!.savePath).toBe("/home/user/.sdv/saves");
+    expect(configMsg.configUpdate.games.sdv!.enabled).toBe(true);
+
+    // Verify D1 has both rows
+    const rows = await env.DB.prepare(
+      "SELECT game_id, save_path, enabled FROM source_configs WHERE source_uuid = ? ORDER BY game_id",
+    )
+      .bind(sourceUuid)
+      .all<{ game_id: string; save_path: string; enabled: number }>();
+    expect(rows.results).toHaveLength(2);
+    expect(rows.results[0]!.game_id).toBe("d2r");
+    expect(rows.results[1]!.game_id).toBe("sdv");
+
+    await closeWs(daemonWs);
+  });
+
+  it("does not overwrite existing config on gamesDiscovered", async () => {
+    const userUuid = "no-overwrite-discover-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Pre-populate config with a custom path
+    await env.DB.prepare(
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+      .bind(sourceUuid, "d2r", "/custom/path", 1, JSON.stringify([".d2s"]))
+      .run();
+
+    const daemonWs = await connectDaemonWs(sourceToken);
+
+    // Identify daemon and consume configUpdate
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: "my-pc", version: "0.1.0" } }));
+    await waitForMessage(daemonWs); // configUpdate
+
+    // Send gamesDiscovered with d2r (already exists) and sdv (new)
+    daemonWs.send(
+      JSON.stringify({
+        gamesDiscovered: {
+          games: [
+            { gameId: "d2r", name: "Diablo II: Resurrected", path: "/detected/path", fileCount: 2 },
+            { gameId: "sdv", name: "Stardew Valley", path: "/home/user/.sdv/saves", fileCount: 1 },
+          ],
+        },
+      }),
+    );
+
+    // Should receive configUpdate for the new sdv game
+    const configMsg = await waitForMessage<{
+      configUpdate: { games: Record<string, { savePath: string; enabled: boolean }> };
+    }>(daemonWs);
+    expect(configMsg).toHaveProperty("configUpdate");
+    // d2r should still have the custom path (not overwritten)
+    expect(configMsg.configUpdate.games.d2r!.savePath).toBe("/custom/path");
+    // sdv should be newly created
+    expect(configMsg.configUpdate.games.sdv!.savePath).toBe("/home/user/.sdv/saves");
+
+    await closeWs(daemonWs);
+  });
+
   it("does not set ACTIVATING status during pushConfigToSource", async () => {
     const userUuid = "no-activating-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
