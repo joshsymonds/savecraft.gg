@@ -194,9 +194,7 @@ export async function deleteSource(sourceUuid: string): Promise<void> {
   await mutate<{ ok: boolean }>("DELETE", `/api/v1/sources/${sourceUuid}`);
 }
 
-export async function deleteGame(
-  gameId: string,
-): Promise<{ saves: number; notes: number }> {
+export async function deleteGame(gameId: string): Promise<{ saves: number; notes: number }> {
   const data = await mutate<{ ok: boolean; deleted: { saves: number; notes: number } }>(
     "DELETE",
     `/api/v1/games/${gameId}`,

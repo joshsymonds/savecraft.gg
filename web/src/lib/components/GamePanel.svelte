@@ -269,15 +269,19 @@
     role="dialog"
     aria-label="Confirm game removal"
     tabindex="-1"
-    onkeydown={(event) => { if (event.key === "Escape") cancelRemoveGame(); }}
+    onkeydown={(event) => {
+      if (event.key === "Escape") cancelRemoveGame();
+    }}
   >
     <div class="remove-modal">
       <div class="remove-modal-header">REMOVE GAME</div>
       <div class="remove-modal-body">
         <p class="remove-warning">
-          This will permanently delete <strong>{activeGame.saves.length}
-          {activeGame.saves.length === 1 ? "save" : "saves"}</strong> and all associated
-          notes and snapshots for <strong>{activeGame.name}</strong>.
+          This will permanently delete <strong
+            >{activeGame.saves.length}
+            {activeGame.saves.length === 1 ? "save" : "saves"}</strong
+          >
+          and all associated notes and snapshots for <strong>{activeGame.name}</strong>.
         </p>
         <p class="remove-prompt">
           Type <strong>{activeGame.name}</strong> to confirm:
