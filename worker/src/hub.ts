@@ -671,7 +671,7 @@ export class SourceHub extends DurableObject<Env> {
   private async maybeAutoEnableDiscoveredGames(rpc: Message | undefined): Promise<void> {
     if (rpc?.payload?.$case !== "gamesDiscovered") return;
     const { games } = rpc.payload.gamesDiscovered;
-    if (!games || games.length === 0) return;
+    if (games.length === 0) return;
 
     try {
       const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);

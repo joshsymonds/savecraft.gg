@@ -250,26 +250,8 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
     return handleApiKeys(request, url, env, auth.userUuid);
   }
   if (url.pathname.startsWith("/api/v1/sources/")) {
-    const sourceParts = url.pathname.split("/");
-    // /api/v1/sources/{sourceId}/config/{gameId} — PATCH per-game config
-    if (sourceParts[5] === "config" && sourceParts[6] && request.method === "PATCH") {
-      const sourceId = sourceParts[4];
-      const gameId = sourceParts[6];
-      if (!validateId(sourceId) || !validateId(gameId)) {
-        return Response.json({ error: "Invalid source_uuid or game_id" }, { status: 400 });
-      }
-      return handlePatchGameConfig(request, env, auth.userUuid, sourceId, gameId);
-    }
-    if (url.pathname.endsWith("/config")) {
-      return handleSourceConfig(request, url, env);
-    }
-    if (request.method === "DELETE") {
-      const sourceUuid = sourceParts[4];
-      if (!validateId(sourceUuid)) {
-        return Response.json({ error: "Invalid source_uuid" }, { status: 400 });
-      }
-      return handleDeleteSource(env, auth.userUuid, sourceUuid);
-    }
+    const sourceResp = routeSourceManagement(request, url, env, auth.userUuid);
+    if (sourceResp) return sourceResp;
   }
   if (url.pathname.startsWith("/api/v1/games/") && request.method === "DELETE") {
     const gameId = url.pathname.split("/")[4];
@@ -283,6 +265,35 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
   }
 
   return routeReadEndpoints(request, url, env, auth.userUuid);
+}
+
+function routeSourceManagement(
+  request: Request,
+  url: URL,
+  env: Env,
+  userUuid: string,
+): Response | Promise<Response> | null {
+  const sourceParts = url.pathname.split("/");
+  // /api/v1/sources/{sourceId}/config/{gameId} — PATCH per-game config
+  if (sourceParts[5] === "config" && sourceParts[6] && request.method === "PATCH") {
+    const sourceId = sourceParts[4];
+    const gameId = sourceParts[6];
+    if (!validateId(sourceId) || !validateId(gameId)) {
+      return Response.json({ error: "Invalid source_uuid or game_id" }, { status: 400 });
+    }
+    return handlePatchGameConfig(request, env, userUuid, sourceId, gameId);
+  }
+  if (url.pathname.endsWith("/config")) {
+    return handleSourceConfig(request, url, env);
+  }
+  if (request.method === "DELETE") {
+    const sourceUuid = sourceParts[4];
+    if (!validateId(sourceUuid)) {
+      return Response.json({ error: "Invalid source_uuid" }, { status: 400 });
+    }
+    return handleDeleteSource(env, userUuid, sourceUuid);
+  }
+  return null;
 }
 
 function routeReadEndpoints(
@@ -610,17 +621,15 @@ async function handleDeleteGame(
   const batchResults = await env.DB.batch([...noteDeletes, ...searchDeletes]);
   const totalNotes = batchResults
     .slice(0, saves.results.length)
-    .reduce((sum, r) => sum + (r.meta.changes ?? 0), 0);
+    .reduce((sum, r) => sum + r.meta.changes, 0);
 
   // Delete R2 objects for each save (parallelized within each page)
   for (const save of saves.results) {
-    let cursor: string | undefined;
-    const prefix = `saves/${save.uuid}/snapshots/`;
-    while (true) {
-      const listed = await env.SAVES.list({ prefix, cursor });
-      await Promise.all(listed.objects.map((obj) => env.SAVES.delete(obj.key)));
-      if (!listed.truncated) break;
-      cursor = listed.cursor;
+    let listed = await env.SAVES.list({ prefix: `saves/${save.uuid}/snapshots/` });
+    await Promise.all(listed.objects.map((entry) => env.SAVES.delete(entry.key)));
+    while (listed.truncated) {
+      listed = await env.SAVES.list({ prefix: `saves/${save.uuid}/snapshots/`, cursor: listed.cursor });
+      await Promise.all(listed.objects.map((entry) => env.SAVES.delete(entry.key)));
     }
     await env.SAVES.delete(`saves/${save.uuid}/latest.json`);
   }
