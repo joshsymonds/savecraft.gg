@@ -4,9 +4,8 @@
   Stacks on top of GameDetailModal when a SaveRow is clicked.
 -->
 <script lang="ts">
-  import { onMount } from "svelte";
-
   import type { NoteSummary, Save } from "$lib/types/source";
+  import { onMount } from "svelte";
 
   import Modal from "./Modal.svelte";
   import NoteCard from "./NoteCard.svelte";

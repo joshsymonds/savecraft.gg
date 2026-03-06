@@ -60,6 +60,7 @@
 
   async function handleNoteDelete(saveUuid: string, noteId: string) {
     console.log("Delete note:", { saveUuid, noteId });
+    await Promise.resolve();
   }
 
   async function handleNoteEdit(

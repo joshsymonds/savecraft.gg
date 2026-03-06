@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/svelte";
-import { createRawSnippet } from "svelte";
 import { userEvent } from "@testing-library/user-event";
+import { createRawSnippet } from "svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import Modal from "./Modal.svelte";
@@ -56,7 +56,7 @@ describe("Modal", () => {
         children: makeSnippet("Esc test"),
       },
     });
-    await fireEvent.keyDown(window, { key: "Escape" });
+    await fireEvent.keyDown(globalThis.window, { key: "Escape" });
     expect(onclose).toHaveBeenCalledOnce();
   });
 
@@ -79,7 +79,7 @@ describe("Modal", () => {
     });
 
     // First ESC closes topmost (second) modal only
-    await fireEvent.keyDown(window, { key: "Escape" });
+    await fireEvent.keyDown(globalThis.window, { key: "Escape" });
     expect(oncloseSecond).toHaveBeenCalledOnce();
     expect(oncloseFirst).not.toHaveBeenCalled();
   });

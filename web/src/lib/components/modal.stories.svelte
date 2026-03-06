@@ -389,22 +389,20 @@
 
 <!-- Width variants -->
 <Story name="WidthVariants">
-  {#snippet children()}
-    <div style="display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;">
-      <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
-        <span
-          style="font-family: var(--font-pixel); font-size: 7px; color: var(--color-text-muted); letter-spacing: 1px;"
-          >480PX (SOURCE DETAIL)</span
-        >
-        <div style="width: 480px; position: relative;">
-          <Modal id="width-480" onclose={() => {}} width="480px" ariaLabel="480px width">
-            <WindowTitleBar activeLabel="NARROW MODAL" />
-            <div class="modal-body"><p>480px width — matches SourceDetailModal.</p></div>
-          </Modal>
-        </div>
+  <div style="display: flex; gap: 16px; flex-wrap: wrap; justify-content: center;">
+    <div style="display: flex; flex-direction: column; gap: 8px; align-items: center;">
+      <span
+        style="font-family: var(--font-pixel); font-size: 7px; color: var(--color-text-muted); letter-spacing: 1px;"
+        >480PX (SOURCE DETAIL)</span
+      >
+      <div style="width: 480px; position: relative;">
+        <Modal id="width-480" onclose={() => void 0} width="480px" ariaLabel="480px width">
+          <WindowTitleBar activeLabel="NARROW MODAL" />
+          <div class="modal-body"><p>480px width — matches SourceDetailModal.</p></div>
+        </Modal>
       </div>
     </div>
-  {/snippet}
+  </div>
 </Story>
 
 <style>
