@@ -8,7 +8,7 @@ const ADMIN_KEY = "test-admin-key-secret";
 function adminFetch(path: string, key?: string): Promise<Response> {
   const headers: Record<string, string> = {};
   if (key) {
-    headers["Authorization"] = `Bearer ${key}`;
+    headers.Authorization = `Bearer ${key}`;
   }
   return SELF.fetch(`https://test-host${path}`, { headers });
 }
@@ -46,7 +46,7 @@ describe("Admin API", () => {
       const { sourceUuid } = await seedSource(userUuid);
 
       const response = await adminFetch("/admin/sources", ADMIN_KEY);
-      const body = await response.json<{ sources: Array<{ source_uuid: string; user_uuid: string }> }>();
+      const body = await response.json<{ sources: { source_uuid: string; user_uuid: string }[] }>();
       expect(body.sources).toHaveLength(1);
       expect(body.sources[0]!.source_uuid).toBe(sourceUuid);
       expect(body.sources[0]!.user_uuid).toBe(userUuid);
@@ -64,7 +64,7 @@ describe("Admin API", () => {
 
       const response = await adminFetch(`/admin/source/${sourceUuid}/events`, ADMIN_KEY);
       expect(response.status).toBe(200);
-      const body = await response.json<{ events: Array<{ event_type: string }> }>();
+      const body = await response.json<{ events: { event_type: string }[] }>();
       expect(body.events).toHaveLength(1);
       expect(body.events[0]!.event_type).toBe("sourceOnline");
     });
@@ -131,7 +131,7 @@ describe("Admin API", () => {
 
       const response = await adminFetch(`/admin/source/${sourceUuid}/debug/log`, ADMIN_KEY);
       expect(response.status).toBe(200);
-      const body = await response.json<{ entries: Array<{ level: string; msg: string }>; size: number }>();
+      const body = await response.json<{ entries: { level: string; msg: string }[]; size: number }>();
       expect(body.size).toBeGreaterThan(0);
       // Should have at least a WebSocket accepted and message received entry
       const messages = body.entries.map((entry) => entry.msg);

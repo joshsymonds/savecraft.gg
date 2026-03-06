@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { DebugLog } from "../src/debug-log";
 
+/* eslint-disable unicorn/prefer-single-call -- DebugLog.push is not Array#push */
+
 /** Capture output from DebugLog instead of hitting console.log */
 function createTestLog(maxSize?: number): { log: DebugLog; output: string[] } {
   const output: string[] = [];
