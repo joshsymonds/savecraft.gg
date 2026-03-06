@@ -66,22 +66,20 @@
     step = "configuring";
   }
 
+  let noSourcesError = $state(false);
+
   function handleCardClick(game: PickerGame) {
     if (game.watched) {
       onselect?.(game);
     } else if (configurableSources.length > 1) {
       configGame = game;
+      noSourcesError = false;
       step = "selectSource";
     } else if (configurableSources.length === 1) {
       const source = configurableSources[0];
       if (source) enterConfigForm(game, source.id);
     } else {
-      // No configurable sources — fall back to legacy behavior (no sourceId)
-      configGame = game;
-      configPath = game.defaultPaths?.[detectOS()] ?? "";
-      configState = "idle";
-      configError = "";
-      step = "configuring";
+      noSourcesError = true;
     }
   }
 
@@ -213,6 +211,13 @@
             class="search-input"
           />
         </div>
+        {#if noSourcesError}
+          <div class="no-sources-error">
+            <span class="error-text"
+              >No configurable source connected. Install the Savecraft daemon to add games.</span
+            >
+          </div>
+        {/if}
         <div class="modal-list">
           {#each filtered as game (game.gameId)}
             <GamePickerCard {game} onclick={() => handleCardClick(game)} />
@@ -415,6 +420,18 @@
   .config-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .no-sources-error {
+    padding: 10px 18px;
+    background: rgba(229, 85, 85, 0.08);
+    border-bottom: 1px solid rgba(229, 85, 85, 0.15);
+  }
+
+  .no-sources-error .error-text {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-red, #e55);
   }
 
   /* Source selection */

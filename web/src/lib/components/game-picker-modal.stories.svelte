@@ -86,8 +86,9 @@
       );
   }
 
-  // eslint-disable-next-line @typescript-eslint/no-empty-function
-  const noop = (): void => {};
+  const noop = (): void => {
+    // intentional no-op for story callbacks
+  };
 
   const singleSource = [{ id: "src-1", name: "Desktop", hostname: "desktop-pc" }];
 
