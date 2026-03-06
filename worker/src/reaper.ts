@@ -2,15 +2,15 @@
  * Orphan source reaper.
  *
  * Deletes sources that are unlinked (user_uuid IS NULL) and have had no push
- * activity for 7+ days. Also cleans up associated saves and R2 data.
+ * activity for 7+ days. Also cleans up associated source-level data.
+ *
+ * Saves are user-scoped (keyed by user_uuid, not source_uuid), so orphan
+ * sources never have saves to clean up — unlinked sources cannot push saves.
  */
 
 const ORPHAN_THRESHOLD_DAYS = 7;
 
-export async function reapOrphanSources(
-  db: D1Database,
-  saves: R2Bucket,
-): Promise<{ deleted: number }> {
+export async function reapOrphanSources(db: D1Database): Promise<{ deleted: number }> {
   const threshold = `-${String(ORPHAN_THRESHOLD_DAYS)} days`;
 
   // Find orphan sources: unlinked, old enough, no recent push
@@ -29,29 +29,6 @@ export async function reapOrphanSources(
   }
 
   for (const orphan of orphans.results) {
-    // Clean up R2 data (paginated — R2 list returns max 1000 objects)
-    let cursor: string | undefined;
-    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- R2 pagination loop
-    while (true) {
-      const listed = await saves.list({ prefix: `sources/${orphan.source_uuid}/`, cursor });
-      for (const object of listed.objects) {
-        await saves.delete(object.key);
-      }
-      if (!listed.truncated) break;
-      cursor = listed.cursor;
-    }
-
-    // Find save UUIDs for this source (needed for FK-dependent tables)
-    const saveRows = await db
-      .prepare("SELECT uuid FROM saves WHERE source_uuid = ?")
-      .bind(orphan.source_uuid)
-      .all<{ uuid: string }>();
-
-    for (const save of saveRows.results) {
-      await db.prepare("DELETE FROM notes WHERE save_id = ?").bind(save.uuid).run();
-      await db.prepare("DELETE FROM search_index WHERE save_id = ?").bind(save.uuid).run();
-    }
-
     // Delete source-level tables
     await db
       .prepare("DELETE FROM source_events WHERE source_uuid = ?")
@@ -61,9 +38,6 @@ export async function reapOrphanSources(
       .prepare("DELETE FROM source_configs WHERE source_uuid = ?")
       .bind(orphan.source_uuid)
       .run();
-
-    // Delete saves belonging to this source
-    await db.prepare("DELETE FROM saves WHERE source_uuid = ?").bind(orphan.source_uuid).run();
 
     // Delete the source itself
     await db.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(orphan.source_uuid).run();

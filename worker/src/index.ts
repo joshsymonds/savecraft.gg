@@ -130,7 +130,7 @@ export default {
     env: Env,
     _ctx: ExecutionContext,
   ): Promise<void> {
-    await reapOrphanSources(env.DB, env.SAVES);
+    await reapOrphanSources(env.DB);
   },
 } satisfies ExportedHandler<Env>;
 
@@ -465,11 +465,7 @@ async function handleNotes(
     return Response.json({ error: "Invalid save_id" }, { status: 400 });
   }
 
-  const save = await env.DB.prepare(
-    `SELECT s.uuid FROM saves s
-     JOIN sources src ON s.source_uuid = src.source_uuid
-     WHERE s.uuid = ? AND src.user_uuid = ?`,
-  )
+  const save = await env.DB.prepare("SELECT uuid FROM saves WHERE uuid = ? AND user_uuid = ?")
     .bind(saveId, userUuid)
     .first<{ uuid: string }>();
 
@@ -693,11 +689,7 @@ async function deleteOneNote(
 
 async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
   const rows = await env.DB.prepare(
-    `SELECT s.uuid, s.game_id, s.save_name, s.summary, s.last_updated
-     FROM saves s
-     JOIN sources src ON s.source_uuid = src.source_uuid
-     WHERE src.user_uuid = ?
-     ORDER BY s.last_updated DESC`,
+    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
   )
     .bind(userUuid)
     .all<{
@@ -721,15 +713,11 @@ async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
 
 async function handleGetSave(env: Env, userUuid: string, saveId: string): Promise<Response> {
   const save = await env.DB.prepare(
-    `SELECT s.uuid, s.source_uuid, s.game_id, s.save_name, s.summary, s.last_updated
-     FROM saves s
-     JOIN sources src ON s.source_uuid = src.source_uuid
-     WHERE s.uuid = ? AND src.user_uuid = ?`,
+    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE uuid = ? AND user_uuid = ?",
   )
     .bind(saveId, userUuid)
     .first<{
       uuid: string;
-      source_uuid: string;
       game_id: string;
       save_name: string;
       summary: string;
@@ -738,7 +726,7 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
 
   if (!save) return Response.json({ error: "Save not found" }, { status: 404 });
 
-  const key = `sources/${save.source_uuid}/saves/${saveId}/latest.json`;
+  const key = `saves/${saveId}/latest.json`;
   const object = await env.SAVES.get(key);
   let sections: { name: string; description: string }[] = [];
   if (object) {
@@ -1091,6 +1079,7 @@ async function readPushBody(request: Request): Promise<Record<string, unknown>> 
 
 async function storePush(
   env: Env,
+  userUuid: string,
   sourceUuid: string,
   gameId: string,
   saveName: string,
@@ -1100,9 +1089,9 @@ async function storePush(
   sections: unknown,
 ): Promise<{ saveUuid: string }> {
   const existingSave = await env.DB.prepare(
-    "SELECT uuid FROM saves WHERE source_uuid = ? AND game_id = ? AND save_name = ?",
+    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
   )
-    .bind(sourceUuid, gameId, saveName)
+    .bind(userUuid, gameId, saveName)
     .first<{ uuid: string }>();
 
   let saveUuid: string;
@@ -1112,24 +1101,24 @@ async function storePush(
     saveUuid = crypto.randomUUID();
     const gameName = await resolveGameName(env.PLUGINS, gameId);
     await env.DB.prepare(
-      "INSERT INTO saves (uuid, source_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
+      "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
-      .bind(saveUuid, sourceUuid, gameId, gameName, saveName, summary, parsedAt)
+      .bind(saveUuid, userUuid, gameId, gameName, saveName, summary, parsedAt, sourceUuid)
       .run();
   }
 
-  const snapshotKey = `sources/${sourceUuid}/saves/${saveUuid}/snapshots/${parsedAt}.json`;
+  const snapshotKey = `saves/${saveUuid}/snapshots/${parsedAt}.json`;
   await env.SAVES.put(snapshotKey, bodyString);
 
-  const latestKey = `sources/${sourceUuid}/saves/${saveUuid}/latest.json`;
+  const latestKey = `saves/${saveUuid}/latest.json`;
   const isNewer = await isNewerThanLatest(env.SAVES, latestKey, parsedAt);
   if (isNewer) {
     await env.SAVES.put(latestKey, bodyString, { customMetadata: { parsedAt } });
-    if (existingSave) {
-      await env.DB.prepare("UPDATE saves SET summary = ?, last_updated = ? WHERE uuid = ?")
-        .bind(summary, parsedAt, saveUuid)
-        .run();
-    }
+    await env.DB.prepare(
+      "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
+    )
+      .bind(summary, parsedAt, sourceUuid, saveUuid)
+      .run();
     const sectionData = sections as Record<string, { description: string; data: unknown }>;
     await indexSaveSections(env.DB, saveUuid, saveName, sectionData);
   }
@@ -1138,6 +1127,18 @@ async function storePush(
 }
 
 async function handlePush(request: Request, env: Env, sourceUuid: string): Promise<Response> {
+  // Resolve user from source — unlinked sources cannot push saves
+  const source = await env.DB.prepare("SELECT user_uuid FROM sources WHERE source_uuid = ?")
+    .bind(sourceUuid)
+    .first<{ user_uuid: string | null }>();
+
+  if (!source?.user_uuid) {
+    return Response.json(
+      { error: "Source not linked to a user. Pair the daemon first." },
+      { status: 403 },
+    );
+  }
+
   const gameId = request.headers.get("X-Game");
   if (!gameId) {
     return Response.json({ error: "Missing X-Game header" }, { status: 400 });
@@ -1176,6 +1177,7 @@ async function handlePush(request: Request, env: Env, sourceUuid: string): Promi
   try {
     const { saveUuid } = await storePush(
       env,
+      source.user_uuid,
       sourceUuid,
       gameId,
       saveName,

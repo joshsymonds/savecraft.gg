@@ -1,4 +1,4 @@
-import { SELF, env } from "cloudflare:test";
+import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { cleanAll, getOAuthToken, seedSource } from "./helpers";
@@ -80,11 +80,21 @@ describe("MCP Status", () => {
       env.DB.prepare(
         `INSERT INTO source_configs (source_uuid, game_id, save_path, config_status, resolved_path, last_error, result_at)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(sourceUuid, "bg3", "/saves/bg3", "error", "/saves/bg3", "path not found", "2025-01-01T00:00:00Z"),
+      ).bind(
+        sourceUuid,
+        "bg3",
+        "/saves/bg3",
+        "error",
+        "/saves/bg3",
+        "path not found",
+        "2025-01-01T00:00:00Z",
+      ),
     ]);
 
     // Call get_setup_help via MCP
-    const resp = await SELF.fetch(mcpRequest("tools/call", 2, { name: "get_setup_help", arguments: {} }));
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 2, { name: "get_setup_help", arguments: {} }),
+    );
     expect(resp.status).toBe(200);
     const body = await resp.json<{ result: { content: { type: string; text: string }[] } }>();
     const text = body.result.content[0]!.text;

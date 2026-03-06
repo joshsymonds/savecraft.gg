@@ -1275,9 +1275,7 @@ describe("SourceHub", () => {
     await waitForMessage(uiWs); // initial SourceState
 
     // Identify daemon
-    daemonWs.send(
-      JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }),
-    );
+    daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
     await waitForMessage(daemonWs); // configUpdate push
     await waitForMessage(uiWs); // sourceOnline event
     await waitForMessage(uiWs); // SourceState broadcast
@@ -1288,7 +1286,11 @@ describe("SourceHub", () => {
         configResult: {
           results: {
             d2r: { success: true, error: "", resolvedPath: "/home/user/saves/d2r" },
-            sdv: { success: false, error: "path not found: /saves/sdv", resolvedPath: "/saves/sdv" },
+            sdv: {
+              success: false,
+              error: "path not found: /saves/sdv",
+              resolvedPath: "/saves/sdv",
+            },
           },
         },
       }),
@@ -1303,7 +1305,12 @@ describe("SourceHub", () => {
       "SELECT config_status, resolved_path, last_error, result_at FROM source_configs WHERE source_uuid = ? AND game_id = ?",
     )
       .bind(sourceUuid, "d2r")
-      .first<{ config_status: string; resolved_path: string; last_error: string; result_at: string }>();
+      .first<{
+        config_status: string;
+        resolved_path: string;
+        last_error: string;
+        result_at: string;
+      }>();
     expect(d2rRow).toBeDefined();
     expect(d2rRow!.config_status).toBe("success");
     expect(d2rRow!.resolved_path).toBe("/home/user/saves/d2r");
@@ -1314,7 +1321,12 @@ describe("SourceHub", () => {
       "SELECT config_status, resolved_path, last_error, result_at FROM source_configs WHERE source_uuid = ? AND game_id = ?",
     )
       .bind(sourceUuid, "sdv")
-      .first<{ config_status: string; resolved_path: string; last_error: string; result_at: string }>();
+      .first<{
+        config_status: string;
+        resolved_path: string;
+        last_error: string;
+        result_at: string;
+      }>();
     expect(sdvRow).toBeDefined();
     expect(sdvRow!.config_status).toBe("error");
     expect(sdvRow!.resolved_path).toBe("/saves/sdv");

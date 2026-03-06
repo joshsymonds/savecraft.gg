@@ -299,7 +299,7 @@ describe("API key auth integration", () => {
   beforeEach(cleanAll);
 
   it("push endpoint with valid source token returns 201", async () => {
-    const { sourceToken } = await seedSource();
+    const { sourceToken } = await seedSource("auth-test-user");
 
     const resp = await SELF.fetch(
       new Request("https://test-host/api/v1/push", {

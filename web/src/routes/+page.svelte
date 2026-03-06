@@ -13,10 +13,11 @@
   } from "$lib/api/client";
   import {
     ActivityEvent,
+    AddSourceModal,
     ConnectCard,
+    EmptySourceState,
     GamePanel,
     GamePickerModal,
-    InstallBlock,
     LinkingCard,
     SourceDetailModal,
     SourceStrip,
@@ -53,6 +54,9 @@
   // -- Source detail modal --
   let selectedSource: Source | null = $state(null);
 
+  // -- Add source modal --
+  let addSourceOpen = $state(false);
+
   // -- Game picker modal --
   let pickerOpen = $state(false);
   let selectedGameId: string | null = $state(null);
@@ -82,6 +86,7 @@
   function handleManualLink(code: string): void {
     wasManualInput = true;
     showLinkInput = false;
+    addSourceOpen = false;
     void submitLinkCode(code);
   }
 
@@ -134,6 +139,9 @@
         onchipclick={(source) => {
           selectedSource = source;
         }}
+        onadd={() => {
+          addSourceOpen = true;
+        }}
       />
     {/if}
 
@@ -156,7 +164,7 @@
             <span class="empty-text">Connecting...</span>
           </div>
         {:else if $linkState !== "linking"}
-          <InstallBlock prominent={true} onsubmit={handleManualLink} />
+          <EmptySourceState onsubmit={handleManualLink} />
         {/if}
       {:else}
         <ConnectCard />
@@ -184,8 +192,6 @@
             }}
           />
         {/key}
-
-        <InstallBlock prominent={false} onsubmit={handleManualLink} />
       {/if}
     </main>
   </div>
@@ -230,6 +236,15 @@
 </div>
 
 <!-- Modals -->
+{#if addSourceOpen}
+  <AddSourceModal
+    onsubmit={handleManualLink}
+    onclose={() => {
+      addSourceOpen = false;
+    }}
+  />
+{/if}
+
 {#if selectedSource}
   <SourceDetailModal
     source={selectedSource}
@@ -242,17 +257,19 @@
 {#if pickerOpen}
   <GamePickerModal
     games={pickerGames}
+    configurableSources={$sources
+      .filter((s) => s.capabilities.canReceiveConfig)
+      .map((s) => ({ id: s.id, name: s.name, hostname: s.hostname }))}
     onselect={(game) => {
       selectedGameId = game.gameId;
       pickerOpen = false;
     }}
-    onconfigure={async (gameId, savePath) => {
-      const source = $sources.find((s) => s.capabilities.canReceiveConfig);
-      if (!source) throw new Error("No configurable source connected");
+    onconfigure={async (gameId, savePath, sourceId) => {
+      if (!sourceId) throw new Error("No configurable source selected");
       const manifest = $plugins.get(gameId);
       const fileExtensions = manifest?.file_extensions ?? [];
       resetConfigResults();
-      await saveSourceConfig(source.id, {
+      await saveSourceConfig(sourceId, {
         [gameId]: { savePath, enabled: true, fileExtensions },
       });
       await new Promise<void>((resolve, reject) => {

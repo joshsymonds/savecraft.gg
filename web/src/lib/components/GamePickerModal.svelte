@@ -10,20 +10,32 @@
   import GamePickerCard from "./GamePickerCard.svelte";
   import Panel from "./Panel.svelte";
 
+  export interface ConfigurableSource {
+    id: string;
+    name: string;
+    hostname: string | null;
+  }
+
   let {
     games,
+    configurableSources = [],
     onselect,
     onconfigure,
     onclose,
   }: {
     games: PickerGame[];
+    configurableSources?: ConfigurableSource[];
     onselect?: (game: PickerGame) => void;
-    onconfigure?: (gameId: string, savePath: string) => Promise<void>;
+    onconfigure?: (gameId: string, savePath: string, sourceId: string) => Promise<void>;
     onclose?: () => void;
   } = $props();
 
+  type ModalStep = "browsing" | "selectSource" | "configuring";
+
+  let step: ModalStep = $state("browsing");
   let search = $state("");
   let configGame: PickerGame | null = $state(null);
+  let selectedSourceId: string | null = $state(null);
   let configPath = $state("");
   let configState: "idle" | "connecting" | "success" | "error" | "timeout" = $state("idle");
   let configError = $state("");
@@ -45,15 +57,36 @@
     return "linux";
   }
 
+  function enterConfigForm(game: PickerGame, sourceId: string) {
+    configGame = game;
+    selectedSourceId = sourceId;
+    configPath = game.defaultPaths?.[detectOS()] ?? "";
+    configState = "idle";
+    configError = "";
+    step = "configuring";
+  }
+
   function handleCardClick(game: PickerGame) {
     if (game.watched) {
       onselect?.(game);
+    } else if (configurableSources.length > 1) {
+      configGame = game;
+      step = "selectSource";
+    } else if (configurableSources.length === 1) {
+      const source = configurableSources[0];
+      if (source) enterConfigForm(game, source.id);
     } else {
+      // No configurable sources — fall back to legacy behavior (no sourceId)
       configGame = game;
       configPath = game.defaultPaths?.[detectOS()] ?? "";
       configState = "idle";
       configError = "";
+      step = "configuring";
     }
+  }
+
+  function handleSourceSelect(source: ConfigurableSource) {
+    if (configGame) enterConfigForm(configGame, source.id);
   }
 
   async function handleConnect() {
@@ -61,7 +94,7 @@
     configState = "connecting";
     configError = "";
     try {
-      await onconfigure(configGame.gameId, configPath.trim());
+      await onconfigure(configGame.gameId, configPath.trim(), selectedSourceId ?? "");
       configState = "success";
       setTimeout(() => onclose?.(), 1200);
     } catch (err) {
@@ -77,17 +110,25 @@
   }
 
   function handleBack() {
-    configGame = null;
-    configState = "idle";
-    configError = "";
+    if (step === "configuring" && configurableSources.length > 1) {
+      step = "selectSource";
+      configState = "idle";
+      configError = "";
+    } else {
+      configGame = null;
+      selectedSourceId = null;
+      configState = "idle";
+      configError = "";
+      step = "browsing";
+    }
   }
 
   function handleKeydown(event: KeyboardEvent) {
     if (event.key === "Escape") {
-      if (configGame) {
-        handleBack();
-      } else {
+      if (step === "browsing") {
         onclose?.();
+      } else {
+        handleBack();
       }
     }
   }
@@ -103,18 +144,32 @@
   <div class="modal-content">
     <Panel>
       <div class="modal-header">
-        {#if configGame}
+        {#if step === "browsing"}
+          <span class="modal-title">ADD A GAME</span>
+        {:else if step === "selectSource"}
+          <button class="modal-back" onclick={handleBack}>&#x2190;</button>
+          <span class="modal-title">SELECT SOURCE</span>
+        {:else}
           <button class="modal-back" onclick={handleBack} disabled={configState === "connecting"}
             >&#x2190;</button
           >
-          <span class="modal-title">CONNECT {configGame.name.toUpperCase()}</span>
-        {:else}
-          <span class="modal-title">ADD A GAME</span>
+          <span class="modal-title">CONNECT {configGame?.name.toUpperCase()}</span>
         {/if}
         <button class="modal-close" onclick={() => onclose?.()}>&#x2715;</button>
       </div>
 
-      {#if configGame}
+      {#if step === "selectSource"}
+        <div class="source-list">
+          {#each configurableSources as source (source.id)}
+            <button class="source-option" onclick={() => handleSourceSelect(source)}>
+              <span class="source-name">{source.name}</span>
+              {#if source.hostname}
+                <span class="source-hostname">{source.hostname}</span>
+              {/if}
+            </button>
+          {/each}
+        </div>
+      {:else if step === "configuring"}
         <div class="config-form">
           {#if configState === "success"}
             <div class="config-success">
@@ -360,6 +415,42 @@
   .config-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* Source selection */
+
+  .source-list {
+    padding: 8px 0;
+  }
+
+  .source-option {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    width: 100%;
+    padding: 14px 18px;
+    background: none;
+    border: none;
+    border-bottom: 1px solid rgba(74, 90, 173, 0.06);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+  }
+
+  .source-option:hover {
+    background: rgba(74, 90, 173, 0.08);
+  }
+
+  .source-name {
+    font-family: var(--font-body);
+    font-size: 18px;
+    color: var(--color-text);
+  }
+
+  .source-hostname {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-text-muted);
   }
 
   .config-success {

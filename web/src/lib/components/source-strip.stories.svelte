@@ -65,6 +65,7 @@
     <SourceStrip
       sources={singleSource}
       onchipclick={(s: Source) => alert(`Clicked: ${s.hostname ?? s.name}`)}
+      onadd={() => alert("Add Source clicked")}
     />
   </div>
 </Story>
@@ -74,12 +75,13 @@
     <SourceStrip
       sources={multipleSources}
       onchipclick={(s: Source) => alert(`Clicked: ${s.hostname ?? s.name}`)}
+      onadd={() => alert("Add Source clicked")}
     />
   </div>
 </Story>
 
 <Story name="NoSources">
   <div style="width: 700px;">
-    <SourceStrip sources={[]} />
+    <SourceStrip sources={[]} onadd={() => alert("Add Source clicked")} />
   </div>
 </Story>

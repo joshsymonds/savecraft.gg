@@ -24,16 +24,17 @@ async function seedSave(saveUuid: string, userUuid: string): Promise<void> {
   charSeq++;
   await ensureSource(userUuid);
   await env.DB.prepare(
-    "INSERT INTO saves (uuid, source_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       saveUuid,
-      sourceUuidFor(userUuid),
+      userUuid,
       "d2r",
       "Diablo II: Resurrected",
       `Char-${String(charSeq)}`,
       "Hammerdin, Level 89",
       "2026-02-25T21:30:00Z",
+      sourceUuidFor(userUuid),
     )
     .run();
 }

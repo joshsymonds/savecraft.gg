@@ -60,7 +60,9 @@
 
   /** Never resolves — keeps the modal in "Connecting..." state. */
   function neverResolve(): Promise<void> {
-    return new Promise(() => {});
+    return new Promise(() => {
+      // intentionally never resolves
+    });
   }
 
   /** Resolves after delay — triggers success state. */
@@ -84,7 +86,16 @@
       );
   }
 
+  // eslint-disable-next-line @typescript-eslint/no-empty-function
   const noop = (): void => {};
+
+  const singleSource = [{ id: "src-1", name: "Desktop", hostname: "desktop-pc" }];
+
+  const multiSources = [
+    { id: "src-1", name: "Desktop", hostname: "desktop-pc" },
+    { id: "src-2", name: "Laptop", hostname: "laptop-air" },
+    { id: "src-3", name: "Steam Deck", hostname: "steamdeck" },
+  ];
 </script>
 
 <!-- Game catalog list -->
@@ -92,6 +103,7 @@
   <div style="width: 560px; position: relative; height: 500px;">
     <GamePickerModal
       games={catalog}
+      configurableSources={singleSource}
       onselect={(g: PickerGame) => alert(`Selected: ${g.name}`)}
       onclose={() => alert("Close")}
     />
@@ -103,8 +115,21 @@
   <div style="width: 560px; position: relative; height: 500px;">
     <GamePickerModal
       games={allWatched}
+      configurableSources={singleSource}
       onselect={(g: PickerGame) => alert(`Selected: ${g.name}`)}
       onclose={() => alert("Close")}
+    />
+  </div>
+</Story>
+
+<!-- Multi-source: shows source picker before config form -->
+<Story name="MultiSource">
+  <div style="width: 560px; position: relative; height: 400px;">
+    <GamePickerModal
+      games={catalog}
+      configurableSources={multiSources}
+      onconfigure={succeedAfter(800)}
+      onclose={noop}
     />
   </div>
 </Story>
@@ -112,14 +137,24 @@
 <!-- Config form: connecting (click Stardew Valley, then "Connect Game") -->
 <Story name="ConfigConnecting">
   <div style="width: 560px; position: relative; height: 350px;">
-    <GamePickerModal games={catalog} onconfigure={neverResolve} onclose={noop} />
+    <GamePickerModal
+      games={catalog}
+      configurableSources={singleSource}
+      onconfigure={neverResolve}
+      onclose={noop}
+    />
   </div>
 </Story>
 
 <!-- Config form: success after 800ms -->
 <Story name="ConfigSuccess">
   <div style="width: 560px; position: relative; height: 350px;">
-    <GamePickerModal games={catalog} onconfigure={succeedAfter(800)} onclose={noop} />
+    <GamePickerModal
+      games={catalog}
+      configurableSources={singleSource}
+      onconfigure={succeedAfter(800)}
+      onclose={noop}
+    />
   </div>
 </Story>
 
@@ -128,6 +163,7 @@
   <div style="width: 560px; position: relative; height: 350px;">
     <GamePickerModal
       games={catalog}
+      configurableSources={singleSource}
       onconfigure={failAfter(1000, "path not found: ~/.config/StardewValley/Saves")}
       onclose={noop}
     />
@@ -137,6 +173,11 @@
 <!-- Config form: timeout after 2s (shortened for demo) -->
 <Story name="ConfigTimeout">
   <div style="width: 560px; position: relative; height: 350px;">
-    <GamePickerModal games={catalog} onconfigure={timeoutAfter(2000)} onclose={noop} />
+    <GamePickerModal
+      games={catalog}
+      configurableSources={singleSource}
+      onconfigure={timeoutAfter(2000)}
+      onclose={noop}
+    />
   </div>
 </Story>
