@@ -73,7 +73,7 @@ Savecraft uses a source-centric ownership model. A "source" is any authenticated
 
 ### Component 1: Local Daemon
 
-Runs on the gaming device (Windows PC, Linux PC, Steam Deck). Background process that watches save file directories, parses saves using WASM plugins, and pushes structured JSON to the cloud API. Self-registers as a source on first boot, then maintains a persistent WebSocket connection to a per-user Durable Object for real-time config updates and status reporting.
+Runs on the gaming device (Windows PC, Linux PC, Steam Deck). Background process that watches save file directories, parses saves using WASM plugins, and pushes structured JSON to the cloud API. Self-registers as a source on first boot, then maintains a persistent WebSocket connection to a per-source SourceHub Durable Object for real-time config updates and status reporting.
 
 - **No MCP involvement.** Pure background service.
 - **Linux / Steam Deck:** Static binary installed to `~/.local/bin/` + systemd user unit. Sandboxed via systemd directives. See `docs/infrastructure.md`.
@@ -105,10 +105,10 @@ The daemon push API and MCP server run as a **single Cloudflare Worker**. Two ro
 - `/oauth/register` — Dynamic Client Registration (RFC 7591) for AI clients
 - `/.well-known/oauth-authorization-server` — AS metadata (auto-served by library)
 - `/.well-known/oauth-protected-resource` — Protected resource metadata (auto-served by library)
-- `/ws/daemon` — WebSocket upgrade for daemon real-time connection (bearer token, routed to per-user Durable Object)
-- `/ws/ui` — WebSocket upgrade for web UI live status (Clerk session, routed to same per-user Durable Object)
+- `/ws/daemon` — WebSocket upgrade for daemon real-time connection (source token auth, routed to per-source SourceHub DO)
+- `/ws/ui` — WebSocket upgrade for web UI live status (Clerk session, routed to per-user UserHub DO)
 
-This is not microservices. One binary, shared auth middleware, shared R2 client. The Durable Object is a separate class in the same Worker bundle.
+This is not microservices. One binary, shared auth middleware, shared R2 client. The Durable Objects (SourceHub, UserHub) are separate classes in the same Worker bundle.
 
 ## Repository Structure
 
@@ -147,7 +147,8 @@ savecraft/
 ├── worker/                      # Cloudflare Worker + Durable Object (TypeScript)
 │   ├── src/
 │   │   ├── index.ts             # Worker routes, request handling
-│   │   ├── hub.ts               # SourceHub Durable Object class
+│   │   ├── hub.ts               # SourceHub Durable Object class (per-source)
+│   │   ├── user-hub.ts          # UserHub Durable Object class (per-user, UI WebSocket)
 │   │   └── proto/               # Generated TypeScript from protobuf (do not edit)
 │   │       └── savecraft/v1/
 │   │           └── protocol.ts

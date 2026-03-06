@@ -37,28 +37,36 @@ X-Parsed-At: 2026-02-25T21:30:00Z
 
 ### Overview
 
-The daemon and web UI maintain persistent WebSocket connections to a per-user Durable Object (DO) that acts as a message hub. This enables real-time config delivery, live status reporting, and an interactive setup experience where users see immediate feedback as the daemon discovers and parses saves.
+The daemon and web UI maintain persistent WebSocket connections to Durable Objects that coordinate real-time status. The daemon connects to a per-source SourceHub DO; the web UI connects to a per-user UserHub DO. SourceHub forwards events and state to UserHub for UI broadcast. This enables real-time config delivery, live status reporting, and an interactive setup experience where users see immediate feedback as the daemon discovers and parses saves.
 
-### Architecture: SourceHub Durable Object
+### Architecture: SourceHub + UserHub Durable Objects
 
-Each user gets a single Durable Object (`SourceHub`), keyed by user UUID (`env.SOURCE_HUB.get(env.SOURCE_HUB.idFromName(userUUID))`). The SourceHub is the per-user coordination point for all save updates, regardless of source.
+Real-time communication uses two Durable Object classes that separate concerns:
 
-**Two roles:**
+**SourceHub** — one per source, keyed by source UUID (`env.SOURCE_HUB.get(env.SOURCE_HUB.idFromName(sourceUUID))`). Handles daemon WebSocket connections and source-specific logic.
 
-1. **WebSocket relay** for daemon-backed saves. Holds up to two tagged WebSocket connections:
-   - **`"daemon"` connection:** One per source. The daemon connects on startup and maintains the connection for the lifetime of the process.
-   - **`"ui"` connection:** One per active web UI session. The browser connects when the user opens the device status page and disconnects when they navigate away.
-   - Receives messages from one side, inspects the tag, forwards to the other. For `refresh_save` on daemon-backed games, sends `RescanGame` to the daemon.
+- Holds daemon WebSocket connections (tagged `"daemon"`, with a unique `conn:{id}` tag per connection).
+- Maintains per-source state in DO transactional storage: online/offline status, game detection, parse results, push completions.
+- Processes daemon messages: resolves state mutations, persists events to D1, pushes config updates.
+- Auto-enables newly detected games (creates config entries, pushes config to daemon).
+- Checks for daemon updates on `SourceOnline` and sends `SourceUpdateAvailable` if newer version exists.
+- Forwards all events and state updates to the user's UserHub DO for UI broadcast.
+- Uses an alarm to evict stale connections (sources that stop sending heartbeats).
 
-2. **API fetch coordinator** for API-backed saves. When `refresh_save` targets an API-backed game, the SourceHub calls the game adapter directly — fetches from the game API, shapes the response into GameState, writes to R2, and updates D1. Status events flow to the UI WebSocket the same as daemon events.
+**UserHub** — one per user, keyed by user UUID (`env.USER_HUB.get(env.USER_HUB.idFromName(userUUID))`). Handles UI WebSocket connections and aggregates state from all of the user's sources.
 
-When no connections are active and no fetches are in progress, the DO hibernates and incurs zero cost.
+- Holds UI WebSocket connections (tagged `"ui"`).
+- Receives forwarded events from SourceHub DOs and broadcasts to connected UI clients with `_sourceId` and `_ts` metadata injected.
+- Stores per-source state snapshots (keyed by source UUID) and merges them into a single `SourceState` envelope when sending to UI clients.
+- On UI connect, sends the merged state snapshot and recent events from D1 for cold-start rendering.
 
-**Why one DO per user (not shared):** Durable Objects are actors — single-threaded, pinned to a region. A shared DO serving 500 users would need internal routing tables and creates a single point of failure. Per-user DOs have zero routing logic, zero cross-user concerns, and cost nothing when idle thanks to WebSocket Hibernation. Cloudflare designed DOs for the "millions of tiny actors" pattern.
+**Data flow:** Daemon → SourceHub (per-source) → UserHub (per-user) → UI WebSocket. Save data still flows via HTTP POST to the push API — the WebSocket carries only lightweight status events (~200 bytes each).
+
+**Why two DOs (not one per user)?** The original design used a single per-user DO for both daemon and UI connections. Splitting to per-source SourceHub + per-user UserHub provides cleaner separation: SourceHub handles source-specific concerns (config push, game auto-enable, update checks) without needing to route between multiple sources, while UserHub simply aggregates and broadcasts. A user with two sources (PC + Steam Deck) gets two SourceHub DOs and one UserHub DO. Both hibernate when idle and incur zero cost.
 
 ### WebSocket Hibernation
 
-The DO uses Cloudflare's WebSocket Hibernation API. The platform holds WebSocket connections at the infrastructure level while the DO sleeps. The DO only wakes when an application-level message arrives. Protocol-level pings/pongs (keepalive) are handled by Cloudflare automatically and do not wake the DO.
+Both DOs use Cloudflare's WebSocket Hibernation API. The platform holds WebSocket connections at the infrastructure level while the DO sleeps. The DO only wakes when an application-level message arrives. Protocol-level pings/pongs (keepalive) are handled by Cloudflare automatically and do not wake the DO.
 
 Critical: no application-layer heartbeats. The UI must not send periodic pings. WebSocket protocol keepalive handles liveness. Application messages are the only things that wake the DO.
 
@@ -111,15 +119,15 @@ PushCompleted     → "✓ Uploaded Hammerdin (47KB) in 280ms"
 | 60-69 | server → UI | State | `SourceState` (cold-start snapshot) |
 | 70-79 | UI → server → daemon | User actions | `TestPath`, `TestPathResult` |
 
-The DO forwards all daemon status events (ranges 1-49) to the UI WebSocket if connected. On UI connect, the DO sends a `SourceState` snapshot constructed from D1 persisted events.
+SourceHub forwards all daemon status events (ranges 1-49) to UserHub, which broadcasts them to connected UI WebSockets. On UI connect, UserHub sends a merged `SourceState` snapshot (aggregated from all of the user's SourceHub DOs) and recent events from D1.
 
 **Coordination:** The daemon sends `PushStarted` before the HTTP POST, `PushCompleted`/`PushFailed` after. It only sends `PushStarted` after a successful parse. If the push fails and will be retried, the daemon sends `PushFailed` with `will_retry: true`, then `PushStarted` again on retry.
 
 ### Status Persistence
 
-The DO writes status events to a `source_events` table in D1 (last 100 events per source, older rows pruned on insert). This serves two purposes:
+SourceHub writes status events to a `source_events` table in D1 (last 100 events per source, older rows pruned on insert). This serves two purposes:
 
-1. **UI cold start:** When the web UI connects, the DO loads recent events from D1 and sends them as initial state, so the page isn't blank even if the daemon hasn't sent anything recently.
+1. **UI cold start:** When the web UI connects to UserHub, it loads recent events from D1 and sends them as initial state, so the page isn't blank even if the daemon hasn't sent anything recently.
 2. **Diagnostics:** Persisted events can be queried for debugging ("when did my daemon last successfully parse?").
 
 ## Reference Query API (Workers for Platforms)
@@ -158,14 +166,19 @@ The `DispatchNamespace` binding provides `.get(scriptName)` which returns a `Fet
 CREATE TABLE sources (
   source_uuid TEXT PRIMARY KEY,
   user_uuid TEXT,                    -- NULL until linked to a user
-  token_hash TEXT NOT NULL UNIQUE,   -- SHA-256 of sct_* token
-  source_name TEXT NOT NULL DEFAULT '',
-  link_code TEXT,                    -- 6-digit code, NULL after linking
-  link_code_expires_at TEXT,         -- 20-minute TTL
   user_email TEXT,                   -- set during linking
   user_display_name TEXT,            -- set during linking
-  last_push_at TEXT,
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  token_hash TEXT NOT NULL UNIQUE,   -- SHA-256 of sct_* token
+  link_code TEXT,                    -- 6-digit code, NULL after linking
+  link_code_expires_at TEXT,         -- 20-minute TTL
+  hostname TEXT,                     -- set during registration
+  os TEXT,                           -- e.g. "linux", "windows", "darwin"
+  arch TEXT,                         -- e.g. "amd64", "arm64"
+  source_kind TEXT NOT NULL DEFAULT 'daemon',  -- "daemon" or "mod"
+  can_rescan INTEGER NOT NULL DEFAULT 1,
+  can_receive_config INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  last_push_at TEXT
 );
 ```
 
@@ -193,14 +206,13 @@ Saves belong to sources. To find all saves for a user, JOIN through sources: `sa
 ```sql
 CREATE TABLE source_events (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
-  user_uuid TEXT NOT NULL,
-  source_id TEXT NOT NULL,
+  source_uuid TEXT NOT NULL,
   event_type TEXT NOT NULL,
   event_data TEXT NOT NULL,  -- JSON
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
-CREATE INDEX idx_source_events_user_source ON source_events(user_uuid, source_id, created_at DESC);
+CREATE INDEX idx_source_events_source ON source_events(source_uuid, created_at DESC);
 ```
 
 ## Source API Endpoints

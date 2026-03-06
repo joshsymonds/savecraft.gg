@@ -1,6 +1,6 @@
 ---
 name: working-on-worker
-description: Cloudflare Worker development conventions for Savecraft. Use when working on files in worker/, including the push API, SaveHub Durable Object, WebSocket protocol, D1 schemas, route handling, or Worker tests. Triggers on TypeScript Worker code, Miniflare, Vitest, Durable Objects, wrangler, or Worker deployment.
+description: Cloudflare Worker development conventions for Savecraft. Use when working on files in worker/, including the push API, SourceHub/UserHub Durable Objects, WebSocket protocol, D1 schemas, route handling, or Worker tests. Triggers on TypeScript Worker code, Miniflare, Vitest, Durable Objects, wrangler, or Worker deployment.
 ---
 
 # Working on the Worker
@@ -77,7 +77,8 @@ See `docs/mcp.md` for the full tool contracts and OAuth architecture.
 
 ```
 worker/src/index.ts          # Routes, request handling, OAuthProvider wrapper
-worker/src/hub.ts            # SaveHub Durable Object (WebSocket relay + API fetch)
+worker/src/hub.ts            # SourceHub Durable Object (per-source, daemon WebSocket + state)
+worker/src/user-hub.ts       # UserHub Durable Object (per-user, UI WebSocket + aggregation)
 worker/src/auth.ts           # Session/daemon auth (stub mode + Clerk mode)
 worker/src/oauth.ts          # OAuth endpoint config, OAUTH_ENDPOINTS constant
 worker/src/mcp/handler.ts    # JSON-RPC 2.0 protocol handler

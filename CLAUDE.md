@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Savecraft parses video game save files and serves structured game state to AI assistants via MCP. Two components: a local Go daemon (WASM plugin runtime, filesystem watcher) and a remote Cloudflare Worker (MCP server, push API, Durable Object hub).
+Savecraft parses video game save files and serves structured game state to AI assistants via MCP. Two components: a local Go daemon (WASM plugin runtime, filesystem watcher) and a remote Cloudflare Worker (MCP server, push API, SourceHub + UserHub Durable Objects).
 
 ## Documentation
 
@@ -10,7 +10,7 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 
 - `docs/overview.md` — What Savecraft is, system architecture, data flow, repo structure
 - `docs/daemon.md` — Go daemon: orchestrator, watcher, plugin loading, WebSocket client (`internal/`, `cmd/`)
-- `docs/worker.md` — Cloudflare Worker: push API, SourceHub DO, WebSocket protocol, D1 schemas (`worker/`)
+- `docs/worker.md` — Cloudflare Worker: push API, SourceHub + UserHub DOs, WebSocket protocol, D1 schemas (`worker/`)
 - `docs/mcp.md` — OAuth architecture, MCP tools, notes, search, AI interaction patterns (`worker/src/mcp/`)
 - `docs/plugins.md` — WASM plugin system, ndjson contract, signing, distribution (`plugins/`)
 - `docs/adapters.md` — API game adapters: server-side TypeScript modules for API-backed games (`worker/src/adapters/`)
