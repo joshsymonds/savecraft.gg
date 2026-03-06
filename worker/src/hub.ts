@@ -1,5 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
 
+import { DebugLog } from "./debug-log";
 import type {
   GameInfo,
   SaveIdentity,
@@ -171,6 +172,8 @@ function applyMutation(state: SourceState, mutation: StateMutation): void {
  * Events and state updates are forwarded to UserHub for UI broadcast.
  */
 export class SourceHub extends DurableObject<Env> {
+  private readonly debugLog = new DebugLog();
+
   async fetch(request: Request): Promise<Response> {
     // Persist source and user UUIDs from the worker on every authenticated request.
     // The worker sets these headers after verifying auth; storing them here
@@ -194,8 +197,10 @@ export class SourceHub extends DurableObject<Env> {
     const client = pair[0];
     const server = pair[1];
 
-    const tags = ["daemon", `${CONN_PREFIX}${crypto.randomUUID()}`];
+    const connId = crypto.randomUUID();
+    const tags = ["daemon", `${CONN_PREFIX}${connId}`];
     this.ctx.acceptWebSocket(server, tags);
+    this.debugLog.push("info", "daemon WebSocket accepted", { connId });
 
     // Echo Sec-WebSocket-Protocol so browser WS handshake succeeds
     // when using protocol-based auth (access_token.TOKEN)
@@ -219,6 +224,9 @@ export class SourceHub extends DurableObject<Env> {
     if (!tags.includes("daemon")) return;
 
     const rpc = this.parseMessage(msgString);
+    const payloadType = rpc?.payload?.$case ?? "unknown";
+    this.debugLog.push("info", "message received", { payloadType });
+
     const mutation = await this.applySourceState(tags, rpc);
 
     // Heartbeat updates lastSeen (via applySourceState) but is not
@@ -255,6 +263,7 @@ export class SourceHub extends DurableObject<Env> {
     reason: string,
     _wasClean: boolean,
   ): Promise<void> {
+    this.debugLog.push("info", "WebSocket closed", { code, reason });
     const tags = this.ctx.getTags(ws);
     if (tags.includes("daemon")) {
       await this.handleDaemonDisconnect(tags);
@@ -263,7 +272,10 @@ export class SourceHub extends DurableObject<Env> {
     ws.close(safeCode, reason);
   }
 
-  async webSocketError(ws: WebSocket, _error: unknown): Promise<void> {
+  async webSocketError(ws: WebSocket, error: unknown): Promise<void> {
+    this.debugLog.push("error", "WebSocket error", {
+      error: error instanceof Error ? error.message : String(error),
+    });
     const tags = this.ctx.getTags(ws);
     if (tags.includes("daemon")) {
       await this.handleDaemonDisconnect(tags);
@@ -292,7 +304,65 @@ export class SourceHub extends DurableObject<Env> {
     if (url.pathname === "/status" && request.method === "GET") {
       return this.handleStatus();
     }
+    if (url.pathname.startsWith("/debug/") && request.method === "GET") {
+      return this.routeDebugRequest(url);
+    }
     return new Response("Expected WebSocket upgrade", { status: 426 });
+  }
+
+  private async routeDebugRequest(url: URL): Promise<Response> {
+    const subpath = url.pathname.slice("/debug/".length);
+
+    if (subpath === "state") {
+      const sourceState = await this.loadState();
+      const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
+      const sourceMeta = await this.ctx.storage.get(META_KEY);
+      const alarm = await this.ctx.storage.getAlarm();
+      return Response.json({
+        sourceState,
+        sourceUuid: sourceUuid ?? null,
+        userUuid: userUuid ?? null,
+        sourceMeta: sourceMeta ?? null,
+        alarm: alarm ? new Date(alarm).toISOString() : null,
+      });
+    }
+
+    if (subpath === "connections") {
+      const daemonSockets = this.ctx.getWebSockets("daemon");
+      const connections = daemonSockets.map((ws) => {
+        const tags = this.ctx.getTags(ws);
+        return { tags };
+      });
+      return Response.json({
+        daemonCount: daemonSockets.length,
+        connections,
+      });
+    }
+
+    if (subpath === "log") {
+      const validLevels = new Set(["debug", "info", "warn", "error"]);
+      const rawLevel = url.searchParams.get("level");
+      const level =
+        rawLevel && validLevels.has(rawLevel)
+          ? (rawLevel as "debug" | "info" | "warn" | "error")
+          : undefined;
+      const rawLimit = url.searchParams.has("limit") ? Number(url.searchParams.get("limit")) : undefined;
+      const limit = rawLimit ? Math.min(rawLimit, 200) : undefined;
+      const entries = this.debugLog.entries({
+        ...(level && { level }),
+        ...(limit && { limit }),
+      });
+      return Response.json({ entries, size: this.debugLog.size });
+    }
+
+    if (subpath === "storage") {
+      const allEntries = await this.ctx.storage.list();
+      const keys = [...allEntries.keys()];
+      return Response.json({ keys });
+    }
+
+    return Response.json({ error: "Unknown debug endpoint" }, { status: 404 });
   }
 
   // ── Phase 1: Resolve — all async I/O, no state mutation ──────────
@@ -380,6 +450,8 @@ export class SourceHub extends DurableObject<Env> {
     const sourceId = await this.ctx.storage.get<string>(connTag);
     if (!sourceId) return;
 
+    this.debugLog.push("info", "daemon disconnected", { sourceId, connTag });
+
     const state = await this.loadState();
     applyMutation(state, { kind: "sourceOffline", sourceId });
     await this.saveState(state);
@@ -400,10 +472,12 @@ export class SourceHub extends DurableObject<Env> {
    * Evicts sources whose lastSeen exceeds STALE_THRESHOLD_MS.
    */
   async alarm(): Promise<void> {
+    this.debugLog.push("debug", "alarm fired");
     const state = await this.loadState();
     const staleSourceIds = findStaleSources(state, this.env.STALE_THRESHOLD_MS ?? 90_000);
 
     if (staleSourceIds.length > 0) {
+      this.debugLog.push("info", "evicting stale sources", { staleSourceIds });
       await this.evictStaleSources(state, staleSourceIds);
     }
 
@@ -411,6 +485,7 @@ export class SourceHub extends DurableObject<Env> {
     if (state.sources.some((s) => s.online)) {
       const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
       await this.ctx.storage.setAlarm(Date.now() + interval);
+      this.debugLog.push("debug", "alarm rescheduled", { intervalMs: interval });
     }
   }
 
@@ -517,6 +592,10 @@ export class SourceHub extends DurableObject<Env> {
     try {
       const mutation = await this.resolveStateMutation(tags, rpc);
 
+      if (mutation.kind !== "none") {
+        this.debugLog.push("info", "state mutation applied", { kind: mutation.kind });
+      }
+
       // Resolve sourceId for lastSeen update
       const sourceId =
         mutation.kind === "sourceOnline" || mutation.kind === "sourceOffline"
@@ -541,8 +620,11 @@ export class SourceHub extends DurableObject<Env> {
       }
 
       return mutation;
-    } catch {
-      // Don't let state update failures break the relay
+    } catch (error) {
+      this.debugLog.push("error", "state mutation failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("applySourceState", error);
       return { kind: "none" };
     }
   }
@@ -571,8 +653,11 @@ export class SourceHub extends DurableObject<Env> {
       if (batch.length > 0) {
         await this.env.DB.batch(batch);
       }
-    } catch {
-      // Don't let config result persistence break the relay
+    } catch (error) {
+      this.debugLog.push("error", "config result persistence failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("maybePersistConfigResult", error);
     }
   }
 
@@ -584,8 +669,11 @@ export class SourceHub extends DurableObject<Env> {
       const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
       if (!sourceUuid) return;
       await this.pushConfigToSource(sourceUuid);
-    } catch {
-      // Don't let config push failures break the relay
+    } catch (error) {
+      this.debugLog.push("error", "config push failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("maybePushConfig", error);
     }
   }
 
@@ -620,9 +708,13 @@ export class SourceHub extends DurableObject<Env> {
         },
       });
 
+      this.debugLog.push("info", "source update available", { version: manifest.version });
       ws.send(updateMsg);
-    } catch {
-      // Don't let update check failures break the relay
+    } catch (error) {
+      this.debugLog.push("error", "source update check failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("maybePushSourceUpdate", error);
     }
   }
 
@@ -657,10 +749,14 @@ export class SourceHub extends DurableObject<Env> {
         .bind(sourceUuid, gameId, path)
         .run();
 
+      this.debugLog.push("info", "game auto-enabled", { gameId, sourceUuid });
       // Push updated config to daemon so it starts watching.
       await this.pushConfigToSource(sourceUuid);
-    } catch {
-      // Don't let auto-enable failures break the relay
+    } catch (error) {
+      this.debugLog.push("error", "game auto-enable failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("maybeAutoEnableGame", error);
     }
   }
 
@@ -702,8 +798,11 @@ export class SourceHub extends DurableObject<Env> {
       if (anyCreated) {
         await this.pushConfigToSource(sourceUuid);
       }
-    } catch {
-      // Don't let auto-enable failures break the relay
+    } catch (error) {
+      this.debugLog.push("error", "discovered games auto-enable failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("maybeAutoEnableDiscoveredGames", error);
     }
   }
 
@@ -744,6 +843,7 @@ export class SourceHub extends DurableObject<Env> {
    * Closes all daemon WebSocket connections and wipes all DO storage.
    */
   private async handleCleanup(): Promise<Response> {
+    this.debugLog.push("info", "cleanup started");
     // Close all daemon WebSocket connections
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
       try {
@@ -811,8 +911,11 @@ export class SourceHub extends DurableObject<Env> {
         }),
       );
       await resp.text();
-    } catch {
-      // Don't let forwarding failures break the relay
+    } catch (error) {
+      this.debugLog.push("error", "forward event to UserHub failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("forwardEventToUserHub", error);
     }
   }
 
@@ -849,8 +952,11 @@ export class SourceHub extends DurableObject<Env> {
         }),
       );
       await resp.text();
-    } catch {
-      // Don't let forwarding failures break the relay
+    } catch (error) {
+      this.debugLog.push("error", "forward state to UserHub failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("forwardStateToUserHub", error);
     }
   }
 
@@ -859,9 +965,34 @@ export class SourceHub extends DurableObject<Env> {
     "scanStarted",
     "scanCompleted",
     "parseStarted",
-    "pluginStatus",
     "pushStarted",
   ]);
+
+  /**
+   * Best-effort persistence of internal error events to D1.
+   * Used by catch blocks to make errors visible for post-mortem debugging.
+   * Has its own try/catch — never throws, never breaks the caller.
+   */
+  private async persistErrorEvent(context: string, error: unknown): Promise<void> {
+    try {
+      const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+      if (!sourceUuid) return;
+      const errorData = JSON.stringify({
+        internalError: {
+          context,
+          error: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        },
+      });
+      await this.env.DB.prepare(
+        "INSERT INTO source_events (source_uuid, event_type, event_data) VALUES (?, ?, ?)",
+      )
+        .bind(sourceUuid, "internalError", errorData)
+        .run();
+    } catch {
+      // Best-effort — if D1 is down, the ring buffer has it
+    }
+  }
 
   private async persistEvent(
     sourceId: string | undefined,
@@ -891,8 +1022,12 @@ export class SourceHub extends DurableObject<Env> {
       )
         .bind(sourceId, sourceId)
         .run();
-    } catch {
-      // Don't let persistence failures break the relay
+    } catch (error) {
+      this.debugLog.push("error", "event persistence failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      // Intentionally not calling persistErrorEvent here to avoid infinite
+      // recursion — persistEvent IS the D1 write path, so retrying would loop.
     }
   }
 }
