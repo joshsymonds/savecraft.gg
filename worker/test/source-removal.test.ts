@@ -178,6 +178,112 @@ describe("Source Removal", () => {
       await closeWs(daemonWs);
     });
   });
+
+  describe("POST /api/v1/source/deregister (source-token auth)", () => {
+    it("deletes source and all associated D1 data", async () => {
+      const { sourceUuid, sourceToken } = await seedSource(TEST_USER);
+
+      // Seed source_configs and source_events
+      await env.DB.prepare(
+        `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+         VALUES (?, ?, ?, 1, '[]')`,
+      )
+        .bind(sourceUuid, "d2r", "/saves/d2r")
+        .run();
+
+      await env.DB.prepare(
+        `INSERT INTO source_events (source_uuid, event_type, event_data)
+         VALUES (?, ?, ?)`,
+      )
+        .bind(sourceUuid, "watching", '{"watching":{"gameId":"d2r"}}')
+        .run();
+
+      const resp = await SELF.fetch("https://test-host/api/v1/source/deregister", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${sourceToken}` },
+      });
+
+      expect(resp.status).toBe(200);
+      const body = await resp.json<{ ok: boolean }>();
+      expect(body.ok).toBe(true);
+
+      // Source row gone
+      const source = await env.DB.prepare("SELECT 1 FROM sources WHERE source_uuid = ?")
+        .bind(sourceUuid)
+        .first();
+      expect(source).toBeNull();
+
+      // source_configs gone
+      const configs = await env.DB.prepare("SELECT 1 FROM source_configs WHERE source_uuid = ?")
+        .bind(sourceUuid)
+        .first();
+      expect(configs).toBeNull();
+
+      // source_events gone
+      const events = await env.DB.prepare("SELECT 1 FROM source_events WHERE source_uuid = ?")
+        .bind(sourceUuid)
+        .first();
+      expect(events).toBeNull();
+    });
+
+    it("works for unlinked sources (no user)", async () => {
+      const { sourceToken } = await seedSource(null);
+
+      const resp = await SELF.fetch("https://test-host/api/v1/source/deregister", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${sourceToken}` },
+      });
+
+      expect(resp.status).toBe(200);
+    });
+
+    it("returns 401 without auth", async () => {
+      const resp = await SELF.fetch("https://test-host/api/v1/source/deregister", {
+        method: "POST",
+      });
+
+      expect(resp.status).toBe(401);
+    });
+
+    it("notifies UserHub when source is linked", async () => {
+      const { sourceUuid, sourceToken } = await seedSource(TEST_USER);
+
+      // Connect daemon and send sourceOnline so SourceHub has state
+      const daemonWs = await connectDaemonWs(sourceToken);
+      daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+      await waitForMessage(daemonWs);
+
+      // Connect UI
+      const uiWs = await connectWs("/ws/ui", TEST_USER);
+      // Drain initial state + events
+      for (let index = 0; index < 50; index++) {
+        try {
+          await waitForMessage(uiWs, 200);
+        } catch {
+          break;
+        }
+      }
+
+      const statePromise = waitForMessage<{
+        sourceState: { sources: { sourceId: string }[] };
+      }>(uiWs);
+
+      // Deregister via source token
+      const resp = await SELF.fetch("https://test-host/api/v1/source/deregister", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${sourceToken}` },
+      });
+      expect(resp.status).toBe(200);
+
+      // UI should receive updated state without the removed source
+      const updatedState = await statePromise;
+      const removedSource = updatedState.sourceState.sources.find((s) => s.sourceId === sourceUuid);
+      expect(removedSource).toBeUndefined();
+
+      await closeWs(uiWs);
+      await closeWs(daemonWs);
+    });
+  });
 });
 
 // -- Helper to seed a save with R2 data and search index -----------------
