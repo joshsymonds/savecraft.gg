@@ -125,13 +125,22 @@ describe("Admin API", () => {
 
       // Connect daemon and send sourceOnline
       const ws = await connectDaemonWs(sourceToken);
-      ws.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0", platform: "linux-amd64" } }));
+      ws.send(
+        JSON.stringify({
+          sourceOnline: { sourceId: sourceUuid, version: "0.1.0", platform: "linux-amd64" },
+        }),
+      );
       // Wait for state broadcast to settle
-      await new Promise((resolve) => { setTimeout(resolve, 100); });
+      await new Promise((resolve) => {
+        setTimeout(resolve, 100);
+      });
 
       const response = await adminFetch(`/admin/source/${sourceUuid}/debug/log`, ADMIN_KEY);
       expect(response.status).toBe(200);
-      const body = await response.json<{ entries: { level: string; msg: string }[]; size: number }>();
+      const body = await response.json<{
+        entries: { level: string; msg: string }[];
+        size: number;
+      }>();
       expect(body.size).toBeGreaterThan(0);
       // Should have at least a WebSocket accepted and message received entry
       const messages = body.entries.map((entry) => entry.msg);
