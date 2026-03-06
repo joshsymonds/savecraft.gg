@@ -63,13 +63,73 @@ describe("Source Removal", () => {
       expect(events).toBeNull();
     });
 
-    it("returns 404 for nonexistent source", async () => {
-      const resp = await SELF.fetch("https://test-host/api/v1/sources/nonexistent-uuid", {
+    it("cleans up orphaned UserHub state when D1 record is missing", async () => {
+      // Simulate orphaned DO state: seed a source, push state to UserHub,
+      // then delete the D1 record directly — leaving UserHub state behind.
+      const { sourceUuid, sourceToken } = await seedSource(TEST_USER);
+
+      // Connect daemon so SourceHub creates state, then push it to UserHub
+      const daemonWs = await connectDaemonWs(sourceToken);
+      daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
+      await waitForMessage(daemonWs);
+
+      // Connect UI to verify source appears in state
+      const uiWs = await connectWs("/ws/ui", TEST_USER);
+      const initialState = await waitForMessage<{
+        sourceState: { sources: { sourceId: string }[] };
+      }>(uiWs);
+      expect(initialState.sourceState.sources.some((s) => s.sourceId === sourceUuid)).toBe(true);
+
+      // Drain remaining messages
+      for (let index = 0; index < 50; index++) {
+        try {
+          await waitForMessage(uiWs, 200);
+        } catch {
+          break;
+        }
+      }
+
+      // Delete D1 record directly — simulates the D1/DO desync
+      await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(sourceUuid).run();
+
+      // Set up listener for state update
+      const statePromise = waitForMessage<{
+        sourceState: { sources: { sourceId: string }[] };
+      }>(uiWs);
+
+      // DELETE should succeed even though D1 record is gone — cleans up
+      // the requesting user's UserHub state only (no SourceHub wipe).
+      const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${TEST_USER}` },
+      });
+      expect(resp.status).toBe(200);
+
+      // UI should receive updated state without the source
+      const updatedState = await statePromise;
+      expect(
+        updatedState.sourceState.sources.find((s) => s.sourceId === sourceUuid),
+      ).toBeUndefined();
+
+      await closeWs(uiWs);
+      await closeWs(daemonWs);
+    });
+
+    it("does not affect other users when cleaning up orphaned state", async () => {
+      // Source owned by OTHER_USER, D1 record deleted — TEST_USER should
+      // only clean their own UserHub, not touch OTHER_USER's SourceHub DO.
+      const { sourceUuid } = await seedSource(OTHER_USER);
+
+      // Delete D1 record to simulate orphan
+      await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(sourceUuid).run();
+
+      const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}`, {
         method: "DELETE",
         headers: { Authorization: `Bearer ${TEST_USER}` },
       });
 
-      expect(resp.status).toBe(404);
+      // Succeeds (cleans requesting user's UserHub only)
+      expect(resp.status).toBe(200);
     });
 
     it("returns 403 when source belongs to another user", async () => {

@@ -585,14 +585,24 @@ async function handleDeleteSource(
   userUuid: string,
   sourceUuid: string,
 ): Promise<Response> {
-  // Verify source exists and belongs to this user
   const source = await env.DB.prepare("SELECT user_uuid FROM sources WHERE source_uuid = ?")
     .bind(sourceUuid)
     .first<{ user_uuid: string | null }>();
 
   if (!source) {
-    return Response.json({ error: "Source not found" }, { status: 404 });
+    // D1 record gone but UserHub DO may still hold stale state for this
+    // source — drop it so the UI stops showing a ghost entry.
+    const userHubId = env.USER_HUB.idFromName(userUuid);
+    await env.USER_HUB.get(userHubId).fetch(
+      new Request("https://do/remove-source", {
+        method: "POST",
+        headers: { "X-User-UUID": userUuid },
+        body: JSON.stringify({ sourceUuid }),
+      }),
+    );
+    return Response.json({ ok: true });
   }
+
   if (source.user_uuid !== userUuid) {
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
