@@ -275,6 +275,9 @@ export class SourceHub extends DurableObject<Env> {
 
   private async routeHttpRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
+    if (url.pathname === "/cleanup" && request.method === "POST") {
+      return this.handleCleanup();
+    }
     if (url.pathname === "/push-config" && request.method === "POST") {
       const body = await request.json<{ sourceId: string }>();
       await this.pushConfigToSource(body.sourceId);
@@ -734,6 +737,29 @@ export class SourceHub extends DurableObject<Env> {
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
       daemonWs.send(msg);
     }
+  }
+
+  /**
+   * Called when a source is permanently deleted by the user.
+   * Closes all daemon WebSocket connections and wipes all DO storage.
+   */
+  private async handleCleanup(): Promise<Response> {
+    // Close all daemon WebSocket connections
+    for (const daemonWs of this.ctx.getWebSockets("daemon")) {
+      try {
+        daemonWs.close(1000, "source removed");
+      } catch {
+        // WebSocket may already be closed
+      }
+    }
+
+    // Delete all alarm
+    await this.ctx.storage.deleteAlarm();
+
+    // Wipe all storage
+    await this.ctx.storage.deleteAll();
+
+    return Response.json({ ok: true });
   }
 
   private async handleRescan(request: Request): Promise<Response> {

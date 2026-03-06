@@ -17,6 +17,7 @@
     games,
     showSourceBadges = false,
     onadd,
+    onremovegame,
     loadNotes,
     onnotecreate,
     onnotedelete,
@@ -27,6 +28,7 @@
     games: Game[];
     showSourceBadges?: boolean;
     onadd?: () => void;
+    onremovegame?: (gameId: string) => Promise<void>;
     loadNotes?: (saveUuid: string) => Promise<NoteSummary[]>;
     onnotecreate?: (saveUuid: string, title: string, content: string) => Promise<void>;
     onnotedelete?: (saveUuid: string, noteId: string) => Promise<void>;
@@ -94,6 +96,39 @@
     navSaveUuid = save.saveUuid;
     await doLoadNotes(save.saveUuid);
   }
+
+  // -- Remove game --
+
+  let confirmingRemoveGame = $state(false);
+  let removeGameInput = $state("");
+  let removingGame = $state(false);
+
+  function startRemoveGame() {
+    confirmingRemoveGame = true;
+    removeGameInput = "";
+  }
+
+  function cancelRemoveGame() {
+    confirmingRemoveGame = false;
+    removeGameInput = "";
+  }
+
+  async function handleRemoveGame() {
+    if (!onremovegame || !activeGame) return;
+    removingGame = true;
+    try {
+      await onremovegame(activeGame.gameId);
+      confirmingRemoveGame = false;
+      navGameId = null;
+      navSaveUuid = null;
+    } finally {
+      removingGame = false;
+    }
+  }
+
+  let removeGameNameMatch = $derived(
+    activeGame ? removeGameInput.trim().toLowerCase() === activeGame.name.toLowerCase() : false,
+  );
 
   // Load notes for initially-selected save (Storybook pre-navigation)
   $effect(() => {
@@ -187,7 +222,13 @@
       ]}
       activeLabel={activeGame.name}
       activeSublabel={activeGame.statusLine}
-    />
+    >
+      {#snippet right()}
+        {#if onremovegame}
+          <TinyButton label="REMOVE" variant="danger" onclick={startRemoveGame} />
+        {/if}
+      {/snippet}
+    </WindowTitleBar>
     <div class="saves-area">
       {#each activeGame.saves as save (save.saveUuid)}
         <div class="save-row-wrap">
@@ -221,6 +262,46 @@
     </div>
   {/if}
 </Panel>
+
+{#if confirmingRemoveGame && activeGame}
+  <div
+    class="remove-modal-backdrop"
+    role="dialog"
+    aria-label="Confirm game removal"
+    tabindex="-1"
+    onkeydown={(e) => { if (e.key === "Escape") cancelRemoveGame(); }}
+  >
+    <div class="remove-modal">
+      <div class="remove-modal-header">REMOVE GAME</div>
+      <div class="remove-modal-body">
+        <p class="remove-warning">
+          This will permanently delete <strong>{activeGame.saves.length}
+          {activeGame.saves.length === 1 ? "save" : "saves"}</strong> and all associated
+          notes and snapshots for <strong>{activeGame.name}</strong>.
+        </p>
+        <p class="remove-prompt">
+          Type <strong>{activeGame.name}</strong> to confirm:
+        </p>
+        <input
+          type="text"
+          class="remove-input"
+          bind:value={removeGameInput}
+          placeholder={activeGame.name}
+          disabled={removingGame}
+        />
+      </div>
+      <div class="remove-modal-actions">
+        <TinyButton label="CANCEL" onclick={cancelRemoveGame} disabled={removingGame} />
+        <TinyButton
+          label={removingGame ? "REMOVING..." : "REMOVE GAME"}
+          variant="danger"
+          onclick={handleRemoveGame}
+          disabled={!removeGameNameMatch || removingGame}
+        />
+      </div>
+    </div>
+  </div>
+{/if}
 
 <style>
   /* -- Game grid ------------------------------------------------ */
@@ -388,5 +469,96 @@
     font-family: var(--font-body);
     font-size: 18px;
     color: var(--color-text-muted);
+  }
+
+  /* -- Remove game modal ---------------------------------------- */
+
+  .remove-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(5, 7, 26, 0.85);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 200;
+    animation: fade-in 0.15s ease-out;
+  }
+
+  .remove-modal {
+    width: 400px;
+    background: var(--color-surface, #0d0f2b);
+    border: 1px solid rgba(232, 90, 90, 0.2);
+    border-radius: 4px;
+    animation: fade-slide-in 0.2s ease-out;
+  }
+
+  .remove-modal-header {
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    color: var(--color-red, #e85a5a);
+    letter-spacing: 2px;
+    padding: 14px 18px;
+    border-bottom: 1px solid rgba(232, 90, 90, 0.12);
+  }
+
+  .remove-modal-body {
+    padding: 16px 18px;
+  }
+
+  .remove-warning {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--color-text-dim);
+    line-height: 1.5;
+    margin: 0 0 12px 0;
+  }
+
+  .remove-warning strong {
+    color: var(--color-text);
+  }
+
+  .remove-prompt {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-text-muted);
+    margin: 0 0 8px 0;
+  }
+
+  .remove-prompt strong {
+    color: var(--color-text);
+  }
+
+  .remove-input {
+    width: 100%;
+    background: rgba(5, 7, 26, 0.6);
+    border: 1px solid rgba(232, 90, 90, 0.25);
+    border-radius: 3px;
+    padding: 8px 10px;
+    font-family: var(--font-body);
+    font-size: 16px;
+    color: var(--color-text);
+    outline: none;
+    box-sizing: border-box;
+  }
+
+  .remove-input:focus {
+    border-color: rgba(232, 90, 90, 0.5);
+  }
+
+  .remove-input::placeholder {
+    color: var(--color-text-muted);
+    opacity: 0.4;
+  }
+
+  .remove-input:disabled {
+    opacity: 0.5;
+  }
+
+  .remove-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    padding: 12px 18px;
+    border-top: 1px solid rgba(74, 90, 173, 0.08);
   }
 </style>

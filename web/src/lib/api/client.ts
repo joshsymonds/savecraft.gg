@@ -123,6 +123,14 @@ export async function saveSourceConfig(
   await mutate<{ ok: boolean }>("PUT", `/api/v1/sources/${sourceId}/config`, { games });
 }
 
+export async function patchGameConfig(
+  sourceId: string,
+  gameId: string,
+  fields: { enabled: boolean },
+): Promise<void> {
+  await mutate<{ ok: boolean }>("PATCH", `/api/v1/sources/${sourceId}/config/${gameId}`, fields);
+}
+
 // ── Notes ─────────────────────────────────────────────────────
 
 export interface ApiNote {
@@ -178,6 +186,22 @@ export interface LinkSourceResponse {
 
 export async function linkSource(code: string): Promise<LinkSourceResponse> {
   return mutate<LinkSourceResponse>("POST", "/api/v1/source/link", { code });
+}
+
+// ── Source & Game Removal ──────────────────────────────────────
+
+export async function deleteSource(sourceUuid: string): Promise<void> {
+  await mutate<{ ok: boolean }>("DELETE", `/api/v1/sources/${sourceUuid}`);
+}
+
+export async function deleteGame(
+  gameId: string,
+): Promise<{ saves: number; notes: number }> {
+  const data = await mutate<{ ok: boolean; deleted: { saves: number; notes: number } }>(
+    "DELETE",
+    `/api/v1/games/${gameId}`,
+  );
+  return data.deleted;
 }
 
 // ── MCP Status ────────────────────────────────────────────────

@@ -4,6 +4,7 @@
   Opened by clicking a SourceChip in the SourceStrip.
 -->
 <script lang="ts">
+  import { deleteSource, patchGameConfig } from "$lib/api/client";
   import type { Source } from "$lib/types/source";
 
   import Panel from "./Panel.svelte";
@@ -19,8 +20,48 @@
 
   let gameErrors = $derived(source.games.filter((g) => g.error));
 
+  // -- Remove source state --
+  let confirmingRemove = $state(false);
+  let removing = $state(false);
+
+  // -- Per-game toggle state --
+  let togglingGame = $state<string | null>(null);
+
   function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") onclose?.();
+    if (event.key === "Escape") {
+      if (confirmingRemove) {
+        confirmingRemove = false;
+      } else {
+        onclose?.();
+      }
+    }
+  }
+
+  async function handleRemoveSource() {
+    removing = true;
+    try {
+      await deleteSource(source.id);
+      onclose?.();
+    } catch {
+      removing = false;
+    }
+  }
+
+  async function handleToggleGame(gameId: string, currentlyEnabled: boolean) {
+    togglingGame = gameId;
+    try {
+      await patchGameConfig(source.id, gameId, { enabled: !currentlyEnabled });
+    } catch {
+      // Toggle failed — UI will reset via WebSocket state update
+    } finally {
+      togglingGame = null;
+    }
+  }
+
+  function isGameEnabled(gameId: string): boolean {
+    const game = source.games.find((g) => g.gameId === gameId);
+    if (!game) return false;
+    return game.status === "watching" || game.status === "error";
   }
 </script>
 
@@ -88,18 +129,32 @@
         <div class="config-section">
           <span class="section-label">GAME CONFIGURATION</span>
           {#each source.games as game (game.gameId)}
-            <div class="config-game">
+            <div class="config-game" class:disabled={!isGameEnabled(game.gameId)}>
               <div class="config-game-header">
                 <span class="config-game-name">{game.name}</span>
-                <span
-                  class="config-game-status"
-                  class:watching={game.status === "watching"}
-                  class:game-error={game.status === "error"}
-                  class:not-found={game.status === "not_found"}
-                >
-                  {#if game.status === "watching"}WATCHING{:else if game.status === "error"}ERROR{:else}NOT
-                    FOUND{/if}
-                </span>
+                <div class="config-game-actions">
+                  <span
+                    class="config-game-status"
+                    class:watching={game.status === "watching"}
+                    class:game-error={game.status === "error"}
+                    class:not-found={game.status === "not_found"}
+                  >
+                    {#if game.status === "watching"}WATCHING{:else if game.status === "error"}ERROR{:else}NOT
+                      FOUND{/if}
+                  </span>
+                  <button
+                    class="toggle-btn"
+                    class:toggle-on={isGameEnabled(game.gameId)}
+                    class:toggle-off={!isGameEnabled(game.gameId)}
+                    disabled={togglingGame === game.gameId}
+                    onclick={() => handleToggleGame(game.gameId, isGameEnabled(game.gameId))}
+                    title={isGameEnabled(game.gameId) ? "Disable tracking" : "Enable tracking"}
+                  >
+                    <span class="toggle-track">
+                      <span class="toggle-thumb"></span>
+                    </span>
+                  </button>
+                </div>
               </div>
               {#if game.path}
                 <div class="config-field">
@@ -121,6 +176,41 @@
           {/each}
         </div>
       {/if}
+
+      <!-- Remove source -->
+      <div class="remove-section">
+        {#if confirmingRemove}
+          <div class="confirm-box">
+            <p class="confirm-text">
+              Remove <strong>{source.hostname ?? source.name}</strong> from your account?
+              Your saves will be preserved.
+            </p>
+            <div class="confirm-actions">
+              <button
+                class="btn-cancel"
+                onclick={() => { confirmingRemove = false; }}
+                disabled={removing}
+              >
+                CANCEL
+              </button>
+              <button
+                class="btn-remove"
+                onclick={handleRemoveSource}
+                disabled={removing}
+              >
+                {removing ? "REMOVING..." : "REMOVE SOURCE"}
+              </button>
+            </div>
+          </div>
+        {:else}
+          <button
+            class="btn-remove-source"
+            onclick={() => { confirmingRemove = true; }}
+          >
+            REMOVE SOURCE
+          </button>
+        {/if}
+      </div>
     </Panel>
   </div>
 </div>
@@ -305,6 +395,10 @@
     margin-bottom: 8px;
   }
 
+  .config-game.disabled {
+    opacity: 0.5;
+  }
+
   .config-game:last-child {
     margin-bottom: 0;
   }
@@ -314,6 +408,12 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 8px;
+  }
+
+  .config-game-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .config-game-name {
@@ -347,6 +447,52 @@
     color: var(--color-text-muted);
     background: rgba(74, 90, 173, 0.06);
     border: 1px solid rgba(74, 90, 173, 0.1);
+  }
+
+  /* -- Toggle switch ------------------------------------------ */
+
+  .toggle-btn {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 2px;
+    display: flex;
+    align-items: center;
+  }
+
+  .toggle-btn:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+
+  .toggle-track {
+    width: 28px;
+    height: 14px;
+    border-radius: 7px;
+    background: rgba(74, 90, 173, 0.2);
+    border: 1px solid rgba(74, 90, 173, 0.3);
+    display: flex;
+    align-items: center;
+    padding: 1px;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .toggle-on .toggle-track {
+    background: rgba(90, 190, 138, 0.25);
+    border-color: rgba(90, 190, 138, 0.4);
+  }
+
+  .toggle-thumb {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--color-text-muted);
+    transition: transform 0.15s, background 0.15s;
+  }
+
+  .toggle-on .toggle-thumb {
+    transform: translateX(14px);
+    background: var(--color-green);
   }
 
   .config-field {
@@ -386,5 +532,95 @@
     font-family: var(--font-body);
     font-size: 18px;
     color: var(--color-text-muted);
+  }
+
+  /* -- Remove source section ---------------------------------- */
+
+  .remove-section {
+    padding: 14px 18px;
+    border-top: 1px solid rgba(74, 90, 173, 0.08);
+  }
+
+  .btn-remove-source {
+    font-family: var(--font-pixel);
+    font-size: 7px;
+    letter-spacing: 1.5px;
+    color: var(--color-red, #e85a5a);
+    background: none;
+    border: 1px solid rgba(232, 90, 90, 0.2);
+    border-radius: 3px;
+    padding: 8px 14px;
+    cursor: pointer;
+    width: 100%;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .btn-remove-source:hover {
+    background: rgba(232, 90, 90, 0.06);
+    border-color: rgba(232, 90, 90, 0.35);
+  }
+
+  .confirm-box {
+    background: rgba(232, 90, 90, 0.04);
+    border: 1px solid rgba(232, 90, 90, 0.15);
+    border-radius: 3px;
+    padding: 12px 14px;
+  }
+
+  .confirm-text {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--color-text-dim);
+    margin: 0 0 12px 0;
+    line-height: 1.4;
+  }
+
+  .confirm-text strong {
+    color: var(--color-text);
+  }
+
+  .confirm-actions {
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+  }
+
+  .btn-cancel {
+    font-family: var(--font-pixel);
+    font-size: 7px;
+    letter-spacing: 1px;
+    color: var(--color-text-muted);
+    background: none;
+    border: 1px solid rgba(74, 90, 173, 0.2);
+    border-radius: 3px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+
+  .btn-cancel:hover {
+    color: var(--color-text);
+    border-color: rgba(74, 90, 173, 0.4);
+  }
+
+  .btn-remove {
+    font-family: var(--font-pixel);
+    font-size: 7px;
+    letter-spacing: 1px;
+    color: #fff;
+    background: rgba(232, 90, 90, 0.7);
+    border: 1px solid rgba(232, 90, 90, 0.5);
+    border-radius: 3px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+
+  .btn-remove:hover {
+    background: rgba(232, 90, 90, 0.85);
+  }
+
+  .btn-remove:disabled,
+  .btn-cancel:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 </style>
