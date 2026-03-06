@@ -245,6 +245,7 @@ export class SourceHub extends DurableObject<Env> {
 
     await this.maybePushConfig(rpc);
     await this.maybeAutoEnableGame(rpc);
+    await this.maybeAutoEnableDiscoveredGames(rpc);
     await this.maybePushSourceUpdate(ws, rpc);
   }
 
@@ -655,6 +656,49 @@ export class SourceHub extends DurableObject<Env> {
 
       // Push updated config to daemon so it starts watching.
       await this.pushConfigToSource(sourceUuid);
+    } catch {
+      // Don't let auto-enable failures break the relay
+    }
+  }
+
+  /**
+   * When daemon reports discovered games, auto-create config entries for each
+   * game that doesn't already have one, then push config to start watching.
+   */
+  private async maybeAutoEnableDiscoveredGames(rpc: Message | undefined): Promise<void> {
+    if (rpc?.payload?.$case !== "gamesDiscovered") return;
+    const { games } = rpc.payload.gamesDiscovered;
+    if (!games || games.length === 0) return;
+
+    try {
+      const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+      if (!sourceUuid) return;
+
+      let anyCreated = false;
+      for (const game of games) {
+        if (!game.gameId || !game.path) continue;
+
+        const existing = await this.env.DB.prepare(
+          "SELECT 1 FROM source_configs WHERE source_uuid = ? AND game_id = ?",
+        )
+          .bind(sourceUuid, game.gameId)
+          .first();
+
+        if (existing) continue;
+
+        await this.env.DB.prepare(
+          `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+           VALUES (?, ?, ?, 1, '[]')`,
+        )
+          .bind(sourceUuid, game.gameId, game.path)
+          .run();
+
+        anyCreated = true;
+      }
+
+      if (anyCreated) {
+        await this.pushConfigToSource(sourceUuid);
+      }
     } catch {
       // Don't let auto-enable failures break the relay
     }
