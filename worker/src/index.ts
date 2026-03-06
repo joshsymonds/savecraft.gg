@@ -21,7 +21,7 @@ function getAllowedOrigin(request: Request, env: Env): string | null {
 function corsHeaders(origin: string): Record<string, string> {
   return {
     "Access-Control-Allow-Origin": origin,
-    "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+    "Access-Control-Allow-Methods": "GET, POST, PUT, PATCH, DELETE, OPTIONS",
     "Access-Control-Allow-Headers": "Authorization, Content-Type",
     "Access-Control-Max-Age": "86400",
   };
@@ -130,7 +130,7 @@ export default {
     env: Env,
     _ctx: ExecutionContext,
   ): Promise<void> {
-    await reapOrphanSources(env.DB);
+    await reapOrphanSources(env);
   },
 } satisfies ExportedHandler<Env>;
 
@@ -249,8 +249,34 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
   if (url.pathname === "/api/v1/api-keys" || url.pathname.startsWith("/api/v1/api-keys/")) {
     return handleApiKeys(request, url, env, auth.userUuid);
   }
-  if (url.pathname.startsWith("/api/v1/sources/") && url.pathname.endsWith("/config")) {
-    return handleSourceConfig(request, url, env);
+  if (url.pathname.startsWith("/api/v1/sources/")) {
+    const sourceParts = url.pathname.split("/");
+    // /api/v1/sources/{sourceId}/config/{gameId} — PATCH per-game config
+    if (sourceParts[5] === "config" && sourceParts[6] && request.method === "PATCH") {
+      const sourceId = sourceParts[4];
+      const gameId = sourceParts[6];
+      if (!validateId(sourceId) || !validateId(gameId)) {
+        return Response.json({ error: "Invalid source_uuid or game_id" }, { status: 400 });
+      }
+      return handlePatchGameConfig(request, env, auth.userUuid, sourceId, gameId);
+    }
+    if (url.pathname.endsWith("/config")) {
+      return handleSourceConfig(request, url, env);
+    }
+    if (request.method === "DELETE") {
+      const sourceUuid = sourceParts[4];
+      if (!validateId(sourceUuid)) {
+        return Response.json({ error: "Invalid source_uuid" }, { status: 400 });
+      }
+      return handleDeleteSource(env, auth.userUuid, sourceUuid);
+    }
+  }
+  if (url.pathname.startsWith("/api/v1/games/") && request.method === "DELETE") {
+    const gameId = url.pathname.split("/")[4];
+    if (!validateId(gameId)) {
+      return Response.json({ error: "Invalid game_id" }, { status: 400 });
+    }
+    return handleDeleteGame(env, auth.userUuid, gameId);
   }
   if (url.pathname.startsWith("/api/v1/notes/")) {
     return handleNotes(request, url, env, auth.userUuid);
@@ -447,6 +473,206 @@ async function handlePutSourceConfig(
   }
 
   return Response.json({ ok: true });
+}
+
+// -- Per-Game Config Patch -----------------------------------------
+
+async function handlePatchGameConfig(
+  request: Request,
+  env: Env,
+  userUuid: string,
+  sourceId: string,
+  gameId: string,
+): Promise<Response> {
+  // Verify source belongs to this user
+  const source = await env.DB.prepare(
+    "SELECT user_uuid FROM sources WHERE source_uuid = ?",
+  )
+    .bind(sourceId)
+    .first<{ user_uuid: string }>();
+  if (!source) return Response.json({ error: "Source not found" }, { status: 404 });
+  if (source.user_uuid !== userUuid) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  let body: { enabled?: boolean };
+  try {
+    body = await request.json<{ enabled?: boolean }>();
+  } catch {
+    return Response.json({ error: "Invalid JSON" }, { status: 400 });
+  }
+
+  if (body.enabled === undefined) {
+    return Response.json({ error: "No fields to update" }, { status: 400 });
+  }
+
+  const result = await env.DB.prepare(
+    "UPDATE source_configs SET enabled = ?, updated_at = datetime('now') WHERE source_uuid = ? AND game_id = ?",
+  )
+    .bind(body.enabled ? 1 : 0, sourceId, gameId)
+    .run();
+
+  if (!result.meta.changes || result.meta.changes === 0) {
+    return Response.json({ error: "Config not found" }, { status: 404 });
+  }
+
+  // Push updated config to daemon
+  const doId = env.SOURCE_HUB.idFromName(sourceId);
+  const doStub = env.SOURCE_HUB.get(doId);
+  await doStub.fetch(
+    new Request("https://do/push-config", {
+      method: "POST",
+      body: JSON.stringify({ sourceId }),
+    }),
+  );
+
+  return Response.json({ ok: true });
+}
+
+// -- Source Removal ------------------------------------------------
+
+async function handleDeleteSource(
+  env: Env,
+  userUuid: string,
+  sourceUuid: string,
+): Promise<Response> {
+  // Verify source exists and belongs to this user
+  const source = await env.DB.prepare(
+    "SELECT user_uuid FROM sources WHERE source_uuid = ?",
+  )
+    .bind(sourceUuid)
+    .first<{ user_uuid: string | null }>();
+
+  if (!source) {
+    return Response.json({ error: "Source not found" }, { status: 404 });
+  }
+  if (source.user_uuid !== userUuid) {
+    return Response.json({ error: "Forbidden" }, { status: 403 });
+  }
+
+  // D1 cleanup (same pattern as reaper)
+  await env.DB.prepare("DELETE FROM source_events WHERE source_uuid = ?")
+    .bind(sourceUuid)
+    .run();
+  await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?")
+    .bind(sourceUuid)
+    .run();
+  await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?")
+    .bind(sourceUuid)
+    .run();
+
+  // Clean up SourceHub DO (close connections, delete all storage)
+  const sourceHubId = env.SOURCE_HUB.idFromName(sourceUuid);
+  const sourceHubStub = env.SOURCE_HUB.get(sourceHubId);
+  await sourceHubStub.fetch(
+    new Request("https://do/cleanup", { method: "POST" }),
+  );
+
+  // Tell UserHub to drop this source's state and rebroadcast
+  const userHubId = env.USER_HUB.idFromName(userUuid);
+  const userHubStub = env.USER_HUB.get(userHubId);
+  await userHubStub.fetch(
+    new Request("https://do/remove-source", {
+      method: "POST",
+      headers: { "X-User-UUID": userUuid },
+      body: JSON.stringify({ sourceUuid }),
+    }),
+  );
+
+  return Response.json({ ok: true });
+}
+
+// -- Game Removal --------------------------------------------------
+
+async function handleDeleteGame(
+  env: Env,
+  userUuid: string,
+  gameId: string,
+): Promise<Response> {
+  // Find all saves for this user + game
+  const saves = await env.DB.prepare(
+    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ?",
+  )
+    .bind(userUuid, gameId)
+    .all<{ uuid: string }>();
+
+  if (saves.results.length === 0) {
+    return Response.json({ error: "No saves found for this game" }, { status: 404 });
+  }
+
+  // Batch D1 cleanup: delete notes + search_index for all saves in one round-trip
+  const noteDeletes = saves.results.map((s) =>
+    env.DB.prepare("DELETE FROM notes WHERE save_id = ?").bind(s.uuid),
+  );
+  const searchDeletes = saves.results.map((s) =>
+    env.DB.prepare("DELETE FROM search_index WHERE save_id = ?").bind(s.uuid),
+  );
+  const batchResults = await env.DB.batch([...noteDeletes, ...searchDeletes]);
+  const totalNotes = batchResults
+    .slice(0, saves.results.length)
+    .reduce((sum, r) => sum + (r.meta.changes ?? 0), 0);
+
+  // Delete R2 objects for each save (parallelized within each page)
+  for (const save of saves.results) {
+    let cursor: string | undefined;
+    const prefix = `saves/${save.uuid}/snapshots/`;
+    while (true) {
+      const listed = await env.SAVES.list({ prefix, cursor });
+      await Promise.all(listed.objects.map((obj) => env.SAVES.delete(obj.key)));
+      if (!listed.truncated) break;
+      cursor = listed.cursor;
+    }
+    await env.SAVES.delete(`saves/${save.uuid}/latest.json`);
+  }
+
+  // Delete all saves for this game
+  await env.DB.prepare("DELETE FROM saves WHERE user_uuid = ? AND game_id = ?")
+    .bind(userUuid, gameId)
+    .run();
+
+  // Disable source_configs for this game across all user's sources
+  await env.DB.prepare(
+    `UPDATE source_configs SET enabled = 0
+     WHERE game_id = ? AND source_uuid IN (
+       SELECT source_uuid FROM sources WHERE user_uuid = ?
+     )`,
+  )
+    .bind(gameId, userUuid)
+    .run();
+
+  // Push updated config to each connected source
+  const sources = await env.DB.prepare(
+    "SELECT source_uuid FROM sources WHERE user_uuid = ?",
+  )
+    .bind(userUuid)
+    .all<{ source_uuid: string }>();
+
+  for (const source of sources.results) {
+    try {
+      const doId = env.SOURCE_HUB.idFromName(source.source_uuid);
+      const doStub = env.SOURCE_HUB.get(doId);
+      await doStub.fetch(
+        new Request("https://do/push-config", {
+          method: "POST",
+          body: JSON.stringify({ sourceId: source.source_uuid }),
+        }),
+      );
+    } catch {
+      // Don't let config push failures block deletion
+    }
+  }
+
+  // Notify UserHub to rebroadcast updated state to UI clients
+  const userHubId = env.USER_HUB.idFromName(userUuid);
+  const userHubStub = env.USER_HUB.get(userHubId);
+  await userHubStub.fetch(
+    new Request("https://do/refresh-state", { method: "POST" }),
+  );
+
+  return Response.json({
+    ok: true,
+    deleted: { saves: saves.results.length, notes: totalNotes },
+  });
 }
 
 // -- Notes REST API ------------------------------------------------

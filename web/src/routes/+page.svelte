@@ -5,6 +5,7 @@
 <script lang="ts">
   import {
     createNote,
+    deleteGame,
     deleteNote,
     fetchNotes,
     saveSourceConfig,
@@ -189,6 +190,9 @@
             }}
             onnoteedit={async (saveUuid, noteId, title, content) => {
               await updateNote(saveUuid, noteId, { title, content });
+            }}
+            onremovegame={async (gameId) => {
+              await deleteGame(gameId);
             }}
           />
         {/key}

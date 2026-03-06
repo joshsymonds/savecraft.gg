@@ -70,6 +70,12 @@ export class UserHub extends DurableObject<Env> {
     if (url.pathname === "/update-state" && request.method === "POST") {
       return this.handleUpdateState(request);
     }
+    if (url.pathname === "/remove-source" && request.method === "POST") {
+      return this.handleRemoveSource(request);
+    }
+    if (url.pathname === "/refresh-state" && request.method === "POST") {
+      return this.handleRefreshState();
+    }
     return new Response("Expected WebSocket upgrade", { status: 426 });
   }
 
@@ -98,6 +104,32 @@ export class UserHub extends DurableObject<Env> {
     const body = await request.json<{ sourceUuid: string; stateJson: string }>();
     await this.ctx.storage.put(`${SOURCE_STATE_PREFIX}${body.sourceUuid}`, body.stateJson);
     // Build merged state once, broadcast to all connected UI clients
+    const merged = await this.buildMergedSourceState();
+    for (const ws of this.ctx.getWebSockets("ui")) {
+      ws.send(merged);
+    }
+    return Response.json({ ok: true });
+  }
+
+  /**
+   * Called when a source is permanently deleted by the user.
+   * Drops the per-source state entry and rebroadcasts merged state to UI.
+   */
+  private async handleRemoveSource(request: Request): Promise<Response> {
+    const body = await request.json<{ sourceUuid: string }>();
+    await this.ctx.storage.delete(`${SOURCE_STATE_PREFIX}${body.sourceUuid}`);
+    const merged = await this.buildMergedSourceState();
+    for (const ws of this.ctx.getWebSockets("ui")) {
+      ws.send(merged);
+    }
+    return Response.json({ ok: true });
+  }
+
+  /**
+   * Rebuild and broadcast merged state to all UI clients.
+   * Called after game removal or other state-changing operations.
+   */
+  private async handleRefreshState(): Promise<Response> {
     const merged = await this.buildMergedSourceState();
     for (const ws of this.ctx.getWebSockets("ui")) {
       ws.send(merged);
