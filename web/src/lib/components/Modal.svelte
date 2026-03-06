@@ -5,7 +5,7 @@
   All modals should use this component instead of hand-rolling their own backdrop/close/ESC logic.
 -->
 <script lang="ts" module>
-  import { writable, get } from "svelte/store";
+  import { get, writable } from "svelte/store";
 
   interface ModalEntry {
     id: string;
@@ -18,7 +18,8 @@
     modalStack.update((stack) => {
       const next = [...stack, entry];
       if (next.length > 2) {
-        console.warn("Modal stack depth exceeds 2:", next.map((e) => e.id));
+        // eslint-disable-next-line no-console -- intentional dev warning for deep stacks
+        console.warn("Modal stack depth exceeds 2:", next.map((entry) => entry.id));
       }
       return next;
     });
@@ -31,9 +32,9 @@
   let escListenerRegistered = false;
 
   function ensureEscListener() {
-    if (typeof window === "undefined" || escListenerRegistered) return;
+    if (escListenerRegistered) return;
     escListenerRegistered = true;
-    window.addEventListener("keydown", (event) => {
+    globalThis.addEventListener("keydown", (event) => {
       if (event.key === "Escape") {
         const stack = get(modalStack);
         const top = stack.at(-1);
@@ -48,7 +49,7 @@
 </script>
 
 <script lang="ts">
-  import { onMount, onDestroy } from "svelte";
+  import { onDestroy, onMount } from "svelte";
   import type { Snippet } from "svelte";
 
   import Panel from "./Panel.svelte";

@@ -100,14 +100,14 @@ describe("GameDetailModal", () => {
     expect(screen.getByText("CANCEL")).toBeInTheDocument();
 
     // ESC should cancel confirmation, not close modal
-    await fireEvent.keyDown(window, { key: "Escape" });
+    await fireEvent.keyDown(globalThis.window, { key: "Escape" });
     expect(screen.queryByText("CANCEL")).not.toBeInTheDocument();
     // Modal is still open (onclose was NOT called to actually close)
     expect(screen.getByText("Hammerdin")).toBeInTheDocument();
   });
 
   it("enables remove button only when name matches", async () => {
-    const onremovegame = vi.fn().mockResolvedValue(undefined);
+    const onremovegame = vi.fn().mockResolvedValue(null);
     render(GameDetailModal, {
       props: {
         game: makeGame(),

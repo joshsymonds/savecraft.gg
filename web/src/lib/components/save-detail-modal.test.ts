@@ -89,7 +89,7 @@ describe("SaveDetailModal", () => {
 
   it("opens note creation form and calls onnotecreate", async () => {
     const loadNotes = vi.fn().mockResolvedValue([]);
-    const onnotecreate = vi.fn().mockResolvedValue(undefined);
+    const onnotecreate = vi.fn().mockResolvedValue(null);
     render(SaveDetailModal, {
       props: {
         save: makeSave(),
