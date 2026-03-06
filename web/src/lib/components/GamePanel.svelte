@@ -269,7 +269,7 @@
     role="dialog"
     aria-label="Confirm game removal"
     tabindex="-1"
-    onkeydown={(e) => { if (e.key === "Escape") cancelRemoveGame(); }}
+    onkeydown={(event) => { if (event.key === "Escape") cancelRemoveGame(); }}
   >
     <div class="remove-modal">
       <div class="remove-modal-header">REMOVE GAME</div>
