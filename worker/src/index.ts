@@ -182,17 +182,24 @@ async function routeDaemonEndpoints(
   return routeSourceEndpoints(request, url, env);
 }
 
+const SOURCE_TOKEN_ROUTES: ReadonlyMap<string, string> = new Map([
+  ["/api/v1/push", "POST"],
+  ["/api/v1/source/link-code", "POST"],
+  ["/api/v1/source/unlink", "POST"],
+  ["/api/v1/source/deregister", "POST"],
+  ["/api/v1/source/status", "GET"],
+]);
+
+function isSourceTokenRoute(method: string, pathname: string): boolean {
+  return SOURCE_TOKEN_ROUTES.get(pathname) === method;
+}
+
 async function routeSourceEndpoints(
   request: Request,
   url: URL,
   env: Env,
 ): Promise<Response | null> {
-  const isSourceRoute =
-    (url.pathname === "/api/v1/push" && request.method === "POST") ||
-    (url.pathname === "/api/v1/source/link-code" && request.method === "POST") ||
-    (url.pathname === "/api/v1/source/unlink" && request.method === "POST") ||
-    (url.pathname === "/api/v1/source/status" && request.method === "GET");
-  if (!isSourceRoute) return null;
+  if (!isSourceTokenRoute(request.method, url.pathname)) return null;
 
   const auth = await authenticateSource(request, env);
   if (!auth) return new Response("Unauthorized", { status: 401 });
@@ -201,6 +208,8 @@ async function routeSourceEndpoints(
   if (url.pathname === "/api/v1/source/link-code")
     return handleSourceLinkCode(env, auth.sourceUuid);
   if (url.pathname === "/api/v1/source/unlink") return handleSourceUnlink(env, auth.sourceUuid);
+  if (url.pathname === "/api/v1/source/deregister")
+    return handleSourceDeregister(env, auth.sourceUuid, auth.userUuid);
   return handleSourceStatus(env, auth.sourceUuid);
 }
 
@@ -538,6 +547,37 @@ async function handlePatchGameConfig(
   return Response.json({ ok: true });
 }
 
+// -- Source Cleanup (shared by delete, deregister, and reaper) -----
+
+export async function cleanupSource(
+  env: Env,
+  sourceUuid: string,
+  userUuid: string | null,
+): Promise<void> {
+  // D1 cleanup
+  await env.DB.prepare("DELETE FROM source_events WHERE source_uuid = ?").bind(sourceUuid).run();
+  await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?").bind(sourceUuid).run();
+  await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(sourceUuid).run();
+
+  // Clean up SourceHub DO (close connections, delete alarm, wipe storage)
+  const sourceHubId = env.SOURCE_HUB.idFromName(sourceUuid);
+  await env.SOURCE_HUB.get(sourceHubId).fetch(
+    new Request("https://do/cleanup", { method: "POST" }),
+  );
+
+  // Tell UserHub to drop this source's state (only if linked to a user)
+  if (userUuid) {
+    const userHubId = env.USER_HUB.idFromName(userUuid);
+    await env.USER_HUB.get(userHubId).fetch(
+      new Request("https://do/remove-source", {
+        method: "POST",
+        headers: { "X-User-UUID": userUuid },
+        body: JSON.stringify({ sourceUuid }),
+      }),
+    );
+  }
+}
+
 // -- Source Removal ------------------------------------------------
 
 async function handleDeleteSource(
@@ -557,26 +597,7 @@ async function handleDeleteSource(
     return Response.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  // D1 cleanup (same pattern as reaper)
-  await env.DB.prepare("DELETE FROM source_events WHERE source_uuid = ?").bind(sourceUuid).run();
-  await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?").bind(sourceUuid).run();
-  await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(sourceUuid).run();
-
-  // Clean up SourceHub DO (close connections, delete all storage)
-  const sourceHubId = env.SOURCE_HUB.idFromName(sourceUuid);
-  const sourceHubStub = env.SOURCE_HUB.get(sourceHubId);
-  await sourceHubStub.fetch(new Request("https://do/cleanup", { method: "POST" }));
-
-  // Tell UserHub to drop this source's state and rebroadcast
-  const userHubId = env.USER_HUB.idFromName(userUuid);
-  const userHubStub = env.USER_HUB.get(userHubId);
-  await userHubStub.fetch(
-    new Request("https://do/remove-source", {
-      method: "POST",
-      headers: { "X-User-UUID": userUuid },
-      body: JSON.stringify({ sourceUuid }),
-    }),
-  );
+  await cleanupSource(env, sourceUuid, userUuid);
 
   return Response.json({ ok: true });
 }
@@ -1175,6 +1196,16 @@ async function handleSourceUnlink(env: Env, sourceUuid: string): Promise<Respons
     .run();
 
   return Response.json({ link_code: linkCode, link_code_expires_at: expiresAt });
+}
+
+async function handleSourceDeregister(
+  env: Env,
+  sourceUuid: string,
+  userUuid: string | null,
+): Promise<Response> {
+  await cleanupSource(env, sourceUuid, userUuid);
+
+  return Response.json({ ok: true });
 }
 
 async function handleSourceStatus(env: Env, sourceUuid: string): Promise<Response> {
