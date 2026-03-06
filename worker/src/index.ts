@@ -496,9 +496,7 @@ async function handlePatchGameConfig(
   gameId: string,
 ): Promise<Response> {
   // Verify source belongs to this user
-  const source = await env.DB.prepare(
-    "SELECT user_uuid FROM sources WHERE source_uuid = ?",
-  )
+  const source = await env.DB.prepare("SELECT user_uuid FROM sources WHERE source_uuid = ?")
     .bind(sourceId)
     .first<{ user_uuid: string }>();
   if (!source) return Response.json({ error: "Source not found" }, { status: 404 });
@@ -548,9 +546,7 @@ async function handleDeleteSource(
   sourceUuid: string,
 ): Promise<Response> {
   // Verify source exists and belongs to this user
-  const source = await env.DB.prepare(
-    "SELECT user_uuid FROM sources WHERE source_uuid = ?",
-  )
+  const source = await env.DB.prepare("SELECT user_uuid FROM sources WHERE source_uuid = ?")
     .bind(sourceUuid)
     .first<{ user_uuid: string | null }>();
 
@@ -562,22 +558,14 @@ async function handleDeleteSource(
   }
 
   // D1 cleanup (same pattern as reaper)
-  await env.DB.prepare("DELETE FROM source_events WHERE source_uuid = ?")
-    .bind(sourceUuid)
-    .run();
-  await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?")
-    .bind(sourceUuid)
-    .run();
-  await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?")
-    .bind(sourceUuid)
-    .run();
+  await env.DB.prepare("DELETE FROM source_events WHERE source_uuid = ?").bind(sourceUuid).run();
+  await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?").bind(sourceUuid).run();
+  await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(sourceUuid).run();
 
   // Clean up SourceHub DO (close connections, delete all storage)
   const sourceHubId = env.SOURCE_HUB.idFromName(sourceUuid);
   const sourceHubStub = env.SOURCE_HUB.get(sourceHubId);
-  await sourceHubStub.fetch(
-    new Request("https://do/cleanup", { method: "POST" }),
-  );
+  await sourceHubStub.fetch(new Request("https://do/cleanup", { method: "POST" }));
 
   // Tell UserHub to drop this source's state and rebroadcast
   const userHubId = env.USER_HUB.idFromName(userUuid);
@@ -595,15 +583,9 @@ async function handleDeleteSource(
 
 // -- Game Removal --------------------------------------------------
 
-async function handleDeleteGame(
-  env: Env,
-  userUuid: string,
-  gameId: string,
-): Promise<Response> {
+async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Promise<Response> {
   // Find all saves for this user + game
-  const saves = await env.DB.prepare(
-    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ?",
-  )
+  const saves = await env.DB.prepare("SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ?")
     .bind(userUuid, gameId)
     .all<{ uuid: string }>();
 
@@ -628,7 +610,10 @@ async function handleDeleteGame(
     let listed = await env.SAVES.list({ prefix: `saves/${save.uuid}/snapshots/` });
     await Promise.all(listed.objects.map((entry) => env.SAVES.delete(entry.key)));
     while (listed.truncated) {
-      listed = await env.SAVES.list({ prefix: `saves/${save.uuid}/snapshots/`, cursor: listed.cursor });
+      listed = await env.SAVES.list({
+        prefix: `saves/${save.uuid}/snapshots/`,
+        cursor: listed.cursor,
+      });
       await Promise.all(listed.objects.map((entry) => env.SAVES.delete(entry.key)));
     }
     await env.SAVES.delete(`saves/${save.uuid}/latest.json`);
@@ -650,9 +635,7 @@ async function handleDeleteGame(
     .run();
 
   // Push updated config to each connected source
-  const sources = await env.DB.prepare(
-    "SELECT source_uuid FROM sources WHERE user_uuid = ?",
-  )
+  const sources = await env.DB.prepare("SELECT source_uuid FROM sources WHERE user_uuid = ?")
     .bind(userUuid)
     .all<{ source_uuid: string }>();
 
@@ -674,9 +657,7 @@ async function handleDeleteGame(
   // Notify UserHub to rebroadcast updated state to UI clients
   const userHubId = env.USER_HUB.idFromName(userUuid);
   const userHubStub = env.USER_HUB.get(userHubId);
-  await userHubStub.fetch(
-    new Request("https://do/refresh-state", { method: "POST" }),
-  );
+  await userHubStub.fetch(new Request("https://do/refresh-state", { method: "POST" }));
 
   return Response.json({
     ok: true,

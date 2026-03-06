@@ -51,30 +51,23 @@ describe("Source Removal", () => {
       expect(source).toBeNull();
 
       // source_configs gone
-      const configs = await env.DB.prepare(
-        "SELECT 1 FROM source_configs WHERE source_uuid = ?",
-      )
+      const configs = await env.DB.prepare("SELECT 1 FROM source_configs WHERE source_uuid = ?")
         .bind(sourceUuid)
         .first();
       expect(configs).toBeNull();
 
       // source_events gone
-      const events = await env.DB.prepare(
-        "SELECT 1 FROM source_events WHERE source_uuid = ?",
-      )
+      const events = await env.DB.prepare("SELECT 1 FROM source_events WHERE source_uuid = ?")
         .bind(sourceUuid)
         .first();
       expect(events).toBeNull();
     });
 
     it("returns 404 for nonexistent source", async () => {
-      const resp = await SELF.fetch(
-        "https://test-host/api/v1/sources/nonexistent-uuid",
-        {
-          method: "DELETE",
-          headers: { Authorization: `Bearer ${TEST_USER}` },
-        },
-      );
+      const resp = await SELF.fetch("https://test-host/api/v1/sources/nonexistent-uuid", {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${TEST_USER}` },
+      });
 
       expect(resp.status).toBe(404);
     });
@@ -99,7 +92,15 @@ describe("Source Removal", () => {
         `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_source_uuid)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
       )
-        .bind(saveUuid, TEST_USER, "d2r", "Diablo II: Resurrected", "Atmus", "Level 89 Paladin", sourceUuid)
+        .bind(
+          saveUuid,
+          TEST_USER,
+          "d2r",
+          "Diablo II: Resurrected",
+          "Atmus",
+          "Level 89 Paladin",
+          sourceUuid,
+        )
         .run();
 
       const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}`, {
@@ -129,9 +130,7 @@ describe("Source Removal", () => {
 
       // Connect daemon and send sourceOnline so SourceHub has state
       const daemonWs = await connectDaemonWs(sourceToken);
-      daemonWs.send(
-        JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }),
-      );
+      daemonWs.send(JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }));
       // Consume configUpdate
       await waitForMessage(daemonWs);
 
@@ -172,9 +171,7 @@ describe("Source Removal", () => {
       // UI should receive updated state without the removed source
       const updatedState = await statePromise;
       expect(updatedState.sourceState).toBeDefined();
-      const removedSource = updatedState.sourceState.sources.find(
-        (s) => s.sourceId === sourceUuid,
-      );
+      const removedSource = updatedState.sourceState.sources.find((s) => s.sourceId === sourceUuid);
       expect(removedSource).toBeUndefined();
 
       await closeWs(uiWs);
@@ -196,7 +193,15 @@ async function seedSaveWithData(
     `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_source_uuid)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(saveUuid, userUuid, gameId, gameId, saveName, `${saveName} summary`, options?.sourceUuid ?? null)
+    .bind(
+      saveUuid,
+      userUuid,
+      gameId,
+      gameId,
+      saveName,
+      `${saveName} summary`,
+      options?.sourceUuid ?? null,
+    )
     .run();
 
   // R2: latest + one snapshot
@@ -269,9 +274,7 @@ describe("Game Removal", () => {
       expect(snapshots.objects).toHaveLength(0);
 
       // Search index gone
-      const searchRows = await env.DB.prepare(
-        "SELECT 1 FROM search_index WHERE save_id = ?",
-      )
+      const searchRows = await env.DB.prepare("SELECT 1 FROM search_index WHERE save_id = ?")
         .bind(saveUuid)
         .first();
       expect(searchRows).toBeNull();
@@ -340,9 +343,7 @@ describe("Game Removal", () => {
 
       // Both saves gone
       for (const uuid of [save1, save2]) {
-        const save = await env.DB.prepare("SELECT 1 FROM saves WHERE uuid = ?")
-          .bind(uuid)
-          .first();
+        const save = await env.DB.prepare("SELECT 1 FROM saves WHERE uuid = ?").bind(uuid).first();
         expect(save).toBeNull();
       }
     });
