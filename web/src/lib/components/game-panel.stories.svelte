@@ -1,5 +1,5 @@
 <script module lang="ts">
-  import type { Game, NoteSummary } from "$lib/types/source";
+  import type { Game } from "$lib/types/source";
   import { defineMeta } from "@storybook/addon-svelte-csf";
 
   import GamePanel from "./GamePanel.svelte";
@@ -8,43 +8,6 @@
     title: "Components/GamePanel",
     tags: ["autodocs"],
   });
-
-  const mockNotes: Record<string, NoteSummary[]> = {
-    s1: [
-      {
-        id: "n1",
-        title: "Maxroll Blessed Hammer Build",
-        content:
-          "## Gear Priority\n\nHelm: Harlequin Crest (Shako) — +2 skills, DR, MF. BiS.\nArmor: Enigma in Mage Plate — Teleport, +2 skills.",
-        source: "user",
-        sizeBytes: 8200,
-        updatedAt: "2d ago",
-      },
-      {
-        id: "n2",
-        title: "Farming Goals",
-        content:
-          "Need: Ber rune, 3os Mage Plate\nFound: Jah rune (2/24), Vex (2/20)\n\nBest spots: Travincal, Chaos Sanctuary, Cows",
-        source: "user",
-        sizeBytes: 340,
-        updatedAt: "1d ago",
-      },
-    ],
-    s4: [
-      {
-        id: "n3",
-        title: "Perfection Checklist",
-        content: "Missing: Golden Clock ($10M), 4 Obelisks\nShipping: 6 items remaining",
-        source: "user",
-        sizeBytes: 1100,
-        updatedAt: "3d ago",
-      },
-    ],
-  };
-
-  function mockLoadNotes(saveUuid: string): Promise<NoteSummary[]> {
-    return Promise.resolve(mockNotes[saveUuid] ?? []);
-  }
 
   const multiSourceGames: Game[] = [
     {
@@ -135,26 +98,24 @@
   const emptyGames: Game[] = [];
 </script>
 
-<!-- Multi-source: source badges visible on saves -->
+<!-- Multi-source: multiple games in grid -->
 <Story name="MultipleGames">
   <div style="width: 700px;">
     <GamePanel
       games={multiSourceGames}
-      showSourceBadges={true}
-      loadNotes={mockLoadNotes}
       onadd={() => alert("Add a game")}
+      ongameclick={(game) => console.log("Game clicked:", game.name)}
     />
   </div>
 </Story>
 
-<!-- Single source: no source badges needed -->
+<!-- Single source -->
 <Story name="SingleSource">
   <div style="width: 700px;">
     <GamePanel
       games={singleSourceGames}
-      showSourceBadges={false}
-      loadNotes={mockLoadNotes}
       onadd={() => alert("Add a game")}
+      ongameclick={(game) => console.log("Game clicked:", game.name)}
     />
   </div>
 </Story>
@@ -163,30 +124,5 @@
 <Story name="Empty">
   <div style="width: 700px;">
     <GamePanel games={emptyGames} onadd={() => alert("Add a game")} />
-  </div>
-</Story>
-
-<!-- Pre-navigated into D2R game showing saves list -->
-<Story name="GameDrilledDown">
-  <div style="width: 700px;">
-    <GamePanel
-      games={multiSourceGames}
-      showSourceBadges={true}
-      loadNotes={mockLoadNotes}
-      initialGameId="d2r"
-    />
-  </div>
-</Story>
-
-<!-- Pre-navigated into a save showing notes -->
-<Story name="SaveDrilledDown">
-  <div style="width: 700px;">
-    <GamePanel
-      games={multiSourceGames}
-      showSourceBadges={true}
-      loadNotes={mockLoadNotes}
-      initialGameId="d2r"
-      initialSaveUuid="s1"
-    />
   </div>
 </Story>

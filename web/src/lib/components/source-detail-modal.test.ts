@@ -24,17 +24,17 @@ describe("SourceDetailModal", () => {
   afterEach(cleanup);
 
   it("renders source hostname as title", () => {
-    render(SourceDetailModal, { props: { source: makeSource() } });
+    render(SourceDetailModal, { props: { source: makeSource(), onclose: vi.fn() } });
     expect(screen.getByText("GAMING-PC")).toBeInTheDocument();
   });
 
   it("renders source kind badge", () => {
-    render(SourceDetailModal, { props: { source: makeSource() } });
+    render(SourceDetailModal, { props: { source: makeSource(), onclose: vi.fn() } });
     expect(screen.getByText("daemon")).toBeInTheDocument();
   });
 
   it("renders status, last seen, and version", () => {
-    render(SourceDetailModal, { props: { source: makeSource() } });
+    render(SourceDetailModal, { props: { source: makeSource(), onclose: vi.fn() } });
     expect(screen.getByText("ONLINE")).toBeInTheDocument();
     expect(screen.getByText("2m ago")).toBeInTheDocument();
     expect(screen.getByText("0.5.0")).toBeInTheDocument();
@@ -53,7 +53,7 @@ describe("SourceDetailModal", () => {
         },
       ],
     });
-    render(SourceDetailModal, { props: { source } });
+    render(SourceDetailModal, { props: { source, onclose: vi.fn() } });
     expect(screen.getByText("ERRORS")).toBeInTheDocument();
     expect(screen.getByText("Path not found")).toBeInTheDocument();
   });
@@ -78,7 +78,7 @@ describe("SourceDetailModal", () => {
         },
       ],
     });
-    render(SourceDetailModal, { props: { source } });
+    render(SourceDetailModal, { props: { source, onclose: vi.fn() } });
     expect(screen.getByText("GAME CONFIGURATION")).toBeInTheDocument();
     expect(screen.getByText("Diablo II: Resurrected")).toBeInTheDocument();
     expect(screen.getByText("WATCHING")).toBeInTheDocument();
@@ -89,7 +89,7 @@ describe("SourceDetailModal", () => {
     const source = makeSource({
       capabilities: { canRescan: false, canReceiveConfig: false },
     });
-    render(SourceDetailModal, { props: { source } });
+    render(SourceDetailModal, { props: { source, onclose: vi.fn() } });
     expect(screen.queryByText("GAME CONFIGURATION")).not.toBeInTheDocument();
   });
 
@@ -102,7 +102,7 @@ describe("SourceDetailModal", () => {
 
   it("uses name when hostname is null", () => {
     render(SourceDetailModal, {
-      props: { source: makeSource({ hostname: null, name: "api-src" }) },
+      props: { source: makeSource({ hostname: null, name: "api-src" }), onclose: vi.fn() },
     });
     expect(screen.getByText("API-SRC")).toBeInTheDocument();
   });

@@ -7,7 +7,7 @@
   import { deleteSource, patchGameConfig } from "$lib/api/client";
   import type { Source } from "$lib/types/source";
 
-  import Panel from "./Panel.svelte";
+  import Modal from "./Modal.svelte";
   import StatusDot from "./StatusDot.svelte";
 
   let {
@@ -15,7 +15,7 @@
     onclose,
   }: {
     source: Source;
-    onclose?: () => void;
+    onclose: () => void;
   } = $props();
 
   let gameErrors = $derived(source.games.filter((g) => g.error));
@@ -27,13 +27,11 @@
   // -- Per-game toggle state --
   let togglingGame = $state<string | null>(null);
 
-  function handleKeydown(event: KeyboardEvent) {
-    if (event.key === "Escape") {
-      if (confirmingRemove) {
-        confirmingRemove = false;
-      } else {
-        onclose?.();
-      }
+  function handleModalClose() {
+    if (confirmingRemove) {
+      confirmingRemove = false;
+    } else {
+      onclose();
     }
   }
 
@@ -41,7 +39,7 @@
     removing = true;
     try {
       await deleteSource(source.id);
-      onclose?.();
+      onclose();
     } catch {
       removing = false;
     }
@@ -65,24 +63,16 @@
   }
 </script>
 
-<div
-  class="modal-backdrop"
-  role="dialog"
-  aria-label="Source details"
-  tabindex="-1"
-  onkeydown={handleKeydown}
->
-  <div class="modal-content">
-    <Panel>
-      <!-- Header -->
-      <div class="modal-header">
-        <div class="header-left">
-          <StatusDot status={source.status} size={8} />
-          <span class="modal-title">{(source.hostname ?? source.name).toUpperCase()}</span>
-          <span class="source-kind">{source.sourceKind}</span>
-        </div>
-        <button class="modal-close" onclick={() => onclose?.()}>&#x2715;</button>
-      </div>
+<Modal id="source-detail" onclose={handleModalClose} width="480px" ariaLabel="Source details">
+  <!-- Header -->
+  <div class="modal-header">
+    <div class="header-left">
+      <StatusDot status={source.status} size={8} />
+      <span class="modal-title">{(source.hostname ?? source.name).toUpperCase()}</span>
+      <span class="source-kind">{source.sourceKind}</span>
+    </div>
+    <button class="modal-close" onclick={() => onclose()}>&#x2715;</button>
+  </div>
 
       <!-- Info row -->
       <div class="info-section">
@@ -211,30 +201,9 @@
           </button>
         {/if}
       </div>
-    </Panel>
-  </div>
-</div>
+</Modal>
 
 <style>
-  .modal-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(5, 7, 26, 0.85);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 100;
-    animation: fade-in 0.15s ease-out;
-  }
-
-  .modal-content {
-    width: 480px;
-    max-height: 80vh;
-    display: flex;
-    flex-direction: column;
-    animation: fade-slide-in 0.2s ease-out;
-  }
-
   /* -- Header ------------------------------------------------- */
 
   .modal-header {
@@ -268,29 +237,6 @@
     padding: 2px 6px;
     border-radius: 2px;
     border: 1px solid rgba(74, 90, 173, 0.1);
-  }
-
-  .modal-close {
-    font-family: var(--font-pixel);
-    font-size: 14px;
-    color: var(--color-text-muted);
-    background: none;
-    border: 1px solid rgba(74, 90, 173, 0.25);
-    cursor: pointer;
-    padding: 4px 8px;
-    border-radius: 3px;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 28px;
-    min-height: 28px;
-  }
-
-  .modal-close:hover {
-    color: var(--color-text);
-    background: rgba(74, 90, 173, 0.15);
-    border-color: rgba(74, 90, 173, 0.4);
   }
 
   /* -- Info section -------------------------------------------- */
