@@ -317,6 +317,10 @@ export function dispatchToSources(msg: WireMessage): void {
   if (handler) handler(msg);
 }
 
+export function resetConfigResults(): void {
+  configResultsStore.set({});
+}
+
 export function resetSources(): void {
   set([]);
 }

@@ -34,7 +34,7 @@
     submitLinkCode,
   } from "$lib/stores/link-flow";
   import { plugins } from "$lib/stores/plugins";
-  import { sources } from "$lib/stores/sources";
+  import { configResults, resetConfigResults, sources } from "$lib/stores/sources";
   import type { PickerGame, Source, SourceStatus } from "$lib/types/source";
   import { connectionStatus, type ConnectionStatus } from "$lib/ws/client";
 
@@ -251,8 +251,24 @@
       if (!source) throw new Error("No configurable source connected");
       const manifest = $plugins.get(gameId);
       const fileExtensions = manifest?.file_extensions ?? [];
+      resetConfigResults();
       await saveSourceConfig(source.id, {
         [gameId]: { savePath, enabled: true, fileExtensions },
+      });
+      await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+          unsubscribe();
+          reject(new Error("Daemon didn't respond — config saved but not yet validated"));
+        }, 10_000);
+        const unsubscribe = configResults.subscribe((results) => {
+          const entry = results[gameId];
+          if (entry) {
+            clearTimeout(timeout);
+            unsubscribe();
+            if (entry.success) resolve();
+            else reject(new Error(entry.error));
+          }
+        });
       });
     }}
     onclose={() => {

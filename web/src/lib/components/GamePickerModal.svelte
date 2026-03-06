@@ -25,7 +25,7 @@
   let search = $state("");
   let configGame: PickerGame | null = $state(null);
   let configPath = $state("");
-  let configState: "idle" | "connecting" | "error" = $state("idle");
+  let configState: "idle" | "connecting" | "success" | "error" | "timeout" = $state("idle");
   let configError = $state("");
 
   let filtered = $derived(
@@ -62,10 +62,17 @@
     configError = "";
     try {
       await onconfigure(configGame.gameId, configPath.trim());
-      onclose?.();
+      configState = "success";
+      setTimeout(() => onclose?.(), 1200);
     } catch (err) {
-      configState = "error";
-      configError = err instanceof Error ? err.message : "Connection failed";
+      const message = err instanceof Error ? err.message : "Connection failed";
+      if (message.includes("didn't respond")) {
+        configState = "timeout";
+        configError = message;
+      } else {
+        configState = "error";
+        configError = message;
+      }
     }
   }
 
@@ -97,7 +104,9 @@
     <Panel>
       <div class="modal-header">
         {#if configGame}
-          <button class="modal-back" onclick={handleBack}>&#x2190;</button>
+          <button class="modal-back" onclick={handleBack} disabled={configState === "connecting"}
+            >&#x2190;</button
+          >
           <span class="modal-title">CONNECT {configGame.name.toUpperCase()}</span>
         {:else}
           <span class="modal-title">ADD A GAME</span>
@@ -107,29 +116,38 @@
 
       {#if configGame}
         <div class="config-form">
-          <label class="config-label" for="save-path">Save directory</label>
-          <input
-            id="save-path"
-            type="text"
-            class="config-input"
-            bind:value={configPath}
-            placeholder="Enter path to save directory..."
-            disabled={configState === "connecting"}
-          />
-          {#if configError}
-            <div class="config-error">{configError}</div>
-          {/if}
-          <button
-            class="config-button"
-            onclick={handleConnect}
-            disabled={configState === "connecting" || !configPath.trim()}
-          >
-            {#if configState === "connecting"}
-              Connecting...
-            {:else}
-              Connect Game
+          {#if configState === "success"}
+            <div class="config-success">
+              <span class="success-icon">&#x2713;</span>
+              <span class="success-text">Connected</span>
+            </div>
+          {:else}
+            <label class="config-label" for="save-path">Save directory</label>
+            <input
+              id="save-path"
+              type="text"
+              class="config-input"
+              bind:value={configPath}
+              placeholder="Enter path to save directory..."
+              disabled={configState === "connecting"}
+            />
+            {#if configError}
+              <div class="config-error">{configError}</div>
             {/if}
-          </button>
+            <button
+              class="config-button"
+              onclick={handleConnect}
+              disabled={configState === "connecting" || !configPath.trim()}
+            >
+              {#if configState === "connecting"}
+                Connecting...
+              {:else if configState === "error" || configState === "timeout"}
+                Retry
+              {:else}
+                Connect Game
+              {/if}
+            </button>
+          {/if}
         </div>
       {:else}
         <div class="modal-search">
@@ -203,9 +221,14 @@
     border-radius: 2px;
   }
 
-  .modal-back:hover {
+  .modal-back:hover:not(:disabled) {
     color: var(--color-text);
     background: rgba(74, 90, 173, 0.15);
+  }
+
+  .modal-back:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .modal-close {
@@ -337,5 +360,26 @@
   .config-button:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  .config-success {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    padding: 24px 0;
+    animation: fade-in 0.2s ease-out;
+  }
+
+  .success-icon {
+    font-size: 24px;
+    color: var(--color-green, #5abe8a);
+  }
+
+  .success-text {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    color: var(--color-green, #5abe8a);
+    letter-spacing: 2px;
   }
 </style>
