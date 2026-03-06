@@ -246,6 +246,69 @@ describe("Push API", () => {
     expect(body1.snapshot_timestamp).toBe("2026-02-25T22:00:00Z");
   });
 
+  it("merges same character from different sources into one save", async () => {
+    // Push from primary source
+    const resp1 = await SELF.fetch(pushRequest(validGameState));
+    expect(resp1.status).toBe(201);
+    const body1 = await resp1.json<{ save_uuid: string }>();
+
+    // Create a second source linked to the SAME user
+    const source2 = await seedSource(PUSH_USER);
+
+    // Push same character from second source
+    const resp2 = await SELF.fetch(
+      new Request("https://test-host/api/v1/push", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${source2.sourceToken}`,
+          "X-Game": "d2r",
+          "X-Parsed-At": "2026-02-25T22:00:00Z",
+        },
+        body: JSON.stringify({
+          ...validGameState,
+          summary: "Hammerdin, Level 90 Paladin",
+        }),
+      }),
+    );
+    expect(resp2.status).toBe(201);
+    const body2 = await resp2.json<{ save_uuid: string }>();
+
+    // Same save UUID — merged automatically
+    expect(body2.save_uuid).toBe(body1.save_uuid);
+
+    // D1 has exactly one save row
+    const rows = await env.DB.prepare(
+      "SELECT * FROM saves WHERE user_uuid = ? AND game_id = 'd2r' AND save_name = 'Hammerdin'",
+    )
+      .bind(PUSH_USER)
+      .all();
+    expect(rows.results).toHaveLength(1);
+
+    // last_source_uuid updated to second source (newer push)
+    expect(rows.results[0]!.last_source_uuid).toBe(source2.sourceUuid);
+    expect(rows.results[0]!.summary).toBe("Hammerdin, Level 90 Paladin");
+  });
+
+  it("rejects push from unlinked source with 403", async () => {
+    const unlinked = await seedSource();
+    const resp = await SELF.fetch(
+      new Request("https://test-host/api/v1/push", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${unlinked.sourceToken}`,
+          "X-Game": "d2r",
+          "X-Parsed-At": "2026-02-25T21:30:00Z",
+        },
+        body: JSON.stringify(validGameState),
+      }),
+    );
+    expect(resp.status).toBe(403);
+    const body = await resp.json<{ error: string }>();
+    expect(body.error).toContain("not linked");
+  });
+
   it("updates last_push_at on successful push", async () => {
     const before = await env.DB.prepare("SELECT last_push_at FROM sources WHERE source_uuid = ?")
       .bind(SOURCE_UUID)

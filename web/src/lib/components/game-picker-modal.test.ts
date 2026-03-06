@@ -139,6 +139,16 @@ describe("GamePickerModal", () => {
     expect(onconfigure).toHaveBeenCalledWith("sdv", "/saves/stardew", "src-1");
   });
 
+  it("shows error when clicking unwatched game with no configurable sources", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), configurableSources: [] },
+    });
+    await userEvent.click(screen.getByText("Stardew Valley"));
+    expect(screen.getByText(/No configurable source connected/)).toBeInTheDocument();
+    // Should still be on browsing step, not config form
+    expect(screen.getByText("ADD A GAME")).toBeInTheDocument();
+  });
+
   it("back from source selection returns to game list", async () => {
     render(GamePickerModal, {
       props: { games: makeCatalog(), configurableSources: twoSources },
