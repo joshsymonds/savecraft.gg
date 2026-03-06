@@ -13,7 +13,12 @@ function timingSafeEqual(a: string, b: string): boolean {
   return crypto.subtle.timingSafeEqual(aBuf, bBuf);
 }
 
-const ALLOWED_DEBUG_SUBPATHS = new Set(["debug/state", "debug/connections", "debug/log", "debug/storage"]);
+const ALLOWED_DEBUG_SUBPATHS = new Set([
+  "debug/state",
+  "debug/connections",
+  "debug/log",
+  "debug/storage",
+]);
 
 function authenticateAdmin(request: Request, env: Env): Response | null {
   const apiKey = env.ADMIN_API_KEY;

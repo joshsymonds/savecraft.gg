@@ -114,7 +114,9 @@ export class UserHub extends DurableObject<Env> {
         rawLevel && validLevels.has(rawLevel)
           ? (rawLevel as "debug" | "info" | "warn" | "error")
           : undefined;
-      const rawLimit = url.searchParams.has("limit") ? Number(url.searchParams.get("limit")) : undefined;
+      const rawLimit = url.searchParams.has("limit")
+        ? Number(url.searchParams.get("limit"))
+        : undefined;
       const limit = rawLimit ? Math.min(rawLimit, 200) : undefined;
       const entries = this.debugLog.entries({
         ...(level && { level }),
