@@ -145,12 +145,14 @@ describe("Source Removal", () => {
       // Consume events
       // There may be multiple messages (events); drain them with a short timeout
       const drainMessages = async (): Promise<void> => {
-        try {
-          while (true) {
+        // Drain up to 50 queued messages (generous upper bound)
+        for (let attempt = 0; attempt < 50; attempt++) {
+          try {
             await waitForMessage(uiWs, 200);
+          } catch {
+            // Timeout means no more messages — done draining
+            break;
           }
-        } catch {
-          // Timeout means no more messages — done draining
         }
       };
       await drainMessages();
@@ -187,14 +189,14 @@ async function seedSaveWithData(
   userUuid: string,
   gameId: string,
   saveName: string,
-  opts?: { sourceUuid?: string },
+  options?: { sourceUuid?: string },
 ): Promise<string> {
   const saveUuid = crypto.randomUUID();
   await env.DB.prepare(
     `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_source_uuid)
      VALUES (?, ?, ?, ?, ?, ?, ?)`,
   )
-    .bind(saveUuid, userUuid, gameId, gameId, saveName, `${saveName} summary`, opts?.sourceUuid ?? null)
+    .bind(saveUuid, userUuid, gameId, gameId, saveName, `${saveName} summary`, options?.sourceUuid ?? null)
     .run();
 
   // R2: latest + one snapshot
