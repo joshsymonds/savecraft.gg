@@ -14,12 +14,13 @@ export interface ToolResult {
 
 interface SaveRow {
   uuid: string;
-  source_uuid: string;
+  user_uuid: string;
   game_id: string;
   game_name: string;
   save_name: string;
   summary: string;
   last_updated: string;
+  last_source_uuid: string | null;
 }
 
 interface GameStateSection {
@@ -54,21 +55,13 @@ async function lookupSave(
   saveId: string,
 ): Promise<SaveRow | null> {
   return db
-    .prepare(
-      `SELECT s.* FROM saves s
-       JOIN sources src ON s.source_uuid = src.source_uuid
-       WHERE s.uuid = ? AND src.user_uuid = ?`,
-    )
+    .prepare("SELECT * FROM saves WHERE uuid = ? AND user_uuid = ?")
     .bind(saveId, userUuid)
     .first<SaveRow>();
 }
 
-async function loadLatestSnapshot(
-  snapshots: R2Bucket,
-  sourceUuid: string,
-  saveId: string,
-): Promise<GameState | null> {
-  const key = `sources/${sourceUuid}/saves/${saveId}/latest.json`;
+async function loadLatestSnapshot(snapshots: R2Bucket, saveId: string): Promise<GameState | null> {
+  const key = `saves/${saveId}/latest.json`;
   const object = await snapshots.get(key);
   if (!object) return null;
   return object.json<GameState>();
@@ -76,11 +69,10 @@ async function loadLatestSnapshot(
 
 async function loadSnapshotAtTimestamp(
   snapshots: R2Bucket,
-  sourceUuid: string,
   saveId: string,
   timestamp: string,
 ): Promise<GameState | null> {
-  const key = `sources/${sourceUuid}/saves/${saveId}/snapshots/${timestamp}.json`;
+  const key = `saves/${saveId}/snapshots/${timestamp}.json`;
   const object = await snapshots.get(key);
   if (!object) return null;
   return object.json<GameState>();
@@ -230,13 +222,7 @@ export async function listGames(
   filter?: string,
 ): Promise<ToolResult> {
   const saveRows = await db
-    .prepare(
-      `SELECT s.uuid, s.source_uuid, s.game_id, s.game_name, s.save_name, s.summary, s.last_updated
-       FROM saves s
-       JOIN sources src ON s.source_uuid = src.source_uuid
-       WHERE src.user_uuid = ?
-       ORDER BY s.last_updated DESC`,
-    )
+    .prepare(`SELECT * FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC`)
     .bind(userUuid)
     .all<SaveRow>();
 
@@ -265,7 +251,7 @@ export async function getSave(
   if (!save)
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
-  const state = await loadLatestSnapshot(snapshots, save.source_uuid, saveId);
+  const state = await loadLatestSnapshot(snapshots, saveId);
   if (!state)
     return errorResult(
       "No snapshot data available for this save. The daemon may not have pushed data yet.",
@@ -401,8 +387,8 @@ export async function getSection(
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
   const state = timestamp
-    ? await loadSnapshotAtTimestamp(snapshots, save.source_uuid, saveId, timestamp)
-    : await loadLatestSnapshot(snapshots, save.source_uuid, saveId);
+    ? await loadSnapshotAtTimestamp(snapshots, saveId, timestamp)
+    : await loadLatestSnapshot(snapshots, saveId);
   if (!state) {
     return errorResult(
       timestamp
@@ -459,14 +445,10 @@ function parsePeriod(period: string): number | null {
 
 /**
  * List available snapshot timestamps for a save in R2, sorted oldest-first.
- * Snapshots live at: sources/{sourceUuid}/saves/{saveId}/snapshots/{timestamp}.json
+ * Snapshots live at: saves/{saveId}/snapshots/{timestamp}.json
  */
-async function listSnapshotTimestamps(
-  snapshots: R2Bucket,
-  sourceUuid: string,
-  saveId: string,
-): Promise<string[]> {
-  const prefix = `sources/${sourceUuid}/saves/${saveId}/snapshots/`;
+async function listSnapshotTimestamps(snapshots: R2Bucket, saveId: string): Promise<string[]> {
+  const prefix = `saves/${saveId}/snapshots/`;
   const allObjects: R2Object[] = [];
   let cursor: string | undefined;
 
@@ -530,7 +512,7 @@ export async function getSectionDiff(
     );
   }
 
-  const timestamps = await listSnapshotTimestamps(snapshots, save.source_uuid, saveId);
+  const timestamps = await listSnapshotTimestamps(snapshots, saveId);
   if (timestamps.length < 2) {
     return errorResult(
       "Not enough snapshots to compare. The save needs at least two snapshots for a diff — this happens automatically as the game is played and saves update.",
@@ -554,13 +536,8 @@ export async function getSectionDiff(
     );
   }
 
-  const fromState = await loadSnapshotAtTimestamp(
-    snapshots,
-    save.source_uuid,
-    saveId,
-    fromTimestamp,
-  );
-  const toState = await loadSnapshotAtTimestamp(snapshots, save.source_uuid, saveId, toTimestamp);
+  const fromState = await loadSnapshotAtTimestamp(snapshots, saveId, fromTimestamp);
+  const toState = await loadSnapshotAtTimestamp(snapshots, saveId, toTimestamp);
 
   if (!fromState || !toState) {
     return errorResult("Failed to load snapshots for comparison.");
@@ -838,7 +815,13 @@ export async function refreshSave(
   if (!save)
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
-  const id = sourceHub.idFromName(save.source_uuid);
+  if (!save.last_source_uuid) {
+    return errorResult(
+      "No source has pushed data for this save yet. The daemon may not be running.",
+    );
+  }
+
+  const id = sourceHub.idFromName(save.last_source_uuid);
   const stub = sourceHub.get(id);
   const resp = await stub.fetch(
     new Request("https://do/rescan", {
@@ -892,7 +875,7 @@ export async function searchSaves(
     sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
            WHERE search_index MATCH ? AND save_id = ?
-             AND save_id IN (SELECT s.uuid FROM saves s JOIN sources src ON s.source_uuid = src.source_uuid WHERE src.user_uuid = ?)
+             AND save_id IN (SELECT uuid FROM saves WHERE user_uuid = ?)
            ORDER BY rank
            LIMIT 20`;
     params.push(saveId, userUuid);
@@ -900,7 +883,7 @@ export async function searchSaves(
     sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
            WHERE search_index MATCH ?
-             AND save_id IN (SELECT s.uuid FROM saves s JOIN sources src ON s.source_uuid = src.source_uuid WHERE src.user_uuid = ?)
+             AND save_id IN (SELECT uuid FROM saves WHERE user_uuid = ?)
            ORDER BY rank
            LIMIT 20`;
     params.push(userUuid);
@@ -1151,6 +1134,51 @@ function buildGuide(platform?: string): SetupGuideResponse["guide"] {
 const SOURCE_COLS =
   "source_uuid, user_uuid, hostname, os, arch, last_push_at, link_code, link_code_expires_at, can_rescan, can_receive_config";
 
+async function resolveLookup(
+  db: D1Database,
+  env: Env,
+  sourceUuid?: string,
+  linkCode?: string,
+): Promise<SourceLookupResult | undefined> {
+  let row: SourceRow | null;
+  let viaCode: boolean;
+
+  if (sourceUuid) {
+    row = await db
+      .prepare(`SELECT ${SOURCE_COLS} FROM sources WHERE source_uuid = ?`)
+      .bind(sourceUuid)
+      .first<SourceRow>();
+    viaCode = false;
+  } else if (linkCode) {
+    row = await db
+      .prepare(`SELECT ${SOURCE_COLS} FROM sources WHERE link_code = ?`)
+      .bind(linkCode)
+      .first<SourceRow>();
+    viaCode = true;
+  } else {
+    return undefined;
+  }
+
+  const lookup = buildLookupResult(row, viaCode);
+
+  if (lookup.found && row) {
+    try {
+      const doId = env.SOURCE_HUB.idFromName(row.source_uuid);
+      const resp = await env.SOURCE_HUB.get(doId).fetch(
+        new Request("https://do/status", { method: "GET" }),
+      );
+      if (resp.ok) {
+        const status = await resp.json<{ daemon_online: boolean }>();
+        lookup.daemon_online = status.daemon_online;
+      }
+    } catch {
+      // Don't let live status check failures break setup help
+    }
+  }
+
+  return lookup;
+}
+
 export async function getSetupHelp(
   env: Env,
   userUuid: string,
@@ -1178,46 +1206,13 @@ export async function getSetupHelp(
     );
     const configBatch = sourceRows.results.map((row) => configStmt.bind(row.source_uuid));
     const configResults = await db.batch<ConfiguredGame>(configBatch);
-    for (let i = 0; i < sources.length; i++) {
-      sources[i]!.configured_games = configResults[i]?.results ?? [];
+    for (const [index, source] of sources.entries()) {
+      source.configured_games = configResults[index]?.results ?? [];
     }
   }
 
-  // 2. Optional lookup (source_uuid takes precedence over link_code)
-  let lookup: SourceLookupResult | undefined;
-  let resolvedSourceUuid: string | undefined;
-
-  if (sourceUuid) {
-    const row = await db
-      .prepare(`SELECT ${SOURCE_COLS} FROM sources WHERE source_uuid = ?`)
-      .bind(sourceUuid)
-      .first<SourceRow>();
-    lookup = buildLookupResult(row, false);
-    if (row) resolvedSourceUuid = row.source_uuid;
-  } else if (linkCode) {
-    const row = await db
-      .prepare(`SELECT ${SOURCE_COLS} FROM sources WHERE link_code = ?`)
-      .bind(linkCode)
-      .first<SourceRow>();
-    lookup = buildLookupResult(row, true);
-    if (row) resolvedSourceUuid = row.source_uuid;
-  }
-
-  // 3. Check live source status via SourceHub DO
-  if (lookup?.found && resolvedSourceUuid) {
-    try {
-      const doId = env.SOURCE_HUB.idFromName(resolvedSourceUuid);
-      const resp = await env.SOURCE_HUB.get(doId).fetch(
-        new Request("https://do/status", { method: "GET" }),
-      );
-      if (resp.ok) {
-        const status = await resp.json<{ daemon_online: boolean }>();
-        lookup.daemon_online = status.daemon_online;
-      }
-    } catch {
-      // Don't let live status check failures break setup help
-    }
-  }
+  // 2-3. Optional lookup + live status check
+  const lookup = await resolveLookup(db, env, sourceUuid, linkCode);
 
   // 4. Build response
   const response: SetupGuideResponse = { sources, guide: buildGuide(platform) };

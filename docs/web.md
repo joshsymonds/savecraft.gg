@@ -10,9 +10,9 @@ What renders in the main content area depends on the user's setup state:
 
 | State | Condition | What renders |
 |-------|-----------|--------------|
-| **No sources** | `sources.length === 0` | `InstallBlock prominent=true` — full hero with install command, source linking flow (enter 6-digit code), and "what happens next" in a single consolidated Panel |
-| **Has source(s), no MCP** | `sources.length > 0 && !mcpConnected` | `SourceStrip` → `ConnectCard` (prominent CTA) → `GamePanel` → `InstallBlock prominent=false` |
-| **Has source(s) + MCP** | `sources.length > 0 && mcpConnected` | `SourceStrip` → `ConnectCard` (compact) → `GamePanel` → `InstallBlock prominent=false` |
+| **No sources** | `sources.length === 0` | `EmptySourceState` — retro terminal boot screen with install instructions + pairing code input via `AddSourceContent` |
+| **Has source(s), no MCP** | `sources.length > 0 && !mcpConnected` | `SourceStrip` (with "+ ADD SOURCE" chip) → `ConnectCard` (prominent CTA) → `GamePanel` |
+| **Has source(s) + MCP** | `sources.length > 0 && mcpConnected` | `SourceStrip` (with "+ ADD SOURCE" chip) → `ConnectCard` (compact) → `GamePanel` |
 
 The state machine is implicit — the page template checks source count and MCP status, rendering the appropriate component variants. No explicit state variable; the reactive stores (`$sources`, MCP status from API) drive the UI.
 
@@ -20,7 +20,7 @@ The state machine is implicit — the page template checks source count and MCP 
 
 ### SourceStrip
 
-Horizontal strip of source chips at the top of the page. Each chip shows hostname/name and connection status (online/offline). Clicking a chip opens `SourceDetailModal` for detailed source info. Only rendered when `$sources.length > 0`.
+Horizontal strip of source chips at the top of the page. Each chip shows hostname/name and connection status (online/offline). Clicking a chip opens `SourceDetailModal` for detailed source info. A gold-accented "+ ADD SOURCE" chip at the end opens `AddSourceModal`. Only rendered when `$sources.length > 0`.
 
 Sources and games are visually separated: sources are a compact strip for status-at-a-glance, while games get the full content area below.
 
@@ -36,10 +36,17 @@ Game-centric dashboard that uses drill-down navigation:
 
 Modal for adding new games. Includes search, game selection, and configuration (save path, file extensions). Config writes to D1 and pushes to the daemon in real time via SourceHub → daemon WebSocket.
 
-### InstallBlock (`prominent` prop)
+### AddSourceContent
 
-- `prominent=true`: Hero treatment — numbered steps (1: Install, 2: Link Source, 3: What Happens Next) in a single Panel with section dividers. The link step shows a text field where the user enters the 6-digit code displayed by their daemon.
-- `prominent=false`: Compact collapsible "ADD ANOTHER SOURCE" row. Expands to show install + source linking flow inline.
+Shared component with install instructions (Windows MSI download, Linux curl command) and pairing code input. Used by both `AddSourceModal` and `EmptySourceState`.
+
+### AddSourceModal
+
+Modal (480px, backdrop, Esc to close) wrapping `AddSourceContent`. Opened by clicking "+ ADD SOURCE" in `SourceStrip`. Uses `WindowTitleBar` with "ADD SOURCE" label and close button.
+
+### EmptySourceState
+
+Retro terminal/boot screen shown when no sources are connected. Displays `> NO SOURCES DETECTED` and `> AWAITING DAEMON CONNECTION...` in pixel font with CRT scan line overlay and pulsing glow, then wraps `AddSourceContent` for the install + pairing flow.
 
 ### ConnectCard (MCP status)
 

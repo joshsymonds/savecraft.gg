@@ -83,4 +83,69 @@ describe("GamePickerModal", () => {
     await userEvent.click(screen.getByText("✕"));
     expect(onclose).toHaveBeenCalledOnce();
   });
+
+  // -- Source selection step --
+
+  const twoSources = [
+    { id: "src-1", name: "Desktop", hostname: "desktop-pc" },
+    { id: "src-2", name: "Laptop", hostname: "laptop" },
+  ];
+
+  const oneSource = [{ id: "src-1", name: "Desktop", hostname: "desktop-pc" }];
+
+  it("shows source selection when clicking unwatched game with multiple sources", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), configurableSources: twoSources },
+    });
+    await userEvent.click(screen.getByText("Stardew Valley"));
+    expect(screen.getByText("SELECT SOURCE")).toBeInTheDocument();
+    expect(screen.getByText("Desktop")).toBeInTheDocument();
+    expect(screen.getByText("Laptop")).toBeInTheDocument();
+  });
+
+  it("skips source selection with single source and goes to config form", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), configurableSources: oneSource },
+    });
+    await userEvent.click(screen.getByText("Stardew Valley"));
+    // Should go straight to config form, not source selection
+    expect(screen.queryByText("SELECT SOURCE")).not.toBeInTheDocument();
+    expect(screen.getByText(/CONNECT STARDEW VALLEY/)).toBeInTheDocument();
+  });
+
+  it("proceeds to config form after selecting a source", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), configurableSources: twoSources },
+    });
+    await userEvent.click(screen.getByText("Stardew Valley"));
+    await userEvent.click(screen.getByText("Desktop"));
+    expect(screen.getByText(/CONNECT STARDEW VALLEY/)).toBeInTheDocument();
+  });
+
+  it("passes sourceId to onconfigure callback", async () => {
+    const onconfigure = vi.fn().mockResolvedValue(null);
+    render(GamePickerModal, {
+      props: {
+        games: makeCatalog(),
+        configurableSources: oneSource,
+        onconfigure,
+      },
+    });
+    await userEvent.click(screen.getByText("Stardew Valley"));
+    const input = screen.getByRole("textbox");
+    await userEvent.clear(input);
+    await userEvent.type(input, "/saves/stardew");
+    await userEvent.click(screen.getByText("Connect Game"));
+    expect(onconfigure).toHaveBeenCalledWith("sdv", "/saves/stardew", "src-1");
+  });
+
+  it("back from source selection returns to game list", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), configurableSources: twoSources },
+    });
+    await userEvent.click(screen.getByText("Stardew Valley"));
+    expect(screen.getByText("SELECT SOURCE")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("←"));
+    expect(screen.getByText("ADD A GAME")).toBeInTheDocument();
+  });
 });

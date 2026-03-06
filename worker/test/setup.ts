@@ -28,15 +28,16 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_sources_token ON sources(token_hash)`,
   `CREATE TABLE IF NOT EXISTS saves (
     uuid TEXT PRIMARY KEY,
-    source_uuid TEXT NOT NULL,
+    user_uuid TEXT NOT NULL,
     game_id TEXT NOT NULL,
     game_name TEXT NOT NULL DEFAULT '',
     save_name TEXT NOT NULL,
     summary TEXT NOT NULL DEFAULT '',
     last_updated TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE (source_uuid, game_id, save_name)
+    last_source_uuid TEXT,
+    UNIQUE (user_uuid, game_id, save_name)
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_saves_source ON saves(source_uuid)`,
+  `CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_uuid)`,
   `CREATE TABLE IF NOT EXISTS source_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source_uuid TEXT NOT NULL,

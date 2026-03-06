@@ -1,10 +1,12 @@
 export { default as ActivityEvent } from "./ActivityEvent.svelte";
+export { default as AddSourceContent } from "./AddSourceContent.svelte";
+export { default as AddSourceModal } from "./AddSourceModal.svelte";
 export { default as ConnectCard } from "./ConnectCard.svelte";
+export { default as EmptySourceState } from "./EmptySourceState.svelte";
 export { default as GameCard } from "./GameCard.svelte";
 export { default as GamePanel } from "./GamePanel.svelte";
 export { default as GamePickerCard } from "./GamePickerCard.svelte";
 export { default as GamePickerModal } from "./GamePickerModal.svelte";
-export { default as InstallBlock } from "./InstallBlock.svelte";
 export { default as LinkingCard } from "./LinkingCard.svelte";
 export { default as NoteCard } from "./NoteCard.svelte";
 export { default as Panel } from "./Panel.svelte";

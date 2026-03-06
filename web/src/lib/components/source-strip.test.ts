@@ -50,4 +50,16 @@ describe("SourceStrip", () => {
     render(SourceStrip, { props: { sources: [source] } });
     expect(screen.getByText("MY-DAEMON")).toBeInTheDocument();
   });
+
+  it("renders add source button", () => {
+    render(SourceStrip, { props: { sources: [makeSource({ id: "src-1" })] } });
+    expect(screen.getByText("+ ADD SOURCE")).toBeInTheDocument();
+  });
+
+  it("calls onadd when add source button is clicked", async () => {
+    const onadd = vi.fn();
+    render(SourceStrip, { props: { sources: [makeSource({ id: "src-1" })], onadd } });
+    await userEvent.click(screen.getByText("+ ADD SOURCE"));
+    expect(onadd).toHaveBeenCalledExactlyOnceWith();
+  });
 });

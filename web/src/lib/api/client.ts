@@ -123,37 +123,6 @@ export async function saveSourceConfig(
   await mutate<{ ok: boolean }>("PUT", `/api/v1/sources/${sourceId}/config`, { games });
 }
 
-// ── API Key types ─────────────────────────────────────────────
-
-export interface ApiKey {
-  id: string;
-  prefix: string;
-  label: string;
-  created_at: string;
-}
-
-export interface CreateApiKeyResponse {
-  id: string;
-  key: string;
-  prefix: string;
-  label: string;
-}
-
-// ── API Key endpoints ─────────────────────────────────────────
-
-export async function createApiKey(label?: string): Promise<CreateApiKeyResponse> {
-  return mutate<CreateApiKeyResponse>("POST", "/api/v1/api-keys", label ? { label } : {});
-}
-
-export async function listApiKeys(): Promise<ApiKey[]> {
-  const data = await request<{ keys: ApiKey[] }>("/api/v1/api-keys");
-  return data.keys;
-}
-
-export async function deleteApiKey(keyId: string): Promise<void> {
-  await mutate<{ deleted: boolean }>("DELETE", `/api/v1/api-keys/${keyId}`);
-}
-
 // ── Notes ─────────────────────────────────────────────────────
 
 export interface ApiNote {

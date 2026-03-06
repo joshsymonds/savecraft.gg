@@ -22,18 +22,21 @@ CREATE INDEX idx_sources_user ON sources(user_uuid);
 CREATE INDEX idx_sources_link_code ON sources(link_code) WHERE link_code IS NOT NULL;
 CREATE INDEX idx_sources_token ON sources(token_hash);
 
--- Saves: keyed by (source_uuid, game_id, save_name) → UUID.
+-- Saves: keyed by (user_uuid, game_id, save_name) → UUID.
+-- User-level identity: the same character synced via Steam Cloud across
+-- multiple sources merges into a single save record.
 CREATE TABLE saves (
   uuid TEXT PRIMARY KEY,
-  source_uuid TEXT NOT NULL,
+  user_uuid TEXT NOT NULL,
   game_id TEXT NOT NULL,
   game_name TEXT NOT NULL DEFAULT '',
   save_name TEXT NOT NULL,
   summary TEXT NOT NULL DEFAULT '',
   last_updated TEXT NOT NULL DEFAULT (datetime('now')),
-  UNIQUE (source_uuid, game_id, save_name)
+  last_source_uuid TEXT,
+  UNIQUE (user_uuid, game_id, save_name)
 );
-CREATE INDEX idx_saves_source ON saves(source_uuid);
+CREATE INDEX idx_saves_user ON saves(user_uuid);
 
 -- Source events: persisted for UI cold-start and diagnostics.
 -- Events belong to sources; user association resolved via JOIN on sources.
@@ -56,6 +59,10 @@ CREATE TABLE source_configs (
   enabled INTEGER NOT NULL DEFAULT 1,
   file_extensions TEXT NOT NULL DEFAULT '[]',
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  config_status TEXT NOT NULL DEFAULT 'pending',
+  resolved_path TEXT NOT NULL DEFAULT '',
+  last_error TEXT NOT NULL DEFAULT '',
+  result_at TEXT,
   PRIMARY KEY (source_uuid, game_id)
 );
 

@@ -78,32 +78,32 @@ async function seedSave(options: {
   await ensureSource(options.userUuid);
 
   await env.DB.prepare(
-    "INSERT INTO saves (uuid, source_uuid, game_id, game_name, save_name, summary, last_updated) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
   )
     .bind(
       options.saveUuid,
-      sourceUuid,
+      options.userUuid,
       options.gameId,
       gameName,
       options.saveName,
       options.summary,
       lastUpdated,
+      sourceUuid,
     )
     .run();
 
   const state = options.gameState ?? sampleGameState;
-  const key = `sources/${sourceUuid}/saves/${options.saveUuid}/latest.json`;
+  const key = `saves/${options.saveUuid}/latest.json`;
   await env.SAVES.put(key, JSON.stringify(state));
 }
 
 async function seedSnapshot(
-  userUuid: string,
+  _userUuid: string,
   saveUuid: string,
   timestamp: string,
   gameState: typeof sampleGameState,
 ): Promise<void> {
-  const sourceUuid = sourceUuidFor(userUuid);
-  const key = `sources/${sourceUuid}/saves/${saveUuid}/snapshots/${timestamp}.json`;
+  const key = `saves/${saveUuid}/snapshots/${timestamp}.json`;
   await env.SAVES.put(key, JSON.stringify(gameState));
 }
 
@@ -396,9 +396,7 @@ describe("MCP Tools", () => {
         summary: "Format test",
       });
 
-      const object = await env.SAVES.get(
-        `sources/${sourceUuidFor(USER_A)}/saves/save-fmt-check/latest.json`,
-      );
+      const object = await env.SAVES.get("saves/save-fmt-check/latest.json");
       expect(object).not.toBeNull();
       const data = await object!.json<{ identity: Record<string, unknown> }>();
       expect(data.identity.gameId).toBe("d2r");
