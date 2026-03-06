@@ -63,12 +63,7 @@
     await Promise.resolve();
   }
 
-  async function handleNoteEdit(
-    saveUuid: string,
-    noteId: string,
-    title: string,
-    content: string,
-  ) {
+  async function handleNoteEdit(saveUuid: string, noteId: string, title: string, content: string) {
     console.log("Edit note:", { saveUuid, noteId, title, content });
     await new Promise((resolve) => setTimeout(resolve, 300));
   }

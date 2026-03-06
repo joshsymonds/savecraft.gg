@@ -30,9 +30,7 @@
   let removing = $state(false);
   let removeError = $state("");
 
-  let nameMatch = $derived(
-    removeInput.trim().toLowerCase() === game.name.toLowerCase(),
-  );
+  let nameMatch = $derived(removeInput.trim().toLowerCase() === game.name.toLowerCase());
 
   function startRemove() {
     confirmingRemove = true;
@@ -124,11 +122,7 @@
   {#snippet footer()}
     {#if confirmingRemove}
       <button class="modal-btn" onclick={cancelRemove} disabled={removing}>CANCEL</button>
-      <button
-        class="modal-btn-danger"
-        onclick={handleRemove}
-        disabled={!nameMatch || removing}
-      >
+      <button class="modal-btn-danger" onclick={handleRemove} disabled={!nameMatch || removing}>
         {removing ? "REMOVING..." : "REMOVE GAME"}
       </button>
     {:else if onremovegame}

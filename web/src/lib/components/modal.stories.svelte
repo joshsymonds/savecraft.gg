@@ -175,10 +175,7 @@
       }}
       ariaLabel="Save details"
     >
-      <WindowTitleBar
-        activeLabel="ATMUS.D2S"
-        activeSublabel="Hammerdin, Level 89 Paladin"
-      >
+      <WindowTitleBar activeLabel="ATMUS.D2S" activeSublabel="Hammerdin, Level 89 Paladin">
         {#snippet right()}
           <button
             class="modal-close"
@@ -264,7 +261,10 @@
       </div>
       <div class="modal-body">
         <p class="error-text">Failed to parse save file: unexpected EOF at offset 0x1A3</p>
-        <p>The plugin crashed while reading Atmus.d2s. This save will be skipped until the file is valid.</p>
+        <p>
+          The plugin crashed while reading Atmus.d2s. This save will be skipped until the file is
+          valid.
+        </p>
       </div>
       {#snippet footer()}
         <button
@@ -315,8 +315,8 @@
 <Story name="CenteredStack">
   <div style="display: flex; flex-direction: column; align-items: center; gap: 16px;">
     <p style="font-family: var(--font-body); font-size: 18px; color: var(--color-text-dim);">
-      Stacked modals without tiling — both stay centered.
-      Compare with the StackedModals story to see the difference.
+      Stacked modals without tiling — both stay centered. Compare with the StackedModals story to
+      see the difference.
     </p>
     <button
       class="demo-btn"

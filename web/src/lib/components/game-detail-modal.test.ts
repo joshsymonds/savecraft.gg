@@ -120,8 +120,8 @@ describe("GameDetailModal", () => {
 
     // The confirmation REMOVE GAME button should be disabled
     const removeButtons = screen.getAllByText("REMOVE GAME");
-    const confirmButton = removeButtons.find(
-      (button) => button.classList.contains("modal-btn-danger"),
+    const confirmButton = removeButtons.find((button) =>
+      button.classList.contains("modal-btn-danger"),
     )!;
     expect(confirmButton).toBeDisabled();
 
@@ -154,8 +154,8 @@ describe("GameDetailModal", () => {
 
     // Click the confirm REMOVE GAME button
     const removeButtons = screen.getAllByText("REMOVE GAME");
-    const confirmButton = removeButtons.find(
-      (button) => button.classList.contains("modal-btn-danger"),
+    const confirmButton = removeButtons.find((button) =>
+      button.classList.contains("modal-btn-danger"),
     )!;
     await userEvent.click(confirmButton);
 

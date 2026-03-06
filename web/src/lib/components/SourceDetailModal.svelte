@@ -74,133 +74,133 @@
     <button class="modal-close" onclick={() => onclose()}>&#x2715;</button>
   </div>
 
-      <!-- Info row -->
-      <div class="info-section">
-        <div class="info-row">
-          <div class="info-item">
-            <span class="info-label">STATUS</span>
-            <span
-              class="info-value"
-              class:online={source.status === "online"}
-              class:error={source.status === "error"}
-              class:offline={source.status === "offline"}
-            >
-              {source.status.toUpperCase()}
-            </span>
+  <!-- Info row -->
+  <div class="info-section">
+    <div class="info-row">
+      <div class="info-item">
+        <span class="info-label">STATUS</span>
+        <span
+          class="info-value"
+          class:online={source.status === "online"}
+          class:error={source.status === "error"}
+          class:offline={source.status === "offline"}
+        >
+          {source.status.toUpperCase()}
+        </span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">LAST SEEN</span>
+        <span class="info-value">{source.lastSeen}</span>
+      </div>
+      {#if source.version}
+        <div class="info-item">
+          <span class="info-label">VERSION</span>
+          <span class="info-value">{source.version}</span>
+        </div>
+      {/if}
+    </div>
+  </div>
+
+  <!-- Errors -->
+  {#if gameErrors.length > 0}
+    <div class="error-section">
+      <span class="section-label">ERRORS</span>
+      {#each gameErrors as game (game.gameId)}
+        <div class="error-item">
+          <span class="error-game">{game.name}</span>
+          <span class="error-msg">{game.error}</span>
+        </div>
+      {/each}
+    </div>
+  {/if}
+
+  <!-- Per-game config (daemon sources only) -->
+  {#if source.capabilities.canReceiveConfig}
+    <div class="config-section">
+      <span class="section-label">GAME CONFIGURATION</span>
+      {#each source.games as game (game.gameId)}
+        <div class="config-game" class:disabled={!isGameEnabled(game.gameId)}>
+          <div class="config-game-header">
+            <span class="config-game-name">{game.name}</span>
+            <div class="config-game-actions">
+              <span
+                class="config-game-status"
+                class:watching={game.status === "watching"}
+                class:game-error={game.status === "error"}
+                class:not-found={game.status === "not_found"}
+              >
+                {#if game.status === "watching"}WATCHING{:else if game.status === "error"}ERROR{:else}NOT
+                  FOUND{/if}
+              </span>
+              <button
+                class="toggle-btn"
+                class:toggle-on={isGameEnabled(game.gameId)}
+                class:toggle-off={!isGameEnabled(game.gameId)}
+                disabled={togglingGame === game.gameId}
+                onclick={() => handleToggleGame(game.gameId, isGameEnabled(game.gameId))}
+                title={isGameEnabled(game.gameId) ? "Disable tracking" : "Enable tracking"}
+              >
+                <span class="toggle-track">
+                  <span class="toggle-thumb"></span>
+                </span>
+              </button>
+            </div>
           </div>
-          <div class="info-item">
-            <span class="info-label">LAST SEEN</span>
-            <span class="info-value">{source.lastSeen}</span>
-          </div>
-          {#if source.version}
-            <div class="info-item">
-              <span class="info-label">VERSION</span>
-              <span class="info-value">{source.version}</span>
+          {#if game.path}
+            <div class="config-field">
+              <span class="field-label">SAVE PATH</span>
+              <span class="field-value">{game.path}</span>
             </div>
           {/if}
-        </div>
-      </div>
-
-      <!-- Errors -->
-      {#if gameErrors.length > 0}
-        <div class="error-section">
-          <span class="section-label">ERRORS</span>
-          {#each gameErrors as game (game.gameId)}
-            <div class="error-item">
-              <span class="error-game">{game.name}</span>
-              <span class="error-msg">{game.error}</span>
-            </div>
-          {/each}
-        </div>
-      {/if}
-
-      <!-- Per-game config (daemon sources only) -->
-      {#if source.capabilities.canReceiveConfig}
-        <div class="config-section">
-          <span class="section-label">GAME CONFIGURATION</span>
-          {#each source.games as game (game.gameId)}
-            <div class="config-game" class:disabled={!isGameEnabled(game.gameId)}>
-              <div class="config-game-header">
-                <span class="config-game-name">{game.name}</span>
-                <div class="config-game-actions">
-                  <span
-                    class="config-game-status"
-                    class:watching={game.status === "watching"}
-                    class:game-error={game.status === "error"}
-                    class:not-found={game.status === "not_found"}
-                  >
-                    {#if game.status === "watching"}WATCHING{:else if game.status === "error"}ERROR{:else}NOT
-                      FOUND{/if}
-                  </span>
-                  <button
-                    class="toggle-btn"
-                    class:toggle-on={isGameEnabled(game.gameId)}
-                    class:toggle-off={!isGameEnabled(game.gameId)}
-                    disabled={togglingGame === game.gameId}
-                    onclick={() => handleToggleGame(game.gameId, isGameEnabled(game.gameId))}
-                    title={isGameEnabled(game.gameId) ? "Disable tracking" : "Enable tracking"}
-                  >
-                    <span class="toggle-track">
-                      <span class="toggle-thumb"></span>
-                    </span>
-                  </button>
-                </div>
-              </div>
-              {#if game.path}
-                <div class="config-field">
-                  <span class="field-label">SAVE PATH</span>
-                  <span class="field-value">{game.path}</span>
-                </div>
-              {/if}
-              <div class="config-field">
-                <span class="field-label">SAVES</span>
-                <span class="field-value"
-                  >{game.saves.length} {game.saves.length === 1 ? "save" : "saves"}</span
-                >
-              </div>
-            </div>
-          {:else}
-            <div class="empty-config">
-              <span class="empty-text">No games configured</span>
-            </div>
-          {/each}
-        </div>
-      {/if}
-
-      <!-- Remove source -->
-      <div class="remove-section">
-        {#if confirmingRemove}
-          <div class="confirm-box">
-            <p class="confirm-text">
-              Remove <strong>{source.hostname ?? source.name}</strong> from your account? Your saves will
-              be preserved.
-            </p>
-            <div class="confirm-actions">
-              <button
-                class="btn-cancel"
-                onclick={() => {
-                  confirmingRemove = false;
-                }}
-                disabled={removing}
-              >
-                CANCEL
-              </button>
-              <button class="btn-remove" onclick={handleRemoveSource} disabled={removing}>
-                {removing ? "REMOVING..." : "REMOVE SOURCE"}
-              </button>
-            </div>
+          <div class="config-field">
+            <span class="field-label">SAVES</span>
+            <span class="field-value"
+              >{game.saves.length} {game.saves.length === 1 ? "save" : "saves"}</span
+            >
           </div>
-        {:else}
+        </div>
+      {:else}
+        <div class="empty-config">
+          <span class="empty-text">No games configured</span>
+        </div>
+      {/each}
+    </div>
+  {/if}
+
+  <!-- Remove source -->
+  <div class="remove-section">
+    {#if confirmingRemove}
+      <div class="confirm-box">
+        <p class="confirm-text">
+          Remove <strong>{source.hostname ?? source.name}</strong> from your account? Your saves will
+          be preserved.
+        </p>
+        <div class="confirm-actions">
           <button
-            class="btn-remove-source"
+            class="btn-cancel"
             onclick={() => {
-              confirmingRemove = true;
+              confirmingRemove = false;
             }}
+            disabled={removing}
           >
-            REMOVE SOURCE
+            CANCEL
           </button>
-        {/if}
+          <button class="btn-remove" onclick={handleRemoveSource} disabled={removing}>
+            {removing ? "REMOVING..." : "REMOVE SOURCE"}
+          </button>
+        </div>
       </div>
+    {:else}
+      <button
+        class="btn-remove-source"
+        onclick={() => {
+          confirmingRemove = true;
+        }}
+      >
+        REMOVE SOURCE
+      </button>
+    {/if}
+  </div>
 </Modal>
 
 <style>

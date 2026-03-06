@@ -73,13 +73,7 @@
   }
 </script>
 
-<Modal
-  id="save-detail-{save.saveUuid}"
-  tiled
-  onclose={onclose}
-  width="520px"
-  ariaLabel="Save details"
->
+<Modal id="save-detail-{save.saveUuid}" tiled {onclose} width="520px" ariaLabel="Save details">
   <WindowTitleBar activeLabel={save.saveName} activeSublabel={save.summary}>
     {#snippet right()}
       <button class="modal-close" onclick={() => onclose()}>&#x2715;</button>
