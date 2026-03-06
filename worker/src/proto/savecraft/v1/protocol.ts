@@ -153,6 +153,9 @@ export interface Message {
     | { $case: "sourceUpdateStarted"; sourceUpdateStarted: SourceUpdateStarted }
     | { $case: "sourceUpdateFailed"; sourceUpdateFailed: SourceUpdateFailed }
     | //
+    /** Config results: source → server (54-55) */
+    { $case: "configResult"; configResult: ConfigResult }
+    | //
     /** Commands: server → source (50-59) */
     { $case: "configUpdate"; configUpdate: ConfigUpdate }
     | { $case: "rescanGame"; rescanGame: RescanGame }
@@ -310,6 +313,24 @@ export interface GameConfig {
   savePath: string;
   enabled: boolean;
   fileExtensions: string[];
+}
+
+/** Per-game result of applying a ConfigUpdate. Sent by daemon after processing. */
+export interface ConfigResult {
+  results: { [key: string]: GameConfigResult };
+}
+
+export interface ConfigResult_ResultsEntry {
+  key: string;
+  value: GameConfigResult | undefined;
+}
+
+export interface GameConfigResult {
+  success: boolean;
+  /** empty on success */
+  error: string;
+  /** actual path being watched (after ~ expansion etc.) */
+  resolvedPath: string;
 }
 
 /** Request the source to rescan a game's save directory. */
@@ -475,6 +496,9 @@ export const Message: MessageFns<Message> = {
         break;
       case "sourceUpdateFailed":
         SourceUpdateFailed.encode(message.payload.sourceUpdateFailed, writer.uint32(346).fork()).join();
+        break;
+      case "configResult":
+        ConfigResult.encode(message.payload.configResult, writer.uint32(434).fork()).join();
         break;
       case "configUpdate":
         ConfigUpdate.encode(message.payload.configUpdate, writer.uint32(402).fork()).join();
@@ -683,6 +707,14 @@ export const Message: MessageFns<Message> = {
           };
           continue;
         }
+        case 54: {
+          if (tag !== 434) {
+            break;
+          }
+
+          message.payload = { $case: "configResult", configResult: ConfigResult.decode(reader, reader.uint32()) };
+          continue;
+        }
         case 50: {
           if (tag !== 402) {
             break;
@@ -843,6 +875,10 @@ export const Message: MessageFns<Message> = {
         ? { $case: "sourceUpdateFailed", sourceUpdateFailed: SourceUpdateFailed.fromJSON(object.sourceUpdateFailed) }
         : isSet(object.source_update_failed)
         ? { $case: "sourceUpdateFailed", sourceUpdateFailed: SourceUpdateFailed.fromJSON(object.source_update_failed) }
+        : isSet(object.configResult)
+        ? { $case: "configResult", configResult: ConfigResult.fromJSON(object.configResult) }
+        : isSet(object.config_result)
+        ? { $case: "configResult", configResult: ConfigResult.fromJSON(object.config_result) }
         : isSet(object.configUpdate)
         ? { $case: "configUpdate", configUpdate: ConfigUpdate.fromJSON(object.configUpdate) }
         : isSet(object.config_update)
@@ -917,6 +953,8 @@ export const Message: MessageFns<Message> = {
       obj.sourceUpdateStarted = SourceUpdateStarted.toJSON(message.payload.sourceUpdateStarted);
     } else if (message.payload?.$case === "sourceUpdateFailed") {
       obj.sourceUpdateFailed = SourceUpdateFailed.toJSON(message.payload.sourceUpdateFailed);
+    } else if (message.payload?.$case === "configResult") {
+      obj.configResult = ConfigResult.toJSON(message.payload.configResult);
     } else if (message.payload?.$case === "configUpdate") {
       obj.configUpdate = ConfigUpdate.toJSON(message.payload.configUpdate);
     } else if (message.payload?.$case === "rescanGame") {
@@ -1102,6 +1140,15 @@ export const Message: MessageFns<Message> = {
           message.payload = {
             $case: "sourceUpdateFailed",
             sourceUpdateFailed: SourceUpdateFailed.fromPartial(object.payload.sourceUpdateFailed),
+          };
+        }
+        break;
+      }
+      case "configResult": {
+        if (object.payload?.configResult !== undefined && object.payload?.configResult !== null) {
+          message.payload = {
+            $case: "configResult",
+            configResult: ConfigResult.fromPartial(object.payload.configResult),
           };
         }
         break;
@@ -3219,6 +3266,265 @@ export const GameConfig: MessageFns<GameConfig> = {
     message.savePath = object.savePath ?? "";
     message.enabled = object.enabled ?? false;
     message.fileExtensions = object.fileExtensions?.map((e) => e) || [];
+    return message;
+  },
+};
+
+function createBaseConfigResult(): ConfigResult {
+  return { results: {} };
+}
+
+export const ConfigResult: MessageFns<ConfigResult> = {
+  encode(message: ConfigResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    globalThis.Object.entries(message.results).forEach(([key, value]: [string, GameConfigResult]) => {
+      ConfigResult_ResultsEntry.encode({ key: key as any, value }, writer.uint32(10).fork()).join();
+    });
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ConfigResult {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseConfigResult();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          const entry1 = ConfigResult_ResultsEntry.decode(reader, reader.uint32());
+          if (entry1.value !== undefined) {
+            message.results[entry1.key] = entry1.value;
+          }
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ConfigResult {
+    return {
+      results: isObject(object.results)
+        ? (globalThis.Object.entries(object.results) as [string, any][]).reduce(
+          (acc: { [key: string]: GameConfigResult }, [key, value]: [string, any]) => {
+            acc[key] = GameConfigResult.fromJSON(value);
+            return acc;
+          },
+          {},
+        )
+        : {},
+    };
+  },
+
+  toJSON(message: ConfigResult): unknown {
+    const obj: any = {};
+    if (message.results) {
+      const entries = globalThis.Object.entries(message.results) as [string, GameConfigResult][];
+      if (entries.length > 0) {
+        obj.results = {};
+        entries.forEach(([k, v]) => {
+          obj.results[k] = GameConfigResult.toJSON(v);
+        });
+      }
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ConfigResult>, I>>(base?: I): ConfigResult {
+    return ConfigResult.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ConfigResult>, I>>(object: I): ConfigResult {
+    const message = createBaseConfigResult();
+    message.results = (globalThis.Object.entries(object.results ?? {}) as [string, GameConfigResult][]).reduce(
+      (acc: { [key: string]: GameConfigResult }, [key, value]: [string, GameConfigResult]) => {
+        if (value !== undefined) {
+          acc[key] = GameConfigResult.fromPartial(value);
+        }
+        return acc;
+      },
+      {},
+    );
+    return message;
+  },
+};
+
+function createBaseConfigResult_ResultsEntry(): ConfigResult_ResultsEntry {
+  return { key: "", value: undefined };
+}
+
+export const ConfigResult_ResultsEntry: MessageFns<ConfigResult_ResultsEntry> = {
+  encode(message: ConfigResult_ResultsEntry, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.key !== "") {
+      writer.uint32(10).string(message.key);
+    }
+    if (message.value !== undefined) {
+      GameConfigResult.encode(message.value, writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): ConfigResult_ResultsEntry {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseConfigResult_ResultsEntry();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.key = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.value = GameConfigResult.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): ConfigResult_ResultsEntry {
+    return {
+      key: isSet(object.key) ? globalThis.String(object.key) : "",
+      value: isSet(object.value) ? GameConfigResult.fromJSON(object.value) : undefined,
+    };
+  },
+
+  toJSON(message: ConfigResult_ResultsEntry): unknown {
+    const obj: any = {};
+    if (message.key !== "") {
+      obj.key = message.key;
+    }
+    if (message.value !== undefined) {
+      obj.value = GameConfigResult.toJSON(message.value);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<ConfigResult_ResultsEntry>, I>>(base?: I): ConfigResult_ResultsEntry {
+    return ConfigResult_ResultsEntry.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<ConfigResult_ResultsEntry>, I>>(object: I): ConfigResult_ResultsEntry {
+    const message = createBaseConfigResult_ResultsEntry();
+    message.key = object.key ?? "";
+    message.value = (object.value !== undefined && object.value !== null)
+      ? GameConfigResult.fromPartial(object.value)
+      : undefined;
+    return message;
+  },
+};
+
+function createBaseGameConfigResult(): GameConfigResult {
+  return { success: false, error: "", resolvedPath: "" };
+}
+
+export const GameConfigResult: MessageFns<GameConfigResult> = {
+  encode(message: GameConfigResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.success !== false) {
+      writer.uint32(8).bool(message.success);
+    }
+    if (message.error !== "") {
+      writer.uint32(18).string(message.error);
+    }
+    if (message.resolvedPath !== "") {
+      writer.uint32(26).string(message.resolvedPath);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GameConfigResult {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGameConfigResult();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 8) {
+            break;
+          }
+
+          message.success = reader.bool();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.error = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.resolvedPath = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GameConfigResult {
+    return {
+      success: isSet(object.success) ? globalThis.Boolean(object.success) : false,
+      error: isSet(object.error) ? globalThis.String(object.error) : "",
+      resolvedPath: isSet(object.resolvedPath)
+        ? globalThis.String(object.resolvedPath)
+        : isSet(object.resolved_path)
+        ? globalThis.String(object.resolved_path)
+        : "",
+    };
+  },
+
+  toJSON(message: GameConfigResult): unknown {
+    const obj: any = {};
+    if (message.success !== false) {
+      obj.success = message.success;
+    }
+    if (message.error !== "") {
+      obj.error = message.error;
+    }
+    if (message.resolvedPath !== "") {
+      obj.resolvedPath = message.resolvedPath;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GameConfigResult>, I>>(base?: I): GameConfigResult {
+    return GameConfigResult.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GameConfigResult>, I>>(object: I): GameConfigResult {
+    const message = createBaseGameConfigResult();
+    message.success = object.success ?? false;
+    message.error = object.error ?? "";
+    message.resolvedPath = object.resolvedPath ?? "";
     return message;
   },
 };

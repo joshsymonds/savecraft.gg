@@ -1029,6 +1029,15 @@ interface SourceRow {
 }
 
 /** Safe subset of source info — never includes token_hash, user PII, etc. */
+interface ConfiguredGame {
+  game_id: string;
+  save_path: string;
+  config_status: string;
+  resolved_path: string;
+  last_error: string;
+  result_at: string | null;
+}
+
 interface SourceInfo {
   source_uuid: string;
   hostname: string | null;
@@ -1038,6 +1047,7 @@ interface SourceInfo {
   last_active: string | null;
   activity: "active" | "recently_active" | "inactive" | "never_pushed";
   capabilities: { can_rescan: boolean; can_receive_config: boolean };
+  configured_games: ConfiguredGame[];
 }
 
 interface SourceLookupResult {
@@ -1089,6 +1099,7 @@ function formatSourceInfo(row: SourceRow): SourceInfo {
       can_rescan: row.can_rescan === 1,
       can_receive_config: row.can_receive_config === 1,
     },
+    configured_games: [],
   };
 }
 
@@ -1158,6 +1169,19 @@ export async function getSetupHelp(
     .all<SourceRow>();
 
   const sources = sourceRows.results.map((row) => formatSourceInfo(row));
+
+  // 1b. Attach per-source config status
+  if (sources.length > 0) {
+    const configStmt = db.prepare(
+      `SELECT game_id, save_path, config_status, resolved_path, last_error, result_at
+       FROM source_configs WHERE source_uuid = ?`,
+    );
+    const configBatch = sourceRows.results.map((row) => configStmt.bind(row.source_uuid));
+    const configResults = await db.batch<ConfiguredGame>(configBatch);
+    for (let i = 0; i < sources.length; i++) {
+      sources[i]!.configured_games = configResults[i]?.results ?? [];
+    }
+  }
 
   // 2. Optional lookup (source_uuid takes precedence over link_code)
   let lookup: SourceLookupResult | undefined;

@@ -1253,4 +1253,75 @@ describe("SourceHub", () => {
     await closeWs(daemonWs);
     fetchMock.deactivate();
   });
+
+  it("persists ConfigResult to D1 source_configs", async () => {
+    const userUuid = "config-result-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Pre-populate config entries for two games
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).bind(sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"])),
+      env.DB.prepare(
+        `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).bind(sourceUuid, "sdv", "/saves/sdv", 1, JSON.stringify([".xml"])),
+    ]);
+
+    const daemonWs = await connectDaemonWs(sourceToken);
+    const uiWs = await connectWs("/ws/ui", userUuid);
+    await waitForMessage(uiWs); // initial SourceState
+
+    // Identify daemon
+    daemonWs.send(
+      JSON.stringify({ sourceOnline: { sourceId: sourceUuid, version: "0.1.0" } }),
+    );
+    await waitForMessage(daemonWs); // configUpdate push
+    await waitForMessage(uiWs); // sourceOnline event
+    await waitForMessage(uiWs); // SourceState broadcast
+
+    // Send ConfigResult with one success and one error
+    daemonWs.send(
+      JSON.stringify({
+        configResult: {
+          results: {
+            d2r: { success: true, error: "", resolvedPath: "/home/user/saves/d2r" },
+            sdv: { success: false, error: "path not found: /saves/sdv", resolvedPath: "/saves/sdv" },
+          },
+        },
+      }),
+    );
+
+    // Wait for UI to receive the event (ensures DO processed it)
+    const received = await waitForMessage<Record<string, unknown>>(uiWs);
+    expect(received).toHaveProperty("configResult");
+
+    // Verify D1 was updated
+    const d2rRow = await env.DB.prepare(
+      "SELECT config_status, resolved_path, last_error, result_at FROM source_configs WHERE source_uuid = ? AND game_id = ?",
+    )
+      .bind(sourceUuid, "d2r")
+      .first<{ config_status: string; resolved_path: string; last_error: string; result_at: string }>();
+    expect(d2rRow).toBeDefined();
+    expect(d2rRow!.config_status).toBe("success");
+    expect(d2rRow!.resolved_path).toBe("/home/user/saves/d2r");
+    expect(d2rRow!.last_error).toBe("");
+    expect(d2rRow!.result_at).toBeTruthy();
+
+    const sdvRow = await env.DB.prepare(
+      "SELECT config_status, resolved_path, last_error, result_at FROM source_configs WHERE source_uuid = ? AND game_id = ?",
+    )
+      .bind(sourceUuid, "sdv")
+      .first<{ config_status: string; resolved_path: string; last_error: string; result_at: string }>();
+    expect(sdvRow).toBeDefined();
+    expect(sdvRow!.config_status).toBe("error");
+    expect(sdvRow!.resolved_path).toBe("/saves/sdv");
+    expect(sdvRow!.last_error).toBe("path not found: /saves/sdv");
+    expect(sdvRow!.result_at).toBeTruthy();
+
+    await closeWs(daemonWs);
+    await closeWs(uiWs);
+  });
 });

@@ -232,6 +232,7 @@ export class SourceHub extends DurableObject<Env> {
 
     // Persist before forwarding — ensures D1 is written before UI sees the event
     await this.persistEvent(sourceId, rpc, msgString);
+    await this.maybePersistConfigResult(rpc);
 
     // Forward event to UserHub for UI broadcast
     await this.forwardEventToUserHub(msgString, sourceId);
@@ -539,6 +540,35 @@ export class SourceHub extends DurableObject<Env> {
     } catch {
       // Don't let state update failures break the relay
       return { kind: "none" };
+    }
+  }
+
+  private async maybePersistConfigResult(rpc: Message | undefined): Promise<void> {
+    if (rpc?.payload?.$case !== "configResult") return;
+    try {
+      const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+      if (!sourceUuid) return;
+      const { results } = rpc.payload.configResult;
+      const now = new Date().toISOString();
+      const batch = Object.entries(results).map(([gameId, result]) =>
+        this.env.DB.prepare(
+          `UPDATE source_configs
+           SET config_status = ?, resolved_path = ?, last_error = ?, result_at = ?
+           WHERE source_uuid = ? AND game_id = ?`,
+        ).bind(
+          result.success ? "success" : "error",
+          result.resolvedPath,
+          result.error,
+          now,
+          sourceUuid,
+          gameId,
+        ),
+      );
+      if (batch.length > 0) {
+        await this.env.DB.batch(batch);
+      }
+    } catch {
+      // Don't let config result persistence break the relay
     }
   }
 
