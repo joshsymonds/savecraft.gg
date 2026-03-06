@@ -53,6 +53,10 @@ const statements = [
     enabled INTEGER NOT NULL DEFAULT 1,
     file_extensions TEXT NOT NULL DEFAULT '[]',
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    config_status TEXT NOT NULL DEFAULT 'pending',
+    resolved_path TEXT NOT NULL DEFAULT '',
+    last_error TEXT NOT NULL DEFAULT '',
+    result_at TEXT,
     PRIMARY KEY (source_uuid, game_id)
   )`,
   `CREATE TABLE IF NOT EXISTS notes (

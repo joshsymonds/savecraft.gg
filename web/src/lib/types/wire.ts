@@ -174,6 +174,18 @@ export interface WireGamesDiscovered {
   games?: WireDiscoveredGame[];
 }
 
+// --- Config results ---
+
+export interface WireGameConfigResult {
+  success?: boolean;
+  error?: string;
+  resolvedPath?: string;
+}
+
+export interface WireConfigResult {
+  results?: Record<string, WireGameConfigResult>;
+}
+
 // --- Message envelope ---
 
 /** Hub-injected metadata fields (not part of the proto payload). */
@@ -205,6 +217,7 @@ export interface WirePayload {
   sourceState?: WireSourceState;
   testPathResult?: WireTestPathResult;
   gamesDiscovered?: WireGamesDiscovered;
+  configResult?: WireConfigResult;
 }
 
 export type WireMessage = WireMetadata & WirePayload;
@@ -230,6 +243,7 @@ const MESSAGE_KEYS = [
   "pluginDownloadFailed",
   "testPathResult",
   "gamesDiscovered",
+  "configResult",
 ] as const satisfies readonly WireMessageType[];
 
 export function getMessageType(msg: WireMessage): WireMessageType | undefined {

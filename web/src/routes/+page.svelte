@@ -3,7 +3,14 @@
   Dashboard: source status strip + game-centric main area + activity sidebar.
 -->
 <script lang="ts">
-  import { createNote, deleteNote, fetchNotes, toNoteSummary, updateNote } from "$lib/api/client";
+  import {
+    createNote,
+    deleteNote,
+    fetchNotes,
+    saveSourceConfig,
+    toNoteSummary,
+    updateNote,
+  } from "$lib/api/client";
   import {
     ActivityEvent,
     ConnectCard,
@@ -238,6 +245,15 @@
     onselect={(game) => {
       selectedGameId = game.gameId;
       pickerOpen = false;
+    }}
+    onconfigure={async (gameId, savePath) => {
+      const source = $sources.find((s) => s.capabilities.canReceiveConfig);
+      if (!source) throw new Error("No configurable source connected");
+      const manifest = $plugins.get(gameId);
+      const fileExtensions = manifest?.file_extensions ?? [];
+      await saveSourceConfig(source.id, {
+        [gameId]: { savePath, enabled: true, fileExtensions },
+      });
     }}
     onclose={() => {
       pickerOpen = false;

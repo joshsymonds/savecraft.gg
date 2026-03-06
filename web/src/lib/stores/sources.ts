@@ -9,6 +9,16 @@ const { subscribe, set, update } = writable<Source[]>([]);
 
 export const sources: Readable<Source[]> = { subscribe };
 
+/** Per-game config result from the most recent ConfigResult WebSocket event. */
+export interface ConfigResultEntry {
+  success: boolean;
+  error: string;
+  resolvedPath: string;
+}
+
+const configResultsStore = writable<Record<string, ConfigResultEntry>>({});
+export const configResults: Readable<Record<string, ConfigResultEntry>> = configResultsStore;
+
 function resolveSourceId(msg: WireMessage): string | null {
   return msg._sourceId ?? null;
 }
@@ -259,6 +269,20 @@ function handlePushCompleted(msg: WireMessage): void {
   });
 }
 
+function handleConfigResult(msg: WireMessage): void {
+  const cr = msg.configResult;
+  if (!cr?.results) return;
+  const entries: Record<string, ConfigResultEntry> = {};
+  for (const [gameId, result] of Object.entries(cr.results)) {
+    entries[gameId] = {
+      success: result.success ?? false,
+      error: result.error ?? "",
+      resolvedPath: result.resolvedPath ?? "",
+    };
+  }
+  configResultsStore.set(entries);
+}
+
 type SourceHandler = (msg: WireMessage) => void;
 
 function handleWatching(msg: WireMessage): void {
@@ -283,6 +307,7 @@ const SOURCE_HANDLERS: Partial<Record<WireMessageType, SourceHandler>> = {
   parseFailed: handleParseFailed,
   parseCompleted: handleParseCompleted,
   pushCompleted: handlePushCompleted,
+  configResult: handleConfigResult,
 };
 
 export function dispatchToSources(msg: WireMessage): void {
