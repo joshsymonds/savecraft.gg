@@ -39,7 +39,11 @@
 >
   <span class="game-icon">{gameIcon(game.name)}</span>
   <span class="game-name">{game.name}</span>
-  <span class="game-status">{game.statusLine}</span>
+  {#if game.needsConfig}
+    <span class="game-status needs-config">Needs setup</span>
+  {:else}
+    <span class="game-status">{game.statusLine}</span>
+  {/if}
   {#if game.saves.length > 0}
     <div class="save-list">
       {#each game.saves as save (save.saveUuid)}
@@ -96,6 +100,13 @@
     font-family: var(--font-body);
     font-size: 15px;
     color: var(--color-text-dim);
+  }
+
+  .game-status.needs-config {
+    font-family: var(--font-pixel);
+    font-size: 7px;
+    letter-spacing: 1px;
+    color: var(--color-yellow, #e8b45a);
   }
 
   .save-list {

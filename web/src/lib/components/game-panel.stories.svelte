@@ -15,6 +15,8 @@
       name: "Diablo II: Resurrected",
       statusLine: "3 characters",
       sourceCount: 2,
+      sources: [],
+      needsConfig: false,
       saves: [
         {
           saveUuid: "s1",
@@ -50,6 +52,8 @@
       name: "Stardew Valley",
       statusLine: "1 farm found",
       sourceCount: 1,
+      sources: [],
+      needsConfig: false,
       saves: [
         {
           saveUuid: "s4",
@@ -67,6 +71,8 @@
       name: "Stellaris",
       statusLine: "2 empires found",
       sourceCount: 1,
+      sources: [],
+      needsConfig: false,
       saves: [
         {
           saveUuid: "s5",

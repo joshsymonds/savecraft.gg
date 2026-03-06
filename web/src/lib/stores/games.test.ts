@@ -54,6 +54,10 @@ describe("mergeGames", () => {
     expect(game.saves).toHaveLength(1);
     expect(game.saves[0]!.sourceId).toBe("src-1");
     expect(game.saves[0]!.sourceName).toBe("src-1");
+    expect(game.sources).toHaveLength(1);
+    expect(game.sources[0]!.sourceId).toBe("src-1");
+    expect(game.sources[0]!.status).toBe("watching");
+    expect(game.needsConfig).toBe(false);
   });
 
   it("merges same game across two sources", () => {
@@ -232,6 +236,78 @@ describe("mergeGames", () => {
 
     const result = mergeGames(sources);
     expect(result[0]!.statusLine).toBe("1 save");
+  });
+
+  it("sets needsConfig when a source has not_found status", () => {
+    const sources: Source[] = [
+      makeSource({
+        id: "src-1",
+        games: [
+          {
+            gameId: "d2r",
+            name: "Diablo II: Resurrected",
+            status: "not_found",
+            statusLine: "",
+            saves: [],
+          },
+        ],
+      }),
+    ];
+
+    const result = mergeGames(sources);
+    expect(result[0]!.needsConfig).toBe(true);
+    expect(result[0]!.sources[0]!.status).toBe("not_found");
+  });
+
+  it("sets needsConfig when a source has error status", () => {
+    const sources: Source[] = [
+      makeSource({
+        id: "src-1",
+        games: [
+          {
+            gameId: "d2r",
+            name: "Diablo II: Resurrected",
+            status: "error",
+            statusLine: "",
+            saves: [],
+            error: "plugin crashed",
+          },
+        ],
+      }),
+    ];
+
+    const result = mergeGames(sources);
+    expect(result[0]!.needsConfig).toBe(true);
+    expect(result[0]!.sources[0]!.error).toBe("plugin crashed");
+  });
+
+  it("populates source entries with path and hostname", () => {
+    const sources: Source[] = [
+      makeSource({
+        id: "src-1",
+        name: "DAEMON · JOSH-PC",
+        hostname: "josh-pc",
+        games: [
+          {
+            gameId: "d2r",
+            name: "Diablo II: Resurrected",
+            status: "watching",
+            statusLine: "",
+            path: "/home/josh/.d2r/saves",
+            saves: [
+              { saveUuid: "s1", saveName: "A", summary: "", lastUpdated: "now", status: "success" },
+            ],
+          },
+        ],
+      }),
+    ];
+
+    const result = mergeGames(sources);
+    const se = result[0]!.sources[0]!;
+    expect(se.sourceName).toBe("DAEMON · JOSH-PC");
+    expect(se.hostname).toBe("josh-pc");
+    expect(se.path).toBe("/home/josh/.d2r/saves");
+    expect(se.saveCount).toBe(1);
   });
 
   it("shows 'No saves' when empty", () => {

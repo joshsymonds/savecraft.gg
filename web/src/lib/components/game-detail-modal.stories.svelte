@@ -17,6 +17,8 @@
     name: "Diablo II: Resurrected",
     statusLine: "3 saves · 2 sources",
     sourceCount: 2,
+    sources: [],
+    needsConfig: false,
     saves: [
       {
         saveUuid: "s1",
@@ -53,6 +55,8 @@
     name: "Stardew Valley",
     statusLine: "No saves",
     sourceCount: 1,
+    sources: [],
+    needsConfig: false,
     saves: [],
   };
 

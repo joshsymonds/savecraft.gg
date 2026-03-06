@@ -17,6 +17,7 @@
     AddSourceModal,
     ConnectCard,
     EmptySourceState,
+    GameConfigModal,
     GameDetailModal,
     GamePanel,
     GamePickerModal,
@@ -39,8 +40,54 @@
   } from "$lib/stores/link-flow";
   import { plugins } from "$lib/stores/plugins";
   import { configResults, resetConfigResults, sources } from "$lib/stores/sources";
-  import type { Game, PickerGame, Save, Source, SourceStatus } from "$lib/types/source";
-  import { connectionStatus, type ConnectionStatus } from "$lib/ws/client";
+  import { clearTestPathResult, testPathResult } from "$lib/stores/testpath";
+  import type {
+    Game,
+    PickerGame,
+    Save,
+    Source,
+    SourceStatus,
+    ValidationState,
+  } from "$lib/types/source";
+  import type { WireTestPathResult } from "$lib/types/wire";
+  import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
+
+  function deriveValidationState(
+    result: WireTestPathResult | null,
+    checking: boolean,
+  ): ValidationState {
+    if (result) return result.valid ? "valid" : "invalid";
+    if (checking) return "checking";
+    return "idle";
+  }
+
+  async function saveConfigAndWait(
+    sourceId: string,
+    gameId: string,
+    savePath: string,
+  ): Promise<void> {
+    const manifest = $plugins.get(gameId);
+    const fileExtensions = manifest?.file_extensions ?? [];
+    resetConfigResults();
+    await saveSourceConfig(sourceId, {
+      [gameId]: { savePath, enabled: true, fileExtensions },
+    });
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(() => {
+        unsubscribe();
+        reject(new Error("Daemon didn't respond — config saved but not yet validated"));
+      }, 10_000);
+      const unsubscribe = configResults.subscribe((results) => {
+        const entry = results[gameId];
+        if (entry) {
+          clearTimeout(timeout);
+          unsubscribe();
+          if (entry.success) resolve();
+          else reject(new Error(entry.error));
+        }
+      });
+    });
+  }
 
   const COLLAPSED_EVENT_COUNT = 8;
 
@@ -62,6 +109,15 @@
 
   // -- Game picker modal --
   let pickerOpen = $state(false);
+
+  // -- Game config modal --
+  let configGame: Game | null = $state(null);
+  let testPathChecking = $state(false);
+
+  // Clear checking state when testPath result arrives
+  $effect(() => {
+    if ($testPathResult) testPathChecking = false;
+  });
 
   // -- Game/save detail modals --
   let selectedGame: Game | null = $state(null);
@@ -181,7 +237,11 @@
             pickerOpen = true;
           }}
           ongameclick={(game) => {
-            selectedGame = game;
+            if (game.needsConfig) {
+              configGame = game;
+            } else {
+              selectedGame = game;
+            }
           }}
         />
       {/if}
@@ -285,6 +345,46 @@
   />
 {/if}
 
+{#if configGame}
+  {@const currentConfigGame = configGame}
+  <GameConfigModal
+    gameName={currentConfigGame.name}
+    gameId={currentConfigGame.gameId}
+    sources={currentConfigGame.sources}
+    availableSources={$sources
+      .filter(
+        (s) =>
+          s.capabilities.canReceiveConfig &&
+          !currentConfigGame.sources.some((gs) => gs.sourceId === s.id),
+      )
+      .map((s) => ({ id: s.id, name: s.name, hostname: s.hostname }))}
+    defaultPath={$plugins.get(currentConfigGame.gameId)?.default_paths.linux}
+    onclose={() => {
+      configGame = null;
+      testPathChecking = false;
+      clearTestPathResult();
+    }}
+    onsave={async (sourceId, savePath) => {
+      if (!configGame) return;
+      await saveConfigAndWait(sourceId, configGame.gameId, savePath);
+    }}
+    ontestpath={(sourceId, path) => {
+      if (!configGame) return;
+      clearTestPathResult();
+      testPathChecking = true;
+      send(JSON.stringify({ testPath: { sourceId, gameId: configGame.gameId, path } }));
+    }}
+    testPathResult={$testPathResult
+      ? {
+          valid: $testPathResult.valid ?? false,
+          filesFound: $testPathResult.filesFound ?? 0,
+          fileNames: $testPathResult.fileNames ?? [],
+        }
+      : null}
+    validationState={deriveValidationState($testPathResult, testPathChecking)}
+  />
+{/if}
+
 {#if pickerOpen}
   <GamePickerModal
     games={pickerGames}
@@ -298,27 +398,7 @@
     }}
     onconfigure={async (gameId, savePath, sourceId) => {
       if (!sourceId) throw new Error("No configurable source selected");
-      const manifest = $plugins.get(gameId);
-      const fileExtensions = manifest?.file_extensions ?? [];
-      resetConfigResults();
-      await saveSourceConfig(sourceId, {
-        [gameId]: { savePath, enabled: true, fileExtensions },
-      });
-      await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-          unsubscribe();
-          reject(new Error("Daemon didn't respond — config saved but not yet validated"));
-        }, 10_000);
-        const unsubscribe = configResults.subscribe((results) => {
-          const entry = results[gameId];
-          if (entry) {
-            clearTimeout(timeout);
-            unsubscribe();
-            if (entry.success) resolve();
-            else reject(new Error(entry.error));
-          }
-        });
-      });
+      await saveConfigAndWait(sourceId, gameId, savePath);
     }}
     onclose={() => {
       pickerOpen = false;

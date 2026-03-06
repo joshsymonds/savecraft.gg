@@ -11,6 +11,8 @@ function makeGame(overrides: Partial<Game> = {}): Game {
     name: "Diablo II: Resurrected",
     statusLine: "2 saves",
     sourceCount: 1,
+    sources: [],
+    needsConfig: false,
     saves: [
       {
         saveUuid: "s1",
