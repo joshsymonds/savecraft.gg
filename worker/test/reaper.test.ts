@@ -46,7 +46,7 @@ describe("Orphan Source Reaper", () => {
       lastPushAt: null,
     });
 
-    const result = await reapOrphanSources(env.DB);
+    const result = await reapOrphanSources(env);
     expect(result.deleted).toBe(1);
 
     const row = await env.DB.prepare("SELECT 1 FROM sources WHERE source_uuid = ?")
@@ -62,7 +62,7 @@ describe("Orphan Source Reaper", () => {
       lastPushAt: daysAgo(8),
     });
 
-    const result = await reapOrphanSources(env.DB);
+    const result = await reapOrphanSources(env);
     expect(result.deleted).toBe(1);
   });
 
@@ -73,7 +73,7 @@ describe("Orphan Source Reaper", () => {
       lastPushAt: daysAgo(1),
     });
 
-    const result = await reapOrphanSources(env.DB);
+    const result = await reapOrphanSources(env);
     expect(result.deleted).toBe(0);
 
     const row = await env.DB.prepare("SELECT 1 FROM sources WHERE source_uuid = ?")
@@ -90,7 +90,7 @@ describe("Orphan Source Reaper", () => {
       lastPushAt: daysAgo(20),
     });
 
-    const result = await reapOrphanSources(env.DB);
+    const result = await reapOrphanSources(env);
     expect(result.deleted).toBe(0);
   });
 
@@ -101,7 +101,7 @@ describe("Orphan Source Reaper", () => {
       lastPushAt: null,
     });
 
-    const result = await reapOrphanSources(env.DB);
+    const result = await reapOrphanSources(env);
     expect(result.deleted).toBe(0);
   });
 
@@ -124,7 +124,7 @@ describe("Orphan Source Reaper", () => {
       .bind(sourceUuid, "d2r", "/saves/d2r", 1, '[".d2s"]')
       .run();
 
-    const result = await reapOrphanSources(env.DB);
+    const result = await reapOrphanSources(env);
     expect(result.deleted).toBe(1);
 
     // Verify source-level tables are cleaned
@@ -152,7 +152,7 @@ describe("Orphan Source Reaper", () => {
       createdAt: daysAgo(10),
     });
 
-    const result = await reapOrphanSources(env.DB);
+    const result = await reapOrphanSources(env);
     expect(result.deleted).toBe(2);
 
     const remaining = await env.DB.prepare("SELECT source_uuid FROM sources").all<{
