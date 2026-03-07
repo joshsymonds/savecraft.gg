@@ -114,8 +114,8 @@ export function gameStatusEnumToJSON(object: GameStatusEnum): string {
 }
 
 /**
- * Message is the top-level WebSocket envelope.
- * All messages on the source↔server↔UI channel use this wrapper.
+ * Message is the top-level WebSocket envelope for daemon↔server communication.
+ * Also used inside RelayedMessage for server→UI relay.
  * The oneof field numbers are grouped by category with gaps for future additions.
  */
 export interface Message {
@@ -145,7 +145,7 @@ export interface Message {
     | { $case: "pushCompleted"; pushCompleted: PushCompleted }
     | { $case: "pushFailed"; pushFailed: PushFailed }
     | //
-    /** Plugin management (40-49) */
+    /** Plugin management (40) */
     { $case: "pluginUpdated"; pluginUpdated: PluginUpdated }
     | //
     /** Source update management (41-43) */
@@ -157,14 +157,14 @@ export interface Message {
     { $case: "pluginUpdateCheckFailed"; pluginUpdateCheckFailed: PluginUpdateCheckFailed }
     | { $case: "pluginDownloadFailed"; pluginDownloadFailed: PluginDownloadFailed }
     | //
-    /** Config results: source → server (54-55) */
-    { $case: "configResult"; configResult: ConfigResult }
-    | //
-    /** Commands: server → source (50-59) */
+    /** Commands: server → source (50-53) */
     { $case: "configUpdate"; configUpdate: ConfigUpdate }
     | { $case: "rescanGame"; rescanGame: RescanGame }
     | { $case: "pluginAvailable"; pluginAvailable: PluginAvailable }
     | { $case: "discoverGames"; discoverGames: DiscoverGames }
+    | //
+    /** Config results: source → server (54) */
+    { $case: "configResult"; configResult: ConfigResult }
     | //
     /** State: server → UI (60-69) */
     { $case: "sourceState"; sourceState: SourceState }
@@ -173,6 +173,17 @@ export interface Message {
     { $case: "testPath"; testPath: TestPath }
     | { $case: "testPathResult"; testPathResult: TestPathResult }
     | undefined;
+}
+
+/**
+ * RelayedMessage is the server→browser WebSocket envelope.
+ * Wraps a Message with server-stamped metadata for event attribution.
+ * UserHub constructs this when forwarding events and state to UI clients.
+ */
+export interface RelayedMessage {
+  sourceId: string;
+  serverTimestamp: Date | undefined;
+  message: Message | undefined;
 }
 
 /**
@@ -528,9 +539,6 @@ export const Message: MessageFns<Message> = {
       case "pluginDownloadFailed":
         PluginDownloadFailed.encode(message.payload.pluginDownloadFailed, writer.uint32(362).fork()).join();
         break;
-      case "configResult":
-        ConfigResult.encode(message.payload.configResult, writer.uint32(434).fork()).join();
-        break;
       case "configUpdate":
         ConfigUpdate.encode(message.payload.configUpdate, writer.uint32(402).fork()).join();
         break;
@@ -542,6 +550,9 @@ export const Message: MessageFns<Message> = {
         break;
       case "discoverGames":
         DiscoverGames.encode(message.payload.discoverGames, writer.uint32(426).fork()).join();
+        break;
+      case "configResult":
+        ConfigResult.encode(message.payload.configResult, writer.uint32(434).fork()).join();
         break;
       case "sourceState":
         SourceState.encode(message.payload.sourceState, writer.uint32(482).fork()).join();
@@ -760,14 +771,6 @@ export const Message: MessageFns<Message> = {
           };
           continue;
         }
-        case 54: {
-          if (tag !== 434) {
-            break;
-          }
-
-          message.payload = { $case: "configResult", configResult: ConfigResult.decode(reader, reader.uint32()) };
-          continue;
-        }
         case 50: {
           if (tag !== 402) {
             break;
@@ -801,6 +804,14 @@ export const Message: MessageFns<Message> = {
           }
 
           message.payload = { $case: "discoverGames", discoverGames: DiscoverGames.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 54: {
+          if (tag !== 434) {
+            break;
+          }
+
+          message.payload = { $case: "configResult", configResult: ConfigResult.decode(reader, reader.uint32()) };
           continue;
         }
         case 60: {
@@ -948,10 +959,6 @@ export const Message: MessageFns<Message> = {
           $case: "pluginDownloadFailed",
           pluginDownloadFailed: PluginDownloadFailed.fromJSON(object.plugin_download_failed),
         }
-        : isSet(object.configResult)
-        ? { $case: "configResult", configResult: ConfigResult.fromJSON(object.configResult) }
-        : isSet(object.config_result)
-        ? { $case: "configResult", configResult: ConfigResult.fromJSON(object.config_result) }
         : isSet(object.configUpdate)
         ? { $case: "configUpdate", configUpdate: ConfigUpdate.fromJSON(object.configUpdate) }
         : isSet(object.config_update)
@@ -968,6 +975,10 @@ export const Message: MessageFns<Message> = {
         ? { $case: "discoverGames", discoverGames: DiscoverGames.fromJSON(object.discoverGames) }
         : isSet(object.discover_games)
         ? { $case: "discoverGames", discoverGames: DiscoverGames.fromJSON(object.discover_games) }
+        : isSet(object.configResult)
+        ? { $case: "configResult", configResult: ConfigResult.fromJSON(object.configResult) }
+        : isSet(object.config_result)
+        ? { $case: "configResult", configResult: ConfigResult.fromJSON(object.config_result) }
         : isSet(object.sourceState)
         ? { $case: "sourceState", sourceState: SourceState.fromJSON(object.sourceState) }
         : isSet(object.source_state)
@@ -1030,8 +1041,6 @@ export const Message: MessageFns<Message> = {
       obj.pluginUpdateCheckFailed = PluginUpdateCheckFailed.toJSON(message.payload.pluginUpdateCheckFailed);
     } else if (message.payload?.$case === "pluginDownloadFailed") {
       obj.pluginDownloadFailed = PluginDownloadFailed.toJSON(message.payload.pluginDownloadFailed);
-    } else if (message.payload?.$case === "configResult") {
-      obj.configResult = ConfigResult.toJSON(message.payload.configResult);
     } else if (message.payload?.$case === "configUpdate") {
       obj.configUpdate = ConfigUpdate.toJSON(message.payload.configUpdate);
     } else if (message.payload?.$case === "rescanGame") {
@@ -1040,6 +1049,8 @@ export const Message: MessageFns<Message> = {
       obj.pluginAvailable = PluginAvailable.toJSON(message.payload.pluginAvailable);
     } else if (message.payload?.$case === "discoverGames") {
       obj.discoverGames = DiscoverGames.toJSON(message.payload.discoverGames);
+    } else if (message.payload?.$case === "configResult") {
+      obj.configResult = ConfigResult.toJSON(message.payload.configResult);
     } else if (message.payload?.$case === "sourceState") {
       obj.sourceState = SourceState.toJSON(message.payload.sourceState);
     } else if (message.payload?.$case === "testPath") {
@@ -1239,15 +1250,6 @@ export const Message: MessageFns<Message> = {
         }
         break;
       }
-      case "configResult": {
-        if (object.payload?.configResult !== undefined && object.payload?.configResult !== null) {
-          message.payload = {
-            $case: "configResult",
-            configResult: ConfigResult.fromPartial(object.payload.configResult),
-          };
-        }
-        break;
-      }
       case "configUpdate": {
         if (object.payload?.configUpdate !== undefined && object.payload?.configUpdate !== null) {
           message.payload = {
@@ -1281,6 +1283,15 @@ export const Message: MessageFns<Message> = {
         }
         break;
       }
+      case "configResult": {
+        if (object.payload?.configResult !== undefined && object.payload?.configResult !== null) {
+          message.payload = {
+            $case: "configResult",
+            configResult: ConfigResult.fromPartial(object.payload.configResult),
+          };
+        }
+        break;
+      }
       case "sourceState": {
         if (object.payload?.sourceState !== undefined && object.payload?.sourceState !== null) {
           message.payload = { $case: "sourceState", sourceState: SourceState.fromPartial(object.payload.sourceState) };
@@ -1303,6 +1314,108 @@ export const Message: MessageFns<Message> = {
         break;
       }
     }
+    return message;
+  },
+};
+
+function createBaseRelayedMessage(): RelayedMessage {
+  return { sourceId: "", serverTimestamp: undefined, message: undefined };
+}
+
+export const RelayedMessage: MessageFns<RelayedMessage> = {
+  encode(message: RelayedMessage, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sourceId !== "") {
+      writer.uint32(10).string(message.sourceId);
+    }
+    if (message.serverTimestamp !== undefined) {
+      Timestamp.encode(toTimestamp(message.serverTimestamp), writer.uint32(18).fork()).join();
+    }
+    if (message.message !== undefined) {
+      Message.encode(message.message, writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RelayedMessage {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRelayedMessage();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.sourceId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.serverTimestamp = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.message = Message.decode(reader, reader.uint32());
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RelayedMessage {
+    return {
+      sourceId: isSet(object.sourceId)
+        ? globalThis.String(object.sourceId)
+        : isSet(object.source_id)
+        ? globalThis.String(object.source_id)
+        : "",
+      serverTimestamp: isSet(object.serverTimestamp)
+        ? fromJsonTimestamp(object.serverTimestamp)
+        : isSet(object.server_timestamp)
+        ? fromJsonTimestamp(object.server_timestamp)
+        : undefined,
+      message: isSet(object.message) ? Message.fromJSON(object.message) : undefined,
+    };
+  },
+
+  toJSON(message: RelayedMessage): unknown {
+    const obj: any = {};
+    if (message.sourceId !== "") {
+      obj.sourceId = message.sourceId;
+    }
+    if (message.serverTimestamp !== undefined) {
+      obj.serverTimestamp = message.serverTimestamp.toISOString();
+    }
+    if (message.message !== undefined) {
+      obj.message = Message.toJSON(message.message);
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<RelayedMessage>, I>>(base?: I): RelayedMessage {
+    return RelayedMessage.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RelayedMessage>, I>>(object: I): RelayedMessage {
+    const message = createBaseRelayedMessage();
+    message.sourceId = object.sourceId ?? "";
+    message.serverTimestamp = object.serverTimestamp ?? undefined;
+    message.message = (object.message !== undefined && object.message !== null)
+      ? Message.fromPartial(object.message)
+      : undefined;
     return message;
   },
 };

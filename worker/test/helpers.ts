@@ -3,6 +3,7 @@ import { env, SELF } from "cloudflare:test";
 
 import { OAUTH_ENDPOINTS } from "../src/oauth";
 import type { OAuthProps } from "../src/oauth";
+import { Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
 
 /** D1 tables in FK-safe deletion order (children before parents). */
 export const CLEANUP_TABLES = [
@@ -150,6 +151,152 @@ export function waitForMessageMatching<T = unknown>(
 
     ws.addEventListener("message", handler);
   });
+}
+
+// -- Binary proto WebSocket helpers -------------------------------------------
+
+/**
+ * Send a binary proto Message over a WebSocket.
+ */
+export function sendProto(ws: WebSocket, msg: Message): void {
+  const bytes = Message.encode(msg).finish();
+  ws.send(bytes);
+}
+
+/**
+ * Wait for a binary proto RelayedMessage on a UI WebSocket.
+ * Returns the decoded RelayedMessage.
+ */
+export function waitForRelayedMessage(ws: WebSocket, timeoutMs = 2000): Promise<RelayedMessage> {
+  return new Promise<RelayedMessage>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Timed out waiting for RelayedMessage after ${String(timeoutMs)}ms`));
+    }, timeoutMs);
+
+    ws.addEventListener(
+      "message",
+      (event) => {
+        clearTimeout(timer);
+        try {
+          const data = event.data as ArrayBuffer;
+          resolve(RelayedMessage.decode(new Uint8Array(data)));
+        } catch (e) {
+          reject(new Error(`Failed to decode RelayedMessage: ${String(e)}`));
+        }
+      },
+      { once: true },
+    );
+  });
+}
+
+/**
+ * Wait for a binary proto Message on a daemon WebSocket (for commands from server).
+ */
+export function waitForProtoMessage(ws: WebSocket, timeoutMs = 2000): Promise<Message> {
+  return new Promise<Message>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Timed out waiting for proto Message after ${String(timeoutMs)}ms`));
+    }, timeoutMs);
+
+    ws.addEventListener(
+      "message",
+      (event) => {
+        clearTimeout(timer);
+        try {
+          const data = event.data as ArrayBuffer;
+          resolve(Message.decode(new Uint8Array(data)));
+        } catch (e) {
+          reject(new Error(`Failed to decode proto Message: ${String(e)}`));
+        }
+      },
+      { once: true },
+    );
+  });
+}
+
+/**
+ * Wait for a RelayedMessage matching a predicate, discarding non-matches.
+ */
+export function waitForRelayedMessageMatching(
+  ws: WebSocket,
+  predicate: (msg: RelayedMessage) => boolean,
+  timeoutMs = 5000,
+): Promise<RelayedMessage> {
+  return new Promise<RelayedMessage>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      ws.removeEventListener("message", handler);
+      reject(
+        new Error(`Timed out waiting for matching RelayedMessage after ${String(timeoutMs)}ms`),
+      );
+    }, timeoutMs);
+
+    function handler(event: MessageEvent) {
+      try {
+        const data = event.data as ArrayBuffer;
+        const msg = RelayedMessage.decode(new Uint8Array(data));
+        if (predicate(msg)) {
+          clearTimeout(timer);
+          ws.removeEventListener("message", handler);
+          resolve(msg);
+        }
+      } catch {
+        clearTimeout(timer);
+        ws.removeEventListener("message", handler);
+        reject(new Error(`Failed to decode RelayedMessage: ${String(event.data)}`));
+      }
+    }
+
+    ws.addEventListener("message", handler);
+  });
+}
+
+// -- Payload extraction helpers -----------------------------------------------
+
+/** Union of all valid $case values in Message.payload. */
+type PayloadCase = NonNullable<Message["payload"]>["$case"];
+
+/** Extract the specific union variant for a given $case value. */
+type PayloadVariant<C extends PayloadCase> = Extract<NonNullable<Message["payload"]>, { $case: C }>;
+
+/** Extract the inner payload type for a given $case value. */
+type PayloadValue<C extends PayloadCase> = PayloadVariant<C> extends { $case: C } & infer R
+  ? R extends Record<C, infer V>
+    ? V
+    : never
+  : never;
+
+/**
+ * Type-safe payload extraction from a Message.
+ * Narrows the discriminated union by checking $case at runtime and returning
+ * the correctly typed inner value. Throws if $case doesn't match.
+ */
+export function requirePayload<C extends PayloadCase>(
+  msg: Message,
+  $case: C,
+): PayloadValue<C> {
+  if (msg.payload?.$case !== $case) {
+    throw new Error(
+      `Expected payload $case "${$case}" but got "${String(msg.payload?.$case)}"`,
+    );
+  }
+  // After the $case check, we know the variant matches. TS can't prove the
+  // generic key indexing is safe, so we use a controlled assertion here.
+  const variant = msg.payload as Record<string, unknown>;
+  return variant[$case] as PayloadValue<C>;
+}
+
+/**
+ * Type-safe payload extraction from a RelayedMessage's inner Message.
+ * Shorthand for requirePayload(msg.message!, $case) with null checks.
+ */
+export function requireInnerPayload<C extends PayloadCase>(
+  relayed: RelayedMessage,
+  $case: C,
+): PayloadValue<C> {
+  if (!relayed.message) {
+    throw new Error(`RelayedMessage has no inner message`);
+  }
+  return requirePayload(relayed.message, $case);
 }
 
 // -- Source helpers for tests --------------------------------------------------

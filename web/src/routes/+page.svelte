@@ -26,6 +26,8 @@
     SourceStrip,
     StatusDot,
   } from "$lib/components";
+  import { Message, RelayedMessage } from "$lib/proto/savecraft/v1/protocol";
+  import type { TestPathResult } from "$lib/proto/savecraft/v1/protocol";
   import { activityEvents } from "$lib/stores/activity";
   import { mergeGames } from "$lib/stores/games";
   import { consumePendingLinkCode } from "$lib/stores/link-code";
@@ -48,11 +50,10 @@
     SourceStatus,
     ValidationState,
   } from "$lib/types/source";
-  import type { WireTestPathResult } from "$lib/types/wire";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
 
   function deriveValidationState(
-    result: WireTestPathResult | null,
+    result: TestPathResult | null,
     checking: boolean,
   ): ValidationState {
     if (result) return result.valid ? "valid" : "invalid";
@@ -183,6 +184,21 @@
     reconnecting: "offline",
     disconnected: "offline",
   };
+
+  function sendTestPath(sourceId: string, gameId: string, path: string): void {
+    const innerMsg: Message = {
+      payload: {
+        $case: "testPath",
+        testPath: { gameId, path },
+      },
+    };
+    const relayed: RelayedMessage = {
+      sourceId,
+      serverTimestamp: undefined,
+      message: innerMsg,
+    };
+    send(RelayedMessage.encode(relayed).finish());
+  }
 </script>
 
 <svelte:head>
@@ -332,7 +348,7 @@
       if (!selectedGame) return;
       clearTestPathResult();
       testPathChecking = true;
-      send(JSON.stringify({ testPath: { sourceId, gameId: selectedGame.gameId, path } }));
+      sendTestPath(sourceId, selectedGame.gameId, path);
     }}
     testPathResult={$testPathResult
       ? {

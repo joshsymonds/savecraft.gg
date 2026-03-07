@@ -73,12 +73,12 @@ Savecraft uses a source-centric ownership model. A "source" is any authenticated
 
 ### Component 1: Local Daemon
 
-Runs on the gaming device (Windows PC, Linux PC, Steam Deck). Background process that watches save file directories, parses saves using WASM plugins, and pushes structured JSON to the cloud API. Self-registers as a source on first boot, then maintains a persistent WebSocket connection to a per-source SourceHub Durable Object for real-time config updates and status reporting.
+Runs on the gaming device (Windows PC, Linux PC, Steam Deck). Background process that watches save file directories, parses saves using WASM plugins, and pushes structured JSON to the cloud API. Self-registers as a source on first boot, then maintains a persistent binary protobuf WebSocket connection to a per-source SourceHub Durable Object for real-time config updates and status reporting.
 
 - **No MCP involvement.** Pure background service.
 - **Linux / Steam Deck:** Static binary installed to `~/.local/bin/` + systemd user unit. Sandboxed via systemd directives. See `docs/infrastructure.md`.
 - **First boot:** Daemon calls `/api/v1/source/register` to get a source token. Displays a 6-digit link code for the user to enter in the web UI. Token is persisted locally; subsequent boots use the existing token.
-- **Configuration:** All configuration happens via the web interface at savecraft.gg/settings. Config changes push to daemon in real time via WebSocket. Per-source configs stored server-side in D1.
+- **Configuration:** All configuration happens via the web interface at savecraft.gg/settings. Config changes push to daemon in real time via binary protobuf WebSocket (`Message` envelope). Per-source configs stored server-side in D1.
 
 ### Component 2: Remote MCP Server
 
@@ -105,8 +105,8 @@ The daemon push API and MCP server run as a **single Cloudflare Worker**. Two ro
 - `/oauth/register` — Dynamic Client Registration (RFC 7591) for AI clients
 - `/.well-known/oauth-authorization-server` — AS metadata (auto-served by library)
 - `/.well-known/oauth-protected-resource` — Protected resource metadata (auto-served by library)
-- `/ws/daemon` — WebSocket upgrade for daemon real-time connection (source token auth, routed to per-source SourceHub DO)
-- `/ws/ui` — WebSocket upgrade for web UI live status (Clerk session, routed to per-user UserHub DO)
+- `/ws/daemon` — WebSocket upgrade for daemon real-time connection (source token auth, binary protobuf `Message`, routed to per-source SourceHub DO)
+- `/ws/ui` — WebSocket upgrade for web UI live status (Clerk session, binary protobuf `RelayedMessage`, routed to per-user UserHub DO)
 
 This is not microservices. One binary, shared auth middleware, shared R2 client. The Durable Objects (SourceHub, UserHub) are separate classes in the same Worker bundle.
 
@@ -118,7 +118,7 @@ Monorepo. Single Go module.
 savecraft/
 ├── proto/
 │   └── savecraft/v1/
-│       └── protocol.proto       # Canonical WebSocket message types (protobuf)
+│       └── protocol.proto       # Canonical WebSocket message types (Message + RelayedMessage)
 ├── buf.yaml                     # buf module config
 ├── buf.gen.yaml                 # buf codegen config (Go + TypeScript targets)
 ├── Justfile                     # Command runner targets

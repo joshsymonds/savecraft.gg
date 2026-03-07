@@ -6,25 +6,23 @@ import {
   closeWs,
   connectDaemonWs,
   connectWs,
+  requireInnerPayload,
   seedSource,
-  waitForMessage,
-  waitForMessageMatching,
+  sendProto,
+  waitForProtoMessage,
+  waitForRelayedMessage,
+  waitForRelayedMessageMatching,
 } from "./helpers";
 
 const TEST_USER = "removal-test-user";
 const OTHER_USER = "other-user";
 
-interface SourceStateMessage {
-  sourceState: { sources: { sourceId: string }[] };
-}
-
 /** Wait for a sourceState message where the given source is absent. */
 function waitForSourceRemoved(ws: WebSocket, sourceUuid: string) {
-  return waitForMessageMatching<SourceStateMessage>(ws, (message) => {
-    const state = message as Partial<SourceStateMessage>;
-    return (
-      "sourceState" in message && !state.sourceState!.sources.some((s) => s.sourceId === sourceUuid)
-    );
+  return waitForRelayedMessageMatching(ws, (msg) => {
+    if (msg.message?.payload?.$case !== "sourceState") return false;
+    const state = msg.message.payload.sourceState;
+    return !state.sources.some((s) => s.sourceId === sourceUuid);
   });
 }
 
@@ -85,20 +83,30 @@ describe("Source Removal", () => {
 
       // Connect daemon so SourceHub creates state, then push it to UserHub
       const daemonWs = await connectDaemonWs(sourceToken);
-      daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-      await waitForMessage(daemonWs);
+      sendProto(daemonWs, {
+        payload: {
+          $case: "sourceOnline",
+          sourceOnline: {
+            version: "0.1.0",
+            timestamp: undefined,
+            platform: "",
+            os: "",
+            arch: "",
+          },
+        },
+      });
+      await waitForProtoMessage(daemonWs);
 
       // Connect UI to verify source appears in state
       const uiWs = await connectWs("/ws/ui", TEST_USER);
-      const initialState = await waitForMessage<{
-        sourceState: { sources: { sourceId: string }[] };
-      }>(uiWs);
-      expect(initialState.sourceState.sources.some((s) => s.sourceId === sourceUuid)).toBe(true);
+      const initialState = await waitForRelayedMessage(uiWs);
+      const state = requireInnerPayload(initialState, "sourceState");
+      expect(state.sources.some((s) => s.sourceId === sourceUuid)).toBe(true);
 
       // Drain remaining messages
       for (let index = 0; index < 50; index++) {
         try {
-          await waitForMessage(uiWs, 200);
+          await waitForRelayedMessage(uiWs, 200);
         } catch {
           break;
         }
@@ -200,24 +208,34 @@ describe("Source Removal", () => {
 
       // Connect daemon and send sourceOnline so SourceHub has state
       const daemonWs = await connectDaemonWs(sourceToken);
-      daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
+      sendProto(daemonWs, {
+        payload: {
+          $case: "sourceOnline",
+          sourceOnline: {
+            version: "0.1.0",
+            timestamp: undefined,
+            platform: "",
+            os: "",
+            arch: "",
+          },
+        },
+      });
       // Consume configUpdate
-      await waitForMessage(daemonWs);
+      await waitForProtoMessage(daemonWs);
 
       // Connect UI
       const uiWs = await connectWs("/ws/ui", TEST_USER);
       // Consume initial state (should include the source)
-      const initialState = await waitForMessage<{
-        sourceState: { sources: { sourceId: string }[] };
-      }>(uiWs);
-      expect(initialState.sourceState.sources.length).toBeGreaterThan(0);
+      const initialState = await waitForRelayedMessage(uiWs);
+      const state = requireInnerPayload(initialState, "sourceState");
+      expect(state.sources.length).toBeGreaterThan(0);
       // Consume events
       // There may be multiple messages (events); drain them with a short timeout
       const drainMessages = async (): Promise<void> => {
         // Drain up to 50 queued messages (generous upper bound)
         for (let attempt = 0; attempt < 50; attempt++) {
           try {
-            await waitForMessage(uiWs, 200);
+            await waitForRelayedMessage(uiWs, 200);
           } catch {
             // Timeout means no more messages — done draining
             break;
@@ -315,15 +333,26 @@ describe("Source Removal", () => {
 
       // Connect daemon and send sourceOnline so SourceHub has state
       const daemonWs = await connectDaemonWs(sourceToken);
-      daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-      await waitForMessage(daemonWs);
+      sendProto(daemonWs, {
+        payload: {
+          $case: "sourceOnline",
+          sourceOnline: {
+            version: "0.1.0",
+            timestamp: undefined,
+            platform: "",
+            os: "",
+            arch: "",
+          },
+        },
+      });
+      await waitForProtoMessage(daemonWs);
 
       // Connect UI
       const uiWs = await connectWs("/ws/ui", TEST_USER);
       // Drain initial state + events
       for (let index = 0; index < 50; index++) {
         try {
-          await waitForMessage(uiWs, 200);
+          await waitForRelayedMessage(uiWs, 200);
         } catch {
           break;
         }

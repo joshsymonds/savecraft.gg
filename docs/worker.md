@@ -72,9 +72,20 @@ Critical: no application-layer heartbeats. The UI must not send periodic pings. 
 
 ### Message Protocol
 
-All messages are protobuf-defined with JSON encoding on the wire. The canonical schema lives in `proto/protocol.proto`. Go types are generated to `internal/proto/`, TypeScript types to `worker/src/proto/`. No mirrored types — both languages codegen from the same `.proto` file via `buf generate`.
+All messages use binary protobuf encoding on the wire. The canonical schema lives in `proto/protocol.proto`. Go types are generated to `internal/proto/`, TypeScript types to `worker/src/proto/` and `web/src/lib/proto/`. No mirrored types — all three targets codegen from the same `.proto` file via `buf generate`.
 
-Messages use a protobuf `oneof` envelope (`Message.payload`). Field numbers are grouped by category with gaps for future additions. Each side processes the variants it cares about and ignores the rest.
+Two envelope types:
+
+- **`Message`** — daemon↔server communication (both directions). Uses a protobuf `oneof` envelope (`Message.payload`). Field numbers grouped by category with gaps for future additions.
+- **`RelayedMessage`** — server→browser only. Wraps a `Message` with required `source_id` and `server_timestamp` fields for event attribution. UserHub constructs this when forwarding to UI clients.
+
+```
+daemon --[binary ws, Message]--> SourceHub --[binary http, Message]--> UserHub --[binary ws, RelayedMessage]--> browser
+                                     |                                    |
+                                D1 (JSON)                           DO storage (JSON)
+```
+
+JSON is used only at storage boundaries (D1 event persistence, DO per-source state). All transport is binary proto.
 
 **Save data does not flow through the WebSocket.** The daemon pushes parsed GameState JSON to the server via HTTP POST (`/api/v1/push`). The WebSocket carries only lightweight status events (~200 bytes each). This keeps the Durable Object cheap and simple.
 
@@ -110,16 +121,19 @@ PushCompleted     → "✓ Uploaded Hammerdin (47KB) in 280ms"
 
 | Range | Direction | Category | Messages |
 |-------|-----------|----------|----------|
-| 1-9 | daemon → server | Daemon lifecycle | `DaemonOnline`, `DaemonOffline` |
+| 1-9 | daemon → server | Source lifecycle | `SourceOnline`, `SourceOffline`, `SourceHeartbeat` |
 | 10-19 | daemon → server | Game discovery | `ScanStarted`, `ScanCompleted`, `GameDetected`, `GameNotFound`, `Watching`, `GamesDiscovered` |
 | 20-29 | daemon → server | Parse lifecycle | `ParseStarted`, `PluginStatus`, `ParseCompleted`, `ParseFailed` |
 | 30-39 | daemon → server | Push lifecycle | `PushStarted`, `PushCompleted`, `PushFailed` |
-| 40-49 | daemon → server | Plugin mgmt | `PluginUpdated` |
-| 50-59 | server → daemon | Commands | `ConfigUpdate`, `RescanGame`, `PluginAvailable`, `DiscoverGames` |
+| 40 | daemon → server | Plugin mgmt | `PluginUpdated` |
+| 41-43 | server → daemon | Source updates | `SourceUpdateAvailable`, `SourceUpdateStarted`, `SourceUpdateFailed` |
+| 44-45 | daemon → server | Plugin errors | `PluginUpdateCheckFailed`, `PluginDownloadFailed` |
+| 50-53 | server → daemon | Commands | `ConfigUpdate`, `RescanGame`, `PluginAvailable`, `DiscoverGames` |
+| 54 | daemon → server | Config results | `ConfigResult` |
 | 60-69 | server → UI | State | `SourceState` (cold-start snapshot) |
 | 70-79 | UI → server → daemon | User actions | `TestPath`, `TestPathResult` |
 
-SourceHub forwards all daemon status events (ranges 1-49) to UserHub, which broadcasts them to connected UI WebSockets. On UI connect, UserHub sends a merged `SourceState` snapshot (aggregated from all of the user's SourceHub DOs) and recent events from D1.
+SourceHub forwards all daemon status events (ranges 1-45, 54) to UserHub as binary proto via internal HTTP POST. UserHub wraps each event in a `RelayedMessage` (stamping `source_id` and `server_timestamp`) and sends binary to connected UI WebSockets. On UI connect, UserHub sends a merged `SourceState` snapshot (aggregated from all of the user's SourceHub DOs) and recent events from D1, all wrapped in `RelayedMessage`.
 
 **Coordination:** The daemon sends `PushStarted` before the HTTP POST, `PushCompleted`/`PushFailed` after. It only sends `PushStarted` after a successful parse. If the push fails and will be retried, the daemon sends `PushFailed` with `will_retry: true`, then `PushStarted` again on retry.
 

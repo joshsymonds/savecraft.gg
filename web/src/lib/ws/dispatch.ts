@@ -1,20 +1,24 @@
 import { dispatchToActivity } from "$lib/stores/activity";
 import { dispatchToSources } from "$lib/stores/sources";
 import { setTestPathResult } from "$lib/stores/testpath";
-import type { WireMessage } from "$lib/types/wire";
+import { RelayedMessage } from "$lib/proto/savecraft/v1/protocol";
 
-export function handleMessage(data: string): void {
-  let msg: WireMessage;
+export function handleMessage(data: ArrayBuffer): void {
+  let relayed: ReturnType<typeof RelayedMessage.decode>;
   try {
-    msg = JSON.parse(data) as WireMessage;
+    relayed = RelayedMessage.decode(new Uint8Array(data));
   } catch {
     return;
   }
 
-  if (msg.testPathResult) {
-    setTestPathResult(msg.testPathResult);
+  const sourceId = relayed.sourceId;
+  const serverTimestamp = relayed.serverTimestamp;
+  const message = relayed.message;
+
+  if (message?.payload?.$case === "testPathResult") {
+    setTestPathResult(message.payload.testPathResult);
   }
 
-  dispatchToSources(msg);
-  dispatchToActivity(msg);
+  dispatchToSources(sourceId, message);
+  dispatchToActivity(serverTimestamp, message);
 }

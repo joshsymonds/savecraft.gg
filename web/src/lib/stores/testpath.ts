@@ -1,11 +1,11 @@
-import type { WireTestPathResult } from "$lib/types/wire";
+import type { TestPathResult } from "$lib/proto/savecraft/v1/protocol";
 import { type Readable, writable } from "svelte/store";
 
-const { subscribe, set } = writable<WireTestPathResult | null>(null);
+const { subscribe, set } = writable<TestPathResult | null>(null);
 
-export const testPathResult: Readable<WireTestPathResult | null> = { subscribe };
+export const testPathResult: Readable<TestPathResult | null> = { subscribe };
 
-export function setTestPathResult(result: WireTestPathResult): void {
+export function setTestPathResult(result: TestPathResult): void {
   set(result);
 }
 

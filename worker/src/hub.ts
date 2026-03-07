@@ -225,11 +225,14 @@ export class SourceHub extends DurableObject<Env> {
 
   async webSocketMessage(ws: WebSocket, message: string | ArrayBuffer): Promise<void> {
     const tags = this.ctx.getTags(ws);
-    const msgString = typeof message === "string" ? message : new TextDecoder().decode(message);
+    const msgBuf =
+      typeof message === "string"
+        ? (new TextEncoder().encode(message).buffer as ArrayBuffer)
+        : message;
 
     if (!tags.includes("daemon")) return;
 
-    const rpc = this.parseMessage(msgString);
+    const rpc = this.parseMessage(msgBuf);
     const payloadType = rpc?.payload?.$case ?? "unknown";
     this.debugLog.push("info", "message received", { payloadType });
 
@@ -244,12 +247,19 @@ export class SourceHub extends DurableObject<Env> {
 
     const sourceId = await this.getSourceIdForConnection(tags);
 
+    // JSON for D1 persistence (storage boundary stays JSON)
+    const eventJson = rpc ? JSON.stringify(Message.toJSON(rpc)) : undefined;
+    // Binary proto bytes for UserHub relay
+    const eventBytes = rpc ? Message.encode(rpc).finish() : undefined;
+
     // Persist before forwarding — ensures D1 is written before UI sees the event
-    await this.persistEvent(sourceId, rpc, msgString);
+    await this.persistEvent(sourceId, rpc, eventJson);
     await this.maybePersistConfigResult(rpc);
 
-    // Forward event to UserHub for UI broadcast
-    await this.forwardEventToUserHub(msgString, sourceId);
+    // Forward binary event to UserHub for UI broadcast
+    if (eventBytes) {
+      await this.forwardEventToUserHub(eventBytes, sourceId);
+    }
 
     // Broadcast updated state after event — UI gets the event first,
     // then the state snapshot reflecting it
@@ -505,8 +515,11 @@ export class SourceHub extends DurableObject<Env> {
 
     // Forward offline events and updated state to UserHub
     for (const sourceId of staleSourceIds) {
-      const offlineMsg = JSON.stringify({ sourceOffline: {} });
-      await this.forwardEventToUserHub(offlineMsg, sourceId);
+      const offlineMsg: Message = {
+        payload: { $case: "sourceOffline", sourceOffline: { timestamp: undefined } },
+      };
+      const offlineBytes = Message.encode(offlineMsg).finish();
+      await this.forwardEventToUserHub(offlineBytes, sourceId);
     }
     await this.forwardStateToUserHub();
 
@@ -593,10 +606,9 @@ export class SourceHub extends DurableObject<Env> {
     return this.ctx.storage.get<string>(connTag);
   }
 
-  private parseMessage(msgString: string): Message | undefined {
+  private parseMessage(data: ArrayBuffer): Message | undefined {
     try {
-      const parsed = JSON.parse(msgString) as Record<string, unknown>;
-      const rpc = Message.fromJSON(parsed);
+      const rpc = Message.decode(new Uint8Array(data));
       return rpc.payload ? rpc : undefined;
     } catch {
       return undefined;
@@ -715,14 +727,17 @@ export class SourceHub extends DurableObject<Env> {
       const entry = manifest.platforms[platform];
       if (!entry) return;
 
-      const updateMsg = JSON.stringify({
-        sourceUpdateAvailable: {
-          version: manifest.version,
-          url: entry.url,
-          signatureUrl: entry.signatureUrl,
-          sha256: entry.sha256,
+      const updateMsg = Message.encode({
+        payload: {
+          $case: "sourceUpdateAvailable",
+          sourceUpdateAvailable: {
+            version: manifest.version,
+            url: entry.url,
+            signatureUrl: entry.signatureUrl,
+            sha256: entry.sha256,
+          },
         },
-      });
+      }).finish();
 
       this.debugLog.push("info", "source update available", { version: manifest.version });
       ws.send(updateMsg);
@@ -811,8 +826,8 @@ export class SourceHub extends DurableObject<Env> {
         newGames.map((game) =>
           this.env.DB.prepare(
             `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
-             VALUES (?, ?, ?, 1, '[]')`,
-          ).bind(sourceUuid, game.gameId, game.path),
+             VALUES (?, ?, ?, 1, ?)`,
+          ).bind(sourceUuid, game.gameId, game.path, JSON.stringify(game.fileExtensions ?? [])),
         ),
       );
 
@@ -855,7 +870,9 @@ export class SourceHub extends DurableObject<Env> {
 
     // Send config to all connected daemon sockets. SourceHub is keyed by
     // source_uuid, so all daemon connections belong to this source.
-    const msg = JSON.stringify({ configUpdate: { games } });
+    const msg = Message.encode({
+      payload: { $case: "configUpdate", configUpdate: { games } },
+    }).finish();
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
       daemonWs.send(msg);
     }
@@ -895,7 +912,9 @@ export class SourceHub extends DurableObject<Env> {
     if (daemonSockets.length === 0) {
       return Response.json({ sent: false, daemon_online: false });
     }
-    const msg = JSON.stringify({ rescanGame: { gameId: body.gameId } });
+    const msg = Message.encode({
+      payload: { $case: "rescanGame", rescanGame: { gameId: body.gameId } },
+    }).finish();
     for (const ws of daemonSockets) {
       ws.send(msg);
     }
@@ -920,17 +939,21 @@ export class SourceHub extends DurableObject<Env> {
 
   // ── UserHub forwarding ────────────────────────────────────────────
 
-  private async forwardEventToUserHub(event: string, sourceId: string | undefined): Promise<void> {
+  private async forwardEventToUserHub(eventBytes: Uint8Array, sourceId: string | undefined): Promise<void> {
     const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
     if (!userUuid) return;
     try {
       const id = this.env.USER_HUB.idFromName(userUuid);
       const stub = this.env.USER_HUB.get(id);
+      const headers: Record<string, string> = { "X-User-UUID": userUuid };
+      if (sourceId) {
+        headers["X-Source-ID"] = sourceId;
+      }
       const resp = await stub.fetch(
         new Request("https://do/forward-event", {
           method: "POST",
-          headers: { "X-User-UUID": userUuid },
-          body: JSON.stringify({ event, sourceId }),
+          headers,
+          body: eventBytes,
         }),
       );
       await resp.text();
@@ -961,20 +984,22 @@ export class SourceHub extends DurableObject<Env> {
         source.canRescan = meta.canRescan;
         source.canReceiveConfig = meta.canReceiveConfig;
       }
-      // Pre-serialize via proto so Date objects become ISO strings.
-      // UserHub stores per-source state keyed by sourceUuid and merges on send.
-      const envelope = Message.toJSON({
+
+      // Encode SourceState as binary proto Message for UserHub
+      const stateBytes = Message.encode({
         payload: { $case: "sourceState", sourceState: state },
-      });
-      const stateJson = JSON.stringify(envelope);
+      }).finish();
 
       const id = this.env.USER_HUB.idFromName(userUuid);
       const stub = this.env.USER_HUB.get(id);
       const resp = await stub.fetch(
         new Request("https://do/update-state", {
           method: "POST",
-          headers: { "X-User-UUID": userUuid },
-          body: JSON.stringify({ sourceUuid, stateJson }),
+          headers: {
+            "X-User-UUID": userUuid,
+            "X-Source-UUID": sourceUuid,
+          },
+          body: stateBytes,
         }),
       );
       await resp.text();
@@ -1023,9 +1048,9 @@ export class SourceHub extends DurableObject<Env> {
   private async persistEvent(
     sourceId: string | undefined,
     rpc: Message | undefined,
-    rawMessage: string,
+    eventJson: string | undefined,
   ): Promise<void> {
-    if (!rpc?.payload) return;
+    if (!rpc?.payload || !eventJson) return;
     try {
       const eventType = rpc.payload.$case;
       if (SourceHub.SKIP_PERSIST.has(eventType)) return;
@@ -1035,7 +1060,7 @@ export class SourceHub extends DurableObject<Env> {
         `INSERT INTO source_events (source_uuid, event_type, event_data)
          VALUES (?, ?, ?)`,
       )
-        .bind(sourceId, eventType, rawMessage)
+        .bind(sourceId, eventType, eventJson)
         .run();
 
       await this.env.DB.prepare(
