@@ -235,6 +235,26 @@ export function requireInnerPayload<C extends PayloadCase>(
   return requirePayload(relayed.message, $case);
 }
 
+/**
+ * Sends a SourceOnline message and drains the link state notification
+ * (sourceLinked or refreshLinkCodeResult) that the server pushes in response.
+ * Returns the drained link state message for inspection if needed.
+ */
+export async function sendSourceOnlineAndDrainLinkState(
+  ws: WebSocket,
+  version = "0.1.0",
+  platform = "",
+): Promise<Message> {
+  sendProto(ws, {
+    payload: {
+      $case: "sourceOnline",
+      sourceOnline: { version, timestamp: undefined, platform, os: "", arch: "" },
+    },
+  });
+  // The server now pushes a link state notification after SourceOnline.
+  return waitForProtoMessage(ws);
+}
+
 // -- Source helpers for tests --------------------------------------------------
 
 async function sha256Hex(input: string): Promise<string> {

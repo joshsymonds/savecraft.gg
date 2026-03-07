@@ -12,6 +12,7 @@ import {
   requirePayload,
   seedSource,
   sendProto,
+  sendSourceOnlineAndDrainLinkState,
   waitForProtoMessage,
   waitForRelayedMessage,
   waitForRelayedMessageMatching,
@@ -459,11 +460,11 @@ describe("SourceHub", () => {
     const daemonA = await connectDaemonWs(sourceA.sourceToken);
     const daemonB = await connectDaemonWs(sourceB.sourceToken);
 
-    sendProto(daemonA, sourceOnlineMsg());
+    await sendSourceOnlineAndDrainLinkState(daemonA);
     const configA = await waitForProtoMessage(daemonA);
     const cuA = requirePayload(configA, "configUpdate");
 
-    sendProto(daemonB, sourceOnlineMsg());
+    await sendSourceOnlineAndDrainLinkState(daemonB);
     const configB = await waitForProtoMessage(daemonB);
     const cuB = requirePayload(configB, "configUpdate");
 
@@ -649,17 +650,15 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    sendProto(daemonWs, sourceOnlineMsg({ platform: "linux-amd64" }));
-
-    const msg1 = await waitForProtoMessage(daemonWs);
-
+    await sendSourceOnlineAndDrainLinkState(daemonWs, "0.1.0", "linux-amd64");
+    // After link state, server sends configUpdate and possibly sourceUpdateAvailable.
+    // Drain up to 3 messages looking for sourceUpdateAvailable.
     let updateMsg: Message | undefined;
-    if (msg1.payload?.$case === "sourceUpdateAvailable") {
-      updateMsg = msg1;
-    } else {
-      const msg2 = await waitForProtoMessage(daemonWs);
-      if (msg2.payload?.$case === "sourceUpdateAvailable") {
-        updateMsg = msg2;
+    for (let index = 0; index < 3; index++) {
+      const msg = await waitForProtoMessage(daemonWs).catch(() => null);
+      if (msg?.payload?.$case === "sourceUpdateAvailable") {
+        updateMsg = msg;
+        break;
       }
     }
 
@@ -840,19 +839,11 @@ describe("SourceHub", () => {
     const userUuid = "link-mid-session-user";
 
     const { sourceUuid, sourceToken } = await seedSource(null);
-    const linkCode = "123456";
-    await env.DB.prepare(
-      "UPDATE sources SET link_code = ?, link_code_expires_at = datetime('now', '+20 minutes') WHERE source_uuid = ?",
-    )
-      .bind(linkCode, sourceUuid)
-      .run();
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    sendProto(daemonWs, sourceOnlineMsg());
-
-    await new Promise((resolve) => {
-      setTimeout(resolve, 50);
-    });
+    // For unlinked sources, notifyLinkState generates a fresh link code.
+    const linkStateMsg = await sendSourceOnlineAndDrainLinkState(daemonWs);
+    const linkCode = requirePayload(linkStateMsg, "refreshLinkCodeResult").linkCode;
 
     const linkResp = await SELF.fetch("https://test-host/api/v1/source/link", {
       method: "POST",
@@ -932,7 +923,7 @@ describe("SourceHub", () => {
       .run();
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    sendProto(daemonWs, sourceOnlineMsg());
+    await sendSourceOnlineAndDrainLinkState(daemonWs);
 
     const noConfig = await waitForProtoMessage(daemonWs, 500).catch(() => null);
     expect(noConfig).toBeNull();
@@ -1032,8 +1023,8 @@ describe("SourceHub", () => {
     const { sourceToken } = await seedSource(userUuid);
 
     const daemon1 = await connectDaemonWs(sourceToken);
-    sendProto(daemon1, sourceOnlineMsg());
-    await waitForProtoMessage(daemon1);
+    await sendSourceOnlineAndDrainLinkState(daemon1);
+    await waitForProtoMessage(daemon1); // drain configUpdate (empty)
     sendProto(daemon1, {
       payload: {
         $case: "gameDetected",
@@ -1046,7 +1037,7 @@ describe("SourceHub", () => {
     await closeWs(daemon1);
 
     const daemon2 = await connectDaemonWs(sourceToken);
-    sendProto(daemon2, sourceOnlineMsg());
+    await sendSourceOnlineAndDrainLinkState(daemon2);
     const configMsg = await waitForProtoMessage(daemon2);
 
     const cu = requirePayload(configMsg, "configUpdate");
@@ -1071,8 +1062,8 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    sendProto(daemonWs, sourceOnlineMsg());
-    await waitForProtoMessage(daemonWs);
+    await sendSourceOnlineAndDrainLinkState(daemonWs);
+    await waitForProtoMessage(daemonWs); // drain configUpdate
 
     sendProto(daemonWs, {
       payload: {
@@ -1107,8 +1098,8 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    sendProto(daemonWs, sourceOnlineMsg());
-    await waitForProtoMessage(daemonWs);
+    await sendSourceOnlineAndDrainLinkState(daemonWs);
+    await waitForProtoMessage(daemonWs); // drain configUpdate
 
     sendProto(daemonWs, {
       payload: {
@@ -1299,7 +1290,7 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    sendProto(daemonWs, sourceOnlineMsg({ platform: "linux-amd64" }));
+    await sendSourceOnlineAndDrainLinkState(daemonWs, "0.2.0", "linux-amd64");
 
     const msg1 = await waitForProtoMessage(daemonWs);
     requirePayload(msg1, "configUpdate");

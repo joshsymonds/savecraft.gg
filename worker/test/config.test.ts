@@ -11,7 +11,7 @@ import {
   requireInnerPayload,
   requirePayload,
   seedSource,
-  sendProto,
+  sendSourceOnlineAndDrainLinkState,
   waitForProtoMessage,
   waitForRelayedMessage,
 } from "./helpers";
@@ -338,12 +338,7 @@ describe("Config push via SourceHub", () => {
       .run();
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    sendProto(daemonWs, {
-      payload: {
-        $case: "sourceOnline",
-        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
-      },
-    });
+    await sendSourceOnlineAndDrainLinkState(daemonWs);
 
     const msg = await waitForProtoMessage(daemonWs);
     const cu = requirePayload(msg, "configUpdate");
@@ -360,12 +355,7 @@ describe("Config push via SourceHub", () => {
     const { sourceToken } = await seedSource(userUuid);
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    sendProto(daemonWs, {
-      payload: {
-        $case: "sourceOnline",
-        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
-      },
-    });
+    await sendSourceOnlineAndDrainLinkState(daemonWs);
 
     const msg = await waitForProtoMessage(daemonWs);
     const cu = requirePayload(msg, "configUpdate");
@@ -386,12 +376,7 @@ describe("Config push via SourceHub", () => {
       .run();
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    sendProto(daemonWs, {
-      payload: {
-        $case: "sourceOnline",
-        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
-      },
-    });
+    await sendSourceOnlineAndDrainLinkState(daemonWs);
     await waitForProtoMessage(daemonWs);
 
     const uiWs = await connectWs("/ws/ui", userUuid);
@@ -420,12 +405,7 @@ describe("Config push via SourceHub", () => {
       .run();
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    sendProto(daemonWs, {
-      payload: {
-        $case: "sourceOnline",
-        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
-      },
-    });
+    await sendSourceOnlineAndDrainLinkState(daemonWs);
     await waitForProtoMessage(daemonWs);
 
     const uiWs = await connectWs("/ws/ui", userUuid);
@@ -454,12 +434,7 @@ describe("Config push via SourceHub", () => {
       .run();
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    sendProto(daemonWs, {
-      payload: {
-        $case: "sourceOnline",
-        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
-      },
-    });
+    await sendSourceOnlineAndDrainLinkState(daemonWs);
     await waitForProtoMessage(daemonWs);
 
     await closeWs(daemonWs);
@@ -483,12 +458,7 @@ describe("Config push via SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    sendProto(daemonWs, {
-      payload: {
-        $case: "sourceOnline",
-        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
-      },
-    });
+    await sendSourceOnlineAndDrainLinkState(daemonWs);
     await waitForProtoMessage(daemonWs);
 
     const configPromise = waitForProtoMessage(daemonWs);

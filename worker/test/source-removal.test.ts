@@ -8,7 +8,7 @@ import {
   connectWs,
   requireInnerPayload,
   seedSource,
-  sendProto,
+  sendSourceOnlineAndDrainLinkState,
   waitForProtoMessage,
   waitForRelayedMessage,
   waitForRelayedMessageMatching,
@@ -83,19 +83,8 @@ describe("Source Removal", () => {
 
       // Connect daemon so SourceHub creates state, then push it to UserHub
       const daemonWs = await connectDaemonWs(sourceToken);
-      sendProto(daemonWs, {
-        payload: {
-          $case: "sourceOnline",
-          sourceOnline: {
-            version: "0.1.0",
-            timestamp: undefined,
-            platform: "",
-            os: "",
-            arch: "",
-          },
-        },
-      });
-      await waitForProtoMessage(daemonWs);
+      await sendSourceOnlineAndDrainLinkState(daemonWs);
+      await waitForProtoMessage(daemonWs); // drain configUpdate
 
       // Connect UI to verify source appears in state
       const uiWs = await connectWs("/ws/ui", TEST_USER);
@@ -208,18 +197,7 @@ describe("Source Removal", () => {
 
       // Connect daemon and send sourceOnline so SourceHub has state
       const daemonWs = await connectDaemonWs(sourceToken);
-      sendProto(daemonWs, {
-        payload: {
-          $case: "sourceOnline",
-          sourceOnline: {
-            version: "0.1.0",
-            timestamp: undefined,
-            platform: "",
-            os: "",
-            arch: "",
-          },
-        },
-      });
+      await sendSourceOnlineAndDrainLinkState(daemonWs);
       // Consume configUpdate
       await waitForProtoMessage(daemonWs);
 
@@ -333,19 +311,8 @@ describe("Source Removal", () => {
 
       // Connect daemon and send sourceOnline so SourceHub has state
       const daemonWs = await connectDaemonWs(sourceToken);
-      sendProto(daemonWs, {
-        payload: {
-          $case: "sourceOnline",
-          sourceOnline: {
-            version: "0.1.0",
-            timestamp: undefined,
-            platform: "",
-            os: "",
-            arch: "",
-          },
-        },
-      });
-      await waitForProtoMessage(daemonWs);
+      await sendSourceOnlineAndDrainLinkState(daemonWs);
+      await waitForProtoMessage(daemonWs); // drain configUpdate
 
       // Connect UI
       const uiWs = await connectWs("/ws/ui", TEST_USER);

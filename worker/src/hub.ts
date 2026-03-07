@@ -259,24 +259,34 @@ export class SourceHub extends DurableObject<Env> {
 
     const { mutation, sourceId } = await this.applySourceState(tags, rpc);
 
-    // Heartbeat updates lastSeen (via applySourceState) but is not
-    // relayed to UI or persisted — it's transport-level only.
-    if (rpc?.payload?.$case === "sourceHeartbeat") {
-      await this.forwardStateToUserHub();
-      return;
-    }
+    if (await this.handleSpecialMessage(ws, rpc, sourceId)) return;
 
-    // PushSave is handled specially: write to D1, respond with result,
-    // then synthesize a pushCompleted event for the state/relay pipeline.
-    if (rpc?.payload?.$case === "pushSave") {
-      await this.handlePushSave(ws, rpc.payload.pushSave, sourceId);
-      return;
+    // After SourceOnline, tell daemon its link state so it doesn't need to poll.
+    if (rpc?.payload?.$case === "sourceOnline") {
+      await this.notifyLinkState(ws, sourceId);
     }
 
     // Source management messages — handled inline, not relayed.
     if (await this.dispatchSourceManagement(ws, rpc, sourceId)) return;
 
     await this.processEvent(ws, rpc, sourceId, mutation);
+  }
+
+  /** Handle heartbeat and pushSave early — these skip persist/relay. Returns true if handled. */
+  private async handleSpecialMessage(
+    ws: WebSocket,
+    rpc: Message | undefined,
+    sourceId: string | undefined,
+  ): Promise<boolean> {
+    if (rpc?.payload?.$case === "sourceHeartbeat") {
+      await this.forwardStateToUserHub();
+      return true;
+    }
+    if (rpc?.payload?.$case === "pushSave") {
+      await this.handlePushSave(ws, rpc.payload.pushSave, sourceId);
+      return true;
+    }
+    return false;
   }
 
   /** Dispatch source management messages. Returns true if handled. */
@@ -1126,6 +1136,31 @@ export class SourceHub extends DurableObject<Env> {
   }
 
   // ── Source management (daemon-initiated over WS) ──────────────────
+
+  /**
+   * After SourceOnline, tell the daemon whether it's linked or not.
+   * If linked: push SourceLinked so daemon knows to proceed normally.
+   * If not linked: generate a fresh link code and push RefreshLinkCodeResult.
+   */
+  private async notifyLinkState(ws: WebSocket, sourceId: string | undefined): Promise<void> {
+    try {
+      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
+      if (userUuid) {
+        const msg = Message.encode({
+          payload: { $case: "sourceLinked", sourceLinked: { userUuid } },
+        }).finish();
+        ws.send(msg);
+        this.debugLog.push("info", "notified daemon: already linked", { userUuid });
+      } else {
+        // Generate a fresh code so daemon can display it immediately.
+        await this.handleRefreshLinkCode(ws, sourceId);
+      }
+    } catch (error) {
+      this.debugLog.push("error", "notifyLinkState failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+    }
+  }
 
   /** Daemon requests a fresh link code. */
   private async handleRefreshLinkCode(ws: WebSocket, sourceId: string | undefined): Promise<void> {
