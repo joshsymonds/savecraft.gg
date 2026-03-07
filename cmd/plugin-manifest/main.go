@@ -40,6 +40,21 @@ type pluginTOML struct {
 	Author       authorInfo    `toml:"author"        json:"author"`
 	DefaultPaths defaultPaths  `toml:"default_paths" json:"default_paths"`
 	Reference    referenceTOML `toml:"reference"     json:"-"`
+	AdapterTOML  adapterTOML   `toml:"adapter"       json:"-"`
+}
+
+type adapterTOML struct {
+	AuthProvider string   `toml:"auth_provider"`
+	AuthFlow     string   `toml:"auth_flow"`
+	Scopes       []string `toml:"scopes"`
+	Regions      []string `toml:"regions"`
+}
+
+type adapterManifest struct {
+	AuthProvider string   `json:"auth_provider"`
+	AuthFlow     string   `json:"auth_flow"`
+	Scopes       []string `json:"scopes"`
+	Regions      []string `json:"regions"`
 }
 
 type authorInfo struct {
@@ -83,9 +98,10 @@ type referenceManifest struct {
 type pluginManifest struct {
 	pluginTOML
 	Version   string             `json:"version"`
-	SHA256    string             `json:"sha256"`
-	URL       string             `json:"url"`
+	SHA256    string             `json:"sha256,omitempty"`
+	URL       string             `json:"url,omitempty"`
 	Reference *referenceManifest `json:"reference,omitempty"`
+	Adapter   *adapterManifest   `json:"adapter,omitempty"`
 }
 
 func main() {
@@ -133,18 +149,30 @@ func buildManifest(pluginDir string) (pluginManifest, error) {
 		return pluginManifest{}, fmt.Errorf("decode %s: %w", tomlPath, err)
 	}
 
-	// Find parser .wasm file — convention: parser.wasm in plugin directory.
+	manifest := pluginManifest{
+		pluginTOML: cfg,
+	}
+
+	// API plugins have no WASM — include adapter config instead.
+	if cfg.Source == "api" {
+		manifest.Adapter = &adapterManifest{
+			AuthProvider: cfg.AdapterTOML.AuthProvider,
+			AuthFlow:     cfg.AdapterTOML.AuthFlow,
+			Scopes:       cfg.AdapterTOML.Scopes,
+			Regions:      cfg.AdapterTOML.Regions,
+		}
+		return manifest, nil
+	}
+
+	// WASM plugin: hash parser.wasm and optionally include reference metadata.
 	wasmPath := filepath.Join(pluginDir, "parser.wasm")
 	hash, err := fileSHA256(wasmPath)
 	if err != nil {
 		return pluginManifest{}, fmt.Errorf("hash %s: %w", wasmPath, err)
 	}
 
-	manifest := pluginManifest{
-		pluginTOML: cfg,
-		SHA256:     hash,
-		URL:        fmt.Sprintf("plugins/%s/parser.wasm", cfg.GameID),
-	}
+	manifest.SHA256 = hash
+	manifest.URL = fmt.Sprintf("plugins/%s/parser.wasm", cfg.GameID)
 
 	// If reference.wasm exists and plugin.toml declares reference modules, include reference metadata.
 	refWasmPath := filepath.Join(pluginDir, "reference.wasm")

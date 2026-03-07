@@ -405,6 +405,95 @@ func TestExtractReferenceSchema_InvalidWASM(t *testing.T) {
 	}
 }
 
+func TestBuildManifest_APIPlugin(t *testing.T) {
+	dir := t.TempDir()
+
+	writeFile(t, filepath.Join(dir, "plugin.toml"), `
+game_id = "wow"
+source = "api"
+name = "World of Warcraft"
+description = "Character profiles via Battle.net API"
+channel = "beta"
+coverage = "partial"
+file_extensions = []
+homepage = "https://savecraft.gg/plugins/wow"
+
+[author]
+name = "Test"
+github = "test"
+
+[default_paths]
+
+[adapter]
+auth_provider = "battlenet"
+auth_flow = "oauth2_code"
+scopes = ["wow.profile", "openid"]
+regions = ["us", "eu", "kr", "tw"]
+`)
+	// No parser.wasm — API plugins have no WASM.
+
+	m, err := buildManifest(dir)
+	if err != nil {
+		t.Fatalf("buildManifest: %v", err)
+	}
+
+	if m.GameID != "wow" {
+		t.Errorf("game_id = %q, want wow", m.GameID)
+	}
+	if m.Source != "api" {
+		t.Errorf("source = %q, want api", m.Source)
+	}
+	// API plugins should have no WASM-related fields.
+	if m.SHA256 != "" {
+		t.Errorf("sha256 should be empty for API plugin, got %q", m.SHA256)
+	}
+	if m.URL != "" {
+		t.Errorf("url should be empty for API plugin, got %q", m.URL)
+	}
+	if m.Reference != nil {
+		t.Error("reference should be nil for API plugin")
+	}
+	// Adapter config should be populated.
+	if m.Adapter == nil {
+		t.Fatal("adapter is nil, want populated")
+	}
+	if m.Adapter.AuthProvider != "battlenet" {
+		t.Errorf("adapter.auth_provider = %q, want battlenet", m.Adapter.AuthProvider)
+	}
+	if m.Adapter.AuthFlow != "oauth2_code" {
+		t.Errorf("adapter.auth_flow = %q, want oauth2_code", m.Adapter.AuthFlow)
+	}
+	if len(m.Adapter.Scopes) != 2 {
+		t.Fatalf("adapter.scopes = %d, want 2", len(m.Adapter.Scopes))
+	}
+	if len(m.Adapter.Regions) != 4 {
+		t.Fatalf("adapter.regions = %d, want 4", len(m.Adapter.Regions))
+	}
+
+	// Verify JSON shape: no sha256/url at top level, adapter field present.
+	data, err := json.MarshalIndent(m, "", "  ")
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if _, ok := raw["sha256"]; ok {
+		t.Error("sha256 should be omitted from JSON for API plugin")
+	}
+	if _, ok := raw["url"]; ok {
+		t.Error("url should be omitted from JSON for API plugin")
+	}
+	adapter, ok := raw["adapter"].(map[string]any)
+	if !ok {
+		t.Fatal("adapter field missing from JSON output")
+	}
+	if _, ok := adapter["auth_provider"]; !ok {
+		t.Error("adapter.auth_provider missing from JSON")
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
