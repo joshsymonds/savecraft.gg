@@ -1796,65 +1796,66 @@ function handleWsRegister(env: Env): Response {
   const server = pair[1];
 
   server.accept();
-  server.addEventListener("message", async (event: MessageEvent) => {
-    try {
-      const data =
-        typeof event.data === "string"
-          ? new TextEncoder().encode(event.data)
-          : new Uint8Array(event.data as ArrayBuffer);
+  server.addEventListener("message", (event: MessageEvent) => {
+    void (async () => {
+      try {
+        const data =
+          typeof event.data === "string"
+            ? new TextEncoder().encode(event.data)
+            : new Uint8Array(event.data as ArrayBuffer);
 
-      const msg = Message.decode(data);
-      if (msg.payload?.$case !== "register") {
-        server.close(1008, "Expected Register message");
-        return;
-      }
+        const msg = Message.decode(data);
+        if (msg.payload?.$case !== "register") {
+          server.close(1008, "Expected Register message");
+          return;
+        }
 
-      const { hostname, os, arch } = msg.payload.register;
+        const { hostname, os, arch } = msg.payload.register;
 
-      const sourceUuid = crypto.randomUUID();
-      const randomBytes = new Uint8Array(16);
-      crypto.getRandomValues(randomBytes);
-      const hex = [...randomBytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-      const sourceToken = `sct_${hex}`;
-      const tokenHash = await sha256Hex(sourceToken);
+        const sourceUuid = crypto.randomUUID();
+        const randomBytes = new Uint8Array(16);
+        crypto.getRandomValues(randomBytes);
+        const hex = [...randomBytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+        const sourceToken = `sct_${hex}`;
+        const tokenHash = await sha256Hex(sourceToken);
 
-      const linkCode = generateSixDigitCode();
-      const linkCodeExpiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000);
+        const linkCode = generateSixDigitCode();
+        const linkCodeExpiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000);
 
-      await env.DB.prepare(
-        `INSERT INTO sources (source_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch)
+        await env.DB.prepare(
+          `INSERT INTO sources (source_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch)
          VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      )
-        .bind(
-          sourceUuid,
-          tokenHash,
-          linkCode,
-          linkCodeExpiresAt.toISOString(),
-          hostname || null,
-          os || null,
-          arch || null,
         )
-        .run();
-
-      const resultMsg = Message.encode({
-        payload: {
-          $case: "registerResult",
-          registerResult: {
+          .bind(
             sourceUuid,
-            sourceToken,
+            tokenHash,
             linkCode,
-            linkCodeExpiresAt,
-          },
-        },
-      }).finish();
+            linkCodeExpiresAt.toISOString(),
+            hostname || null,
+            os || null,
+            arch || null,
+          )
+          .run();
 
-      server.send(resultMsg);
-      server.close(1000, "Registration complete");
-    } catch (error) {
-      server.close(1011, error instanceof Error ? error.message : "Registration failed");
-    }
+        const resultMsg = Message.encode({
+          payload: {
+            $case: "registerResult",
+            registerResult: {
+              sourceUuid,
+              sourceToken,
+              linkCode,
+              linkCodeExpiresAt,
+            },
+          },
+        }).finish();
+
+        server.send(resultMsg);
+        server.close(1000, "Registration complete");
+      } catch (error) {
+        server.close(1011, error instanceof Error ? error.message : "Registration failed");
+      }
+    })();
   });
 
   return new Response(null, { status: 101, webSocket: client });
 }
-

@@ -321,7 +321,7 @@ describe("MCP Tools", () => {
         summary: "Paladin, Level 89",
       });
 
-      const result = await getSection(env.DB,USER_A, "save-section", ["equipped_gear"]);
+      const result = await getSection(env.DB, USER_A, "save-section", ["equipped_gear"]);
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -343,10 +343,7 @@ describe("MCP Tools", () => {
         summary: "Paladin, Level 89",
       });
 
-      const result = await getSection(env.DB,USER_A, "save-multi", [
-        "equipped_gear",
-        "skills",
-      ]);
+      const result = await getSection(env.DB, USER_A, "save-multi", ["equipped_gear", "skills"]);
       const data = parseResult(result) as {
         save_id: string;
         sections: Record<string, unknown>;
@@ -366,7 +363,7 @@ describe("MCP Tools", () => {
         summary: "Paladin, Level 89",
       });
 
-      const result = await getSection(env.DB,USER_A, "save-nosec", ["nonexistent"]);
+      const result = await getSection(env.DB, USER_A, "save-nosec", ["nonexistent"]);
       expect(result.isError).toBe(true);
     });
 
@@ -379,12 +376,9 @@ describe("MCP Tools", () => {
         summary: "Sorceress, Level 80",
       });
 
-      const result = await getSection(env.DB,USER_A, "save-other-sec", [
-        "equipped_gear",
-      ]);
+      const result = await getSection(env.DB, USER_A, "save-other-sec", ["equipped_gear"]);
       expect(result.isError).toBe(true);
     });
-
   });
 
   // ── get_save ────────────────────────────────────────────────
@@ -399,7 +393,7 @@ describe("MCP Tools", () => {
         summary: "Hammerdin, Level 89 Paladin",
       });
 
-      const result = await getSave(env.DB,USER_A, "save-overview");
+      const result = await getSave(env.DB, USER_A, "save-overview");
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -423,12 +417,12 @@ describe("MCP Tools", () => {
         summary: "Sorceress, Level 80",
       });
 
-      const result = await getSave(env.DB,USER_A, "save-other-get");
+      const result = await getSave(env.DB, USER_A, "save-other-get");
       expect(result.isError).toBe(true);
     });
 
     it("returns error for non-existent save", async () => {
-      const result = await getSave(env.DB,USER_A, "nonexistent");
+      const result = await getSave(env.DB, USER_A, "nonexistent");
       expect(result.isError).toBe(true);
     });
   });

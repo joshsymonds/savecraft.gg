@@ -107,14 +107,36 @@ describe("Saves REST API", () => {
 
   it("lists pushed saves", async () => {
     // Push two saves
-    await seedPush(TEST_USER, SOURCE_UUID, "d2r", "Hammerdin", "Level 89 Paladin", "2026-02-25T21:00:00Z", {
-      ...DEFAULT_SECTIONS,
-      character_overview: { ...DEFAULT_SECTIONS.character_overview, data: { name: "Hammerdin", class: "Paladin", level: 89 } },
-    });
-    await seedPush(TEST_USER, SOURCE_UUID, "d2r", "Frostbite", "Level 31 Sorc", "2026-02-25T20:00:00Z", {
-      ...DEFAULT_SECTIONS,
-      character_overview: { ...DEFAULT_SECTIONS.character_overview, data: { name: "Frostbite", class: "Paladin", level: 89 } },
-    });
+    await seedPush(
+      TEST_USER,
+      SOURCE_UUID,
+      "d2r",
+      "Hammerdin",
+      "Level 89 Paladin",
+      "2026-02-25T21:00:00Z",
+      {
+        ...DEFAULT_SECTIONS,
+        character_overview: {
+          ...DEFAULT_SECTIONS.character_overview,
+          data: { name: "Hammerdin", class: "Paladin", level: 89 },
+        },
+      },
+    );
+    await seedPush(
+      TEST_USER,
+      SOURCE_UUID,
+      "d2r",
+      "Frostbite",
+      "Level 31 Sorc",
+      "2026-02-25T20:00:00Z",
+      {
+        ...DEFAULT_SECTIONS,
+        character_overview: {
+          ...DEFAULT_SECTIONS.character_overview,
+          data: { name: "Frostbite", class: "Paladin", level: 89 },
+        },
+      },
+    );
 
     const resp = await SELF.fetch(getSaves());
     expect(resp.status).toBe(200);
@@ -140,10 +162,21 @@ describe("Saves REST API", () => {
   });
 
   it("gets a single save with sections", async () => {
-    const saveUuid = await seedPush(TEST_USER, SOURCE_UUID, "d2r", "Hammerdin", "Level 89 Paladin", "2026-02-25T21:00:00Z", {
-      ...DEFAULT_SECTIONS,
-      character_overview: { ...DEFAULT_SECTIONS.character_overview, data: { name: "Hammerdin", class: "Paladin", level: 89 } },
-    });
+    const saveUuid = await seedPush(
+      TEST_USER,
+      SOURCE_UUID,
+      "d2r",
+      "Hammerdin",
+      "Level 89 Paladin",
+      "2026-02-25T21:00:00Z",
+      {
+        ...DEFAULT_SECTIONS,
+        character_overview: {
+          ...DEFAULT_SECTIONS.character_overview,
+          data: { name: "Hammerdin", class: "Paladin", level: 89 },
+        },
+      },
+    );
 
     const resp = await SELF.fetch(getSave(saveUuid));
     expect(resp.status).toBe(200);
@@ -183,10 +216,21 @@ describe("Saves REST API", () => {
 
   it("isolates saves between users", async () => {
     // Push as TEST_USER
-    await seedPush(TEST_USER, SOURCE_UUID, "d2r", "Hammerdin", "Level 89 Paladin", "2026-02-25T21:00:00Z", {
-      ...DEFAULT_SECTIONS,
-      character_overview: { ...DEFAULT_SECTIONS.character_overview, data: { name: "Hammerdin", class: "Paladin", level: 89 } },
-    });
+    await seedPush(
+      TEST_USER,
+      SOURCE_UUID,
+      "d2r",
+      "Hammerdin",
+      "Level 89 Paladin",
+      "2026-02-25T21:00:00Z",
+      {
+        ...DEFAULT_SECTIONS,
+        character_overview: {
+          ...DEFAULT_SECTIONS.character_overview,
+          data: { name: "Hammerdin", class: "Paladin", level: 89 },
+        },
+      },
+    );
 
     // List as different user
     const resp = await SELF.fetch(
