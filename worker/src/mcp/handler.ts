@@ -495,7 +495,7 @@ async function handleToolCall(
       return deleteNote(env.DB, userUuid, saveId, args.note_id as string);
     }
     case "refresh_save": {
-      return refreshSave(env.DB, env.SOURCE_HUB, userUuid, saveId);
+      return refreshSave(env, userUuid, saveId);
     }
     case "search_saves": {
       return searchSaves(
