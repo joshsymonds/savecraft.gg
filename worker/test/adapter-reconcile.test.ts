@@ -1,10 +1,11 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll } from "./helpers";
-import { sha256Hex } from "../src/auth";
-import { reconcileCharacters } from "../src/adapters/reconcile";
 import type { DiscoveredSave } from "../src/adapters/adapter";
+import { reconcileCharacters } from "../src/adapters/reconcile";
+import { sha256Hex } from "../src/auth";
+
+import { cleanAll } from "./helpers";
 
 const USER_UUID = "reconcile-user";
 const GAME_ID = "wow";
@@ -62,12 +63,7 @@ async function seedSave(
   return saveUuid;
 }
 
-function disc(
-  characterId: string,
-  name: string,
-  realm: string,
-  region = "us",
-): DiscoveredSave {
+function disc(characterId: string, name: string, realm: string, region = "us"): DiscoveredSave {
   return {
     saveName: `${name}-${realm}-${region.toUpperCase()}`,
     characterId,

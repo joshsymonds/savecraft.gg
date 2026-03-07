@@ -808,11 +808,7 @@ export async function deleteNote(
 /** Rate limit: minimum seconds between adapter refreshes for a single save. */
 const ADAPTER_REFRESH_COOLDOWN_SEC = 300;
 
-export async function refreshSave(
-  env: Env,
-  userUuid: string,
-  saveId: string,
-): Promise<ToolResult> {
+export async function refreshSave(env: Env, userUuid: string, saveId: string): Promise<ToolResult> {
   const save = await lookupSave(env.DB, userUuid, saveId);
   if (!save)
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
@@ -824,14 +820,12 @@ export async function refreshSave(
   }
 
   // Check if this save is adapter-backed
-  const source = await env.DB.prepare(
-    "SELECT source_kind FROM sources WHERE source_uuid = ?",
-  )
+  const source = await env.DB.prepare("SELECT source_kind FROM sources WHERE source_uuid = ?")
     .bind(save.last_source_uuid)
     .first<{ source_kind: string }>();
 
   if (source?.source_kind === "adapter") {
-    return refreshAdapterSave(env, userUuid, save);
+    return refreshAdapterSave(env, userUuid, save, save.last_source_uuid);
   }
 
   // Daemon-backed: send rescan via SourceHub
@@ -859,13 +853,103 @@ export async function refreshSave(
   });
 }
 
+interface LinkedCharRow {
+  character_id: string;
+  character_name: string;
+  metadata: string | null;
+}
+
+interface CredentialRow {
+  access_token_enc: string;
+  refresh_token_enc: string | null;
+  expires_at: string | null;
+}
+
+interface RealmRegion {
+  realmSlug: string;
+  region: string;
+}
+
+function checkAdapterCooldown(save: SaveRow): ToolResult | null {
+  if (!save.last_updated) return null;
+  const lastUpdated = new Date(save.last_updated).getTime();
+  const cooldownMs = ADAPTER_REFRESH_COOLDOWN_SEC * 1000;
+  const now = Date.now();
+  if (now - lastUpdated < cooldownMs) {
+    const retryAfter = Math.ceil((cooldownMs - (now - lastUpdated)) / 1000);
+    return errorResult(
+      `This character was refreshed recently. Try again in ${String(retryAfter)} seconds.`,
+    );
+  }
+  return null;
+}
+
+function resolveRealmAndRegion(linkedChar: LinkedCharRow | null, saveName: string): RealmRegion {
+  if (linkedChar?.metadata) {
+    const meta = JSON.parse(linkedChar.metadata) as Record<string, unknown>;
+    const rawRealm = meta.realm_slug;
+    const rawRegion = meta.region;
+    return {
+      realmSlug: typeof rawRealm === "string" ? rawRealm : "",
+      region: typeof rawRegion === "string" ? rawRegion : "us",
+    };
+  }
+  const nameParts = saveName.split("-");
+  return {
+    realmSlug: nameParts[1] ?? "",
+    region: (nameParts[2] ?? "US").toLowerCase(),
+  };
+}
+
+function resolveCharacterName(linkedChar: LinkedCharRow | null, saveName: string): string {
+  const name = linkedChar?.character_name ?? saveName.split("-")[0] ?? "";
+  return name.toLowerCase();
+}
+
+function buildCredentials(creds: CredentialRow | null): {
+  accessToken: string;
+  refreshToken: string | undefined;
+  expiresAt: string | undefined;
+} {
+  return {
+    accessToken: creds?.access_token_enc ?? "",
+    refreshToken: creds?.refresh_token_enc ?? undefined,
+    expiresAt: creds?.expires_at ?? undefined,
+  };
+}
+
+function handleAdapterError(error: {
+  code: string;
+  message: string;
+  userAction?: string;
+  retryAfter?: number;
+}): ToolResult {
+  if (error.code === "token_expired") {
+    return errorResult(
+      `Battle.net token expired. ${error.userAction ?? "The player needs to reconnect their Battle.net account at savecraft.gg/settings."}`,
+    );
+  }
+  if (error.code === "rate_limited") {
+    return errorResult(
+      `Blizzard API rate limited. Try again in ${String(error.retryAfter ?? 60)} seconds.`,
+    );
+  }
+  if (error.code === "character_not_found") {
+    return errorResult(
+      "Character not found on Blizzard's servers. They may have been deleted or transferred.",
+    );
+  }
+  return errorResult(`Game API error: ${error.message}`);
+}
+
 async function refreshAdapterSave(
   env: Env,
   userUuid: string,
   save: SaveRow,
+  sourceUuid: string,
 ): Promise<ToolResult> {
   const { adapters } = await import("../adapters/registry");
-  const { AdapterError } = await import("../adapters/adapter");
+  const { AdapterError: adapterErrorClass } = await import("../adapters/adapter");
   const { storePush } = await import("../store");
 
   const adapter = adapters[save.game_id];
@@ -873,71 +957,36 @@ async function refreshAdapterSave(
     return errorResult(`No adapter registered for game: ${save.game_id}`);
   }
 
-  // Rate limiting
-  if (save.last_updated) {
-    const lastUpdated = new Date(save.last_updated).getTime();
-    const cooldownMs = ADAPTER_REFRESH_COOLDOWN_SEC * 1000;
-    const now = Date.now();
-    if (now - lastUpdated < cooldownMs) {
-      const retryAfter = Math.ceil((cooldownMs - (now - lastUpdated)) / 1000);
-      return errorResult(
-        `This character was refreshed recently. Try again in ${String(retryAfter)} seconds.`,
-      );
-    }
-  }
+  const cooldownResult = checkAdapterCooldown(save);
+  if (cooldownResult) return cooldownResult;
 
-  // Look up linked character for realm/region
   const linkedChar = await env.DB.prepare(
     `SELECT character_id, character_name, metadata
      FROM linked_characters
      WHERE user_uuid = ? AND game_id = ? AND source_uuid = ? AND active = 1
      AND character_name = ?`,
   )
-    .bind(userUuid, save.game_id, save.last_source_uuid, save.save_name.split("-")[0] ?? "")
-    .first<{
-      character_id: string;
-      character_name: string;
-      metadata: string | null;
-    }>();
+    .bind(userUuid, save.game_id, sourceUuid, save.save_name.split("-")[0] ?? "")
+    .first<LinkedCharRow>();
 
-  let realmSlug: string;
-  let region: string;
-  if (linkedChar?.metadata) {
-    const meta = JSON.parse(linkedChar.metadata) as Record<string, unknown>;
-    realmSlug = (meta.realm_slug as string) ?? "";
-    region = (meta.region as string) ?? "us";
-  } else {
-    const nameParts = save.save_name.split("-");
-    realmSlug = nameParts[1] ?? "";
-    region = (nameParts[2] ?? "US").toLowerCase();
-  }
-
+  const { realmSlug, region } = resolveRealmAndRegion(linkedChar, save.save_name);
   if (!realmSlug) {
     return errorResult("Cannot determine character realm. The character may need to be re-linked.");
   }
 
-  // Look up credentials
   const creds = await env.DB.prepare(
     "SELECT access_token_enc, refresh_token_enc, expires_at FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
   )
     .bind(userUuid, save.game_id)
-    .first<{
-      access_token_enc: string;
-      refresh_token_enc: string | null;
-      expires_at: string | null;
-    }>();
+    .first<CredentialRow>();
 
   try {
-    const characterName = (linkedChar?.character_name ?? save.save_name.split("-")[0] ?? "").toLowerCase();
+    const characterName = resolveCharacterName(linkedChar, save.save_name);
     const gameState = await adapter.fetchState(
       {
         characterId: `${realmSlug}/${characterName}`,
         region,
-        credentials: {
-          accessToken: creds?.access_token_enc ?? "",
-          refreshToken: creds?.refresh_token_enc ?? undefined,
-          expiresAt: creds?.expires_at ?? undefined,
-        },
+        credentials: buildCredentials(creds),
       },
       env,
     );
@@ -948,7 +997,7 @@ async function refreshAdapterSave(
     await storePush(
       env,
       userUuid,
-      save.last_source_uuid!,
+      sourceUuid,
       save.game_id,
       gameState.identity.saveName,
       gameState.summary,
@@ -963,26 +1012,11 @@ async function refreshAdapterSave(
       summary: gameState.summary,
       timestamp: parsedAt,
     });
-  } catch (err) {
-    if (err instanceof AdapterError) {
-      if (err.code === "token_expired") {
-        return errorResult(
-          `Battle.net token expired. ${err.userAction ?? "The player needs to reconnect their Battle.net account at savecraft.gg/settings."}`,
-        );
-      }
-      if (err.code === "rate_limited") {
-        return errorResult(
-          `Blizzard API rate limited. Try again in ${String(err.retryAfter ?? 60)} seconds.`,
-        );
-      }
-      if (err.code === "character_not_found") {
-        return errorResult(
-          "Character not found on Blizzard's servers. They may have been deleted or transferred.",
-        );
-      }
-      return errorResult(`Game API error: ${err.message}`);
+  } catch (error) {
+    if (error instanceof adapterErrorClass) {
+      return handleAdapterError(error);
     }
-    throw err;
+    throw error;
   }
 }
 

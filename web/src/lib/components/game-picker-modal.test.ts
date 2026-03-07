@@ -180,6 +180,7 @@ describe("GamePickerModal", () => {
       props: { games: gamesWithPaths, configurableSources: linuxSource, onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-assertion -- svelte-check needs this cast
     const input = screen.getByRole("textbox") as HTMLInputElement;
     expect(input.value).toBe("/home/josh/.config/StardewValley/Saves");
   });

@@ -164,24 +164,24 @@
       </p>
       <p>
         These tokens are stored <strong>solely</strong> to verify your ownership of in-game characters
-        and to refresh character data on demand when you or your AI assistant requests it. We do not
-        use these tokens for any other purpose, and we do not access your game account beyond reading
-        character profile data.
+        and to refresh character data on demand when you or your AI assistant requests it. We do not use
+        these tokens for any other purpose, and we do not access your game account beyond reading character
+        profile data.
       </p>
       <p>
         We also store a list of your <strong>linked characters</strong> (character name, game-specific
-        ID, and metadata such as realm, class, and level) so that we can track which characters you
-        have chosen to monitor. Characters you remove are soft-deleted (marked inactive) rather than
-        hard-deleted, so your save history is preserved.
+        ID, and metadata such as realm, class, and level) so that we can track which characters you have
+        chosen to monitor. Characters you remove are soft-deleted (marked inactive) rather than hard-deleted,
+        so your save history is preserved.
       </p>
       <p class="legal-basis">
         <strong>Legal basis:</strong> Contract performance — connecting your game account is required
         to fetch character data for API-backed games.
       </p>
       <p class="retention">
-        <strong>Retention:</strong> Until you disconnect your game account. You can revoke access at
-        any time from your game platform's account settings (e.g., Battle.net Authorized Applications),
-        which immediately invalidates the stored tokens.
+        <strong>Retention:</strong> Until you disconnect your game account. You can revoke access at any
+        time from your game platform's account settings (e.g., Battle.net Authorized Applications), which
+        immediately invalidates the stored tokens.
       </p>
 
       <h3>Device status events</h3>
@@ -331,8 +331,8 @@
       </p>
       <p>
         <strong>What they receive:</strong> API requests for your character profile data (gear, stats,
-        talents, raid progression). These requests are authenticated with your OAuth token and
-        Savecraft's application credentials.
+        talents, raid progression). These requests are authenticated with your OAuth token and Savecraft's
+        application credentials.
       </p>
       <p>
         <strong>What we receive from them:</strong> Character profile data (name, realm, class, level,
@@ -341,24 +341,24 @@
       </p>
       <p>
         <strong>Their privacy policy:</strong>
-        <a href="https://www.blizzard.com/en-us/legal/a4380ee5-5c8d-4e3b-83b7-ea4d874e7f22/blizzard-entertainment-online-privacy-policy" class="text-link"
-          >blizzard.com/legal/privacy</a
+        <a
+          href="https://www.blizzard.com/en-us/legal/a4380ee5-5c8d-4e3b-83b7-ea4d874e7f22/blizzard-entertainment-online-privacy-policy"
+          class="text-link">blizzard.com/legal/privacy</a
         >
       </p>
 
       <h3>Raider.io</h3>
       <p>
-        <strong>Role:</strong> Enrichment data provider for World of Warcraft (no authentication
-        required).
+        <strong>Role:</strong> Enrichment data provider for World of Warcraft (no authentication required).
       </p>
       <p>
-        <strong>What they receive:</strong> Your character name, realm, and region in API requests.
-        No OAuth tokens or personal data are shared.
+        <strong>What they receive:</strong> Your character name, realm, and region in API requests. No
+        OAuth tokens or personal data are shared.
       </p>
       <p>
-        <strong>What we receive from them:</strong> Mythic+ scores, rankings, and raid progression
-        summaries. This data enriches your character's game state but is not required — if Raider.io
-        is unavailable, your save data is still complete from Blizzard's API alone.
+        <strong>What we receive from them:</strong> Mythic+ scores, rankings, and raid progression summaries.
+        This data enriches your character's game state but is not required — if Raider.io is unavailable,
+        your save data is still complete from Blizzard's API alone.
       </p>
 
       <h3>Stripe (future)</h3>
@@ -469,9 +469,9 @@
       <p>
         Save data and notes are stored in Cloudflare's infrastructure, which provides encryption at
         rest and in transit. Authentication tokens are hashed (SHA-256 for device tokens; bcrypt for
-        Clerk credentials). MCP OAuth tokens are opaque and stored with automatic expiration.
-        Game platform OAuth tokens (e.g., Battle.net) are stored in our database and can be revoked
-        by disconnecting the account or revoking access from the game platform's settings. The daemon
+        Clerk credentials). MCP OAuth tokens are opaque and stored with automatic expiration. Game
+        platform OAuth tokens (e.g., Battle.net) are stored in our database and can be revoked by
+        disconnecting the account or revoking access from the game platform's settings. The daemon
         runs with minimal system permissions — on Linux/Steam Deck, kernel-enforced sandboxing (via
         systemd) restricts it to read-only access to save file directories and write access only to
         its own configuration. WASM plugins that parse save files are sandboxed and cannot access

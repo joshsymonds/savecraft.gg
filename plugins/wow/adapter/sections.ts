@@ -7,7 +7,10 @@
  * is set to unavailable but the section still returns primary data.
  */
 
-import type { EnrichmentStatus, GameStateSection } from "../../../worker/src/adapters/adapter";
+import type {
+  EnrichmentStatus,
+  GameStateSection,
+} from "../../../worker/src/adapters/adapter";
 import type {
   BlizzardEquipment,
   BlizzardEquipmentItem,
@@ -336,16 +339,16 @@ export function mapRaidProgression(
   };
 
   if (raiderio?.raid_progression) {
-    data.raiderio_progression = Object.entries(
-      raiderio.raid_progression,
-    ).map(([slug, prog]) => ({
-      raid: slug,
-      summary: prog.summary,
-      total_bosses: prog.total_bosses,
-      normal_killed: prog.normal_bosses_killed,
-      heroic_killed: prog.heroic_bosses_killed,
-      mythic_killed: prog.mythic_bosses_killed,
-    }));
+    data.raiderio_progression = Object.entries(raiderio.raid_progression).map(
+      ([slug, prog]) => ({
+        raid: slug,
+        summary: prog.summary,
+        total_bosses: prog.total_bosses,
+        normal_killed: prog.normal_bosses_killed,
+        heroic_killed: prog.heroic_bosses_killed,
+        mythic_killed: prog.mythic_bosses_killed,
+      }),
+    );
   }
 
   return {

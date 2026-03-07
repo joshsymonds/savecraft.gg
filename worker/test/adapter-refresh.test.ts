@@ -1,8 +1,9 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll } from "./helpers";
 import { sha256Hex } from "../src/auth";
+
+import { cleanAll } from "./helpers";
 
 const USER_UUID = "adapter-refresh-user";
 
@@ -45,40 +46,13 @@ async function seedAdapterSave(
   return saveUuid;
 }
 
-/** Seed a linked character for an adapter save. */
-async function seedLinkedCharacter(
-  userUuid: string,
-  gameId: string,
-  sourceUuid: string,
-  characterId: string,
-  characterName: string,
-  metadata: Record<string, unknown>,
-): Promise<void> {
-  await env.DB.prepare(
-    `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid)
-     VALUES (?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      userUuid,
-      gameId,
-      characterId,
-      characterName,
-      JSON.stringify(metadata),
-      sourceUuid,
-    )
-    .run();
-}
-
 function refreshRequest(gameId: string, saveUuid: string): Request {
-  return new Request(
-    `https://test-host/api/v1/adapters/${gameId}/refresh/${saveUuid}`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${USER_UUID}`,
-      },
+  return new Request(`https://test-host/api/v1/adapters/${gameId}/refresh/${saveUuid}`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${USER_UUID}`,
     },
-  );
+  });
 }
 
 describe("Adapter Refresh", () => {
@@ -97,13 +71,10 @@ describe("Adapter Refresh", () => {
 
   it("returns 404 for unknown adapter", async () => {
     const resp = await SELF.fetch(
-      new Request(
-        "https://test-host/api/v1/adapters/unknown-game/refresh/abc",
-        {
-          method: "POST",
-          headers: { Authorization: `Bearer ${USER_UUID}` },
-        },
-      ),
+      new Request("https://test-host/api/v1/adapters/unknown-game/refresh/abc", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${USER_UUID}` },
+      }),
     );
     expect(resp.status).toBe(404);
     const body = await resp.json<{ error: string }>();
@@ -126,12 +97,7 @@ describe("Adapter Refresh", () => {
       .bind(sourceUuid, USER_UUID, tokenHash)
       .run();
 
-    const saveUuid = await seedAdapterSave(
-      USER_UUID,
-      sourceUuid,
-      "wow",
-      "Dratnos-tichondrius-US",
-    );
+    const saveUuid = await seedAdapterSave(USER_UUID, sourceUuid, "wow", "Dratnos-tichondrius-US");
 
     const resp = await SELF.fetch(refreshRequest("wow", saveUuid));
     expect(resp.status).toBe(400);
@@ -160,12 +126,7 @@ describe("Adapter Refresh", () => {
   it("returns 400 when realm cannot be determined", async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
     // Save with no linked character and name that can't be parsed
-    const saveUuid = await seedAdapterSave(
-      USER_UUID,
-      sourceUuid,
-      "wow",
-      "BadName",
-    );
+    const saveUuid = await seedAdapterSave(USER_UUID, sourceUuid, "wow", "BadName");
 
     const resp = await SELF.fetch(refreshRequest("wow", saveUuid));
     expect(resp.status).toBe(400);

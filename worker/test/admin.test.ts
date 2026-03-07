@@ -128,7 +128,13 @@ describe("Admin API", () => {
       sendProto(ws, {
         payload: {
           $case: "sourceOnline",
-          sourceOnline: { version: "0.1.0", platform: "linux-amd64", timestamp: undefined, os: "", arch: "" },
+          sourceOnline: {
+            version: "0.1.0",
+            platform: "linux-amd64",
+            timestamp: undefined,
+            os: "",
+            arch: "",
+          },
         },
       });
       // Wait for state broadcast to settle
@@ -196,7 +202,13 @@ describe("Admin API", () => {
       sendProto(ws, {
         payload: {
           $case: "sourceOnline",
-          sourceOnline: { version: "0.1.0", platform: "linux-amd64", timestamp: undefined, os: "", arch: "" },
+          sourceOnline: {
+            version: "0.1.0",
+            platform: "linux-amd64",
+            timestamp: undefined,
+            os: "",
+            arch: "",
+          },
         },
       });
       await new Promise((resolve) => {
@@ -207,7 +219,12 @@ describe("Admin API", () => {
       sendProto(ws, {
         payload: {
           $case: "parseFailed",
-          parseFailed: { gameId: "d2r", message: "plugin crashed", fileName: "test.d2s", errorType: 3 },
+          parseFailed: {
+            gameId: "d2r",
+            message: "plugin crashed",
+            fileName: "test.d2s",
+            errorType: 3,
+          },
         },
       });
       await new Promise((resolve) => {

@@ -72,7 +72,18 @@
     name: "Diablo II: Resurrected",
     statusLine: "3 saves · 2 sources",
     sourceCount: 2,
-    sources: [watchingSource, { ...watchingSource, sourceId: "src-6", sourceName: "DAEMON · LAPTOP", hostname: "laptop", sourceKind: "daemon", path: String.raw`C:\Users\Josh\Saved Games\Diablo II Resurrected`, saveCount: 2 }],
+    sources: [
+      watchingSource,
+      {
+        ...watchingSource,
+        sourceId: "src-6",
+        sourceName: "DAEMON · LAPTOP",
+        hostname: "laptop",
+        sourceKind: "daemon",
+        path: String.raw`C:\Users\Josh\Saved Games\Diablo II Resurrected`,
+        saveCount: 2,
+      },
+    ],
     needsConfig: false,
     saves: [
       {
@@ -247,7 +258,9 @@
       game={healthyGame}
       {availableSources}
       {defaultPaths}
-      onclose={() => { defaultOpen = false; }}
+      onclose={() => {
+        defaultOpen = false;
+      }}
       onsaveclick={handleSaveClick}
       onremovegame={handleRemoveGame}
       onsave={succeedAfter(800)}
@@ -255,7 +268,12 @@
     />
   {:else}
     <div style="display: flex; justify-content: center; padding: 48px;">
-      <button class="demo-btn" onclick={() => { defaultOpen = true; }}>REOPEN</button>
+      <button
+        class="demo-btn"
+        onclick={() => {
+          defaultOpen = true;
+        }}>REOPEN</button
+      >
     </div>
   {/if}
 </Story>
@@ -266,13 +284,20 @@
     <GameDetailModal
       game={emptyGame}
       {defaultPaths}
-      onclose={() => { emptyOpen = false; }}
+      onclose={() => {
+        emptyOpen = false;
+      }}
       onsaveclick={handleSaveClick}
       onremovegame={handleRemoveGame}
     />
   {:else}
     <div style="display: flex; justify-content: center; padding: 48px;">
-      <button class="demo-btn" onclick={() => { emptyOpen = true; }}>REOPEN</button>
+      <button
+        class="demo-btn"
+        onclick={() => {
+          emptyOpen = true;
+        }}>REOPEN</button
+      >
     </div>
   {/if}
 </Story>
@@ -285,7 +310,9 @@
       showSourceBadges
       {availableSources}
       {defaultPaths}
-      onclose={() => { badgesOpen = false; }}
+      onclose={() => {
+        badgesOpen = false;
+      }}
       onsaveclick={handleSaveClick}
       onremovegame={handleRemoveGame}
       onsave={succeedAfter(800)}
@@ -293,7 +320,12 @@
     />
   {:else}
     <div style="display: flex; justify-content: center; padding: 48px;">
-      <button class="demo-btn" onclick={() => { badgesOpen = true; }}>REOPEN</button>
+      <button
+        class="demo-btn"
+        onclick={() => {
+          badgesOpen = true;
+        }}>REOPEN</button
+      >
     </div>
   {/if}
 </Story>
@@ -306,7 +338,9 @@
       showSourceBadges
       {availableSources}
       {defaultPaths}
-      onclose={() => { brokenOpen = false; }}
+      onclose={() => {
+        brokenOpen = false;
+      }}
       onsaveclick={handleSaveClick}
       onremovegame={handleRemoveGame}
       onsave={succeedAfter(800)}
@@ -314,7 +348,12 @@
     />
   {:else}
     <div style="display: flex; justify-content: center; padding: 48px;">
-      <button class="demo-btn" onclick={() => { brokenOpen = true; }}>REOPEN</button>
+      <button
+        class="demo-btn"
+        onclick={() => {
+          brokenOpen = true;
+        }}>REOPEN</button
+      >
     </div>
   {/if}
 </Story>
@@ -326,14 +365,21 @@
       game={singleBrokenGame}
       {availableSources}
       {defaultPaths}
-      onclose={() => { singleBrokenOpen = false; }}
+      onclose={() => {
+        singleBrokenOpen = false;
+      }}
       onsaveclick={handleSaveClick}
       onsave={succeedAfter(800)}
       onremovesource={handleRemoveSource}
     />
   {:else}
     <div style="display: flex; justify-content: center; padding: 48px;">
-      <button class="demo-btn" onclick={() => { singleBrokenOpen = true; }}>REOPEN</button>
+      <button
+        class="demo-btn"
+        onclick={() => {
+          singleBrokenOpen = true;
+        }}>REOPEN</button
+      >
     </div>
   {/if}
 </Story>
@@ -345,14 +391,21 @@
       game={noSourcesGame}
       {availableSources}
       {defaultPaths}
-      onclose={() => { noSourcesOpen = false; }}
+      onclose={() => {
+        noSourcesOpen = false;
+      }}
       onsaveclick={handleSaveClick}
       onsave={succeedAfter(800)}
       onremovesource={handleRemoveSource}
     />
   {:else}
     <div style="display: flex; justify-content: center; padding: 48px;">
-      <button class="demo-btn" onclick={() => { noSourcesOpen = true; }}>REOPEN</button>
+      <button
+        class="demo-btn"
+        onclick={() => {
+          noSourcesOpen = true;
+        }}>REOPEN</button
+      >
     </div>
   {/if}
 </Story>
@@ -362,13 +415,20 @@
   {#if apiOpen}
     <GameDetailModal
       game={wowGame}
-      onclose={() => { apiOpen = false; }}
+      onclose={() => {
+        apiOpen = false;
+      }}
       onsaveclick={handleSaveClick}
       onremovegame={handleRemoveGame}
     />
   {:else}
     <div style="display: flex; justify-content: center; padding: 48px;">
-      <button class="demo-btn" onclick={() => { apiOpen = true; }}>REOPEN</button>
+      <button
+        class="demo-btn"
+        onclick={() => {
+          apiOpen = true;
+        }}>REOPEN</button
+      >
     </div>
   {/if}
 </Story>

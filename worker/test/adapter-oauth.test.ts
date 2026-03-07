@@ -1,24 +1,11 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll } from "./helpers";
 import { sha256Hex } from "../src/auth";
 
-const USER_UUID = "adapter-oauth-user";
+import { cleanAll } from "./helpers";
 
-/** Seed a KV state entry as if the authorize route created it. */
-async function seedOAuthState(
-  stateKey: string,
-  userUuid: string,
-  region: string,
-  returnUrl?: string,
-): Promise<void> {
-  await env.OAUTH_KV.put(
-    `battlenet-oauth-state:${stateKey}`,
-    JSON.stringify({ userUuid, region, returnUrl: returnUrl ?? "" }),
-    { expirationTtl: 600 },
-  );
-}
+const USER_UUID = "adapter-oauth-user";
 
 /** Seed an adapter source pre-linked to the user. */
 async function seedAdapterSource(userUuid: string): Promise<string> {
@@ -55,24 +42,18 @@ describe("Adapter OAuth", () => {
   describe("GET /oauth/battlenet/authorize", () => {
     it("returns 401 without auth", async () => {
       const resp = await SELF.fetch(
-        new Request(
-          "https://test-host/oauth/battlenet/authorize?region=us",
-          { method: "GET" },
-        ),
+        new Request("https://test-host/oauth/battlenet/authorize?region=us", { method: "GET" }),
       );
       expect(resp.status).toBe(401);
     });
 
     it("redirects to Battle.net with correct params", async () => {
       const resp = await SELF.fetch(
-        new Request(
-          "https://test-host/oauth/battlenet/authorize?region=us",
-          {
-            method: "GET",
-            headers: { Authorization: `Bearer ${USER_UUID}` },
-            redirect: "manual",
-          },
-        ),
+        new Request("https://test-host/oauth/battlenet/authorize?region=us", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${USER_UUID}` },
+          redirect: "manual",
+        }),
       );
       expect(resp.status).toBe(302);
       const location = resp.headers.get("Location")!;
@@ -93,14 +74,11 @@ describe("Adapter OAuth", () => {
 
     it("uses EU OAuth URLs for region=eu", async () => {
       const resp = await SELF.fetch(
-        new Request(
-          "https://test-host/oauth/battlenet/authorize?region=eu",
-          {
-            method: "GET",
-            headers: { Authorization: `Bearer ${USER_UUID}` },
-            redirect: "manual",
-          },
-        ),
+        new Request("https://test-host/oauth/battlenet/authorize?region=eu", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${USER_UUID}` },
+          redirect: "manual",
+        }),
       );
       expect(resp.status).toBe(302);
       const location = resp.headers.get("Location")!;
@@ -109,14 +87,11 @@ describe("Adapter OAuth", () => {
 
     it("defaults to US when no region specified", async () => {
       const resp = await SELF.fetch(
-        new Request(
-          "https://test-host/oauth/battlenet/authorize",
-          {
-            method: "GET",
-            headers: { Authorization: `Bearer ${USER_UUID}` },
-            redirect: "manual",
-          },
-        ),
+        new Request("https://test-host/oauth/battlenet/authorize", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${USER_UUID}` },
+          redirect: "manual",
+        }),
       );
       expect(resp.status).toBe(302);
     });
@@ -134,10 +109,9 @@ describe("Adapter OAuth", () => {
 
     it("returns 400 for invalid/expired state", async () => {
       const resp = await SELF.fetch(
-        new Request(
-          "https://test-host/oauth/battlenet/callback?code=test-code&state=bad-state",
-          { method: "GET" },
-        ),
+        new Request("https://test-host/oauth/battlenet/callback?code=test-code&state=bad-state", {
+          method: "GET",
+        }),
       );
       expect(resp.status).toBe(400);
       const body = await resp.json<{ error: string }>();
@@ -162,17 +136,14 @@ describe("Adapter OAuth", () => {
 
     it("returns 404 for unknown adapter", async () => {
       const resp = await SELF.fetch(
-        new Request(
-          "https://test-host/api/v1/adapters/unknown-game/characters",
-          {
-            method: "POST",
-            headers: {
-              Authorization: `Bearer ${USER_UUID}`,
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ character_ids: ["123"] }),
+        new Request("https://test-host/api/v1/adapters/unknown-game/characters", {
+          method: "POST",
+          headers: {
+            Authorization: `Bearer ${USER_UUID}`,
+            "Content-Type": "application/json",
           },
-        ),
+          body: JSON.stringify({ character_ids: ["123"] }),
+        }),
       );
       expect(resp.status).toBe(404);
     });
@@ -256,7 +227,9 @@ describe("Adapter OAuth", () => {
         .bind(USER_UUID, "wow")
         .all<{ character_id: string; character_name: string; active: number }>();
       expect(chars.results).toHaveLength(2);
-      expect(chars.results.map((c) => c.character_id).sort()).toEqual(["12345", "67890"]);
+      expect(
+        chars.results.map((c) => c.character_id).toSorted((a, b) => a.localeCompare(b)),
+      ).toEqual(["12345", "67890"]);
 
       // Verify saves were created
       const saves = await env.DB.prepare(

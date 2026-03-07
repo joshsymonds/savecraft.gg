@@ -1,5 +1,5 @@
-import type { ActivityEventType } from "$lib/types/activity";
 import type { Message } from "$lib/proto/savecraft/v1/protocol";
+import type { ActivityEventType } from "$lib/types/activity";
 import { type Readable, writable } from "svelte/store";
 
 export interface ActivityEventData {
@@ -165,7 +165,7 @@ function buildPluginDownloadFailed(msg: Message): EventContent | null {
 function buildGamesDiscovered(msg: Message): EventContent | null {
   if (msg.payload?.$case !== "gamesDiscovered") return null;
   const g = msg.payload.gamesDiscovered;
-  const count = g.games?.length ?? 0;
+  const count = g.games.length;
   return {
     message: `Discovered ${String(count)} game${count === 1 ? "" : "s"}`,
   };
@@ -211,7 +211,10 @@ function buildEvent(
   };
 }
 
-export function dispatchToActivity(serverTimestamp: Date | undefined, msg: Message | undefined): void {
+export function dispatchToActivity(
+  serverTimestamp: Date | undefined,
+  msg: Message | undefined,
+): void {
   const payloadCase = msg?.payload?.$case;
   if (!payloadCase) return;
 

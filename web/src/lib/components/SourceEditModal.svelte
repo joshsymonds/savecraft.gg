@@ -178,7 +178,11 @@
         </button>
       {/if}
       <span class="footer-spacer"></span>
-      <button class="modal-btn" onclick={() => onclose()} disabled={saveState === "saving" || removing}>
+      <button
+        class="modal-btn"
+        onclick={() => onclose()}
+        disabled={saveState === "saving" || removing}
+      >
         CANCEL
       </button>
       <button

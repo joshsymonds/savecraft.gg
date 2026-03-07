@@ -3,4 +3,5 @@ build
 node_modules
 screenshots
 scripts
+src/lib/proto
 storybook-static

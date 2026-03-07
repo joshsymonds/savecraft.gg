@@ -101,9 +101,7 @@ export class UserHub extends DurableObject<Env> {
       const mergedState = await this.buildMergedSourceState();
       return Response.json({
         userUuid: userUuid ?? null,
-        mergedState: mergedState
-          ? Message.toJSON(mergedState)
-          : null,
+        mergedState: mergedState ? Message.toJSON(mergedState) : null,
       });
     }
 

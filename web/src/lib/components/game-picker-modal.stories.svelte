@@ -99,7 +99,9 @@
     // intentional no-op for story callbacks
   };
 
-  const singleSource = [{ id: "src-1", name: "Desktop", hostname: "desktop-pc", platform: "windows" }];
+  const singleSource = [
+    { id: "src-1", name: "Desktop", hostname: "desktop-pc", platform: "windows" },
+  ];
 
   const multiSources = [
     { id: "src-1", name: "Desktop", hostname: "desktop-pc", platform: "windows" },

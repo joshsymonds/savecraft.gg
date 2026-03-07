@@ -1,4 +1,8 @@
-type DefaultPaths = { windows?: string; linux?: string; darwin?: string };
+interface DefaultPaths {
+  windows?: string;
+  linux?: string;
+  darwin?: string;
+}
 
 export function defaultPathForPlatform(
   platform: string | null | undefined,

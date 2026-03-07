@@ -294,10 +294,7 @@ export const wowAdapter: ApiAdapter = {
       professionsResult,
       raiderio,
     ] = await Promise.all([
-      blizzardFetch<BlizzardProfile>(
-        `${base}/${charPath}?${ns}`,
-        token,
-      ),
+      blizzardFetch<BlizzardProfile>(`${base}/${charPath}?${ns}`, token),
       blizzardFetch<BlizzardEquipment>(
         `${base}/${charPath}/equipment?${ns}`,
         token,
@@ -326,24 +323,21 @@ export const wowAdapter: ApiAdapter = {
     ]);
 
     // Fetch current M+ season detail (needs season ID from profile)
-    const currentSeasonId =
-      mythicKeystoneProfileResult.data.seasons?.[0]?.id;
+    const currentSeasonId = mythicKeystoneProfileResult.data.seasons?.[0]?.id;
     let mythicKeystoneSeason: BlizzardMythicKeystoneSeason | undefined;
     if (currentSeasonId !== undefined) {
       try {
-        const seasonResult =
-          await blizzardFetch<BlizzardMythicKeystoneSeason>(
-            `${base}/${charPath}/mythic-keystone-profile/season/${currentSeasonId}?${ns}`,
-            token,
-          );
+        const seasonResult = await blizzardFetch<BlizzardMythicKeystoneSeason>(
+          `${base}/${charPath}/mythic-keystone-profile/season/${currentSeasonId}?${ns}`,
+          token,
+        );
         mythicKeystoneSeason = seasonResult.data;
       } catch {
         // Season data unavailable — not fatal, M+ section will be empty
       }
     }
 
-    const dataAsOf =
-      profileResult.lastModified ?? new Date().toISOString();
+    const dataAsOf = profileResult.lastModified ?? new Date().toISOString();
     const profile = profileResult.data;
 
     const summary = [

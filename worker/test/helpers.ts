@@ -117,8 +117,8 @@ export function waitForRelayedMessage(ws: WebSocket, timeoutMs = 2000): Promise<
         try {
           const data = event.data as ArrayBuffer;
           resolve(RelayedMessage.decode(new Uint8Array(data)));
-        } catch (e) {
-          reject(new Error(`Failed to decode RelayedMessage: ${String(e)}`));
+        } catch (error) {
+          reject(new Error(`Failed to decode RelayedMessage: ${String(error)}`));
         }
       },
       { once: true },
@@ -142,8 +142,8 @@ export function waitForProtoMessage(ws: WebSocket, timeoutMs = 2000): Promise<Me
         try {
           const data = event.data as ArrayBuffer;
           resolve(Message.decode(new Uint8Array(data)));
-        } catch (e) {
-          reject(new Error(`Failed to decode proto Message: ${String(e)}`));
+        } catch (error) {
+          reject(new Error(`Failed to decode proto Message: ${String(error)}`));
         }
       },
       { once: true },
@@ -196,25 +196,21 @@ type PayloadCase = NonNullable<Message["payload"]>["$case"];
 type PayloadVariant<C extends PayloadCase> = Extract<NonNullable<Message["payload"]>, { $case: C }>;
 
 /** Extract the inner payload type for a given $case value. */
-type PayloadValue<C extends PayloadCase> = PayloadVariant<C> extends { $case: C } & infer R
-  ? R extends Record<C, infer V>
-    ? V
-    : never
-  : never;
+type PayloadValue<C extends PayloadCase> =
+  PayloadVariant<C> extends { $case: C } & infer R
+    ? R extends Record<C, infer V>
+      ? V
+      : never
+    : never;
 
 /**
  * Type-safe payload extraction from a Message.
  * Narrows the discriminated union by checking $case at runtime and returning
  * the correctly typed inner value. Throws if $case doesn't match.
  */
-export function requirePayload<C extends PayloadCase>(
-  msg: Message,
-  $case: C,
-): PayloadValue<C> {
+export function requirePayload<C extends PayloadCase>(msg: Message, $case: C): PayloadValue<C> {
   if (msg.payload?.$case !== $case) {
-    throw new Error(
-      `Expected payload $case "${$case}" but got "${String(msg.payload?.$case)}"`,
-    );
+    throw new Error(`Expected payload $case "${$case}" but got "${String(msg.payload?.$case)}"`);
   }
   // After the $case check, we know the variant matches. TS can't prove the
   // generic key indexing is safe, so we use a controlled assertion here.
