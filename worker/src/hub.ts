@@ -825,17 +825,6 @@ export class SourceHub extends DurableObject<Env> {
         sections,
       );
 
-      // Update last_push_at (best-effort)
-      try {
-        await this.env.DB.prepare(
-          "UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?",
-        )
-          .bind(sourceId)
-          .run();
-      } catch {
-        // best-effort
-      }
-
       // Send PushSaveResult back to daemon
       const resultMsg = Message.encode({
         payload: {
@@ -893,8 +882,10 @@ export class SourceHub extends DurableObject<Env> {
     const eventJson = JSON.stringify(Message.toJSON(pushCompletedMsg));
     const eventBytes = Message.encode(pushCompletedMsg).finish();
     await this.persistEvent(sourceId, pushCompletedMsg, eventJson);
-    await this.forwardEventToUserHub(eventBytes, sourceId);
-    await this.forwardStateToUserHub();
+    await Promise.all([
+      this.forwardEventToUserHub(eventBytes, sourceId),
+      this.forwardStateToUserHub(),
+    ]);
   }
 
   /**

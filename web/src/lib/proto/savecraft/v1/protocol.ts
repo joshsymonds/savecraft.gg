@@ -299,7 +299,7 @@ export interface ParseFailed {
   message: string;
 }
 
-/** Source is uploading parsed game state to the server via HTTP POST. */
+/** Source is uploading parsed game state to the server via WebSocket. */
 export interface PushStarted {
   gameId: string;
   summary: string;

@@ -4,7 +4,6 @@
  * storePush upserts a save in D1 (metadata + sections) and indexes sections in FTS.
  */
 
-import { indexSaveSections } from "./mcp/tools";
 import type { Env } from "./types";
 
 export async function resolveGameName(plugins: R2Bucket, gameId: string): Promise<string> {
@@ -50,28 +49,39 @@ export async function storePush(
 
   const isNewer = !existingSave || parsedAt > existingSave.last_updated;
   if (isNewer) {
-    // D1 save metadata update
-    await env.DB.prepare(
-      "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
-    )
-      .bind(summary, parsedAt, sourceUuid, saveUuid)
-      .run();
+    // Combine metadata update, section upserts, and FTS indexing into one batch
+    const batch: D1PreparedStatement[] = [
+      env.DB.prepare(
+        "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
+      ).bind(summary, parsedAt, sourceUuid, saveUuid),
+      env.DB.prepare(
+        "UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?",
+      ).bind(sourceUuid),
+    ];
 
-    // D1 sections upsert — one row per section
-    const sectionBatch: D1PreparedStatement[] = [];
     for (const [name, section] of Object.entries(sections)) {
-      sectionBatch.push(
+      batch.push(
         env.DB.prepare(
           "INSERT OR REPLACE INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
         ).bind(saveUuid, name, section.description, JSON.stringify(section.data)),
       );
     }
-    if (sectionBatch.length > 0) {
-      await env.DB.batch(sectionBatch);
+
+    // FTS: delete old section entries, insert new ones
+    batch.push(
+      env.DB.prepare("DELETE FROM search_index WHERE save_id = ? AND type = 'section'").bind(
+        saveUuid,
+      ),
+    );
+    for (const [name, section] of Object.entries(sections)) {
+      batch.push(
+        env.DB.prepare(
+          "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, 'section', ?, ?, ?)",
+        ).bind(saveUuid, saveName, name, section.description, JSON.stringify(section.data)),
+      );
     }
 
-    // FTS index
-    await indexSaveSections(env.DB, saveUuid, saveName, sections);
+    await env.DB.batch(batch);
   }
 
   return { saveUuid };
