@@ -1551,4 +1551,81 @@ describe("SourceHub", () => {
 
     await closeWs(daemon);
   });
+
+  it("rejects pushSave with too many sections", async () => {
+    const userUuid = "push-cap-user";
+    const { sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    // Build 51 sections (over the 50-section cap)
+    const sections = Array.from({ length: 51 }, (_, index) => ({
+      name: `section-${String(index)}`,
+      description: `Section ${String(index)}`,
+      data: { value: index },
+    }));
+
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "TooManySections" },
+          summary: "test",
+          parsedAt: new Date(),
+          sections,
+        },
+      },
+    });
+
+    // Wait for processing
+    await new Promise((r) => setTimeout(r, 200));
+
+    // No save should have been created
+    const save = await env.DB.prepare(
+      "SELECT 1 FROM saves WHERE save_name = 'TooManySections'",
+    ).first();
+    expect(save).toBeNull();
+
+    await closeWs(daemon);
+  });
+
+  it("rejects pushSave exceeding total size limit", async () => {
+    const userUuid = "push-size-user";
+    const { sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    // Single section with >1MB of data
+    const bigData: Record<string, string> = {};
+    for (let index = 0; index < 100; index++) {
+      bigData[`key${String(index)}`] = "x".repeat(11_000);
+    }
+
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "TooBig" },
+          summary: "test",
+          parsedAt: new Date(),
+          sections: [{ name: "huge", description: "big section", data: bigData }],
+        },
+      },
+    });
+
+    // Wait for processing
+    await new Promise((r) => setTimeout(r, 200));
+
+    // No save should have been created
+    const save = await env.DB.prepare("SELECT 1 FROM saves WHERE save_name = 'TooBig'").first();
+    expect(save).toBeNull();
+
+    await closeWs(daemon);
+  });
 });
