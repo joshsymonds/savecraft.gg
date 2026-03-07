@@ -1,36 +1,21 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, seedSource } from "./helpers";
+import { cleanAll, seedPush, seedSource } from "./helpers";
 
 const TEST_USER = "saves-rest-user";
-let SOURCE_TOKEN: string;
+let SOURCE_UUID: string;
 
-function pushSave(saveName: string, summary: string, parsedAt: string): Request {
-  return new Request("https://test-host/api/v1/push", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SOURCE_TOKEN}`,
-      "X-Game": "d2r",
-      "X-Parsed-At": parsedAt,
-    },
-    body: JSON.stringify({
-      identity: { saveName, gameId: "d2r" },
-      summary,
-      sections: {
-        character_overview: {
-          description: "Level, class, difficulty",
-          data: { name: saveName, class: "Paladin", level: 89 },
-        },
-        skills: {
-          description: "Skill allocations",
-          data: { hammer: 20, vigor: 20 },
-        },
-      },
-    }),
-  });
-}
+const DEFAULT_SECTIONS = {
+  character_overview: {
+    description: "Level, class, difficulty",
+    data: { name: "placeholder", class: "Paladin", level: 89 },
+  },
+  skills: {
+    description: "Skill allocations",
+    data: { hammer: 20, vigor: 20 },
+  },
+};
 
 function getSaves(): Request {
   return new Request("https://test-host/api/v1/saves", {
@@ -49,7 +34,7 @@ describe("Saves REST API", () => {
     await cleanAll();
     // Source linked to TEST_USER so push creates saves visible to session auth
     const source = await seedSource(TEST_USER);
-    SOURCE_TOKEN = source.sourceToken;
+    SOURCE_UUID = source.sourceUuid;
   });
 
   it("returns empty saves list for new user", async () => {
@@ -122,8 +107,14 @@ describe("Saves REST API", () => {
 
   it("lists pushed saves", async () => {
     // Push two saves
-    await SELF.fetch(pushSave("Hammerdin", "Level 89 Paladin", "2026-02-25T21:00:00Z"));
-    await SELF.fetch(pushSave("Frostbite", "Level 31 Sorc", "2026-02-25T20:00:00Z"));
+    await seedPush(TEST_USER, SOURCE_UUID, "d2r", "Hammerdin", "Level 89 Paladin", "2026-02-25T21:00:00Z", {
+      ...DEFAULT_SECTIONS,
+      character_overview: { ...DEFAULT_SECTIONS.character_overview, data: { name: "Hammerdin", class: "Paladin", level: 89 } },
+    });
+    await seedPush(TEST_USER, SOURCE_UUID, "d2r", "Frostbite", "Level 31 Sorc", "2026-02-25T20:00:00Z", {
+      ...DEFAULT_SECTIONS,
+      character_overview: { ...DEFAULT_SECTIONS.character_overview, data: { name: "Frostbite", class: "Paladin", level: 89 } },
+    });
 
     const resp = await SELF.fetch(getSaves());
     expect(resp.status).toBe(200);
@@ -149,10 +140,10 @@ describe("Saves REST API", () => {
   });
 
   it("gets a single save with sections", async () => {
-    const pushResp = await SELF.fetch(
-      pushSave("Hammerdin", "Level 89 Paladin", "2026-02-25T21:00:00Z"),
-    );
-    const { saveUuid } = await pushResp.json<{ saveUuid: string }>();
+    const saveUuid = await seedPush(TEST_USER, SOURCE_UUID, "d2r", "Hammerdin", "Level 89 Paladin", "2026-02-25T21:00:00Z", {
+      ...DEFAULT_SECTIONS,
+      character_overview: { ...DEFAULT_SECTIONS.character_overview, data: { name: "Hammerdin", class: "Paladin", level: 89 } },
+    });
 
     const resp = await SELF.fetch(getSave(saveUuid));
     expect(resp.status).toBe(200);
@@ -192,7 +183,10 @@ describe("Saves REST API", () => {
 
   it("isolates saves between users", async () => {
     // Push as TEST_USER
-    await SELF.fetch(pushSave("Hammerdin", "Level 89 Paladin", "2026-02-25T21:00:00Z"));
+    await seedPush(TEST_USER, SOURCE_UUID, "d2r", "Hammerdin", "Level 89 Paladin", "2026-02-25T21:00:00Z", {
+      ...DEFAULT_SECTIONS,
+      character_overview: { ...DEFAULT_SECTIONS.character_overview, data: { name: "Hammerdin", class: "Paladin", level: 89 } },
+    });
 
     // List as different user
     const resp = await SELF.fetch(

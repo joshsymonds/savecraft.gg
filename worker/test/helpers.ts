@@ -4,6 +4,8 @@ import { env, SELF } from "cloudflare:test";
 import { OAUTH_ENDPOINTS } from "../src/oauth";
 import type { OAuthProps } from "../src/oauth";
 import { Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
+import { storePush } from "../src/store";
+import type { SectionInput } from "../src/store";
 
 /** D1 tables in FK-safe deletion order (children before parents). */
 export const CLEANUP_TABLES = [
@@ -346,4 +348,31 @@ export async function getOAuthToken(userUuid: string): Promise<string> {
 
   const tokenData = await tokenResp.json<{ access_token: string }>();
   return tokenData.access_token;
+}
+
+// -- Seed push helper for tests -----------------------------------------------
+
+/**
+ * Seed a save directly via storePush (bypasses HTTP, used for test data setup).
+ */
+export async function seedPush(
+  userUuid: string,
+  sourceUuid: string,
+  gameId: string,
+  saveName: string,
+  summary: string,
+  parsedAt: string,
+  sections: Record<string, SectionInput>,
+): Promise<string> {
+  const { saveUuid } = await storePush(
+    env,
+    userUuid,
+    sourceUuid,
+    gameId,
+    saveName,
+    summary,
+    parsedAt,
+    sections,
+  );
+  return saveUuid;
 }
