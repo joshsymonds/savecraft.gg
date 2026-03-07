@@ -848,20 +848,12 @@ export class SourceHub extends DurableObject<Env> {
         return;
       }
 
-      const rejection = this.validatePushSave(push);
-      if (rejection) {
-        this.debugLog.push("warn", rejection.reason, rejection.detail);
+      const validated = this.validateAndConvertSections(push);
+      if ("reason" in validated) {
+        this.debugLog.push("warn", validated.reason, validated.detail);
         return;
       }
-
-      // Convert proto GameSection[] to Record<string, SectionInput>
-      const sections: Record<string, SectionInput> = {};
-      for (const section of push.sections) {
-        sections[section.name] = {
-          description: section.description,
-          data: section.data ?? {},
-        };
-      }
+      const sections = validated.sections;
 
       const parsedAt = push.parsedAt?.toISOString() ?? new Date().toISOString();
 
@@ -899,10 +891,12 @@ export class SourceHub extends DurableObject<Env> {
     }
   }
 
-  /** Validate PushSave limits. Returns rejection info or null if valid. */
-  private validatePushSave(
+  /** Validate PushSave limits and convert sections in a single pass. */
+  private validateAndConvertSections(
     push: PushSave,
-  ): { reason: string; detail: Record<string, unknown> } | null {
+  ):
+    | { reason: string; detail: Record<string, unknown> }
+    | { sections: Record<string, SectionInput> } {
     if (push.sections.length > MAX_SECTIONS) {
       return {
         reason: "pushSave rejected: too many sections",
@@ -910,16 +904,19 @@ export class SourceHub extends DurableObject<Env> {
       };
     }
     let totalSize = 0;
+    const sections: Record<string, SectionInput> = {};
     for (const section of push.sections) {
-      totalSize += JSON.stringify(section.data ?? {}).length;
+      const data = section.data ?? {};
+      totalSize += JSON.stringify(data).length;
+      if (totalSize > MAX_PUSH_SIZE_BYTES) {
+        return {
+          reason: "pushSave rejected: total size exceeds limit",
+          detail: { totalSize },
+        };
+      }
+      sections[section.name] = { description: section.description, data };
     }
-    if (totalSize > MAX_PUSH_SIZE_BYTES) {
-      return {
-        reason: "pushSave rejected: total size exceeds limit",
-        detail: { totalSize },
-      };
-    }
-    return null;
+    return { sections };
   }
 
   /** Synthesize a pushCompleted event: mutate state, persist, and relay to UserHub. */
@@ -1044,11 +1041,7 @@ export class SourceHub extends DurableObject<Env> {
         ),
       );
 
-      const anyCreated = newGames.length > 0;
-
-      if (anyCreated) {
-        await this.pushConfigToSource(sourceUuid);
-      }
+      await this.pushConfigToSource(sourceUuid);
     } catch (error) {
       this.debugLog.push("error", "discovered games auto-enable failed", {
         error: error instanceof Error ? error.message : String(error),

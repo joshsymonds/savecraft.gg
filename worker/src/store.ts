@@ -65,27 +65,20 @@ export async function storePush(
       env.DB.prepare(
         "UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?",
       ).bind(sourceUuid),
-    ];
-
-    for (const [name, section] of Object.entries(sections)) {
-      batch.push(
-        env.DB.prepare(
-          "INSERT OR REPLACE INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
-        ).bind(saveUuid, name, section.description, JSON.stringify(section.data)),
-      );
-    }
-
-    // FTS: delete old section entries, insert new ones
-    batch.push(
+      // FTS: delete old section entries before inserting new ones
       env.DB.prepare("DELETE FROM search_index WHERE save_id = ? AND type = 'section'").bind(
         saveUuid,
       ),
-    );
+    ];
     for (const [name, section] of Object.entries(sections)) {
+      const dataJson = JSON.stringify(section.data);
       batch.push(
         env.DB.prepare(
+          "INSERT OR REPLACE INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+        ).bind(saveUuid, name, section.description, dataJson),
+        env.DB.prepare(
           "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, 'section', ?, ?, ?)",
-        ).bind(saveUuid, saveName, name, section.description, JSON.stringify(section.data)),
+        ).bind(saveUuid, saveName, name, section.description, dataJson),
       );
     }
 

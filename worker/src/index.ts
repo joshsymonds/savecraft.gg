@@ -1706,16 +1706,18 @@ function handleWsRegister(request: Request, env: Env): Response {
     void (async () => {
       try {
         // Rate-limit by IP before processing
-        if (ip) {
-          const recent = await env.DB.prepare(
-            "SELECT COUNT(*) as cnt FROM sources WHERE ip = ? AND user_uuid IS NULL AND created_at > datetime('now', '-1 hour')",
-          )
-            .bind(ip)
-            .first<{ cnt: number }>();
-          if (recent && recent.cnt >= REGISTER_RATE_LIMIT) {
-            server.close(1008, "Too many registrations");
-            return;
-          }
+        if (!ip) {
+          server.close(1008, "Cannot determine client IP");
+          return;
+        }
+        const recent = await env.DB.prepare(
+          "SELECT COUNT(*) as cnt FROM sources WHERE ip = ? AND user_uuid IS NULL AND created_at > datetime('now', '-1 hour')",
+        )
+          .bind(ip)
+          .first<{ cnt: number }>();
+        if (recent && recent.cnt >= REGISTER_RATE_LIMIT) {
+          server.close(1008, "Too many registrations");
+          return;
         }
 
         const data =
@@ -1771,7 +1773,9 @@ function handleWsRegister(request: Request, env: Env): Response {
 
         server.send(resultMsg);
         server.close(1000, "Registration complete");
-      } catch {
+      } catch (error) {
+        // eslint-disable-next-line no-console -- handleWsRegister runs outside a DO; no ring buffer available
+        console.error("Registration failed:", error instanceof Error ? error.message : error);
         server.close(1011, "Registration failed");
       }
     })();
