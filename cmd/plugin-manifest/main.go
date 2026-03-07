@@ -51,8 +51,8 @@ type adapterTOML struct {
 }
 
 type adapterManifest struct {
-	AuthProvider string   `json:"auth_provider"`
-	AuthFlow     string   `json:"auth_flow"`
+	AuthProvider string   `json:"authProvider"`
+	AuthFlow     string   `json:"authFlow"`
 	Scopes       []string `json:"scopes"`
 	Regions      []string `json:"regions"`
 }
