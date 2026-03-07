@@ -41,7 +41,7 @@ The Worker is itself an **OAuth 2.1 Authorization Server**, powered by `@cloudfl
 **Key properties:**
 - Zero Clerk interaction after initial login. Token validation is a KV lookup, not a JWT signature check or network call.
 - AI clients never see Clerk. The entire OAuth dance happens against `mcp.savecraft.gg`.
-- `props.userUuid` flows from Clerk's `sub` claim through to save access (JOINing sources → saves → R2 at `sources/{source_uuid}/`).
+- `props.userUuid` flows from Clerk's `sub` claim through to save access (JOINing sources → saves in D1).
 - No skip-Clerk code paths in production. The authorize handler returns 503 if Clerk secrets are missing.
 
 ### Authentication Provider: Clerk
@@ -111,33 +111,15 @@ Returns available sections and their descriptions for a save. The AI uses this t
 }
 ```
 
-### `get_section(save_id, section, timestamp?)`
+### `get_section(save_id, section)`
 
-Returns a single section's data. Optional `timestamp` for historical queries.
+Returns a single section's data from D1.
 
 ```json
 {
   "save_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
   "section": "equipped_gear",
-  "timestamp": "2026-02-25T21:30:00Z",
   "data": { ... }
-}
-```
-
-### `get_section_diff(save_id, section, from_timestamp, to_timestamp)`
-
-Returns changes between two snapshots for a section.
-
-```json
-{
-  "save_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "section": "equipped_gear",
-  "from": "2026-02-24T12:00:00Z",
-  "to": "2026-02-25T21:30:00Z",
-  "changes": [
-    { "path": "helmet.name", "old": "Tal Rasha's Horadric Crest", "new": "Harlequin Crest" },
-    { "path": "body_armor.name", "old": "Smoke", "new": "Enigma" }
-  ]
 }
 ```
 
@@ -145,10 +127,10 @@ Returns changes between two snapshots for a section.
 
 Requests fresh data for a save. The server routes to the appropriate ingest path based on the save's game type — the MCP client never needs to know which path is taken.
 
-- **Daemon-backed saves** (local files: D2R, Stardew, etc.): The Worker sends `RescanGame` to the save's SourceHub DO (per-source), which forwards it to the daemon over WebSocket. The daemon rescans the save directory, re-parses changed files, and pushes fresh data to R2 via the push API.
-- **API-backed saves** (remote APIs: PoE2, WoW via Battle.net, etc.): The Worker fetches directly from the game's API using stored credentials, parses the response, and writes to R2.
+- **Daemon-backed saves** (local files: D2R, Stardew, etc.): The Worker sends `RescanGame` to the save's SourceHub DO (per-source), which forwards it to the daemon over WebSocket. The daemon rescans the save directory, re-parses changed files, and pushes fresh data via `PushSave` over WebSocket.
+- **API-backed saves** (remote APIs: PoE2, WoW via Battle.net, etc.): The Worker fetches directly from the game's API using stored credentials, parses the response, and writes to D1 via `storePush`.
 
-Both paths produce the same result: updated snapshots in R2, updated metadata in D1. Subsequent `get_section` calls return the fresh data.
+Both paths produce the same result: updated save metadata and sections in D1. Subsequent `get_section` calls return the fresh data.
 
 ```json
 {
@@ -158,7 +140,7 @@ Both paths produce the same result: updated snapshots in R2, updated metadata in
 }
 ```
 
-**Latency:** API-backed refreshes complete in ~1-2 seconds. Daemon-backed refreshes take ~3-5 seconds (WebSocket command → daemon rescan → parse → HTTP push). Both are fast enough for conversational use.
+**Latency:** API-backed refreshes complete in ~1-2 seconds. Daemon-backed refreshes take ~3-5 seconds (WebSocket command → daemon rescan → parse → WS push). Both are fast enough for conversational use.
 
 **Failure modes:** If the daemon is offline, returns an error with `"daemon_offline": true` so the AI can tell the user to check their daemon. If the game API is rate-limited or down, returns the error from the upstream API. In both cases, the last-known data is still available via normal `get_section` calls.
 
@@ -273,7 +255,6 @@ Players interact with Savecraft in two distinct modes — often in the same conv
 3. Based on the question, fetch only the relevant sections:
    - "What should I upgrade?" → `equipped_gear` + `inventory` + `skills`
    - "Have I finished Act 3?" → `quest_progress`
-   - "How has my build changed this week?" → `get_section_diff` on relevant sections
    - "Am I following my build guide?" → `search_saves` to find the guide, `get_note` to read it, then relevant sections for comparison
 4. If the user indicates something just changed, call `refresh_save` to get fresh data before reading sections.
 5. Combine structured save data with the AI's existing game knowledge to give personalized advice.
