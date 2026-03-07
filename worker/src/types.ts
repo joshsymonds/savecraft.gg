@@ -25,6 +25,8 @@ export interface Env {
   MCP_HOSTNAME?: string;
   /** Install worker URL for daemon distribution (e.g. "https://install.savecraft.gg"). */
   INSTALL_URL?: string;
+  /** Web app URL (e.g. "https://my.savecraft.gg"). Used for OAuth callback redirects. */
+  WEB_URL?: string;
   /** Comma-separated list of allowed CORS origins. Unset = wildcard (dev only). */
   ALLOWED_ORIGINS?: string;
   /** Application version injected at deploy time via --var VERSION:{version}. */

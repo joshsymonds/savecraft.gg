@@ -327,7 +327,8 @@ async function handleBattlenetCallback(
   }
 
   // Redirect back to web app with character data as query params
-  const returnUrl = state.returnUrl || `${url.origin}/settings/wow`;
+  const webUrl = env.WEB_URL ?? url.origin;
+  const returnUrl = state.returnUrl || `${webUrl}/settings/wow`;
   const redirectUrl = new URL(returnUrl);
   redirectUrl.searchParams.set("connected", "true");
   redirectUrl.searchParams.set("characters", JSON.stringify(characters));

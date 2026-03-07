@@ -11,6 +11,7 @@ ENVIRONMENT = "development"
 VERSION = "dev"
 ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg,https://my.savecraft.gg,http://localhost:5173"
 INSTALL_URL = "https://install.savecraft.gg"
+WEB_URL = "http://localhost:5173"
 
 [[d1_databases]]
 binding = "DB"
@@ -63,6 +64,7 @@ ALLOWED_ORIGINS = "https://savecraft.gg,https://www.savecraft.gg,https://my.save
 CLERK_ISSUER = "https://intent-earwig-38.clerk.accounts.dev"
 INSTALL_URL = "https://install.savecraft.gg"
 MCP_HOSTNAME = "mcp.savecraft.gg"
+WEB_URL = "https://my.savecraft.gg"
 
 [[env.production.d1_databases]]
 binding = "DB"
@@ -117,6 +119,7 @@ SERVER_URL = "https://staging-api.savecraft.gg"
 CLERK_ISSUER = "https://dominant-frog-65.clerk.accounts.dev"
 INSTALL_URL = "https://staging-install.savecraft.gg"
 MCP_HOSTNAME = "staging-mcp.savecraft.gg"
+WEB_URL = "https://staging-my.savecraft.gg"
 
 [[env.staging.d1_databases]]
 binding = "DB"
