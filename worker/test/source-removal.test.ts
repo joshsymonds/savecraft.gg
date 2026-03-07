@@ -20,16 +20,12 @@ interface SourceStateMessage {
 
 /** Wait for a sourceState message where the given source is absent. */
 function waitForSourceRemoved(ws: WebSocket, sourceUuid: string) {
-  return waitForMessageMatching<SourceStateMessage>(
-    ws,
-    (message) => {
-      const state = message as Partial<SourceStateMessage>;
-      return (
-        "sourceState" in message &&
-        !state.sourceState!.sources.some((s) => s.sourceId === sourceUuid)
-      );
-    },
-  );
+  return waitForMessageMatching<SourceStateMessage>(ws, (message) => {
+    const state = message as Partial<SourceStateMessage>;
+    return (
+      "sourceState" in message && !state.sourceState!.sources.some((s) => s.sourceId === sourceUuid)
+    );
+  });
 }
 
 describe("Source Removal", () => {

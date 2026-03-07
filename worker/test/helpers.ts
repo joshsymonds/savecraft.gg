@@ -125,7 +125,9 @@ export function waitForMessageMatching<T = unknown>(
   return new Promise<T>((resolve, reject) => {
     const timer = setTimeout(() => {
       ws.removeEventListener("message", handler);
-      reject(new Error(`Timed out waiting for matching WebSocket message after ${String(timeoutMs)}ms`));
+      reject(
+        new Error(`Timed out waiting for matching WebSocket message after ${String(timeoutMs)}ms`),
+      );
     }, timeoutMs);
 
     function handler(event: MessageEvent) {
