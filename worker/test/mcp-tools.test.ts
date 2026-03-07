@@ -725,7 +725,7 @@ describe("MCP Tools", () => {
 
   describe("refreshSave", () => {
     it("returns error when save not found", async () => {
-      const result = await refreshSave(env.DB, env.SOURCE_HUB, USER_A, "nonexistent");
+      const result = await refreshSave(env, USER_A, "nonexistent");
       expect(result.isError).toBe(true);
     });
 
@@ -738,9 +738,70 @@ describe("MCP Tools", () => {
         summary: "Level 89",
       });
 
-      const result = await refreshSave(env.DB, env.SOURCE_HUB, USER_A, "save-refresh-offline");
+      const result = await refreshSave(env, USER_A, "save-refresh-offline");
       expect(result.isError).toBe(true);
       expect(result.content[0]!.text).toContain("daemon is offline");
+    });
+
+    it("rate limits adapter-backed saves", async () => {
+      // Create adapter source
+      const sourceUuid = crypto.randomUUID();
+      await env.DB.prepare(
+        "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+      )
+        .bind(sourceUuid, USER_A, `hash-adapter-${USER_A}`)
+        .run();
+
+      // Create save with recent last_updated (within 5 min cooldown)
+      const recentTimestamp = new Date(Date.now() - 60_000).toISOString();
+      await env.DB.prepare(
+        "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+        .bind(
+          "save-adapter-rate",
+          USER_A,
+          "wow",
+          "World of Warcraft",
+          "Dratnos-tichondrius-US",
+          "Level 80 Rogue",
+          recentTimestamp,
+          sourceUuid,
+        )
+        .run();
+
+      const result = await refreshSave(env, USER_A, "save-adapter-rate");
+      expect(result.isError).toBe(true);
+      expect(result.content[0]!.text).toContain("refreshed recently");
+    });
+
+    it("returns error when adapter save has no realm info", async () => {
+      // Create adapter source
+      const sourceUuid = crypto.randomUUID();
+      await env.DB.prepare(
+        "INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config) VALUES (?, ?, ?, 'adapter', 0, 0)",
+      )
+        .bind(sourceUuid, USER_A, `hash-adapter2-${USER_A}`)
+        .run();
+
+      // Create save with old timestamp (outside cooldown) and unparseable name
+      await env.DB.prepare(
+        "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+      )
+        .bind(
+          "save-adapter-norealm",
+          USER_A,
+          "wow",
+          "World of Warcraft",
+          "BadName",
+          "",
+          "2020-01-01T00:00:00Z",
+          sourceUuid,
+        )
+        .run();
+
+      const result = await refreshSave(env, USER_A, "save-adapter-norealm");
+      expect(result.isError).toBe(true);
+      expect(result.content[0]!.text).toContain("realm");
     });
   });
 
