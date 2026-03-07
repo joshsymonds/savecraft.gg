@@ -392,36 +392,7 @@ async function routeDaemonEndpoints(
     return Response.json({ status: "ok" });
   }
 
-  return routeSourceEndpoints(request, url, env);
-}
-
-const SOURCE_TOKEN_ROUTES: ReadonlyMap<string, string> = new Map([
-  ["/api/v1/source/link-code", "POST"],
-  ["/api/v1/source/unlink", "POST"],
-  ["/api/v1/source/deregister", "POST"],
-  ["/api/v1/source/status", "GET"],
-]);
-
-function isSourceTokenRoute(method: string, pathname: string): boolean {
-  return SOURCE_TOKEN_ROUTES.get(pathname) === method;
-}
-
-async function routeSourceEndpoints(
-  request: Request,
-  url: URL,
-  env: Env,
-): Promise<Response | null> {
-  if (!isSourceTokenRoute(request.method, url.pathname)) return null;
-
-  const auth = await authenticateSource(request, env);
-  if (!auth) return new Response("Unauthorized", { status: 401 });
-
-  if (url.pathname === "/api/v1/source/link-code")
-    return handleSourceLinkCode(env, auth.sourceUuid);
-  if (url.pathname === "/api/v1/source/unlink") return handleSourceUnlink(env, auth.sourceUuid);
-  if (url.pathname === "/api/v1/source/deregister")
-    return handleSourceDeregister(env, auth.sourceUuid, auth.userUuid);
-  return handleSourceStatus(env, auth.sourceUuid);
+  return null;
 }
 
 async function routeProtectedEndpoints(request: Request, url: URL, env: Env): Promise<Response> {
@@ -1712,77 +1683,6 @@ async function handleSourceLink(request: Request, env: Env, userUuid: string): P
   await setUserResp.text();
 
   return Response.json({ source_uuid: source.source_uuid });
-}
-
-async function handleSourceLinkCode(env: Env, sourceUuid: string): Promise<Response> {
-  const linkCode = generateSixDigitCode();
-  const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000).toISOString();
-
-  await env.DB.prepare(
-    "UPDATE sources SET link_code = ?, link_code_expires_at = ? WHERE source_uuid = ?",
-  )
-    .bind(linkCode, expiresAt, sourceUuid)
-    .run();
-
-  return Response.json({ link_code: linkCode, expires_at: expiresAt });
-}
-
-async function handleSourceUnlink(env: Env, sourceUuid: string): Promise<Response> {
-  const linkCode = generateSixDigitCode();
-  const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000).toISOString();
-
-  await env.DB.prepare(
-    "UPDATE sources SET user_uuid = NULL, user_email = NULL, user_display_name = NULL, link_code = ?, link_code_expires_at = ? WHERE source_uuid = ?",
-  )
-    .bind(linkCode, expiresAt, sourceUuid)
-    .run();
-
-  return Response.json({ link_code: linkCode, link_code_expires_at: expiresAt });
-}
-
-async function handleSourceDeregister(
-  env: Env,
-  sourceUuid: string,
-  userUuid: string | null,
-): Promise<Response> {
-  await cleanupSource(env, sourceUuid, userUuid);
-
-  return Response.json({ ok: true });
-}
-
-async function handleSourceStatus(env: Env, sourceUuid: string): Promise<Response> {
-  const source = await env.DB.prepare(
-    "SELECT user_uuid, user_email, user_display_name, link_code, link_code_expires_at FROM sources WHERE source_uuid = ?",
-  )
-    .bind(sourceUuid)
-    .first<{
-      user_uuid: string | null;
-      user_email: string | null;
-      user_display_name: string | null;
-      link_code: string | null;
-      link_code_expires_at: string | null;
-    }>();
-
-  if (!source) {
-    return Response.json({ error: "Source not found" }, { status: 404 });
-  }
-
-  const linked = source.user_uuid !== null;
-  const result: Record<string, unknown> = { linked };
-
-  if (linked) {
-    result.user = {
-      email: source.user_email,
-      display_name: source.user_display_name,
-    };
-  }
-
-  if (source.link_code) {
-    result.link_code = source.link_code;
-    result.link_code_expires_at = source.link_code_expires_at;
-  }
-
-  return Response.json(result);
 }
 
 /**
