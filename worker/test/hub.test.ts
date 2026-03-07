@@ -1628,4 +1628,120 @@ describe("SourceHub", () => {
 
     await closeWs(daemon);
   });
+
+  it("rejects pushSave with missing identity", async () => {
+    const userUuid = "push-no-identity";
+    const { sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: undefined,
+          summary: "test",
+          parsedAt: new Date(),
+          sections: [{ name: "stats", description: "Stats", data: { level: 1 } }],
+        },
+      },
+    });
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const save = await env.DB.prepare("SELECT 1 FROM saves WHERE user_uuid = ?")
+      .bind(userUuid)
+      .first();
+    expect(save).toBeNull();
+
+    await closeWs(daemon);
+  });
+
+  it("rejects pushSave with empty gameId", async () => {
+    const userUuid = "push-no-gameid";
+    const { sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "",
+          identity: { name: "EmptyGameId" },
+          summary: "test",
+          parsedAt: new Date(),
+          sections: [{ name: "stats", description: "Stats", data: { level: 1 } }],
+        },
+      },
+    });
+
+    await new Promise((r) => setTimeout(r, 200));
+
+    const save = await env.DB.prepare(
+      "SELECT 1 FROM saves WHERE save_name = 'EmptyGameId'",
+    ).first();
+    expect(save).toBeNull();
+
+    await closeWs(daemon);
+  });
+
+  it("idempotent push updates existing save instead of duplicating", async () => {
+    const userUuid = "push-idempotent";
+    const { sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    const pushPayload = (level: number) => ({
+      payload: {
+        $case: "pushSave" as const,
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "IdempotentChar" },
+          summary: `Level ${String(level)}`,
+          parsedAt: new Date(),
+          sections: [{ name: "stats", description: "Stats", data: { level } }],
+        },
+      },
+    });
+
+    // First push
+    sendProto(daemon, pushPayload(1));
+    const first = await waitForProtoMessage(daemon);
+    const firstResult = requirePayload(first, "pushSaveResult");
+
+    // Second push — same save name
+    sendProto(daemon, pushPayload(42));
+    const second = await waitForProtoMessage(daemon);
+    const secondResult = requirePayload(second, "pushSaveResult");
+
+    // Same save UUID reused
+    expect(secondResult.saveUuid).toBe(firstResult.saveUuid);
+
+    // Only one save row
+    const count = await env.DB.prepare(
+      "SELECT COUNT(*) as cnt FROM saves WHERE save_name = 'IdempotentChar' AND user_uuid = ?",
+    )
+      .bind(userUuid)
+      .first<{ cnt: number }>();
+    expect(count!.cnt).toBe(1);
+
+    // Section data updated to latest
+    const section = await env.DB.prepare(
+      "SELECT data FROM sections WHERE save_uuid = ? AND name = 'stats'",
+    )
+      .bind(secondResult.saveUuid)
+      .first<{ data: string }>();
+    const parsed = JSON.parse(section!.data);
+    expect(parsed.level).toBe(42);
+
+    await closeWs(daemon);
+  });
 });
