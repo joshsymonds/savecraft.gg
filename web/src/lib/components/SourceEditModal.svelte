@@ -1,7 +1,7 @@
 <!--
   @component
   Stacked modal for editing a source's save path.
-  Opens on top of GameConfigModal via Modal stack.
+  Opens on top of GameDetailModal via Modal stack.
 -->
 <script lang="ts">
   import type { TestPathResult, ValidationState } from "$lib/types/source";
@@ -21,6 +21,7 @@
     testPathResult = null,
     validationState = "idle",
     onclose,
+    onremovesource,
   }: {
     gameName: string;
     gameId: string;
@@ -32,6 +33,7 @@
     testPathResult?: TestPathResult | null;
     validationState?: ValidationState;
     onclose: () => void;
+    onremovesource?: (sourceId: string) => Promise<void>;
   } = $props();
 
   // Snapshot initialPath once — edits are local to this modal instance, not reactive to parent updates.
@@ -79,6 +81,23 @@
     } catch (error) {
       saveState = "error";
       saveError = error instanceof Error ? error.message : "Failed to save";
+    }
+  }
+
+  // -- Remove source --
+  let removing = $state(false);
+  let removeError = $state("");
+
+  async function handleRemoveSource() {
+    if (!onremovesource) return;
+    removing = true;
+    removeError = "";
+    try {
+      await onremovesource(sourceId);
+      onclose();
+    } catch (error) {
+      removeError = error instanceof Error ? error.message : "Failed to remove source";
+      removing = false;
     }
   }
 </script>
@@ -141,18 +160,31 @@
       {#if saveError}
         <div class="save-error">{saveError}</div>
       {/if}
+      {#if removeError}
+        <div class="save-error">{removeError}</div>
+      {/if}
     {/if}
   </div>
 
   {#snippet footer()}
     {#if saveState !== "success"}
-      <button class="modal-btn" onclick={() => onclose()} disabled={saveState === "saving"}>
+      {#if onremovesource}
+        <button
+          class="modal-btn-danger"
+          onclick={handleRemoveSource}
+          disabled={removing || saveState === "saving"}
+        >
+          {removing ? "REMOVING..." : "REMOVE SOURCE"}
+        </button>
+      {/if}
+      <span class="footer-spacer"></span>
+      <button class="modal-btn" onclick={() => onclose()} disabled={saveState === "saving" || removing}>
         CANCEL
       </button>
       <button
         class="modal-btn-primary"
         onclick={handleConnect}
-        disabled={saveState === "saving" || !editPath.trim()}
+        disabled={saveState === "saving" || removing || !editPath.trim()}
       >
         {#if saveState === "saving"}
           CONNECTING...
@@ -252,5 +284,9 @@
     font-family: var(--font-body);
     font-size: 14px;
     color: var(--color-red, #e85a5a);
+  }
+
+  .footer-spacer {
+    flex: 1;
   }
 </style>
