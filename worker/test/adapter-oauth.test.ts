@@ -27,7 +27,7 @@ async function seedGameCredentials(
   accessToken: string,
 ): Promise<void> {
   await env.DB.prepare(
-    `INSERT INTO game_credentials (user_uuid, game_id, access_token_enc, refresh_token_enc, expires_at)
+    `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
      VALUES (?, ?, ?, NULL, NULL)`,
   )
     .bind(userUuid, gameId, accessToken)
@@ -94,6 +94,27 @@ describe("Adapter OAuth", () => {
         }),
       );
       expect(resp.status).toBe(302);
+    });
+
+    it("strips external return_url to prevent open redirect", async () => {
+      const resp = await SELF.fetch(
+        new Request(
+          "https://test-host/oauth/battlenet/authorize?region=us&return_url=https://evil.com/phish",
+          {
+            method: "GET",
+            headers: { Authorization: `Bearer ${USER_UUID}` },
+            redirect: "manual",
+          },
+        ),
+      );
+      expect(resp.status).toBe(302);
+
+      // Verify the stored state has the return_url stripped
+      const location = new URL(resp.headers.get("Location")!);
+      const stateKey = location.searchParams.get("state")!;
+      const stored = await env.OAUTH_KV.get(`battlenet-oauth-state:${stateKey}`);
+      const parsed = JSON.parse(stored!) as { returnUrl: string };
+      expect(parsed.returnUrl).toBe("");
     });
   });
 

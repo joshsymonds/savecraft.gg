@@ -56,6 +56,17 @@ const OAUTH_URLS: Record<string, { authorize: string; token: string }> = {
   },
 };
 
+const VALID_REGIONS = new Set(Object.keys(OAUTH_URLS));
+
+function assertValidRegion(region: string): void {
+  if (!VALID_REGIONS.has(region)) {
+    throw new AdapterError(
+      "api_unavailable",
+      `Invalid region: ${region}. Valid regions: ${[...VALID_REGIONS].join(", ")}`,
+    );
+  }
+}
+
 const RAIDERIO_FIELDS = [
   "mythic_plus_scores_by_season:current",
   "mythic_plus_best_runs",
@@ -68,7 +79,18 @@ const RAIDERIO_FIELDS = [
 // Blizzard API helpers
 // ---------------------------------------------------------------------------
 
+/**
+ * Per-isolate, best-effort cache for Blizzard app token (valid ~24h).
+ * Each Workers isolate gets its own module scope; cache resets on isolate eviction.
+ */
+let cachedAppToken: { token: string; expiresAt: number } | null = null;
+
 async function getAppToken(env: Env): Promise<string> {
+  // Return cached token if still valid (with 5-minute safety margin)
+  if (cachedAppToken && Date.now() < cachedAppToken.expiresAt - 5 * 60 * 1000) {
+    return cachedAppToken.token;
+  }
+
   const tokenUrl =
     OAUTH_URLS[env.BATTLENET_REGION ?? "us"]?.token ??
     "https://oauth.battle.net/token";
@@ -90,13 +112,17 @@ async function getAppToken(env: Env): Promise<string> {
     );
   }
 
-  const data = (await res.json()) as { access_token?: string };
+  const data = (await res.json()) as { access_token?: string; expires_in?: number };
   if (!data.access_token) {
     throw new AdapterError(
       "api_unavailable",
       "Blizzard token response missing access_token",
     );
   }
+
+  const expiresInMs = (data.expires_in ?? 86400) * 1000;
+  cachedAppToken = { token: data.access_token, expiresAt: Date.now() + expiresInMs };
+
   return data.access_token;
 }
 
@@ -154,7 +180,7 @@ async function fetchRaiderio(
   name: string,
 ): Promise<RaiderioProfile | undefined> {
   try {
-    const url = `https://raider.io/api/v1/characters/profile?region=${region}&realm=${encodeURIComponent(realm)}&name=${encodeURIComponent(name)}&fields=${RAIDERIO_FIELDS}`;
+    const url = `https://raider.io/api/v1/characters/profile?region=${encodeURIComponent(region)}&realm=${encodeURIComponent(realm)}&name=${encodeURIComponent(name)}&fields=${RAIDERIO_FIELDS}`;
     const res = await fetch(url);
     if (!res.ok) return undefined;
     return (await res.json()) as RaiderioProfile;
@@ -214,6 +240,7 @@ export const wowAdapter: ApiAdapter = {
     accessToken: string,
     region: string,
   ): Promise<DiscoveredSave[]> {
+    assertValidRegion(region);
     const url = `https://${region}.api.blizzard.com/profile/user/wow?namespace=profile-${region}&locale=en_US`;
     const res = await fetch(url, {
       headers: { Authorization: `Bearer ${accessToken}` },
@@ -263,6 +290,7 @@ export const wowAdapter: ApiAdapter = {
   },
 
   async fetchState(params: FetchParams, env: Env): Promise<GameState> {
+    assertValidRegion(params.region);
     // characterId format: "realm-slug/character-name"
     const slashIdx = params.characterId.indexOf("/");
     if (slashIdx === -1) {
@@ -280,7 +308,7 @@ export const wowAdapter: ApiAdapter = {
 
     const base = `https://${region}.api.blizzard.com`;
     const ns = `namespace=profile-${region}&locale=en_US`;
-    const charPath = `profile/wow/character/${realm}/${name}`;
+    const charPath = `profile/wow/character/${encodeURIComponent(realm)}/${encodeURIComponent(name)}`;
 
     // Fetch Blizzard profile + equipment + stats + specs + M+ profile + raids + professions
     // and Raider.io in parallel. M+ season detail is sequential after M+ profile.

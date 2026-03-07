@@ -39,6 +39,9 @@ export class AdapterError extends Error {
   }
 }
 
+/** Max 1 refresh per character per 5 minutes. Shared across REST API and MCP paths. */
+export const ADAPTER_REFRESH_COOLDOWN_SEC = 300;
+
 // ---------------------------------------------------------------------------
 // GameState types
 // ---------------------------------------------------------------------------

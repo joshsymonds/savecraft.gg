@@ -255,7 +255,7 @@ export function mapTalents(
 // ---------------------------------------------------------------------------
 
 export function mapMythicPlus(
-  keystoneSeason: BlizzardMythicKeystoneSeason | undefined,
+  keystoneSeason?: BlizzardMythicKeystoneSeason,
   raiderio?: RaiderioProfile,
 ): GameStateSection {
   const bestRuns =

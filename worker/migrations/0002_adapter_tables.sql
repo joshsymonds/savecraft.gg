@@ -16,13 +16,14 @@ CREATE TABLE linked_characters (
   UNIQUE(user_uuid, game_id, character_id)
 );
 
--- Stores encrypted OAuth tokens for API-backed games.
+-- Stores OAuth tokens for API-backed games.
+-- D1 provides encryption at rest at the infrastructure level.
 CREATE TABLE game_credentials (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_uuid TEXT NOT NULL,
   game_id TEXT NOT NULL,
-  access_token_enc TEXT NOT NULL,
-  refresh_token_enc TEXT,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
   expires_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
