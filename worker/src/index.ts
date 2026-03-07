@@ -728,7 +728,6 @@ async function handleAdapterRefresh(
     );
 
     const parsedAt = new Date().toISOString();
-    const bodyString = JSON.stringify(gameState);
 
     const result = await storePush(
       env,
@@ -738,7 +737,6 @@ async function handleAdapterRefresh(
       gameState.identity.saveName,
       gameState.summary,
       parsedAt,
-      bodyString,
       gameState.sections,
     );
 
@@ -1188,21 +1186,7 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
     .slice(0, saves.results.length)
     .reduce((sum, r) => sum + r.meta.changes, 0);
 
-  // Delete R2 objects for each save (parallelized within each page)
-  for (const save of saves.results) {
-    let listed = await env.SAVES.list({ prefix: `saves/${save.uuid}/snapshots/` });
-    await Promise.all(listed.objects.map((entry) => env.SAVES.delete(entry.key)));
-    while (listed.truncated) {
-      listed = await env.SAVES.list({
-        prefix: `saves/${save.uuid}/snapshots/`,
-        cursor: listed.cursor,
-      });
-      await Promise.all(listed.objects.map((entry) => env.SAVES.delete(entry.key)));
-    }
-    await env.SAVES.delete(`saves/${save.uuid}/latest.json`);
-  }
-
-  // Delete all saves for this game
+  // Delete all saves for this game (sections cascade via FK)
   await env.DB.prepare("DELETE FROM saves WHERE user_uuid = ? AND game_id = ?")
     .bind(userUuid, gameId)
     .run();
@@ -1525,18 +1509,11 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
 
   if (!save) return Response.json({ error: "Save not found" }, { status: 404 });
 
-  const key = `saves/${saveId}/latest.json`;
-  const object = await env.SAVES.get(key);
-  let sections: { name: string; description: string }[] = [];
-  if (object) {
-    const state = await object.json<{
-      sections: Record<string, { description: string }>;
-    }>();
-    sections = Object.entries(state.sections).map(([name, s]) => ({
-      name,
-      description: s.description,
-    }));
-  }
+  const sectionRows = await env.DB.prepare(
+    "SELECT name, description FROM sections WHERE save_uuid = ? ORDER BY name",
+  )
+    .bind(saveId)
+    .all<{ name: string; description: string }>();
 
   return Response.json({
     id: save.uuid,
@@ -1544,7 +1521,7 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
     save_name: save.save_name,
     summary: save.summary,
     last_updated: save.last_updated,
-    sections,
+    sections: sectionRows.results,
   });
 }
 
@@ -1912,8 +1889,8 @@ async function handlePush(request: Request, env: Env, sourceUuid: string): Promi
     return Response.json({ error: "identity.saveName is required" }, { status: 400 });
   }
 
-  const bodyString = JSON.stringify(body);
-  if (bodyString.length > 5 * 1024 * 1024) {
+  const bodySize = JSON.stringify(body).length;
+  if (bodySize > 5 * 1024 * 1024) {
     return Response.json({ error: "Body exceeds 5MB limit" }, { status: 413 });
   }
 
@@ -1926,7 +1903,6 @@ async function handlePush(request: Request, env: Env, sourceUuid: string): Promi
       saveName,
       summary,
       parsedAt,
-      bodyString,
       sections,
     );
 

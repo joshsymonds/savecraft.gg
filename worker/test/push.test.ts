@@ -167,8 +167,7 @@ describe("Push API", () => {
     expect(resp.status).toBe(400);
   });
 
-  it("does not update latest.json when incoming timestamp is older", async () => {
-    // Use a unique character to isolate this test
+  it("does not update D1 when incoming timestamp is older", async () => {
     const character = {
       ...validGameState,
       identity: { ...validGameState.identity, saveName: "TimestampGuardChar" },
@@ -182,21 +181,13 @@ describe("Push API", () => {
     expect(resp1.status).toBe(201);
     const body1 = await resp1.json<{ saveUuid: string }>();
 
-    // Push with an older timestamp — snapshot written, but latest.json should NOT update
+    // Push with an older timestamp — should NOT update D1
     const olderCharacter = { ...character, summary: "Older push" };
     const resp2 = await SELF.fetch(
       pushRequest(olderCharacter, { "X-Parsed-At": "2026-02-25T20:00:00Z" }),
     );
     expect(resp2.status).toBe(201);
 
-    // latest.json should still have the newer push's data
-    const latestKey = `saves/${body1.saveUuid}/latest.json`;
-    const latest = await env.SAVES.get(latestKey);
-    expect(latest).not.toBeNull();
-    const latestData = await latest!.json<{ summary: string }>();
-    expect(latestData.summary).toBe("Newer push");
-
-    // D1 summary should also still reflect the newer push
     const row = await env.DB.prepare("SELECT summary, last_updated FROM saves WHERE uuid = ?")
       .bind(body1.saveUuid)
       .first<{ summary: string; last_updated: string }>();
@@ -204,7 +195,7 @@ describe("Push API", () => {
     expect(row!.last_updated).toBe("2026-02-25T22:00:00Z");
   });
 
-  it("updates latest.json when incoming timestamp is newer", async () => {
+  it("updates D1 when incoming timestamp is newer", async () => {
     const character = {
       ...validGameState,
       identity: { ...validGameState.identity, saveName: "TimestampNewerChar" },
@@ -218,38 +209,17 @@ describe("Push API", () => {
     expect(resp1.status).toBe(201);
     const body1 = await resp1.json<{ saveUuid: string }>();
 
-    // Push with a newer timestamp — should update latest.json
+    // Push with a newer timestamp — should update D1
     const newerCharacter = { ...character, summary: "Second push" };
     const resp2 = await SELF.fetch(
       pushRequest(newerCharacter, { "X-Parsed-At": "2026-02-25T22:00:00Z" }),
     );
     expect(resp2.status).toBe(201);
 
-    const latestKey = `saves/${body1.saveUuid}/latest.json`;
-    const latest = await env.SAVES.get(latestKey);
-    const latestData = await latest!.json<{ summary: string }>();
-    expect(latestData.summary).toBe("Second push");
-  });
-
-  it("stores daemon-format identity (camelCase gameId) in R2 snapshot", async () => {
-    const daemonBody = {
-      identity: { saveName: "FormatCheck", gameId: "d2r" },
-      summary: "Format test",
-      sections: { overview: { description: "test", data: {} } },
-    };
-    const resp = await SELF.fetch(pushRequest(daemonBody));
-    expect(resp.status).toBe(201);
-    const { saveUuid } = await resp.json<{ saveUuid: string }>();
-
-    // Read back from R2 and verify identity uses camelCase (daemon convention)
-    const latestKey = `saves/${saveUuid}/latest.json`;
-    const object = await env.SAVES.get(latestKey);
-    expect(object).not.toBeNull();
-    const snapshot = await object!.json<{ identity: Record<string, unknown> }>();
-    expect(snapshot.identity.gameId).toBe("d2r");
-    expect(snapshot.identity.saveName).toBe("FormatCheck");
-    // snake_case game_id should NOT be present — daemon sends camelCase
-    expect(snapshot.identity.game_id).toBeUndefined();
+    const row = await env.DB.prepare("SELECT summary FROM saves WHERE uuid = ?")
+      .bind(body1.saveUuid)
+      .first<{ summary: string }>();
+    expect(row!.summary).toBe("Second push");
   });
 
   it("accepts gzip-compressed push body", async () => {
@@ -273,10 +243,10 @@ describe("Push API", () => {
     expect(body.saveUuid).toBeTruthy();
   });
 
-  it("always writes the immutable snapshot regardless of timestamp order", async () => {
+  it("accepts older push without updating D1 metadata", async () => {
     const character = {
       ...validGameState,
-      identity: { ...validGameState.identity, saveName: "SnapshotAlwaysChar" },
+      identity: { ...validGameState.identity, saveName: "OlderPushChar" },
     };
 
     // Push newer first
@@ -286,15 +256,22 @@ describe("Push API", () => {
     expect(resp1.status).toBe(201);
     const body1 = await resp1.json<{ saveUuid: string; snapshotTimestamp: string }>();
 
-    // Push older — should still return 201 (snapshot written)
+    // Push older — should still return 201 but not update D1
     const resp2 = await SELF.fetch(
       pushRequest(
-        { ...character, summary: "Older snapshot" },
+        { ...character, summary: "Older push" },
         { "X-Parsed-At": "2026-02-25T20:00:00Z" },
       ),
     );
     expect(resp2.status).toBe(201);
     expect(body1.snapshotTimestamp).toBe("2026-02-25T22:00:00Z");
+
+    // D1 should still have the newer data
+    const row = await env.DB.prepare("SELECT summary, last_updated FROM saves WHERE uuid = ?")
+      .bind(body1.saveUuid)
+      .first<{ summary: string; last_updated: string }>();
+    expect(row!.summary).toBe(character.summary);
+    expect(row!.last_updated).toBe("2026-02-25T22:00:00Z");
   });
 
   it("merges same character from different sources into one save", async () => {

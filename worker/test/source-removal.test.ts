@@ -401,10 +401,12 @@ async function seedSaveWithData(
     )
     .run();
 
-  // R2: latest + one snapshot
-  const snapshot = JSON.stringify({ identity: { saveName }, sections: {} });
-  await env.SAVES.put(`saves/${saveUuid}/latest.json`, snapshot);
-  await env.SAVES.put(`saves/${saveUuid}/snapshots/2026-01-01T00:00:00Z.json`, snapshot);
+  // D1 sections
+  await env.DB.prepare(
+    "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, 'overview', 'Overview', '{}')",
+  )
+    .bind(saveUuid)
+    .run();
 
   // Search index
   await env.DB.prepare(
@@ -464,11 +466,11 @@ describe("Game Removal", () => {
         .first();
       expect(notes).toBeNull();
 
-      // R2 objects gone
-      const latest = await env.SAVES.get(`saves/${saveUuid}/latest.json`);
-      expect(latest).toBeNull();
-      const snapshots = await env.SAVES.list({ prefix: `saves/${saveUuid}/snapshots/` });
-      expect(snapshots.objects).toHaveLength(0);
+      // Sections gone (FK cascade)
+      const sectionRows = await env.DB.prepare("SELECT 1 FROM sections WHERE save_uuid = ?")
+        .bind(saveUuid)
+        .first();
+      expect(sectionRows).toBeNull();
 
       // Search index gone
       const searchRows = await env.DB.prepare("SELECT 1 FROM search_index WHERE save_id = ?")
@@ -520,9 +522,11 @@ describe("Game Removal", () => {
         .first();
       expect(otherSave).not.toBeNull();
 
-      // Other user's R2 data still exists
-      const otherLatest = await env.SAVES.get(`saves/${otherSaveUuid}/latest.json`);
-      expect(otherLatest).not.toBeNull();
+      // Other user's section data still exists
+      const otherSections = await env.DB.prepare("SELECT 1 FROM sections WHERE save_uuid = ?")
+        .bind(otherSaveUuid)
+        .first();
+      expect(otherSections).not.toBeNull();
     });
 
     it("handles multiple saves for the same game", async () => {

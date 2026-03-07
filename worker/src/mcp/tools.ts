@@ -689,7 +689,6 @@ async function refreshAdapterSave(
     );
 
     const parsedAt = new Date().toISOString();
-    const bodyString = JSON.stringify(gameState);
 
     await storePush(
       env,
@@ -699,7 +698,6 @@ async function refreshAdapterSave(
       gameState.identity.saveName,
       gameState.summary,
       parsedAt,
-      bodyString,
       gameState.sections,
     );
 
