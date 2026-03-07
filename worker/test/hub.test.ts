@@ -1,14 +1,38 @@
 import { env, fetchMock, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import type { Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
+
 import {
   cleanAll,
   closeWs,
   connectDaemonWs,
   connectWs,
+  requireInnerPayload,
+  requirePayload,
   seedSource,
-  waitForMessage,
+  sendProto,
+  waitForProtoMessage,
+  waitForRelayedMessage,
 } from "./helpers";
+
+/** Shorthand for building a sourceOnline Message payload. */
+function sourceOnlineMsg(
+  overrides?: Partial<{ version: string; platform: string; os: string; arch: string }>,
+): Message {
+  return {
+    payload: {
+      $case: "sourceOnline",
+      sourceOnline: {
+        version: overrides?.version ?? "0.1.0",
+        timestamp: undefined,
+        platform: overrides?.platform ?? "",
+        os: overrides?.os ?? "",
+        arch: overrides?.arch ?? "",
+      },
+    },
+  };
+}
 
 describe("SourceHub", () => {
   beforeEach(cleanAll);
@@ -21,20 +45,32 @@ describe("SourceHub", () => {
     const uiWs = await connectWs("/ws/ui", userUuid);
 
     // Drain initial empty SourceState sent on UI connect
-    await waitForMessage(uiWs);
+    await waitForRelayedMessage(uiWs);
 
-    const event = { parseCompleted: { gameId: "d2r", summary: "Hammerdin, Level 89 Paladin" } };
-    daemonWs.send(JSON.stringify(event));
+    sendProto(daemonWs, {
+      payload: {
+        $case: "parseCompleted",
+        parseCompleted: {
+          gameId: "d2r",
+          fileName: "",
+          identity: undefined,
+          summary: "Hammerdin, Level 89 Paladin",
+          sectionsCount: 0,
+          sizeBytes: 0,
+        },
+      },
+    });
 
-    const received = await waitForMessage<typeof event>(uiWs);
-    expect(received.parseCompleted.gameId).toBe("d2r");
-    expect(received.parseCompleted.summary).toBe("Hammerdin, Level 89 Paladin");
+    const received = await waitForRelayedMessage(uiWs);
+    const pc = requireInnerPayload(received, "parseCompleted");
+    expect(pc.gameId).toBe("d2r");
+    expect(pc.summary).toBe("Hammerdin, Level 89 Paladin");
 
     await closeWs(daemonWs);
     await closeWs(uiWs);
   });
 
-  // UI→daemon relay is temporarily removed — UserHub's webSocketMessage
+  // UI-daemon relay is temporarily removed -- UserHub's webSocketMessage
   // is a no-op until bi-directional commands are implemented.
 
   it("persists daemon events to D1", async () => {
@@ -44,18 +80,12 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
-    // Drain initial empty SourceState sent on UI connect
-    await waitForMessage(uiWs);
+    await waitForRelayedMessage(uiWs);
 
-    const event = {
-      sourceOnline: { version: "0.1.0" },
-    };
-    daemonWs.send(JSON.stringify(event));
+    sendProto(daemonWs, sourceOnlineMsg());
 
-    // Wait for the UI to receive (ensures the DO processed the message)
-    await waitForMessage(uiWs);
+    await waitForRelayedMessage(uiWs);
 
-    // Check D1 — source_uuid should be the server-authoritative UUID, not "steam-deck"
     const rows = await env.DB.prepare(
       "SELECT * FROM source_events WHERE event_type = 'sourceOnline'",
     ).all();
@@ -73,7 +103,6 @@ describe("SourceHub", () => {
     const resp = await SELF.fetch("https://test-host/ws/daemon", {
       headers: { Upgrade: "websocket" },
     });
-    // Without auth header, should get 401 (not a WS upgrade)
     expect(resp.status).toBe(401);
   });
 
@@ -100,37 +129,48 @@ describe("SourceHub", () => {
     const userUuid = "coldstart-test-user";
     const { sourceToken } = await seedSource(userUuid);
 
-    // Send some events via a daemon WS to populate state and D1
     const daemonWs = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    const events = [
-      { sourceOnline: { version: "0.1.0" } },
-      { scanCompleted: { gameId: "d2r", filesFound: 3 } },
-      { parseCompleted: { gameId: "d2r", summary: "Hammerdin, Level 89" } },
+    const events: readonly Message[] = [
+      sourceOnlineMsg(),
+      {
+        payload: {
+          $case: "scanCompleted",
+          scanCompleted: { gameId: "d2r", path: "", filesFound: 3, fileNames: [] },
+        },
+      },
+      {
+        payload: {
+          $case: "parseCompleted",
+          parseCompleted: {
+            gameId: "d2r",
+            fileName: "",
+            identity: undefined,
+            summary: "Hammerdin, Level 89",
+            sectionsCount: 0,
+            sizeBytes: 0,
+          },
+        },
+      },
     ];
 
     for (const event of events) {
-      daemonWs.send(JSON.stringify(event));
-      await waitForMessage(temporaryUi);
+      sendProto(daemonWs, event);
+      await waitForRelayedMessage(temporaryUi);
     }
 
     await closeWs(temporaryUi);
 
-    // Fresh UI: first message should be SourceState, then activity feed with _ts
     const freshUi = await connectWs("/ws/ui", userUuid);
 
-    const msg1 = await waitForMessage<Record<string, unknown>>(freshUi);
-    expect(msg1).toHaveProperty("sourceState");
-    // SourceState snapshot does NOT have _ts (it's not a replayed event)
-    expect(msg1).not.toHaveProperty("_ts");
+    const msg1 = await waitForRelayedMessage(freshUi);
+    expect(msg1.message?.payload?.$case).toBe("sourceState");
 
-    const msg2 = await waitForMessage<Record<string, unknown>>(freshUi);
-    const firstKey = Object.keys(msg2).find((k) => k !== "_ts");
-    expect(["sourceOnline", "scanCompleted", "parseCompleted"]).toContain(firstKey);
-    // Replayed events MUST have _ts injected from D1 created_at
-    expect(msg2).toHaveProperty("_ts");
-    expect(typeof msg2._ts).toBe("string");
+    const msg2 = await waitForRelayedMessage(freshUi);
+    const case2 = msg2.message?.payload?.$case;
+    expect(["sourceOnline", "scanCompleted", "parseCompleted"]).toContain(case2);
+    expect(msg2.serverTimestamp).toBeDefined();
 
     await closeWs(freshUi);
     await closeWs(daemonWs);
@@ -143,15 +183,14 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
+    sendProto(daemon, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
     await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
+    const msg = await waitForRelayedMessage(freshUi);
 
-    expect(msg).toHaveProperty("sourceState");
-    const ds = msg.sourceState as { sources: { sourceId: string; online: boolean }[] };
+    const ds = requireInnerPayload(msg, "sourceState");
     expect(ds.sources).toHaveLength(1);
     expect(ds.sources[0]!.sourceId).toBe(sourceUuid);
     expect(ds.sources[0]!.online).toBe(true);
@@ -167,20 +206,21 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
+    sendProto(daemon, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
 
-    daemon.send(JSON.stringify({ sourceOffline: {} }));
-    await waitForMessage(temporaryUi);
+    sendProto(daemon, {
+      payload: { $case: "sourceOffline", sourceOffline: { timestamp: undefined } },
+    });
+    await waitForRelayedMessage(temporaryUi);
     await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
+    const msg = await waitForRelayedMessage(freshUi);
 
-    const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
+    const ds = requireInnerPayload(msg, "sourceState");
     const source = ds.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    // Proto3 JSON omits false (the default) — absent online means offline
     expect(source?.online).toBeFalsy();
 
     await closeWs(freshUi);
@@ -194,23 +234,24 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
+    sendProto(daemon, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
 
-    daemon.send(
-      JSON.stringify({ watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 5 } }),
-    );
-    await waitForMessage(temporaryUi);
+    sendProto(daemon, {
+      payload: {
+        $case: "watching",
+        watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 5 },
+      },
+    });
+    await waitForRelayedMessage(temporaryUi);
     await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
+    const msg = await waitForRelayedMessage(freshUi);
 
-    const ds = msg.sourceState as {
-      sources: { games: { gameId: string; status: string }[] }[];
-    };
+    const ds = requireInnerPayload(msg, "sourceState");
     const game = ds.sources[0]?.games.find((g) => g.gameId === "d2r");
-    expect(game?.status).toBe("GAME_STATUS_ENUM_WATCHING");
+    expect(game?.status).toBe(2);
 
     await closeWs(freshUi);
     await closeWs(daemon);
@@ -223,23 +264,29 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
+    sendProto(daemon, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
 
-    daemon.send(
-      JSON.stringify({
-        pushCompleted: { gameId: "d2r", saveUuid: "save-123", summary: "Hammerdin Lv89" },
-      }),
-    );
-    await waitForMessage(temporaryUi);
+    sendProto(daemon, {
+      payload: {
+        $case: "pushCompleted",
+        pushCompleted: {
+          gameId: "d2r",
+          saveUuid: "save-123",
+          summary: "Hammerdin Lv89",
+          snapshotSizeBytes: 0,
+          durationMs: 0,
+          identity: undefined,
+        },
+      },
+    });
+    await waitForRelayedMessage(temporaryUi);
     await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
+    const msg = await waitForRelayedMessage(freshUi);
 
-    const ds = msg.sourceState as {
-      sources: { games: { saves: { saveUuid: string; summary: string }[] }[] }[];
-    };
+    const ds = requireInnerPayload(msg, "sourceState");
     const save = ds.sources[0]?.games[0]?.saves.find((s) => s.saveUuid === "save-123");
     expect(save?.summary).toBe("Hammerdin Lv89");
 
@@ -254,20 +301,18 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
+    sendProto(daemon, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
     await closeWs(temporaryUi);
 
-    // Close daemon WS — should mark source offline
     await closeWs(daemon);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
+    const msg = await waitForRelayedMessage(freshUi);
 
-    const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
+    const ds = requireInnerPayload(msg, "sourceState");
     const source = ds.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    // Proto3 JSON omits false (the default) — absent online means offline
     expect(source?.online).toBeFalsy();
 
     await closeWs(freshUi);
@@ -276,7 +321,6 @@ describe("SourceHub", () => {
   it("tracks multiple sources independently via UserHub aggregation", async () => {
     const userUuid = "ds-multi-source-user";
 
-    // Two separate sources → two separate SourceHub DOs, same UserHub
     const sourceA = await seedSource(userUuid);
     const sourceB = await seedSource(userUuid);
 
@@ -284,31 +328,31 @@ describe("SourceHub", () => {
     const daemonB = await connectDaemonWs(sourceB.sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    // Source A comes online and watches d2r
-    daemonA.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
-    daemonA.send(
-      JSON.stringify({ watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 3 } }),
-    );
-    await waitForMessage(temporaryUi);
+    sendProto(daemonA, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
+    sendProto(daemonA, {
+      payload: {
+        $case: "watching",
+        watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 3 },
+      },
+    });
+    await waitForRelayedMessage(temporaryUi);
 
-    // Source B comes online and watches stardew
-    daemonB.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
-    daemonB.send(
-      JSON.stringify({
+    sendProto(daemonB, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
+    sendProto(daemonB, {
+      payload: {
+        $case: "watching",
         watching: { gameId: "stardew", path: "/saves/stardew", filesMonitored: 1 },
-      }),
-    );
-    await waitForMessage(temporaryUi);
+      },
+    });
+    await waitForRelayedMessage(temporaryUi);
     await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
+    const msg = await waitForRelayedMessage(freshUi);
 
-    const ds = msg.sourceState as {
-      sources: { sourceId: string; online: boolean; games: { gameId: string }[] }[];
-    };
+    const ds = requireInnerPayload(msg, "sourceState");
     expect(ds.sources).toHaveLength(2);
 
     const sourceAState = ds.sources.find((d) => d.sourceId === sourceA.sourceUuid);
@@ -337,19 +381,18 @@ describe("SourceHub", () => {
     const daemonB = await connectDaemonWs(sourceB.sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemonA.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
-    daemonB.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
+    sendProto(daemonA, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
+    sendProto(daemonB, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
     await closeWs(temporaryUi);
 
-    // Close only source A
     await closeWs(daemonA);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
+    const msg = await waitForRelayedMessage(freshUi);
 
-    const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
+    const ds = requireInnerPayload(msg, "sourceState");
     const sourceAState = ds.sources.find((d) => d.sourceId === sourceA.sourceUuid);
     const sourceBState = ds.sources.find((d) => d.sourceId === sourceB.sourceUuid);
 
@@ -369,32 +412,31 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
+    sendProto(daemon, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
 
-    daemon.send(
-      JSON.stringify({
+    sendProto(daemon, {
+      payload: {
+        $case: "pushCompleted",
         pushCompleted: {
           gameId: "d2r",
           saveUuid: "save-abc",
           summary: "Hammerdin, Level 89 Paladin",
+          snapshotSizeBytes: 0,
+          durationMs: 0,
           identity: { name: "Hammerdin", extra: { class: "Paladin", level: 89 } },
         },
-      }),
-    );
-    await waitForMessage(temporaryUi);
+      },
+    });
+    await waitForRelayedMessage(temporaryUi);
     await closeWs(temporaryUi);
 
     const freshUi = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
+    const msg = await waitForRelayedMessage(freshUi);
 
-    const ds = msg.sourceState as {
-      sources: {
-        games: { saves: { saveUuid: string; identity: { name: string } }[] }[];
-      }[];
-    };
+    const ds = requireInnerPayload(msg, "sourceState");
     const save = ds.sources[0]?.games[0]?.saves.find((s) => s.saveUuid === "save-abc");
-    expect(save?.identity.name).toBe("Hammerdin");
+    expect(save?.identity?.name).toBe("Hammerdin");
 
     await closeWs(freshUi);
     await closeWs(daemon);
@@ -406,7 +448,6 @@ describe("SourceHub", () => {
     const sourceA = await seedSource(userUuid);
     const sourceB = await seedSource(userUuid);
 
-    // Pre-populate config for sourceA only (using sourceA.sourceUuid as the sourceId)
     await env.DB.prepare(
       `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?)`,
@@ -417,87 +458,89 @@ describe("SourceHub", () => {
     const daemonA = await connectDaemonWs(sourceA.sourceToken);
     const daemonB = await connectDaemonWs(sourceB.sourceToken);
 
-    // Both daemons identify themselves
-    daemonA.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    const configA = await waitForMessage<Record<string, unknown>>(daemonA);
-    expect(configA).toHaveProperty("configUpdate");
+    sendProto(daemonA, sourceOnlineMsg());
+    const configA = await waitForProtoMessage(daemonA);
+    const cuA = requirePayload(configA, "configUpdate");
 
-    daemonB.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    const configB = await waitForMessage<Record<string, unknown>>(daemonB);
-    expect(configB).toHaveProperty("configUpdate");
+    sendProto(daemonB, sourceOnlineMsg());
+    const configB = await waitForProtoMessage(daemonB);
+    const cuB = requirePayload(configB, "configUpdate");
 
-    // Source A's configUpdate should have d2r, source B's should be empty
-    const sourceAGames = (configA.configUpdate as { games: Record<string, unknown> }).games;
-    const sourceBGames = (configB.configUpdate as { games: Record<string, unknown> }).games;
-    expect(Object.keys(sourceAGames)).toHaveLength(1);
-    expect(Object.keys(sourceBGames)).toHaveLength(0);
+    expect(Object.keys(cuA.games)).toHaveLength(1);
+    expect(Object.keys(cuB.games)).toHaveLength(0);
 
     await closeWs(daemonA);
     await closeWs(daemonB);
   });
 
-  it("injects _sourceId on live relay", async () => {
+  it("injects sourceId on live relay", async () => {
     const userUuid = "sourceid-relay-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
-    await waitForMessage(uiWs); // initial empty SourceState
+    await waitForRelayedMessage(uiWs);
 
-    // Identify the daemon connection
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(uiWs); // sourceOnline event
-    await waitForMessage(uiWs); // SourceState broadcast
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForRelayedMessage(uiWs);
+    await waitForRelayedMessage(uiWs);
 
-    // Send a game event — UI should receive it with _sourceId = sourceUuid
-    daemonWs.send(
-      JSON.stringify({ watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 5 } }),
-    );
-    const received = await waitForMessage<Record<string, unknown>>(uiWs);
-    expect(received).toHaveProperty("watching");
-    expect(received._sourceId).toBe(sourceUuid);
+    sendProto(daemonWs, {
+      payload: {
+        $case: "watching",
+        watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 5 },
+      },
+    });
+    const received = await waitForRelayedMessage(uiWs);
+    expect(received.message?.payload?.$case).toBe("watching");
+    expect(received.sourceId).toBe(sourceUuid);
 
     await closeWs(daemonWs);
     await closeWs(uiWs);
   });
 
-  it("injects _sourceId on replayed events", async () => {
+  it("injects sourceId on replayed events", async () => {
     const userUuid = "sourceid-replay-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemonWs = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
-    await waitForMessage(temporaryUi); // initial empty SourceState
+    await waitForRelayedMessage(temporaryUi);
 
-    // Identify daemon and send an event
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi); // sourceOnline event
-    await waitForMessage(temporaryUi); // SourceState broadcast
-    daemonWs.send(
-      JSON.stringify({ parseCompleted: { gameId: "d2r", summary: "Hammerdin, Level 89" } }),
-    );
-    await waitForMessage(temporaryUi); // parseCompleted
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
+    await waitForRelayedMessage(temporaryUi);
+    sendProto(daemonWs, {
+      payload: {
+        $case: "parseCompleted",
+        parseCompleted: {
+          gameId: "d2r",
+          fileName: "",
+          identity: undefined,
+          summary: "Hammerdin, Level 89",
+          sectionsCount: 0,
+          sizeBytes: 0,
+        },
+      },
+    });
+    await waitForRelayedMessage(temporaryUi);
     await closeWs(temporaryUi);
 
-    // Fresh UI should get SourceState, then replayed events with _sourceId
     const freshUi = await connectWs("/ws/ui", userUuid);
+    await waitForRelayedMessage(freshUi);
 
-    // Skip SourceState
-    await waitForMessage(freshUi);
-
-    // Collect replayed events — at least one should have _sourceId = sourceUuid
-    const replayed: Record<string, unknown>[] = [];
+    const replayed: RelayedMessage[] = [];
     try {
       while (replayed.length < 10) {
-        const msg = await waitForMessage<Record<string, unknown>>(freshUi, 500);
-        replayed.push(msg);
+        const replayMsg = await waitForRelayedMessage(freshUi, 500);
+        replayed.push(replayMsg);
       }
     } catch {
-      // Timeout expected — we've drained all replayed events
+      // Timeout expected
     }
 
     expect(replayed.length).toBeGreaterThanOrEqual(1);
-    const withSourceId = replayed.filter((m) => m._sourceId === sourceUuid);
+    const withSourceId = replayed.filter((m) => m.sourceId === sourceUuid);
     expect(withSourceId.length).toBeGreaterThanOrEqual(1);
 
     await closeWs(freshUi);
@@ -510,15 +553,11 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    // Identify the daemon and consume the configUpdate response
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate from maybePushConfig
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForProtoMessage(daemonWs);
 
-    // Register listener BEFORE the /rescan call — the DO sends the message
-    // synchronously within the fetch, so the listener must already be waiting.
-    const rescanPromise = waitForMessage<{ rescanGame: { gameId: string } }>(daemonWs);
+    const rescanPromise = waitForProtoMessage(daemonWs);
 
-    // Call the /rescan endpoint keyed by source_uuid
     const doId = env.SOURCE_HUB.idFromName(sourceUuid);
     const doStub = env.SOURCE_HUB.get(doId);
     const resp = await doStub.fetch(
@@ -533,9 +572,9 @@ describe("SourceHub", () => {
     expect(body.sent).toBe(true);
     expect(body.daemon_count).toBe(1);
 
-    // Daemon should have received the rescanGame message
     const received = await rescanPromise;
-    expect(received.rescanGame.gameId).toBe("d2r");
+    const rescan = requirePayload(received, "rescanGame");
+    expect(rescan.gameId).toBe("d2r");
 
     await closeWs(daemonWs);
   });
@@ -558,22 +597,25 @@ describe("SourceHub", () => {
     expect(body.daemon_online).toBe(false);
   });
 
-  it("isolates users — messages don't leak across DOs", async () => {
+  it("isolates users -- messages don't leak across DOs", async () => {
     const { sourceToken: tokenA } = await seedSource("user-a");
     const daemonA = await connectDaemonWs(tokenA);
     const uiA = await connectWs("/ws/ui", "user-a");
     const uiB = await connectWs("/ws/ui", "user-b");
 
-    const event = { pluginUpdated: { gameId: "d2r", version: "1.0.0" } };
-    daemonA.send(JSON.stringify(event));
+    sendProto(daemonA, {
+      payload: {
+        $case: "pluginUpdated",
+        pluginUpdated: { gameId: "d2r", version: "1.0.0" },
+      },
+    });
 
-    // User A's UI should receive the pluginUpdated event
-    const received = await waitForMessage<typeof event>(uiA);
-    expect(received.pluginUpdated.gameId).toBe("d2r");
-    expect(received.pluginUpdated.version).toBe("1.0.0");
+    const received = await waitForRelayedMessage(uiA);
+    const pu = requireInnerPayload(received, "pluginUpdated");
+    expect(pu.gameId).toBe("d2r");
+    expect(pu.version).toBe("1.0.0");
 
-    // User B's UI should NOT receive it (wait briefly, expect timeout)
-    const noMessage = await waitForMessage(uiB, 200).catch(() => null);
+    const noMessage = await waitForRelayedMessage(uiB, 200).catch(() => null);
     expect(noMessage).toBeNull();
 
     await closeWs(daemonA);
@@ -585,7 +627,6 @@ describe("SourceHub", () => {
     const userUuid = "update-check-user";
     const { sourceToken } = await seedSource(userUuid);
 
-    // Mock the install worker manifest endpoint
     const manifest = {
       version: "0.2.0",
       platforms: {
@@ -607,34 +648,22 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    // Send sourceOnline with an older version
-    daemonWs.send(
-      JSON.stringify({
-        sourceOnline: { version: "0.1.0", platform: "linux-amd64" },
-      }),
-    );
+    sendProto(daemonWs, sourceOnlineMsg({ platform: "linux-amd64" }));
 
-    // Should receive configUpdate first (from maybePushConfig)
-    const msg1 = await waitForMessage<Record<string, unknown>>(daemonWs);
+    const msg1 = await waitForProtoMessage(daemonWs);
 
-    // Should also receive sourceUpdateAvailable
-    // It might be the first or second message depending on ordering
-    let updateMsg: Record<string, unknown> | undefined;
-    if ("sourceUpdateAvailable" in msg1) {
+    let updateMsg: Message | undefined;
+    if (msg1.payload?.$case === "sourceUpdateAvailable") {
       updateMsg = msg1;
     } else {
-      const msg2 = await waitForMessage<Record<string, unknown>>(daemonWs);
-      if ("sourceUpdateAvailable" in msg2) {
+      const msg2 = await waitForProtoMessage(daemonWs);
+      if (msg2.payload?.$case === "sourceUpdateAvailable") {
         updateMsg = msg2;
       }
     }
 
     expect(updateMsg).toBeDefined();
-    const update = updateMsg!.sourceUpdateAvailable as {
-      version: string;
-      url: string;
-      sha256: string;
-    };
+    const update = requirePayload(updateMsg!, "sourceUpdateAvailable");
     expect(update.version).toBe("0.2.0");
     expect(update.url).toBe("https://install.savecraft.gg/daemon/savecraft-daemon-linux-amd64");
     expect(update.sha256).toBe("abc123");
@@ -650,26 +679,26 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
-    // Identify daemon
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(uiWs); // sourceOnline event
-    await waitForMessage(uiWs); // SourceState broadcast
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForRelayedMessage(uiWs);
+    await waitForRelayedMessage(uiWs);
 
-    // Send heartbeat — raw event should NOT be relayed to UI
-    // (heartbeat triggers a SourceState update for lastSeen, but not the event itself)
-    daemonWs.send(JSON.stringify({ sourceHeartbeat: {} }));
+    sendProto(daemonWs, {
+      payload: { $case: "sourceHeartbeat", sourceHeartbeat: {} },
+    });
 
-    // Drain any messages (SourceState from heartbeat is expected) — none should be sourceHeartbeat
-    const messages: Record<string, unknown>[] = [];
+    const messages: RelayedMessage[] = [];
     try {
       while (messages.length < 5) {
-        const msg = await waitForMessage<Record<string, unknown>>(uiWs, 200);
-        messages.push(msg);
+        const drainMsg = await waitForRelayedMessage(uiWs, 200);
+        messages.push(drainMsg);
       }
     } catch {
       // Timeout expected
     }
-    const heartbeatRelayed = messages.some((m) => "sourceHeartbeat" in m);
+    const heartbeatRelayed = messages.some(
+      (m) => m.message?.payload?.$case === "sourceHeartbeat",
+    );
     expect(heartbeatRelayed).toBe(false);
 
     await closeWs(daemonWs);
@@ -683,33 +712,31 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const temporaryUi = await connectWs("/ws/ui", userUuid);
 
-    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(temporaryUi);
+    sendProto(daemon, sourceOnlineMsg());
+    await waitForRelayedMessage(temporaryUi);
     await closeWs(temporaryUi);
 
-    // Get initial lastSeen
     const ui1 = await connectWs("/ws/ui", userUuid);
-    const msg1 = await waitForMessage<Record<string, unknown>>(ui1);
-    const ds1 = msg1.sourceState as { sources: { lastSeen: string }[] };
-    const initialLastSeen = new Date(ds1.sources[0]!.lastSeen).getTime();
+    const msg1 = await waitForRelayedMessage(ui1);
+    const ds1 = requireInnerPayload(msg1, "sourceState");
+    const initialLastSeen = ds1.sources[0]!.lastSeen!.getTime();
     await closeWs(ui1);
 
-    // Wait enough to guarantee temporal separation, then send heartbeat
     await new Promise((resolve) => {
       setTimeout(resolve, 100);
     });
-    daemon.send(JSON.stringify({ sourceHeartbeat: {} }));
+    sendProto(daemon, {
+      payload: { $case: "sourceHeartbeat", sourceHeartbeat: {} },
+    });
 
-    // Give DO time to process
     await new Promise((resolve) => {
       setTimeout(resolve, 50);
     });
 
-    // Check lastSeen was updated — assert strictly newer (not just different)
     const ui2 = await connectWs("/ws/ui", userUuid);
-    const msg2 = await waitForMessage<Record<string, unknown>>(ui2);
-    const ds2 = msg2.sourceState as { sources: { lastSeen: string }[] };
-    const updatedLastSeen = new Date(ds2.sources[0]!.lastSeen).getTime();
+    const msg2 = await waitForRelayedMessage(ui2);
+    const ds2 = requireInnerPayload(msg2, "sourceState");
+    const updatedLastSeen = ds2.sources[0]!.lastSeen!.getTime();
 
     expect(updatedLastSeen).toBeGreaterThan(initialLastSeen);
 
@@ -724,32 +751,25 @@ describe("SourceHub", () => {
     const daemon = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
-    // Send sourceOnline — sets alarm (100ms in test config)
-    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(uiWs); // sourceOnline relayed
+    sendProto(daemon, sourceOnlineMsg());
+    await waitForRelayedMessage(uiWs);
     await closeWs(uiWs);
 
-    // Pre-assertion: source must be online before we test eviction
     const preUi = await connectWs("/ws/ui", userUuid);
-    const preMsg = await waitForMessage<Record<string, unknown>>(preUi);
-    const preDs = preMsg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
+    const preMsg = await waitForRelayedMessage(preUi);
+    const preDs = requireInnerPayload(preMsg, "sourceState");
     const preSource = preDs.sources.find((d) => d.sourceId === sourceUuid);
     expect(preSource).toBeDefined();
     expect(preSource?.online).toBe(true);
     await closeWs(preUi);
 
-    // Wait for stale threshold + alarm interval to pass
-    // STALE_THRESHOLD_MS=200, ALARM_INTERVAL_MS=100, so after ~300ms the source
-    // should be evicted (alarm fires at 100ms, source not stale yet; fires again
-    // at 200ms, still not stale; fires at 300ms, lastSeen is now >200ms ago).
     await new Promise((resolve) => {
       setTimeout(resolve, 500);
     });
 
-    // Post-assertion: source must now be offline (evicted by alarm)
     const freshUi = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
-    const ds = msg.sourceState as { sources: { sourceId: string; online?: boolean }[] };
+    const freshMsg = await waitForRelayedMessage(freshUi);
+    const ds = requireInnerPayload(freshMsg, "sourceState");
     const source = ds.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
     expect(source?.online).toBeFalsy();
@@ -758,56 +778,50 @@ describe("SourceHub", () => {
     await closeWs(daemon);
   });
 
-  it("graceful offline deletes alarm — lastSeen unchanged after wait", async () => {
+  it("graceful offline deletes alarm -- lastSeen unchanged after wait", async () => {
     const userUuid = "alarm-lifecycle-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
     const daemon = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
-    // Source comes online (sets alarm)
-    daemon.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(uiWs);
+    sendProto(daemon, sourceOnlineMsg());
+    await waitForRelayedMessage(uiWs);
 
-    // Source goes offline gracefully (should delete alarm)
-    daemon.send(JSON.stringify({ sourceOffline: {} }));
-    await waitForMessage(uiWs);
+    sendProto(daemon, {
+      payload: { $case: "sourceOffline", sourceOffline: { timestamp: undefined } },
+    });
+    await waitForRelayedMessage(uiWs);
 
     await closeWs(daemon);
     await closeWs(uiWs);
 
-    // Snapshot lastSeen immediately after offline
     const ui1 = await connectWs("/ws/ui", userUuid);
-    const msg1 = await waitForMessage<Record<string, unknown>>(ui1);
-    const ds1 = msg1.sourceState as { sources: { sourceId: string; lastSeen?: string }[] };
+    const msg1 = await waitForRelayedMessage(ui1);
+    const ds1 = requireInnerPayload(msg1, "sourceState");
     const lastSeenBefore = ds1.sources.find((d) => d.sourceId === sourceUuid)?.lastSeen;
     expect(lastSeenBefore).toBeDefined();
     await closeWs(ui1);
 
-    // Wait past the alarm interval — alarm should NOT fire since source is offline
     await new Promise((resolve) => {
       setTimeout(resolve, 300);
     });
 
-    // lastSeen must be identical — proves no alarm fired and re-processed the source
     const ui2 = await connectWs("/ws/ui", userUuid);
-    const msg2 = await waitForMessage<Record<string, unknown>>(ui2);
-    const ds2 = msg2.sourceState as { sources: { sourceId: string; lastSeen?: string }[] };
+    const msg2 = await waitForRelayedMessage(ui2);
+    const ds2 = requireInnerPayload(msg2, "sourceState");
     const lastSeenAfter = ds2.sources.find((d) => d.sourceId === sourceUuid)?.lastSeen;
-    expect(lastSeenAfter).toBe(lastSeenBefore);
+    expect(lastSeenAfter?.toISOString()).toBe(lastSeenBefore?.toISOString());
 
     await closeWs(ui2);
   });
 
   it("unlinked source can connect and process events locally", async () => {
-    // Source with no user_uuid — should still accept daemon WS
     const { sourceUuid, sourceToken } = await seedSource(null);
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
+    sendProto(daemonWs, sourceOnlineMsg());
 
-    // SourceHub should process the event without error (no UserHub to forward to)
-    // Verify state was stored by accessing the DO directly
     const doId = env.SOURCE_HUB.idFromName(sourceUuid);
     const doStub = env.SOURCE_HUB.get(doId);
     const resp = await doStub.fetch(
@@ -826,7 +840,6 @@ describe("SourceHub", () => {
   it("source linking mid-session starts forwarding to UserHub", async () => {
     const userUuid = "link-mid-session-user";
 
-    // Create unlinked source with a link code
     const { sourceUuid, sourceToken } = await seedSource(null);
     const linkCode = "123456";
     await env.DB.prepare(
@@ -835,16 +848,13 @@ describe("SourceHub", () => {
       .bind(linkCode, sourceUuid)
       .run();
 
-    // Connect daemon before linking
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
+    sendProto(daemonWs, sourceOnlineMsg());
 
-    // Give DO time to process sourceOnline
     await new Promise((resolve) => {
       setTimeout(resolve, 50);
     });
 
-    // Link the source to the user via the API
     const linkResp = await SELF.fetch("https://test-host/api/v1/source/link", {
       method: "POST",
       headers: {
@@ -855,31 +865,25 @@ describe("SourceHub", () => {
     });
     expect(linkResp.status).toBe(200);
 
-    // Now connect UI — the SourceHub should have forwarded state to UserHub
     const uiWs = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(uiWs);
+    const uiMsg = await waitForRelayedMessage(uiWs);
 
-    expect(msg).toHaveProperty("sourceState");
-    const ds = msg.sourceState as {
-      sources: { sourceId: string; online: boolean }[];
-    };
+    const ds = requireInnerPayload(uiMsg, "sourceState");
     const source = ds.sources.find((s) => s.sourceId === sourceUuid);
     expect(source).toBeDefined();
     expect(source!.online).toBe(true);
 
-    // Send another event after linking — should forward to UI.
-    // Drain any replayed events from D1 (pre-link events are now persisted)
-    // and any intermediate sourceState updates until we see the live event.
-    daemonWs.send(
-      JSON.stringify({
+    sendProto(daemonWs, {
+      payload: {
+        $case: "watching",
         watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 3 },
-      }),
-    );
-    let relayed: Record<string, unknown>;
+      },
+    });
+    let relayed: RelayedMessage;
     do {
-      relayed = await waitForMessage<Record<string, unknown>>(uiWs);
-    } while (!("watching" in relayed));
-    expect(relayed).toHaveProperty("watching");
+      relayed = await waitForRelayedMessage(uiWs);
+    } while (relayed.message?.payload?.$case !== "watching");
+    expect(relayed.message?.payload?.$case).toBe("watching");
 
     await closeWs(uiWs);
     await closeWs(daemonWs);
@@ -889,14 +893,13 @@ describe("SourceHub", () => {
     const userUuid = "no-rescan-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Disable can_rescan for this source
     await env.DB.prepare("UPDATE sources SET can_rescan = 0 WHERE source_uuid = ?")
       .bind(sourceUuid)
       .run();
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForProtoMessage(daemonWs);
 
     const doId = env.SOURCE_HUB.idFromName(sourceUuid);
     const doStub = env.SOURCE_HUB.get(doId);
@@ -919,7 +922,6 @@ describe("SourceHub", () => {
     const userUuid = "no-config-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Disable can_receive_config and add a config that would normally be pushed
     await env.DB.prepare("UPDATE sources SET can_receive_config = 0 WHERE source_uuid = ?")
       .bind(sourceUuid)
       .run();
@@ -931,10 +933,9 @@ describe("SourceHub", () => {
       .run();
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
+    sendProto(daemonWs, sourceOnlineMsg());
 
-    // Should NOT receive configUpdate — wait briefly, expect timeout
-    const noConfig = await waitForMessage(daemonWs, 500).catch(() => null);
+    const noConfig = await waitForProtoMessage(daemonWs, 500).catch(() => null);
     expect(noConfig).toBeNull();
 
     await closeWs(daemonWs);
@@ -944,7 +945,6 @@ describe("SourceHub", () => {
     const userUuid = "meta-decoration-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Set non-default metadata in D1
     await env.DB.prepare(
       "UPDATE sources SET source_kind = 'plugin', hostname = 'gaming-rig', can_rescan = 0, can_receive_config = 0 WHERE source_uuid = ?",
     )
@@ -954,34 +954,20 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
 
-    // Drain initial SourceState (may have stale/empty data)
-    await waitForMessage(uiWs);
+    await waitForRelayedMessage(uiWs);
 
-    // Trigger sourceOnline → SourceHub decorates state with D1 metadata before forwarding
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
+    sendProto(daemonWs, sourceOnlineMsg());
 
-    // Drain forwarded event, then get the updated SourceState
-    await waitForMessage(uiWs); // sourceOnline event
-    const stateMsg = await waitForMessage<{
-      sourceState: {
-        sources: {
-          sourceId: string;
-          sourceKind: string;
-          hostname: string;
-          canRescan?: boolean;
-          canReceiveConfig?: boolean;
-          online: boolean;
-        }[];
-      };
-    }>(uiWs);
+    await waitForRelayedMessage(uiWs);
+    const stateMsg = await waitForRelayedMessage(uiWs);
 
-    const source = stateMsg.sourceState.sources[0]!;
+    const ds = requireInnerPayload(stateMsg, "sourceState");
+    const source = ds.sources[0]!;
     expect(source.sourceId).toBe(sourceUuid);
     expect(source.sourceKind).toBe("plugin");
     expect(source.hostname).toBe("gaming-rig");
-    // Proto3 JSON omits false booleans — canRescan/canReceiveConfig should be absent (undefined)
-    expect(source.canRescan).toBeUndefined();
-    expect(source.canReceiveConfig).toBeUndefined();
+    expect(source.canRescan).toBe(false);
+    expect(source.canReceiveConfig).toBe(false);
     expect(source.online).toBe(true);
 
     await closeWs(daemonWs);
@@ -992,7 +978,6 @@ describe("SourceHub", () => {
     const userUuid = "status-endpoint-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Before daemon connects — should report offline
     const doId = env.SOURCE_HUB.idFromName(sourceUuid);
     const doStub = env.SOURCE_HUB.get(doId);
     const offlineResp = await doStub.fetch(new Request("https://do/status", { method: "GET" }));
@@ -1000,12 +985,10 @@ describe("SourceHub", () => {
     const offlineBody = await offlineResp.json<{ daemon_online: boolean }>();
     expect(offlineBody.daemon_online).toBe(false);
 
-    // Connect daemon
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForProtoMessage(daemonWs);
 
-    // Should now report online
     const onlineResp = await doStub.fetch(new Request("https://do/status", { method: "GET" }));
     const onlineBody = await onlineResp.json<{ daemon_online: boolean }>();
     expect(onlineBody.daemon_online).toBe(true);
@@ -1019,23 +1002,20 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    // Identify daemon
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForProtoMessage(daemonWs);
 
-    // Send gameDetected — should auto-create config in D1
-    daemonWs.send(
-      JSON.stringify({
+    sendProto(daemonWs, {
+      payload: {
+        $case: "gameDetected",
         gameDetected: { gameId: "d2r", path: "/home/user/.d2r/saves", saveCount: 3 },
-      }),
-    );
+      },
+    });
 
-    // Give handler time to process (D1 write happens async in webSocketMessage)
     await new Promise((resolve) => {
       setTimeout(resolve, 200);
     });
 
-    // Verify D1 has the auto-created config row
     const rows = await env.DB.prepare(
       "SELECT * FROM source_configs WHERE source_uuid = ? AND game_id = ?",
     )
@@ -1052,28 +1032,26 @@ describe("SourceHub", () => {
     const userUuid = "auto-enable-reconnect-user";
     const { sourceToken } = await seedSource(userUuid);
 
-    // First connection: daemon detects a game
     const daemon1 = await connectDaemonWs(sourceToken);
-    daemon1.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemon1); // initial empty configUpdate
-    daemon1.send(
-      JSON.stringify({ gameDetected: { gameId: "d2r", path: "/saves/d2r", saveCount: 2 } }),
-    );
-    // Give handler time to process
+    sendProto(daemon1, sourceOnlineMsg());
+    await waitForProtoMessage(daemon1);
+    sendProto(daemon1, {
+      payload: {
+        $case: "gameDetected",
+        gameDetected: { gameId: "d2r", path: "/saves/d2r", saveCount: 2 },
+      },
+    });
     await new Promise((resolve) => {
       setTimeout(resolve, 100);
     });
     await closeWs(daemon1);
 
-    // Second connection: daemon comes back online and gets the auto-created config
     const daemon2 = await connectDaemonWs(sourceToken);
-    daemon2.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    const configMsg = await waitForMessage<{
-      configUpdate: { games: Record<string, { savePath: string; enabled: boolean }> };
-    }>(daemon2);
+    sendProto(daemon2, sourceOnlineMsg());
+    const configMsg = await waitForProtoMessage(daemon2);
 
-    expect(configMsg).toHaveProperty("configUpdate");
-    const d2rConfig = configMsg.configUpdate.games.d2r;
+    const cu = requirePayload(configMsg, "configUpdate");
+    const d2rConfig = cu.games["d2r"];
     expect(d2rConfig).toBeDefined();
     expect(d2rConfig!.savePath).toBe("/saves/d2r");
     expect(d2rConfig!.enabled).toBe(true);
@@ -1085,7 +1063,6 @@ describe("SourceHub", () => {
     const userUuid = "no-overwrite-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Pre-populate config with a custom path
     await env.DB.prepare(
       `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?)`,
@@ -1095,20 +1072,19 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    // Identify daemon and consume configUpdate
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForProtoMessage(daemonWs);
 
-    // Send gameDetected with a different path
-    daemonWs.send(
-      JSON.stringify({ gameDetected: { gameId: "d2r", path: "/detected/path", saveCount: 1 } }),
-    );
+    sendProto(daemonWs, {
+      payload: {
+        $case: "gameDetected",
+        gameDetected: { gameId: "d2r", path: "/detected/path", saveCount: 1 },
+      },
+    });
 
-    // Should NOT receive another configUpdate (config already exists and is enabled)
-    const noConfig = await waitForMessage(daemonWs, 500).catch(() => null);
+    const noConfig = await waitForProtoMessage(daemonWs, 500).catch(() => null);
     expect(noConfig).toBeNull();
 
-    // Verify D1 still has the original path
     const row = await env.DB.prepare(
       "SELECT save_path FROM source_configs WHERE source_uuid = ? AND game_id = ?",
     )
@@ -1123,7 +1099,6 @@ describe("SourceHub", () => {
     const userUuid = "no-reenable-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Pre-populate disabled config
     await env.DB.prepare(
       `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?)`,
@@ -1133,20 +1108,19 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    // Identify daemon and consume configUpdate
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForProtoMessage(daemonWs);
 
-    // Send gameDetected
-    daemonWs.send(
-      JSON.stringify({ gameDetected: { gameId: "d2r", path: "/detected/path", saveCount: 2 } }),
-    );
+    sendProto(daemonWs, {
+      payload: {
+        $case: "gameDetected",
+        gameDetected: { gameId: "d2r", path: "/detected/path", saveCount: 2 },
+      },
+    });
 
-    // Should NOT receive a configUpdate (user disabled this game)
-    const noConfig = await waitForMessage(daemonWs, 500).catch(() => null);
+    const noConfig = await waitForProtoMessage(daemonWs, 500).catch(() => null);
     expect(noConfig).toBeNull();
 
-    // Verify D1 still has enabled = 0
     const row = await env.DB.prepare(
       "SELECT enabled FROM source_configs WHERE source_uuid = ? AND game_id = ?",
     )
@@ -1163,13 +1137,12 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    // Identify daemon
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // initial empty configUpdate
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForProtoMessage(daemonWs);
 
-    // Send gamesDiscovered — should auto-create configs in D1 and push config back
-    daemonWs.send(
-      JSON.stringify({
+    sendProto(daemonWs, {
+      payload: {
+        $case: "gamesDiscovered",
         gamesDiscovered: {
           games: [
             {
@@ -1177,27 +1150,29 @@ describe("SourceHub", () => {
               name: "Diablo II: Resurrected",
               path: "/home/user/.d2r/saves",
               fileCount: 2,
+              fileExtensions: [],
             },
-            { gameId: "sdv", name: "Stardew Valley", path: "/home/user/.sdv/saves", fileCount: 1 },
+            {
+              gameId: "sdv",
+              name: "Stardew Valley",
+              path: "/home/user/.sdv/saves",
+              fileCount: 1,
+              fileExtensions: [],
+            },
           ],
         },
-      }),
-    );
+      },
+    });
 
-    // Should receive a configUpdate with both games
-    const configMsg = await waitForMessage<{
-      configUpdate: { games: Record<string, { savePath: string; enabled: boolean }> };
-    }>(daemonWs);
+    const configMsg = await waitForProtoMessage(daemonWs);
+    const cu = requirePayload(configMsg, "configUpdate");
+    expect(cu.games["d2r"]).toBeDefined();
+    expect(cu.games["d2r"]!.savePath).toBe("/home/user/.d2r/saves");
+    expect(cu.games["d2r"]!.enabled).toBe(true);
+    expect(cu.games["sdv"]).toBeDefined();
+    expect(cu.games["sdv"]!.savePath).toBe("/home/user/.sdv/saves");
+    expect(cu.games["sdv"]!.enabled).toBe(true);
 
-    expect(configMsg).toHaveProperty("configUpdate");
-    expect(configMsg.configUpdate.games.d2r).toBeDefined();
-    expect(configMsg.configUpdate.games.d2r!.savePath).toBe("/home/user/.d2r/saves");
-    expect(configMsg.configUpdate.games.d2r!.enabled).toBe(true);
-    expect(configMsg.configUpdate.games.sdv).toBeDefined();
-    expect(configMsg.configUpdate.games.sdv!.savePath).toBe("/home/user/.sdv/saves");
-    expect(configMsg.configUpdate.games.sdv!.enabled).toBe(true);
-
-    // Verify D1 has both rows
     const rows = await env.DB.prepare(
       "SELECT game_id, save_path, enabled FROM source_configs WHERE source_uuid = ? ORDER BY game_id",
     )
@@ -1214,7 +1189,6 @@ describe("SourceHub", () => {
     const userUuid = "no-overwrite-discover-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Pre-populate config with a custom path
     await env.DB.prepare(
       `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?)`,
@@ -1224,31 +1198,37 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    // Identify daemon and consume configUpdate
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForProtoMessage(daemonWs);
 
-    // Send gamesDiscovered with d2r (already exists) and sdv (new)
-    daemonWs.send(
-      JSON.stringify({
+    sendProto(daemonWs, {
+      payload: {
+        $case: "gamesDiscovered",
         gamesDiscovered: {
           games: [
-            { gameId: "d2r", name: "Diablo II: Resurrected", path: "/detected/path", fileCount: 2 },
-            { gameId: "sdv", name: "Stardew Valley", path: "/home/user/.sdv/saves", fileCount: 1 },
+            {
+              gameId: "d2r",
+              name: "Diablo II: Resurrected",
+              path: "/detected/path",
+              fileCount: 2,
+              fileExtensions: [],
+            },
+            {
+              gameId: "sdv",
+              name: "Stardew Valley",
+              path: "/home/user/.sdv/saves",
+              fileCount: 1,
+              fileExtensions: [],
+            },
           ],
         },
-      }),
-    );
+      },
+    });
 
-    // Should receive configUpdate for the new sdv game
-    const configMsg = await waitForMessage<{
-      configUpdate: { games: Record<string, { savePath: string; enabled: boolean }> };
-    }>(daemonWs);
-    expect(configMsg).toHaveProperty("configUpdate");
-    // d2r should still have the custom path (not overwritten)
-    expect(configMsg.configUpdate.games.d2r!.savePath).toBe("/custom/path");
-    // sdv should be newly created
-    expect(configMsg.configUpdate.games.sdv!.savePath).toBe("/home/user/.sdv/saves");
+    const configMsg = await waitForProtoMessage(daemonWs);
+    const cu = requirePayload(configMsg, "configUpdate");
+    expect(cu.games["d2r"]!.savePath).toBe("/custom/path");
+    expect(cu.games["sdv"]!.savePath).toBe("/home/user/.sdv/saves");
 
     await closeWs(daemonWs);
   });
@@ -1257,7 +1237,6 @@ describe("SourceHub", () => {
     const userUuid = "no-activating-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Pre-populate config
     await env.DB.prepare(
       `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?)`,
@@ -1267,32 +1246,27 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
-    await waitForMessage(uiWs); // initial SourceState
+    await waitForRelayedMessage(uiWs);
 
-    // Identify daemon — triggers maybePushConfig → pushConfigToSource
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForProtoMessage(daemonWs);
 
-    // Drain all UI messages and check none show ACTIVATING status
-    const messages: Record<string, unknown>[] = [];
+    const messages: RelayedMessage[] = [];
     try {
       while (messages.length < 10) {
-        const msg = await waitForMessage<Record<string, unknown>>(uiWs, 500);
-        messages.push(msg);
+        const drainMsg = await waitForRelayedMessage(uiWs, 500);
+        messages.push(drainMsg);
       }
     } catch {
       // Timeout expected
     }
 
-    // Check SourceState messages — none should have ACTIVATING
-    const stateMessages = messages.filter((m) => "sourceState" in m);
+    const stateMessages = messages.filter((m) => m.message?.payload?.$case === "sourceState");
     for (const stateMsg of stateMessages) {
-      const ds = stateMsg.sourceState as {
-        sources: { games?: { gameId: string; status: string }[] }[];
-      };
+      const ds = requireInnerPayload(stateMsg, "sourceState");
       for (const source of ds.sources) {
         for (const game of source.games ?? []) {
-          expect(game.status).not.toBe("GAME_STATUS_ENUM_ACTIVATING");
+          expect(game.status).not.toBe(5);
         }
       }
     }
@@ -1305,7 +1279,6 @@ describe("SourceHub", () => {
     const userUuid = "update-current-user";
     const { sourceToken } = await seedSource(userUuid);
 
-    // Mock the install worker manifest endpoint
     const manifest = {
       version: "0.1.0",
       platforms: {
@@ -1327,19 +1300,12 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    // Send sourceOnline with current version
-    daemonWs.send(
-      JSON.stringify({
-        sourceOnline: { version: "0.1.0", platform: "linux-amd64" },
-      }),
-    );
+    sendProto(daemonWs, sourceOnlineMsg({ platform: "linux-amd64" }));
 
-    // Should receive configUpdate
-    const msg1 = await waitForMessage<Record<string, unknown>>(daemonWs);
-    expect(msg1).toHaveProperty("configUpdate");
+    const msg1 = await waitForProtoMessage(daemonWs);
+    requirePayload(msg1, "configUpdate");
 
-    // Should NOT receive sourceUpdateAvailable — wait briefly
-    const noUpdate = await waitForMessage(daemonWs, 200).catch(() => null);
+    const noUpdate = await waitForProtoMessage(daemonWs, 200).catch(() => null);
     expect(noUpdate).toBeNull();
 
     await closeWs(daemonWs);
@@ -1350,7 +1316,6 @@ describe("SourceHub", () => {
     const userUuid = "config-result-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Pre-populate config entries for two games
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
@@ -1364,17 +1329,16 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
     const uiWs = await connectWs("/ws/ui", userUuid);
-    await waitForMessage(uiWs); // initial SourceState
+    await waitForRelayedMessage(uiWs);
 
-    // Identify daemon
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate push
-    await waitForMessage(uiWs); // sourceOnline event
-    await waitForMessage(uiWs); // SourceState broadcast
+    sendProto(daemonWs, sourceOnlineMsg());
+    await waitForProtoMessage(daemonWs);
+    await waitForRelayedMessage(uiWs);
+    await waitForRelayedMessage(uiWs);
 
-    // Send ConfigResult with one success and one error
-    daemonWs.send(
-      JSON.stringify({
+    sendProto(daemonWs, {
+      payload: {
+        $case: "configResult",
         configResult: {
           results: {
             d2r: { success: true, error: "", resolvedPath: "/home/user/saves/d2r" },
@@ -1385,14 +1349,12 @@ describe("SourceHub", () => {
             },
           },
         },
-      }),
-    );
+      },
+    });
 
-    // Wait for UI to receive the event (ensures DO processed it)
-    const received = await waitForMessage<Record<string, unknown>>(uiWs);
-    expect(received).toHaveProperty("configResult");
+    const received = await waitForRelayedMessage(uiWs);
+    requireInnerPayload(received, "configResult");
 
-    // Verify D1 was updated
     const d2rRow = await env.DB.prepare(
       "SELECT config_status, resolved_path, last_error, result_at FROM source_configs WHERE source_uuid = ? AND game_id = ?",
     )

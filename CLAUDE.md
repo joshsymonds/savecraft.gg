@@ -26,7 +26,7 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 - **Auth:** Clerk (OAuth, JWT, magic links)
 - **Frontend:** SvelteKit, TypeScript
 - **Plugins:** Go compiled to WASI Preview 1 (.wasm), ndjson stdout contract, Ed25519 signed
-- **Protocol:** Protobuf (proto/protocol.proto) → buf generate → Go + TypeScript
+- **Protocol:** Binary protobuf on all WebSocket legs. `Message` (daemon↔server), `RelayedMessage` (server→browser). Schema: proto/protocol.proto → buf generate → Go + worker TS + web TS
 - **Build:** just (Justfile), nix devenv + direnv
 
 ## Project Phase
@@ -38,7 +38,7 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 ## Key Conventions
 
 - Monorepo, single Go module
-- WebSocket protocol defined once in protobuf, codegen'd to both languages. No mirrored types.
+- WebSocket protocol defined once in protobuf, codegen'd to Go + worker TS + web TS. Binary proto on the wire (`Message` for daemon↔server, `RelayedMessage` for server→browser). No mirrored types, no JSON on WebSocket.
 - GameState types (plugin output) are hand-written Go/TS — section data is arbitrary JSON per game. Types live next to their consumers, not in grab-bag packages.
 - Plugin stdout is ndjson: `{"type": "status"|"result"|"error", ...}` per line
 - Save data pushed via HTTP POST, not WebSocket. WS carries lightweight status events only.

@@ -6,7 +6,7 @@ export type ConnectionStatus = "disconnected" | "connecting" | "reconnecting" | 
 
 export const connectionStatus = writable<ConnectionStatus>("disconnected");
 
-type MessageHandler = (data: string) => void;
+type MessageHandler = (data: ArrayBuffer) => void;
 
 let ws: WebSocket | null = null;
 let handler: MessageHandler | null = null;
@@ -67,6 +67,7 @@ async function doConnect(): Promise<void> {
   // Pass JWT via Sec-WebSocket-Protocol header (not URL query param)
   // to avoid token exposure in access logs and browser history.
   const socket = new WebSocket(wsUrl(), [`access_token.${token}`]);
+  socket.binaryType = "arraybuffer";
   ws = socket;
 
   socket.addEventListener("open", () => {
@@ -76,7 +77,7 @@ async function doConnect(): Promise<void> {
   });
 
   socket.addEventListener("message", (event: MessageEvent) => {
-    if (handler && typeof event.data === "string") {
+    if (handler && event.data instanceof ArrayBuffer) {
       handler(event.data);
     }
   });
@@ -135,7 +136,7 @@ export function disconnect(): void {
   setStatus("disconnected");
 }
 
-export function send(data: string): void {
+export function send(data: Uint8Array): void {
   if (ws?.readyState === WebSocket.OPEN) {
     ws.send(data);
   }

@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 
 import { DebugLog } from "./debug-log";
+import { Message, RelayedMessage } from "./proto/savecraft/v1/protocol";
 import type { Env } from "./types";
 
 const SOURCE_STATE_PREFIX = "source:";
@@ -13,6 +14,8 @@ const USER_UUID_KEY = "userUuid";
  *
  * State is stored per-source (keyed by sourceUuid) and merged into a single
  * SourceState envelope when sent to UI clients.
+ *
+ * All UI WebSocket sends use binary protobuf RelayedMessage frames.
  */
 export class UserHub extends DurableObject<Env> {
   private readonly debugLog = new DebugLog();
@@ -98,7 +101,9 @@ export class UserHub extends DurableObject<Env> {
       const mergedState = await this.buildMergedSourceState();
       return Response.json({
         userUuid: userUuid ?? null,
-        mergedState: JSON.parse(mergedState) as unknown,
+        mergedState: mergedState
+          ? JSON.parse(JSON.stringify(Message.toJSON(mergedState))) as unknown
+          : null,
       });
     }
 
@@ -135,36 +140,62 @@ export class UserHub extends DurableObject<Env> {
   }
 
   /**
-   * Receive a forwarded daemon event from SourceHub and broadcast to all
-   * UI clients with _sourceId and _ts metadata injected.
+   * Receive a forwarded daemon event from SourceHub as binary proto bytes
+   * and broadcast to all UI clients wrapped in a RelayedMessage.
    */
   private async handleForwardEvent(request: Request): Promise<Response> {
-    const body = await request.json<{ event: string; sourceId?: string }>();
+    const sourceId = request.headers.get("X-Source-ID") ?? undefined;
+    const buf = await request.arrayBuffer();
+    const decodedMsg = Message.decode(new Uint8Array(buf));
+
     const uiCount = this.ctx.getWebSockets("ui").length;
-    this.debugLog.push("debug", "forwarding event to UI", { sourceId: body.sourceId, uiCount });
-    const enriched = this.injectMetadata(body.event, {
-      _sourceId: body.sourceId,
-      _ts: new Date().toISOString(),
-    });
+    this.debugLog.push("debug", "forwarding event to UI", { sourceId, uiCount });
+
+    const relayed = RelayedMessage.encode({
+      sourceId: sourceId ?? "",
+      serverTimestamp: new Date(),
+      message: decodedMsg,
+    }).finish();
+
     for (const ws of this.ctx.getWebSockets("ui")) {
-      ws.send(enriched);
+      ws.send(relayed);
     }
     return Response.json({ ok: true });
   }
 
   /**
-   * Receive pre-serialized SourceState JSON from a single SourceHub.
-   * Stored per-source so multiple SourceHubs can contribute state.
-   * Pre-serialized to avoid Date→string round-trip issues with proto Timestamps.
+   * Receive pre-encoded SourceState binary proto from a single SourceHub.
+   * Stored per-source as JSON so multiple SourceHubs can contribute state
+   * (JSON is needed for the merge operation across sources).
+   * Broadcasts merged state as binary RelayedMessage to UI clients.
    */
   private async handleUpdateState(request: Request): Promise<Response> {
-    const body = await request.json<{ sourceUuid: string; stateJson: string }>();
-    this.debugLog.push("debug", "state updated for source", { sourceUuid: body.sourceUuid });
-    await this.ctx.storage.put(`${SOURCE_STATE_PREFIX}${body.sourceUuid}`, body.stateJson);
-    // Build merged state once, broadcast to all connected UI clients
-    const merged = await this.buildMergedSourceState();
-    for (const ws of this.ctx.getWebSockets("ui")) {
-      ws.send(merged);
+    const sourceUuid = request.headers.get("X-Source-UUID");
+    if (!sourceUuid) {
+      return Response.json({ error: "missing X-Source-UUID header" }, { status: 400 });
+    }
+
+    const buf = await request.arrayBuffer();
+    const decodedMsg = Message.decode(new Uint8Array(buf));
+
+    this.debugLog.push("debug", "state updated for source", { sourceUuid });
+
+    // Store as JSON for merging across sources
+    const stateJson = JSON.stringify(Message.toJSON(decodedMsg));
+    await this.ctx.storage.put(`${SOURCE_STATE_PREFIX}${sourceUuid}`, stateJson);
+
+    // Build merged state and broadcast as binary RelayedMessage
+    const mergedState = await this.buildMergedSourceState();
+    if (mergedState) {
+      const relayed = RelayedMessage.encode({
+        sourceId: "",
+        serverTimestamp: new Date(),
+        message: mergedState,
+      }).finish();
+
+      for (const ws of this.ctx.getWebSockets("ui")) {
+        ws.send(relayed);
+      }
     }
     return Response.json({ ok: true });
   }
@@ -177,9 +208,18 @@ export class UserHub extends DurableObject<Env> {
     const body = await request.json<{ sourceUuid: string }>();
     this.debugLog.push("info", "source removed", { sourceUuid: body.sourceUuid });
     await this.ctx.storage.delete(`${SOURCE_STATE_PREFIX}${body.sourceUuid}`);
-    const merged = await this.buildMergedSourceState();
-    for (const ws of this.ctx.getWebSockets("ui")) {
-      ws.send(merged);
+
+    const mergedState = await this.buildMergedSourceState();
+    if (mergedState) {
+      const relayed = RelayedMessage.encode({
+        sourceId: "",
+        serverTimestamp: new Date(),
+        message: mergedState,
+      }).finish();
+
+      for (const ws of this.ctx.getWebSockets("ui")) {
+        ws.send(relayed);
+      }
     }
     return Response.json({ ok: true });
   }
@@ -189,9 +229,17 @@ export class UserHub extends DurableObject<Env> {
    * Called after game removal or other state-changing operations.
    */
   private async handleRefreshState(): Promise<Response> {
-    const merged = await this.buildMergedSourceState();
-    for (const ws of this.ctx.getWebSockets("ui")) {
-      ws.send(merged);
+    const mergedState = await this.buildMergedSourceState();
+    if (mergedState) {
+      const relayed = RelayedMessage.encode({
+        sourceId: "",
+        serverTimestamp: new Date(),
+        message: mergedState,
+      }).finish();
+
+      for (const ws of this.ctx.getWebSockets("ui")) {
+        ws.send(relayed);
+      }
     }
     return Response.json({ ok: true });
   }
@@ -199,16 +247,15 @@ export class UserHub extends DurableObject<Env> {
   // ── Internal helpers ──────────────────────────────────────────────
 
   /**
-   * Build merged SourceState JSON from all per-source storage entries.
-   * Returns a single JSON string ready to send to UI clients.
+   * Build merged SourceState Message from all per-source storage entries.
+   * Each entry is a JSON-serialized Message with a sourceState payload.
+   * Returns the merged Message, or undefined if no state exists.
    */
-  private async buildMergedSourceState(): Promise<string> {
+  private async buildMergedSourceState(): Promise<Message | undefined> {
     const entries = await this.ctx.storage.list<string>({
       prefix: SOURCE_STATE_PREFIX,
     });
-    // Each entry is a pre-serialized SourceState envelope like:
-    // {"sourceState":{"sources":[...]}}
-    // Merge all sources[] arrays into one.
+
     const allSources: unknown[] = [];
     for (const stateJson of entries.values()) {
       try {
@@ -223,16 +270,26 @@ export class UserHub extends DurableObject<Env> {
       }
     }
 
-    return JSON.stringify({ sourceState: { sources: allSources } });
+    // Reconstruct a Message from the merged JSON via fromJSON
+    const mergedJson = { sourceState: { sources: allSources } };
+    return Message.fromJSON(mergedJson);
   }
 
   /**
    * Load all per-source state entries, merge their sources[] arrays into
-   * a single SourceState envelope, and send to the UI client.
+   * a single SourceState envelope, wrap in RelayedMessage, and send binary to the UI client.
    */
   private async sendSourceState(ws: WebSocket): Promise<void> {
-    const merged = await this.buildMergedSourceState();
-    ws.send(merged);
+    const mergedState = await this.buildMergedSourceState();
+    if (!mergedState) return;
+
+    const relayed = RelayedMessage.encode({
+      sourceId: "",
+      serverTimestamp: new Date(),
+      message: mergedState,
+    }).finish();
+
+    ws.send(relayed);
   }
 
   private async sendRecentEvents(ws: WebSocket): Promise<void> {
@@ -251,29 +308,21 @@ export class UserHub extends DurableObject<Env> {
 
       const events = rows.results.toReversed();
       for (const row of events) {
-        ws.send(
-          this.injectMetadata(row.event_data, {
-            _ts: row.created_at.endsWith("Z") ? row.created_at : `${row.created_at}Z`,
-            _sourceId: row.source_uuid,
-          }),
-        );
+        const decodedMsg = Message.fromJSON(JSON.parse(row.event_data) as Record<string, unknown>);
+        const createdAt = row.created_at.endsWith("Z") ? row.created_at : `${row.created_at}Z`;
+
+        const relayed = RelayedMessage.encode({
+          sourceId: row.source_uuid,
+          serverTimestamp: new Date(createdAt),
+          message: decodedMsg,
+        }).finish();
+
+        ws.send(relayed);
       }
     } catch (error) {
       this.debugLog.push("error", "recent events load failed", {
         error: error instanceof Error ? error.message : String(error),
       });
-    }
-  }
-
-  private injectMetadata(json: string, fields: Record<string, string | undefined>): string {
-    try {
-      const parsed = JSON.parse(json) as Record<string, unknown>;
-      for (const [key, value] of Object.entries(fields)) {
-        if (value !== undefined) parsed[key] = value;
-      }
-      return JSON.stringify(parsed);
-    } catch {
-      return json;
     }
   }
 }

@@ -1,7 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, closeWs, connectDaemonWs, seedSource } from "./helpers";
+import { cleanAll, closeWs, connectDaemonWs, seedSource, sendProto } from "./helpers";
 
 const ADMIN_KEY = "test-admin-key-secret";
 
@@ -125,11 +125,12 @@ describe("Admin API", () => {
 
       // Connect daemon and send sourceOnline
       const ws = await connectDaemonWs(sourceToken);
-      ws.send(
-        JSON.stringify({
-          sourceOnline: { version: "0.1.0", platform: "linux-amd64" },
-        }),
-      );
+      sendProto(ws, {
+        payload: {
+          $case: "sourceOnline",
+          sourceOnline: { version: "0.1.0", platform: "linux-amd64", timestamp: undefined, os: "", arch: "" },
+        },
+      });
       // Wait for state broadcast to settle
       await new Promise((resolve) => {
         setTimeout(resolve, 100);
@@ -192,21 +193,23 @@ describe("Admin API", () => {
 
       // Connect daemon and send a sourceOnline
       const ws = await connectDaemonWs(sourceToken);
-      ws.send(
-        JSON.stringify({
-          sourceOnline: { version: "0.1.0", platform: "linux-amd64" },
-        }),
-      );
+      sendProto(ws, {
+        payload: {
+          $case: "sourceOnline",
+          sourceOnline: { version: "0.1.0", platform: "linux-amd64", timestamp: undefined, os: "", arch: "" },
+        },
+      });
       await new Promise((resolve) => {
         setTimeout(resolve, 100);
       });
 
       // Now send a parseFailed event — this is a real error that should be persisted
-      ws.send(
-        JSON.stringify({
-          parseFailed: { gameId: "d2r", error: "plugin crashed", savePath: "/saves/test.d2s" },
-        }),
-      );
+      sendProto(ws, {
+        payload: {
+          $case: "parseFailed",
+          parseFailed: { gameId: "d2r", message: "plugin crashed", fileName: "test.d2s", errorType: 3 },
+        },
+      });
       await new Promise((resolve) => {
         setTimeout(resolve, 100);
       });

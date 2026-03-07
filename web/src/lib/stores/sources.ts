@@ -1,7 +1,10 @@
 import { gameDisplayName } from "$lib/stores/plugins";
+import type {
+  GameStatusEnum,
+  Message,
+  SourceInfo,
+} from "$lib/proto/savecraft/v1/protocol";
 import type { GameStatus, SaveSummary, Source, SourceGame, SourceStatus } from "$lib/types/source";
-import type { WireMessage, WireMessageType, WireSourceInfo } from "$lib/types/wire";
-import { getMessageType } from "$lib/types/wire";
 import { relativeTime } from "$lib/utils/time";
 import { type Readable, writable } from "svelte/store";
 
@@ -19,14 +22,11 @@ export interface ConfigResultEntry {
 const configResultsStore = writable<Record<string, ConfigResultEntry>>({});
 export const configResults: Readable<Record<string, ConfigResultEntry>> = configResultsStore;
 
-function resolveSourceId(msg: WireMessage): string | null {
-  return msg._sourceId ?? null;
-}
-
-function wireStatusToGameStatus(wireStatus: string | undefined): GameStatus {
-  if (wireStatus === "GAME_STATUS_ENUM_ERROR") return "error";
-  if (wireStatus === "GAME_STATUS_ENUM_NOT_FOUND") return "not_found";
-  // WATCHING, ACTIVATING, DETECTED, and unrecognized all map to "watching"
+function enumStatusToGameStatus(status: GameStatusEnum): GameStatus {
+  // GameStatusEnum numeric values: ERROR=3, NOT_FOUND=4
+  if (status === 3) return "error";
+  if (status === 4) return "not_found";
+  // WATCHING, ACTIVATING, DETECTED, UNSPECIFIED, and unrecognized all map to "watching"
   return "watching";
 }
 
@@ -52,14 +52,19 @@ function sourceDisplayName(sourceKind?: string, hostname?: string | null): strin
   return kind;
 }
 
-function mapSourceInfo(d: WireSourceInfo): Source {
+function formatTimestamp(ts: Date | undefined): string {
+  if (!ts) return "";
+  return relativeTime(ts.toISOString());
+}
+
+function mapSourceInfo(d: SourceInfo): Source {
   const games: SourceGame[] = (d.games ?? []).map((g) => {
-    const status = wireStatusToGameStatus(g.status);
+    const status = enumStatusToGameStatus(g.status);
     const saves: SaveSummary[] = (g.saves ?? []).map((s) => ({
       saveUuid: s.saveUuid ?? "",
       saveName: s.identity?.name ?? "Unknown",
       summary: s.summary ?? "",
-      lastUpdated: relativeTime(s.lastUpdated),
+      lastUpdated: formatTimestamp(s.lastUpdated),
       status: "success" as const,
     }));
     return {
@@ -75,13 +80,15 @@ function mapSourceInfo(d: WireSourceInfo): Source {
 
   return {
     id: d.sourceId ?? "",
-    name: sourceDisplayName(d.sourceKind, d.hostname),
+    name: sourceDisplayName(d.sourceKind, d.hostname || null),
     sourceKind: d.sourceKind ?? "daemon",
-    hostname: d.hostname ?? null,
-    platform: d.platform ?? null,
+    hostname: d.hostname || null,
+    // Use `os` (runtime.GOOS: "linux", "darwin", "windows") for platform-dependent
+    // path defaults, not `platform` which is architecture info.
+    platform: d.os || null,
     status: sourceStatus,
     version: null,
-    lastSeen: relativeTime(d.lastSeen),
+    lastSeen: formatTimestamp(d.lastSeen),
     capabilities: {
       canRescan: d.canRescan ?? false,
       canReceiveConfig: d.canReceiveConfig ?? false,
@@ -125,28 +132,30 @@ function findOrCreateGame(source: Source, gameId: string): SourceGame {
   return game;
 }
 
-function handleSourceState(msg: WireMessage): void {
-  const ss = msg.sourceState;
-  if (!ss?.sources) return;
+/** Payload case type extracted from the Message oneof. */
+type PayloadCase = NonNullable<NonNullable<Message["payload"]>["$case"]>;
+
+function handleSourceState(msg: Message): void {
+  if (msg.payload?.$case !== "sourceState") return;
+  const ss = msg.payload.sourceState;
   set(ss.sources.map((s) => mapSourceInfo(s)));
 }
 
-function handleSourceOnline(msg: WireMessage): void {
-  const sourceId = resolveSourceId(msg);
-  if (!sourceId) return;
-  const version = msg.sourceOnline?.version;
+function handleSourceOnline(sourceId: string, msg: Message): void {
+  if (msg.payload?.$case !== "sourceOnline") return;
+  const version = msg.payload.sourceOnline.version;
+  const os = msg.payload.sourceOnline.os;
   update((srcs) => {
     const source = findOrCreateSource(srcs, sourceId);
     source.status = "online";
-    source.version = version ?? source.version;
+    source.version = version || source.version;
     source.lastSeen = "now";
+    if (os) source.platform = os;
     return [...srcs];
   });
 }
 
-function handleSourceOffline(msg: WireMessage): void {
-  const sourceId = resolveSourceId(msg);
-  if (!sourceId) return;
+function handleSourceOffline(sourceId: string): void {
   update((srcs) => {
     const source = srcs.find((s) => s.id === sourceId);
     if (!source) return srcs;
@@ -157,27 +166,27 @@ function handleSourceOffline(msg: WireMessage): void {
 }
 
 function handleGameStatusChange(
-  msg: WireMessage,
+  sourceId: string,
+  msg: Message,
   type: "watching" | "gameDetected" | "gameNotFound",
 ): void {
-  const sourceId = resolveSourceId(msg);
-  if (!sourceId) return;
-
   let gameId: string | undefined;
   let status: GameStatus;
   let path: string | undefined;
 
-  if (type === "watching") {
-    gameId = msg.watching?.gameId;
-    path = msg.watching?.path;
+  if (type === "watching" && msg.payload?.$case === "watching") {
+    gameId = msg.payload.watching.gameId;
+    path = msg.payload.watching.path;
     status = "watching";
-  } else if (type === "gameDetected") {
-    gameId = msg.gameDetected?.gameId;
-    path = msg.gameDetected?.path;
+  } else if (type === "gameDetected" && msg.payload?.$case === "gameDetected") {
+    gameId = msg.payload.gameDetected.gameId;
+    path = msg.payload.gameDetected.path;
     status = "watching";
-  } else {
-    gameId = msg.gameNotFound?.gameId;
+  } else if (type === "gameNotFound" && msg.payload?.$case === "gameNotFound") {
+    gameId = msg.payload.gameNotFound.gameId;
     status = "not_found";
+  } else {
+    return;
   }
 
   if (!gameId) return;
@@ -195,12 +204,11 @@ function handleGameStatusChange(
   });
 }
 
-function handleParseFailed(msg: WireMessage): void {
-  const pf = msg.parseFailed;
-  if (!pf) return;
-  const sourceId = resolveSourceId(msg);
+function handleParseFailed(sourceId: string, msg: Message): void {
+  if (msg.payload?.$case !== "parseFailed") return;
+  const pf = msg.payload.parseFailed;
   const gameId = pf.gameId;
-  if (!sourceId || !gameId) return;
+  if (!gameId) return;
 
   update((srcs) => {
     const source = srcs.find((s) => s.id === sourceId);
@@ -208,18 +216,17 @@ function handleParseFailed(msg: WireMessage): void {
 
     const game = findOrCreateGame(source, gameId);
     game.status = "error";
-    game.statusLine = pf.message ?? "parse error";
+    game.statusLine = pf.message || "parse error";
     game.error = pf.message;
     return [...srcs];
   });
 }
 
-function handleParseCompleted(msg: WireMessage): void {
-  const pc = msg.parseCompleted;
-  if (!pc) return;
-  const sourceId = resolveSourceId(msg);
+function handleParseCompleted(sourceId: string, msg: Message): void {
+  if (msg.payload?.$case !== "parseCompleted") return;
+  const pc = msg.payload.parseCompleted;
   const gameId = pc.gameId;
-  if (!sourceId || !gameId) return;
+  if (!gameId) return;
 
   update((srcs) => {
     const source = srcs.find((s) => s.id === sourceId);
@@ -235,12 +242,11 @@ function handleParseCompleted(msg: WireMessage): void {
   });
 }
 
-function handlePushCompleted(msg: WireMessage): void {
-  const pc = msg.pushCompleted;
-  if (!pc) return;
-  const sourceId = resolveSourceId(msg);
+function handlePushCompleted(sourceId: string, msg: Message): void {
+  if (msg.payload?.$case !== "pushCompleted") return;
+  const pc = msg.payload.pushCompleted;
   const gameId = pc.gameId;
-  if (!sourceId || !gameId) return;
+  if (!gameId) return;
 
   update((srcs) => {
     const targetSource = srcs.find((s) => s.id === sourceId);
@@ -251,7 +257,7 @@ function handlePushCompleted(msg: WireMessage): void {
     if (pc.saveUuid) {
       const existing = game.saves.find((s) => s.saveUuid === pc.saveUuid);
       if (existing) {
-        existing.summary = pc.summary ?? existing.summary;
+        existing.summary = pc.summary || existing.summary;
         if (pc.identity?.name) existing.saveName = pc.identity.name;
         existing.lastUpdated = "just now";
       } else {
@@ -270,9 +276,9 @@ function handlePushCompleted(msg: WireMessage): void {
   });
 }
 
-function handleConfigResult(msg: WireMessage): void {
-  const cr = msg.configResult;
-  if (!cr?.results) return;
+function handleConfigResult(msg: Message): void {
+  if (msg.payload?.$case !== "configResult") return;
+  const cr = msg.payload.configResult;
   const entries: Record<string, ConfigResultEntry> = {};
   for (const [gameId, result] of Object.entries(cr.results)) {
     entries[gameId] = {
@@ -284,38 +290,25 @@ function handleConfigResult(msg: WireMessage): void {
   configResultsStore.set(entries);
 }
 
-type SourceHandler = (msg: WireMessage) => void;
+type SourceHandler = (sourceId: string, msg: Message) => void;
 
-function handleWatching(msg: WireMessage): void {
-  handleGameStatusChange(msg, "watching");
-}
-
-function handleGameDetected(msg: WireMessage): void {
-  handleGameStatusChange(msg, "gameDetected");
-}
-
-function handleGameNotFound(msg: WireMessage): void {
-  handleGameStatusChange(msg, "gameNotFound");
-}
-
-const SOURCE_HANDLERS: Partial<Record<WireMessageType, SourceHandler>> = {
-  sourceState: handleSourceState,
+const SOURCE_HANDLERS: Partial<Record<PayloadCase, SourceHandler>> = {
+  sourceState: (_sourceId, msg) => handleSourceState(msg),
   sourceOnline: handleSourceOnline,
-  sourceOffline: handleSourceOffline,
-  watching: handleWatching,
-  gameDetected: handleGameDetected,
-  gameNotFound: handleGameNotFound,
+  sourceOffline: (sourceId) => handleSourceOffline(sourceId),
+  watching: (sourceId, msg) => handleGameStatusChange(sourceId, msg, "watching"),
+  gameDetected: (sourceId, msg) => handleGameStatusChange(sourceId, msg, "gameDetected"),
+  gameNotFound: (sourceId, msg) => handleGameStatusChange(sourceId, msg, "gameNotFound"),
   parseFailed: handleParseFailed,
   parseCompleted: handleParseCompleted,
   pushCompleted: handlePushCompleted,
-  configResult: handleConfigResult,
+  configResult: (_sourceId, msg) => handleConfigResult(msg),
 };
 
-export function dispatchToSources(msg: WireMessage): void {
-  const type = getMessageType(msg);
-  if (!type) return;
-  const handler = SOURCE_HANDLERS[type];
-  if (handler) handler(msg);
+export function dispatchToSources(sourceId: string, msg: Message | undefined): void {
+  if (!msg?.payload?.$case) return;
+  const handler = SOURCE_HANDLERS[msg.payload.$case];
+  if (handler) handler(sourceId, msg);
 }
 
 export function resetConfigResults(): void {

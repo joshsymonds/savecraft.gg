@@ -6,22 +6,13 @@ import {
   closeWs,
   connectDaemonWs,
   connectWs,
+  requireInnerPayload,
+  requirePayload,
   seedSource,
-  waitForMessage,
+  sendProto,
+  waitForProtoMessage,
+  waitForRelayedMessage,
 } from "./helpers";
-
-interface ConfigUpdateMsg {
-  configUpdate: {
-    games: Record<
-      string,
-      {
-        savePath: string;
-        enabled: boolean;
-        fileExtensions: string[];
-      }
-    >;
-  };
-}
 
 describe("Source Config API", () => {
   beforeEach(cleanAll);
@@ -98,7 +89,6 @@ describe("Source Config API", () => {
     const userUuid = "config-remove-user";
     const sourceId = "pc";
 
-    // First: add two games
     await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
       headers: {
@@ -113,7 +103,6 @@ describe("Source Config API", () => {
       }),
     });
 
-    // Second: update with only d2r — stardew should be removed
     await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
       headers: {
@@ -148,7 +137,6 @@ describe("Source Config API", () => {
     const userUuid = "config-get-user";
     const sourceId = "my-laptop";
 
-    // PUT a config first
     const putResp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
       headers: {
@@ -164,7 +152,6 @@ describe("Source Config API", () => {
     });
     expect(putResp.status).toBe(200);
 
-    // GET and verify it matches
     const getResp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "GET",
       headers: { Authorization: `Bearer ${userUuid}` },
@@ -216,7 +203,6 @@ describe("Per-game config PATCH", () => {
     const userUuid = "patch-disable-user";
     const { sourceUuid: sourceId } = await seedSource(userUuid);
 
-    // Seed two game configs
     for (const [gameId, path] of [
       ["d2r", "/d2r"],
       ["stardew", "/stardew"],
@@ -240,7 +226,6 @@ describe("Per-game config PATCH", () => {
 
     expect(resp.status).toBe(200);
 
-    // d2r disabled
     const d2r = await env.DB.prepare(
       "SELECT enabled FROM source_configs WHERE source_uuid = ? AND game_id = ?",
     )
@@ -248,7 +233,6 @@ describe("Per-game config PATCH", () => {
       .first<{ enabled: number }>();
     expect(d2r!.enabled).toBe(0);
 
-    // stardew still enabled
     const stardew = await env.DB.prepare(
       "SELECT enabled FROM source_configs WHERE source_uuid = ? AND game_id = ?",
     )
@@ -290,7 +274,6 @@ describe("Per-game config PATCH", () => {
     });
     expect(resp.status).toBe(403);
 
-    // Config should be unchanged
     const config = await env.DB.prepare(
       "SELECT enabled FROM source_configs WHERE source_uuid = ? AND game_id = ?",
     )
@@ -345,7 +328,6 @@ describe("Config push via SourceHub", () => {
     const userUuid = "config-push-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Pre-populate config in D1 using sourceUuid
     await env.DB.prepare(
       `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?)`,
@@ -353,17 +335,20 @@ describe("Config push via SourceHub", () => {
       .bind(sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
-    // Connect daemon and send sourceOnline
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
+    sendProto(daemonWs, {
+      payload: {
+        $case: "sourceOnline",
+        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
+      },
+    });
 
-    // Daemon should receive a configUpdate message
-    const msg = await waitForMessage<ConfigUpdateMsg>(daemonWs);
-    expect(msg.configUpdate).toBeDefined();
-    expect(msg.configUpdate.games.d2r).toBeDefined();
-    expect(msg.configUpdate.games.d2r!.savePath).toBe("/saves/d2r");
-    expect(msg.configUpdate.games.d2r!.enabled).toBe(true);
-    expect(msg.configUpdate.games.d2r!.fileExtensions).toEqual([".d2s"]);
+    const msg = await waitForProtoMessage(daemonWs);
+    const cu = requirePayload(msg, "configUpdate");
+    expect(cu.games["d2r"]).toBeDefined();
+    expect(cu.games["d2r"]!.savePath).toBe("/saves/d2r");
+    expect(cu.games["d2r"]!.enabled).toBe(true);
+    expect(cu.games["d2r"]!.fileExtensions).toEqual([".d2s"]);
 
     await closeWs(daemonWs);
   });
@@ -373,11 +358,16 @@ describe("Config push via SourceHub", () => {
     const { sourceToken } = await seedSource(userUuid);
 
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
+    sendProto(daemonWs, {
+      payload: {
+        $case: "sourceOnline",
+        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
+      },
+    });
 
-    const msg = await waitForMessage<ConfigUpdateMsg>(daemonWs);
-    expect(msg.configUpdate).toBeDefined();
-    expect(Object.keys(msg.configUpdate.games)).toHaveLength(0);
+    const msg = await waitForProtoMessage(daemonWs);
+    const cu = requirePayload(msg, "configUpdate");
+    expect(Object.keys(cu.games)).toHaveLength(0);
 
     await closeWs(daemonWs);
   });
@@ -386,7 +376,6 @@ describe("Config push via SourceHub", () => {
     const userUuid = "config-activating-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Pre-populate config with an enabled game
     await env.DB.prepare(
       `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?)`,
@@ -394,24 +383,21 @@ describe("Config push via SourceHub", () => {
       .bind(sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
-    // Connect daemon and identify it — triggers push-config
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate
+    sendProto(daemonWs, {
+      payload: {
+        $case: "sourceOnline",
+        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
+      },
+    });
+    await waitForProtoMessage(daemonWs);
 
-    // Connect a fresh UI — game should NOT be ACTIVATING (status not set by push)
     const uiWs = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(uiWs);
-
-    expect(msg).toHaveProperty("sourceState");
-    const ds = msg.sourceState as {
-      sources: { sourceId: string; games?: { gameId: string; status: string }[] }[];
-    };
-    const source = ds.sources.find((d) => d.sourceId === sourceUuid);
+    const msg = await waitForRelayedMessage(uiWs);
+    const state = requireInnerPayload(msg, "sourceState");
+    const source = state.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    // Config push no longer sets ACTIVATING — games array should be empty or absent
-    const games = source!.games ?? [];
-    const activatingGames = games.filter((g) => g.status === "GAME_STATUS_ENUM_ACTIVATING");
+    const activatingGames = source!.games.filter((g) => g.status === 5);
     expect(activatingGames).toHaveLength(0);
 
     await closeWs(uiWs);
@@ -422,7 +408,6 @@ describe("Config push via SourceHub", () => {
     const userUuid = "config-disabled-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Pre-populate config with a disabled game
     await env.DB.prepare(
       `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?)`,
@@ -430,24 +415,21 @@ describe("Config push via SourceHub", () => {
       .bind(sourceUuid, "stardew", "/saves/stardew", 0, JSON.stringify([".xml"]))
       .run();
 
-    // Connect daemon and identify it — daemon sends any hostname, server uses sourceUuid
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate
+    sendProto(daemonWs, {
+      payload: {
+        $case: "sourceOnline",
+        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
+      },
+    });
+    await waitForProtoMessage(daemonWs);
 
-    // Connect a fresh UI — disabled game should NOT appear with ACTIVATING
     const uiWs = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(uiWs);
-
-    expect(msg).toHaveProperty("sourceState");
-    const ds = msg.sourceState as {
-      sources: { sourceId: string; games?: { gameId: string; status: string }[] }[];
-    };
-    const source = ds.sources.find((d) => d.sourceId === sourceUuid);
+    const msg = await waitForRelayedMessage(uiWs);
+    const state = requireInnerPayload(msg, "sourceState");
+    const source = state.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    // Disabled game should not appear with ACTIVATING — games may be omitted (proto3 empty array)
-    const games = source!.games ?? [];
-    const activatingGames = games.filter((g) => g.status === "GAME_STATUS_ENUM_ACTIVATING");
+    const activatingGames = source!.games.filter((g) => g.status === 5);
     expect(activatingGames).toHaveLength(0);
 
     await closeWs(uiWs);
@@ -458,7 +440,6 @@ describe("Config push via SourceHub", () => {
     const userUuid = "config-broadcast-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Pre-populate config with an enabled game
     await env.DB.prepare(
       `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
        VALUES (?, ?, ?, ?, ?)`,
@@ -466,27 +447,23 @@ describe("Config push via SourceHub", () => {
       .bind(sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
       .run();
 
-    // Connect daemon, identify it (triggers push-config)
     const daemonWs = await connectDaemonWs(sourceToken);
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    await waitForMessage(daemonWs); // configUpdate
+    sendProto(daemonWs, {
+      payload: {
+        $case: "sourceOnline",
+        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
+      },
+    });
+    await waitForProtoMessage(daemonWs);
 
-    // Close daemon
     await closeWs(daemonWs);
 
-    // Fresh UI connect — config push should NOT have created game entries in state
-    // (games only appear when daemon reports them via watching/gameDetected/etc.)
     const freshUi = await connectWs("/ws/ui", userUuid);
-    const msg = await waitForMessage<Record<string, unknown>>(freshUi);
-
-    expect(msg).toHaveProperty("sourceState");
-    const ds = msg.sourceState as {
-      sources: { sourceId: string; games?: { gameId: string; status: string }[] }[];
-    };
-    const source = ds.sources.find((d) => d.sourceId === sourceUuid);
+    const msg = await waitForRelayedMessage(freshUi);
+    const state = requireInnerPayload(msg, "sourceState");
+    const source = state.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    const games = source!.games ?? [];
-    const activatingGames = games.filter((g) => g.status === "GAME_STATUS_ENUM_ACTIVATING");
+    const activatingGames = source!.games.filter((g) => g.status === 5);
     expect(activatingGames).toHaveLength(0);
 
     await closeWs(freshUi);
@@ -496,19 +473,18 @@ describe("Config push via SourceHub", () => {
     const userUuid = "config-live-push-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);
 
-    // Connect daemon first
     const daemonWs = await connectDaemonWs(sourceToken);
 
-    // Send sourceOnline (initial empty config push)
-    daemonWs.send(JSON.stringify({ sourceOnline: { version: "0.1.0" } }));
-    // Consume the initial (empty) configUpdate
-    await waitForMessage<ConfigUpdateMsg>(daemonWs);
+    sendProto(daemonWs, {
+      payload: {
+        $case: "sourceOnline",
+        sourceOnline: { version: "0.1.0", timestamp: undefined, platform: "", os: "", arch: "" },
+      },
+    });
+    await waitForProtoMessage(daemonWs);
 
-    // Register listener BEFORE the API call — the DO sends the configUpdate
-    // synchronously within the fetch, so the listener must already be waiting.
-    const configPromise = waitForMessage<ConfigUpdateMsg>(daemonWs);
+    const configPromise = waitForProtoMessage(daemonWs);
 
-    // Save config via API using sourceUuid in the URL path
     const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}/config`, {
       method: "PUT",
       headers: {
@@ -523,10 +499,10 @@ describe("Config push via SourceHub", () => {
     });
     expect(resp.status).toBe(200);
 
-    // Daemon should receive the updated config
     const msg = await configPromise;
-    expect(msg.configUpdate.games.d2r).toBeDefined();
-    expect(msg.configUpdate.games.d2r!.savePath).toBe("/saves/d2r");
+    const cu = requirePayload(msg, "configUpdate");
+    expect(cu.games["d2r"]).toBeDefined();
+    expect(cu.games["d2r"]!.savePath).toBe("/saves/d2r");
 
     await closeWs(daemonWs);
   });
