@@ -55,7 +55,6 @@ async function lookupSave(
     .first<SaveRow>();
 }
 
-
 interface NotePreviewRow {
   note_id: string;
   save_id: string;

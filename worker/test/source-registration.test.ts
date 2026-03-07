@@ -21,7 +21,10 @@ describe("Source Registration", () => {
       return ws;
     }
 
-    function sendRegister(ws: WebSocket, fields: { hostname?: string; os?: string; arch?: string }): void {
+    function sendRegister(
+      ws: WebSocket,
+      fields: { hostname?: string; os?: string; arch?: string },
+    ): void {
       const msg = Message.encode({
         payload: {
           $case: "register",
@@ -37,12 +40,18 @@ describe("Source Registration", () => {
 
     function waitForMessage(ws: WebSocket, timeoutMs = 2000): Promise<Message> {
       return new Promise<Message>((resolve, reject) => {
-        const timer = setTimeout(() => reject(new Error("Timed out")), timeoutMs);
-        ws.addEventListener("message", (event) => {
-          clearTimeout(timer);
-          const data = event.data as ArrayBuffer;
-          resolve(Message.decode(new Uint8Array(data)));
-        }, { once: true });
+        const timer = setTimeout(() => {
+          reject(new Error("Timed out"));
+        }, timeoutMs);
+        ws.addEventListener(
+          "message",
+          (event) => {
+            clearTimeout(timer);
+            const data = event.data as ArrayBuffer;
+            resolve(Message.decode(new Uint8Array(data)));
+          },
+          { once: true },
+        );
       });
     }
 
@@ -53,7 +62,8 @@ describe("Source Registration", () => {
       const reply = await waitForMessage(ws);
 
       expect(reply.payload?.$case).toBe("registerResult");
-      const result = reply.payload!.$case === "registerResult" ? reply.payload.registerResult : null;
+      const result =
+        reply.payload!.$case === "registerResult" ? reply.payload.registerResult : null;
       expect(result).not.toBeNull();
       expect(result!.sourceUuid).toBeTruthy();
       expect(result!.sourceToken).toMatch(/^sct_/);
@@ -86,7 +96,8 @@ describe("Source Registration", () => {
 
       sendRegister(ws, {});
       const reply = await waitForMessage(ws);
-      const result = reply.payload!.$case === "registerResult" ? reply.payload.registerResult : null;
+      const result =
+        reply.payload!.$case === "registerResult" ? reply.payload.registerResult : null;
       expect(result).not.toBeNull();
 
       // Use the token to verify

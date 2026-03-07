@@ -1484,9 +1484,7 @@ describe("SourceHub", () => {
           summary: "Test Character",
           gameId: "d2r",
           parsedAt: new Date("2026-03-01T12:00:00Z"),
-          sections: [
-            { name: "overview", description: "test", data: { level: 50 } },
-          ],
+          sections: [{ name: "overview", description: "test", data: { level: 50 } }],
         },
       },
     });
@@ -1528,7 +1526,9 @@ describe("SourceHub", () => {
     await new Promise((r) => setTimeout(r, 100));
 
     // Record current save count
-    const before = await env.DB.prepare("SELECT COUNT(*) as cnt FROM saves").first<{ cnt: number }>();
+    const before = await env.DB.prepare("SELECT COUNT(*) as cnt FROM saves").first<{
+      cnt: number;
+    }>();
 
     sendProto(daemon, {
       payload: {
@@ -1547,7 +1547,9 @@ describe("SourceHub", () => {
     await new Promise((r) => setTimeout(r, 200));
 
     // No new saves should have been created
-    const after = await env.DB.prepare("SELECT COUNT(*) as cnt FROM saves").first<{ cnt: number }>();
+    const after = await env.DB.prepare("SELECT COUNT(*) as cnt FROM saves").first<{
+      cnt: number;
+    }>();
     expect(after!.cnt).toBe(before!.cnt);
 
     // Specifically no save with our unique name

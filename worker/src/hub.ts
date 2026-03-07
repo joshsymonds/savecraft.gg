@@ -265,6 +265,16 @@ export class SourceHub extends DurableObject<Env> {
       return;
     }
 
+    await this.processEvent(ws, rpc, sourceId, mutation);
+  }
+
+  /** Persist, relay, and react to a daemon event (non-heartbeat, non-push). */
+  private async processEvent(
+    ws: WebSocket,
+    rpc: Message | undefined,
+    sourceId: string | undefined,
+    mutation: { kind: string },
+  ): Promise<void> {
     // JSON for D1 persistence (storage boundary stays JSON)
     const eventJson = rpc ? JSON.stringify(Message.toJSON(rpc)) : undefined;
     // Binary proto bytes for UserHub relay
@@ -840,45 +850,51 @@ export class SourceHub extends DurableObject<Env> {
 
       this.debugLog.push("info", "pushSave completed", { saveUuid, gameId: push.gameId });
 
-      // Synthesize pushCompleted event for state mutation + relay
-      const pushCompletedMsg: Message = {
-        payload: {
-          $case: "pushCompleted",
-          pushCompleted: {
-            gameId: push.gameId,
-            saveUuid,
-            summary: push.summary,
-            identity: push.identity,
-            snapshotSizeBytes: 0,
-            durationMs: 0,
-          },
-        },
-      };
-
-      // Apply state mutation
-      const state = await this.loadState();
-      applyMutation(state, {
-        kind: "pushCompleted",
-        sourceId,
-        gameId: push.gameId,
-        saveUuid,
-        summary: push.summary,
-        identity: push.identity,
-      });
-      await this.saveState(state);
-
-      // Persist + relay the synthesized pushCompleted event
-      const eventJson = JSON.stringify(Message.toJSON(pushCompletedMsg));
-      const eventBytes = Message.encode(pushCompletedMsg).finish();
-      await this.persistEvent(sourceId, pushCompletedMsg, eventJson);
-      await this.forwardEventToUserHub(eventBytes, sourceId);
-      await this.forwardStateToUserHub();
+      await this.synthesizePushCompleted(sourceId, push, saveUuid);
     } catch (error) {
       this.debugLog.push("error", "pushSave failed", {
         error: error instanceof Error ? error.message : String(error),
       });
       await this.persistErrorEvent("handlePushSave", error);
     }
+  }
+
+  /** Synthesize a pushCompleted event: mutate state, persist, and relay to UserHub. */
+  private async synthesizePushCompleted(
+    sourceId: string,
+    push: PushSave,
+    saveUuid: string,
+  ): Promise<void> {
+    const pushCompletedMsg: Message = {
+      payload: {
+        $case: "pushCompleted",
+        pushCompleted: {
+          gameId: push.gameId,
+          saveUuid,
+          summary: push.summary,
+          identity: push.identity,
+          snapshotSizeBytes: 0,
+          durationMs: 0,
+        },
+      },
+    };
+
+    const state = await this.loadState();
+    applyMutation(state, {
+      kind: "pushCompleted",
+      sourceId,
+      gameId: push.gameId,
+      saveUuid,
+      summary: push.summary,
+      identity: push.identity,
+    });
+    await this.saveState(state);
+
+    const eventJson = JSON.stringify(Message.toJSON(pushCompletedMsg));
+    const eventBytes = Message.encode(pushCompletedMsg).finish();
+    await this.persistEvent(sourceId, pushCompletedMsg, eventJson);
+    await this.forwardEventToUserHub(eventBytes, sourceId);
+    await this.forwardStateToUserHub();
   }
 
   /**
