@@ -180,6 +180,16 @@ export function toNoteSummary(note: ApiNote): NoteSummary {
   };
 }
 
+// ── OAuth ─────────────────────────────────────────────────────
+
+export async function fetchOAuthAuthorizeUrl(region: string): Promise<string> {
+  const returnUrl = encodeURIComponent(globalThis.location.href);
+  const data = await request<{ url: string }>(
+    `/oauth/battlenet/authorize?region=${region}&return_url=${returnUrl}`,
+  );
+  return data.url;
+}
+
 // ── Source Linking ────────────────────────────────────────────
 
 export interface LinkSourceResponse {

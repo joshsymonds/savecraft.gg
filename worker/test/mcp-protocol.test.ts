@@ -44,8 +44,8 @@ async function pushSave(): Promise<string> {
     }),
   });
   expect(resp.status).toBe(201);
-  const body = await resp.json<{ save_uuid: string }>();
-  return body.save_uuid;
+  const body = await resp.json<{ saveUuid: string }>();
+  return body.saveUuid;
 }
 
 function mcpRequest(method: string, id?: number, params?: unknown): Request {

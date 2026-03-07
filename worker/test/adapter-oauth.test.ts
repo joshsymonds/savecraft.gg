@@ -47,23 +47,22 @@ describe("Adapter OAuth", () => {
       expect(resp.status).toBe(401);
     });
 
-    it("redirects to Battle.net with correct params", async () => {
+    it("returns Battle.net authorize URL with correct params", async () => {
       const resp = await SELF.fetch(
         new Request("https://test-host/oauth/battlenet/authorize?region=us", {
           method: "GET",
           headers: { Authorization: `Bearer ${USER_UUID}` },
-          redirect: "manual",
         }),
       );
-      expect(resp.status).toBe(302);
-      const location = resp.headers.get("Location")!;
-      expect(location).toContain("oauth.battle.net/authorize");
-      expect(location).toContain("response_type=code");
-      expect(location).toContain("scope=wow.profile");
-      expect(location).toContain("state=");
+      expect(resp.status).toBe(200);
+      const body = await resp.json<{ url: string }>();
+      expect(body.url).toContain("oauth.battle.net/authorize");
+      expect(body.url).toContain("response_type=code");
+      expect(body.url).toContain("scope=wow.profile");
+      expect(body.url).toContain("state=");
 
       // Verify state was stored in KV
-      const url = new URL(location);
+      const url = new URL(body.url);
       const state = url.searchParams.get("state")!;
       const stored = await env.OAUTH_KV.get(`battlenet-oauth-state:${state}`);
       expect(stored).toBeTruthy();
@@ -77,12 +76,11 @@ describe("Adapter OAuth", () => {
         new Request("https://test-host/oauth/battlenet/authorize?region=eu", {
           method: "GET",
           headers: { Authorization: `Bearer ${USER_UUID}` },
-          redirect: "manual",
         }),
       );
-      expect(resp.status).toBe(302);
-      const location = resp.headers.get("Location")!;
-      expect(location).toContain("oauth.battle.net/authorize");
+      expect(resp.status).toBe(200);
+      const body = await resp.json<{ url: string }>();
+      expect(body.url).toContain("oauth.battle.net/authorize");
     });
 
     it("defaults to US when no region specified", async () => {
@@ -90,10 +88,11 @@ describe("Adapter OAuth", () => {
         new Request("https://test-host/oauth/battlenet/authorize", {
           method: "GET",
           headers: { Authorization: `Bearer ${USER_UUID}` },
-          redirect: "manual",
         }),
       );
-      expect(resp.status).toBe(302);
+      expect(resp.status).toBe(200);
+      const body = await resp.json<{ url: string }>();
+      expect(body.url).toContain("oauth.battle.net/authorize");
     });
 
     it("strips external return_url to prevent open redirect", async () => {
@@ -103,15 +102,15 @@ describe("Adapter OAuth", () => {
           {
             method: "GET",
             headers: { Authorization: `Bearer ${USER_UUID}` },
-            redirect: "manual",
           },
         ),
       );
-      expect(resp.status).toBe(302);
+      expect(resp.status).toBe(200);
+      const body = await resp.json<{ url: string }>();
 
       // Verify the stored state has the return_url stripped
-      const location = new URL(resp.headers.get("Location")!);
-      const stateKey = location.searchParams.get("state")!;
+      const authorizeUrl = new URL(body.url);
+      const stateKey = authorizeUrl.searchParams.get("state")!;
       const stored = await env.OAUTH_KV.get(`battlenet-oauth-state:${stateKey}`);
       const parsed = JSON.parse(stored!) as { returnUrl: string };
       expect(parsed.returnUrl).toBe("");
