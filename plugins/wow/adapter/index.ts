@@ -3,12 +3,13 @@
  * and enriches with Raider.io rankings.
  */
 
-import type {
-  ApiAdapter,
-  DiscoveredSave,
-  FetchParams,
-  GameState,
-  OAuthConfig,
+import {
+  AdapterError,
+  type ApiAdapter,
+  type DiscoveredSave,
+  type FetchParams,
+  type GameState,
+  type OAuthConfig,
 } from "../../../worker/src/adapters/adapter";
 import type { Env } from "../../../worker/src/types";
 
@@ -52,13 +53,19 @@ export const wowAdapter: ApiAdapter = {
     // TODO: Call Battle.net account profile endpoint
     // GET https://{region}.api.blizzard.com/profile/user/wow
     // Returns all characters on the account
-    throw new Error("WoW adapter discoverSaves not yet implemented");
+    throw new AdapterError(
+      "api_unavailable",
+      "WoW adapter discoverSaves not yet implemented",
+    );
   },
 
   async fetchState(_params: FetchParams, _env: Env): Promise<GameState> {
     // TODO: Call Blizzard API (profile, equipment, stats, talents, M+, raids, professions)
     // + Raider.io (character profile with rankings)
-    // Composite into single GameState
-    throw new Error("WoW adapter fetchState not yet implemented");
+    // Composite into single GameState with graceful Raider.io degradation
+    throw new AdapterError(
+      "api_unavailable",
+      "WoW adapter fetchState not yet implemented",
+    );
   },
 };

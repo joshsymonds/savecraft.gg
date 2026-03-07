@@ -8,9 +8,57 @@
 
 import type { Env } from "../types";
 
+// ---------------------------------------------------------------------------
+// Error types
+// ---------------------------------------------------------------------------
+
+export type AdapterErrorCode =
+  | "token_expired"
+  | "rate_limited"
+  | "api_unavailable"
+  | "character_not_found"
+  | "partial_failure";
+
+export class AdapterError extends Error {
+  readonly code: AdapterErrorCode;
+  /** Seconds until retry is worthwhile (for rate_limited). */
+  readonly retryAfter?: number;
+  /** User-facing action to resolve the error (for token_expired). */
+  readonly userAction?: string;
+
+  constructor(
+    code: AdapterErrorCode,
+    message: string,
+    options?: { retryAfter?: number; userAction?: string },
+  ) {
+    super(message);
+    this.name = "AdapterError";
+    this.code = code;
+    this.retryAfter = options?.retryAfter;
+    this.userAction = options?.userAction;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GameState types
+// ---------------------------------------------------------------------------
+
+export interface EnrichmentStatus {
+  /** Name of the enrichment source (e.g. "raiderio"). */
+  source: string;
+  /** Whether enrichment data was available for this section. */
+  available: boolean;
+  /** ISO 8601 timestamp of when the enrichment source last crawled this data. */
+  crawledAt?: string;
+  /** Human-readable reason if unavailable (e.g. "Raider.io API returned 503"). */
+  unavailableReason?: string;
+}
+
 export interface GameStateSection {
   description: string;
   data: unknown;
+  /** Status of enrichment sources that contribute to this section. */
+  enrichment?: EnrichmentStatus[];
 }
 
 export interface GameState {
@@ -23,6 +71,10 @@ export interface GameState {
   sections: Record<string, GameStateSection>;
 }
 
+// ---------------------------------------------------------------------------
+// OAuth types
+// ---------------------------------------------------------------------------
+
 export interface OAuthConfig {
   authorizeUrl: string;
   tokenUrl: string;
@@ -30,16 +82,24 @@ export interface OAuthConfig {
   clientId: string;
 }
 
+// ---------------------------------------------------------------------------
+// Character discovery types
+// ---------------------------------------------------------------------------
+
 export interface DiscoveredSave {
   /** Unique save name used as identity key, e.g. "Thrallgar-Illidan-US" */
   saveName: string;
-  /** Game-specific unique identifier, e.g. "thrallgar-illidan-us" */
+  /** Game-specific stable identifier that survives renames/transfers. */
   characterId: string;
   /** Human-readable display name, e.g. "Thrallgar" */
   displayName: string;
   /** Game-specific metadata from discovery (class, level, realm, etc.) */
   metadata: Record<string, unknown>;
 }
+
+// ---------------------------------------------------------------------------
+// Fetch types
+// ---------------------------------------------------------------------------
 
 export interface GameCredentials {
   accessToken: string;
@@ -53,6 +113,10 @@ export interface FetchParams {
   credentials: GameCredentials;
 }
 
+// ---------------------------------------------------------------------------
+// Adapter interface
+// ---------------------------------------------------------------------------
+
 export interface ApiAdapter {
   gameId: string;
   gameName: string;
@@ -62,13 +126,26 @@ export interface ApiAdapter {
 
   /**
    * Discover saves (characters/profiles) after OAuth.
-   * Called once during setup; returns all trackable entities.
+   * Called during setup and when refreshing the character list.
+   * Returns all trackable entities; caller handles reconciliation.
+   *
+   * @throws {AdapterError} code=token_expired when the user's token is invalid
+   * @throws {AdapterError} code=api_unavailable when the API is unreachable
    */
   discoverSaves(accessToken: string, region: string): Promise<DiscoveredSave[]>;
 
   /**
    * Fetch full game state for one save.
    * May composite multiple API sources (e.g. Blizzard + Raider.io).
+   *
+   * When an enrichment source (e.g. Raider.io) is unavailable, the adapter
+   * MUST still return a GameState with primary data. Enrichment status is
+   * communicated via the `enrichment` field on affected sections.
+   *
+   * @throws {AdapterError} code=token_expired when credentials need re-auth
+   * @throws {AdapterError} code=rate_limited when API budget is exhausted
+   * @throws {AdapterError} code=character_not_found when the character no longer exists
+   * @throws {AdapterError} code=api_unavailable when the primary API is unreachable
    */
   fetchState(params: FetchParams, env: Env): Promise<GameState>;
 }

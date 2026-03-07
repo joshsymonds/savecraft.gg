@@ -133,37 +133,59 @@ The shared adapter interface and types live in `worker/src/adapters/adapter.ts`.
 ```typescript
 // worker/src/adapters/adapter.ts
 
+type AdapterErrorCode =
+  | "token_expired"      // User's OAuth token invalid, needs re-auth
+  | "rate_limited"       // API budget exhausted, try later
+  | "api_unavailable"    // Primary API is down (transient)
+  | "character_not_found" // Character deleted or transferred
+  | "partial_failure";   // Some data sources failed (enrichment degraded)
+
+class AdapterError extends Error {
+  readonly code: AdapterErrorCode;
+  readonly retryAfter?: number;   // Seconds until retry (for rate_limited)
+  readonly userAction?: string;   // What the user should do (for token_expired)
+}
+
+interface EnrichmentStatus {
+  source: string;              // e.g. "raiderio"
+  available: boolean;
+  crawledAt?: string;          // ISO 8601, when the source last crawled this data
+  unavailableReason?: string;  // Human-readable reason if unavailable
+}
+
+interface GameStateSection {
+  description: string;
+  data: unknown;
+  enrichment?: EnrichmentStatus[];  // Status of non-primary data sources
+}
+
 interface ApiAdapter {
   gameId: string;
   gameName: string;
 
-  /** OAuth configuration for the auth redirect flow. Region-dependent for Battle.net. */
+  /** OAuth configuration for the auth redirect flow. */
   getOAuthConfig(region: string, env: Env): OAuthConfig;
 
   /**
    * Discover saves (characters/profiles) after OAuth.
-   * Called once during setup. For WoW, returns all characters on the account.
+   * Called during setup and when refreshing the character list.
+   * Returns all trackable entities; caller handles reconciliation.
+   * @throws {AdapterError} code=token_expired | api_unavailable
    */
   discoverSaves(accessToken: string, region: string): Promise<DiscoveredSave[]>;
 
   /**
    * Fetch full game state for one save.
-   * Called on-demand (MCP refresh_save, explicit web UI refresh).
-   * May composite multiple API sources (e.g. Blizzard + Raider.io for WoW).
+   * When an enrichment source is unavailable, MUST still return primary data
+   * with enrichment status on affected sections.
+   * @throws {AdapterError} code=token_expired | rate_limited | character_not_found | api_unavailable
    */
   fetchState(params: FetchParams, env: Env): Promise<GameState>;
 }
 
-interface OAuthConfig {
-  authorizeUrl: string;
-  tokenUrl: string;
-  scopes: string[];
-  clientId: string;
-}
-
 interface DiscoveredSave {
   saveName: string;                    // "Thrallgar-Illidan-US"
-  characterId: string;                 // Game-specific unique ID
+  characterId: string;                 // Stable ID surviving renames/transfers
   displayName: string;                 // "Thrallgar"
   metadata: Record<string, unknown>;   // { class: "Warrior", level: 80, realm: "Illidan" }
 }
@@ -171,7 +193,7 @@ interface DiscoveredSave {
 interface FetchParams {
   characterId: string;
   region: string;
-  credentials: GameCredentials;        // From game_credentials table
+  credentials: GameCredentials;
 }
 
 interface GameCredentials {
@@ -182,6 +204,54 @@ interface GameCredentials {
 ```
 
 The output is the same `GameState` that daemon plugins produce — `identity`, `summary`, `sections`. Everything downstream is identical: R2 snapshots, D1 metadata, FTS indexing, MCP tools, notes, search.
+
+### Error Handling
+
+Adapter errors are typed via `AdapterError` so the Worker and MCP layer can give the AI actionable information.
+
+| Error Code | Meaning | MCP Response |
+|------------|---------|--------------|
+| `token_expired` | OAuth token invalid, refresh failed | "Your Battle.net connection expired. Reconnect at savecraft.gg/settings." |
+| `rate_limited` | API budget exhausted | "Too many refreshes. Try again in {retryAfter} seconds." |
+| `api_unavailable` | Primary API is down | "Blizzard's API is temporarily unavailable. Try again shortly." |
+| `character_not_found` | Character deleted or transferred | "Character not found. They may have been deleted or transferred." |
+| `partial_failure` | Enrichment source failed | Not thrown — handled via `enrichment` field on sections |
+
+**Token refresh failure path:** Before calling `fetchState`, the Worker checks `game_credentials.expires_at`. If expired, it attempts a refresh using the stored refresh token. If refresh fails (token revoked, user changed password), the Worker throws `AdapterError` with `code: "token_expired"` and `userAction: "Reconnect your Battle.net account at savecraft.gg/settings"`. The MCP layer passes this message to the AI, which relays it to the user.
+
+**Partial failure (enrichment degradation):** When Raider.io (or any enrichment source) is unavailable, the adapter does NOT throw. Instead, it returns the GameState with primary data fully populated and sets `enrichment` on affected sections:
+
+```json
+{
+  "description": "Mythic+ season scores, per-dungeon bests, and rankings",
+  "data": { "rating": 2340, "best_runs": [...] },
+  "enrichment": [{
+    "source": "raiderio",
+    "available": false,
+    "unavailableReason": "Raider.io API returned 503"
+  }]
+}
+```
+
+The AI sees the enrichment status and can tell the user: "I have your M+ scores from Blizzard but Raider.io rankings aren't available right now."
+
+### Character Lifecycle
+
+WoW characters get deleted, transferred to other realms, and renamed. The adapter handles this through reconciliation during character discovery.
+
+**Stable identity:** Blizzard provides a stable numeric character ID that survives transfers and renames. The `linked_characters.character_id` stores this stable ID, not the realm-name slug.
+
+**Reconciliation:** When `discoverSaves()` runs (initial setup or user clicks "Refresh Characters"), the Worker compares the API response against `linked_characters` by stable character ID:
+
+| Situation | API returns | linked_characters has | Action |
+|-----------|------------|----------------------|--------|
+| New character | `char_id: 12345` | nothing | Insert into `linked_characters`, create save |
+| Unchanged | `char_id: 12345, name: Thrallgar, realm: Illidan` | same | Update metadata (level, etc.) |
+| Transferred | `char_id: 12345, realm: Stormrage` | `realm: Illidan` | Update realm, update save name |
+| Renamed | `char_id: 12345, name: Grommash` | `name: Thrallgar` | Update name, update save name |
+| Deleted | — | `char_id: 12345` | Set `active = 0` (soft-delete, preserves history) |
+
+**Save name updates:** When a character's realm or name changes, the save's `save_name` is updated via `UPDATE` on the saves table. The save UUID, R2 snapshots, and notes are preserved — the name is just a key that can be changed.
 
 ### Convergence Point
 
@@ -439,12 +509,13 @@ CREATE TABLE linked_characters (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_uuid TEXT NOT NULL,
   game_id TEXT NOT NULL,
-  character_id TEXT NOT NULL,      -- game-specific identifier (e.g. "thrallgar-illidan-us")
-  character_name TEXT NOT NULL,    -- display name
-  realm TEXT,                      -- WoW realm, nullable for games without realms
+  character_id TEXT NOT NULL,      -- stable game-specific ID (e.g. Blizzard numeric ID)
+  character_name TEXT NOT NULL,    -- display name (updated on rename)
+  realm TEXT,                      -- WoW realm (updated on transfer), nullable for non-realm games
   region TEXT,                     -- us, eu, kr, tw
   metadata TEXT,                   -- JSON: class, level, etc. from discovery
   source_uuid TEXT NOT NULL,       -- FK to the adapter source
+  active INTEGER NOT NULL DEFAULT 1,  -- 0 = soft-deleted (character removed, history preserved)
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   FOREIGN KEY (user_uuid) REFERENCES users(uuid),
   UNIQUE(user_uuid, game_id, character_id)
