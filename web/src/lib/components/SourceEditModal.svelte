@@ -6,6 +6,7 @@
 <script lang="ts">
   import type { TestPathResult, ValidationState } from "$lib/types/source";
 
+  import ConfigSuccess from "./ConfigSuccess.svelte";
   import Modal from "./Modal.svelte";
   import WindowTitleBar from "./WindowTitleBar.svelte";
 
@@ -97,10 +98,7 @@
 
   <div class="edit-section">
     {#if saveState === "success"}
-      <div class="config-success">
-        <span class="success-icon">&#x2713;</span>
-        <span class="success-text">Connected</span>
-      </div>
+      <ConfigSuccess />
     {:else}
       <label class="field-label" for="save-path-input">SAVE DIRECTORY</label>
       <input
@@ -254,35 +252,5 @@
     font-family: var(--font-body);
     font-size: 14px;
     color: var(--color-red, #e85a5a);
-  }
-
-  .config-success {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 24px 0;
-    animation: fade-in 0.2s ease-out;
-  }
-
-  .success-icon {
-    font-size: 24px;
-    color: var(--color-green, #5abe8a);
-  }
-
-  .success-text {
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    color: var(--color-green, #5abe8a);
-    letter-spacing: 2px;
-  }
-
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
   }
 </style>

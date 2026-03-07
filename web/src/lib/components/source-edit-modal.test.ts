@@ -1,5 +1,5 @@
 import type { TestPathResult, ValidationState } from "$lib/types/source";
-import { cleanup, render, screen } from "@testing-library/svelte";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/svelte";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import SourceEditModal from "./SourceEditModal.svelte";
@@ -112,5 +112,86 @@ describe("SourceEditModal", () => {
     render(SourceEditModal, { props: defaultProps() });
     expect(screen.getByText("CANCEL")).toBeInTheDocument();
     expect(screen.getByText("CONNECT")).toBeInTheDocument();
+  });
+
+  it("calls ontestpath after 500ms debounce when path changes", async () => {
+    vi.useFakeTimers();
+    try {
+      const ontestpath = vi.fn();
+      render(SourceEditModal, {
+        props: defaultProps({ initialPath: "/some/path", ontestpath }),
+      });
+      await vi.advanceTimersByTimeAsync(500);
+      expect(ontestpath).toHaveBeenCalledExactlyOnceWith("src-1", "/some/path");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not call ontestpath before debounce completes", async () => {
+    vi.useFakeTimers();
+    try {
+      const ontestpath = vi.fn();
+      render(SourceEditModal, {
+        props: defaultProps({ initialPath: "/some/path", ontestpath }),
+      });
+      await vi.advanceTimersByTimeAsync(400);
+      expect(ontestpath).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("calls onsave with sourceId and trimmed path on CONNECT click", async () => {
+    const onsave = vi.fn().mockImplementation(() => Promise.resolve());
+    render(SourceEditModal, {
+      props: defaultProps({ initialPath: "/home/user/saves ", onsave }),
+    });
+    await fireEvent.click(screen.getByText("CONNECT"));
+    expect(onsave).toHaveBeenCalledExactlyOnceWith("src-1", "/home/user/saves");
+  });
+
+  it("shows CONNECTING... while saving", async () => {
+    let resolveSave!: () => void;
+    const onsave = vi.fn().mockReturnValue(new Promise<void>((r) => (resolveSave = r)));
+    render(SourceEditModal, {
+      props: defaultProps({ initialPath: "/path", onsave }),
+    });
+    await fireEvent.click(screen.getByText("CONNECT"));
+    expect(screen.getByText("CONNECTING...")).toBeInTheDocument();
+    resolveSave();
+  });
+
+  it("shows success state after save resolves", async () => {
+    const onsave = vi.fn().mockImplementation(() => Promise.resolve());
+    render(SourceEditModal, {
+      props: defaultProps({ initialPath: "/path", onsave }),
+    });
+    await fireEvent.click(screen.getByText("CONNECT"));
+    await waitFor(() => {
+      expect(screen.getByText("Connected")).toBeInTheDocument();
+    });
+  });
+
+  it("shows error message when save rejects", async () => {
+    const onsave = vi.fn().mockRejectedValue(new Error("Connection refused"));
+    render(SourceEditModal, {
+      props: defaultProps({ initialPath: "/path", onsave }),
+    });
+    await fireEvent.click(screen.getByText("CONNECT"));
+    await waitFor(() => {
+      expect(screen.getByText("Connection refused")).toBeInTheDocument();
+    });
+  });
+
+  it("strips control characters from path input", async () => {
+    render(SourceEditModal, {
+      props: defaultProps(),
+    });
+    const input = screen.getByLabelText<HTMLInputElement>("SAVE DIRECTORY");
+    // fireEvent.input simulates typing with control chars
+    input.value = "/home/user\u0000/saves\u001F";
+    await fireEvent.input(input);
+    expect(input.value).toBe("/home/user/saves");
   });
 });

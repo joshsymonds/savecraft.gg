@@ -142,4 +142,17 @@ describe("GameConfigModal", () => {
     });
     expect(screen.getByText("ADD SOURCE")).toBeInTheDocument();
   });
+
+  it("auto-opens SourceEditModal for single broken source", () => {
+    render(GameConfigModal, {
+      props: {
+        gameName: "Diablo II: Resurrected",
+        gameId: "d2r",
+        sources: [makeSource({ status: "not_found" })],
+        onclose: vi.fn(),
+      },
+    });
+    // SourceEditModal renders a SAVE DIRECTORY label when opened
+    expect(screen.getByLabelText("SAVE DIRECTORY")).toBeInTheDocument();
+  });
 });

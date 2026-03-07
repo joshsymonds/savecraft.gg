@@ -50,6 +50,7 @@
     ValidationState,
   } from "$lib/types/source";
   import type { WireTestPathResult } from "$lib/types/wire";
+  import { detectOS } from "$lib/utils/platform";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
 
   function deriveValidationState(
@@ -358,7 +359,7 @@
           !currentConfigGame.sources.some((gs) => gs.sourceId === s.id),
       )
       .map((s) => ({ id: s.id, name: s.name, hostname: s.hostname }))}
-    defaultPath={$plugins.get(currentConfigGame.gameId)?.default_paths.linux}
+    defaultPath={$plugins.get(currentConfigGame.gameId)?.default_paths[detectOS()]}
     onclose={() => {
       configGame = null;
       testPathChecking = false;
