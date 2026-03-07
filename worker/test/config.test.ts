@@ -1,6 +1,8 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { GameStatusEnum } from "../src/proto/savecraft/v1/protocol";
+
 import {
   cleanAll,
   closeWs,
@@ -397,7 +399,7 @@ describe("Config push via SourceHub", () => {
     const state = requireInnerPayload(msg, "sourceState");
     const source = state.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    const activatingGames = source!.games.filter((g) => g.status === 5);
+    const activatingGames = source!.games.filter((g) => g.status === GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING);
     expect(activatingGames).toHaveLength(0);
 
     await closeWs(uiWs);
@@ -429,7 +431,7 @@ describe("Config push via SourceHub", () => {
     const state = requireInnerPayload(msg, "sourceState");
     const source = state.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    const activatingGames = source!.games.filter((g) => g.status === 5);
+    const activatingGames = source!.games.filter((g) => g.status === GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING);
     expect(activatingGames).toHaveLength(0);
 
     await closeWs(uiWs);
@@ -463,7 +465,7 @@ describe("Config push via SourceHub", () => {
     const state = requireInnerPayload(msg, "sourceState");
     const source = state.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    const activatingGames = source!.games.filter((g) => g.status === 5);
+    const activatingGames = source!.games.filter((g) => g.status === GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING);
     expect(activatingGames).toHaveLength(0);
 
     await closeWs(freshUi);

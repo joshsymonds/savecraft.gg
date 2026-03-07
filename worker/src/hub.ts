@@ -236,7 +236,7 @@ export class SourceHub extends DurableObject<Env> {
     const payloadType = rpc?.payload?.$case ?? "unknown";
     this.debugLog.push("info", "message received", { payloadType });
 
-    const mutation = await this.applySourceState(tags, rpc);
+    const { mutation, sourceId } = await this.applySourceState(tags, rpc);
 
     // Heartbeat updates lastSeen (via applySourceState) but is not
     // relayed to UI or persisted — it's transport-level only.
@@ -244,8 +244,6 @@ export class SourceHub extends DurableObject<Env> {
       await this.forwardStateToUserHub();
       return;
     }
-
-    const sourceId = await this.getSourceIdForConnection(tags);
 
     // JSON for D1 persistence (storage boundary stays JSON)
     const eventJson = rpc ? JSON.stringify(Message.toJSON(rpc)) : undefined;
@@ -615,8 +613,8 @@ export class SourceHub extends DurableObject<Env> {
     }
   }
 
-  private async applySourceState(tags: string[], rpc: Message | undefined): Promise<StateMutation> {
-    if (!rpc) return { kind: "none" };
+  private async applySourceState(tags: string[], rpc: Message | undefined): Promise<{ mutation: StateMutation; sourceId: string | undefined }> {
+    if (!rpc) return { mutation: { kind: "none" }, sourceId: undefined };
     try {
       const mutation = await this.resolveStateMutation(tags, rpc);
 
@@ -624,9 +622,9 @@ export class SourceHub extends DurableObject<Env> {
         this.debugLog.push("info", "state mutation applied", { kind: mutation.kind });
       }
 
-      // Resolve sourceId for lastSeen update
+      // Resolve sourceId for lastSeen update (also returned to caller)
       const sourceId =
-        mutation.kind === "sourceOnline" || mutation.kind === "sourceOffline"
+        mutation.kind !== "none"
           ? mutation.sourceId
           : await this.getSourceIdForConnection(tags);
 
@@ -647,13 +645,13 @@ export class SourceHub extends DurableObject<Env> {
         await this.ctx.storage.setAlarm(Date.now() + interval);
       }
 
-      return mutation;
+      return { mutation, sourceId };
     } catch (error) {
       this.debugLog.push("error", "state mutation failed", {
         error: error instanceof Error ? error.message : String(error),
       });
       await this.persistErrorEvent("applySourceState", error);
-      return { kind: "none" };
+      return { mutation: { kind: "none" }, sourceId: undefined };
     }
   }
 
@@ -1063,16 +1061,20 @@ export class SourceHub extends DurableObject<Env> {
         .bind(sourceId, eventType, eventJson)
         .run();
 
-      await this.env.DB.prepare(
-        `DELETE FROM source_events
-         WHERE source_uuid = ? AND id NOT IN (
-           SELECT id FROM source_events
-           WHERE source_uuid = ?
-           ORDER BY created_at DESC LIMIT 100
-         )`,
-      )
-        .bind(sourceId, sourceId)
-        .run();
+      // Prune old events probabilistically (~1 in 10) to avoid
+      // running a DELETE subquery on every single insert.
+      if (Math.random() < 0.1) {
+        await this.env.DB.prepare(
+          `DELETE FROM source_events
+           WHERE source_uuid = ? AND id NOT IN (
+             SELECT id FROM source_events
+             WHERE source_uuid = ?
+             ORDER BY created_at DESC LIMIT 100
+           )`,
+        )
+          .bind(sourceId, sourceId)
+          .run();
+      }
     } catch (error) {
       this.debugLog.push("error", "event persistence failed", {
         error: error instanceof Error ? error.message : String(error),

@@ -102,7 +102,7 @@ export class UserHub extends DurableObject<Env> {
       return Response.json({
         userUuid: userUuid ?? null,
         mergedState: mergedState
-          ? JSON.parse(JSON.stringify(Message.toJSON(mergedState))) as unknown
+          ? Message.toJSON(mergedState)
           : null,
       });
     }
@@ -151,15 +151,7 @@ export class UserHub extends DurableObject<Env> {
     const uiCount = this.ctx.getWebSockets("ui").length;
     this.debugLog.push("debug", "forwarding event to UI", { sourceId, uiCount });
 
-    const relayed = RelayedMessage.encode({
-      sourceId: sourceId ?? "",
-      serverTimestamp: new Date(),
-      message: decodedMsg,
-    }).finish();
-
-    for (const ws of this.ctx.getWebSockets("ui")) {
-      ws.send(relayed);
-    }
+    this.broadcastRelayedMessage(decodedMsg, sourceId);
     return Response.json({ ok: true });
   }
 
@@ -187,15 +179,7 @@ export class UserHub extends DurableObject<Env> {
     // Build merged state and broadcast as binary RelayedMessage
     const mergedState = await this.buildMergedSourceState();
     if (mergedState) {
-      const relayed = RelayedMessage.encode({
-        sourceId: "",
-        serverTimestamp: new Date(),
-        message: mergedState,
-      }).finish();
-
-      for (const ws of this.ctx.getWebSockets("ui")) {
-        ws.send(relayed);
-      }
+      this.broadcastRelayedMessage(mergedState);
     }
     return Response.json({ ok: true });
   }
@@ -211,15 +195,7 @@ export class UserHub extends DurableObject<Env> {
 
     const mergedState = await this.buildMergedSourceState();
     if (mergedState) {
-      const relayed = RelayedMessage.encode({
-        sourceId: "",
-        serverTimestamp: new Date(),
-        message: mergedState,
-      }).finish();
-
-      for (const ws of this.ctx.getWebSockets("ui")) {
-        ws.send(relayed);
-      }
+      this.broadcastRelayedMessage(mergedState);
     }
     return Response.json({ ok: true });
   }
@@ -231,17 +207,26 @@ export class UserHub extends DurableObject<Env> {
   private async handleRefreshState(): Promise<Response> {
     const mergedState = await this.buildMergedSourceState();
     if (mergedState) {
-      const relayed = RelayedMessage.encode({
-        sourceId: "",
-        serverTimestamp: new Date(),
-        message: mergedState,
-      }).finish();
-
-      for (const ws of this.ctx.getWebSockets("ui")) {
-        ws.send(relayed);
-      }
+      this.broadcastRelayedMessage(mergedState);
     }
     return Response.json({ ok: true });
+  }
+
+  // ── Broadcast helpers ───────────────────────────────────────────
+
+  /**
+   * Encode a Message into a RelayedMessage and send binary to all UI WebSocket clients.
+   */
+  private broadcastRelayedMessage(msg: Message, sourceId = ""): void {
+    const relayed = RelayedMessage.encode({
+      sourceId,
+      serverTimestamp: new Date(),
+      message: msg,
+    }).finish();
+
+    for (const ws of this.ctx.getWebSockets("ui")) {
+      ws.send(relayed);
+    }
   }
 
   // ── Internal helpers ──────────────────────────────────────────────
@@ -288,7 +273,6 @@ export class UserHub extends DurableObject<Env> {
       serverTimestamp: new Date(),
       message: mergedState,
     }).finish();
-
     ws.send(relayed);
   }
 

@@ -1,8 +1,8 @@
 import { gameDisplayName } from "$lib/stores/plugins";
-import type {
+import {
   GameStatusEnum,
-  Message,
-  SourceInfo,
+  type Message,
+  type SourceInfo,
 } from "$lib/proto/savecraft/v1/protocol";
 import type { GameStatus, SaveSummary, Source, SourceGame, SourceStatus } from "$lib/types/source";
 import { relativeTime } from "$lib/utils/time";
@@ -23,10 +23,8 @@ const configResultsStore = writable<Record<string, ConfigResultEntry>>({});
 export const configResults: Readable<Record<string, ConfigResultEntry>> = configResultsStore;
 
 function enumStatusToGameStatus(status: GameStatusEnum): GameStatus {
-  // GameStatusEnum numeric values: ERROR=3, NOT_FOUND=4
-  if (status === 3) return "error";
-  if (status === 4) return "not_found";
-  // WATCHING, ACTIVATING, DETECTED, UNSPECIFIED, and unrecognized all map to "watching"
+  if (status === GameStatusEnum.GAME_STATUS_ENUM_ERROR) return "error";
+  if (status === GameStatusEnum.GAME_STATUS_ENUM_NOT_FOUND) return "not_found";
   return "watching";
 }
 
