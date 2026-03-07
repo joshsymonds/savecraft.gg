@@ -27,8 +27,8 @@
     SourceStrip,
     StatusDot,
   } from "$lib/components";
-  import { Message, RelayedMessage } from "$lib/proto/savecraft/v1/protocol";
-  import type { TestPathResult } from "$lib/proto/savecraft/v1/protocol";
+  import { RelayedMessage } from "$lib/proto/savecraft/v1/protocol";
+  import type { Message, TestPathResult } from "$lib/proto/savecraft/v1/protocol";
   import { activityEvents } from "$lib/stores/activity";
   import { mergeGames } from "$lib/stores/games";
   import { consumePendingLinkCode } from "$lib/stores/link-code";
@@ -136,9 +136,7 @@
       result.push({
         gameId,
         name: manifest.name,
-        description: isApi
-          ? manifest.name
-          : `Parses ${manifest.file_extensions.join(", ")} files`,
+        description: isApi ? manifest.name : `Parses ${manifest.file_extensions.join(", ")} files`,
         watched: watchedIds.has(gameId),
         saveCount: merged?.saves.length ?? 0,
         defaultPaths: manifest.default_paths,
@@ -358,9 +356,9 @@
     }}
     testPathResult={$testPathResult
       ? {
-          valid: $testPathResult.valid ?? false,
-          filesFound: $testPathResult.filesFound ?? 0,
-          fileNames: $testPathResult.fileNames ?? [],
+          valid: $testPathResult.valid,
+          filesFound: $testPathResult.filesFound,
+          fileNames: $testPathResult.fileNames,
         }
       : null}
     validationState={deriveValidationState($testPathResult, testPathChecking)}
@@ -389,7 +387,6 @@
   />
 {/if}
 
-
 {#if pickerOpen}
   <GamePickerModal
     games={pickerGames}
@@ -405,7 +402,7 @@
       if (!sourceId) throw new Error("No configurable source selected");
       await saveConfigAndWait(sourceId, gameId, savePath);
     }}
-    onoauthconnect={(gameId, region) => {
+    onoauthconnect={(gameId: string, region: string) => {
       globalThis.location.href = `${PUBLIC_API_URL}/api/v1/adapters/${gameId}/authorize?region=${region}`;
     }}
     onclose={() => {

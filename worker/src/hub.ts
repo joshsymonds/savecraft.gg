@@ -26,6 +26,16 @@ interface SourceMeta {
   canReceiveConfig: boolean;
 }
 
+const DEFAULT_SOURCE_META: SourceMeta = {
+  sourceKind: "daemon",
+  hostname: "",
+  platform: "",
+  os: "",
+  arch: "",
+  canRescan: true,
+  canReceiveConfig: true,
+};
+
 // ── StateMutation: closed discriminated union ────────────────────────
 
 type StateMutation =
@@ -553,6 +563,31 @@ export class SourceHub extends DurableObject<Env> {
     await this.ctx.storage.put(STATE_KEY, state);
   }
 
+  private async fetchSourceMetaFromD1(sourceUuid: string): Promise<SourceMeta> {
+    const row = await this.env.DB.prepare(
+      "SELECT source_kind, hostname, os, arch, can_rescan, can_receive_config FROM sources WHERE source_uuid = ?",
+    )
+      .bind(sourceUuid)
+      .first<{
+        source_kind: string;
+        hostname: string | null;
+        os: string | null;
+        arch: string | null;
+        can_rescan: number;
+        can_receive_config: number;
+      }>();
+
+    return {
+      sourceKind: row?.source_kind ?? "daemon",
+      hostname: row?.hostname ?? "",
+      platform: row?.os ?? "",
+      os: row?.os ?? "",
+      arch: row?.arch ?? "",
+      canRescan: row?.can_rescan !== 0,
+      canReceiveConfig: row?.can_receive_config !== 0,
+    };
+  }
+
   private async getSourceMeta(): Promise<SourceMeta> {
     const cached = await this.ctx.storage.get<SourceMeta & { cachedAt: number }>(META_KEY);
     if (cached && Date.now() - cached.cachedAt < 5 * 60_000) {
@@ -568,32 +603,9 @@ export class SourceHub extends DurableObject<Env> {
     }
 
     const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
-    if (!sourceUuid) {
-      return { sourceKind: "daemon", hostname: "", platform: "", os: "", arch: "", canRescan: true, canReceiveConfig: true };
-    }
+    if (!sourceUuid) return DEFAULT_SOURCE_META;
 
-    const row = await this.env.DB.prepare(
-      "SELECT source_kind, hostname, os, arch, can_rescan, can_receive_config FROM sources WHERE source_uuid = ?",
-    )
-      .bind(sourceUuid)
-      .first<{
-        source_kind: string;
-        hostname: string | null;
-        os: string | null;
-        arch: string | null;
-        can_rescan: number;
-        can_receive_config: number;
-      }>();
-
-    const meta: SourceMeta = {
-      sourceKind: row?.source_kind ?? "daemon",
-      hostname: row?.hostname ?? "",
-      platform: row?.os ?? "",
-      os: row?.os ?? "",
-      arch: row?.arch ?? "",
-      canRescan: row?.can_rescan !== 0,
-      canReceiveConfig: row?.can_receive_config !== 0,
-    };
+    const meta = await this.fetchSourceMetaFromD1(sourceUuid);
     await this.ctx.storage.put(META_KEY, { ...meta, cachedAt: Date.now() });
     return meta;
   }
@@ -613,7 +625,10 @@ export class SourceHub extends DurableObject<Env> {
     }
   }
 
-  private async applySourceState(tags: string[], rpc: Message | undefined): Promise<{ mutation: StateMutation; sourceId: string | undefined }> {
+  private async applySourceState(
+    tags: string[],
+    rpc: Message | undefined,
+  ): Promise<{ mutation: StateMutation; sourceId: string | undefined }> {
     if (!rpc) return { mutation: { kind: "none" }, sourceId: undefined };
     try {
       const mutation = await this.resolveStateMutation(tags, rpc);
@@ -624,9 +639,7 @@ export class SourceHub extends DurableObject<Env> {
 
       // Resolve sourceId for lastSeen update (also returned to caller)
       const sourceId =
-        mutation.kind !== "none"
-          ? mutation.sourceId
-          : await this.getSourceIdForConnection(tags);
+        mutation.kind === "none" ? await this.getSourceIdForConnection(tags) : mutation.sourceId;
 
       // Load -> mutate -> update lastSeen -> save
       const state = await this.loadState();
@@ -825,7 +838,7 @@ export class SourceHub extends DurableObject<Env> {
           this.env.DB.prepare(
             `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
              VALUES (?, ?, ?, 1, ?)`,
-          ).bind(sourceUuid, game.gameId, game.path, JSON.stringify(game.fileExtensions ?? [])),
+          ).bind(sourceUuid, game.gameId, game.path, JSON.stringify(game.fileExtensions)),
         ),
       );
 
@@ -937,7 +950,10 @@ export class SourceHub extends DurableObject<Env> {
 
   // ── UserHub forwarding ────────────────────────────────────────────
 
-  private async forwardEventToUserHub(eventBytes: Uint8Array, sourceId: string | undefined): Promise<void> {
+  private async forwardEventToUserHub(
+    eventBytes: Uint8Array,
+    sourceId: string | undefined,
+  ): Promise<void> {
     const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
     if (!userUuid) return;
     try {
@@ -1063,6 +1079,7 @@ export class SourceHub extends DurableObject<Env> {
 
       // Prune old events probabilistically (~1 in 10) to avoid
       // running a DELETE subquery on every single insert.
+      // eslint-disable-next-line sonarjs/pseudo-random -- used for jitter, not security
       if (Math.random() < 0.1) {
         await this.env.DB.prepare(
           `DELETE FROM source_events

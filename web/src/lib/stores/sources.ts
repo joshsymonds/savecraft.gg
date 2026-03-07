@@ -1,9 +1,5 @@
+import { GameStatusEnum, type Message, type SourceInfo } from "$lib/proto/savecraft/v1/protocol";
 import { gameDisplayName } from "$lib/stores/plugins";
-import {
-  GameStatusEnum,
-  type Message,
-  type SourceInfo,
-} from "$lib/proto/savecraft/v1/protocol";
 import type { GameStatus, SaveSummary, Source, SourceGame, SourceStatus } from "$lib/types/source";
 import { relativeTime } from "$lib/utils/time";
 import { type Readable, writable } from "svelte/store";
@@ -56,18 +52,18 @@ function formatTimestamp(ts: Date | undefined): string {
 }
 
 function mapSourceInfo(d: SourceInfo): Source {
-  const games: SourceGame[] = (d.games ?? []).map((g) => {
+  const games: SourceGame[] = d.games.map((g) => {
     const status = enumStatusToGameStatus(g.status);
-    const saves: SaveSummary[] = (g.saves ?? []).map((s) => ({
-      saveUuid: s.saveUuid ?? "",
+    const saves: SaveSummary[] = g.saves.map((s) => ({
+      saveUuid: s.saveUuid,
       saveName: s.identity?.name ?? "Unknown",
-      summary: s.summary ?? "",
+      summary: s.summary,
       lastUpdated: formatTimestamp(s.lastUpdated),
       status: "success" as const,
     }));
     return {
-      gameId: g.gameId ?? "",
-      name: g.gameName ?? gameDisplayName(g.gameId ?? ""),
+      gameId: g.gameId,
+      name: g.gameName || gameDisplayName(g.gameId),
       status,
       statusLine: gameStatusLine(status, saves),
       saves,
@@ -77,9 +73,9 @@ function mapSourceInfo(d: SourceInfo): Source {
   const sourceStatus: SourceStatus = d.online ? "online" : "offline";
 
   return {
-    id: d.sourceId ?? "",
+    id: d.sourceId,
     name: sourceDisplayName(d.sourceKind, d.hostname || null),
-    sourceKind: d.sourceKind ?? "daemon",
+    sourceKind: d.sourceKind || "daemon",
     hostname: d.hostname || null,
     // Use `os` (runtime.GOOS: "linux", "darwin", "windows") for platform-dependent
     // path defaults, not `platform` which is architecture info.
@@ -88,8 +84,8 @@ function mapSourceInfo(d: SourceInfo): Source {
     version: null,
     lastSeen: formatTimestamp(d.lastSeen),
     capabilities: {
-      canRescan: d.canRescan ?? false,
-      canReceiveConfig: d.canReceiveConfig ?? false,
+      canRescan: d.canRescan,
+      canReceiveConfig: d.canReceiveConfig,
     },
     games,
   };
@@ -262,7 +258,7 @@ function handlePushCompleted(sourceId: string, msg: Message): void {
         game.saves.push({
           saveUuid: pc.saveUuid,
           saveName: pc.identity?.name ?? "Unknown",
-          summary: pc.summary ?? "",
+          summary: pc.summary,
           lastUpdated: "just now",
           status: "success",
         });
@@ -280,9 +276,9 @@ function handleConfigResult(msg: Message): void {
   const entries: Record<string, ConfigResultEntry> = {};
   for (const [gameId, result] of Object.entries(cr.results)) {
     entries[gameId] = {
-      success: result.success ?? false,
-      error: result.error ?? "",
-      resolvedPath: result.resolvedPath ?? "",
+      success: result.success,
+      error: result.error,
+      resolvedPath: result.resolvedPath,
     };
   }
   configResultsStore.set(entries);
@@ -291,16 +287,28 @@ function handleConfigResult(msg: Message): void {
 type SourceHandler = (sourceId: string, msg: Message) => void;
 
 const SOURCE_HANDLERS: Partial<Record<PayloadCase, SourceHandler>> = {
-  sourceState: (_sourceId, msg) => handleSourceState(msg),
+  sourceState: (_sourceId, msg) => {
+    handleSourceState(msg);
+  },
   sourceOnline: handleSourceOnline,
-  sourceOffline: (sourceId) => handleSourceOffline(sourceId),
-  watching: (sourceId, msg) => handleGameStatusChange(sourceId, msg, "watching"),
-  gameDetected: (sourceId, msg) => handleGameStatusChange(sourceId, msg, "gameDetected"),
-  gameNotFound: (sourceId, msg) => handleGameStatusChange(sourceId, msg, "gameNotFound"),
+  sourceOffline: (sourceId) => {
+    handleSourceOffline(sourceId);
+  },
+  watching: (sourceId, msg) => {
+    handleGameStatusChange(sourceId, msg, "watching");
+  },
+  gameDetected: (sourceId, msg) => {
+    handleGameStatusChange(sourceId, msg, "gameDetected");
+  },
+  gameNotFound: (sourceId, msg) => {
+    handleGameStatusChange(sourceId, msg, "gameNotFound");
+  },
   parseFailed: handleParseFailed,
   parseCompleted: handleParseCompleted,
   pushCompleted: handlePushCompleted,
-  configResult: (_sourceId, msg) => handleConfigResult(msg),
+  configResult: (_sourceId, msg) => {
+    handleConfigResult(msg);
+  },
 };
 
 export function dispatchToSources(sourceId: string, msg: Message | undefined): void {

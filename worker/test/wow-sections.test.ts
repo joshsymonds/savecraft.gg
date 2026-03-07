@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
 
+import {
+  mapCharacterOverview,
+  mapCharacterStats,
+  mapEquippedGear,
+  mapMythicPlus,
+  mapProfessions,
+  mapRaidProgression,
+  mapTalents,
+} from "../../plugins/wow/adapter/sections";
 import type {
   BlizzardEquipment,
   BlizzardMythicKeystoneSeason,
@@ -10,34 +19,22 @@ import type {
   BlizzardStatistics,
   RaiderioProfile,
 } from "../../plugins/wow/adapter/types";
-import {
-  mapCharacterOverview,
-  mapCharacterStats,
-  mapEquippedGear,
-  mapMythicPlus,
-  mapProfessions,
-  mapRaidProgression,
-  mapTalents,
-} from "../../plugins/wow/adapter/sections";
-
+import equipmentFixture from "../../plugins/wow/testdata/blizzard-equipment.json";
+import mythicKeystoneSeasonFixture from "../../plugins/wow/testdata/blizzard-mythic-keystone-season.json";
+import professionsFixture from "../../plugins/wow/testdata/blizzard-professions.json";
 // Import fixture data — real API responses from Dratnos (Tichondrius-US)
 import profileFixture from "../../plugins/wow/testdata/blizzard-profile.json";
-import equipmentFixture from "../../plugins/wow/testdata/blizzard-equipment.json";
-import statisticsFixture from "../../plugins/wow/testdata/blizzard-statistics.json";
-import specializationsFixture from "../../plugins/wow/testdata/blizzard-specializations.json";
-import mythicKeystoneSeasonFixture from "../../plugins/wow/testdata/blizzard-mythic-keystone-season.json";
 import raidsFixture from "../../plugins/wow/testdata/blizzard-raids.json";
-import professionsFixture from "../../plugins/wow/testdata/blizzard-professions.json";
+import specializationsFixture from "../../plugins/wow/testdata/blizzard-specializations.json";
+import statisticsFixture from "../../plugins/wow/testdata/blizzard-statistics.json";
 import raiderioFixture from "../../plugins/wow/testdata/raiderio-profile.json";
 
 // Cast fixtures to typed interfaces
 const profile = profileFixture as unknown as BlizzardProfile;
 const equipment = equipmentFixture as unknown as BlizzardEquipment;
 const statistics = statisticsFixture as unknown as BlizzardStatistics;
-const specializations =
-  specializationsFixture as unknown as BlizzardSpecializations;
-const mythicKeystoneSeason =
-  mythicKeystoneSeasonFixture as unknown as BlizzardMythicKeystoneSeason;
+const specializations = specializationsFixture as unknown as BlizzardSpecializations;
+const mythicKeystoneSeason = mythicKeystoneSeasonFixture as unknown as BlizzardMythicKeystoneSeason;
 const raids = raidsFixture as unknown as BlizzardRaids;
 const professions = professionsFixture as unknown as BlizzardProfessions;
 const raiderio = raiderioFixture as unknown as RaiderioProfile;
@@ -58,7 +55,7 @@ describe("WoW Section Mappers", () => {
       expect(d.realm).toBe("Tichondrius");
       expect(d.guild).toBe("poptart corndoG");
       expect(d.equipped_item_level).toBe(116);
-      expect(d.character_id).toBe(198030797);
+      expect(d.character_id).toBe(198_030_797);
     });
 
     it("includes Raider.io enrichment when provided", () => {
@@ -66,9 +63,7 @@ describe("WoW Section Mappers", () => {
       const d = section.data as Record<string, unknown>;
 
       expect(d.raiderio_score).toBeDefined();
-      expect(d.raiderio_url).toBe(
-        "https://raider.io/characters/us/tichondrius/Dratnos",
-      );
+      expect(d.raiderio_url).toBe("https://raider.io/characters/us/tichondrius/Dratnos");
       expect(section.enrichment?.[0]?.source).toBe("raiderio");
       expect(section.enrichment?.[0]?.available).toBe(true);
       expect(section.enrichment?.[0]?.crawledAt).toBeTruthy();
@@ -90,9 +85,7 @@ describe("WoW Section Mappers", () => {
       expect(d.items.length).toBeGreaterThan(0);
 
       // Check first item (Head slot based on fixture)
-      const head = d.items.find(
-        (i) => i.slot === "Head",
-      ) as Record<string, unknown>;
+      const head = d.items.find((index) => index.slot === "Head")!;
       expect(head).toBeTruthy();
       expect(head.name).toBe("High Altitude Turban");
       expect(head.item_level).toBe(124);
@@ -102,9 +95,7 @@ describe("WoW Section Mappers", () => {
     it("includes enchantments and gems", () => {
       const section = mapEquippedGear(equipment);
       const d = section.data as { items: Record<string, unknown>[] };
-      const head = d.items.find(
-        (i) => i.slot === "Head",
-      ) as Record<string, unknown>;
+      const head = d.items.find((index) => index.slot === "Head")!;
 
       const enchantments = head.enchantments as { description: string }[];
       expect(enchantments.length).toBeGreaterThan(0);
@@ -117,9 +108,7 @@ describe("WoW Section Mappers", () => {
     it("filters out negated stats", () => {
       const section = mapEquippedGear(equipment);
       const d = section.data as { items: Record<string, unknown>[] };
-      const head = d.items.find(
-        (i) => i.slot === "Head",
-      ) as Record<string, unknown>;
+      const head = d.items.find((index) => index.slot === "Head")!;
 
       // Intellect is negated on the head piece (is_negated: true)
       const stats = head.stats as { type: string }[];
@@ -133,16 +122,13 @@ describe("WoW Section Mappers", () => {
       const section = mapCharacterStats(statistics);
       const d = section.data as Record<string, unknown>;
 
-      expect(d.health).toBe(77760);
+      expect(d.health).toBe(77_760);
       expect(d.power_type).toBe("Energy");
 
       const primary = d.primary as Record<string, number>;
       expect(primary.agility).toBe(524);
 
-      const secondary = d.secondary as Record<
-        string,
-        Record<string, number> | undefined
-      >;
+      const secondary = d.secondary as Record<string, Record<string, number> | undefined>;
       expect(secondary.crit?.percent).toBeCloseTo(36.4, 0);
       expect(secondary.mastery?.percent).toBeCloseTo(69.7, 0);
 
@@ -192,7 +178,7 @@ describe("WoW Section Mappers", () => {
     });
 
     it("works without M+ season data", () => {
-      const section = mapMythicPlus(undefined);
+      const section = mapMythicPlus();
       const d = section.data as { best_runs: unknown[] };
 
       expect(d.best_runs).toEqual([]);

@@ -5,7 +5,6 @@
   Source clicks open SourceEditModal stacked on top.
 -->
 <script lang="ts">
-  import { defaultPathForPlatform } from "$lib/utils/platform";
   import type {
     AvailableSource,
     Game,
@@ -14,6 +13,7 @@
     TestPathResult,
     ValidationState,
   } from "$lib/types/source";
+  import { defaultPathForPlatform } from "$lib/utils/platform";
 
   import DropdownMenu from "./DropdownMenu.svelte";
   import Modal from "./Modal.svelte";
@@ -90,7 +90,11 @@
 
   function handleSourceClick(source: GameSourceEntry) {
     if (source.sourceKind === "adapter") return;
-    openEditor(source.sourceId, source.sourceName, source.path ?? defaultPathForSource(source.sourceId));
+    openEditor(
+      source.sourceId,
+      source.sourceName,
+      source.path ?? defaultPathForSource(source.sourceId),
+    );
   }
 
   function handleDropdownPick(option: { id: string; label: string }) {

@@ -176,11 +176,7 @@ async function routePublicEndpoints(
 
 // -- Battle.net OAuth routes --------------------------------------------------
 
-async function routeBattlenetOAuth(
-  request: Request,
-  url: URL,
-  env: Env,
-): Promise<Response | null> {
+async function routeBattlenetOAuth(request: Request, url: URL, env: Env): Promise<Response | null> {
   if (request.method !== "GET") return null;
 
   if (url.pathname === "/oauth/battlenet/authorize") {
@@ -197,14 +193,10 @@ async function routeBattlenetOAuth(
   return null;
 }
 
-async function handleBattlenetAuthorize(
-  url: URL,
-  env: Env,
-  userUuid: string,
-): Promise<Response> {
+async function handleBattlenetAuthorize(url: URL, env: Env, userUuid: string): Promise<Response> {
   const region = url.searchParams.get("region") ?? "us";
   const returnUrl = url.searchParams.get("return_url") ?? "";
-  const adapter = adapters["wow"];
+  const adapter = adapters.wow;
   if (!adapter) {
     return Response.json({ error: "WoW adapter not configured" }, { status: 500 });
   }
@@ -233,10 +225,59 @@ async function handleBattlenetAuthorize(
   });
 }
 
-async function handleBattlenetCallback(
-  url: URL,
+interface BattlenetTokenResult {
+  readonly accessToken: string;
+  readonly refreshToken: string | null;
+  readonly expiresAt: string | null;
+}
+
+async function exchangeBattlenetToken(
+  code: string,
+  redirectUri: string,
+  oauthConfig: { readonly tokenUrl: string; readonly clientId: string },
   env: Env,
-): Promise<Response> {
+): Promise<BattlenetTokenResult | Response> {
+  const tokenResp = await fetch(oauthConfig.tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: redirectUri,
+      client_id: oauthConfig.clientId,
+      client_secret: env.BATTLENET_CLIENT_SECRET ?? "",
+    }),
+  });
+
+  if (!tokenResp.ok) {
+    return Response.json({ error: "Failed to exchange code with Battle.net" }, { status: 502 });
+  }
+
+  const tokenData = await tokenResp.json<{
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+  }>();
+
+  if (!tokenData.access_token) {
+    return Response.json(
+      { error: "Battle.net token response missing access_token" },
+      { status: 502 },
+    );
+  }
+
+  const expiresAt = tokenData.expires_in
+    ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+    : null;
+
+  return {
+    accessToken: tokenData.access_token,
+    refreshToken: tokenData.refresh_token ?? null,
+    expiresAt,
+  };
+}
+
+async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
   const code = url.searchParams.get("code");
   const stateKey = url.searchParams.get("state");
 
@@ -257,51 +298,18 @@ async function handleBattlenetCallback(
     returnUrl: string;
   };
 
-  const adapter = adapters["wow"];
+  const adapter = adapters.wow;
   if (!adapter) {
     return Response.json({ error: "WoW adapter not configured" }, { status: 500 });
   }
 
   const oauthConfig = adapter.getOAuthConfig(state.region, env);
+  const redirectUri = `${url.origin}/oauth/battlenet/callback`;
+  const tokenResult = await exchangeBattlenetToken(code, redirectUri, oauthConfig, env);
 
-  // Exchange authorization code for tokens
-  const tokenResp = await fetch(oauthConfig.tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "authorization_code",
-      code,
-      redirect_uri: `${url.origin}/oauth/battlenet/callback`,
-      client_id: oauthConfig.clientId,
-      client_secret: env.BATTLENET_CLIENT_SECRET ?? "",
-    }),
-  });
-
-  if (!tokenResp.ok) {
-    return Response.json(
-      { error: "Failed to exchange code with Battle.net" },
-      { status: 502 },
-    );
-  }
-
-  const tokenData = await tokenResp.json<{
-    access_token?: string;
-    refresh_token?: string;
-    expires_in?: number;
-  }>();
-
-  if (!tokenData.access_token) {
-    return Response.json(
-      { error: "Battle.net token response missing access_token" },
-      { status: 502 },
-    );
-  }
+  if (tokenResult instanceof Response) return tokenResult;
 
   // Store credentials (upsert)
-  const expiresAt = tokenData.expires_in
-    ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
-    : null;
-
   await env.DB.prepare(
     `INSERT INTO game_credentials (user_uuid, game_id, access_token_enc, refresh_token_enc, expires_at)
      VALUES (?, 'wow', ?, ?, ?)
@@ -311,18 +319,18 @@ async function handleBattlenetCallback(
        expires_at = excluded.expires_at,
        updated_at = datetime('now')`,
   )
-    .bind(
-      state.userUuid,
-      tokenData.access_token,
-      tokenData.refresh_token ?? null,
-      expiresAt,
-    )
+    .bind(state.userUuid, tokenResult.accessToken, tokenResult.refreshToken, tokenResult.expiresAt)
     .run();
 
   // Discover characters
-  let characters: { saveName: string; characterId: string; displayName: string; metadata: Record<string, unknown> }[] = [];
+  let characters: {
+    saveName: string;
+    characterId: string;
+    displayName: string;
+    metadata: Record<string, unknown>;
+  }[] = [];
   try {
-    characters = await adapter.discoverSaves(tokenData.access_token, state.region);
+    characters = await adapter.discoverSaves(tokenResult.accessToken, state.region);
   } catch {
     // Token works but character discovery failed — redirect anyway, user can retry
   }
@@ -536,7 +544,24 @@ async function handleAdapterRoute(
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
-  // Look up save — verify ownership and that it's adapter-backed
+  return handleAdapterRefresh(env, adapter, userUuid, gameId, saveUuid);
+}
+
+interface AdapterSaveRow {
+  readonly uuid: string;
+  readonly save_name: string;
+  readonly last_updated: string | null;
+  readonly last_source_uuid: string | null;
+  readonly source_kind: string;
+  readonly source_uuid: string;
+}
+
+async function lookupAdapterSave(
+  env: Env,
+  saveUuid: string,
+  userUuid: string,
+  gameId: string,
+): Promise<AdapterSaveRow | Response> {
   const save = await env.DB.prepare(
     `SELECT s.uuid, s.save_name, s.last_updated, s.last_source_uuid,
             src.source_kind, src.source_uuid
@@ -545,45 +570,79 @@ async function handleAdapterRoute(
      WHERE s.uuid = ? AND s.user_uuid = ? AND s.game_id = ?`,
   )
     .bind(saveUuid, userUuid, gameId)
-    .first<{
-      uuid: string;
-      save_name: string;
-      last_updated: string | null;
-      last_source_uuid: string | null;
-      source_kind: string;
-      source_uuid: string;
-    }>();
+    .first<AdapterSaveRow>();
 
   if (!save) {
     return Response.json({ error: "Save not found" }, { status: 404 });
   }
   if (save.source_kind !== "adapter") {
+    return Response.json({ error: "Save is not adapter-backed" }, { status: 400 });
+  }
+
+  return save;
+}
+
+function checkRefreshCooldown(lastUpdated: string | null): Response | null {
+  if (!lastUpdated) return null;
+
+  const lastUpdatedMs = new Date(lastUpdated).getTime();
+  const cooldownMs = ADAPTER_REFRESH_COOLDOWN_SEC * 1000;
+  const now = Date.now();
+  if (now - lastUpdatedMs < cooldownMs) {
+    const retryAfter = Math.ceil((cooldownMs - (now - lastUpdatedMs)) / 1000);
     return Response.json(
-      { error: "Save is not adapter-backed" },
-      { status: 400 },
+      {
+        error: "Too many refreshes. Try again later.",
+        retry_after: retryAfter,
+      },
+      { status: 429 },
     );
   }
 
-  // Rate limiting: check last_updated
-  if (save.last_updated) {
-    const lastUpdated = new Date(save.last_updated).getTime();
-    const cooldownMs = ADAPTER_REFRESH_COOLDOWN_SEC * 1000;
-    const now = Date.now();
-    if (now - lastUpdated < cooldownMs) {
-      const retryAfter = Math.ceil(
-        (cooldownMs - (now - lastUpdated)) / 1000,
-      );
-      return Response.json(
-        {
-          error: "Too many refreshes. Try again later.",
-          retry_after: retryAfter,
-        },
-        { status: 429 },
-      );
-    }
+  return null;
+}
+
+function resolveCharacterContext(
+  linkedChar: { character_name: string; metadata: string | null } | null,
+  saveName: string,
+): { realmSlug: string; region: string; characterName: string } {
+  let realmSlug: string;
+  let region: string;
+  if (linkedChar?.metadata) {
+    const meta = JSON.parse(linkedChar.metadata) as Record<string, unknown>;
+    realmSlug = (meta.realm_slug as string | undefined) ?? "";
+    region = (meta.region as string | undefined) ?? "us";
+  } else {
+    // Fallback: parse from save_name (Name-Realm-REGION)
+    const nameParts = saveName.split("-");
+    realmSlug = nameParts[1] ?? "";
+    region = (nameParts[2] ?? "US").toLowerCase();
   }
 
-  // Look up linked character for this save
+  const characterName = (linkedChar?.character_name ?? saveName.split("-")[0] ?? "").toLowerCase();
+
+  return { realmSlug, region, characterName };
+}
+
+function adapterErrorToStatus(code: string): number {
+  if (code === "token_expired") return 401;
+  if (code === "rate_limited") return 429;
+  if (code === "character_not_found") return 404;
+  return 502;
+}
+
+interface LinkedCharRow {
+  readonly character_id: string;
+  readonly character_name: string;
+  readonly metadata: string | null;
+}
+
+async function lookupRefreshContext(
+  env: Env,
+  userUuid: string,
+  gameId: string,
+  save: AdapterSaveRow,
+): Promise<{ realmSlug: string; region: string; characterName: string } | Response> {
   const linkedChar = await env.DB.prepare(
     `SELECT character_id, character_name, metadata
      FROM linked_characters
@@ -591,34 +650,26 @@ async function handleAdapterRoute(
      AND character_name = ?`,
   )
     .bind(userUuid, gameId, save.source_uuid, save.save_name.split("-")[0] ?? "")
-    .first<{
-      character_id: string;
-      character_name: string;
-      metadata: string | null;
-    }>();
+    .first<LinkedCharRow>();
 
-  // Parse metadata for realm_slug and region
-  let realmSlug: string;
-  let region: string;
-  if (linkedChar?.metadata) {
-    const meta = JSON.parse(linkedChar.metadata) as Record<string, unknown>;
-    realmSlug = (meta.realm_slug as string) ?? "";
-    region = (meta.region as string) ?? "us";
-  } else {
-    // Fallback: parse from save_name (Name-Realm-REGION)
-    const nameParts = save.save_name.split("-");
-    realmSlug = nameParts[1] ?? "";
-    region = (nameParts[2] ?? "US").toLowerCase();
+  const ctx = resolveCharacterContext(linkedChar, save.save_name);
+
+  if (!ctx.realmSlug) {
+    return Response.json({ error: "Cannot determine character realm" }, { status: 400 });
   }
 
-  if (!realmSlug) {
-    return Response.json(
-      { error: "Cannot determine character realm" },
-      { status: 400 },
-    );
-  }
+  return ctx;
+}
 
-  // Look up credentials
+async function lookupGameCredentials(
+  env: Env,
+  userUuid: string,
+  gameId: string,
+): Promise<{
+  accessToken: string;
+  refreshToken: string | undefined;
+  expiresAt: string | undefined;
+}> {
   const creds = await env.DB.prepare(
     "SELECT access_token_enc, refresh_token_enc, expires_at FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
   )
@@ -629,17 +680,37 @@ async function handleAdapterRoute(
       expires_at: string | null;
     }>();
 
+  return {
+    accessToken: creds?.access_token_enc ?? "",
+    refreshToken: creds?.refresh_token_enc ?? undefined,
+    expiresAt: creds?.expires_at ?? undefined,
+  };
+}
+
+async function handleAdapterRefresh(
+  env: Env,
+  adapter: ApiAdapter,
+  userUuid: string,
+  gameId: string,
+  saveUuid: string,
+): Promise<Response> {
+  const saveResult = await lookupAdapterSave(env, saveUuid, userUuid, gameId);
+  if (saveResult instanceof Response) return saveResult;
+
+  const cooldownResp = checkRefreshCooldown(saveResult.last_updated);
+  if (cooldownResp) return cooldownResp;
+
+  const ctxResult = await lookupRefreshContext(env, userUuid, gameId, saveResult);
+  if (ctxResult instanceof Response) return ctxResult;
+
+  const credentials = await lookupGameCredentials(env, userUuid, gameId);
+
   try {
-    const characterName = (linkedChar?.character_name ?? save.save_name.split("-")[0] ?? "").toLowerCase();
     const gameState = await adapter.fetchState(
       {
-        characterId: `${realmSlug}/${characterName}`,
-        region,
-        credentials: {
-          accessToken: creds?.access_token_enc ?? "",
-          refreshToken: creds?.refresh_token_enc ?? undefined,
-          expiresAt: creds?.expires_at ?? undefined,
-        },
+        characterId: `${ctxResult.realmSlug}/${ctxResult.characterName}`,
+        region: ctxResult.region,
+        credentials,
       },
       env,
     );
@@ -650,7 +721,7 @@ async function handleAdapterRoute(
     const result = await storePush(
       env,
       userUuid,
-      save.source_uuid,
+      saveResult.source_uuid,
       gameId,
       gameState.identity.saveName,
       gameState.summary,
@@ -667,27 +738,19 @@ async function handleAdapterRoute(
       },
       { status: 200 },
     );
-  } catch (err) {
-    if (err instanceof AdapterError) {
-      const status =
-        err.code === "token_expired"
-          ? 401
-          : err.code === "rate_limited"
-            ? 429
-            : err.code === "character_not_found"
-              ? 404
-              : 502;
+  } catch (error) {
+    if (error instanceof AdapterError) {
       return Response.json(
         {
-          error: err.message,
-          code: err.code,
-          retry_after: err.retryAfter,
-          user_action: err.userAction,
+          error: error.message,
+          code: error.code,
+          retry_after: error.retryAfter,
+          user_action: error.userAction,
         },
-        { status },
+        { status: adapterErrorToStatus(error.code) },
       );
     }
-    throw err;
+    throw error;
   }
 }
 
@@ -698,6 +761,79 @@ interface CharacterSelectionInput {
   save_name: string;
   display_name: string;
   metadata: Record<string, unknown>;
+}
+
+async function findOrCreateAdapterSource(env: Env, userUuid: string): Promise<string> {
+  const existingSource = await env.DB.prepare(
+    "SELECT source_uuid FROM sources WHERE user_uuid = ? AND source_kind = 'adapter'",
+  )
+    .bind(userUuid)
+    .first<{ source_uuid: string }>();
+
+  if (existingSource) {
+    return existingSource.source_uuid;
+  }
+
+  const sourceUuid = crypto.randomUUID();
+  const tokenHash = await sha256Hex(`sct_adapter_${sourceUuid}`);
+  await env.DB.prepare(
+    `INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config)
+     VALUES (?, ?, ?, 'adapter', 0, 0)`,
+  )
+    .bind(sourceUuid, userUuid, tokenHash)
+    .run();
+
+  return sourceUuid;
+}
+
+async function upsertLinkedCharacter(
+  env: Env,
+  adapter: ApiAdapter,
+  userUuid: string,
+  gameId: string,
+  sourceUuid: string,
+  char: CharacterSelectionInput,
+): Promise<string> {
+  // Upsert linked_character
+  await env.DB.prepare(
+    `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+     VALUES (?, ?, ?, ?, ?, ?, 1)
+     ON CONFLICT(user_uuid, game_id, character_id) DO UPDATE SET
+       character_name = excluded.character_name,
+       metadata = excluded.metadata,
+       source_uuid = excluded.source_uuid,
+       active = 1`,
+  )
+    .bind(
+      userUuid,
+      gameId,
+      char.character_id,
+      char.display_name,
+      JSON.stringify(char.metadata),
+      sourceUuid,
+    )
+    .run();
+
+  // Create save (upsert)
+  const existingSave = await env.DB.prepare(
+    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
+  )
+    .bind(userUuid, gameId, char.save_name)
+    .first<{ uuid: string }>();
+
+  if (existingSave) {
+    return existingSave.uuid;
+  }
+
+  const saveUuid = crypto.randomUUID();
+  await env.DB.prepare(
+    `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
+     VALUES (?, ?, ?, ?, ?, '', datetime('now'), ?)`,
+  )
+    .bind(saveUuid, userUuid, gameId, adapter.gameName, char.save_name, sourceUuid)
+    .run();
+
+  return saveUuid;
 }
 
 async function handleAdapterCharacterSelection(
@@ -733,71 +869,11 @@ async function handleAdapterCharacterSelection(
     );
   }
 
-  // Find or create adapter source for this user+game
-  let sourceUuid: string;
-  const existingSource = await env.DB.prepare(
-    "SELECT source_uuid FROM sources WHERE user_uuid = ? AND source_kind = 'adapter'",
-  )
-    .bind(userUuid)
-    .first<{ source_uuid: string }>();
+  const sourceUuid = await findOrCreateAdapterSource(env, userUuid);
 
-  if (existingSource) {
-    sourceUuid = existingSource.source_uuid;
-  } else {
-    sourceUuid = crypto.randomUUID();
-    const tokenHash = await sha256Hex(`sct_adapter_${sourceUuid}`);
-    await env.DB.prepare(
-      `INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config)
-       VALUES (?, ?, ?, 'adapter', 0, 0)`,
-    )
-      .bind(sourceUuid, userUuid, tokenHash)
-      .run();
-  }
-
-  // Create linked_characters and saves for each selected character
   const results: { character_id: string; save_uuid: string }[] = [];
-
   for (const char of characters) {
-    // Upsert linked_character
-    await env.DB.prepare(
-      `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
-       VALUES (?, ?, ?, ?, ?, ?, 1)
-       ON CONFLICT(user_uuid, game_id, character_id) DO UPDATE SET
-         character_name = excluded.character_name,
-         metadata = excluded.metadata,
-         source_uuid = excluded.source_uuid,
-         active = 1`,
-    )
-      .bind(
-        userUuid,
-        gameId,
-        char.character_id,
-        char.display_name,
-        JSON.stringify(char.metadata),
-        sourceUuid,
-      )
-      .run();
-
-    // Create save (upsert)
-    const existingSave = await env.DB.prepare(
-      "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
-    )
-      .bind(userUuid, gameId, char.save_name)
-      .first<{ uuid: string }>();
-
-    let saveUuid: string;
-    if (existingSave) {
-      saveUuid = existingSave.uuid;
-    } else {
-      saveUuid = crypto.randomUUID();
-      await env.DB.prepare(
-        `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
-         VALUES (?, ?, ?, ?, ?, '', datetime('now'), ?)`,
-      )
-        .bind(saveUuid, userUuid, gameId, adapter.gameName, char.save_name, sourceUuid)
-        .run();
-    }
-
+    const saveUuid = await upsertLinkedCharacter(env, adapter, userUuid, gameId, sourceUuid, char);
     results.push({ character_id: char.character_id, save_uuid: saveUuid });
   }
 

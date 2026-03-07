@@ -696,9 +696,7 @@ describe("SourceHub", () => {
     } catch {
       // Timeout expected
     }
-    const heartbeatRelayed = messages.some(
-      (m) => m.message?.payload?.$case === "sourceHeartbeat",
-    );
+    const heartbeatRelayed = messages.some((m) => m.message?.payload?.$case === "sourceHeartbeat");
     expect(heartbeatRelayed).toBe(false);
 
     await closeWs(daemonWs);
@@ -883,7 +881,7 @@ describe("SourceHub", () => {
     do {
       relayed = await waitForRelayedMessage(uiWs);
     } while (relayed.message?.payload?.$case !== "watching");
-    expect(relayed.message?.payload?.$case).toBe("watching");
+    expect(relayed.message.payload.$case).toBe("watching");
 
     await closeWs(uiWs);
     await closeWs(daemonWs);
@@ -1051,7 +1049,7 @@ describe("SourceHub", () => {
     const configMsg = await waitForProtoMessage(daemon2);
 
     const cu = requirePayload(configMsg, "configUpdate");
-    const d2rConfig = cu.games["d2r"];
+    const d2rConfig = cu.games.d2r;
     expect(d2rConfig).toBeDefined();
     expect(d2rConfig!.savePath).toBe("/saves/d2r");
     expect(d2rConfig!.enabled).toBe(true);
@@ -1166,12 +1164,12 @@ describe("SourceHub", () => {
 
     const configMsg = await waitForProtoMessage(daemonWs);
     const cu = requirePayload(configMsg, "configUpdate");
-    expect(cu.games["d2r"]).toBeDefined();
-    expect(cu.games["d2r"]!.savePath).toBe("/home/user/.d2r/saves");
-    expect(cu.games["d2r"]!.enabled).toBe(true);
-    expect(cu.games["sdv"]).toBeDefined();
-    expect(cu.games["sdv"]!.savePath).toBe("/home/user/.sdv/saves");
-    expect(cu.games["sdv"]!.enabled).toBe(true);
+    expect(cu.games.d2r).toBeDefined();
+    expect(cu.games.d2r!.savePath).toBe("/home/user/.d2r/saves");
+    expect(cu.games.d2r!.enabled).toBe(true);
+    expect(cu.games.sdv).toBeDefined();
+    expect(cu.games.sdv!.savePath).toBe("/home/user/.sdv/saves");
+    expect(cu.games.sdv!.enabled).toBe(true);
 
     const rows = await env.DB.prepare(
       "SELECT game_id, save_path, enabled FROM source_configs WHERE source_uuid = ? ORDER BY game_id",
@@ -1227,8 +1225,8 @@ describe("SourceHub", () => {
 
     const configMsg = await waitForProtoMessage(daemonWs);
     const cu = requirePayload(configMsg, "configUpdate");
-    expect(cu.games["d2r"]!.savePath).toBe("/custom/path");
-    expect(cu.games["sdv"]!.savePath).toBe("/home/user/.sdv/saves");
+    expect(cu.games.d2r!.savePath).toBe("/custom/path");
+    expect(cu.games.sdv!.savePath).toBe("/home/user/.sdv/saves");
 
     await closeWs(daemonWs);
   });
@@ -1265,7 +1263,7 @@ describe("SourceHub", () => {
     for (const stateMsg of stateMessages) {
       const ds = requireInnerPayload(stateMsg, "sourceState");
       for (const source of ds.sources) {
-        for (const game of source.games ?? []) {
+        for (const game of source.games) {
           expect(game.status).not.toBe(5);
         }
       }

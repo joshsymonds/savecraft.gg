@@ -347,10 +347,10 @@ describe("Config push via SourceHub", () => {
 
     const msg = await waitForProtoMessage(daemonWs);
     const cu = requirePayload(msg, "configUpdate");
-    expect(cu.games["d2r"]).toBeDefined();
-    expect(cu.games["d2r"]!.savePath).toBe("/saves/d2r");
-    expect(cu.games["d2r"]!.enabled).toBe(true);
-    expect(cu.games["d2r"]!.fileExtensions).toEqual([".d2s"]);
+    expect(cu.games.d2r).toBeDefined();
+    expect(cu.games.d2r!.savePath).toBe("/saves/d2r");
+    expect(cu.games.d2r!.enabled).toBe(true);
+    expect(cu.games.d2r!.fileExtensions).toEqual([".d2s"]);
 
     await closeWs(daemonWs);
   });
@@ -399,7 +399,9 @@ describe("Config push via SourceHub", () => {
     const state = requireInnerPayload(msg, "sourceState");
     const source = state.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    const activatingGames = source!.games.filter((g) => g.status === GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING);
+    const activatingGames = source!.games.filter(
+      (g) => g.status === GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING,
+    );
     expect(activatingGames).toHaveLength(0);
 
     await closeWs(uiWs);
@@ -431,7 +433,9 @@ describe("Config push via SourceHub", () => {
     const state = requireInnerPayload(msg, "sourceState");
     const source = state.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    const activatingGames = source!.games.filter((g) => g.status === GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING);
+    const activatingGames = source!.games.filter(
+      (g) => g.status === GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING,
+    );
     expect(activatingGames).toHaveLength(0);
 
     await closeWs(uiWs);
@@ -465,7 +469,9 @@ describe("Config push via SourceHub", () => {
     const state = requireInnerPayload(msg, "sourceState");
     const source = state.sources.find((d) => d.sourceId === sourceUuid);
     expect(source).toBeDefined();
-    const activatingGames = source!.games.filter((g) => g.status === GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING);
+    const activatingGames = source!.games.filter(
+      (g) => g.status === GameStatusEnum.GAME_STATUS_ENUM_ACTIVATING,
+    );
     expect(activatingGames).toHaveLength(0);
 
     await closeWs(freshUi);
@@ -503,8 +509,8 @@ describe("Config push via SourceHub", () => {
 
     const msg = await configPromise;
     const cu = requirePayload(msg, "configUpdate");
-    expect(cu.games["d2r"]).toBeDefined();
-    expect(cu.games["d2r"]!.savePath).toBe("/saves/d2r");
+    expect(cu.games.d2r).toBeDefined();
+    expect(cu.games.d2r!.savePath).toBe("/saves/d2r");
 
     await closeWs(daemonWs);
   });

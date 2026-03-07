@@ -1,7 +1,7 @@
+import { RelayedMessage } from "$lib/proto/savecraft/v1/protocol";
 import { dispatchToActivity } from "$lib/stores/activity";
 import { dispatchToSources } from "$lib/stores/sources";
 import { setTestPathResult } from "$lib/stores/testpath";
-import { RelayedMessage } from "$lib/proto/savecraft/v1/protocol";
 
 export function handleMessage(data: ArrayBuffer): void {
   let relayed: ReturnType<typeof RelayedMessage.decode>;
