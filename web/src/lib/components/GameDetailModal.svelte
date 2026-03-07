@@ -89,6 +89,7 @@
   }
 
   function handleSourceClick(source: GameSourceEntry) {
+    if (source.sourceKind === "adapter") return;
     openEditor(source.sourceId, source.sourceName, source.path ?? defaultPathForSource(source.sourceId));
   }
 
@@ -177,29 +178,37 @@
     <div class="sources-section">
       <div class="sources-header">
         <span class="section-label">SOURCES</span>
-        {#if availableSources.length > 0}
+        {#if availableSources.length > 0 && !game.sources.some((s) => s.sourceKind === "adapter")}
           <DropdownMenu label="ADD SOURCE" options={dropdownOptions} onpick={handleDropdownPick} />
         {/if}
       </div>
 
       {#each game.sources as source (source.sourceId)}
-        <button class="source-row" onclick={() => handleSourceClick(source)}>
+        <button
+          class="source-row"
+          class:adapter-source={source.sourceKind === "adapter"}
+          onclick={() => handleSourceClick(source)}
+        >
           <div class="source-row-left">
             <StatusDot status={statusToDot(source.status)} size={6} />
             <span class="source-name">{source.sourceName}</span>
           </div>
           <div class="source-row-right">
-            <span
-              class="status-badge"
-              class:watching={source.status === "watching"}
-              class:error-status={source.status === "error"}
-              class:not-found={source.status === "not_found"}
-            >
-              {statusLabel(source.status)}
-            </span>
+            {#if source.sourceKind === "adapter"}
+              <span class="status-badge api-connected">API</span>
+            {:else}
+              <span
+                class="status-badge"
+                class:watching={source.status === "watching"}
+                class:error-status={source.status === "error"}
+                class:not-found={source.status === "not_found"}
+              >
+                {statusLabel(source.status)}
+              </span>
+            {/if}
           </div>
         </button>
-        {#if source.path}
+        {#if source.sourceKind !== "adapter" && source.path}
           <div class="source-path">{source.path}</div>
         {/if}
         {#if source.error}
@@ -388,6 +397,20 @@
     color: var(--color-text-muted);
     background: rgba(74, 90, 173, 0.06);
     border: 1px solid rgba(74, 90, 173, 0.1);
+  }
+
+  .status-badge.api-connected {
+    color: var(--color-blue, #6ea8fe);
+    background: rgba(110, 168, 254, 0.1);
+    border: 1px solid rgba(110, 168, 254, 0.2);
+  }
+
+  .source-row.adapter-source {
+    cursor: default;
+  }
+
+  .source-row.adapter-source:hover {
+    background: none;
   }
 
   .source-path {

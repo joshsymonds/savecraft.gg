@@ -3,6 +3,7 @@
   Dashboard: source status strip + game-centric main area + activity sidebar.
 -->
 <script lang="ts">
+  import { PUBLIC_API_URL } from "$env/static/public";
   import {
     createNote,
     deleteGame,
@@ -131,13 +132,18 @@
     const result: PickerGame[] = [];
     for (const [gameId, manifest] of $plugins) {
       const merged = mergedGames.find((g) => g.gameId === gameId);
+      const isApi = manifest.source === "api";
       result.push({
         gameId,
         name: manifest.name,
-        description: `Parses ${manifest.file_extensions.join(", ")} files`,
+        description: isApi
+          ? manifest.name
+          : `Parses ${manifest.file_extensions.join(", ")} files`,
         watched: watchedIds.has(gameId),
         saveCount: merged?.saves.length ?? 0,
         defaultPaths: manifest.default_paths,
+        isApiGame: isApi || undefined,
+        adapter: manifest.adapter,
       });
     }
     return result.sort((a, b) => a.name.localeCompare(b.name));
@@ -398,6 +404,9 @@
     onconfigure={async (gameId, savePath, sourceId) => {
       if (!sourceId) throw new Error("No configurable source selected");
       await saveConfigAndWait(sourceId, gameId, savePath);
+    }}
+    onoauthconnect={(gameId, region) => {
+      globalThis.location.href = `${PUBLIC_API_URL}/api/v1/adapters/${gameId}/authorize?region=${region}`;
     }}
     onclose={() => {
       pickerOpen = false;

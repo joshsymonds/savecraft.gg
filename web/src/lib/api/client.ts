@@ -76,6 +76,8 @@ export interface PluginManifest {
   file_extensions: string[];
   default_paths: { windows?: string; linux?: string; darwin?: string };
   coverage: string;
+  source?: string;
+  adapter?: { authProvider: string; regions: string[] };
 }
 
 // ── Source config types ──────────────────────────────────────

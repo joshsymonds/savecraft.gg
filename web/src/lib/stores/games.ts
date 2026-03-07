@@ -19,6 +19,7 @@ export function mergeGames(sources: Source[]): Game[] {
         sourceId: source.id,
         sourceName: source.name,
         hostname: source.hostname,
+        sourceKind: source.sourceKind,
         status: game.status,
         path: game.path,
         error: game.error,

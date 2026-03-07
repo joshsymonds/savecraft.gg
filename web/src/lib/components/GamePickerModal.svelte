@@ -24,16 +24,18 @@
     configurableSources = [],
     onselect,
     onconfigure,
+    onoauthconnect,
     onclose,
   }: {
     games: PickerGame[];
     configurableSources?: ConfigurableSource[];
     onselect?: (game: PickerGame) => void;
     onconfigure?: (gameId: string, savePath: string, sourceId: string) => Promise<void>;
+    onoauthconnect?: (gameId: string, region: string) => void;
     onclose: () => void;
   } = $props();
 
-  type ModalStep = "browsing" | "selectSource" | "configuring";
+  type ModalStep = "browsing" | "selectSource" | "selectRegion" | "configuring";
 
   let step: ModalStep = $state("browsing");
   let search = $state("");
@@ -68,6 +70,9 @@
   function handleCardClick(game: PickerGame) {
     if (game.watched) {
       onselect?.(game);
+    } else if (game.isApiGame) {
+      configGame = game;
+      step = "selectRegion";
     } else if (configurableSources.length > 1) {
       configGame = game;
       noSourcesError = false;
@@ -77,6 +82,12 @@
       if (source) enterConfigForm(game, source.id);
     } else {
       noSourcesError = true;
+    }
+  }
+
+  function handleRegionSelect(region: string) {
+    if (configGame) {
+      onoauthconnect?.(configGame.gameId, region);
     }
   }
 
@@ -118,6 +129,13 @@
     }
   }
 
+  const REGION_LABELS: Record<string, string> = {
+    us: "US",
+    eu: "EU",
+    kr: "KR",
+    tw: "TW",
+  };
+
   function handleModalClose() {
     if (step === "browsing") {
       onclose();
@@ -131,6 +149,9 @@
   <div class="modal-header">
     {#if step === "browsing"}
       <span class="modal-title">ADD A GAME</span>
+    {:else if step === "selectRegion"}
+      <button class="modal-back" onclick={handleBack}>&#x2190;</button>
+      <span class="modal-title">SELECT REGION</span>
     {:else if step === "selectSource"}
       <button class="modal-back" onclick={handleBack}>&#x2190;</button>
       <span class="modal-title">SELECT SOURCE</span>
@@ -143,7 +164,16 @@
     <button class="modal-close" onclick={() => onclose()}>&#x2715;</button>
   </div>
 
-  {#if step === "selectSource"}
+  {#if step === "selectRegion"}
+    <div class="region-list">
+      <p class="region-intro">Connect your Battle.net account to import characters.</p>
+      {#each configGame?.adapter?.regions ?? [] as region (region)}
+        <button class="source-option" onclick={() => handleRegionSelect(region)}>
+          <span class="source-name">{REGION_LABELS[region] ?? region.toUpperCase()}</span>
+        </button>
+      {/each}
+    </div>
+  {:else if step === "selectSource"}
     <div class="source-list">
       {#each configurableSources as source (source.id)}
         <button class="source-option" onclick={() => handleSourceSelect(source)}>
@@ -374,6 +404,20 @@
     font-family: var(--font-body);
     font-size: 14px;
     color: var(--color-red, #e55);
+  }
+
+  /* Region selection */
+
+  .region-list {
+    padding: 8px 0;
+  }
+
+  .region-intro {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--color-text-dim);
+    padding: 8px 18px 4px;
+    margin: 0;
   }
 
   /* Source selection */
