@@ -1895,7 +1895,9 @@ async function handlePush(request: Request, env: Env, sourceUuid: string): Promi
   }
 
   const identity = body.identity as Record<string, unknown> | undefined;
-  const sections = body.sections;
+  const sections = body.sections as
+    | Record<string, { description: string; data: unknown }>
+    | undefined;
   const summary = (body.summary as string | undefined) ?? "";
 
   if (!identity || !sections) {

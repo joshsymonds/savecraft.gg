@@ -9,6 +9,7 @@ import { Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
 export const CLEANUP_TABLES = [
   "search_index",
   "notes",
+  "sections",
   "source_configs",
   "source_events",
   "mcp_activity",
