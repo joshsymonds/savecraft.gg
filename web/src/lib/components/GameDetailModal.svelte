@@ -1,28 +1,106 @@
 <!--
   @component
-  Modal showing game details: save list, status, remove game action.
+  Unified game modal: save list, source status, config, remove game.
   Opens on GameCard click. Save clicks open SaveDetailModal (handled by parent).
+  Source clicks open SourceEditModal stacked on top.
 -->
 <script lang="ts">
-  import type { Game, Save } from "$lib/types/source";
+  import { defaultPathForPlatform } from "$lib/utils/platform";
+  import type {
+    AvailableSource,
+    Game,
+    GameSourceEntry,
+    Save,
+    TestPathResult,
+    ValidationState,
+  } from "$lib/types/source";
 
+  import DropdownMenu from "./DropdownMenu.svelte";
   import Modal from "./Modal.svelte";
   import SaveRow from "./SaveRow.svelte";
+  import SourceEditModal from "./SourceEditModal.svelte";
+  import StatusDot from "./StatusDot.svelte";
   import WindowTitleBar from "./WindowTitleBar.svelte";
 
   let {
     game,
     showSourceBadges = false,
+    availableSources = [],
+    defaultPaths,
     onclose,
     onsaveclick,
     onremovegame,
+    onsave,
+    ontestpath,
+    testPathResult = null,
+    validationState = "idle",
+    onremovesource,
   }: {
     game: Game;
     showSourceBadges?: boolean;
+    availableSources?: AvailableSource[];
+    defaultPaths?: { windows?: string; linux?: string; darwin?: string };
     onclose: () => void;
     onsaveclick: (save: Save) => void;
     onremovegame?: (gameId: string) => Promise<void>;
+    onsave?: (sourceId: string, savePath: string) => Promise<void>;
+    ontestpath?: (sourceId: string, path: string) => void;
+    testPathResult?: TestPathResult | null;
+    validationState?: ValidationState;
+    onremovesource?: (sourceId: string) => Promise<void>;
   } = $props();
+
+  // -- Stacked source editor state --
+
+  let editingSourceId: string | null = $state(null);
+  let editingSourceName: string | null = $state(null);
+  let editingPath: string = $state("");
+
+  // -- Dropdown options derived from availableSources --
+  let dropdownOptions = $derived(
+    availableSources.map((s) => ({
+      id: s.id,
+      label: s.name,
+      sublabel: s.hostname ?? undefined,
+    })),
+  );
+
+  function statusToDot(status: GameSourceEntry["status"]): "online" | "error" | "offline" {
+    if (status === "watching") return "online";
+    if (status === "error") return "error";
+    return "offline";
+  }
+
+  function statusLabel(status: GameSourceEntry["status"]): string {
+    if (status === "watching") return "WATCHING";
+    if (status === "error") return "ERROR";
+    return "NOT FOUND";
+  }
+
+  function defaultPathForSource(sourceId: string): string {
+    const source = availableSources.find((s) => s.id === sourceId);
+    return defaultPathForPlatform(source?.platform, defaultPaths);
+  }
+
+  function openEditor(sourceId: string, sourceName: string, path: string) {
+    editingSourceId = sourceId;
+    editingSourceName = sourceName;
+    editingPath = path;
+  }
+
+  function handleSourceClick(source: GameSourceEntry) {
+    openEditor(source.sourceId, source.sourceName, source.path ?? defaultPathForSource(source.sourceId));
+  }
+
+  function handleDropdownPick(option: { id: string; label: string }) {
+    openEditor(option.id, option.label, defaultPathForSource(option.id));
+  }
+
+  function closeEditor() {
+    editingSourceId = null;
+    editingSourceName = null;
+    editingPath = "";
+  }
 
   // -- Remove game --
   let confirmingRemove = $state(false);
@@ -94,6 +172,43 @@
     {/each}
   </div>
 
+  <!-- Sources section -->
+  {#if game.sources.length > 0 || availableSources.length > 0}
+    <div class="sources-section">
+      <div class="sources-header">
+        <span class="section-label">SOURCES</span>
+        {#if availableSources.length > 0}
+          <DropdownMenu label="ADD SOURCE" options={dropdownOptions} onpick={handleDropdownPick} />
+        {/if}
+      </div>
+
+      {#each game.sources as source (source.sourceId)}
+        <button class="source-row" onclick={() => handleSourceClick(source)}>
+          <div class="source-row-left">
+            <StatusDot status={statusToDot(source.status)} size={6} />
+            <span class="source-name">{source.sourceName}</span>
+          </div>
+          <div class="source-row-right">
+            <span
+              class="status-badge"
+              class:watching={source.status === "watching"}
+              class:error-status={source.status === "error"}
+              class:not-found={source.status === "not_found"}
+            >
+              {statusLabel(source.status)}
+            </span>
+          </div>
+        </button>
+        {#if source.path}
+          <div class="source-path">{source.path}</div>
+        {/if}
+        {#if source.error}
+          <div class="source-error">{source.error}</div>
+        {/if}
+      {/each}
+    </div>
+  {/if}
+
   {#if confirmingRemove}
     <div class="confirm-section">
       <p class="confirm-warning">
@@ -134,6 +249,23 @@
   {/snippet}
 </Modal>
 
+<!-- Stacked: source path editor -->
+{#if editingSourceId}
+  <SourceEditModal
+    gameName={game.name}
+    gameId={game.gameId}
+    sourceId={editingSourceId}
+    sourceName={editingSourceName ?? ""}
+    initialPath={editingPath}
+    {onsave}
+    {ontestpath}
+    {testPathResult}
+    {validationState}
+    {onremovesource}
+    onclose={closeEditor}
+  />
+{/if}
+
 <style>
   .saves-area {
     padding: 0;
@@ -173,6 +305,106 @@
     font-family: var(--font-body);
     font-size: 18px;
     color: var(--color-text-muted);
+  }
+
+  /* -- Sources section -- */
+
+  .sources-section {
+    border-top: 1px solid rgba(74, 90, 173, 0.1);
+  }
+
+  .sources-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 18px 8px;
+  }
+
+  .section-label {
+    font-family: var(--font-pixel);
+    font-size: 7px;
+    color: var(--color-gold);
+    letter-spacing: 2px;
+  }
+
+  .source-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 10px 18px;
+    background: none;
+    border: none;
+    border-bottom: 1px solid rgba(74, 90, 173, 0.06);
+    cursor: pointer;
+    text-align: left;
+    transition: background 0.15s;
+  }
+
+  .source-row:hover {
+    background: rgba(74, 90, 173, 0.06);
+  }
+
+  .source-row-left {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .source-name {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    color: var(--color-text);
+    letter-spacing: 0.5px;
+  }
+
+  .source-row-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .status-badge {
+    font-family: var(--font-pixel);
+    font-size: 6px;
+    letter-spacing: 1px;
+    padding: 2px 6px;
+    border-radius: 2px;
+  }
+
+  .status-badge.watching {
+    color: var(--color-green);
+    background: rgba(90, 190, 138, 0.1);
+    border: 1px solid rgba(90, 190, 138, 0.2);
+  }
+
+  .status-badge.error-status {
+    color: var(--color-yellow);
+    background: rgba(232, 180, 90, 0.1);
+    border: 1px solid rgba(232, 180, 90, 0.2);
+  }
+
+  .status-badge.not-found {
+    color: var(--color-text-muted);
+    background: rgba(74, 90, 173, 0.06);
+    border: 1px solid rgba(74, 90, 173, 0.1);
+  }
+
+  .source-path {
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-text-dim);
+    padding: 0 18px 8px 44px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .source-error {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--color-red, #e85a5a);
+    padding: 0 18px 8px 44px;
   }
 
   /* -- Remove confirmation -- */

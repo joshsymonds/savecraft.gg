@@ -19,6 +19,9 @@ const META_KEY = "sourceMeta";
 interface SourceMeta {
   sourceKind: string;
   hostname: string;
+  platform: string;
+  os: string;
+  arch: string;
   canRescan: boolean;
   canReceiveConfig: boolean;
 }
@@ -55,6 +58,9 @@ function findOrCreateSource(state: SourceState, sourceId: string): SourceInfo {
       games: [],
       sourceKind: "",
       hostname: "",
+      platform: "",
+      os: "",
+      arch: "",
       canRescan: true,
       canReceiveConfig: true,
     };
@@ -542,6 +548,9 @@ export class SourceHub extends DurableObject<Env> {
       return {
         sourceKind: cached.sourceKind,
         hostname: cached.hostname,
+        platform: cached.platform,
+        os: cached.os,
+        arch: cached.arch,
         canRescan: cached.canRescan,
         canReceiveConfig: cached.canReceiveConfig,
       };
@@ -549,16 +558,18 @@ export class SourceHub extends DurableObject<Env> {
 
     const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
     if (!sourceUuid) {
-      return { sourceKind: "daemon", hostname: "", canRescan: true, canReceiveConfig: true };
+      return { sourceKind: "daemon", hostname: "", platform: "", os: "", arch: "", canRescan: true, canReceiveConfig: true };
     }
 
     const row = await this.env.DB.prepare(
-      "SELECT source_kind, hostname, can_rescan, can_receive_config FROM sources WHERE source_uuid = ?",
+      "SELECT source_kind, hostname, os, arch, can_rescan, can_receive_config FROM sources WHERE source_uuid = ?",
     )
       .bind(sourceUuid)
       .first<{
         source_kind: string;
         hostname: string | null;
+        os: string | null;
+        arch: string | null;
         can_rescan: number;
         can_receive_config: number;
       }>();
@@ -566,6 +577,9 @@ export class SourceHub extends DurableObject<Env> {
     const meta: SourceMeta = {
       sourceKind: row?.source_kind ?? "daemon",
       hostname: row?.hostname ?? "",
+      platform: row?.os ?? "",
+      os: row?.os ?? "",
+      arch: row?.arch ?? "",
       canRescan: row?.can_rescan !== 0,
       canReceiveConfig: row?.can_receive_config !== 0,
     };
@@ -941,6 +955,9 @@ export class SourceHub extends DurableObject<Env> {
       for (const source of state.sources) {
         source.sourceKind = meta.sourceKind;
         source.hostname = meta.hostname;
+        source.platform = meta.platform;
+        source.os = meta.os;
+        source.arch = meta.arch;
         source.canRescan = meta.canRescan;
         source.canReceiveConfig = meta.canReceiveConfig;
       }

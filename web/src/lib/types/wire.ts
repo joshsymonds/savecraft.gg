@@ -141,6 +141,7 @@ export interface WireSourceInfo {
   games?: WireGameInfo[];
   sourceKind?: string;
   hostname?: string;
+  platform?: string;
   canRescan?: boolean;
   canReceiveConfig?: boolean;
 }

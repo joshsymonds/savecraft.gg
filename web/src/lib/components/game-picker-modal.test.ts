@@ -87,11 +87,11 @@ describe("GamePickerModal", () => {
   // -- Source selection step --
 
   const twoSources = [
-    { id: "src-1", name: "Desktop", hostname: "desktop-pc" },
-    { id: "src-2", name: "Laptop", hostname: "laptop" },
+    { id: "src-1", name: "Desktop", hostname: "desktop-pc", platform: "windows" },
+    { id: "src-2", name: "Laptop", hostname: "laptop", platform: "linux" },
   ];
 
-  const oneSource = [{ id: "src-1", name: "Desktop", hostname: "desktop-pc" }];
+  const oneSource = [{ id: "src-1", name: "Desktop", hostname: "desktop-pc", platform: "windows" }];
 
   it("shows source selection when clicking unwatched game with multiple sources", async () => {
     render(GamePickerModal, {
@@ -148,6 +148,31 @@ describe("GamePickerModal", () => {
     expect(screen.getByText(/No configurable source connected/)).toBeInTheDocument();
     // Should still be on browsing step, not config form
     expect(screen.getByText("ADD A GAME")).toBeInTheDocument();
+  });
+
+  it("pre-fills default path based on source platform, not browser OS", async () => {
+    const gamesWithPaths: PickerGame[] = [
+      {
+        gameId: "sdv",
+        name: "Stardew Valley",
+        description: "Farm saves",
+        watched: false,
+        saveCount: 0,
+        defaultPaths: {
+          windows: String.raw`C:\Users\Josh\AppData\Roaming\StardewValley\Saves`,
+          linux: "/home/josh/.config/StardewValley/Saves",
+        },
+      },
+    ];
+    const linuxSource = [
+      { id: "src-1", name: "Steam Deck", hostname: "steamdeck", platform: "linux" },
+    ];
+    render(GamePickerModal, {
+      props: { games: gamesWithPaths, configurableSources: linuxSource, onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("Stardew Valley"));
+    const input = screen.getByRole("textbox") as HTMLInputElement;
+    expect(input.value).toBe("/home/josh/.config/StardewValley/Saves");
   });
 
   it("back from source selection returns to game list", async () => {

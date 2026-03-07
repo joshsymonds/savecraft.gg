@@ -41,6 +41,7 @@ export interface Source {
   name: string;
   sourceKind: string;
   hostname: string | null;
+  platform: string | null;
   status: SourceStatus;
   version: string | null;
   lastSeen: string;
@@ -48,7 +49,7 @@ export interface Source {
   games: SourceGame[];
 }
 
-// -- Per-source game entry for GameConfigModal --
+// -- Per-source game entry for GameDetailModal --
 
 export interface GameSourceEntry {
   sourceId: string;
@@ -85,6 +86,7 @@ export interface AvailableSource {
   id: string;
   name: string;
   hostname: string | null;
+  platform: string | null;
 }
 
 export interface TestPathResult {

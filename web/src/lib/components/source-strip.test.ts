@@ -10,6 +10,7 @@ function makeSource(overrides: Partial<Source> & { id: string }): Source {
     name: overrides.id,
     sourceKind: "daemon",
     hostname: overrides.id.toUpperCase(),
+    platform: "linux",
     status: "online",
     version: "0.1.0",
     lastSeen: "now",

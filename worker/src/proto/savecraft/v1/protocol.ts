@@ -153,6 +153,10 @@ export interface Message {
     | { $case: "sourceUpdateStarted"; sourceUpdateStarted: SourceUpdateStarted }
     | { $case: "sourceUpdateFailed"; sourceUpdateFailed: SourceUpdateFailed }
     | //
+    /** Plugin errors (44-45) */
+    { $case: "pluginUpdateCheckFailed"; pluginUpdateCheckFailed: PluginUpdateCheckFailed }
+    | { $case: "pluginDownloadFailed"; pluginDownloadFailed: PluginDownloadFailed }
+    | //
     /** Config results: source → server (54-55) */
     { $case: "configResult"; configResult: ConfigResult }
     | //
@@ -179,6 +183,8 @@ export interface SourceOnline {
   version: string;
   timestamp: Date | undefined;
   platform: string;
+  os: string;
+  arch: string;
 }
 
 /**
@@ -237,6 +243,7 @@ export interface DiscoveredGame {
   name: string;
   path: string;
   fileCount: number;
+  fileExtensions: string[];
 }
 
 /** Source detected a file change and is feeding it to the WASM plugin. */
@@ -301,6 +308,17 @@ export interface PushFailed {
 export interface PluginUpdated {
   gameId: string;
   version: string;
+}
+
+/** Failed to check for plugin updates (e.g. manifest fetch failed). */
+export interface PluginUpdateCheckFailed {
+  message: string;
+}
+
+/** Failed to download a plugin during game initialization. */
+export interface PluginDownloadFailed {
+  gameId: string;
+  message: string;
 }
 
 /** Full config push. Sent when user changes settings in the web UI. */
@@ -370,6 +388,9 @@ export interface SourceInfo {
   hostname: string;
   canRescan: boolean;
   canReceiveConfig: boolean;
+  platform: string;
+  os: string;
+  arch: string;
 }
 
 export interface GameInfo {
@@ -500,6 +521,12 @@ export const Message: MessageFns<Message> = {
         break;
       case "sourceUpdateFailed":
         SourceUpdateFailed.encode(message.payload.sourceUpdateFailed, writer.uint32(346).fork()).join();
+        break;
+      case "pluginUpdateCheckFailed":
+        PluginUpdateCheckFailed.encode(message.payload.pluginUpdateCheckFailed, writer.uint32(354).fork()).join();
+        break;
+      case "pluginDownloadFailed":
+        PluginDownloadFailed.encode(message.payload.pluginDownloadFailed, writer.uint32(362).fork()).join();
         break;
       case "configResult":
         ConfigResult.encode(message.payload.configResult, writer.uint32(434).fork()).join();
@@ -711,6 +738,28 @@ export const Message: MessageFns<Message> = {
           };
           continue;
         }
+        case 44: {
+          if (tag !== 354) {
+            break;
+          }
+
+          message.payload = {
+            $case: "pluginUpdateCheckFailed",
+            pluginUpdateCheckFailed: PluginUpdateCheckFailed.decode(reader, reader.uint32()),
+          };
+          continue;
+        }
+        case 45: {
+          if (tag !== 362) {
+            break;
+          }
+
+          message.payload = {
+            $case: "pluginDownloadFailed",
+            pluginDownloadFailed: PluginDownloadFailed.decode(reader, reader.uint32()),
+          };
+          continue;
+        }
         case 54: {
           if (tag !== 434) {
             break;
@@ -879,6 +928,26 @@ export const Message: MessageFns<Message> = {
         ? { $case: "sourceUpdateFailed", sourceUpdateFailed: SourceUpdateFailed.fromJSON(object.sourceUpdateFailed) }
         : isSet(object.source_update_failed)
         ? { $case: "sourceUpdateFailed", sourceUpdateFailed: SourceUpdateFailed.fromJSON(object.source_update_failed) }
+        : isSet(object.pluginUpdateCheckFailed)
+        ? {
+          $case: "pluginUpdateCheckFailed",
+          pluginUpdateCheckFailed: PluginUpdateCheckFailed.fromJSON(object.pluginUpdateCheckFailed),
+        }
+        : isSet(object.plugin_update_check_failed)
+        ? {
+          $case: "pluginUpdateCheckFailed",
+          pluginUpdateCheckFailed: PluginUpdateCheckFailed.fromJSON(object.plugin_update_check_failed),
+        }
+        : isSet(object.pluginDownloadFailed)
+        ? {
+          $case: "pluginDownloadFailed",
+          pluginDownloadFailed: PluginDownloadFailed.fromJSON(object.pluginDownloadFailed),
+        }
+        : isSet(object.plugin_download_failed)
+        ? {
+          $case: "pluginDownloadFailed",
+          pluginDownloadFailed: PluginDownloadFailed.fromJSON(object.plugin_download_failed),
+        }
         : isSet(object.configResult)
         ? { $case: "configResult", configResult: ConfigResult.fromJSON(object.configResult) }
         : isSet(object.config_result)
@@ -957,6 +1026,10 @@ export const Message: MessageFns<Message> = {
       obj.sourceUpdateStarted = SourceUpdateStarted.toJSON(message.payload.sourceUpdateStarted);
     } else if (message.payload?.$case === "sourceUpdateFailed") {
       obj.sourceUpdateFailed = SourceUpdateFailed.toJSON(message.payload.sourceUpdateFailed);
+    } else if (message.payload?.$case === "pluginUpdateCheckFailed") {
+      obj.pluginUpdateCheckFailed = PluginUpdateCheckFailed.toJSON(message.payload.pluginUpdateCheckFailed);
+    } else if (message.payload?.$case === "pluginDownloadFailed") {
+      obj.pluginDownloadFailed = PluginDownloadFailed.toJSON(message.payload.pluginDownloadFailed);
     } else if (message.payload?.$case === "configResult") {
       obj.configResult = ConfigResult.toJSON(message.payload.configResult);
     } else if (message.payload?.$case === "configUpdate") {
@@ -1148,6 +1221,24 @@ export const Message: MessageFns<Message> = {
         }
         break;
       }
+      case "pluginUpdateCheckFailed": {
+        if (object.payload?.pluginUpdateCheckFailed !== undefined && object.payload?.pluginUpdateCheckFailed !== null) {
+          message.payload = {
+            $case: "pluginUpdateCheckFailed",
+            pluginUpdateCheckFailed: PluginUpdateCheckFailed.fromPartial(object.payload.pluginUpdateCheckFailed),
+          };
+        }
+        break;
+      }
+      case "pluginDownloadFailed": {
+        if (object.payload?.pluginDownloadFailed !== undefined && object.payload?.pluginDownloadFailed !== null) {
+          message.payload = {
+            $case: "pluginDownloadFailed",
+            pluginDownloadFailed: PluginDownloadFailed.fromPartial(object.payload.pluginDownloadFailed),
+          };
+        }
+        break;
+      }
       case "configResult": {
         if (object.payload?.configResult !== undefined && object.payload?.configResult !== null) {
           message.payload = {
@@ -1217,7 +1308,7 @@ export const Message: MessageFns<Message> = {
 };
 
 function createBaseSourceOnline(): SourceOnline {
-  return { version: "", timestamp: undefined, platform: "" };
+  return { version: "", timestamp: undefined, platform: "", os: "", arch: "" };
 }
 
 export const SourceOnline: MessageFns<SourceOnline> = {
@@ -1230,6 +1321,12 @@ export const SourceOnline: MessageFns<SourceOnline> = {
     }
     if (message.platform !== "") {
       writer.uint32(34).string(message.platform);
+    }
+    if (message.os !== "") {
+      writer.uint32(42).string(message.os);
+    }
+    if (message.arch !== "") {
+      writer.uint32(50).string(message.arch);
     }
     return writer;
   },
@@ -1265,6 +1362,22 @@ export const SourceOnline: MessageFns<SourceOnline> = {
           message.platform = reader.string();
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.os = reader.string();
+          continue;
+        }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.arch = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1279,6 +1392,8 @@ export const SourceOnline: MessageFns<SourceOnline> = {
       version: isSet(object.version) ? globalThis.String(object.version) : "",
       timestamp: isSet(object.timestamp) ? fromJsonTimestamp(object.timestamp) : undefined,
       platform: isSet(object.platform) ? globalThis.String(object.platform) : "",
+      os: isSet(object.os) ? globalThis.String(object.os) : "",
+      arch: isSet(object.arch) ? globalThis.String(object.arch) : "",
     };
   },
 
@@ -1293,6 +1408,12 @@ export const SourceOnline: MessageFns<SourceOnline> = {
     if (message.platform !== "") {
       obj.platform = message.platform;
     }
+    if (message.os !== "") {
+      obj.os = message.os;
+    }
+    if (message.arch !== "") {
+      obj.arch = message.arch;
+    }
     return obj;
   },
 
@@ -1304,6 +1425,8 @@ export const SourceOnline: MessageFns<SourceOnline> = {
     message.version = object.version ?? "";
     message.timestamp = object.timestamp ?? undefined;
     message.platform = object.platform ?? "";
+    message.os = object.os ?? "";
+    message.arch = object.arch ?? "";
     return message;
   },
 };
@@ -1954,7 +2077,7 @@ export const GamesDiscovered: MessageFns<GamesDiscovered> = {
 };
 
 function createBaseDiscoveredGame(): DiscoveredGame {
-  return { gameId: "", name: "", path: "", fileCount: 0 };
+  return { gameId: "", name: "", path: "", fileCount: 0, fileExtensions: [] };
 }
 
 export const DiscoveredGame: MessageFns<DiscoveredGame> = {
@@ -1970,6 +2093,9 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
     }
     if (message.fileCount !== 0) {
       writer.uint32(32).int32(message.fileCount);
+    }
+    for (const v of message.fileExtensions) {
+      writer.uint32(42).string(v!);
     }
     return writer;
   },
@@ -2013,6 +2139,14 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
           message.fileCount = reader.int32();
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.fileExtensions.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2036,6 +2170,11 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
         : isSet(object.file_count)
         ? globalThis.Number(object.file_count)
         : 0,
+      fileExtensions: globalThis.Array.isArray(object?.fileExtensions)
+        ? object.fileExtensions.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.file_extensions)
+        ? object.file_extensions.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -2053,6 +2192,9 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
     if (message.fileCount !== 0) {
       obj.fileCount = Math.round(message.fileCount);
     }
+    if (message.fileExtensions?.length) {
+      obj.fileExtensions = message.fileExtensions;
+    }
     return obj;
   },
 
@@ -2065,6 +2207,7 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
     message.name = object.name ?? "";
     message.path = object.path ?? "";
     message.fileCount = object.fileCount ?? 0;
+    message.fileExtensions = object.fileExtensions?.map((e) => e) || [];
     return message;
   },
 };
@@ -2969,6 +3112,144 @@ export const PluginUpdated: MessageFns<PluginUpdated> = {
   },
 };
 
+function createBasePluginUpdateCheckFailed(): PluginUpdateCheckFailed {
+  return { message: "" };
+}
+
+export const PluginUpdateCheckFailed: MessageFns<PluginUpdateCheckFailed> = {
+  encode(message: PluginUpdateCheckFailed, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.message !== "") {
+      writer.uint32(10).string(message.message);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PluginUpdateCheckFailed {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePluginUpdateCheckFailed();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.message = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): PluginUpdateCheckFailed {
+    return { message: isSet(object.message) ? globalThis.String(object.message) : "" };
+  },
+
+  toJSON(message: PluginUpdateCheckFailed): unknown {
+    const obj: any = {};
+    if (message.message !== "") {
+      obj.message = message.message;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<PluginUpdateCheckFailed>, I>>(base?: I): PluginUpdateCheckFailed {
+    return PluginUpdateCheckFailed.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<PluginUpdateCheckFailed>, I>>(object: I): PluginUpdateCheckFailed {
+    const message = createBasePluginUpdateCheckFailed();
+    message.message = object.message ?? "";
+    return message;
+  },
+};
+
+function createBasePluginDownloadFailed(): PluginDownloadFailed {
+  return { gameId: "", message: "" };
+}
+
+export const PluginDownloadFailed: MessageFns<PluginDownloadFailed> = {
+  encode(message: PluginDownloadFailed, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.gameId !== "") {
+      writer.uint32(10).string(message.gameId);
+    }
+    if (message.message !== "") {
+      writer.uint32(18).string(message.message);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PluginDownloadFailed {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePluginDownloadFailed();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.gameId = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.message = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): PluginDownloadFailed {
+    return {
+      gameId: isSet(object.gameId)
+        ? globalThis.String(object.gameId)
+        : isSet(object.game_id)
+        ? globalThis.String(object.game_id)
+        : "",
+      message: isSet(object.message) ? globalThis.String(object.message) : "",
+    };
+  },
+
+  toJSON(message: PluginDownloadFailed): unknown {
+    const obj: any = {};
+    if (message.gameId !== "") {
+      obj.gameId = message.gameId;
+    }
+    if (message.message !== "") {
+      obj.message = message.message;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<PluginDownloadFailed>, I>>(base?: I): PluginDownloadFailed {
+    return PluginDownloadFailed.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<PluginDownloadFailed>, I>>(object: I): PluginDownloadFailed {
+    const message = createBasePluginDownloadFailed();
+    message.gameId = object.gameId ?? "";
+    message.message = object.message ?? "";
+    return message;
+  },
+};
+
 function createBaseConfigUpdate(): ConfigUpdate {
   return { games: {} };
 }
@@ -3764,6 +4045,9 @@ function createBaseSourceInfo(): SourceInfo {
     hostname: "",
     canRescan: false,
     canReceiveConfig: false,
+    platform: "",
+    os: "",
+    arch: "",
   };
 }
 
@@ -3792,6 +4076,15 @@ export const SourceInfo: MessageFns<SourceInfo> = {
     }
     if (message.canReceiveConfig !== false) {
       writer.uint32(64).bool(message.canReceiveConfig);
+    }
+    if (message.platform !== "") {
+      writer.uint32(74).string(message.platform);
+    }
+    if (message.os !== "") {
+      writer.uint32(82).string(message.os);
+    }
+    if (message.arch !== "") {
+      writer.uint32(90).string(message.arch);
     }
     return writer;
   },
@@ -3867,6 +4160,30 @@ export const SourceInfo: MessageFns<SourceInfo> = {
           message.canReceiveConfig = reader.bool();
           continue;
         }
+        case 9: {
+          if (tag !== 74) {
+            break;
+          }
+
+          message.platform = reader.string();
+          continue;
+        }
+        case 10: {
+          if (tag !== 82) {
+            break;
+          }
+
+          message.os = reader.string();
+          continue;
+        }
+        case 11: {
+          if (tag !== 90) {
+            break;
+          }
+
+          message.arch = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -3906,6 +4223,9 @@ export const SourceInfo: MessageFns<SourceInfo> = {
         : isSet(object.can_receive_config)
         ? globalThis.Boolean(object.can_receive_config)
         : false,
+      platform: isSet(object.platform) ? globalThis.String(object.platform) : "",
+      os: isSet(object.os) ? globalThis.String(object.os) : "",
+      arch: isSet(object.arch) ? globalThis.String(object.arch) : "",
     };
   },
 
@@ -3935,6 +4255,15 @@ export const SourceInfo: MessageFns<SourceInfo> = {
     if (message.canReceiveConfig !== false) {
       obj.canReceiveConfig = message.canReceiveConfig;
     }
+    if (message.platform !== "") {
+      obj.platform = message.platform;
+    }
+    if (message.os !== "") {
+      obj.os = message.os;
+    }
+    if (message.arch !== "") {
+      obj.arch = message.arch;
+    }
     return obj;
   },
 
@@ -3951,6 +4280,9 @@ export const SourceInfo: MessageFns<SourceInfo> = {
     message.hostname = object.hostname ?? "";
     message.canRescan = object.canRescan ?? false;
     message.canReceiveConfig = object.canReceiveConfig ?? false;
+    message.platform = object.platform ?? "";
+    message.os = object.os ?? "";
+    message.arch = object.arch ?? "";
     return message;
   },
 };
