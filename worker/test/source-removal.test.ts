@@ -8,10 +8,29 @@ import {
   connectWs,
   seedSource,
   waitForMessage,
+  waitForMessageMatching,
 } from "./helpers";
 
 const TEST_USER = "removal-test-user";
 const OTHER_USER = "other-user";
+
+interface SourceStateMessage {
+  sourceState: { sources: { sourceId: string }[] };
+}
+
+/** Wait for a sourceState message where the given source is absent. */
+function waitForSourceRemoved(ws: WebSocket, sourceUuid: string) {
+  return waitForMessageMatching<SourceStateMessage>(
+    ws,
+    (message) => {
+      const state = message as Partial<SourceStateMessage>;
+      return (
+        "sourceState" in message &&
+        !state.sourceState!.sources.some((s) => s.sourceId === sourceUuid)
+      );
+    },
+  );
+}
 
 describe("Source Removal", () => {
   beforeEach(cleanAll);
@@ -92,10 +111,8 @@ describe("Source Removal", () => {
       // Delete D1 record directly — simulates the D1/DO desync
       await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(sourceUuid).run();
 
-      // Set up listener for state update
-      const statePromise = waitForMessage<{
-        sourceState: { sources: { sourceId: string }[] };
-      }>(uiWs);
+      // Set up listener BEFORE deletion so we don't miss the message
+      const statePromise = waitForSourceRemoved(uiWs, sourceUuid);
 
       // DELETE should succeed even though D1 record is gone — cleans up
       // the requesting user's UserHub state only (no SourceHub wipe).
@@ -106,10 +123,7 @@ describe("Source Removal", () => {
       expect(resp.status).toBe(200);
 
       // UI should receive updated state without the source
-      const updatedState = await statePromise;
-      expect(
-        updatedState.sourceState.sources.find((s) => s.sourceId === sourceUuid),
-      ).toBeUndefined();
+      await statePromise;
 
       await closeWs(uiWs);
       await closeWs(daemonWs);
@@ -216,10 +230,8 @@ describe("Source Removal", () => {
       };
       await drainMessages();
 
-      // Set up listener for next state update BEFORE deletion
-      const statePromise = waitForMessage<{
-        sourceState: { sources: { sourceId: string }[] };
-      }>(uiWs);
+      // Set up listener BEFORE deletion so we don't miss the message
+      const statePromise = waitForSourceRemoved(uiWs, sourceUuid);
 
       // Delete the source
       const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}`, {
@@ -229,10 +241,7 @@ describe("Source Removal", () => {
       expect(resp.status).toBe(200);
 
       // UI should receive updated state without the removed source
-      const updatedState = await statePromise;
-      expect(updatedState.sourceState).toBeDefined();
-      const removedSource = updatedState.sourceState.sources.find((s) => s.sourceId === sourceUuid);
-      expect(removedSource).toBeUndefined();
+      await statePromise;
 
       await closeWs(uiWs);
       await closeWs(daemonWs);
@@ -324,9 +333,8 @@ describe("Source Removal", () => {
         }
       }
 
-      const statePromise = waitForMessage<{
-        sourceState: { sources: { sourceId: string }[] };
-      }>(uiWs);
+      // Set up listener BEFORE deregistration so we don't miss the message
+      const statePromise = waitForSourceRemoved(uiWs, sourceUuid);
 
       // Deregister via source token
       const resp = await SELF.fetch("https://test-host/api/v1/source/deregister", {
@@ -336,9 +344,7 @@ describe("Source Removal", () => {
       expect(resp.status).toBe(200);
 
       // UI should receive updated state without the removed source
-      const updatedState = await statePromise;
-      const removedSource = updatedState.sourceState.sources.find((s) => s.sourceId === sourceUuid);
-      expect(removedSource).toBeUndefined();
+      await statePromise;
 
       await closeWs(uiWs);
       await closeWs(daemonWs);
