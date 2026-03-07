@@ -14,6 +14,7 @@ import {
   sendProto,
   waitForProtoMessage,
   waitForRelayedMessage,
+  waitForRelayedMessageMatching,
 } from "./helpers";
 
 /** Shorthand for building a sourceOnline Message payload. */
@@ -1387,5 +1388,174 @@ describe("SourceHub", () => {
 
     await closeWs(daemonWs);
     await closeWs(uiWs);
+  });
+
+  // ── PushSave over WebSocket ─────────────────────────────────────
+
+  it("handles pushSave: writes to D1 and responds with PushSaveResult", async () => {
+    const userUuid = "ws-push-user";
+    const { sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+
+    // Must go online first so sourceId is stored
+    sendProto(daemon, sourceOnlineMsg());
+    await waitForProtoMessage(daemon); // configUpdate response
+    // Small delay for state to settle
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Send PushSave
+    const parsedAt = new Date("2026-02-25T21:30:00Z");
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          identity: { name: "Hammerdin", extra: {} },
+          summary: "Hammerdin, Level 89 Paladin",
+          gameId: "d2r",
+          parsedAt,
+          sections: [
+            {
+              name: "character_overview",
+              description: "Level, class, difficulty",
+              data: { name: "Hammerdin", class: "Paladin", level: 89 },
+            },
+            {
+              name: "skills",
+              description: "Skill allocations",
+              data: { hammer: 20, vigor: 20 },
+            },
+          ],
+        },
+      },
+    });
+
+    // Should receive PushSaveResult back
+    const resultMsg = await waitForProtoMessage(daemon);
+    const result = requirePayload(resultMsg, "pushSaveResult");
+    expect(result.saveUuid).toBeTruthy();
+
+    // Verify D1 save row
+    const save = await env.DB.prepare("SELECT * FROM saves WHERE uuid = ?")
+      .bind(result.saveUuid)
+      .first<{ save_name: string; summary: string; game_id: string }>();
+    expect(save).not.toBeNull();
+    expect(save!.save_name).toBe("Hammerdin");
+    expect(save!.summary).toBe("Hammerdin, Level 89 Paladin");
+    expect(save!.game_id).toBe("d2r");
+
+    // Verify D1 sections
+    const sections = await env.DB.prepare(
+      "SELECT name, description, data FROM sections WHERE save_uuid = ? ORDER BY name",
+    )
+      .bind(result.saveUuid)
+      .all<{ name: string; description: string; data: string }>();
+    expect(sections.results).toHaveLength(2);
+    expect(sections.results[0]!.name).toBe("character_overview");
+    expect(sections.results[1]!.name).toBe("skills");
+
+    const charData = JSON.parse(sections.results[0]!.data) as { class: string };
+    expect(charData.class).toBe("Paladin");
+
+    await closeWs(daemon);
+  });
+
+  it("pushSave updates SourceState with pushCompleted", async () => {
+    const userUuid = "ws-push-state-user";
+    const { sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+
+    // Go online first
+    sendProto(daemon, sourceOnlineMsg());
+    await waitForProtoMessage(daemon); // configUpdate response
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Connect UI after source is online to avoid draining variable sourceOnline messages
+    const ui = await connectWs("/ws/ui", userUuid);
+    await waitForRelayedMessage(ui); // initial state
+
+    // Send PushSave
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          identity: { name: "TestChar", extra: {} },
+          summary: "Test Character",
+          gameId: "d2r",
+          parsedAt: new Date("2026-03-01T12:00:00Z"),
+          sections: [
+            { name: "overview", description: "test", data: { level: 50 } },
+          ],
+        },
+      },
+    });
+
+    // Daemon gets PushSaveResult
+    const resultMsg = await waitForProtoMessage(daemon);
+    const result = requirePayload(resultMsg, "pushSaveResult");
+    expect(result.saveUuid).toBeTruthy();
+
+    // UI gets pushCompleted event
+    const pushEvent = await waitForRelayedMessageMatching(
+      ui,
+      (msg) => msg.message?.payload?.$case === "pushCompleted",
+    );
+    const completed = requireInnerPayload(pushEvent, "pushCompleted");
+    expect(completed.saveUuid).toBe(result.saveUuid);
+    expect(completed.summary).toBe("Test Character");
+
+    // State update should include the save — reconnect UI to get fresh state
+    await closeWs(ui);
+    const freshUi = await connectWs("/ws/ui", userUuid);
+    const stateMsg = await waitForRelayedMessage(freshUi);
+    const state = requireInnerPayload(stateMsg, "sourceState");
+    const game = state.sources[0]?.games.find((g) => g.gameId === "d2r");
+    expect(game).toBeDefined();
+    const save = game!.saves.find((s) => s.saveUuid === result.saveUuid);
+    expect(save?.summary).toBe("Test Character");
+
+    await closeWs(freshUi);
+    await closeWs(daemon);
+  });
+
+  it("pushSave from unlinked source is silently ignored", async () => {
+    const { sourceToken } = await seedSource(null); // unlinked
+
+    const daemon = await connectDaemonWs(sourceToken);
+
+    sendProto(daemon, sourceOnlineMsg());
+    await new Promise((r) => setTimeout(r, 100));
+
+    // Record current save count
+    const before = await env.DB.prepare("SELECT COUNT(*) as cnt FROM saves").first<{ cnt: number }>();
+
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          identity: { name: "UnlinkedTest", extra: {} },
+          summary: "UnlinkedTest",
+          gameId: "stardew",
+          parsedAt: new Date(),
+          sections: [{ name: "overview", description: "test", data: {} }],
+        },
+      },
+    });
+
+    // Wait for processing
+    await new Promise((r) => setTimeout(r, 200));
+
+    // No new saves should have been created
+    const after = await env.DB.prepare("SELECT COUNT(*) as cnt FROM saves").first<{ cnt: number }>();
+    expect(after!.cnt).toBe(before!.cnt);
+
+    // Specifically no save with our unique name
+    const unlinkedSave = await env.DB.prepare(
+      "SELECT 1 FROM saves WHERE save_name = 'UnlinkedTest'",
+    ).first();
+    expect(unlinkedSave).toBeNull();
+
+    await closeWs(daemon);
   });
 });
