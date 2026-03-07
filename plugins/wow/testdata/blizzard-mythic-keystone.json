@@ -1,0 +1,74 @@
+{
+    "_links": {
+        "self": {
+            "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/mythic-keystone-profile?namespace=profile-us"
+        }
+    },
+    "current_period": {
+        "period": {
+            "key": {
+                "href": "https://us.api.blizzard.com/data/wow/mythic-keystone/period/1052?namespace=dynamic-us"
+            },
+            "id": 1052
+        }
+    },
+    "seasons": [
+        {
+            "key": {
+                "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/mythic-keystone-profile/season/14?namespace=profile-us"
+            },
+            "id": 14
+        },
+        {
+            "key": {
+                "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/mythic-keystone-profile/season/11?namespace=profile-us"
+            },
+            "id": 11
+        },
+        {
+            "key": {
+                "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/mythic-keystone-profile/season/13?namespace=profile-us"
+            },
+            "id": 13
+        },
+        {
+            "key": {
+                "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/mythic-keystone-profile/season/12?namespace=profile-us"
+            },
+            "id": 12
+        },
+        {
+            "key": {
+                "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/mythic-keystone-profile/season/10?namespace=profile-us"
+            },
+            "id": 10
+        },
+        {
+            "key": {
+                "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/mythic-keystone-profile/season/5?namespace=profile-us"
+            },
+            "id": 5
+        },
+        {
+            "key": {
+                "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/mythic-keystone-profile/season/4?namespace=profile-us"
+            },
+            "id": 4
+        }
+    ],
+    "character": {
+        "key": {
+            "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos?namespace=profile-us"
+        },
+        "name": "Dratnos",
+        "id": 198030797,
+        "realm": {
+            "key": {
+                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+            },
+            "name": "Tichondrius",
+            "id": 11,
+            "slug": "tichondrius"
+        }
+    }
+}

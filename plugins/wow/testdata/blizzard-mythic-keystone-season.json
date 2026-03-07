@@ -1,0 +1,1535 @@
+{
+    "_links": {
+        "self": {
+            "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/mythic-keystone-profile/season/14?namespace=profile-us"
+        }
+    },
+    "season": {
+        "key": {
+            "href": "https://us.api.blizzard.com/data/wow/mythic-keystone/season/14?namespace=dynamic-us"
+        },
+        "id": 14
+    },
+    "best_runs": [
+        {
+            "completed_timestamp": 1747364589000,
+            "duration": 1328355,
+            "keystone_level": 12,
+            "keystone_affixes": [
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/9?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Tyrannical",
+                    "id": 9
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/10?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Fortified",
+                    "id": 10
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/147?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Xal'atath's Guile",
+                    "id": 147
+                }
+            ],
+            "members": [
+                {
+                    "character": {
+                        "name": "Aydyn",
+                        "id": 218079350,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/68?namespace=dynamic-us"
+                            },
+                            "id": 68,
+                            "slug": "lothar"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/66?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Protection",
+                        "id": 66
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/3?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dwarf",
+                        "id": 3
+                    },
+                    "equipped_item_level": 668
+                },
+                {
+                    "character": {
+                        "name": "April",
+                        "id": 181741285,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/1345?namespace=dynamic-us"
+                            },
+                            "id": 1345,
+                            "slug": "fenris"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/62?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Arcane",
+                        "id": 62
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/29?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Void Elf",
+                        "id": 29
+                    },
+                    "equipped_item_level": 664
+                },
+                {
+                    "character": {
+                        "name": "Dratnos",
+                        "id": 198030797,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/259?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Assassination",
+                        "id": 259
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/8?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Troll",
+                        "id": 8
+                    },
+                    "equipped_item_level": 670
+                },
+                {
+                    "character": {
+                        "name": "Amosion",
+                        "id": 199678504,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/3726?namespace=dynamic-us"
+                            },
+                            "id": 3726,
+                            "slug": "khazgoroth"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/105?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Restoration",
+                        "id": 105
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/22?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Worgen",
+                        "id": 22
+                    },
+                    "equipped_item_level": 674
+                },
+                {
+                    "character": {
+                        "name": "Aeoxy",
+                        "id": 244919480,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/258?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Shadow",
+                        "id": 258
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/29?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Void Elf",
+                        "id": 29
+                    },
+                    "equipped_item_level": 679
+                }
+            ],
+            "dungeon": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/500?namespace=dynamic-us"
+                },
+                "name": "The Rookery",
+                "id": 500
+            },
+            "is_completed_within_time": true,
+            "mythic_rating": {
+                "color": {
+                    "r": 255,
+                    "g": 128,
+                    "b": 0,
+                    "a": 1.0
+                },
+                "rating": 373.87167
+            }
+        },
+        {
+            "completed_timestamp": 1746056474000,
+            "duration": 1547465,
+            "keystone_level": 12,
+            "keystone_affixes": [
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/9?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Tyrannical",
+                    "id": 9
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/10?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Fortified",
+                    "id": 10
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/147?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Xal'atath's Guile",
+                    "id": 147
+                }
+            ],
+            "members": [
+                {
+                    "character": {
+                        "name": "Thicknzappy",
+                        "id": 244407325,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/264?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Restoration",
+                        "id": 264
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/3?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dwarf",
+                        "id": 3
+                    },
+                    "equipped_item_level": 664
+                },
+                {
+                    "character": {
+                        "name": "Forgyqt",
+                        "id": 242867520,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/254?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Marksmanship",
+                        "id": 254
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/1?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Human",
+                        "id": 1
+                    },
+                    "equipped_item_level": 662
+                },
+                {
+                    "character": {
+                        "name": "Dratnos",
+                        "id": 198030797,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/259?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Assassination",
+                        "id": 259
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/8?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Troll",
+                        "id": 8
+                    },
+                    "equipped_item_level": 667
+                },
+                {
+                    "character": {
+                        "name": "Wxzqksbvcmht",
+                        "id": 185906348,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/268?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Brewmaster",
+                        "id": 268
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/10?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Blood Elf",
+                        "id": 10
+                    },
+                    "equipped_item_level": 667
+                },
+                {
+                    "character": {
+                        "name": "Yashodara",
+                        "id": 239980498,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/577?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Havoc",
+                        "id": 577
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/4?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Night Elf",
+                        "id": 4
+                    },
+                    "equipped_item_level": 663
+                }
+            ],
+            "dungeon": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/504?namespace=dynamic-us"
+                },
+                "name": "Darkflame Cleft",
+                "id": 504
+            },
+            "is_completed_within_time": true,
+            "mythic_rating": {
+                "color": {
+                    "r": 255,
+                    "g": 128,
+                    "b": 0,
+                    "a": 1.0
+                },
+                "rating": 371.30112
+            }
+        },
+        {
+            "completed_timestamp": 1744425340000,
+            "duration": 1491804,
+            "keystone_level": 10,
+            "keystone_affixes": [
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/148?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Xal'atath's Bargain: Ascendant",
+                    "id": 148
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/10?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Fortified",
+                    "id": 10
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/9?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Tyrannical",
+                    "id": 9
+                }
+            ],
+            "members": [
+                {
+                    "character": {
+                        "name": "Robsd",
+                        "id": 242401499,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/105?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Restoration",
+                        "id": 105
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/4?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Night Elf",
+                        "id": 4
+                    },
+                    "equipped_item_level": 656
+                },
+                {
+                    "character": {
+                        "name": "Zeoxy",
+                        "id": 187017968,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/254?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Marksmanship",
+                        "id": 254
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/2?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Orc",
+                        "id": 2
+                    },
+                    "equipped_item_level": 660
+                },
+                {
+                    "character": {
+                        "name": "Dratnos",
+                        "id": 198030797,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/259?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Assassination",
+                        "id": 259
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/8?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Troll",
+                        "id": 8
+                    },
+                    "equipped_item_level": 660
+                },
+                {
+                    "character": {
+                        "name": "Vorgyy",
+                        "id": 242397608,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/258?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Shadow",
+                        "id": 258
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/4?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Night Elf",
+                        "id": 4
+                    },
+                    "equipped_item_level": 663
+                },
+                {
+                    "character": {
+                        "name": "Nephuhlim",
+                        "id": 244520064,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/581?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Vengeance",
+                        "id": 581
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/4?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Night Elf",
+                        "id": 4
+                    },
+                    "equipped_item_level": 660
+                }
+            ],
+            "dungeon": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/525?namespace=dynamic-us"
+                },
+                "name": "Operation: Floodgate",
+                "id": 525
+            },
+            "is_completed_within_time": true,
+            "mythic_rating": {
+                "color": {
+                    "r": 255,
+                    "g": 128,
+                    "b": 0,
+                    "a": 1.0
+                },
+                "rating": 329.24612
+            }
+        },
+        {
+            "completed_timestamp": 1745644177000,
+            "duration": 2374979,
+            "keystone_level": 12,
+            "keystone_affixes": [
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/10?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Fortified",
+                    "id": 10
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/9?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Tyrannical",
+                    "id": 9
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/147?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Xal'atath's Guile",
+                    "id": 147
+                }
+            ],
+            "members": [
+                {
+                    "character": {
+                        "name": "Hawktwo",
+                        "id": 240702919,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/581?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Vengeance",
+                        "id": 581
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/10?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Blood Elf",
+                        "id": 10
+                    },
+                    "equipped_item_level": 665
+                },
+                {
+                    "character": {
+                        "name": "Dratnos",
+                        "id": 198030797,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/259?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Assassination",
+                        "id": 259
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/8?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Troll",
+                        "id": 8
+                    },
+                    "equipped_item_level": 662
+                },
+                {
+                    "character": {
+                        "name": "Forgyy",
+                        "id": 241931368,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/62?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Arcane",
+                        "id": 62
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/3?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dwarf",
+                        "id": 3
+                    },
+                    "equipped_item_level": 675
+                },
+                {
+                    "character": {
+                        "name": "Bunnygamer",
+                        "id": 244039989,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/266?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Demonology",
+                        "id": 266
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/3?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dwarf",
+                        "id": 3
+                    },
+                    "equipped_item_level": 665
+                },
+                {
+                    "character": {
+                        "name": "Robstyr",
+                        "id": 242115886,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/1468?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Preservation",
+                        "id": 1468
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/70?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dracthyr",
+                        "id": 70
+                    },
+                    "equipped_item_level": 670
+                }
+            ],
+            "dungeon": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/506?namespace=dynamic-us"
+                },
+                "name": "Cinderbrew Meadery",
+                "id": 506
+            },
+            "is_completed_within_time": false,
+            "mythic_rating": {
+                "color": {
+                    "r": 255,
+                    "g": 128,
+                    "b": 0,
+                    "a": 1.0
+                },
+                "rating": 312.51935
+            }
+        },
+        {
+            "completed_timestamp": 1743467272000,
+            "duration": 1900867,
+            "keystone_level": 10,
+            "keystone_affixes": [
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/160?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Xal'atath's Bargain: Devour",
+                    "id": 160
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/10?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Fortified",
+                    "id": 10
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/9?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Tyrannical",
+                    "id": 9
+                }
+            ],
+            "members": [
+                {
+                    "character": {
+                        "name": "Diazw",
+                        "id": 231662566,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/57?namespace=dynamic-us"
+                            },
+                            "id": 57,
+                            "slug": "illidan"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/73?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Protection",
+                        "id": 73
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/4?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Night Elf",
+                        "id": 4
+                    },
+                    "equipped_item_level": 659
+                },
+                {
+                    "character": {
+                        "name": "Dratnos",
+                        "id": 198030797,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/259?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Assassination",
+                        "id": 259
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/8?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Troll",
+                        "id": 8
+                    },
+                    "equipped_item_level": 640
+                },
+                {
+                    "character": {
+                        "name": "Vorskitten",
+                        "id": 239051829,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/1473?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Augmentation",
+                        "id": 1473
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/70?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dracthyr",
+                        "id": 70
+                    },
+                    "equipped_item_level": 631
+                },
+                {
+                    "character": {
+                        "name": "Robsthyr",
+                        "id": 242158045,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/1468?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Preservation",
+                        "id": 1468
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/70?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dracthyr",
+                        "id": 70
+                    },
+                    "equipped_item_level": 658
+                },
+                {
+                    "character": {
+                        "name": "Widetime",
+                        "id": 230244480,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/57?namespace=dynamic-us"
+                            },
+                            "id": 57,
+                            "slug": "illidan"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/258?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Shadow",
+                        "id": 258
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/3?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dwarf",
+                        "id": 3
+                    },
+                    "equipped_item_level": 641
+                }
+            ],
+            "dungeon": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/370?namespace=dynamic-us"
+                },
+                "name": "Operation: Mechagon - Workshop",
+                "id": 370
+            },
+            "is_completed_within_time": true,
+            "mythic_rating": {
+                "color": {
+                    "r": 255,
+                    "g": 128,
+                    "b": 0,
+                    "a": 1.0
+                },
+                "rating": 320.3737
+            }
+        },
+        {
+            "completed_timestamp": 1748664040000,
+            "duration": 1374306,
+            "keystone_level": 12,
+            "keystone_affixes": [
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/9?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Tyrannical",
+                    "id": 9
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/10?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Fortified",
+                    "id": 10
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/147?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Xal'atath's Guile",
+                    "id": 147
+                }
+            ],
+            "members": [
+                {
+                    "character": {
+                        "name": "Malin",
+                        "id": 180092765,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/59?namespace=dynamic-us"
+                            },
+                            "id": 59,
+                            "slug": "malganis"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/268?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Brewmaster",
+                        "id": 268
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/10?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Blood Elf",
+                        "id": 10
+                    },
+                    "equipped_item_level": 678
+                },
+                {
+                    "character": {
+                        "name": "Falconron",
+                        "id": 242089624,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/254?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Marksmanship",
+                        "id": 254
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/3?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dwarf",
+                        "id": 3
+                    },
+                    "equipped_item_level": 670
+                },
+                {
+                    "character": {
+                        "name": "Rigglesham",
+                        "id": 241866763,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/5?namespace=dynamic-us"
+                            },
+                            "id": 5,
+                            "slug": "proudmoore"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/264?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Restoration",
+                        "id": 264
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/3?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dwarf",
+                        "id": 3
+                    },
+                    "equipped_item_level": 667
+                },
+                {
+                    "character": {
+                        "name": "Needtop",
+                        "id": 222850247,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/1263?namespace=dynamic-us"
+                            },
+                            "id": 1263,
+                            "slug": "thrall"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/70?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Retribution",
+                        "id": 70
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/1?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Human",
+                        "id": 1
+                    },
+                    "equipped_item_level": 678
+                },
+                {
+                    "character": {
+                        "name": "Dratnos",
+                        "id": 198030797,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/259?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Assassination",
+                        "id": 259
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/8?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Troll",
+                        "id": 8
+                    },
+                    "equipped_item_level": 674
+                }
+            ],
+            "dungeon": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/506?namespace=dynamic-us"
+                },
+                "name": "Cinderbrew Meadery",
+                "id": 506
+            },
+            "is_completed_within_time": true,
+            "mythic_rating": {
+                "color": {
+                    "r": 255,
+                    "g": 128,
+                    "b": 0,
+                    "a": 1.0
+                },
+                "rating": 376.47147
+            }
+        },
+        {
+            "completed_timestamp": 1748149857000,
+            "duration": 1929312,
+            "keystone_level": 13,
+            "keystone_affixes": [
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/10?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Fortified",
+                    "id": 10
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/9?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Tyrannical",
+                    "id": 9
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/147?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Xal'atath's Guile",
+                    "id": 147
+                }
+            ],
+            "members": [
+                {
+                    "character": {
+                        "name": "Tonyhawkertn",
+                        "id": 242975763,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/577?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Havoc",
+                        "id": 577
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/10?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Blood Elf",
+                        "id": 10
+                    },
+                    "equipped_item_level": 667
+                },
+                {
+                    "character": {
+                        "name": "Aleg",
+                        "id": 242506698,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/254?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Marksmanship",
+                        "id": 254
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/3?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dwarf",
+                        "id": 3
+                    },
+                    "equipped_item_level": 674
+                },
+                {
+                    "character": {
+                        "name": "Dratnos",
+                        "id": 198030797,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/259?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Assassination",
+                        "id": 259
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/8?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Troll",
+                        "id": 8
+                    },
+                    "equipped_item_level": 674
+                },
+                {
+                    "character": {
+                        "name": "Aydyn",
+                        "id": 218079350,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/68?namespace=dynamic-us"
+                            },
+                            "id": 68,
+                            "slug": "lothar"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/66?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Protection",
+                        "id": 66
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/3?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dwarf",
+                        "id": 3
+                    },
+                    "equipped_item_level": 675
+                },
+                {
+                    "character": {
+                        "name": "Thicknzappy",
+                        "id": 244407325,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/264?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Restoration",
+                        "id": 264
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/3?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dwarf",
+                        "id": 3
+                    },
+                    "equipped_item_level": 673
+                }
+            ],
+            "dungeon": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/499?namespace=dynamic-us"
+                },
+                "name": "Priory of the Sacred Flame",
+                "id": 499
+            },
+            "is_completed_within_time": true,
+            "mythic_rating": {
+                "color": {
+                    "r": 255,
+                    "g": 128,
+                    "b": 0,
+                    "a": 1.0
+                },
+                "rating": 380.39786
+            }
+        },
+        {
+            "completed_timestamp": 1746771605000,
+            "duration": 1554044,
+            "keystone_level": 12,
+            "keystone_affixes": [
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/10?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Fortified",
+                    "id": 10
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/9?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Tyrannical",
+                    "id": 9
+                },
+                {
+                    "key": {
+                        "href": "https://us.api.blizzard.com/data/wow/keystone-affix/147?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Xal'atath's Guile",
+                    "id": 147
+                }
+            ],
+            "members": [
+                {
+                    "character": {
+                        "name": "Dratnos",
+                        "id": 198030797,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/259?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Assassination",
+                        "id": 259
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/8?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Troll",
+                        "id": 8
+                    },
+                    "equipped_item_level": 669
+                },
+                {
+                    "character": {
+                        "name": "Xeoxy",
+                        "id": 245121096,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/70?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Retribution",
+                        "id": 70
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/1?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Human",
+                        "id": 1
+                    },
+                    "equipped_item_level": 660
+                },
+                {
+                    "character": {
+                        "name": "Hawkerton",
+                        "id": 242828588,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/581?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Vengeance",
+                        "id": 581
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/10?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Blood Elf",
+                        "id": 10
+                    },
+                    "equipped_item_level": 676
+                },
+                {
+                    "character": {
+                        "name": "Tarisantwl",
+                        "id": 238016968,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+                            },
+                            "id": 11,
+                            "slug": "tichondrius"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/267?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Destruction",
+                        "id": 267
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/3?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Dwarf",
+                        "id": 3
+                    },
+                    "equipped_item_level": 637
+                },
+                {
+                    "character": {
+                        "name": "Robspi",
+                        "id": 233821730,
+                        "realm": {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/realm/57?namespace=dynamic-us"
+                            },
+                            "id": 57,
+                            "slug": "illidan"
+                        }
+                    },
+                    "specialization": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/256?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Discipline",
+                        "id": 256
+                    },
+                    "race": {
+                        "key": {
+                            "href": "https://us.api.blizzard.com/data/wow/playable-race/9?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Goblin",
+                        "id": 9
+                    },
+                    "equipped_item_level": 667
+                }
+            ],
+            "dungeon": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/247?namespace=dynamic-us"
+                },
+                "name": "The MOTHERLODE!!",
+                "id": 247
+            },
+            "is_completed_within_time": true,
+            "mythic_rating": {
+                "color": {
+                    "r": 255,
+                    "g": 128,
+                    "b": 0,
+                    "a": 1.0
+                },
+                "rating": 373.06735
+            }
+        }
+    ],
+    "character": {
+        "key": {
+            "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos?namespace=profile-us"
+        },
+        "name": "Dratnos",
+        "id": 198030797,
+        "realm": {
+            "key": {
+                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+            },
+            "name": "Tichondrius",
+            "id": 11,
+            "slug": "tichondrius"
+        }
+    },
+    "mythic_rating": {
+        "color": {
+            "r": 163,
+            "g": 53,
+            "b": 238,
+            "a": 1.0
+        },
+        "rating": 2524.7292
+    }
+}

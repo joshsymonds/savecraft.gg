@@ -1,0 +1,850 @@
+{
+    "name": "Dratnos",
+    "race": "Troll",
+    "class": "Rogue",
+    "active_spec_name": "Assassination",
+    "active_spec_role": "DPS",
+    "gender": "male",
+    "faction": "horde",
+    "achievement_points": 39705,
+    "thumbnail_url": "https://render.worldofwarcraft.com/us/character/tichondrius/205/198030797-avatar.jpg?alt=/wow/static/images/2d/avatar/8-0.jpg",
+    "region": "us",
+    "realm": "Tichondrius",
+    "last_crawled_at": "2026-03-03T17:32:34.000Z",
+    "profile_url": "https://raider.io/characters/us/tichondrius/Dratnos",
+    "profile_banner": "hordebanner1",
+    "mythic_plus_scores_by_season": [
+        {
+            "season": "season-mn-1",
+            "scores": {
+                "all": 0,
+                "dps": 0,
+                "healer": 0,
+                "tank": 0,
+                "spec_0": 0,
+                "spec_1": 0,
+                "spec_2": 0,
+                "spec_3": 0
+            },
+            "segments": {
+                "all": {
+                    "score": 0,
+                    "color": "#ff8000"
+                },
+                "dps": {
+                    "score": 0,
+                    "color": "#ff8000"
+                },
+                "healer": {
+                    "score": 0,
+                    "color": "#ff8000"
+                },
+                "tank": {
+                    "score": 0,
+                    "color": "#ff8000"
+                },
+                "spec_0": {
+                    "score": 0,
+                    "color": "#ff8000"
+                },
+                "spec_1": {
+                    "score": 0,
+                    "color": "#ff8000"
+                },
+                "spec_2": {
+                    "score": 0,
+                    "color": "#ff8000"
+                },
+                "spec_3": {
+                    "score": 0,
+                    "color": "#ff8000"
+                }
+            }
+        }
+    ],
+    "mythic_plus_recent_runs": [],
+    "mythic_plus_best_runs": [],
+    "gear": {
+        "created_at": "2026-01-21T18:03:59.494Z",
+        "updated_at": "2026-01-21T18:03:59.494Z",
+        "source": "s3",
+        "item_level_equipped": 116,
+        "item_level_total": 0,
+        "artifact_traits": 0,
+        "corruption": {
+            "added": 0,
+            "resisted": 0,
+            "total": 0,
+            "cloakRank": 0,
+            "spells": []
+        },
+        "items": {
+            "head": {
+                "item_id": 235419,
+                "item_level": 124,
+                "enchant": 7933,
+                "icon": "inv_helm_leather_zandalardungeon_c_01",
+                "name": "High Altitude Turban",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": true,
+                "azerite_powers": [
+                    null,
+                    null,
+                    {
+                        "id": 580,
+                        "spell": {
+                            "id": 0,
+                            "school": 0,
+                            "icon": "inv_misc_questionmark",
+                            "name": "Unknown",
+                            "rank": null
+                        },
+                        "tier": 999
+                    },
+                    {
+                        "id": 580,
+                        "spell": {
+                            "id": 0,
+                            "school": 0,
+                            "icon": "inv_misc_questionmark",
+                            "name": "Unknown",
+                            "rank": null
+                        },
+                        "tier": 999
+                    },
+                    null
+                ],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [
+                    213491
+                ],
+                "gems_detail": [
+                    {
+                        "id": 213491,
+                        "name": "10 Mast / 3 Crit",
+                        "icon": "inv_jewelcrafting_cutstandartgemhybrid_color2_2"
+                    }
+                ],
+                "enchants": [
+                    7933
+                ],
+                "enchants_detail": [
+                    {
+                        "id": 239095,
+                        "name": "Greater Void Ritual",
+                        "icon": "inv_inscription_majorglyph20"
+                    }
+                ],
+                "bonuses": [
+                    10390,
+                    6652,
+                    11964,
+                    10383,
+                    12055,
+                    12376,
+                    3176,
+                    10255
+                ]
+            },
+            "neck": {
+                "item_id": 215136,
+                "item_level": 121,
+                "icon": "inv_11_0_earthen_earthennecklace02_color1",
+                "name": "Amulet of Earthen Craftsmanship",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [
+                    213458,
+                    213491
+                ],
+                "gems_detail": [
+                    {
+                        "id": 213458,
+                        "name": "10 Crit / 3 Mast",
+                        "icon": "inv_jewelcrafting_cutstandartgemhybrid_color4_1"
+                    },
+                    {
+                        "id": 213491,
+                        "name": "10 Mast / 3 Crit",
+                        "icon": "inv_jewelcrafting_cutstandartgemhybrid_color2_2"
+                    }
+                ],
+                "enchants": [],
+                "enchants_detail": [],
+                "bonuses": [
+                    10421,
+                    9633,
+                    8902,
+                    10394,
+                    10879,
+                    9627,
+                    12040,
+                    10520,
+                    8960,
+                    8791
+                ]
+            },
+            "shoulder": {
+                "item_id": 229287,
+                "item_level": 124,
+                "icon": "inv_shoulder_leather_raidroguegoblin_d_01",
+                "name": "Spectral Gambler's Bladed Mantle",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": true,
+                "azerite_powers": [
+                    null,
+                    {
+                        "id": 580,
+                        "spell": {
+                            "id": 0,
+                            "school": 0,
+                            "icon": "inv_misc_questionmark",
+                            "name": "Unknown",
+                            "rank": null
+                        },
+                        "tier": 999
+                    },
+                    {
+                        "id": 580,
+                        "spell": {
+                            "id": 0,
+                            "school": 0,
+                            "icon": "inv_misc_questionmark",
+                            "name": "Unknown",
+                            "rank": null
+                        },
+                        "tier": 999
+                    },
+                    {
+                        "id": 580,
+                        "spell": {
+                            "id": 0,
+                            "school": 0,
+                            "icon": "inv_misc_questionmark",
+                            "name": "Unknown",
+                            "rank": null
+                        },
+                        "tier": 999
+                    },
+                    null
+                ],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "tier": "33",
+                "gems": [],
+                "gems_detail": [],
+                "enchants": [],
+                "enchants_detail": [],
+                "bonuses": [
+                    6652,
+                    10390,
+                    12179,
+                    11962,
+                    12376,
+                    1533,
+                    10255
+                ]
+            },
+            "back": {
+                "item_id": 221054,
+                "item_level": 124,
+                "enchant": 7409,
+                "icon": "inv_cape_cloth_earthendungeon_c_01",
+                "name": "Chef Chewie's Towel",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [],
+                "gems_detail": [],
+                "enchants": [
+                    7409
+                ],
+                "enchants_detail": [
+                    {
+                        "id": 223737,
+                        "name": "Chant of Leeching Fangs",
+                        "icon": "inv_misc_enchantedscroll"
+                    }
+                ],
+                "bonuses": [
+                    10390,
+                    6652,
+                    11964,
+                    10383,
+                    12376,
+                    3176,
+                    10255
+                ]
+            },
+            "chest": {
+                "item_id": 229292,
+                "item_level": 103,
+                "enchant": 7364,
+                "icon": "inv_chest_leather_raidroguegoblin_d_01",
+                "name": "Spectral Gambler's Vest",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": true,
+                "azerite_powers": [
+                    {
+                        "id": 580,
+                        "spell": {
+                            "id": 0,
+                            "school": 0,
+                            "icon": "inv_misc_questionmark",
+                            "name": "Unknown",
+                            "rank": null
+                        },
+                        "tier": 999
+                    },
+                    {
+                        "id": 580,
+                        "spell": {
+                            "id": 0,
+                            "school": 0,
+                            "icon": "inv_misc_questionmark",
+                            "name": "Unknown",
+                            "rank": null
+                        },
+                        "tier": 999
+                    },
+                    {
+                        "id": 580,
+                        "spell": {
+                            "id": 0,
+                            "school": 0,
+                            "icon": "inv_misc_questionmark",
+                            "name": "Unknown",
+                            "rank": null
+                        },
+                        "tier": 999
+                    },
+                    {
+                        "id": 580,
+                        "spell": {
+                            "id": 0,
+                            "school": 0,
+                            "icon": "inv_misc_questionmark",
+                            "name": "Unknown",
+                            "rank": null
+                        },
+                        "tier": 999
+                    },
+                    null
+                ],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "tier": "33",
+                "gems": [],
+                "gems_detail": [],
+                "enchants": [
+                    7364
+                ],
+                "enchants_detail": [
+                    {
+                        "id": 223692,
+                        "name": "Crystalline Radiance",
+                        "icon": "inv_misc_enchantedscroll"
+                    }
+                ],
+                "bonuses": [
+                    6652,
+                    12178,
+                    11958,
+                    11984,
+                    1507,
+                    10255
+                ]
+            },
+            "waist": {
+                "item_id": 221107,
+                "item_level": 104,
+                "icon": "inv_leather_earthendungeon_c_01_belt",
+                "name": "Gleamkeeper's Buckle",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [
+                    213491
+                ],
+                "gems_detail": [
+                    {
+                        "id": 213491,
+                        "name": "10 Mast / 3 Crit",
+                        "icon": "inv_jewelcrafting_cutstandartgemhybrid_color2_2"
+                    }
+                ],
+                "enchants": [],
+                "enchants_detail": [],
+                "bonuses": [
+                    11991,
+                    10390,
+                    41,
+                    11964,
+                    10383,
+                    3154,
+                    10255,
+                    12055
+                ]
+            },
+            "shirt": {
+                "item_id": 4344,
+                "item_level": 1,
+                "icon": "inv_shirt_02",
+                "name": "Brown Linen Shirt",
+                "item_quality": 2,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [],
+                "gems_detail": [],
+                "enchants": [],
+                "enchants_detail": [],
+                "bonuses": []
+            },
+            "wrist": {
+                "item_id": 228869,
+                "item_level": 124,
+                "enchant": 7391,
+                "icon": "inv_bracer_leather_raiddruidgoblin_d_01",
+                "name": "Killer Queen's Wristflickers",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [
+                    213491
+                ],
+                "gems_detail": [
+                    {
+                        "id": 213491,
+                        "name": "10 Mast / 3 Crit",
+                        "icon": "inv_jewelcrafting_cutstandartgemhybrid_color2_2"
+                    }
+                ],
+                "enchants": [
+                    7391
+                ],
+                "enchants_detail": [
+                    {
+                        "id": 223719,
+                        "name": "43 Leech",
+                        "icon": "inv_misc_enchantedscroll"
+                    }
+                ],
+                "bonuses": [
+                    6652,
+                    12055,
+                    11998,
+                    10356,
+                    12376,
+                    1533,
+                    10255
+                ]
+            },
+            "hands": {
+                "item_id": 229290,
+                "item_level": 124,
+                "icon": "inv_glove_leather_raidroguegoblin_d_01",
+                "name": "Spectral Gambler's Gloves",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "tier": "33",
+                "gems": [],
+                "gems_detail": [],
+                "enchants": [],
+                "enchants_detail": [],
+                "bonuses": [
+                    10356,
+                    11959,
+                    6652,
+                    12179,
+                    12376,
+                    1533,
+                    10255
+                ]
+            },
+            "legs": {
+                "item_id": 229288,
+                "item_level": 124,
+                "enchant": 7601,
+                "icon": "inv_pant_leather_raidroguegoblin_d_01",
+                "name": "Spectral Gambler's Pantaloons",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "tier": "33",
+                "gems": [],
+                "gems_detail": [],
+                "enchants": [
+                    7601
+                ],
+                "enchants_detail": [
+                    {
+                        "id": 219911,
+                        "name": "8 Agi/Str & 8 Sta",
+                        "icon": "inv_armorkit_lightning_imbued"
+                    }
+                ],
+                "bonuses": [
+                    6652,
+                    10390,
+                    12178,
+                    11961,
+                    12376,
+                    1533,
+                    10255
+                ]
+            },
+            "feet": {
+                "item_id": 168975,
+                "item_level": 124,
+                "enchant": 7418,
+                "icon": "inv_boot_leather_kultirasdungeon_c_01",
+                "name": "Machinist's Treasured Treads",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [],
+                "gems_detail": [],
+                "enchants": [
+                    7418
+                ],
+                "enchants_detail": [
+                    {
+                        "id": 223653,
+                        "name": "Scout's March",
+                        "icon": "inv_misc_enchantedscroll"
+                    }
+                ],
+                "bonuses": [
+                    10390,
+                    6652,
+                    11964,
+                    10383,
+                    12376,
+                    11346,
+                    10255
+                ]
+            },
+            "finger1": {
+                "item_id": 228411,
+                "item_level": 103,
+                "enchant": 7346,
+                "icon": "inv_siren_isle_ring",
+                "name": "Cyrce's Circlet",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [
+                    228638,
+                    228639,
+                    228640
+                ],
+                "gems_detail": [
+                    {
+                        "id": 228638,
+                        "name": "|C00fff569Stormbringer's Runed Citrine",
+                        "icon": "inv_siren_isle_searuned_citrine_red"
+                    },
+                    {
+                        "id": 228639,
+                        "name": "|C003fc7ebFathomdweller's Runed Citrine",
+                        "icon": "inv_siren_isle_searuned_citrine_blue"
+                    },
+                    {
+                        "id": 228640,
+                        "name": "|C00f58cbaWindsinger's Runed Citrine",
+                        "icon": "inv_siren_isle_searuned_citrine_pink"
+                    }
+                ],
+                "enchants": [
+                    7346
+                ],
+                "enchants_detail": [
+                    {
+                        "id": 223677,
+                        "name": "21 Mast",
+                        "icon": "inv_misc_enchantedscroll"
+                    }
+                ],
+                "bonuses": [
+                    12028,
+                    1511
+                ]
+            },
+            "finger2": {
+                "item_id": 211052,
+                "item_level": 103,
+                "enchant": 7346,
+                "icon": "inv_11_0_ventureco_ring02_color2",
+                "name": "Olden Signet",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [
+                    213491,
+                    213746
+                ],
+                "gems_detail": [
+                    {
+                        "id": 213491,
+                        "name": "10 Mast / 3 Crit",
+                        "icon": "inv_jewelcrafting_cutstandartgemhybrid_color2_2"
+                    },
+                    {
+                        "id": 213746,
+                        "name": "12 Primary / +2% Movement Speed per unique Algari gem color",
+                        "icon": "inv_misc_gem_x4_metagem_cut"
+                    }
+                ],
+                "enchants": [
+                    7346
+                ],
+                "enchants_detail": [
+                    {
+                        "id": 223677,
+                        "name": "21 Mast",
+                        "icon": "inv_misc_enchantedscroll"
+                    }
+                ],
+                "bonuses": [
+                    40,
+                    10879,
+                    10396,
+                    11984,
+                    1563,
+                    10255
+                ]
+            },
+            "trinket1": {
+                "item_id": 232541,
+                "item_level": 124,
+                "icon": "ability_blackhand_attachedslagbombs",
+                "name": "Improvised Seaforium Pacemaker",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [],
+                "gems_detail": [],
+                "enchants": [],
+                "enchants_detail": [],
+                "bonuses": [
+                    10390,
+                    6652,
+                    10383,
+                    12376,
+                    1520,
+                    10255
+                ]
+            },
+            "trinket2": {
+                "item_id": 219308,
+                "item_level": 103,
+                "icon": "inv_arathordungeon_signet_color1",
+                "name": "Signet of the Priory",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [],
+                "gems_detail": [],
+                "enchants": [],
+                "enchants_detail": [],
+                "bonuses": [
+                    10389,
+                    6652,
+                    10383,
+                    11984,
+                    3150,
+                    10255
+                ]
+            },
+            "mainhand": {
+                "item_id": 222438,
+                "item_level": 121,
+                "enchant": 7463,
+                "icon": "inv_knife_1h_arathoroutdoor_d_01",
+                "name": "Everforged Stabber",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [],
+                "gems_detail": [],
+                "enchants": [
+                    7463
+                ],
+                "enchants_detail": [
+                    {
+                        "id": 223781,
+                        "name": "Authority of Radiant Power",
+                        "icon": "inv_misc_enchantedscroll"
+                    }
+                ],
+                "bonuses": [
+                    10421,
+                    9633,
+                    8902,
+                    9627,
+                    8791,
+                    12040,
+                    12043,
+                    11300,
+                    8960,
+                    12373
+                ]
+            },
+            "offhand": {
+                "item_id": 228897,
+                "item_level": 121,
+                "enchant": 7463,
+                "icon": "inv_knife_1h_goblinraid_d_02",
+                "name": "Pyrotechnic Needle-Dropper",
+                "item_quality": 4,
+                "is_legendary": false,
+                "is_azerite_armor": false,
+                "azerite_powers": [],
+                "corruption": {
+                    "added": 0,
+                    "resisted": 0,
+                    "total": 0
+                },
+                "domination_shards": [],
+                "gems": [],
+                "gems_detail": [],
+                "enchants": [
+                    7463
+                ],
+                "enchants_detail": [
+                    {
+                        "id": 223781,
+                        "name": "Authority of Radiant Power",
+                        "icon": "inv_misc_enchantedscroll"
+                    }
+                ],
+                "bonuses": [
+                    6652,
+                    10356,
+                    12375,
+                    1530,
+                    10255
+                ]
+            }
+        }
+    },
+    "raid_progression": {
+        "tier-mn-1": {
+            "summary": "",
+            "expansion_id": 11,
+            "total_bosses": 9,
+            "normal_bosses_killed": 0,
+            "heroic_bosses_killed": 0,
+            "mythic_bosses_killed": 0
+        }
+    }
+}
