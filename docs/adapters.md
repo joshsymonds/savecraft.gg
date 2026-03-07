@@ -288,7 +288,7 @@ The web UI uses these flags to hide filesystem-specific UI (path editor, rescan 
 1. User clicks "Add WoW" in GamePickerModal
 2. Web UI detects `source = "api"` in manifest, renders adapter-specific setup
 3. User picks region, clicks "Link Battle.net" -> OAuth redirect
-4. Callback: Worker exchanges code for tokens, stores encrypted in `game_credentials`
+4. Callback: Worker exchanges code for tokens, stores in `game_credentials` (D1 encrypts at rest)
 5. Worker calls `adapter.discoverSaves(token, region)` -> character list
 6. User selects characters to track (level 70+ shown by default)
 7. Worker creates source (`source_kind = 'adapter'`, name = `Battle.net . BattleTag`)
@@ -306,10 +306,10 @@ The web UI uses these flags to hide filesystem-specific UI (path editor, rescan 
 
 ### Staleness Metadata
 
-Every section includes timestamps so the AI can reason about freshness:
+Timestamps let the AI reason about freshness:
 
-- `data_as_of` — Blizzard API's `Last-Modified` timestamp (when the player last logged out)
-- `raiderio_crawled_at` — when Raider.io last crawled this data (where applicable)
+- `data_as_of` — Blizzard API's `Last-Modified` timestamp, stored once in `identity.extra.data_as_of` (when the player last logged out)
+- Raider.io freshness is conveyed via `enrichment[].crawledAt` on sections that include Raider.io data
 
 The AI uses these to decide when to suggest a refresh: "This data is from when you last logged out 4 hours ago — want me to refresh?"
 
@@ -337,9 +337,9 @@ If stale data at conversation start proves to be a friction point, add periodic 
 | 1 user, 10 characters | 60-70 | Negligible |
 | 1,000 users simultaneously | 60,000-70,000 | Exceeds hourly budget |
 
-**Implementation:** Two layers:
-1. **Per-user rate limiter:** Max 1 full refresh per character per 5 minutes. Prevents runaway refresh loops.
-2. **Shared rate limiter DO:** Keyed by `"wow"`. Throttles total outbound requests to stay within app budget. Prevents thundering herd on popular events (patch day, season start).
+**Implementation (v1):** Per-user rate limiter — max 1 full refresh per character per 5 minutes. Prevents runaway refresh loops. Sufficient for pre-launch scale.
+
+**Future (v2):** Shared rate limiter DO keyed by `"wow"`. Throttles total outbound requests to stay within app budget. Prevents thundering herd on popular events (patch day, season start). Not needed until user count creates real budget pressure.
 
 ### Raider.io
 
@@ -366,7 +366,7 @@ For v1, the setup component is built directly in the web app — not a plugin-pr
 ### Data Sources
 
 **Blizzard API (primary):**
-- Auth: Battle.net OAuth 2.0 with stored tokens (encrypted in D1, automatic refresh)
+- Auth: Battle.net OAuth 2.0 with stored tokens (D1 encrypts at rest, automatic refresh)
 - Rate limit: 36,000 req/hour (100/sec burst), per-application
 - Namespaces: `profile-{region}` for character data, `static-{region}` / `dynamic-{region}` for game data
 - Character data updates on logout, not in real-time
@@ -381,7 +381,7 @@ For v1, the setup component is built directly in the web app — not a plugin-pr
 
 ### Authentication Model
 
-OAuth tokens are stored encrypted in `game_credentials` with automatic refresh. This differs from the "discard token" approach initially considered — the account profile endpoint requires a user token, and token refresh avoids forcing users to re-authorize every 24 hours.
+OAuth tokens are stored in `game_credentials` (D1 provides encryption at rest) with automatic refresh. This differs from the "discard token" approach initially considered — the account profile endpoint requires a user token, and token refresh avoids forcing users to re-authorize every 24 hours.
 
 **OAuth flow:**
 
@@ -390,7 +390,7 @@ OAuth tokens are stored encrypted in `game_credentials` with automatic refresh. 
 3. User authenticates with Battle.net
 4. Callback receives authorization code
 5. Worker exchanges code for access + refresh tokens (server-to-server)
-6. Tokens encrypted and stored in D1 keyed by `(user_uuid, "wow")`
+6. Tokens stored in D1 keyed by `(user_uuid, "wow")` (D1 encrypts at rest)
 7. Worker calls account profile to discover characters
 8. Worker triggers initial refresh for all discovered characters
 
@@ -523,15 +523,15 @@ Game-specific fields like realm, region, class, and level live in `metadata` JSO
 
 ### Game credentials
 
-Stores encrypted OAuth tokens for API-backed games. Used by WoW (token refresh for account profile) and future games like PoE2.
+Stores OAuth tokens for API-backed games. D1 provides encryption at rest at the infrastructure level. Used by WoW (token refresh for account profile) and future games like PoE2.
 
 ```sql
 CREATE TABLE game_credentials (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_uuid TEXT NOT NULL,
   game_id TEXT NOT NULL,
-  access_token_enc TEXT NOT NULL,
-  refresh_token_enc TEXT,
+  access_token TEXT NOT NULL,
+  refresh_token TEXT,
   expires_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),

@@ -4,6 +4,10 @@
  * Tested independently of the MCP protocol layer.
  */
 
+import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError } from "../adapters/adapter";
+import { adapters } from "../adapters/registry";
+import { resolveCharacterContext } from "../adapters/resolve-character";
+import { storePush } from "../store";
 import type { Env } from "../types";
 
 /** MCP tool result — matches the MCP spec's ToolResult shape. */
@@ -131,7 +135,7 @@ async function fetchNotesBySave(
 ): Promise<Map<string, { note_id: string; title: string }[]>> {
   const noteRows = await db
     .prepare(
-      "SELECT note_id, save_id, title, SUBSTR(content, 1, 100) as preview FROM notes WHERE user_uuid = ? ORDER BY created_at DESC",
+      "SELECT note_id, save_id, title, SUBSTR(content, 1, 100) as preview FROM notes WHERE user_uuid = ? ORDER BY created_at DESC LIMIT 500",
     )
     .bind(userUuid)
     .all<NotePreviewRow>();
@@ -222,7 +226,7 @@ export async function listGames(
   filter?: string,
 ): Promise<ToolResult> {
   const saveRows = await db
-    .prepare(`SELECT * FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC`)
+    .prepare(`SELECT * FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC LIMIT 500`)
     .bind(userUuid)
     .all<SaveRow>();
 
@@ -805,9 +809,6 @@ export async function deleteNote(
 
 // ── Refresh ──────────────────────────────────────────────────
 
-/** Rate limit: minimum seconds between adapter refreshes for a single save. */
-const ADAPTER_REFRESH_COOLDOWN_SEC = 300;
-
 export async function refreshSave(env: Env, userUuid: string, saveId: string): Promise<ToolResult> {
   const save = await lookupSave(env.DB, userUuid, saveId);
   if (!save)
@@ -860,14 +861,9 @@ interface LinkedCharRow {
 }
 
 interface CredentialRow {
-  access_token_enc: string;
-  refresh_token_enc: string | null;
+  access_token: string;
+  refresh_token: string | null;
   expires_at: string | null;
-}
-
-interface RealmRegion {
-  realmSlug: string;
-  region: string;
 }
 
 function checkAdapterCooldown(save: SaveRow): ToolResult | null {
@@ -884,36 +880,14 @@ function checkAdapterCooldown(save: SaveRow): ToolResult | null {
   return null;
 }
 
-function resolveRealmAndRegion(linkedChar: LinkedCharRow | null, saveName: string): RealmRegion {
-  if (linkedChar?.metadata) {
-    const meta = JSON.parse(linkedChar.metadata) as Record<string, unknown>;
-    const rawRealm = meta.realm_slug;
-    const rawRegion = meta.region;
-    return {
-      realmSlug: typeof rawRealm === "string" ? rawRealm : "",
-      region: typeof rawRegion === "string" ? rawRegion : "us",
-    };
-  }
-  const nameParts = saveName.split("-");
-  return {
-    realmSlug: nameParts[1] ?? "",
-    region: (nameParts[2] ?? "US").toLowerCase(),
-  };
-}
-
-function resolveCharacterName(linkedChar: LinkedCharRow | null, saveName: string): string {
-  const name = linkedChar?.character_name ?? saveName.split("-")[0] ?? "";
-  return name.toLowerCase();
-}
-
 function buildCredentials(creds: CredentialRow | null): {
   accessToken: string;
   refreshToken: string | undefined;
   expiresAt: string | undefined;
 } {
   return {
-    accessToken: creds?.access_token_enc ?? "",
-    refreshToken: creds?.refresh_token_enc ?? undefined,
+    accessToken: creds?.access_token ?? "",
+    refreshToken: creds?.refresh_token ?? undefined,
     expiresAt: creds?.expires_at ?? undefined,
   };
 }
@@ -948,10 +922,6 @@ async function refreshAdapterSave(
   save: SaveRow,
   sourceUuid: string,
 ): Promise<ToolResult> {
-  const { adapters } = await import("../adapters/registry");
-  const { AdapterError: adapterErrorClass } = await import("../adapters/adapter");
-  const { storePush } = await import("../store");
-
   const adapter = adapters[save.game_id];
   if (!adapter) {
     return errorResult(`No adapter registered for game: ${save.game_id}`);
@@ -966,26 +936,27 @@ async function refreshAdapterSave(
      WHERE user_uuid = ? AND game_id = ? AND source_uuid = ? AND active = 1
      AND character_name = ?`,
   )
+    // WoW-specific: save_name format is "Name-realm-REGION", character_name is the first segment.
+    // Future adapters with different naming conventions will need their own lookup logic.
     .bind(userUuid, save.game_id, sourceUuid, save.save_name.split("-")[0] ?? "")
     .first<LinkedCharRow>();
 
-  const { realmSlug, region } = resolveRealmAndRegion(linkedChar, save.save_name);
-  if (!realmSlug) {
+  const ctx = resolveCharacterContext(linkedChar, save.save_name);
+  if (!ctx.realmSlug) {
     return errorResult("Cannot determine character realm. The character may need to be re-linked.");
   }
 
   const creds = await env.DB.prepare(
-    "SELECT access_token_enc, refresh_token_enc, expires_at FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
+    "SELECT access_token, refresh_token, expires_at FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
   )
     .bind(userUuid, save.game_id)
     .first<CredentialRow>();
 
   try {
-    const characterName = resolveCharacterName(linkedChar, save.save_name);
     const gameState = await adapter.fetchState(
       {
-        characterId: `${realmSlug}/${characterName}`,
-        region,
+        characterId: `${ctx.realmSlug}/${ctx.characterName}`,
+        region: ctx.region,
         credentials: buildCredentials(creds),
       },
       env,
@@ -1013,7 +984,7 @@ async function refreshAdapterSave(
       timestamp: parsedAt,
     });
   } catch (error) {
-    if (error instanceof adapterErrorClass) {
+    if (error instanceof AdapterError) {
       return handleAdapterError(error);
     }
     throw error;
@@ -1406,21 +1377,21 @@ export async function indexSaveSections(
   saveName: string,
   sections: Record<string, { description: string; data: unknown }>,
 ): Promise<void> {
-  // Delete old section index entries for this save
-  await db
-    .prepare("DELETE FROM search_index WHERE save_id = ? AND type = 'section'")
-    .bind(saveId)
-    .run();
+  const batch: D1PreparedStatement[] = [
+    db.prepare("DELETE FROM search_index WHERE save_id = ? AND type = 'section'").bind(saveId),
+  ];
 
-  // Insert new entries per section
   for (const [name, section] of Object.entries(sections)) {
-    await db
-      .prepare(
-        "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, 'section', ?, ?, ?)",
-      )
-      .bind(saveId, saveName, name, section.description, JSON.stringify(section.data))
-      .run();
+    batch.push(
+      db
+        .prepare(
+          "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, 'section', ?, ?, ?)",
+        )
+        .bind(saveId, saveName, name, section.description, JSON.stringify(section.data)),
+    );
   }
+
+  await db.batch(batch);
 }
 
 export async function indexNote(
@@ -1431,18 +1402,14 @@ export async function indexNote(
   title: string,
   content: string,
 ): Promise<void> {
-  // Delete old index entry for this note
-  await db
-    .prepare("DELETE FROM search_index WHERE ref_id = ? AND type = 'note'")
-    .bind(noteId)
-    .run();
-
-  await db
-    .prepare(
-      "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, 'note', ?, ?, ?)",
-    )
-    .bind(saveId, saveName, noteId, title, content)
-    .run();
+  await db.batch([
+    db.prepare("DELETE FROM search_index WHERE ref_id = ? AND type = 'note'").bind(noteId),
+    db
+      .prepare(
+        "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, 'note', ?, ?, ?)",
+      )
+      .bind(saveId, saveName, noteId, title, content),
+  ]);
 }
 
 export async function removeNoteFromIndex(db: D1Database, noteId: string): Promise<void> {

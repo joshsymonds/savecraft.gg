@@ -1,5 +1,6 @@
-import { AdapterError, type ApiAdapter } from "./adapters/adapter";
+import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError, type ApiAdapter } from "./adapters/adapter";
 import { adapters } from "./adapters/registry";
+import { resolveCharacterContext } from "./adapters/resolve-character";
 import { handleAdminRoute } from "./admin";
 import { authenticateSession, authenticateSource, sha256Hex } from "./auth";
 import { indexNote, removeNoteFromIndex } from "./mcp/tools";
@@ -190,12 +191,42 @@ async function routeBattlenetOAuth(request: Request, url: URL, env: Env): Promis
     return handleBattlenetCallback(url, env);
   }
 
+  if (url.pathname === "/oauth/battlenet/characters") {
+    const auth = await authenticateSession(request, env);
+    if (!auth) return new Response("Unauthorized", { status: 401 });
+    return handleBattlenetCharacters(url, env);
+  }
+
   return null;
+}
+
+async function handleBattlenetCharacters(url: URL, env: Env): Promise<Response> {
+  const key = url.searchParams.get("key");
+  if (!key) return Response.json({ error: "Missing key" }, { status: 400 });
+
+  const data = await env.OAUTH_KV.get(`battlenet-characters:${key}`);
+  if (!data) return Response.json({ error: "Characters not found or expired" }, { status: 404 });
+
+  // One-time use: delete after retrieval
+  await env.OAUTH_KV.delete(`battlenet-characters:${key}`);
+  return Response.json({ characters: JSON.parse(data) as unknown });
+}
+
+function validateReturnUrl(raw: string, env: Env, fallbackOrigin: string): string {
+  if (!raw) return "";
+  try {
+    const webOrigin = env.WEB_URL ?? fallbackOrigin;
+    const parsed = new URL(raw, webOrigin);
+    if (parsed.origin !== new URL(webOrigin).origin) return "";
+    return parsed.toString();
+  } catch {
+    return "";
+  }
 }
 
 async function handleBattlenetAuthorize(url: URL, env: Env, userUuid: string): Promise<Response> {
   const region = url.searchParams.get("region") ?? "us";
-  const returnUrl = url.searchParams.get("return_url") ?? "";
+  const returnUrl = validateReturnUrl(url.searchParams.get("return_url") ?? "", env, url.origin);
   const adapter = adapters.wow;
   if (!adapter) {
     return Response.json({ error: "WoW adapter not configured" }, { status: 500 });
@@ -311,11 +342,11 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
 
   // Store credentials (upsert)
   await env.DB.prepare(
-    `INSERT INTO game_credentials (user_uuid, game_id, access_token_enc, refresh_token_enc, expires_at)
+    `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
      VALUES (?, 'wow', ?, ?, ?)
      ON CONFLICT(user_uuid, game_id) DO UPDATE SET
-       access_token_enc = excluded.access_token_enc,
-       refresh_token_enc = excluded.refresh_token_enc,
+       access_token = excluded.access_token,
+       refresh_token = excluded.refresh_token,
        expires_at = excluded.expires_at,
        updated_at = datetime('now')`,
   )
@@ -335,12 +366,19 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
     // Token works but character discovery failed — redirect anyway, user can retry
   }
 
-  // Redirect back to web app with character data as query params
+  // Store character data in KV (short-lived) to avoid URL length limits
   const webUrl = env.WEB_URL ?? url.origin;
-  const returnUrl = state.returnUrl || `${webUrl}/settings/wow`;
-  const redirectUrl = new URL(returnUrl);
+  const validatedReturn = validateReturnUrl(state.returnUrl, env, url.origin);
+  const redirectUrl = new URL(validatedReturn || `${webUrl}/`);
   redirectUrl.searchParams.set("connected", "true");
-  redirectUrl.searchParams.set("characters", JSON.stringify(characters));
+
+  if (characters.length > 0) {
+    const charKey = crypto.randomUUID();
+    await env.OAUTH_KV.put(`battlenet-characters:${charKey}`, JSON.stringify(characters), {
+      expirationTtl: 300,
+    });
+    redirectUrl.searchParams.set("characters_key", charKey);
+  }
 
   return new Response(null, {
     status: 302,
@@ -512,9 +550,6 @@ function routeReadEndpoints(
 
 // -- Adapter Routes ------------------------------------------------
 
-/** Rate limit: minimum seconds between refreshes for a single save. */
-const ADAPTER_REFRESH_COOLDOWN_SEC = 300;
-
 async function handleAdapterRoute(
   request: Request,
   url: URL,
@@ -602,28 +637,6 @@ function checkRefreshCooldown(lastUpdated: string | null): Response | null {
   return null;
 }
 
-function resolveCharacterContext(
-  linkedChar: { character_name: string; metadata: string | null } | null,
-  saveName: string,
-): { realmSlug: string; region: string; characterName: string } {
-  let realmSlug: string;
-  let region: string;
-  if (linkedChar?.metadata) {
-    const meta = JSON.parse(linkedChar.metadata) as Record<string, unknown>;
-    realmSlug = (meta.realm_slug as string | undefined) ?? "";
-    region = (meta.region as string | undefined) ?? "us";
-  } else {
-    // Fallback: parse from save_name (Name-Realm-REGION)
-    const nameParts = saveName.split("-");
-    realmSlug = nameParts[1] ?? "";
-    region = (nameParts[2] ?? "US").toLowerCase();
-  }
-
-  const characterName = (linkedChar?.character_name ?? saveName.split("-")[0] ?? "").toLowerCase();
-
-  return { realmSlug, region, characterName };
-}
-
 function adapterErrorToStatus(code: string): number {
   if (code === "token_expired") return 401;
   if (code === "rate_limited") return 429;
@@ -649,6 +662,8 @@ async function lookupRefreshContext(
      WHERE user_uuid = ? AND game_id = ? AND source_uuid = ? AND active = 1
      AND character_name = ?`,
   )
+    // WoW-specific: save_name format is "Name-realm-REGION", character_name is the first segment.
+    // Future adapters with different naming conventions will need their own lookup logic.
     .bind(userUuid, gameId, save.source_uuid, save.save_name.split("-")[0] ?? "")
     .first<LinkedCharRow>();
 
@@ -671,18 +686,18 @@ async function lookupGameCredentials(
   expiresAt: string | undefined;
 }> {
   const creds = await env.DB.prepare(
-    "SELECT access_token_enc, refresh_token_enc, expires_at FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
+    "SELECT access_token, refresh_token, expires_at FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
   )
     .bind(userUuid, gameId)
     .first<{
-      access_token_enc: string;
-      refresh_token_enc: string | null;
+      access_token: string;
+      refresh_token: string | null;
       expires_at: string | null;
     }>();
 
   return {
-    accessToken: creds?.access_token_enc ?? "",
-    refreshToken: creds?.refresh_token_enc ?? undefined,
+    accessToken: creds?.access_token ?? "",
+    refreshToken: creds?.refresh_token ?? undefined,
     expiresAt: creds?.expires_at ?? undefined,
   };
 }
@@ -786,56 +801,6 @@ async function findOrCreateAdapterSource(env: Env, userUuid: string): Promise<st
   return sourceUuid;
 }
 
-async function upsertLinkedCharacter(
-  env: Env,
-  adapter: ApiAdapter,
-  userUuid: string,
-  gameId: string,
-  sourceUuid: string,
-  char: CharacterSelectionInput,
-): Promise<string> {
-  // Upsert linked_character
-  await env.DB.prepare(
-    `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
-     VALUES (?, ?, ?, ?, ?, ?, 1)
-     ON CONFLICT(user_uuid, game_id, character_id) DO UPDATE SET
-       character_name = excluded.character_name,
-       metadata = excluded.metadata,
-       source_uuid = excluded.source_uuid,
-       active = 1`,
-  )
-    .bind(
-      userUuid,
-      gameId,
-      char.character_id,
-      char.display_name,
-      JSON.stringify(char.metadata),
-      sourceUuid,
-    )
-    .run();
-
-  // Create save (upsert)
-  const existingSave = await env.DB.prepare(
-    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
-  )
-    .bind(userUuid, gameId, char.save_name)
-    .first<{ uuid: string }>();
-
-  if (existingSave) {
-    return existingSave.uuid;
-  }
-
-  const saveUuid = crypto.randomUUID();
-  await env.DB.prepare(
-    `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
-     VALUES (?, ?, ?, ?, ?, '', datetime('now'), ?)`,
-  )
-    .bind(saveUuid, userUuid, gameId, adapter.gameName, char.save_name, sourceUuid)
-    .run();
-
-  return saveUuid;
-}
-
 async function handleAdapterCharacterSelection(
   request: Request,
   env: Env,
@@ -854,13 +819,16 @@ async function handleAdapterCharacterSelection(
   if (!characters || !Array.isArray(characters) || characters.length === 0) {
     return Response.json({ error: "No characters selected" }, { status: 400 });
   }
+  if (characters.length > 100) {
+    return Response.json({ error: "Too many characters (max 100)" }, { status: 400 });
+  }
 
   // Verify credentials exist
   const creds = await env.DB.prepare(
-    "SELECT access_token_enc FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
+    "SELECT access_token FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
   )
     .bind(userUuid, gameId)
-    .first<{ access_token_enc: string }>();
+    .first<{ access_token: string }>();
 
   if (!creds) {
     return Response.json(
@@ -871,11 +839,42 @@ async function handleAdapterCharacterSelection(
 
   const sourceUuid = await findOrCreateAdapterSource(env, userUuid);
 
+  // Batch all upserts into a single DB round-trip
+  const batch: D1PreparedStatement[] = [];
   const results: { character_id: string; save_uuid: string }[] = [];
+
   for (const char of characters) {
-    const saveUuid = await upsertLinkedCharacter(env, adapter, userUuid, gameId, sourceUuid, char);
+    const saveUuid = crypto.randomUUID();
     results.push({ character_id: char.character_id, save_uuid: saveUuid });
+
+    batch.push(
+      // Upsert linked_character
+      env.DB.prepare(
+        `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+         VALUES (?, ?, ?, ?, ?, ?, 1)
+         ON CONFLICT(user_uuid, game_id, character_id) DO UPDATE SET
+           character_name = excluded.character_name,
+           metadata = excluded.metadata,
+           source_uuid = excluded.source_uuid,
+           active = 1`,
+      ).bind(
+        userUuid,
+        gameId,
+        char.character_id,
+        char.display_name,
+        JSON.stringify(char.metadata),
+        sourceUuid,
+      ),
+      // Create save (ON CONFLICT DO NOTHING for existing saves)
+      env.DB.prepare(
+        `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
+         VALUES (?, ?, ?, ?, ?, '', datetime('now'), ?)
+         ON CONFLICT(user_uuid, game_id, save_name) DO NOTHING`,
+      ).bind(saveUuid, userUuid, gameId, adapter.gameName, char.save_name, sourceUuid),
+    );
   }
+
+  await env.DB.batch(batch);
 
   return Response.json({
     source_uuid: sourceUuid,
