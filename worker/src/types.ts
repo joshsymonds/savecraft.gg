@@ -39,4 +39,6 @@ export interface Env {
   BATTLENET_CLIENT_ID?: string;
   /** Battle.net OAuth application client secret. */
   BATTLENET_CLIENT_SECRET?: string;
+  /** Battle.net OAuth region for token endpoint (us, eu, kr, tw). Default: us. */
+  BATTLENET_REGION?: string;
 }
