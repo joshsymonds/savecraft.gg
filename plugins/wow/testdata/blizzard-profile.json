@@ -1,0 +1,139 @@
+{
+    "_links": {
+        "self": {
+            "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos?namespace=profile-us"
+        }
+    },
+    "id": 198030797,
+    "name": "Dratnos",
+    "gender": {
+        "type": "MALE",
+        "name": "Male"
+    },
+    "faction": {
+        "type": "HORDE",
+        "name": "Horde"
+    },
+    "race": {
+        "key": {
+            "href": "https://us.api.blizzard.com/data/wow/playable-race/8?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Troll",
+        "id": 8
+    },
+    "character_class": {
+        "key": {
+            "href": "https://us.api.blizzard.com/data/wow/playable-class/4?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Rogue",
+        "id": 4
+    },
+    "active_spec": {
+        "key": {
+            "href": "https://us.api.blizzard.com/data/wow/playable-specialization/259?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Assassination",
+        "id": 259
+    },
+    "realm": {
+        "key": {
+            "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+        },
+        "name": "Tichondrius",
+        "id": 11,
+        "slug": "tichondrius"
+    },
+    "guild": {
+        "key": {
+            "href": "https://us.api.blizzard.com/data/wow/guild/tichondrius/poptart-corndog?namespace=profile-us"
+        },
+        "name": "poptart corndoG",
+        "id": 71939933,
+        "realm": {
+            "key": {
+                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+            },
+            "name": "Tichondrius",
+            "id": 11,
+            "slug": "tichondrius"
+        },
+        "faction": {
+            "type": "HORDE",
+            "name": "Horde"
+        }
+    },
+    "level": 80,
+    "experience": 0,
+    "achievement_points": 39705,
+    "achievements": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/achievements?namespace=profile-us"
+    },
+    "titles": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/titles?namespace=profile-us"
+    },
+    "pvp_summary": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/pvp-summary?namespace=profile-us"
+    },
+    "encounters": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/encounters?namespace=profile-us"
+    },
+    "media": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/character-media?namespace=profile-us"
+    },
+    "last_login_timestamp": 1772512156000,
+    "average_item_level": 117,
+    "equipped_item_level": 116,
+    "specializations": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/specializations?namespace=profile-us"
+    },
+    "statistics": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/statistics?namespace=profile-us"
+    },
+    "mythic_keystone_profile": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/mythic-keystone-profile?namespace=profile-us"
+    },
+    "equipment": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/equipment?namespace=profile-us"
+    },
+    "appearance": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/appearance?namespace=profile-us"
+    },
+    "collections": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/collections?namespace=profile-us"
+    },
+    "active_title": {
+        "key": {
+            "href": "https://us.api.blizzard.com/data/wow/title/374?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Famed Slayer of G'huun",
+        "id": 374,
+        "display_string": "{name}, Famed Slayer of G'huun"
+    },
+    "reputations": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/reputations?namespace=profile-us"
+    },
+    "quests": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/quests?namespace=profile-us"
+    },
+    "achievements_statistics": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/achievements/statistics?namespace=profile-us"
+    },
+    "professions": {
+        "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/professions?namespace=profile-us"
+    },
+    "covenant_progress": {
+        "chosen_covenant": {
+            "key": {
+                "href": "https://us.api.blizzard.com/data/wow/covenant/4?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Necrolord",
+            "id": 4
+        },
+        "renown_level": 43,
+        "soulbinds": {
+            "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/soulbinds?namespace=profile-us"
+        }
+    },
+    "is_remix": false,
+    "name_search": "Dratnos"
+}

@@ -1,2 +1,7 @@
 build:
     go run ../../cmd/plugin-manifest/ .
+
+# Fetch real API responses as test fixtures.
+# Usage: just fetch-fixtures Dratnos tichondrius us
+fetch-fixtures name realm region:
+    cd {{justfile_directory()}} && npx tsx fetch-fixtures.ts {{name}} {{realm}} {{region}}

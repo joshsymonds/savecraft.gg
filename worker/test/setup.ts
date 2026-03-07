@@ -91,6 +91,29 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_uuid)`,
   `CREATE TABLE IF NOT EXISTS mcp_activity (user_uuid TEXT PRIMARY KEY)`,
+  `CREATE TABLE IF NOT EXISTS linked_characters (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_uuid TEXT NOT NULL,
+    game_id TEXT NOT NULL,
+    character_id TEXT NOT NULL,
+    character_name TEXT NOT NULL,
+    metadata TEXT,
+    source_uuid TEXT NOT NULL,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_uuid, game_id, character_id)
+  )`,
+  `CREATE TABLE IF NOT EXISTS game_credentials (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_uuid TEXT NOT NULL,
+    game_id TEXT NOT NULL,
+    access_token_enc TEXT NOT NULL,
+    refresh_token_enc TEXT,
+    expires_at TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(user_uuid, game_id)
+  )`,
 ];
 
 for (const sql of statements) {

@@ -1,0 +1,2471 @@
+{
+    "_links": {
+        "self": {
+            "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos/professions?namespace=profile-us"
+        }
+    },
+    "character": {
+        "key": {
+            "href": "https://us.api.blizzard.com/profile/wow/character/tichondrius/dratnos?namespace=profile-us"
+        },
+        "name": "Dratnos",
+        "id": 198030797,
+        "realm": {
+            "key": {
+                "href": "https://us.api.blizzard.com/data/wow/realm/11?namespace=dynamic-us"
+            },
+            "name": "Tichondrius",
+            "id": 11,
+            "slug": "tichondrius"
+        }
+    },
+    "primaries": [
+        {
+            "profession": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/profession/202?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Engineering",
+                "id": 202
+            },
+            "tiers": [
+                {
+                    "skill_points": 175,
+                    "max_skill_points": 175,
+                    "tier": {
+                        "name": "Zandalari Engineering",
+                        "id": 2499
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38897?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "F.R.I.E.D.",
+                            "id": 38897
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38900?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Thermo-Accelerated Plague Spreader",
+                            "id": 38900
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38915?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Organic Discombobulation Grenade",
+                            "id": 38915
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38921?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "XA-1000 Surface Skimmer",
+                            "id": 38921
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38924?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Electroshock Mount Motivator",
+                            "id": 38924
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38927?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Interdimensional Companion Repository",
+                            "id": 38927
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38930?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Deployable Attire Rearranger",
+                            "id": 38930
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38933?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Finely-Tuned Stormsteel Destroyer",
+                            "id": 38933
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39232?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Precision Attitude Adjuster",
+                            "id": 39232
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39234?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Magnetic Discombobulator",
+                            "id": 39234
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39237?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Crow's Nest Scope",
+                            "id": 39237
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39239?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Monelite Scope of Alacrity",
+                            "id": 39239
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39243?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Incendiary Ammunition",
+                            "id": 39243
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39246?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Frost-Laced Ammunition",
+                            "id": 39246
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39436?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Belt Enchant: Personal Space Amplifier",
+                            "id": 39436
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39437?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Belt Enchant: Holographic Horror Projector",
+                            "id": 39437
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39438?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Belt Enchant: Miniaturized Plasma Shield",
+                            "id": 39438
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39552?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Honorable Combatant's Discombobulator",
+                            "id": 39552
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39555?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Honorable Combatant's Stormsteel Destroyer",
+                            "id": 39555
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39595?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "AZ3-R1-T3 Synthetic Specs",
+                            "id": 39595
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39600?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "AZ3-R1-T3 Gearspun Goggles",
+                            "id": 39600
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39601?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "AZ3-R1-T3 Bionic Bifocals",
+                            "id": 39601
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39604?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "AZ3-R1-T3 Orthogonal Optics",
+                            "id": 39604
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39691?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mecha-Mogul Mk2",
+                            "id": 39691
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39836?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Makeshift Azerite Detector",
+                            "id": 39836
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39837?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Monelite Fish Finder",
+                            "id": 39837
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39997?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Magical Intrusion Dampener",
+                            "id": 39997
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40055?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Sinister Combatant's Discombobulator",
+                            "id": 40055
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40058?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Sinister Combatant's Stormsteel Destroyer",
+                            "id": 40058
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40121?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Unstable Temporal Time Shifter",
+                            "id": 40121
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40155?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Sanguinated Thermo-Degradation",
+                            "id": 40155
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40188?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Surging Synthetic Specs",
+                            "id": 40188
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40191?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Surging Gearspun Goggles",
+                            "id": 40191
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40192?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "SP1-R1-73D Gearspun Goggles",
+                            "id": 40192
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40193?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Charged SP1-R1-73D Gearspun Goggles",
+                            "id": 40193
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40194?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Surging Bionic Bifocals",
+                            "id": 40194
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40197?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Surging Orthogonal Optics",
+                            "id": 40197
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40213?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Aqueous Thermo-Degradation",
+                            "id": 40213
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40340?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Imbued Synthetic Specs",
+                            "id": 40340
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40342?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Imbued Gearspun Goggles",
+                            "id": 40342
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40343?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Emblazoned Gearspun Goggles",
+                            "id": 40343
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40344?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Imbued Bionic Bifocals",
+                            "id": 40344
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40346?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Imbued Orthogonal Optics",
+                            "id": 40346
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40352?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "The Ub3r-Spanner",
+                            "id": 40352
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40432?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Ub3r-Module: Ub3r-Improved Target Dummy",
+                            "id": 40432
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40433?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Ub3r-Module: Ub3r S3ntry Mk. X8.0",
+                            "id": 40433
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40434?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Ub3r-Module: Short-Fused Bomb Bots",
+                            "id": 40434
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40501?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Super-Charged Engine",
+                            "id": 40501
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40506?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Notorious Combatant's Discombobulator",
+                            "id": 40506
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40507?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Notorious Combatant's Stormsteel Destroyer",
+                            "id": 40507
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40710?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Abyssal Synthetic Specs",
+                            "id": 40710
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40713?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Abyssal Gearspun Goggles",
+                            "id": 40713
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40714?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "A5C-3N-D3D Gearspun Goggles",
+                            "id": 40714
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40715?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Charged A5C-3N-D3D Gearspun Goggles",
+                            "id": 40715
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40716?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Abyssal Bionic Bifocals",
+                            "id": 40716
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40719?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Abyssal Orthogonal Optics",
+                            "id": 40719
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40743?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Wormhole Generator: Zandalar",
+                            "id": 40743
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40744?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Wormhole Generator: Kul Tiras",
+                            "id": 40744
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/41090?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "A-N0M-A-L0U5 Synthetic Specs",
+                            "id": 41090
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/41093?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "A-N0M-A-L0U5 Gearspun Goggles",
+                            "id": 41093
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/41096?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "A-N0M-A-L0U5 Bionic Bifocals",
+                            "id": 41096
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/41099?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "A-N0M-A-L0U5 Orthogonal Optics",
+                            "id": 41099
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42347?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Void Focus",
+                            "id": 42347
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 3,
+                    "max_skill_points": 100,
+                    "tier": {
+                        "name": "Draenor Engineering",
+                        "id": 2501
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/32687?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Goblin Glider Kit",
+                            "id": 32687
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/32690?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Stealthman 54",
+                            "id": 32690
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/32702?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Gearspring Parts",
+                            "id": 32702
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/33218?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Ultimate Gnomish Army Knife",
+                            "id": 33218
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/33565?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Shieldtronic Shield",
+                            "id": 33565
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/33566?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mecha-Blast Rocket",
+                            "id": 33566
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/33709?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Secrets of Draenor Engineering",
+                            "id": 33709
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 20,
+                    "max_skill_points": 75,
+                    "tier": {
+                        "name": "Cataclysm Engineering",
+                        "id": 2503
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/22257?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Grounded Plasma Shield",
+                            "id": 22257
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/22258?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Cardboard Assassin",
+                            "id": 22258
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/22270?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Safety Catch Removal Kit",
+                            "id": 22270
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/22272?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "R19 Threatfinder",
+                            "id": 22272
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/22274?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Authentic Jr. Engineer Goggles",
+                            "id": 22274
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/22275?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Handful of Obsidium Bolts",
+                            "id": 22275
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/22278?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Spinal Healing Injector",
+                            "id": 22278
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/24014?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Invisibility Field",
+                            "id": 24014
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/24063?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Electrostatic Condenser",
+                            "id": 24063
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/24064?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Electrified Ether",
+                            "id": 24064
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 50,
+                    "max_skill_points": 75,
+                    "tier": {
+                        "name": "Northrend Engineering",
+                        "id": 2504
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/18024?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Volatile Blasting Trigger",
+                            "id": 18024
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/18537?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mark \"S\" Boomstick",
+                            "id": 18537
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19538?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Handful of Cobalt Bolts",
+                            "id": 19538
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19539?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "EMP Generator",
+                            "id": 19539
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19543?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Flexweave Underlay",
+                            "id": 19543
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19544?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Frag Belt",
+                            "id": 19544
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19545?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Nitro Boosts",
+                            "id": 19545
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19553?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Cobalt Frag Bomb",
+                            "id": 19553
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19554?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Hammer Pick",
+                            "id": 19554
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19555?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Bladed Pickaxe",
+                            "id": 19555
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19556?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Overcharged Capacitor",
+                            "id": 19556
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19557?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Explosive Decoy",
+                            "id": 19557
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19559?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mechanized Snow Goggles",
+                            "id": 19559
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19560?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Froststeel Tube",
+                            "id": 19560
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19561?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Sonic Booster",
+                            "id": 19561
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19562?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Noise Machine",
+                            "id": 19562
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19563?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Box of Bombs",
+                            "id": 19563
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19564?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Sun Scope",
+                            "id": 19564
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19565?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "MOLL-E",
+                            "id": 19565
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19571?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Healing Injector Kit",
+                            "id": 19571
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19572?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mana Injector Kit",
+                            "id": 19572
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/19573?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Gnomish Lightning Generator",
+                            "id": 19573
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/20650?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Diamond-cut Refractor Scope",
+                            "id": 20650
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/20653?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mechanized Snow Goggles",
+                            "id": 20653
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/20654?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mechanized Snow Goggles",
+                            "id": 20654
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/20655?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mechanized Snow Goggles",
+                            "id": 20655
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/21233?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Goblin Beam Welder",
+                            "id": 21233
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/21258?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mind Amplification Dish",
+                            "id": 21258
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 180,
+                    "max_skill_points": 300,
+                    "tier": {
+                        "name": "Classic Engineering",
+                        "id": 2506
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2413?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Rough Blasting Powder",
+                            "id": 2413
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2414?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Rough Dynamite",
+                            "id": 2414
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2417?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Handful of Copper Bolts",
+                            "id": 2417
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2418?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Rough Copper Bomb",
+                            "id": 2418
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2420?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Rough Boomstick",
+                            "id": 2420
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2421?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Crude Scope",
+                            "id": 2421
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2422?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Silver Contact",
+                            "id": 2422
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2425?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Coarse Blasting Powder",
+                            "id": 2425
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2427?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Coarse Dynamite",
+                            "id": 2427
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2428?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Target Dummy",
+                            "id": 2428
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2430?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Flying Tiger Goggles",
+                            "id": 2430
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2431?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Deadly Blunderbuss",
+                            "id": 2431
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2432?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Large Copper Bomb",
+                            "id": 2432
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2433?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Bronze Tube",
+                            "id": 2433
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2435?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Standard Scope",
+                            "id": 2435
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2436?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Lovingly Crafted Boomstick",
+                            "id": 2436
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2438?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Small Bronze Bomb",
+                            "id": 2438
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2439?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Whirring Bronze Gizmo",
+                            "id": 2439
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2441?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Heavy Blasting Powder",
+                            "id": 2441
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2442?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Heavy Dynamite",
+                            "id": 2442
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2444?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Silver-plated Shotgun",
+                            "id": 2444
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2445?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Big Bronze Bomb",
+                            "id": 2445
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2447?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Bronze Framework",
+                            "id": 2447
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2449?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Explosive Sheep",
+                            "id": 2449
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2450?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Green Tinted Goggles",
+                            "id": 2450
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2452?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Iron Strut",
+                            "id": 2452
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2455?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Gyrochronatom",
+                            "id": 2455
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2456?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Iron Grenade",
+                            "id": 2456
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2457?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Compact Harvest Reaper Kit",
+                            "id": 2457
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/2459?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Accurate Scope",
+                            "id": 2459
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/3945?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Ornate Spyglass",
+                            "id": 3945
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/4294?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Arclight Spanner",
+                            "id": 4294
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/4606?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Clockwork Box",
+                            "id": 4606
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/5067?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Aquadynamic Fish Attractor",
+                            "id": 5067
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/6857?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Gold Power Core",
+                            "id": 6857
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/6858?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Solid Blasting Powder",
+                            "id": 6858
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/6859?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Solid Dynamite",
+                            "id": 6859
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/6861?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Gyromatic Micro-Adjustor",
+                            "id": 6861
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 98,
+                    "max_skill_points": 100,
+                    "tier": {
+                        "name": "Shadowlands Engineering",
+                        "id": 2755
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42724?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Dimensional Shifter",
+                            "id": 42724
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42725?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Electro-Jump",
+                            "id": 42725
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42726?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Damage Retaliator",
+                            "id": 42726
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42728?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Nutcracker Grenade",
+                            "id": 42728
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42729?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Shadow Land Mine",
+                            "id": 42729
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42730?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Bomb Bola Launcher",
+                            "id": 42730
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42733?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Momentum Redistributor Boots",
+                            "id": 42733
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42735?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Gravimetric Scrambler Cannon",
+                            "id": 42735
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42736?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "50UL-TR4P",
+                            "id": 42736
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42742?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Flexible Ectoplasmic Specs",
+                            "id": 42742
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42743?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Grounded Ectoplasmic Specs",
+                            "id": 42743
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42744?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Articulated Ectoplasmic Specs",
+                            "id": 42744
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42745?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Reinforced Ectoplasmic Specs",
+                            "id": 42745
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42754?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Handful of Laestrite Bolts",
+                            "id": 42754
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42755?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Porous Polishing Abrasive",
+                            "id": 42755
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42756?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mortal Coiled Spring",
+                            "id": 42756
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42757?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Wormfed Gear Assembly",
+                            "id": 42757
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42762?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Optical Target Embiggener",
+                            "id": 42762
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42763?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Infra-green Reflex Sight",
+                            "id": 42763
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42764?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Precision Lifeforce Inverter",
+                            "id": 42764
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/45744?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Crafter's Mark I",
+                            "id": 45744
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/45768?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Novice Crafter's Mark",
+                            "id": 45768
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/45845?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Disposable Spectrophasic Reanimator",
+                            "id": 45845
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 2,
+                    "max_skill_points": 100,
+                    "tier": {
+                        "name": "Dragon Isles Engineering",
+                        "id": 2827
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47447?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Handful of Serevite Bolts",
+                            "id": 47447
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 10,
+                    "max_skill_points": 100,
+                    "tier": {
+                        "name": "Khaz Algar Engineering",
+                        "id": 2875
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50785?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Scour Through Scrap",
+                            "id": 50785
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50786?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Pilfer Through Parts",
+                            "id": 50786
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50787?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Invent",
+                            "id": 50787
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50788?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Disassemble Invention",
+                            "id": 50788
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50811?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Handful of Bismuth Bolts",
+                            "id": 50811
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50812?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Whimsical Wiring",
+                            "id": 50812
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50813?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Gyrating Gear",
+                            "id": 50813
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50814?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Safety Switch",
+                            "id": 50814
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50815?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Chaos Circuit",
+                            "id": 50815
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50816?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Entropy Enhancer",
+                            "id": 50816
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50843?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Portable Profession Possibility Projector",
+                            "id": 50843
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "profession": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/profession/755?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Jewelcrafting",
+                "id": 755
+            },
+            "tiers": [
+                {
+                    "skill_points": 175,
+                    "max_skill_points": 175,
+                    "tier": {
+                        "name": "Zandalari Jewelcrafting",
+                        "id": 2517
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38989?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Versatile Kyanite",
+                            "id": 38989
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38990?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Straddling Viridium",
+                            "id": 38990
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38991?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Deadly Solstone",
+                            "id": 38991
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38992?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Masterful Kubiline",
+                            "id": 38992
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38993?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Natant Rubellite",
+                            "id": 38993
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38994?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Quick Golden Beryl",
+                            "id": 38994
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38995?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Versatile Royal Quartz",
+                            "id": 38995
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38996?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Deadly Amberblaze",
+                            "id": 38996
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38997?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Masterful Tidal Amethyst",
+                            "id": 38997
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38998?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Quick Owlseye",
+                            "id": 38998
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/38999?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Kraken's Eye of Strength",
+                            "id": 38999
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39000?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Kraken's Eye of Agility",
+                            "id": 39000
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39001?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Kraken's Eye of Intellect",
+                            "id": 39001
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39002?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mass Prospect Monelite",
+                            "id": 39002
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39003?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mass Prospect Storm Silver",
+                            "id": 39003
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39004?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mass Prospect Platinum",
+                            "id": 39004
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39006?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Amberblaze Loop",
+                            "id": 39006
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39009?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Owlseye Loop",
+                            "id": 39009
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39012?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Tidal Amethyst Loop",
+                            "id": 39012
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39015?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Royal Quartz Loop",
+                            "id": 39015
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39018?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Laribole Staff of Alacrity",
+                            "id": 39018
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39021?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Scarlet Diamond Staff of Intuition",
+                            "id": 39021
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39561?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Honorable Combatant's Intuitive Staff",
+                            "id": 39561
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39579?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Viridium Staff of Alacrity",
+                            "id": 39579
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39580?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Rubellite Staff of Intuition",
+                            "id": 39580
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39607?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Solstone Ring",
+                            "id": 39607
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39608?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Golden Beryl Ring",
+                            "id": 39608
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39609?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Kubiline Ring",
+                            "id": 39609
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39610?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Kyanite Ring",
+                            "id": 39610
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39843?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Kaleidoscopic Lens",
+                            "id": 39843
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40064?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Sinister Combatant's Intuitive Staff",
+                            "id": 40064
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40157?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Sanguinated Recalibration",
+                            "id": 40157
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40215?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Aqueous Recalibration",
+                            "id": 40215
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40281?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Kraken's Eye Loop",
+                            "id": 40281
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40284?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Tidal Kraken's Eye Loop",
+                            "id": 40284
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40285?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Spirited Kraken's Eye Loop",
+                            "id": 40285
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40286?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Eternal Kraken's Eye Loop",
+                            "id": 40286
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40448?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Jewelhammer's Focus",
+                            "id": 40448
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40513?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Notorious Combatant's Intuitive Staff",
+                            "id": 40513
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40675?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Leviathan's Eye of Agility",
+                            "id": 40675
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40676?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Versatile Dark Opal",
+                            "id": 40676
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40677?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Leviathan's Eye of Intellect",
+                            "id": 40677
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40678?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Deadly Lava Lazuli",
+                            "id": 40678
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40679?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Masterful Sea Currant",
+                            "id": 40679
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40680?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Leviathan's Eye of Strength",
+                            "id": 40680
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40681?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Quick Sand Spinel",
+                            "id": 40681
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40722?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Leviathan's Eye Loop",
+                            "id": 40722
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40723?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Crushing Leviathan's Eye Loop",
+                            "id": 40723
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40724?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Ascended Leviathan's Eye Loop",
+                            "id": 40724
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40840?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mass Prospect Osmenite",
+                            "id": 40840
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40847?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Straddling Sage Agate",
+                            "id": 40847
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40957?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Kul Tiras and Zandalar Prospecting",
+                            "id": 40957
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/41108?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Unbound Leviathan's Eye Loop",
+                            "id": 41108
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/42348?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Void Focus",
+                            "id": 42348
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 300,
+                    "tier": {
+                        "name": "Classic Jewelcrafting",
+                        "id": 2524
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/13198?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Delicate Copper Wire",
+                            "id": 13198
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/13290?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Braided Copper Ring",
+                            "id": 13290
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/13537?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Woven Copper Ring",
+                            "id": 13537
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/14814?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Rough Stone Statue",
+                            "id": 14814
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40909?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Classic Prospecting",
+                            "id": 40909
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 11,
+                    "max_skill_points": 100,
+                    "tier": {
+                        "name": "Dragon Isles Jewelcrafting",
+                        "id": 2829
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/46935?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Zen Mystic Sapphire",
+                            "id": 46935
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/46936?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Energized Vibrant Emerald",
+                            "id": 46936
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/46938?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Solid Eternity Amber",
+                            "id": 46938
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/46966?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Frameless Lens",
+                            "id": 46966
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/46967?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Glossy Stone",
+                            "id": 46967
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/46968?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Shimmering Clasp",
+                            "id": 46968
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47013?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Dragon Isles Prospecting",
+                            "id": 47013
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47968?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Dragon Isles Crushing",
+                            "id": 47968
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 100,
+                    "tier": {
+                        "name": "Khaz Algar Jewelcrafting",
+                        "id": 2879
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/49717?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Algari Prospecting",
+                            "id": 49717
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/49722?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Deadly Amber",
+                            "id": 49722
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/49778?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Engraved Gemcutter",
+                            "id": 49778
+                        }
+                    ]
+                }
+            ]
+        }
+    ],
+    "secondaries": [
+        {
+            "profession": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/profession/185?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Cooking",
+                "id": 185
+            },
+            "tiers": [
+                {
+                    "skill_points": 150,
+                    "max_skill_points": 175,
+                    "tier": {
+                        "name": "Zandalari Cooking",
+                        "id": 2541
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39615?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Kul Tiramisu",
+                            "id": 39615
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39618?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Ravenberry Tarts",
+                            "id": 39618
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39621?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Grilled Catfish",
+                            "id": 39621
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39624?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Loa Loaf",
+                            "id": 39624
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39627?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mon'Dazi",
+                            "id": 39627
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39630?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Galley Banquet",
+                            "id": 39630
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39633?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Bountiful Captain's Feast",
+                            "id": 39633
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39636?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Honey-Glazed Haunches",
+                            "id": 39636
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39639?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Swamp Fish 'n Chips",
+                            "id": 39639
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39642?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Seasoned Loins",
+                            "id": 39642
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39645?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Sailor's Pie",
+                            "id": 39645
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39648?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Spiced Snapper",
+                            "id": 39648
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/39991?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Heartsbane Hexwurst",
+                            "id": 39991
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40140?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Honey Potpie",
+                            "id": 40140
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40205?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Sanguinated Feast",
+                            "id": 40205
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40230?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Wild Berry Bread",
+                            "id": 40230
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40233?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Seasoned Steak and Potatoes",
+                            "id": 40233
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40334?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Boralus Blood Sausage",
+                            "id": 40334
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40587?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Mech-Dowel's \"Big Mech\"",
+                            "id": 40587
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40590?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Baked Port Tato",
+                            "id": 40590
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40593?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Abyssal-Fried Rissole",
+                            "id": 40593
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40596?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Fragrant Kakavia",
+                            "id": 40596
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/40599?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Bil'Tong",
+                            "id": 40599
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/43086?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Grilled Gnasher",
+                            "id": 43086
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/43087?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Dubious Delight",
+                            "id": 43087
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/43088?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Ghastly Goulash",
+                            "id": 43088
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/43089?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Baked Voidfin",
+                            "id": 43089
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/43090?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "K'Bab",
+                            "id": 43090
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 100,
+                    "tier": {
+                        "name": "Draenor Cooking",
+                        "id": 2543
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/32642?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Saberfish Broth",
+                            "id": 32642
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/32643?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Grilled Saberfish",
+                            "id": 32643
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 75,
+                    "tier": {
+                        "name": "Cataclysm Cooking",
+                        "id": 2545
+                    }
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 300,
+                    "tier": {
+                        "name": "Classic Cooking",
+                        "id": 2548
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/1535?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Charred Wolf Meat",
+                            "id": 1535
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/1537?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Roasted Boar Meat",
+                            "id": 1537
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/4786?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Herb Baked Egg",
+                            "id": 4786
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/11977?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Gingerbread Cookie",
+                            "id": 11977
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/15707?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Spice Bread",
+                            "id": 15707
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 100,
+                    "tier": {
+                        "name": "Dragon Isles Cooking",
+                        "id": 2824
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47361?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Pebbled Rock Salts",
+                            "id": 47361
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47362?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Assorted Exotic Spices",
+                            "id": 47362
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47367?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Twice-Baked Potato",
+                            "id": 47367
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/48814?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Slumbering Peacebloom Tea",
+                            "id": 48814
+                        }
+                    ]
+                }
+            ]
+        },
+        {
+            "profession": {
+                "key": {
+                    "href": "https://us.api.blizzard.com/data/wow/profession/356?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Fishing",
+                "id": 356
+            },
+            "tiers": [
+                {
+                    "skill_points": 23,
+                    "max_skill_points": 175,
+                    "tier": {
+                        "name": "Zandalari Fishing",
+                        "id": 2585
+                    }
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 100,
+                    "tier": {
+                        "name": "Legion Fishing",
+                        "id": 2586
+                    }
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 100,
+                    "tier": {
+                        "name": "Draenor Fishing",
+                        "id": 2587
+                    }
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 75,
+                    "tier": {
+                        "name": "Pandaria Fishing",
+                        "id": 2588
+                    }
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 75,
+                    "tier": {
+                        "name": "Cataclysm Fishing",
+                        "id": 2589
+                    }
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 75,
+                    "tier": {
+                        "name": "Northrend Fishing",
+                        "id": 2590
+                    }
+                },
+                {
+                    "skill_points": 13,
+                    "max_skill_points": 75,
+                    "tier": {
+                        "name": "Outland Fishing",
+                        "id": 2591
+                    }
+                },
+                {
+                    "skill_points": 4,
+                    "max_skill_points": 300,
+                    "tier": {
+                        "name": "Classic Fishing",
+                        "id": 2592
+                    }
+                },
+                {
+                    "skill_points": 1,
+                    "max_skill_points": 100,
+                    "tier": {
+                        "name": "Dragon Isles Fishing",
+                        "id": 2826
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47906?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Thousandbite Piranha",
+                            "id": 47906
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47907?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Cerulean Spinefish",
+                            "id": 47907
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47908?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Aileron Seamoth",
+                            "id": 47908
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47909?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Temporal Dragonhead",
+                            "id": 47909
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47910?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Shimmering Treasure",
+                            "id": 47910
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47911?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Islefin Dorado",
+                            "id": 47911
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47912?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Scalebelly Mackerel",
+                            "id": 47912
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47913?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Rimefin Tuna",
+                            "id": 47913
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47914?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Magma Thresherl",
+                            "id": 47914
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/47915?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Prismatic Leaper",
+                            "id": 47915
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50421?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Prismatic Leaper",
+                            "id": 50421
+                        }
+                    ]
+                },
+                {
+                    "skill_points": 16,
+                    "max_skill_points": 300,
+                    "tier": {
+                        "name": "Khaz Algar Fishing",
+                        "id": 2876
+                    },
+                    "known_recipes": [
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50407?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Goldengill Trout",
+                            "id": 50407
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/50419?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Cursed Ghoulfish",
+                            "id": 50419
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/51254?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Becoming an Algari Angler",
+                            "id": 51254
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/51287?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "What is an Algari Weaverline?",
+                            "id": 51287
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/51301?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "Isle of Dorn",
+                            "id": 51301
+                        },
+                        {
+                            "key": {
+                                "href": "https://us.api.blizzard.com/data/wow/recipe/51544?namespace=static-12.0.1_65617-us"
+                            },
+                            "name": "\"Gold\" Fish",
+                            "id": 51544
+                        }
+                    ]
+                }
+            ]
+        }
+    ]
+}

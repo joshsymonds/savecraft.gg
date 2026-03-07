@@ -12,6 +12,8 @@ export const CLEANUP_TABLES = [
   "source_events",
   "mcp_activity",
   "api_keys",
+  "linked_characters",
+  "game_credentials",
   "saves",
   "sources",
 ] as const;
