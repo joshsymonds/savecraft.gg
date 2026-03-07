@@ -509,11 +509,9 @@ CREATE TABLE linked_characters (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_uuid TEXT NOT NULL,
   game_id TEXT NOT NULL,
-  character_id TEXT NOT NULL,      -- stable game-specific ID (e.g. Blizzard numeric ID)
-  character_name TEXT NOT NULL,    -- display name (updated on rename)
-  realm TEXT,                      -- WoW realm (updated on transfer), nullable for non-realm games
-  region TEXT,                     -- us, eu, kr, tw
-  metadata TEXT,                   -- JSON: class, level, etc. from discovery
+  character_id TEXT NOT NULL,      -- stable game-specific ID (e.g. Blizzard numeric character ID)
+  character_name TEXT NOT NULL,    -- display name (updated on rename/transfer)
+  metadata TEXT,                   -- JSON: game-specific fields (class, level, realm, region, etc.)
   source_uuid TEXT NOT NULL,       -- FK to the adapter source
   active INTEGER NOT NULL DEFAULT 1,  -- 0 = soft-deleted (character removed, history preserved)
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -521,6 +519,8 @@ CREATE TABLE linked_characters (
   UNIQUE(user_uuid, game_id, character_id)
 );
 ```
+
+Game-specific fields like realm, region, class, and level live in `metadata` JSON rather than as columns. The table is queried by `(user_uuid, game_id)` for listing and by `character_id` for reconciliation — neither requires game-specific column indexes.
 
 ### Game credentials
 
