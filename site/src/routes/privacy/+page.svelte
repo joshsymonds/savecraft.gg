@@ -31,13 +31,15 @@
   <!-- ═══ CONTENT ═══ -->
   <article class="privacy">
     <h1 class="privacy-title">Privacy Policy</h1>
-    <p class="privacy-updated">Last updated: March 4, 2026</p>
+    <p class="privacy-updated">Last updated: March 6, 2026</p>
 
     <div class="privacy-tldr">
       <strong>TL;DR:</strong> Savecraft collects the minimum data needed to connect your game saves
-      to AI assistants. We store your email address, your game save data (which you push to us), and
-      notes you create. We do not run analytics, do not track you, do not sell your data, and do not
-      see your conversations with AI assistants. Our code is
+      to AI assistants. We store your email address, your game save data (which you push to us),
+      notes you create, and — for API-connected games like World of Warcraft — OAuth tokens from
+      game platform accounts solely to verify character ownership and refresh data on demand. We do
+      not run analytics, do not track you, do not sell your data, and do not see your conversations
+      with AI assistants. Our code is
       <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">open source</a> — you can
       verify all of this yourself.
     </div>
@@ -151,6 +153,35 @@
       <p class="retention">
         <strong>Retention:</strong> Tokens expire automatically per their TTL. The MCP activity flag persists
         until your account is deleted.
+      </p>
+
+      <h3>Third-party game API credentials</h3>
+      <p>
+        Some games (such as World of Warcraft) are supported via API adapters instead of local save
+        file parsing. For these games, you connect your game platform account (e.g., Battle.net)
+        through an OAuth flow. We store the resulting <strong>OAuth access token</strong> and
+        <strong>refresh token</strong> in our database.
+      </p>
+      <p>
+        These tokens are stored <strong>solely</strong> to verify your ownership of in-game characters
+        and to refresh character data on demand when you or your AI assistant requests it. We do not
+        use these tokens for any other purpose, and we do not access your game account beyond reading
+        character profile data.
+      </p>
+      <p>
+        We also store a list of your <strong>linked characters</strong> (character name, game-specific
+        ID, and metadata such as realm, class, and level) so that we can track which characters you
+        have chosen to monitor. Characters you remove are soft-deleted (marked inactive) rather than
+        hard-deleted, so your save history is preserved.
+      </p>
+      <p class="legal-basis">
+        <strong>Legal basis:</strong> Contract performance — connecting your game account is required
+        to fetch character data for API-backed games.
+      </p>
+      <p class="retention">
+        <strong>Retention:</strong> Until you disconnect your game account. You can revoke access at
+        any time from your game platform's account settings (e.g., Battle.net Authorized Applications),
+        which immediately invalidates the stored tokens.
       </p>
 
       <h3>Device status events</h3>
@@ -293,6 +324,43 @@
         <a href="https://clerk.com/legal/privacy" class="text-link">clerk.com/legal/privacy</a>
       </p>
 
+      <h3>Blizzard Entertainment (Battle.net)</h3>
+      <p>
+        <strong>Role:</strong> Game data provider (when you connect a Battle.net account for World of
+        Warcraft).
+      </p>
+      <p>
+        <strong>What they receive:</strong> API requests for your character profile data (gear, stats,
+        talents, raid progression). These requests are authenticated with your OAuth token and
+        Savecraft's application credentials.
+      </p>
+      <p>
+        <strong>What we receive from them:</strong> Character profile data (name, realm, class, level,
+        equipped gear, talents, Mythic+ runs, raid progression, professions). This data becomes part of
+        your game save state within Savecraft.
+      </p>
+      <p>
+        <strong>Their privacy policy:</strong>
+        <a href="https://www.blizzard.com/en-us/legal/a4380ee5-5c8d-4e3b-83b7-ea4d874e7f22/blizzard-entertainment-online-privacy-policy" class="text-link"
+          >blizzard.com/legal/privacy</a
+        >
+      </p>
+
+      <h3>Raider.io</h3>
+      <p>
+        <strong>Role:</strong> Enrichment data provider for World of Warcraft (no authentication
+        required).
+      </p>
+      <p>
+        <strong>What they receive:</strong> Your character name, realm, and region in API requests.
+        No OAuth tokens or personal data are shared.
+      </p>
+      <p>
+        <strong>What we receive from them:</strong> Mythic+ scores, rankings, and raid progression
+        summaries. This data enriches your character's game state but is not required — if Raider.io
+        is unavailable, your save data is still complete from Blizzard's API alone.
+      </p>
+
       <h3>Stripe (future)</h3>
       <p>
         When we add paid subscriptions, Stripe will process payments. Stripe will receive your
@@ -401,7 +469,9 @@
       <p>
         Save data and notes are stored in Cloudflare's infrastructure, which provides encryption at
         rest and in transit. Authentication tokens are hashed (SHA-256 for device tokens; bcrypt for
-        Clerk credentials). OAuth tokens are opaque and stored with automatic expiration. The daemon
+        Clerk credentials). MCP OAuth tokens are opaque and stored with automatic expiration.
+        Game platform OAuth tokens (e.g., Battle.net) are stored in our database and can be revoked
+        by disconnecting the account or revoking access from the game platform's settings. The daemon
         runs with minimal system permissions — on Linux/Steam Deck, kernel-enforced sandboxing (via
         systemd) restricts it to read-only access to save file directories and write access only to
         its own configuration. WASM plugins that parse save files are sandboxed and cannot access
