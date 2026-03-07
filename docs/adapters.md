@@ -515,7 +515,6 @@ CREATE TABLE linked_characters (
   source_uuid TEXT NOT NULL,       -- FK to the adapter source
   active INTEGER NOT NULL DEFAULT 1,  -- 0 = soft-deleted (character removed, history preserved)
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (user_uuid) REFERENCES users(uuid),
   UNIQUE(user_uuid, game_id, character_id)
 );
 ```
@@ -536,7 +535,6 @@ CREATE TABLE game_credentials (
   expires_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-  FOREIGN KEY (user_uuid) REFERENCES users(uuid),
   UNIQUE(user_uuid, game_id)
 );
 ```
