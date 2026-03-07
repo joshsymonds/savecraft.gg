@@ -20,6 +20,7 @@ const statements = [
     source_kind TEXT NOT NULL DEFAULT 'daemon',
     can_rescan INTEGER NOT NULL DEFAULT 1,
     can_receive_config INTEGER NOT NULL DEFAULT 1,
+    ip TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     last_push_at TEXT
   )`,

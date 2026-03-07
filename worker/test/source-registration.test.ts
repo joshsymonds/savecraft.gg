@@ -117,5 +117,49 @@ describe("Source Registration", () => {
       });
       expect(resp.status).toBe(426);
     });
+
+    it("rate-limits registrations by IP", async () => {
+      const testIp = "198.51.100.42";
+
+      // Seed 10 unlinked sources from the same IP (at the limit)
+      for (let index = 0; index < 10; index++) {
+        const uuid = crypto.randomUUID();
+        const hash = crypto.randomUUID();
+        await env.DB.prepare(
+          "INSERT INTO sources (source_uuid, token_hash, link_code, link_code_expires_at, ip) VALUES (?, ?, ?, datetime('now', '+20 minutes'), ?)",
+        )
+          .bind(uuid, hash, String(100_000 + index), testIp)
+          .run();
+      }
+
+      // Next registration from same IP should be rejected
+      const resp = await SELF.fetch("https://test-host/ws/register", {
+        headers: { Upgrade: "websocket", "X-Real-IP": testIp },
+      });
+      const ws = resp.webSocket;
+      if (!ws) throw new Error(`WS upgrade failed: ${String(resp.status)}`);
+      ws.accept();
+
+      sendRegister(ws, { hostname: "spam-pc" });
+
+      // Should receive a close event with 1008
+      const closePromise = new Promise<{ code: number; reason: string }>((resolve, reject) => {
+        const timer = setTimeout(() => {
+          reject(new Error("Timed out waiting for close"));
+        }, 2000);
+        ws.addEventListener(
+          "close",
+          (event) => {
+            clearTimeout(timer);
+            resolve({ code: event.code, reason: event.reason });
+          },
+          { once: true },
+        );
+      });
+
+      const close = await closePromise;
+      expect(close.code).toBe(1008);
+      expect(close.reason).toBe("Too many registrations");
+    });
   });
 });
