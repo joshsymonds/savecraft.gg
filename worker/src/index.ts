@@ -1,3 +1,5 @@
+import { AdapterError } from "./adapters/adapter";
+import { adapters } from "./adapters/registry";
 import { handleAdminRoute } from "./admin";
 import { authenticateSession, authenticateSource, sha256Hex } from "./auth";
 import { indexNote, indexSaveSections, removeNoteFromIndex } from "./mcp/tools";
@@ -274,6 +276,9 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
   if (url.pathname.startsWith("/api/v1/notes/")) {
     return handleNotes(request, url, env, auth.userUuid);
   }
+  if (url.pathname.startsWith("/api/v1/adapters/") && request.method === "POST") {
+    return handleAdapterRoute(request, url, env, auth.userUuid);
+  }
 
   return routeReadEndpoints(request, url, env, auth.userUuid);
 }
@@ -327,6 +332,187 @@ function routeReadEndpoints(
     return handleMcpStatus(env, userUuid);
   }
   return Promise.resolve(null);
+}
+
+// -- Adapter Routes ------------------------------------------------
+
+/** Rate limit: minimum seconds between refreshes for a single save. */
+const ADAPTER_REFRESH_COOLDOWN_SEC = 300;
+
+async function handleAdapterRoute(
+  _request: Request,
+  url: URL,
+  env: Env,
+  userUuid: string,
+): Promise<Response> {
+  // POST /api/v1/adapters/{gameId}/refresh/{saveUuid}
+  const parts = url.pathname.split("/");
+  const gameId = parts[4];
+  const action = parts[5];
+  const saveUuid = parts[6];
+
+  if (action !== "refresh" || !validateId(gameId) || !validateId(saveUuid)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
+  }
+
+  const adapter = adapters[gameId];
+  if (!adapter) {
+    return Response.json({ error: `No adapter for game: ${gameId}` }, { status: 404 });
+  }
+
+  // Look up save — verify ownership and that it's adapter-backed
+  const save = await env.DB.prepare(
+    `SELECT s.uuid, s.save_name, s.last_updated, s.last_source_uuid,
+            src.source_kind, src.source_uuid
+     FROM saves s
+     JOIN sources src ON src.source_uuid = s.last_source_uuid
+     WHERE s.uuid = ? AND s.user_uuid = ? AND s.game_id = ?`,
+  )
+    .bind(saveUuid, userUuid, gameId)
+    .first<{
+      uuid: string;
+      save_name: string;
+      last_updated: string | null;
+      last_source_uuid: string | null;
+      source_kind: string;
+      source_uuid: string;
+    }>();
+
+  if (!save) {
+    return Response.json({ error: "Save not found" }, { status: 404 });
+  }
+  if (save.source_kind !== "adapter") {
+    return Response.json(
+      { error: "Save is not adapter-backed" },
+      { status: 400 },
+    );
+  }
+
+  // Rate limiting: check last_updated
+  if (save.last_updated) {
+    const lastUpdated = new Date(save.last_updated).getTime();
+    const cooldownMs = ADAPTER_REFRESH_COOLDOWN_SEC * 1000;
+    const now = Date.now();
+    if (now - lastUpdated < cooldownMs) {
+      const retryAfter = Math.ceil(
+        (cooldownMs - (now - lastUpdated)) / 1000,
+      );
+      return Response.json(
+        {
+          error: "Too many refreshes. Try again later.",
+          retry_after: retryAfter,
+        },
+        { status: 429 },
+      );
+    }
+  }
+
+  // Look up linked character for this save
+  const linkedChar = await env.DB.prepare(
+    `SELECT character_id, character_name, metadata
+     FROM linked_characters
+     WHERE user_uuid = ? AND game_id = ? AND source_uuid = ? AND active = 1
+     AND character_name = ?`,
+  )
+    .bind(userUuid, gameId, save.source_uuid, save.save_name.split("-")[0] ?? "")
+    .first<{
+      character_id: string;
+      character_name: string;
+      metadata: string | null;
+    }>();
+
+  // Parse metadata for realm_slug and region
+  let realmSlug: string;
+  let region: string;
+  if (linkedChar?.metadata) {
+    const meta = JSON.parse(linkedChar.metadata) as Record<string, unknown>;
+    realmSlug = (meta.realm_slug as string) ?? "";
+    region = (meta.region as string) ?? "us";
+  } else {
+    // Fallback: parse from save_name (Name-Realm-REGION)
+    const nameParts = save.save_name.split("-");
+    realmSlug = nameParts[1] ?? "";
+    region = (nameParts[2] ?? "US").toLowerCase();
+  }
+
+  if (!realmSlug) {
+    return Response.json(
+      { error: "Cannot determine character realm" },
+      { status: 400 },
+    );
+  }
+
+  // Look up credentials
+  const creds = await env.DB.prepare(
+    "SELECT access_token_enc, refresh_token_enc, expires_at FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
+  )
+    .bind(userUuid, gameId)
+    .first<{
+      access_token_enc: string;
+      refresh_token_enc: string | null;
+      expires_at: string | null;
+    }>();
+
+  try {
+    const characterName = (linkedChar?.character_name ?? save.save_name.split("-")[0] ?? "").toLowerCase();
+    const gameState = await adapter.fetchState(
+      {
+        characterId: `${realmSlug}/${characterName}`,
+        region,
+        credentials: {
+          accessToken: creds?.access_token_enc ?? "",
+          refreshToken: creds?.refresh_token_enc ?? undefined,
+          expiresAt: creds?.expires_at ?? undefined,
+        },
+      },
+      env,
+    );
+
+    const parsedAt = new Date().toISOString();
+    const bodyString = JSON.stringify(gameState);
+
+    const result = await storePush(
+      env,
+      userUuid,
+      save.source_uuid,
+      gameId,
+      gameState.identity.saveName,
+      gameState.summary,
+      parsedAt,
+      bodyString,
+      gameState.sections,
+    );
+
+    return Response.json(
+      {
+        save_uuid: result.saveUuid,
+        snapshot_timestamp: parsedAt,
+        summary: gameState.summary,
+      },
+      { status: 200 },
+    );
+  } catch (err) {
+    if (err instanceof AdapterError) {
+      const status =
+        err.code === "token_expired"
+          ? 401
+          : err.code === "rate_limited"
+            ? 429
+            : err.code === "character_not_found"
+              ? 404
+              : 502;
+      return Response.json(
+        {
+          error: err.message,
+          code: err.code,
+          retry_after: err.retryAfter,
+          user_action: err.userAction,
+        },
+        { status },
+      );
+    }
+    throw err;
+  }
 }
 
 // -- Plugin Registry -----------------------------------------------
