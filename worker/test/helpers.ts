@@ -90,69 +90,6 @@ export async function closeWs(ws: WebSocket): Promise<void> {
   });
 }
 
-/**
- * Wait for the next message on a WebSocket.
- * Returns the parsed JSON message, or rejects on timeout.
- */
-export function waitForMessage<T = unknown>(ws: WebSocket, timeoutMs = 2000): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      reject(new Error(`Timed out waiting for WebSocket message after ${String(timeoutMs)}ms`));
-    }, timeoutMs);
-
-    ws.addEventListener(
-      "message",
-      (event) => {
-        clearTimeout(timer);
-        try {
-          resolve(JSON.parse(event.data as string) as T);
-        } catch {
-          reject(new Error(`Failed to parse WebSocket message: ${String(event.data)}`));
-        }
-      },
-      { once: true },
-    );
-  });
-}
-
-/**
- * Wait for a WebSocket message that satisfies a predicate, discarding any
- * messages that don't match. Prevents flaky tests caused by interleaved
- * event/state messages arriving in unpredictable order.
- */
-export function waitForMessageMatching<T = unknown>(
-  ws: WebSocket,
-  predicate: (message: Record<string, unknown>) => boolean,
-  timeoutMs = 5000,
-): Promise<T> {
-  return new Promise<T>((resolve, reject) => {
-    const timer = setTimeout(() => {
-      ws.removeEventListener("message", handler);
-      reject(
-        new Error(`Timed out waiting for matching WebSocket message after ${String(timeoutMs)}ms`),
-      );
-    }, timeoutMs);
-
-    function handler(event: MessageEvent) {
-      try {
-        const parsed = JSON.parse(event.data as string) as Record<string, unknown>;
-        if (predicate(parsed)) {
-          clearTimeout(timer);
-          ws.removeEventListener("message", handler);
-          resolve(parsed as T);
-        }
-        // Otherwise: discard and keep listening
-      } catch {
-        clearTimeout(timer);
-        ws.removeEventListener("message", handler);
-        reject(new Error(`Failed to parse WebSocket message: ${String(event.data)}`));
-      }
-    }
-
-    ws.addEventListener("message", handler);
-  });
-}
-
 // -- Binary proto WebSocket helpers -------------------------------------------
 
 /**

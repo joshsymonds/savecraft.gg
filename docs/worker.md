@@ -56,7 +56,7 @@ Real-time communication uses two Durable Object classes that separate concerns:
 **UserHub** — one per user, keyed by user UUID (`env.USER_HUB.get(env.USER_HUB.idFromName(userUUID))`). Handles UI WebSocket connections and aggregates state from all of the user's sources.
 
 - Holds UI WebSocket connections (tagged `"ui"`).
-- Receives forwarded events from SourceHub DOs and broadcasts to connected UI clients with `_sourceId` and `_ts` metadata injected.
+- Receives forwarded events from SourceHub DOs and broadcasts to connected UI clients wrapped in binary `RelayedMessage` (with `source_id` and `server_timestamp`).
 - Stores per-source state snapshots (keyed by source UUID) and merges them into a single `SourceState` envelope when sending to UI clients.
 - On UI connect, sends the merged state snapshot and recent events from D1 for cold-start rendering.
 
