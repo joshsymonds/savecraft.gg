@@ -1851,8 +1851,8 @@ function handleWsRegister(env: Env): Response {
 
         server.send(resultMsg);
         server.close(1000, "Registration complete");
-      } catch (error) {
-        server.close(1011, error instanceof Error ? error.message : "Registration failed");
+      } catch {
+        server.close(1011, "Registration failed");
       }
     })();
   });
