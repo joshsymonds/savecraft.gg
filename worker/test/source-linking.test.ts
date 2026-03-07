@@ -1,7 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, seedSource } from "./helpers";
+import { cleanAll, seedPush, seedSource } from "./helpers";
 
 const TEST_USER = "link-test-user";
 
@@ -180,6 +180,130 @@ describe("Source Linking", () => {
       );
 
       expect(resp.status).toBe(401);
+    });
+  });
+
+  // ── Save reconciliation on link ────────────────────────────
+
+  describe("save reconciliation on link", () => {
+    async function linkSource(sourceUuid: string, userUuid: string): Promise<Response> {
+      const source = await env.DB.prepare("SELECT link_code FROM sources WHERE source_uuid = ?")
+        .bind(sourceUuid)
+        .first<{ link_code: string }>();
+      return SELF.fetch(
+        new Request("https://test-host/api/v1/source/link", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${userUuid}`,
+          },
+          body: JSON.stringify({ code: source!.link_code }),
+        }),
+      );
+    }
+
+    it("adopts orphan saves when source links to user", async () => {
+      const { sourceUuid } = await seedSource(null); // unlinked
+
+      // Seed an orphan save (user_uuid = NULL)
+      await seedPush(
+        null,
+        sourceUuid,
+        "d2r",
+        "Atmus",
+        "Level 89 Paladin",
+        new Date().toISOString(),
+        {
+          stats: { description: "Character stats", data: { level: 89 } },
+        },
+      );
+
+      // Link the source
+      const resp = await linkSource(sourceUuid, TEST_USER);
+      expect(resp.status).toBe(200);
+
+      // Orphan save should now belong to the user
+      const save = await env.DB.prepare(
+        "SELECT user_uuid FROM saves WHERE save_name = 'Atmus' AND game_id = 'd2r'",
+      ).first<{ user_uuid: string }>();
+      expect(save!.user_uuid).toBe(TEST_USER);
+    });
+
+    it("deduplicates: newer orphan replaces older existing save", async () => {
+      const { sourceUuid } = await seedSource(null);
+
+      const oldTime = "2025-01-01T00:00:00.000Z";
+      const newTime = "2025-06-01T00:00:00.000Z";
+
+      // Existing save for the user (older)
+      const existingSaveUuid = await seedPush(
+        TEST_USER,
+        sourceUuid,
+        "d2r",
+        "DedupChar",
+        "Level 50",
+        oldTime,
+        { stats: { description: "Stats", data: { level: 50 } } },
+      );
+
+      // Orphan save from the source (newer)
+      await seedPush(null, sourceUuid, "d2r", "DedupChar", "Level 89", newTime, {
+        stats: { description: "Stats", data: { level: 89 } },
+      });
+
+      // Link
+      const resp = await linkSource(sourceUuid, TEST_USER);
+      expect(resp.status).toBe(200);
+
+      // Should have exactly one save for this user+game+name
+      const saves = await env.DB.prepare(
+        "SELECT uuid, summary FROM saves WHERE user_uuid = ? AND game_id = 'd2r' AND save_name = 'DedupChar'",
+      )
+        .bind(TEST_USER)
+        .all<{ uuid: string; summary: string }>();
+      expect(saves.results.length).toBe(1);
+
+      // The newer one (level 89) should win
+      expect(saves.results[0]!.summary).toBe("Level 89");
+      // Old save should be gone
+      expect(saves.results[0]!.uuid).not.toBe(existingSaveUuid);
+    });
+
+    it("deduplicates: older orphan is discarded when existing save is newer", async () => {
+      const { sourceUuid } = await seedSource(null);
+
+      const oldTime = "2025-01-01T00:00:00.000Z";
+      const newTime = "2025-06-01T00:00:00.000Z";
+
+      // Existing save for the user (newer)
+      const existingSaveUuid = await seedPush(
+        TEST_USER,
+        sourceUuid,
+        "d2r",
+        "DedupChar2",
+        "Level 89",
+        newTime,
+        { stats: { description: "Stats", data: { level: 89 } } },
+      );
+
+      // Orphan save from the source (older)
+      await seedPush(null, sourceUuid, "d2r", "DedupChar2", "Level 50", oldTime, {
+        stats: { description: "Stats", data: { level: 50 } },
+      });
+
+      // Link
+      const resp = await linkSource(sourceUuid, TEST_USER);
+      expect(resp.status).toBe(200);
+
+      // Should have exactly one save — the existing newer one
+      const saves = await env.DB.prepare(
+        "SELECT uuid, summary FROM saves WHERE user_uuid = ? AND game_id = 'd2r' AND save_name = 'DedupChar2'",
+      )
+        .bind(TEST_USER)
+        .all<{ uuid: string; summary: string }>();
+      expect(saves.results.length).toBe(1);
+      expect(saves.results[0]!.uuid).toBe(existingSaveUuid);
+      expect(saves.results[0]!.summary).toBe("Level 89");
     });
   });
 });

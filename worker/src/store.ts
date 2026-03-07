@@ -94,3 +94,58 @@ export async function storePush(
 
   return { saveUuid };
 }
+
+/**
+ * Reconcile orphan saves when a source links to a user.
+ * Adopts saves with user_uuid IS NULL from this source, deduplicating
+ * against any existing saves the user already has (newer wins).
+ */
+export async function reconcileOrphanSaves(
+  env: Env,
+  sourceUuid: string,
+  userUuid: string,
+): Promise<void> {
+  const orphans = await env.DB.prepare(
+    "SELECT uuid, game_id, save_name, last_updated FROM saves WHERE last_source_uuid = ? AND user_uuid IS NULL",
+  )
+    .bind(sourceUuid)
+    .all<{ uuid: string; game_id: string; save_name: string; last_updated: string }>();
+
+  if (orphans.results.length === 0) return;
+
+  const batch: D1PreparedStatement[] = [];
+
+  for (const orphan of orphans.results) {
+    const existing = await env.DB.prepare(
+      "SELECT uuid, last_updated FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
+    )
+      .bind(userUuid, orphan.game_id, orphan.save_name)
+      .first<{ uuid: string; last_updated: string }>();
+
+    if (!existing) {
+      // No conflict — adopt the orphan
+      batch.push(
+        env.DB.prepare("UPDATE saves SET user_uuid = ? WHERE uuid = ?").bind(userUuid, orphan.uuid),
+      );
+    } else if (orphan.last_updated > existing.last_updated) {
+      // Orphan is newer — delete existing, adopt orphan
+      batch.push(
+        env.DB.prepare("DELETE FROM sections WHERE save_uuid = ?").bind(existing.uuid),
+        env.DB.prepare("DELETE FROM search_index WHERE save_id = ?").bind(existing.uuid),
+        env.DB.prepare("DELETE FROM saves WHERE uuid = ?").bind(existing.uuid),
+        env.DB.prepare("UPDATE saves SET user_uuid = ? WHERE uuid = ?").bind(userUuid, orphan.uuid),
+      );
+    } else {
+      // Existing is newer — discard orphan
+      batch.push(
+        env.DB.prepare("DELETE FROM sections WHERE save_uuid = ?").bind(orphan.uuid),
+        env.DB.prepare("DELETE FROM search_index WHERE save_id = ?").bind(orphan.uuid),
+        env.DB.prepare("DELETE FROM saves WHERE uuid = ?").bind(orphan.uuid),
+      );
+    }
+  }
+
+  if (batch.length > 0) {
+    await env.DB.batch(batch);
+  }
+}

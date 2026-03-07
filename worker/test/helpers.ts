@@ -376,7 +376,7 @@ export async function getOAuthToken(userUuid: string): Promise<string> {
  * Seed a save directly via storePush (bypasses HTTP, used for test data setup).
  */
 export async function seedPush(
-  userUuid: string,
+  userUuid: string | null,
   sourceUuid: string,
   gameId: string,
   saveName: string,
