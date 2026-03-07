@@ -50,6 +50,15 @@
         windows: "%LocalAppData%/Larian Studios/Baldur's Gate 3/PlayerProfiles",
       },
     },
+    {
+      gameId: "wow",
+      name: "World of Warcraft",
+      description: "Character profiles via Battle.net API",
+      watched: false,
+      saveCount: 0,
+      isApiGame: true,
+      adapter: { authProvider: "battlenet", regions: ["us", "eu", "kr", "tw"] },
+    },
   ];
 
   const allWatched: PickerGame[] = catalog.map((g, index) => ({
@@ -178,6 +187,18 @@
       games={catalog}
       configurableSources={singleSource}
       onconfigure={timeoutAfter(2000)}
+      onclose={noop}
+    />
+  </div>
+</Story>
+
+<!-- API game: shows "Connect account" badge, click WoW → region picker -->
+<Story name="ApiGame">
+  <div style="width: 560px; position: relative; height: 500px;">
+    <GamePickerModal
+      games={catalog}
+      configurableSources={singleSource}
+      onoauthconnect={(gameId: string, region: string) => alert(`OAuth: ${gameId} (${region})`)}
       onclose={noop}
     />
   </div>

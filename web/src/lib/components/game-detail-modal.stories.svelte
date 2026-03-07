@@ -18,6 +18,7 @@
     sourceId: "src-1",
     sourceName: "DAEMON · JOSH-PC",
     hostname: "josh-pc",
+    sourceKind: "daemon",
     status: "watching",
     path: "~/.local/share/Diablo II Resurrected/Save",
     saveCount: 3,
@@ -27,6 +28,7 @@
     sourceId: "src-2",
     sourceName: "DAEMON · STEAMDECK",
     hostname: "steamdeck",
+    sourceKind: "daemon",
     status: "not_found",
     path: "/home/deck/.local/share/Diablo II Resurrected/Save",
     saveCount: 0,
@@ -36,10 +38,20 @@
     sourceId: "src-3",
     sourceName: "DAEMON · LAPTOP",
     hostname: "laptop",
+    sourceKind: "daemon",
     status: "error",
     path: String.raw`C:\Users\Josh\Saved Games\Diablo II Resurrected`,
     error: "plugin crashed: exit code 1",
     saveCount: 2,
+  };
+
+  const adapterSource: GameSourceEntry = {
+    sourceId: "src-api-1",
+    sourceName: "BATTLE.NET · JOSHY#1234",
+    hostname: null,
+    sourceKind: "adapter",
+    status: "watching",
+    saveCount: 4,
   };
 
   const availableSources = [
@@ -60,7 +72,7 @@
     name: "Diablo II: Resurrected",
     statusLine: "3 saves · 2 sources",
     sourceCount: 2,
-    sources: [watchingSource, { ...watchingSource, sourceId: "src-6", sourceName: "DAEMON · LAPTOP", hostname: "laptop", path: String.raw`C:\Users\Josh\Saved Games\Diablo II Resurrected`, saveCount: 2 }],
+    sources: [watchingSource, { ...watchingSource, sourceId: "src-6", sourceName: "DAEMON · LAPTOP", hostname: "laptop", sourceKind: "daemon", path: String.raw`C:\Users\Josh\Saved Games\Diablo II Resurrected`, saveCount: 2 }],
     needsConfig: false,
     saves: [
       {
@@ -154,12 +166,60 @@
 
   // -- Handlers --
 
+  const wowGame: Game = {
+    gameId: "wow",
+    name: "World of Warcraft",
+    statusLine: "4 saves",
+    sourceCount: 1,
+    sources: [adapterSource],
+    needsConfig: false,
+    saves: [
+      {
+        saveUuid: "w1",
+        saveName: "Thrallgar-Illidan-US",
+        summary: "Orc Warrior · Level 80 · Illidan-US",
+        lastUpdated: "3 hours ago",
+        status: "success",
+        sourceId: "src-api-1",
+        sourceName: "BATTLE.NET · JOSHY#1234",
+      },
+      {
+        saveUuid: "w2",
+        saveName: "Moonfire-Proudmoore-US",
+        summary: "Night Elf Druid · Level 80 · Proudmoore-US",
+        lastUpdated: "1 day ago",
+        status: "success",
+        sourceId: "src-api-1",
+        sourceName: "BATTLE.NET · JOSHY#1234",
+      },
+      {
+        saveUuid: "w3",
+        saveName: "Sparkplug-Illidan-US",
+        summary: "Goblin Shaman · Level 72 · Illidan-US",
+        lastUpdated: "3 days ago",
+        status: "success",
+        sourceId: "src-api-1",
+        sourceName: "BATTLE.NET · JOSHY#1234",
+      },
+      {
+        saveUuid: "w4",
+        saveName: "Holyjosh-Illidan-US",
+        summary: "Human Paladin · Level 45 · Illidan-US",
+        lastUpdated: "1 week ago",
+        status: "success",
+        sourceId: "src-api-1",
+        sourceName: "BATTLE.NET · JOSHY#1234",
+      },
+    ],
+  };
+
   let defaultOpen = $state(true);
   let emptyOpen = $state(true);
   let badgesOpen = $state(true);
   let brokenOpen = $state(true);
   let singleBrokenOpen = $state(true);
   let noSourcesOpen = $state(true);
+  let apiOpen = $state(true);
 
   function handleSaveClick(save: Save) {
     console.log("Save clicked:", save.saveName);
@@ -293,6 +353,22 @@
   {:else}
     <div style="display: flex; justify-content: center; padding: 48px;">
       <button class="demo-btn" onclick={() => { noSourcesOpen = true; }}>REOPEN</button>
+    </div>
+  {/if}
+</Story>
+
+<!-- API game: adapter source with "API" badge, no path editor, no "ADD SOURCE" -->
+<Story name="ApiAdapterGame">
+  {#if apiOpen}
+    <GameDetailModal
+      game={wowGame}
+      onclose={() => { apiOpen = false; }}
+      onsaveclick={handleSaveClick}
+      onremovegame={handleRemoveGame}
+    />
+  {:else}
+    <div style="display: flex; justify-content: center; padding: 48px;">
+      <button class="demo-btn" onclick={() => { apiOpen = true; }}>REOPEN</button>
     </div>
   {/if}
 </Story>
