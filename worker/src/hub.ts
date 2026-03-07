@@ -1198,7 +1198,10 @@ export class SourceHub extends DurableObject<Env> {
   private async handleUnlinkSource(ws: WebSocket, sourceId: string | undefined): Promise<void> {
     try {
       const sourceUuid = sourceId ?? (await this.ctx.storage.get<string>(SOURCE_UUID_KEY));
-      if (!sourceUuid) return;
+      if (!sourceUuid) {
+        this.debugLog.push("warn", "unlinkSource: no sourceUuid available");
+        return;
+      }
 
       // Read current userUuid before clearing, so we can notify UserHub
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
@@ -1257,7 +1260,10 @@ export class SourceHub extends DurableObject<Env> {
   ): Promise<void> {
     try {
       const sourceUuid = sourceId ?? (await this.ctx.storage.get<string>(SOURCE_UUID_KEY));
-      if (!sourceUuid) return;
+      if (!sourceUuid) {
+        this.debugLog.push("warn", "deregisterSource: no sourceUuid available");
+        return;
+      }
 
       const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
 

@@ -17,7 +17,7 @@ Registration and linking are separate concerns:
 
 **Key principle:** The daemon has exactly one network channel to the server — a single WebSocket connection. There are zero HTTP calls except downloading WASM plugin binaries from R2. Registration, save push, status, link notifications, config updates, link-code refresh, unlink, deregister — all flow over WS as proto messages.
 
-**Current gap:** The daemon still uses `internal/regclient/` HTTP calls for link polling, status checks, link-code refresh, unlink, and deregister. These must be replaced with proto messages on the `/ws/source/{uuid}` connection.
+All source management operations (link state, link-code refresh, unlink, deregister) flow over WS as proto messages. The daemon has zero HTTP calls to the server except downloading WASM plugin binaries from R2.
 
 ## Verification
 
