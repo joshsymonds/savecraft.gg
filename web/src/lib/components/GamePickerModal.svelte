@@ -6,7 +6,9 @@
 -->
 <script lang="ts">
   import type { PickerGame } from "$lib/types/source";
+  import { detectOS } from "$lib/utils/platform";
 
+  import ConfigSuccess from "./ConfigSuccess.svelte";
   import GamePickerCard from "./GamePickerCard.svelte";
   import Modal from "./Modal.svelte";
 
@@ -49,13 +51,6 @@
             g.description.toLowerCase().includes(search.toLowerCase()),
         ),
   );
-
-  function detectOS(): "windows" | "linux" | "darwin" {
-    const ua = navigator.userAgent.toLowerCase();
-    if (ua.includes("win")) return "windows";
-    if (ua.includes("mac")) return "darwin";
-    return "linux";
-  }
 
   function enterConfigForm(game: PickerGame, sourceId: string) {
     configGame = game;
@@ -160,10 +155,7 @@
   {:else if step === "configuring"}
     <div class="config-form">
       {#if configState === "success"}
-        <div class="config-success">
-          <span class="success-icon">&#x2713;</span>
-          <span class="success-text">Connected</span>
-        </div>
+        <ConfigSuccess />
       {:else}
         <label class="config-label" for="save-path">Save directory</label>
         <input
@@ -416,26 +408,5 @@
     font-family: var(--font-body);
     font-size: 14px;
     color: var(--color-text-muted);
-  }
-
-  .config-success {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 10px;
-    padding: 24px 0;
-    animation: fade-in 0.2s ease-out;
-  }
-
-  .success-icon {
-    font-size: 24px;
-    color: var(--color-green, #5abe8a);
-  }
-
-  .success-text {
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    color: var(--color-green, #5abe8a);
-    letter-spacing: 2px;
   }
 </style>

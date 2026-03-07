@@ -775,27 +775,34 @@ export class SourceHub extends DurableObject<Env> {
       const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
       if (!sourceUuid) return;
 
-      let anyCreated = false;
-      for (const game of games) {
-        if (!game.gameId || !game.path) continue;
+      const validGames = games.filter(
+        (game): game is typeof game & { gameId: string; path: string } =>
+          Boolean(game.gameId && game.path),
+      );
+      if (validGames.length === 0) return;
 
-        const existing = await this.env.DB.prepare(
-          "SELECT 1 FROM source_configs WHERE source_uuid = ? AND game_id = ?",
-        )
-          .bind(sourceUuid, game.gameId)
-          .first();
+      const gameIds = validGames.map((game) => game.gameId);
+      const placeholders = gameIds.map(() => "?").join(", ");
+      const existingRows = await this.env.DB.prepare(
+        `SELECT game_id FROM source_configs WHERE source_uuid = ? AND game_id IN (${placeholders})`,
+      )
+        .bind(sourceUuid, ...gameIds)
+        .all<{ game_id: string }>();
 
-        if (existing) continue;
+      const existingIds = new Set(existingRows.results.map((row) => row.game_id));
+      const newGames = validGames.filter((game) => !existingIds.has(game.gameId));
+      if (newGames.length === 0) return;
 
-        await this.env.DB.prepare(
-          `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
-           VALUES (?, ?, ?, 1, '[]')`,
-        )
-          .bind(sourceUuid, game.gameId, game.path)
-          .run();
+      await this.env.DB.batch(
+        newGames.map((game) =>
+          this.env.DB.prepare(
+            `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+             VALUES (?, ?, ?, 1, '[]')`,
+          ).bind(sourceUuid, game.gameId, game.path),
+        ),
+      );
 
-        anyCreated = true;
-      }
+      const anyCreated = newGames.length > 0;
 
       if (anyCreated) {
         await this.pushConfigToSource(sourceUuid);
