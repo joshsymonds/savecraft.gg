@@ -20,10 +20,6 @@ database_id = "local"
 migrations_dir = "migrations"
 
 [[r2_buckets]]
-binding = "SAVES"
-bucket_name = "savecraft-saves"
-
-[[r2_buckets]]
 binding = "PLUGINS"
 bucket_name = "savecraft-plugins"
 
@@ -71,10 +67,6 @@ binding = "DB"
 database_name = "savecraft"
 database_id = "df241bb0-9b7d-48e5-a4d4-f84ebf09e6e5"
 migrations_dir = "migrations"
-
-[[env.production.r2_buckets]]
-binding = "SAVES"
-bucket_name = "savecraft-saves"
 
 [[env.production.r2_buckets]]
 binding = "PLUGINS"
@@ -126,10 +118,6 @@ binding = "DB"
 database_name = "savecraft-staging"
 database_id = "0147892e-82e6-413e-a0ef-52f6d8787fdf"
 migrations_dir = "migrations"
-
-[[env.staging.r2_buckets]]
-binding = "SAVES"
-bucket_name = "savecraft-saves-staging"
 
 [[env.staging.r2_buckets]]
 binding = "PLUGINS"

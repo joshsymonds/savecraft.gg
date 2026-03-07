@@ -136,7 +136,7 @@ for (const table of CLEANUP_TABLES) {
 }
 
 // Clean R2 between test files
-for (const bucket of [env.SAVES, env.PLUGINS]) {
+for (const bucket of [env.PLUGINS]) {
   const listed = await bucket.list();
   for (const object of listed.objects) {
     await bucket.delete(object.key);
