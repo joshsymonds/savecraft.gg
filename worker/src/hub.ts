@@ -19,6 +19,8 @@ const USER_UUID_KEY = "userUuid";
 const SOURCE_UUID_KEY = "sourceUuid";
 const META_KEY = "sourceMeta";
 const LINK_CODE_TTL_MINUTES = 20;
+const MAX_SECTIONS = 50;
+const MAX_PUSH_SIZE_BYTES = 1_048_576; // 1MB
 
 function generateSixDigitCode(): string {
   const buf = new Uint32Array(1);
@@ -846,6 +848,12 @@ export class SourceHub extends DurableObject<Env> {
         return;
       }
 
+      const rejection = this.validatePushSave(push);
+      if (rejection) {
+        this.debugLog.push("warn", rejection.reason, rejection.detail);
+        return;
+      }
+
       // Convert proto GameSection[] to Record<string, SectionInput>
       const sections: Record<string, SectionInput> = {};
       for (const section of push.sections) {
@@ -889,6 +897,29 @@ export class SourceHub extends DurableObject<Env> {
       });
       await this.persistErrorEvent("handlePushSave", error);
     }
+  }
+
+  /** Validate PushSave limits. Returns rejection info or null if valid. */
+  private validatePushSave(
+    push: PushSave,
+  ): { reason: string; detail: Record<string, unknown> } | null {
+    if (push.sections.length > MAX_SECTIONS) {
+      return {
+        reason: "pushSave rejected: too many sections",
+        detail: { count: push.sections.length },
+      };
+    }
+    let totalSize = 0;
+    for (const section of push.sections) {
+      totalSize += JSON.stringify(section.data ?? {}).length;
+    }
+    if (totalSize > MAX_PUSH_SIZE_BYTES) {
+      return {
+        reason: "pushSave rejected: total size exceeds limit",
+        detail: { totalSize },
+      };
+    }
+    return null;
   }
 
   /** Synthesize a pushCompleted event: mutate state, persist, and relay to UserHub. */
