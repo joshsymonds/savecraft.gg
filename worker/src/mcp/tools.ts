@@ -183,10 +183,13 @@ async function attachReferenceModules(
     cursor = listed.cursor;
   }
 
-  for (const object of allObjects) {
-    if (!object.key.endsWith("/manifest.json")) continue;
+  const manifestKeys = allObjects
+    .filter((object) => object.key.endsWith("/manifest.json"))
+    .map((object) => object.key);
 
-    const data = await getCachedManifest(plugins, object.key);
+  const manifests = await Promise.all(manifestKeys.map((key) => getCachedManifest(plugins, key)));
+
+  for (const data of manifests) {
     if (!data?.game_id || !data.reference?.modules) continue;
 
     const manifestGameName = data.name ?? data.game_id;

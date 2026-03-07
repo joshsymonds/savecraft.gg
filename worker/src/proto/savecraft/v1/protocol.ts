@@ -493,10 +493,7 @@ export interface GameSection {
   data: { [key: string]: any } | undefined;
 }
 
-/**
- * Source pushing parsed save data to the server over WebSocket.
- * Replaces the former HTTP POST /api/v1/push endpoint.
- */
+/** Source pushing parsed save data to the server over WebSocket. */
 export interface PushSave {
   identity: SaveIdentity | undefined;
   summary: string;

@@ -11,9 +11,9 @@ describe("Source Registration", () => {
   // ── WebSocket registration (/ws/register) ──────────────────────
 
   describe("WS /ws/register", () => {
-    async function connectRegisterWs(): Promise<WebSocket> {
+    async function connectRegisterWs(ip = "127.0.0.1"): Promise<WebSocket> {
       const resp = await SELF.fetch("https://test-host/ws/register", {
-        headers: { Upgrade: "websocket" },
+        headers: { Upgrade: "websocket", "X-Real-IP": ip },
       });
       const ws = resp.webSocket;
       if (!ws) throw new Error(`WS upgrade failed: ${String(resp.status)}`);
