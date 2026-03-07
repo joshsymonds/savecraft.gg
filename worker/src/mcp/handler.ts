@@ -14,7 +14,6 @@ import {
   getNote,
   getSave,
   getSection,
-  getSectionDiff,
   getSetupHelp,
   listGames,
   queryReference,
@@ -142,7 +141,7 @@ const TOOLS: ToolDefinition[] = [
     name: "get_section",
     title: "Get Section Data",
     description:
-      "Fetch detailed section data from a save. Pass one or more section names to retrieve. Only fetch sections relevant to the question — don't load everything. Supports historical queries via optional timestamp.",
+      "Fetch detailed section data from a save. Pass one or more section names to retrieve. Only fetch sections relevant to the question — don't load everything.",
     inputSchema: {
       type: "object",
       properties: {
@@ -153,38 +152,8 @@ const TOOLS: ToolDefinition[] = [
             "Section names to fetch (from get_save's section listing). Pass one name or several.",
           items: { type: "string" },
         },
-        timestamp: {
-          type: "string",
-          description:
-            "ISO 8601 timestamp to fetch a historical snapshot instead of the latest data. Timestamps are visible in list_games last_updated field.",
-        },
       },
       required: ["save_id", "sections"],
-    },
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: false,
-    },
-  },
-  {
-    name: "get_section_diff",
-    title: "Compare Section Changes",
-    description:
-      'Compare a section\'s data between now and a past point in time. Returns specific fields with old and new values. Use when the player asks about progression, recent changes, or "what\'s different since last session." Specify a time period like "24 hours", "3 days", "1 week", or "last session".',
-    inputSchema: {
-      type: "object",
-      properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_games" },
-        section: { type: "string", description: "Section name to compare (from get_save)" },
-        period: {
-          type: "string",
-          description:
-            'How far back to compare. Examples: "24 hours", "3 days", "1 week", "last session", "this week".',
-        },
-      },
-      required: ["save_id", "section", "period"],
     },
     annotations: {
       readOnlyHint: true,
@@ -452,28 +421,11 @@ async function handleToolCall(
       return listGames(env.DB, env.PLUGINS, userUuid, args.filter as string | undefined);
     }
     case "get_save": {
-      return getSave(env.DB, env.SAVES, userUuid, saveId);
+      return getSave(env.DB, userUuid, saveId);
     }
     case "get_section": {
       const sections = parseSectionsArgument(args.sections) ?? [];
-      return getSection(
-        env.DB,
-        env.SAVES,
-        userUuid,
-        saveId,
-        sections,
-        args.timestamp as string | undefined,
-      );
-    }
-    case "get_section_diff": {
-      return getSectionDiff(
-        env.DB,
-        env.SAVES,
-        userUuid,
-        saveId,
-        args.section as string,
-        args.period as string,
-      );
+      return getSection(env.DB, userUuid, saveId, sections);
     }
     case "get_note": {
       return getNote(env.DB, userUuid, saveId, args.note_id as string);

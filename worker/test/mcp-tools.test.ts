@@ -8,7 +8,6 @@ import {
   getNote,
   getSave,
   getSection,
-  getSectionDiff,
   getSetupHelp,
   indexSaveSections,
   listGames,
@@ -93,18 +92,17 @@ async function seedSave(options: {
     .run();
 
   const state = options.gameState ?? sampleGameState;
-  const key = `saves/${options.saveUuid}/latest.json`;
-  await env.SAVES.put(key, JSON.stringify(state));
-}
-
-async function seedSnapshot(
-  _userUuid: string,
-  saveUuid: string,
-  timestamp: string,
-  gameState: typeof sampleGameState,
-): Promise<void> {
-  const key = `saves/${saveUuid}/snapshots/${timestamp}.json`;
-  await env.SAVES.put(key, JSON.stringify(gameState));
+  const sectionBatch: D1PreparedStatement[] = [];
+  for (const [name, section] of Object.entries(state.sections)) {
+    sectionBatch.push(
+      env.DB.prepare(
+        "INSERT OR REPLACE INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+      ).bind(options.saveUuid, name, section.description, JSON.stringify(section.data)),
+    );
+  }
+  if (sectionBatch.length > 0) {
+    await env.DB.batch(sectionBatch);
+  }
 }
 
 function parseResult(result: ToolResult): unknown {
@@ -314,7 +312,7 @@ describe("MCP Tools", () => {
   // ── get_section ─────────────────────────────────────────────
 
   describe("getSection", () => {
-    it("returns requested section data from R2", async () => {
+    it("returns requested section data from D1", async () => {
       await seedSave({
         saveUuid: "save-section",
         userUuid: USER_A,
@@ -323,7 +321,7 @@ describe("MCP Tools", () => {
         summary: "Paladin, Level 89",
       });
 
-      const result = await getSection(env.DB, env.SAVES, USER_A, "save-section", ["equipped_gear"]);
+      const result = await getSection(env.DB,USER_A, "save-section", ["equipped_gear"]);
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -345,7 +343,7 @@ describe("MCP Tools", () => {
         summary: "Paladin, Level 89",
       });
 
-      const result = await getSection(env.DB, env.SAVES, USER_A, "save-multi", [
+      const result = await getSection(env.DB,USER_A, "save-multi", [
         "equipped_gear",
         "skills",
       ]);
@@ -368,7 +366,7 @@ describe("MCP Tools", () => {
         summary: "Paladin, Level 89",
       });
 
-      const result = await getSection(env.DB, env.SAVES, USER_A, "save-nosec", ["nonexistent"]);
+      const result = await getSection(env.DB,USER_A, "save-nosec", ["nonexistent"]);
       expect(result.isError).toBe(true);
     });
 
@@ -381,26 +379,12 @@ describe("MCP Tools", () => {
         summary: "Sorceress, Level 80",
       });
 
-      const result = await getSection(env.DB, env.SAVES, USER_A, "save-other-sec", [
+      const result = await getSection(env.DB,USER_A, "save-other-sec", [
         "equipped_gear",
       ]);
       expect(result.isError).toBe(true);
     });
 
-    it("stores camelCase identity from push and reads it back", async () => {
-      await seedSave({
-        saveUuid: "save-fmt-check",
-        userUuid: USER_A,
-        gameId: "d2r",
-        saveName: "FormatTest",
-        summary: "Format test",
-      });
-
-      const object = await env.SAVES.get("saves/save-fmt-check/latest.json");
-      expect(object).not.toBeNull();
-      const data = await object!.json<{ identity: Record<string, unknown> }>();
-      expect(data.identity.gameId).toBe("d2r");
-    });
   });
 
   // ── get_save ────────────────────────────────────────────────
@@ -415,7 +399,7 @@ describe("MCP Tools", () => {
         summary: "Hammerdin, Level 89 Paladin",
       });
 
-      const result = await getSave(env.DB, env.SAVES, USER_A, "save-overview");
+      const result = await getSave(env.DB,USER_A, "save-overview");
       expect(result.isError).toBeUndefined();
 
       const data = parseResult(result) as {
@@ -439,12 +423,12 @@ describe("MCP Tools", () => {
         summary: "Sorceress, Level 80",
       });
 
-      const result = await getSave(env.DB, env.SAVES, USER_A, "save-other-get");
+      const result = await getSave(env.DB,USER_A, "save-other-get");
       expect(result.isError).toBe(true);
     });
 
     it("returns error for non-existent save", async () => {
-      const result = await getSave(env.DB, env.SAVES, USER_A, "nonexistent");
+      const result = await getSave(env.DB,USER_A, "nonexistent");
       expect(result.isError).toBe(true);
     });
   });
@@ -519,79 +503,6 @@ describe("MCP Tools", () => {
       const ids = data.results.map((r) => r.save_id);
       expect(ids).toContain("save-fts-mine");
       expect(ids).not.toContain("save-fts-theirs");
-    });
-  });
-
-  // ── get_section_diff ────────────────────────────────────────
-
-  describe("getSectionDiff", () => {
-    it("returns diff between two snapshots", async () => {
-      await seedSave({
-        saveUuid: "save-diff",
-        userUuid: USER_A,
-        gameId: "d2r",
-        saveName: "DiffChar",
-        summary: "Level 89",
-      });
-
-      const olderState = {
-        ...sampleGameState,
-        sections: {
-          ...sampleGameState.sections,
-          character_overview: {
-            ...sampleGameState.sections.character_overview,
-            data: { name: "DiffChar", class: "Paladin", level: 88, difficulty: "Hell" },
-          },
-        },
-      };
-      const newerState = {
-        ...sampleGameState,
-        sections: {
-          ...sampleGameState.sections,
-          character_overview: {
-            ...sampleGameState.sections.character_overview,
-            data: { name: "DiffChar", class: "Paladin", level: 89, difficulty: "Hell" },
-          },
-        },
-      };
-
-      // Seed older snapshot well in the past so "1 hour" period finds it
-      const now = new Date();
-      const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000).toISOString();
-      const justNow = new Date(now.getTime() - 1000).toISOString();
-      await seedSnapshot(USER_A, "save-diff", oneHourAgo, olderState);
-      await seedSnapshot(USER_A, "save-diff", justNow, newerState);
-
-      const result = await getSectionDiff(
-        env.DB,
-        env.SAVES,
-        USER_A,
-        "save-diff",
-        "character_overview",
-        "2 hours",
-      );
-      expect(result.isError).toBeUndefined();
-
-      const data = parseResult(result) as {
-        section: string;
-        from_timestamp: string;
-        to_timestamp: string;
-        changes: unknown;
-      };
-      expect(data.section).toBe("character_overview");
-      expect(data.changes).toBeTruthy();
-    });
-
-    it("returns error for non-existent save", async () => {
-      const result = await getSectionDiff(
-        env.DB,
-        env.SAVES,
-        USER_A,
-        "nonexistent",
-        "skills",
-        "1 hour",
-      );
-      expect(result.isError).toBe(true);
     });
   });
 

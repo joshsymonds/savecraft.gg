@@ -27,23 +27,14 @@ interface SaveRow {
   last_source_uuid: string | null;
 }
 
-interface GameStateSection {
-  description: string;
-  data: unknown;
-}
-
-interface GameState {
-  identity: {
-    saveName: string;
-    gameId: string;
-    extra?: Record<string, unknown>;
-  };
-  summary: string;
-  sections: Record<string, GameStateSection>;
-}
-
 /** Maximum bytes for a single section's JSON before we reject it (~20K tokens). */
 export const SECTION_SIZE_LIMIT = 80 * 1024;
+
+interface SectionRow {
+  name: string;
+  description: string;
+  data: string;
+}
 
 function textResult(data: unknown): ToolResult {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
@@ -64,23 +55,6 @@ async function lookupSave(
     .first<SaveRow>();
 }
 
-async function loadLatestSnapshot(snapshots: R2Bucket, saveId: string): Promise<GameState | null> {
-  const key = `saves/${saveId}/latest.json`;
-  const object = await snapshots.get(key);
-  if (!object) return null;
-  return object.json<GameState>();
-}
-
-async function loadSnapshotAtTimestamp(
-  snapshots: R2Bucket,
-  saveId: string,
-  timestamp: string,
-): Promise<GameState | null> {
-  const key = `saves/${saveId}/snapshots/${timestamp}.json`;
-  const object = await snapshots.get(key);
-  if (!object) return null;
-  return object.json<GameState>();
-}
 
 interface NotePreviewRow {
   note_id: string;
@@ -247,7 +221,6 @@ const OVERVIEW_SECTION_NAMES = ["character_overview", "player_summary", "overvie
 
 export async function getSave(
   db: D1Database,
-  snapshots: R2Bucket,
   userUuid: string,
   saveId: string,
 ): Promise<ToolResult> {
@@ -255,30 +228,33 @@ export async function getSave(
   if (!save)
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
-  const state = await loadLatestSnapshot(snapshots, saveId);
-  if (!state)
-    return errorResult(
-      "No snapshot data available for this save. The daemon may not have pushed data yet.",
-    );
+  const sectionRows = await db
+    .prepare("SELECT name, description, data FROM sections WHERE save_uuid = ? ORDER BY name")
+    .bind(saveId)
+    .all<SectionRow>();
 
-  const sections = Object.entries(state.sections).map(([name, section]) => ({
-    name,
-    description: section.description,
+  if (sectionRows.results.length === 0) {
+    return errorResult(
+      "No section data available for this save. The daemon may not have pushed data yet.",
+    );
+  }
+
+  const sections = sectionRows.results.map((row) => ({
+    name: row.name,
+    description: row.description,
   }));
 
   // Find overview section data for quick context
   let overview: unknown = null;
   for (const name of OVERVIEW_SECTION_NAMES) {
-    if (state.sections[name]) {
-      overview = state.sections[name].data;
+    const row = sectionRows.results.find((r) => r.name === name);
+    if (row) {
+      overview = JSON.parse(row.data) as unknown;
       break;
     }
   }
-  if (!overview) {
-    const firstSection = Object.values(state.sections)[0];
-    if (firstSection) {
-      overview = firstSection.data;
-    }
+  if (!overview && sectionRows.results[0]) {
+    overview = JSON.parse(sectionRows.results[0].data) as unknown;
   }
 
   // Include note metadata so the AI sees notes without a separate call
@@ -305,80 +281,11 @@ export async function getSave(
   });
 }
 
-function fetchMultipleSections(
-  allSections: Record<string, GameStateSection>,
-  names: string[],
-  saveId: string,
-  timestamp?: string,
-): ToolResult {
-  const result: Record<string, unknown> = {};
-  const missing: string[] = [];
-  const oversized: string[] = [];
-  for (const name of names) {
-    const sectionData = allSections[name];
-    if (!sectionData) {
-      missing.push(name);
-      continue;
-    }
-    const json = JSON.stringify(sectionData.data);
-    const byteSize = new TextEncoder().encode(json).length;
-    if (byteSize > SECTION_SIZE_LIMIT) {
-      oversized.push(`${name} (${String(Math.round(byteSize / 1024))}KB)`);
-    } else {
-      result[name] = sectionData.data;
-    }
-  }
-  if (missing.length > 0 && Object.keys(result).length === 0 && oversized.length === 0) {
-    return errorResult(
-      `None of the requested sections were found: ${missing.join(", ")}. Call get_save to see available section names.`,
-    );
-  }
-  const response: Record<string, unknown> = { save_id: saveId, sections: result };
-  if (missing.length > 0) response.missing = missing;
-  if (oversized.length > 0) response.oversized = oversized;
-  if (timestamp) response.timestamp = timestamp;
-  return textResult(response);
-}
-
-function fetchSingleSection(
-  allSections: Record<string, GameStateSection>,
-  name: string,
-  saveId: string,
-  timestamp?: string,
-): ToolResult {
-  const sectionData = allSections[name];
-  if (!sectionData) {
-    return errorResult(
-      `Section '${name}' not found in this save. Call get_save to see available section names.`,
-    );
-  }
-
-  const json = JSON.stringify(sectionData.data);
-  const byteSize = new TextEncoder().encode(json).length;
-  if (byteSize > SECTION_SIZE_LIMIT) {
-    const sizeKb = String(Math.round(byteSize / 1024));
-    const limitKb = String(SECTION_SIZE_LIMIT / 1024);
-    return errorResult(
-      `Section '${name}' is too large (${sizeKb}KB, limit is ${limitKb}KB). This section contains too much data for a single response. Try requesting a more specific sub-section from get_save's section listing.`,
-    );
-  }
-
-  const result: Record<string, unknown> = {
-    save_id: saveId,
-    section: name,
-    data: sectionData.data,
-  };
-  if (timestamp) result.timestamp = timestamp;
-  return textResult(result);
-}
-
 export async function getSection(
   db: D1Database,
-  snapshots: R2Bucket,
   userUuid: string,
   saveId: string,
   sections: string[],
-  timestamp?: string,
 ): Promise<ToolResult> {
   if (sections.length === 0) {
     return errorResult(
@@ -390,242 +297,61 @@ export async function getSection(
   if (!save)
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
 
-  const state = timestamp
-    ? await loadSnapshotAtTimestamp(snapshots, saveId, timestamp)
-    : await loadLatestSnapshot(snapshots, saveId);
-  if (!state) {
+  // Query requested sections from D1
+  const placeholders = sections.map(() => "?").join(", ");
+  const rows = await db
+    .prepare(`SELECT name, data FROM sections WHERE save_uuid = ? AND name IN (${placeholders})`)
+    .bind(saveId, ...sections)
+    .all<{ name: string; data: string }>();
+
+  if (rows.results.length === 0) {
     return errorResult(
-      timestamp
-        ? `No snapshot found at ${timestamp}. The save may not have been updated at that time.`
-        : "No snapshot data available for this save. The daemon may not have pushed data yet.",
+      `None of the requested sections were found: ${sections.join(", ")}. Call get_save to see available section names.`,
     );
   }
 
+  // Single section — return flat result
   if (sections.length === 1) {
-    const sectionName = sections[0] ?? "";
-    return fetchSingleSection(state.sections, sectionName, saveId, timestamp);
-  }
-
-  return fetchMultipleSections(state.sections, sections, saveId, timestamp);
-}
-
-/** Parse a natural language period into milliseconds. Returns null if unrecognized. */
-function parsePeriod(period: string): number | null {
-  const normalized = period.trim().toLowerCase().replaceAll(/\s+/g, " ");
-  const pattern = /^(\d+)\s*(hour|hr|h|day|d|week|wk|w|month|mo|m)s?$/;
-  const match = pattern.exec(normalized);
-  if (!match) {
-    // Named shortcuts
-    const shortcuts: Record<string, number> = {
-      "last session": 24 * 60 * 60 * 1000,
-      today: 24 * 60 * 60 * 1000,
-      yesterday: 48 * 60 * 60 * 1000,
-      "this week": 7 * 24 * 60 * 60 * 1000,
-      "last week": 14 * 24 * 60 * 60 * 1000,
-    };
-    return shortcuts[normalized] ?? null;
-  }
-
-  const amount = Number.parseInt(match[1] ?? "0", 10);
-  if (amount <= 0) return null;
-
-  const unit = match[2] ?? "";
-  const unitMs: Record<string, number> = {
-    hour: 3_600_000,
-    hr: 3_600_000,
-    h: 3_600_000,
-    day: 86_400_000,
-    d: 86_400_000,
-    week: 604_800_000,
-    wk: 604_800_000,
-    w: 604_800_000,
-    month: 2_592_000_000,
-    mo: 2_592_000_000,
-    m: 2_592_000_000,
-  };
-
-  return amount * (unitMs[unit] ?? 0);
-}
-
-/**
- * List available snapshot timestamps for a save in R2, sorted oldest-first.
- * Snapshots live at: saves/{saveId}/snapshots/{timestamp}.json
- */
-async function listSnapshotTimestamps(snapshots: R2Bucket, saveId: string): Promise<string[]> {
-  const prefix = `saves/${saveId}/snapshots/`;
-  const allObjects: R2Object[] = [];
-  let cursor: string | undefined;
-
-  // Paginate through all R2 results
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- R2 pagination loop
-  while (true) {
-    const listed = await snapshots.list({ prefix, cursor });
-    allObjects.push(...listed.objects);
-    if (!listed.truncated) break;
-    cursor = listed.cursor;
-  }
-
-  return allObjects
-    .map((r2Object) => r2Object.key.slice(prefix.length).replaceAll(".json", ""))
-    .toSorted((a, b) => a.localeCompare(b));
-}
-
-/**
- * Find the snapshot timestamp closest to a target time.
- * Prefers snapshots at or before the target, but if none exist,
- * returns the first snapshot after the target (the oldest available
- * within the period).
- */
-function findClosestSnapshot(timestamps: string[], targetIso: string): string | undefined {
-  let bestBefore: string | undefined;
-  let firstAfter: string | undefined;
-  for (const ts of timestamps) {
-    if (ts <= targetIso) {
-      bestBefore = ts;
-    } else if (!firstAfter) {
-      firstAfter = ts;
-      break;
+    const row = rows.results[0];
+    if (!row) {
+      return errorResult(
+        `Section '${sections[0] ?? ""}' not found in this save. Call get_save to see available section names.`,
+      );
     }
-  }
-  return bestBefore ?? firstAfter;
-}
-
-/** Format a duration in ms as a human-readable string. */
-function formatDuration(ms: number): string {
-  if (ms < 86_400_000) return `${String(Math.round(ms / 3_600_000))} hours`;
-  if (ms < 604_800_000) return `${String(Math.round(ms / 86_400_000))} days`;
-  return `${String(Math.round(ms / 604_800_000))} weeks`;
-}
-
-export async function getSectionDiff(
-  db: D1Database,
-  snapshots: R2Bucket,
-  userUuid: string,
-  saveId: string,
-  section: string,
-  period: string,
-): Promise<ToolResult> {
-  const save = await lookupSave(db, userUuid, saveId);
-  if (!save)
-    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
-
-  const periodMs = parsePeriod(period);
-  if (!periodMs) {
-    return errorResult(
-      `Unrecognized period: "${period}". Use natural language like "24 hours", "3 days", "1 week", "last session", or "this week".`,
-    );
+    const byteSize = new TextEncoder().encode(row.data).length;
+    if (byteSize > SECTION_SIZE_LIMIT) {
+      const sizeKb = String(Math.round(byteSize / 1024));
+      const limitKb = String(SECTION_SIZE_LIMIT / 1024);
+      return errorResult(
+        `Section '${row.name}' is too large (${sizeKb}KB, limit is ${limitKb}KB). This section contains too much data for a single response.`,
+      );
+    }
+    return textResult({
+      save_id: saveId,
+      section: row.name,
+      data: JSON.parse(row.data) as unknown,
+    });
   }
 
-  const timestamps = await listSnapshotTimestamps(snapshots, saveId);
-  if (timestamps.length < 2) {
-    return errorResult(
-      "Not enough snapshots to compare. The save needs at least two snapshots for a diff — this happens automatically as the game is played and saves update.",
-    );
-  }
-
-  const now = new Date();
-  const fromTarget = new Date(now.getTime() - periodMs).toISOString();
-  const toTimestamp = timestamps.at(-1);
-  if (!toTimestamp) {
-    return errorResult("Not enough snapshots to compare.");
-  }
-  const fromTimestamp = findClosestSnapshot(timestamps, fromTarget);
-
-  if (!fromTimestamp || fromTimestamp === toTimestamp) {
-    // No snapshot old enough — suggest a shorter range
-    const oldestTs = timestamps[0] ?? toTimestamp;
-    const availableSpan = now.getTime() - new Date(oldestTs).getTime();
-    return errorResult(
-      `No snapshot found from ${period} ago. The oldest snapshot is from ${formatDuration(availableSpan)} ago. Try a shorter period like "${formatDuration(availableSpan)}".`,
-    );
-  }
-
-  const fromState = await loadSnapshotAtTimestamp(snapshots, saveId, fromTimestamp);
-  const toState = await loadSnapshotAtTimestamp(snapshots, saveId, toTimestamp);
-
-  if (!fromState || !toState) {
-    return errorResult("Failed to load snapshots for comparison.");
-  }
-
-  const fromSection = fromState.sections[section];
-  if (!fromSection)
-    return errorResult(
-      `Section '${section}' not found in older snapshot. Call get_save to see available section names.`,
-    );
-
-  const toSection = toState.sections[section];
-  if (!toSection)
-    return errorResult(
-      `Section '${section}' not found in newer snapshot. Call get_save to see available section names.`,
-    );
-
-  const changes = diffObjects(fromSection.data, toSection.data, "");
-
-  // Check if the diff response is too large
-  const changesJson = JSON.stringify(changes);
-  const byteSize = new TextEncoder().encode(changesJson).length;
-  if (byteSize > SECTION_SIZE_LIMIT) {
-    // Suggest a narrower range by halving the period
-    const halfPeriod = formatDuration(periodMs / 2);
-    return errorResult(
-      `The diff for '${section}' over ${period} is too large (${String(Math.round(byteSize / 1024))}KB). Too many changes occurred. Try a shorter period like "${halfPeriod}".`,
-    );
-  }
-
-  return textResult({
-    save_id: saveId,
-    section,
-    from: fromTimestamp,
-    to: toTimestamp,
-    period,
-    changes,
-  });
-}
-
-interface DiffChange {
-  path: string;
-  old: unknown;
-  new: unknown;
-}
-
-function isComparableObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-/**
- * Recursively diff two objects, producing a flat list of {path, old, new} changes.
- */
-function diffObjects(oldObject: unknown, newObject: unknown, prefix: string): DiffChange[] {
-  if (oldObject === newObject) return [];
-
-  if (!isComparableObject(oldObject) || !isComparableObject(newObject)) {
-    return prefix ? [{ path: prefix, old: oldObject, new: newObject }] : [];
-  }
-
-  return diffRecords(oldObject, newObject, prefix);
-}
-
-function diffRecords(
-  oldRecord: Record<string, unknown>,
-  newRecord: Record<string, unknown>,
-  prefix: string,
-): DiffChange[] {
-  const changes: DiffChange[] = [];
-  const allKeys = new Set([...Object.keys(oldRecord), ...Object.keys(newRecord)]);
-
-  for (const key of allKeys) {
-    const childPath = prefix ? `${prefix}.${key}` : key;
-    const oldValue = oldRecord[key];
-    const newValue = newRecord[key];
-
-    if (isComparableObject(oldValue) && isComparableObject(newValue)) {
-      changes.push(...diffObjects(oldValue, newValue, childPath));
-    } else if (oldValue !== newValue) {
-      changes.push({ path: childPath, old: oldValue, new: newValue });
+  // Multiple sections
+  const result: Record<string, unknown> = {};
+  const oversized: string[] = [];
+  for (const row of rows.results) {
+    const byteSize = new TextEncoder().encode(row.data).length;
+    if (byteSize > SECTION_SIZE_LIMIT) {
+      oversized.push(`${row.name} (${String(Math.round(byteSize / 1024))}KB)`);
+    } else {
+      result[row.name] = JSON.parse(row.data) as unknown;
     }
   }
 
-  return changes;
+  const found = new Set(rows.results.map((r) => r.name));
+  const missing = sections.filter((s) => !found.has(s));
+
+  const response: Record<string, unknown> = { save_id: saveId, sections: result };
+  if (missing.length > 0) response.missing = missing;
+  if (oversized.length > 0) response.oversized = oversized;
+  return textResult(response);
 }
 
 // ── Note tools ───────────────────────────────────────────────
