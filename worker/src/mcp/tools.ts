@@ -150,6 +150,23 @@ function groupSavesByGame(
   return gameMap;
 }
 
+/** Per-isolate manifest cache — avoids repeated R2 reads on every list_games call. */
+const manifestCache = new Map<string, { data: ManifestData; fetchedAt: number }>();
+const MANIFEST_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+
+/** Fetch a manifest from R2, using a per-isolate cache with 5-minute TTL. */
+async function getCachedManifest(plugins: R2Bucket, key: string): Promise<ManifestData | null> {
+  const cached = manifestCache.get(key);
+  if (cached && Date.now() - cached.fetchedAt < MANIFEST_CACHE_TTL_MS) {
+    return cached.data;
+  }
+  const manifest = await plugins.get(key);
+  if (!manifest) return null;
+  const data = await manifest.json<ManifestData>();
+  manifestCache.set(key, { data, fetchedAt: Date.now() });
+  return data;
+}
+
 /** Scan R2 manifests and attach reference modules to game entries. */
 async function attachReferenceModules(
   plugins: R2Bucket,
@@ -168,11 +185,9 @@ async function attachReferenceModules(
 
   for (const object of allObjects) {
     if (!object.key.endsWith("/manifest.json")) continue;
-    const manifest = await plugins.get(object.key);
-    if (!manifest) continue;
 
-    const data = await manifest.json<ManifestData>();
-    if (!data.game_id || !data.reference?.modules) continue;
+    const data = await getCachedManifest(plugins, object.key);
+    if (!data?.game_id || !data.reference?.modules) continue;
 
     const manifestGameName = data.name ?? data.game_id;
     if (filter && !matchesGameFilter(data.game_id, manifestGameName, filter)) continue;
@@ -198,12 +213,14 @@ export async function listGames(
   userUuid: string,
   filter?: string,
 ): Promise<ToolResult> {
-  const saveRows = await db
-    .prepare(`SELECT * FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC LIMIT 500`)
-    .bind(userUuid)
-    .all<SaveRow>();
+  const [saveRows, notesBySave] = await Promise.all([
+    db
+      .prepare(`SELECT * FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC LIMIT 500`)
+      .bind(userUuid)
+      .all<SaveRow>(),
+    fetchNotesBySave(db, userUuid),
+  ]);
 
-  const notesBySave = await fetchNotesBySave(db, userUuid);
   const gameMap = groupSavesByGame(saveRows.results, notesBySave, filter);
   await attachReferenceModules(plugins, gameMap, filter);
 

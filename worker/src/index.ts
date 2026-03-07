@@ -422,7 +422,7 @@ async function routeWebSocketEndpoints(
     if (request.headers.get("Upgrade") !== "websocket") {
       return new Response("Expected WebSocket upgrade", { status: 426 });
     }
-    return handleWsRegister(env);
+    return handleWsRegister(request, env);
   }
   if (url.pathname === "/ws/ui") {
     const auth = await authenticateSession(request, env);
@@ -1693,15 +1693,31 @@ async function handleSourceLink(request: Request, env: Env, userUuid: string): P
  * Unauthenticated — new sources connect, send a Register message,
  * receive RegisterResult with credentials, then disconnect.
  */
-function handleWsRegister(env: Env): Response {
+const REGISTER_RATE_LIMIT = 10; // max unlinked registrations per IP per hour
+
+function handleWsRegister(request: Request, env: Env): Response {
   const pair = new WebSocketPair();
   const client = pair[0];
   const server = pair[1];
+  const ip = request.headers.get("CF-Connecting-IP") ?? request.headers.get("X-Real-IP");
 
   server.accept();
   server.addEventListener("message", (event: MessageEvent) => {
     void (async () => {
       try {
+        // Rate-limit by IP before processing
+        if (ip) {
+          const recent = await env.DB.prepare(
+            "SELECT COUNT(*) as cnt FROM sources WHERE ip = ? AND user_uuid IS NULL AND created_at > datetime('now', '-1 hour')",
+          )
+            .bind(ip)
+            .first<{ cnt: number }>();
+          if (recent && recent.cnt >= REGISTER_RATE_LIMIT) {
+            server.close(1008, "Too many registrations");
+            return;
+          }
+        }
+
         const data =
           typeof event.data === "string"
             ? new TextEncoder().encode(event.data)
@@ -1726,8 +1742,8 @@ function handleWsRegister(env: Env): Response {
         const linkCodeExpiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000);
 
         await env.DB.prepare(
-          `INSERT INTO sources (source_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO sources (source_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch, ip)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         )
           .bind(
             sourceUuid,
@@ -1737,6 +1753,7 @@ function handleWsRegister(env: Env): Response {
             hostname || null,
             os || null,
             arch || null,
+            ip,
           )
           .run();
 
