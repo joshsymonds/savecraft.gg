@@ -172,6 +172,14 @@ export interface Message {
     /** User actions: UI → server → source (70-79) */
     { $case: "testPath"; testPath: TestPath }
     | { $case: "testPathResult"; testPathResult: TestPathResult }
+    | //
+    /** Registration: unauthenticated source → server (80-89) */
+    { $case: "register"; register: Register }
+    | { $case: "registerResult"; registerResult: RegisterResult }
+    | //
+    /** Save data: source → server → source (90-99) */
+    { $case: "pushSave"; pushSave: PushSave }
+    | { $case: "pushSaveResult"; pushSaveResult: PushSaveResult }
     | undefined;
 }
 
@@ -453,6 +461,49 @@ export interface SourceUpdateFailed {
   message: string;
 }
 
+/** New source requesting credentials. Sent over unauthenticated /ws/register. */
+export interface Register {
+  hostname: string;
+  os: string;
+  arch: string;
+}
+
+/** Server response to Register with credentials and initial link code. */
+export interface RegisterResult {
+  sourceUuid: string;
+  sourceToken: string;
+  linkCode: string;
+  linkCodeExpiresAt: Date | undefined;
+}
+
+/**
+ * A single named section of parsed game state.
+ * Section data is arbitrary per-game JSON represented as Struct.
+ */
+export interface GameSection {
+  name: string;
+  description: string;
+  data: { [key: string]: any } | undefined;
+}
+
+/**
+ * Source pushing parsed save data to the server over WebSocket.
+ * Replaces the former HTTP POST /api/v1/push endpoint.
+ */
+export interface PushSave {
+  identity: SaveIdentity | undefined;
+  summary: string;
+  sections: GameSection[];
+  parsedAt: Date | undefined;
+  gameId: string;
+}
+
+/** Server response to PushSave with the resolved save UUID. */
+export interface PushSaveResult {
+  saveUuid: string;
+  snapshotTimestamp: Date | undefined;
+}
+
 /**
  * Compact save identity for display in status events and UI.
  * Derived from the full GameState identity emitted by the plugin.
@@ -562,6 +613,18 @@ export const Message: MessageFns<Message> = {
         break;
       case "testPathResult":
         TestPathResult.encode(message.payload.testPathResult, writer.uint32(570).fork()).join();
+        break;
+      case "register":
+        Register.encode(message.payload.register, writer.uint32(642).fork()).join();
+        break;
+      case "registerResult":
+        RegisterResult.encode(message.payload.registerResult, writer.uint32(650).fork()).join();
+        break;
+      case "pushSave":
+        PushSave.encode(message.payload.pushSave, writer.uint32(722).fork()).join();
+        break;
+      case "pushSaveResult":
+        PushSaveResult.encode(message.payload.pushSaveResult, writer.uint32(730).fork()).join();
         break;
     }
     return writer;
@@ -838,6 +901,38 @@ export const Message: MessageFns<Message> = {
           message.payload = { $case: "testPathResult", testPathResult: TestPathResult.decode(reader, reader.uint32()) };
           continue;
         }
+        case 80: {
+          if (tag !== 642) {
+            break;
+          }
+
+          message.payload = { $case: "register", register: Register.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 81: {
+          if (tag !== 650) {
+            break;
+          }
+
+          message.payload = { $case: "registerResult", registerResult: RegisterResult.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 90: {
+          if (tag !== 722) {
+            break;
+          }
+
+          message.payload = { $case: "pushSave", pushSave: PushSave.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 91: {
+          if (tag !== 730) {
+            break;
+          }
+
+          message.payload = { $case: "pushSaveResult", pushSaveResult: PushSaveResult.decode(reader, reader.uint32()) };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -991,6 +1086,20 @@ export const Message: MessageFns<Message> = {
         ? { $case: "testPathResult", testPathResult: TestPathResult.fromJSON(object.testPathResult) }
         : isSet(object.test_path_result)
         ? { $case: "testPathResult", testPathResult: TestPathResult.fromJSON(object.test_path_result) }
+        : isSet(object.register)
+        ? { $case: "register", register: Register.fromJSON(object.register) }
+        : isSet(object.registerResult)
+        ? { $case: "registerResult", registerResult: RegisterResult.fromJSON(object.registerResult) }
+        : isSet(object.register_result)
+        ? { $case: "registerResult", registerResult: RegisterResult.fromJSON(object.register_result) }
+        : isSet(object.pushSave)
+        ? { $case: "pushSave", pushSave: PushSave.fromJSON(object.pushSave) }
+        : isSet(object.push_save)
+        ? { $case: "pushSave", pushSave: PushSave.fromJSON(object.push_save) }
+        : isSet(object.pushSaveResult)
+        ? { $case: "pushSaveResult", pushSaveResult: PushSaveResult.fromJSON(object.pushSaveResult) }
+        : isSet(object.push_save_result)
+        ? { $case: "pushSaveResult", pushSaveResult: PushSaveResult.fromJSON(object.push_save_result) }
         : undefined,
     };
   },
@@ -1057,6 +1166,14 @@ export const Message: MessageFns<Message> = {
       obj.testPath = TestPath.toJSON(message.payload.testPath);
     } else if (message.payload?.$case === "testPathResult") {
       obj.testPathResult = TestPathResult.toJSON(message.payload.testPathResult);
+    } else if (message.payload?.$case === "register") {
+      obj.register = Register.toJSON(message.payload.register);
+    } else if (message.payload?.$case === "registerResult") {
+      obj.registerResult = RegisterResult.toJSON(message.payload.registerResult);
+    } else if (message.payload?.$case === "pushSave") {
+      obj.pushSave = PushSave.toJSON(message.payload.pushSave);
+    } else if (message.payload?.$case === "pushSaveResult") {
+      obj.pushSaveResult = PushSaveResult.toJSON(message.payload.pushSaveResult);
     }
     return obj;
   },
@@ -1309,6 +1426,36 @@ export const Message: MessageFns<Message> = {
           message.payload = {
             $case: "testPathResult",
             testPathResult: TestPathResult.fromPartial(object.payload.testPathResult),
+          };
+        }
+        break;
+      }
+      case "register": {
+        if (object.payload?.register !== undefined && object.payload?.register !== null) {
+          message.payload = { $case: "register", register: Register.fromPartial(object.payload.register) };
+        }
+        break;
+      }
+      case "registerResult": {
+        if (object.payload?.registerResult !== undefined && object.payload?.registerResult !== null) {
+          message.payload = {
+            $case: "registerResult",
+            registerResult: RegisterResult.fromPartial(object.payload.registerResult),
+          };
+        }
+        break;
+      }
+      case "pushSave": {
+        if (object.payload?.pushSave !== undefined && object.payload?.pushSave !== null) {
+          message.payload = { $case: "pushSave", pushSave: PushSave.fromPartial(object.payload.pushSave) };
+        }
+        break;
+      }
+      case "pushSaveResult": {
+        if (object.payload?.pushSaveResult !== undefined && object.payload?.pushSaveResult !== null) {
+          message.payload = {
+            $case: "pushSaveResult",
+            pushSaveResult: PushSaveResult.fromPartial(object.payload.pushSaveResult),
           };
         }
         break;
@@ -5112,6 +5259,534 @@ export const SourceUpdateFailed: MessageFns<SourceUpdateFailed> = {
     const message = createBaseSourceUpdateFailed();
     message.version = object.version ?? "";
     message.message = object.message ?? "";
+    return message;
+  },
+};
+
+function createBaseRegister(): Register {
+  return { hostname: "", os: "", arch: "" };
+}
+
+export const Register: MessageFns<Register> = {
+  encode(message: Register, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.hostname !== "") {
+      writer.uint32(10).string(message.hostname);
+    }
+    if (message.os !== "") {
+      writer.uint32(18).string(message.os);
+    }
+    if (message.arch !== "") {
+      writer.uint32(26).string(message.arch);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): Register {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRegister();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.hostname = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.os = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.arch = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): Register {
+    return {
+      hostname: isSet(object.hostname) ? globalThis.String(object.hostname) : "",
+      os: isSet(object.os) ? globalThis.String(object.os) : "",
+      arch: isSet(object.arch) ? globalThis.String(object.arch) : "",
+    };
+  },
+
+  toJSON(message: Register): unknown {
+    const obj: any = {};
+    if (message.hostname !== "") {
+      obj.hostname = message.hostname;
+    }
+    if (message.os !== "") {
+      obj.os = message.os;
+    }
+    if (message.arch !== "") {
+      obj.arch = message.arch;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<Register>, I>>(base?: I): Register {
+    return Register.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<Register>, I>>(object: I): Register {
+    const message = createBaseRegister();
+    message.hostname = object.hostname ?? "";
+    message.os = object.os ?? "";
+    message.arch = object.arch ?? "";
+    return message;
+  },
+};
+
+function createBaseRegisterResult(): RegisterResult {
+  return { sourceUuid: "", sourceToken: "", linkCode: "", linkCodeExpiresAt: undefined };
+}
+
+export const RegisterResult: MessageFns<RegisterResult> = {
+  encode(message: RegisterResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.sourceUuid !== "") {
+      writer.uint32(10).string(message.sourceUuid);
+    }
+    if (message.sourceToken !== "") {
+      writer.uint32(18).string(message.sourceToken);
+    }
+    if (message.linkCode !== "") {
+      writer.uint32(26).string(message.linkCode);
+    }
+    if (message.linkCodeExpiresAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.linkCodeExpiresAt), writer.uint32(34).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RegisterResult {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRegisterResult();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.sourceUuid = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.sourceToken = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.linkCode = reader.string();
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.linkCodeExpiresAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RegisterResult {
+    return {
+      sourceUuid: isSet(object.sourceUuid)
+        ? globalThis.String(object.sourceUuid)
+        : isSet(object.source_uuid)
+        ? globalThis.String(object.source_uuid)
+        : "",
+      sourceToken: isSet(object.sourceToken)
+        ? globalThis.String(object.sourceToken)
+        : isSet(object.source_token)
+        ? globalThis.String(object.source_token)
+        : "",
+      linkCode: isSet(object.linkCode)
+        ? globalThis.String(object.linkCode)
+        : isSet(object.link_code)
+        ? globalThis.String(object.link_code)
+        : "",
+      linkCodeExpiresAt: isSet(object.linkCodeExpiresAt)
+        ? fromJsonTimestamp(object.linkCodeExpiresAt)
+        : isSet(object.link_code_expires_at)
+        ? fromJsonTimestamp(object.link_code_expires_at)
+        : undefined,
+    };
+  },
+
+  toJSON(message: RegisterResult): unknown {
+    const obj: any = {};
+    if (message.sourceUuid !== "") {
+      obj.sourceUuid = message.sourceUuid;
+    }
+    if (message.sourceToken !== "") {
+      obj.sourceToken = message.sourceToken;
+    }
+    if (message.linkCode !== "") {
+      obj.linkCode = message.linkCode;
+    }
+    if (message.linkCodeExpiresAt !== undefined) {
+      obj.linkCodeExpiresAt = message.linkCodeExpiresAt.toISOString();
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<RegisterResult>, I>>(base?: I): RegisterResult {
+    return RegisterResult.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RegisterResult>, I>>(object: I): RegisterResult {
+    const message = createBaseRegisterResult();
+    message.sourceUuid = object.sourceUuid ?? "";
+    message.sourceToken = object.sourceToken ?? "";
+    message.linkCode = object.linkCode ?? "";
+    message.linkCodeExpiresAt = object.linkCodeExpiresAt ?? undefined;
+    return message;
+  },
+};
+
+function createBaseGameSection(): GameSection {
+  return { name: "", description: "", data: undefined };
+}
+
+export const GameSection: MessageFns<GameSection> = {
+  encode(message: GameSection, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.name !== "") {
+      writer.uint32(10).string(message.name);
+    }
+    if (message.description !== "") {
+      writer.uint32(18).string(message.description);
+    }
+    if (message.data !== undefined) {
+      Struct.encode(Struct.wrap(message.data), writer.uint32(26).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): GameSection {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseGameSection();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.name = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.description = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.data = Struct.unwrap(Struct.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): GameSection {
+    return {
+      name: isSet(object.name) ? globalThis.String(object.name) : "",
+      description: isSet(object.description) ? globalThis.String(object.description) : "",
+      data: isObject(object.data) ? object.data : undefined,
+    };
+  },
+
+  toJSON(message: GameSection): unknown {
+    const obj: any = {};
+    if (message.name !== "") {
+      obj.name = message.name;
+    }
+    if (message.description !== "") {
+      obj.description = message.description;
+    }
+    if (message.data !== undefined) {
+      obj.data = message.data;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<GameSection>, I>>(base?: I): GameSection {
+    return GameSection.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<GameSection>, I>>(object: I): GameSection {
+    const message = createBaseGameSection();
+    message.name = object.name ?? "";
+    message.description = object.description ?? "";
+    message.data = object.data ?? undefined;
+    return message;
+  },
+};
+
+function createBasePushSave(): PushSave {
+  return { identity: undefined, summary: "", sections: [], parsedAt: undefined, gameId: "" };
+}
+
+export const PushSave: MessageFns<PushSave> = {
+  encode(message: PushSave, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.identity !== undefined) {
+      SaveIdentity.encode(message.identity, writer.uint32(10).fork()).join();
+    }
+    if (message.summary !== "") {
+      writer.uint32(18).string(message.summary);
+    }
+    for (const v of message.sections) {
+      GameSection.encode(v!, writer.uint32(26).fork()).join();
+    }
+    if (message.parsedAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.parsedAt), writer.uint32(34).fork()).join();
+    }
+    if (message.gameId !== "") {
+      writer.uint32(42).string(message.gameId);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PushSave {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePushSave();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.identity = SaveIdentity.decode(reader, reader.uint32());
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.summary = reader.string();
+          continue;
+        }
+        case 3: {
+          if (tag !== 26) {
+            break;
+          }
+
+          message.sections.push(GameSection.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.parsedAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.gameId = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): PushSave {
+    return {
+      identity: isSet(object.identity) ? SaveIdentity.fromJSON(object.identity) : undefined,
+      summary: isSet(object.summary) ? globalThis.String(object.summary) : "",
+      sections: globalThis.Array.isArray(object?.sections)
+        ? object.sections.map((e: any) => GameSection.fromJSON(e))
+        : [],
+      parsedAt: isSet(object.parsedAt)
+        ? fromJsonTimestamp(object.parsedAt)
+        : isSet(object.parsed_at)
+        ? fromJsonTimestamp(object.parsed_at)
+        : undefined,
+      gameId: isSet(object.gameId)
+        ? globalThis.String(object.gameId)
+        : isSet(object.game_id)
+        ? globalThis.String(object.game_id)
+        : "",
+    };
+  },
+
+  toJSON(message: PushSave): unknown {
+    const obj: any = {};
+    if (message.identity !== undefined) {
+      obj.identity = SaveIdentity.toJSON(message.identity);
+    }
+    if (message.summary !== "") {
+      obj.summary = message.summary;
+    }
+    if (message.sections?.length) {
+      obj.sections = message.sections.map((e) => GameSection.toJSON(e));
+    }
+    if (message.parsedAt !== undefined) {
+      obj.parsedAt = message.parsedAt.toISOString();
+    }
+    if (message.gameId !== "") {
+      obj.gameId = message.gameId;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<PushSave>, I>>(base?: I): PushSave {
+    return PushSave.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<PushSave>, I>>(object: I): PushSave {
+    const message = createBasePushSave();
+    message.identity = (object.identity !== undefined && object.identity !== null)
+      ? SaveIdentity.fromPartial(object.identity)
+      : undefined;
+    message.summary = object.summary ?? "";
+    message.sections = object.sections?.map((e) => GameSection.fromPartial(e)) || [];
+    message.parsedAt = object.parsedAt ?? undefined;
+    message.gameId = object.gameId ?? "";
+    return message;
+  },
+};
+
+function createBasePushSaveResult(): PushSaveResult {
+  return { saveUuid: "", snapshotTimestamp: undefined };
+}
+
+export const PushSaveResult: MessageFns<PushSaveResult> = {
+  encode(message: PushSaveResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.saveUuid !== "") {
+      writer.uint32(10).string(message.saveUuid);
+    }
+    if (message.snapshotTimestamp !== undefined) {
+      Timestamp.encode(toTimestamp(message.snapshotTimestamp), writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): PushSaveResult {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBasePushSaveResult();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.saveUuid = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.snapshotTimestamp = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): PushSaveResult {
+    return {
+      saveUuid: isSet(object.saveUuid)
+        ? globalThis.String(object.saveUuid)
+        : isSet(object.save_uuid)
+        ? globalThis.String(object.save_uuid)
+        : "",
+      snapshotTimestamp: isSet(object.snapshotTimestamp)
+        ? fromJsonTimestamp(object.snapshotTimestamp)
+        : isSet(object.snapshot_timestamp)
+        ? fromJsonTimestamp(object.snapshot_timestamp)
+        : undefined,
+    };
+  },
+
+  toJSON(message: PushSaveResult): unknown {
+    const obj: any = {};
+    if (message.saveUuid !== "") {
+      obj.saveUuid = message.saveUuid;
+    }
+    if (message.snapshotTimestamp !== undefined) {
+      obj.snapshotTimestamp = message.snapshotTimestamp.toISOString();
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<PushSaveResult>, I>>(base?: I): PushSaveResult {
+    return PushSaveResult.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<PushSaveResult>, I>>(object: I): PushSaveResult {
+    const message = createBasePushSaveResult();
+    message.saveUuid = object.saveUuid ?? "";
+    message.snapshotTimestamp = object.snapshotTimestamp ?? undefined;
     return message;
   },
 };
