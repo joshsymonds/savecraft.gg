@@ -489,8 +489,8 @@ regions = ["us", "eu", "kr", "tw"]
 	if !ok {
 		t.Fatal("adapter field missing from JSON output")
 	}
-	if _, ok := adapter["auth_provider"]; !ok {
-		t.Error("adapter.auth_provider missing from JSON")
+	if _, ok := adapter["authProvider"]; !ok {
+		t.Error("adapter.authProvider missing from JSON")
 	}
 }
 

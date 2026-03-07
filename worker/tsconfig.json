@@ -16,5 +16,5 @@
       "@proto/*": ["./src/proto/*"]
     }
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts", "../plugins/*/adapter/**/*.ts"]
 }
