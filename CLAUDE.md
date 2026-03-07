@@ -2,7 +2,7 @@
 
 ## Project Overview
 
-Savecraft parses video game save files and serves structured game state to AI assistants via MCP. Two components: a local Go daemon (WASM plugin runtime, filesystem watcher) and a remote Cloudflare Worker (MCP server, push API, SourceHub + UserHub Durable Objects).
+Savecraft parses video game save files and serves structured game state to AI assistants via MCP. Two components: a local Go daemon (WASM plugin runtime, filesystem watcher) and a remote Cloudflare Worker (MCP server, WebSocket push, SourceHub + UserHub Durable Objects).
 
 ## Documentation
 
@@ -10,7 +10,7 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 
 - `docs/overview.md` — What Savecraft is, system architecture, data flow, repo structure
 - `docs/daemon.md` — Go daemon: orchestrator, watcher, plugin loading, WebSocket client (`internal/`, `cmd/`)
-- `docs/worker.md` — Cloudflare Worker: push API, SourceHub + UserHub DOs, WebSocket protocol, D1 schemas (`worker/`)
+- `docs/worker.md` — Cloudflare Worker: SourceHub + UserHub DOs, WebSocket protocol, D1 schemas (`worker/`)
 - `docs/mcp.md` — OAuth architecture, MCP tools, notes, search, AI interaction patterns (`worker/src/mcp/`)
 - `docs/plugins.md` — WASM plugin system, ndjson contract, signing, distribution (`plugins/`)
 - `docs/adapters.md` — API game adapters: server-side TypeScript modules for API-backed games (`worker/src/adapters/`)
@@ -41,8 +41,8 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 - WebSocket protocol defined once in protobuf, codegen'd to Go + worker TS + web TS. Binary proto on the wire (`Message` for daemon↔server, `RelayedMessage` for server→browser). No mirrored types, no JSON on WebSocket.
 - GameState types (plugin output) are hand-written Go/TS — section data is arbitrary JSON per game. Types live next to their consumers, not in grab-bag packages.
 - Plugin stdout is ndjson: `{"type": "status"|"result"|"error", ...}` per line
-- Save data pushed via HTTP POST, not WebSocket. WS carries lightweight status events only.
-- All R2 save access scoped to `sources/{source_uuid}/` prefix
+- All daemon↔server communication over WebSocket + binary protobuf. Save data pushed as `PushSave` proto messages. No HTTP endpoints consumed by the daemon (except WASM plugin downloads).
+- Save section data stored in D1 `sections` table, not R2. R2 used only for plugin WASM binaries.
 - Save identity resolved by `(source_uuid, game_id, save_name)` → save UUID
 - Sources own saves; users own sources. MCP/web access saves via source→user JOIN.
 - Durable Objects use WebSocket Hibernation — no application-layer heartbeats

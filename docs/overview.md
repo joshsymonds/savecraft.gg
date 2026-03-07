@@ -24,60 +24,59 @@ Savecraft has two fully separate components that share a user account and a data
 ┌─────────────────────┐         ┌──────────────────────────────┐
 │   Gaming Device      │         │   Cloud (Cloudflare)         │
 │   (PC / Steam Deck)  │         │                              │
-│                      │  HTTPS  │  ┌────────────────────────┐  │
-│  ┌────────────────┐  │ ──────> │  │  Push API (Worker)     │  │
-│  │  Daemon         │  │  POST  │  │  - validates JSON      │  │
-│  │  - fs watcher   │  │        │  │  - writes to R2        │  │
+│                      │   WS    │  ┌────────────────────────┐  │
+│  ┌────────────────┐  │ ──────> │  │  SourceHub DO          │  │
+│  │  Daemon         │  │ binary │  │  - validates protobuf  │  │
+│  │  - fs watcher   │  │ proto  │  │  - writes to D1        │  │
 │  │  - WASM runtime │  │        │  └────────────────────────┘  │
 │  │  - plugin loader│  │        │                              │
 │  └────────────────┘  │        │  ┌────────────────────────┐  │
-│                      │        │  │  R2 Object Store       │  │
-│  Save files:         │        │  │  - snapshots (immutable)│  │
-│  - D2R .d2s          │        │  │  - latest.json (ptr)   │  │
-│  - Stardew XML       │        │  │  - plugins (.wasm)     │  │
-│  - etc.              │        │  └────────────────────────┘  │
-│                      │        │                              │
-│  Some games need no  │        │  ┌────────────────────────┐  │
-│  daemon — API-backed │        │  │  API Adapters (Worker)  │  │
-│  games (WoW, PoE2)   │        │  │  - fetch game APIs     │  │
-│  are served directly │        │  │  - same GameState out   │  │
-│  by the Worker.      │        │  └────────────────────────┘  │
-└─────────────────────┘         │                              │
-                                │  ┌────────────────────────┐  │
-┌─────────────────────┐         │  │  MCP Server (Worker)   │  │
-│   AI Client          │  HTTPS  │  │  - OAuth AS (own keys) │  │
-│   (Claude, ChatGPT,  │ <────> │  │  - serves MCP tools    │  │
-│    Gemini)           │  MCP   │  │  - reads from R2       │  │
+│                      │        │  │  D1 (SQLite at edge)   │  │
+│  Save files:         │        │  │  - sources + users      │  │
+│  - D2R .d2s          │        │  │  - saves + sections    │  │
+│  - Stardew XML       │        │  │  - notes               │  │
+│  - etc.              │        │  │  - plugin registry     │  │
+│                      │        │  └────────────────────────┘  │
+│  Some games need no  │        │                              │
+│  daemon — API-backed │        │  ┌────────────────────────┐  │
+│  games (WoW, PoE2)   │        │  │  API Adapters (Worker)  │  │
+│  are served directly │        │  │  - fetch game APIs     │  │
+│  by the Worker.      │        │  │  - storePush → D1      │  │
 └─────────────────────┘         │  └────────────────────────┘  │
                                 │                              │
+┌─────────────────────┐         │  ┌────────────────────────┐  │
+│   AI Client          │  HTTPS  │  │  MCP Server (Worker)   │  │
+│   (Claude, ChatGPT,  │ <────> │  │  - OAuth AS (own keys) │  │
+│    Gemini)           │  MCP   │  │  - serves MCP tools    │  │
+└─────────────────────┘         │  │  - reads from D1       │  │
+                                │  └────────────────────────┘  │
+                                │                              │
                                 │  ┌────────────────────────┐  │
-                                │  │  D1 (SQLite at edge)   │  │
-                                │  │  - sources + users      │  │
-                                │  │  - saves + notes      │  │
-                                │  │  - plugin registry     │  │
+                                │  │  R2 Object Store       │  │
+                                │  │  - plugin .wasm bins   │  │
                                 │  └────────────────────────┘  │
                                 └──────────────────────────────┘
 ```
 
 ### Source-Centric Architecture
 
-Savecraft uses a source-centric ownership model. A "source" is any authenticated entity that posts GameState JSON to the push API — the local daemon, a server-side API adapter, or a game mod. Sources own saves; users own sources. The daemon self-registers as a source on first boot, receives a source token (`sct_*`), and pushes saves under its own source UUID. Users link sources to their account via a 6-digit link code displayed by the daemon.
+Savecraft uses a source-centric ownership model. A "source" is any authenticated entity that sends save data over WebSocket — the local daemon, a server-side API adapter, or a game mod. Sources own saves; users own sources. The daemon self-registers as a source on first boot, receives a source token (`sct_*`), and pushes saves under its own source UUID. Users link sources to their account via a 6-digit link code displayed by the daemon.
 
 **Ownership chain:** `User → Sources → Saves`. MCP and web UI access saves by JOINing through the user's linked sources. A user with two sources (PC daemon + Steam Deck daemon) sees saves from both.
 
 **Source lifecycle:**
-1. **Register:** Daemon calls `POST /api/v1/source/register` (unauthenticated). Server creates a source row, issues a `sct_*` token, and generates a 6-digit link code (20-minute TTL).
+1. **Register:** Daemon connects to `/ws/register` (unauthenticated WebSocket), sends a `Register` proto message. Server creates a source row, issues a `sct_*` token, and generates a 6-digit link code (20-minute TTL).
 2. **Link:** User enters the 6-digit code at `savecraft.gg/setup` (or the web dashboard). `POST /api/v1/source/link` associates the source with the user's account.
-3. **Push:** Daemon pushes saves using the source token. Saves are stored under `sources/{source_uuid}/` in R2.
+3. **Push:** Daemon sends `PushSave` proto messages over the authenticated WebSocket. Save metadata and section data are stored in D1.
 4. **Reap:** Unlinked sources with no push activity for 7+ days are automatically cleaned up by a daily Cron Trigger.
 
 ### Component 1: Local Daemon
 
-Runs on the gaming device (Windows PC, Linux PC, Steam Deck). Background process that watches save file directories, parses saves using WASM plugins, and pushes structured JSON to the cloud API. Self-registers as a source on first boot, then maintains a persistent binary protobuf WebSocket connection to a per-source SourceHub Durable Object for real-time config updates and status reporting.
+Runs on the gaming device (Windows PC, Linux PC, Steam Deck). Background process that watches save file directories, parses saves using WASM plugins, and pushes structured save data over WebSocket. Self-registers as a source on first boot, then maintains a persistent binary protobuf WebSocket connection to a per-source SourceHub Durable Object for real-time config updates, status reporting, and save push.
 
 - **No MCP involvement.** Pure background service.
 - **Linux / Steam Deck:** Static binary installed to `~/.local/bin/` + systemd user unit. Sandboxed via systemd directives. See `docs/infrastructure.md`.
-- **First boot:** Daemon calls `/api/v1/source/register` to get a source token. Displays a 6-digit link code for the user to enter in the web UI. Token is persisted locally; subsequent boots use the existing token.
+- **First boot:** Daemon connects to `/ws/register` WebSocket to get a source token. Displays a 6-digit link code for the user to enter in the web UI. Token is persisted locally; subsequent boots use the existing token.
 - **Configuration:** All configuration happens via the web interface at savecraft.gg/settings. Config changes push to daemon in real time via binary protobuf WebSocket (`Message` envelope). Per-source configs stored server-side in D1.
 
 ### Component 2: Remote MCP Server
@@ -90,13 +89,11 @@ Cloud-hosted HTTPS endpoint that serves game state to AI clients. This is a stan
 
 ### Shared Server Binary
 
-The daemon push API and MCP server run as a **single Cloudflare Worker**. Two route groups on the same deployment:
+The MCP server, WebSocket endpoints, and API adapters run as a **single Cloudflare Worker**. Route groups on the same deployment:
 
-- `/api/v1/source/register` — Source self-registration (unauthenticated, returns source token `sct_*`)
 - `/api/v1/source/link` — Link source to user account via 6-digit code (Clerk session auth)
 - `/api/v1/source/link-code` — Refresh source link code (source token auth)
 - `/api/v1/source/status` — Source status: linked user, link code (source token auth)
-- `/api/v1/push` — Daemon pushes parsed save state (source token auth)
 - `/api/v1/notes/*` — Note CRUD for web UI and MCP write tools (Clerk session or OAuth)
 - `/mcp/*` — MCP tool-serving endpoint (OAuth access token from our AS)
 - `/oauth/authorize` — Redirects to Clerk for user login, then completes authorization
@@ -105,10 +102,11 @@ The daemon push API and MCP server run as a **single Cloudflare Worker**. Two ro
 - `/oauth/register` — Dynamic Client Registration (RFC 7591) for AI clients
 - `/.well-known/oauth-authorization-server` — AS metadata (auto-served by library)
 - `/.well-known/oauth-protected-resource` — Protected resource metadata (auto-served by library)
-- `/ws/daemon` — WebSocket upgrade for daemon real-time connection (source token auth, binary protobuf `Message`, routed to per-source SourceHub DO)
+- `/ws/register` — WebSocket source self-registration (unauthenticated, binary protobuf `Register` message, returns source token)
+- `/ws/daemon` — WebSocket for daemon real-time connection (source token auth, binary protobuf `Message`, handles save push via `PushSave`, routed to per-source SourceHub DO)
 - `/ws/ui` — WebSocket upgrade for web UI live status (Clerk session, binary protobuf `RelayedMessage`, routed to per-user UserHub DO)
 
-This is not microservices. One binary, shared auth middleware, shared R2 client. The Durable Objects (SourceHub, UserHub) are separate classes in the same Worker bundle.
+This is not microservices. One binary, shared auth middleware, shared D1 client. The Durable Objects (SourceHub, UserHub) are separate classes in the same Worker bundle.
 
 ## Repository Structure
 
@@ -137,10 +135,8 @@ savecraft/
 │   │   └── wazero.go            # WazeroRunner: ndjson stdout parsing, 2MB limit
 │   ├── watcher/                 # Filesystem watcher: fsnotify + debounce + hash
 │   │   └── watcher.go
-│   ├── push/                    # HTTP client for /api/v1/push
-│   │   └── client.go
 │   ├── pluginmgr/              # Plugin download, verification, caching, manifest access
-│   ├── wsconn/                  # WebSocket client for /ws/daemon
+│   ├── wsconn/                  # WebSocket client for /ws/daemon (status events + save push)
 │   │   └── client.go
 │   ├── localapi/               # Localhost HTTP API (server + client for tray↔daemon IPC)
 │   └── svcmgr/                 # Cross-platform service management (systemd, launchd, registry)
@@ -266,24 +262,17 @@ Every save has a `saveName` provided by the plugin. For character saves this is 
 - **No cross-game normalization.** D2R gear and Stardew crops are fundamentally different data. Attempting to normalize into a universal schema would lose information and add complexity for zero benefit.
 - **Plugin-authored summaries.** The `summary` field is a human-readable display string authored by the plugin. Examples: `"Hammerdin, Level 89 Paladin"` (D2R), `"Berry Merry Farm, Year 3 Fall — 69% Perfection"` (Stardew), `"Emperor Halfdan of Scandinavia, 847 AD"` (CK3). The server stores summaries in D1 for fast UI rendering and MCP tool responses.
 - **Plugin-named saves.** Every save is identified by `(source_uuid, game_id, save_name)`. The plugin always provides a `saveName`. Saves belong to the source that pushes them; the user accesses saves through their linked sources.
+- **Section data in D1.** After push, section data is stored in the D1 `sections` table. Each section row references a save UUID and contains the section name, description, and JSON data. MCP tools read section data directly from D1.
 
 ### R2 Storage
 
-Two separate R2 buckets per environment, split by access pattern:
+One R2 bucket per environment for plugin binaries:
 
 | Bucket | Binding | Contents |
 |--------|---------|----------|
-| `savecraft-saves` | `SAVES` | Save snapshots — private, scoped to `sources/{source_uuid}/` |
 | `savecraft-plugins` | `PLUGINS` | Plugin binaries and manifests — public-read via API |
 
-Staging uses `-staging` suffix (`savecraft-saves-staging`, `savecraft-plugins-staging`).
-
-**Saves bucket layout:**
-
-```
-sources/{source_uuid}/saves/{save_uuid}/snapshots/{timestamp}.json
-sources/{source_uuid}/saves/{save_uuid}/latest.json
-```
+Staging uses `-staging` suffix (`savecraft-plugins-staging`).
 
 **Plugins bucket layout:**
 
@@ -294,15 +283,3 @@ plugins/{game_id}/parser.wasm.sig
 plugins/{game_id}/reference.wasm        # optional, if plugin has reference modules
 plugins/{game_id}/reference.wasm.sig
 ```
-
-- **Snapshots are immutable.** Every push creates a new timestamped object.
-- **`latest.json`** is a copy of the most recent snapshot for fast reads. Updated only if the incoming `parsed_at` timestamp is newer than the current latest.
-- **Save UUID** is assigned by the server when a save is first pushed. Identity resolved in D1: `(source_uuid, game_id, save_name)` → `UNIQUE` constraint.
-- **Source UUID** is assigned at source registration. All R2 save access scoped to `sources/{source_uuid}/`.
-
-### Historical Data and Diffs
-
-- Every push is timestamped and stored as an immutable snapshot.
-- Retention policy: TBD. For now, keep everything.
-- MCP tools support optional `timestamp` parameter for point-in-time queries.
-- Diff tool: `get_section_diff(save_id, section, from_timestamp, to_timestamp)` returns changed fields.

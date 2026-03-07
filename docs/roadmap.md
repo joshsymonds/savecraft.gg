@@ -52,15 +52,15 @@ Full treasure class resolution in Go, compiled to `reference.wasm`:
 
 ## Mod-as-Source (Direct Push)
 
-A new data source type alongside daemon parsers and API adapters. For games with unsandboxed modding frameworks, a Savecraft mod runs inside the game, pairs as a source, and pushes state directly to the push API. No daemon involved at all.
+A new data source type alongside daemon parsers and API adapters. For games with unsandboxed modding frameworks, a Savecraft mod runs inside the game, pairs as a source, and pushes state directly over WebSocket. No daemon involved at all.
 
-The mod *is* a source. From the server's perspective, there's no difference between a push from the daemon and a push from a RimWorld mod — they both authenticate with a source token and POST GameState JSON.
+The mod *is* a source. From the server's perspective, there's no difference between a push from the daemon and a push from a RimWorld mod — they both authenticate with a source token and send `PushSave` proto messages over WebSocket.
 
 ### How It Works
 
 1. **Install:** User installs the Savecraft mod from the game's mod portal (Steam Workshop, CurseForge, etc.). One click.
-2. **Register + Link:** Mod calls `POST /api/v1/source/register` on first launch, gets a source token and 6-digit link code. User enters the code at `savecraft.gg/setup`. Same source linking flow the daemon uses.
-3. **Push:** Mod hooks the game's save event (Forge's `WorldEvent.Save`, Harmony's save patch). On save, mod serializes game state to JSON and POSTs directly to the push API. For games without a save hook, a conservative timer (60s) with server-side hash dedup.
+2. **Register + Link:** Mod connects to `/ws/register` on first launch, sends a `Register` proto, gets a source token and 6-digit link code. User enters the code at `savecraft.gg/setup`. Same source linking flow the daemon uses.
+3. **Push:** Mod hooks the game's save event (Forge's `WorldEvent.Save`, Harmony's save patch). On save, mod serializes game state and sends `PushSave` proto over WebSocket. For games without a save hook, a conservative timer (60s) with server-side timestamp dedup.
 4. **Done.** No daemon, no system service, no OS-specific installer.
 
 ### Why This Exists
@@ -161,7 +161,7 @@ Factorio is currently the only identified candidate. If other sandboxed framewor
 | Minecraft (Java) | Java (Fabric/Forge) | Inventory, advancements, world stats. |
 | Terraria | C# (tModLoader) | Gear, boss progress, world state. |
 
-Mod pairs as a source, pushes directly to the push API. No daemon required. See [Mod-as-Source](#mod-as-source-direct-push).
+Mod pairs as a source, pushes directly over WebSocket. No daemon required. See [Mod-as-Source](#mod-as-source-direct-push).
 
 ### Tier 6: Mod-as-Emitter (Daemon-Assisted)
 

@@ -107,7 +107,7 @@ MCP tool call (refresh_save / get_section / etc.)
   -> Worker calls adapter.fetchState(credentials, characterId, env)
       -> adapter fetches from game API (Battle.net, Raider.io, etc.)
       -> adapter transforms responses -> GameState
-  -> Worker stores via existing R2/D1/FTS pipeline (storePush)
+  -> Worker stores via existing D1/FTS pipeline (storePush)
   -> MCP tool returns data to AI client
 ```
 
@@ -203,7 +203,7 @@ interface GameCredentials {
 }
 ```
 
-The output is the same `GameState` that daemon plugins produce — `identity`, `summary`, `sections`. Everything downstream is identical: R2 snapshots, D1 metadata, FTS indexing, MCP tools, notes, search.
+The output is the same `GameState` that daemon plugins produce — `identity`, `summary`, `sections`. Everything downstream is identical: D1 metadata, FTS indexing, MCP tools, notes, search.
 
 ### Error Handling
 
@@ -251,7 +251,7 @@ WoW characters get deleted, transferred to other realms, and renamed. The adapte
 | Renamed | `char_id: 12345, name: Grommash` | `name: Thrallgar` | Update name, update save name |
 | Deleted | — | `char_id: 12345` | Set `active = 0` (soft-delete, preserves history) |
 
-**Save name updates:** When a character's realm or name changes, the save's `save_name` is updated via `UPDATE` on the saves table. The save UUID, R2 snapshots, and notes are preserved — the name is just a key that can be changed.
+**Save name updates:** When a character's realm or name changes, the save's `save_name` is updated via `UPDATE` on the saves table. The save UUID, save data, and notes are preserved — the name is just a key that can be changed.
 
 ### Convergence Point
 
@@ -263,7 +263,7 @@ WoW characters get deleted, transferred to other realms, and renamed. The adapte
 | **Input** | Raw file bytes | Game API response(s) |
 | **Trust model** | Sandboxed, community code | Reviewed, first-party code |
 | **Output** | GameState | GameState |
-| **Storage** | Push API -> R2/D1/FTS | Direct -> R2/D1/FTS (same `storePush`) |
+| **Storage** | WS PushSave -> D1/FTS | Direct -> D1/FTS (same `storePush`) |
 | **Manifest** | `source = "wasm"`, has sha256/url | `source = "api"`, has adapter config |
 
 ## Source Model
