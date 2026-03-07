@@ -5,6 +5,7 @@ import { handleAdminRoute } from "./admin";
 import { authenticateSession, authenticateSource, sha256Hex } from "./auth";
 import { indexNote, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
+import { Message } from "./proto/savecraft/v1/protocol";
 import { reapOrphanSources } from "./reaper";
 import { storePush } from "./store";
 import type { Env } from "./types";
@@ -449,6 +450,13 @@ async function routeWebSocketEndpoints(
     headers.set("X-Source-UUID", auth.sourceUuid);
     if (auth.userUuid) headers.set("X-User-UUID", auth.userUuid);
     return env.SOURCE_HUB.get(id).fetch(new Request(request, { headers }));
+  }
+  if (url.pathname === "/ws/register") {
+    // Unauthenticated — new sources register here before they have tokens
+    if (request.headers.get("Upgrade") !== "websocket") {
+      return new Response("Expected WebSocket upgrade", { status: 426 });
+    }
+    return handleWsRegister(env);
   }
   if (url.pathname === "/ws/ui") {
     const auth = await authenticateSession(request, env);
@@ -1780,6 +1788,79 @@ async function handleSourceStatus(env: Env, sourceUuid: string): Promise<Respons
   }
 
   return Response.json(result);
+}
+
+/**
+ * Handle WebSocket-based source registration.
+ * Unauthenticated — new sources connect, send a Register message,
+ * receive RegisterResult with credentials, then disconnect.
+ */
+function handleWsRegister(env: Env): Response {
+  const pair = new WebSocketPair();
+  const client = pair[0];
+  const server = pair[1];
+
+  server.accept();
+  server.addEventListener("message", async (event: MessageEvent) => {
+    try {
+      const data =
+        typeof event.data === "string"
+          ? new TextEncoder().encode(event.data)
+          : new Uint8Array(event.data as ArrayBuffer);
+
+      const msg = Message.decode(data);
+      if (msg.payload?.$case !== "register") {
+        server.close(1008, "Expected Register message");
+        return;
+      }
+
+      const { hostname, os, arch } = msg.payload.register;
+
+      const sourceUuid = crypto.randomUUID();
+      const randomBytes = new Uint8Array(16);
+      crypto.getRandomValues(randomBytes);
+      const hex = [...randomBytes].map((b) => b.toString(16).padStart(2, "0")).join("");
+      const sourceToken = `sct_${hex}`;
+      const tokenHash = await sha256Hex(sourceToken);
+
+      const linkCode = generateSixDigitCode();
+      const linkCodeExpiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000);
+
+      await env.DB.prepare(
+        `INSERT INTO sources (source_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      )
+        .bind(
+          sourceUuid,
+          tokenHash,
+          linkCode,
+          linkCodeExpiresAt.toISOString(),
+          hostname || null,
+          os || null,
+          arch || null,
+        )
+        .run();
+
+      const resultMsg = Message.encode({
+        payload: {
+          $case: "registerResult",
+          registerResult: {
+            sourceUuid,
+            sourceToken,
+            linkCode,
+            linkCodeExpiresAt,
+          },
+        },
+      }).finish();
+
+      server.send(resultMsg);
+      server.close(1000, "Registration complete");
+    } catch (error) {
+      server.close(1011, error instanceof Error ? error.message : "Registration failed");
+    }
+  });
+
+  return new Response(null, { status: 101, webSocket: client });
 }
 
 async function handleSourceRegister(request: Request, env: Env): Promise<Response> {
