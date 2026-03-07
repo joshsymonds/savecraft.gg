@@ -180,6 +180,13 @@ export interface Message {
     /** Save data: source → server → source (90-99) */
     { $case: "pushSave"; pushSave: PushSave }
     | { $case: "pushSaveResult"; pushSaveResult: PushSaveResult }
+    | //
+    /** Source management: source ↔ server (100-109) */
+    { $case: "refreshLinkCode"; refreshLinkCode: RefreshLinkCode }
+    | { $case: "refreshLinkCodeResult"; refreshLinkCodeResult: RefreshLinkCodeResult }
+    | { $case: "sourceLinked"; sourceLinked: SourceLinked }
+    | { $case: "unlinkSource"; unlinkSource: UnlinkSource }
+    | { $case: "deregisterSource"; deregisterSource: DeregisterSource }
     | undefined;
 }
 
@@ -504,6 +511,32 @@ export interface PushSaveResult {
   snapshotTimestamp: Date | undefined;
 }
 
+/** Source requests a new link code (replacing any existing one). */
+export interface RefreshLinkCode {
+}
+
+/** Server response with fresh link code and expiry. */
+export interface RefreshLinkCodeResult {
+  linkCode: string;
+  expiresAt: Date | undefined;
+}
+
+/**
+ * Server notification: source has been linked to a user account.
+ * Sent when a user enters the link code at the web UI.
+ */
+export interface SourceLinked {
+  userUuid: string;
+}
+
+/** Source requests to unlink from its current user. Generates a fresh link code. */
+export interface UnlinkSource {
+}
+
+/** Source requests permanent deletion (uninstall flow). */
+export interface DeregisterSource {
+}
+
 /**
  * Compact save identity for display in status events and UI.
  * Derived from the full GameState identity emitted by the plugin.
@@ -625,6 +658,21 @@ export const Message: MessageFns<Message> = {
         break;
       case "pushSaveResult":
         PushSaveResult.encode(message.payload.pushSaveResult, writer.uint32(730).fork()).join();
+        break;
+      case "refreshLinkCode":
+        RefreshLinkCode.encode(message.payload.refreshLinkCode, writer.uint32(802).fork()).join();
+        break;
+      case "refreshLinkCodeResult":
+        RefreshLinkCodeResult.encode(message.payload.refreshLinkCodeResult, writer.uint32(810).fork()).join();
+        break;
+      case "sourceLinked":
+        SourceLinked.encode(message.payload.sourceLinked, writer.uint32(818).fork()).join();
+        break;
+      case "unlinkSource":
+        UnlinkSource.encode(message.payload.unlinkSource, writer.uint32(826).fork()).join();
+        break;
+      case "deregisterSource":
+        DeregisterSource.encode(message.payload.deregisterSource, writer.uint32(834).fork()).join();
         break;
     }
     return writer;
@@ -933,6 +981,55 @@ export const Message: MessageFns<Message> = {
           message.payload = { $case: "pushSaveResult", pushSaveResult: PushSaveResult.decode(reader, reader.uint32()) };
           continue;
         }
+        case 100: {
+          if (tag !== 802) {
+            break;
+          }
+
+          message.payload = {
+            $case: "refreshLinkCode",
+            refreshLinkCode: RefreshLinkCode.decode(reader, reader.uint32()),
+          };
+          continue;
+        }
+        case 101: {
+          if (tag !== 810) {
+            break;
+          }
+
+          message.payload = {
+            $case: "refreshLinkCodeResult",
+            refreshLinkCodeResult: RefreshLinkCodeResult.decode(reader, reader.uint32()),
+          };
+          continue;
+        }
+        case 102: {
+          if (tag !== 818) {
+            break;
+          }
+
+          message.payload = { $case: "sourceLinked", sourceLinked: SourceLinked.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 103: {
+          if (tag !== 826) {
+            break;
+          }
+
+          message.payload = { $case: "unlinkSource", unlinkSource: UnlinkSource.decode(reader, reader.uint32()) };
+          continue;
+        }
+        case 104: {
+          if (tag !== 834) {
+            break;
+          }
+
+          message.payload = {
+            $case: "deregisterSource",
+            deregisterSource: DeregisterSource.decode(reader, reader.uint32()),
+          };
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1100,6 +1197,32 @@ export const Message: MessageFns<Message> = {
         ? { $case: "pushSaveResult", pushSaveResult: PushSaveResult.fromJSON(object.pushSaveResult) }
         : isSet(object.push_save_result)
         ? { $case: "pushSaveResult", pushSaveResult: PushSaveResult.fromJSON(object.push_save_result) }
+        : isSet(object.refreshLinkCode)
+        ? { $case: "refreshLinkCode", refreshLinkCode: RefreshLinkCode.fromJSON(object.refreshLinkCode) }
+        : isSet(object.refresh_link_code)
+        ? { $case: "refreshLinkCode", refreshLinkCode: RefreshLinkCode.fromJSON(object.refresh_link_code) }
+        : isSet(object.refreshLinkCodeResult)
+        ? {
+          $case: "refreshLinkCodeResult",
+          refreshLinkCodeResult: RefreshLinkCodeResult.fromJSON(object.refreshLinkCodeResult),
+        }
+        : isSet(object.refresh_link_code_result)
+        ? {
+          $case: "refreshLinkCodeResult",
+          refreshLinkCodeResult: RefreshLinkCodeResult.fromJSON(object.refresh_link_code_result),
+        }
+        : isSet(object.sourceLinked)
+        ? { $case: "sourceLinked", sourceLinked: SourceLinked.fromJSON(object.sourceLinked) }
+        : isSet(object.source_linked)
+        ? { $case: "sourceLinked", sourceLinked: SourceLinked.fromJSON(object.source_linked) }
+        : isSet(object.unlinkSource)
+        ? { $case: "unlinkSource", unlinkSource: UnlinkSource.fromJSON(object.unlinkSource) }
+        : isSet(object.unlink_source)
+        ? { $case: "unlinkSource", unlinkSource: UnlinkSource.fromJSON(object.unlink_source) }
+        : isSet(object.deregisterSource)
+        ? { $case: "deregisterSource", deregisterSource: DeregisterSource.fromJSON(object.deregisterSource) }
+        : isSet(object.deregister_source)
+        ? { $case: "deregisterSource", deregisterSource: DeregisterSource.fromJSON(object.deregister_source) }
         : undefined,
     };
   },
@@ -1174,6 +1297,16 @@ export const Message: MessageFns<Message> = {
       obj.pushSave = PushSave.toJSON(message.payload.pushSave);
     } else if (message.payload?.$case === "pushSaveResult") {
       obj.pushSaveResult = PushSaveResult.toJSON(message.payload.pushSaveResult);
+    } else if (message.payload?.$case === "refreshLinkCode") {
+      obj.refreshLinkCode = RefreshLinkCode.toJSON(message.payload.refreshLinkCode);
+    } else if (message.payload?.$case === "refreshLinkCodeResult") {
+      obj.refreshLinkCodeResult = RefreshLinkCodeResult.toJSON(message.payload.refreshLinkCodeResult);
+    } else if (message.payload?.$case === "sourceLinked") {
+      obj.sourceLinked = SourceLinked.toJSON(message.payload.sourceLinked);
+    } else if (message.payload?.$case === "unlinkSource") {
+      obj.unlinkSource = UnlinkSource.toJSON(message.payload.unlinkSource);
+    } else if (message.payload?.$case === "deregisterSource") {
+      obj.deregisterSource = DeregisterSource.toJSON(message.payload.deregisterSource);
     }
     return obj;
   },
@@ -1456,6 +1589,51 @@ export const Message: MessageFns<Message> = {
           message.payload = {
             $case: "pushSaveResult",
             pushSaveResult: PushSaveResult.fromPartial(object.payload.pushSaveResult),
+          };
+        }
+        break;
+      }
+      case "refreshLinkCode": {
+        if (object.payload?.refreshLinkCode !== undefined && object.payload?.refreshLinkCode !== null) {
+          message.payload = {
+            $case: "refreshLinkCode",
+            refreshLinkCode: RefreshLinkCode.fromPartial(object.payload.refreshLinkCode),
+          };
+        }
+        break;
+      }
+      case "refreshLinkCodeResult": {
+        if (object.payload?.refreshLinkCodeResult !== undefined && object.payload?.refreshLinkCodeResult !== null) {
+          message.payload = {
+            $case: "refreshLinkCodeResult",
+            refreshLinkCodeResult: RefreshLinkCodeResult.fromPartial(object.payload.refreshLinkCodeResult),
+          };
+        }
+        break;
+      }
+      case "sourceLinked": {
+        if (object.payload?.sourceLinked !== undefined && object.payload?.sourceLinked !== null) {
+          message.payload = {
+            $case: "sourceLinked",
+            sourceLinked: SourceLinked.fromPartial(object.payload.sourceLinked),
+          };
+        }
+        break;
+      }
+      case "unlinkSource": {
+        if (object.payload?.unlinkSource !== undefined && object.payload?.unlinkSource !== null) {
+          message.payload = {
+            $case: "unlinkSource",
+            unlinkSource: UnlinkSource.fromPartial(object.payload.unlinkSource),
+          };
+        }
+        break;
+      }
+      case "deregisterSource": {
+        if (object.payload?.deregisterSource !== undefined && object.payload?.deregisterSource !== null) {
+          message.payload = {
+            $case: "deregisterSource",
+            deregisterSource: DeregisterSource.fromPartial(object.payload.deregisterSource),
           };
         }
         break;
@@ -5787,6 +5965,283 @@ export const PushSaveResult: MessageFns<PushSaveResult> = {
     const message = createBasePushSaveResult();
     message.saveUuid = object.saveUuid ?? "";
     message.snapshotTimestamp = object.snapshotTimestamp ?? undefined;
+    return message;
+  },
+};
+
+function createBaseRefreshLinkCode(): RefreshLinkCode {
+  return {};
+}
+
+export const RefreshLinkCode: MessageFns<RefreshLinkCode> = {
+  encode(_: RefreshLinkCode, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RefreshLinkCode {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRefreshLinkCode();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): RefreshLinkCode {
+    return {};
+  },
+
+  toJSON(_: RefreshLinkCode): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<RefreshLinkCode>, I>>(base?: I): RefreshLinkCode {
+    return RefreshLinkCode.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RefreshLinkCode>, I>>(_: I): RefreshLinkCode {
+    const message = createBaseRefreshLinkCode();
+    return message;
+  },
+};
+
+function createBaseRefreshLinkCodeResult(): RefreshLinkCodeResult {
+  return { linkCode: "", expiresAt: undefined };
+}
+
+export const RefreshLinkCodeResult: MessageFns<RefreshLinkCodeResult> = {
+  encode(message: RefreshLinkCodeResult, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.linkCode !== "") {
+      writer.uint32(10).string(message.linkCode);
+    }
+    if (message.expiresAt !== undefined) {
+      Timestamp.encode(toTimestamp(message.expiresAt), writer.uint32(18).fork()).join();
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): RefreshLinkCodeResult {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseRefreshLinkCodeResult();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.linkCode = reader.string();
+          continue;
+        }
+        case 2: {
+          if (tag !== 18) {
+            break;
+          }
+
+          message.expiresAt = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): RefreshLinkCodeResult {
+    return {
+      linkCode: isSet(object.linkCode)
+        ? globalThis.String(object.linkCode)
+        : isSet(object.link_code)
+        ? globalThis.String(object.link_code)
+        : "",
+      expiresAt: isSet(object.expiresAt)
+        ? fromJsonTimestamp(object.expiresAt)
+        : isSet(object.expires_at)
+        ? fromJsonTimestamp(object.expires_at)
+        : undefined,
+    };
+  },
+
+  toJSON(message: RefreshLinkCodeResult): unknown {
+    const obj: any = {};
+    if (message.linkCode !== "") {
+      obj.linkCode = message.linkCode;
+    }
+    if (message.expiresAt !== undefined) {
+      obj.expiresAt = message.expiresAt.toISOString();
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<RefreshLinkCodeResult>, I>>(base?: I): RefreshLinkCodeResult {
+    return RefreshLinkCodeResult.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<RefreshLinkCodeResult>, I>>(object: I): RefreshLinkCodeResult {
+    const message = createBaseRefreshLinkCodeResult();
+    message.linkCode = object.linkCode ?? "";
+    message.expiresAt = object.expiresAt ?? undefined;
+    return message;
+  },
+};
+
+function createBaseSourceLinked(): SourceLinked {
+  return { userUuid: "" };
+}
+
+export const SourceLinked: MessageFns<SourceLinked> = {
+  encode(message: SourceLinked, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    if (message.userUuid !== "") {
+      writer.uint32(10).string(message.userUuid);
+    }
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): SourceLinked {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseSourceLinked();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+        case 1: {
+          if (tag !== 10) {
+            break;
+          }
+
+          message.userUuid = reader.string();
+          continue;
+        }
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(object: any): SourceLinked {
+    return {
+      userUuid: isSet(object.userUuid)
+        ? globalThis.String(object.userUuid)
+        : isSet(object.user_uuid)
+        ? globalThis.String(object.user_uuid)
+        : "",
+    };
+  },
+
+  toJSON(message: SourceLinked): unknown {
+    const obj: any = {};
+    if (message.userUuid !== "") {
+      obj.userUuid = message.userUuid;
+    }
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<SourceLinked>, I>>(base?: I): SourceLinked {
+    return SourceLinked.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<SourceLinked>, I>>(object: I): SourceLinked {
+    const message = createBaseSourceLinked();
+    message.userUuid = object.userUuid ?? "";
+    return message;
+  },
+};
+
+function createBaseUnlinkSource(): UnlinkSource {
+  return {};
+}
+
+export const UnlinkSource: MessageFns<UnlinkSource> = {
+  encode(_: UnlinkSource, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): UnlinkSource {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseUnlinkSource();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): UnlinkSource {
+    return {};
+  },
+
+  toJSON(_: UnlinkSource): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<UnlinkSource>, I>>(base?: I): UnlinkSource {
+    return UnlinkSource.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<UnlinkSource>, I>>(_: I): UnlinkSource {
+    const message = createBaseUnlinkSource();
+    return message;
+  },
+};
+
+function createBaseDeregisterSource(): DeregisterSource {
+  return {};
+}
+
+export const DeregisterSource: MessageFns<DeregisterSource> = {
+  encode(_: DeregisterSource, writer: BinaryWriter = new BinaryWriter()): BinaryWriter {
+    return writer;
+  },
+
+  decode(input: BinaryReader | Uint8Array, length?: number): DeregisterSource {
+    const reader = input instanceof BinaryReader ? input : new BinaryReader(input);
+    const end = length === undefined ? reader.len : reader.pos + length;
+    const message = createBaseDeregisterSource();
+    while (reader.pos < end) {
+      const tag = reader.uint32();
+      switch (tag >>> 3) {
+      }
+      if ((tag & 7) === 4 || tag === 0) {
+        break;
+      }
+      reader.skip(tag & 7);
+    }
+    return message;
+  },
+
+  fromJSON(_: any): DeregisterSource {
+    return {};
+  },
+
+  toJSON(_: DeregisterSource): unknown {
+    const obj: any = {};
+    return obj;
+  },
+
+  create<I extends Exact<DeepPartial<DeregisterSource>, I>>(base?: I): DeregisterSource {
+    return DeregisterSource.fromPartial(base ?? ({} as any));
+  },
+  fromPartial<I extends Exact<DeepPartial<DeregisterSource>, I>>(_: I): DeregisterSource {
+    const message = createBaseDeregisterSource();
     return message;
   },
 };

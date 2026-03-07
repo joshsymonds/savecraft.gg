@@ -18,6 +18,14 @@ const CONN_PREFIX = "conn:";
 const USER_UUID_KEY = "userUuid";
 const SOURCE_UUID_KEY = "sourceUuid";
 const META_KEY = "sourceMeta";
+const LINK_CODE_TTL_MINUTES = 20;
+
+function generateSixDigitCode(): string {
+  const buf = new Uint32Array(1);
+  crypto.getRandomValues(buf);
+  const code = ((buf[0] ?? 0) % 900_000) + 100_000;
+  return code.toString();
+}
 
 interface SourceMeta {
   sourceKind: string;
@@ -265,7 +273,32 @@ export class SourceHub extends DurableObject<Env> {
       return;
     }
 
+    // Source management messages — handled inline, not relayed.
+    if (await this.dispatchSourceManagement(ws, rpc, sourceId)) return;
+
     await this.processEvent(ws, rpc, sourceId, mutation);
+  }
+
+  /** Dispatch source management messages. Returns true if handled. */
+  private async dispatchSourceManagement(
+    ws: WebSocket,
+    rpc: Message | undefined,
+    sourceId: string | undefined,
+  ): Promise<boolean> {
+    const payloadCase = rpc?.payload?.$case;
+    if (payloadCase === "refreshLinkCode") {
+      await this.handleRefreshLinkCode(ws, sourceId);
+      return true;
+    }
+    if (payloadCase === "unlinkSource") {
+      await this.handleUnlinkSource(ws, sourceId);
+      return true;
+    }
+    if (payloadCase === "deregisterSource") {
+      await this.handleDeregisterSource(ws, sourceId);
+      return true;
+    }
+    return false;
   }
 
   /** Persist, relay, and react to a daemon event (non-heartbeat, non-push). */
@@ -791,9 +824,9 @@ export class SourceHub extends DurableObject<Env> {
     sourceId: string | undefined,
   ): Promise<void> {
     try {
-      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
-      if (!userUuid || !sourceId) {
-        this.debugLog.push("warn", "pushSave from unlinked source", { sourceId });
+      const userUuid = (await this.ctx.storage.get<string>(USER_UUID_KEY)) ?? null;
+      if (!sourceId) {
+        this.debugLog.push("warn", "pushSave missing sourceId");
         return;
       }
 
@@ -1067,13 +1100,173 @@ export class SourceHub extends DurableObject<Env> {
 
   /**
    * Called by the worker when a source is linked to a user mid-session.
-   * Stores the new user_uuid and immediately forwards current state to UserHub.
+   * Stores the new user_uuid, forwards state to UserHub, and notifies
+   * the connected daemon via SourceLinked proto message.
    */
   private async handleSetUser(request: Request): Promise<Response> {
     const body = await request.json<{ userUuid: string }>();
     await this.ctx.storage.put(USER_UUID_KEY, body.userUuid);
     await this.forwardStateToUserHub();
+
+    // Push SourceLinked notification to all connected daemon WebSockets
+    const linkedMsg = Message.encode({
+      payload: {
+        $case: "sourceLinked",
+        sourceLinked: { userUuid: body.userUuid },
+      },
+    }).finish();
+    for (const daemonWs of this.ctx.getWebSockets("daemon")) {
+      daemonWs.send(linkedMsg);
+    }
+    this.debugLog.push("info", "pushed SourceLinked to daemon", {
+      userUuid: body.userUuid,
+    });
+
     return Response.json({ ok: true });
+  }
+
+  // ── Source management (daemon-initiated over WS) ──────────────────
+
+  /** Daemon requests a fresh link code. */
+  private async handleRefreshLinkCode(ws: WebSocket, sourceId: string | undefined): Promise<void> {
+    try {
+      const sourceUuid = sourceId ?? (await this.ctx.storage.get<string>(SOURCE_UUID_KEY));
+      if (!sourceUuid) return;
+
+      const linkCode = generateSixDigitCode();
+      const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000);
+
+      await this.env.DB.prepare(
+        "UPDATE sources SET link_code = ?, link_code_expires_at = ? WHERE source_uuid = ?",
+      )
+        .bind(linkCode, expiresAt.toISOString(), sourceUuid)
+        .run();
+
+      const resultMsg = Message.encode({
+        payload: {
+          $case: "refreshLinkCodeResult",
+          refreshLinkCodeResult: { linkCode, expiresAt },
+        },
+      }).finish();
+      ws.send(resultMsg);
+
+      this.debugLog.push("info", "refreshed link code", { sourceUuid });
+    } catch (error) {
+      this.debugLog.push("error", "refreshLinkCode failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("handleRefreshLinkCode", error);
+    }
+  }
+
+  /** Daemon requests to unlink from its current user. */
+  private async handleUnlinkSource(ws: WebSocket, sourceId: string | undefined): Promise<void> {
+    try {
+      const sourceUuid = sourceId ?? (await this.ctx.storage.get<string>(SOURCE_UUID_KEY));
+      if (!sourceUuid) return;
+
+      // Read current userUuid before clearing, so we can notify UserHub
+      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
+
+      const linkCode = generateSixDigitCode();
+      const expiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000);
+
+      // Clear user association in D1, generate new link code
+      await this.env.DB.prepare(
+        "UPDATE sources SET user_uuid = NULL, user_email = NULL, user_display_name = NULL, link_code = ?, link_code_expires_at = ? WHERE source_uuid = ?",
+      )
+        .bind(linkCode, expiresAt.toISOString(), sourceUuid)
+        .run();
+
+      // Clear user in DO storage
+      await this.ctx.storage.delete(USER_UUID_KEY);
+
+      // Notify UserHub to drop this source's state
+      if (userUuid) {
+        try {
+          const userHubId = this.env.USER_HUB.idFromName(userUuid);
+          await this.env.USER_HUB.get(userHubId).fetch(
+            new Request("https://do/remove-source", {
+              method: "POST",
+              headers: { "X-User-UUID": userUuid },
+              body: JSON.stringify({ sourceUuid }),
+            }),
+          );
+        } catch {
+          this.debugLog.push("warn", "failed to notify UserHub on unlink");
+        }
+      }
+
+      // Send new link code back to daemon
+      const resultMsg = Message.encode({
+        payload: {
+          $case: "refreshLinkCodeResult",
+          refreshLinkCodeResult: { linkCode, expiresAt },
+        },
+      }).finish();
+      ws.send(resultMsg);
+
+      this.debugLog.push("info", "source unlinked", { sourceUuid });
+    } catch (error) {
+      this.debugLog.push("error", "unlinkSource failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("handleUnlinkSource", error);
+    }
+  }
+
+  /** Daemon requests permanent deletion (uninstall flow). */
+  private async handleDeregisterSource(
+    _ws: WebSocket,
+    sourceId: string | undefined,
+  ): Promise<void> {
+    try {
+      const sourceUuid = sourceId ?? (await this.ctx.storage.get<string>(SOURCE_UUID_KEY));
+      if (!sourceUuid) return;
+
+      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
+
+      // D1 cleanup — delete source records
+      await this.env.DB.batch([
+        this.env.DB.prepare("DELETE FROM source_events WHERE source_uuid = ?").bind(sourceUuid),
+        this.env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?").bind(sourceUuid),
+        this.env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(sourceUuid),
+      ]);
+
+      // Notify UserHub to drop this source's state
+      if (userUuid) {
+        try {
+          const userHubId = this.env.USER_HUB.idFromName(userUuid);
+          await this.env.USER_HUB.get(userHubId).fetch(
+            new Request("https://do/remove-source", {
+              method: "POST",
+              headers: { "X-User-UUID": userUuid },
+              body: JSON.stringify({ sourceUuid }),
+            }),
+          );
+        } catch {
+          this.debugLog.push("warn", "failed to notify UserHub on deregister");
+        }
+      }
+
+      this.debugLog.push("info", "source deregistered", { sourceUuid });
+
+      // Close all daemon WebSocket connections and wipe DO storage
+      for (const daemonWs of this.ctx.getWebSockets("daemon")) {
+        try {
+          daemonWs.close(1000, "source removed");
+        } catch {
+          // WebSocket may already be closed
+        }
+      }
+      await this.ctx.storage.deleteAlarm();
+      await this.ctx.storage.deleteAll();
+    } catch (error) {
+      this.debugLog.push("error", "deregisterSource failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("handleDeregisterSource", error);
+    }
   }
 
   // ── UserHub forwarding ────────────────────────────────────────────
