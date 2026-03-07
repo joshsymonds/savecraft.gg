@@ -1,6 +1,12 @@
-export function detectOS(): "windows" | "linux" | "darwin" {
-  const ua = navigator.userAgent.toLowerCase();
-  if (ua.includes("win")) return "windows";
-  if (ua.includes("mac")) return "darwin";
-  return "linux";
+type DefaultPaths = { windows?: string; linux?: string; darwin?: string };
+
+export function defaultPathForPlatform(
+  platform: string | null | undefined,
+  paths: DefaultPaths | undefined,
+): string {
+  if (!paths) return "";
+  if (platform === "linux" || platform === "windows" || platform === "darwin") {
+    return paths[platform] ?? "";
+  }
+  return "";
 }

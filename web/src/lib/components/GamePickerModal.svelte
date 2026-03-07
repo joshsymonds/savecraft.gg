@@ -6,7 +6,7 @@
 -->
 <script lang="ts">
   import type { PickerGame } from "$lib/types/source";
-  import { detectOS } from "$lib/utils/platform";
+  import { defaultPathForPlatform } from "$lib/utils/platform";
 
   import ConfigSuccess from "./ConfigSuccess.svelte";
   import GamePickerCard from "./GamePickerCard.svelte";
@@ -16,6 +16,7 @@
     id: string;
     name: string;
     hostname: string | null;
+    platform: string | null;
   }
 
   let {
@@ -55,7 +56,8 @@
   function enterConfigForm(game: PickerGame, sourceId: string) {
     configGame = game;
     selectedSourceId = sourceId;
-    configPath = game.defaultPaths?.[detectOS()] ?? "";
+    const sourcePlatform = configurableSources.find((s) => s.id === sourceId)?.platform;
+    configPath = defaultPathForPlatform(sourcePlatform, game.defaultPaths);
     configState = "idle";
     configError = "";
     step = "configuring";

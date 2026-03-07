@@ -90,12 +90,12 @@
     // intentional no-op for story callbacks
   };
 
-  const singleSource = [{ id: "src-1", name: "Desktop", hostname: "desktop-pc" }];
+  const singleSource = [{ id: "src-1", name: "Desktop", hostname: "desktop-pc", platform: "windows" }];
 
   const multiSources = [
-    { id: "src-1", name: "Desktop", hostname: "desktop-pc" },
-    { id: "src-2", name: "Laptop", hostname: "laptop-air" },
-    { id: "src-3", name: "Steam Deck", hostname: "steamdeck" },
+    { id: "src-1", name: "Desktop", hostname: "desktop-pc", platform: "windows" },
+    { id: "src-2", name: "Laptop", hostname: "laptop-air", platform: "darwin" },
+    { id: "src-3", name: "Steam Deck", hostname: "steamdeck", platform: "linux" },
   ];
 </script>
 

@@ -17,7 +17,6 @@
     AddSourceModal,
     ConnectCard,
     EmptySourceState,
-    GameConfigModal,
     GameDetailModal,
     GamePanel,
     GamePickerModal,
@@ -50,7 +49,6 @@
     ValidationState,
   } from "$lib/types/source";
   import type { WireTestPathResult } from "$lib/types/wire";
-  import { detectOS } from "$lib/utils/platform";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
 
   function deriveValidationState(
@@ -111,8 +109,7 @@
   // -- Game picker modal --
   let pickerOpen = $state(false);
 
-  // -- Game config modal --
-  let configGame: Game | null = $state(null);
+  // -- Game detail modal (includes source config) --
   let testPathChecking = $state(false);
 
   // Clear checking state when testPath result arrives
@@ -120,7 +117,6 @@
     if ($testPathResult) testPathChecking = false;
   });
 
-  // -- Game/save detail modals --
   let selectedGame: Game | null = $state(null);
   let selectedSave: Save | null = $state(null);
 
@@ -238,11 +234,7 @@
             pickerOpen = true;
           }}
           ongameclick={(game) => {
-            if (game.needsConfig) {
-              configGame = game;
-            } else {
-              selectedGame = game;
-            }
+            selectedGame = game;
           }}
         />
       {/if}
@@ -308,12 +300,23 @@
 {/if}
 
 {#if selectedGame}
+  {@const currentGame = selectedGame}
   <GameDetailModal
-    game={selectedGame}
-    showSourceBadges={showSourceBadges && selectedGame.sourceCount > 1}
+    game={currentGame}
+    showSourceBadges={showSourceBadges && currentGame.sourceCount > 1}
+    availableSources={$sources
+      .filter(
+        (s) =>
+          s.capabilities.canReceiveConfig &&
+          !currentGame.sources.some((gs) => gs.sourceId === s.id),
+      )
+      .map((s) => ({ id: s.id, name: s.name, hostname: s.hostname, platform: s.platform }))}
+    defaultPaths={$plugins.get(currentGame.gameId)?.default_paths}
     onclose={() => {
       selectedGame = null;
       selectedSave = null;
+      testPathChecking = false;
+      clearTestPathResult();
     }}
     onsaveclick={(save) => {
       selectedSave = save;
@@ -321,6 +324,24 @@
     onremovegame={async (gameId) => {
       await deleteGame(gameId);
     }}
+    onsave={async (sourceId, savePath) => {
+      if (!selectedGame) return;
+      await saveConfigAndWait(sourceId, selectedGame.gameId, savePath);
+    }}
+    ontestpath={(sourceId, path) => {
+      if (!selectedGame) return;
+      clearTestPathResult();
+      testPathChecking = true;
+      send(JSON.stringify({ testPath: { sourceId, gameId: selectedGame.gameId, path } }));
+    }}
+    testPathResult={$testPathResult
+      ? {
+          valid: $testPathResult.valid ?? false,
+          filesFound: $testPathResult.filesFound ?? 0,
+          fileNames: $testPathResult.fileNames ?? [],
+        }
+      : null}
+    validationState={deriveValidationState($testPathResult, testPathChecking)}
   />
 {/if}
 
@@ -346,52 +367,13 @@
   />
 {/if}
 
-{#if configGame}
-  {@const currentConfigGame = configGame}
-  <GameConfigModal
-    gameName={currentConfigGame.name}
-    gameId={currentConfigGame.gameId}
-    sources={currentConfigGame.sources}
-    availableSources={$sources
-      .filter(
-        (s) =>
-          s.capabilities.canReceiveConfig &&
-          !currentConfigGame.sources.some((gs) => gs.sourceId === s.id),
-      )
-      .map((s) => ({ id: s.id, name: s.name, hostname: s.hostname }))}
-    defaultPath={$plugins.get(currentConfigGame.gameId)?.default_paths[detectOS()]}
-    onclose={() => {
-      configGame = null;
-      testPathChecking = false;
-      clearTestPathResult();
-    }}
-    onsave={async (sourceId, savePath) => {
-      if (!configGame) return;
-      await saveConfigAndWait(sourceId, configGame.gameId, savePath);
-    }}
-    ontestpath={(sourceId, path) => {
-      if (!configGame) return;
-      clearTestPathResult();
-      testPathChecking = true;
-      send(JSON.stringify({ testPath: { sourceId, gameId: configGame.gameId, path } }));
-    }}
-    testPathResult={$testPathResult
-      ? {
-          valid: $testPathResult.valid ?? false,
-          filesFound: $testPathResult.filesFound ?? 0,
-          fileNames: $testPathResult.fileNames ?? [],
-        }
-      : null}
-    validationState={deriveValidationState($testPathResult, testPathChecking)}
-  />
-{/if}
 
 {#if pickerOpen}
   <GamePickerModal
     games={pickerGames}
     configurableSources={$sources
       .filter((s) => s.capabilities.canReceiveConfig)
-      .map((s) => ({ id: s.id, name: s.name, hostname: s.hostname }))}
+      .map((s) => ({ id: s.id, name: s.name, hostname: s.hostname, platform: s.platform }))}
     onselect={(game) => {
       const merged = mergedGames.find((g) => g.gameId === game.gameId);
       if (merged) selectedGame = merged;
