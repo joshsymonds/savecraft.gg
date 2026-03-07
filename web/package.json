@@ -52,6 +52,7 @@
     "vitest": "^3.2.1"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "^2.11.0",
     "@clerk/clerk-js": "^5.125.2",
     "@sveltejs/adapter-cloudflare": "^7.2.8"
   }
