@@ -7,6 +7,18 @@ description: Go daemon development conventions for Savecraft. Use when working o
 
 Read `docs/daemon.md` for the full architecture reference.
 
+## Daemon Lifecycle
+
+Registration and linking are separate concerns:
+
+1. **Register:** Daemon connects to `/ws/register`, sends `Register` proto, receives `RegisterResult` (source_uuid, source_token, link_code), disconnects.
+2. **Connect:** Daemon immediately connects to `/ws/source/{uuid}` with Bearer auth. It is now online and can push saves, send events, receive config. The server silently drops pushes from unlinked sources (no user_uuid to store against), but the connection is live.
+3. **Link (async):** User enters the 6-digit link code at the web UI whenever they want. The server notifies the daemon over the existing WS connection. The daemon does NOT poll HTTP for link status.
+
+**Key principle:** The daemon has exactly one network channel to the server — a single WebSocket connection. There are zero HTTP calls except downloading WASM plugin binaries from R2. Registration, save push, status, link notifications, config updates, link-code refresh, unlink, deregister — all flow over WS as proto messages.
+
+**Current gap:** The daemon still uses `internal/regclient/` HTTP calls for link polling, status checks, link-code refresh, unlink, and deregister. These must be replaced with proto messages on the `/ws/source/{uuid}` connection.
+
 ## Verification
 
 After changes, run in order:
@@ -26,7 +38,6 @@ Every external dependency has an interface in `internal/daemon/`. Tests inject h
 |-----------|-----------|---------------|
 | `Watcher` | `internal/watcher/` | `internal/daemon/daemon_test.go` |
 | `Runner` | `internal/runner/` | `internal/daemon/daemon_test.go` |
-| `PushClient` | `internal/push/` | `internal/daemon/daemon_test.go` |
 | `WSClient` | `internal/wsconn/` | `internal/daemon/daemon_test.go` |
 | `FS` | `internal/osfs/` | `internal/daemon/daemon_test.go` |
 | `PluginManager` | `internal/pluginmgr/` | `internal/daemon/daemon_test.go` |
@@ -77,7 +88,8 @@ Every external dependency has an interface in `internal/daemon/`. Tests inject h
 
 - `nhooyr.io/websocket` — context-aware, clean shutdown.
 - Reconnect with exponential backoff: 1s → 2s → 4s → ... → 60s cap.
-- Graceful degradation: if WS is down, daemon continues locally. Status events dropped, push API (HTTP) independent.
+- Graceful degradation: if WS is down, daemon continues locally. Status events and save pushes queue until reconnected.
+- All daemon↔server communication is binary protobuf `Message` oneof over this single WS connection.
 
 ## Key Paths
 
@@ -86,7 +98,9 @@ internal/daemon/daemon.go       # Orchestrator, Run loop, event handling
 internal/daemon/daemon_test.go  # Tests + all fakes
 internal/runner/wazero.go       # WASM execution
 internal/watcher/watcher.go     # fsnotify + debounce + hash
-internal/push/client.go         # HTTP push client
 internal/wsconn/client.go       # WebSocket client
 cmd/savecraftd/main.go          # Entrypoint
+cmd/savecraftd/cmd/config.go    # Registration (wsRegister), config loading
+cmd/savecraftd/cmd/run.go       # Boot flow, link waiting
+cmd/savecraftd/cmd/link.go      # Link polling + code refresh (TO BE REPLACED with WS)
 ```
