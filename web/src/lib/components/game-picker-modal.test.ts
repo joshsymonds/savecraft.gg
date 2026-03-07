@@ -28,6 +28,15 @@ function makeCatalog(): PickerGame[] {
       watched: false,
       saveCount: 0,
     },
+    {
+      gameId: "wow",
+      name: "World of Warcraft",
+      description: "Character profiles via Battle.net API",
+      watched: false,
+      saveCount: 0,
+      isApiGame: true,
+      adapter: { authProvider: "battlenet", regions: ["us", "eu", "kr", "tw"] },
+    },
   ];
 }
 
@@ -181,6 +190,59 @@ describe("GamePickerModal", () => {
     });
     await userEvent.click(screen.getByText("Stardew Valley"));
     expect(screen.getByText("SELECT SOURCE")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("←"));
+    expect(screen.getByText("ADD A GAME")).toBeInTheDocument();
+  });
+
+  // -- API game flow --
+
+  it("shows region selection when clicking unwatched API game", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), configurableSources: oneSource, onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("World of Warcraft"));
+    expect(screen.getByText("SELECT REGION")).toBeInTheDocument();
+    expect(screen.getByText("US")).toBeInTheDocument();
+    expect(screen.getByText("EU")).toBeInTheDocument();
+  });
+
+  it("does not show source selection for API games even with multiple sources", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), configurableSources: twoSources, onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("World of Warcraft"));
+    // Should go to region selection, not source selection
+    expect(screen.queryByText("SELECT SOURCE")).not.toBeInTheDocument();
+    expect(screen.getByText("SELECT REGION")).toBeInTheDocument();
+  });
+
+  it("calls onoauthconnect with gameId and region when region is selected", async () => {
+    const onoauthconnect = vi.fn();
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), onoauthconnect, onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("World of Warcraft"));
+    await userEvent.click(screen.getByText("US"));
+    expect(onoauthconnect).toHaveBeenCalledWith("wow", "us");
+  });
+
+  it("does not require configurable sources for API games", async () => {
+    const onoauthconnect = vi.fn();
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), configurableSources: [], onoauthconnect, onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("World of Warcraft"));
+    // Should show region picker, not "no configurable source" error
+    expect(screen.queryByText(/No configurable source/)).not.toBeInTheDocument();
+    expect(screen.getByText("SELECT REGION")).toBeInTheDocument();
+  });
+
+  it("back from region selection returns to game list", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("World of Warcraft"));
+    expect(screen.getByText("SELECT REGION")).toBeInTheDocument();
     await userEvent.click(screen.getByText("←"));
     expect(screen.getByText("ADD A GAME")).toBeInTheDocument();
   });

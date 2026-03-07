@@ -30,6 +30,8 @@
         {game.saveCount}
         {game.saveCount === 1 ? "save" : "saves"}
       </span>
+    {:else if game.isApiGame}
+      <span class="picker-badge api-badge">Connect account</span>
     {:else}
       <span class="picker-badge unconfigured-badge">Not configured</span>
     {/if}
@@ -136,5 +138,11 @@
     color: var(--color-text-muted);
     background: rgba(74, 90, 173, 0.06);
     border: 1px solid rgba(74, 90, 173, 0.1);
+  }
+
+  .api-badge {
+    color: var(--color-blue, #6ea8fe);
+    background: rgba(110, 168, 254, 0.1);
+    border: 1px solid rgba(110, 168, 254, 0.2);
   }
 </style>

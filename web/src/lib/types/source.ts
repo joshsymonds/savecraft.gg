@@ -55,6 +55,7 @@ export interface GameSourceEntry {
   sourceId: string;
   sourceName: string;
   hostname: string | null;
+  sourceKind: string;
   status: GameStatus;
   path?: string;
   error?: string;
@@ -102,4 +103,6 @@ export interface PickerGame {
   watched: boolean;
   saveCount: number;
   defaultPaths?: { windows?: string; linux?: string; darwin?: string };
+  isApiGame?: boolean;
+  adapter?: { authProvider: string; regions: string[] };
 }
