@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { authenticateApiKey, sha256Hex } from "../src/auth";
 import worker from "../src/index";
 
-import { cleanAll, getOAuthToken, seedSource } from "./helpers";
+import { cleanAll, getOAuthToken } from "./helpers";
 
 const AUTH_TEST_USER = "auth-test-user";
 
@@ -293,50 +293,10 @@ describe("authenticateApiKey", () => {
   });
 });
 
-// -- API Key Auth Integration (push endpoint) ---------------------------------
+// -- API Key Auth Unit Tests --------------------------------------------------
 
-describe("API key auth integration", () => {
+describe("API key auth unit tests", () => {
   beforeEach(cleanAll);
-
-  it("push endpoint with valid source token returns 201", async () => {
-    const { sourceToken } = await seedSource("auth-test-user");
-
-    const resp = await SELF.fetch(
-      new Request("https://test-host/api/v1/push", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${sourceToken}`,
-          "X-Game": "d2r",
-          "X-Parsed-At": "2026-02-25T21:30:00Z",
-        },
-        body: JSON.stringify({
-          identity: { saveName: "SourceTokenChar", gameId: "d2r" },
-          summary: "Test character",
-          sections: { overview: { description: "test", data: {} } },
-        }),
-      }),
-    );
-    expect(resp.status).toBe(201);
-  });
-
-  it("push endpoint without any auth returns 401", async () => {
-    const resp = await SELF.fetch(
-      new Request("https://test-host/api/v1/push", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Game": "d2r",
-        },
-        body: JSON.stringify({
-          identity: { saveName: "Test", gameId: "d2r" },
-          summary: "Test",
-          sections: { overview: { description: "test", data: {} } },
-        }),
-      }),
-    );
-    expect(resp.status).toBe(401);
-  });
 
   it("authenticateApiKey rejects revoked key at function level", async () => {
     const rawKey = "sav_revokedkey1234567890123456";

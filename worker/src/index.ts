@@ -167,9 +167,6 @@ async function routePublicEndpoints(
   if (referenceMatch?.[1] && request.method === "POST") {
     return handleReferenceQuery(request, env, referenceMatch[1]);
   }
-  if (url.pathname === "/api/v1/source/register" && request.method === "POST") {
-    return handleSourceRegister(request, env);
-  }
   if (url.pathname === "/api/v1/source/verify" && request.method === "GET") {
     return handleSourceVerify(request, env);
   }
@@ -399,7 +396,6 @@ async function routeDaemonEndpoints(
 }
 
 const SOURCE_TOKEN_ROUTES: ReadonlyMap<string, string> = new Map([
-  ["/api/v1/push", "POST"],
   ["/api/v1/source/link-code", "POST"],
   ["/api/v1/source/unlink", "POST"],
   ["/api/v1/source/deregister", "POST"],
@@ -420,7 +416,6 @@ async function routeSourceEndpoints(
   const auth = await authenticateSource(request, env);
   if (!auth) return new Response("Unauthorized", { status: 401 });
 
-  if (url.pathname === "/api/v1/push") return handlePush(request, env, auth.sourceUuid);
   if (url.pathname === "/api/v1/source/link-code")
     return handleSourceLinkCode(env, auth.sourceUuid);
   if (url.pathname === "/api/v1/source/unlink") return handleSourceUnlink(env, auth.sourceUuid);
@@ -1863,144 +1858,3 @@ function handleWsRegister(env: Env): Response {
   return new Response(null, { status: 101, webSocket: client });
 }
 
-async function handleSourceRegister(request: Request, env: Env): Promise<Response> {
-  let body: { hostname?: string; os?: string; arch?: string } = {};
-  const text = await request.text();
-  if (text) {
-    try {
-      body = JSON.parse(text) as { hostname?: string; os?: string; arch?: string };
-    } catch {
-      return Response.json({ error: "Invalid JSON" }, { status: 400 });
-    }
-  }
-
-  const sourceUuid = crypto.randomUUID();
-  const randomBytes = new Uint8Array(16);
-  crypto.getRandomValues(randomBytes);
-  const hex = [...randomBytes].map((b) => b.toString(16).padStart(2, "0")).join("");
-  const sourceToken = `sct_${hex}`;
-  const tokenHash = await sha256Hex(sourceToken);
-
-  const linkCode = generateSixDigitCode();
-  const linkCodeExpiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000).toISOString();
-
-  await env.DB.prepare(
-    `INSERT INTO sources (source_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      sourceUuid,
-      tokenHash,
-      linkCode,
-      linkCodeExpiresAt,
-      body.hostname ?? null,
-      body.os ?? null,
-      body.arch ?? null,
-    )
-    .run();
-
-  return Response.json(
-    {
-      source_uuid: sourceUuid,
-      source_token: sourceToken,
-      link_code: linkCode,
-      link_code_expires_at: linkCodeExpiresAt,
-    },
-    { status: 201 },
-  );
-}
-
-/**
- * Check if the incoming parsedAt timestamp is newer than the current latest.json.
- */
-async function readPushBody(request: Request): Promise<Record<string, unknown>> {
-  let raw: string;
-  if (request.headers.get("Content-Encoding") === "gzip" && request.body) {
-    const ds = new DecompressionStream("gzip");
-    const decompressed = request.body.pipeThrough(ds);
-    raw = await new Response(decompressed).text();
-  } else {
-    raw = await request.text();
-  }
-  return JSON.parse(raw) as Record<string, unknown>;
-}
-
-async function handlePush(request: Request, env: Env, sourceUuid: string): Promise<Response> {
-  // Resolve user from source — unlinked sources cannot push saves
-  const source = await env.DB.prepare("SELECT user_uuid FROM sources WHERE source_uuid = ?")
-    .bind(sourceUuid)
-    .first<{ user_uuid: string | null }>();
-
-  if (!source?.user_uuid) {
-    return Response.json(
-      { error: "Source not linked to a user. Pair the daemon first." },
-      { status: 403 },
-    );
-  }
-
-  const gameId = request.headers.get("X-Game");
-  if (!gameId) {
-    return Response.json({ error: "Missing X-Game header" }, { status: 400 });
-  }
-
-  const parsedAt = request.headers.get("X-Parsed-At") ?? new Date().toISOString();
-
-  let body: Record<string, unknown>;
-  try {
-    body = await readPushBody(request);
-  } catch {
-    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const identity = body.identity as Record<string, unknown> | undefined;
-  const sections = body.sections as
-    | Record<string, { description: string; data: unknown }>
-    | undefined;
-  const summary = (body.summary as string | undefined) ?? "";
-
-  if (!identity || !sections) {
-    return Response.json(
-      { error: "Body must contain 'identity' and 'sections' keys" },
-      { status: 400 },
-    );
-  }
-
-  const saveName = (identity.saveName as string | undefined) ?? "";
-  if (!saveName) {
-    return Response.json({ error: "identity.saveName is required" }, { status: 400 });
-  }
-
-  const bodySize = JSON.stringify(body).length;
-  if (bodySize > 5 * 1024 * 1024) {
-    return Response.json({ error: "Body exceeds 5MB limit" }, { status: 413 });
-  }
-
-  try {
-    const { saveUuid } = await storePush(
-      env,
-      source.user_uuid,
-      sourceUuid,
-      gameId,
-      saveName,
-      summary,
-      parsedAt,
-      sections,
-    );
-
-    // Update last activity timestamp on successful push (best-effort)
-    try {
-      await env.DB.prepare(
-        "UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?",
-      )
-        .bind(sourceUuid)
-        .run();
-    } catch {
-      // Don't let timestamp update failures break the push response
-    }
-
-    return Response.json({ saveUuid, snapshotTimestamp: parsedAt }, { status: 201 });
-  } catch (error) {
-    const message = error instanceof Error ? error.message : "Unknown error";
-    return Response.json({ error: `Push failed: ${message}` }, { status: 500 });
-  }
-}

@@ -1,52 +1,11 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cleanAll, getOAuthToken, seedSource } from "./helpers";
+import { cleanAll, getOAuthToken, seedPush, seedSource } from "./helpers";
 
 const TEST_USER = "mcp-proto-user";
 const SAVE_UUID_HOLDER: { value: string } = { value: "" };
 const TOKEN_HOLDER: { value: string } = { value: "" };
-const SOURCE_TOKEN_HOLDER: { value: string } = { value: "" };
-
-/**
- * Seed a save by pushing through the actual push API.
- * Uses source token auth since push now uses authenticateSource.
- */
-async function pushSave(): Promise<string> {
-  const resp = await SELF.fetch("https://test-host/api/v1/push", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${SOURCE_TOKEN_HOLDER.value}`,
-      "X-Game": "d2r",
-      "X-Parsed-At": "2026-02-25T21:30:00Z",
-    },
-    body: JSON.stringify({
-      identity: {
-        saveName: "Hammerdin",
-        gameId: "d2r",
-        extra: { class: "Paladin", level: 89 },
-      },
-      summary: "Hammerdin, Level 89 Paladin",
-      sections: {
-        character_overview: {
-          description: "Level, class, difficulty, play time",
-          data: { name: "Hammerdin", class: "Paladin", level: 89, difficulty: "Hell" },
-        },
-        equipped_gear: {
-          description: "All equipped items with stats, sockets, runewords",
-          data: {
-            helmet: { name: "Harlequin Crest", base: "Shako" },
-            body_armor: { name: "Enigma", base: "Mage Plate" },
-          },
-        },
-      },
-    }),
-  });
-  expect(resp.status).toBe(201);
-  const body = await resp.json<{ saveUuid: string }>();
-  return body.saveUuid;
-}
 
 function mcpRequest(method: string, id?: number, params?: unknown): Request {
   const body: Record<string, unknown> = { jsonrpc: "2.0", method };
@@ -90,9 +49,28 @@ describe("MCP Protocol", () => {
   beforeEach(async () => {
     await cleanAll();
     const source = await seedSource(TEST_USER);
-    SOURCE_TOKEN_HOLDER.value = source.sourceToken;
     TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
-    SAVE_UUID_HOLDER.value = await pushSave();
+    SAVE_UUID_HOLDER.value = await seedPush(
+      TEST_USER,
+      source.sourceUuid,
+      "d2r",
+      "Hammerdin",
+      "Hammerdin, Level 89 Paladin",
+      "2026-02-25T21:30:00Z",
+      {
+        character_overview: {
+          description: "Level, class, difficulty, play time",
+          data: { name: "Hammerdin", class: "Paladin", level: 89, difficulty: "Hell" },
+        },
+        equipped_gear: {
+          description: "All equipped items with stats, sockets, runewords",
+          data: {
+            helmet: { name: "Harlequin Crest", base: "Shako" },
+            body_armor: { name: "Enigma", base: "Mage Plate" },
+          },
+        },
+      },
+    );
   });
 
   it("handles initialize handshake", async () => {
