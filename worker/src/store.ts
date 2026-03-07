@@ -1,9 +1,8 @@
 /**
  * Save storage pipeline — shared between the push API and adapter refresh.
  *
- * storePush upserts a save in D1, stores snapshots in R2, and indexes
- * sections in FTS. Both the daemon push handler and the MCP refresh_save
- * tool call this function.
+ * storePush upserts a save in D1 (metadata + sections), stores snapshots in R2
+ * (temporarily, until MCP tools are migrated to D1), and indexes sections in FTS.
  */
 
 import { indexSaveSections } from "./mcp/tools";
@@ -28,6 +27,11 @@ export async function resolveGameName(plugins: R2Bucket, gameId: string): Promis
   return data.name ?? gameId;
 }
 
+export interface SectionInput {
+  description: string;
+  data: unknown;
+}
+
 export async function storePush(
   env: Env,
   userUuid: string,
@@ -37,7 +41,7 @@ export async function storePush(
   summary: string,
   parsedAt: string,
   bodyString: string,
-  sections: unknown,
+  sections: Record<string, SectionInput>,
 ): Promise<{ saveUuid: string }> {
   const existingSave = await env.DB.prepare(
     "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
@@ -58,20 +62,38 @@ export async function storePush(
       .run();
   }
 
+  // Write snapshot to R2 (temporary — removed when MCP tools migrate to D1)
   const snapshotKey = `saves/${saveUuid}/snapshots/${parsedAt}.json`;
   await env.SAVES.put(snapshotKey, bodyString);
 
   const latestKey = `saves/${saveUuid}/latest.json`;
   const isNewer = await isNewerThanLatest(env.SAVES, latestKey, parsedAt);
   if (isNewer) {
+    // R2 latest (temporary — removed when MCP tools migrate to D1)
     await env.SAVES.put(latestKey, bodyString, { customMetadata: { parsedAt } });
+
+    // D1 save metadata update
     await env.DB.prepare(
       "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
     )
       .bind(summary, parsedAt, sourceUuid, saveUuid)
       .run();
-    const sectionData = sections as Record<string, { description: string; data: unknown }>;
-    await indexSaveSections(env.DB, saveUuid, saveName, sectionData);
+
+    // D1 sections upsert — one row per section
+    const sectionBatch: D1PreparedStatement[] = [];
+    for (const [name, section] of Object.entries(sections)) {
+      sectionBatch.push(
+        env.DB.prepare(
+          "INSERT OR REPLACE INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+        ).bind(saveUuid, name, section.description, JSON.stringify(section.data)),
+      );
+    }
+    if (sectionBatch.length > 0) {
+      await env.DB.batch(sectionBatch);
+    }
+
+    // FTS index
+    await indexSaveSections(env.DB, saveUuid, saveName, sections);
   }
 
   return { saveUuid };

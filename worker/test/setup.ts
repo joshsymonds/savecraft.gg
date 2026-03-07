@@ -91,6 +91,14 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_api_keys_user ON api_keys(user_uuid)`,
   `CREATE TABLE IF NOT EXISTS mcp_activity (user_uuid TEXT PRIMARY KEY)`,
+  `CREATE TABLE IF NOT EXISTS sections (
+    save_uuid TEXT NOT NULL,
+    name TEXT NOT NULL,
+    description TEXT NOT NULL DEFAULT '',
+    data TEXT NOT NULL DEFAULT '{}',
+    PRIMARY KEY (save_uuid, name),
+    FOREIGN KEY (save_uuid) REFERENCES saves(uuid) ON DELETE CASCADE
+  )`,
   `CREATE TABLE IF NOT EXISTS linked_characters (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_uuid TEXT NOT NULL,

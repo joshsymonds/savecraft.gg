@@ -61,6 +61,57 @@ describe("Push API", () => {
     expect(body.snapshotTimestamp).toBe("2026-02-25T21:30:00Z");
   });
 
+  it("writes sections to D1 on push", async () => {
+    const resp = await SELF.fetch(pushRequest(validGameState));
+    expect(resp.status).toBe(201);
+    const { saveUuid } = await resp.json<{ saveUuid: string }>();
+
+    const rows = await env.DB.prepare(
+      "SELECT name, description, data FROM sections WHERE save_uuid = ? ORDER BY name",
+    )
+      .bind(saveUuid)
+      .all<{ name: string; description: string; data: string }>();
+
+    expect(rows.results).toHaveLength(1);
+    expect(rows.results[0]!.name).toBe("character_overview");
+    expect(rows.results[0]!.description).toBe("Level, class, difficulty");
+
+    const data = JSON.parse(rows.results[0]!.data) as { name: string; class: string; level: number };
+    expect(data.name).toBe("Hammerdin");
+    expect(data.class).toBe("Paladin");
+    expect(data.level).toBe(89);
+  });
+
+  it("upserts sections on repeated push", async () => {
+    // First push
+    const resp1 = await SELF.fetch(pushRequest(validGameState));
+    expect(resp1.status).toBe(201);
+    const { saveUuid } = await resp1.json<{ saveUuid: string }>();
+
+    // Second push with updated data
+    const updated = {
+      ...validGameState,
+      sections: {
+        character_overview: {
+          description: "Level, class, difficulty",
+          data: { name: "Hammerdin", class: "Paladin", level: 90 },
+        },
+      },
+    };
+    const resp2 = await SELF.fetch(pushRequest(updated, { "X-Parsed-At": "2026-02-25T22:00:00Z" }));
+    expect(resp2.status).toBe(201);
+
+    const rows = await env.DB.prepare(
+      "SELECT data FROM sections WHERE save_uuid = ? AND name = 'character_overview'",
+    )
+      .bind(saveUuid)
+      .all<{ data: string }>();
+
+    expect(rows.results).toHaveLength(1);
+    const data = JSON.parse(rows.results[0]!.data) as { level: number };
+    expect(data.level).toBe(90);
+  });
+
   it("upserts save in D1 and reuses save UUID", async () => {
     // First push
     const resp1 = await SELF.fetch(pushRequest(validGameState));
