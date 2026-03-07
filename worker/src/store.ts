@@ -20,7 +20,7 @@ export interface SectionInput {
 
 export async function storePush(
   env: Env,
-  userUuid: string,
+  userUuid: string | null,
   sourceUuid: string,
   gameId: string,
   saveName: string,
@@ -28,11 +28,19 @@ export async function storePush(
   parsedAt: string,
   sections: Record<string, SectionInput>,
 ): Promise<{ saveUuid: string }> {
-  const existingSave = await env.DB.prepare(
-    "SELECT uuid, last_updated FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
-  )
-    .bind(userUuid, gameId, saveName)
-    .first<{ uuid: string; last_updated: string }>();
+  // Linked sources dedup by (user_uuid, game_id, save_name).
+  // Unlinked sources dedup by (last_source_uuid, game_id, save_name) where user_uuid IS NULL.
+  const existingSave = userUuid
+    ? await env.DB.prepare(
+        "SELECT uuid, last_updated FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
+      )
+        .bind(userUuid, gameId, saveName)
+        .first<{ uuid: string; last_updated: string }>()
+    : await env.DB.prepare(
+        "SELECT uuid, last_updated FROM saves WHERE last_source_uuid = ? AND user_uuid IS NULL AND game_id = ? AND save_name = ?",
+      )
+        .bind(sourceUuid, gameId, saveName)
+        .first<{ uuid: string; last_updated: string }>();
 
   let saveUuid: string;
   if (existingSave) {
