@@ -35,4 +35,8 @@ export interface Env {
   STALE_THRESHOLD_MS?: number;
   /** DO alarm interval in ms for checking stale connections. Default 30000 (30s). */
   ALARM_INTERVAL_MS?: number;
+  /** Battle.net OAuth application client ID. */
+  BATTLENET_CLIENT_ID?: string;
+  /** Battle.net OAuth application client secret. */
+  BATTLENET_CLIENT_SECRET?: string;
 }
