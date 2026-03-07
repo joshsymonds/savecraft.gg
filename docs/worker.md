@@ -170,7 +170,7 @@ CREATE TABLE sources (
 );
 ```
 
-Sources start unlinked (`user_uuid IS NULL`) with a 6-digit `link_code`. When the user enters the code in the web UI, the source is linked (`user_uuid` set, `link_code` cleared). The daemon can refresh an expired link code via `POST /api/v1/source/link-code`.
+Sources start unlinked (`user_uuid IS NULL`) with a 6-digit `link_code`. When the user enters the code in the web UI, the source is linked (`user_uuid` set, `link_code` cleared). The daemon refreshes expired link codes via a `RefreshLinkCode` proto message over the authenticated WebSocket connection.
 
 **Saves table (identity → save UUID mapping):**
 

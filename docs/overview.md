@@ -66,7 +66,7 @@ Savecraft uses a source-centric ownership model. A "source" is any authenticated
 
 **Source lifecycle:**
 1. **Register:** Daemon connects to `/ws/register` (unauthenticated WebSocket), sends a `Register` proto message. Server creates a source row, issues a `sct_*` token, and generates a 6-digit link code (20-minute TTL).
-2. **Link:** User enters the 6-digit code at `savecraft.gg/setup` (or the web dashboard). `POST /api/v1/source/link` associates the source with the user's account.
+2. **Link:** User enters the 6-digit code at `savecraft.gg/setup` (or the web dashboard). The server notifies the daemon via `SourceLinked` over the existing WebSocket connection.
 3. **Push:** Daemon sends `PushSave` proto messages over the authenticated WebSocket. Save metadata and section data are stored in D1.
 4. **Reap:** Unlinked sources with no push activity for 7+ days are automatically cleaned up by a daily Cron Trigger.
 
@@ -92,8 +92,6 @@ Cloud-hosted HTTPS endpoint that serves game state to AI clients. This is a stan
 The MCP server, WebSocket endpoints, and API adapters run as a **single Cloudflare Worker**. Route groups on the same deployment:
 
 - `/api/v1/source/link` — Link source to user account via 6-digit code (Clerk session auth)
-- `/api/v1/source/link-code` — Refresh source link code (source token auth)
-- `/api/v1/source/status` — Source status: linked user, link code (source token auth)
 - `/api/v1/notes/*` — Note CRUD for web UI and MCP write tools (Clerk session or OAuth)
 - `/mcp/*` — MCP tool-serving endpoint (OAuth access token from our AS)
 - `/oauth/authorize` — Redirects to Clerk for user login, then completes authorization
