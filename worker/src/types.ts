@@ -2,7 +2,6 @@ import type { OAuthHelpers } from "@cloudflare/workers-oauth-provider";
 
 export interface Env {
   DB: D1Database;
-  SAVES: R2Bucket;
   PLUGINS: R2Bucket;
   SOURCE_HUB: DurableObjectNamespace;
   USER_HUB: DurableObjectNamespace;
