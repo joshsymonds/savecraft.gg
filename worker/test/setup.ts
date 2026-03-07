@@ -28,7 +28,7 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_sources_token ON sources(token_hash)`,
   `CREATE TABLE IF NOT EXISTS saves (
     uuid TEXT PRIMARY KEY,
-    user_uuid TEXT NOT NULL,
+    user_uuid TEXT,
     game_id TEXT NOT NULL,
     game_name TEXT NOT NULL DEFAULT '',
     save_name TEXT NOT NULL,

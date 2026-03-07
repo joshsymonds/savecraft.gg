@@ -7,7 +7,7 @@ import { indexNote, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
 import { Message } from "./proto/savecraft/v1/protocol";
 import { reapOrphanSources } from "./reaper";
-import { storePush } from "./store";
+import { reconcileOrphanSaves, storePush } from "./store";
 import type { Env } from "./types";
 
 export { SourceHub } from "./hub";
@@ -1671,6 +1671,9 @@ async function handleSourceLink(request: Request, env: Env, userUuid: string): P
   )
     .bind(userUuid, body.email ?? null, body.display_name ?? null, source.source_uuid)
     .run();
+
+  // Adopt any orphan saves this source pushed while unlinked
+  await reconcileOrphanSaves(env, source.source_uuid, userUuid);
 
   // Notify the SourceHub DO so it starts forwarding to UserHub
   const doId = env.SOURCE_HUB.idFromName(source.source_uuid);

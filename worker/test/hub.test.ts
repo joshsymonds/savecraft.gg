@@ -1508,18 +1508,12 @@ describe("SourceHub", () => {
     await closeWs(daemon);
   });
 
-  it("pushSave from unlinked source is silently ignored", async () => {
-    const { sourceToken } = await seedSource(null); // unlinked
+  it("pushSave from unlinked source stores save with null user_uuid", async () => {
+    const { sourceToken, sourceUuid } = await seedSource(null); // unlinked
 
     const daemon = await connectDaemonWs(sourceToken);
-
-    sendProto(daemon, sourceOnlineMsg());
-    await new Promise((r) => setTimeout(r, 100));
-
-    // Record current save count
-    const before = await env.DB.prepare("SELECT COUNT(*) as cnt FROM saves").first<{
-      cnt: number;
-    }>();
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
 
     sendProto(daemon, {
       payload: {
@@ -1534,20 +1528,17 @@ describe("SourceHub", () => {
       },
     });
 
-    // Wait for processing
-    await new Promise((r) => setTimeout(r, 200));
+    const result = await waitForProtoMessage(daemon);
+    const pushResult = requirePayload(result, "pushSaveResult");
+    expect(pushResult.saveUuid).toBeTruthy();
 
-    // No new saves should have been created
-    const after = await env.DB.prepare("SELECT COUNT(*) as cnt FROM saves").first<{
-      cnt: number;
-    }>();
-    expect(after!.cnt).toBe(before!.cnt);
-
-    // Specifically no save with our unique name
-    const unlinkedSave = await env.DB.prepare(
-      "SELECT 1 FROM saves WHERE save_name = 'UnlinkedTest'",
-    ).first();
-    expect(unlinkedSave).toBeNull();
+    // Save exists with null user_uuid
+    const save = await env.DB.prepare(
+      "SELECT user_uuid, last_source_uuid FROM saves WHERE save_name = 'UnlinkedTest'",
+    ).first<{ user_uuid: string | null; last_source_uuid: string }>();
+    expect(save).not.toBeNull();
+    expect(save!.user_uuid).toBeNull();
+    expect(save!.last_source_uuid).toBe(sourceUuid);
 
     await closeWs(daemon);
   });

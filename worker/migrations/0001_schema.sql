@@ -22,12 +22,12 @@ CREATE INDEX idx_sources_user ON sources(user_uuid);
 CREATE INDEX idx_sources_link_code ON sources(link_code) WHERE link_code IS NOT NULL;
 CREATE INDEX idx_sources_token ON sources(token_hash);
 
--- Saves: keyed by (user_uuid, game_id, save_name) → UUID.
--- User-level identity: the same character synced via Steam Cloud across
--- multiple sources merges into a single save record.
+-- Saves: keyed by (user_uuid, game_id, save_name) → UUID for linked sources.
+-- Unlinked saves use (last_source_uuid, game_id, save_name) as dedup key,
+-- with user_uuid NULL until the source links to a user account.
 CREATE TABLE saves (
   uuid TEXT PRIMARY KEY,
-  user_uuid TEXT NOT NULL,
+  user_uuid TEXT,
   game_id TEXT NOT NULL,
   game_name TEXT NOT NULL DEFAULT '',
   save_name TEXT NOT NULL,
