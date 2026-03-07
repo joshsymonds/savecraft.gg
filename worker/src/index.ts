@@ -1,4 +1,4 @@
-import { AdapterError } from "./adapters/adapter";
+import { AdapterError, type ApiAdapter } from "./adapters/adapter";
 import { adapters } from "./adapters/registry";
 import { handleAdminRoute } from "./admin";
 import { authenticateSession, authenticateSource, sha256Hex } from "./auth";
@@ -69,6 +69,7 @@ async function handleNonMcpRequest(request: Request, env: Env): Promise<Response
   const response =
     (await handleAdminRoute(request, url, env)) ??
     (await routePublicEndpoints(request, url, env)) ??
+    (await routeBattlenetOAuth(request, url, env)) ??
     (await routeDaemonEndpoints(request, url, env)) ??
     (await routeProtectedEndpoints(request, url, env));
   const final = corsify(response, request, env);
@@ -170,6 +171,171 @@ async function routePublicEndpoints(
     return handleSourceVerify(request, env);
   }
   return null;
+}
+
+// -- Battle.net OAuth routes --------------------------------------------------
+
+async function routeBattlenetOAuth(
+  request: Request,
+  url: URL,
+  env: Env,
+): Promise<Response | null> {
+  if (request.method !== "GET") return null;
+
+  if (url.pathname === "/oauth/battlenet/authorize") {
+    // Session-protected: user must be logged in
+    const auth = await authenticateSession(request, env);
+    if (!auth) return new Response("Unauthorized", { status: 401 });
+    return handleBattlenetAuthorize(url, env, auth.userUuid);
+  }
+
+  if (url.pathname === "/oauth/battlenet/callback") {
+    return handleBattlenetCallback(url, env);
+  }
+
+  return null;
+}
+
+async function handleBattlenetAuthorize(
+  url: URL,
+  env: Env,
+  userUuid: string,
+): Promise<Response> {
+  const region = url.searchParams.get("region") ?? "us";
+  const returnUrl = url.searchParams.get("return_url") ?? "";
+  const adapter = adapters["wow"];
+  if (!adapter) {
+    return Response.json({ error: "WoW adapter not configured" }, { status: 500 });
+  }
+
+  const oauthConfig = adapter.getOAuthConfig(region, env);
+
+  // Store state in KV (one-time use, 10 min TTL)
+  const stateKey = crypto.randomUUID();
+  await env.OAUTH_KV.put(
+    `battlenet-oauth-state:${stateKey}`,
+    JSON.stringify({ userUuid, region, returnUrl }),
+    { expirationTtl: 600 },
+  );
+
+  // Build Battle.net authorize URL
+  const authorizeUrl = new URL(oauthConfig.authorizeUrl);
+  authorizeUrl.searchParams.set("client_id", oauthConfig.clientId);
+  authorizeUrl.searchParams.set("redirect_uri", `${url.origin}/oauth/battlenet/callback`);
+  authorizeUrl.searchParams.set("response_type", "code");
+  authorizeUrl.searchParams.set("scope", oauthConfig.scopes.join(" "));
+  authorizeUrl.searchParams.set("state", stateKey);
+
+  return new Response(null, {
+    status: 302,
+    headers: { Location: authorizeUrl.toString() },
+  });
+}
+
+async function handleBattlenetCallback(
+  url: URL,
+  env: Env,
+): Promise<Response> {
+  const code = url.searchParams.get("code");
+  const stateKey = url.searchParams.get("state");
+
+  if (!code || !stateKey) {
+    return Response.json({ error: "Missing code or state" }, { status: 400 });
+  }
+
+  // Retrieve and delete state (one-time use)
+  const storedRaw = await env.OAUTH_KV.get(`battlenet-oauth-state:${stateKey}`);
+  if (!storedRaw) {
+    return Response.json({ error: "Invalid or expired state" }, { status: 400 });
+  }
+  await env.OAUTH_KV.delete(`battlenet-oauth-state:${stateKey}`);
+
+  const state = JSON.parse(storedRaw) as {
+    userUuid: string;
+    region: string;
+    returnUrl: string;
+  };
+
+  const adapter = adapters["wow"];
+  if (!adapter) {
+    return Response.json({ error: "WoW adapter not configured" }, { status: 500 });
+  }
+
+  const oauthConfig = adapter.getOAuthConfig(state.region, env);
+
+  // Exchange authorization code for tokens
+  const tokenResp = await fetch(oauthConfig.tokenUrl, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "authorization_code",
+      code,
+      redirect_uri: `${url.origin}/oauth/battlenet/callback`,
+      client_id: oauthConfig.clientId,
+      client_secret: env.BATTLENET_CLIENT_SECRET ?? "",
+    }),
+  });
+
+  if (!tokenResp.ok) {
+    return Response.json(
+      { error: "Failed to exchange code with Battle.net" },
+      { status: 502 },
+    );
+  }
+
+  const tokenData = await tokenResp.json<{
+    access_token?: string;
+    refresh_token?: string;
+    expires_in?: number;
+  }>();
+
+  if (!tokenData.access_token) {
+    return Response.json(
+      { error: "Battle.net token response missing access_token" },
+      { status: 502 },
+    );
+  }
+
+  // Store credentials (upsert)
+  const expiresAt = tokenData.expires_in
+    ? new Date(Date.now() + tokenData.expires_in * 1000).toISOString()
+    : null;
+
+  await env.DB.prepare(
+    `INSERT INTO game_credentials (user_uuid, game_id, access_token_enc, refresh_token_enc, expires_at)
+     VALUES (?, 'wow', ?, ?, ?)
+     ON CONFLICT(user_uuid, game_id) DO UPDATE SET
+       access_token_enc = excluded.access_token_enc,
+       refresh_token_enc = excluded.refresh_token_enc,
+       expires_at = excluded.expires_at,
+       updated_at = datetime('now')`,
+  )
+    .bind(
+      state.userUuid,
+      tokenData.access_token,
+      tokenData.refresh_token ?? null,
+      expiresAt,
+    )
+    .run();
+
+  // Discover characters
+  let characters: { saveName: string; characterId: string; displayName: string; metadata: Record<string, unknown> }[] = [];
+  try {
+    characters = await adapter.discoverSaves(tokenData.access_token, state.region);
+  } catch {
+    // Token works but character discovery failed — redirect anyway, user can retry
+  }
+
+  // Redirect back to web app with character data as query params
+  const returnUrl = state.returnUrl || `${url.origin}/settings/wow`;
+  const redirectUrl = new URL(returnUrl);
+  redirectUrl.searchParams.set("connected", "true");
+  redirectUrl.searchParams.set("characters", JSON.stringify(characters));
+
+  return new Response(null, {
+    status: 302,
+    headers: { Location: redirectUrl.toString() },
+  });
 }
 
 async function routeDaemonEndpoints(
@@ -340,24 +506,32 @@ function routeReadEndpoints(
 const ADAPTER_REFRESH_COOLDOWN_SEC = 300;
 
 async function handleAdapterRoute(
-  _request: Request,
+  request: Request,
   url: URL,
   env: Env,
   userUuid: string,
 ): Promise<Response> {
-  // POST /api/v1/adapters/{gameId}/refresh/{saveUuid}
+  // POST /api/v1/adapters/{gameId}/{action}[/{param}]
   const parts = url.pathname.split("/");
   const gameId = parts[4];
   const action = parts[5];
   const saveUuid = parts[6];
 
-  if (action !== "refresh" || !validateId(gameId) || !validateId(saveUuid)) {
+  if (!validateId(gameId)) {
     return Response.json({ error: "Not found" }, { status: 404 });
   }
 
   const adapter = adapters[gameId];
   if (!adapter) {
     return Response.json({ error: `No adapter for game: ${gameId}` }, { status: 404 });
+  }
+
+  if (action === "characters") {
+    return handleAdapterCharacterSelection(request, env, adapter, userUuid, gameId);
+  }
+
+  if (action !== "refresh" || !validateId(saveUuid)) {
+    return Response.json({ error: "Not found" }, { status: 404 });
   }
 
   // Look up save — verify ownership and that it's adapter-backed
@@ -513,6 +687,122 @@ async function handleAdapterRoute(
     }
     throw err;
   }
+}
+
+// -- Adapter Character Selection ------------------------------------------
+
+interface CharacterSelectionInput {
+  character_id: string;
+  save_name: string;
+  display_name: string;
+  metadata: Record<string, unknown>;
+}
+
+async function handleAdapterCharacterSelection(
+  request: Request,
+  env: Env,
+  adapter: ApiAdapter,
+  userUuid: string,
+  gameId: string,
+): Promise<Response> {
+  let body: { characters?: CharacterSelectionInput[] };
+  try {
+    body = await request.json<{ characters?: CharacterSelectionInput[] }>();
+  } catch {
+    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
+  }
+
+  const characters = body.characters;
+  if (!characters || !Array.isArray(characters) || characters.length === 0) {
+    return Response.json({ error: "No characters selected" }, { status: 400 });
+  }
+
+  // Verify credentials exist
+  const creds = await env.DB.prepare(
+    "SELECT access_token_enc FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
+  )
+    .bind(userUuid, gameId)
+    .first<{ access_token_enc: string }>();
+
+  if (!creds) {
+    return Response.json(
+      { error: "No credentials found. Connect your Battle.net account first." },
+      { status: 400 },
+    );
+  }
+
+  // Find or create adapter source for this user+game
+  let sourceUuid: string;
+  const existingSource = await env.DB.prepare(
+    "SELECT source_uuid FROM sources WHERE user_uuid = ? AND source_kind = 'adapter'",
+  )
+    .bind(userUuid)
+    .first<{ source_uuid: string }>();
+
+  if (existingSource) {
+    sourceUuid = existingSource.source_uuid;
+  } else {
+    sourceUuid = crypto.randomUUID();
+    const tokenHash = await sha256Hex(`sct_adapter_${sourceUuid}`);
+    await env.DB.prepare(
+      `INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config)
+       VALUES (?, ?, ?, 'adapter', 0, 0)`,
+    )
+      .bind(sourceUuid, userUuid, tokenHash)
+      .run();
+  }
+
+  // Create linked_characters and saves for each selected character
+  const results: { character_id: string; save_uuid: string }[] = [];
+
+  for (const char of characters) {
+    // Upsert linked_character
+    await env.DB.prepare(
+      `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
+       VALUES (?, ?, ?, ?, ?, ?, 1)
+       ON CONFLICT(user_uuid, game_id, character_id) DO UPDATE SET
+         character_name = excluded.character_name,
+         metadata = excluded.metadata,
+         source_uuid = excluded.source_uuid,
+         active = 1`,
+    )
+      .bind(
+        userUuid,
+        gameId,
+        char.character_id,
+        char.display_name,
+        JSON.stringify(char.metadata),
+        sourceUuid,
+      )
+      .run();
+
+    // Create save (upsert)
+    const existingSave = await env.DB.prepare(
+      "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
+    )
+      .bind(userUuid, gameId, char.save_name)
+      .first<{ uuid: string }>();
+
+    let saveUuid: string;
+    if (existingSave) {
+      saveUuid = existingSave.uuid;
+    } else {
+      saveUuid = crypto.randomUUID();
+      await env.DB.prepare(
+        `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
+         VALUES (?, ?, ?, ?, ?, '', datetime('now'), ?)`,
+      )
+        .bind(saveUuid, userUuid, gameId, adapter.gameName, char.save_name, sourceUuid)
+        .run();
+    }
+
+    results.push({ character_id: char.character_id, save_uuid: saveUuid });
+  }
+
+  return Response.json({
+    source_uuid: sourceUuid,
+    characters: results,
+  });
 }
 
 // -- Plugin Registry -----------------------------------------------
