@@ -3,11 +3,14 @@ import { DurableObject } from "cloudflare:workers";
 import { DebugLog } from "./debug-log";
 import type {
   GameInfo,
+  PushSave,
   SaveIdentity,
   SourceInfo,
   SourceState,
 } from "./proto/savecraft/v1/protocol";
 import { GameStatusEnum, Message } from "./proto/savecraft/v1/protocol";
+import type { SectionInput } from "./store";
+import { storePush } from "./store";
 import type { Env } from "./types";
 
 const STATE_KEY = "sourceState";
@@ -252,6 +255,13 @@ export class SourceHub extends DurableObject<Env> {
     // relayed to UI or persisted — it's transport-level only.
     if (rpc?.payload?.$case === "sourceHeartbeat") {
       await this.forwardStateToUserHub();
+      return;
+    }
+
+    // PushSave is handled specially: write to D1, respond with result,
+    // then synthesize a pushCompleted event for the state/relay pipeline.
+    if (rpc?.payload?.$case === "pushSave") {
+      await this.handlePushSave(ws, rpc.payload.pushSave, sourceId);
       return;
     }
 
@@ -761,6 +771,117 @@ export class SourceHub extends DurableObject<Env> {
   }
 
   /**
+   * Handle a PushSave message from the daemon: write save data to D1,
+   * send PushSaveResult back to the daemon, then synthesize and forward
+   * a pushCompleted event through the normal relay pipeline.
+   */
+  private async handlePushSave(
+    ws: WebSocket,
+    push: PushSave,
+    sourceId: string | undefined,
+  ): Promise<void> {
+    try {
+      const userUuid = await this.ctx.storage.get<string>(USER_UUID_KEY);
+      if (!userUuid || !sourceId) {
+        this.debugLog.push("warn", "pushSave from unlinked source", { sourceId });
+        return;
+      }
+
+      const saveName = push.identity?.name ?? "";
+      if (!saveName || !push.gameId) {
+        this.debugLog.push("warn", "pushSave missing identity or gameId");
+        return;
+      }
+
+      // Convert proto GameSection[] to Record<string, SectionInput>
+      const sections: Record<string, SectionInput> = {};
+      for (const section of push.sections) {
+        sections[section.name] = {
+          description: section.description,
+          data: section.data ?? {},
+        };
+      }
+
+      const parsedAt = push.parsedAt?.toISOString() ?? new Date().toISOString();
+
+      const { saveUuid } = await storePush(
+        this.env,
+        userUuid,
+        sourceId,
+        push.gameId,
+        saveName,
+        push.summary,
+        parsedAt,
+        sections,
+      );
+
+      // Update last_push_at (best-effort)
+      try {
+        await this.env.DB.prepare(
+          "UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?",
+        )
+          .bind(sourceId)
+          .run();
+      } catch {
+        // best-effort
+      }
+
+      // Send PushSaveResult back to daemon
+      const resultMsg = Message.encode({
+        payload: {
+          $case: "pushSaveResult",
+          pushSaveResult: {
+            saveUuid,
+            snapshotTimestamp: push.parsedAt,
+          },
+        },
+      }).finish();
+      ws.send(resultMsg);
+
+      this.debugLog.push("info", "pushSave completed", { saveUuid, gameId: push.gameId });
+
+      // Synthesize pushCompleted event for state mutation + relay
+      const pushCompletedMsg: Message = {
+        payload: {
+          $case: "pushCompleted",
+          pushCompleted: {
+            gameId: push.gameId,
+            saveUuid,
+            summary: push.summary,
+            identity: push.identity,
+            snapshotSizeBytes: 0,
+            durationMs: 0,
+          },
+        },
+      };
+
+      // Apply state mutation
+      const state = await this.loadState();
+      applyMutation(state, {
+        kind: "pushCompleted",
+        sourceId,
+        gameId: push.gameId,
+        saveUuid,
+        summary: push.summary,
+        identity: push.identity,
+      });
+      await this.saveState(state);
+
+      // Persist + relay the synthesized pushCompleted event
+      const eventJson = JSON.stringify(Message.toJSON(pushCompletedMsg));
+      const eventBytes = Message.encode(pushCompletedMsg).finish();
+      await this.persistEvent(sourceId, pushCompletedMsg, eventJson);
+      await this.forwardEventToUserHub(eventBytes, sourceId);
+      await this.forwardStateToUserHub();
+    } catch (error) {
+      this.debugLog.push("error", "pushSave failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
+      await this.persistErrorEvent("handlePushSave", error);
+    }
+  }
+
+  /**
    * When daemon reports a newly detected game, auto-create a config entry
    * (enabled, with the detected path) and push config to start watching.
    * Skips if config already exists (don't overwrite user's path or re-enable disabled games).
@@ -1031,6 +1152,7 @@ export class SourceHub extends DurableObject<Env> {
     "scanCompleted",
     "parseStarted",
     "pushStarted",
+    "pushSave", // Raw save data — pushCompleted is synthesized and persisted instead
   ]);
 
   /**
