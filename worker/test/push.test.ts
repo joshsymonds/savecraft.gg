@@ -56,16 +56,16 @@ describe("Push API", () => {
     const resp = await SELF.fetch(pushRequest(validGameState));
     expect(resp.status).toBe(201);
 
-    const body = await resp.json<{ save_uuid: string; snapshot_timestamp: string }>();
-    expect(body.save_uuid).toBeTruthy();
-    expect(body.snapshot_timestamp).toBe("2026-02-25T21:30:00Z");
+    const body = await resp.json<{ saveUuid: string; snapshotTimestamp: string }>();
+    expect(body.saveUuid).toBeTruthy();
+    expect(body.snapshotTimestamp).toBe("2026-02-25T21:30:00Z");
   });
 
   it("upserts save in D1 and reuses save UUID", async () => {
     // First push
     const resp1 = await SELF.fetch(pushRequest(validGameState));
     expect(resp1.status).toBe(201);
-    const body1 = await resp1.json<{ save_uuid: string }>();
+    const body1 = await resp1.json<{ saveUuid: string }>();
 
     // Second push for the same character — should reuse save UUID
     const updated = {
@@ -74,9 +74,9 @@ describe("Push API", () => {
     };
     const resp2 = await SELF.fetch(pushRequest(updated, { "X-Parsed-At": "2026-02-25T22:00:00Z" }));
     expect(resp2.status).toBe(201);
-    const body2 = await resp2.json<{ save_uuid: string }>();
+    const body2 = await resp2.json<{ saveUuid: string }>();
 
-    expect(body2.save_uuid).toBe(body1.save_uuid);
+    expect(body2.saveUuid).toBe(body1.saveUuid);
 
     // D1 should have exactly one save row for this character
     const rows = await env.DB.prepare(
@@ -129,7 +129,7 @@ describe("Push API", () => {
       pushRequest(character, { "X-Parsed-At": "2026-02-25T22:00:00Z" }),
     );
     expect(resp1.status).toBe(201);
-    const body1 = await resp1.json<{ save_uuid: string }>();
+    const body1 = await resp1.json<{ saveUuid: string }>();
 
     // Push with an older timestamp — snapshot written, but latest.json should NOT update
     const olderCharacter = { ...character, summary: "Older push" };
@@ -139,7 +139,7 @@ describe("Push API", () => {
     expect(resp2.status).toBe(201);
 
     // latest.json should still have the newer push's data
-    const latestKey = `saves/${body1.save_uuid}/latest.json`;
+    const latestKey = `saves/${body1.saveUuid}/latest.json`;
     const latest = await env.SAVES.get(latestKey);
     expect(latest).not.toBeNull();
     const latestData = await latest!.json<{ summary: string }>();
@@ -147,7 +147,7 @@ describe("Push API", () => {
 
     // D1 summary should also still reflect the newer push
     const row = await env.DB.prepare("SELECT summary, last_updated FROM saves WHERE uuid = ?")
-      .bind(body1.save_uuid)
+      .bind(body1.saveUuid)
       .first<{ summary: string; last_updated: string }>();
     expect(row!.summary).toBe("Newer push");
     expect(row!.last_updated).toBe("2026-02-25T22:00:00Z");
@@ -165,7 +165,7 @@ describe("Push API", () => {
       pushRequest(character, { "X-Parsed-At": "2026-02-25T20:00:00Z" }),
     );
     expect(resp1.status).toBe(201);
-    const body1 = await resp1.json<{ save_uuid: string }>();
+    const body1 = await resp1.json<{ saveUuid: string }>();
 
     // Push with a newer timestamp — should update latest.json
     const newerCharacter = { ...character, summary: "Second push" };
@@ -174,7 +174,7 @@ describe("Push API", () => {
     );
     expect(resp2.status).toBe(201);
 
-    const latestKey = `saves/${body1.save_uuid}/latest.json`;
+    const latestKey = `saves/${body1.saveUuid}/latest.json`;
     const latest = await env.SAVES.get(latestKey);
     const latestData = await latest!.json<{ summary: string }>();
     expect(latestData.summary).toBe("Second push");
@@ -188,10 +188,10 @@ describe("Push API", () => {
     };
     const resp = await SELF.fetch(pushRequest(daemonBody));
     expect(resp.status).toBe(201);
-    const { save_uuid } = await resp.json<{ save_uuid: string }>();
+    const { saveUuid } = await resp.json<{ saveUuid: string }>();
 
     // Read back from R2 and verify identity uses camelCase (daemon convention)
-    const latestKey = `saves/${save_uuid}/latest.json`;
+    const latestKey = `saves/${saveUuid}/latest.json`;
     const object = await env.SAVES.get(latestKey);
     expect(object).not.toBeNull();
     const snapshot = await object!.json<{ identity: Record<string, unknown> }>();
@@ -218,8 +218,8 @@ describe("Push API", () => {
       }),
     );
     expect(resp.status).toBe(201);
-    const body = await resp.json<{ save_uuid: string }>();
-    expect(body.save_uuid).toBeTruthy();
+    const body = await resp.json<{ saveUuid: string }>();
+    expect(body.saveUuid).toBeTruthy();
   });
 
   it("always writes the immutable snapshot regardless of timestamp order", async () => {
@@ -233,7 +233,7 @@ describe("Push API", () => {
       pushRequest(character, { "X-Parsed-At": "2026-02-25T22:00:00Z" }),
     );
     expect(resp1.status).toBe(201);
-    const body1 = await resp1.json<{ save_uuid: string; snapshot_timestamp: string }>();
+    const body1 = await resp1.json<{ saveUuid: string; snapshotTimestamp: string }>();
 
     // Push older — should still return 201 (snapshot written)
     const resp2 = await SELF.fetch(
@@ -243,14 +243,14 @@ describe("Push API", () => {
       ),
     );
     expect(resp2.status).toBe(201);
-    expect(body1.snapshot_timestamp).toBe("2026-02-25T22:00:00Z");
+    expect(body1.snapshotTimestamp).toBe("2026-02-25T22:00:00Z");
   });
 
   it("merges same character from different sources into one save", async () => {
     // Push from primary source
     const resp1 = await SELF.fetch(pushRequest(validGameState));
     expect(resp1.status).toBe(201);
-    const body1 = await resp1.json<{ save_uuid: string }>();
+    const body1 = await resp1.json<{ saveUuid: string }>();
 
     // Create a second source linked to the SAME user
     const source2 = await seedSource(PUSH_USER);
@@ -272,10 +272,10 @@ describe("Push API", () => {
       }),
     );
     expect(resp2.status).toBe(201);
-    const body2 = await resp2.json<{ save_uuid: string }>();
+    const body2 = await resp2.json<{ saveUuid: string }>();
 
     // Same save UUID — merged automatically
-    expect(body2.save_uuid).toBe(body1.save_uuid);
+    expect(body2.saveUuid).toBe(body1.saveUuid);
 
     // D1 has exactly one save row
     const rows = await env.DB.prepare(

@@ -250,10 +250,7 @@ async function handleBattlenetAuthorize(url: URL, env: Env, userUuid: string): P
   authorizeUrl.searchParams.set("scope", oauthConfig.scopes.join(" "));
   authorizeUrl.searchParams.set("state", stateKey);
 
-  return new Response(null, {
-    status: 302,
-    headers: { Location: authorizeUrl.toString() },
-  });
+  return Response.json({ url: authorizeUrl.toString() });
 }
 
 interface BattlenetTokenResult {
@@ -1942,7 +1939,7 @@ async function handlePush(request: Request, env: Env, sourceUuid: string): Promi
       // Don't let timestamp update failures break the push response
     }
 
-    return Response.json({ save_uuid: saveUuid, snapshot_timestamp: parsedAt }, { status: 201 });
+    return Response.json({ saveUuid, snapshotTimestamp: parsedAt }, { status: 201 });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Unknown error";
     return Response.json({ error: `Push failed: ${message}` }, { status: 500 });

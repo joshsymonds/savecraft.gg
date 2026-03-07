@@ -3,12 +3,12 @@
   Dashboard: source status strip + game-centric main area + activity sidebar.
 -->
 <script lang="ts">
-  import { PUBLIC_API_URL } from "$env/static/public";
   import {
     createNote,
     deleteGame,
     deleteNote,
     fetchNotes,
+    fetchOAuthAuthorizeUrl,
     saveSourceConfig,
     toNoteSummary,
     updateNote,
@@ -402,8 +402,9 @@
       if (!sourceId) throw new Error("No configurable source selected");
       await saveConfigAndWait(sourceId, gameId, savePath);
     }}
-    onoauthconnect={(gameId: string, region: string) => {
-      globalThis.location.href = `${PUBLIC_API_URL}/api/v1/adapters/${gameId}/authorize?region=${region}`;
+    onoauthconnect={async (_gameId: string, region: string) => {
+      const url = await fetchOAuthAuthorizeUrl(region);
+      globalThis.location.href = url;
     }}
     onclose={() => {
       pickerOpen = false;

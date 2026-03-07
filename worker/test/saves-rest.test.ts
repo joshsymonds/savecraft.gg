@@ -152,9 +152,9 @@ describe("Saves REST API", () => {
     const pushResp = await SELF.fetch(
       pushSave("Hammerdin", "Level 89 Paladin", "2026-02-25T21:00:00Z"),
     );
-    const { save_uuid } = await pushResp.json<{ save_uuid: string }>();
+    const { saveUuid } = await pushResp.json<{ saveUuid: string }>();
 
-    const resp = await SELF.fetch(getSave(save_uuid));
+    const resp = await SELF.fetch(getSave(saveUuid));
     expect(resp.status).toBe(200);
 
     const body = await resp.json<{
@@ -165,7 +165,7 @@ describe("Saves REST API", () => {
       sections: { name: string; description: string }[];
     }>();
 
-    expect(body.id).toBe(save_uuid);
+    expect(body.id).toBe(saveUuid);
     expect(body.save_name).toBe("Hammerdin");
     expect(body.sections).toHaveLength(2);
 
