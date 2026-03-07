@@ -1,24 +1,11 @@
 /**
  * Save storage pipeline — shared between the push API and adapter refresh.
  *
- * storePush upserts a save in D1 (metadata + sections), stores snapshots in R2
- * (temporarily, until MCP tools are migrated to D1), and indexes sections in FTS.
+ * storePush upserts a save in D1 (metadata + sections) and indexes sections in FTS.
  */
 
 import { indexSaveSections } from "./mcp/tools";
 import type { Env } from "./types";
-
-async function isNewerThanLatest(
-  snapshots: R2Bucket,
-  latestKey: string,
-  parsedAt: string,
-): Promise<boolean> {
-  const head = await snapshots.head(latestKey);
-  if (!head) return true;
-  const existingParsedAt = head.customMetadata?.parsedAt;
-  if (!existingParsedAt) return true;
-  return parsedAt > existingParsedAt;
-}
 
 export async function resolveGameName(plugins: R2Bucket, gameId: string): Promise<string> {
   const manifest = await plugins.get(`plugins/${gameId}/manifest.json`);
@@ -40,14 +27,13 @@ export async function storePush(
   saveName: string,
   summary: string,
   parsedAt: string,
-  bodyString: string,
   sections: Record<string, SectionInput>,
 ): Promise<{ saveUuid: string }> {
   const existingSave = await env.DB.prepare(
-    "SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
+    "SELECT uuid, last_updated FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
   )
     .bind(userUuid, gameId, saveName)
-    .first<{ uuid: string }>();
+    .first<{ uuid: string; last_updated: string }>();
 
   let saveUuid: string;
   if (existingSave) {
@@ -62,16 +48,8 @@ export async function storePush(
       .run();
   }
 
-  // Write snapshot to R2 (temporary — removed when MCP tools migrate to D1)
-  const snapshotKey = `saves/${saveUuid}/snapshots/${parsedAt}.json`;
-  await env.SAVES.put(snapshotKey, bodyString);
-
-  const latestKey = `saves/${saveUuid}/latest.json`;
-  const isNewer = await isNewerThanLatest(env.SAVES, latestKey, parsedAt);
+  const isNewer = !existingSave || parsedAt > existingSave.last_updated;
   if (isNewer) {
-    // R2 latest (temporary — removed when MCP tools migrate to D1)
-    await env.SAVES.put(latestKey, bodyString, { customMetadata: { parsedAt } });
-
     // D1 save metadata update
     await env.DB.prepare(
       "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
