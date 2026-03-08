@@ -26,6 +26,31 @@ export interface SectionInput {
   data: Record<string, unknown>;
 }
 
+function buildSectionStatements(
+  db: D1Database,
+  saveUuid: string,
+  saveName: string,
+  sections: Record<string, SectionInput>,
+): D1PreparedStatement[] {
+  const statements: D1PreparedStatement[] = [];
+  for (const [name, section] of Object.entries(sections)) {
+    const dataJson = JSON.stringify(section.data);
+    statements.push(
+      db
+        .prepare(
+          "INSERT OR REPLACE INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+        )
+        .bind(saveUuid, name, section.description, dataJson),
+      db
+        .prepare(
+          "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, 'section', ?, ?, ?)",
+        )
+        .bind(saveUuid, saveName, name, section.description, dataJson),
+    );
+  }
+  return statements;
+}
+
 export async function storePush(
   env: Env,
   userUuid: string | null,
@@ -50,28 +75,32 @@ export async function storePush(
         .bind(sourceUuid, gameId, saveName)
         .first<{ uuid: string; last_updated: string; summary: string }>();
 
-  let saveUuid: string;
-  let isNew = false;
-  if (existingSave) {
-    saveUuid = existingSave.uuid;
-  } else {
-    isNew = true;
-    saveUuid = crypto.randomUUID();
+  if (!existingSave) {
+    const saveUuid = crypto.randomUUID();
     const gameName = await resolveGameName(env.PLUGINS, gameId);
     await env.DB.prepare(
       "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )
       .bind(saveUuid, userUuid, gameId, gameName, saveName, summary, parsedAt, sourceUuid)
       .run();
+    await env.DB.batch([
+      env.DB.prepare(
+        "UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?",
+      ).bind(sourceUuid),
+      ...buildSectionStatements(env.DB, saveUuid, saveName, sections),
+    ]);
+    return { saveUuid, changed: true };
   }
 
-  const isNewer = isNew || parsedAt > existingSave!.last_updated;
-  if (!isNewer) {
+  const saveUuid = existingSave.uuid;
+
+  if (parsedAt <= existingSave.last_updated) {
     return { saveUuid, changed: false };
   }
 
   // For existing saves, compare incoming data to stored data — skip write if identical.
-  if (!isNew && existingSave!.summary === summary) {
+  if (existingSave.summary === summary) {
+    // ORDER BY name is required — sectionsMatch compares entries by sorted name order
     const storedSections = await env.DB.prepare(
       "SELECT name, description, data FROM sections WHERE save_uuid = ? ORDER BY name",
     )
@@ -83,37 +112,18 @@ export async function storePush(
     }
   }
 
-  // Combine metadata update, section upserts, and FTS indexing into one batch
-  const batch: D1PreparedStatement[] = [];
-  if (!isNew) {
-    batch.push(
-      env.DB.prepare(
-        "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
-      ).bind(summary, parsedAt, sourceUuid, saveUuid),
-    );
-  }
-  batch.push(
+  await env.DB.batch([
     env.DB.prepare(
-      "UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?",
-    ).bind(sourceUuid),
-    // FTS: delete old section entries before inserting new ones
+      "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
+    ).bind(summary, parsedAt, sourceUuid, saveUuid),
+    env.DB.prepare("UPDATE sources SET last_push_at = datetime('now') WHERE source_uuid = ?").bind(
+      sourceUuid,
+    ),
     env.DB.prepare("DELETE FROM search_index WHERE save_id = ? AND type = 'section'").bind(
       saveUuid,
     ),
-  );
-  for (const [name, section] of Object.entries(sections)) {
-    const dataJson = JSON.stringify(section.data);
-    batch.push(
-      env.DB.prepare(
-        "INSERT OR REPLACE INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
-      ).bind(saveUuid, name, section.description, dataJson),
-      env.DB.prepare(
-        "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, 'section', ?, ?, ?)",
-      ).bind(saveUuid, saveName, name, section.description, dataJson),
-    );
-  }
-
-  await env.DB.batch(batch);
+    ...buildSectionStatements(env.DB, saveUuid, saveName, sections),
+  ]);
   return { saveUuid, changed: true };
 }
 
@@ -122,12 +132,13 @@ function sectionsMatch(
   stored: { name: string; description: string; data: string }[],
   incoming: Record<string, SectionInput>,
 ): boolean {
-  const incomingEntries = Object.entries(incoming).sort(([a], [b]) => a.localeCompare(b));
+  const incomingEntries = Object.entries(incoming).toSorted(([a], [b]) => a.localeCompare(b));
   if (stored.length !== incomingEntries.length) return false;
 
-  for (let i = 0; i < stored.length; i++) {
-    const s = stored[i]!;
-    const [name, section] = incomingEntries[i]!;
+  for (const [index, s] of stored.entries()) {
+    const entry = incomingEntries[index];
+    if (!entry) return false;
+    const [name, section] = entry;
     if (s.name !== name) return false;
     if (s.description !== section.description) return false;
     if (s.data !== JSON.stringify(section.data)) return false;

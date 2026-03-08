@@ -104,6 +104,10 @@ export async function reconcileCharacters(
   gameName: string,
   discovered: DiscoveredSave[],
 ): Promise<ReconcileResult> {
+  if (discovered.length > 500) {
+    throw new Error(`Too many discovered saves (${String(discovered.length)}, max 500)`);
+  }
+
   const result: ReconcileResult = {
     added: [],
     renamed: [],
