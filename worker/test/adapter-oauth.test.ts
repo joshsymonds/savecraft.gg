@@ -61,14 +61,19 @@ describe("Adapter OAuth", () => {
       expect(body.url).toContain("scope=wow.profile");
       expect(body.url).toContain("state=");
 
-      // Verify state was stored in KV
+      // Verify state was stored in KV with sourceUuid
       const url = new URL(body.url);
       const state = url.searchParams.get("state")!;
       const stored = await env.OAUTH_KV.get(`battlenet-oauth-state:${state}`);
       expect(stored).toBeTruthy();
-      const parsed = JSON.parse(stored!) as { userUuid: string; region: string };
+      const parsed = JSON.parse(stored!) as {
+        userUuid: string;
+        region: string;
+        sourceUuid: string;
+      };
       expect(parsed.userUuid).toBe(USER_UUID);
       expect(parsed.region).toBe("us");
+      expect(parsed.sourceUuid).toBeTruthy();
     });
 
     it("uses EU OAuth URLs for region=eu", async () => {
@@ -138,8 +143,63 @@ describe("Adapter OAuth", () => {
       expect(body.error).toContain("state");
     });
 
-    // NOTE: Full callback test requires mocking Battle.net token endpoint.
-    // Integration testing will be done manually with a real Battle.net account.
+    it("redirects with error params when token exchange fails", async () => {
+      const sourceUuid = await seedAdapterSource(USER_UUID);
+      const stateKey = crypto.randomUUID();
+      await env.OAUTH_KV.put(
+        `battlenet-oauth-state:${stateKey}`,
+        JSON.stringify({
+          userUuid: USER_UUID,
+          region: "us",
+          returnUrl: "",
+          sourceUuid,
+        }),
+        { expirationTtl: 600 },
+      );
+
+      const resp = await SELF.fetch(
+        new Request(
+          `https://test-host/oauth/battlenet/callback?code=fake-code&state=${stateKey}`,
+          { method: "GET", redirect: "manual" },
+        ),
+      );
+
+      expect(resp.status).toBe(302);
+      const location = new URL(resp.headers.get("Location")!);
+      expect(location.searchParams.get("error")).toBe("token_failed");
+      expect(location.searchParams.get("error_detail")).toBeTruthy();
+    });
+
+    it("logs oauthTokenFailed event when token exchange fails", async () => {
+      const sourceUuid = await seedAdapterSource(USER_UUID);
+      const stateKey = crypto.randomUUID();
+      await env.OAUTH_KV.put(
+        `battlenet-oauth-state:${stateKey}`,
+        JSON.stringify({
+          userUuid: USER_UUID,
+          region: "us",
+          returnUrl: "",
+          sourceUuid,
+        }),
+        { expirationTtl: 600 },
+      );
+
+      await SELF.fetch(
+        new Request(
+          `https://test-host/oauth/battlenet/callback?code=fake-code&state=${stateKey}`,
+          { method: "GET", redirect: "manual" },
+        ),
+      );
+
+      const events = await env.DB.prepare(
+        "SELECT event_type, event_data FROM source_events WHERE source_uuid = ? ORDER BY id",
+      )
+        .bind(sourceUuid)
+        .all<{ event_type: string; event_data: string }>();
+
+      const tokenFailed = events.results.find((e) => e.event_type === "oauthTokenFailed");
+      expect(tokenFailed).toBeTruthy();
+    });
   });
 
   describe("POST /api/v1/adapters/{gameId}/characters", () => {
