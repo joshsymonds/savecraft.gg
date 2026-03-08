@@ -20,7 +20,7 @@ import {
 
 /** Shorthand for building a sourceOnline Message payload. */
 function sourceOnlineMsg(
-  overrides?: Partial<{ version: string; platform: string; os: string; arch: string }>,
+  overrides?: Partial<{ version: string; platform: string; os: string; arch: string; hostname: string }>,
 ): Message {
   return {
     payload: {
@@ -31,6 +31,7 @@ function sourceOnlineMsg(
         platform: overrides?.platform ?? "",
         os: overrides?.os ?? "",
         arch: overrides?.arch ?? "",
+        hostname: overrides?.hostname ?? "",
       },
     },
   };
