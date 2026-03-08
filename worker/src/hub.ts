@@ -10,7 +10,7 @@ import type {
 } from "./proto/savecraft/v1/protocol";
 import { GameStatusEnum, Message } from "./proto/savecraft/v1/protocol";
 import type { SectionInput } from "./store";
-import { storePush } from "./store";
+import { resolveGameName, storePush } from "./store";
 import type { Env } from "./types";
 
 const STATE_KEY = "sourceState";
@@ -1415,6 +1415,15 @@ export class SourceHub extends DurableObject<Env> {
         source.arch = meta.arch;
         source.canRescan = meta.canRescan;
         source.canReceiveConfig = meta.canReceiveConfig;
+
+        // Resolve display names for games from plugin manifests
+        await Promise.all(
+          source.games
+            .filter((game) => !game.gameName)
+            .map(async (game) => {
+              game.gameName = await resolveGameName(this.env.PLUGINS, game.gameId);
+            }),
+        );
       }
 
       // Encode SourceState as binary proto Message for UserHub
