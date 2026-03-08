@@ -882,7 +882,7 @@ export class SourceHub extends DurableObject<Env> {
 
       const parsedAt = push.parsedAt?.toISOString() ?? new Date().toISOString();
 
-      const { saveUuid } = await storePush(
+      const { saveUuid, changed } = await storePush(
         this.env,
         userUuid,
         sourceId,
@@ -905,9 +905,12 @@ export class SourceHub extends DurableObject<Env> {
       }).finish();
       ws.send(resultMsg);
 
-      this.debugLog.push("info", "pushSave completed", { saveUuid, gameId: push.gameId });
+      this.debugLog.push("info", "pushSave completed", { saveUuid, gameId: push.gameId, changed });
 
-      await this.synthesizePushCompleted(sourceId, push, saveUuid);
+      // Only emit pushCompleted event when data actually changed.
+      if (changed) {
+        await this.synthesizePushCompleted(sourceId, push, saveUuid);
+      }
     } catch (error) {
       this.debugLog.push("error", "pushSave failed", {
         error: error instanceof Error ? error.message : String(error),
