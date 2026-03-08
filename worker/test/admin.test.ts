@@ -134,6 +134,7 @@ describe("Admin API", () => {
             timestamp: undefined,
             os: "",
             arch: "",
+            hostname: "",
           },
         },
       });
@@ -208,6 +209,7 @@ describe("Admin API", () => {
             timestamp: undefined,
             os: "",
             arch: "",
+            hostname: "",
           },
         },
       });
