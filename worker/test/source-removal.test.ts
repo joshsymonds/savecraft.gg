@@ -241,7 +241,7 @@ describe("Source Removal", () => {
   });
 });
 
-// -- Helper to seed a save with R2 data and search index -----------------
+// -- Helper to seed a save with D1 sections and search index -------------
 
 async function seedSaveWithData(
   userUuid: string,
@@ -287,7 +287,7 @@ describe("Game Removal", () => {
   beforeEach(cleanAll);
 
   describe("DELETE /api/v1/games/:gameId", () => {
-    it("deletes all saves, notes, R2 objects, and search index for a game", async () => {
+    it("deletes all saves, notes, sections, and search index for a game", async () => {
       const { sourceUuid } = await seedSource(TEST_USER);
       const saveUuid = await seedSaveWithData(TEST_USER, "d2r", "Hammerdin", { sourceUuid });
 

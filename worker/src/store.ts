@@ -6,11 +6,19 @@
 
 import type { Env } from "./types";
 
+/** Per-isolate cache for game name lookups — avoids R2 read on every new save. */
+const gameNameCache = new Map<string, { name: string; fetchedAt: number }>();
+const GAME_NAME_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+
 export async function resolveGameName(plugins: R2Bucket, gameId: string): Promise<string> {
+  const cached = gameNameCache.get(gameId);
+  if (cached && Date.now() - cached.fetchedAt < GAME_NAME_CACHE_TTL_MS) return cached.name;
   const manifest = await plugins.get(`plugins/${gameId}/manifest.json`);
   if (!manifest) return gameId;
   const data = await manifest.json<{ name?: string }>();
-  return data.name ?? gameId;
+  const name = data.name ?? gameId;
+  gameNameCache.set(gameId, { name, fetchedAt: Date.now() });
+  return name;
 }
 
 export interface SectionInput {

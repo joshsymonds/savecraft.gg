@@ -27,6 +27,7 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_sources_user ON sources(user_uuid)`,
   `CREATE INDEX IF NOT EXISTS idx_sources_link_code ON sources(link_code) WHERE link_code IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_sources_token ON sources(token_hash)`,
+  `CREATE INDEX IF NOT EXISTS idx_sources_ip ON sources(ip)`,
   `CREATE TABLE IF NOT EXISTS saves (
     uuid TEXT PRIMARY KEY,
     user_uuid TEXT,
