@@ -911,7 +911,18 @@ export class SourceHub extends DurableObject<Env> {
     let totalSize = 0;
     const sections: Record<string, SectionInput> = {};
     for (const section of push.sections) {
-      const data = section.data ?? {};
+      const data = section.data;
+      if (
+        data === undefined ||
+        data === null ||
+        typeof data !== "object" ||
+        Array.isArray(data)
+      ) {
+        console.error(
+          `pushSave: section "${section.name}" has non-object data (type=${typeof data}), skipping`,
+        );
+        continue;
+      }
       totalSize += JSON.stringify(data).length;
       if (totalSize > MAX_PUSH_SIZE_BYTES) {
         return {
@@ -919,7 +930,10 @@ export class SourceHub extends DurableObject<Env> {
           detail: { totalSize },
         };
       }
-      sections[section.name] = { description: section.description, data };
+      sections[section.name] = {
+        description: section.description,
+        data: data as Record<string, unknown>,
+      };
     }
     return { sections };
   }

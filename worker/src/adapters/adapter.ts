@@ -59,7 +59,7 @@ export interface EnrichmentStatus {
 
 export interface GameStateSection {
   description: string;
-  data: unknown;
+  data: Record<string, unknown>;
   /** Status of enrichment sources that contribute to this section. */
   enrichment?: EnrichmentStatus[];
 }

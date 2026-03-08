@@ -23,7 +23,7 @@ export async function resolveGameName(plugins: R2Bucket, gameId: string): Promis
 
 export interface SectionInput {
   description: string;
-  data: unknown;
+  data: Record<string, unknown>;
 }
 
 export async function storePush(

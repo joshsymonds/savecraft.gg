@@ -282,16 +282,16 @@ export async function getSave(
   }));
 
   // Find overview section data for quick context
-  let overview: unknown = null;
+  let overview: Record<string, unknown> | null = null;
   for (const name of OVERVIEW_SECTION_NAMES) {
     const row = sectionRows.results.find((r) => r.name === name);
     if (row) {
-      overview = JSON.parse(row.data) as unknown;
+      overview = JSON.parse(row.data) as Record<string, unknown>;
       break;
     }
   }
   if (!overview && sectionRows.results[0]) {
-    overview = JSON.parse(sectionRows.results[0].data) as unknown;
+    overview = JSON.parse(sectionRows.results[0].data) as Record<string, unknown>;
   }
 
   // Include note metadata so the AI sees notes without a separate call
@@ -366,19 +366,19 @@ export async function getSection(
     return textResult({
       save_id: saveId,
       section: row.name,
-      data: JSON.parse(row.data) as unknown,
+      data: JSON.parse(row.data) as Record<string, unknown>,
     });
   }
 
   // Multiple sections
-  const result: Record<string, unknown> = {};
+  const result: Record<string, Record<string, unknown>> = {};
   const oversized: string[] = [];
   for (const row of rows.results) {
     const byteSize = new TextEncoder().encode(row.data).length;
     if (byteSize > SECTION_SIZE_LIMIT) {
       oversized.push(`${row.name} (${String(Math.round(byteSize / 1024))}KB)`);
     } else {
-      result[row.name] = JSON.parse(row.data) as unknown;
+      result[row.name] = JSON.parse(row.data) as Record<string, unknown>;
     }
   }
 
@@ -1136,7 +1136,7 @@ export async function indexSaveSections(
   db: D1Database,
   saveId: string,
   saveName: string,
-  sections: Record<string, { description: string; data: unknown }>,
+  sections: Record<string, { description: string; data: Record<string, unknown> }>,
 ): Promise<void> {
   const batch: D1PreparedStatement[] = [
     db.prepare("DELETE FROM search_index WHERE save_id = ? AND type = 'section'").bind(saveId),
