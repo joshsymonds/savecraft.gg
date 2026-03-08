@@ -1,4 +1,6 @@
-import type { Env } from "./types";
+import type { Env } from "../types";
+
+import { handleSeedCharacter } from "./seed-character";
 
 const encoder = new TextEncoder();
 
@@ -39,6 +41,32 @@ function authenticateAdmin(request: Request, env: Env): Response | null {
   return null;
 }
 
+async function proxyDoDebug(
+  doNamespace: DurableObjectNamespace,
+  entityId: string,
+  subpath: string,
+): Promise<Response | null> {
+  if (!ALLOWED_DEBUG_SUBPATHS.has(subpath)) return null;
+  const id = doNamespace.idFromName(entityId);
+  const stub = doNamespace.get(id);
+  const doResponse = await stub.fetch(new Request(`https://do/${subpath}`, { method: "GET" }));
+  return new Response(doResponse.body, doResponse);
+}
+
+const NOT_FOUND = (): Response => Response.json({ error: "Not found" }, { status: 404 });
+
+async function routeSourceAdmin(
+  env: Env,
+  url: URL,
+  sourceUuid: string,
+  subpath: string,
+): Promise<Response> {
+  if (subpath === "events") {
+    return handleSourceEvents(env, sourceUuid, url);
+  }
+  return (await proxyDoDebug(env.SOURCE_HUB, sourceUuid, subpath)) ?? NOT_FOUND();
+}
+
 export async function handleAdminRoute(
   request: Request,
   url: URL,
@@ -53,37 +81,21 @@ export async function handleAdminRoute(
     return handleListSources(env);
   }
 
+  if (url.pathname === "/admin/seed-character" && request.method === "POST") {
+    return handleSeedCharacter(request, env);
+  }
+
   const sourceMatch = /^\/admin\/source\/([^/]+)\/(.+)$/.exec(url.pathname);
   if (sourceMatch?.[1] && sourceMatch[2]) {
-    const sourceUuid = sourceMatch[1];
-    const subpath = sourceMatch[2];
-
-    if (subpath === "events") {
-      return handleSourceEvents(env, sourceUuid, url);
-    }
-
-    if (ALLOWED_DEBUG_SUBPATHS.has(subpath)) {
-      const id = env.SOURCE_HUB.idFromName(sourceUuid);
-      const stub = env.SOURCE_HUB.get(id);
-      const doResponse = await stub.fetch(new Request(`https://do/${subpath}`, { method: "GET" }));
-      return new Response(doResponse.body, doResponse);
-    }
+    return routeSourceAdmin(env, url, sourceMatch[1], sourceMatch[2]);
   }
 
   const userMatch = /^\/admin\/user\/([^/]+)\/(.+)$/.exec(url.pathname);
   if (userMatch?.[1] && userMatch[2]) {
-    const userUuid = userMatch[1];
-    const subpath = userMatch[2];
-
-    if (ALLOWED_DEBUG_SUBPATHS.has(subpath)) {
-      const id = env.USER_HUB.idFromName(userUuid);
-      const stub = env.USER_HUB.get(id);
-      const doResponse = await stub.fetch(new Request(`https://do/${subpath}`, { method: "GET" }));
-      return new Response(doResponse.body, doResponse);
-    }
+    return (await proxyDoDebug(env.USER_HUB, userMatch[1], userMatch[2])) ?? NOT_FOUND();
   }
 
-  return Response.json({ error: "Not found" }, { status: 404 });
+  return NOT_FOUND();
 }
 
 async function handleListSources(env: Env): Promise<Response> {
