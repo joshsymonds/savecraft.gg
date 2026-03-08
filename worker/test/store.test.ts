@@ -124,8 +124,26 @@ describe("storePush", () => {
       overview: { description: "Overview", data: { level: 42 } },
     };
 
-    await storePush(env, null, sourceUuid, "d2r", "Atmus", "Level 42", "2026-01-01T00:00:00Z", sections);
-    const second = await storePush(env, null, sourceUuid, "d2r", "Atmus", "Level 43", "2026-01-02T00:00:00Z", sections);
+    await storePush(
+      env,
+      null,
+      sourceUuid,
+      "d2r",
+      "Atmus",
+      "Level 42",
+      "2026-01-01T00:00:00Z",
+      sections,
+    );
+    const second = await storePush(
+      env,
+      null,
+      sourceUuid,
+      "d2r",
+      "Atmus",
+      "Level 43",
+      "2026-01-02T00:00:00Z",
+      sections,
+    );
     expect(second.changed).toBe(true);
   });
 
@@ -135,17 +153,35 @@ describe("storePush", () => {
     await storePush(env, null, sourceUuid, "d2r", "Atmus", "Level 42", "2026-01-01T00:00:00Z", {
       overview: { description: "Overview", data: { level: 42 } },
     });
-    const second = await storePush(env, null, sourceUuid, "d2r", "Atmus", "Level 42", "2026-01-02T00:00:00Z", {
-      overview: { description: "Overview", data: { level: 43 } },
-    });
+    const second = await storePush(
+      env,
+      null,
+      sourceUuid,
+      "d2r",
+      "Atmus",
+      "Level 42",
+      "2026-01-02T00:00:00Z",
+      {
+        overview: { description: "Overview", data: { level: 43 } },
+      },
+    );
     expect(second.changed).toBe(true);
   });
 
   it("returns changed=true for first push (no existing save)", async () => {
     const { sourceUuid } = await seedSource(null);
-    const result = await storePush(env, null, sourceUuid, "d2r", "Atmus", "Level 1", new Date().toISOString(), {
-      overview: { description: "Overview", data: { level: 1 } },
-    });
+    const result = await storePush(
+      env,
+      null,
+      sourceUuid,
+      "d2r",
+      "Atmus",
+      "Level 1",
+      new Date().toISOString(),
+      {
+        overview: { description: "Overview", data: { level: 1 } },
+      },
+    );
     expect(result.changed).toBe(true);
   });
 
