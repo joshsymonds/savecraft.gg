@@ -85,6 +85,70 @@ describe("storePush", () => {
     expect(save!.summary).toBe("Level 2");
   });
 
+  it("returns changed=false when summary and sections are identical", async () => {
+    const { sourceUuid } = await seedSource(null);
+    const sections: Record<string, SectionInput> = {
+      overview: { description: "Overview", data: { level: 42 } },
+    };
+
+    const first = await storePush(
+      env,
+      null,
+      sourceUuid,
+      "d2r",
+      "Atmus",
+      "Level 42 Paladin",
+      "2026-01-01T00:00:00Z",
+      sections,
+    );
+    expect(first.changed).toBe(true);
+
+    // Push identical data with a newer timestamp
+    const second = await storePush(
+      env,
+      null,
+      sourceUuid,
+      "d2r",
+      "Atmus",
+      "Level 42 Paladin",
+      "2026-01-02T00:00:00Z",
+      sections,
+    );
+    expect(second.saveUuid).toBe(first.saveUuid);
+    expect(second.changed).toBe(false);
+  });
+
+  it("returns changed=true when summary differs", async () => {
+    const { sourceUuid } = await seedSource(null);
+    const sections: Record<string, SectionInput> = {
+      overview: { description: "Overview", data: { level: 42 } },
+    };
+
+    await storePush(env, null, sourceUuid, "d2r", "Atmus", "Level 42", "2026-01-01T00:00:00Z", sections);
+    const second = await storePush(env, null, sourceUuid, "d2r", "Atmus", "Level 43", "2026-01-02T00:00:00Z", sections);
+    expect(second.changed).toBe(true);
+  });
+
+  it("returns changed=true when section data differs", async () => {
+    const { sourceUuid } = await seedSource(null);
+
+    await storePush(env, null, sourceUuid, "d2r", "Atmus", "Level 42", "2026-01-01T00:00:00Z", {
+      overview: { description: "Overview", data: { level: 42 } },
+    });
+    const second = await storePush(env, null, sourceUuid, "d2r", "Atmus", "Level 42", "2026-01-02T00:00:00Z", {
+      overview: { description: "Overview", data: { level: 43 } },
+    });
+    expect(second.changed).toBe(true);
+  });
+
+  it("returns changed=true for first push (no existing save)", async () => {
+    const { sourceUuid } = await seedSource(null);
+    const result = await storePush(env, null, sourceUuid, "d2r", "Atmus", "Level 1", new Date().toISOString(), {
+      overview: { description: "Overview", data: { level: 1 } },
+    });
+    expect(result.changed).toBe(true);
+  });
+
   it("sections FK cascade survives migration table recreation", async () => {
     const { sourceUuid } = await seedSource("test-user");
 
