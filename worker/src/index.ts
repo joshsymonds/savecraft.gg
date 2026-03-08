@@ -385,7 +385,12 @@ async function exchangeAndStoreToken(
       { gameId: adapter.gameId, region: state.region, error: toErrorMessage(error) },
       env,
     );
-    return errorRedirect(redirectUrl, adapter.gameId, "token_failed", toErrorMessage(error));
+    return errorRedirect(
+      redirectUrl,
+      adapter.gameId,
+      "token_failed",
+      "Failed to exchange authorization code",
+    );
   }
 
   if (tokenResult instanceof Response) {
@@ -502,7 +507,12 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
       ),
     ]);
     redirectUrl.searchParams.set("connected", "true");
-    return errorRedirect(redirectUrl, adapter.gameId, "discovery_failed", toErrorMessage(error));
+    return errorRedirect(
+      redirectUrl,
+      adapter.gameId,
+      "discovery_failed",
+      "Failed to discover game characters",
+    );
   }
 
   redirectUrl.searchParams.set("game_id", adapter.gameId);

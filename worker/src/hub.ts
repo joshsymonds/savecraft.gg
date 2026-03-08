@@ -1167,9 +1167,9 @@ export class SourceHub extends DurableObject<Env> {
   }
 
   /**
-   * Called by the worker when a source is linked to a user mid-session.
-   * Stores the new user_uuid, forwards state to UserHub, and notifies
-   * the connected daemon via SourceLinked proto message.
+   * Called by the worker to set adapter game status (WATCHING or ERROR).
+   * Applies a setGameStatus mutation, ensures adapter source meta is set,
+   * and forwards the updated state to UserHub for UI broadcast.
    */
   private async handleSetGameStatus(request: Request): Promise<Response> {
     const body = await request.json<{
@@ -1230,6 +1230,11 @@ export class SourceHub extends DurableObject<Env> {
     return Response.json({ ok: true });
   }
 
+  /**
+   * Called by the worker when a source is linked to a user mid-session.
+   * Stores the new user_uuid, forwards state to UserHub, and notifies
+   * the connected daemon via SourceLinked proto message.
+   */
   private async handleSetUser(request: Request): Promise<Response> {
     const body = await request.json<{ userUuid: string }>();
     await this.ctx.storage.put(USER_UUID_KEY, body.userUuid);
@@ -1519,7 +1524,8 @@ export class SourceHub extends DurableObject<Env> {
             source.games.map(async (game) => {
               const rows = await this.env.DB.prepare(
                 `SELECT uuid, save_name, summary, last_updated
-                 FROM saves WHERE last_source_uuid = ? AND game_id = ?`,
+                 FROM saves WHERE last_source_uuid = ? AND game_id = ?
+                 ORDER BY last_updated DESC LIMIT 500`,
               )
                 .bind(sourceUuid, game.gameId)
                 .all<{
