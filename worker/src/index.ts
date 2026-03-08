@@ -324,8 +324,6 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
   if (!storedRaw) {
     return Response.json({ error: "Invalid or expired state" }, { status: 400 });
   }
-  await env.OAUTH_KV.delete(`battlenet-oauth-state:${stateKey}`);
-
   const state = JSON.parse(storedRaw) as {
     userUuid: string;
     region: string;
@@ -346,9 +344,14 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
   const oauthConfig = adapter.getOAuthConfig(state.region, env);
   const redirectUri = `${url.origin}/oauth/battlenet/callback`;
 
+  // Delete consumed state and exchange token in parallel (independent operations)
   let tokenResult: BattlenetTokenResult | Response;
   try {
-    tokenResult = await exchangeBattlenetToken(code, redirectUri, oauthConfig, env);
+    const [, exchangeResult] = await Promise.all([
+      env.OAUTH_KV.delete(`battlenet-oauth-state:${stateKey}`),
+      exchangeBattlenetToken(code, redirectUri, oauthConfig, env),
+    ]);
+    tokenResult = exchangeResult;
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : String(error);
     await logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", {
@@ -360,7 +363,7 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
     });
     redirectUrl.searchParams.set("game_id", adapter.gameId);
     redirectUrl.searchParams.set("error", "token_failed");
-    redirectUrl.searchParams.set("error_detail", message);
+    redirectUrl.searchParams.set("error_detail", message.slice(0, 200));
     return new Response(null, {
       status: 302,
       headers: { Location: redirectUrl.toString() },
@@ -384,22 +387,23 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
     });
   }
 
-  await logSourceEvent(env, state.sourceUuid, "oauthTokenExchanged", {
-    oauthTokenExchanged: { gameId: adapter.gameId, region: state.region },
-  });
-
-  // Store credentials (upsert)
-  await env.DB.prepare(
-    `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
-     VALUES (?, 'wow', ?, ?, ?)
-     ON CONFLICT(user_uuid, game_id) DO UPDATE SET
-       access_token = excluded.access_token,
-       refresh_token = excluded.refresh_token,
-       expires_at = excluded.expires_at,
-       updated_at = datetime('now')`,
-  )
-    .bind(state.userUuid, tokenResult.accessToken, tokenResult.refreshToken, tokenResult.expiresAt)
-    .run();
+  // Log token exchange and store credentials in parallel (independent operations)
+  await Promise.all([
+    logSourceEvent(env, state.sourceUuid, "oauthTokenExchanged", {
+      oauthTokenExchanged: { gameId: adapter.gameId, region: state.region },
+    }),
+    env.DB.prepare(
+      `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
+       VALUES (?, 'wow', ?, ?, ?)
+       ON CONFLICT(user_uuid, game_id) DO UPDATE SET
+         access_token = excluded.access_token,
+         refresh_token = excluded.refresh_token,
+         expires_at = excluded.expires_at,
+         updated_at = datetime('now')`,
+    )
+      .bind(state.userUuid, tokenResult.accessToken, tokenResult.refreshToken, tokenResult.expiresAt)
+      .run(),
+  ]);
 
   // Discover characters
   let characters: {
@@ -421,7 +425,7 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
     });
     redirectUrl.searchParams.set("game_id", adapter.gameId);
     redirectUrl.searchParams.set("error", "discovery_failed");
-    redirectUrl.searchParams.set("error_detail", message);
+    redirectUrl.searchParams.set("error_detail", message.slice(0, 200));
     redirectUrl.searchParams.set("connected", "true");
     return new Response(null, {
       status: 302,

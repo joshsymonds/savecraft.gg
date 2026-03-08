@@ -1,7 +1,8 @@
 <!--
   @component
   Game card: displays a single game in the dashboard game grid.
-  Always clickable when onclick is provided.
+  Always clickable when onclick is provided. Shows error banner with
+  action buttons when adapterError is set.
 -->
 <script lang="ts">
   import type { Game } from "$lib/types/source";
@@ -9,9 +10,15 @@
   let {
     game,
     onclick,
+    adapterError,
+    onreconnect,
+    onremove,
   }: {
     game: Game;
     onclick?: () => void;
+    adapterError?: string;
+    onreconnect?: () => void;
+    onremove?: () => void;
   } = $props();
 
   let clickable = $derived(onclick !== undefined);
@@ -25,6 +32,7 @@
 <div
   class="game-card"
   class:clickable
+  class:has-error={!!adapterError}
   role={clickable ? "button" : undefined}
   tabindex={clickable ? 0 : undefined}
   onclick={clickable ? onclick : undefined}
@@ -39,12 +47,41 @@
 >
   <span class="game-icon">{gameIcon(game.name)}</span>
   <span class="game-name">{game.name}</span>
-  {#if game.needsConfig}
+  {#if adapterError}
+    <span class="game-status error-status">Connection failed</span>
+    <div class="error-banner">
+      <span class="error-detail">{adapterError}</span>
+      <div class="error-actions">
+        {#if onreconnect}
+          <button
+            class="error-btn reconnect"
+            onclick={(clickEvent) => {
+              clickEvent.stopPropagation();
+              onreconnect();
+            }}
+          >
+            Reconnect
+          </button>
+        {/if}
+        {#if onremove}
+          <button
+            class="error-btn remove"
+            onclick={(clickEvent) => {
+              clickEvent.stopPropagation();
+              onremove();
+            }}
+          >
+            Remove
+          </button>
+        {/if}
+      </div>
+    </div>
+  {:else if game.needsConfig}
     <span class="game-status needs-config">Needs setup</span>
   {:else}
     <span class="game-status">{game.statusLine}</span>
   {/if}
-  {#if game.saves.length > 0}
+  {#if !adapterError && game.saves.length > 0}
     <div class="save-list">
       {#each game.saves as save (save.saveUuid)}
         <span class="save-name">{save.saveName}</span>
@@ -81,6 +118,11 @@
     outline-offset: 2px;
   }
 
+  .game-card.has-error {
+    border-color: rgba(220, 80, 80, 0.3);
+    background: rgba(220, 80, 80, 0.04);
+  }
+
   .game-icon {
     font-family: var(--font-pixel);
     font-size: 18px;
@@ -107,6 +149,68 @@
     font-size: 7px;
     letter-spacing: 1px;
     color: var(--color-yellow, #e8b45a);
+  }
+
+  .game-status.error-status {
+    font-family: var(--font-pixel);
+    font-size: 7px;
+    letter-spacing: 1px;
+    color: var(--color-red, #dc5050);
+  }
+
+  .error-banner {
+    margin-top: 6px;
+    width: 100%;
+    text-align: center;
+  }
+
+  .error-detail {
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: var(--color-text-muted);
+    display: block;
+    margin-bottom: 6px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    max-width: 160px;
+  }
+
+  .error-actions {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+  }
+
+  .error-btn {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    letter-spacing: 0.5px;
+    padding: 3px 8px;
+    border-radius: 2px;
+    border: none;
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      color 0.15s;
+  }
+
+  .error-btn.reconnect {
+    background: rgba(74, 90, 173, 0.15);
+    color: var(--color-blue, #4a5aad);
+  }
+
+  .error-btn.reconnect:hover {
+    background: rgba(74, 90, 173, 0.3);
+  }
+
+  .error-btn.remove {
+    background: rgba(220, 80, 80, 0.1);
+    color: var(--color-red, #dc5050);
+  }
+
+  .error-btn.remove:hover {
+    background: rgba(220, 80, 80, 0.2);
   }
 
   .save-list {
