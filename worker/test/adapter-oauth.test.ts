@@ -198,7 +198,7 @@ describe("Adapter OAuth", () => {
         .bind(sourceUuid)
         .all<{ event_type: string; event_data: string }>();
 
-      const tokenFailed = events.results.find((e) => e.event_type === "oauthTokenFailed");
+      const tokenFailed = events.results.find((event) => event.event_type === "oauthTokenFailed");
       expect(tokenFailed).toBeTruthy();
     });
   });

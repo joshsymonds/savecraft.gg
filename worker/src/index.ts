@@ -311,40 +311,37 @@ async function exchangeBattlenetToken(
   };
 }
 
-async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
-  const code = url.searchParams.get("code");
-  const stateKey = url.searchParams.get("state");
+function errorRedirect(redirectUrl: URL, gameId: string, error: string, detail: string): Response {
+  redirectUrl.searchParams.set("game_id", gameId);
+  redirectUrl.searchParams.set("error", error);
+  redirectUrl.searchParams.set("error_detail", detail.slice(0, 200));
+  return new Response(null, { status: 302, headers: { Location: redirectUrl.toString() } });
+}
 
-  if (!code || !stateKey) {
-    return Response.json({ error: "Missing code or state" }, { status: 400 });
-  }
+function toErrorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
 
-  // Retrieve and delete state (one-time use)
-  const storedRaw = await env.OAUTH_KV.get(`battlenet-oauth-state:${stateKey}`);
-  if (!storedRaw) {
-    return Response.json({ error: "Invalid or expired state" }, { status: 400 });
-  }
-  const state = JSON.parse(storedRaw) as {
-    userUuid: string;
-    region: string;
-    returnUrl: string;
-    sourceUuid: string;
-  };
+interface OAuthCallbackState {
+  userUuid: string;
+  region: string;
+  returnUrl: string;
+  sourceUuid: string;
+}
 
-  const adapter = adapters.wow;
-  if (!adapter) {
-    return Response.json({ error: "WoW adapter not configured" }, { status: 500 });
-  }
-
-  // Build redirect URL early so error paths can use it
-  const webUrl = env.WEB_URL ?? url.origin;
-  const validatedReturn = validateReturnUrl(state.returnUrl, env, url.origin);
-  const redirectUrl = new URL(validatedReturn || `${webUrl}/`);
-
+async function exchangeAndStoreToken(
+  code: string,
+  stateKey: string,
+  state: OAuthCallbackState,
+  adapter: (typeof adapters)["wow"],
+  redirectUrl: URL,
+  url: URL,
+  env: Env,
+): Promise<BattlenetTokenResult | Response> {
   const oauthConfig = adapter.getOAuthConfig(state.region, env);
   const redirectUri = `${url.origin}/oauth/battlenet/callback`;
 
-  // Delete consumed state and exchange token in parallel (independent operations)
+  // Delete consumed state and exchange token in parallel
   let tokenResult: BattlenetTokenResult | Response;
   try {
     const [, exchangeResult] = await Promise.all([
@@ -353,41 +350,20 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
     ]);
     tokenResult = exchangeResult;
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
     await logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", {
-      oauthTokenFailed: {
-        gameId: adapter.gameId,
-        region: state.region,
-        error: message,
-      },
+      oauthTokenFailed: { gameId: adapter.gameId, region: state.region, error: toErrorMessage(error) },
     });
-    redirectUrl.searchParams.set("game_id", adapter.gameId);
-    redirectUrl.searchParams.set("error", "token_failed");
-    redirectUrl.searchParams.set("error_detail", message.slice(0, 200));
-    return new Response(null, {
-      status: 302,
-      headers: { Location: redirectUrl.toString() },
-    });
+    return errorRedirect(redirectUrl, adapter.gameId, "token_failed", toErrorMessage(error));
   }
 
   if (tokenResult instanceof Response) {
     await logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", {
-      oauthTokenFailed: {
-        gameId: adapter.gameId,
-        region: state.region,
-        status: tokenResult.status,
-      },
+      oauthTokenFailed: { gameId: adapter.gameId, region: state.region, status: tokenResult.status },
     });
-    redirectUrl.searchParams.set("game_id", adapter.gameId);
-    redirectUrl.searchParams.set("error", "token_failed");
-    redirectUrl.searchParams.set("error_detail", "Failed to exchange code with Battle.net");
-    return new Response(null, {
-      status: 302,
-      headers: { Location: redirectUrl.toString() },
-    });
+    return errorRedirect(redirectUrl, adapter.gameId, "token_failed", "Failed to exchange code with Battle.net");
   }
 
-  // Log token exchange and store credentials in parallel (independent operations)
+  // Log token exchange and store credentials in parallel
   await Promise.all([
     logSourceEvent(env, state.sourceUuid, "oauthTokenExchanged", {
       oauthTokenExchanged: { gameId: adapter.gameId, region: state.region },
@@ -405,57 +381,59 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
       .run(),
   ]);
 
+  return tokenResult;
+}
+
+async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
+  const code = url.searchParams.get("code");
+  const stateKey = url.searchParams.get("state");
+  if (!code || !stateKey) {
+    return Response.json({ error: "Missing code or state" }, { status: 400 });
+  }
+
+  const storedRaw = await env.OAUTH_KV.get(`battlenet-oauth-state:${stateKey}`);
+  if (!storedRaw) {
+    return Response.json({ error: "Invalid or expired state" }, { status: 400 });
+  }
+  const state = JSON.parse(storedRaw) as OAuthCallbackState;
+
+  const adapter = adapters.wow;
+  if (!adapter) {
+    return Response.json({ error: "WoW adapter not configured" }, { status: 500 });
+  }
+
+  const webUrl = env.WEB_URL ?? url.origin;
+  const validatedReturn = validateReturnUrl(state.returnUrl, env, url.origin);
+  const redirectUrl = new URL(validatedReturn || `${webUrl}/`);
+
+  const tokenResult = await exchangeAndStoreToken(code, stateKey, state, adapter, redirectUrl, url, env);
+  if (tokenResult instanceof Response) return tokenResult;
+
   // Discover characters
-  let characters: {
-    saveName: string;
-    characterId: string;
-    displayName: string;
-    metadata: Record<string, unknown>;
-  }[] = [];
+  let characters: { saveName: string; characterId: string; displayName: string; metadata: Record<string, unknown> }[];
   try {
     characters = await adapter.discoverSaves(tokenResult.accessToken, state.region);
   } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
     await logSourceEvent(env, state.sourceUuid, "characterDiscoveryFailed", {
-      characterDiscoveryFailed: {
-        gameId: adapter.gameId,
-        region: state.region,
-        error: message,
-      },
+      characterDiscoveryFailed: { gameId: adapter.gameId, region: state.region, error: toErrorMessage(error) },
     });
-    redirectUrl.searchParams.set("game_id", adapter.gameId);
-    redirectUrl.searchParams.set("error", "discovery_failed");
-    redirectUrl.searchParams.set("error_detail", message.slice(0, 200));
     redirectUrl.searchParams.set("connected", "true");
-    return new Response(null, {
-      status: 302,
-      headers: { Location: redirectUrl.toString() },
-    });
+    return errorRedirect(redirectUrl, adapter.gameId, "discovery_failed", toErrorMessage(error));
   }
 
   await logSourceEvent(env, state.sourceUuid, "characterDiscovery", {
-    characterDiscovery: {
-      gameId: adapter.gameId,
-      region: state.region,
-      characterCount: characters.length,
-    },
+    characterDiscovery: { gameId: adapter.gameId, region: state.region, characterCount: characters.length },
   });
 
   redirectUrl.searchParams.set("game_id", adapter.gameId);
   redirectUrl.searchParams.set("connected", "true");
-
   if (characters.length > 0) {
     const charKey = crypto.randomUUID();
-    await env.OAUTH_KV.put(`battlenet-characters:${charKey}`, JSON.stringify(characters), {
-      expirationTtl: 300,
-    });
+    await env.OAUTH_KV.put(`battlenet-characters:${charKey}`, JSON.stringify(characters), { expirationTtl: 300 });
     redirectUrl.searchParams.set("characters_key", charKey);
   }
 
-  return new Response(null, {
-    status: 302,
-    headers: { Location: redirectUrl.toString() },
-  });
+  return new Response(null, { status: 302, headers: { Location: redirectUrl.toString() } });
 }
 
 async function routeDaemonEndpoints(
@@ -1205,8 +1183,8 @@ export async function cleanupSource(
     const uuids = savesToDelete.results.map((r) => r.uuid);
     // Chunk to stay within D1's 100-parameter-per-statement limit
     const CHUNK_SIZE = 50;
-    for (let i = 0; i < uuids.length; i += CHUNK_SIZE) {
-      const chunk = uuids.slice(i, i + CHUNK_SIZE);
+    for (let index = 0; index < uuids.length; index += CHUNK_SIZE) {
+      const chunk = uuids.slice(index, index + CHUNK_SIZE);
       const placeholders = chunk.map(() => "?").join(",");
       await env.DB.batch([
         env.DB.prepare(`DELETE FROM search_index WHERE save_id IN (${placeholders})`).bind(...chunk),
@@ -1293,8 +1271,8 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
   const uuids = saves.results.map((s) => s.uuid);
   const CHUNK_SIZE = 50;
   let totalNotes = 0;
-  for (let i = 0; i < uuids.length; i += CHUNK_SIZE) {
-    const chunk = uuids.slice(i, i + CHUNK_SIZE);
+  for (let index = 0; index < uuids.length; index += CHUNK_SIZE) {
+    const chunk = uuids.slice(index, index + CHUNK_SIZE);
     const placeholders = chunk.map(() => "?").join(",");
     const batchResults = await env.DB.batch([
       env.DB.prepare(`DELETE FROM notes WHERE save_id IN (${placeholders})`).bind(...chunk),

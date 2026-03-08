@@ -126,7 +126,7 @@ export async function reconcileOrphanSaves(
 
   // Build lookup map keyed by "game_id\0save_name"
   const existingMap = new Map(
-    existingAll.results.map((e) => [`${e.game_id}\0${e.save_name}`, e]),
+    existingAll.results.map((row) => [`${row.game_id}\0${row.save_name}`, row]),
   );
 
   const batch: D1PreparedStatement[] = [];
