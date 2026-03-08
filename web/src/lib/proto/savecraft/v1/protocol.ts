@@ -211,6 +211,7 @@ export interface SourceOnline {
   platform: string;
   os: string;
   arch: string;
+  hostname: string;
 }
 
 /**
@@ -1744,7 +1745,7 @@ export const RelayedMessage: MessageFns<RelayedMessage> = {
 };
 
 function createBaseSourceOnline(): SourceOnline {
-  return { version: "", timestamp: undefined, platform: "", os: "", arch: "" };
+  return { version: "", timestamp: undefined, platform: "", os: "", arch: "", hostname: "" };
 }
 
 export const SourceOnline: MessageFns<SourceOnline> = {
@@ -1763,6 +1764,9 @@ export const SourceOnline: MessageFns<SourceOnline> = {
     }
     if (message.arch !== "") {
       writer.uint32(50).string(message.arch);
+    }
+    if (message.hostname !== "") {
+      writer.uint32(58).string(message.hostname);
     }
     return writer;
   },
@@ -1814,6 +1818,14 @@ export const SourceOnline: MessageFns<SourceOnline> = {
           message.arch = reader.string();
           continue;
         }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.hostname = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1830,6 +1842,7 @@ export const SourceOnline: MessageFns<SourceOnline> = {
       platform: isSet(object.platform) ? globalThis.String(object.platform) : "",
       os: isSet(object.os) ? globalThis.String(object.os) : "",
       arch: isSet(object.arch) ? globalThis.String(object.arch) : "",
+      hostname: isSet(object.hostname) ? globalThis.String(object.hostname) : "",
     };
   },
 
@@ -1850,6 +1863,9 @@ export const SourceOnline: MessageFns<SourceOnline> = {
     if (message.arch !== "") {
       obj.arch = message.arch;
     }
+    if (message.hostname !== "") {
+      obj.hostname = message.hostname;
+    }
     return obj;
   },
 
@@ -1863,6 +1879,7 @@ export const SourceOnline: MessageFns<SourceOnline> = {
     message.platform = object.platform ?? "";
     message.os = object.os ?? "";
     message.arch = object.arch ?? "";
+    message.hostname = object.hostname ?? "";
     return message;
   },
 };
