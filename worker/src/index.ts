@@ -235,10 +235,13 @@ async function handleBattlenetAuthorize(url: URL, env: Env, userUuid: string): P
   // Create adapter source immediately — the user requested this game
   const sourceUuid = await findOrCreateAdapterSource(env, userUuid);
 
-  // Log oauthStarted event
-  await logSourceEvent(env, sourceUuid, "oauthStarted", {
-    oauthStarted: { gameId: adapter.gameId, region, provider: "battlenet" },
-  });
+  // Log oauthStarted event and push initial game state to SourceHub in parallel
+  await Promise.all([
+    logSourceEvent(env, sourceUuid, "oauthStarted", {
+      oauthStarted: { gameId: adapter.gameId, region, provider: "battlenet" },
+    }),
+    pushAdapterState(env, sourceUuid, userUuid, adapter.gameId, adapter.gameName, "watching"),
+  ]);
 
   // Store state in KV (one-time use, 10 min TTL)
   const stateKey = crypto.randomUUID();
@@ -322,11 +325,54 @@ function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
+/** Push adapter game state to SourceHub DO. */
+async function pushAdapterState(
+  env: Env,
+  sourceUuid: string,
+  userUuid: string,
+  gameId: string,
+  gameName: string,
+  status: "watching" | "error",
+): Promise<void> {
+  const doId = env.SOURCE_HUB.idFromName(sourceUuid);
+  const stub = env.SOURCE_HUB.get(doId);
+  await stub.fetch(
+    new Request("https://do/set-adapter-state", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-Source-UUID": sourceUuid,
+        "X-User-UUID": userUuid,
+      },
+      body: JSON.stringify({ gameId, gameName, status }),
+    }),
+  );
+}
+
 interface OAuthCallbackState {
   userUuid: string;
   region: string;
   returnUrl: string;
   sourceUuid: string;
+}
+
+async function handleTokenFailure(
+  state: OAuthCallbackState,
+  adapter: { gameId: string; gameName: string },
+  eventData: Record<string, unknown>,
+  env: Env,
+): Promise<void> {
+  await Promise.all([
+    logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", { oauthTokenFailed: eventData }),
+    pushAdapterState(
+      env,
+      state.sourceUuid,
+      state.userUuid,
+      adapter.gameId,
+      adapter.gameName,
+      "error",
+    ),
+  ]);
 }
 
 async function exchangeAndStoreToken(
@@ -350,24 +396,22 @@ async function exchangeAndStoreToken(
     ]);
     tokenResult = exchangeResult;
   } catch (error: unknown) {
-    await logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", {
-      oauthTokenFailed: {
-        gameId: adapter.gameId,
-        region: state.region,
-        error: toErrorMessage(error),
-      },
-    });
+    await handleTokenFailure(
+      state,
+      adapter,
+      { gameId: adapter.gameId, region: state.region, error: toErrorMessage(error) },
+      env,
+    );
     return errorRedirect(redirectUrl, adapter.gameId, "token_failed", toErrorMessage(error));
   }
 
   if (tokenResult instanceof Response) {
-    await logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", {
-      oauthTokenFailed: {
-        gameId: adapter.gameId,
-        region: state.region,
-        status: tokenResult.status,
-      },
-    });
+    await handleTokenFailure(
+      state,
+      adapter,
+      { gameId: adapter.gameId, region: state.region, status: tokenResult.status },
+      env,
+    );
     return errorRedirect(
       redirectUrl,
       adapter.gameId,
@@ -445,13 +489,23 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
   try {
     characters = await adapter.discoverSaves(tokenResult.accessToken, state.region);
   } catch (error: unknown) {
-    await logSourceEvent(env, state.sourceUuid, "characterDiscoveryFailed", {
-      characterDiscoveryFailed: {
-        gameId: adapter.gameId,
-        region: state.region,
-        error: toErrorMessage(error),
-      },
-    });
+    await Promise.all([
+      logSourceEvent(env, state.sourceUuid, "characterDiscoveryFailed", {
+        characterDiscoveryFailed: {
+          gameId: adapter.gameId,
+          region: state.region,
+          error: toErrorMessage(error),
+        },
+      }),
+      pushAdapterState(
+        env,
+        state.sourceUuid,
+        state.userUuid,
+        adapter.gameId,
+        adapter.gameName,
+        "error",
+      ),
+    ]);
     redirectUrl.searchParams.set("connected", "true");
     return errorRedirect(redirectUrl, adapter.gameId, "discovery_failed", toErrorMessage(error));
   }
