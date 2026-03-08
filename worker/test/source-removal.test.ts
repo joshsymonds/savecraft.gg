@@ -6,7 +6,9 @@ import {
   closeWs,
   connectDaemonWs,
   connectWs,
+  drainRelayedMessages,
   requireInnerPayload,
+  seedSaveWithData,
   seedSource,
   sendSourceOnlineAndDrainLinkState,
   waitForProtoMessage,
@@ -93,13 +95,7 @@ describe("Source Removal", () => {
       expect(state.sources.some((s) => s.sourceId === sourceUuid)).toBe(true);
 
       // Drain remaining messages
-      for (let index = 0; index < 50; index++) {
-        try {
-          await waitForRelayedMessage(uiWs, 200);
-        } catch {
-          break;
-        }
-      }
+      await drainRelayedMessages(uiWs);
 
       // Delete D1 record directly — simulates the D1/DO desync
       await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(sourceUuid).run();
@@ -265,19 +261,7 @@ describe("Source Removal", () => {
       const state = requireInnerPayload(initialState, "sourceState");
       expect(state.sources.length).toBeGreaterThan(0);
       // Consume events
-      // There may be multiple messages (events); drain them with a short timeout
-      const drainMessages = async (): Promise<void> => {
-        // Drain up to 50 queued messages (generous upper bound)
-        for (let attempt = 0; attempt < 50; attempt++) {
-          try {
-            await waitForRelayedMessage(uiWs, 200);
-          } catch {
-            // Timeout means no more messages — done draining
-            break;
-          }
-        }
-      };
-      await drainMessages();
+      await drainRelayedMessages(uiWs);
 
       // Set up listener BEFORE deletion so we don't miss the message
       const statePromise = waitForSourceRemoved(uiWs, sourceUuid);
@@ -297,48 +281,6 @@ describe("Source Removal", () => {
     });
   });
 });
-
-// -- Helper to seed a save with D1 sections and search index -------------
-
-async function seedSaveWithData(
-  userUuid: string,
-  gameId: string,
-  saveName: string,
-  options?: { sourceUuid?: string },
-): Promise<string> {
-  const saveUuid = crypto.randomUUID();
-  await env.DB.prepare(
-    `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_source_uuid)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      saveUuid,
-      userUuid,
-      gameId,
-      gameId,
-      saveName,
-      `${saveName} summary`,
-      options?.sourceUuid ?? null,
-    )
-    .run();
-
-  // D1 sections
-  await env.DB.prepare(
-    "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, 'overview', 'Overview', '{}')",
-  )
-    .bind(saveUuid)
-    .run();
-
-  // Search index
-  await env.DB.prepare(
-    `INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content)
-     VALUES (?, ?, 'section', ?, ?, ?)`,
-  )
-    .bind(saveUuid, saveName, "overview", "Overview", "test content")
-    .run();
-
-  return saveUuid;
-}
 
 describe("Game Removal", () => {
   beforeEach(cleanAll);

@@ -114,14 +114,25 @@ export async function reconcileOrphanSaves(
 
   if (orphans.results.length === 0) return;
 
+  // Fetch all existing user saves that could conflict with orphans in one query
+  const existingAll = await env.DB.prepare(
+    `SELECT uuid, game_id, save_name, last_updated FROM saves
+     WHERE user_uuid = ? AND (game_id, save_name) IN (
+       SELECT game_id, save_name FROM saves WHERE last_source_uuid = ? AND user_uuid IS NULL
+     )`,
+  )
+    .bind(userUuid, sourceUuid)
+    .all<{ uuid: string; game_id: string; save_name: string; last_updated: string }>();
+
+  // Build lookup map keyed by "game_id\0save_name"
+  const existingMap = new Map(
+    existingAll.results.map((e) => [`${e.game_id}\0${e.save_name}`, e]),
+  );
+
   const batch: D1PreparedStatement[] = [];
 
   for (const orphan of orphans.results) {
-    const existing = await env.DB.prepare(
-      "SELECT uuid, last_updated FROM saves WHERE user_uuid = ? AND game_id = ? AND save_name = ?",
-    )
-      .bind(userUuid, orphan.game_id, orphan.save_name)
-      .first<{ uuid: string; last_updated: string }>();
+    const existing = existingMap.get(`${orphan.game_id}\0${orphan.save_name}`);
 
     if (!existing) {
       // No conflict — adopt the orphan

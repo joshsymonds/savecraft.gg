@@ -257,6 +257,62 @@ export async function sendSourceOnlineAndDrainLinkState(
   return waitForProtoMessage(ws);
 }
 
+/**
+ * Drain queued RelayedMessages from a UI WebSocket with a short timeout.
+ * Consumes up to 50 messages, stopping when no message arrives within timeoutMs.
+ */
+export async function drainRelayedMessages(ws: WebSocket, timeoutMs = 200): Promise<void> {
+  for (let i = 0; i < 50; i++) {
+    try {
+      await waitForRelayedMessage(ws, timeoutMs);
+    } catch {
+      break;
+    }
+  }
+}
+
+/**
+ * Seed a save with sections, search_index, and notes data in D1.
+ * Returns the generated save UUID.
+ */
+export async function seedSaveWithData(
+  userUuid: string | null,
+  gameId: string,
+  saveName: string,
+  options?: { sourceUuid?: string },
+): Promise<string> {
+  const saveUuid = crypto.randomUUID();
+  await env.DB.prepare(
+    `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_source_uuid)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      saveUuid,
+      userUuid,
+      gameId,
+      gameId,
+      saveName,
+      `${saveName} summary`,
+      options?.sourceUuid ?? null,
+    )
+    .run();
+
+  await env.DB.prepare(
+    "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, 'overview', 'Overview', '{}')",
+  )
+    .bind(saveUuid)
+    .run();
+
+  await env.DB.prepare(
+    `INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content)
+     VALUES (?, ?, 'section', ?, ?, ?)`,
+  )
+    .bind(saveUuid, saveName, "overview", "Overview", "test content")
+    .run();
+
+  return saveUuid;
+}
+
 // -- Source helpers for tests --------------------------------------------------
 
 async function sha256Hex(input: string): Promise<string> {
