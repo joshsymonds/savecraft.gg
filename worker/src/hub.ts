@@ -912,15 +912,7 @@ export class SourceHub extends DurableObject<Env> {
     const sections: Record<string, SectionInput> = {};
     for (const section of push.sections) {
       const data = section.data;
-      if (
-        data === undefined ||
-        data === null ||
-        typeof data !== "object" ||
-        Array.isArray(data)
-      ) {
-        console.error(
-          `pushSave: section "${section.name}" has non-object data (type=${typeof data}), skipping`,
-        );
+      if (data === undefined) {
         continue;
       }
       totalSize += JSON.stringify(data).length;

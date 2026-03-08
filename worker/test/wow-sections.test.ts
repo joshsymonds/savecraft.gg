@@ -43,7 +43,7 @@ describe("WoW Section Mappers", () => {
   describe("mapCharacterOverview", () => {
     it("produces valid section from Blizzard profile", () => {
       const section = mapCharacterOverview(profile);
-      const d = section.data as Record<string, unknown>;
+      const d = section.data;
 
       expect(section.description).toBeTruthy();
       expect(d.name).toBe("Dratnos");
@@ -60,7 +60,7 @@ describe("WoW Section Mappers", () => {
 
     it("includes Raider.io enrichment when provided", () => {
       const section = mapCharacterOverview(profile, raiderio);
-      const d = section.data as Record<string, unknown>;
+      const d = section.data;
 
       expect(d.raiderio_score).toBeDefined();
       expect(d.raiderio_url).toBe("https://raider.io/characters/us/tichondrius/Dratnos");
@@ -120,7 +120,7 @@ describe("WoW Section Mappers", () => {
   describe("mapCharacterStats", () => {
     it("produces valid section with all stat categories", () => {
       const section = mapCharacterStats(statistics);
-      const d = section.data as Record<string, unknown>;
+      const d = section.data;
 
       expect(d.health).toBe(77_760);
       expect(d.power_type).toBe("Energy");
@@ -140,7 +140,7 @@ describe("WoW Section Mappers", () => {
   describe("mapTalents", () => {
     it("produces valid section with active loadout", () => {
       const section = mapTalents(specializations);
-      const d = section.data as Record<string, unknown>;
+      const d = section.data;
 
       expect(d.spec_name).toBe("Assassination");
       expect(d.loadout_code).toBeTruthy();
@@ -171,7 +171,7 @@ describe("WoW Section Mappers", () => {
 
     it("includes Raider.io scores when provided", () => {
       const section = mapMythicPlus(mythicKeystoneSeason, raiderio);
-      const d = section.data as Record<string, unknown>;
+      const d = section.data;
 
       expect(d.raiderio_score).toBeDefined();
       expect(section.enrichment?.[0]?.available).toBe(true);
@@ -209,7 +209,7 @@ describe("WoW Section Mappers", () => {
 
     it("includes Raider.io progression when provided", () => {
       const section = mapRaidProgression(raids, raiderio);
-      const d = section.data as Record<string, unknown>;
+      const d = section.data;
 
       expect(d.raiderio_progression).toBeDefined();
       const prog = d.raiderio_progression as {
