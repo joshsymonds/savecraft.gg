@@ -262,7 +262,7 @@ export async function sendSourceOnlineAndDrainLinkState(
  * Consumes up to 50 messages, stopping when no message arrives within timeoutMs.
  */
 export async function drainRelayedMessages(ws: WebSocket, timeoutMs = 200): Promise<void> {
-  for (let i = 0; i < 50; i++) {
+  for (let index = 0; index < 50; index++) {
     try {
       await waitForRelayedMessage(ws, timeoutMs);
     } catch {
