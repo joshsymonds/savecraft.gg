@@ -167,12 +167,20 @@ async function getCachedManifest(plugins: R2Bucket, key: string): Promise<Manife
   return data;
 }
 
-/** Scan R2 manifests and attach reference modules to game entries. */
-async function attachReferenceModules(
-  plugins: R2Bucket,
-  gameMap: Map<string, GameEntry>,
-  filter?: string,
-): Promise<void> {
+/** Per-isolate cache for R2 manifest key list — avoids R2 list on every list_games call. */
+let manifestKeysCache: { keys: string[]; fetchedAt: number } | null = null;
+const MANIFEST_KEYS_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
+
+/** Clear all per-isolate caches. Exported for test cleanup. */
+export function clearToolCaches(): void {
+  manifestCache.clear();
+  manifestKeysCache = null;
+}
+
+async function getManifestKeys(plugins: R2Bucket): Promise<string[]> {
+  if (manifestKeysCache && Date.now() - manifestKeysCache.fetchedAt < MANIFEST_KEYS_CACHE_TTL_MS) {
+    return manifestKeysCache.keys;
+  }
   const allObjects: R2Object[] = [];
   let cursor: string | undefined;
   // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- R2 pagination loop
@@ -182,10 +190,20 @@ async function attachReferenceModules(
     if (!listed.truncated) break;
     cursor = listed.cursor;
   }
-
-  const manifestKeys = allObjects
+  const keys = allObjects
     .filter((object) => object.key.endsWith("/manifest.json"))
     .map((object) => object.key);
+  manifestKeysCache = { keys, fetchedAt: Date.now() };
+  return keys;
+}
+
+/** Scan R2 manifests and attach reference modules to game entries. */
+async function attachReferenceModules(
+  plugins: R2Bucket,
+  gameMap: Map<string, GameEntry>,
+  filter?: string,
+): Promise<void> {
+  const manifestKeys = await getManifestKeys(plugins);
 
   const manifests = await Promise.all(manifestKeys.map((key) => getCachedManifest(plugins, key)));
 

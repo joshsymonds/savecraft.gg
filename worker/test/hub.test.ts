@@ -1563,7 +1563,7 @@ describe("SourceHub", () => {
         $case: "pushSave",
         pushSave: {
           gameId: "d2r",
-          identity: { name: "TooManySections" },
+          identity: { name: "TooManySections", extra: undefined },
           summary: "test",
           parsedAt: new Date(),
           sections,
@@ -1602,7 +1602,7 @@ describe("SourceHub", () => {
         $case: "pushSave",
         pushSave: {
           gameId: "d2r",
-          identity: { name: "TooBig" },
+          identity: { name: "TooBig", extra: undefined },
           summary: "test",
           parsedAt: new Date(),
           sections: [{ name: "huge", description: "big section", data: bigData }],
@@ -1664,7 +1664,7 @@ describe("SourceHub", () => {
         $case: "pushSave",
         pushSave: {
           gameId: "",
-          identity: { name: "EmptyGameId" },
+          identity: { name: "EmptyGameId", extra: undefined },
           summary: "test",
           parsedAt: new Date(),
           sections: [{ name: "stats", description: "Stats", data: { level: 1 } }],
@@ -1695,7 +1695,7 @@ describe("SourceHub", () => {
         $case: "pushSave" as const,
         pushSave: {
           gameId: "d2r",
-          identity: { name: "IdempotentChar" },
+          identity: { name: "IdempotentChar", extra: undefined },
           summary: `Level ${String(level)}`,
           parsedAt: new Date(),
           sections: [{ name: "stats", description: "Stats", data: { level } }],
