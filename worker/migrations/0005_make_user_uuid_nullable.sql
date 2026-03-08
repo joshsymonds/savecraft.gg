@@ -21,7 +21,7 @@ CREATE TABLE saves (
   last_source_uuid TEXT,
   UNIQUE (user_uuid, game_id, save_name)
 );
-CREATE INDEX idx_saves_user ON saves(user_uuid);
+CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_uuid);
 
 INSERT INTO saves SELECT * FROM _saves_old;
 
