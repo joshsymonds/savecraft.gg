@@ -358,6 +358,7 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
         error: message,
       },
     });
+    redirectUrl.searchParams.set("game_id", adapter.gameId);
     redirectUrl.searchParams.set("error", "token_failed");
     redirectUrl.searchParams.set("error_detail", message);
     return new Response(null, {
@@ -374,6 +375,7 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
         status: tokenResult.status,
       },
     });
+    redirectUrl.searchParams.set("game_id", adapter.gameId);
     redirectUrl.searchParams.set("error", "token_failed");
     redirectUrl.searchParams.set("error_detail", "Failed to exchange code with Battle.net");
     return new Response(null, {
@@ -417,6 +419,7 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
         error: message,
       },
     });
+    redirectUrl.searchParams.set("game_id", adapter.gameId);
     redirectUrl.searchParams.set("error", "discovery_failed");
     redirectUrl.searchParams.set("error_detail", message);
     redirectUrl.searchParams.set("connected", "true");
@@ -434,6 +437,7 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
     },
   });
 
+  redirectUrl.searchParams.set("game_id", adapter.gameId);
   redirectUrl.searchParams.set("connected", "true");
 
   if (characters.length > 0) {
@@ -1195,19 +1199,26 @@ export async function cleanupSource(
 
   if (savesToDelete.results.length > 0) {
     const uuids = savesToDelete.results.map((r) => r.uuid);
-    const placeholders = uuids.map(() => "?").join(",");
-    await env.DB.batch([
-      env.DB.prepare(`DELETE FROM search_index WHERE save_id IN (${placeholders})`).bind(...uuids),
-      env.DB.prepare(`DELETE FROM notes WHERE save_id IN (${placeholders})`).bind(...uuids),
-      env.DB.prepare(`DELETE FROM sections WHERE save_uuid IN (${placeholders})`).bind(...uuids),
-      env.DB.prepare(`DELETE FROM saves WHERE uuid IN (${placeholders})`).bind(...uuids),
-    ]);
+    // Chunk to stay within D1's 100-parameter-per-statement limit
+    const CHUNK_SIZE = 50;
+    for (let i = 0; i < uuids.length; i += CHUNK_SIZE) {
+      const chunk = uuids.slice(i, i + CHUNK_SIZE);
+      const placeholders = chunk.map(() => "?").join(",");
+      await env.DB.batch([
+        env.DB.prepare(`DELETE FROM search_index WHERE save_id IN (${placeholders})`).bind(...chunk),
+        env.DB.prepare(`DELETE FROM notes WHERE save_id IN (${placeholders})`).bind(...chunk),
+        env.DB.prepare(`DELETE FROM sections WHERE save_uuid IN (${placeholders})`).bind(...chunk),
+        env.DB.prepare(`DELETE FROM saves WHERE uuid IN (${placeholders})`).bind(...chunk),
+      ]);
+    }
   }
 
   // D1 cleanup
-  await env.DB.prepare("DELETE FROM source_events WHERE source_uuid = ?").bind(sourceUuid).run();
-  await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?").bind(sourceUuid).run();
-  await env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(sourceUuid).run();
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM source_events WHERE source_uuid = ?").bind(sourceUuid),
+    env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?").bind(sourceUuid),
+    env.DB.prepare("DELETE FROM sources WHERE source_uuid = ?").bind(sourceUuid),
+  ]);
 
   // Clean up SourceHub DO (close connections, delete alarm, wipe storage)
   const sourceHubId = env.SOURCE_HUB.idFromName(sourceUuid);
@@ -1275,16 +1286,18 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
   }
 
   // Batch D1 cleanup: delete notes + search_index for all saves in one round-trip
-  const noteDeletes = saves.results.map((s) =>
-    env.DB.prepare("DELETE FROM notes WHERE save_id = ?").bind(s.uuid),
-  );
-  const searchDeletes = saves.results.map((s) =>
-    env.DB.prepare("DELETE FROM search_index WHERE save_id = ?").bind(s.uuid),
-  );
-  const batchResults = await env.DB.batch([...noteDeletes, ...searchDeletes]);
-  const totalNotes = batchResults
-    .slice(0, saves.results.length)
-    .reduce((sum, r) => sum + r.meta.changes, 0);
+  const uuids = saves.results.map((s) => s.uuid);
+  const CHUNK_SIZE = 50;
+  let totalNotes = 0;
+  for (let i = 0; i < uuids.length; i += CHUNK_SIZE) {
+    const chunk = uuids.slice(i, i + CHUNK_SIZE);
+    const placeholders = chunk.map(() => "?").join(",");
+    const batchResults = await env.DB.batch([
+      env.DB.prepare(`DELETE FROM notes WHERE save_id IN (${placeholders})`).bind(...chunk),
+      env.DB.prepare(`DELETE FROM search_index WHERE save_id IN (${placeholders})`).bind(...chunk),
+    ]);
+    totalNotes += batchResults[0]?.meta.changes ?? 0;
+  }
 
   // Delete all saves for this game (sections cascade via FK)
   await env.DB.prepare("DELETE FROM saves WHERE user_uuid = ? AND game_id = ?")
