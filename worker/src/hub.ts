@@ -64,7 +64,7 @@ type StateMutation =
       identity: SaveIdentity | undefined;
     }
   | {
-      kind: "adapterGameStatus";
+      kind: "setGameStatus";
       sourceId: string;
       gameId: string;
       gameName: string;
@@ -194,7 +194,7 @@ function applyMutation(state: SourceState, mutation: StateMutation): void {
       game.lastActivity = now;
       break;
     }
-    case "adapterGameStatus": {
+    case "setGameStatus": {
       const source = findOrCreateSource(state, mutation.sourceId);
       source.online = true;
       source.lastSeen = now;
@@ -406,8 +406,8 @@ export class SourceHub extends DurableObject<Env> {
     if (url.pathname === "/rescan" && request.method === "POST") {
       return this.handleRescan(request);
     }
-    if (url.pathname === "/set-adapter-state" && request.method === "POST") {
-      return this.handleSetAdapterState(request);
+    if (url.pathname === "/set-game-status" && request.method === "POST") {
+      return this.handleSetGameStatus(request);
     }
     if (url.pathname === "/set-user" && request.method === "POST") {
       return this.handleSetUser(request);
@@ -1171,7 +1171,7 @@ export class SourceHub extends DurableObject<Env> {
    * Stores the new user_uuid, forwards state to UserHub, and notifies
    * the connected daemon via SourceLinked proto message.
    */
-  private async handleSetAdapterState(request: Request): Promise<Response> {
+  private async handleSetGameStatus(request: Request): Promise<Response> {
     const body = await request.json<{
       gameId?: string;
       gameName?: string;
@@ -1217,7 +1217,7 @@ export class SourceHub extends DurableObject<Env> {
 
     const state = await this.loadState();
     const mutation: StateMutation = {
-      kind: "adapterGameStatus",
+      kind: "setGameStatus",
       sourceId: sourceUuid ?? crypto.randomUUID(),
       gameId: body.gameId,
       gameName: body.gameName,

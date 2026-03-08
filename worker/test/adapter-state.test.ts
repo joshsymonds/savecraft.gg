@@ -24,8 +24,8 @@ async function seedAdapterSource(userUuid: string): Promise<string> {
   return sourceUuid;
 }
 
-/** Call /set-adapter-state on the SourceHub DO for a given source. */
-async function setAdapterState(
+/** Call /set-game-status on the SourceHub DO for a given source. */
+async function setGameStatus(
   sourceUuid: string,
   userUuid: string,
   body: Record<string, unknown>,
@@ -33,7 +33,7 @@ async function setAdapterState(
   const doId = env.SOURCE_HUB.idFromName(sourceUuid);
   const doStub = env.SOURCE_HUB.get(doId);
   return doStub.fetch(
-    new Request("https://do/set-adapter-state", {
+    new Request("https://do/set-game-status", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -46,9 +46,7 @@ async function setAdapterState(
 }
 
 /** Read SourceHub debug state. */
-async function getDebugState(
-  sourceUuid: string,
-): Promise<{
+async function getDebugState(sourceUuid: string): Promise<{
   sourceState: {
     sources: {
       sourceId: string;
@@ -63,14 +61,14 @@ async function getDebugState(
   return resp.json();
 }
 
-describe("SourceHub /set-adapter-state", () => {
+describe("SourceHub /set-game-status", () => {
   beforeEach(cleanAll);
 
   it("sets game with WATCHING status", async () => {
     const userUuid = "adapter-state-user-1";
     const sourceUuid = await seedAdapterSource(userUuid);
 
-    const resp = await setAdapterState(sourceUuid, userUuid, {
+    const resp = await setGameStatus(sourceUuid, userUuid, {
       gameId: "wow",
       gameName: "World of Warcraft",
       status: "watching",
@@ -93,7 +91,7 @@ describe("SourceHub /set-adapter-state", () => {
     const userUuid = "adapter-state-user-2";
     const sourceUuid = await seedAdapterSource(userUuid);
 
-    const resp = await setAdapterState(sourceUuid, userUuid, {
+    const resp = await setGameStatus(sourceUuid, userUuid, {
       gameId: "wow",
       gameName: "World of Warcraft",
       status: "error",
@@ -110,13 +108,13 @@ describe("SourceHub /set-adapter-state", () => {
     const userUuid = "adapter-state-user-3";
     const sourceUuid = await seedAdapterSource(userUuid);
 
-    await setAdapterState(sourceUuid, userUuid, {
+    await setGameStatus(sourceUuid, userUuid, {
       gameId: "wow",
       gameName: "World of Warcraft",
       status: "watching",
     });
 
-    await setAdapterState(sourceUuid, userUuid, {
+    await setGameStatus(sourceUuid, userUuid, {
       gameId: "wow",
       gameName: "World of Warcraft",
       status: "error",
@@ -137,7 +135,7 @@ describe("SourceHub /set-adapter-state", () => {
     // Connect UI WebSocket and drain initial empty state
     const uiWs = await connectWs("/ws/ui", userUuid);
 
-    // Wait for the SourceState message that arrives after /set-adapter-state
+    // Wait for the SourceState message that arrives after /set-game-status
     const statePromise = waitForRelayedMessageMatching(
       uiWs,
       (msg) => {
@@ -150,7 +148,7 @@ describe("SourceHub /set-adapter-state", () => {
       5000,
     );
 
-    await setAdapterState(sourceUuid, userUuid, {
+    await setGameStatus(sourceUuid, userUuid, {
       gameId: "wow",
       gameName: "World of Warcraft",
       status: "watching",
@@ -172,28 +170,28 @@ describe("SourceHub /set-adapter-state", () => {
     const sourceUuid = await seedAdapterSource(userUuid);
 
     // Missing gameId
-    const resp1 = await setAdapterState(sourceUuid, userUuid, {
+    const resp1 = await setGameStatus(sourceUuid, userUuid, {
       gameName: "World of Warcraft",
       status: "watching",
     });
     expect(resp1.status).toBe(400);
 
     // Missing gameName
-    const resp2 = await setAdapterState(sourceUuid, userUuid, {
+    const resp2 = await setGameStatus(sourceUuid, userUuid, {
       gameId: "wow",
       status: "watching",
     });
     expect(resp2.status).toBe(400);
 
     // Missing status
-    const resp3 = await setAdapterState(sourceUuid, userUuid, {
+    const resp3 = await setGameStatus(sourceUuid, userUuid, {
       gameId: "wow",
       gameName: "World of Warcraft",
     });
     expect(resp3.status).toBe(400);
 
     // Invalid status value
-    const resp4 = await setAdapterState(sourceUuid, userUuid, {
+    const resp4 = await setGameStatus(sourceUuid, userUuid, {
       gameId: "wow",
       gameName: "World of Warcraft",
       status: "invalid",
@@ -205,7 +203,7 @@ describe("SourceHub /set-adapter-state", () => {
     const userUuid = "adapter-state-user-6";
     const sourceUuid = await seedAdapterSource(userUuid);
 
-    await setAdapterState(sourceUuid, userUuid, {
+    await setGameStatus(sourceUuid, userUuid, {
       gameId: "wow",
       gameName: "World of Warcraft",
       status: "watching",
