@@ -1512,6 +1512,31 @@ export class SourceHub extends DurableObject<Env> {
               game.gameName = await resolveGameName(this.env.PLUGINS, game.gameId);
             }),
         );
+
+        // Enrich adapter sources with saves from D1
+        if (meta.sourceKind === "adapter") {
+          await Promise.all(
+            source.games.map(async (game) => {
+              const rows = await this.env.DB.prepare(
+                `SELECT uuid, save_name, summary, last_updated
+                 FROM saves WHERE last_source_uuid = ? AND game_id = ?`,
+              )
+                .bind(sourceUuid, game.gameId)
+                .all<{
+                  uuid: string;
+                  save_name: string;
+                  summary: string;
+                  last_updated: string | null;
+                }>();
+              game.saves = rows.results.map((row) => ({
+                saveUuid: row.uuid,
+                identity: { name: row.save_name, extra: undefined },
+                summary: row.summary,
+                lastUpdated: row.last_updated ? new Date(row.last_updated) : undefined,
+              }));
+            }),
+          );
+        }
       }
 
       // Encode SourceState as binary proto Message for UserHub

@@ -221,4 +221,98 @@ describe("SourceHub /set-game-status", () => {
     expect(fullDebug.sourceMeta.canRescan).toBe(false);
     expect(fullDebug.sourceMeta.canReceiveConfig).toBe(false);
   });
+
+  it("enriches adapter sources with saves from D1", async () => {
+    const userUuid = "adapter-state-user-7";
+    const sourceUuid = await seedAdapterSource(userUuid);
+
+    // Seed saves in D1 for this adapter source
+    const saveUuid1 = crypto.randomUUID();
+    const saveUuid2 = crypto.randomUUID();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
+         VALUES (?, ?, 'wow', 'World of Warcraft', 'Thrall-thrall-US', 'Orc Shaman, Level 80', datetime('now'), ?)`,
+      ).bind(saveUuid1, userUuid, sourceUuid),
+      env.DB.prepare(
+        `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
+         VALUES (?, ?, 'wow', 'World of Warcraft', 'Jaina-proudmoore-US', 'Human Mage, Level 80', datetime('now'), ?)`,
+      ).bind(saveUuid2, userUuid, sourceUuid),
+    ]);
+
+    // Connect UI WebSocket and wait for state with saves
+    const uiWs = await connectWs("/ws/ui", userUuid);
+
+    const statePromise = waitForRelayedMessageMatching(
+      uiWs,
+      (msg) => {
+        if (msg.message?.payload?.$case !== "sourceState") return false;
+        const sources = msg.message.payload.sourceState.sources;
+        return sources.some((s) => s.games.some((g) => g.saves.length > 0));
+      },
+      5000,
+    );
+
+    await setGameStatus(sourceUuid, userUuid, {
+      gameId: "wow",
+      gameName: "World of Warcraft",
+      status: "watching",
+    });
+
+    const relayed = await statePromise;
+    const sourceState = requireInnerPayload(relayed, "sourceState");
+    const source = sourceState.sources.find((s) => s.games.some((g) => g.gameId === "wow"));
+    expect(source).toBeDefined();
+    const game = source!.games.find((g) => g.gameId === "wow")!;
+    expect(game.saves).toHaveLength(2);
+
+    const saveNames = game.saves
+      .map((s) => s.identity?.name)
+      .toSorted((a, b) => (a ?? "").localeCompare(b ?? ""));
+    expect(saveNames).toEqual(["Jaina-proudmoore-US", "Thrall-thrall-US"]);
+
+    await closeWs(uiWs);
+  });
+
+  it("does not include saves from other sources", async () => {
+    const userUuid = "adapter-state-user-8";
+    const sourceUuid = await seedAdapterSource(userUuid);
+    const otherSourceUuid = crypto.randomUUID();
+
+    // Seed a save belonging to a different source
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
+       VALUES (?, ?, 'wow', 'World of Warcraft', 'Other-char-US', 'Not mine', datetime('now'), ?)`,
+    )
+      .bind(crypto.randomUUID(), userUuid, otherSourceUuid)
+      .run();
+
+    const uiWs = await connectWs("/ws/ui", userUuid);
+
+    const statePromise = waitForRelayedMessageMatching(
+      uiWs,
+      (msg) => {
+        if (msg.message?.payload?.$case !== "sourceState") return false;
+        return msg.message.payload.sourceState.sources.some((s) =>
+          s.games.some((g) => g.gameId === "wow"),
+        );
+      },
+      5000,
+    );
+
+    await setGameStatus(sourceUuid, userUuid, {
+      gameId: "wow",
+      gameName: "World of Warcraft",
+      status: "watching",
+    });
+
+    const relayed = await statePromise;
+    const sourceState = requireInnerPayload(relayed, "sourceState");
+    const source = sourceState.sources.find((s) => s.games.some((g) => g.gameId === "wow"));
+    expect(source).toBeDefined();
+    const game = source!.games.find((g) => g.gameId === "wow")!;
+    expect(game.saves).toHaveLength(0);
+
+    await closeWs(uiWs);
+  });
 });
