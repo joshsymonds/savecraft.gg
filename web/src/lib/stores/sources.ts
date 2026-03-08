@@ -67,6 +67,7 @@ function mapSourceInfo(d: SourceInfo): Source {
       status,
       statusLine: gameStatusLine(status, saves),
       saves,
+      path: g.path || undefined,
     };
   });
 

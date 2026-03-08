@@ -54,7 +54,7 @@ const DEFAULT_SOURCE_META: SourceMeta = {
 type StateMutation =
   | { kind: "sourceOnline"; sourceId: string }
   | { kind: "sourceOffline"; sourceId: string }
-  | { kind: "gameStatus"; sourceId: string; gameId: string; status: GameStatusEnum }
+  | { kind: "gameStatus"; sourceId: string; gameId: string; status: GameStatusEnum; path: string }
   | {
       kind: "pushCompleted";
       sourceId: string;
@@ -101,6 +101,7 @@ function findOrCreateGame(source: SourceInfo, gameId: string): GameInfo {
       status: GameStatusEnum.GAME_STATUS_ENUM_UNSPECIFIED,
       saves: [],
       lastActivity: undefined,
+      path: "",
     };
     source.games.push(game);
   }
@@ -164,6 +165,7 @@ function applyMutation(state: SourceState, mutation: StateMutation): void {
       const game = findOrCreateGame(source, mutation.gameId);
       game.status = mutation.status;
       game.lastActivity = now;
+      if (mutation.path) game.path = mutation.path;
       break;
     }
     case "pushCompleted": {
@@ -488,6 +490,7 @@ export class SourceHub extends DurableObject<Env> {
           sourceId,
           gameId: rpc.payload.gameDetected.gameId,
           status: GameStatusEnum.GAME_STATUS_ENUM_DETECTED,
+          path: rpc.payload.gameDetected.path,
         };
       }
       case "watching": {
@@ -498,6 +501,7 @@ export class SourceHub extends DurableObject<Env> {
           sourceId,
           gameId: rpc.payload.watching.gameId,
           status: GameStatusEnum.GAME_STATUS_ENUM_WATCHING,
+          path: rpc.payload.watching.path,
         };
       }
       case "gameNotFound": {
@@ -508,6 +512,7 @@ export class SourceHub extends DurableObject<Env> {
           sourceId,
           gameId: rpc.payload.gameNotFound.gameId,
           status: GameStatusEnum.GAME_STATUS_ENUM_NOT_FOUND,
+          path: "",
         };
       }
       case "pushCompleted": {

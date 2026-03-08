@@ -425,6 +425,7 @@ export interface GameInfo {
   status: GameStatusEnum;
   saves: SaveInfo[];
   lastActivity: Date | undefined;
+  path: string;
 }
 
 export interface SaveInfo {
@@ -4723,7 +4724,7 @@ export const SourceInfo: MessageFns<SourceInfo> = {
 };
 
 function createBaseGameInfo(): GameInfo {
-  return { gameId: "", gameName: "", status: 0, saves: [], lastActivity: undefined };
+  return { gameId: "", gameName: "", status: 0, saves: [], lastActivity: undefined, path: "" };
 }
 
 export const GameInfo: MessageFns<GameInfo> = {
@@ -4742,6 +4743,9 @@ export const GameInfo: MessageFns<GameInfo> = {
     }
     if (message.lastActivity !== undefined) {
       Timestamp.encode(toTimestamp(message.lastActivity), writer.uint32(42).fork()).join();
+    }
+    if (message.path !== "") {
+      writer.uint32(50).string(message.path);
     }
     return writer;
   },
@@ -4793,6 +4797,14 @@ export const GameInfo: MessageFns<GameInfo> = {
           message.lastActivity = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.path = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -4821,6 +4833,7 @@ export const GameInfo: MessageFns<GameInfo> = {
         : isSet(object.last_activity)
         ? fromJsonTimestamp(object.last_activity)
         : undefined,
+      path: isSet(object.path) ? globalThis.String(object.path) : "",
     };
   },
 
@@ -4841,6 +4854,9 @@ export const GameInfo: MessageFns<GameInfo> = {
     if (message.lastActivity !== undefined) {
       obj.lastActivity = message.lastActivity.toISOString();
     }
+    if (message.path !== "") {
+      obj.path = message.path;
+    }
     return obj;
   },
 
@@ -4854,6 +4870,7 @@ export const GameInfo: MessageFns<GameInfo> = {
     message.status = object.status ?? 0;
     message.saves = object.saves?.map((e) => SaveInfo.fromPartial(e)) || [];
     message.lastActivity = object.lastActivity ?? undefined;
+    message.path = object.path ?? "";
     return message;
   },
 };
