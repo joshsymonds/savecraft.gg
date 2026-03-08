@@ -100,6 +100,44 @@ The web UI and MCP `list_games` tool discover API games through the same manifes
 
 ## Architecture
 
+Adapter sources are "headless" — they exist in D1 but have no daemon WebSocket connection. The Worker pushes game status to SourceHub via HTTP, and SourceHub enriches adapter state with saves from D1 before forwarding to UserHub.
+
+### Data Flow: OAuth Setup
+
+```
+User clicks region button in GamePickerModal
+  -> GET /oauth/battlenet/authorize
+  -> Worker creates adapter source in D1
+  -> Worker pushes WATCHING status to SourceHub via /set-game-status
+  -> SourceHub forwards to UserHub -> WebSocket -> game card appears on dashboard
+  -> Redirect to Battle.net OAuth
+  -> GET /oauth/battlenet/callback
+  -> Worker exchanges code for tokens, stores in game_credentials
+  -> Worker calls discoverAndReconcileSaves(adapter, env, token, region, user, source)
+      -> adapter.discoverSaves(token, region) — calls game API
+      -> reconcileCharacters(env, user, gameId, source, gameName, discovered)
+         — inserts/updates/deactivates characters in linked_characters
+         — creates saves in saves table
+  -> Redirect to web UI with ?connected=true&game_id=wow
+```
+
+### Data Flow: SourceHub Pipeline
+
+```
+Worker pushes game status via SourceHub DO HTTP endpoint:
+  POST /set-game-status { gameId, gameName, status: "watching"|"error" }
+  -> SourceHub applies setGameStatus mutation (sets source online, game status)
+  -> SourceHub.forwardStateToUserHub():
+      1. Reads source meta from D1 (sourceKind, canRescan, canReceiveConfig)
+      2. For adapter sources: reads saves from D1 (not DO storage)
+      3. Encodes SourceState proto with games + saves
+      4. POSTs to UserHub DO
+  -> UserHub merges per-source state, broadcasts to UI WebSockets
+  -> Frontend $sources store updates, game card appears/updates
+```
+
+### Data Flow: MCP Refresh
+
 ```
 MCP tool call (refresh_save / get_section / etc.)
   -> Worker identifies save as API-backed (source_kind='adapter' in D1)
@@ -205,6 +243,52 @@ interface GameCredentials {
 
 The output is the same `GameState` that daemon plugins produce — `identity`, `summary`, `sections`. Everything downstream is identical: D1 metadata, FTS indexing, MCP tools, notes, search.
 
+### Discovery Orchestrator
+
+`discoverAndReconcileSaves()` (`worker/src/adapters/discover.ts`) is the single entrypoint for save discovery and D1 reconciliation. It composes two operations:
+
+1. `adapter.discoverSaves(accessToken, region)` — adapter-specific API call returning `DiscoveredSave[]`
+2. `reconcileCharacters(env, userUuid, gameId, sourceUuid, gameName, discovered)` — generic D1 lifecycle (add/rename/deactivate/reactivate)
+
+```typescript
+async function discoverAndReconcileSaves(
+  adapter: ApiAdapter,
+  env: { DB: D1Database },
+  accessToken: string,
+  region: string,
+  userUuid: string,
+  sourceUuid: string,
+): Promise<ReconcileResult>
+```
+
+**Used by:**
+- OAuth callback — initial character discovery after token exchange
+- MCP refresh (future) — re-discover characters when user requests
+- Scheduled refresh (future) — periodic re-discovery for active users
+
+**Design principle:** Saves are stored directly in D1 by `reconcileCharacters()`. They are NOT pushed into SourceHub DO storage. When SourceHub needs to include saves in the state it forwards to UserHub, it reads them from D1 in `forwardStateToUserHub()`. This avoids duplicating data between D1 and DO storage.
+
+### SourceHub Integration
+
+Adapter sources interact with SourceHub via HTTP, not WebSocket (daemon sources use WebSocket). The Worker calls:
+
+```
+POST /set-game-status
+Headers: X-Source-UUID, X-User-UUID
+Body: { "gameId": "wow", "gameName": "World of Warcraft", "status": "watching"|"error" }
+```
+
+SourceHub applies a `setGameStatus` mutation that:
+- Sets the source online
+- Creates or updates the game entry with the given status
+- Triggers `forwardStateToUserHub()` which:
+  - Reads source metadata from D1 (sourceKind, canRescan, canReceiveConfig)
+  - For `sourceKind="adapter"`: reads saves from D1 (`SELECT ... FROM saves WHERE last_source_uuid = ? AND game_id = ?`)
+  - Encodes the full SourceState proto with games and saves
+  - POSTs to UserHub for broadcast to UI WebSockets
+
+This means adapter saves appear on the dashboard without being stored in DO memory — D1 is the single source of truth.
+
 ### Error Handling
 
 Adapter errors are typed via `AdapterError` so the Worker and MCP layer can give the AI actionable information.
@@ -241,7 +325,7 @@ WoW characters get deleted, transferred to other realms, and renamed. The adapte
 
 **Stable identity:** Blizzard provides a stable numeric character ID that survives transfers and renames. The `linked_characters.character_id` stores this stable ID, not the realm-name slug.
 
-**Reconciliation:** When `discoverSaves()` runs (initial setup or user clicks "Refresh Characters"), the Worker compares the API response against `linked_characters` by stable character ID:
+**Reconciliation:** When `discoverAndReconcileSaves()` runs (OAuth callback, MCP refresh, or scheduled refresh), it calls `adapter.discoverSaves()` then `reconcileCharacters()` to compare the API response against `linked_characters` by stable character ID:
 
 | Situation | API returns | linked_characters has | Action |
 |-----------|------------|----------------------|--------|
@@ -263,7 +347,8 @@ WoW characters get deleted, transferred to other realms, and renamed. The adapte
 | **Input** | Raw file bytes | Game API response(s) |
 | **Trust model** | Sandboxed, community code | Reviewed, first-party code |
 | **Output** | GameState | GameState |
-| **Storage** | WS PushSave -> D1/FTS | Direct -> D1/FTS (same `storePush`) |
+| **State pipeline** | Daemon → WS PushSave → SourceHub DO | Worker → D1 saves + SourceHub `/set-game-status` |
+| **Storage** | WS PushSave → D1/FTS | `discoverAndReconcileSaves()` → D1, `storePush` for refresh |
 | **Manifest** | `source = "wasm"`, has sha256/url | `source = "api"`, has adapter config |
 
 ## Source Model
@@ -286,15 +371,19 @@ The web UI uses these flags to hide filesystem-specific UI (path editor, rescan 
 ### Source Lifecycle
 
 1. User clicks "Add WoW" in GamePickerModal
-2. Web UI detects `source = "api"` in manifest, renders adapter-specific setup
-3. User picks region, clicks "Link Battle.net" -> OAuth redirect
-4. Callback: Worker exchanges code for tokens, stores in `game_credentials` (D1 encrypts at rest)
-5. Worker calls `adapter.discoverSaves(token, region)` -> character list
-6. User selects characters to track (level 70+ shown by default)
-7. Worker creates source (`source_kind = 'adapter'`, name = `Battle.net . BattleTag`)
-8. Worker stores selected characters in `linked_characters` table
-9. Worker calls `adapter.fetchState()` for each selected character -> initial data load
-10. Source appears in SourceStrip, saves appear in GamePanel
+2. Web UI detects `source = "api"` in manifest, renders adapter-specific setup (region picker)
+3. User picks region, clicks "Link Battle.net"
+4. `GET /oauth/battlenet/authorize`: Worker creates adapter source in D1, pushes WATCHING status to SourceHub
+5. SourceHub forwards state to UserHub → WebSocket → game card appears on dashboard immediately
+6. User redirected to Battle.net OAuth, authenticates
+7. `GET /oauth/battlenet/callback`: Worker exchanges code for tokens, stores in `game_credentials`
+8. Worker calls `discoverAndReconcileSaves()` → discovers all characters, reconciles into D1 (linked_characters + saves)
+9. Worker redirects to web UI with `?connected=true&game_id=wow`
+10. SourceHub enriches adapter state with saves from D1, forwards to UserHub → game card updates with character count
+
+**Error handling:** If token exchange fails, Worker pushes ERROR status to SourceHub and redirects with `?error=token_failed`. If character discovery fails, Worker pushes ERROR status and redirects with `?error=discovery_failed`. In both cases the game card shows an error state on the dashboard.
+
+**No character picker:** All discovered characters are tracked automatically ("discover all, track all"). There is no user selection step. If fine-grained character selection is needed in the future, it can be added as a configuration step after initial setup.
 
 ## Staleness and Refresh
 
@@ -347,19 +436,18 @@ If stale data at conversation start proves to be a friction point, add periodic 
 
 ## Web UI Setup Flow
 
-GameConfigModal detects API games (`source = "api"` in manifest) and renders an adapter-specific setup view instead of the filesystem path editor.
+GamePickerModal detects API games (`source = "api"` in manifest) and renders an adapter-specific setup view instead of the filesystem path editor.
 
 **WoW setup flow:**
 
 1. GamePickerModal shows WoW with description from manifest
-2. User selects WoW -> modal shows region picker + "Link Battle.net" button
-3. OAuth redirect -> Battle.net -> callback
-4. Callback discovers characters, redirects back to web UI with character list
-5. Character picker: checkboxes for each character (level 70+), showing name, realm, class, level
-6. User confirms -> source created, characters linked, initial fetch begins
-7. Success state shows in GamePanel with character saves appearing in real time
+2. User selects WoW → modal shows region picker + "Link Battle.net" button
+3. User clicks region → game card appears on dashboard immediately (WATCHING status via SourceHub)
+4. OAuth redirect → Battle.net → callback
+5. Callback discovers all characters, reconciles into D1, redirects to web UI
+6. Game card updates with character count as SourceHub re-reads saves from D1
 
-For v1, the setup component is built directly in the web app — not a plugin-provided Svelte component. If many API plugins with diverse setup flows emerge later, a generic schema-driven system can be extracted.
+There is no character picker — all discovered characters are tracked automatically. For v1, the setup component is built directly in the web app — not a plugin-provided Svelte component.
 
 ## WoW (Battle.net + Raider.io) — First Adapter
 
@@ -385,14 +473,15 @@ OAuth tokens are stored in `game_credentials` (D1 provides encryption at rest) w
 
 **OAuth flow:**
 
-1. User clicks "Connect Battle.net" in web UI
-2. Redirect to `https://oauth.battle.net/authorize` with scopes `wow.profile` + `openid`
-3. User authenticates with Battle.net
-4. Callback receives authorization code
-5. Worker exchanges code for access + refresh tokens (server-to-server)
-6. Tokens stored in D1 keyed by `(user_uuid, "wow")` (D1 encrypts at rest)
-7. Worker calls account profile to discover characters
-8. Worker triggers initial refresh for all discovered characters
+1. User clicks region button in web UI
+2. `GET /oauth/battlenet/authorize`: create adapter source, push WATCHING to SourceHub, store state in KV
+3. Redirect to `https://oauth.battle.net/authorize` with scopes `wow.profile` + `openid`
+4. User authenticates with Battle.net
+5. Callback receives authorization code
+6. Worker exchanges code for access + refresh tokens (server-to-server)
+7. Tokens stored in D1 keyed by `(user_uuid, "wow")` (D1 encrypts at rest)
+8. Worker calls `discoverAndReconcileSaves()` → discovers all characters, creates saves in D1
+9. Worker redirects to web UI; SourceHub reads saves from D1 and forwards to UserHub
 
 Token refresh is automatic — the adapter checks `expires_at` before each API call.
 
@@ -400,10 +489,15 @@ Token refresh is automatic — the adapter checks `expires_at` before each API c
 
 | Route | Purpose |
 |-------|---------|
-| `GET /oauth/battlenet/authorize?region=us` | Redirect to Battle.net OAuth |
-| `GET /oauth/battlenet/callback` | Exchange code, discover characters, redirect to web UI |
-| `POST /api/v1/adapters/wow/characters` | Select characters to track (creates source + linked_characters) |
+| `GET /oauth/battlenet/authorize?region=us` | Create adapter source, push WATCHING to SourceHub, redirect to Battle.net OAuth |
+| `GET /oauth/battlenet/callback` | Exchange code, store credentials, `discoverAndReconcileSaves()`, redirect to web UI |
 | `POST /api/v1/adapters/{gameId}/refresh/{saveId}` | Explicit refresh trigger |
+
+**SourceHub DO internal route:**
+
+| Route | Purpose |
+|-------|---------|
+| `POST /set-game-status` | Accept `{ gameId, gameName, status }`, apply mutation, forward state to UserHub |
 
 ### GameState Schema
 
@@ -502,7 +596,7 @@ plugins/poe2/
 
 ### Character registration
 
-Stores discovered characters from OAuth-based game APIs. Used by the web UI character picker and by the adapter to know which characters to refresh.
+Stores discovered characters from OAuth-based game APIs. Populated by `reconcileCharacters()` during `discoverAndReconcileSaves()`. Used by the adapter to know which characters to refresh and to resolve character context for API calls.
 
 ```sql
 CREATE TABLE linked_characters (
