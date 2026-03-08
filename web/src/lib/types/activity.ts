@@ -16,4 +16,6 @@ export type ActivityEventType =
   | "scan_started"
   | "scan_completed"
   | "games_discovered"
-  | "plugin_download_failed";
+  | "plugin_download_failed"
+  | "oauth_connected"
+  | "oauth_failed";

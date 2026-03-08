@@ -166,6 +166,7 @@ describe("Adapter OAuth", () => {
 
       expect(resp.status).toBe(302);
       const location = new URL(resp.headers.get("Location")!);
+      expect(location.searchParams.get("game_id")).toBe("wow");
       expect(location.searchParams.get("error")).toBe("token_failed");
       expect(location.searchParams.get("error_detail")).toBeTruthy();
     });

@@ -14,10 +14,16 @@
     games,
     onadd,
     ongameclick,
+    adapterError,
+    onreconnect,
+    onremove,
   }: {
     games: Game[];
     onadd?: () => void;
     ongameclick?: (game: Game) => void;
+    adapterError?: { gameId: string; detail: string };
+    onreconnect?: (gameId: string) => void;
+    onremove?: (gameId: string) => void;
   } = $props();
 </script>
 
@@ -25,7 +31,17 @@
   <WindowTitleBar activeLabel="GAMES" />
   <div class="game-grid">
     {#each games as game (game.gameId)}
-      <GameCard {game} onclick={ongameclick ? () => ongameclick(game) : undefined} />
+      <GameCard
+        {game}
+        onclick={ongameclick ? () => ongameclick(game) : undefined}
+        adapterError={adapterError?.gameId === game.gameId ? adapterError.detail : undefined}
+        onreconnect={adapterError?.gameId === game.gameId && onreconnect
+          ? () => onreconnect(game.gameId)
+          : undefined}
+        onremove={adapterError?.gameId === game.gameId && onremove
+          ? () => onremove(game.gameId)
+          : undefined}
+      />
     {/each}
     <button class="add-game-card" onclick={() => onadd?.()}>
       <span class="add-game-icon">+</span>

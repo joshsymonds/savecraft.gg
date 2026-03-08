@@ -1,6 +1,6 @@
 import type { Message } from "$lib/proto/savecraft/v1/protocol";
 import type { ActivityEventType } from "$lib/types/activity";
-import { type Readable, get, writable } from "svelte/store";
+import { get, type Readable, writable } from "svelte/store";
 
 import { gameDisplayName } from "./plugins";
 import { sources as sourcesStore } from "./sources";
@@ -45,7 +45,7 @@ function formatBytes(bytes: number | undefined): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)}MB`;
 }
 
-function formatTime(ts: Date | undefined): string {
+function formatTime(ts?: Date): string {
   const date = ts ?? new Date();
   return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
@@ -73,7 +73,7 @@ function buildSourceOnline({ msg, sourceId }: EventContext): EventContent | null
   if (msg.payload?.$case !== "sourceOnline") return null;
   const s = msg.payload.sourceOnline;
   const hostname = s.hostname || sourceHostname(sourceId);
-  const name = hostname?.toUpperCase() || "Daemon";
+  const name = hostname ? hostname.toUpperCase() : "Daemon";
   return {
     message: `${name} connected`,
     detail:
@@ -83,7 +83,7 @@ function buildSourceOnline({ msg, sourceId }: EventContext): EventContent | null
 
 function buildSourceOffline({ sourceId }: EventContext): EventContent | null {
   const hostname = sourceHostname(sourceId);
-  const name = hostname?.toUpperCase() || "Daemon";
+  const name = hostname ? hostname.toUpperCase() : "Daemon";
   return {
     message: `${name} disconnected`,
   };
@@ -231,8 +231,8 @@ function buildEvent(
 
 export function dispatchToActivity(
   sourceId: string,
-  serverTimestamp: Date | undefined,
-  msg: Message | undefined,
+  serverTimestamp?: Date,
+  msg?: Message,
 ): void {
   const payloadCase = msg?.payload?.$case;
   if (!payloadCase) return;
@@ -243,6 +243,22 @@ export function dispatchToActivity(
   const event = buildEvent(payloadCase, serverTimestamp, { msg, sourceId });
   if (!event) return;
 
+  update((events) => [event, ...events].slice(0, MAX_EVENTS));
+}
+
+/** Push a custom activity event directly (not from a proto message). */
+export function pushActivityEvent(
+  type: ActivityEventType,
+  message: string,
+  detail?: string,
+): void {
+  const event: ActivityEventData = {
+    id: crypto.randomUUID(),
+    type,
+    message,
+    detail,
+    time: formatTime(),
+  };
   update((events) => [event, ...events].slice(0, MAX_EVENTS));
 }
 

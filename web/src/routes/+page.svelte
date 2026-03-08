@@ -29,7 +29,7 @@
   } from "$lib/components";
   import { RelayedMessage } from "$lib/proto/savecraft/v1/protocol";
   import type { Message, TestPathResult } from "$lib/proto/savecraft/v1/protocol";
-  import { activityEvents } from "$lib/stores/activity";
+  import { activityEvents, pushActivityEvent } from "$lib/stores/activity";
   import { mergeGames } from "$lib/stores/games";
   import { consumePendingLinkCode } from "$lib/stores/link-code";
   import {
@@ -40,7 +40,7 @@
     linkState,
     submitLinkCode,
   } from "$lib/stores/link-flow";
-  import { plugins } from "$lib/stores/plugins";
+  import { gameDisplayName, plugins } from "$lib/stores/plugins";
   import { configResults, resetConfigResults, sources } from "$lib/stores/sources";
   import { clearTestPathResult, testPathResult } from "$lib/stores/testpath";
   import type {
@@ -96,6 +96,39 @@
   const pendingCode = consumePendingLinkCode();
   if (pendingCode) {
     void submitLinkCode(pendingCode);
+  }
+
+  // -- Adapter OAuth redirect params --
+  let adapterError: { gameId: string; detail: string } | undefined = $state();
+
+  // Read and consume OAuth redirect params from the URL on first render.
+  {
+    const params = new URLSearchParams(globalThis.location.search);
+    const error = params.get("error");
+    const errorDetail = params.get("error_detail");
+    const gameId = params.get("game_id");
+
+    if (error && gameId) {
+      adapterError = { gameId, detail: errorDetail ?? error };
+      pushActivityEvent(
+        "oauth_failed",
+        `${gameDisplayName(gameId)} connection failed`,
+        errorDetail ?? error,
+      );
+    } else if (params.has("connected") && gameId) {
+      pushActivityEvent("oauth_connected", `${gameDisplayName(gameId)} connected`);
+    }
+
+    // Clean URL params after consuming (don't pollute browser history)
+    if (params.has("connected") || params.has("error") || params.has("game_id")) {
+      const cleanUrl = new URL(globalThis.location.href);
+      cleanUrl.searchParams.delete("connected");
+      cleanUrl.searchParams.delete("error");
+      cleanUrl.searchParams.delete("error_detail");
+      cleanUrl.searchParams.delete("game_id");
+      cleanUrl.searchParams.delete("characters_key");
+      globalThis.history.replaceState({}, "", cleanUrl.toString());
+    }
   }
 
   let activityExpanded = $state(false);
@@ -250,11 +283,24 @@
 
         <GamePanel
           games={mergedGames}
+          {adapterError}
           onadd={() => {
             pickerOpen = true;
           }}
           ongameclick={(game) => {
             selectedGame = game;
+          }}
+          onreconnect={(gameId) => {
+            adapterError = undefined;
+            const manifest = $plugins.get(gameId);
+            if (manifest?.adapter) {
+              // Re-open game picker so user can re-initiate connection
+              pickerOpen = true;
+            }
+          }}
+          onremove={async (gameId) => {
+            adapterError = undefined;
+            await deleteGame(gameId);
           }}
         />
       {/if}
