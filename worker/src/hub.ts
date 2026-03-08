@@ -1164,7 +1164,7 @@ export class SourceHub extends DurableObject<Env> {
   /**
    * After SourceOnline, tell the daemon whether it's linked or not.
    * If linked: push SourceLinked so daemon knows to proceed normally.
-   * If not linked: generate a fresh link code and push RefreshLinkCodeResult.
+   * If not linked: re-send the existing link code if still valid, or generate a fresh one.
    */
   private async notifyLinkState(ws: WebSocket, sourceId: string | undefined): Promise<void> {
     try {
@@ -1176,7 +1176,34 @@ export class SourceHub extends DurableObject<Env> {
         ws.send(msg);
         this.debugLog.push("info", "notified daemon: already linked", { userUuid });
       } else {
-        // Generate a fresh code so daemon can display it immediately.
+        // Check if we already have a valid link code (e.g. from registration).
+        // Only generate a fresh one if none exists or the existing one expired.
+        const sourceUuid = sourceId ?? (await this.ctx.storage.get<string>(SOURCE_UUID_KEY));
+        if (!sourceUuid) return;
+
+        const existing = await this.env.DB.prepare(
+          "SELECT link_code, link_code_expires_at FROM sources WHERE source_uuid = ?",
+        )
+          .bind(sourceUuid)
+          .first<{ link_code: string | null; link_code_expires_at: string | null }>();
+
+        if (existing?.link_code && existing.link_code_expires_at) {
+          const expiresAt = new Date(existing.link_code_expires_at);
+          if (expiresAt.getTime() > Date.now()) {
+            // Existing code is still valid — re-send it without overwriting.
+            const resultMsg = Message.encode({
+              payload: {
+                $case: "refreshLinkCodeResult",
+                refreshLinkCodeResult: { linkCode: existing.link_code, expiresAt },
+              },
+            }).finish();
+            ws.send(resultMsg);
+            this.debugLog.push("info", "re-sent existing link code", { sourceUuid });
+            return;
+          }
+        }
+
+        // No valid code exists — generate a fresh one.
         await this.handleRefreshLinkCode(ws, sourceId);
       }
     } catch (error) {
