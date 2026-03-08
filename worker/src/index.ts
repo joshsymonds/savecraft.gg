@@ -351,16 +351,29 @@ async function exchangeAndStoreToken(
     tokenResult = exchangeResult;
   } catch (error: unknown) {
     await logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", {
-      oauthTokenFailed: { gameId: adapter.gameId, region: state.region, error: toErrorMessage(error) },
+      oauthTokenFailed: {
+        gameId: adapter.gameId,
+        region: state.region,
+        error: toErrorMessage(error),
+      },
     });
     return errorRedirect(redirectUrl, adapter.gameId, "token_failed", toErrorMessage(error));
   }
 
   if (tokenResult instanceof Response) {
     await logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", {
-      oauthTokenFailed: { gameId: adapter.gameId, region: state.region, status: tokenResult.status },
+      oauthTokenFailed: {
+        gameId: adapter.gameId,
+        region: state.region,
+        status: tokenResult.status,
+      },
     });
-    return errorRedirect(redirectUrl, adapter.gameId, "token_failed", "Failed to exchange code with Battle.net");
+    return errorRedirect(
+      redirectUrl,
+      adapter.gameId,
+      "token_failed",
+      "Failed to exchange code with Battle.net",
+    );
   }
 
   // Log token exchange and store credentials in parallel
@@ -377,7 +390,12 @@ async function exchangeAndStoreToken(
          expires_at = excluded.expires_at,
          updated_at = datetime('now')`,
     )
-      .bind(state.userUuid, tokenResult.accessToken, tokenResult.refreshToken, tokenResult.expiresAt)
+      .bind(
+        state.userUuid,
+        tokenResult.accessToken,
+        tokenResult.refreshToken,
+        tokenResult.expiresAt,
+      )
       .run(),
   ]);
 
@@ -406,30 +424,53 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
   const validatedReturn = validateReturnUrl(state.returnUrl, env, url.origin);
   const redirectUrl = new URL(validatedReturn || `${webUrl}/`);
 
-  const tokenResult = await exchangeAndStoreToken(code, stateKey, state, adapter, redirectUrl, url, env);
+  const tokenResult = await exchangeAndStoreToken(
+    code,
+    stateKey,
+    state,
+    adapter,
+    redirectUrl,
+    url,
+    env,
+  );
   if (tokenResult instanceof Response) return tokenResult;
 
   // Discover characters
-  let characters: { saveName: string; characterId: string; displayName: string; metadata: Record<string, unknown> }[];
+  let characters: {
+    saveName: string;
+    characterId: string;
+    displayName: string;
+    metadata: Record<string, unknown>;
+  }[];
   try {
     characters = await adapter.discoverSaves(tokenResult.accessToken, state.region);
   } catch (error: unknown) {
     await logSourceEvent(env, state.sourceUuid, "characterDiscoveryFailed", {
-      characterDiscoveryFailed: { gameId: adapter.gameId, region: state.region, error: toErrorMessage(error) },
+      characterDiscoveryFailed: {
+        gameId: adapter.gameId,
+        region: state.region,
+        error: toErrorMessage(error),
+      },
     });
     redirectUrl.searchParams.set("connected", "true");
     return errorRedirect(redirectUrl, adapter.gameId, "discovery_failed", toErrorMessage(error));
   }
 
   await logSourceEvent(env, state.sourceUuid, "characterDiscovery", {
-    characterDiscovery: { gameId: adapter.gameId, region: state.region, characterCount: characters.length },
+    characterDiscovery: {
+      gameId: adapter.gameId,
+      region: state.region,
+      characterCount: characters.length,
+    },
   });
 
   redirectUrl.searchParams.set("game_id", adapter.gameId);
   redirectUrl.searchParams.set("connected", "true");
   if (characters.length > 0) {
     const charKey = crypto.randomUUID();
-    await env.OAUTH_KV.put(`battlenet-characters:${charKey}`, JSON.stringify(characters), { expirationTtl: 300 });
+    await env.OAUTH_KV.put(`battlenet-characters:${charKey}`, JSON.stringify(characters), {
+      expirationTtl: 300,
+    });
     redirectUrl.searchParams.set("characters_key", charKey);
   }
 
@@ -1187,7 +1228,9 @@ export async function cleanupSource(
       const chunk = uuids.slice(index, index + CHUNK_SIZE);
       const placeholders = chunk.map(() => "?").join(",");
       await env.DB.batch([
-        env.DB.prepare(`DELETE FROM search_index WHERE save_id IN (${placeholders})`).bind(...chunk),
+        env.DB.prepare(`DELETE FROM search_index WHERE save_id IN (${placeholders})`).bind(
+          ...chunk,
+        ),
         env.DB.prepare(`DELETE FROM notes WHERE save_id IN (${placeholders})`).bind(...chunk),
         env.DB.prepare(`DELETE FROM sections WHERE save_uuid IN (${placeholders})`).bind(...chunk),
         env.DB.prepare(`DELETE FROM saves WHERE uuid IN (${placeholders})`).bind(...chunk),
