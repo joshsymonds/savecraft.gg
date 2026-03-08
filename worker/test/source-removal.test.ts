@@ -150,24 +150,15 @@ describe("Source Removal", () => {
       expect(resp.status).toBe(403);
     });
 
-    it("preserves user saves when source is removed", async () => {
+    it("deletes sole-source saves and dependent data when source is removed", async () => {
       const { sourceUuid } = await seedSource(TEST_USER);
+      const saveUuid = await seedSaveWithData(TEST_USER, "d2r", "Atmus", { sourceUuid });
 
-      // Create a save owned by this user
-      const saveUuid = crypto.randomUUID();
+      // Add a note on the save
       await env.DB.prepare(
-        `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_source_uuid)
-         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        "INSERT INTO notes (note_id, save_id, user_uuid, title, content) VALUES (?, ?, ?, ?, ?)",
       )
-        .bind(
-          saveUuid,
-          TEST_USER,
-          "d2r",
-          "Diablo II: Resurrected",
-          "Atmus",
-          "Level 89 Paladin",
-          sourceUuid,
-        )
+        .bind(crypto.randomUUID(), saveUuid, TEST_USER, "My Note", "Note content")
         .run();
 
       const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}`, {
@@ -177,11 +168,77 @@ describe("Source Removal", () => {
 
       expect(resp.status).toBe(200);
 
-      // Save still exists
+      // Save deleted
+      const save = await env.DB.prepare("SELECT 1 FROM saves WHERE uuid = ?")
+        .bind(saveUuid)
+        .first();
+      expect(save).toBeNull();
+
+      // Sections deleted
+      const section = await env.DB.prepare("SELECT 1 FROM sections WHERE save_uuid = ?")
+        .bind(saveUuid)
+        .first();
+      expect(section).toBeNull();
+
+      // Search index deleted
+      const search = await env.DB.prepare("SELECT 1 FROM search_index WHERE save_id = ?")
+        .bind(saveUuid)
+        .first();
+      expect(search).toBeNull();
+
+      // Notes deleted
+      const note = await env.DB.prepare("SELECT 1 FROM notes WHERE save_id = ?")
+        .bind(saveUuid)
+        .first();
+      expect(note).toBeNull();
+    });
+
+    it("preserves saves when another active source also pushed them", async () => {
+      const { sourceUuid: sourceA } = await seedSource(TEST_USER);
+      const { sourceUuid: sourceB } = await seedSource(TEST_USER);
+
+      // Save was last pushed by source B
+      const saveUuid = await seedSaveWithData(TEST_USER, "d2r", "Atmus", {
+        sourceUuid: sourceB,
+      });
+
+      // Delete source A — save should survive (source B still active)
+      const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceA}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${TEST_USER}` },
+      });
+
+      expect(resp.status).toBe(200);
+
       const save = await env.DB.prepare("SELECT 1 FROM saves WHERE uuid = ?")
         .bind(saveUuid)
         .first();
       expect(save).not.toBeNull();
+    });
+
+    it("deletes orphan saves (null user_uuid) for the deleted source", async () => {
+      const { sourceUuid } = await seedSource(TEST_USER);
+
+      // Orphan save: pushed before linking, user_uuid is still NULL
+      const saveUuid = crypto.randomUUID();
+      await env.DB.prepare(
+        `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_source_uuid)
+         VALUES (?, NULL, ?, ?, ?, ?, ?)`,
+      )
+        .bind(saveUuid, "d2r", "Diablo II: Resurrected", "Atmus", "Level 1", sourceUuid)
+        .run();
+
+      const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}`, {
+        method: "DELETE",
+        headers: { Authorization: `Bearer ${TEST_USER}` },
+      });
+
+      expect(resp.status).toBe(200);
+
+      const save = await env.DB.prepare("SELECT 1 FROM saves WHERE uuid = ?")
+        .bind(saveUuid)
+        .first();
+      expect(save).toBeNull();
     });
 
     it("requires session auth", async () => {
