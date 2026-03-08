@@ -3,6 +3,18 @@ import { adapters } from "../adapters/registry";
 import { storePush } from "../store";
 import type { Env } from "../types";
 
+/** Timeout for external adapter API calls (30s). */
+const FETCH_STATE_TIMEOUT_MS = 30_000;
+
+class SeedError extends Error {
+  readonly statusCode: number;
+  constructor(message: string, statusCode: number) {
+    super(message);
+    this.name = "SeedError";
+    this.statusCode = statusCode;
+  }
+}
+
 export interface SeedCharacterInput {
   userUuid: string;
   gameId: string;
@@ -31,7 +43,8 @@ export async function seedCharacter(
   gameState: GameState,
   gameName: string,
 ): Promise<{ saveUuid: string; summary: string; sections: string[] }> {
-  // Look up existing adapter source
+  // Look up existing adapter source.
+  // NOTE: Does not filter by game_id — a user has one adapter source shared across all games.
   const source = await env.DB.prepare(
     "SELECT source_uuid FROM sources WHERE user_uuid = ? AND source_kind = 'adapter'",
   )
@@ -39,7 +52,7 @@ export async function seedCharacter(
     .first<{ source_uuid: string }>();
 
   if (!source) {
-    throw new Error("No adapter source found for this user. Complete OAuth flow first.");
+    throw new SeedError("No adapter source found for this user. Complete OAuth flow first.", 404);
   }
 
   // Insert linked_characters row
@@ -111,28 +124,38 @@ export async function handleSeedCharacter(request: Request, env: Env): Promise<R
     return Response.json({ error: `No adapter found for game: ${input.gameId}` }, { status: 400 });
   }
 
-  // Fetch live character data via client credentials
+  // Fetch live character data via client credentials.
+  // accessToken is empty because the WoW adapter uses getAppToken() (client credentials)
+  // internally — it does not need a user OAuth token for fetchState.
   let gameState: GameState;
   try {
-    gameState = await adapter.fetchState(
-      {
-        characterId: `${input.realmSlug}/${input.characterName}`,
-        region: input.region,
-        credentials: { accessToken: "" },
-      },
-      env,
-    );
+    gameState = await Promise.race([
+      adapter.fetchState(
+        {
+          characterId: `${input.realmSlug}/${input.characterName}`,
+          region: input.region,
+          credentials: { accessToken: "" },
+        },
+        env,
+      ),
+      new Promise<never>((_, reject) => {
+        setTimeout(() => {
+          reject(new Error("fetchState timed out"));
+        }, FETCH_STATE_TIMEOUT_MS);
+      }),
+    ]);
   } catch (error) {
-    const message = error instanceof AdapterError ? error.message : String(error);
-    return Response.json({ error: `fetchState failed: ${message}` }, { status: 502 });
+    const detail = error instanceof AdapterError ? error.code : "upstream_error";
+    return Response.json({ error: `fetchState failed: ${detail}` }, { status: 502 });
   }
 
   try {
     const result = await seedCharacter(input, env, gameState, adapter.gameName);
     return Response.json({ ...result, characterName: input.characterName });
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    const status = message.includes("No adapter source") ? 404 : 500;
-    return Response.json({ error: message }, { status });
+    if (error instanceof SeedError) {
+      return Response.json({ error: error.message }, { status: error.statusCode });
+    }
+    return Response.json({ error: "Internal server error" }, { status: 500 });
   }
 }

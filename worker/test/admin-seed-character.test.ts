@@ -97,30 +97,32 @@ describe("POST /admin/seed-character", () => {
 
       fetchMock.activate();
       fetchMock.disableNetConnect();
-      fetchMock
-        .get("https://oauth.battle.net")
-        .intercept({ path: "/token", method: "POST" })
-        .reply(200, JSON.stringify({ access_token: "mock-app-token", expires_in: 86_400 }), {
-          headers: { "content-type": "application/json" },
-        });
-      fetchMock
-        .get("https://us.api.blizzard.com")
-        .intercept({ path: /\/profile\/wow\/character\//, method: "GET" })
-        .reply(404, JSON.stringify({ code: 404, type: "BLZWEBAPI00000004" }), {
-          headers: { "content-type": "application/json" },
-        });
+      try {
+        fetchMock
+          .get("https://oauth.battle.net")
+          .intercept({ path: "/token", method: "POST" })
+          .reply(200, JSON.stringify({ access_token: "mock-app-token", expires_in: 86_400 }), {
+            headers: { "content-type": "application/json" },
+          });
+        fetchMock
+          .get("https://us.api.blizzard.com")
+          .intercept({ path: /\/profile\/wow\/character\//, method: "GET" })
+          .reply(404, JSON.stringify({ code: 404, type: "BLZWEBAPI00000004" }), {
+            headers: { "content-type": "application/json" },
+          });
 
-      const resp = await adminPost("/admin/seed-character", VALID_INPUT, ADMIN_KEY);
-      expect(resp.status).toBe(502);
-      const body = await resp.json<{ error: string }>();
-      expect(body.error).toMatch(/fetchState failed/);
-
-      fetchMock.deactivate();
+        const resp = await adminPost("/admin/seed-character", VALID_INPUT, ADMIN_KEY);
+        expect(resp.status).toBe(502);
+        const body = await resp.json<{ error: string }>();
+        expect(body.error).toMatch(/fetchState failed/);
+      } finally {
+        fetchMock.deactivate();
+      }
     });
   });
 
   describe("seedCharacter core logic", () => {
-    it("returns 404-equivalent when user has no adapter source", async () => {
+    it("throws SeedError with 404 when user has no adapter source", async () => {
       const input = validateSeedInput(VALID_INPUT);
       await expect(seedCharacter(input, env, fakeGameState(), "World of Warcraft")).rejects.toThrow(
         /adapter source/i,
@@ -128,7 +130,7 @@ describe("POST /admin/seed-character", () => {
     });
 
     it("creates linked_characters, saves, and sections in D1", async () => {
-      await seedAdapterSource(VALID_INPUT.userUuid);
+      const sourceUuid = await seedAdapterSource(VALID_INPUT.userUuid);
       const input = validateSeedInput(VALID_INPUT);
       const result = await seedCharacter(input, env, fakeGameState(), "World of Warcraft");
 
@@ -174,6 +176,18 @@ describe("POST /admin/seed-character", () => {
         .all<{ name: string; description: string }>();
       expect(sections.results).toHaveLength(2);
       expect(sections.results.map((s) => s.name)).toEqual(["character_overview", "equipped_gear"]);
+
+      // Verify SourceHub DO received game status via set-game-status call
+      const doId = env.SOURCE_HUB.idFromName(sourceUuid);
+      const stub = env.SOURCE_HUB.get(doId);
+      const statusResp = await stub.fetch(new Request("https://do/debug/state", { method: "GET" }));
+      const doState = await statusResp.json<{
+        sourceState: { sources: { games: { gameId: string }[] }[] };
+      }>();
+      // seedCharacter pushes a game status mutation, so sources should be non-empty
+      expect(doState.sourceState.sources.length).toBeGreaterThan(0);
+      const sourceEntry = doState.sourceState.sources[0]!;
+      expect(sourceEntry.games.some((g) => g.gameId === "wow")).toBe(true);
     });
 
     it("upserts on duplicate character_id", async () => {
