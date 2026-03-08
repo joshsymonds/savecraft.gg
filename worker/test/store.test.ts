@@ -38,9 +38,7 @@ describe("storePush", () => {
     expect(save!.save_name).toBe("Atmus");
 
     // Sections should also be stored
-    const section = await env.DB.prepare(
-      "SELECT * FROM sections WHERE save_uuid = ?",
-    )
+    const section = await env.DB.prepare("SELECT * FROM sections WHERE save_uuid = ?")
       .bind(saveUuid)
       .first<{ name: string; data: string }>();
 
@@ -102,21 +100,15 @@ describe("storePush", () => {
     );
 
     // Verify section exists
-    const section = await env.DB.prepare(
-      "SELECT 1 FROM sections WHERE save_uuid = ?",
-    )
+    const section = await env.DB.prepare("SELECT 1 FROM sections WHERE save_uuid = ?")
       .bind(saveUuid)
       .first();
     expect(section).not.toBeNull();
 
     // Delete save — sections should cascade
-    await env.DB.prepare("DELETE FROM saves WHERE uuid = ?")
-      .bind(saveUuid)
-      .run();
+    await env.DB.prepare("DELETE FROM saves WHERE uuid = ?").bind(saveUuid).run();
 
-    const orphanSection = await env.DB.prepare(
-      "SELECT 1 FROM sections WHERE save_uuid = ?",
-    )
+    const orphanSection = await env.DB.prepare("SELECT 1 FROM sections WHERE save_uuid = ?")
       .bind(saveUuid)
       .first();
     expect(orphanSection).toBeNull();

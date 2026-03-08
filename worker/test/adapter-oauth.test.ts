@@ -158,10 +158,10 @@ describe("Adapter OAuth", () => {
       );
 
       const resp = await SELF.fetch(
-        new Request(
-          `https://test-host/oauth/battlenet/callback?code=fake-code&state=${stateKey}`,
-          { method: "GET", redirect: "manual" },
-        ),
+        new Request(`https://test-host/oauth/battlenet/callback?code=fake-code&state=${stateKey}`, {
+          method: "GET",
+          redirect: "manual",
+        }),
       );
 
       expect(resp.status).toBe(302);
@@ -186,10 +186,10 @@ describe("Adapter OAuth", () => {
       );
 
       await SELF.fetch(
-        new Request(
-          `https://test-host/oauth/battlenet/callback?code=fake-code&state=${stateKey}`,
-          { method: "GET", redirect: "manual" },
-        ),
+        new Request(`https://test-host/oauth/battlenet/callback?code=fake-code&state=${stateKey}`, {
+          method: "GET",
+          redirect: "manual",
+        }),
       );
 
       const events = await env.DB.prepare(
