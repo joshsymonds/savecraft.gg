@@ -2,6 +2,8 @@ import type { Message } from "$lib/proto/savecraft/v1/protocol";
 import type { ActivityEventType } from "$lib/types/activity";
 import { type Readable, writable } from "svelte/store";
 
+import { gameDisplayName } from "./plugins";
+
 export interface ActivityEventData {
   id: string;
   type: ActivityEventType;
@@ -75,7 +77,7 @@ function buildGameDetected(msg: Message): EventContent | null {
   if (msg.payload?.$case !== "gameDetected") return null;
   const g = msg.payload.gameDetected;
   return {
-    message: `Found ${g.gameId || "game"}`,
+    message: `Found ${gameDisplayName(g.gameId || "game")}`,
     detail: g.saveCount === 0 ? undefined : `${String(g.saveCount)} save files`,
   };
 }
@@ -84,7 +86,7 @@ function buildGameNotFound(msg: Message): EventContent | null {
   if (msg.payload?.$case !== "gameNotFound") return null;
   const g = msg.payload.gameNotFound;
   return {
-    message: `${g.gameId || "Game"} not found`,
+    message: `${gameDisplayName(g.gameId || "Game")} not found`,
   };
 }
 
@@ -92,7 +94,7 @@ function buildWatching(msg: Message): EventContent | null {
   if (msg.payload?.$case !== "watching") return null;
   const w = msg.payload.watching;
   return {
-    message: `Watching ${w.gameId || "game"} saves`,
+    message: `Watching ${gameDisplayName(w.gameId || "game")} saves`,
     detail: w.path || undefined,
   };
 }
@@ -148,7 +150,7 @@ function buildPluginUpdated(msg: Message): EventContent | null {
   if (msg.payload?.$case !== "pluginUpdated") return null;
   const p = msg.payload.pluginUpdated;
   return {
-    message: `${p.gameId || "Plugin"} updated`,
+    message: `${gameDisplayName(p.gameId || "Plugin")} updated`,
     detail: p.version ? `v${p.version}` : undefined,
   };
 }
@@ -157,7 +159,7 @@ function buildPluginDownloadFailed(msg: Message): EventContent | null {
   if (msg.payload?.$case !== "pluginDownloadFailed") return null;
   const p = msg.payload.pluginDownloadFailed;
   return {
-    message: `${p.gameId || "Plugin"} download failed`,
+    message: `${gameDisplayName(p.gameId || "Plugin")} download failed`,
     detail: p.message || undefined,
   };
 }
