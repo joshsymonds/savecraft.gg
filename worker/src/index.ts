@@ -232,11 +232,19 @@ async function handleBattlenetAuthorize(url: URL, env: Env, userUuid: string): P
 
   const oauthConfig = adapter.getOAuthConfig(region, env);
 
+  // Create adapter source immediately — the user requested this game
+  const sourceUuid = await findOrCreateAdapterSource(env, userUuid);
+
+  // Log oauthStarted event
+  await logSourceEvent(env, sourceUuid, "oauthStarted", {
+    oauthStarted: { gameId: adapter.gameId, region, provider: "battlenet" },
+  });
+
   // Store state in KV (one-time use, 10 min TTL)
   const stateKey = crypto.randomUUID();
   await env.OAUTH_KV.put(
     `battlenet-oauth-state:${stateKey}`,
-    JSON.stringify({ userUuid, region, returnUrl }),
+    JSON.stringify({ userUuid, region, returnUrl, sourceUuid }),
     { expirationTtl: 600 },
   );
 
@@ -322,6 +330,7 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
     userUuid: string;
     region: string;
     returnUrl: string;
+    sourceUuid: string;
   };
 
   const adapter = adapters.wow;
@@ -329,11 +338,53 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
     return Response.json({ error: "WoW adapter not configured" }, { status: 500 });
   }
 
+  // Build redirect URL early so error paths can use it
+  const webUrl = env.WEB_URL ?? url.origin;
+  const validatedReturn = validateReturnUrl(state.returnUrl, env, url.origin);
+  const redirectUrl = new URL(validatedReturn || `${webUrl}/`);
+
   const oauthConfig = adapter.getOAuthConfig(state.region, env);
   const redirectUri = `${url.origin}/oauth/battlenet/callback`;
-  const tokenResult = await exchangeBattlenetToken(code, redirectUri, oauthConfig, env);
 
-  if (tokenResult instanceof Response) return tokenResult;
+  let tokenResult: BattlenetTokenResult | Response;
+  try {
+    tokenResult = await exchangeBattlenetToken(code, redirectUri, oauthConfig, env);
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    await logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", {
+      oauthTokenFailed: {
+        gameId: adapter.gameId,
+        region: state.region,
+        error: message,
+      },
+    });
+    redirectUrl.searchParams.set("error", "token_failed");
+    redirectUrl.searchParams.set("error_detail", message);
+    return new Response(null, {
+      status: 302,
+      headers: { Location: redirectUrl.toString() },
+    });
+  }
+
+  if (tokenResult instanceof Response) {
+    await logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", {
+      oauthTokenFailed: {
+        gameId: adapter.gameId,
+        region: state.region,
+        status: tokenResult.status,
+      },
+    });
+    redirectUrl.searchParams.set("error", "token_failed");
+    redirectUrl.searchParams.set("error_detail", "Failed to exchange code with Battle.net");
+    return new Response(null, {
+      status: 302,
+      headers: { Location: redirectUrl.toString() },
+    });
+  }
+
+  await logSourceEvent(env, state.sourceUuid, "oauthTokenExchanged", {
+    oauthTokenExchanged: { gameId: adapter.gameId, region: state.region },
+  });
 
   // Store credentials (upsert)
   await env.DB.prepare(
@@ -357,14 +408,32 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
   }[] = [];
   try {
     characters = await adapter.discoverSaves(tokenResult.accessToken, state.region);
-  } catch {
-    // Token works but character discovery failed — redirect anyway, user can retry
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    await logSourceEvent(env, state.sourceUuid, "characterDiscoveryFailed", {
+      characterDiscoveryFailed: {
+        gameId: adapter.gameId,
+        region: state.region,
+        error: message,
+      },
+    });
+    redirectUrl.searchParams.set("error", "discovery_failed");
+    redirectUrl.searchParams.set("error_detail", message);
+    redirectUrl.searchParams.set("connected", "true");
+    return new Response(null, {
+      status: 302,
+      headers: { Location: redirectUrl.toString() },
+    });
   }
 
-  // Store character data in KV (short-lived) to avoid URL length limits
-  const webUrl = env.WEB_URL ?? url.origin;
-  const validatedReturn = validateReturnUrl(state.returnUrl, env, url.origin);
-  const redirectUrl = new URL(validatedReturn || `${webUrl}/`);
+  await logSourceEvent(env, state.sourceUuid, "characterDiscovery", {
+    characterDiscovery: {
+      gameId: adapter.gameId,
+      region: state.region,
+      characterCount: characters.length,
+    },
+  });
+
   redirectUrl.searchParams.set("connected", "true");
 
   if (characters.length > 0) {
@@ -770,6 +839,20 @@ async function findOrCreateAdapterSource(env: Env, userUuid: string): Promise<st
   return sourceUuid;
 }
 
+/** Write a structured event to source_events for admin debugging. */
+async function logSourceEvent(
+  env: Env,
+  sourceUuid: string,
+  eventType: string,
+  eventData: Record<string, unknown>,
+): Promise<void> {
+  await env.DB.prepare(
+    "INSERT INTO source_events (source_uuid, event_type, event_data) VALUES (?, ?, ?)",
+  )
+    .bind(sourceUuid, eventType, JSON.stringify(eventData))
+    .run();
+}
+
 async function handleAdapterCharacterSelection(
   request: Request,
   env: Env,
@@ -1091,6 +1174,36 @@ export async function cleanupSource(
   sourceUuid: string,
   userUuid: string | null,
 ): Promise<void> {
+  // Delete saves owned solely by this source.
+  // A save is "sole-source" if no OTHER active source in the `sources` table
+  // has last_source_uuid pointing to a save with the same identity.
+  // Must run BEFORE deleting the sources row (the subquery checks `sources`).
+  const savesToDelete = await env.DB.prepare(
+    `SELECT uuid FROM saves
+     WHERE last_source_uuid = ?
+       AND NOT EXISTS (
+         SELECT 1 FROM saves s2
+         JOIN sources ON sources.source_uuid = s2.last_source_uuid
+         WHERE sources.source_uuid != ?
+           AND s2.game_id = saves.game_id
+           AND s2.save_name = saves.save_name
+           AND (s2.user_uuid = saves.user_uuid OR (s2.user_uuid IS NULL AND saves.user_uuid IS NULL))
+       )`,
+  )
+    .bind(sourceUuid, sourceUuid)
+    .all<{ uuid: string }>();
+
+  if (savesToDelete.results.length > 0) {
+    const uuids = savesToDelete.results.map((r) => r.uuid);
+    const placeholders = uuids.map(() => "?").join(",");
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM search_index WHERE save_id IN (${placeholders})`).bind(...uuids),
+      env.DB.prepare(`DELETE FROM notes WHERE save_id IN (${placeholders})`).bind(...uuids),
+      env.DB.prepare(`DELETE FROM sections WHERE save_uuid IN (${placeholders})`).bind(...uuids),
+      env.DB.prepare(`DELETE FROM saves WHERE uuid IN (${placeholders})`).bind(...uuids),
+    ]);
+  }
+
   // D1 cleanup
   await env.DB.prepare("DELETE FROM source_events WHERE source_uuid = ?").bind(sourceUuid).run();
   await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?").bind(sourceUuid).run();
