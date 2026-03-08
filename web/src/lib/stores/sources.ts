@@ -138,14 +138,17 @@ function handleSourceState(msg: Message): void {
 
 function handleSourceOnline(sourceId: string, msg: Message): void {
   if (msg.payload?.$case !== "sourceOnline") return;
-  const version = msg.payload.sourceOnline.version;
-  const os = msg.payload.sourceOnline.os;
+  const so = msg.payload.sourceOnline;
   update((srcs) => {
     const source = findOrCreateSource(srcs, sourceId);
     source.status = "online";
-    source.version = version || source.version;
+    source.version = so.version || source.version;
     source.lastSeen = "now";
-    if (os) source.platform = os;
+    if (so.os) source.platform = so.os;
+    if (so.hostname) {
+      source.hostname = so.hostname;
+      source.name = sourceDisplayName(source.sourceKind, so.hostname);
+    }
     return [...srcs];
   });
 }

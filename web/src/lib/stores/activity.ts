@@ -1,8 +1,9 @@
 import type { Message } from "$lib/proto/savecraft/v1/protocol";
 import type { ActivityEventType } from "$lib/types/activity";
-import { type Readable, writable } from "svelte/store";
+import { type Readable, get, writable } from "svelte/store";
 
 import { gameDisplayName } from "./plugins";
+import { sources as sourcesStore } from "./sources";
 
 export interface ActivityEventData {
   id: string;
@@ -56,24 +57,39 @@ interface EventContent {
   detail?: string;
 }
 
-type EventBuilder = (msg: Message) => EventContent | null;
+interface EventContext {
+  msg: Message;
+  sourceId: string;
+}
 
-function buildSourceOnline(msg: Message): EventContent | null {
+type EventBuilder = (ctx: EventContext) => EventContent | null;
+
+/** Look up the hostname for a source from the store. */
+function sourceHostname(sourceId: string): string | undefined {
+  return get(sourcesStore).find((s) => s.id === sourceId)?.hostname ?? undefined;
+}
+
+function buildSourceOnline({ msg, sourceId }: EventContext): EventContent | null {
   if (msg.payload?.$case !== "sourceOnline") return null;
+  const s = msg.payload.sourceOnline;
+  const hostname = s.hostname || sourceHostname(sourceId);
+  const name = hostname?.toUpperCase() || "Daemon";
   return {
-    message: "Source connected",
-    detail: msg.payload.sourceOnline.version || undefined,
+    message: `${name} connected`,
+    detail:
+      [s.os || null, s.version || null].filter(Boolean).join(" · ") || undefined,
   };
 }
 
-function buildSourceOffline(msg: Message): EventContent | null {
-  if (msg.payload?.$case !== "sourceOffline") return null;
+function buildSourceOffline({ sourceId }: EventContext): EventContent | null {
+  const hostname = sourceHostname(sourceId);
+  const name = hostname?.toUpperCase() || "Daemon";
   return {
-    message: "Source disconnected",
+    message: `${name} disconnected`,
   };
 }
 
-function buildGameDetected(msg: Message): EventContent | null {
+function buildGameDetected({ msg }: EventContext): EventContent | null {
   if (msg.payload?.$case !== "gameDetected") return null;
   const g = msg.payload.gameDetected;
   return {
@@ -82,7 +98,7 @@ function buildGameDetected(msg: Message): EventContent | null {
   };
 }
 
-function buildGameNotFound(msg: Message): EventContent | null {
+function buildGameNotFound({ msg }: EventContext): EventContent | null {
   if (msg.payload?.$case !== "gameNotFound") return null;
   const g = msg.payload.gameNotFound;
   return {
@@ -90,7 +106,7 @@ function buildGameNotFound(msg: Message): EventContent | null {
   };
 }
 
-function buildWatching(msg: Message): EventContent | null {
+function buildWatching({ msg }: EventContext): EventContent | null {
   if (msg.payload?.$case !== "watching") return null;
   const w = msg.payload.watching;
   return {
@@ -99,7 +115,7 @@ function buildWatching(msg: Message): EventContent | null {
   };
 }
 
-function buildParseCompleted(msg: Message): EventContent | null {
+function buildParseCompleted({ msg }: EventContext): EventContent | null {
   if (msg.payload?.$case !== "parseCompleted") return null;
   const p = msg.payload.parseCompleted;
   return {
@@ -114,7 +130,7 @@ function buildParseCompleted(msg: Message): EventContent | null {
   };
 }
 
-function buildParseFailed(msg: Message): EventContent | null {
+function buildParseFailed({ msg }: EventContext): EventContent | null {
   if (msg.payload?.$case !== "parseFailed") return null;
   const p = msg.payload.parseFailed;
   return {
@@ -122,7 +138,7 @@ function buildParseFailed(msg: Message): EventContent | null {
   };
 }
 
-function buildPushCompleted(msg: Message): EventContent | null {
+function buildPushCompleted({ msg }: EventContext): EventContent | null {
   if (msg.payload?.$case !== "pushCompleted") return null;
   const p = msg.payload.pushCompleted;
   return {
@@ -137,7 +153,7 @@ function buildPushCompleted(msg: Message): EventContent | null {
   };
 }
 
-function buildPushFailed(msg: Message): EventContent | null {
+function buildPushFailed({ msg }: EventContext): EventContent | null {
   if (msg.payload?.$case !== "pushFailed") return null;
   const p = msg.payload.pushFailed;
   return {
@@ -146,7 +162,7 @@ function buildPushFailed(msg: Message): EventContent | null {
   };
 }
 
-function buildPluginUpdated(msg: Message): EventContent | null {
+function buildPluginUpdated({ msg }: EventContext): EventContent | null {
   if (msg.payload?.$case !== "pluginUpdated") return null;
   const p = msg.payload.pluginUpdated;
   return {
@@ -155,7 +171,7 @@ function buildPluginUpdated(msg: Message): EventContent | null {
   };
 }
 
-function buildPluginDownloadFailed(msg: Message): EventContent | null {
+function buildPluginDownloadFailed({ msg }: EventContext): EventContent | null {
   if (msg.payload?.$case !== "pluginDownloadFailed") return null;
   const p = msg.payload.pluginDownloadFailed;
   return {
@@ -164,7 +180,7 @@ function buildPluginDownloadFailed(msg: Message): EventContent | null {
   };
 }
 
-function buildGamesDiscovered(msg: Message): EventContent | null {
+function buildGamesDiscovered({ msg }: EventContext): EventContent | null {
   if (msg.payload?.$case !== "gamesDiscovered") return null;
   const g = msg.payload.gamesDiscovered;
   const count = g.games.length;
@@ -193,7 +209,7 @@ const EVENT_BUILDERS: Partial<Record<PayloadCase, EventBuilder>> = {
 function buildEvent(
   payloadCase: PayloadCase,
   serverTimestamp: Date | undefined,
-  msg: Message,
+  ctx: EventContext,
 ): ActivityEventData | null {
   const activityType = TYPE_MAP[payloadCase];
   if (!activityType) return null;
@@ -201,7 +217,7 @@ function buildEvent(
   const builder = EVENT_BUILDERS[payloadCase];
   if (!builder) return null;
 
-  const result = builder(msg);
+  const result = builder(ctx);
   if (!result) return null;
 
   return {
@@ -214,6 +230,7 @@ function buildEvent(
 }
 
 export function dispatchToActivity(
+  sourceId: string,
   serverTimestamp: Date | undefined,
   msg: Message | undefined,
 ): void {
@@ -223,7 +240,7 @@ export function dispatchToActivity(
   // sourceState is a snapshot, not an activity event
   if (payloadCase === "sourceState") return;
 
-  const event = buildEvent(payloadCase, serverTimestamp, msg);
+  const event = buildEvent(payloadCase, serverTimestamp, { msg, sourceId });
   if (!event) return;
 
   update((events) => [event, ...events].slice(0, MAX_EVENTS));

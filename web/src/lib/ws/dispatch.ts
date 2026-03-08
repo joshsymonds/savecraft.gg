@@ -20,5 +20,5 @@ export function handleMessage(data: ArrayBuffer): void {
   }
 
   dispatchToSources(sourceId, message);
-  dispatchToActivity(serverTimestamp, message);
+  dispatchToActivity(sourceId, serverTimestamp, message);
 }
