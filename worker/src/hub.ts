@@ -63,6 +63,13 @@ type StateMutation =
       summary: string;
       identity: SaveIdentity | undefined;
     }
+  | {
+      kind: "adapterGameStatus";
+      sourceId: string;
+      gameId: string;
+      gameName: string;
+      status: GameStatusEnum;
+    }
   | { kind: "none" };
 
 // ── Pure state helpers ───────────────────────────────────────────────
@@ -184,6 +191,16 @@ function applyMutation(state: SourceState, mutation: StateMutation): void {
           lastUpdated: now,
         });
       }
+      game.lastActivity = now;
+      break;
+    }
+    case "adapterGameStatus": {
+      const source = findOrCreateSource(state, mutation.sourceId);
+      source.online = true;
+      source.lastSeen = now;
+      const game = findOrCreateGame(source, mutation.gameId);
+      game.gameName = mutation.gameName;
+      game.status = mutation.status;
       game.lastActivity = now;
       break;
     }
@@ -388,6 +405,9 @@ export class SourceHub extends DurableObject<Env> {
     }
     if (url.pathname === "/rescan" && request.method === "POST") {
       return this.handleRescan(request);
+    }
+    if (url.pathname === "/set-adapter-state" && request.method === "POST") {
+      return this.handleSetAdapterState(request);
     }
     if (url.pathname === "/set-user" && request.method === "POST") {
       return this.handleSetUser(request);
@@ -1148,6 +1168,65 @@ export class SourceHub extends DurableObject<Env> {
    * Stores the new user_uuid, forwards state to UserHub, and notifies
    * the connected daemon via SourceLinked proto message.
    */
+  private async handleSetAdapterState(request: Request): Promise<Response> {
+    const body = await request.json<{
+      gameId?: string;
+      gameName?: string;
+      status?: string;
+    }>();
+
+    if (!body.gameId || !body.gameName || !body.status) {
+      return Response.json(
+        { error: "Missing required fields: gameId, gameName, status" },
+        { status: 400 },
+      );
+    }
+
+    const statusMap: Record<string, GameStatusEnum> = {
+      watching: GameStatusEnum.GAME_STATUS_ENUM_WATCHING,
+      error: GameStatusEnum.GAME_STATUS_ENUM_ERROR,
+    };
+    const gameStatus = statusMap[body.status];
+    if (gameStatus === undefined) {
+      return Response.json(
+        { error: "Invalid status: must be 'watching' or 'error'" },
+        { status: 400 },
+      );
+    }
+
+    // Ensure adapter source meta is set
+    const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
+    if (sourceUuid) {
+      const existingMeta = await this.ctx.storage.get<SourceMeta>(META_KEY);
+      if (existingMeta?.sourceKind !== "adapter") {
+        await this.ctx.storage.put(META_KEY, {
+          sourceKind: "adapter",
+          hostname: "",
+          platform: "",
+          os: "",
+          arch: "",
+          canRescan: false,
+          canReceiveConfig: false,
+          cachedAt: Date.now(),
+        });
+      }
+    }
+
+    const state = await this.loadState();
+    const mutation: StateMutation = {
+      kind: "adapterGameStatus",
+      sourceId: sourceUuid ?? crypto.randomUUID(),
+      gameId: body.gameId,
+      gameName: body.gameName,
+      status: gameStatus,
+    };
+    applyMutation(state, mutation);
+    await this.saveState(state);
+    await this.forwardStateToUserHub();
+
+    return Response.json({ ok: true });
+  }
+
   private async handleSetUser(request: Request): Promise<Response> {
     const body = await request.json<{ userUuid: string }>();
     await this.ctx.storage.put(USER_UUID_KEY, body.userUuid);
