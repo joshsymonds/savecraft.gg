@@ -1,4 +1,5 @@
 import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError, type ApiAdapter } from "./adapters/adapter";
+import { discoverAndReconcileSaves } from "./adapters/discover";
 import { adapters } from "./adapters/registry";
 import { resolveCharacterContext } from "./adapters/resolve-character";
 import { handleAdminRoute } from "./admin";
@@ -189,25 +190,7 @@ async function routeBattlenetOAuth(request: Request, url: URL, env: Env): Promis
     return handleBattlenetCallback(url, env);
   }
 
-  if (url.pathname === "/oauth/battlenet/characters") {
-    const auth = await authenticateSession(request, env);
-    if (!auth) return new Response("Unauthorized", { status: 401 });
-    return handleBattlenetCharacters(url, env);
-  }
-
   return null;
-}
-
-async function handleBattlenetCharacters(url: URL, env: Env): Promise<Response> {
-  const key = url.searchParams.get("key");
-  if (!key) return Response.json({ error: "Missing key" }, { status: 400 });
-
-  const data = await env.OAUTH_KV.get(`battlenet-characters:${key}`);
-  if (!data) return Response.json({ error: "Characters not found or expired" }, { status: 404 });
-
-  // One-time use: delete after retrieval
-  await env.OAUTH_KV.delete(`battlenet-characters:${key}`);
-  return Response.json({ characters: JSON.parse(data) as unknown });
 }
 
 function validateReturnUrl(raw: string, env: Env, fallbackOrigin: string): string {
@@ -479,15 +462,27 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
   );
   if (tokenResult instanceof Response) return tokenResult;
 
-  // Discover characters
-  let characters: {
-    saveName: string;
-    characterId: string;
-    displayName: string;
-    metadata: Record<string, unknown>;
-  }[];
+  // Discover saves and reconcile into D1
   try {
-    characters = await adapter.discoverSaves(tokenResult.accessToken, state.region);
+    const reconcileResult = await discoverAndReconcileSaves(
+      adapter,
+      env,
+      tokenResult.accessToken,
+      state.region,
+      state.userUuid,
+      state.sourceUuid,
+    );
+
+    await logSourceEvent(env, state.sourceUuid, "characterDiscovery", {
+      characterDiscovery: {
+        gameId: adapter.gameId,
+        region: state.region,
+        added: reconcileResult.added.length,
+        renamed: reconcileResult.renamed.length,
+        deactivated: reconcileResult.deactivated.length,
+        reactivated: reconcileResult.reactivated.length,
+      },
+    });
   } catch (error: unknown) {
     await Promise.all([
       logSourceEvent(env, state.sourceUuid, "characterDiscoveryFailed", {
@@ -510,23 +505,8 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
     return errorRedirect(redirectUrl, adapter.gameId, "discovery_failed", toErrorMessage(error));
   }
 
-  await logSourceEvent(env, state.sourceUuid, "characterDiscovery", {
-    characterDiscovery: {
-      gameId: adapter.gameId,
-      region: state.region,
-      characterCount: characters.length,
-    },
-  });
-
   redirectUrl.searchParams.set("game_id", adapter.gameId);
   redirectUrl.searchParams.set("connected", "true");
-  if (characters.length > 0) {
-    const charKey = crypto.randomUUID();
-    await env.OAUTH_KV.put(`battlenet-characters:${charKey}`, JSON.stringify(characters), {
-      expirationTtl: 300,
-    });
-    redirectUrl.searchParams.set("characters_key", charKey);
-  }
 
   return new Response(null, { status: 302, headers: { Location: redirectUrl.toString() } });
 }
@@ -612,7 +592,7 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
     return handleNotes(request, url, env, auth.userUuid);
   }
   if (url.pathname.startsWith("/api/v1/adapters/") && request.method === "POST") {
-    return handleAdapterRoute(request, url, env, auth.userUuid);
+    return handleAdapterRoute(url, env, auth.userUuid);
   }
 
   return routeReadEndpoints(request, url, env, auth.userUuid);
@@ -671,12 +651,7 @@ function routeReadEndpoints(
 
 // -- Adapter Routes ------------------------------------------------
 
-async function handleAdapterRoute(
-  request: Request,
-  url: URL,
-  env: Env,
-  userUuid: string,
-): Promise<Response> {
+async function handleAdapterRoute(url: URL, env: Env, userUuid: string): Promise<Response> {
   // POST /api/v1/adapters/{gameId}/{action}[/{param}]
   const parts = url.pathname.split("/");
   const gameId = parts[4];
@@ -690,10 +665,6 @@ async function handleAdapterRoute(
   const adapter = adapters[gameId];
   if (!adapter) {
     return Response.json({ error: `No adapter for game: ${gameId}` }, { status: 404 });
-  }
-
-  if (action === "characters") {
-    return handleAdapterCharacterSelection(request, env, adapter, userUuid, gameId);
   }
 
   if (action !== "refresh" || !validateId(saveUuid)) {
@@ -888,15 +859,6 @@ async function handleAdapterRefresh(
   }
 }
 
-// -- Adapter Character Selection ------------------------------------------
-
-interface CharacterSelectionInput {
-  character_id: string;
-  save_name: string;
-  display_name: string;
-  metadata: Record<string, unknown>;
-}
-
 async function findOrCreateAdapterSource(env: Env, userUuid: string): Promise<string> {
   const existingSource = await env.DB.prepare(
     "SELECT source_uuid FROM sources WHERE user_uuid = ? AND source_kind = 'adapter'",
@@ -932,87 +894,6 @@ async function logSourceEvent(
   )
     .bind(sourceUuid, eventType, JSON.stringify(eventData))
     .run();
-}
-
-async function handleAdapterCharacterSelection(
-  request: Request,
-  env: Env,
-  adapter: ApiAdapter,
-  userUuid: string,
-  gameId: string,
-): Promise<Response> {
-  let body: { characters?: CharacterSelectionInput[] };
-  try {
-    body = await request.json<{ characters?: CharacterSelectionInput[] }>();
-  } catch {
-    return Response.json({ error: "Invalid JSON body" }, { status: 400 });
-  }
-
-  const characters = body.characters;
-  if (!characters || !Array.isArray(characters) || characters.length === 0) {
-    return Response.json({ error: "No characters selected" }, { status: 400 });
-  }
-  if (characters.length > 100) {
-    return Response.json({ error: "Too many characters (max 100)" }, { status: 400 });
-  }
-
-  // Verify credentials exist
-  const creds = await env.DB.prepare(
-    "SELECT access_token FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
-  )
-    .bind(userUuid, gameId)
-    .first<{ access_token: string }>();
-
-  if (!creds) {
-    return Response.json(
-      { error: "No credentials found. Connect your Battle.net account first." },
-      { status: 400 },
-    );
-  }
-
-  const sourceUuid = await findOrCreateAdapterSource(env, userUuid);
-
-  // Batch all upserts into a single DB round-trip
-  const batch: D1PreparedStatement[] = [];
-  const results: { character_id: string; save_uuid: string }[] = [];
-
-  for (const char of characters) {
-    const saveUuid = crypto.randomUUID();
-    results.push({ character_id: char.character_id, save_uuid: saveUuid });
-
-    batch.push(
-      // Upsert linked_character
-      env.DB.prepare(
-        `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, metadata, source_uuid, active)
-         VALUES (?, ?, ?, ?, ?, ?, 1)
-         ON CONFLICT(user_uuid, game_id, character_id) DO UPDATE SET
-           character_name = excluded.character_name,
-           metadata = excluded.metadata,
-           source_uuid = excluded.source_uuid,
-           active = 1`,
-      ).bind(
-        userUuid,
-        gameId,
-        char.character_id,
-        char.display_name,
-        JSON.stringify(char.metadata),
-        sourceUuid,
-      ),
-      // Create save (ON CONFLICT DO NOTHING for existing saves)
-      env.DB.prepare(
-        `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
-         VALUES (?, ?, ?, ?, ?, '', datetime('now'), ?)
-         ON CONFLICT(user_uuid, game_id, save_name) DO NOTHING`,
-      ).bind(saveUuid, userUuid, gameId, adapter.gameName, char.save_name, sourceUuid),
-    );
-  }
-
-  await env.DB.batch(batch);
-
-  return Response.json({
-    source_uuid: sourceUuid,
-    characters: results,
-  });
 }
 
 // -- Plugin Registry -----------------------------------------------
