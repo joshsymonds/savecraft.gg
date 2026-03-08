@@ -214,14 +214,6 @@ func (c *Calculator) ResolveWithQuality(monsterID string, difficulty, tcType, nP
 	return drops, nil
 }
 
-// AreaLevel returns the monster level for an area at a given difficulty, or 0 if not found.
-func (c *Calculator) AreaLevel(areaName string, difficulty int) int {
-	if a := c.areaByName[areaName]; a != nil && difficulty >= 0 && difficulty <= 2 {
-		return a.Levels[difficulty]
-	}
-	return 0
-}
-
 func mergeQuality(a, b data.QualityRatios) data.QualityRatios {
 	return data.QualityRatios{
 		Unique: maxInt(a.Unique, b.Unique),
