@@ -2,10 +2,27 @@ import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { sha256Hex } from "../src/auth";
+import { GameStatusEnum } from "../src/proto/savecraft/v1/protocol";
 
 import { cleanAll } from "./helpers";
 
 const USER_UUID = "adapter-oauth-user";
+
+/** Read SourceHub debug state for a given source. */
+async function getSourceHubState(sourceUuid: string): Promise<{
+  sourceState: {
+    sources: {
+      sourceId: string;
+      online: boolean;
+      games: { gameId: string; gameName: string; status: number }[];
+    }[];
+  };
+}> {
+  const doId = env.SOURCE_HUB.idFromName(sourceUuid);
+  const doStub = env.SOURCE_HUB.get(doId);
+  const resp = await doStub.fetch(new Request("https://do/debug/state"));
+  return resp.json();
+}
 
 /** Seed an adapter source pre-linked to the user. */
 async function seedAdapterSource(userUuid: string): Promise<string> {
@@ -120,6 +137,32 @@ describe("Adapter OAuth", () => {
       const parsed = JSON.parse(stored!) as { returnUrl: string };
       expect(parsed.returnUrl).toBe("");
     });
+
+    it("pushes WATCHING game state to SourceHub after source creation", async () => {
+      const resp = await SELF.fetch(
+        new Request("https://test-host/oauth/battlenet/authorize?region=us", {
+          method: "GET",
+          headers: { Authorization: `Bearer ${USER_UUID}` },
+        }),
+      );
+      expect(resp.status).toBe(200);
+
+      // Extract sourceUuid from KV state
+      const body = await resp.json<{ url: string }>();
+      const authorizeUrl = new URL(body.url);
+      const stateKey = authorizeUrl.searchParams.get("state")!;
+      const stored = await env.OAUTH_KV.get(`battlenet-oauth-state:${stateKey}`);
+      const parsed = JSON.parse(stored!) as { sourceUuid: string };
+
+      // Verify SourceHub has the game with WATCHING status
+      const debug = await getSourceHubState(parsed.sourceUuid);
+      expect(debug.sourceState.sources).toHaveLength(1);
+      const source = debug.sourceState.sources[0]!;
+      expect(source.games).toHaveLength(1);
+      expect(source.games[0]!.gameId).toBe("wow");
+      expect(source.games[0]!.gameName).toBe("World of Warcraft");
+      expect(source.games[0]!.status).toBe(GameStatusEnum.GAME_STATUS_ENUM_WATCHING);
+    });
   });
 
   describe("GET /oauth/battlenet/callback", () => {
@@ -200,6 +243,36 @@ describe("Adapter OAuth", () => {
 
       const tokenFailed = events.results.find((event) => event.event_type === "oauthTokenFailed");
       expect(tokenFailed).toBeTruthy();
+    });
+
+    it("pushes ERROR state to SourceHub when token exchange fails", async () => {
+      const sourceUuid = await seedAdapterSource(USER_UUID);
+      const stateKey = crypto.randomUUID();
+      await env.OAUTH_KV.put(
+        `battlenet-oauth-state:${stateKey}`,
+        JSON.stringify({
+          userUuid: USER_UUID,
+          region: "us",
+          returnUrl: "",
+          sourceUuid,
+        }),
+        { expirationTtl: 600 },
+      );
+
+      await SELF.fetch(
+        new Request(`https://test-host/oauth/battlenet/callback?code=fake-code&state=${stateKey}`, {
+          method: "GET",
+          redirect: "manual",
+        }),
+      );
+
+      const debug = await getSourceHubState(sourceUuid);
+      expect(debug.sourceState.sources).toHaveLength(1);
+      expect(debug.sourceState.sources[0]!.games).toHaveLength(1);
+      expect(debug.sourceState.sources[0]!.games[0]!.gameId).toBe("wow");
+      expect(debug.sourceState.sources[0]!.games[0]!.status).toBe(
+        GameStatusEnum.GAME_STATUS_ENUM_ERROR,
+      );
     });
   });
 
