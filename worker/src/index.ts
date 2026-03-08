@@ -240,7 +240,7 @@ async function handleBattlenetAuthorize(url: URL, env: Env, userUuid: string): P
     logSourceEvent(env, sourceUuid, "oauthStarted", {
       oauthStarted: { gameId: adapter.gameId, region, provider: "battlenet" },
     }),
-    pushAdapterState(env, sourceUuid, userUuid, adapter.gameId, adapter.gameName, "watching"),
+    pushGameStatus(env, sourceUuid, userUuid, adapter.gameId, adapter.gameName, "watching"),
   ]);
 
   // Store state in KV (one-time use, 10 min TTL)
@@ -326,7 +326,7 @@ function toErrorMessage(error: unknown): string {
 }
 
 /** Push adapter game state to SourceHub DO. */
-async function pushAdapterState(
+async function pushGameStatus(
   env: Env,
   sourceUuid: string,
   userUuid: string,
@@ -337,7 +337,7 @@ async function pushAdapterState(
   const doId = env.SOURCE_HUB.idFromName(sourceUuid);
   const stub = env.SOURCE_HUB.get(doId);
   await stub.fetch(
-    new Request("https://do/set-adapter-state", {
+    new Request("https://do/set-game-status", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -364,7 +364,7 @@ async function handleTokenFailure(
 ): Promise<void> {
   await Promise.all([
     logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", { oauthTokenFailed: eventData }),
-    pushAdapterState(
+    pushGameStatus(
       env,
       state.sourceUuid,
       state.userUuid,
@@ -497,7 +497,7 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
           error: toErrorMessage(error),
         },
       }),
-      pushAdapterState(
+      pushGameStatus(
         env,
         state.sourceUuid,
         state.userUuid,
