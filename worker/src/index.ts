@@ -485,7 +485,7 @@ function routeSourceManagement(
     return handlePatchGameConfig(request, env, userUuid, sourceId, gameId);
   }
   if (url.pathname.endsWith("/config")) {
-    return handleSourceConfig(request, url, env);
+    return handleSourceConfig(request, url, env, userUuid);
   }
   if (request.method === "DELETE") {
     const sourceUuid = sourceParts[4];
@@ -929,11 +929,24 @@ interface GameConfigInput {
   fileExtensions: string[];
 }
 
-async function handleSourceConfig(request: Request, url: URL, env: Env): Promise<Response> {
+async function handleSourceConfig(
+  request: Request,
+  url: URL,
+  env: Env,
+  userUuid: string,
+): Promise<Response> {
   const pathParts = url.pathname.split("/");
   const sourceId = pathParts[4];
   if (!validateId(sourceId)) {
     return Response.json({ error: "Invalid source_uuid" }, { status: 400 });
+  }
+
+  // Verify source belongs to this user
+  const source = await env.DB.prepare("SELECT user_uuid FROM sources WHERE source_uuid = ?")
+    .bind(sourceId)
+    .first<{ user_uuid: string | null }>();
+  if (source?.user_uuid !== userUuid) {
+    return Response.json({ error: "Source not found" }, { status: 404 });
   }
 
   if (request.method === "GET") {

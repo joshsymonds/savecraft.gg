@@ -16,12 +16,20 @@ import {
   waitForRelayedMessage,
 } from "./helpers";
 
+/** Create a source row with a known UUID linked to a user. */
+async function seedSourceWithId(sourceId: string, userUuid: string): Promise<void> {
+  await env.DB.prepare("INSERT INTO sources (source_uuid, user_uuid, token_hash) VALUES (?, ?, ?)")
+    .bind(sourceId, userUuid, crypto.randomUUID())
+    .run();
+}
+
 describe("Source Config API", () => {
   beforeEach(cleanAll);
 
   it("saves config to D1 via PUT", async () => {
     const userUuid = "config-put-user";
     const sourceId = "steam-deck";
+    await seedSourceWithId(sourceId, userUuid);
 
     const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
@@ -61,6 +69,7 @@ describe("Source Config API", () => {
   it("upserts config on repeated PUT", async () => {
     const userUuid = "config-upsert-user";
     const sourceId = "desktop";
+    await seedSourceWithId(sourceId, userUuid);
 
     const putConfig = async (savePath: string): Promise<Response> =>
       SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
@@ -90,6 +99,7 @@ describe("Source Config API", () => {
   it("removes games not in the update", async () => {
     const userUuid = "config-remove-user";
     const sourceId = "pc";
+    await seedSourceWithId(sourceId, userUuid);
 
     await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
@@ -138,6 +148,7 @@ describe("Source Config API", () => {
   it("GET /api/v1/sources/:id/config returns saved config", async () => {
     const userUuid = "config-get-user";
     const sourceId = "my-laptop";
+    await seedSourceWithId(sourceId, userUuid);
 
     const putResp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
@@ -178,7 +189,8 @@ describe("Source Config API", () => {
 
   it("GET /api/v1/sources/:id/config returns empty games when no config", async () => {
     const userUuid = "config-empty-get-user";
-    const sourceId = "nonexistent-source";
+    const sourceId = "empty-config-source";
+    await seedSourceWithId(sourceId, userUuid);
 
     const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "GET",
@@ -188,6 +200,23 @@ describe("Source Config API", () => {
 
     const body = await resp.json<{ games: Record<string, unknown> }>();
     expect(body.games).toEqual({});
+  });
+
+  it("GET /api/v1/sources/:id/config returns 404 for nonexistent source", async () => {
+    const resp = await SELF.fetch("https://test-host/api/v1/sources/nonexistent/config", {
+      method: "GET",
+      headers: { Authorization: "Bearer some-user" },
+    });
+    expect(resp.status).toBe(404);
+  });
+
+  it("GET /api/v1/sources/:id/config returns 404 for another user's source", async () => {
+    await seedSourceWithId("other-source", "owner-user");
+    const resp = await SELF.fetch("https://test-host/api/v1/sources/other-source/config", {
+      method: "GET",
+      headers: { Authorization: "Bearer attacker-user" },
+    });
+    expect(resp.status).toBe(404);
   });
 
   it("GET /api/v1/sources/:id/config requires auth", async () => {
