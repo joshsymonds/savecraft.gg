@@ -76,8 +76,7 @@ function buildSourceOnline({ msg, sourceId }: EventContext): EventContent | null
   const name = hostname ? hostname.toUpperCase() : "Daemon";
   return {
     message: `${name} connected`,
-    detail:
-      [s.os || null, s.version || null].filter(Boolean).join(" · ") || undefined,
+    detail: [s.os || null, s.version || null].filter(Boolean).join(" · ") || undefined,
   };
 }
 
@@ -229,11 +228,7 @@ function buildEvent(
   };
 }
 
-export function dispatchToActivity(
-  sourceId: string,
-  serverTimestamp?: Date,
-  msg?: Message,
-): void {
+export function dispatchToActivity(sourceId: string, serverTimestamp?: Date, msg?: Message): void {
   const payloadCase = msg?.payload?.$case;
   if (!payloadCase) return;
 
@@ -247,11 +242,7 @@ export function dispatchToActivity(
 }
 
 /** Push a custom activity event directly (not from a proto message). */
-export function pushActivityEvent(
-  type: ActivityEventType,
-  message: string,
-  detail?: string,
-): void {
+export function pushActivityEvent(type: ActivityEventType, message: string, detail?: string): void {
   const event: ActivityEventData = {
     id: crypto.randomUUID(),
     type,
