@@ -126,7 +126,6 @@
       cleanUrl.searchParams.delete("error");
       cleanUrl.searchParams.delete("error_detail");
       cleanUrl.searchParams.delete("game_id");
-      cleanUrl.searchParams.delete("characters_key");
       globalThis.history.replaceState({}, "", cleanUrl.toString());
     }
   }
