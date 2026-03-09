@@ -958,11 +958,11 @@ async function handlePluginDownload(env: Env, gameId: string, filename: string):
     ".svg": "image/svg+xml",
     ".png": "image/png",
   };
-  const ext = filename.slice(filename.lastIndexOf("."));
-  const contentType = contentTypes[ext] ?? "application/octet-stream";
+  const extension = filename.slice(filename.lastIndexOf("."));
+  const contentType = contentTypes[extension] ?? "application/octet-stream";
   const headers: Record<string, string> = { "Content-Type": contentType };
   // Static assets: cache aggressively; images: add security headers.
-  if (ext === ".svg" || ext === ".png") {
+  if (extension === ".svg" || extension === ".png") {
     headers["Cache-Control"] = "public, max-age=86400";
     headers["X-Content-Type-Options"] = "nosniff";
     headers["Content-Security-Policy"] = "default-src 'none'";
