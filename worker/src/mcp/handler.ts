@@ -11,10 +11,10 @@ import type { Env } from "../types";
 import {
   createNote,
   deleteNote,
+  getInfo,
   getNote,
   getSave,
   getSection,
-  getSetupHelp,
   listGames,
   queryReference,
   refreshSave,
@@ -41,7 +41,9 @@ When the player shares something worth remembering — a goal, a milestone, a pl
 
 For questions about game mechanics (drop rates, build calculations, treasure classes), use query_reference. The list_games response includes available reference modules and their parameter schemas, so you already know what queries are possible — no extra discovery step needed. These computations use actual game data tables and are more reliable than AI estimation.
 
-If the player has no saves, asks about installing Savecraft, mentions a pairing code, or seems confused about why their data isn't showing up, use get_setup_help. It returns their source status, can look up a pairing code, and provides platform-specific installation instructions.`;
+All timestamps returned by Savecraft are UTC.
+
+If the player has no saves, asks about installing Savecraft, mentions a pairing code, seems confused about why their data isn't showing up, or asks about privacy, security, or what Savecraft is, use get_savecraft_info. It returns their source status and supports category-based drill-down (setup, privacy, about) — call without a category first to see what's available.`;
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -346,19 +348,25 @@ const TOOLS: ToolDefinition[] = [
       openWorldHint: false,
     },
   },
-  // ── Setup Help ──────────────────────────────────────────────
+  // ── Savecraft Info ──────────────────────────────────────────
   {
-    name: "get_setup_help",
-    title: "Setup Help",
+    name: "get_savecraft_info",
+    title: "Savecraft Info",
     description:
-      "Check the player's source and setup status. Savecraft has two source types: daemon sources run local software on the player's machine that watches save files (e.g. Diablo II, Stardew Valley), while adapter sources connect to game APIs server-side via OAuth with no local install needed (e.g. World of Warcraft connects through Battle.net). Each source in the response includes a source_kind field ('daemon' or 'adapter'). Adapter sources include adapter_credentials showing whether the OAuth connection is 'connected' or 'expired'. The guide section is context-aware: it shows daemon installation instructions for players with daemon sources, and API game setup instructions for players with adapter sources. Use this when list_games returns no saves, when the player mentions a pairing code, when a player asks about connecting a game, or when the player is confused about why their game data isn't appearing. If you know the player's operating system, pass it as the platform parameter to get targeted daemon install instructions.",
+      "Get information about the player's Savecraft setup, privacy practices, or the project itself. Always returns the player's source list (daemon and adapter sources with status). Without a category, also returns a menu of available categories to drill into. With a category, returns focused content for that topic: 'setup' for installation/pairing/API game guides, 'privacy' for data collection and security details, 'about' for project info and open source links. Use when list_games returns no saves, when the player mentions a pairing code, asks about connecting a game, asks if Savecraft is safe/private, or wants to know what Savecraft is.",
     inputSchema: {
       type: "object",
       properties: {
+        category: {
+          type: "string",
+          description:
+            "Topic to drill into. Omit to get the category menu. 'setup': install instructions, pairing, API game setup. 'privacy': data collection, security, what's NOT collected. 'about': open source links, author, architecture.",
+          enum: ["setup", "privacy", "about"],
+        },
         platform: {
           type: "string",
           description:
-            "Operating system for targeted install instructions. Infer from conversation context (e.g. Windows paths, Linux commands).",
+            "Operating system for targeted install instructions (only used with category='setup'). Infer from conversation context.",
           enum: ["linux", "windows", "macos"],
         },
         link_code: {
@@ -460,8 +468,8 @@ async function handleToolCall(
     case "query_reference": {
       return handleQueryReference(env, args);
     }
-    case "get_setup_help": {
-      return handleGetSetupHelp(env, userUuid, args);
+    case "get_savecraft_info": {
+      return handleGetInfo(env, userUuid, args);
     }
     default: {
       return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
@@ -469,14 +477,15 @@ async function handleToolCall(
   }
 }
 
-function handleGetSetupHelp(
+function handleGetInfo(
   env: Env,
   userUuid: string,
   args: Record<string, unknown>,
 ): Promise<unknown> {
-  return getSetupHelp(
+  return getInfo(
     env,
     userUuid,
+    args.category as string | undefined,
     args.platform as string | undefined,
     args.link_code as string | undefined,
     args.source_uuid as string | undefined,
