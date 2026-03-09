@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { describe, expect, it } from "vitest";
 
+// Uses worker.fetch() directly (not SELF) because we need a custom MCP_HOSTNAME env.
 import worker from "../src/index";
 
 const MCP_ENV = {

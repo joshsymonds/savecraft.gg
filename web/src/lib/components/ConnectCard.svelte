@@ -11,7 +11,7 @@
   import { PUBLIC_MCP_URL } from "$env/static/public";
   import { fetchMcpStatus } from "$lib/api/client";
   import { Panel } from "$lib/components";
-  import { onMount } from "svelte";
+  import { onDestroy, onMount } from "svelte";
 
   const DISMISSED_KEY = "savecraft:mcpHowDismissed";
 
@@ -59,21 +59,26 @@
     loading = false;
   });
 
+  let copyTimer: ReturnType<typeof setTimeout> | undefined;
+
   async function copyUrl(): Promise<void> {
+    clearTimeout(copyTimer);
     try {
       await navigator.clipboard.writeText(mcpUrl);
       copied = true;
       copyError = false;
-      setTimeout(() => {
+      copyTimer = setTimeout(() => {
         copied = false;
       }, 2000);
     } catch {
       copyError = true;
-      setTimeout(() => {
+      copyTimer = setTimeout(() => {
         copyError = false;
       }, 2000);
     }
   }
+
+  onDestroy(() => clearTimeout(copyTimer));
 
   function toggleExpand(): void {
     expanded = !expanded;
@@ -108,11 +113,11 @@
             Savecraft connects your game saves to AI assistants like Claude and ChatGPT.
           </p>
           <div class="flow-diagram">
-            <span class="flow-step">🎮 You play</span>
+            <span class="flow-step">&#x1F3AE; You play</span>
             <span class="flow-arrow">&rarr;</span>
-            <span class="flow-step">⚡ Savecraft syncs</span>
+            <span class="flow-step">&#x26A1; Savecraft syncs</span>
             <span class="flow-arrow">&rarr;</span>
-            <span class="flow-step">🤖 AI reads</span>
+            <span class="flow-step">&#x1F916; AI reads</span>
           </div>
         </div>
 
