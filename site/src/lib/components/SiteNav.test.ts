@@ -59,6 +59,7 @@ describe("SiteNav", () => {
     const links = container.querySelectorAll(".nav-link");
     const texts = Array.from(links).map((l) => l.textContent?.trim());
     expect(texts).toContain("GAMES");
+    expect(texts).toContain("DOCS");
     expect(texts).toContain("SUPPORT");
   });
 });
