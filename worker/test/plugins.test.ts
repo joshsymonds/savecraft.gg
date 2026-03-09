@@ -218,4 +218,82 @@ describe("Plugin Registry", () => {
     const resp = await SELF.fetch("https://test-host/plugins/d2r/parser.wasm");
     expect(resp.status).toBe(200);
   });
+
+  it("injects icon_url when manifest has icon field", async () => {
+    const manifest = {
+      game_id: "d2r",
+      version: "1.0.0",
+      sha256: "abc123",
+      icon: "icon.png",
+    };
+    await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(manifest));
+
+    const resp = await SELF.fetch("https://test-host/api/v1/plugins/manifest");
+    expect(resp.status).toBe(200);
+
+    const body = await resp.json<{
+      plugins: Record<string, { icon_url?: string }>;
+    }>();
+    expect(body.plugins.d2r!.icon_url).toContain("plugins/d2r/icon.png");
+    expect(body.plugins.d2r!.icon_url).toMatch(/^https?:\/\//);
+  });
+
+  it("omits icon_url when manifest has no icon field", async () => {
+    const manifest = { game_id: "d2r", version: "1.0.0", sha256: "abc123" };
+    await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(manifest));
+
+    const resp = await SELF.fetch("https://test-host/api/v1/plugins/manifest");
+    const body = await resp.json<{
+      plugins: Record<string, { icon_url?: string }>;
+    }>();
+    expect(body.plugins.d2r!.icon_url).toBeUndefined();
+  });
+
+  it("rejects unexpected icon filenames in manifest", async () => {
+    const manifest = {
+      game_id: "d2r",
+      version: "1.0.0",
+      sha256: "abc123",
+      icon: "../../../etc/passwd",
+    };
+    await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(manifest));
+
+    const resp = await SELF.fetch("https://test-host/api/v1/plugins/manifest");
+    const body = await resp.json<{
+      plugins: Record<string, { icon_url?: string }>;
+    }>();
+    expect(body.plugins.d2r!.icon_url).toBeUndefined();
+  });
+
+  it("downloads icon.png from R2 with correct headers", async () => {
+    const pngBytes = new Uint8Array([0x89, 0x50, 0x4e, 0x47]);
+    await env.PLUGINS.put("plugins/d2r/icon.png", pngBytes);
+
+    const resp = await SELF.fetch("https://test-host/plugins/d2r/icon.png");
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toBe("image/png");
+    expect(resp.headers.get("Cache-Control")).toBe("public, max-age=86400");
+    expect(resp.headers.get("X-Content-Type-Options")).toBe("nosniff");
+    expect(resp.headers.get("Content-Security-Policy")).toBe("default-src 'none'");
+
+    const body = new Uint8Array(await resp.arrayBuffer());
+    expect(body).toEqual(pngBytes);
+  });
+
+  it("downloads icon.svg from R2 with correct headers", async () => {
+    const svgContent = '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"></svg>';
+    await env.PLUGINS.put("plugins/d2r/icon.svg", svgContent);
+
+    const resp = await SELF.fetch("https://test-host/plugins/d2r/icon.svg");
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Content-Type")).toBe("image/svg+xml");
+    expect(resp.headers.get("Cache-Control")).toBe("public, max-age=86400");
+    expect(resp.headers.get("Content-Security-Policy")).toBe("default-src 'none'");
+  });
+
+  it("manifest response has Cache-Control header", async () => {
+    const resp = await SELF.fetch("https://test-host/api/v1/plugins/manifest");
+    expect(resp.status).toBe(200);
+    expect(resp.headers.get("Cache-Control")).toBe("public, max-age=300");
+  });
 });

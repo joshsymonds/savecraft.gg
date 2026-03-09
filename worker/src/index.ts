@@ -928,9 +928,9 @@ async function handlePluginManifest(env: Env): Promise<Response> {
         ...data,
         url: `${serverUrl}/plugins/${gameId}/parser.wasm`,
       };
-      // Inject absolute URL for icon if present.
-      if (data.icon) {
-        entry.icon_url = `${serverUrl}/plugins/${gameId}/${data.icon as string}`;
+      // Inject absolute URL for icon if present (only allow known filenames).
+      if (data.icon === "icon.png" || data.icon === "icon.svg") {
+        entry.icon_url = `${serverUrl}/plugins/${gameId}/${data.icon}`;
       }
       // Inject absolute URL for reference binary if present.
       const reference = data.reference as Record<string, unknown> | undefined;
@@ -941,7 +941,9 @@ async function handlePluginManifest(env: Env): Promise<Response> {
     }
   }
 
-  return Response.json({ plugins });
+  return Response.json({ plugins }, {
+    headers: { "Cache-Control": "public, max-age=300" },
+  });
 }
 
 async function handlePluginDownload(env: Env, gameId: string, filename: string): Promise<Response> {
@@ -950,16 +952,22 @@ async function handlePluginDownload(env: Env, gameId: string, filename: string):
   if (!object) {
     return Response.json({ error: "Plugin not found" }, { status: 404 });
   }
-  const contentType = filename.endsWith(".wasm")
-    ? "application/wasm"
-    : filename.endsWith(".svg")
-      ? "image/svg+xml"
-      : filename.endsWith(".png")
-        ? "image/png"
-        : "application/octet-stream";
-  return new Response(object.body, {
-    headers: { "Content-Type": contentType },
-  });
+  const contentTypes: Record<string, string> = {
+    ".wasm": "application/wasm",
+    ".sig": "application/octet-stream",
+    ".svg": "image/svg+xml",
+    ".png": "image/png",
+  };
+  const ext = filename.slice(filename.lastIndexOf("."));
+  const contentType = contentTypes[ext] ?? "application/octet-stream";
+  const headers: Record<string, string> = { "Content-Type": contentType };
+  // Static assets: cache aggressively; images: add security headers.
+  if (ext === ".svg" || ext === ".png") {
+    headers["Cache-Control"] = "public, max-age=86400";
+    headers["X-Content-Type-Options"] = "nosniff";
+    headers["Content-Security-Policy"] = "default-src 'none'";
+  }
+  return new Response(object.body, { headers });
 }
 
 // -- Reference Query API (WfP dispatch) ----------------------------
