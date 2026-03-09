@@ -2,10 +2,6 @@
   @component
   Privacy policy page — rendered from PRIVACY.md content at savecraft.gg/privacy
 -->
-<script lang="ts">
-  import { PUBLIC_APP_URL } from "$env/static/public";
-</script>
-
 <svelte:head>
   <title>Privacy Policy - Savecraft</title>
   <meta
@@ -15,20 +11,6 @@
 </svelte:head>
 
 <div class="page">
-  <!-- ═══ NAV ═══ -->
-  <nav class="nav">
-    <div class="nav-inner">
-      <a href="/" class="nav-left">
-        <img src="/icon.png" alt="Savecraft" class="nav-icon" width="28" height="28" />
-        <span class="nav-title">SAVECRAFT</span>
-      </a>
-      <div class="nav-right">
-        <a href={`${PUBLIC_APP_URL}/sign-up`} class="nav-cta">GET STARTED</a>
-      </div>
-    </div>
-  </nav>
-
-  <!-- ═══ CONTENT ═══ -->
   <article class="privacy">
     <h1 class="privacy-title">Privacy Policy</h1>
     <p class="privacy-updated">Last updated: March 6, 2026</p>
@@ -513,101 +495,11 @@
       </p>
     </section>
   </article>
-
-  <!-- ═══ FOOTER ═══ -->
-  <footer class="footer">
-    <span class="footer-text"
-      >savecraft.gg — by <a
-        href="https://joshsymonds.com"
-        class="footer-link"
-        target="_blank"
-        rel="noopener">@joshsymonds</a
-      ></span
-    >
-    <div class="footer-links">
-      <a href="/games" class="footer-link">GAMES</a>
-      <a href="/privacy" class="footer-link">PRIVACY</a>
-      <a href="https://discord.gg/YnC8stpEmF" class="footer-link" target="_blank" rel="noopener"
-        >DISCORD</a
-      >
-      <a
-        href="https://github.com/joshsymonds/savecraft.gg"
-        class="footer-link"
-        target="_blank"
-        rel="noopener">GITHUB</a
-      >
-    </div>
-  </footer>
 </div>
 
 <style>
   .page {
     min-height: 100vh;
-  }
-
-  /* ── Nav (same as homepage) ──────────────────────────────── */
-  .nav {
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    z-index: 100;
-    padding: 0 32px;
-    background: linear-gradient(180deg, rgba(5, 7, 26, 0.95), rgba(5, 7, 26, 0.6) 80%, transparent);
-    backdrop-filter: blur(8px);
-  }
-
-  .nav-inner {
-    max-width: 800px;
-    margin: 0 auto;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 18px 0;
-  }
-
-  .nav-left {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    text-decoration: none;
-  }
-
-  .nav-icon {
-    border-radius: 4px;
-  }
-
-  .nav-title {
-    font-family: var(--font-pixel);
-    font-size: 10px;
-    color: var(--color-text);
-    letter-spacing: 2px;
-  }
-
-  .nav-right {
-    display: flex;
-    gap: 24px;
-    align-items: center;
-  }
-
-  .nav-cta {
-    font-family: var(--font-heading);
-    font-size: 13px;
-    font-weight: 600;
-    color: #05071a;
-    background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light));
-    padding: 8px 18px;
-    border-radius: 2px;
-    text-decoration: none;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    transition: all 0.2s;
-    box-shadow: 0 0 12px rgba(200, 168, 78, 0.25);
-  }
-
-  .nav-cta:hover {
-    box-shadow: 0 0 20px rgba(200, 168, 78, 0.45);
-    transform: translateY(-1px);
   }
 
   /* ── Privacy content ─────────────────────────────────────── */
@@ -771,54 +663,10 @@
     border-color: var(--color-gold);
   }
 
-  /* ── Footer ──────────────────────────────────────────────── */
-  .footer {
-    padding: 28px 32px;
-    border-top: 1px solid rgba(74, 90, 173, 0.15);
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    max-width: 800px;
-    margin: 0 auto;
-  }
-
-  .footer-text {
-    font-family: var(--font-heading);
-    font-size: 14px;
-    font-weight: 400;
-    color: var(--color-text-muted);
-  }
-
-  .footer-links {
-    display: flex;
-    gap: 20px;
-  }
-
-  .footer-link {
-    font-family: var(--font-heading);
-    font-size: 13px;
-    font-weight: 500;
-    color: var(--color-text-muted);
-    text-decoration: none;
-    letter-spacing: 1.5px;
-    text-transform: uppercase;
-    transition: color 0.2s;
-  }
-
-  .footer-link:hover {
-    color: var(--color-border-light);
-  }
-
   /* ── Responsive ──────────────────────────────────────────── */
   @media (max-width: 600px) {
     .privacy {
       padding: 100px 20px 60px;
-    }
-
-    .footer {
-      flex-direction: column;
-      gap: 12px;
-      text-align: center;
     }
   }
 </style>
