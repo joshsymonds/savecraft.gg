@@ -378,12 +378,14 @@ const TOOLS: ToolDefinition[] = [
   },
 ];
 
+const MCP_HEADERS = { "Content-Security-Policy": "default-src 'none'" };
+
 function jsonRpcResponse(id: number | string, result: unknown): Response {
-  return Response.json({ jsonrpc: "2.0", id, result });
+  return Response.json({ jsonrpc: "2.0", id, result }, { headers: MCP_HEADERS });
 }
 
 function jsonRpcError(id: number | string | null, code: number, message: string): Response {
-  return Response.json({ jsonrpc: "2.0", id, error: { code, message } });
+  return Response.json({ jsonrpc: "2.0", id, error: { code, message } }, { headers: MCP_HEADERS });
 }
 
 /**
@@ -521,7 +523,7 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
     }
 
     case "notifications/initialized": {
-      return Promise.resolve(new Response(null, { status: 202 }));
+      return Promise.resolve(new Response(null, { status: 202, headers: MCP_HEADERS }));
     }
 
     case "tools/list": {
@@ -555,11 +557,11 @@ export async function handleMcpRequest(
   userUuid: string,
 ): Promise<Response> {
   if (request.method === "DELETE") {
-    return new Response(null, { status: 200 });
+    return new Response(null, { status: 200, headers: MCP_HEADERS });
   }
 
   if (request.method !== "POST") {
-    return new Response("Method Not Allowed", { status: 405 });
+    return new Response("Method Not Allowed", { status: 405, headers: MCP_HEADERS });
   }
 
   let rpc: JsonRpcRequest;
