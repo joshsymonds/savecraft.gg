@@ -904,7 +904,7 @@ function isFormattedResult(data: unknown): boolean {
   );
 }
 
-// ── Setup Help ───────────────────────────────────────────────
+// ── Savecraft Info ───────────────────────────────────────────
 
 interface SourceRow {
   source_uuid: string;
@@ -974,9 +974,18 @@ interface ApiGamesGuide {
   available_games: AdapterGameInfo[];
 }
 
-interface SetupGuideResponse {
+interface CategoryDescription {
+  description: string;
+}
+
+type GuideEntry = PlatformGuide | string | ApiGamesGuide;
+
+interface InfoResponse {
   sources: SourceInfo[];
-  guide: Record<string, PlatformGuide | string | ApiGamesGuide>;
+  categories?: Record<string, CategoryDescription>;
+  setup?: Record<string, GuideEntry>;
+  privacy?: string;
+  about?: string;
   lookup?: SourceLookupResult;
 }
 
@@ -1047,6 +1056,41 @@ const PAIRING_GUIDE =
 const ADAPTER_SETUP_GUIDE =
   "Some games connect through their official API instead of local save files — for example, World of Warcraft connects through Battle.net. These are called adapter sources. No local daemon install is needed. To set up an API-backed game: visit savecraft.gg, select the game, choose your region if prompted, and complete the OAuth authorization with the game's provider (e.g. Battle.net for WoW). Once authorized, Savecraft discovers your characters automatically. Each adapter source includes an adapter_credentials array showing credential status per game: 'connected' means the OAuth token is valid, 'expired' means the token needs re-authorization at savecraft.gg, and 'missing' means the game is linked but OAuth hasn't been completed yet.";
 
+const CATEGORIES_MENU: Record<string, CategoryDescription> = {
+  setup: {
+    description:
+      "Installation instructions, pairing guide, and API game setup. Use when the player needs help connecting.",
+  },
+  privacy: {
+    description:
+      "What data Savecraft collects, where it's stored, and what it does NOT collect. Use when the player asks about safety or privacy.",
+  },
+  about: {
+    description:
+      "Who made Savecraft, how it works, open source links. Use when the player asks what Savecraft is or who's behind it.",
+  },
+};
+
+const PRIVACY_INFO = `Savecraft collects the minimum data needed to connect your game saves to AI assistants. We store your email address, your game save data (which you push to us), notes you create, and — for API-connected games like World of Warcraft — OAuth tokens from game platform accounts solely to verify character ownership and refresh data on demand. We do not run analytics, do not track you, do not sell your data, and do not see your conversations with AI assistants. Our code is open source (https://github.com/joshsymonds/savecraft.gg) — you can verify all of this yourself.
+
+Where data is stored: Cloudflare (Workers, D1/SQLite, R2 for plugin binaries, KV for OAuth tokens). Encryption at rest and in transit. Device auth tokens are SHA-256 hashed. WASM plugins are sandboxed.
+
+What we do NOT collect: No analytics or telemetry. No IP addresses. No conversation history — we never see what you say to the AI. No device fingerprinting. No behavioral tracking.
+
+Data deletion: You can delete individual saves, notes, and devices through the web UI or MCP tools. Email privacy@savecraft.gg to delete your entire account and all associated data.
+
+Full privacy policy: https://savecraft.gg/privacy`;
+
+const ABOUT_INFO = `Savecraft is an open source project that connects your video game save files to AI assistants via the Model Context Protocol (MCP).
+
+How it works: For local games (e.g. Diablo II, Stardew Valley), a daemon runs on your machine, watches save files, parses them with sandboxed WASM plugins, and pushes structured game state to the cloud. For API-backed games (e.g. World of Warcraft via Battle.net), server-side adapters connect through OAuth — no local install needed. Either way, AI assistants access your game data through MCP tools.
+
+Open source: https://github.com/joshsymonds/savecraft.gg
+Author: Josh Symonds (https://joshsymonds.com)
+Contact: josh@savecraft.gg
+Discord: https://discord.gg/YnC8stpEmF
+License: Source-available on GitHub`;
+
 interface AdapterGameInfo {
   game_id: string;
   name: string;
@@ -1066,12 +1110,12 @@ async function buildGuide(
   plugins: R2Bucket,
   sourceKinds: Set<string>,
   platform?: string,
-): Promise<SetupGuideResponse["guide"]> {
+): Promise<Record<string, GuideEntry>> {
   const hasDaemon = sourceKinds.has("daemon");
   const hasAdapter = sourceKinds.has("adapter");
   const hasNone = sourceKinds.size === 0;
 
-  const guide: SetupGuideResponse["guide"] = {};
+  const guide: Record<string, GuideEntry> = {};
 
   // Include daemon guide if user has daemon sources or no sources at all
   if (hasDaemon || hasNone) {
@@ -1148,19 +1192,61 @@ async function resolveLookup(
   return lookup;
 }
 
-export async function getSetupHelp(
+async function attachAdapterCredentials(
+  db: D1Database,
+  userUuid: string,
+  sources: SourceInfo[],
+): Promise<void> {
+  const [credRows, linkedGameRows] = await Promise.all([
+    db
+      .prepare(`SELECT game_id, expires_at FROM game_credentials WHERE user_uuid = ?`)
+      .bind(userUuid)
+      .all<{ game_id: string; expires_at: string }>(),
+    db
+      .prepare(`SELECT DISTINCT game_id FROM linked_characters WHERE user_uuid = ? AND active = 1`)
+      .bind(userUuid)
+      .all<{ game_id: string }>(),
+  ]);
+
+  const now = Date.now();
+  const credByGame = new Map<string, "connected" | "expired">(
+    credRows.results.map((row) => [
+      row.game_id,
+      new Date(row.expires_at).getTime() > now ? "connected" : "expired",
+    ]),
+  );
+
+  const linkedGameIds = new Set(linkedGameRows.results.map((r) => r.game_id));
+  for (const gameId of credByGame.keys()) {
+    linkedGameIds.add(gameId);
+  }
+
+  const credentials: AdapterCredential[] = [...linkedGameIds].map((gameId) => ({
+    game_id: gameId,
+    status: credByGame.get(gameId) ?? "missing",
+  }));
+
+  for (const source of sources) {
+    if (source.source_kind === "adapter") {
+      source.adapter_credentials = credentials;
+    }
+  }
+}
+
+export async function getInfo(
   env: Env,
   userUuid: string,
+  category?: string,
   platform?: string,
   linkCode?: string,
   sourceUuid?: string,
 ): Promise<ToolResult> {
   const db = env.DB;
 
-  // 1. User's linked sources
+  // 1. User's linked sources (always returned)
   const sourceRows = await db
     .prepare(
-      `SELECT ${SOURCE_COLS} FROM sources WHERE user_uuid = ? ORDER BY last_push_at DESC NULLS LAST`,
+      `SELECT ${SOURCE_COLS} FROM sources WHERE user_uuid = ? ORDER BY last_push_at DESC NULLS LAST LIMIT 100`,
     )
     .bind(userUuid)
     .all<SourceRow>();
@@ -1181,59 +1267,37 @@ export async function getSetupHelp(
   }
 
   // 1c. Attach credential status for adapter sources.
-  // Credentials are per-user (not per-source) since a user has one adapter source
-  // shared across all API-backed games. We assign the same credentials array to
-  // every adapter source the user owns.
-  const hasAdapterSources = sources.some((s) => s.source_kind === "adapter");
-  if (hasAdapterSources) {
-    const [credRows, linkedGameRows] = await Promise.all([
-      db
-        .prepare(`SELECT game_id, expires_at FROM game_credentials WHERE user_uuid = ?`)
-        .bind(userUuid)
-        .all<{ game_id: string; expires_at: string }>(),
-      db
-        .prepare(
-          `SELECT DISTINCT game_id FROM linked_characters WHERE user_uuid = ? AND active = 1`,
-        )
-        .bind(userUuid)
-        .all<{ game_id: string }>(),
-    ]);
-
-    const now = Date.now();
-    const credByGame = new Map<string, "connected" | "expired">(
-      credRows.results.map((row) => [
-        row.game_id,
-        new Date(row.expires_at).getTime() > now ? "connected" : "expired",
-      ]),
-    );
-
-    const linkedGameIds = new Set(linkedGameRows.results.map((r) => r.game_id));
-    // Also include games that have credentials but no linked characters
-    for (const gameId of credByGame.keys()) {
-      linkedGameIds.add(gameId);
-    }
-
-    const credentials: AdapterCredential[] = [...linkedGameIds].map((gameId) => ({
-      game_id: gameId,
-      status: credByGame.get(gameId) ?? "missing",
-    }));
-
-    for (const source of sources) {
-      if (source.source_kind === "adapter") {
-        source.adapter_credentials = credentials;
-      }
-    }
+  if (sources.some((s) => s.source_kind === "adapter")) {
+    await attachAdapterCredentials(db, userUuid, sources);
   }
 
-  // 2-3. Optional lookup + live status check + context-aware guide
-  const sourceKinds = new Set(sourceRows.results.map((r) => r.source_kind));
-  const [lookup, guide] = await Promise.all([
-    resolveLookup(db, env, sourceUuid, linkCode),
-    buildGuide(env.PLUGINS, sourceKinds, platform),
-  ]);
+  // 2. Optional lookup (runs regardless of category)
+  const lookup = await resolveLookup(db, env, sourceUuid, linkCode);
 
-  // 4. Build response
-  const response: SetupGuideResponse = { sources, guide };
+  // 3. Build response based on category
+  const response: InfoResponse = { sources };
+
+  switch (category) {
+    case undefined: {
+      response.categories = CATEGORIES_MENU;
+      break;
+    }
+    case "setup": {
+      const sourceKinds = new Set(sourceRows.results.map((r) => r.source_kind));
+      response.setup = await buildGuide(env.PLUGINS, sourceKinds, platform);
+      break;
+    }
+    case "privacy": {
+      response.privacy = PRIVACY_INFO;
+      break;
+    }
+    case "about": {
+      response.about = ABOUT_INFO;
+      break;
+    }
+    // No default needed — unknown categories just return sources
+  }
+
   if (lookup !== undefined) {
     response.lookup = lookup;
   }

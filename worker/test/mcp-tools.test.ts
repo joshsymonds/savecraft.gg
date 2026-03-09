@@ -5,10 +5,10 @@ import type { ToolResult } from "../src/mcp/tools";
 import {
   createNote,
   deleteNote,
+  getInfo,
   getNote,
   getSave,
   getSection,
-  getSetupHelp,
   indexSaveSections,
   listGames,
   refreshSave,
@@ -710,9 +710,9 @@ describe("MCP Tools", () => {
     });
   });
 
-  // ── get_setup_help ──────────────────────────────────────────
+  // ── get_savecraft_info ──────────────────────────────────────
 
-  describe("getSetupHelp", () => {
+  describe("getInfo", () => {
     /** Seed a source with full control over fields for setup help tests. */
     async function seedTestSource(options: {
       sourceUuid: string;
@@ -745,7 +745,7 @@ describe("MCP Tools", () => {
     // ── Source listing ──────────────────────────────────────────
 
     it("returns empty sources list for user with no sources", async () => {
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as { sources: unknown[] };
       expect(result.isError).toBeUndefined();
       expect(data.sources).toEqual([]);
@@ -762,7 +762,7 @@ describe("MCP Tools", () => {
         lastPushAt: recentPush,
       });
 
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as {
         sources: {
           source_uuid: string;
@@ -808,7 +808,7 @@ describe("MCP Tools", () => {
         lastPushAt: null,
       });
 
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as {
         sources: { source_uuid: string; activity: string }[];
       };
@@ -824,7 +824,7 @@ describe("MCP Tools", () => {
       await seedTestSource({ sourceUuid: "dev-a", userUuid: USER_A });
       await seedTestSource({ sourceUuid: "dev-b", userUuid: USER_B });
 
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as {
         sources: { source_uuid: string }[];
       };
@@ -848,7 +848,7 @@ describe("MCP Tools", () => {
         lastPushAt: new Date(Date.now() - 60_000).toISOString(),
       });
 
-      const result = await getSetupHelp(env, USER_A, undefined, "482913");
+      const result = await getInfo(env, USER_A, undefined, undefined, "482913");
       const data = parseResult(result) as {
         lookup: {
           found: boolean;
@@ -877,7 +877,7 @@ describe("MCP Tools", () => {
         linkCodeExpiresAt: expired,
       });
 
-      const result = await getSetupHelp(env, USER_A, undefined, "111111");
+      const result = await getInfo(env, USER_A, undefined, undefined, "111111");
       const data = parseResult(result) as {
         lookup: { found: boolean; link_code_valid: boolean };
       };
@@ -886,7 +886,7 @@ describe("MCP Tools", () => {
     });
 
     it("reports nonexistent link code", async () => {
-      const result = await getSetupHelp(env, USER_A, undefined, "999999");
+      const result = await getInfo(env, USER_A, undefined, undefined, "999999");
       const data = parseResult(result) as {
         lookup: { found: boolean };
       };
@@ -910,7 +910,7 @@ describe("MCP Tools", () => {
         )
         .run();
 
-      const result = await getSetupHelp(env, USER_A, undefined, "222222");
+      const result = await getInfo(env, USER_A, undefined, undefined, "222222");
       const data = parseResult(result) as { lookup: Record<string, unknown> };
       expect(data.lookup.found).toBe(true);
       expect(data.lookup.linked).toBe(true);
@@ -934,7 +934,7 @@ describe("MCP Tools", () => {
         arch: "arm64",
       });
 
-      const result = await getSetupHelp(env, USER_A, undefined, undefined, "dev-lookup");
+      const result = await getInfo(env, USER_A, undefined, undefined, undefined, "dev-lookup");
       const data = parseResult(result) as {
         lookup: { found: boolean; source_uuid: string; hostname: string };
       };
@@ -944,7 +944,7 @@ describe("MCP Tools", () => {
     });
 
     it("reports nonexistent source UUID", async () => {
-      const result = await getSetupHelp(env, USER_A, undefined, undefined, "nonexistent");
+      const result = await getInfo(env, USER_A, undefined, undefined, undefined, "nonexistent");
       const data = parseResult(result) as { lookup: { found: boolean } };
       expect(data.lookup.found).toBe(false);
     });
@@ -952,47 +952,47 @@ describe("MCP Tools", () => {
     // ── Installation guide ──────────────────────────────────────
 
     it("returns full guide for all platforms when no platform specified", async () => {
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A, "setup");
       const data = parseResult(result) as {
-        guide: {
+        setup: {
           linux: { install: string; details: string };
           windows: { install: string; details: string };
           macos: { install: null; details: string };
           pairing: string;
         };
       };
-      expect(data.guide.linux.install).toContain("curl");
-      expect(data.guide.linux.install).toContain("install.savecraft.gg");
-      expect(data.guide.windows.install).toContain("install.savecraft.gg");
-      expect(data.guide.macos.install).toBeNull();
-      expect(data.guide.macos.details).toContain("not yet available");
-      expect(data.guide.pairing).toContain("6-digit");
-      expect(data.guide.pairing).toContain("savecraft.gg");
+      expect(data.setup.linux.install).toContain("curl");
+      expect(data.setup.linux.install).toContain("install.savecraft.gg");
+      expect(data.setup.windows.install).toContain("install.savecraft.gg");
+      expect(data.setup.macos.install).toBeNull();
+      expect(data.setup.macos.details).toContain("not yet available");
+      expect(data.setup.pairing).toContain("6-digit");
+      expect(data.setup.pairing).toContain("savecraft.gg");
     });
 
     it("filters guide to requested platform", async () => {
-      const result = await getSetupHelp(env, USER_A, "linux");
+      const result = await getInfo(env, USER_A, "setup", "linux");
       const data = parseResult(result) as {
-        guide: Record<string, unknown>;
+        setup: Record<string, unknown>;
       };
-      expect(data.guide).toHaveProperty("linux");
-      expect(data.guide).toHaveProperty("pairing");
-      expect(data.guide).not.toHaveProperty("windows");
-      expect(data.guide).not.toHaveProperty("macos");
+      expect(data.setup).toHaveProperty("linux");
+      expect(data.setup).toHaveProperty("pairing");
+      expect(data.setup).not.toHaveProperty("windows");
+      expect(data.setup).not.toHaveProperty("macos");
     });
 
     it("always includes pairing instructions regardless of platform", async () => {
-      const result = await getSetupHelp(env, USER_A, "windows");
+      const result = await getInfo(env, USER_A, "setup", "windows");
       const data = parseResult(result) as {
-        guide: { pairing: string };
+        setup: { pairing: string };
       };
-      expect(data.guide.pairing).toBeTruthy();
+      expect(data.setup.pairing).toBeTruthy();
     });
 
     // ── Edge cases ────────────────────────────────────────────
 
     it("omits lookup field when neither link_code nor source_uuid provided", async () => {
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as Record<string, unknown>;
       expect(data).not.toHaveProperty("lookup");
     });
@@ -1013,7 +1013,7 @@ describe("MCP Tools", () => {
       });
 
       // Pass both — source_uuid should win
-      const result = await getSetupHelp(env, USER_A, undefined, "444444", "dev-by-uuid");
+      const result = await getInfo(env, USER_A, undefined, undefined, "444444", "dev-by-uuid");
       const data = parseResult(result) as {
         lookup: { source_uuid: string; hostname: string };
       };
@@ -1022,14 +1022,14 @@ describe("MCP Tools", () => {
     });
 
     it("returns all platforms for invalid platform value", async () => {
-      const result = await getSetupHelp(env, USER_A, "android");
+      const result = await getInfo(env, USER_A, "setup", "android");
       const data = parseResult(result) as {
-        guide: Record<string, unknown>;
+        setup: Record<string, unknown>;
       };
-      expect(data.guide).toHaveProperty("linux");
-      expect(data.guide).toHaveProperty("windows");
-      expect(data.guide).toHaveProperty("macos");
-      expect(data.guide).toHaveProperty("pairing");
+      expect(data.setup).toHaveProperty("linux");
+      expect(data.setup).toHaveProperty("windows");
+      expect(data.setup).toHaveProperty("macos");
+      expect(data.setup).toHaveProperty("pairing");
     });
 
     it("never includes token_hash in lookup response", async () => {
@@ -1039,7 +1039,7 @@ describe("MCP Tools", () => {
         linkCodeExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
       });
 
-      const result = await getSetupHelp(env, USER_A, undefined, "555555");
+      const result = await getInfo(env, USER_A, undefined, undefined, "555555");
       const json = JSON.stringify(parseResult(result));
       expect(json).not.toContain("token_hash");
       expect(json).not.toContain(`hash-dev-secret`);
@@ -1089,12 +1089,12 @@ describe("MCP Tools", () => {
         JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
       );
 
-      const result = await getSetupHelp(env, USER_A);
-      const data = parseResult(result) as { guide: Record<string, unknown> };
-      expect(data.guide).toHaveProperty("api_games");
-      expect(data.guide).not.toHaveProperty("linux");
-      expect(data.guide).not.toHaveProperty("windows");
-      expect(data.guide).not.toHaveProperty("pairing");
+      const result = await getInfo(env, USER_A, "setup");
+      const data = parseResult(result) as { setup: Record<string, unknown> };
+      expect(data.setup).toHaveProperty("api_games");
+      expect(data.setup).not.toHaveProperty("linux");
+      expect(data.setup).not.toHaveProperty("windows");
+      expect(data.setup).not.toHaveProperty("pairing");
     });
 
     it("includes only daemon guide when user has only daemon sources", async () => {
@@ -1104,11 +1104,11 @@ describe("MCP Tools", () => {
         hostname: "gaming-pc",
       });
 
-      const result = await getSetupHelp(env, USER_A);
-      const data = parseResult(result) as { guide: Record<string, unknown> };
-      expect(data.guide).toHaveProperty("linux");
-      expect(data.guide).toHaveProperty("pairing");
-      expect(data.guide).not.toHaveProperty("api_games");
+      const result = await getInfo(env, USER_A, "setup");
+      const data = parseResult(result) as { setup: Record<string, unknown> };
+      expect(data.setup).toHaveProperty("linux");
+      expect(data.setup).toHaveProperty("pairing");
+      expect(data.setup).not.toHaveProperty("api_games");
     });
 
     it("includes both guides when user has both source types", async () => {
@@ -1123,11 +1123,11 @@ describe("MCP Tools", () => {
         JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
       );
 
-      const result = await getSetupHelp(env, USER_A);
-      const data = parseResult(result) as { guide: Record<string, unknown> };
-      expect(data.guide).toHaveProperty("linux");
-      expect(data.guide).toHaveProperty("pairing");
-      expect(data.guide).toHaveProperty("api_games");
+      const result = await getInfo(env, USER_A, "setup");
+      const data = parseResult(result) as { setup: Record<string, unknown> };
+      expect(data.setup).toHaveProperty("linux");
+      expect(data.setup).toHaveProperty("pairing");
+      expect(data.setup).toHaveProperty("api_games");
     });
 
     it("includes both guides when user has no sources", async () => {
@@ -1136,11 +1136,11 @@ describe("MCP Tools", () => {
         JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
       );
 
-      const result = await getSetupHelp(env, USER_A);
-      const data = parseResult(result) as { guide: Record<string, unknown> };
-      expect(data.guide).toHaveProperty("linux");
-      expect(data.guide).toHaveProperty("pairing");
-      expect(data.guide).toHaveProperty("api_games");
+      const result = await getInfo(env, USER_A, "setup");
+      const data = parseResult(result) as { setup: Record<string, unknown> };
+      expect(data.setup).toHaveProperty("linux");
+      expect(data.setup).toHaveProperty("pairing");
+      expect(data.setup).toHaveProperty("api_games");
     });
 
     it("adapter guide lists available API games from R2 manifests", async () => {
@@ -1150,17 +1150,17 @@ describe("MCP Tools", () => {
         JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
       );
 
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A, "setup");
       const data = parseResult(result) as {
-        guide: {
+        setup: {
           api_games: { setup: string; available_games: { game_id: string; name: string }[] };
         };
       };
-      expect(data.guide.api_games.available_games).toContainEqual({
+      expect(data.setup.api_games.available_games).toContainEqual({
         game_id: "wow",
         name: "World of Warcraft",
       });
-      expect(data.guide.api_games.setup).toContain("OAuth");
+      expect(data.setup.api_games.setup).toContain("OAuth");
     });
 
     it("adapter guide does not list non-API games", async () => {
@@ -1170,10 +1170,10 @@ describe("MCP Tools", () => {
         JSON.stringify({ game_id: "d2r", name: "Diablo II: Resurrected" }),
       );
 
-      const result = await getSetupHelp(env, USER_A);
-      const data = parseResult(result) as { guide: Record<string, unknown> };
+      const result = await getInfo(env, USER_A, "setup");
+      const data = parseResult(result) as { setup: Record<string, unknown> };
       // No api games found in manifests, so no api_games section even for adapter source
-      expect(data.guide).not.toHaveProperty("api_games");
+      expect(data.setup).not.toHaveProperty("api_games");
     });
 
     // ── Adapter source support ────────────────────────────────
@@ -1187,7 +1187,7 @@ describe("MCP Tools", () => {
         arch: "amd64",
       });
 
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as {
         sources: { source_uuid: string; source_kind: string }[];
       };
@@ -1197,7 +1197,7 @@ describe("MCP Tools", () => {
     it("returns source_kind='adapter' for adapter sources", async () => {
       await seedAdapterSource({ sourceUuid: "adapter-1", userUuid: USER_A });
 
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as {
         sources: { source_uuid: string; source_kind: string }[];
       };
@@ -1213,7 +1213,7 @@ describe("MCP Tools", () => {
         expiresAt: futureExpiry,
       });
 
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as {
         sources: {
           source_uuid: string;
@@ -1235,7 +1235,7 @@ describe("MCP Tools", () => {
         expiresAt: pastExpiry,
       });
 
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as {
         sources: {
           source_uuid: string;
@@ -1256,7 +1256,7 @@ describe("MCP Tools", () => {
         .bind(USER_A, "adapter-miss")
         .run();
 
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as {
         sources: {
           source_uuid: string;
@@ -1284,7 +1284,7 @@ describe("MCP Tools", () => {
         expiresAt: pastExpiry,
       });
 
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as {
         sources: {
           source_uuid: string;
@@ -1305,7 +1305,7 @@ describe("MCP Tools", () => {
         hostname: "gaming-pc",
       });
 
-      const result = await getSetupHelp(env, USER_A);
+      const result = await getInfo(env, USER_A);
       const data = parseResult(result) as {
         sources: { source_uuid: string; adapter_credentials?: unknown }[];
       };
@@ -1316,12 +1316,115 @@ describe("MCP Tools", () => {
     it("returns source_kind in lookup result", async () => {
       await seedAdapterSource({ sourceUuid: "adapter-lookup", userUuid: USER_A });
 
-      const result = await getSetupHelp(env, USER_A, undefined, undefined, "adapter-lookup");
+      const result = await getInfo(env, USER_A, undefined, undefined, undefined, "adapter-lookup");
       const data = parseResult(result) as {
         lookup: { found: boolean; source_kind: string };
       };
       expect(data.lookup.found).toBe(true);
       expect(data.lookup.source_kind).toBe("adapter");
+    });
+
+    // ── Category-based progressive disclosure ────────────────
+
+    it("returns categories menu when no category specified", async () => {
+      const result = await getInfo(env, USER_A);
+      const data = parseResult(result) as {
+        sources: unknown[];
+        categories: Record<string, { description: string }>;
+      };
+      expect(data.categories).toHaveProperty("setup");
+      expect(data.categories).toHaveProperty("privacy");
+      expect(data.categories).toHaveProperty("about");
+      expect(data.categories.setup!.description).toBeTruthy();
+      // Default should NOT include guide/setup/privacy/about content
+      expect(data).not.toHaveProperty("setup");
+      expect(data).not.toHaveProperty("privacy");
+      expect(data).not.toHaveProperty("about");
+    });
+
+    it("returns privacy info for category='privacy'", async () => {
+      const result = await getInfo(env, USER_A, "privacy");
+      const data = parseResult(result) as {
+        sources: unknown[];
+        privacy: string;
+      };
+      expect(data.privacy).toContain("open source");
+      expect(data.privacy).toContain("savecraft.gg/privacy");
+      expect(data.privacy).toContain("do not sell");
+      // Should NOT include categories menu or other sections
+      expect(data).not.toHaveProperty("categories");
+      expect(data).not.toHaveProperty("setup");
+      expect(data).not.toHaveProperty("about");
+    });
+
+    it("returns about info for category='about'", async () => {
+      const result = await getInfo(env, USER_A, "about");
+      const data = parseResult(result) as {
+        sources: unknown[];
+        about: string;
+      };
+      expect(data.about).toContain("github.com/joshsymonds/savecraft.gg");
+      expect(data.about).toContain("Josh Symonds");
+      expect(data.about).toContain("open source");
+      expect(data).not.toHaveProperty("categories");
+      expect(data).not.toHaveProperty("setup");
+      expect(data).not.toHaveProperty("privacy");
+    });
+
+    it("returns setup guide for category='setup'", async () => {
+      const result = await getInfo(env, USER_A, "setup");
+      const data = parseResult(result) as {
+        sources: unknown[];
+        setup: Record<string, unknown>;
+      };
+      expect(data.setup).toHaveProperty("linux");
+      expect(data.setup).toHaveProperty("pairing");
+      expect(data).not.toHaveProperty("categories");
+      expect(data).not.toHaveProperty("privacy");
+      expect(data).not.toHaveProperty("about");
+    });
+
+    it("always returns sources regardless of category", async () => {
+      await seedTestSource({
+        sourceUuid: "dev-cat",
+        userUuid: USER_A,
+        hostname: "gaming-pc",
+      });
+
+      for (const category of [undefined, "setup", "privacy", "about"]) {
+        const result = await getInfo(env, USER_A, category);
+        const data = parseResult(result) as { sources: { source_uuid: string }[] };
+        expect(data.sources).toHaveLength(1);
+        expect(data.sources[0]!.source_uuid).toBe("dev-cat");
+      }
+    });
+
+    it("returns only sources for unknown category", async () => {
+      const result = await getInfo(env, USER_A, "nonexistent");
+      const data = parseResult(result) as Record<string, unknown>;
+      expect(data.sources).toBeDefined();
+      expect(data).not.toHaveProperty("categories");
+      expect(data).not.toHaveProperty("setup");
+      expect(data).not.toHaveProperty("privacy");
+      expect(data).not.toHaveProperty("about");
+    });
+
+    it("lookup works with any category", async () => {
+      await seedTestSource({
+        sourceUuid: "dev-cat-lookup",
+        hostname: "my-pc",
+        linkCode: "777777",
+        linkCodeExpiresAt: new Date(Date.now() + 10 * 60_000).toISOString(),
+      });
+
+      const result = await getInfo(env, USER_A, "privacy", undefined, "777777");
+      const data = parseResult(result) as {
+        privacy: string;
+        lookup: { found: boolean; source_uuid: string };
+      };
+      expect(data.privacy).toBeTruthy();
+      expect(data.lookup.found).toBe(true);
+      expect(data.lookup.source_uuid).toBe("dev-cat-lookup");
     });
   });
 }); // MCP Tools

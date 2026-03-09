@@ -67,7 +67,7 @@ describe("MCP Status", () => {
     expect(resp.status).toBe(401);
   });
 
-  it("get_setup_help includes configured_games with config status", async () => {
+  it("get_savecraft_info includes configured_games with config status", async () => {
     // Seed a source linked to our test user
     const { sourceUuid } = await seedSource(TEST_USER);
 
@@ -91,9 +91,9 @@ describe("MCP Status", () => {
       ),
     ]);
 
-    // Call get_setup_help via MCP
+    // Call get_savecraft_info via MCP
     const resp = await SELF.fetch(
-      mcpRequest("tools/call", 2, { name: "get_setup_help", arguments: {} }),
+      mcpRequest("tools/call", 2, { name: "get_savecraft_info", arguments: {} }),
     );
     expect(resp.status).toBe(200);
     const body = await resp.json<{ result: { content: { type: string; text: string }[] } }>();
