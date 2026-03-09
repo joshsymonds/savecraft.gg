@@ -13,10 +13,8 @@
     const clerk = getClerk();
     const el = container;
     clerk.mountSignUp(el, {
-      routing: "path",
-      path: "/sign-up",
       signInUrl: "/sign-in",
-      afterSignUpUrl: "/",
+      fallbackRedirectUrl: "/",
     });
     return () => {
       clerk.unmountSignUp(el);
