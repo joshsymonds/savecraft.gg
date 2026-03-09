@@ -6,6 +6,8 @@
   the page source can guide a user through full setup.
 -->
 <script lang="ts">
+  import { resolve } from "$app/paths";
+
   let expandedClient: string | null = $state(null);
 
   function toggle(client: string): void {
@@ -38,7 +40,7 @@
     <!-- Dashboard link -->
     <div class="dashboard-link">
       <p class="dashboard-text">Your connector URL is on your Savecraft dashboard.</p>
-      <a href="/" class="dashboard-btn">GO TO DASHBOARD</a>
+      <a href={resolve("/")} class="dashboard-btn">GO TO DASHBOARD</a>
     </div>
 
     <!-- Client instructions -->
