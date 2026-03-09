@@ -21,7 +21,6 @@
   >
   <div class="footer-links">
     <a href="/games" class="footer-link">GAMES</a>
-    <a href="/docs" class="footer-link">DOCS</a>
     <a href="/support" class="footer-link">SUPPORT</a>
     <a href="/privacy" class="footer-link">PRIVACY</a>
     <a href="https://discord.gg/YnC8stpEmF" class="footer-link" target="_blank" rel="noopener"

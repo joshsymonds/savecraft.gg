@@ -54,7 +54,6 @@
     </a>
     <div class="nav-right">
       <a href="/games" class="nav-link" class:active={pathname === "/games"}>GAMES</a>
-      <a href="/docs" class="nav-link" class:active={pathname === "/docs"}>DOCS</a>
       <a href="/support" class="nav-link" class:active={pathname === "/support"}>SUPPORT</a>
       <a
         href="https://discord.gg/YnC8stpEmF"

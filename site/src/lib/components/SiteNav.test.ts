@@ -54,12 +54,11 @@ describe("SiteNav", () => {
     expect(cta?.getAttribute("href")).toBe(TEST_APP_URL);
   });
 
-  it("renders GAMES, DOCS, and SUPPORT nav links", () => {
+  it("renders GAMES and SUPPORT nav links", () => {
     const { container } = render(SiteNav);
     const links = container.querySelectorAll(".nav-link");
     const texts = Array.from(links).map((l) => l.textContent?.trim());
     expect(texts).toContain("GAMES");
-    expect(texts).toContain("DOCS");
     expect(texts).toContain("SUPPORT");
   });
 });
