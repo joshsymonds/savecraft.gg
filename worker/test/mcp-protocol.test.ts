@@ -95,6 +95,26 @@ describe("MCP Protocol", () => {
     expect(body.result.capabilities).toBeDefined();
   });
 
+  it("includes Content-Security-Policy header on all response types", async () => {
+    // JSON-RPC success (initialize)
+    const initResp = await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+    expect(initResp.headers.get("Content-Security-Policy")).toBe("default-src 'none'");
+
+    // JSON-RPC error (unknown method)
+    const errorResp = await SELF.fetch(mcpRequest("bogus/method", 2));
+    expect(errorResp.headers.get("Content-Security-Policy")).toBe("default-src 'none'");
+
+    // Notification (202)
+    const notifResp = await SELF.fetch(mcpRequest("notifications/initialized"));
+    expect(notifResp.headers.get("Content-Security-Policy")).toBe("default-src 'none'");
+  });
+
   it("accepts initialized notification", async () => {
     // Initialize first
     await SELF.fetch(

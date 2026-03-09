@@ -29,7 +29,7 @@ const SERVER_INSTRUCTIONS = `Savecraft gives you access to the player's actual g
 
 Notes are the player's memory across conversations — goals, build guides, session context. Always read relevant notes (via get_note) before giving advice, so you build on what's already been discussed. When the player shares something worth remembering, offer to save it as a note. Keep notes current with update_note when circumstances change.
 
-Results from search_saves distinguish between save data (what the player actually has in-game) and notes (what the player wrote or planned). This distinction matters: "you have Enigma" vs "your guide recommends Enigma" are very different.
+Results from search_saves distinguish between save data (what the player actually has in-game) and notes (what the player wrote or planned). This distinction matters: "player owns this item" vs "guide recommends this item" are very different.
 
 All timestamps returned by Savecraft are UTC.`;
 
@@ -189,7 +189,7 @@ const TOOLS: ToolDefinition[] = [
         title: {
           type: "string",
           description:
-            "Short descriptive title (e.g. 'Enigma Farming Goals', 'Maxroll Hammerdin Guide')",
+            "Short descriptive title (e.g. 'Farming Goals', 'Build Guide', 'Session Notes')",
         },
         content: {
           type: "string",
@@ -256,7 +256,7 @@ const TOOLS: ToolDefinition[] = [
     name: "refresh_save",
     title: "Refresh Save",
     description:
-      "Request fresh data for a save from the player's source or game API. Use when the player says something just changed ('I just found a Ber rune', 'I just equipped a new item', 'I just finished the quest'). The server handles whether this goes to the local daemon or a game API — you don't need to know which. After refreshing, re-read the relevant sections to see the updated state.",
+      "Request fresh data for a save from the player's source or game API. Use when the player says something just changed ('I just found a rare item', 'I just equipped new gear', 'I just finished the quest'). The server handles whether this goes to the local daemon or a game API — you don't need to know which.",
     inputSchema: {
       type: "object",
       properties: {
@@ -283,7 +283,7 @@ const TOOLS: ToolDefinition[] = [
         query: {
           type: "string",
           description:
-            "Keywords to search for. Supports prefix matching (hamm*) and boolean operators (enigma OR grief).",
+            "Keywords to search for. Supports prefix matching (drag*) and boolean operators (sword OR shield).",
         },
         save_id: {
           type: "string",
