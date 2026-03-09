@@ -19,7 +19,11 @@
 
 <button class="picker-card" class:watched={game.watched} {onclick}>
   <div class="picker-left">
-    <GameIcon iconUrl={game.iconUrl} name={game.name} variant={game.isApiGame ? "api" : "default"} />
+    <GameIcon
+      iconUrl={game.iconUrl}
+      name={game.name}
+      variant={game.isApiGame ? "api" : "default"}
+    />
     <div class="picker-info">
       <span class="picker-name">{game.name}</span>
       <span class="picker-desc">{game.description}</span>
