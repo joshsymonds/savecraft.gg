@@ -65,9 +65,10 @@ function isMcpHost(url: URL, env: Env): boolean {
  * Includes OG meta tags (for link preview unfurlers) and a redirect to /connect.
  */
 function escapeHtml(s: string): string {
-  return s.replace(
+  return s.replaceAll(
     /[&<>"']/g,
-    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+    (c) =>
+      ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c] ?? c,
   );
 }
 
