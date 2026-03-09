@@ -43,12 +43,8 @@
   }
 
   // -- Games from plugin manifest ----------------------------
-  let daemonGames = $derived(
-    [...$plugins.values()].filter((p) => !p.adapter),
-  );
-  let apiGames = $derived(
-    [...$plugins.values()].filter((p) => !!p.adapter),
-  );
+  let daemonGames = $derived([...$plugins.values()].filter((p) => !p.adapter));
+  let apiGames = $derived([...$plugins.values()].filter((p) => !!p.adapter));
 
   // -- Shared state -----------------------------------------
   let copied = $state<string | null>(null);
