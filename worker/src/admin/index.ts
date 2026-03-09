@@ -193,19 +193,23 @@ async function handleCleanUser(request: Request, env: Env): Promise<Response> {
   }
   const userUuid = body.userUuid;
 
-  // Delete in FK-safe order: children before parents
-  await env.DB.batch([
-    env.DB.prepare(
-      "DELETE FROM search_index WHERE save_id IN (SELECT uuid FROM saves WHERE user_uuid = ?)",
-    ).bind(userUuid),
-    env.DB.prepare(
-      "DELETE FROM notes WHERE save_id IN (SELECT uuid FROM saves WHERE user_uuid = ?)",
-    ).bind(userUuid),
-    env.DB.prepare(
-      "DELETE FROM sections WHERE save_uuid IN (SELECT uuid FROM saves WHERE user_uuid = ?)",
-    ).bind(userUuid),
-    env.DB.prepare("DELETE FROM saves WHERE user_uuid = ?").bind(userUuid),
-  ]);
+  // FTS5 virtual tables don't support subqueries in DELETE, so fetch save IDs first
+  const saves = await env.DB.prepare("SELECT uuid FROM saves WHERE user_uuid = ?")
+    .bind(userUuid)
+    .all<{ uuid: string }>();
+  const saveIds = saves.results.map((s) => s.uuid);
+
+  if (saveIds.length > 0) {
+    const placeholders = saveIds.map(() => "?").join(",");
+    await env.DB.batch([
+      env.DB.prepare(`DELETE FROM search_index WHERE save_id IN (${placeholders})`).bind(
+        ...saveIds,
+      ),
+      env.DB.prepare(`DELETE FROM notes WHERE save_id IN (${placeholders})`).bind(...saveIds),
+      env.DB.prepare(`DELETE FROM sections WHERE save_uuid IN (${placeholders})`).bind(...saveIds),
+      env.DB.prepare("DELETE FROM saves WHERE user_uuid = ?").bind(userUuid),
+    ]);
+  }
 
   return Response.json({ cleaned: true, userUuid });
 }
