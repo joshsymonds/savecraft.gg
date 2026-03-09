@@ -244,6 +244,7 @@ export default tseslint.config(
       "max-lines-per-function": "off",
       "max-nested-callbacks": "off",
       "unicorn/consistent-function-scoping": "off",
+      "unicorn/no-document-cookie": "off",
       complexity: "off",
       "no-console": "off",
     },

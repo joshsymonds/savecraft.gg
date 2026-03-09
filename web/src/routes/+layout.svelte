@@ -16,7 +16,11 @@
   let { children } = $props();
   let userButtonEl: HTMLDivElement | undefined = $state();
 
-  const PUBLIC_ROUTES = new Set(["/sign-in", "/sign-up"]);
+  const PUBLIC_ROUTE_PREFIXES = ["/sign-in", "/sign-up"];
+
+  function isPublicRoute(pathname: string): boolean {
+    return PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+  }
 
   /** Check Clerk's session cookie to infer auth state before the SDK loads. */
   function hasClerkSession(): boolean {
@@ -32,8 +36,9 @@
 
   // Route guard: redirect unauthenticated users away from protected routes.
   // Uses the session cookie for an instant check before Clerk finishes loading.
+  // Prefix matching allows Clerk's multi-step sub-routes (e.g. /sign-up/verify-email-address).
   $effect(() => {
-    if (PUBLIC_ROUTES.has(page.url.pathname)) return;
+    if (isPublicRoute(page.url.pathname)) return;
     const isSignedOut = $authState.isLoaded && !$authState.isSignedIn;
     const likelySignedOut = !$authState.isLoaded && !hasClerkSession();
     if (isSignedOut || likelySignedOut) {
@@ -81,7 +86,7 @@
   const showAppShell = $derived($authState.isLoaded && $authState.isSignedIn);
 </script>
 
-{#if PUBLIC_ROUTES.has(page.url.pathname)}
+{#if isPublicRoute(page.url.pathname)}
   {@render children()}
 {:else if showAppShell}
   <div class="app-shell">
