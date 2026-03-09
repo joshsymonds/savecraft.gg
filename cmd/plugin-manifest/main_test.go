@@ -494,6 +494,51 @@ regions = ["us", "eu", "kr", "tw"]
 	}
 }
 
+func TestBuildManifest_IconField(t *testing.T) {
+	dir := t.TempDir()
+
+	writeFile(t, filepath.Join(dir, "plugin.toml"), `
+game_id = "d2r"
+name = "Diablo II: Resurrected"
+description = "Test plugin with icon"
+channel = "beta"
+coverage = "partial"
+icon = "icon.png"
+file_extensions = [".d2s"]
+homepage = "https://example.com"
+[author]
+name = "Test"
+github = "test"
+[default_paths]
+windows = "C:/test"
+linux = "/test"
+darwin = "/test"
+`)
+	writeFile(t, filepath.Join(dir, "parser.wasm"), "fake parser wasm")
+
+	m, err := buildManifest(dir)
+	if err != nil {
+		t.Fatalf("buildManifest: %v", err)
+	}
+
+	if m.Icon != "icon.png" {
+		t.Errorf("icon = %q, want icon.png", m.Icon)
+	}
+
+	// Verify icon appears in JSON output.
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	var raw map[string]any
+	if err := json.Unmarshal(data, &raw); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if raw["icon"] != "icon.png" {
+		t.Errorf("JSON icon = %v, want icon.png", raw["icon"])
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
