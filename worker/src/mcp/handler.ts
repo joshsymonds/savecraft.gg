@@ -25,25 +25,13 @@ import type { ToolResult } from "./tools";
 
 const PROTOCOL_VERSION = "2025-11-25";
 
-const SERVER_INSTRUCTIONS = `Savecraft gives you access to the player's actual game state — their characters, gear, progress, and goals — parsed from real save files. You are their gaming companion.
+const SERVER_INSTRUCTIONS = `Savecraft gives you access to the player's actual game state — characters, gear, progress, and goals — parsed from real save files. You are their gaming companion.
 
-Two interaction modes (same tools, different intent):
-- Companion: The player is talking, venting, or celebrating. React with empathy and context from their actual state. "I FOUND A BER" means more when you know it was on their farming list.
-- Optimizer: The player wants specific advice. Analyze their sections and notes, compare to game knowledge, give personalized recommendations.
+Notes are the player's memory across conversations — goals, build guides, session context. Always read relevant notes (via get_note) before giving advice, so you build on what's already been discussed. When the player shares something worth remembering, offer to save it as a note. Keep notes current with update_note when circumstances change.
 
-Start with list_games to see what's available — it returns all games, saves (with note titles), and reference modules (with parameter schemas) in one call. Use get_save to orient on a character — it returns a summary, overview data, all available section names, and attached notes. Notes contain the player's goals, build guides, and context from previous sessions — they are your memory across conversations. Use get_note to read the full content of relevant notes before giving advice. Only then fetch specific sections via get_section as needed for the question.
+Results from search_saves distinguish between save data (what the player actually has in-game) and notes (what the player wrote or planned). This distinction matters: "you have Enigma" vs "your guide recommends Enigma" are very different.
 
-When the player says something just changed ("I just found a Ber rune", "I just finished the quest"), call refresh_save first to pull fresh data, then re-read the relevant sections.
-
-Results from search_saves distinguish between save data (what the player actually has in-game) and notes (what the player wrote, plans, or guides they're following). This distinction matters: "you have Enigma" vs "your guide recommends Enigma" are very different.
-
-When the player shares something worth remembering — a goal, a milestone, a plan — offer to save it as a note via create_note. Keep notes current with update_note when circumstances change. The player shouldn't have to repeat themselves across sessions.
-
-For questions about game mechanics (drop rates, build calculations, treasure classes), use query_reference. The list_games response includes available reference modules and their parameter schemas, so you already know what queries are possible — no extra discovery step needed. These computations use actual game data tables and are more reliable than AI estimation.
-
-All timestamps returned by Savecraft are UTC.
-
-If the player has no saves, asks about installing Savecraft, mentions a pairing code, seems confused about why their data isn't showing up, or asks about privacy, security, or what Savecraft is, use get_savecraft_info. It returns their source status and supports category-based drill-down (setup, privacy, about) — call without a category first to see what's available.`;
+All timestamps returned by Savecraft are UTC.`;
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -99,9 +87,9 @@ const TOOLS: ToolDefinition[] = [
   // ── Discovery ─────────────────────────────────────────────
   {
     name: "list_games",
-    title: "List Games",
+    title: "List Games & Saves",
     description:
-      "List all games the player has, with their saves, notes, and available reference modules. Start here to orient yourself. Each game includes its saves (with note titles per save), and reference modules with parameter schemas showing what computations are available. Use the returned save_id with other tools. Optionally filter by game name or ID.",
+      "Returns all games the player has, with their saves (including note titles), and reference modules with parameter schemas. Call this first to orient yourself — use the returned save_id values with all other tools. Optionally filter by game name or ID.",
     inputSchema: {
       type: "object",
       properties: {
@@ -121,9 +109,9 @@ const TOOLS: ToolDefinition[] = [
   },
   {
     name: "get_save",
-    title: "Get Save",
+    title: "Get Save Details",
     description:
-      "Get a save's summary, overview data, available sections, and attached notes. Use this when the player mentions a character or you need to orient yourself. The overview includes key stats (level, class, etc.). Notes contain the player's goals, build guides, and context from previous sessions — check them before giving advice. Section names and contents vary by game — use the returned section names with get_section to fetch detailed data.",
+      "Get a save's summary, overview data, available section names, and attached notes. Use when the player mentions a specific character or save. Section names and contents vary by game — use the returned names with get_section to fetch detailed data.",
     inputSchema: {
       type: "object",
       properties: {
@@ -141,9 +129,9 @@ const TOOLS: ToolDefinition[] = [
   // ── Reading save data ─────────────────────────────────────
   {
     name: "get_section",
-    title: "Get Section Data",
+    title: "Get Save Section Data",
     description:
-      "Fetch detailed section data from a save. Pass one or more section names to retrieve. Only fetch sections relevant to the question — don't load everything.",
+      "Fetch detailed section data from a save. Call get_save first to see available section names — section names and their contents vary by game. Pass one or more names; only fetch sections relevant to the question.",
     inputSchema: {
       type: "object",
       properties: {
@@ -171,9 +159,9 @@ const TOOLS: ToolDefinition[] = [
   // to read full content before giving advice.
   {
     name: "get_note",
-    title: "Get Note",
+    title: "Get Note Content",
     description:
-      "Fetch a note's full content. Read relevant notes before giving advice — if the player has a build guide saved, compare their actual state to it rather than suggesting a generic build.",
+      "Fetch the full content of a note. Use when get_save or search_saves returns note metadata and the note is relevant to the player's question.",
     inputSchema: {
       type: "object",
       properties: {
@@ -193,7 +181,7 @@ const TOOLS: ToolDefinition[] = [
     name: "create_note",
     title: "Create Note",
     description:
-      "Create a note attached to a save. Use for build guides, farming goals, session memories, or anything the player might want recalled later. When a player shares something worth remembering — a goal, a frustration, a milestone, a plan — offer to save it as a note so you can reference it in future sessions. The player shouldn't have to repeat themselves. Maximum 10 notes per save.",
+      "Create a note attached to a save. Use for build guides, goals, session memories, or anything the player might want recalled in future sessions. Maximum 10 notes per save.",
     inputSchema: {
       type: "object",
       properties: {
@@ -222,7 +210,7 @@ const TOOLS: ToolDefinition[] = [
     name: "update_note",
     title: "Update Note",
     description:
-      "Update a note's title or content. Keep notes current — when the player achieves a goal, finds a drop, or changes plans, update the relevant note so it stays accurate. Don't let notes go stale.",
+      "Update a note's title or content. Use when the player's plans, goals, or save state has changed and an existing note is outdated. Pass only the fields to change — omit title or content to leave them unchanged.",
     inputSchema: {
       type: "object",
       properties: {
@@ -238,7 +226,7 @@ const TOOLS: ToolDefinition[] = [
     },
     annotations: {
       readOnlyHint: false,
-      destructiveHint: false,
+      destructiveHint: true,
       idempotentHint: true,
       openWorldHint: false,
     },
@@ -247,7 +235,7 @@ const TOOLS: ToolDefinition[] = [
     name: "delete_note",
     title: "Delete Note",
     description:
-      "Delete a note permanently. Confirm with the player before deleting — notes may contain context they'll want later even if it seems outdated now.",
+      "Permanently delete a note from a save. Use only when the player explicitly asks to remove a note — prefer update_note to revise outdated content rather than deleting.",
     inputSchema: {
       type: "object",
       properties: {
@@ -288,7 +276,7 @@ const TOOLS: ToolDefinition[] = [
     name: "search_saves",
     title: "Search Saves & Notes",
     description:
-      'Full-text search across all saves and notes. Use when you need to find something specific (an item, a quest, a goal) and don\'t know which save or section contains it. Especially useful for cross-character queries like "which of my characters has Enigma?" Results distinguish between save data (what the player has) and notes (what the player wrote or is planning) — this distinction matters.',
+      "Full-text search across all saves and notes. Use when you need to find something specific and don't know which save or section contains it — especially useful for cross-character queries. Results distinguish between save data (what the player has) and notes (what the player wrote or planned).",
     inputSchema: {
       type: "object",
       properties: {
@@ -319,24 +307,24 @@ const TOOLS: ToolDefinition[] = [
   // authoritative — they use the actual game data tables.
   {
     name: "query_reference",
-    title: "Query Reference Module",
+    title: "Query Game Reference Data",
     description:
-      "Execute a reference data computation for a game. Returns authoritative results computed from actual game data tables — more reliable than AI estimation. The list_games response includes each game's available reference modules and their parameter schemas, so check there first to see what queries are possible.",
+      "Execute a reference data computation for a game — use for authoritative quantitative results (drop rates, stat calculations, build thresholds) where AI estimation would be unreliable. Available modules and their parameter schemas are returned by list_games.",
     inputSchema: {
       type: "object",
       properties: {
         game_id: {
           type: "string",
-          description: "Game ID from list_games (e.g. 'd2r').",
+          description: "Game ID from list_games.",
         },
         module: {
           type: "string",
-          description: "Reference module ID from list_games (e.g. 'drop_calc').",
+          description: "Reference module ID from list_games.",
         },
         query: {
           type: "string",
           description:
-            "JSON query string with module-specific parameters. See the module's parameter schema from list_games for available fields.",
+            "JSON-encoded query object with module-specific parameters. The exact structure is defined by the module's parameter schema in the list_games response — build from that schema, do not guess field names.",
         },
       },
       required: ["game_id", "module", "query"],
@@ -351,9 +339,9 @@ const TOOLS: ToolDefinition[] = [
   // ── Savecraft Info ──────────────────────────────────────────
   {
     name: "get_savecraft_info",
-    title: "Savecraft Info",
+    title: "Savecraft Setup & Info",
     description:
-      "Get information about the player's Savecraft setup, privacy practices, or the project itself. Always returns the player's source list (daemon and adapter sources with status). Without a category, also returns a menu of available categories to drill into. With a category, returns focused content for that topic: 'setup' for installation/pairing/API game guides, 'privacy' for data collection and security details, 'about' for project info and open source links. Use when list_games returns no saves, when the player mentions a pairing code, asks about connecting a game, asks if Savecraft is safe/private, or wants to know what Savecraft is.",
+      "Get information about the player's Savecraft setup or the project itself. Use when list_games returns no saves, the player mentions a pairing code or connecting a game, asks about privacy/security, or wants to know what Savecraft is. Always returns the player's source list. Omit category for a topic menu; pass a category for focused content.",
     inputSchema: {
       type: "object",
       properties: {
