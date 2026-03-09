@@ -1,6 +1,6 @@
 <!--
   @component
-  MCP connect card: compact CTA when no AI client connected, compact status once connected.
+  AI connect card: compact CTA when no AI client connected, compact status once connected.
   When not connected, shows a pulsing gold border and expands instructions by default on first visit.
 
   Pass `initialState` to bypass API calls and show a specific visual state (for Storybook).
@@ -96,10 +96,26 @@
           <button class="copy-btn" class:copied onclick={copyUrl}>{copyLabel}</button>
         </div>
       </div>
+      <div class="post-connect-hint">
+        Open Claude, ChatGPT, or Gemini and ask about your game &mdash; it can read your saves.
+      </div>
     </Panel>
   {:else}
     <div class="cta-wrapper">
       <Panel accent="#e8c44e40">
+        <div class="explainer">
+          <p class="explainer-text">
+            Savecraft connects your game saves to AI assistants like Claude and ChatGPT.
+          </p>
+          <div class="flow-diagram">
+            <span class="flow-step">🎮 You play</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-step">⚡ Savecraft syncs</span>
+            <span class="flow-arrow">&rarr;</span>
+            <span class="flow-step">🤖 AI reads</span>
+          </div>
+        </div>
+
         <div class="row">
           <div class="status">
             <span class="status-dot pending"></span>
@@ -117,7 +133,7 @@
 
         {#if expanded}
           <div class="details">
-            <span class="details-hint">Copy the URL above, then paste it into your AI client:</span>
+            <span class="details-hint">Paste this URL into your AI client:</span>
             <div class="detail-row">
               <span class="client-name">Claude.ai</span>
               <span class="client-arrow">&rarr;</span>
@@ -135,7 +151,7 @@
             <div class="detail-row">
               <span class="client-name">ChatGPT</span>
               <span class="client-arrow">&rarr;</span>
-              <span class="client-steps">Settings &rarr; MCP &rarr; Add remote server</span>
+              <span class="client-steps">Settings &rarr; Connections &rarr; Add remote server</span>
             </div>
           </div>
         {/if}
@@ -164,6 +180,57 @@
         0 0 0 1px rgba(200, 168, 78, 0.4),
         0 0 16px rgba(200, 168, 78, 0.12);
     }
+  }
+
+  /* -- Explainer block ---------------------------------------- */
+
+  .explainer {
+    padding: 16px 18px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .explainer-text {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--color-text-dim);
+    margin: 0;
+    line-height: 1.4;
+  }
+
+  .flow-diagram {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 14px;
+    background: rgba(5, 7, 26, 0.4);
+    border-radius: 4px;
+    border: 1px solid rgba(200, 168, 78, 0.12);
+  }
+
+  .flow-step {
+    font-family: var(--font-pixel);
+    font-size: 11px;
+    color: var(--color-text);
+    letter-spacing: 1px;
+    white-space: nowrap;
+  }
+
+  .flow-arrow {
+    color: var(--color-gold);
+    font-size: 16px;
+    flex-shrink: 0;
+  }
+
+  /* -- Post-connect hint -------------------------------------- */
+
+  .post-connect-hint {
+    padding: 0 18px 14px;
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-text-muted);
+    line-height: 1.4;
   }
 
   /* -- Shared row layout -------------------------------------- */

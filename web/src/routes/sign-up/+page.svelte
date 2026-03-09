@@ -30,6 +30,7 @@
 <div class="sign-up-page">
   <div class="hero">
     <div class="logo">SAVECRAFT</div>
+    <p class="tagline">Connect your game saves to AI assistants.</p>
   </div>
   <div class="auth-card">
     <div bind:this={container}></div>
@@ -57,6 +58,14 @@
     font-size: 24px;
     color: var(--color-gold);
     letter-spacing: 6px;
+  }
+
+  .tagline {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--color-text-muted);
+    margin: 10px 0 0;
+    letter-spacing: 0.5px;
   }
 
   .auth-card {
