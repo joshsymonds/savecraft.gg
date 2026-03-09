@@ -161,9 +161,7 @@ describe("layout route guard", () => {
     it("redirects non-root protected route with redirect_url", () => {
       mockPathname = "/link/abc123";
       renderLayout();
-      expect(mockGoto).toHaveBeenCalledWith(
-        "/sign-in?redirect_url=%2Flink%2Fabc123",
-      );
+      expect(mockGoto).toHaveBeenCalledWith("/sign-in?redirect_url=%2Flink%2Fabc123");
     });
 
     it("redirects when Clerk confirms signed out", async () => {
