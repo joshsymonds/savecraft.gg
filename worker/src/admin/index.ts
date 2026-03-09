@@ -55,7 +55,26 @@ async function proxyDoDebug(
 
 const NOT_FOUND = (): Response => Response.json({ error: "Not found" }, { status: 404 });
 
+async function proxyDoPost(
+  doNamespace: DurableObjectNamespace,
+  entityId: string,
+  path: string,
+  body: unknown,
+): Promise<Response> {
+  const id = doNamespace.idFromName(entityId);
+  const stub = doNamespace.get(id);
+  const doResponse = await stub.fetch(
+    new Request(`https://do/${path}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    }),
+  );
+  return new Response(doResponse.body, doResponse);
+}
+
 async function routeSourceAdmin(
+  request: Request,
   env: Env,
   url: URL,
   sourceUuid: string,
@@ -63,6 +82,10 @@ async function routeSourceAdmin(
 ): Promise<Response> {
   if (subpath === "events") {
     return handleSourceEvents(env, sourceUuid, url);
+  }
+  if (subpath === "push-update" && request.method === "POST") {
+    const body = await request.json();
+    return proxyDoPost(env.SOURCE_HUB, sourceUuid, "push-update", body);
   }
   return (await proxyDoDebug(env.SOURCE_HUB, sourceUuid, subpath)) ?? NOT_FOUND();
 }
@@ -87,7 +110,7 @@ export async function handleAdminRoute(
 
   const sourceMatch = /^\/admin\/source\/([^/]+)\/(.+)$/.exec(url.pathname);
   if (sourceMatch?.[1] && sourceMatch[2]) {
-    return routeSourceAdmin(env, url, sourceMatch[1], sourceMatch[2]);
+    return routeSourceAdmin(request, env, url, sourceMatch[1], sourceMatch[2]);
   }
 
   const userMatch = /^\/admin\/user\/([^/]+)\/(.+)$/.exec(url.pathname);
