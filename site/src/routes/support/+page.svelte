@@ -8,10 +8,7 @@
 
 <svelte:head>
   <title>Support - Savecraft</title>
-  <meta
-    name="description"
-    content="Get help with Savecraft. Join our Discord or email support."
-  />
+  <meta name="description" content="Get help with Savecraft. Join our Discord or email support." />
 </svelte:head>
 
 <div class="page">
@@ -37,12 +34,7 @@
     </p>
 
     <div class="channels">
-      <a
-        href="https://discord.gg/YnC8stpEmF"
-        class="channel"
-        target="_blank"
-        rel="noopener"
-      >
+      <a href="https://discord.gg/YnC8stpEmF" class="channel" target="_blank" rel="noopener">
         <div class="channel-icon">
           <svg width="28" height="28" viewBox="0 0 24 24" fill="currentColor">
             <path
@@ -61,7 +53,14 @@
 
       <a href="mailto:support@savecraft.gg" class="channel">
         <div class="channel-icon">
-          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+          <svg
+            width="28"
+            height="28"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+          >
             <rect x="2" y="4" width="20" height="16" rx="2" />
             <path d="M22 4L12 13L2 4" />
           </svg>
@@ -83,8 +82,8 @@
         <h3>My saves aren't showing up</h3>
         <p>
           Make sure the Savecraft daemon is running and paired to your account. Check the
-          <a href={`${PUBLIC_APP_URL}/sources`} class="text-link">sources page</a> to see if your
-          device is online. If it shows offline, restart the daemon and check the logs.
+          <a href={`${PUBLIC_APP_URL}/sources`} class="text-link">sources page</a> to see if your device
+          is online. If it shows offline, restart the daemon and check the logs.
         </p>
       </div>
 
