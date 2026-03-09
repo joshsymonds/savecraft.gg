@@ -72,6 +72,7 @@ interface ReferenceModule {
 interface ManifestData {
   game_id?: string;
   name?: string;
+  source?: string;
   reference?: {
     modules?: Record<string, ReferenceModule>;
   };
@@ -916,6 +917,7 @@ interface SourceRow {
   link_code_expires_at: string | null;
   can_rescan: number;
   can_receive_config: number;
+  source_kind: string;
 }
 
 /** Safe subset of source info — never includes token_hash, user PII, etc. */
@@ -928,8 +930,14 @@ interface ConfiguredGame {
   result_at: string | null;
 }
 
+interface AdapterCredential {
+  game_id: string;
+  status: "connected" | "expired" | "missing";
+}
+
 interface SourceInfo {
   source_uuid: string;
+  source_kind: string;
   hostname: string | null;
   os: string | null;
   arch: string | null;
@@ -938,11 +946,13 @@ interface SourceInfo {
   activity: "active" | "recently_active" | "inactive" | "never_pushed";
   capabilities: { can_rescan: boolean; can_receive_config: boolean };
   configured_games: ConfiguredGame[];
+  adapter_credentials?: AdapterCredential[];
 }
 
 interface SourceLookupResult {
   found: boolean;
   source_uuid?: string;
+  source_kind?: string;
   hostname?: string | null;
   os?: string | null;
   arch?: string | null;
@@ -959,9 +969,14 @@ interface PlatformGuide {
   details: string;
 }
 
+interface ApiGamesGuide {
+  setup: string;
+  available_games: AdapterGameInfo[];
+}
+
 interface SetupGuideResponse {
   sources: SourceInfo[];
-  guide: Record<string, PlatformGuide | string>;
+  guide: Record<string, PlatformGuide | string | ApiGamesGuide>;
   lookup?: SourceLookupResult;
 }
 
@@ -979,6 +994,7 @@ function deriveActivity(lastPushAt: string | null): SourceInfo["activity"] {
 function formatSourceInfo(row: SourceRow): SourceInfo {
   return {
     source_uuid: row.source_uuid,
+    source_kind: row.source_kind,
     hostname: row.hostname,
     os: row.os,
     arch: row.arch,
@@ -1028,7 +1044,15 @@ const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
 const PAIRING_GUIDE =
   "After installing, the daemon self-registers and displays a pairing link (https://savecraft.gg/link/<code>). Click the link, use the tray app's 'Link Account' button, or enter the 6-digit code on the savecraft.gg homepage. Once paired, your game saves appear automatically. Codes expire after 20 minutes — restart the daemon to generate a new one.";
 
-function buildGuide(platform?: string): SetupGuideResponse["guide"] {
+const ADAPTER_SETUP_GUIDE =
+  "Some games connect through their official API instead of local save files — for example, World of Warcraft connects through Battle.net. These are called adapter sources. No local daemon install is needed. To set up an API-backed game: visit savecraft.gg, select the game, choose your region if prompted, and complete the OAuth authorization with the game's provider (e.g. Battle.net for WoW). Once authorized, Savecraft discovers your characters automatically. Each adapter source includes an adapter_credentials array showing credential status per game: 'connected' means the OAuth token is valid, 'expired' means the token needs re-authorization at savecraft.gg, and 'missing' means the game is linked but OAuth hasn't been completed yet.";
+
+interface AdapterGameInfo {
+  game_id: string;
+  name: string;
+}
+
+function buildDaemonGuide(platform?: string): Record<string, PlatformGuide | string> {
   if (platform) {
     const guide = PLATFORM_GUIDES[platform];
     if (guide) {
@@ -1038,8 +1062,46 @@ function buildGuide(platform?: string): SetupGuideResponse["guide"] {
   return { ...PLATFORM_GUIDES, pairing: PAIRING_GUIDE };
 }
 
+async function buildGuide(
+  plugins: R2Bucket,
+  sourceKinds: Set<string>,
+  platform?: string,
+): Promise<SetupGuideResponse["guide"]> {
+  const hasDaemon = sourceKinds.has("daemon");
+  const hasAdapter = sourceKinds.has("adapter");
+  const hasNone = sourceKinds.size === 0;
+
+  const guide: SetupGuideResponse["guide"] = {};
+
+  // Include daemon guide if user has daemon sources or no sources at all
+  if (hasDaemon || hasNone) {
+    Object.assign(guide, buildDaemonGuide(platform));
+  }
+
+  // Include adapter guide if user has adapter sources or no sources at all
+  if (hasAdapter || hasNone) {
+    const apiGames = await getApiGamesFromManifests(plugins);
+    if (apiGames.length > 0) {
+      guide.api_games = { setup: ADAPTER_SETUP_GUIDE, available_games: apiGames };
+    }
+  }
+
+  return guide;
+}
+
+async function getApiGamesFromManifests(plugins: R2Bucket): Promise<AdapterGameInfo[]> {
+  const manifestKeys = await getManifestKeys(plugins);
+  const manifests = await Promise.all(manifestKeys.map((key) => getCachedManifest(plugins, key)));
+  return manifests
+    .filter(
+      (m): m is ManifestData & { game_id: string } =>
+        m !== null && m.source === "api" && !!m.game_id,
+    )
+    .map((m) => ({ game_id: m.game_id, name: m.name ?? m.game_id }));
+}
+
 const SOURCE_COLS =
-  "source_uuid, user_uuid, hostname, os, arch, last_push_at, link_code, link_code_expires_at, can_rescan, can_receive_config";
+  "source_uuid, user_uuid, hostname, os, arch, last_push_at, link_code, link_code_expires_at, can_rescan, can_receive_config, source_kind";
 
 async function resolveLookup(
   db: D1Database,
@@ -1118,11 +1180,60 @@ export async function getSetupHelp(
     }
   }
 
-  // 2-3. Optional lookup + live status check
-  const lookup = await resolveLookup(db, env, sourceUuid, linkCode);
+  // 1c. Attach credential status for adapter sources.
+  // Credentials are per-user (not per-source) since a user has one adapter source
+  // shared across all API-backed games. We assign the same credentials array to
+  // every adapter source the user owns.
+  const hasAdapterSources = sources.some((s) => s.source_kind === "adapter");
+  if (hasAdapterSources) {
+    const [credRows, linkedGameRows] = await Promise.all([
+      db
+        .prepare(`SELECT game_id, expires_at FROM game_credentials WHERE user_uuid = ?`)
+        .bind(userUuid)
+        .all<{ game_id: string; expires_at: string }>(),
+      db
+        .prepare(
+          `SELECT DISTINCT game_id FROM linked_characters WHERE user_uuid = ? AND active = 1`,
+        )
+        .bind(userUuid)
+        .all<{ game_id: string }>(),
+    ]);
+
+    const now = Date.now();
+    const credByGame = new Map<string, "connected" | "expired">(
+      credRows.results.map((row) => [
+        row.game_id,
+        new Date(row.expires_at).getTime() > now ? "connected" : "expired",
+      ]),
+    );
+
+    const linkedGameIds = new Set(linkedGameRows.results.map((r) => r.game_id));
+    // Also include games that have credentials but no linked characters
+    for (const gameId of credByGame.keys()) {
+      linkedGameIds.add(gameId);
+    }
+
+    const credentials: AdapterCredential[] = [...linkedGameIds].map((gameId) => ({
+      game_id: gameId,
+      status: credByGame.get(gameId) ?? "missing",
+    }));
+
+    for (const source of sources) {
+      if (source.source_kind === "adapter") {
+        source.adapter_credentials = credentials;
+      }
+    }
+  }
+
+  // 2-3. Optional lookup + live status check + context-aware guide
+  const sourceKinds = new Set(sourceRows.results.map((r) => r.source_kind));
+  const [lookup, guide] = await Promise.all([
+    resolveLookup(db, env, sourceUuid, linkCode),
+    buildGuide(env.PLUGINS, sourceKinds, platform),
+  ]);
 
   // 4. Build response
-  const response: SetupGuideResponse = { sources, guide: buildGuide(platform) };
+  const response: SetupGuideResponse = { sources, guide };
   if (lookup !== undefined) {
     response.lookup = lookup;
   }
