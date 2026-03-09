@@ -395,22 +395,9 @@ export class SourceHub extends DurableObject<Env> {
 
   private async routeHttpRequest(request: Request): Promise<Response> {
     const url = new URL(request.url);
-    if (url.pathname === "/cleanup" && request.method === "POST") {
-      return this.handleCleanup();
-    }
-    if (url.pathname === "/push-config" && request.method === "POST") {
-      const body = await request.json<{ sourceId: string }>();
-      await this.pushConfigToSource(body.sourceId);
-      return Response.json({ ok: true });
-    }
-    if (url.pathname === "/rescan" && request.method === "POST") {
-      return this.handleRescan(request);
-    }
-    if (url.pathname === "/set-game-status" && request.method === "POST") {
-      return this.handleSetGameStatus(request);
-    }
-    if (url.pathname === "/set-user" && request.method === "POST") {
-      return this.handleSetUser(request);
+
+    if (request.method === "POST") {
+      return this.routePostRequest(request, url);
     }
     if (url.pathname === "/status" && request.method === "GET") {
       return this.handleStatus();
@@ -419,6 +406,34 @@ export class SourceHub extends DurableObject<Env> {
       return this.routeDebugRequest(url);
     }
     return new Response("Expected WebSocket upgrade", { status: 426 });
+  }
+
+  private async routePostRequest(request: Request, url: URL): Promise<Response> {
+    switch (url.pathname) {
+      case "/cleanup": {
+        return this.handleCleanup();
+      }
+      case "/push-config": {
+        const body = await request.json<{ sourceId: string }>();
+        await this.pushConfigToSource(body.sourceId);
+        return Response.json({ ok: true });
+      }
+      case "/rescan": {
+        return this.handleRescan(request);
+      }
+      case "/set-game-status": {
+        return this.handleSetGameStatus(request);
+      }
+      case "/set-user": {
+        return this.handleSetUser(request);
+      }
+      case "/push-update": {
+        return this.handlePushUpdate(request);
+      }
+      default: {
+        return new Response("Not found", { status: 404 });
+      }
+    }
   }
 
   private async routeDebugRequest(url: URL): Promise<Response> {
@@ -1116,6 +1131,42 @@ export class SourceHub extends DurableObject<Env> {
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
       daemonWs.send(msg);
     }
+  }
+
+  /**
+   * Sends a SourceUpdateAvailable message to connected daemons, triggering
+   * an immediate self-update. Called via the admin API.
+   */
+  private handlePushUpdate(request: Request): Promise<Response> {
+    return request
+      .json<{
+        version: string;
+        url: string;
+        signatureUrl: string;
+        sha256: string;
+      }>()
+      .then((body) => {
+        const msg = Message.encode({
+          payload: {
+            $case: "sourceUpdateAvailable",
+            sourceUpdateAvailable: {
+              version: body.version,
+              url: body.url,
+              signatureUrl: body.signatureUrl,
+              sha256: body.sha256,
+            },
+          },
+        }).finish();
+        const daemons = this.ctx.getWebSockets("daemon");
+        for (const ws of daemons) {
+          ws.send(msg);
+        }
+        this.debugLog.push("info", "pushed SourceUpdateAvailable", {
+          version: body.version,
+          daemonCount: daemons.length,
+        });
+        return Response.json({ ok: true, daemonCount: daemons.length });
+      });
   }
 
   /**
