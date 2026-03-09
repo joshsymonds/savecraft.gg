@@ -15,6 +15,7 @@
       game={{
         gameId: "d2r",
         name: "Diablo II: Resurrected",
+        iconUrl: "/plugins/d2r/icon.png",
         description: "Parses .d2s character saves and shared stash",
         watched: true,
         saveCount: 3,
@@ -30,6 +31,7 @@
       game={{
         gameId: "sdv",
         name: "Stardew Valley",
+        iconUrl: "/plugins/sdv/icon.png",
         description: "Farm saves, skills, relationships, collections",
         watched: false,
         saveCount: 0,

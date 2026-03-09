@@ -9,25 +9,27 @@
 
   let {
     onsubmit,
+    onapiskip,
   }: {
     onsubmit?: (code: string) => void;
+    onapiskip?: () => void;
   } = $props();
 </script>
 
 <div class="empty-state">
-  <div class="terminal">
+  <div class="terminal" class:wide={!!onapiskip}>
     <!-- Terminal header lines -->
     <div class="terminal-header">
       <p class="terminal-line prompt">&gt; NO SOURCES DETECTED</p>
       <p class="terminal-line prompt dim">
-        &gt; AWAITING DAEMON CONNECTION<span class="cursor">_</span>
+        &gt; READY TO CONNECT<span class="cursor">_</span>
       </p>
     </div>
 
     <!-- Content panel with glow -->
     <div class="glow-wrap">
       <Panel accent="#c8a84e30">
-        <AddSourceContent {onsubmit} />
+        <AddSourceContent {onsubmit} {onapiskip} />
       </Panel>
     </div>
   </div>
@@ -52,6 +54,10 @@
     gap: 20px;
     max-width: 560px;
     width: 100%;
+  }
+
+  .terminal.wide {
+    max-width: 720px;
   }
 
   /* -- Terminal header lines -------------------------------- */

@@ -77,6 +77,7 @@ export interface PluginManifest {
   default_paths: { windows?: string; linux?: string; darwin?: string };
   coverage: string;
   source?: string;
+  icon_url?: string;
   adapter?: { authProvider: string; regions: string[] };
 }
 

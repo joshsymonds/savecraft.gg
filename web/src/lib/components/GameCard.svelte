@@ -7,6 +7,8 @@
 <script lang="ts">
   import type { Game } from "$lib/types/source";
 
+  import GameIcon from "./GameIcon.svelte";
+
   let {
     game,
     onclick,
@@ -22,10 +24,6 @@
   } = $props();
 
   let clickable = $derived(onclick !== undefined);
-
-  function gameIcon(name: string): string {
-    return name.charAt(0).toUpperCase();
-  }
 </script>
 
 <!-- svelte-ignore a11y_no_noninteractive_tabindex -->
@@ -45,7 +43,7 @@
       }
     : undefined}
 >
-  <span class="game-icon">{gameIcon(game.name)}</span>
+  <GameIcon iconUrl={game.iconUrl} name={game.name} size={36} />
   <span class="game-name">{game.name}</span>
   {#if adapterError}
     <span class="game-status error-status">Connection failed</span>
@@ -95,6 +93,7 @@
     display: flex;
     flex-direction: column;
     align-items: center;
+    gap: 4px;
     padding: 12px 10px;
     border-radius: 4px;
     background: rgba(74, 90, 173, 0.03);
@@ -121,13 +120,6 @@
   .game-card.has-error {
     border-color: rgba(220, 80, 80, 0.3);
     background: rgba(220, 80, 80, 0.04);
-  }
-
-  .game-icon {
-    font-family: var(--font-pixel);
-    font-size: 18px;
-    margin-bottom: 6px;
-    color: var(--color-gold-light);
   }
 
   .game-name {

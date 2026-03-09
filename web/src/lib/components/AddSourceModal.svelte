@@ -10,9 +10,11 @@
 
   let {
     onsubmit,
+    onapiskip,
     onclose,
   }: {
     onsubmit?: (code: string) => void;
+    onapiskip?: () => void;
     onclose: () => void;
   } = $props();
 </script>
@@ -23,5 +25,5 @@
       <button class="modal-close" onclick={() => onclose()}>&#x2715;</button>
     {/snippet}
   </WindowTitleBar>
-  <AddSourceContent {onsubmit} />
+  <AddSourceContent {onsubmit} {onapiskip} />
 </Modal>

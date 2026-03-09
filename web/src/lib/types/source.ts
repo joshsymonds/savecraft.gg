@@ -72,6 +72,7 @@ export interface Save extends SaveSummary {
 export interface Game {
   gameId: string;
   name: string;
+  iconUrl?: string;
   statusLine: string;
   saves: Save[];
   sourceCount: number;
@@ -99,6 +100,7 @@ export interface TestPathResult {
 export interface PickerGame {
   gameId: string;
   name: string;
+  iconUrl?: string;
   description: string;
   watched: boolean;
   saveCount: number;

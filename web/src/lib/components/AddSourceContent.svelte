@@ -2,17 +2,27 @@
   @component
   Shared install instructions + pairing code input.
   Used by both AddSourceModal and EmptySourceState.
+
+  Two-column layout when onapiskip is provided:
+    Left:  "Watch Your Saves" — daemon install + pairing code
+    Right: "Connect Your Account" — API game picker
+  Single-column (daemon-only) when onapiskip is omitted.
 -->
 <script lang="ts">
   import { PUBLIC_API_URL } from "$env/static/public";
+  import { plugins } from "$lib/stores/plugins";
 
+  import GameIcon from "./GameIcon.svelte";
   import TinyButton from "./TinyButton.svelte";
 
   let {
     onsubmit,
+    onapiskip,
   }: {
     /** Called when user submits the 6-digit pairing code. */
     onsubmit?: (code: string) => void;
+    /** Called when user wants to skip daemon install and connect an API game. */
+    onapiskip?: () => void;
   } = $props();
 
   // -- Pairing code state -----------------------------------
@@ -31,6 +41,14 @@
       handleCodeSubmit();
     }
   }
+
+  // -- Games from plugin manifest ----------------------------
+  let daemonGames = $derived(
+    [...$plugins.values()].filter((p) => !p.adapter),
+  );
+  let apiGames = $derived(
+    [...$plugins.values()].filter((p) => !!p.adapter),
+  );
 
   // -- Shared state -----------------------------------------
   let copied = $state<string | null>(null);
@@ -60,76 +78,273 @@
   }
 </script>
 
-<!-- Step 1: Install -->
-<div class="section">
-  <div class="step-header">
-    <span class="step-number">1</span>
-    <span class="step-title">Install</span>
-  </div>
+{#if onapiskip}
+  <!-- Split layout: daemon on left, API on right -->
+  <div class="split">
+    <div class="split-left">
+      <div class="split-header">
+        <span class="split-title">WATCH YOUR SAVES</span>
+      </div>
+      <p class="split-desc">
+        Install the Savecraft daemon to watch local save files and sync automatically.
+      </p>
+      <div class="split-games">
+        {#each daemonGames as plugin (plugin.game_id)}
+          <div class="game-tile">
+            <GameIcon iconUrl={plugin.icon_url} name={plugin.name} size={44} />
+            <span class="game-label">{plugin.name.toUpperCase()}</span>
+          </div>
+        {/each}
+      </div>
 
-  <!-- Windows -->
-  <div class="platform-block">
-    <span class="platform-label">WINDOWS</span>
-    <div class="action-row">
-      <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external download URL -->
-      <a class="primary-action" href={msiUrl} download="savecraft.msi">
-        <span class="primary-action-icon">&darr;</span>
-        <span class="primary-action-label">DOWNLOAD FOR WINDOWS</span>
-      </a>
+      <div class="daemon-steps">
+        <!-- Step 1: Install -->
+        <div class="step-header">
+          <span class="step-number">1</span>
+          <span class="step-title">Install</span>
+        </div>
+
+        <div class="platform-block">
+          <span class="platform-label">WINDOWS</span>
+          <div class="action-row">
+            <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external download URL -->
+            <a class="primary-action" href={msiUrl} download="savecraft.msi">
+              <span class="primary-action-icon">&darr;</span>
+              <span class="primary-action-label">DOWNLOAD</span>
+            </a>
+          </div>
+        </div>
+
+        <div class="platform-block">
+          <span class="platform-label">LINUX / STEAM DECK</span>
+          <div class="command-block">
+            <code class="command-text">{installCommand()}</code>
+            <TinyButton
+              label={copied === "cmd" ? "COPIED" : "COPY"}
+              onclick={() => {
+                void copyToClipboard(installCommand(), "cmd");
+              }}
+            />
+          </div>
+        </div>
+
+        <!-- Step 2: Pairing code -->
+        <div class="step-header">
+          <span class="step-number">2</span>
+          <span class="step-title">Pair</span>
+        </div>
+        <p class="step-desc">Enter the 6-digit code from the daemon:</p>
+        <div class="pairing-row">
+          <input
+            type="text"
+            class="code-input"
+            placeholder="000000"
+            maxlength={6}
+            bind:value={codeValue}
+            onkeydown={handleCodeKeydown}
+          />
+          <button
+            class="pair-btn"
+            onclick={handleCodeSubmit}
+            disabled={codeValue.trim().length < 6}
+          >
+            PAIR
+          </button>
+        </div>
+      </div>
     </div>
-    <p class="install-hint">
-      Installs to <code>Program Files</code> &middot; Starts on login
-    </p>
+
+    <div class="split-divider"></div>
+
+    <div class="split-right">
+      <div class="split-header">
+        <span class="split-title">CONNECT YOUR ACCOUNT</span>
+      </div>
+      <p class="split-desc">
+        Link your game account to import characters from the cloud. No install needed.
+      </p>
+      <div class="split-games">
+        {#each apiGames as plugin (plugin.game_id)}
+          <div class="game-tile">
+            <GameIcon iconUrl={plugin.icon_url} name={plugin.name} size={44} variant="api" />
+            <span class="game-label">{plugin.name.toUpperCase()}</span>
+          </div>
+        {/each}
+      </div>
+
+      <button class="api-action" onclick={onapiskip}>
+        <span class="api-action-label">BROWSE GAMES</span>
+      </button>
+    </div>
+  </div>
+{:else}
+  <!-- Single-column daemon-only layout -->
+  <div class="section">
+    <div class="step-header">
+      <span class="step-number">1</span>
+      <span class="step-title">Install</span>
+    </div>
+
+    <div class="platform-block">
+      <span class="platform-label">WINDOWS</span>
+      <div class="action-row">
+        <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external download URL -->
+        <a class="primary-action" href={msiUrl} download="savecraft.msi">
+          <span class="primary-action-icon">&darr;</span>
+          <span class="primary-action-label">DOWNLOAD FOR WINDOWS</span>
+        </a>
+      </div>
+      <p class="install-hint">
+        Installs to <code>Program Files</code> &middot; Starts on login
+      </p>
+    </div>
+
+    <div class="platform-block">
+      <span class="platform-label">LINUX / STEAM DECK</span>
+      <div class="command-block">
+        <code class="command-text">{installCommand()}</code>
+        <TinyButton
+          label={copied === "cmd" ? "COPIED" : "COPY"}
+          onclick={() => {
+            void copyToClipboard(installCommand(), "cmd");
+          }}
+        />
+      </div>
+      <p class="install-hint">
+        Installs to <code>~/.local/bin/</code> &middot; Starts as a systemd service
+      </p>
+    </div>
   </div>
 
-  <!-- Linux / Steam Deck -->
-  <div class="platform-block">
-    <span class="platform-label">LINUX / STEAM DECK</span>
-    <div class="command-block">
-      <code class="command-text">{installCommand()}</code>
-      <TinyButton
-        label={copied === "cmd" ? "COPIED" : "COPY"}
-        onclick={() => {
-          void copyToClipboard(installCommand(), "cmd");
-        }}
+  <div class="section-divider"></div>
+
+  <div class="section">
+    <div class="step-header">
+      <span class="step-number">2</span>
+      <span class="step-title">Enter Pairing Code</span>
+    </div>
+    <p class="step-desc">After install, enter the 6-digit code shown by the daemon:</p>
+    <div class="pairing-row">
+      <input
+        type="text"
+        class="code-input"
+        placeholder="000000"
+        maxlength={6}
+        bind:value={codeValue}
+        onkeydown={handleCodeKeydown}
       />
+      <button class="pair-btn" onclick={handleCodeSubmit} disabled={codeValue.trim().length < 6}>
+        PAIR
+      </button>
     </div>
-    <p class="install-hint">
-      Installs to <code>~/.local/bin/</code> &middot; Starts as a systemd service
-    </p>
   </div>
-</div>
-
-<div class="section-divider"></div>
-
-<!-- Step 2: Pairing code -->
-<div class="section">
-  <div class="step-header">
-    <span class="step-number">2</span>
-    <span class="step-title">Enter Pairing Code</span>
-  </div>
-  <p class="step-desc">After install, enter the 6-digit code shown by the daemon:</p>
-  <div class="pairing-row">
-    <input
-      type="text"
-      class="code-input"
-      placeholder="000000"
-      maxlength={6}
-      bind:value={codeValue}
-      onkeydown={handleCodeKeydown}
-    />
-    <button class="pair-btn" onclick={handleCodeSubmit} disabled={codeValue.trim().length < 6}>
-      PAIR
-    </button>
-  </div>
-</div>
+{/if}
 
 {#if error}
   <div class="error-msg">{error}</div>
 {/if}
 
 <style>
-  /* -- Sections --------------------------------------------- */
+  /* -- Split layout ----------------------------------------- */
+
+  .split {
+    display: flex;
+    min-height: 0;
+  }
+
+  .split-left,
+  .split-right {
+    flex: 1;
+    padding: 20px;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .split-divider {
+    width: 1px;
+    background: rgba(74, 90, 173, 0.2);
+    align-self: stretch;
+  }
+
+  .split-header {
+    margin-bottom: 8px;
+  }
+
+  .split-title {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    color: var(--color-gold);
+    letter-spacing: 2px;
+  }
+
+  .split-desc {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--color-text-dim);
+    line-height: 1.5;
+    margin: 0 0 16px;
+  }
+
+  .split-games {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+
+  .game-tile {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    width: 56px;
+  }
+
+  .game-label {
+    font-family: var(--font-pixel);
+    font-size: 6px;
+    color: var(--color-text-muted);
+    letter-spacing: 0.5px;
+    text-align: center;
+    line-height: 1.3;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+
+  .daemon-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .api-action {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px 24px;
+    background: rgba(107, 138, 237, 0.08);
+    border: 2px solid var(--color-blue, #6b8aed);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.15s;
+    box-shadow: 0 0 12px rgba(107, 138, 237, 0.1);
+    align-self: flex-start;
+    margin-top: auto;
+  }
+
+  .api-action:hover {
+    background: rgba(107, 138, 237, 0.15);
+    box-shadow: 0 0 20px rgba(107, 138, 237, 0.2);
+  }
+
+  .api-action-label {
+    font-family: var(--font-pixel);
+    font-size: 11px;
+    color: var(--color-blue, #6b8aed);
+    letter-spacing: 2px;
+  }
+
+  /* -- Single-column sections -------------------------------- */
 
   .section {
     padding: 18px 20px;
@@ -172,9 +387,9 @@
 
   .step-desc {
     font-family: var(--font-body);
-    font-size: 15px;
+    font-size: 13px;
     color: var(--color-text-dim);
-    margin-bottom: 12px;
+    margin-bottom: 10px;
     line-height: 1.5;
   }
 
@@ -184,7 +399,7 @@
     display: inline-flex;
     align-items: center;
     gap: 10px;
-    padding: 12px 28px;
+    padding: 10px 20px;
     background: rgba(200, 168, 78, 0.08);
     border: 2px solid var(--color-gold);
     border-radius: 4px;
@@ -211,7 +426,7 @@
 
   .primary-action-label {
     font-family: var(--font-pixel);
-    font-size: 12px;
+    font-size: 11px;
     color: var(--color-gold);
     letter-spacing: 2px;
   }
@@ -219,7 +434,7 @@
   /* -- Platform blocks -------------------------------------- */
 
   .platform-block {
-    margin-bottom: 18px;
+    margin-bottom: 14px;
   }
 
   .platform-block:last-child {
@@ -229,10 +444,10 @@
   .platform-label {
     display: block;
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 8px;
     color: var(--color-text-muted);
     letter-spacing: 1.5px;
-    margin-bottom: 10px;
+    margin-bottom: 8px;
   }
 
   /* -- Install hint ----------------------------------------- */
@@ -259,14 +474,14 @@
 
   .code-input {
     font-family: var(--font-pixel);
-    font-size: 16px;
+    font-size: 14px;
     letter-spacing: 6px;
     color: var(--color-text);
     background: rgba(5, 7, 26, 0.6);
     border: 1px solid rgba(74, 90, 173, 0.3);
     border-radius: 3px;
-    padding: 10px 14px;
-    width: 150px;
+    padding: 8px 12px;
+    width: 130px;
     text-align: center;
     outline: none;
     transition: border-color 0.15s;
@@ -284,13 +499,13 @@
 
   .pair-btn {
     font-family: var(--font-pixel);
-    font-size: 12px;
+    font-size: 10px;
     color: var(--color-gold);
     letter-spacing: 2px;
     background: rgba(200, 168, 78, 0.1);
     border: 1px solid rgba(200, 168, 78, 0.3);
     border-radius: 3px;
-    padding: 10px 22px;
+    padding: 8px 16px;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
@@ -311,16 +526,16 @@
   .command-block {
     display: flex;
     align-items: flex-start;
-    gap: 10px;
+    gap: 8px;
     background: rgba(5, 7, 26, 0.5);
-    padding: 10px 12px;
+    padding: 8px 10px;
     border-radius: 3px;
     border: 1px solid rgba(74, 90, 173, 0.15);
   }
 
   .command-text {
     font-family: var(--font-body);
-    font-size: 15px;
+    font-size: 12px;
     color: var(--color-text);
     word-break: break-all;
     flex: 1;

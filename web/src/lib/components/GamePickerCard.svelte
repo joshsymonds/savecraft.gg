@@ -6,6 +6,8 @@
 <script lang="ts">
   import type { PickerGame } from "$lib/types/source";
 
+  import GameIcon from "./GameIcon.svelte";
+
   let {
     game,
     onclick,
@@ -17,7 +19,7 @@
 
 <button class="picker-card" class:watched={game.watched} {onclick}>
   <div class="picker-left">
-    <span class="picker-icon">{game.name.charAt(0).toUpperCase()}</span>
+    <GameIcon iconUrl={game.iconUrl} name={game.name} variant={game.isApiGame ? "api" : "default"} />
     <div class="picker-info">
       <span class="picker-name">{game.name}</span>
       <span class="picker-desc">{game.description}</span>
@@ -69,21 +71,6 @@
     gap: 12px;
     min-width: 0;
     flex: 1;
-  }
-
-  .picker-icon {
-    font-family: var(--font-pixel);
-    font-size: 14px;
-    color: var(--color-gold-light);
-    width: 32px;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(74, 90, 173, 0.08);
-    border: 1px solid rgba(74, 90, 173, 0.15);
-    border-radius: 4px;
-    flex-shrink: 0;
   }
 
   .picker-info {

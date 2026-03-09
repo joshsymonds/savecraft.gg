@@ -143,7 +143,7 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-const PLUGIN_DOWNLOAD_RE = /^\/plugins\/([^/]+)\/((parser|reference)\.wasm(?:\.sig)?)$/;
+const PLUGIN_DOWNLOAD_RE = /^\/plugins\/([^/]+)\/((parser|reference)\.wasm(?:\.sig)?|icon\.(svg|png))$/;
 
 function routeDownload(request: Request, url: URL, env: Env): Promise<Response> | null {
   const pluginMatch = PLUGIN_DOWNLOAD_RE.exec(url.pathname);
@@ -928,6 +928,10 @@ async function handlePluginManifest(env: Env): Promise<Response> {
         ...data,
         url: `${serverUrl}/plugins/${gameId}/parser.wasm`,
       };
+      // Inject absolute URL for icon if present.
+      if (data.icon) {
+        entry.icon_url = `${serverUrl}/plugins/${gameId}/${data.icon as string}`;
+      }
       // Inject absolute URL for reference binary if present.
       const reference = data.reference as Record<string, unknown> | undefined;
       if (reference) {
@@ -946,7 +950,13 @@ async function handlePluginDownload(env: Env, gameId: string, filename: string):
   if (!object) {
     return Response.json({ error: "Plugin not found" }, { status: 404 });
   }
-  const contentType = filename.endsWith(".wasm") ? "application/wasm" : "application/octet-stream";
+  const contentType = filename.endsWith(".wasm")
+    ? "application/wasm"
+    : filename.endsWith(".svg")
+      ? "image/svg+xml"
+      : filename.endsWith(".png")
+        ? "image/png"
+        : "application/octet-stream";
   return new Response(object.body, {
     headers: { "Content-Type": contentType },
   });

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
+  <!-- Pixel-art W for World of Warcraft (4px grid) -->
+  <!-- Left pillar -->
+  <rect x="0" y="0" width="8" height="24" fill="#6b8aed"/>
+  <!-- Right pillar -->
+  <rect x="24" y="0" width="8" height="24" fill="#6b8aed"/>
+  <!-- Center V -->
+  <rect x="12" y="8" width="8" height="8" fill="#8890b8"/>
+  <!-- Lower merge -->
+  <rect x="8" y="16" width="8" height="8" fill="#6b8aed"/>
+  <rect x="16" y="16" width="8" height="8" fill="#6b8aed"/>
+  <!-- Bottom feet -->
+  <rect x="4" y="24" width="8" height="4" fill="#4a5aad"/>
+  <rect x="20" y="24" width="8" height="4" fill="#4a5aad"/>
+</svg>
