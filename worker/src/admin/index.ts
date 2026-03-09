@@ -1,6 +1,8 @@
 import type { Env } from "../types";
 
 import { handleSeedCharacter } from "./seed-character";
+import { handleSeedSave } from "./seed-save";
+import { handleSeedSource } from "./seed-source";
 
 const encoder = new TextEncoder();
 
@@ -90,6 +92,42 @@ async function routeSourceAdmin(
   return (await proxyDoDebug(env.SOURCE_HUB, sourceUuid, subpath)) ?? NOT_FOUND();
 }
 
+type AdminHandler = (request: Request, env: Env, url: URL) => Promise<Response>;
+
+const postRoutes = new Map<string, AdminHandler>([
+  ["/admin/seed-character", (req, env) => handleSeedCharacter(req, env)],
+  ["/admin/seed-save", (req, env) => handleSeedSave(req, env)],
+  ["/admin/seed-source", (req, env) => handleSeedSource(req, env)],
+  ["/admin/seed-note", (req, env) => handleSeedNote(req, env)],
+  ["/admin/clean-user", (req, env) => handleCleanUser(req, env)],
+]);
+
+const getRoutes = new Map<string, AdminHandler>([
+  ["/admin/sources", (_req, env) => handleListSources(env)],
+]);
+
+function routesByMethod(method: string): Map<string, AdminHandler> | undefined {
+  if (method === "POST") return postRoutes;
+  if (method === "GET") return getRoutes;
+  return undefined;
+}
+
+async function routeDynamicAdmin(request: Request, env: Env, url: URL): Promise<Response | null> {
+  const sourceMatch = /^\/admin\/source\/([^/]+)\/(.+)$/.exec(url.pathname);
+  if (sourceMatch) {
+    return routeSourceAdmin(request, env, url, sourceMatch[1] ?? "", sourceMatch[2] ?? "");
+  }
+
+  const userMatch = /^\/admin\/user\/([^/]+)\/(.+)$/.exec(url.pathname);
+  if (userMatch) {
+    return (
+      (await proxyDoDebug(env.USER_HUB, userMatch[1] ?? "", userMatch[2] ?? "")) ?? NOT_FOUND()
+    );
+  }
+
+  return null;
+}
+
 export async function handleAdminRoute(
   request: Request,
   url: URL,
@@ -100,25 +138,76 @@ export async function handleAdminRoute(
   const authError = authenticateAdmin(request, env);
   if (authError) return authError;
 
-  if (url.pathname === "/admin/sources" && request.method === "GET") {
-    return handleListSources(env);
+  const handler = routesByMethod(request.method)?.get(url.pathname);
+  if (handler) return handler(request, env, url);
+
+  return (await routeDynamicAdmin(request, env, url)) ?? NOT_FOUND();
+}
+
+interface SeedNoteBody {
+  userUuid?: string;
+  saveId?: string;
+  title?: string;
+  content?: string;
+}
+
+async function handleSeedNote(request: Request, env: Env): Promise<Response> {
+  const body: SeedNoteBody = await request.json();
+  if (!body.userUuid || !body.saveId || !body.title || !body.content) {
+    return Response.json(
+      { error: "Missing required fields: userUuid, saveId, title, content" },
+      { status: 400 },
+    );
   }
 
-  if (url.pathname === "/admin/seed-character" && request.method === "POST") {
-    return handleSeedCharacter(request, env);
+  const noteId = crypto.randomUUID();
+  await env.DB.prepare(
+    "INSERT INTO notes (note_id, save_id, user_uuid, title, content, source) VALUES (?, ?, ?, ?, ?, 'user')",
+  )
+    .bind(noteId, body.saveId, body.userUuid, body.title, body.content)
+    .run();
+
+  // Index in FTS5
+  const save = await env.DB.prepare("SELECT save_name FROM saves WHERE uuid = ?")
+    .bind(body.saveId)
+    .first<{ save_name: string }>();
+  if (save) {
+    await env.DB.batch([
+      env.DB.prepare("DELETE FROM search_index WHERE save_id = ? AND ref_id = ?").bind(
+        body.saveId,
+        noteId,
+      ),
+      env.DB.prepare(
+        "INSERT INTO search_index (save_id, save_name, type, ref_id, ref_title, content) VALUES (?, ?, 'note', ?, ?, ?)",
+      ).bind(body.saveId, save.save_name, noteId, body.title, body.content),
+    ]);
   }
 
-  const sourceMatch = /^\/admin\/source\/([^/]+)\/(.+)$/.exec(url.pathname);
-  if (sourceMatch?.[1] && sourceMatch[2]) {
-    return routeSourceAdmin(request, env, url, sourceMatch[1], sourceMatch[2]);
-  }
+  return Response.json({ noteId });
+}
 
-  const userMatch = /^\/admin\/user\/([^/]+)\/(.+)$/.exec(url.pathname);
-  if (userMatch?.[1] && userMatch[2]) {
-    return (await proxyDoDebug(env.USER_HUB, userMatch[1], userMatch[2])) ?? NOT_FOUND();
+async function handleCleanUser(request: Request, env: Env): Promise<Response> {
+  const body: { userUuid?: string } = await request.json();
+  if (!body.userUuid) {
+    return Response.json({ error: "Missing required field: userUuid" }, { status: 400 });
   }
+  const userUuid = body.userUuid;
 
-  return NOT_FOUND();
+  // Delete in FK-safe order: children before parents
+  await env.DB.batch([
+    env.DB.prepare(
+      "DELETE FROM search_index WHERE save_id IN (SELECT uuid FROM saves WHERE user_uuid = ?)",
+    ).bind(userUuid),
+    env.DB.prepare(
+      "DELETE FROM notes WHERE save_id IN (SELECT uuid FROM saves WHERE user_uuid = ?)",
+    ).bind(userUuid),
+    env.DB.prepare(
+      "DELETE FROM sections WHERE save_uuid IN (SELECT uuid FROM saves WHERE user_uuid = ?)",
+    ).bind(userUuid),
+    env.DB.prepare("DELETE FROM saves WHERE user_uuid = ?").bind(userUuid),
+  ]);
+
+  return Response.json({ cleaned: true, userUuid });
 }
 
 async function handleListSources(env: Env): Promise<Response> {
