@@ -64,9 +64,16 @@ function isMcpHost(url: URL, env: Env): boolean {
  * Browsers land here when users paste the connector URL into their address bar.
  * Includes OG meta tags (for link preview unfurlers) and a redirect to /connect.
  */
+function escapeHtml(s: string): string {
+  return s.replace(
+    /[&<>"']/g,
+    (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!,
+  );
+}
+
 function serveMcpBrowserPage(env: Env): Response {
   const webUrl = env.WEB_URL ?? "https://my.savecraft.gg";
-  const connectUrl = `${webUrl}/connect`;
+  const connectUrl = escapeHtml(`${webUrl}/connect`);
 
   const html = `<!DOCTYPE html>
 <html lang="en">
@@ -87,7 +94,10 @@ function serveMcpBrowserPage(env: Env): Response {
 
   return new Response(html, {
     status: 200,
-    headers: { "Content-Type": "text/html; charset=utf-8" },
+    headers: {
+      "Content-Type": "text/html; charset=utf-8",
+      "Cache-Control": "public, max-age=3600",
+    },
   });
 }
 
