@@ -13,6 +13,7 @@
     const clerk = getClerk();
     const el = container;
     clerk.mountSignUp(el, {
+      routing: "hash",
       signInUrl: "/sign-in",
       fallbackRedirectUrl: "/",
     });

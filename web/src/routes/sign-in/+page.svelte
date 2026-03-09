@@ -15,6 +15,7 @@
     const el = container;
     const redirectUrl = page.url.searchParams.get("redirect_url") ?? "/";
     clerk.mountSignIn(el, {
+      routing: "hash",
       signUpUrl: "/sign-up",
       fallbackRedirectUrl: redirectUrl,
     });
