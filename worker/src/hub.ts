@@ -22,6 +22,14 @@ const LINK_CODE_TTL_MINUTES = 20;
 const MAX_SECTIONS = 50;
 const MAX_PUSH_SIZE_BYTES = 1_048_576; // 1MB
 
+/** Encode a sourceOffline proto event for forwarding to UserHub. */
+function encodeSourceOfflineEvent(): Uint8Array {
+  const msg: Message = {
+    payload: { $case: "sourceOffline", sourceOffline: { timestamp: undefined } },
+  };
+  return Message.encode(msg).finish();
+}
+
 function generateSixDigitCode(): string {
   const buf = new Uint32Array(1);
   crypto.getRandomValues(buf);
@@ -588,7 +596,9 @@ export class SourceHub extends DurableObject<Env> {
     await this.saveState(state);
     await this.ctx.storage.delete(connTag);
 
-    // Forward updated state to UserHub
+    // Forward sourceOffline event AND updated state to UserHub.
+    // Both have their own try/catch — belt and suspenders.
+    await this.forwardEventToUserHub(encodeSourceOfflineEvent(), sourceId);
     await this.forwardStateToUserHub();
 
     // Delete alarm if no sources remain online
@@ -604,19 +614,32 @@ export class SourceHub extends DurableObject<Env> {
    */
   async alarm(): Promise<void> {
     this.debugLog.push("debug", "alarm fired");
-    const state = await this.loadState();
-    const staleSourceIds = findStaleSources(state, this.env.STALE_THRESHOLD_MS ?? 90_000);
+    try {
+      const state = await this.loadState();
+      const staleSourceIds = findStaleSources(state, this.env.STALE_THRESHOLD_MS ?? 90_000);
 
-    if (staleSourceIds.length > 0) {
-      this.debugLog.push("info", "evicting stale sources", { staleSourceIds });
-      await this.evictStaleSources(state, staleSourceIds);
+      if (staleSourceIds.length > 0) {
+        this.debugLog.push("info", "evicting stale sources", { staleSourceIds });
+        await this.evictStaleSources(state, staleSourceIds);
+      }
+    } catch (error) {
+      this.debugLog.push("error", "alarm handler failed", {
+        error: error instanceof Error ? error.message : String(error),
+      });
     }
 
-    // Reschedule if any sources still online
-    if (state.sources.some((s) => s.online)) {
-      const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
-      await this.ctx.storage.setAlarm(Date.now() + interval);
-      this.debugLog.push("debug", "alarm rescheduled", { intervalMs: interval });
+    // Always reschedule if any sources are still online. Load fresh state
+    // in case the try block failed partway through a mutation.
+    try {
+      const state = await this.loadState();
+      if (state.sources.some((s) => s.online)) {
+        const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
+        await this.ctx.storage.setAlarm(Date.now() + interval);
+        this.debugLog.push("debug", "alarm rescheduled", { intervalMs: interval });
+      }
+    } catch {
+      // Last resort: reschedule unconditionally so we don't lose the alarm
+      await this.ctx.storage.setAlarm(Date.now() + (this.env.ALARM_INTERVAL_MS ?? 30_000));
     }
   }
 
@@ -627,13 +650,10 @@ export class SourceHub extends DurableObject<Env> {
     await this.saveState(state);
 
     // Forward offline events and updated state to UserHub
-    for (const sourceId of staleSourceIds) {
-      const offlineMsg: Message = {
-        payload: { $case: "sourceOffline", sourceOffline: { timestamp: undefined } },
-      };
-      const offlineBytes = Message.encode(offlineMsg).finish();
-      await this.forwardEventToUserHub(offlineBytes, sourceId);
-    }
+    const offlineBytes = encodeSourceOfflineEvent();
+    await Promise.all(
+      staleSourceIds.map((sourceId) => this.forwardEventToUserHub(offlineBytes, sourceId)),
+    );
     await this.forwardStateToUserHub();
 
     await this.closeStaleConnections(staleSourceIds);
@@ -1277,6 +1297,10 @@ export class SourceHub extends DurableObject<Env> {
     applyMutation(state, mutation);
     await this.saveState(state);
     await this.forwardStateToUserHub();
+
+    // Ensure alarm is set so adapter sources get staleness-checked
+    const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
+    await this.ctx.storage.setAlarm(Date.now() + interval);
 
     return Response.json({ ok: true });
   }

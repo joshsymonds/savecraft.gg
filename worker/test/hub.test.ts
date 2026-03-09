@@ -1742,4 +1742,80 @@ describe("SourceHub", () => {
 
     await closeWs(daemon);
   });
+
+  it("forwards sourceOffline event on daemon disconnect", async () => {
+    const userUuid = "disconnect-event-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+    const uiWs = await connectWs("/ws/ui", userUuid);
+
+    // Drain initial empty state
+    await waitForRelayedMessage(uiWs);
+
+    // Send sourceOnline and drain the state update
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForRelayedMessage(uiWs);
+
+    // Now close the daemon — should trigger handleDaemonDisconnect
+    // which should forward both sourceOffline event AND state
+    const offlineEventPromise = waitForRelayedMessageMatching(
+      uiWs,
+      (msg) => msg.message?.payload?.$case === "sourceOffline",
+      5000,
+    );
+
+    await closeWs(daemon);
+
+    // Verify we receive the explicit sourceOffline event (not just state)
+    const offlineRelayed = await offlineEventPromise;
+    expect(offlineRelayed.sourceId).toBe(sourceUuid);
+    expect(offlineRelayed.message?.payload?.$case).toBe("sourceOffline");
+
+    await closeWs(uiWs);
+  });
+
+  it("alarm reschedules even after stale eviction", async () => {
+    // Verifies the alarm doesn't silently stop after evicting a stale source.
+    // After eviction, a new sourceOnline should still get alarm-evicted.
+    const userUuid = "alarm-resilience-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // First cycle: go online, let alarm evict
+    const daemon1 = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon1);
+
+    // Wait for alarm to evict (stale threshold 200ms, alarm interval 100ms)
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+
+    // Verify source was evicted
+    const doId = env.SOURCE_HUB.idFromName(sourceUuid);
+    const doStub = env.SOURCE_HUB.get(doId);
+    const resp1 = await doStub.fetch(new Request("https://do/debug/state"));
+    const debug1 = await resp1.json<{
+      sourceState: { sources: { online: boolean }[] };
+    }>();
+    expect(debug1.sourceState.sources[0]?.online).toBeFalsy();
+
+    await closeWs(daemon1);
+
+    // Second cycle: go online again — alarm should still work
+    const daemon2 = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon2);
+
+    // Wait for alarm to evict again
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+
+    const resp2 = await doStub.fetch(new Request("https://do/debug/state"));
+    const debug2 = await resp2.json<{
+      sourceState: { sources: { online: boolean }[] };
+    }>();
+    expect(debug2.sourceState.sources[0]?.online).toBeFalsy();
+
+    await closeWs(daemon2);
+  });
 });

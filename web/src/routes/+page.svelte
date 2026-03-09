@@ -16,6 +16,7 @@
   import {
     ActivityEvent,
     AddSourceModal,
+    Banner,
     ConnectCard,
     EmptySourceState,
     GameDetailModal,
@@ -260,6 +261,10 @@
           addSourceOpen = true;
         }}
       />
+    {/if}
+
+    {#if $connectionStatus === "reconnecting"}
+      <Banner color="var(--color-text-muted)" dot>Reconnecting to server...</Banner>
     {/if}
 
     <main class="content">

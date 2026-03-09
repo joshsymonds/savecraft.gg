@@ -62,6 +62,15 @@
   </div>
 </Story>
 
+<!-- Reconnecting: muted banner shown when WebSocket is disconnected -->
+<Story name="Reconnecting">
+  <div
+    style="width: 520px; border: 1px solid rgba(74, 90, 173, 0.15); border-radius: 6px; overflow: hidden; background: var(--color-panel-bg);"
+  >
+    <Banner color="var(--color-text-muted)" dot>Reconnecting to server...</Banner>
+  </div>
+</Story>
+
 <!-- No dot -->
 <Story name="NoDot">
   <div

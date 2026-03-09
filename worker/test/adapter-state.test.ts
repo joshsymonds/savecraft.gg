@@ -274,6 +274,51 @@ describe("SourceHub /set-game-status", () => {
     await closeWs(uiWs);
   });
 
+  it("sets alarm after marking adapter source online", async () => {
+    const userUuid = "adapter-alarm-user";
+    const sourceUuid = await seedAdapterSource(userUuid);
+
+    await setGameStatus(sourceUuid, userUuid, {
+      gameId: "wow",
+      gameName: "World of Warcraft",
+      status: "watching",
+    });
+
+    const debug = await getDebugState(sourceUuid);
+    expect(debug.sourceState.sources[0]!.online).toBe(true);
+
+    // Verify alarm is set via debug endpoint
+    const doId = env.SOURCE_HUB.idFromName(sourceUuid);
+    const doStub = env.SOURCE_HUB.get(doId);
+    const resp = await doStub.fetch(new Request("https://do/debug/state"));
+    const fullDebug = await resp.json<{ alarm: string | null }>();
+    expect(fullDebug.alarm).not.toBeNull();
+  });
+
+  it("evicts stale adapter source via alarm", async () => {
+    const userUuid = "adapter-alarm-evict-user";
+    const sourceUuid = await seedAdapterSource(userUuid);
+
+    await setGameStatus(sourceUuid, userUuid, {
+      gameId: "wow",
+      gameName: "World of Warcraft",
+      status: "watching",
+    });
+
+    // Verify source is online
+    const debugBefore = await getDebugState(sourceUuid);
+    expect(debugBefore.sourceState.sources[0]!.online).toBe(true);
+
+    // Wait for alarm to evict (stale threshold 200ms, alarm interval 100ms)
+    await new Promise((resolve) => {
+      setTimeout(resolve, 500);
+    });
+
+    // Verify source was evicted
+    const debugAfter = await getDebugState(sourceUuid);
+    expect(debugAfter.sourceState.sources[0]?.online).toBeFalsy();
+  });
+
   it("does not include saves from other sources", async () => {
     const userUuid = "adapter-state-user-8";
     const sourceUuid = await seedAdapterSource(userUuid);
