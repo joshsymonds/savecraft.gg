@@ -234,7 +234,7 @@
     padding: 0 18px 14px;
     font-family: var(--font-body);
     font-size: 14px;
-    color: var(--color-text-muted);
+    color: var(--color-text-dim);
     line-height: 1.4;
   }
 
