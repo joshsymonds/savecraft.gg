@@ -143,7 +143,8 @@ export default {
   },
 } satisfies ExportedHandler<Env>;
 
-const PLUGIN_DOWNLOAD_RE = /^\/plugins\/([^/]+)\/((parser|reference)\.wasm(?:\.sig)?|icon\.(svg|png))$/;
+const PLUGIN_DOWNLOAD_RE =
+  /^\/plugins\/([^/]+)\/((parser|reference)\.wasm(?:\.sig)?|icon\.(svg|png))$/;
 
 function routeDownload(request: Request, url: URL, env: Env): Promise<Response> | null {
   const pluginMatch = PLUGIN_DOWNLOAD_RE.exec(url.pathname);
@@ -941,9 +942,12 @@ async function handlePluginManifest(env: Env): Promise<Response> {
     }
   }
 
-  return Response.json({ plugins }, {
-    headers: { "Cache-Control": "public, max-age=300" },
-  });
+  return Response.json(
+    { plugins },
+    {
+      headers: { "Cache-Control": "public, max-age=300" },
+    },
+  );
 }
 
 async function handlePluginDownload(env: Env, gameId: string, filename: string): Promise<Response> {
