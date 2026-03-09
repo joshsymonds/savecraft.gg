@@ -22,7 +22,7 @@
     <div class="terminal-header">
       <p class="terminal-line prompt">&gt; NO SOURCES DETECTED</p>
       <p class="terminal-line prompt dim">
-        &gt; READY TO CONNECT<span class="cursor">_</span>
+        &gt; ADD A SOURCE TO START SYNCING YOUR SAVES TO AI<span class="cursor">_</span>
       </p>
     </div>
 

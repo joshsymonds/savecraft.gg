@@ -60,6 +60,38 @@ function isMcpHost(url: URL, env: Env): boolean {
 }
 
 /**
+ * Serve an HTML page for browser GET requests to the MCP endpoint.
+ * Browsers land here when users paste the connector URL into their address bar.
+ * Includes OG meta tags (for link preview unfurlers) and a redirect to /connect.
+ */
+function serveMcpBrowserPage(env: Env): Response {
+  const webUrl = env.WEB_URL ?? "https://my.savecraft.gg";
+  const connectUrl = `${webUrl}/connect`;
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Savecraft Connector</title>
+  <meta property="og:title" content="Savecraft — Game Save Connector for AI">
+  <meta property="og:description" content="This URL connects your game saves to AI assistants like Claude and ChatGPT. Add it in your AI app's settings — not in the chat.">
+  <meta property="og:url" content="${connectUrl}">
+  <meta property="og:type" content="website">
+  <meta http-equiv="refresh" content="0;url=${connectUrl}">
+</head>
+<body>
+  <p>Redirecting to <a href="${connectUrl}">Savecraft setup instructions</a>&hellip;</p>
+</body>
+</html>`;
+
+  return new Response(html, {
+    status: 200,
+    headers: { "Content-Type": "text/html; charset=utf-8" },
+  });
+}
+
+/**
  * Non-MCP, non-OAuth request handler.
  * Called by the library's defaultHandler for all routes it doesn't own.
  */
@@ -130,6 +162,17 @@ export default {
       const rewritten = new URL(request.url);
       rewritten.pathname = "/mcp";
       request = new Request(rewritten.toString(), request);
+    }
+
+    // Browser GET to MCP subdomain: return help page with OG tags + redirect to /connect.
+    // MCP clients always POST with JSON — browsers send GET with Accept: text/html.
+    // Only intercept on the dedicated MCP subdomain, not /mcp on the API host.
+    if (
+      mcpHost &&
+      request.method === "GET" &&
+      request.headers.get("Accept")?.includes("text/html")
+    ) {
+      return serveMcpBrowserPage(env);
     }
 
     return oauthProvider.fetch(request, env, ctx);
