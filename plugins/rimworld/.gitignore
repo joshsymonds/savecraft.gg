@@ -1,0 +1,14 @@
+# Build output
+Assemblies/
+SavecraftRimWorld/bin/
+SavecraftRimWorld/obj/
+
+# NuGet
+*.nupkg
+
+# devenv
+.devenv/
+.devenv.flake.nix
+
+# direnv
+.direnv/
