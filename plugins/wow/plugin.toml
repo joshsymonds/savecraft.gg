@@ -1,6 +1,6 @@
 game_id = "wow"
 source = "api"
-icon = "icon.svg"
+icon = "icon.png"
 name = "World of Warcraft"
 description = "Character profiles via Battle.net API with Raider.io ranking enrichment"
 channel = "beta"

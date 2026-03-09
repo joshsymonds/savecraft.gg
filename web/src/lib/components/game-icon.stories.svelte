@@ -34,3 +34,11 @@
     <GameIcon name="Diablo II" size={44} />
   </div>
 </Story>
+
+<!-- Error fallback: broken URL degrades to first letter -->
+<Story name="ErrorFallback">
+  <div style="display: flex; gap: 12px; align-items: center;">
+    <GameIcon name="Diablo II: Resurrected" iconUrl="/nonexistent-icon.png" />
+    <GameIcon name="Stardew Valley" iconUrl="/broken/path.svg" variant="api" />
+  </div>
+</Story>
