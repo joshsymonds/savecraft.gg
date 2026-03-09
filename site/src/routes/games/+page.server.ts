@@ -40,7 +40,18 @@ function loadPlugin(gameDir: string): GameInfo {
   const toml = readFileSync(resolve(dir, "plugin.toml"), "utf-8");
   const cfg = parse(toml) as unknown as PluginToml;
 
-  const iconSvg = readFileSync(resolve(dir, cfg.icon), "utf-8");
+  const iconPath = resolve(dir, cfg.icon);
+  const isSvg = cfg.icon.endsWith(".svg");
+  let iconHtml: string;
+  if (isSvg) {
+    iconHtml = readFileSync(iconPath, "utf-8");
+  } else {
+    const buf = readFileSync(iconPath);
+    const ext = cfg.icon.split(".").pop() ?? "png";
+    const mime = ext === "jpg" || ext === "jpeg" ? "image/jpeg" : `image/${ext}`;
+    const b64 = buf.toString("base64");
+    iconHtml = `<img src="data:${mime};base64,${b64}" alt="" width="32" height="32" />`;
+  }
 
   const referenceModules: ReferenceModule[] = cfg.reference?.modules
     ? Object.values(cfg.reference.modules).map((m) => ({
@@ -57,7 +68,7 @@ function loadPlugin(gameDir: string): GameInfo {
     channel: cfg.channel,
     coverage: cfg.coverage,
     limitations: cfg.limitations ?? [],
-    iconSvg,
+    iconSvg: iconHtml,
     referenceModules,
   };
 }
