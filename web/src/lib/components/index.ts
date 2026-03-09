@@ -8,6 +8,7 @@ export { default as DropdownMenu } from "./DropdownMenu.svelte";
 export { default as EmptySourceState } from "./EmptySourceState.svelte";
 export { default as GameCard } from "./GameCard.svelte";
 export { default as GameDetailModal } from "./GameDetailModal.svelte";
+export { default as GameIcon } from "./GameIcon.svelte";
 export { default as GamePanel } from "./GamePanel.svelte";
 export { default as GamePickerCard } from "./GamePickerCard.svelte";
 export { default as GamePickerModal } from "./GamePickerModal.svelte";

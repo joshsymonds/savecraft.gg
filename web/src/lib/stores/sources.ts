@@ -40,8 +40,13 @@ function gameStatusLine(status: GameStatus, saves: SaveSummary[]): string {
   }
 }
 
+const SOURCE_KIND_LABELS: Record<string, string> = {
+  daemon: "DAEMON",
+  adapter: "API",
+};
+
 function sourceDisplayName(sourceKind?: string, hostname?: string | null): string {
-  const kind = (sourceKind ?? "daemon").toUpperCase();
+  const kind = SOURCE_KIND_LABELS[sourceKind ?? "daemon"] ?? (sourceKind ?? "daemon").toUpperCase();
   if (hostname) return `${kind} · ${hostname.toUpperCase()}`;
   return kind;
 }

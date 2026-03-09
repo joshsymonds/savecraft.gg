@@ -15,6 +15,7 @@
       game={{
         gameId: "d2r",
         name: "Diablo II: Resurrected",
+        iconUrl: "/plugins/d2r/icon.png",
         statusLine: "3 saves",
         sourceCount: 1,
         saves: [
@@ -58,6 +59,7 @@
       game={{
         gameId: "d2r",
         name: "Diablo II: Resurrected",
+        iconUrl: "/plugins/d2r/icon.png",
         statusLine: "No saves",
         sourceCount: 1,
         saves: [],

@@ -5,6 +5,11 @@ const { subscribe, set } = writable<Map<string, PluginManifest>>(new Map());
 
 export const plugins: Readable<Map<string, PluginManifest>> = { subscribe };
 
+/** Seed the store directly (for tests and Storybook). */
+export function setPlugins(manifest: Record<string, PluginManifest>): void {
+  set(new Map(Object.entries(manifest)));
+}
+
 export async function loadPlugins(): Promise<void> {
   try {
     const manifest = await fetchPluginManifest();

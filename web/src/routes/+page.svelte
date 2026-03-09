@@ -155,7 +155,12 @@
   let selectedSave: Save | null = $state(null);
 
   // -- Derived game data --
-  let mergedGames = $derived(mergeGames($sources));
+  let mergedGames = $derived(
+    mergeGames($sources).map((g) => ({
+      ...g,
+      iconUrl: $plugins.get(g.gameId)?.icon_url,
+    })),
+  );
   let showSourceBadges = $derived($sources.length > 1);
 
   // -- Game picker catalog --
@@ -168,6 +173,7 @@
       result.push({
         gameId,
         name: manifest.name,
+        iconUrl: manifest.icon_url,
         description: isApi ? manifest.name : `Parses ${manifest.file_extensions.join(", ")} files`,
         watched: watchedIds.has(gameId),
         saveCount: merged?.saves.length ?? 0,
@@ -275,7 +281,12 @@
             <span class="empty-text">Connecting...</span>
           </div>
         {:else if $linkState !== "linking"}
-          <EmptySourceState onsubmit={handleManualLink} />
+          <EmptySourceState
+            onsubmit={handleManualLink}
+            onapiskip={() => {
+              pickerOpen = true;
+            }}
+          />
         {/if}
       {:else}
         <ConnectCard />
@@ -349,6 +360,10 @@
 {#if addSourceOpen}
   <AddSourceModal
     onsubmit={handleManualLink}
+    onapiskip={() => {
+      addSourceOpen = false;
+      pickerOpen = true;
+    }}
     onclose={() => {
       addSourceOpen = false;
     }}
