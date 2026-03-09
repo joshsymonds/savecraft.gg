@@ -1044,5 +1044,284 @@ describe("MCP Tools", () => {
       expect(json).not.toContain("token_hash");
       expect(json).not.toContain(`hash-dev-secret`);
     });
+
+    // ── Adapter helpers ─────────────────────────────────────
+
+    /** Seed an adapter source (source_kind='adapter'). */
+    async function seedAdapterSource(options: {
+      sourceUuid: string;
+      userUuid: string;
+      lastPushAt?: string | null;
+    }): Promise<void> {
+      await env.DB.prepare(
+        `INSERT INTO sources (source_uuid, user_uuid, token_hash, source_kind, can_rescan, can_receive_config, last_push_at)
+         VALUES (?, ?, ?, 'adapter', 0, 0, ?)`,
+      )
+        .bind(
+          options.sourceUuid,
+          options.userUuid,
+          `hash-${options.sourceUuid}`,
+          options.lastPushAt ?? null,
+        )
+        .run();
+    }
+
+    /** Seed game credentials for a user. */
+    async function seedGameCredentials(options: {
+      userUuid: string;
+      gameId: string;
+      expiresAt: string;
+    }): Promise<void> {
+      await env.DB.prepare(
+        `INSERT INTO game_credentials (user_uuid, game_id, access_token, refresh_token, expires_at)
+         VALUES (?, ?, 'tok', 'ref', ?)`,
+      )
+        .bind(options.userUuid, options.gameId, options.expiresAt)
+        .run();
+    }
+
+    // ── Context-aware guide ─────────────────────────────────
+
+    it("includes adapter guide when user has only adapter sources", async () => {
+      await seedAdapterSource({ sourceUuid: "adapter-guide", userUuid: USER_A });
+      await env.PLUGINS.put(
+        "plugins/wow/manifest.json",
+        JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
+      );
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as { guide: Record<string, unknown> };
+      expect(data.guide).toHaveProperty("api_games");
+      expect(data.guide).not.toHaveProperty("linux");
+      expect(data.guide).not.toHaveProperty("windows");
+      expect(data.guide).not.toHaveProperty("pairing");
+    });
+
+    it("includes only daemon guide when user has only daemon sources", async () => {
+      await seedTestSource({
+        sourceUuid: "daemon-guide",
+        userUuid: USER_A,
+        hostname: "gaming-pc",
+      });
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as { guide: Record<string, unknown> };
+      expect(data.guide).toHaveProperty("linux");
+      expect(data.guide).toHaveProperty("pairing");
+      expect(data.guide).not.toHaveProperty("api_games");
+    });
+
+    it("includes both guides when user has both source types", async () => {
+      await seedTestSource({
+        sourceUuid: "daemon-both",
+        userUuid: USER_A,
+        hostname: "gaming-pc",
+      });
+      await seedAdapterSource({ sourceUuid: "adapter-both", userUuid: USER_A });
+      await env.PLUGINS.put(
+        "plugins/wow/manifest.json",
+        JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
+      );
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as { guide: Record<string, unknown> };
+      expect(data.guide).toHaveProperty("linux");
+      expect(data.guide).toHaveProperty("pairing");
+      expect(data.guide).toHaveProperty("api_games");
+    });
+
+    it("includes both guides when user has no sources", async () => {
+      await env.PLUGINS.put(
+        "plugins/wow/manifest.json",
+        JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
+      );
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as { guide: Record<string, unknown> };
+      expect(data.guide).toHaveProperty("linux");
+      expect(data.guide).toHaveProperty("pairing");
+      expect(data.guide).toHaveProperty("api_games");
+    });
+
+    it("adapter guide lists available API games from R2 manifests", async () => {
+      await seedAdapterSource({ sourceUuid: "adapter-list", userUuid: USER_A });
+      await env.PLUGINS.put(
+        "plugins/wow/manifest.json",
+        JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
+      );
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as {
+        guide: {
+          api_games: { setup: string; available_games: { game_id: string; name: string }[] };
+        };
+      };
+      expect(data.guide.api_games.available_games).toContainEqual({
+        game_id: "wow",
+        name: "World of Warcraft",
+      });
+      expect(data.guide.api_games.setup).toContain("OAuth");
+    });
+
+    it("adapter guide does not list non-API games", async () => {
+      await seedAdapterSource({ sourceUuid: "adapter-nolist", userUuid: USER_A });
+      await env.PLUGINS.put(
+        "plugins/d2r/manifest.json",
+        JSON.stringify({ game_id: "d2r", name: "Diablo II: Resurrected" }),
+      );
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as { guide: Record<string, unknown> };
+      // No api games found in manifests, so no api_games section even for adapter source
+      expect(data.guide).not.toHaveProperty("api_games");
+    });
+
+    // ── Adapter source support ────────────────────────────────
+
+    it("returns source_kind for daemon sources", async () => {
+      await seedTestSource({
+        sourceUuid: "dev-daemon",
+        userUuid: USER_A,
+        hostname: "gaming-pc",
+        os: "linux",
+        arch: "amd64",
+      });
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as {
+        sources: { source_uuid: string; source_kind: string }[];
+      };
+      expect(data.sources[0]!.source_kind).toBe("daemon");
+    });
+
+    it("returns source_kind='adapter' for adapter sources", async () => {
+      await seedAdapterSource({ sourceUuid: "adapter-1", userUuid: USER_A });
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as {
+        sources: { source_uuid: string; source_kind: string }[];
+      };
+      expect(data.sources[0]!.source_kind).toBe("adapter");
+    });
+
+    it("returns adapter_credentials with connected status for valid token", async () => {
+      await seedAdapterSource({ sourceUuid: "adapter-cred", userUuid: USER_A });
+      const futureExpiry = new Date(Date.now() + 3_600_000).toISOString();
+      await seedGameCredentials({
+        userUuid: USER_A,
+        gameId: "wow",
+        expiresAt: futureExpiry,
+      });
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as {
+        sources: {
+          source_uuid: string;
+          adapter_credentials: { game_id: string; status: string }[];
+        }[];
+      };
+      const source = data.sources.find((s) => s.source_uuid === "adapter-cred")!;
+      expect(source.adapter_credentials).toHaveLength(1);
+      expect(source.adapter_credentials[0]!.game_id).toBe("wow");
+      expect(source.adapter_credentials[0]!.status).toBe("connected");
+    });
+
+    it("returns adapter_credentials with expired status for expired token", async () => {
+      await seedAdapterSource({ sourceUuid: "adapter-exp", userUuid: USER_A });
+      const pastExpiry = new Date(Date.now() - 3_600_000).toISOString();
+      await seedGameCredentials({
+        userUuid: USER_A,
+        gameId: "wow",
+        expiresAt: pastExpiry,
+      });
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as {
+        sources: {
+          source_uuid: string;
+          adapter_credentials: { game_id: string; status: string }[];
+        }[];
+      };
+      const source = data.sources.find((s) => s.source_uuid === "adapter-exp")!;
+      expect(source.adapter_credentials[0]!.status).toBe("expired");
+    });
+
+    it("returns adapter_credentials with missing status when game linked but no credentials", async () => {
+      await seedAdapterSource({ sourceUuid: "adapter-miss", userUuid: USER_A });
+      // Linked character exists but no game_credentials row
+      await env.DB.prepare(
+        `INSERT INTO linked_characters (user_uuid, game_id, character_id, character_name, source_uuid)
+         VALUES (?, 'wow', 'char-1', 'Thrall', ?)`,
+      )
+        .bind(USER_A, "adapter-miss")
+        .run();
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as {
+        sources: {
+          source_uuid: string;
+          adapter_credentials: { game_id: string; status: string }[];
+        }[];
+      };
+      const source = data.sources.find((s) => s.source_uuid === "adapter-miss")!;
+      expect(source.adapter_credentials).toHaveLength(1);
+      expect(source.adapter_credentials[0]!.game_id).toBe("wow");
+      expect(source.adapter_credentials[0]!.status).toBe("missing");
+    });
+
+    it("returns multiple adapter_credentials for multiple games", async () => {
+      await seedAdapterSource({ sourceUuid: "adapter-multi", userUuid: USER_A });
+      const futureExpiry = new Date(Date.now() + 3_600_000).toISOString();
+      const pastExpiry = new Date(Date.now() - 3_600_000).toISOString();
+      await seedGameCredentials({
+        userUuid: USER_A,
+        gameId: "wow",
+        expiresAt: futureExpiry,
+      });
+      await seedGameCredentials({
+        userUuid: USER_A,
+        gameId: "ffxiv",
+        expiresAt: pastExpiry,
+      });
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as {
+        sources: {
+          source_uuid: string;
+          adapter_credentials: { game_id: string; status: string }[];
+        }[];
+      };
+      const source = data.sources.find((s) => s.source_uuid === "adapter-multi")!;
+      expect(source.adapter_credentials).toHaveLength(2);
+      const byGame = new Map(source.adapter_credentials.map((c) => [c.game_id, c.status]));
+      expect(byGame.get("wow")).toBe("connected");
+      expect(byGame.get("ffxiv")).toBe("expired");
+    });
+
+    it("does not include adapter_credentials for daemon sources", async () => {
+      await seedTestSource({
+        sourceUuid: "dev-no-creds",
+        userUuid: USER_A,
+        hostname: "gaming-pc",
+      });
+
+      const result = await getSetupHelp(env, USER_A);
+      const data = parseResult(result) as {
+        sources: { source_uuid: string; adapter_credentials?: unknown }[];
+      };
+      const source = data.sources.find((s) => s.source_uuid === "dev-no-creds")!;
+      expect(source.adapter_credentials).toBeUndefined();
+    });
+
+    it("returns source_kind in lookup result", async () => {
+      await seedAdapterSource({ sourceUuid: "adapter-lookup", userUuid: USER_A });
+
+      const result = await getSetupHelp(env, USER_A, undefined, undefined, "adapter-lookup");
+      const data = parseResult(result) as {
+        lookup: { found: boolean; source_kind: string };
+      };
+      expect(data.lookup.found).toBe(true);
+      expect(data.lookup.source_kind).toBe("adapter");
+    });
   });
 }); // MCP Tools
