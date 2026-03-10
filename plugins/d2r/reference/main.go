@@ -54,7 +54,12 @@ func main() {
 func handleDropCalc(enc *json.Encoder, query map[string]any) {
 	calc := dropcalc.NewCalculator()
 
-	// Two modes: "item" (reverse lookup) or "monster" (forward lookup).
+	// Three modes: "search" (item search), "item" (reverse lookup), or "monster" (forward lookup).
+	if search, _ := query["search"].(string); search != "" {
+		handleItemSearch(enc, calc, query, search)
+		return
+	}
+
 	if item, _ := query["item"].(string); item != "" {
 		handleItemSources(enc, calc, query, item)
 		return
@@ -62,7 +67,7 @@ func handleDropCalc(enc *json.Encoder, query map[string]any) {
 
 	monster, _ := query["monster"].(string)
 	if monster == "" {
-		writeError(enc, "missing_param", "monster or item is required")
+		writeError(enc, "missing_param", "monster, item, or search is required")
 		os.Exit(1)
 	}
 
@@ -154,12 +159,163 @@ func handleMonsterDrops(enc *json.Encoder, calc *dropcalc.Calculator, query map[
 	})
 }
 
+func handleItemSearch(enc *json.Encoder, calc *dropcalc.Calculator, query map[string]any, search string) {
+	results := calc.SearchItems(search)
+
+	mf := intParam(query, "mf", 0)
+	players := intParam(query, "players", 1)
+	partySize := intParam(query, "party_size", players)
+	offset := intParam(query, "offset", 0)
+
+	total := len(results)
+	if total == 0 {
+		var b strings.Builder
+		fmt.Fprintf(&b, "No items found matching '%s'.\n\n", search)
+		b.WriteString("Tip: Try searching by stat name (e.g. 'cold resist ring', 'Cannot Be Frozen'),\n")
+		b.WriteString("by item name (e.g. 'Shako', 'Raven'), or by set name (e.g. 'Tal Rasha').")
+		writeResult(enc, map[string]any{
+			"formatted": b.String(),
+			"total":     0,
+			"offset":    0,
+			"limit":     pageSize,
+		})
+		return
+	}
+
+	pageResults := paginate(results, offset)
+
+	var b strings.Builder
+	fmt.Fprintf(&b, "Items matching '%s' — %d result", search, total)
+	if total != 1 {
+		b.WriteString("s")
+	}
+	end := offset + len(pageResults)
+	if total > pageSize {
+		fmt.Fprintf(&b, " (showing %d-%d)", offset+1, end)
+	}
+	b.WriteString("\n")
+
+	for idx, r := range pageResults {
+		if idx > 0 {
+			b.WriteString("\n")
+		}
+		b.WriteString("─────────────────────────────────────────\n")
+
+		// Item header.
+		quality := "Unique"
+		if r.IsSet {
+			quality = "Set"
+		}
+		fmt.Fprintf(&b, "%s [%s] — %s (%s)\n", r.Name, quality, r.BaseName, r.BaseCode)
+		if r.IsSet && r.SetName != "" {
+			fmt.Fprintf(&b, "Set: %s\n", r.SetName)
+		}
+		if r.LevelReq > 0 {
+			fmt.Fprintf(&b, "Required Level: %d\n", r.LevelReq)
+		}
+
+		// Stats.
+		if len(r.Stats) > 0 {
+			b.WriteString("Stats:\n")
+			for _, s := range r.Stats {
+				b.WriteString("  • ")
+				b.WriteString(s.Property)
+				if s.Param != "" {
+					fmt.Fprintf(&b, " (%s)", s.Param)
+				}
+				if s.Min == s.Max {
+					fmt.Fprintf(&b, ": %d", s.Min)
+				} else {
+					fmt.Fprintf(&b, ": %d-%d", s.Min, s.Max)
+				}
+				b.WriteString("\n")
+			}
+		}
+
+		// Top 20 drop sources.
+		resolveType := dropcalc.ResolveUnique
+		if r.IsSet {
+			resolveType = dropcalc.ResolveSet
+		}
+		sources := calc.FindItemSources(r.BaseCode, dropcalc.FindOptions{
+			Difficulty: -1, // all difficulties
+			TCType:     -1,
+			Players:    players,
+			PartySize:  partySize,
+			MF:         mf,
+		})
+
+		chanceOf := func(s dropcalc.ItemSource) float64 {
+			if resolveType == dropcalc.ResolveSet {
+				return s.Quality.Set
+			}
+			return s.Quality.Unique
+		}
+
+		// Sort by best chance.
+		sort.Slice(sources, func(i, j int) bool {
+			return chanceOf(sources[i]) > chanceOf(sources[j])
+		})
+
+		dropLimit := 20
+		if len(sources) < dropLimit {
+			dropLimit = len(sources)
+		}
+		if dropLimit > 0 {
+			fmt.Fprintf(&b, "Top %d drop sources", dropLimit)
+			if mf > 0 {
+				fmt.Fprintf(&b, " (%d MF)", mf)
+			}
+			b.WriteString(":\n")
+			fmt.Fprintf(&b, "  %-20s %-5s %-8s %-23s %9s\n",
+				"Monster", "Diff", "Type", "Area", "Chance")
+			for _, s := range sources[:dropLimit] {
+				name := s.MonsterName
+				if len(name) > 20 {
+					name = name[:17] + "..."
+				}
+				area := s.Area
+				if area == "" {
+					area = "—"
+				}
+				if len(area) > 23 {
+					area = area[:20] + "..."
+				}
+				fmt.Fprintf(&b, "  %-20s %-5s %-8s %-23s %9s\n",
+					name, shortDiff(s.Difficulty),
+					tcTypeName(s.TCType), area,
+					fmtChance(chanceOf(s)))
+			}
+			if len(sources) > dropLimit {
+				fmt.Fprintf(&b, "  ... and %d more sources\n", len(sources)-dropLimit)
+			}
+		}
+	}
+
+	if total > end {
+		fmt.Fprintf(&b, "\n%d more items. Use offset=%d for next page.", total-end, end)
+	}
+
+	writeResult(enc, map[string]any{
+		"formatted": b.String(),
+		"total":     total,
+		"offset":    offset,
+		"limit":     pageSize,
+	})
+}
+
 func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[string]any, item string) {
-	code, resolveType := calc.ResolveItem(item)
-	if code == "" {
-		writeError(enc, "unknown_item", "unknown item: "+item)
+	result := calc.ResolveItemFuzzy(item)
+	if result.Code == "" {
+		msg := "unknown item: " + item
+		if len(result.Suggestions) > 0 {
+			msg += ". Did you mean: " + strings.Join(result.Suggestions, ", ") + "?"
+		}
+		writeError(enc, "unknown_item", msg)
 		os.Exit(1)
 	}
+	code := result.Code
+	resolveType := result.ResolveType
 
 	offset := intParam(query, "offset", 0)
 	sortOrder := stringParam(query, "sort")
@@ -217,6 +373,9 @@ func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[s
 	}
 
 	var b strings.Builder
+	if result.Corrected != "" {
+		fmt.Fprintf(&b, "You searched for '%s'. Showing results for '%s'.\n\n", item, result.Corrected)
+	}
 	fmt.Fprintf(&b, "Drop sources for %s — %s, %d MF, %d player",
 		headerName, diffLabel, mf, players)
 	if players > 1 {
@@ -401,7 +560,7 @@ func schema() map[string]any {
 			{
 				"id":          "drop_calc",
 				"name":        "Drop Calculator",
-				"description": "Compute drop probabilities. Use 'monster' for forward lookup (what does X drop?) or 'item' for reverse lookup (where to farm X?).",
+				"description": "Compute drop probabilities and search items. Use 'monster' for forward lookup (what does X drop?), 'item' for reverse lookup (where to farm X?), or 'search' to find items by name, stats, type, or set.",
 				"parameters": map[string]any{
 					"monster": map[string]any{
 						"type":        "string",
@@ -409,7 +568,11 @@ func schema() map[string]any {
 					},
 					"item": map[string]any{
 						"type":        "string",
-						"description": "Item code, base item name, unique item name, or set item name for reverse lookup (e.g. 'r13', 'Shael', 'xea', 'Serpentskin Armor', 'Skin of the Vipermagi', 'Magefist', 'Tal Rasha's Horadric Crest'). Mutually exclusive with 'monster'.",
+						"description": "Item code, base item name, unique item name, or set item name for reverse lookup (e.g. 'r13', 'Shael', 'xea', 'Serpentskin Armor', 'Skin of the Vipermagi', 'Magefist', 'Tal Rasha's Horadric Crest'). Supports fuzzy matching — close misspellings auto-resolve. Mutually exclusive with 'monster' and 'search'.",
+					},
+					"search": map[string]any{
+						"type":        "string",
+						"description": "Search for unique/set items by name, stats, item type, or set membership. Supports natural language queries like 'Cannot Be Frozen', 'cold resist ring', 'Tal Rasha', 'life steal amulet'. Returns matching items with stats and top 20 drop sources. Mutually exclusive with 'monster' and 'item'.",
 					},
 					"difficulty": map[string]any{
 						"type":        "string",

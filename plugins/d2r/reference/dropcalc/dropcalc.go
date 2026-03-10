@@ -7,6 +7,7 @@ import (
 	"math"
 	"sort"
 	"strconv"
+	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/d2r/reference/data"
 )
@@ -55,7 +56,11 @@ type Calculator struct {
 	areaByName     map[string]*data.Area      // keyed by display name (e.g. "Drifter Cavern")
 	allTypeCodes   map[string]map[string]bool // code → set of (self + all ancestor codes)
 	virtualTCs     map[string]*virtualTC
-	isSetAlias     map[string]bool // alias name → true if set item
+	isSetAlias     map[string]bool   // alias name → true if set item
+	itemNameLower  map[string]string // lowercased name → original name
+	itemNameNorm   map[string]string // normalized name → original name
+	searchIndex    []searchableItem  // all unique + set items for search
+	setNames       map[string]bool   // known set names
 
 	// Reverse index for item → source lookups.
 	reverseTCParents map[string][]string        // child TC/item → parent TC names
@@ -121,6 +126,45 @@ func NewCalculator() *Calculator {
 	for typo, fix := range itemNameCorrections {
 		if code, ok := c.itemNameToCode[typo]; ok {
 			c.itemNameToCode[fix] = code
+		}
+	}
+
+	// Build search index from unique and set items.
+	c.setNames = make(map[string]bool)
+	c.searchIndex = make([]searchableItem, 0, len(data.UniqueItems)+len(data.SetItems))
+	for _, ui := range data.UniqueItems {
+		c.searchIndex = append(c.searchIndex, searchableItem{
+			name:     ui.Name,
+			code:     ui.Code,
+			qLevel:   ui.QLevel,
+			levelReq: ui.LevelReq,
+			stats:    ui.Stats,
+		})
+	}
+	for _, si := range data.SetItems {
+		c.searchIndex = append(c.searchIndex, searchableItem{
+			name:     si.Name,
+			code:     si.Code,
+			isSet:    true,
+			setName:  si.SetName,
+			qLevel:   si.QLevel,
+			levelReq: si.LevelReq,
+			stats:    si.Stats,
+		})
+		c.setNames[si.SetName] = true
+	}
+
+	// Build fuzzy lookup indexes from all known item names.
+	c.itemNameLower = make(map[string]string, len(c.itemNameToCode))
+	c.itemNameNorm = make(map[string]string, len(c.itemNameToCode))
+	for name := range c.itemNameToCode {
+		lower := strings.ToLower(name)
+		if _, exists := c.itemNameLower[lower]; !exists {
+			c.itemNameLower[lower] = name
+		}
+		norm := normalize(name)
+		if _, exists := c.itemNameNorm[norm]; !exists {
+			c.itemNameNorm[norm] = name
 		}
 	}
 
