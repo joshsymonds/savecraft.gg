@@ -55,6 +55,41 @@ type BaseItem struct {
 	NormCode  string // base version code (for item version detection)
 	UberCode  string // exceptional version code
 	UltraCode string // elite version code
+	LevelReq  int    // required character level
+	ReqStr    int    // required strength
+	ReqDex    int    // required dexterity
+	MinAC     int    // minimum defense (armor only)
+	MaxAC     int    // maximum defense (armor only)
+	MinDam    int    // minimum damage (weapons only)
+	MaxDam    int    // maximum damage (weapons only)
+	Speed     int    // weapon speed modifier (weapons only)
+}
+
+// ItemStat represents a single property on a unique or set item.
+type ItemStat struct {
+	Property string // stat code (e.g. "res-cold", "nofreeze", "dmg-cold")
+	Param    string // optional parameter (skill name, etc.)
+	Min      int
+	Max      int
+}
+
+// UniqueItem represents a unique item from uniqueitems.txt.
+type UniqueItem struct {
+	Name     string
+	Code     string // base item code
+	QLevel   int    // quality level
+	LevelReq int    // required character level
+	Stats    []ItemStat
+}
+
+// SetItem represents a set item from setitems.txt.
+type SetItem struct {
+	Name     string
+	Code     string // base item code
+	SetName  string // name of the set it belongs to
+	QLevel   int
+	LevelReq int
+	Stats    []ItemStat
 }
 
 // ItemType represents a row from ItemTypes.txt.
