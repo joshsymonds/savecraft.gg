@@ -38,7 +38,7 @@ Modal for adding new games. Includes search, game selection, and configuration (
 
 ### AddSourceContent
 
-Shared component with install instructions (Windows MSI download, Linux curl command) and pairing code input. Used by both `AddSourceModal` and `EmptySourceState`.
+Shared component with install instructions (Windows CMD download via install worker, Linux curl command) and pairing code input. Used by both `AddSourceModal` and `EmptySourceState`.
 
 ### AddSourceModal
 
