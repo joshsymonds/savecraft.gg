@@ -108,7 +108,8 @@
             </a>
           </div>
           <p class="install-hint">
-            Right-click the downloaded <code>.cmd</code> file &rarr; Properties &rarr; Unblock, then double-click to install
+            Right-click the downloaded <code>.cmd</code> file &rarr; Properties &rarr; Unblock, then double-click
+            to install
           </p>
         </div>
 
@@ -192,7 +193,8 @@
         </a>
       </div>
       <p class="install-hint">
-        Right-click the downloaded <code>.cmd</code> file &rarr; Properties &rarr; Unblock, then double-click to install
+        Right-click the downloaded <code>.cmd</code> file &rarr; Properties &rarr; Unblock, then double-click
+        to install
       </p>
     </div>
 
