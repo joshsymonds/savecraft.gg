@@ -70,6 +70,8 @@ const SAVECRAFT_LOCALIZATION = {
 } as const;
 
 let clerkInstance: Clerk | null = null;
+let clerkReady: Promise<Clerk> | null = null;
+let resolveClerkReady: ((clerk: Clerk) => void) | null = null;
 
 function createAuthState(): {
   store: Readable<AuthState>;
@@ -125,11 +127,22 @@ export async function initializeClerk(): Promise<void> {
   clerk.addListener(() => {
     updateAuthState(clerk);
   });
+
+  if (resolveClerkReady) resolveClerkReady(clerk);
 }
 
 export function getClerk(): Clerk {
   if (!clerkInstance) throw new Error("Clerk not initialized");
   return clerkInstance;
+}
+
+/** Returns a promise that resolves once Clerk is fully loaded. Safe to call from onMount. */
+export function awaitClerk(): Promise<Clerk> {
+  if (clerkInstance) return Promise.resolve(clerkInstance);
+  clerkReady ??= new Promise<Clerk>((resolve) => {
+    resolveClerkReady = resolve;
+  });
+  return clerkReady;
 }
 
 export async function getToken(): Promise<string | null> {
