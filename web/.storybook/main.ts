@@ -2,7 +2,7 @@ import type { StorybookConfig } from "@storybook/sveltekit";
 
 const config: StorybookConfig = {
   stories: ["../src/**/*.stories.@(ts|svelte)"],
-  staticDirs: [{ from: "../../plugins", to: "/plugins" }],
+  staticDirs: ["../static", { from: "../../plugins", to: "/plugins" }],
   addons: ["@storybook/addon-svelte-csf"],
   framework: "@storybook/sveltekit",
   env: (existing) => ({

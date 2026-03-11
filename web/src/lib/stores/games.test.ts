@@ -9,6 +9,7 @@ function makeSource(overrides: Partial<Source> & { id: string }): Source {
     sourceKind: "daemon",
     hostname: overrides.id,
     platform: "linux",
+    device: null,
     status: "online",
     version: "0.1.0",
     lastSeen: "now",

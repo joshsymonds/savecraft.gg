@@ -42,6 +42,7 @@ export interface Source {
   sourceKind: string;
   hostname: string | null;
   platform: string | null;
+  device: string | null;
   status: SourceStatus;
   version: string | null;
   lastSeen: string;

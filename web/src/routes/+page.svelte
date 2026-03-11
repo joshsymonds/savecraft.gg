@@ -24,8 +24,8 @@
     GamePickerModal,
     LinkingCard,
     SaveDetailModal,
+    SourceCardGrid,
     SourceDetailModal,
-    SourceStrip,
     StatusDot,
   } from "$lib/components";
   import { RelayedMessage } from "$lib/proto/savecraft/v1/protocol";
@@ -251,23 +251,22 @@
 <div class="dashboard-layout">
   <!-- Main column: strip + content -->
   <div class="main-column">
-    {#if $sources.length > 0}
-      <SourceStrip
-        sources={$sources}
-        onchipclick={(source) => {
-          selectedSource = source;
-        }}
-        onadd={() => {
-          addSourceOpen = true;
-        }}
-      />
-    {/if}
-
     {#if $connectionStatus === "reconnecting"}
       <Banner color="var(--color-text-muted)" dot>Reconnecting to server...</Banner>
     {/if}
 
     <main class="content">
+      {#if $sources.length > 0}
+        <SourceCardGrid
+          sources={$sources}
+          oncardclick={(source) => {
+            selectedSource = source;
+          }}
+          onadd={() => {
+            addSourceOpen = true;
+          }}
+        />
+      {/if}
       {#if $linkState === "linking"}
         <LinkingCard cardState="linking" displayCode={$linkCode} ondismiss={handleCancelLink} />
       {:else if $linkState === "error"}

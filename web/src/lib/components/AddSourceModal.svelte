@@ -1,7 +1,7 @@
 <!--
   @component
   Modal for adding a new source: install instructions + pairing code input.
-  Opened by clicking "Add Source..." in the SourceStrip.
+  Opened by clicking the AddSourceCard in the SourceCardGrid.
 -->
 <script lang="ts">
   import AddSourceContent from "./AddSourceContent.svelte";
