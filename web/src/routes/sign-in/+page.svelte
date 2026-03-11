@@ -1,29 +1,33 @@
 <!--
   @component
-  Sign-in page: mounts Clerk's SignIn component.
+  Sign-in page: mounts Clerk's combined SignIn + SignUp component.
 -->
 <script lang="ts">
   import { page } from "$app/state";
-  import { authState, getClerk } from "$lib/auth/clerk";
+  import { awaitClerk } from "$lib/auth/clerk";
+  import { onMount } from "svelte";
 
-  let container: HTMLDivElement | undefined = $state();
-  let mounted = false;
+  let container: HTMLDivElement;
 
-  // Mount Clerk's SignIn widget exactly once when the SDK is ready.
-  // Must not re-run on authState changes (e.g. failed sign-in 422) or the
-  // component remounts and loses its error state.
-  $effect(() => {
-    if (mounted || !$authState.isLoaded || !container) return;
-    mounted = true;
-    const clerk = getClerk();
-    const el = container;
-    const redirectUrl = page.url.searchParams.get("redirect_url") ?? "/";
-    clerk.mountSignIn(el, {
-      routing: "hash",
-      fallbackRedirectUrl: redirectUrl,
+  // Mount exactly once via onMount — never via $effect.
+  // Clerk's internal React tree manages its own state; any unmount/remount
+  // destroys error messages, OTP input, verification state, etc.
+  onMount(() => {
+    let unmount: (() => void) | undefined;
+
+    void awaitClerk().then((clerk) => {
+      const redirectUrl = page.url.searchParams.get("redirect_url") ?? "/";
+      clerk.mountSignIn(container, {
+        withSignUp: true,
+        routing: "path",
+        path: "/sign-in",
+        fallbackRedirectUrl: redirectUrl,
+      });
+      unmount = () => clerk.unmountSignIn(container);
     });
+
     return () => {
-      clerk.unmountSignIn(el);
+      unmount?.();
     };
   });
 </script>
