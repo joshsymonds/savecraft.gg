@@ -1041,8 +1041,9 @@ const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
       "Downloads signed binaries, verifies Ed25519 signatures, installs to ~/.local/bin/, sets up a systemd user service, and auto-registers the source. The daemon starts immediately and prints a pairing link.",
   },
   windows: {
-    install: "Download the installer from https://install.savecraft.gg",
-    details: String.raw`Downloads an MSI installer. Installs the daemon and tray app to C:\Program Files\Savecraft\. Both start automatically on login.`,
+    install:
+      "Visit https://install.savecraft.gg in a browser to download savecraft-install.cmd. Right-click the file, select Properties, check Unblock, click OK, then double-click to run.",
+    details: String.raw`Downloads a .cmd installer (no MSI yet — binaries are not code-signed). The script downloads the daemon and tray to %LOCALAPPDATA%\Savecraft\, unblocks them, registers autostart via the registry, and displays a pairing code. No admin required.`,
   },
   macos: {
     install: null,

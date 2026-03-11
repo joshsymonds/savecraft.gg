@@ -206,13 +206,13 @@ These are policy decisions, not architecture decisions. Nothing about them chang
 - **Anthropic Connectors Directory submission:** After dogfooding or immediately?
 - **Multi-source support:** Solved by source-centric architecture. Each source self-registers and pushes saves under its own `source_uuid`. A user with a Windows PC and Steam Deck sees saves from both via the source→user JOIN. The MCP and web UI surface saves from all linked sources transparently.
 
-## Platform-Specific Installation (Not Yet Implemented)
+## Platform-Specific Installation
 
-### Windows
+### Windows (CMD installer shipped, MSI planned)
 
-**MSI installer** built with WiX or go-msi. Installs to `C:\Program Files\Savecraft\`, registers Windows Service, opens `savecraft.gg/setup`.
+Current: `.cmd` installer served by the install worker. Downloads daemon and tray to `%LOCALAPPDATA%\Savecraft\`, registers HKCU Run key for autostart. Users must manually unblock the `.cmd` file (Properties → Unblock) before running.
 
-**Code signing:** EV code signing certificate (~$300-400/year). Required to avoid SmartScreen warnings.
+**Planned:** MSI installer built with WiX. Would install to `C:\Program Files\Savecraft\`, register a Windows Service, and eliminate the manual unblock step. Requires an EV code signing certificate (~$300-400/year) to avoid SmartScreen warnings entirely.
 
 ### macOS
 

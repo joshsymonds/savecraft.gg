@@ -54,8 +54,6 @@
   const installUrl = isStaging
     ? "https://staging-install.savecraft.gg"
     : "https://install.savecraft.gg";
-  const appName = isStaging ? "savecraft-staging" : "savecraft";
-  const msiUrl = `${installUrl}/daemon/${appName}.msi`;
 
   function installCommand(): string {
     return `curl -sSL ${installUrl} | bash`;
@@ -104,11 +102,14 @@
           <span class="platform-label">WINDOWS</span>
           <div class="action-row">
             <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external download URL -->
-            <a class="primary-action" href={msiUrl} download="savecraft.msi">
+            <a class="primary-action" href={installUrl}>
               <span class="primary-action-icon">&darr;</span>
               <span class="primary-action-label">DOWNLOAD</span>
             </a>
           </div>
+          <p class="install-hint">
+            Right-click the downloaded <code>.cmd</code> file &rarr; Properties &rarr; Unblock, then double-click to install
+          </p>
         </div>
 
         <div class="platform-block">
@@ -185,13 +186,13 @@
       <span class="platform-label">WINDOWS</span>
       <div class="action-row">
         <!-- eslint-disable-next-line svelte/no-navigation-without-resolve -- external download URL -->
-        <a class="primary-action" href={msiUrl} download="savecraft.msi">
+        <a class="primary-action" href={installUrl}>
           <span class="primary-action-icon">&darr;</span>
           <span class="primary-action-label">DOWNLOAD FOR WINDOWS</span>
         </a>
       </div>
       <p class="install-hint">
-        Installs to <code>Program Files</code> &middot; Starts on login
+        Right-click the downloaded <code>.cmd</code> file &rarr; Properties &rarr; Unblock, then double-click to install
       </p>
     </div>
 
