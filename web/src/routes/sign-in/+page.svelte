@@ -7,16 +7,19 @@
   import { authState, getClerk } from "$lib/auth/clerk";
 
   let container: HTMLDivElement | undefined = $state();
+  let mounted = false;
 
-  // Mount Clerk's SignIn widget once the SDK is ready (page chrome renders immediately)
+  // Mount Clerk's SignIn widget exactly once when the SDK is ready.
+  // Must not re-run on authState changes (e.g. failed sign-in 422) or the
+  // component remounts and loses its error state.
   $effect(() => {
-    if (!$authState.isLoaded || !container) return;
+    if (mounted || !$authState.isLoaded || !container) return;
+    mounted = true;
     const clerk = getClerk();
     const el = container;
     const redirectUrl = page.url.searchParams.get("redirect_url") ?? "/";
     clerk.mountSignIn(el, {
       routing: "hash",
-      signUpUrl: "/sign-up",
       fallbackRedirectUrl: redirectUrl,
     });
     return () => {
@@ -32,7 +35,7 @@
 <div class="sign-in-page">
   <div class="hero">
     <div class="logo">SAVECRAFT</div>
-    <p class="tagline">Welcome back</p>
+    <p class="tagline">Connect your game saves to AI assistants.</p>
   </div>
   <div class="auth-card">
     <div bind:this={container}></div>

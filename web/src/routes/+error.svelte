@@ -1,7 +1,7 @@
 <!--
   @component
   Error page: shown for 404s and other unhandled errors.
-  Matches the sign-in/sign-up centered layout style.
+  Matches the sign-in centered layout style.
 -->
 <script lang="ts">
   import { resolve } from "$app/paths";

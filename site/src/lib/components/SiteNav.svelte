@@ -23,7 +23,7 @@
     return !!match && match[1] !== "0";
   }
 
-  let authHref = $derived(hasSession ? PUBLIC_APP_URL : `${PUBLIC_APP_URL}/sign-up`);
+  let authHref = $derived(hasSession ? PUBLIC_APP_URL : `${PUBLIC_APP_URL}/sign-in`);
   let authLabel = $derived(hasSession ? "MY SAVECRAFT" : "GET STARTED");
 
   // ── GitHub star count ───────────────────────────────────
