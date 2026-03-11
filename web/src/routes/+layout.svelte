@@ -16,7 +16,7 @@
   let { children } = $props();
   let userButtonEl: HTMLDivElement | undefined = $state();
 
-  const PUBLIC_ROUTE_PREFIXES = ["/sign-in", "/sign-up", "/connect"];
+  const PUBLIC_ROUTE_PREFIXES = ["/sign-in", "/connect"];
 
   function isPublicRoute(pathname: string): boolean {
     return PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
@@ -36,7 +36,7 @@
 
   // Route guard: redirect unauthenticated users away from protected routes.
   // Uses the session cookie for an instant check before Clerk finishes loading.
-  // Prefix matching allows Clerk's multi-step sub-routes (e.g. /sign-up/verify-email-address).
+  // Prefix matching allows Clerk's multi-step sub-routes (e.g. /sign-in#/create/verify-email-address).
   $effect(() => {
     if (isPublicRoute(page.url.pathname)) return;
     const isSignedOut = $authState.isLoaded && !$authState.isSignedIn;

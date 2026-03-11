@@ -120,24 +120,6 @@ describe("layout route guard", () => {
       expect(mockGoto).not.toHaveBeenCalled();
     });
 
-    it("does not redirect on /sign-up", () => {
-      mockPathname = "/sign-up";
-      renderLayout();
-      expect(mockGoto).not.toHaveBeenCalled();
-    });
-
-    it("does not redirect on /sign-up/verify-email-address", () => {
-      mockPathname = "/sign-up/verify-email-address";
-      renderLayout();
-      expect(mockGoto).not.toHaveBeenCalled();
-    });
-
-    it("does not redirect on /sign-up/continue", () => {
-      mockPathname = "/sign-up/continue";
-      renderLayout();
-      expect(mockGoto).not.toHaveBeenCalled();
-    });
-
     it("does not redirect on /sign-in/factor-one", () => {
       mockPathname = "/sign-in/factor-one";
       renderLayout();

@@ -182,7 +182,7 @@
             Celebrate a drop. Plan your next move. The conversation goes wherever you take it.
           </p>
           <div class="hero-actions">
-            <a href={`${PUBLIC_APP_URL}/sign-up`} class="btn-gold">START YOUR JOURNEY</a>
+            <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">START YOUR JOURNEY</a>
             <a href="#how" class="btn-outline">SEE HOW IT WORKS</a>
           </div>
         </div>
@@ -478,7 +478,7 @@
       <h2 class="cta-title">Ready for Player 2?</h2>
       <p class="cta-sub">Install in 30 seconds. Works with Claude, ChatGPT, and Gemini.</p>
       <div class="cta-actions">
-        <a href={`${PUBLIC_APP_URL}/sign-up`} class="btn-gold btn-large">GET STARTED</a>
+        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">GET STARTED</a>
       </div>
       <div class="cta-install">
         <code class="install-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>

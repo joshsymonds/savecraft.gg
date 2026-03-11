@@ -57,16 +57,14 @@ const SAVECRAFT_LOCALIZATION = {
     start: {
       title: "Create your account",
       subtitle: "Your save files, understood by AI",
-      actionText: "Already have an account?",
-      actionLink: "Sign in",
     },
   },
   signIn: {
     start: {
-      title: "Welcome back",
-      subtitle: "Sign in to Savecraft",
-      actionText: "New here?",
-      actionLink: "Create an account",
+      titleCombined: "Sign in or create an account",
+      subtitleCombined: "Your save files, understood by AI",
+      title: "Sign in or create an account",
+      subtitle: "Your save files, understood by AI",
     },
   },
 } as const;

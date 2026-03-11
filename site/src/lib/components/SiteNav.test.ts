@@ -39,7 +39,7 @@ describe("SiteNav", () => {
     const cta = container.querySelector(".nav-cta");
     expect(cta).toBeInTheDocument();
     expect(cta?.textContent?.trim()).toBe("GET STARTED");
-    expect(cta?.getAttribute("href")).toBe(`${TEST_APP_URL}/sign-up`);
+    expect(cta?.getAttribute("href")).toBe(`${TEST_APP_URL}/sign-in`);
   });
 
   it("shows MY SAVECRAFT when Clerk session cookie is set", () => {
