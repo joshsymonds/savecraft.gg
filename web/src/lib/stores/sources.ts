@@ -86,6 +86,8 @@ function mapSourceInfo(d: SourceInfo): Source {
     // Use `os` (runtime.GOOS: "linux", "darwin", "windows") for platform-dependent
     // path defaults, not `platform` which is architecture info.
     platform: d.os || null,
+    // device field will be added to proto in a future task; safe-access for now
+    device: (d as unknown as { device?: string }).device ?? null,
     status: sourceStatus,
     version: null,
     lastSeen: formatTimestamp(d.lastSeen),
@@ -106,6 +108,7 @@ function findOrCreateSource(srcs: Source[], sourceId: string): Source {
       sourceKind: "daemon",
       hostname: null,
       platform: null,
+      device: null,
       status: "online",
       version: null,
       lastSeen: "now",

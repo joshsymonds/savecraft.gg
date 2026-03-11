@@ -1,7 +1,7 @@
 <!--
   @component
   Modal showing source diagnostics and per-game config.
-  Opened by clicking a SourceChip in the SourceStrip.
+  Opened by clicking a SourceCard in the SourceCardGrid.
 -->
 <script lang="ts">
   import { deleteSource, patchGameConfig } from "$lib/api/client";

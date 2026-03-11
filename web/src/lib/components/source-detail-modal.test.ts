@@ -12,6 +12,7 @@ function makeSource(overrides: Partial<Source> = {}): Source {
     sourceKind: "daemon",
     hostname: "GAMING-PC",
     platform: "linux",
+    device: null,
     status: "online",
     version: "0.5.0",
     lastSeen: "2m ago",
