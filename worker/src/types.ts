@@ -12,7 +12,7 @@ export interface Env {
   /** OAuth helpers injected by the library at runtime. */
   OAUTH_PROVIDER: OAuthHelpers;
   ENVIRONMENT: string;
-  /** Clerk issuer URL (e.g. "https://intent-earwig-38.clerk.accounts.dev"). When set, enables Clerk JWT session auth and Clerk as upstream IdP for MCP OAuth. */
+  /** Clerk issuer URL (e.g. "https://clerk.savecraft.gg"). When set, enables Clerk JWT session auth and Clerk as upstream IdP for MCP OAuth. */
   CLERK_ISSUER?: string;
   /** Clerk OAuth app client ID for upstream IdP delegation. */
   CLERK_OAUTH_CLIENT_ID?: string;
