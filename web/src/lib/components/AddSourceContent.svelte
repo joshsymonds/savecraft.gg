@@ -107,9 +107,7 @@
               <span class="primary-action-label">DOWNLOAD</span>
             </a>
           </div>
-          <p class="install-hint">
-            Run the downloaded installer
-          </p>
+          <p class="install-hint">Run the downloaded installer</p>
         </div>
 
         <div class="platform-block">
@@ -191,9 +189,7 @@
           <span class="primary-action-label">DOWNLOAD FOR WINDOWS</span>
         </a>
       </div>
-      <p class="install-hint">
-        Run the downloaded installer
-      </p>
+      <p class="install-hint">Run the downloaded installer</p>
     </div>
 
     <div class="platform-block">
