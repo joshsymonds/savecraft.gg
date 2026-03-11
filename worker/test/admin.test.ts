@@ -135,6 +135,7 @@ describe("Admin API", () => {
             os: "",
             arch: "",
             hostname: "",
+            device: "",
           },
         },
       });
@@ -210,6 +211,7 @@ describe("Admin API", () => {
             os: "",
             arch: "",
             hostname: "",
+            device: "",
           },
         },
       });

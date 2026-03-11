@@ -6,7 +6,7 @@
 <script lang="ts">
   import type { Source } from "$lib/types/source";
 
-  import { getSourceIconUrl } from "./sourceIcon";
+  import { getSourceIconUrl } from "./source-icon";
   import StatusDot from "./StatusDot.svelte";
 
   let {
@@ -19,13 +19,11 @@
 
   let iconUrl = $derived(getSourceIconUrl(source));
   let displayName = $derived((source.hostname ?? source.name).toUpperCase());
-  let statusLabel = $derived(
-    source.status === "online"
-      ? "Online"
-      : source.status === "error"
-        ? "Error"
-        : source.lastSeen || "Offline",
-  );
+  let statusLabel = $derived.by(() => {
+    if (source.status === "online") return "Online";
+    if (source.status === "error") return "Error";
+    return source.lastSeen || "Offline";
+  });
 </script>
 
 <button
@@ -86,7 +84,7 @@
     width: 48px;
     height: 48px;
     object-fit: contain;
-    image-rendering: auto;
+    image-rendering: pixelated;
   }
 
   .source-name {

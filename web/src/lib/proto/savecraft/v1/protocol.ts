@@ -212,6 +212,7 @@ export interface SourceOnline {
   os: string;
   arch: string;
   hostname: string;
+  device: string;
 }
 
 /**
@@ -418,6 +419,7 @@ export interface SourceInfo {
   platform: string;
   os: string;
   arch: string;
+  device: string;
 }
 
 export interface GameInfo {
@@ -475,6 +477,7 @@ export interface Register {
   hostname: string;
   os: string;
   arch: string;
+  device: string;
 }
 
 /** Server response to Register with credentials and initial link code. */
@@ -1745,7 +1748,7 @@ export const RelayedMessage: MessageFns<RelayedMessage> = {
 };
 
 function createBaseSourceOnline(): SourceOnline {
-  return { version: "", timestamp: undefined, platform: "", os: "", arch: "", hostname: "" };
+  return { version: "", timestamp: undefined, platform: "", os: "", arch: "", hostname: "", device: "" };
 }
 
 export const SourceOnline: MessageFns<SourceOnline> = {
@@ -1767,6 +1770,9 @@ export const SourceOnline: MessageFns<SourceOnline> = {
     }
     if (message.hostname !== "") {
       writer.uint32(58).string(message.hostname);
+    }
+    if (message.device !== "") {
+      writer.uint32(66).string(message.device);
     }
     return writer;
   },
@@ -1826,6 +1832,14 @@ export const SourceOnline: MessageFns<SourceOnline> = {
           message.hostname = reader.string();
           continue;
         }
+        case 8: {
+          if (tag !== 66) {
+            break;
+          }
+
+          message.device = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -1843,6 +1857,7 @@ export const SourceOnline: MessageFns<SourceOnline> = {
       os: isSet(object.os) ? globalThis.String(object.os) : "",
       arch: isSet(object.arch) ? globalThis.String(object.arch) : "",
       hostname: isSet(object.hostname) ? globalThis.String(object.hostname) : "",
+      device: isSet(object.device) ? globalThis.String(object.device) : "",
     };
   },
 
@@ -1866,6 +1881,9 @@ export const SourceOnline: MessageFns<SourceOnline> = {
     if (message.hostname !== "") {
       obj.hostname = message.hostname;
     }
+    if (message.device !== "") {
+      obj.device = message.device;
+    }
     return obj;
   },
 
@@ -1880,6 +1898,7 @@ export const SourceOnline: MessageFns<SourceOnline> = {
     message.os = object.os ?? "";
     message.arch = object.arch ?? "";
     message.hostname = object.hostname ?? "";
+    message.device = object.device ?? "";
     return message;
   },
 };
@@ -4501,6 +4520,7 @@ function createBaseSourceInfo(): SourceInfo {
     platform: "",
     os: "",
     arch: "",
+    device: "",
   };
 }
 
@@ -4538,6 +4558,9 @@ export const SourceInfo: MessageFns<SourceInfo> = {
     }
     if (message.arch !== "") {
       writer.uint32(90).string(message.arch);
+    }
+    if (message.device !== "") {
+      writer.uint32(98).string(message.device);
     }
     return writer;
   },
@@ -4637,6 +4660,14 @@ export const SourceInfo: MessageFns<SourceInfo> = {
           message.arch = reader.string();
           continue;
         }
+        case 12: {
+          if (tag !== 98) {
+            break;
+          }
+
+          message.device = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -4679,6 +4710,7 @@ export const SourceInfo: MessageFns<SourceInfo> = {
       platform: isSet(object.platform) ? globalThis.String(object.platform) : "",
       os: isSet(object.os) ? globalThis.String(object.os) : "",
       arch: isSet(object.arch) ? globalThis.String(object.arch) : "",
+      device: isSet(object.device) ? globalThis.String(object.device) : "",
     };
   },
 
@@ -4717,6 +4749,9 @@ export const SourceInfo: MessageFns<SourceInfo> = {
     if (message.arch !== "") {
       obj.arch = message.arch;
     }
+    if (message.device !== "") {
+      obj.device = message.device;
+    }
     return obj;
   },
 
@@ -4736,6 +4771,7 @@ export const SourceInfo: MessageFns<SourceInfo> = {
     message.platform = object.platform ?? "";
     message.os = object.os ?? "";
     message.arch = object.arch ?? "";
+    message.device = object.device ?? "";
     return message;
   },
 };
@@ -5473,7 +5509,7 @@ export const SourceUpdateFailed: MessageFns<SourceUpdateFailed> = {
 };
 
 function createBaseRegister(): Register {
-  return { hostname: "", os: "", arch: "" };
+  return { hostname: "", os: "", arch: "", device: "" };
 }
 
 export const Register: MessageFns<Register> = {
@@ -5486,6 +5522,9 @@ export const Register: MessageFns<Register> = {
     }
     if (message.arch !== "") {
       writer.uint32(26).string(message.arch);
+    }
+    if (message.device !== "") {
+      writer.uint32(34).string(message.device);
     }
     return writer;
   },
@@ -5521,6 +5560,14 @@ export const Register: MessageFns<Register> = {
           message.arch = reader.string();
           continue;
         }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.device = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -5535,6 +5582,7 @@ export const Register: MessageFns<Register> = {
       hostname: isSet(object.hostname) ? globalThis.String(object.hostname) : "",
       os: isSet(object.os) ? globalThis.String(object.os) : "",
       arch: isSet(object.arch) ? globalThis.String(object.arch) : "",
+      device: isSet(object.device) ? globalThis.String(object.device) : "",
     };
   },
 
@@ -5549,6 +5597,9 @@ export const Register: MessageFns<Register> = {
     if (message.arch !== "") {
       obj.arch = message.arch;
     }
+    if (message.device !== "") {
+      obj.device = message.device;
+    }
     return obj;
   },
 
@@ -5560,6 +5611,7 @@ export const Register: MessageFns<Register> = {
     message.hostname = object.hostname ?? "";
     message.os = object.os ?? "";
     message.arch = object.arch ?? "";
+    message.device = object.device ?? "";
     return message;
   },
 };

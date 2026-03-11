@@ -50,6 +50,7 @@ describe("dispatchToActivity", () => {
             os: "linux",
             arch: "amd64",
             hostname: "josh-pc",
+            device: "",
           },
         }),
       );
@@ -80,6 +81,7 @@ describe("dispatchToActivity", () => {
             os: "",
             arch: "",
             hostname: "",
+            device: "",
           },
         }),
       );
@@ -100,6 +102,7 @@ describe("dispatchToActivity", () => {
             os: "",
             arch: "",
             hostname: "",
+            device: "",
           },
         }),
       );
@@ -121,6 +124,7 @@ describe("dispatchToActivity", () => {
             os: "darwin",
             arch: "",
             hostname: "macbook",
+            device: "",
           },
         }),
       );
@@ -141,6 +145,7 @@ describe("dispatchToActivity", () => {
             os: "",
             arch: "",
             hostname: "box",
+            device: "",
           },
         }),
       );
@@ -458,6 +463,7 @@ describe("dispatchToActivity", () => {
               os: "",
               arch: "",
               hostname: "box",
+              device: "",
             },
           }),
         );
@@ -481,6 +487,7 @@ describe("dispatchToActivity", () => {
             os: "",
             arch: "",
             hostname: "",
+            device: "",
           },
         }),
       );
@@ -503,6 +510,7 @@ describe("dispatchToActivity", () => {
             os: "",
             arch: "",
             hostname: "first",
+            device: "",
           },
         }),
       );
@@ -561,6 +569,7 @@ describe("pushActivityEvent", () => {
           os: "",
           arch: "",
           hostname: "box",
+          device: "",
         },
       }),
     );
