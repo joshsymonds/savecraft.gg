@@ -26,13 +26,12 @@ describe("AddSourceContent", () => {
       expect(steps[1]!.textContent).toBe("2");
     });
 
-    it("shows Windows download button linking to MSI", () => {
+    it("shows Windows download button linking to install worker", () => {
       render(AddSourceContent);
       expect(screen.getByText("DOWNLOAD FOR WINDOWS")).toBeInTheDocument();
       const link = screen.getByText("DOWNLOAD FOR WINDOWS").closest("a");
       expect(link).not.toBeNull();
-      expect(link!.href).toContain("install.savecraft.gg/daemon/");
-      expect(link!.href).toMatch(/\.msi$/);
+      expect(link!.href).toContain("install.savecraft.gg");
     });
 
     it("shows Linux curl command", () => {
@@ -50,7 +49,7 @@ describe("AddSourceContent", () => {
 
     it("shows install hints for both platforms", () => {
       render(AddSourceContent);
-      expect(screen.getByText(/Program Files/)).toBeInTheDocument();
+      expect(screen.getByText(/\.cmd/)).toBeInTheDocument();
       expect(screen.getByText(/systemd service/)).toBeInTheDocument();
     });
   });
