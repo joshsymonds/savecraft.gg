@@ -2,10 +2,10 @@ import type { Source } from "$lib/types/source";
 
 const ICON_BASE = "/icons/sources";
 
-type SourceIconInput = Pick<Source, "sourceKind" | "platform" | "device" | "games">;
+type SourceIconInput = Pick<Source, "sourceKind" | "platform" | "device">;
 
 /**
- * Resolve the icon URL for a source based on its kind, platform, device, and games.
+ * Resolve the icon URL for a source based on its kind, platform, and device.
  */
 export function getSourceIconUrl(source: SourceIconInput): string {
   if (source.sourceKind === "adapter") {
@@ -16,14 +16,22 @@ export function getSourceIconUrl(source: SourceIconInput): string {
     return `${ICON_BASE}/steam-deck.png`;
   }
 
+  if (!source.platform) {
+    return `${ICON_BASE}/generic.png`;
+  }
+
   switch (source.platform) {
-    case "windows":
+    case "windows": {
       return `${ICON_BASE}/windows.png`;
-    case "linux":
+    }
+    case "linux": {
       return `${ICON_BASE}/linux.png`;
-    case "darwin":
+    }
+    case "darwin": {
       return `${ICON_BASE}/macos.png`;
-    default:
+    }
+    default: {
       return `${ICON_BASE}/generic.png`;
+    }
   }
 }

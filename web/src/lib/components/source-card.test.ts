@@ -51,8 +51,15 @@ describe("SourceCard", () => {
   });
 
   it("renders lastSeen as status text for offline sources", () => {
-    render(SourceCard, { props: { source: makeSource({ status: "offline", lastSeen: "5h ago" }) } });
+    render(SourceCard, {
+      props: { source: makeSource({ status: "offline", lastSeen: "5h ago" }) },
+    });
     expect(screen.getByText("5h ago")).toBeInTheDocument();
+  });
+
+  it("falls back to 'Offline' when offline with empty lastSeen", () => {
+    render(SourceCard, { props: { source: makeSource({ status: "offline", lastSeen: "" }) } });
+    expect(screen.getByText("Offline")).toBeInTheDocument();
   });
 
   it("renders icon with correct src", () => {

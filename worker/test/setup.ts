@@ -15,6 +15,7 @@ const statements = [
     link_code TEXT,
     link_code_expires_at TEXT,
     hostname TEXT,
+    device TEXT,
     os TEXT,
     arch TEXT,
     source_kind TEXT NOT NULL DEFAULT 'daemon',

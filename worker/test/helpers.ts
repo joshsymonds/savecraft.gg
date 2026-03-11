@@ -250,7 +250,15 @@ export async function sendSourceOnlineAndDrainLinkState(
   sendProto(ws, {
     payload: {
       $case: "sourceOnline",
-      sourceOnline: { version, timestamp: undefined, platform, os: "", arch: "", hostname: "" },
+      sourceOnline: {
+        version,
+        timestamp: undefined,
+        platform,
+        os: "",
+        arch: "",
+        hostname: "",
+        device: "",
+      },
     },
   });
   // The server now pushes a link state notification after SourceOnline.

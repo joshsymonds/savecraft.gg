@@ -26,6 +26,7 @@ function sourceOnlineMsg(
     os: string;
     arch: string;
     hostname: string;
+    device: string;
   }>,
 ): Message {
   return {
@@ -38,6 +39,7 @@ function sourceOnlineMsg(
         os: overrides?.os ?? "",
         arch: overrides?.arch ?? "",
         hostname: overrides?.hostname ?? "",
+        device: overrides?.device ?? "",
       },
     },
   };

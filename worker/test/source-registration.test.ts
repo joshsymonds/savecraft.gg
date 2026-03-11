@@ -32,6 +32,7 @@ describe("Source Registration", () => {
             hostname: fields.hostname ?? "",
             os: fields.os ?? "",
             arch: fields.arch ?? "",
+            device: "",
           },
         },
       }).finish();

@@ -43,6 +43,7 @@ interface SourceMeta {
   platform: string;
   os: string;
   arch: string;
+  device: string;
   canRescan: boolean;
   canReceiveConfig: boolean;
 }
@@ -53,6 +54,7 @@ const DEFAULT_SOURCE_META: SourceMeta = {
   platform: "",
   os: "",
   arch: "",
+  device: "",
   canRescan: true,
   canReceiveConfig: true,
 };
@@ -99,6 +101,7 @@ function findOrCreateSource(state: SourceState, sourceId: string): SourceInfo {
       platform: "",
       os: "",
       arch: "",
+      device: "",
       canRescan: true,
       canReceiveConfig: true,
     };
@@ -690,7 +693,7 @@ export class SourceHub extends DurableObject<Env> {
 
   private async fetchSourceMetaFromD1(sourceUuid: string): Promise<SourceMeta> {
     const row = await this.env.DB.prepare(
-      "SELECT source_kind, hostname, os, arch, can_rescan, can_receive_config FROM sources WHERE source_uuid = ?",
+      "SELECT source_kind, hostname, os, arch, device, can_rescan, can_receive_config FROM sources WHERE source_uuid = ?",
     )
       .bind(sourceUuid)
       .first<{
@@ -698,6 +701,7 @@ export class SourceHub extends DurableObject<Env> {
         hostname: string | null;
         os: string | null;
         arch: string | null;
+        device: string | null;
         can_rescan: number;
         can_receive_config: number;
       }>();
@@ -708,6 +712,7 @@ export class SourceHub extends DurableObject<Env> {
       platform: row?.os ?? "",
       os: row?.os ?? "",
       arch: row?.arch ?? "",
+      device: row?.device ?? "",
       canRescan: row?.can_rescan !== 0,
       canReceiveConfig: row?.can_receive_config !== 0,
     };
@@ -722,6 +727,7 @@ export class SourceHub extends DurableObject<Env> {
         platform: cached.platform,
         os: cached.os,
         arch: cached.arch,
+        device: cached.device,
         canRescan: cached.canRescan,
         canReceiveConfig: cached.canReceiveConfig,
       };
@@ -1581,6 +1587,7 @@ export class SourceHub extends DurableObject<Env> {
         source.platform = meta.platform;
         source.os = meta.os;
         source.arch = meta.arch;
+        source.device = meta.device;
         source.canRescan = meta.canRescan;
         source.canReceiveConfig = meta.canReceiveConfig;
 

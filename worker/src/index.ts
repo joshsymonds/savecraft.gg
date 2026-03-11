@@ -1915,7 +1915,7 @@ function handleWsRegister(request: Request, env: Env): Response {
           return;
         }
 
-        const { hostname, os, arch } = msg.payload.register;
+        const { hostname, os, arch, device } = msg.payload.register;
 
         const sourceUuid = crypto.randomUUID();
         const randomBytes = new Uint8Array(16);
@@ -1928,8 +1928,8 @@ function handleWsRegister(request: Request, env: Env): Response {
         const linkCodeExpiresAt = new Date(Date.now() + LINK_CODE_TTL_MINUTES * 60_000);
 
         await env.DB.prepare(
-          `INSERT INTO sources (source_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch, ip)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO sources (source_uuid, token_hash, link_code, link_code_expires_at, hostname, os, arch, device, ip)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
           .bind(
             sourceUuid,
@@ -1939,6 +1939,7 @@ function handleWsRegister(request: Request, env: Env): Response {
             hostname || null,
             os || null,
             arch || null,
+            device || null,
             ip,
           )
           .run();

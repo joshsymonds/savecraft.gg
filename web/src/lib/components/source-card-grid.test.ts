@@ -50,8 +50,7 @@ describe("SourceCardGrid", () => {
     const source = makeSource({ id: "src-1", hostname: "DECK" });
     render(SourceCardGrid, { props: { sources: [source], oncardclick } });
     await userEvent.click(screen.getByText("DECK"));
-    expect(oncardclick).toHaveBeenCalledOnce();
-    expect(oncardclick).toHaveBeenCalledWith(source);
+    expect(oncardclick).toHaveBeenCalledExactlyOnceWith(source);
   });
 
   it("calls onadd when AddSourceCard is clicked", async () => {
