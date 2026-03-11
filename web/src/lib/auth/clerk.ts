@@ -42,9 +42,15 @@ const SAVECRAFT_APPEARANCE = {
     },
     userButtonPopoverActionButton: {
       color: "#e8e0d0",
+      fontSize: "14px",
+      "&:hover": {
+        color: "#e8e0d0",
+        background: "rgba(74, 90, 173, 0.25)",
+      },
     },
     userButtonPopoverActionButtonText: {
       color: "#e8e0d0",
+      fontSize: "14px",
     },
     userButtonPopoverFooter: {
       display: "none",
