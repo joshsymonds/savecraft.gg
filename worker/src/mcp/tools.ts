@@ -1042,8 +1042,8 @@ const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
   },
   windows: {
     install:
-      "Visit https://install.savecraft.gg in a browser to download savecraft-install.cmd. Right-click the file, select Properties, check Unblock, click OK, then double-click to run.",
-    details: String.raw`Downloads a .cmd installer (no MSI yet — binaries are not code-signed). The script downloads the daemon and tray to %LOCALAPPDATA%\Savecraft\, unblocks them, registers autostart via the registry, and displays a pairing code. No admin required.`,
+      "Visit https://install.savecraft.gg in a browser to download the Savecraft installer. Run the downloaded MSI to install.",
+    details: String.raw`Downloads a signed MSI installer. Installs the daemon and tray to %LOCALAPPDATA%\Savecraft\, registers autostart via the registry, and launches the tray for pairing. No admin required. The installer is Authenticode-signed — no SmartScreen warnings.`,
   },
   macos: {
     install: null,

@@ -49,7 +49,7 @@ describe("AddSourceContent", () => {
 
     it("shows install hints for both platforms", () => {
       render(AddSourceContent);
-      expect(screen.getByText(/\.cmd/)).toBeInTheDocument();
+      expect(screen.getByText(/Run the downloaded installer/)).toBeInTheDocument();
       expect(screen.getByText(/systemd service/)).toBeInTheDocument();
     });
   });

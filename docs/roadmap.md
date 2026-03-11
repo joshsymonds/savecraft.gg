@@ -208,11 +208,9 @@ These are policy decisions, not architecture decisions. Nothing about them chang
 
 ## Platform-Specific Installation
 
-### Windows (CMD installer shipped, MSI planned)
+### Windows (signed MSI shipped)
 
-Current: `.cmd` installer served by the install worker. Downloads daemon and tray to `%LOCALAPPDATA%\Savecraft\`, registers HKCU Run key for autostart. Users must manually unblock the `.cmd` file (Properties → Unblock) before running.
-
-**Planned:** MSI installer built with WiX. Would install to `C:\Program Files\Savecraft\`, register a Windows Service, and eliminate the manual unblock step. Requires an EV code signing certificate (~$300-400/year) to avoid SmartScreen warnings entirely.
+Signed MSI installer served by the install worker (302 redirect to R2). Installs daemon and tray to `%LOCALAPPDATA%\Savecraft\`, registers HKCU Run key for autostart, launches tray on completion for pairing. Authenticode-signed via Azure Trusted Signing (Public Trust certificate profile) — immediate SmartScreen reputation, no manual unblocking.
 
 ### macOS
 
