@@ -4,7 +4,8 @@ vi.mock("$app/environment", () => ({
   browser: true,
 }));
 
-const { consumePendingLinkCode, setPendingLinkCode } = await import("./link-code");
+const { consumePendingLinkCode, peekPendingLinkCode, setPendingLinkCode } =
+  await import("./link-code");
 
 describe("link-code sessionStorage", () => {
   beforeEach(() => {
@@ -34,5 +35,19 @@ describe("link-code sessionStorage", () => {
     setPendingLinkCode("111111");
     setPendingLinkCode("222222");
     expect(consumePendingLinkCode()).toBe("222222");
+  });
+
+  it("peeks without consuming", () => {
+    setPendingLinkCode("482913");
+    expect(peekPendingLinkCode()).toBe("482913");
+    // Still there after peeking.
+    expect(peekPendingLinkCode()).toBe("482913");
+    // Consume actually removes it.
+    expect(consumePendingLinkCode()).toBe("482913");
+    expect(peekPendingLinkCode()).toBeNull();
+  });
+
+  it("peek returns null when no code is pending", () => {
+    expect(peekPendingLinkCode()).toBeNull();
   });
 });
