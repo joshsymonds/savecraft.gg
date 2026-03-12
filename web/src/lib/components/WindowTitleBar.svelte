@@ -115,7 +115,7 @@
 
   .active-label {
     font-family: var(--font-pixel);
-    font-size: 12px;
+    font-size: 14px;
     color: var(--color-text);
     letter-spacing: 0.5px;
     line-height: 1.4;
@@ -123,7 +123,7 @@
 
   .active-sublabel {
     font-family: var(--font-body);
-    font-size: 15px;
+    font-size: 16px;
     color: var(--color-text-dim);
     line-height: 1.2;
     display: block;

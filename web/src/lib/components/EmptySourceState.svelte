@@ -71,7 +71,7 @@
 
   .terminal-line {
     font-family: var(--font-pixel);
-    font-size: 11px;
+    font-size: 13px;
     letter-spacing: 1.5px;
     margin: 0;
     line-height: 1.6;

@@ -118,7 +118,7 @@
 
   .input-label {
     font-family: var(--font-body);
-    font-size: 17px;
+    font-size: 18px;
     color: var(--color-text-muted);
   }
 
@@ -130,14 +130,14 @@
 
   .code-input {
     font-family: var(--font-pixel);
-    font-size: 16px;
+    font-size: 18px;
     letter-spacing: 6px;
     color: var(--color-text);
     background: rgba(5, 7, 26, 0.6);
     border: 1px solid rgba(74, 90, 173, 0.3);
     border-radius: 3px;
-    padding: 8px 14px;
-    width: 140px;
+    padding: 10px 14px;
+    width: 160px;
     text-align: center;
     outline: none;
     transition: border-color 0.15s;
@@ -155,13 +155,13 @@
 
   .link-btn {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-gold);
     letter-spacing: 1px;
     background: rgba(200, 168, 78, 0.1);
     border: 1px solid rgba(200, 168, 78, 0.3);
     border-radius: 3px;
-    padding: 8px 18px;
+    padding: 10px 20px;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
@@ -188,7 +188,7 @@
 
   .linking-message {
     font-family: var(--font-body);
-    font-size: 17px;
+    font-size: 18px;
     color: var(--color-text-muted);
     animation: pulse-text 2s ease-in-out infinite;
   }
@@ -259,7 +259,7 @@
 
   .error-message {
     font-family: var(--font-body);
-    font-size: 17px;
+    font-size: 18px;
     color: var(--color-text-dim);
   }
 
@@ -267,13 +267,13 @@
 
   .dismiss-btn {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-text-muted);
     letter-spacing: 1px;
     background: rgba(74, 90, 173, 0.12);
     border: 1px solid rgba(74, 90, 173, 0.25);
     border-radius: 3px;
-    padding: 6px 14px;
+    padding: 8px 16px;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;

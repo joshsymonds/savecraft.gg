@@ -85,7 +85,7 @@
   .picker-name {
     display: block;
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-text);
     letter-spacing: 0.5px;
     line-height: 1.4;
@@ -94,7 +94,7 @@
   .picker-desc {
     display: block;
     font-family: var(--font-body);
-    font-size: 16px;
+    font-size: 17px;
     color: var(--color-text-dim);
     line-height: 1.3;
     white-space: nowrap;
@@ -109,9 +109,9 @@
 
   .picker-badge {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     letter-spacing: 1px;
-    padding: 4px 8px;
+    padding: 5px 10px;
     border-radius: 2px;
   }
 

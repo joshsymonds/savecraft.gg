@@ -210,7 +210,7 @@
 
   :global(.modal-btn) {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 1.5px;
     padding: 8px 20px;
     color: var(--color-text);
@@ -235,7 +235,7 @@
 
   :global(.modal-btn-danger) {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 1.5px;
     padding: 8px 20px;
     color: var(--color-red);
@@ -260,7 +260,7 @@
 
   :global(.modal-btn-primary) {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 1.5px;
     padding: 8px 20px;
     color: var(--color-text);

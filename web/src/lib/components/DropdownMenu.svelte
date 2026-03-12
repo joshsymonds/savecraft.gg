@@ -90,7 +90,7 @@
 
   .dropdown-trigger {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     letter-spacing: 1px;
     color: var(--color-text-muted);
     background: none;
@@ -168,14 +168,14 @@
 
   .dropdown-option-label {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-text);
     letter-spacing: 0.5px;
   }
 
   .dropdown-option-sublabel {
     font-family: var(--font-body);
-    font-size: 13px;
+    font-size: 15px;
     color: var(--color-text-muted);
   }
 

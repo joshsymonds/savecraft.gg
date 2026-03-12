@@ -223,14 +223,14 @@
 
   .modal-title {
     font-family: var(--font-pixel);
-    font-size: 9px;
+    font-size: 11px;
     color: var(--color-gold);
     letter-spacing: 2px;
   }
 
   .source-kind {
     font-family: var(--font-pixel);
-    font-size: 6px;
+    font-size: 8px;
     color: var(--color-text-muted);
     letter-spacing: 0.5px;
     background: rgba(74, 90, 173, 0.08);
@@ -260,7 +260,7 @@
 
   .info-label {
     font-family: var(--font-pixel);
-    font-size: 6px;
+    font-size: 8px;
     color: var(--color-text-muted);
     letter-spacing: 1px;
   }
@@ -293,7 +293,7 @@
   .section-label {
     display: block;
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     color: var(--color-gold);
     letter-spacing: 2px;
     margin-bottom: 10px;
@@ -316,7 +316,7 @@
 
   .error-game {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     color: var(--color-text);
     letter-spacing: 0.5px;
   }
@@ -364,14 +364,14 @@
 
   .config-game-name {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-text);
     letter-spacing: 0.5px;
   }
 
   .config-game-status {
     font-family: var(--font-pixel);
-    font-size: 6px;
+    font-size: 8px;
     letter-spacing: 1px;
     padding: 2px 6px;
     border-radius: 2px;
@@ -458,7 +458,7 @@
 
   .field-label {
     font-family: var(--font-pixel);
-    font-size: 6px;
+    font-size: 8px;
     color: var(--color-text-muted);
     letter-spacing: 1px;
     flex-shrink: 0;
@@ -493,7 +493,7 @@
 
   .btn-remove-source {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     letter-spacing: 1.5px;
     color: var(--color-red, #e85a5a);
     background: none;
@@ -539,7 +539,7 @@
 
   .btn-cancel {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     letter-spacing: 1px;
     color: var(--color-text-muted);
     background: none;
@@ -556,7 +556,7 @@
 
   .btn-remove {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     letter-spacing: 1px;
     color: #fff;
     background: rgba(232, 90, 90, 0.7);

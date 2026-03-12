@@ -93,7 +93,7 @@
 
   .add-game-label {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-text-muted);
     letter-spacing: 0.5px;
   }

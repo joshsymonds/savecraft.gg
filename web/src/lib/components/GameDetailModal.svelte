@@ -298,7 +298,7 @@
 
   .source-badge {
     font-family: var(--font-pixel);
-    font-size: 6px;
+    font-size: 8px;
     color: var(--color-text-muted);
     letter-spacing: 0.5px;
     background: rgba(74, 90, 173, 0.08);
@@ -335,7 +335,7 @@
 
   .section-label {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     color: var(--color-gold);
     letter-spacing: 2px;
   }
@@ -366,7 +366,7 @@
 
   .source-name {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-text);
     letter-spacing: 0.5px;
   }
@@ -379,7 +379,7 @@
 
   .status-badge {
     font-family: var(--font-pixel);
-    font-size: 6px;
+    font-size: 8px;
     letter-spacing: 1px;
     padding: 2px 6px;
     border-radius: 2px;
@@ -429,7 +429,7 @@
 
   .source-error {
     font-family: var(--font-body);
-    font-size: 13px;
+    font-size: 15px;
     color: var(--color-red, #e85a5a);
     padding: 0 18px 8px 44px;
   }
