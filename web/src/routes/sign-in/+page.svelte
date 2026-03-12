@@ -3,20 +3,22 @@
   Sign-in page: mounts Clerk's combined SignIn + SignUp component.
 -->
 <script lang="ts">
+  import { browser } from "$app/environment";
   import { page } from "$app/state";
   import { awaitClerk } from "$lib/auth/clerk";
   import { peekPendingLinkCode } from "$lib/stores/link-code";
   import { onMount } from "svelte";
 
   let container: HTMLDivElement;
-  let pendingCode: string | null = $state(null);
+
+  // Read pending code synchronously so the DOM is stable before Clerk mounts.
+  // Using $state would trigger a re-render that disrupts Clerk's React tree.
+  const pendingCode = browser ? peekPendingLinkCode() : null;
 
   // Mount exactly once via onMount — never via $effect.
   // Clerk's internal React tree manages its own state; any unmount/remount
   // destroys error messages, OTP input, verification state, etc.
   onMount(() => {
-    pendingCode = peekPendingLinkCode();
-
     let unmount: (() => void) | undefined;
 
     void awaitClerk().then((clerk) => {
