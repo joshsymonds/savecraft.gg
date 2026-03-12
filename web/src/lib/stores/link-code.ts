@@ -8,6 +8,15 @@ export function setPendingLinkCode(code: string): void {
 }
 
 /**
+ * Read the pending link code without consuming it.
+ * Used by the sign-in page to show a reassuring banner.
+ */
+export function peekPendingLinkCode(): string | null {
+  if (!browser) return null;
+  return sessionStorage.getItem(STORAGE_KEY);
+}
+
+/**
  * Read and consume the pending link code from sessionStorage.
  * Returns null if no code is pending. Clears the value so it's only consumed once.
  */
