@@ -22,10 +22,10 @@
     background: rgba(74, 90, 173, 0.08);
     border: 1px solid rgba(74, 90, 173, 0.2);
     border-radius: 3px;
-    padding: 5px 11px;
+    padding: 6px 12px;
     cursor: pointer;
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-text-muted);
     letter-spacing: 1px;
     transition: all 0.15s;

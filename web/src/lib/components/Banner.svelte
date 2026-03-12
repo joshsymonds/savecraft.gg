@@ -44,7 +44,7 @@
   .banner {
     padding: 10px 18px;
     font-family: var(--font-body);
-    font-size: 14px;
+    font-size: 16px;
     color: var(--banner-color);
     background: var(--banner-bg);
     border-bottom: 1px solid var(--banner-border);

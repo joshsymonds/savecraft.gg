@@ -237,7 +237,7 @@
     padding: 2px 8px;
     cursor: pointer;
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-red, #e85a5a);
     letter-spacing: 0.5px;
   }
@@ -249,7 +249,7 @@
     padding: 2px 8px;
     cursor: pointer;
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-text-dim);
     letter-spacing: 0.5px;
   }
@@ -273,7 +273,7 @@
     gap: 12px;
     margin-top: 6px;
     font-family: var(--font-body);
-    font-size: 13px;
+    font-size: 15px;
     color: var(--color-text-muted);
   }
 

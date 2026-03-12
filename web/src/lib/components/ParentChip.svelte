@@ -54,7 +54,7 @@
 
   .chip-label {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-text-dim);
     letter-spacing: 0.5px;
     transition: color 0.12s;

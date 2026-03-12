@@ -54,7 +54,7 @@
 
   .add-label {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-gold);
     letter-spacing: 1.5px;
   }

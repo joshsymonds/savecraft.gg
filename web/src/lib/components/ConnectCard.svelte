@@ -198,7 +198,7 @@
 
   .explainer-text {
     font-family: var(--font-body);
-    font-size: 15px;
+    font-size: 17px;
     color: var(--color-text-dim);
     margin: 0;
     line-height: 1.4;
@@ -216,7 +216,7 @@
 
   .flow-step {
     font-family: var(--font-pixel);
-    font-size: 11px;
+    font-size: 13px;
     color: var(--color-text);
     letter-spacing: 1px;
     white-space: nowrap;
@@ -233,7 +233,7 @@
   .post-connect-hint {
     padding: 0 18px 14px;
     font-family: var(--font-body);
-    font-size: 14px;
+    font-size: 16px;
     color: var(--color-text-dim);
     line-height: 1.4;
   }
@@ -283,7 +283,7 @@
 
   .label {
     font-family: var(--font-pixel);
-    font-size: 12px;
+    font-size: 14px;
     letter-spacing: 2px;
     white-space: nowrap;
   }
@@ -329,10 +329,10 @@
     background: rgba(74, 90, 173, 0.12);
     border: 1px solid rgba(74, 90, 173, 0.25);
     border-radius: 3px;
-    padding: 6px 14px;
+    padding: 8px 16px;
     cursor: pointer;
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-text-dim);
     letter-spacing: 1px;
     transition: all 0.15s;
@@ -367,13 +367,13 @@
 
   .expand-btn {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-text-muted);
     letter-spacing: 1px;
     background: none;
     border: 1px solid rgba(74, 90, 173, 0.2);
     border-radius: 3px;
-    padding: 6px 12px;
+    padding: 8px 14px;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
@@ -397,7 +397,7 @@
 
   .details-hint {
     font-family: var(--font-body);
-    font-size: 14px;
+    font-size: 16px;
     color: var(--color-text-muted);
     margin-bottom: 4px;
   }
@@ -422,27 +422,27 @@
 
   .client-name {
     font-family: var(--font-pixel);
-    font-size: 11px;
+    font-size: 13px;
     color: var(--color-text);
     letter-spacing: 1px;
-    min-width: 110px;
+    min-width: 120px;
     flex-shrink: 0;
   }
 
   .client-arrow {
     color: var(--color-text-muted);
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .client-steps {
     font-family: var(--font-body);
-    font-size: 15px;
+    font-size: 16px;
     color: var(--color-text-dim);
   }
 
   .inline-code {
     font-family: var(--font-body);
-    font-size: 13px;
+    font-size: 15px;
     color: var(--color-text);
     background: rgba(74, 90, 173, 0.1);
     padding: 3px 8px;

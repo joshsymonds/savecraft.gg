@@ -252,7 +252,7 @@
 
   .modal-title {
     font-family: var(--font-pixel);
-    font-size: 9px;
+    font-size: 11px;
     color: var(--color-gold);
     letter-spacing: 2px;
     flex: 1;
@@ -331,7 +331,7 @@
 
   .config-label {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-text-muted);
     letter-spacing: 1.5px;
     text-transform: uppercase;
@@ -370,7 +370,7 @@
 
   .config-button {
     font-family: var(--font-pixel);
-    font-size: 9px;
+    font-size: 11px;
     letter-spacing: 1.5px;
     padding: 10px 18px;
     color: var(--color-text);

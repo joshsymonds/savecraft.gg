@@ -39,7 +39,7 @@
 
   .grid-label {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     color: var(--color-gold);
     letter-spacing: 2px;
   }

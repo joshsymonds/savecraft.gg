@@ -138,14 +138,14 @@
 
   .game-status.needs-config {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     letter-spacing: 1px;
     color: var(--color-yellow, #e8b45a);
   }
 
   .game-status.error-status {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     letter-spacing: 1px;
     color: var(--color-red, #dc5050);
   }
@@ -158,7 +158,7 @@
 
   .error-detail {
     font-family: var(--font-body);
-    font-size: 11px;
+    font-size: 14px;
     color: var(--color-text-muted);
     display: block;
     margin-bottom: 6px;
@@ -176,7 +176,7 @@
 
   .error-btn {
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 0.5px;
     padding: 3px 8px;
     border-radius: 2px;
@@ -214,7 +214,7 @@
 
   .save-name {
     font-family: var(--font-body);
-    font-size: 13px;
+    font-size: 15px;
     color: var(--color-text-dim);
   }
 </style>

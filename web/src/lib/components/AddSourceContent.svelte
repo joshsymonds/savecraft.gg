@@ -265,14 +265,14 @@
 
   .split-title {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-gold);
     letter-spacing: 2px;
   }
 
   .split-desc {
     font-family: var(--font-body);
-    font-size: 15px;
+    font-size: 17px;
     color: var(--color-text-dim);
     line-height: 1.5;
     margin: 0 0 16px;
@@ -294,7 +294,7 @@
 
   .game-label {
     font-family: var(--font-pixel);
-    font-size: 6px;
+    font-size: 8px;
     color: var(--color-text-muted);
     letter-spacing: 0.5px;
     text-align: center;
@@ -332,7 +332,7 @@
 
   .api-action-label {
     font-family: var(--font-pixel);
-    font-size: 11px;
+    font-size: 13px;
     color: var(--color-blue, #6b8aed);
     letter-spacing: 2px;
   }
@@ -360,10 +360,10 @@
 
   .step-number {
     font-family: var(--font-pixel);
-    font-size: 12px;
+    font-size: 14px;
     color: var(--color-gold);
-    width: 24px;
-    height: 24px;
+    width: 28px;
+    height: 28px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -373,14 +373,14 @@
 
   .step-title {
     font-family: var(--font-pixel);
-    font-size: 12px;
+    font-size: 14px;
     color: var(--color-text);
     letter-spacing: 1px;
   }
 
   .step-desc {
     font-family: var(--font-body);
-    font-size: 13px;
+    font-size: 16px;
     color: var(--color-text-dim);
     margin-bottom: 10px;
     line-height: 1.5;
@@ -413,13 +413,13 @@
 
   .primary-action-icon {
     font-family: var(--font-pixel);
-    font-size: 14px;
+    font-size: 16px;
     color: var(--color-gold);
   }
 
   .primary-action-label {
     font-family: var(--font-pixel);
-    font-size: 11px;
+    font-size: 13px;
     color: var(--color-gold);
     letter-spacing: 2px;
   }
@@ -437,7 +437,7 @@
   .platform-label {
     display: block;
     font-family: var(--font-pixel);
-    font-size: 8px;
+    font-size: 10px;
     color: var(--color-text-muted);
     letter-spacing: 1.5px;
     margin-bottom: 8px;
@@ -447,14 +447,14 @@
 
   .install-hint {
     font-family: var(--font-body);
-    font-size: 13px;
+    font-size: 15px;
     color: var(--color-text-muted);
     margin-top: 10px;
   }
 
   .install-hint code {
     color: var(--color-text-dim);
-    font-size: 12px;
+    font-size: 14px;
   }
 
   /* -- Pairing code input ----------------------------------- */
@@ -467,14 +467,14 @@
 
   .code-input {
     font-family: var(--font-pixel);
-    font-size: 14px;
+    font-size: 16px;
     letter-spacing: 6px;
     color: var(--color-text);
     background: rgba(5, 7, 26, 0.6);
     border: 1px solid rgba(74, 90, 173, 0.3);
     border-radius: 3px;
-    padding: 8px 12px;
-    width: 130px;
+    padding: 10px 14px;
+    width: 150px;
     text-align: center;
     outline: none;
     transition: border-color 0.15s;
@@ -492,13 +492,13 @@
 
   .pair-btn {
     font-family: var(--font-pixel);
-    font-size: 10px;
+    font-size: 12px;
     color: var(--color-gold);
     letter-spacing: 2px;
     background: rgba(200, 168, 78, 0.1);
     border: 1px solid rgba(200, 168, 78, 0.3);
     border-radius: 3px;
-    padding: 8px 16px;
+    padding: 10px 18px;
     cursor: pointer;
     transition: all 0.15s;
     white-space: nowrap;
@@ -528,7 +528,7 @@
 
   .command-text {
     font-family: var(--font-body);
-    font-size: 12px;
+    font-size: 15px;
     color: var(--color-text);
     word-break: break-all;
     flex: 1;

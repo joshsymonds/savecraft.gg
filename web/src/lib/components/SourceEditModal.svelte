@@ -212,7 +212,7 @@
 
   .field-label {
     font-family: var(--font-pixel);
-    font-size: 7px;
+    font-size: 9px;
     color: var(--color-text-muted);
     letter-spacing: 1.5px;
   }
@@ -272,7 +272,7 @@
 
   .file-name {
     font-family: var(--font-body);
-    font-size: 13px;
+    font-size: 15px;
     color: var(--color-text-dim);
     background: rgba(74, 90, 173, 0.06);
     padding: 2px 6px;
