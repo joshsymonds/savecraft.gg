@@ -1,51 +1,90 @@
-<script module lang="ts">
-  import { defineMeta } from "@storybook/addon-svelte-csf";
+//go:build windows
 
-  const { Story } = defineMeta({
-    title: "Standalone/PairingDialog",
-    tags: ["autodocs"],
-  });
+package main
 
-  /**
-   * Self-contained HTML for the Windows pairing dialog.
-   * This is the exact markup that will be embedded in the Go tray binary.
-   * Google Fonts are loaded here for Storybook preview; the Go version
-   * will use embedded woff2 instead.
-   */
-  function dialogHTML(state: "initial" | "waiting" | "done" = "initial"): string {
-    const code = "A3F-82K";
+import (
+	_ "embed"
+	"encoding/base64"
+	"fmt"
+	"html/template"
+	"strings"
+)
 
-    const doneSection = `<div class="done-section">
-      <span class="done-check">✓</span>
-      <span class="done-text">PAIRED</span>
-      <span class="done-subtext">Window closes automatically</span>
-    </div>`;
+var (
+	//go:embed fonts/press-start-2p.woff2
+	fontPressStart2P []byte
 
-    const waitingSection = `<div class="waiting-section">
-      <div class="spinner">
-        <span class="spinner-dot"></span>
-        <span class="spinner-dot"></span>
-        <span class="spinner-dot"></span>
-      </div>
-      <span class="waiting-text">Waiting for pairing...</span>
-    </div>`;
+	//go:embed fonts/rajdhani-600.woff2
+	fontRajdhani600 []byte
 
-    const initialSection = `<button class="link-btn">Link Account</button>`;
+	//go:embed fonts/rajdhani-700.woff2
+	fontRajdhani700 []byte
 
-    const stateMap = {
-      done: doneSection,
-      waiting: waitingSection,
-      initial: initialSection,
-    } as const;
-    const actionSection = stateMap[state];
-    const closeLabel = state === "initial" ? "Skip for now" : "Close";
+	// Pre-computed base64 font strings and compiled template, initialized once.
+	fontB64PressStart2P string
+	fontB64Rajdhani600  string
+	fontB64Rajdhani700  string
+	dialogTmpl          *template.Template
+)
 
-    return `<!DOCTYPE html>
+func init() {
+	fontB64PressStart2P = base64.StdEncoding.EncodeToString(fontPressStart2P)
+	fontB64Rajdhani600 = base64.StdEncoding.EncodeToString(fontRajdhani600)
+	fontB64Rajdhani700 = base64.StdEncoding.EncodeToString(fontRajdhani700)
+	dialogTmpl = template.Must(template.New("dialog").Parse(dialogTemplate))
+}
+
+// dialogTemplateData holds the variables injected into the dialog HTML.
+type dialogTemplateData struct {
+	Code             string
+	FontPressStart2P string
+	FontRajdhani600  string
+	FontRajdhani700  string
+}
+
+// renderDialogHTML produces the complete HTML page for the pairing dialog.
+func renderDialogHTML(code string) (string, error) {
+	data := dialogTemplateData{
+		Code:             code,
+		FontPressStart2P: fontB64PressStart2P,
+		FontRajdhani600:  fontB64Rajdhani600,
+		FontRajdhani700:  fontB64Rajdhani700,
+	}
+
+	var buf strings.Builder
+	if err := dialogTmpl.Execute(&buf, data); err != nil {
+		return "", fmt.Errorf("execute dialog template: %w", err)
+	}
+
+	return buf.String(), nil
+}
+
+const dialogTemplate = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="utf-8">
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&family=Rajdhani:wght@400;600;700&display=swap');
+  @font-face {
+    font-family: 'Press Start 2P';
+    src: url('data:font/woff2;base64,{{.FontPressStart2P}}') format('woff2');
+    font-weight: 400;
+    font-style: normal;
+    font-display: block;
+  }
+  @font-face {
+    font-family: 'Rajdhani';
+    src: url('data:font/woff2;base64,{{.FontRajdhani600}}') format('woff2');
+    font-weight: 600;
+    font-style: normal;
+    font-display: block;
+  }
+  @font-face {
+    font-family: 'Rajdhani';
+    src: url('data:font/woff2;base64,{{.FontRajdhani700}}') format('woff2');
+    font-weight: 700;
+    font-style: normal;
+    font-display: block;
+  }
 
   * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -180,34 +219,6 @@
   .spinner-dot:nth-child(2) { animation-delay: 0.2s; }
   .spinner-dot:nth-child(3) { animation-delay: 0.4s; }
 
-  /* ── Done state ─────────────────────────── */
-
-  .done-section {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 12px;
-    animation: fade-in 0.4s ease-out;
-  }
-
-  .done-check {
-    font-size: 48px;
-    line-height: 1;
-  }
-
-  .done-text {
-    font-family: 'Press Start 2P', monospace;
-    font-size: 14px;
-    color: #c8a84e;
-    letter-spacing: 2px;
-  }
-
-  .done-subtext {
-    font-size: 16px;
-    font-weight: 600;
-    color: #a0a8cc;
-  }
-
   /* ── Close link ───────────────────────── */
 
   .close-link {
@@ -252,6 +263,8 @@
     0%, 80%, 100% { opacity: 0.4; transform: scale(1); }
     40%           { opacity: 1; transform: scale(1.3); }
   }
+
+  .hidden { display: none; }
 </style>
 </head>
 <body>
@@ -264,53 +277,41 @@
 
     <div class="code-section">
       <span class="code-label">Your link code</span>
-      <div class="code-value">${code}</div>
+      <div class="code-value">{{.Code}}</div>
     </div>
 
-    ${actionSection}
+    <button id="link-btn" class="link-btn" onclick="onLinkClick()">Link Account</button>
 
-    <button class="close-link">${closeLabel}</button>
+    <div id="waiting" class="waiting-section hidden">
+      <div class="spinner">
+        <span class="spinner-dot"></span>
+        <span class="spinner-dot"></span>
+        <span class="spinner-dot"></span>
+      </div>
+      <span class="waiting-text">Waiting for pairing...</span>
+    </div>
+
+    <button class="close-link" onclick="onCloseClick()">Skip for now</button>
   </div>
+
+  <script>
+    function onLinkClick() {
+      // Call Go binding to open browser.
+      openLink().then(function() {
+        // Transition to waiting state.
+        document.getElementById('link-btn').classList.add('hidden');
+        document.getElementById('waiting').classList.remove('hidden');
+      });
+    }
+
+    function onCloseClick() {
+      closeDialog();
+    }
+
+    // Called from Go via Eval when pairing completes.
+    function onPaired() {
+      closeDialog();
+    }
+  </script>
 </body>
-</html>`;
-  }
-</script>
-
-<!-- Initial state: code + Link Account button -->
-<Story name="Initial">
-  <div
-    style="width: 420px; height: 480px; border: 1px solid #333; border-radius: 8px; overflow: hidden;"
-  >
-    <iframe
-      srcdoc={dialogHTML("initial")}
-      style="width: 100%; height: 100%; border: none;"
-      title="Pairing Dialog — Initial"
-    ></iframe>
-  </div>
-</Story>
-
-<!-- Waiting state: spinner + waiting message -->
-<Story name="Waiting">
-  <div
-    style="width: 420px; height: 480px; border: 1px solid #333; border-radius: 8px; overflow: hidden;"
-  >
-    <iframe
-      srcdoc={dialogHTML("waiting")}
-      style="width: 100%; height: 100%; border: none;"
-      title="Pairing Dialog — Waiting"
-    ></iframe>
-  </div>
-</Story>
-
-<!-- Done state: paired confirmation (auto-closes in real dialog) -->
-<Story name="Done">
-  <div
-    style="width: 420px; height: 480px; border: 1px solid #333; border-radius: 8px; overflow: hidden;"
-  >
-    <iframe
-      srcdoc={dialogHTML("done")}
-      style="width: 100%; height: 100%; border: none;"
-      title="Pairing Dialog — Done"
-    ></iframe>
-  </div>
-</Story>
+</html>`
