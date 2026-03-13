@@ -187,8 +187,8 @@ jobs:
             echo "public_install_url=https://staging-install.savecraft.gg" >> "$GITHUB_OUTPUT"
           fi
 
-  deploy:
-    name: Deploy
+  deploy-worker:
+    name: Deploy Worker
     needs: [environment, test-worker, test-web, test-site]
     runs-on: ubuntu-latest
     steps:
@@ -200,7 +200,7 @@ jobs:
           cache: npm
           cache-dependency-path: worker/package-lock.json
 
-      - name: Install worker dependencies
+      - name: Install dependencies
         run: npm ci
         working-directory: worker
 
@@ -211,7 +211,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Deploy worker
+      - name: Deploy
         run: npx wrangler deploy --env ${{ needs.environment.outputs.wrangler_env }} --var "VERSION:$VERSION"
         working-directory: worker
         env:
@@ -219,11 +219,24 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           VERSION: ${{ needs.environment.outputs.version }}
 
-      - name: Install web dependencies
+  deploy-web:
+    name: Deploy Web
+    needs: [environment, test-worker, test-web, test-site]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install dependencies
         run: npm ci
         working-directory: web
 
-      - name: Build web
+      - name: Build
         run: npm run build
         working-directory: web
         env:
@@ -232,32 +245,54 @@ jobs:
           PUBLIC_MCP_URL: ${{ needs.environment.outputs.public_mcp_url }}
           PUBLIC_APP_URL: ${{ needs.environment.outputs.public_app_url }}
 
-      - name: Deploy web to Pages
+      - name: Deploy to Pages
         run: npx wrangler pages deploy .svelte-kit/cloudflare --project-name ${{ needs.environment.outputs.web_pages_project }} --branch main
         working-directory: web
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
-      - name: Install site dependencies
+  deploy-site:
+    name: Deploy Site
+    needs: [environment, test-worker, test-web, test-site]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: site/package-lock.json
+
+      - name: Install dependencies
         run: npm ci
         working-directory: site
 
-      - name: Build site
+      - name: Build
         run: npm run build
         working-directory: site
         env:
           PUBLIC_APP_URL: ${{ needs.environment.outputs.public_app_url }}
           PUBLIC_INSTALL_URL: ${{ needs.environment.outputs.public_install_url }}
 
-      - name: Deploy marketing site to Pages
-        run: npx --prefix worker wrangler pages deploy site/build/ --project-name ${{ needs.environment.outputs.site_pages_project }} --branch main
+      - name: Install wrangler
+        run: npm install -g wrangler
+
+      - name: Deploy to Pages
+        run: wrangler pages deploy build/ --project-name ${{ needs.environment.outputs.site_pages_project }} --branch main
+        working-directory: site
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
+  notify:
+    name: Notify
+    needs: [environment, deploy-worker, deploy-web, deploy-site]
+    if: always() && needs.deploy-worker.result == 'success' && needs.deploy-web.result == 'success' && needs.deploy-site.result == 'success'
+    runs-on: ubuntu-latest
+    steps:
       - name: Notify Discord (deploy)
-        if: success()
         continue-on-error: true
         env:
           WEBHOOK_URL: ${{ secrets.DISCORD_DEPLOY_WEBHOOK }}
@@ -274,7 +309,7 @@ jobs:
 
   release:
     name: GitHub Release
-    needs: [environment, deploy]
+    needs: [environment, deploy-worker, deploy-web, deploy-site]
     if: needs.environment.outputs.is_production == 'true'
     runs-on: ubuntu-latest
     steps:
