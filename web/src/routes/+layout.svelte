@@ -16,7 +16,7 @@
   let { children } = $props();
   let userButtonEl: HTMLDivElement | undefined = $state();
 
-  const PUBLIC_ROUTE_PREFIXES = ["/sign-in", "/connect"];
+  const PUBLIC_ROUTE_PREFIXES = ["/sign-in", "/connect", "/link"];
 
   function isPublicRoute(pathname: string): boolean {
     return PUBLIC_ROUTE_PREFIXES.some((prefix) => pathname.startsWith(prefix));
