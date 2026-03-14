@@ -78,6 +78,7 @@ cd worker && npm ci && cd ..            # install from lockfile exactly
 ## Scripts
 
 - `web/scripts/screenshot.ts` — Capture Storybook story screenshots via Playwright. Usage: `cd web && npx tsx scripts/screenshot.ts --grep <pattern>` or `--all`. Requires Storybook running. Output in `web/screenshots/`.
+- `scripts/create-test-vm.sh` — Create a Windows 11 Pro Azure VM for manual testing (MSI install, WebView2 dialog, tray). Configures RDP for non-Windows clients. Delete with `az group delete --name savecraft-test-rg --yes --no-wait`.
 
 ## Commands
 

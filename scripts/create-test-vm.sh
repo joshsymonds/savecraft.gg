@@ -5,8 +5,7 @@
 # Uses Windows 11 Pro (consumer) which includes WebView2 pre-installed.
 # Requires Trusted Launch (vTPM + Secure Boot) for Win11 Gen2 images.
 #
-# Usage: ./scripts/create-test-vm.sh [username] [password]
-#   Defaults: savecraft / S@vecraft2026TestVM
+# Usage: ./scripts/create-test-vm.sh <password> [username]
 #
 # Password rules (Azure):
 #   - 12-123 characters, 3 of 4: upper, lower, digit, special
@@ -15,13 +14,20 @@
 
 set -euo pipefail
 
+if [[ $# -lt 1 ]]; then
+  echo "Usage: $0 <password> [username]" >&2
+  echo "  password: Required. Azure VM admin password." >&2
+  echo "  username: Optional. Defaults to 'savecraft'." >&2
+  exit 1
+fi
+
 RG="savecraft-test-rg"
 VM="sc-test-win11"
 LOCATION="eastus"
 IMAGE="MicrosoftWindowsDesktop:windows-11:win11-24h2-pro:latest"
 SIZE="Standard_D8s_v3"
-USER="${1:-savecraft}"
-PASS="${2:-S@vecraft2026TestVM}"
+PASS="$1"
+USER="${2:-savecraft}"
 
 echo "==> Creating resource group ($RG in $LOCATION)..."
 az group create --name "$RG" --location "$LOCATION" -o none
