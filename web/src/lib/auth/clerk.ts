@@ -82,6 +82,7 @@ const SAVECRAFT_LOCALIZATION = {
 } as const;
 
 let clerkInstance: Clerk | null = null;
+let clerkLoading = false;
 let clerkReady: Promise<Clerk> | null = null;
 let resolveClerkReady: ((clerk: Clerk) => void) | null = null;
 
@@ -123,17 +124,20 @@ const { store: authStateStore, update: updateAuthState } = createAuthState();
 export const authState: Readable<AuthState> = authStateStore;
 
 export async function initializeClerk(): Promise<void> {
-  if (clerkInstance) return;
+  if (clerkInstance || clerkLoading) return;
+  clerkLoading = true;
 
   const clerkModule = await import("@clerk/clerk-js");
 
   const clerk = new clerkModule.Clerk(PUBLIC_CLERK_PUBLISHABLE_KEY);
-  clerkInstance = clerk;
 
   await clerk.load({
     appearance: SAVECRAFT_APPEARANCE,
     localization: SAVECRAFT_LOCALIZATION,
   });
+
+  // Set clerkInstance AFTER load() so awaitClerk() never returns an unloaded instance.
+  clerkInstance = clerk;
 
   updateAuthState(clerk);
   clerk.addListener(() => {
