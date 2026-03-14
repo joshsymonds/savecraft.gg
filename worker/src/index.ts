@@ -177,10 +177,14 @@ export default {
     // Browser GET to MCP subdomain: return help page with OG tags + redirect to /connect.
     // MCP clients always POST with JSON — browsers send GET with Accept: text/html.
     // Only intercept on the dedicated MCP subdomain, not /mcp on the API host.
+    // Exclude OAuth and well-known paths — those are browser GETs that must reach the
+    // OAuthProvider (e.g. /oauth/authorize during the consent flow).
     if (
       mcpHost &&
       request.method === "GET" &&
-      request.headers.get("Accept")?.includes("text/html")
+      request.headers.get("Accept")?.includes("text/html") &&
+      !url.pathname.startsWith("/oauth/") &&
+      !url.pathname.startsWith("/.well-known/")
     ) {
       return serveMcpBrowserPage(env);
     }
