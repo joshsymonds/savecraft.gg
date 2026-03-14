@@ -10,10 +10,12 @@ const { consumePendingLinkCode, peekPendingLinkCode, setPendingLinkCode } =
 describe("link-code localStorage", () => {
   beforeEach(() => {
     localStorage.clear();
+    vi.useFakeTimers();
   });
 
   afterEach(() => {
     localStorage.clear();
+    vi.useRealTimers();
   });
 
   it("returns null when no code is pending", () => {
@@ -49,5 +51,41 @@ describe("link-code localStorage", () => {
 
   it("peek returns null when no code is pending", () => {
     expect(peekPendingLinkCode()).toBeNull();
+  });
+
+  it("rejects an expired code on consume", () => {
+    setPendingLinkCode("482913");
+    vi.advanceTimersByTime(20 * 60_000 + 1);
+    expect(consumePendingLinkCode()).toBeNull();
+  });
+
+  it("rejects an expired code on peek", () => {
+    setPendingLinkCode("482913");
+    vi.advanceTimersByTime(20 * 60_000 + 1);
+    expect(peekPendingLinkCode()).toBeNull();
+  });
+
+  it("accepts a code just under the TTL", () => {
+    setPendingLinkCode("482913");
+    vi.advanceTimersByTime(20 * 60_000 - 1);
+    expect(consumePendingLinkCode()).toBe("482913");
+  });
+
+  it("clears stale code from localStorage on consume", () => {
+    setPendingLinkCode("482913");
+    vi.advanceTimersByTime(20 * 60_000 + 1);
+    consumePendingLinkCode();
+    expect(localStorage.getItem("savecraft:linkCode")).toBeNull();
+  });
+
+  it("discards corrupt localStorage entries", () => {
+    localStorage.setItem("savecraft:linkCode", "not-json");
+    expect(consumePendingLinkCode()).toBeNull();
+    expect(localStorage.getItem("savecraft:linkCode")).toBeNull();
+  });
+
+  it("discards old plain-string format entries", () => {
+    localStorage.setItem("savecraft:linkCode", '"482913"');
+    expect(consumePendingLinkCode()).toBeNull();
   });
 });
