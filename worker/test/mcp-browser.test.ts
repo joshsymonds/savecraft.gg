@@ -83,6 +83,41 @@ describe("MCP browser redirect", () => {
     expect(body).not.toContain("og:title");
   });
 
+  it("does not intercept browser GET to /oauth/ paths on MCP host", async () => {
+    const resp = await worker.fetch(
+      new Request("https://mcp.savecraft.gg/oauth/authorize?client_id=test", {
+        method: "GET",
+        headers: { Accept: "text/html,application/xhtml+xml" },
+      }),
+      MCP_ENV,
+      {} as ExecutionContext,
+    );
+
+    // OAuth authorize is a browser GET with Accept: text/html, but must NOT
+    // be intercepted — it needs to reach the OAuth handler for the consent flow.
+    const body = await resp.text();
+    expect(body).not.toContain("og:title");
+    expect(body).not.toContain("my.savecraft.gg/connect");
+  });
+
+  it("does not intercept browser GET to /.well-known/ paths on MCP host", async () => {
+    const resp = await worker.fetch(
+      new Request("https://mcp.savecraft.gg/.well-known/oauth-protected-resource", {
+        method: "GET",
+        headers: { Accept: "text/html,application/xhtml+xml" },
+      }),
+      MCP_ENV,
+      {} as ExecutionContext,
+    );
+
+    expect(resp.status).toBe(200);
+    const body = await resp.text();
+    expect(body).not.toContain("og:title");
+    // Should return JSON metadata, not the browser redirect page
+    const json = JSON.parse(body);
+    expect(json.resource).toContain("mcp.savecraft.gg");
+  });
+
   it("does not intercept browser GET on non-MCP host", async () => {
     const resp = await worker.fetch(
       new Request("https://api.savecraft.gg/mcp", {
