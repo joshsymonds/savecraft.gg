@@ -32,20 +32,20 @@ const LinkPage = linkPageModule.default;
 
 describe("/link/[code] route", () => {
   beforeEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
     mockGoto.mockReset();
   });
 
   afterEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
     vi.restoreAllMocks();
   });
 
-  it("writes link code to sessionStorage and redirects to /", async () => {
+  it("writes link code to localStorage and redirects to /", async () => {
     render(LinkPage);
 
     await vi.waitFor(() => {
-      expect(sessionStorage.getItem("savecraft:linkCode")).toBe("482913");
+      expect(localStorage.getItem("savecraft:linkCode")).toBe("482913");
     });
     expect(mockGoto).toHaveBeenCalledWith("/");
   });

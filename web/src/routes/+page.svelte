@@ -93,7 +93,7 @@
 
   const COLLAPSED_EVENT_COUNT = 8;
 
-  // Consume pending link code from sessionStorage synchronously on first render.
+  // Consume pending link code from localStorage synchronously on first render.
   const pendingCode = consumePendingLinkCode();
   if (pendingCode) {
     void submitLinkCode(pendingCode);

@@ -7,13 +7,13 @@ vi.mock("$app/environment", () => ({
 const { consumePendingLinkCode, peekPendingLinkCode, setPendingLinkCode } =
   await import("./link-code");
 
-describe("link-code sessionStorage", () => {
+describe("link-code localStorage", () => {
   beforeEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   afterEach(() => {
-    sessionStorage.clear();
+    localStorage.clear();
   });
 
   it("returns null when no code is pending", () => {
