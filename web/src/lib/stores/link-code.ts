@@ -2,9 +2,9 @@ import { browser } from "$app/environment";
 
 const STORAGE_KEY = "savecraft:linkCode";
 
-/** Write a pending link code to sessionStorage (survives auth redirects). */
+/** Write a pending link code to localStorage (survives cross-tab auth flows like magic links). */
 export function setPendingLinkCode(code: string): void {
-  if (browser) sessionStorage.setItem(STORAGE_KEY, code);
+  if (browser) localStorage.setItem(STORAGE_KEY, code);
 }
 
 /**
@@ -13,16 +13,16 @@ export function setPendingLinkCode(code: string): void {
  */
 export function peekPendingLinkCode(): string | null {
   if (!browser) return null;
-  return sessionStorage.getItem(STORAGE_KEY);
+  return localStorage.getItem(STORAGE_KEY);
 }
 
 /**
- * Read and consume the pending link code from sessionStorage.
+ * Read and consume the pending link code.
  * Returns null if no code is pending. Clears the value so it's only consumed once.
  */
 export function consumePendingLinkCode(): string | null {
   if (!browser) return null;
-  const code = sessionStorage.getItem(STORAGE_KEY);
-  if (code) sessionStorage.removeItem(STORAGE_KEY);
+  const code = localStorage.getItem(STORAGE_KEY);
+  if (code) localStorage.removeItem(STORAGE_KEY);
   return code;
 }

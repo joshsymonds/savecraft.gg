@@ -1,8 +1,8 @@
 <!--
   @component
-  Source pairing redirect: writes the link code to sessionStorage and redirects to the homepage.
-  The homepage reads sessionStorage synchronously on first render and auto-submits the linking request.
-  sessionStorage survives auth redirects, so the code isn't lost if the user needs to sign in.
+  Source pairing redirect: writes the link code to localStorage and redirects to the homepage.
+  The homepage reads localStorage synchronously on first render and auto-submits the linking request.
+  localStorage survives cross-tab auth flows (like magic links), so the code isn't lost if the user needs to sign in.
 -->
 <script lang="ts">
   import { goto } from "$app/navigation";
