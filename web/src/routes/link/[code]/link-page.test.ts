@@ -45,7 +45,11 @@ describe("/link/[code] route", () => {
     render(LinkPage);
 
     await vi.waitFor(() => {
-      expect(localStorage.getItem("savecraft:linkCode")).toBe("482913");
+      const raw = localStorage.getItem("savecraft:linkCode");
+      expect(raw).not.toBeNull();
+      const parsed = JSON.parse(raw!) as { code: string; ts: number };
+      expect(parsed.code).toBe("482913");
+      expect(parsed.ts).toBeGreaterThan(0);
     });
     expect(mockGoto).toHaveBeenCalledWith("/");
   });
