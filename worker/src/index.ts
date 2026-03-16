@@ -374,6 +374,7 @@ export async function pushGameStatus(
   gameId: string,
   gameName: string,
   status: "watching" | "error",
+  errorMessage?: string,
 ): Promise<void> {
   const doId = env.SOURCE_HUB.idFromName(sourceUuid);
   const stub = env.SOURCE_HUB.get(doId);
@@ -385,7 +386,7 @@ export async function pushGameStatus(
         "X-Source-UUID": sourceUuid,
         "X-User-UUID": userUuid,
       },
-      body: JSON.stringify({ gameId, gameName, status }),
+      body: JSON.stringify({ gameId, gameName, status, error: errorMessage }),
     }),
   );
 }

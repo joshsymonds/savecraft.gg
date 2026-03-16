@@ -35,7 +35,12 @@ const fakeAdapter: ApiAdapter = {
   async fetchState(params: FetchParams) {
     fetchStateCalls.push(params);
     if (fetchStateError) throw fetchStateError;
-    return fakeGameState;
+    // Derive identity from characterId so batch tests get distinct save names
+    const charName = params.characterId.split("/")[1] ?? "unknown";
+    return {
+      ...fakeGameState,
+      identity: { ...fakeGameState.identity, saveName: `${charName}-testrealm-US` },
+    };
   },
 };
 
@@ -187,14 +192,9 @@ describe("Adapter Refresh Job", () => {
 
   it("respects batch limit", async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
-    // Seed 55 saves — only 50 should be processed
+    // Seed 55 saves — only 50 should be processed (SQL LIMIT 50)
     for (let i = 0; i < 55; i++) {
       const name = `Char${String(i)}-testrealm-US`;
-      fakeGameState = {
-        identity: { saveName: name, gameId: "fakegame" },
-        summary: `Summary ${String(i)}`,
-        sections: { overview: { description: "Overview", data: {} } },
-      };
       await seedAdapterSave(USER_UUID, sourceUuid, "fakegame", name);
       await seedLinkedCharacter(USER_UUID, sourceUuid, "fakegame", `Char${String(i)}`, {
         realm_slug: "testrealm",

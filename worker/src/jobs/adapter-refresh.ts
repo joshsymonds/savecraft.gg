@@ -15,21 +15,17 @@ import type { Env } from "../types";
 
 const BATCH_LIMIT = 50;
 
-interface AdapterSaveRow {
+/** Single-query row with save, linked character, and credentials pre-joined. */
+interface RefreshRow {
   save_uuid: string;
   save_name: string;
   game_id: string;
   source_uuid: string;
   user_uuid: string;
-  last_updated: string | null;
-}
-
-interface LinkedCharRow {
+  // linked_characters
   character_name: string;
   metadata: string | null;
-}
-
-interface CredentialRow {
+  // game_credentials
   access_token: string;
   refresh_token: string | null;
   expires_at: string | null;
@@ -38,53 +34,43 @@ interface CredentialRow {
 export async function refreshAdapterSources(env: Env): Promise<void> {
   const cooldownSeconds = ADAPTER_REFRESH_COOLDOWN_SEC;
 
-  // Find adapter saves due for refresh, joining through sources to filter by source_kind.
-  // Cooldown is enforced in SQL to avoid fetching rows we'd skip anyway.
+  // Single query joins saves + sources + linked_characters + game_credentials,
+  // eliminating per-save D1 round-trips. Rows without a linked character or
+  // credentials are excluded by the INNER JOINs.
   const rows = await env.DB.prepare(
     `SELECT s.uuid AS save_uuid, s.save_name, s.game_id, s.last_source_uuid AS source_uuid,
-            src.user_uuid, s.last_updated
+            src.user_uuid,
+            lc.character_name, lc.metadata,
+            gc.access_token, gc.refresh_token, gc.expires_at
      FROM saves s
      JOIN sources src ON s.last_source_uuid = src.source_uuid
+     JOIN linked_characters lc
+       ON lc.user_uuid = src.user_uuid AND lc.game_id = s.game_id
+          AND lc.source_uuid = src.source_uuid AND lc.active = 1
+          AND lc.character_name = SUBSTR(s.save_name, 1, INSTR(s.save_name, '-') - 1)
+     JOIN game_credentials gc
+       ON gc.user_uuid = src.user_uuid AND gc.game_id = s.game_id
      WHERE src.source_kind = 'adapter'
        AND src.user_uuid IS NOT NULL
        AND (s.last_updated IS NULL OR s.last_updated < datetime('now', ?))
      LIMIT ?`,
   )
     .bind(`-${String(cooldownSeconds)} seconds`, BATCH_LIMIT)
-    .all<AdapterSaveRow>();
+    .all<RefreshRow>();
 
-  for (const row of rows.results) {
-    await refreshOneSave(env, row);
-  }
+  // Saves are user-isolated — refresh in parallel for better wall-clock time.
+  await Promise.allSettled(rows.results.map((row) => refreshOneSave(env, row)));
 }
 
-async function refreshOneSave(env: Env, row: AdapterSaveRow): Promise<void> {
+async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
   const adapter = adapters[row.game_id];
   if (!adapter) return;
 
-  // Look up linked character
-  const linkedChar = await env.DB.prepare(
-    `SELECT character_name, metadata
-     FROM linked_characters
-     WHERE user_uuid = ? AND game_id = ? AND source_uuid = ? AND active = 1
-     AND character_name = ?`,
-  )
-    .bind(row.user_uuid, row.game_id, row.source_uuid, row.save_name.split("-")[0] ?? "")
-    .first<LinkedCharRow>();
-
-  if (!linkedChar) return;
-
-  const ctx = resolveCharacterContext(linkedChar, row.save_name);
+  const ctx = resolveCharacterContext(
+    { character_name: row.character_name, metadata: row.metadata },
+    row.save_name,
+  );
   if (!ctx.realmSlug) return;
-
-  // Look up credentials
-  const creds = await env.DB.prepare(
-    "SELECT access_token, refresh_token, expires_at FROM game_credentials WHERE user_uuid = ? AND game_id = ?",
-  )
-    .bind(row.user_uuid, row.game_id)
-    .first<CredentialRow>();
-
-  if (!creds) return;
 
   try {
     const gameState = await adapter.fetchState(
@@ -92,9 +78,9 @@ async function refreshOneSave(env: Env, row: AdapterSaveRow): Promise<void> {
         characterId: `${ctx.realmSlug}/${ctx.characterName}`,
         region: ctx.region,
         credentials: {
-          accessToken: creds.access_token,
-          refreshToken: creds.refresh_token ?? undefined,
-          expiresAt: creds.expires_at ?? undefined,
+          accessToken: row.access_token,
+          refreshToken: row.refresh_token ?? undefined,
+          expiresAt: row.expires_at ?? undefined,
         },
       },
       env,
@@ -130,14 +116,17 @@ async function refreshOneSave(env: Env, row: AdapterSaveRow): Promise<void> {
           ? error.message
           : "Unknown error";
 
+    // Truncate to prevent unbounded third-party error messages in D1/MCP responses
+    const truncated = message.length > 500 ? `${message.slice(0, 497)}...` : message;
+
     // Record failure
     await env.DB.prepare(
       "UPDATE saves SET refresh_status = 'error', refresh_error = ? WHERE uuid = ?",
     )
-      .bind(message, row.save_uuid)
+      .bind(truncated, row.save_uuid)
       .run();
 
-    // Update SourceHub state with error
-    await pushGameStatus(env, row.source_uuid, row.user_uuid, row.game_id, adapter.gameName, "error");
+    // Update SourceHub state with error — message flows to dashboard via proto
+    await pushGameStatus(env, row.source_uuid, row.user_uuid, row.game_id, adapter.gameName, "error", truncated);
   }
 }
