@@ -1777,59 +1777,8 @@ describe("SourceHub", () => {
     await closeWs(uiWs);
   });
 
-  it("does not evict adapter sources via alarm", async () => {
-    // Adapter sources should never be stale-evicted — their lifecycle is
-    // driven by the cron job, not WebSocket presence.
-    const userUuid = "adapter-no-evict-user";
-    const { sourceUuid } = await seedSource(userUuid);
-
-    // Mark source as adapter via set-game-status
-    const doId = env.SOURCE_HUB.idFromName(sourceUuid);
-    const doStub = env.SOURCE_HUB.get(doId);
-
-    // Initialize source UUID in DO storage
-    await doStub.fetch(
-      new Request("https://do/register", {
-        method: "POST",
-        headers: { "X-Source-UUID": sourceUuid, "X-User-UUID": userUuid },
-      }),
-    );
-
-    await doStub.fetch(
-      new Request("https://do/set-game-status", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Source-UUID": sourceUuid,
-          "X-User-UUID": userUuid,
-        },
-        body: JSON.stringify({
-          gameId: "wow",
-          gameName: "World of Warcraft",
-          status: "watching",
-        }),
-      }),
-    );
-
-    // Verify source is online
-    const resp1 = await doStub.fetch(new Request("https://do/debug/state"));
-    const debug1 = await resp1.json<{
-      sourceState: { sources: { online: boolean }[] };
-    }>();
-    expect(debug1.sourceState.sources[0]?.online).toBe(true);
-
-    // Wait well past the stale threshold (200ms in tests)
-    await new Promise((resolve) => {
-      setTimeout(resolve, 500);
-    });
-
-    // Adapter source should still be online — NOT evicted
-    const resp2 = await doStub.fetch(new Request("https://do/debug/state"));
-    const debug2 = await resp2.json<{
-      sourceState: { sources: { online: boolean }[] };
-    }>();
-    expect(debug2.sourceState.sources[0]?.online).toBe(true);
-  });
+  // Adapter no-evict test lives in adapter-state.test.ts (correct context,
+  // no redundant /register step, and already exercises the full set-game-status path).
 
   it("alarm reschedules even after stale eviction", async () => {
     // Verifies the alarm doesn't silently stop after evicting a stale source.
