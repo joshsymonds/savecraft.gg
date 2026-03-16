@@ -79,6 +79,7 @@ type StateMutation =
       gameId: string;
       gameName: string;
       status: GameStatusEnum;
+      error: string;
     }
   | { kind: "none" };
 
@@ -120,6 +121,7 @@ function findOrCreateGame(source: SourceInfo, gameId: string): GameInfo {
       saves: [],
       lastActivity: undefined,
       path: "",
+      error: "",
     };
     source.games.push(game);
   }
@@ -212,6 +214,7 @@ function applyMutation(state: SourceState, mutation: StateMutation): void {
       const game = findOrCreateGame(source, mutation.gameId);
       game.gameName = mutation.gameName;
       game.status = mutation.status;
+      game.error = mutation.error;
       game.lastActivity = now;
       break;
     }
@@ -619,7 +622,8 @@ export class SourceHub extends DurableObject<Env> {
     this.debugLog.push("debug", "alarm fired");
     try {
       // Adapter sources are never stale-evicted — their lifecycle is driven
-      // by the cron job, not WebSocket presence.
+      // by the cron job, not WebSocket presence. Returning early also skips
+      // the reschedule block below, so the alarm fires once and stops.
       const meta = await this.getSourceMeta();
       if (meta.sourceKind === "adapter") {
         this.debugLog.push("debug", "skipping stale check for adapter source");
@@ -1261,6 +1265,7 @@ export class SourceHub extends DurableObject<Env> {
       gameId?: string;
       gameName?: string;
       status?: string;
+      error?: string;
     }>();
 
     if (!body.gameId || !body.gameName || !body.status) {
@@ -1307,12 +1312,15 @@ export class SourceHub extends DurableObject<Env> {
       gameId: body.gameId,
       gameName: body.gameName,
       status: gameStatus,
+      error: body.error ?? "",
     };
     applyMutation(state, mutation);
     await this.saveState(state);
     await this.forwardStateToUserHub();
 
-    // Ensure alarm is set so adapter sources get staleness-checked
+    // Set alarm to trigger forwardStateToUserHub on next tick. For adapter
+    // sources the alarm handler returns early (no stale-eviction), so this
+    // alarm fires once and is not rescheduled.
     const interval = this.env.ALARM_INTERVAL_MS ?? 30_000;
     await this.ctx.storage.setAlarm(Date.now() + interval);
 

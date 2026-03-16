@@ -429,6 +429,8 @@ export interface GameInfo {
   saves: SaveInfo[];
   lastActivity: Date | undefined;
   path: string;
+  /** Human-readable error message when status is ERROR (e.g. "token_expired: Battle.net token expired"). */
+  error: string;
 }
 
 export interface SaveInfo {
@@ -4777,7 +4779,7 @@ export const SourceInfo: MessageFns<SourceInfo> = {
 };
 
 function createBaseGameInfo(): GameInfo {
-  return { gameId: "", gameName: "", status: 0, saves: [], lastActivity: undefined, path: "" };
+  return { gameId: "", gameName: "", status: 0, saves: [], lastActivity: undefined, path: "", error: "" };
 }
 
 export const GameInfo: MessageFns<GameInfo> = {
@@ -4799,6 +4801,9 @@ export const GameInfo: MessageFns<GameInfo> = {
     }
     if (message.path !== "") {
       writer.uint32(50).string(message.path);
+    }
+    if (message.error !== "") {
+      writer.uint32(58).string(message.error);
     }
     return writer;
   },
@@ -4858,6 +4863,14 @@ export const GameInfo: MessageFns<GameInfo> = {
           message.path = reader.string();
           continue;
         }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.error = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -4887,6 +4900,7 @@ export const GameInfo: MessageFns<GameInfo> = {
         ? fromJsonTimestamp(object.last_activity)
         : undefined,
       path: isSet(object.path) ? globalThis.String(object.path) : "",
+      error: isSet(object.error) ? globalThis.String(object.error) : "",
     };
   },
 
@@ -4910,6 +4924,9 @@ export const GameInfo: MessageFns<GameInfo> = {
     if (message.path !== "") {
       obj.path = message.path;
     }
+    if (message.error !== "") {
+      obj.error = message.error;
+    }
     return obj;
   },
 
@@ -4924,6 +4941,7 @@ export const GameInfo: MessageFns<GameInfo> = {
     message.saves = object.saves?.map((e) => SaveInfo.fromPartial(e)) || [];
     message.lastActivity = object.lastActivity ?? undefined;
     message.path = object.path ?? "";
+    message.error = object.error ?? "";
     return message;
   },
 };

@@ -29,6 +29,7 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_sources_link_code ON sources(link_code) WHERE link_code IS NOT NULL`,
   `CREATE INDEX IF NOT EXISTS idx_sources_token ON sources(token_hash)`,
   `CREATE INDEX IF NOT EXISTS idx_sources_ip ON sources(ip)`,
+  `CREATE INDEX IF NOT EXISTS idx_sources_source_kind ON sources(source_kind)`,
   `CREATE TABLE IF NOT EXISTS saves (
     uuid TEXT PRIMARY KEY,
     user_uuid TEXT,
@@ -43,6 +44,7 @@ const statements = [
     UNIQUE (user_uuid, game_id, save_name)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_uuid)`,
+  `CREATE INDEX IF NOT EXISTS idx_saves_last_updated ON saves(last_updated)`,
   `CREATE TABLE IF NOT EXISTS source_events (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     source_uuid TEXT NOT NULL,

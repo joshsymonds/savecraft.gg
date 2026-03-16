@@ -33,7 +33,8 @@ describe("Job Dispatcher", () => {
   });
 
   it("dispatches adapter refresh job for 15-minute cron pattern", async () => {
-    // Adapter refresh is a stub for now — just verify it doesn't throw
+    // No adapter saves seeded — verifies the cron pattern routes to the job
+    // without error. Functional refresh coverage is in adapter-refresh-job.test.ts.
     await expect(dispatch("*/15 * * * *", env)).resolves.toBeUndefined();
   });
 
