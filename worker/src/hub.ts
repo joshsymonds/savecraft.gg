@@ -1298,6 +1298,7 @@ export class SourceHub extends DurableObject<Env> {
           platform: "",
           os: "",
           arch: "",
+          device: "",
           canRescan: false,
           canReceiveConfig: false,
           cachedAt: Date.now(),

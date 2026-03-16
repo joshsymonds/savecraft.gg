@@ -53,6 +53,7 @@ export async function refreshAdapterSources(env: Env): Promise<void> {
      WHERE src.source_kind = 'adapter'
        AND src.user_uuid IS NOT NULL
        AND (s.last_updated IS NULL OR s.last_updated < datetime('now', ?))
+     ORDER BY s.last_updated ASC
      LIMIT ?`,
   )
     .bind(`-${String(cooldownSeconds)} seconds`, BATCH_LIMIT)

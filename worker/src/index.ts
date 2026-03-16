@@ -363,7 +363,8 @@ function errorRedirect(redirectUrl: URL, gameId: string, error: string, detail: 
 }
 
 function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  const msg = error instanceof Error ? error.message : String(error);
+  return msg.length > 500 ? `${msg.slice(0, 497)}...` : msg;
 }
 
 /** Push adapter game state to SourceHub DO. */
@@ -403,6 +404,7 @@ async function handleTokenFailure(
   adapter: { gameId: string; gameName: string },
   eventData: Record<string, unknown>,
   env: Env,
+  errorMessage?: string,
 ): Promise<void> {
   await Promise.all([
     logSourceEvent(env, state.sourceUuid, "oauthTokenFailed", { oauthTokenFailed: eventData }),
@@ -413,6 +415,7 @@ async function handleTokenFailure(
       adapter.gameId,
       adapter.gameName,
       "error",
+      errorMessage,
     ),
   ]);
 }
@@ -443,6 +446,7 @@ async function exchangeAndStoreToken(
       adapter,
       { gameId: adapter.gameId, region: state.region, error: toErrorMessage(error) },
       env,
+      toErrorMessage(error),
     );
     return errorRedirect(
       redirectUrl,
@@ -563,6 +567,7 @@ async function handleBattlenetCallback(url: URL, env: Env): Promise<Response> {
         adapter.gameId,
         adapter.gameName,
         "error",
+        toErrorMessage(error),
       ),
     ]);
     redirectUrl.searchParams.set("connected", "true");
