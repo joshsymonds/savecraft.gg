@@ -9,9 +9,8 @@
  * sources never have saves to clean up — unlinked sources cannot push saves.
  */
 
-import type { Env } from "./types";
-
-import { cleanupSource } from "./index";
+import { cleanupSource } from "../index";
+import type { Env } from "../types";
 
 const ORPHAN_THRESHOLD_DAYS = 7;
 const REAPER_BATCH_LIMIT = 100;

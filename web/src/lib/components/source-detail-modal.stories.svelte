@@ -104,13 +104,13 @@
   const apiSource: Source = {
     id: "src-3",
     name: "WoW API",
-    sourceKind: "api",
+    sourceKind: "adapter",
     hostname: null,
     platform: null,
     device: null,
-    status: "online",
+    status: "linked",
     version: null,
-    lastSeen: "Just now",
+    lastSeen: "3m ago",
     capabilities: { canRescan: false, canReceiveConfig: false },
     games: [
       {

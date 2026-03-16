@@ -1,4 +1,4 @@
-export type SourceStatus = "online" | "error" | "offline";
+export type SourceStatus = "online" | "error" | "offline" | "linked";
 
 export type GameStatus = "watching" | "error" | "not_found";
 

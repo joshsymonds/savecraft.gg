@@ -1,0 +1,48 @@
+import { env } from "cloudflare:test";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { dispatch } from "../src/jobs/dispatch";
+
+import { cleanAll } from "./helpers";
+
+describe("Job Dispatcher", () => {
+  beforeEach(cleanAll);
+
+  it("dispatches reaper job for daily cron pattern", async () => {
+    // Insert an orphan source that the reaper should delete
+    const data = new TextEncoder().encode("sct_orphan-dispatch-test");
+    const hash = await crypto.subtle.digest("SHA-256", data);
+    const tokenHash = [...new Uint8Array(hash)]
+      .map((b) => b.toString(16).padStart(2, "0"))
+      .join("");
+
+    const tenDaysAgo = new Date(Date.now() - 10 * 86_400_000).toISOString();
+    await env.DB.prepare(
+      `INSERT INTO sources (source_uuid, user_uuid, token_hash, created_at, last_push_at)
+       VALUES (?, NULL, ?, ?, NULL)`,
+    )
+      .bind("orphan-dispatch-test", tokenHash, tenDaysAgo)
+      .run();
+
+    await dispatch("0 4 * * *", env);
+
+    const row = await env.DB.prepare("SELECT 1 FROM sources WHERE source_uuid = ?")
+      .bind("orphan-dispatch-test")
+      .first();
+    expect(row).toBeNull();
+  });
+
+  it("dispatches adapter refresh job for 15-minute cron pattern", async () => {
+    // Adapter refresh is a stub for now — just verify it doesn't throw
+    await expect(dispatch("*/15 * * * *", env)).resolves.toBeUndefined();
+  });
+
+  it("logs warning and does not throw for unknown cron pattern", async () => {
+    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    await expect(dispatch("unknown-pattern", env)).resolves.toBeUndefined();
+    expect(consoleSpy).toHaveBeenCalledWith(
+      expect.stringContaining("unknown-pattern"),
+    );
+    consoleSpy.mockRestore();
+  });
+});

@@ -7,7 +7,7 @@ import { authenticateSession, authenticateSource, sha256Hex } from "./auth";
 import { indexNote, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
 import { Message } from "./proto/savecraft/v1/protocol";
-import { reapOrphanSources } from "./reaper";
+import { dispatch } from "./jobs/dispatch";
 import { reconcileOrphanSaves, storePush } from "./store";
 import type { Env } from "./types";
 
@@ -192,11 +192,11 @@ export default {
     return oauthProvider.fetch(request, env, ctx);
   },
   async scheduled(
-    _controller: ScheduledController,
+    controller: ScheduledController,
     env: Env,
     _ctx: ExecutionContext,
   ): Promise<void> {
-    await reapOrphanSources(env);
+    await dispatch(controller.cron, env);
   },
 } satisfies ExportedHandler<Env>;
 
@@ -367,7 +367,7 @@ function toErrorMessage(error: unknown): string {
 }
 
 /** Push adapter game state to SourceHub DO. */
-async function pushGameStatus(
+export async function pushGameStatus(
   env: Env,
   sourceUuid: string,
   userUuid: string,

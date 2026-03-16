@@ -25,6 +25,8 @@ interface SaveRow {
   summary: string;
   last_updated: string;
   last_source_uuid: string | null;
+  refresh_status: string | null;
+  refresh_error: string | null;
 }
 
 /** Maximum bytes for a single section's JSON before we reject it (~20K tokens). */
@@ -303,7 +305,7 @@ export async function getSave(
     .bind(saveId, userUuid)
     .all<{ note_id: string; title: string; source: string; size_bytes: number }>();
 
-  return textResult({
+  const result: Record<string, unknown> = {
     save_id: saveId,
     game_id: save.game_id,
     name: save.save_name,
@@ -316,7 +318,17 @@ export async function getSave(
       source: row.source,
       size_bytes: row.size_bytes,
     })),
-  });
+  };
+
+  // Include refresh status for adapter saves (null for daemon saves)
+  if (save.refresh_status) {
+    result.refresh_status = save.refresh_status;
+    if (save.refresh_error) {
+      result.refresh_error = save.refresh_error;
+    }
+  }
+
+  return textResult(result);
 }
 
 export async function getSection(

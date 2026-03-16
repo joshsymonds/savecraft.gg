@@ -88,4 +88,42 @@ describe("SourceCard", () => {
     });
     expect(container.querySelector(".source-card.error")).toBeInTheDocument();
   });
+
+  it("renders 'Linked' with freshness for adapter sources", () => {
+    render(SourceCard, {
+      props: {
+        source: makeSource({
+          sourceKind: "adapter",
+          status: "linked",
+          lastSeen: "3m ago",
+        }),
+      },
+    });
+    expect(screen.getByText("Linked · 3m ago")).toBeInTheDocument();
+  });
+
+  it("renders 'Linked' without freshness when lastSeen is empty", () => {
+    render(SourceCard, {
+      props: {
+        source: makeSource({
+          sourceKind: "adapter",
+          status: "linked",
+          lastSeen: "",
+        }),
+      },
+    });
+    expect(screen.getByText("Linked")).toBeInTheDocument();
+  });
+
+  it("does not apply offline class for linked adapter sources", () => {
+    const { container } = render(SourceCard, {
+      props: {
+        source: makeSource({
+          sourceKind: "adapter",
+          status: "linked",
+        }),
+      },
+    });
+    expect(container.querySelector(".source-card.offline")).not.toBeInTheDocument();
+  });
 });

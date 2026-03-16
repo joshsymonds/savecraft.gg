@@ -618,6 +618,14 @@ export class SourceHub extends DurableObject<Env> {
   async alarm(): Promise<void> {
     this.debugLog.push("debug", "alarm fired");
     try {
+      // Adapter sources are never stale-evicted — their lifecycle is driven
+      // by the cron job, not WebSocket presence.
+      const meta = await this.getSourceMeta();
+      if (meta.sourceKind === "adapter") {
+        this.debugLog.push("debug", "skipping stale check for adapter source");
+        return;
+      }
+
       const state = await this.loadState();
       const staleSourceIds = findStaleSources(state, this.env.STALE_THRESHOLD_MS ?? 90_000);
 

@@ -425,6 +425,52 @@ describe("MCP Tools", () => {
       const result = await getSave(env.DB, USER_A, "nonexistent");
       expect(result.isError).toBe(true);
     });
+
+    it("includes refresh_status and refresh_error for adapter saves", async () => {
+      await seedSave({
+        saveUuid: "save-refresh-status",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "RefreshTest",
+        summary: "Refresh status test",
+      });
+      // Set refresh status directly in D1
+      await env.DB.prepare(
+        "UPDATE saves SET refresh_status = 'error', refresh_error = 'token_expired: Token expired' WHERE uuid = ?",
+      )
+        .bind("save-refresh-status")
+        .run();
+
+      const result = await getSave(env.DB, USER_A, "save-refresh-status");
+      expect(result.isError).toBeUndefined();
+
+      const data = parseResult(result) as {
+        refresh_status?: string;
+        refresh_error?: string;
+      };
+      expect(data.refresh_status).toBe("error");
+      expect(data.refresh_error).toBe("token_expired: Token expired");
+    });
+
+    it("omits refresh fields when refresh_status is null", async () => {
+      await seedSave({
+        saveUuid: "save-no-refresh",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "NoRefreshTest",
+        summary: "No refresh status",
+      });
+
+      const result = await getSave(env.DB, USER_A, "save-no-refresh");
+      expect(result.isError).toBeUndefined();
+
+      const data = parseResult(result) as {
+        refresh_status?: string;
+        refresh_error?: string;
+      };
+      expect(data.refresh_status).toBeUndefined();
+      expect(data.refresh_error).toBeUndefined();
+    });
   });
 
   // ── search_saves ────────────────────────────────────────────

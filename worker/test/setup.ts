@@ -38,6 +38,8 @@ const statements = [
     summary TEXT NOT NULL DEFAULT '',
     last_updated TEXT NOT NULL DEFAULT (datetime('now')),
     last_source_uuid TEXT,
+    refresh_status TEXT,
+    refresh_error TEXT,
     UNIQUE (user_uuid, game_id, save_name)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_uuid)`,
