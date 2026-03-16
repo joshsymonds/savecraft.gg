@@ -29,18 +29,18 @@ const fakeAdapter: ApiAdapter = {
   getOAuthConfig() {
     return { authorizeUrl: "", tokenUrl: "", scopes: [], clientId: "" };
   },
-  async discoverSaves() {
-    return [];
+  discoverSaves() {
+    return Promise.resolve([]);
   },
-  async fetchState(params: FetchParams) {
+  fetchState(params: FetchParams) {
     fetchStateCalls.push(params);
-    if (fetchStateError) throw fetchStateError;
+    if (fetchStateError) return Promise.reject(fetchStateError);
     // Derive identity from characterId so batch tests get distinct save names
     const charName = params.characterId.split("/")[1] ?? "unknown";
-    return {
+    return Promise.resolve({
       ...fakeGameState,
       identity: { ...fakeGameState.identity, saveName: `${charName}-testrealm-US` },
-    };
+    });
   },
 };
 
@@ -74,7 +74,15 @@ async function seedAdapterSave(
     `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid)
      VALUES (?, ?, ?, ?, ?, '', ?, ?)`,
   )
-    .bind(saveUuid, userUuid, gameId, "Fake Game", saveName, lastUpdated ?? "2020-01-01T00:00:00", sourceUuid)
+    .bind(
+      saveUuid,
+      userUuid,
+      gameId,
+      "Fake Game",
+      saveName,
+      lastUpdated ?? "2020-01-01T00:00:00",
+      sourceUuid,
+    )
     .run();
   return saveUuid;
 }
@@ -90,7 +98,14 @@ async function seedLinkedCharacter(
     `INSERT INTO linked_characters (user_uuid, source_uuid, game_id, character_id, character_name, metadata, active)
      VALUES (?, ?, ?, ?, ?, ?, 1)`,
   )
-    .bind(userUuid, sourceUuid, gameId, `${characterName}-id`, characterName, JSON.stringify(metadata))
+    .bind(
+      userUuid,
+      sourceUuid,
+      gameId,
+      `${characterName}-id`,
+      characterName,
+      JSON.stringify(metadata),
+    )
     .run();
 }
 
@@ -124,16 +139,21 @@ describe("Adapter Refresh Job", () => {
       },
     };
     // Register fake adapter
-    adapters["fakegame"] = fakeAdapter;
+    adapters.fakegame = fakeAdapter;
   });
 
   afterEach(() => {
-    delete adapters["fakegame"];
+    delete adapters.fakegame;
   });
 
   it("refreshes an adapter save and writes refresh_status=ok", async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
-    const saveUuid = await seedAdapterSave(USER_UUID, sourceUuid, "fakegame", "Testchar-testrealm-US");
+    const saveUuid = await seedAdapterSave(
+      USER_UUID,
+      sourceUuid,
+      "fakegame",
+      "Testchar-testrealm-US",
+    );
     await seedLinkedCharacter(USER_UUID, sourceUuid, "fakegame", "Testchar", {
       realm_slug: "testrealm",
       region: "us",
@@ -146,7 +166,9 @@ describe("Adapter Refresh Job", () => {
     expect(fetchStateCalls[0]!.credentials.accessToken).toBe("test-access-token");
 
     // Check refresh_status was written
-    const save = await env.DB.prepare("SELECT refresh_status, refresh_error FROM saves WHERE uuid = ?")
+    const save = await env.DB.prepare(
+      "SELECT refresh_status, refresh_error FROM saves WHERE uuid = ?",
+    )
       .bind(saveUuid)
       .first<{ refresh_status: string | null; refresh_error: string | null }>();
     expect(save!.refresh_status).toBe("ok");
@@ -155,7 +177,12 @@ describe("Adapter Refresh Job", () => {
 
   it("records error on token_expired and writes refresh_status=error", async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
-    const saveUuid = await seedAdapterSave(USER_UUID, sourceUuid, "fakegame", "Testchar-testrealm-US");
+    const saveUuid = await seedAdapterSave(
+      USER_UUID,
+      sourceUuid,
+      "fakegame",
+      "Testchar-testrealm-US",
+    );
     await seedLinkedCharacter(USER_UUID, sourceUuid, "fakegame", "Testchar", {
       realm_slug: "testrealm",
       region: "us",
@@ -166,7 +193,9 @@ describe("Adapter Refresh Job", () => {
 
     await refreshAdapterSources(env);
 
-    const save = await env.DB.prepare("SELECT refresh_status, refresh_error FROM saves WHERE uuid = ?")
+    const save = await env.DB.prepare(
+      "SELECT refresh_status, refresh_error FROM saves WHERE uuid = ?",
+    )
       .bind(saveUuid)
       .first<{ refresh_status: string | null; refresh_error: string | null }>();
     expect(save!.refresh_status).toBe("error");
@@ -177,7 +206,13 @@ describe("Adapter Refresh Job", () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
     // last_updated is 1 minute ago — within 5-min cooldown
     const recentlyUpdated = new Date(Date.now() - 60_000).toISOString();
-    await seedAdapterSave(USER_UUID, sourceUuid, "fakegame", "Testchar-testrealm-US", recentlyUpdated);
+    await seedAdapterSave(
+      USER_UUID,
+      sourceUuid,
+      "fakegame",
+      "Testchar-testrealm-US",
+      recentlyUpdated,
+    );
     await seedLinkedCharacter(USER_UUID, sourceUuid, "fakegame", "Testchar", {
       realm_slug: "testrealm",
       region: "us",
@@ -193,10 +228,10 @@ describe("Adapter Refresh Job", () => {
   it("respects batch limit", async () => {
     const sourceUuid = await seedAdapterSource(USER_UUID);
     // Seed 55 saves — only 50 should be processed (SQL LIMIT 50)
-    for (let i = 0; i < 55; i++) {
-      const name = `Char${String(i)}-testrealm-US`;
+    for (let index = 0; index < 55; index++) {
+      const name = `Char${String(index)}-testrealm-US`;
       await seedAdapterSave(USER_UUID, sourceUuid, "fakegame", name);
-      await seedLinkedCharacter(USER_UUID, sourceUuid, "fakegame", `Char${String(i)}`, {
+      await seedLinkedCharacter(USER_UUID, sourceUuid, "fakegame", `Char${String(index)}`, {
         realm_slug: "testrealm",
         region: "us",
       });

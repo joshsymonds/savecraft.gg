@@ -1,5 +1,5 @@
 import { env } from "cloudflare:test";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import { dispatch } from "../src/jobs/dispatch";
 
@@ -38,12 +38,7 @@ describe("Job Dispatcher", () => {
     await expect(dispatch("*/15 * * * *", env)).resolves.toBeUndefined();
   });
 
-  it("logs warning and does not throw for unknown cron pattern", async () => {
-    const consoleSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
-    await expect(dispatch("unknown-pattern", env)).resolves.toBeUndefined();
-    expect(consoleSpy).toHaveBeenCalledWith(
-      expect.stringContaining("unknown-pattern"),
-    );
-    consoleSpy.mockRestore();
+  it("throws for unknown cron pattern", async () => {
+    await expect(dispatch("unknown-pattern", env)).rejects.toThrow("unknown-pattern");
   });
 });

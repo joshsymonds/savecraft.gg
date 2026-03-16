@@ -4,10 +4,10 @@ import { adapters } from "./adapters/registry";
 import { resolveCharacterContext } from "./adapters/resolve-character";
 import { handleAdminRoute } from "./admin";
 import { authenticateSession, authenticateSource, sha256Hex } from "./auth";
+import { dispatch } from "./jobs/dispatch";
 import { indexNote, removeNoteFromIndex } from "./mcp/tools";
 import { buildOAuthProvider, handleAuthorize, handleCallback } from "./oauth";
 import { Message } from "./proto/savecraft/v1/protocol";
-import { dispatch } from "./jobs/dispatch";
 import { reconcileOrphanSaves, storePush } from "./store";
 import type { Env } from "./types";
 

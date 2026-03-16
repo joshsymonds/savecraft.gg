@@ -108,14 +108,21 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
       .run();
 
     // Update SourceHub state
-    await pushGameStatus(env, row.source_uuid, row.user_uuid, row.game_id, adapter.gameName, "watching");
+    await pushGameStatus(
+      env,
+      row.source_uuid,
+      row.user_uuid,
+      row.game_id,
+      adapter.gameName,
+      "watching",
+    );
   } catch (error) {
-    const message =
-      error instanceof AdapterError
-        ? `${error.code}: ${error.message}`
-        : error instanceof Error
-          ? error.message
-          : "Unknown error";
+    let message = "Unknown error";
+    if (error instanceof AdapterError) {
+      message = `${error.code}: ${error.message}`;
+    } else if (error instanceof Error) {
+      message = error.message;
+    }
 
     // Truncate to prevent unbounded third-party error messages in D1/MCP responses
     const truncated = message.length > 500 ? `${message.slice(0, 497)}...` : message;
@@ -128,6 +135,14 @@ async function refreshOneSave(env: Env, row: RefreshRow): Promise<void> {
       .run();
 
     // Update SourceHub state with error — message flows to dashboard via proto
-    await pushGameStatus(env, row.source_uuid, row.user_uuid, row.game_id, adapter.gameName, "error", truncated);
+    await pushGameStatus(
+      env,
+      row.source_uuid,
+      row.user_uuid,
+      row.game_id,
+      adapter.gameName,
+      "error",
+      truncated,
+    );
   }
 }

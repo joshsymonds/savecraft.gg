@@ -77,8 +77,12 @@ function mapSourceInfo(d: SourceInfo): Source {
     };
   });
 
-  const sourceStatus: SourceStatus =
-    d.sourceKind === "adapter" ? "linked" : d.online ? "online" : "offline";
+  let sourceStatus: SourceStatus = "offline";
+  if (d.sourceKind === "adapter") {
+    sourceStatus = "linked";
+  } else if (d.online) {
+    sourceStatus = "online";
+  }
 
   return {
     id: d.sourceId,

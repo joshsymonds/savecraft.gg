@@ -20,8 +20,7 @@ const JOBS: Record<string, JobFn> = {
 export async function dispatch(cron: string, env: Env): Promise<void> {
   const job = JOBS[cron];
   if (!job) {
-    console.warn(`No job registered for cron pattern: ${cron}`);
-    return;
+    throw new Error(`No job registered for cron pattern: ${cron}`);
   }
   await job(env);
 }
