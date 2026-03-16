@@ -22,6 +22,7 @@
   let statusLabel = $derived.by(() => {
     if (source.status === "online") return "Online";
     if (source.status === "error") return "Error";
+    if (source.status === "linked") return source.lastSeen ? `Linked · ${source.lastSeen}` : "Linked";
     return source.lastSeen || "Offline";
   });
 </script>

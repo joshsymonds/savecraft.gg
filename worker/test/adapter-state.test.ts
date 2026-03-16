@@ -295,7 +295,7 @@ describe("SourceHub /set-game-status", () => {
     expect(fullDebug.alarm).not.toBeNull();
   });
 
-  it("evicts stale adapter source via alarm", async () => {
+  it("does not evict adapter sources via alarm (adapter lifecycle driven by cron)", async () => {
     const userUuid = "adapter-alarm-evict-user";
     const sourceUuid = await seedAdapterSource(userUuid);
 
@@ -309,14 +309,14 @@ describe("SourceHub /set-game-status", () => {
     const debugBefore = await getDebugState(sourceUuid);
     expect(debugBefore.sourceState.sources[0]!.online).toBe(true);
 
-    // Wait for alarm to evict (stale threshold 200ms, alarm interval 100ms)
+    // Wait well past the stale threshold (200ms in tests, alarm interval 100ms)
     await new Promise((resolve) => {
       setTimeout(resolve, 500);
     });
 
-    // Verify source was evicted
+    // Adapter source should still be online — NOT evicted
     const debugAfter = await getDebugState(sourceUuid);
-    expect(debugAfter.sourceState.sources[0]?.online).toBeFalsy();
+    expect(debugAfter.sourceState.sources[0]?.online).toBe(true);
   });
 
   it("does not include saves from other sources", async () => {

@@ -20,7 +20,7 @@
           STATUS VARIANTS
         </div>
         <div style="display: flex; gap: 48px; align-items: flex-start;">
-          {#each [{ status: "online", label: "ONLINE", desc: "Source connected & syncing" }, { status: "error", label: "ERROR", desc: "Parse failure detected" }, { status: "offline", label: "OFFLINE", desc: "Last seen 2h ago" }] as variant (variant.status)}
+          {#each [{ status: "online", label: "ONLINE", desc: "Source connected & syncing" }, { status: "linked", label: "LINKED", desc: "API source, refreshed 3m ago" }, { status: "error", label: "ERROR", desc: "Parse failure detected" }, { status: "offline", label: "OFFLINE", desc: "Last seen 2h ago" }] as variant (variant.status)}
             <div
               style="display: flex; flex-direction: column; align-items: center; gap: 10px; min-width: 100px;"
             >

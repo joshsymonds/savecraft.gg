@@ -82,6 +82,7 @@
         <span
           class="info-value"
           class:online={source.status === "online"}
+          class:linked={source.status === "linked"}
           class:error={source.status === "error"}
           class:offline={source.status === "offline"}
         >
@@ -273,6 +274,10 @@
 
   .info-value.online {
     color: var(--color-green);
+  }
+
+  .info-value.linked {
+    color: var(--color-blue);
   }
 
   .info-value.error {

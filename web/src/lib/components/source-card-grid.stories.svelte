@@ -81,9 +81,9 @@
     hostname: null,
     platform: null,
     device: null,
-    status: "online",
+    status: "linked",
     version: null,
-    lastSeen: "now",
+    lastSeen: "3m ago",
     capabilities: { canRescan: false, canReceiveConfig: false },
     games: [
       {

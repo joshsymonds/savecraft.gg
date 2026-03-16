@@ -4,7 +4,7 @@
   Shows online (green + pulse), error (yellow), or offline (muted).
 -->
 <script lang="ts">
-  type Status = "online" | "error" | "offline";
+  type Status = "online" | "error" | "offline" | "linked";
 
   interface Props {
     status: Status;
@@ -16,6 +16,7 @@
 
   const colorMap: Record<Status, string> = {
     online: "var(--color-green)",
+    linked: "var(--color-blue)",
     error: "var(--color-yellow)",
     offline: "var(--color-text-muted)",
   };

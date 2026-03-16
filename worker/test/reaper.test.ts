@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { reapOrphanSources } from "../src/reaper";
+import { reapOrphanSources } from "../src/jobs/reap-orphans";
 
 import { cleanAll } from "./helpers";
 

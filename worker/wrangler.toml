@@ -4,7 +4,7 @@ compatibility_date = "2024-12-01"
 compatibility_flags = ["nodejs_compat"]
 
 [triggers]
-crons = ["0 4 * * *"]  # Daily at 4 AM UTC
+crons = ["*/15 * * * *", "0 4 * * *"]  # Every 15 min (adapter refresh) + daily at 4 AM UTC (reaper)
 
 [vars]
 ENVIRONMENT = "development"
