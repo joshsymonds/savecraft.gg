@@ -132,6 +132,9 @@ Factorio is currently the only identified candidate. If other sandboxed framewor
 
 | Game | Save Format | Notes |
 |------|------------|-------|
+| Hollow Knight | AES-ECB encrypted JSON | See [Hollow Knight notes](#hollow-knight--silksong) below. |
+| Hollow Knight: Silksong | AES-ECB encrypted JSON | See [Hollow Knight notes](#hollow-knight--silksong) below. |
+| Slay the Spire 1 & 2 | XOR+Base64 JSON (StS1) / plain JSON (StS2) | See [Slay the Spire notes](#slay-the-spire) below. |
 | Stardew Valley | XML (plain text) | Trivial to parse. Massive audience. Completionist culture. |
 | Paradox games (Stellaris, CK3) | Clausewitz text | Deep strategy, dozens of systems to optimize. |
 
@@ -170,6 +173,56 @@ Mod pairs as a source, pushes directly over WebSocket. No daemon required. See [
 | Factorio | Lua (official API) | Production stats, research, logistics. Sandboxed — needs daemon relay. |
 
 Mod writes structured JSON to disk; daemon watches and pushes. For games with sandboxed modding frameworks. See [Mod-as-Emitter](#mod-as-emitter-daemon-assisted).
+
+## Game-Specific Notes
+
+### Hollow Knight / Silksong
+
+Both are **AES-ECB encrypted JSON** — decrypt, strip BinaryFormatter wrapper, and you get flat JSON with hundreds of fields. The format is a direct dump of Unity's `PlayerData` class.
+
+**Crypto:** AES-128-ECB, hardcoded key `UKu52ePUBwetZ9wNX88o54dnfKRu0T1l`, PKCS#7 padding, Base64 encoded. Go's `crypto/aes` + `crypto/cipher` handles this natively. Silksong uses the same algorithm family.
+
+**Save locations:** `%APPDATA%\LocalLow\Team Cherry\Hollow Knight\user1.dat` through `user4.dat` (Windows). Standard Unity paths on Mac/Linux. Silksong identical but under `Hollow Knight Silksong\`.
+
+**Data richness:** Abilities (dash, wall jump, double jump, etc.), spells (3 tiers each), 40 charms with equip state, boss kill flags, map completion per area, collectibles (grubs, mask shards, vessel fragments, essence), NPC quest state, completion percentage (up to 112% for HK). Silksong adds silk as a resource and has different ability sets (brolly, needle arts).
+
+**Reference data:** Probably not needed for HK — LLMs know it cold (2017 game, massively popular). Silksong postdates most training cutoffs (released Sept 2025), so a progression/completion reference may be valuable if the LLM gives bad "where to go next" answers. Start without and add if needed.
+
+**Summary string examples:** `"Steel Soul, 97% completion, 31 charms, Crystal Peak"` or `"Hornet, Act 2, 72% completion, Greymoor"`
+
+**Plugin design:** A single plugin could handle both games — shared AES decryption layer + game-specific field mapping. Or two separate plugins sharing a crypto package if the field structures diverge enough.
+
+**Existing art:**
+- [bloodorca/hollow](https://github.com/bloodorca/hollow) (~317 stars) — browser-based HK save editor, most popular
+- [ReznoRMichael/hollow-knight-completion-check](https://github.com/ReznoRMichael/hollow-knight-completion-check) (~130 stars) — 112% completion analyzer
+- [nakami/Hollow-Knight-Save-Crypto](https://github.com/nakami/Hollow-Knight-Save-Crypto) — cleanest crypto reference (~50 lines Python)
+- [moeakwak/silksong-save-editor](https://github.com/moeakwak/silksong-save-editor) — Silksong editor
+- [just-addwater/silksong-saveeditor](https://github.com/just-addwater/silksong-saveeditor) — forked from HK editor
+- [PlayerData API docs](https://radiance.synthagen.net/apidocs/_images/PlayerData.html) — comprehensive HK field reference
+- [HK Wiki - Save Data (Silksong)](https://hollowknight.wiki/w/Save_Data_(Silksong)) — community Silksong field docs
+
+### Slay the Spire
+
+**StS1:** XOR-obfuscated JSON. Each byte XORed with cycling `"key"` string, then Base64 encoded. ~10 lines to decode. The game also accepts unobfuscated JSON. Card/relic IDs are human-readable strings (`Strike_R`, `Bash`, `PureWater`).
+
+**StS2:** Plain JSON, no obfuscation. Godot engine. Released Early Access March 2026 — format may shift during EA.
+
+**Save files:** StS1: `IRONCLAD.autosave`, `SILENT.autosave`, etc. in `%APPDATA%\Local\Slay the Spire\`. Written every floor — real-time tracking works. Run history as `.run` files in `runs/` subdirectory. StS2: `%APPDATA%\SlayTheSpire2\` with similar structure.
+
+**Data richness:** Current deck (cards with upgrade counts), relics, potions, HP, gold, floor number, act, map state, ascension level. Run history includes final deck, score, victory flag, playtime.
+
+**Reference data: Yes, worth building.** Card mechanical data (name, cost, type, rarity, effect) follows the same pattern as D2R's unique item stats — functional/mechanical data generated from game files. StS1's data is decompilable from the Java JAR, StS2 from Godot resources. A `datagen` tool emitting Go structs matches the D2R precedent exactly. Relic data too. This enables queries like "is Snecko Eye good with my deck's cost distribution?" or "what does Corruption do with my current relics?" where exact card text matters.
+
+**IP risk:** Same category as D2R — mechanical stats, no flavor text or art. StS community is extremely mod-friendly (Steam Workshop, official mod support). Mega Crit has never taken action against data tools. Risk is negligible.
+
+**Summary string examples:** `"Ironclad, Floor 32 Act 2, A20, 12 cards"` or `"Watcher, Victory A15, Score 1,247"`
+
+**Existing art:**
+- [spireslayer](https://github.com/rnazali/spireslayer) — Python save editor, decode/edit/re-encode
+- [spire-save-editor](https://tymofij.github.io/spire-save-editor/) — browser-based editor
+- [spirescope](https://github.com/thequantumfalcon/spirescope) — StS2 local dashboard, run stats, Pydantic models
+- [spire-codex](https://github.com/ptrlrd/spire-codex) — StS2 decompiled data as API
+- [Reverse Engineering Slay The Spire](https://2a1b.com/article/reverse-engineering-slay-the-spire) — format walkthrough
 
 ## Monetization
 
