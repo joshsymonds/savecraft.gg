@@ -132,6 +132,7 @@ Factorio is currently the only identified candidate. If other sandboxed framewor
 
 | Game | Save Format | Notes |
 |------|------------|-------|
+| Fields of Mistria | Zlib-compressed binary (JSON + farm buffer) | See [Fields of Mistria notes](#fields-of-mistria) below. |
 | Hollow Knight | AES-ECB encrypted JSON | See [Hollow Knight notes](#hollow-knight--silksong) below. |
 | Hollow Knight: Silksong | AES-ECB encrypted JSON | See [Hollow Knight notes](#hollow-knight--silksong) below. |
 | Slay the Spire 1 & 2 | XOR+Base64 JSON (StS1) / plain JSON (StS2) | See [Slay the Spire notes](#slay-the-spire) below. |
@@ -175,6 +176,37 @@ Mod pairs as a source, pushes directly over WebSocket. No daemon required. See [
 Mod writes structured JSON to disk; daemon watches and pushes. For games with sandboxed modding frameworks. See [Mod-as-Emitter](#mod-as-emitter-daemon-assisted).
 
 ## Game-Specific Notes
+
+### Fields of Mistria
+
+**Engine:** GameMaker. **Format:** `.sav` — zlib-compressed binary containing interleaved variable names + JSON objects + binary farm buffer data. Not encrypted.
+
+**Save location:** `%LOCALAPPDATA%\FieldsOfMistria\saves\` (Windows). Steam App ID `2142790`. Files: `game-*.sav`, autosaves as `*-autosave.sav` (written on day transitions).
+
+**How it works:** Zlib-decompress the `.sav` to get a mixed binary/text stream. Variable names (null-terminated strings) precede JSON payloads, separated by binary control bytes (GameMaker buffer framing). The JSON blocks are the game state; the binary "Farm Buffer" portions contain spatial/grid data for locations.
+
+**Data richness (from vaultc unpack output):**
+- `player.json` — skill_xp, inventory, cosmetics, mount, quests, recipes, items, spells, armor
+- `npcs.json` — per-NPC heart_points, gifts_given, location, routine
+- `header.json` — farm_name, playtime, calendar_time, weather, player name
+- `gamedata.json` — museum_progress, world_facts, weather, date, daycare
+- `game_stats.json` — 30+ metrics (fish_caught, enemies_killed, gifts_given logs, etc.)
+- `quests.json` — quest state
+- Location files (farm.json, town.json, mines_entry.json, etc.) — object_list, inventories
+
+**Parsing approach:** Zlib decompress, then extract named JSON sections from the binary stream. [HozBlic's progress tracker](https://github.com/HozBlic/hozblic.github.io) already does this in JavaScript (pako.inflate → regex extraction of JSON blocks). For Savecraft, a proper binary framing parser is better — hex-dump a real decompressed save to identify the framing pattern (likely type bytes + length prefixes + null-terminated strings per GameMaker buffer conventions). Read-only extraction is straightforward; the Farm Buffer binary data (tile layouts) can be skipped since Savecraft doesn't need spatial grid state.
+
+**Format stability risk:** Early Access game. Format has changed 3 times already (v0.11.5, v0.13, v0.14). Expect continued changes until 1.0. The closed-source official unpacker (vaultc) tracks these — its release history is a canary for format breaks.
+
+**Summary string examples:** `"Year 2, Spring 15, Sunflower Farm, 12,500g"` or `"Year 1, Fall 3, 6 hearts with Juniper"`
+
+**Existing art:**
+- [NPC-Studio/vaultc](https://github.com/NPC-Studio/vaultc) (~19 stars) — official unpack/pack/edit tool by the game developer. Rust, **closed source** (binary-only releases, Windows only). MIT licensed.
+- [lordp/VaultGo](https://github.com/lordp/VaultGo) — Go reimplementation of vaultc for Linux. Also **closed source**.
+- [AlbusNoir/FoMSE](https://github.com/AlbusNoir/FoMSE) — Python/Qt GUI save editor, wraps vaultc. GPLv3. Edits player stats (gold, health, stamina).
+- [HozBlic/hozblic.github.io](https://github.com/HozBlic/hozblic.github.io) — browser-based progress tracker that parses `.sav` files client-side via pako.inflate + regex JSON extraction. **Best format reference** — proves the approach works without vaultc.
+- [andyruwruw/fieldsofmistria.app](https://github.com/andyruwruw/fieldsofmistria.app) — TypeScript type definitions for the full unpacked save structure.
+- [Agent4-1333/fommodding wiki](https://github.com/Agent4-1333/fommodding/wiki) — modding docs covering world fact variables, dialogue system, NPC state model.
 
 ### Hollow Knight / Silksong
 
