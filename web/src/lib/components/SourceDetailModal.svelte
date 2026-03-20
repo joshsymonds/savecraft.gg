@@ -41,7 +41,6 @@
       removing = false;
     }
   }
-
 </script>
 
 <Modal id="source-detail" onclose={handleModalClose} width="480px" ariaLabel="Source details">
