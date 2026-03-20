@@ -1094,6 +1094,71 @@ describe("SourceHub", () => {
     await closeWs(daemonWs);
   });
 
+  it("excludes disabled games from SourceState after push-config", async () => {
+    const userUuid = "disabled-game-state-user";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Set up a game config and get daemon online with game state
+    await env.DB.prepare(
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+      .bind(sourceUuid, "d2r", "/saves/d2r", 1, JSON.stringify([".d2s"]))
+      .run();
+
+    const daemon = await connectDaemonWs(sourceToken);
+
+    // Get daemon online and let it settle
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    // Daemon reports watching the game
+    sendProto(daemon, {
+      payload: {
+        $case: "watching",
+        watching: { gameId: "d2r", path: "/saves/d2r", filesMonitored: 3 },
+      },
+    });
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Verify game is in SourceState via fresh UI connection
+    const ui1 = await connectWs("/ws/ui", userUuid);
+    const msg1 = await waitForRelayedMessage(ui1);
+    const ds1 = requireInnerPayload(msg1, "sourceState");
+    expect(ds1.sources[0]?.games.find((g) => g.gameId === "d2r")).toBeDefined();
+    await closeWs(ui1);
+
+    // Now disable the game (simulating what handleDeleteGame does)
+    await env.DB.prepare(
+      "UPDATE source_configs SET enabled = 0 WHERE source_uuid = ? AND game_id = ?",
+    )
+      .bind(sourceUuid, "d2r")
+      .run();
+
+    // Trigger push-config on the SourceHub (like handleDeleteGame does)
+    const doId = env.SOURCE_HUB.idFromName(sourceUuid);
+    const doStub = env.SOURCE_HUB.get(doId);
+    await doStub.fetch(
+      new Request("https://do/push-config", {
+        method: "POST",
+        body: JSON.stringify({ sourceId: sourceUuid }),
+      }),
+    );
+
+    // Wait for state to propagate
+    await new Promise((r) => setTimeout(r, 200));
+
+    // Verify game is NO LONGER in SourceState
+    const ui2 = await connectWs("/ws/ui", userUuid);
+    const msg2 = await waitForRelayedMessage(ui2);
+    const ds2 = requireInnerPayload(msg2, "sourceState");
+    const d2rGame = ds2.sources[0]?.games.find((g) => g.gameId === "d2r");
+    expect(d2rGame).toBeUndefined();
+
+    await closeWs(ui2);
+    await closeWs(daemon);
+  });
+
   it("does not re-enable disabled config on gameDetected", async () => {
     const userUuid = "no-reenable-user";
     const { sourceUuid, sourceToken } = await seedSource(userUuid);

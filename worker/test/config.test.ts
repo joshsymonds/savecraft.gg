@@ -96,8 +96,8 @@ describe("Source Config API", () => {
     expect(rows.results[0]!.save_path).toBe("/new/path");
   });
 
-  it("removes games not in the update", async () => {
-    const userUuid = "config-remove-user";
+  it("preserves games not in the update (upsert-only)", async () => {
+    const userUuid = "config-preserve-other-user";
     const sourceId = "pc";
     await seedSourceWithId(sourceId, userUuid);
 
@@ -115,6 +115,7 @@ describe("Source Config API", () => {
       }),
     });
 
+    // Second PUT with only d2r — stardew should be preserved
     await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
       method: "PUT",
       headers: {
@@ -123,17 +124,103 @@ describe("Source Config API", () => {
       },
       body: JSON.stringify({
         games: {
-          d2r: { savePath: "/d2r", enabled: true, fileExtensions: [".d2s"] },
+          d2r: { savePath: "/d2r-updated", enabled: true, fileExtensions: [".d2s"] },
         },
       }),
     });
 
-    const rows = await env.DB.prepare("SELECT game_id FROM source_configs WHERE source_uuid = ?")
+    const rows = await env.DB.prepare(
+      "SELECT game_id, save_path FROM source_configs WHERE source_uuid = ? ORDER BY game_id",
+    )
       .bind(sourceId)
-      .all<{ game_id: string }>();
+      .all<{ game_id: string; save_path: string }>();
 
-    expect(rows.results).toHaveLength(1);
+    expect(rows.results).toHaveLength(2);
     expect(rows.results[0]!.game_id).toBe("d2r");
+    expect(rows.results[0]!.save_path).toBe("/d2r-updated");
+    expect(rows.results[1]!.game_id).toBe("stardew");
+    expect(rows.results[1]!.save_path).toBe("/stardew");
+  });
+
+  it("re-enables a previously disabled game via PUT", async () => {
+    const userUuid = "config-readd-user";
+    const sourceId = "readd-source";
+    await seedSourceWithId(sourceId, userUuid);
+
+    // Seed a disabled config (simulating Remove Game)
+    await env.DB.prepare(
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, 0, ?)`,
+    )
+      .bind(sourceId, "d2r", "/old/path", JSON.stringify([".d2s"]))
+      .run();
+
+    // Re-add via PUT (what GamePickerModal does)
+    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${userUuid}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        games: {
+          d2r: { savePath: "/new/path", enabled: true, fileExtensions: [".d2s", ".d2i"] },
+        },
+      }),
+    });
+    expect(resp.status).toBe(200);
+
+    const row = await env.DB.prepare(
+      "SELECT save_path, enabled, file_extensions FROM source_configs WHERE source_uuid = ? AND game_id = ?",
+    )
+      .bind(sourceId, "d2r")
+      .first<{ save_path: string; enabled: number; file_extensions: string }>();
+
+    expect(row).not.toBeNull();
+    expect(row!.enabled).toBe(1);
+    expect(row!.save_path).toBe("/new/path");
+    expect(JSON.parse(row!.file_extensions)).toEqual([".d2s", ".d2i"]);
+  });
+
+  it("preserves other game configs when adding a single game via PUT", async () => {
+    const userUuid = "config-preserve-user";
+    const sourceId = "preserve-source";
+    await seedSourceWithId(sourceId, userUuid);
+
+    // Seed an existing enabled config
+    await env.DB.prepare(
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, 1, ?)`,
+    )
+      .bind(sourceId, "stardew", "/saves/stardew", JSON.stringify([".xml"]))
+      .run();
+
+    // Add d2r via PUT — stardew should NOT be deleted
+    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config`, {
+      method: "PUT",
+      headers: {
+        Authorization: `Bearer ${userUuid}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        games: {
+          d2r: { savePath: "/saves/d2r", enabled: true, fileExtensions: [".d2s"] },
+        },
+      }),
+    });
+    expect(resp.status).toBe(200);
+
+    const rows = await env.DB.prepare(
+      "SELECT game_id, enabled FROM source_configs WHERE source_uuid = ? ORDER BY game_id",
+    )
+      .bind(sourceId)
+      .all<{ game_id: string; enabled: number }>();
+
+    expect(rows.results).toHaveLength(2);
+    expect(rows.results[0]!.game_id).toBe("d2r");
+    expect(rows.results[0]!.enabled).toBe(1);
+    expect(rows.results[1]!.game_id).toBe("stardew");
+    expect(rows.results[1]!.enabled).toBe(1);
   });
 
   it("requires auth", async () => {
@@ -222,131 +309,6 @@ describe("Source Config API", () => {
   it("GET /api/v1/sources/:id/config requires auth", async () => {
     const resp = await SELF.fetch("https://test-host/api/v1/sources/my-pc/config", {
       method: "GET",
-    });
-    expect(resp.status).toBe(401);
-  });
-});
-
-describe("Per-game config PATCH", () => {
-  beforeEach(cleanAll);
-
-  it("disables a single game via PATCH", async () => {
-    const userUuid = "patch-disable-user";
-    const { sourceUuid: sourceId } = await seedSource(userUuid);
-
-    for (const [gameId, path] of [
-      ["d2r", "/d2r"],
-      ["stardew", "/stardew"],
-    ] as const) {
-      await env.DB.prepare(
-        `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
-         VALUES (?, ?, ?, 1, '[]')`,
-      )
-        .bind(sourceId, gameId, path)
-        .run();
-    }
-
-    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceId}/config/d2r`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${userUuid}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ enabled: false }),
-    });
-
-    expect(resp.status).toBe(200);
-
-    const d2r = await env.DB.prepare(
-      "SELECT enabled FROM source_configs WHERE source_uuid = ? AND game_id = ?",
-    )
-      .bind(sourceId, "d2r")
-      .first<{ enabled: number }>();
-    expect(d2r!.enabled).toBe(0);
-
-    const stardew = await env.DB.prepare(
-      "SELECT enabled FROM source_configs WHERE source_uuid = ? AND game_id = ?",
-    )
-      .bind(sourceId, "stardew")
-      .first<{ enabled: number }>();
-    expect(stardew!.enabled).toBe(1);
-  });
-
-  it("returns 404 for nonexistent config", async () => {
-    const resp = await SELF.fetch("https://test-host/api/v1/sources/no-source/config/no-game", {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer test-user`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ enabled: false }),
-    });
-
-    expect(resp.status).toBe(404);
-  });
-
-  it("returns 403 when source belongs to another user", async () => {
-    const { sourceUuid } = await seedSource("owner-user");
-
-    await env.DB.prepare(
-      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
-       VALUES (?, ?, ?, 1, '[]')`,
-    )
-      .bind(sourceUuid, "d2r", "/d2r")
-      .run();
-
-    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}/config/d2r`, {
-      method: "PATCH",
-      headers: {
-        Authorization: "Bearer attacker-user",
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ enabled: false }),
-    });
-    expect(resp.status).toBe(403);
-
-    const config = await env.DB.prepare(
-      "SELECT enabled FROM source_configs WHERE source_uuid = ? AND game_id = ?",
-    )
-      .bind(sourceUuid, "d2r")
-      .first<{ enabled: number }>();
-    expect(config!.enabled).toBe(1);
-  });
-
-  it("re-enables a disabled game via PATCH", async () => {
-    const userUuid = "patch-enable-user";
-    const { sourceUuid } = await seedSource(userUuid);
-
-    await env.DB.prepare(
-      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
-       VALUES (?, ?, ?, 0, '[]')`,
-    )
-      .bind(sourceUuid, "d2r", "/d2r")
-      .run();
-
-    const resp = await SELF.fetch(`https://test-host/api/v1/sources/${sourceUuid}/config/d2r`, {
-      method: "PATCH",
-      headers: {
-        Authorization: `Bearer ${userUuid}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ enabled: true }),
-    });
-    expect(resp.status).toBe(200);
-
-    const config = await env.DB.prepare(
-      "SELECT enabled FROM source_configs WHERE source_uuid = ? AND game_id = ?",
-    )
-      .bind(sourceUuid, "d2r")
-      .first<{ enabled: number }>();
-    expect(config!.enabled).toBe(1);
-  });
-
-  it("requires auth", async () => {
-    const resp = await SELF.fetch("https://test-host/api/v1/sources/my-pc/config/d2r", {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ enabled: false }),
     });
     expect(resp.status).toBe(401);
   });

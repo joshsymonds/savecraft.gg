@@ -4,7 +4,7 @@
   Opened by clicking a SourceCard in the SourceCardGrid.
 -->
 <script lang="ts">
-  import { deleteSource, patchGameConfig } from "$lib/api/client";
+  import { deleteSource } from "$lib/api/client";
   import type { Source } from "$lib/types/source";
 
   import Modal from "./Modal.svelte";
@@ -24,9 +24,6 @@
   let confirmingRemove = $state(false);
   let removing = $state(false);
 
-  // -- Per-game toggle state --
-  let togglingGame = $state<string | null>(null);
-
   function handleModalClose() {
     if (confirmingRemove) {
       confirmingRemove = false;
@@ -45,22 +42,6 @@
     }
   }
 
-  async function handleToggleGame(gameId: string, currentlyEnabled: boolean) {
-    togglingGame = gameId;
-    try {
-      await patchGameConfig(source.id, gameId, { enabled: !currentlyEnabled });
-    } catch {
-      // Toggle failed — UI will reset via WebSocket state update
-    } finally {
-      togglingGame = null;
-    }
-  }
-
-  function isGameEnabled(gameId: string): boolean {
-    const game = source.games.find((g) => g.gameId === gameId);
-    if (!game) return false;
-    return game.status === "watching" || game.status === "error";
-  }
 </script>
 
 <Modal id="source-detail" onclose={handleModalClose} width="480px" ariaLabel="Source details">
@@ -120,32 +101,18 @@
     <div class="config-section">
       <span class="section-label">GAME CONFIGURATION</span>
       {#each source.games as game (game.gameId)}
-        <div class="config-game" class:disabled={!isGameEnabled(game.gameId)}>
+        <div class="config-game">
           <div class="config-game-header">
             <span class="config-game-name">{game.name}</span>
-            <div class="config-game-actions">
-              <span
-                class="config-game-status"
-                class:watching={game.status === "watching"}
-                class:game-error={game.status === "error"}
-                class:not-found={game.status === "not_found"}
-              >
-                {#if game.status === "watching"}WATCHING{:else if game.status === "error"}ERROR{:else}NOT
-                  FOUND{/if}
-              </span>
-              <button
-                class="toggle-btn"
-                class:toggle-on={isGameEnabled(game.gameId)}
-                class:toggle-off={!isGameEnabled(game.gameId)}
-                disabled={togglingGame === game.gameId}
-                onclick={() => handleToggleGame(game.gameId, isGameEnabled(game.gameId))}
-                title={isGameEnabled(game.gameId) ? "Disable tracking" : "Enable tracking"}
-              >
-                <span class="toggle-track">
-                  <span class="toggle-thumb"></span>
-                </span>
-              </button>
-            </div>
+            <span
+              class="config-game-status"
+              class:watching={game.status === "watching"}
+              class:game-error={game.status === "error"}
+              class:not-found={game.status === "not_found"}
+            >
+              {#if game.status === "watching"}WATCHING{:else if game.status === "error"}ERROR{:else}NOT
+                FOUND{/if}
+            </span>
           </div>
           {#if game.path}
             <div class="config-field">
@@ -346,10 +313,6 @@
     margin-bottom: 8px;
   }
 
-  .config-game.disabled {
-    opacity: 0.5;
-  }
-
   .config-game:last-child {
     margin-bottom: 0;
   }
@@ -359,12 +322,6 @@
     align-items: center;
     justify-content: space-between;
     margin-bottom: 8px;
-  }
-
-  .config-game-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
   }
 
   .config-game-name {
@@ -398,56 +355,6 @@
     color: var(--color-text-muted);
     background: rgba(74, 90, 173, 0.06);
     border: 1px solid rgba(74, 90, 173, 0.1);
-  }
-
-  /* -- Toggle switch ------------------------------------------ */
-
-  .toggle-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 2px;
-    display: flex;
-    align-items: center;
-  }
-
-  .toggle-btn:disabled {
-    opacity: 0.4;
-    cursor: not-allowed;
-  }
-
-  .toggle-track {
-    width: 28px;
-    height: 14px;
-    border-radius: 7px;
-    background: rgba(74, 90, 173, 0.2);
-    border: 1px solid rgba(74, 90, 173, 0.3);
-    display: flex;
-    align-items: center;
-    padding: 1px;
-    transition:
-      background 0.15s,
-      border-color 0.15s;
-  }
-
-  .toggle-on .toggle-track {
-    background: rgba(90, 190, 138, 0.25);
-    border-color: rgba(90, 190, 138, 0.4);
-  }
-
-  .toggle-thumb {
-    width: 10px;
-    height: 10px;
-    border-radius: 50%;
-    background: var(--color-text-muted);
-    transition:
-      transform 0.15s,
-      background 0.15s;
-  }
-
-  .toggle-on .toggle-thumb {
-    transform: translateX(14px);
-    background: var(--color-green);
   }
 
   .config-field {

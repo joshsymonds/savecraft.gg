@@ -679,15 +679,6 @@ function routeSourceManagement(
   userUuid: string,
 ): Response | Promise<Response> | null {
   const sourceParts = url.pathname.split("/");
-  // /api/v1/sources/{sourceId}/config/{gameId} — PATCH per-game config
-  if (sourceParts[5] === "config" && sourceParts[6] && request.method === "PATCH") {
-    const sourceId = sourceParts[4];
-    const gameId = sourceParts[6];
-    if (!validateId(sourceId) || !validateId(gameId)) {
-      return Response.json({ error: "Invalid source_uuid or game_id" }, { status: 400 });
-    }
-    return handlePatchGameConfig(request, env, userUuid, sourceId, gameId);
-  }
   if (url.pathname.endsWith("/config")) {
     return handleSourceConfig(request, url, env, userUuid);
   }
@@ -1138,21 +1129,25 @@ async function handlePutSourceConfig(
 
   const games = body.games ?? {};
 
-  await env.DB.prepare("DELETE FROM source_configs WHERE source_uuid = ?").bind(sourceId).run();
-
-  for (const [gameId, config] of Object.entries(games)) {
-    await env.DB.prepare(
+  const upserts = Object.entries(games).map(([gameId, config]) =>
+    env.DB.prepare(
       `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions, updated_at)
-       VALUES (?, ?, ?, ?, ?, datetime('now'))`,
-    )
-      .bind(
-        sourceId,
-        gameId,
-        config.savePath,
-        config.enabled ? 1 : 0,
-        JSON.stringify(config.fileExtensions),
-      )
-      .run();
+       VALUES (?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT (source_uuid, game_id)
+       DO UPDATE SET save_path = excluded.save_path,
+                     enabled = excluded.enabled,
+                     file_extensions = excluded.file_extensions,
+                     updated_at = datetime('now')`,
+    ).bind(
+      sourceId,
+      gameId,
+      config.savePath,
+      config.enabled ? 1 : 0,
+      JSON.stringify(config.fileExtensions),
+    ),
+  );
+  if (upserts.length > 0) {
+    await env.DB.batch(upserts);
   }
 
   const doId = env.SOURCE_HUB.idFromName(sourceId);
@@ -1168,58 +1163,6 @@ async function handlePutSourceConfig(
     const detail = await doResp.text();
     return Response.json({ error: "Config push failed", detail }, { status: 502 });
   }
-
-  return Response.json({ ok: true });
-}
-
-// -- Per-Game Config Patch -----------------------------------------
-
-async function handlePatchGameConfig(
-  request: Request,
-  env: Env,
-  userUuid: string,
-  sourceId: string,
-  gameId: string,
-): Promise<Response> {
-  // Verify source belongs to this user
-  const source = await env.DB.prepare("SELECT user_uuid FROM sources WHERE source_uuid = ?")
-    .bind(sourceId)
-    .first<{ user_uuid: string }>();
-  if (!source) return Response.json({ error: "Source not found" }, { status: 404 });
-  if (source.user_uuid !== userUuid) {
-    return Response.json({ error: "Forbidden" }, { status: 403 });
-  }
-
-  let body: { enabled?: boolean };
-  try {
-    body = await request.json<{ enabled?: boolean }>();
-  } catch {
-    return Response.json({ error: "Invalid JSON" }, { status: 400 });
-  }
-
-  if (body.enabled === undefined) {
-    return Response.json({ error: "No fields to update" }, { status: 400 });
-  }
-
-  const result = await env.DB.prepare(
-    "UPDATE source_configs SET enabled = ?, updated_at = datetime('now') WHERE source_uuid = ? AND game_id = ?",
-  )
-    .bind(body.enabled ? 1 : 0, sourceId, gameId)
-    .run();
-
-  if (!result.meta.changes || result.meta.changes === 0) {
-    return Response.json({ error: "Config not found" }, { status: 404 });
-  }
-
-  // Push updated config to daemon
-  const doId = env.SOURCE_HUB.idFromName(sourceId);
-  const doStub = env.SOURCE_HUB.get(doId);
-  await doStub.fetch(
-    new Request("https://do/push-config", {
-      method: "POST",
-      body: JSON.stringify({ sourceId }),
-    }),
-  );
 
   return Response.json({ ok: true });
 }
@@ -1336,10 +1279,6 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
     .bind(userUuid, gameId)
     .all<{ uuid: string }>();
 
-  if (saves.results.length === 0) {
-    return Response.json({ error: "No saves found for this game" }, { status: 404 });
-  }
-
   // Batch D1 cleanup: delete notes + search_index for all saves in one round-trip
   const uuids = saves.results.map((s) => s.uuid);
   const CHUNK_SIZE = 50;
@@ -1369,25 +1308,23 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
     .bind(gameId, userUuid)
     .run();
 
-  // Push updated config to each connected source
+  // Push updated config to each connected source in parallel
   const sources = await env.DB.prepare("SELECT source_uuid FROM sources WHERE user_uuid = ?")
     .bind(userUuid)
     .all<{ source_uuid: string }>();
 
-  for (const source of sources.results) {
-    try {
+  await Promise.allSettled(
+    sources.results.map((source) => {
       const doId = env.SOURCE_HUB.idFromName(source.source_uuid);
       const doStub = env.SOURCE_HUB.get(doId);
-      await doStub.fetch(
+      return doStub.fetch(
         new Request("https://do/push-config", {
           method: "POST",
           body: JSON.stringify({ sourceId: source.source_uuid }),
         }),
       );
-    } catch {
-      // Don't let config push failures block deletion
-    }
-  }
+    }),
+  );
 
   // Notify UserHub to rebroadcast updated state to UI clients
   const userHubId = env.USER_HUB.idFromName(userUuid);

@@ -1153,12 +1153,16 @@ export class SourceHub extends DurableObject<Env> {
 
     const games: Record<string, { savePath: string; enabled: boolean; fileExtensions: string[] }> =
       {};
+    const disabledGameIds = new Set<string>();
     for (const row of rows.results) {
       games[row.game_id] = {
         savePath: row.save_path,
         enabled: row.enabled === 1,
         fileExtensions: JSON.parse(row.file_extensions) as string[],
       };
+      if (row.enabled === 0) {
+        disabledGameIds.add(row.game_id);
+      }
     }
 
     // Send config to all connected daemon sockets. SourceHub is keyed by
@@ -1168,6 +1172,23 @@ export class SourceHub extends DurableObject<Env> {
     }).finish();
     for (const daemonWs of this.ctx.getWebSockets("daemon")) {
       daemonWs.send(msg);
+    }
+
+    // Remove disabled games from in-memory SourceState so the browser
+    // never sees them. This handles the "Remove Game" flow where
+    // handleDeleteGame sets enabled=0 then calls push-config.
+    if (disabledGameIds.size > 0) {
+      const state = await this.loadState();
+      let changed = false;
+      for (const source of state.sources) {
+        const before = source.games.length;
+        source.games = source.games.filter((g) => !disabledGameIds.has(g.gameId));
+        if (source.games.length < before) changed = true;
+      }
+      if (changed) {
+        await this.saveState(state);
+        await this.forwardStateToUserHub();
+      }
     }
   }
 
