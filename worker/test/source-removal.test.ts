@@ -350,13 +350,16 @@ describe("Game Removal", () => {
       expect(config!.enabled).toBe(0);
     });
 
-    it("returns 404 when user has no saves for the game", async () => {
+    it("returns 200 with zero deletes when user has no saves for the game", async () => {
       const resp = await SELF.fetch("https://test-host/api/v1/games/nonexistent-game", {
         method: "DELETE",
         headers: { Authorization: `Bearer ${TEST_USER}` },
       });
 
-      expect(resp.status).toBe(404);
+      expect(resp.status).toBe(200);
+      const body = await resp.json<{ ok: boolean; deleted: { saves: number; notes: number } }>();
+      expect(body.deleted.saves).toBe(0);
+      expect(body.deleted.notes).toBe(0);
     });
 
     it("requires session auth", async () => {

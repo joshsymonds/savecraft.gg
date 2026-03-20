@@ -126,14 +126,6 @@ export async function saveSourceConfig(
   await mutate<{ ok: boolean }>("PUT", `/api/v1/sources/${sourceId}/config`, { games });
 }
 
-export async function patchGameConfig(
-  sourceId: string,
-  gameId: string,
-  fields: { enabled: boolean },
-): Promise<void> {
-  await mutate<{ ok: boolean }>("PATCH", `/api/v1/sources/${sourceId}/config/${gameId}`, fields);
-}
-
 // ── Notes ─────────────────────────────────────────────────────
 
 export interface ApiNote {
