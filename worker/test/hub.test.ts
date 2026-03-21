@@ -1216,6 +1216,7 @@ describe("SourceHub", () => {
               path: "/home/user/.d2r/saves",
               fileCount: 2,
               fileExtensions: [],
+              filePatterns: [],
             },
             {
               gameId: "sdv",
@@ -1223,6 +1224,7 @@ describe("SourceHub", () => {
               path: "/home/user/.sdv/saves",
               fileCount: 1,
               fileExtensions: [],
+              filePatterns: [],
             },
           ],
         },
@@ -1277,6 +1279,7 @@ describe("SourceHub", () => {
               path: "/detected/path",
               fileCount: 2,
               fileExtensions: [],
+              filePatterns: [],
             },
             {
               gameId: "sdv",
@@ -1284,6 +1287,7 @@ describe("SourceHub", () => {
               path: "/home/user/.sdv/saves",
               fileCount: 1,
               fileExtensions: [],
+              filePatterns: [],
             },
           ],
         },

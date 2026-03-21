@@ -261,6 +261,7 @@ describe("dispatchToActivity", () => {
                 path: "/saves",
                 fileCount: 1,
                 fileExtensions: [".d2s"],
+                filePatterns: [],
               },
             ],
           },
@@ -278,8 +279,22 @@ describe("dispatchToActivity", () => {
           $case: "gamesDiscovered",
           gamesDiscovered: {
             games: [
-              { gameId: "d2r", name: "D2R", path: "/a", fileCount: 1, fileExtensions: [".d2s"] },
-              { gameId: "wow", name: "WoW", path: "/b", fileCount: 2, fileExtensions: [".wtf"] },
+              {
+                gameId: "d2r",
+                name: "D2R",
+                path: "/a",
+                fileCount: 1,
+                fileExtensions: [".d2s"],
+                filePatterns: [],
+              },
+              {
+                gameId: "wow",
+                name: "WoW",
+                path: "/b",
+                fileCount: 2,
+                fileExtensions: [".wtf"],
+                filePatterns: [],
+              },
             ],
           },
         }),

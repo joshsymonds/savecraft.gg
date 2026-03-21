@@ -60,6 +60,7 @@ const statements = [
     save_path TEXT NOT NULL,
     enabled INTEGER NOT NULL DEFAULT 1,
     file_extensions TEXT NOT NULL DEFAULT '[]',
+    file_patterns TEXT NOT NULL DEFAULT '[]',
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     config_status TEXT NOT NULL DEFAULT 'pending',
     resolved_path TEXT NOT NULL DEFAULT '',

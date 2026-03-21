@@ -306,6 +306,7 @@ export interface DiscoveredGame {
   path: string;
   fileCount: number;
   fileExtensions: string[];
+  filePatterns: string[];
 }
 
 /** Source detected a file change and is feeding it to the WASM plugin. */
@@ -397,6 +398,7 @@ export interface GameConfig {
   savePath: string;
   enabled: boolean;
   fileExtensions: string[];
+  filePatterns: string[];
 }
 
 /** Per-game result of applying a ConfigUpdate. Sent by daemon after processing. */
@@ -2590,7 +2592,7 @@ export const GamesDiscovered: MessageFns<GamesDiscovered> = {
 };
 
 function createBaseDiscoveredGame(): DiscoveredGame {
-  return { gameId: "", name: "", path: "", fileCount: 0, fileExtensions: [] };
+  return { gameId: "", name: "", path: "", fileCount: 0, fileExtensions: [], filePatterns: [] };
 }
 
 export const DiscoveredGame: MessageFns<DiscoveredGame> = {
@@ -2609,6 +2611,9 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
     }
     for (const v of message.fileExtensions) {
       writer.uint32(42).string(v!);
+    }
+    for (const v of message.filePatterns) {
+      writer.uint32(50).string(v!);
     }
     return writer;
   },
@@ -2660,6 +2665,14 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
           message.fileExtensions.push(reader.string());
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.filePatterns.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2688,6 +2701,11 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
         : globalThis.Array.isArray(object?.file_extensions)
         ? object.file_extensions.map((e: any) => globalThis.String(e))
         : [],
+      filePatterns: globalThis.Array.isArray(object?.filePatterns)
+        ? object.filePatterns.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.file_patterns)
+        ? object.file_patterns.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -2708,6 +2726,9 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
     if (message.fileExtensions?.length) {
       obj.fileExtensions = message.fileExtensions;
     }
+    if (message.filePatterns?.length) {
+      obj.filePatterns = message.filePatterns;
+    }
     return obj;
   },
 
@@ -2721,6 +2742,7 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
     message.path = object.path ?? "";
     message.fileCount = object.fileCount ?? 0;
     message.fileExtensions = object.fileExtensions?.map((e) => e) || [];
+    message.filePatterns = object.filePatterns?.map((e) => e) || [];
     return message;
   },
 };
@@ -3927,7 +3949,7 @@ export const ConfigUpdate_GamesEntry: MessageFns<ConfigUpdate_GamesEntry> = {
 };
 
 function createBaseGameConfig(): GameConfig {
-  return { savePath: "", enabled: false, fileExtensions: [] };
+  return { savePath: "", enabled: false, fileExtensions: [], filePatterns: [] };
 }
 
 export const GameConfig: MessageFns<GameConfig> = {
@@ -3940,6 +3962,9 @@ export const GameConfig: MessageFns<GameConfig> = {
     }
     for (const v of message.fileExtensions) {
       writer.uint32(26).string(v!);
+    }
+    for (const v of message.filePatterns) {
+      writer.uint32(34).string(v!);
     }
     return writer;
   },
@@ -3975,6 +4000,14 @@ export const GameConfig: MessageFns<GameConfig> = {
           message.fileExtensions.push(reader.string());
           continue;
         }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.filePatterns.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -3997,6 +4030,11 @@ export const GameConfig: MessageFns<GameConfig> = {
         : globalThis.Array.isArray(object?.file_extensions)
         ? object.file_extensions.map((e: any) => globalThis.String(e))
         : [],
+      filePatterns: globalThis.Array.isArray(object?.filePatterns)
+        ? object.filePatterns.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.file_patterns)
+        ? object.file_patterns.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -4011,6 +4049,9 @@ export const GameConfig: MessageFns<GameConfig> = {
     if (message.fileExtensions?.length) {
       obj.fileExtensions = message.fileExtensions;
     }
+    if (message.filePatterns?.length) {
+      obj.filePatterns = message.filePatterns;
+    }
     return obj;
   },
 
@@ -4022,6 +4063,7 @@ export const GameConfig: MessageFns<GameConfig> = {
     message.savePath = object.savePath ?? "";
     message.enabled = object.enabled ?? false;
     message.fileExtensions = object.fileExtensions?.map((e) => e) || [];
+    message.filePatterns = object.filePatterns?.map((e) => e) || [];
     return message;
   },
 };
