@@ -2,6 +2,7 @@ import { env, fetchMock, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
+import { PushSaveError } from "../src/proto/savecraft/v1/protocol";
 
 import {
   cleanAll,
@@ -1752,6 +1753,91 @@ describe("SourceHub", () => {
       "SELECT 1 FROM saves WHERE save_name = 'EmptyGameId'",
     ).first();
     expect(save).toBeNull();
+
+    await closeWs(daemon);
+  });
+
+  it("rejects pushSave for disabled game with GAME_REMOVED error", async () => {
+    const userUuid = "push-disabled-game";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Seed a source_config with enabled = 0 (simulates game removal)
+    await env.DB.prepare(
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, ?, ?)`,
+    )
+      .bind(sourceUuid, "d2r", "/saves/d2r", 0, JSON.stringify([".d2s"]))
+      .run();
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "RejectedChar", extra: undefined },
+          summary: "Level 1",
+          parsedAt: new Date(),
+          sections: [{ name: "stats", description: "Stats", data: { level: 1 } }],
+        },
+      },
+    });
+
+    // Should receive PushSaveResult with GAME_REMOVED error
+    const resultMsg = await waitForProtoMessage(daemon);
+    const result = requirePayload(resultMsg, "pushSaveResult");
+    expect(result.error).toBe(PushSaveError.PUSH_SAVE_ERROR_GAME_REMOVED);
+    expect(result.saveUuid).toBe("");
+
+    // No save should have been created
+    const save = await env.DB.prepare(
+      "SELECT 1 FROM saves WHERE save_name = 'RejectedChar' AND user_uuid = ?",
+    )
+      .bind(userUuid)
+      .first();
+    expect(save).toBeNull();
+
+    await closeWs(daemon);
+  });
+
+  it("allows pushSave when no source_configs row exists", async () => {
+    const userUuid = "push-no-config";
+    const { sourceToken } = await seedSource(userUuid);
+
+    // No source_configs seeded — game has never been configured
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "NoConfigChar", extra: undefined },
+          summary: "Level 1",
+          parsedAt: new Date(),
+          sections: [{ name: "stats", description: "Stats", data: { level: 1 } }],
+        },
+      },
+    });
+
+    // Should succeed — no config row means the game is allowed (not explicitly disabled)
+    const resultMsg = await waitForProtoMessage(daemon);
+    const result = requirePayload(resultMsg, "pushSaveResult");
+    expect(result.error).toBe(PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED);
+    expect(result.saveUuid).toBeTruthy();
+
+    // Save should exist in D1
+    const save = await env.DB.prepare(
+      "SELECT 1 FROM saves WHERE save_name = 'NoConfigChar' AND user_uuid = ?",
+    )
+      .bind(userUuid)
+      .first();
+    expect(save).not.toBeNull();
 
     await closeWs(daemon);
   });
