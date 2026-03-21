@@ -4,7 +4,7 @@ import type { GameStatus, SaveSummary, Source, SourceGame, SourceStatus } from "
 import { relativeTime } from "$lib/utils/time";
 import { type Readable, writable } from "svelte/store";
 
-const { subscribe, set, update } = writable<Source[]>([]);
+const { subscribe, set } = writable<Source[]>([]);
 
 export const sources: Readable<Source[]> = { subscribe };
 
@@ -104,188 +104,11 @@ function mapSourceInfo(d: SourceInfo): Source {
   };
 }
 
-function findOrCreateSource(srcs: Source[], sourceId: string): Source {
-  let source = srcs.find((s) => s.id === sourceId);
-  if (!source) {
-    source = {
-      id: sourceId,
-      name: sourceDisplayName("daemon"),
-      sourceKind: "daemon",
-      hostname: null,
-      platform: null,
-      device: null,
-      status: "online",
-      version: null,
-      lastSeen: "now",
-      capabilities: { canRescan: true, canReceiveConfig: true },
-      games: [],
-    };
-    srcs.push(source);
-  }
-  return source;
-}
-
-function findOrCreateGame(source: Source, gameId: string): SourceGame {
-  let game = source.games.find((g) => g.gameId === gameId);
-  if (!game) {
-    game = {
-      gameId,
-      name: gameDisplayName(gameId),
-      status: "watching",
-      statusLine: "watching",
-      saves: [],
-    };
-    source.games.push(game);
-  }
-  return game;
-}
-
-/** Payload case type extracted from the Message oneof. */
-type PayloadCase = NonNullable<NonNullable<Message["payload"]>["$case"]>;
-
+/** Replace the entire sources store from an authoritative sourceState snapshot. */
 function handleSourceState(msg: Message): void {
   if (msg.payload?.$case !== "sourceState") return;
   const ss = msg.payload.sourceState;
   set(ss.sources.map((s) => mapSourceInfo(s)));
-}
-
-function handleSourceOnline(sourceId: string, msg: Message): void {
-  if (msg.payload?.$case !== "sourceOnline") return;
-  const so = msg.payload.sourceOnline;
-  update((srcs) => {
-    const source = findOrCreateSource(srcs, sourceId);
-    source.status = "online";
-    source.version = so.version || source.version;
-    source.lastSeen = "now";
-    if (so.os) source.platform = so.os;
-    if (so.device) source.device = so.device;
-    if (so.hostname) {
-      source.hostname = so.hostname;
-      source.name = sourceDisplayName(source.sourceKind, so.hostname);
-    }
-    return [...srcs];
-  });
-}
-
-function handleSourceOffline(sourceId: string): void {
-  update((srcs) => {
-    const source = srcs.find((s) => s.id === sourceId);
-    if (!source) return srcs;
-    source.status = "offline";
-    source.lastSeen = "just now";
-    return [...srcs];
-  });
-}
-
-function handleGameStatusChange(
-  sourceId: string,
-  msg: Message,
-  type: "watching" | "gameDetected" | "gameNotFound",
-): void {
-  let gameId: string | undefined;
-  let status: GameStatus;
-  let path: string | undefined;
-
-  if (type === "watching" && msg.payload?.$case === "watching") {
-    gameId = msg.payload.watching.gameId;
-    path = msg.payload.watching.path;
-    status = "watching";
-  } else if (type === "gameDetected" && msg.payload?.$case === "gameDetected") {
-    gameId = msg.payload.gameDetected.gameId;
-    path = msg.payload.gameDetected.path;
-    status = "watching";
-  } else if (type === "gameNotFound" && msg.payload?.$case === "gameNotFound") {
-    gameId = msg.payload.gameNotFound.gameId;
-    status = "not_found";
-  } else {
-    return;
-  }
-
-  if (!gameId) return;
-
-  update((srcs) => {
-    const source = srcs.find((s) => s.id === sourceId);
-    if (!source) return srcs;
-
-    const game = findOrCreateGame(source, gameId);
-    game.status = status;
-    game.statusLine = gameStatusLine(status, game.saves);
-    if (path) game.path = path;
-    if (status === "watching") game.error = undefined;
-    return [...srcs];
-  });
-}
-
-function handleParseFailed(sourceId: string, msg: Message): void {
-  if (msg.payload?.$case !== "parseFailed") return;
-  const pf = msg.payload.parseFailed;
-  const gameId = pf.gameId;
-  if (!gameId) return;
-
-  update((srcs) => {
-    const source = srcs.find((s) => s.id === sourceId);
-    if (!source) return srcs;
-
-    const game = findOrCreateGame(source, gameId);
-    game.status = "error";
-    game.statusLine = pf.message || "parse error";
-    game.error = pf.message;
-    return [...srcs];
-  });
-}
-
-function handleParseCompleted(sourceId: string, msg: Message): void {
-  if (msg.payload?.$case !== "parseCompleted") return;
-  const pc = msg.payload.parseCompleted;
-  const gameId = pc.gameId;
-  if (!gameId) return;
-
-  update((srcs) => {
-    const source = srcs.find((s) => s.id === sourceId);
-    if (!source) return srcs;
-
-    const game = findOrCreateGame(source, gameId);
-    if (game.status === "error") {
-      game.status = "watching";
-      game.statusLine = gameStatusLine("watching", game.saves);
-      game.error = undefined;
-    }
-    return [...srcs];
-  });
-}
-
-function handlePushCompleted(sourceId: string, msg: Message): void {
-  if (msg.payload?.$case !== "pushCompleted") return;
-  const pc = msg.payload.pushCompleted;
-  const gameId = pc.gameId;
-  if (!gameId) return;
-
-  update((srcs) => {
-    const targetSource = srcs.find((s) => s.id === sourceId);
-    if (!targetSource) return srcs;
-
-    const game = findOrCreateGame(targetSource, gameId);
-
-    if (pc.saveUuid) {
-      const existing = game.saves.find((s) => s.saveUuid === pc.saveUuid);
-      if (existing) {
-        existing.summary = pc.summary || existing.summary;
-        if (pc.identity?.name) existing.saveName = pc.identity.name;
-        existing.lastUpdated = "just now";
-      } else {
-        game.saves.push({
-          saveUuid: pc.saveUuid,
-          saveName: pc.identity?.name ?? "Unknown",
-          summary: pc.summary,
-          lastUpdated: "just now",
-          status: "success",
-        });
-      }
-      game.statusLine = gameStatusLine(game.status, game.saves);
-    }
-
-    return [...srcs];
-  });
 }
 
 function handleConfigResult(msg: Message): void {
@@ -302,28 +125,13 @@ function handleConfigResult(msg: Message): void {
   configResultsStore.set(entries);
 }
 
+type PayloadCase = NonNullable<NonNullable<Message["payload"]>["$case"]>;
 type SourceHandler = (sourceId: string, msg: Message) => void;
 
 const SOURCE_HANDLERS: Partial<Record<PayloadCase, SourceHandler>> = {
   sourceState: (_sourceId, msg) => {
     handleSourceState(msg);
   },
-  sourceOnline: handleSourceOnline,
-  sourceOffline: (sourceId) => {
-    handleSourceOffline(sourceId);
-  },
-  watching: (sourceId, msg) => {
-    handleGameStatusChange(sourceId, msg, "watching");
-  },
-  gameDetected: (sourceId, msg) => {
-    handleGameStatusChange(sourceId, msg, "gameDetected");
-  },
-  gameNotFound: (sourceId, msg) => {
-    handleGameStatusChange(sourceId, msg, "gameNotFound");
-  },
-  parseFailed: handleParseFailed,
-  parseCompleted: handleParseCompleted,
-  pushCompleted: handlePushCompleted,
   configResult: (_sourceId, msg) => {
     handleConfigResult(msg);
   },
