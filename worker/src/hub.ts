@@ -1277,22 +1277,57 @@ export class SourceHub extends DurableObject<Env> {
       daemonWs.send(msg);
     }
 
-    // Remove disabled games from in-memory SourceState so the browser
-    // never sees them. This handles the "Remove Game" flow where
-    // handleDeleteGame sets enabled=0 then calls push-config.
-    if (disabledGameIds.size > 0) {
-      const state = await this.loadState();
-      let changed = false;
-      for (const source of state.sources) {
-        const before = source.games.length;
-        source.games = source.games.filter((g) => !disabledGameIds.has(g.gameId));
-        if (source.games.length < before) changed = true;
-      }
-      if (changed) {
-        await this.saveState(state);
-        await this.forwardStateToUserHub();
+    await this.removeStaleStateEntries(disabledGameIds, games);
+  }
+
+  /**
+   * Remove disabled games and excluded saves from in-memory SourceState
+   * so the browser never sees them. Called after pushing config to daemons.
+   */
+  private async removeStaleStateEntries(
+    disabledGameIds: Set<string>,
+    games: Record<string, { excludeSaves: string[] }>,
+  ): Promise<void> {
+    const excludedSavesByGame = new Map<string, Set<string>>();
+    for (const [gameId, cfg] of Object.entries(games)) {
+      if (cfg.excludeSaves.length > 0) {
+        excludedSavesByGame.set(gameId, new Set(cfg.excludeSaves.map((s) => s.toLowerCase())));
       }
     }
+
+    if (disabledGameIds.size === 0 && excludedSavesByGame.size === 0) return;
+
+    const state = await this.loadState();
+    const changed = this.filterStateEntries(state, disabledGameIds, excludedSavesByGame);
+    if (changed) {
+      await this.saveState(state);
+      await this.forwardStateToUserHub();
+    }
+  }
+
+  /** Mutates state in place, returns true if anything was removed. */
+  private filterStateEntries(
+    state: SourceState,
+    disabledGameIds: Set<string>,
+    excludedSavesByGame: Map<string, Set<string>>,
+  ): boolean {
+    let changed = false;
+    for (const source of state.sources) {
+      const beforeGames = source.games.length;
+      source.games = source.games.filter((g) => !disabledGameIds.has(g.gameId));
+      if (source.games.length < beforeGames) changed = true;
+
+      for (const game of source.games) {
+        const excluded = excludedSavesByGame.get(game.gameId);
+        if (!excluded) continue;
+        const beforeSaves = game.saves.length;
+        game.saves = game.saves.filter(
+          (s) => !excluded.has((s.identity?.name ?? "").toLowerCase()),
+        );
+        if (game.saves.length < beforeSaves) changed = true;
+      }
+    }
+    return changed;
   }
 
   /**
@@ -1747,7 +1782,7 @@ export class SourceHub extends DurableObject<Env> {
             source.games.map(async (game) => {
               const rows = await this.env.DB.prepare(
                 `SELECT uuid, save_name, summary, last_updated
-                 FROM saves WHERE last_source_uuid = ? AND game_id = ?
+                 FROM saves WHERE last_source_uuid = ? AND game_id = ? AND removed_at IS NULL
                  ORDER BY last_updated DESC LIMIT 500`,
               )
                 .bind(sourceUuid, game.gameId)

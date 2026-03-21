@@ -1944,6 +1944,66 @@ describe("SourceHub", () => {
     await closeWs(daemon);
   });
 
+  it("removed save disappears from SourceState after config push", async () => {
+    const userUuid = "push-remove-state";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Seed source_config so push is accepted
+    await env.DB.prepare(
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
+       VALUES (?, ?, ?, 1, ?)`,
+    )
+      .bind(sourceUuid, "d2r", "/saves/d2r", JSON.stringify([".d2s"]))
+      .run();
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+    await new Promise((r) => setTimeout(r, 50));
+
+    // Push a save so it appears in SourceState
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "ToRemove.d2s", extra: undefined },
+          summary: "Will be removed",
+          parsedAt: new Date(),
+          sections: [{ name: "stats", description: "Stats", data: { level: 1 } }],
+        },
+      },
+    });
+    const pushResult = await waitForProtoMessage(daemon);
+    const saveUuid = requirePayload(pushResult, "pushSaveResult").saveUuid;
+    expect(saveUuid).toBeTruthy();
+
+    // Wait for state to propagate, then verify save is in SourceState
+    await new Promise((r) => setTimeout(r, 100));
+    const ui1 = await connectWs("/ws/ui", userUuid);
+    const state1 = requireInnerPayload(await waitForRelayedMessage(ui1), "sourceState");
+    const game1 = state1.sources[0]?.games.find((g) => g.gameId === "d2r");
+    expect(game1?.saves.some((s) => s.saveUuid === saveUuid)).toBe(true);
+    await closeWs(ui1);
+
+    // Remove the save via API
+    const resp = await SELF.fetch(`https://test-host/api/v1/saves/${saveUuid}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${userUuid}` },
+    });
+    expect(resp.status).toBe(200);
+
+    // Verify save is gone from SourceState
+    const ui2 = await connectWs("/ws/ui", userUuid);
+    const state2 = requireInnerPayload(await waitForRelayedMessage(ui2), "sourceState");
+    const game2 = state2.sources[0]?.games.find((g) => g.gameId === "d2r");
+    const removedSave = game2?.saves.find((s) => s.saveUuid === saveUuid);
+    expect(removedSave).toBeUndefined();
+    await closeWs(ui2);
+
+    await closeWs(daemon);
+  });
+
   it("idempotent push updates existing save instead of duplicating", async () => {
     const userUuid = "push-idempotent";
     const { sourceToken } = await seedSource(userUuid);
