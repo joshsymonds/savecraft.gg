@@ -1217,6 +1217,7 @@ describe("SourceHub", () => {
               fileCount: 2,
               fileExtensions: [],
               filePatterns: [],
+              excludeDirs: [],
             },
             {
               gameId: "sdv",
@@ -1225,6 +1226,7 @@ describe("SourceHub", () => {
               fileCount: 1,
               fileExtensions: [],
               filePatterns: [],
+              excludeDirs: [],
             },
           ],
         },
@@ -1280,6 +1282,7 @@ describe("SourceHub", () => {
               fileCount: 2,
               fileExtensions: [],
               filePatterns: [],
+              excludeDirs: [],
             },
             {
               gameId: "sdv",
@@ -1288,6 +1291,7 @@ describe("SourceHub", () => {
               fileCount: 1,
               fileExtensions: [],
               filePatterns: [],
+              excludeDirs: [],
             },
           ],
         },
