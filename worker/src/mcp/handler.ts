@@ -33,6 +33,8 @@ Notes are the player's memory across conversations — goals, build guides, sess
 
 Results from search_saves distinguish between save data (what the player actually has in-game) and notes (what the player wrote or planned). This distinction matters: "player owns this item" vs "guide recommends this item" are very different.
 
+Removed saves and games: Players can remove individual saves or entire games from Savecraft. list_games includes a removed_saves field per game showing the names of removed saves. If a player asks about a character you can't find but it appears in removed_saves, tell them it was removed and they can restore it from the game detail screen on savecraft.gg. Removed games won't appear in list_games at all — if the player asks about a game that's missing entirely, suggest they check their game settings on savecraft.gg to see if it was removed.
+
 All timestamps returned by Savecraft are UTC.`;
 
 interface JsonRpcRequest {
@@ -91,7 +93,7 @@ const TOOLS: ToolDefinition[] = [
     name: "list_games",
     title: "List Games & Saves",
     description:
-      "Returns the player's games with their saves (including note titles) and reference modules. Use the returned save_id values with other tools. When the player is asking about a specific game, pass the filter parameter to avoid loading unrelated data. Call without filter only when the player wants to see all their games.",
+      "Returns the player's games with their saves (including note titles), removed save names, and reference modules. Use the returned save_id values with other tools. When the player is asking about a specific game, pass the filter parameter to avoid loading unrelated data. Call without filter only when the player wants to see all their games. Check the removed_saves field if the player asks about a character you can't find — it may have been removed.",
     inputSchema: {
       type: "object",
       properties: {
