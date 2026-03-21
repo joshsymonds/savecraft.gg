@@ -128,6 +128,7 @@ describe("MCP Tools", () => {
       last_updated: string;
       notes: { note_id: string; title: string }[];
     }[];
+    removed_saves?: string[];
     references?: { id: string; name: string; description: string; parameters?: unknown }[];
   }
 
@@ -1499,9 +1500,11 @@ describe("MCP Tools", () => {
       const d2r = data.games.find((g) => g.game_id === "d2r");
       expect(d2r!.saves).toHaveLength(1);
       expect(d2r!.saves[0]!.name).toBe("Active");
+      // Removed save name should appear in removed_saves
+      expect(d2r!.removed_saves).toEqual(["Removed"]);
     });
 
-    it("get_save returns not found for removed saves", async () => {
+    it("get_save returns removal message for removed saves", async () => {
       await seedSave({
         saveUuid: "removed-get",
         userUuid: USER_A,
@@ -1515,6 +1518,10 @@ describe("MCP Tools", () => {
 
       const result = await getSave(env.DB, USER_A, "removed-get");
       expect(result.isError).toBe(true);
+      const text = (result.content[0] as { text: string }).text;
+      expect(text).toContain("RemovedGet");
+      expect(text).toContain("removed");
+      expect(text).toContain("restore");
     });
 
     it("search_saves excludes removed saves", async () => {

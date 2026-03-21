@@ -96,6 +96,7 @@ interface GameEntry {
     last_updated: string;
     notes: { note_id: string; title: string }[];
   }[];
+  removed_saves?: string[];
   references?: {
     id: string;
     name: string;
@@ -237,7 +238,7 @@ export async function listGames(
   userUuid: string,
   filter?: string,
 ): Promise<ToolResult> {
-  const [saveRows, notesBySave] = await Promise.all([
+  const [saveRows, notesBySave, removedRows] = await Promise.all([
     db
       .prepare(
         `SELECT * FROM saves WHERE user_uuid = ? AND removed_at IS NULL ORDER BY last_updated DESC LIMIT 500`,
@@ -245,9 +246,25 @@ export async function listGames(
       .bind(userUuid)
       .all<SaveRow>(),
     fetchNotesBySave(db, userUuid),
+    db
+      .prepare(
+        `SELECT game_id, save_name FROM saves WHERE user_uuid = ? AND removed_at IS NOT NULL`,
+      )
+      .bind(userUuid)
+      .all<{ game_id: string; save_name: string }>(),
   ]);
 
   const gameMap = groupSavesByGame(saveRows.results, notesBySave, filter);
+
+  // Attach removed save names per game
+  for (const row of removedRows.results) {
+    const game = gameMap.get(row.game_id);
+    if (game) {
+      game.removed_saves ??= [];
+      game.removed_saves.push(row.save_name);
+    }
+  }
+
   await attachReferenceModules(plugins, gameMap, filter);
 
   const games = [...gameMap.values()];
@@ -261,14 +278,35 @@ export async function listGames(
 
 const OVERVIEW_SECTION_NAMES = ["character_overview", "player_summary", "overview", "summary"];
 
+async function checkRemovedSave(
+  db: D1Database,
+  userUuid: string,
+  saveId: string,
+): Promise<string | null> {
+  const removed = await db
+    .prepare(
+      "SELECT save_name FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NOT NULL",
+    )
+    .bind(saveId, userUuid)
+    .first<{ save_name: string }>();
+  return removed?.save_name ?? null;
+}
+
 export async function getSave(
   db: D1Database,
   userUuid: string,
   saveId: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
-  if (!save)
+  if (!save) {
+    const removedName = await checkRemovedSave(db, userUuid, saveId);
+    if (removedName) {
+      return errorResult(
+        `"${removedName}" has been removed by the player. They can restore it from the game detail screen on savecraft.gg. Once restored, the daemon will re-parse the save file and data will repopulate automatically.`,
+      );
+    }
     return errorResult("Save not found. Call list_games to see available saves and their IDs.");
+  }
 
   const sectionRows = await db
     .prepare("SELECT name, description, data FROM sections WHERE save_uuid = ? ORDER BY name")
