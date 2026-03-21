@@ -1100,8 +1100,8 @@ export class SourceHub extends DurableObject<Env> {
 
       // Auto-create enabled config with the detected path
       await this.env.DB.prepare(
-        `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions, file_patterns)
-         VALUES (?, ?, ?, 1, '[]', '[]')`,
+        `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions, file_patterns, exclude_dirs)
+         VALUES (?, ?, ?, 1, '[]', '[]', '[]')`,
       )
         .bind(sourceUuid, gameId, path)
         .run();
@@ -1147,33 +1147,44 @@ export class SourceHub extends DurableObject<Env> {
       const existingIds = new Set(existingRows.results.map((row) => row.game_id));
       const newGames = validGames.filter((game) => !existingIds.has(game.gameId));
 
-      // Backfill file_patterns on existing rows that have the default '[]'.
-      // This handles upgrades where the plugin gained file_patterns after the
-      // user already had the game configured.
-      const backfillGames = validGames.filter(
+      // Backfill file_patterns and exclude_dirs on existing rows that have the
+      // default '[]'. This handles upgrades where the plugin gained these fields
+      // after the user already had the game configured.
+      const backfillPatterns = validGames.filter(
         (game) => existingIds.has(game.gameId) && game.filePatterns.length > 0,
       );
+      const backfillExcludeDirs = validGames.filter(
+        (game) => existingIds.has(game.gameId) && game.excludeDirs.length > 0,
+      );
 
-      if (newGames.length === 0 && backfillGames.length === 0) return;
+      if (newGames.length === 0 && backfillPatterns.length === 0 && backfillExcludeDirs.length === 0)
+        return;
 
       const statements = [
         ...newGames.map((game) =>
           this.env.DB.prepare(
-            `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions, file_patterns)
-             VALUES (?, ?, ?, 1, ?, ?)`,
+            `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions, file_patterns, exclude_dirs)
+             VALUES (?, ?, ?, 1, ?, ?, ?)`,
           ).bind(
             sourceUuid,
             game.gameId,
             game.path,
             JSON.stringify(game.fileExtensions),
             JSON.stringify(game.filePatterns),
+            JSON.stringify(game.excludeDirs),
           ),
         ),
-        ...backfillGames.map((game) =>
+        ...backfillPatterns.map((game) =>
           this.env.DB.prepare(
             `UPDATE source_configs SET file_patterns = ?
              WHERE source_uuid = ? AND game_id = ? AND file_patterns = '[]'`,
           ).bind(JSON.stringify(game.filePatterns), sourceUuid, game.gameId),
+        ),
+        ...backfillExcludeDirs.map((game) =>
+          this.env.DB.prepare(
+            `UPDATE source_configs SET exclude_dirs = ?
+             WHERE source_uuid = ? AND game_id = ? AND exclude_dirs = '[]'`,
+          ).bind(JSON.stringify(game.excludeDirs), sourceUuid, game.gameId),
         ),
       ];
 
@@ -1190,7 +1201,7 @@ export class SourceHub extends DurableObject<Env> {
 
   private async pushConfigToSource(sourceId: string): Promise<void> {
     const rows = await this.env.DB.prepare(
-      `SELECT game_id, save_path, enabled, file_extensions, file_patterns
+      `SELECT game_id, save_path, enabled, file_extensions, file_patterns, exclude_dirs
        FROM source_configs
        WHERE source_uuid = ?`,
     )
@@ -1201,11 +1212,18 @@ export class SourceHub extends DurableObject<Env> {
         enabled: number;
         file_extensions: string;
         file_patterns: string;
+        exclude_dirs: string;
       }>();
 
     const games: Record<
       string,
-      { savePath: string; enabled: boolean; fileExtensions: string[]; filePatterns: string[] }
+      {
+        savePath: string;
+        enabled: boolean;
+        fileExtensions: string[];
+        filePatterns: string[];
+        excludeDirs: string[];
+      }
     > = {};
     const disabledGameIds = new Set<string>();
     for (const row of rows.results) {
@@ -1214,6 +1232,7 @@ export class SourceHub extends DurableObject<Env> {
         enabled: row.enabled === 1,
         fileExtensions: JSON.parse(row.file_extensions) as string[],
         filePatterns: JSON.parse(row.file_patterns || "[]") as string[],
+        excludeDirs: JSON.parse(row.exclude_dirs || "[]") as string[],
       };
       if (row.enabled === 0) {
         disabledGameIds.add(row.game_id);
