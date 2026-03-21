@@ -7,8 +7,11 @@
     createNote,
     deleteGame,
     deleteNote,
+    deleteSave,
     fetchNotes,
     fetchOAuthAuthorizeUrl,
+    fetchRemovedSaves,
+    restoreSave,
     saveSourceConfig,
     toNoteSummary,
     updateNote,
@@ -47,11 +50,13 @@
   import type {
     Game,
     PickerGame,
+    RemovedSave,
     Save,
     Source,
     SourceStatus,
     ValidationState,
   } from "$lib/types/source";
+  import { relativeTime } from "$lib/utils/time";
   import { connectionStatus, type ConnectionStatus, send } from "$lib/ws/client";
 
   function deriveValidationState(
@@ -154,6 +159,19 @@
 
   let selectedGame: Game | null = $state(null);
   let selectedSave: Save | null = $state(null);
+  let removedSaves: RemovedSave[] = $state([]);
+
+  async function loadRemovedSaves(gameId: string) {
+    try {
+      const saves = await fetchRemovedSaves(gameId);
+      removedSaves = saves.map((s) => ({
+        ...s,
+        removedAt: relativeTime(s.removedAt),
+      }));
+    } catch {
+      removedSaves = [];
+    }
+  }
 
   // -- Derived game data --
   let mergedGames = $derived(
@@ -303,6 +321,7 @@
           }}
           ongameclick={(game) => {
             selectedGame = game;
+            void loadRemovedSaves(game.gameId);
           }}
           onreconnect={(gameId) => {
             adapterError = undefined;
@@ -399,14 +418,20 @@
     onclose={() => {
       selectedGame = null;
       selectedSave = null;
+      removedSaves = [];
       testPathChecking = false;
       clearTestPathResult();
     }}
     onsaveclick={(save) => {
       selectedSave = save;
     }}
+    {removedSaves}
     onremovegame={async (gameId) => {
       await deleteGame(gameId);
+    }}
+    onrestoresave={async (saveUuid) => {
+      await restoreSave(saveUuid);
+      if (selectedGame) void loadRemovedSaves(selectedGame.gameId);
     }}
     onsave={async (sourceId, savePath) => {
       if (!selectedGame) return;
@@ -447,6 +472,11 @@
     }}
     onnoteedit={async (saveUuid, noteId, title, content) => {
       await updateNote(saveUuid, noteId, { title, content });
+    }}
+    onremovesave={async (saveUuid) => {
+      await deleteSave(saveUuid);
+      selectedSave = null;
+      if (selectedGame) void loadRemovedSaves(selectedGame.gameId);
     }}
   />
 {/if}

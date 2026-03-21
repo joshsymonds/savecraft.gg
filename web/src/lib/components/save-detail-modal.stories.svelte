@@ -68,6 +68,11 @@
     await new Promise((resolve) => setTimeout(resolve, 300));
   }
 
+  async function handleRemoveSave(saveUuid: string) {
+    console.log("Remove save:", saveUuid);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+  }
+
   let defaultOpen = $state(true);
   let emptyOpen = $state(true);
 </script>
@@ -83,6 +88,7 @@
       onnotecreate={handleNoteCreate}
       onnotedelete={handleNoteDelete}
       onnoteedit={handleNoteEdit}
+      onremovesave={handleRemoveSave}
     />
   {:else}
     <div style="display: flex; justify-content: center; padding: 48px;">

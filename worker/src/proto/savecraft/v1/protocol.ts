@@ -117,6 +117,7 @@ export function gameStatusEnumToJSON(object: GameStatusEnum): string {
 export enum PushSaveError {
   PUSH_SAVE_ERROR_UNSPECIFIED = 0,
   PUSH_SAVE_ERROR_GAME_REMOVED = 1,
+  PUSH_SAVE_ERROR_SAVE_REMOVED = 2,
   UNRECOGNIZED = -1,
 }
 
@@ -128,6 +129,9 @@ export function pushSaveErrorFromJSON(object: any): PushSaveError {
     case 1:
     case "PUSH_SAVE_ERROR_GAME_REMOVED":
       return PushSaveError.PUSH_SAVE_ERROR_GAME_REMOVED;
+    case 2:
+    case "PUSH_SAVE_ERROR_SAVE_REMOVED":
+      return PushSaveError.PUSH_SAVE_ERROR_SAVE_REMOVED;
     case -1:
     case "UNRECOGNIZED":
     default:
@@ -141,6 +145,8 @@ export function pushSaveErrorToJSON(object: PushSaveError): string {
       return "PUSH_SAVE_ERROR_UNSPECIFIED";
     case PushSaveError.PUSH_SAVE_ERROR_GAME_REMOVED:
       return "PUSH_SAVE_ERROR_GAME_REMOVED";
+    case PushSaveError.PUSH_SAVE_ERROR_SAVE_REMOVED:
+      return "PUSH_SAVE_ERROR_SAVE_REMOVED";
     case PushSaveError.UNRECOGNIZED:
     default:
       return "UNRECOGNIZED";
@@ -401,6 +407,7 @@ export interface GameConfig {
   fileExtensions: string[];
   filePatterns: string[];
   excludeDirs: string[];
+  excludeSaves: string[];
 }
 
 /** Per-game result of applying a ConfigUpdate. Sent by daemon after processing. */
@@ -3971,7 +3978,7 @@ export const ConfigUpdate_GamesEntry: MessageFns<ConfigUpdate_GamesEntry> = {
 };
 
 function createBaseGameConfig(): GameConfig {
-  return { savePath: "", enabled: false, fileExtensions: [], filePatterns: [], excludeDirs: [] };
+  return { savePath: "", enabled: false, fileExtensions: [], filePatterns: [], excludeDirs: [], excludeSaves: [] };
 }
 
 export const GameConfig: MessageFns<GameConfig> = {
@@ -3990,6 +3997,9 @@ export const GameConfig: MessageFns<GameConfig> = {
     }
     for (const v of message.excludeDirs) {
       writer.uint32(42).string(v!);
+    }
+    for (const v of message.excludeSaves) {
+      writer.uint32(50).string(v!);
     }
     return writer;
   },
@@ -4041,6 +4051,14 @@ export const GameConfig: MessageFns<GameConfig> = {
           message.excludeDirs.push(reader.string());
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.excludeSaves.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -4073,6 +4091,11 @@ export const GameConfig: MessageFns<GameConfig> = {
         : globalThis.Array.isArray(object?.exclude_dirs)
         ? object.exclude_dirs.map((e: any) => globalThis.String(e))
         : [],
+      excludeSaves: globalThis.Array.isArray(object?.excludeSaves)
+        ? object.excludeSaves.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.exclude_saves)
+        ? object.exclude_saves.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -4093,6 +4116,9 @@ export const GameConfig: MessageFns<GameConfig> = {
     if (message.excludeDirs?.length) {
       obj.excludeDirs = message.excludeDirs;
     }
+    if (message.excludeSaves?.length) {
+      obj.excludeSaves = message.excludeSaves;
+    }
     return obj;
   },
 
@@ -4106,6 +4132,7 @@ export const GameConfig: MessageFns<GameConfig> = {
     message.fileExtensions = object.fileExtensions?.map((e) => e) || [];
     message.filePatterns = object.filePatterns?.map((e) => e) || [];
     message.excludeDirs = object.excludeDirs?.map((e) => e) || [];
+    message.excludeSaves = object.excludeSaves?.map((e) => e) || [];
     return message;
   },
 };

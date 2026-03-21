@@ -207,6 +207,29 @@ export async function deleteGame(gameId: string): Promise<{ saves: number; notes
   return data.deleted;
 }
 
+// ── Save Removal ──────────────────────────────────────────────
+
+export interface ApiRemovedSave {
+  saveUuid: string;
+  saveName: string;
+  summary: string;
+  removedAt: string;
+  noteCount: number;
+}
+
+export async function deleteSave(saveUuid: string): Promise<void> {
+  await mutate<{ ok: boolean }>("DELETE", `/api/v1/saves/${saveUuid}`);
+}
+
+export async function restoreSave(saveUuid: string): Promise<void> {
+  await mutate<{ ok: boolean }>("POST", `/api/v1/saves/${saveUuid}/restore`);
+}
+
+export async function fetchRemovedSaves(gameId: string): Promise<ApiRemovedSave[]> {
+  const data = await request<{ saves: ApiRemovedSave[] }>(`/api/v1/games/${gameId}/removed-saves`);
+  return data.saves;
+}
+
 // ── MCP Status ────────────────────────────────────────────────
 
 export interface McpStatus {

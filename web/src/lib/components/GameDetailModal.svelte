@@ -9,6 +9,7 @@
     AvailableSource,
     Game,
     GameSourceEntry,
+    RemovedSave,
     Save,
     TestPathResult,
     ValidationState,
@@ -35,6 +36,8 @@
     testPathResult = null,
     validationState = "idle",
     onremovesource,
+    removedSaves = [],
+    onrestoresave,
   }: {
     game: Game;
     showSourceBadges?: boolean;
@@ -48,6 +51,8 @@
     testPathResult?: TestPathResult | null;
     validationState?: ValidationState;
     onremovesource?: (sourceId: string) => Promise<void>;
+    removedSaves?: RemovedSave[];
+    onrestoresave?: (saveUuid: string) => Promise<void>;
   } = $props();
 
   // -- Stacked source editor state --
@@ -105,6 +110,19 @@
     editingSourceId = null;
     editingSourceName = null;
     editingPath = "";
+  }
+
+  // -- Restore save --
+  let restoringId: string | null = $state(null);
+
+  async function handleRestore(saveUuid: string) {
+    if (!onrestoresave) return;
+    restoringId = saveUuid;
+    try {
+      await onrestoresave(saveUuid);
+    } finally {
+      restoringId = null;
+    }
   }
 
   // -- Remove game --
@@ -218,6 +236,42 @@
         {#if source.error}
           <div class="source-error">{source.error}</div>
         {/if}
+      {/each}
+    </div>
+  {/if}
+
+  <!-- Removed saves section -->
+  {#if removedSaves.length > 0}
+    <div class="removed-section">
+      <div class="removed-header">
+        <span class="section-label">REMOVED SAVES</span>
+        <span class="removed-count">{removedSaves.length}</span>
+      </div>
+
+      {#each removedSaves as rs (rs.saveUuid)}
+        <div class="removed-row">
+          <div class="removed-info">
+            <span class="removed-name">{rs.saveName}</span>
+            <span class="removed-summary">{rs.summary}</span>
+            <div class="removed-meta">
+              <span class="removed-date">Removed {rs.removedAt}</span>
+              {#if rs.noteCount > 0}
+                <span class="removed-notes"
+                  >{rs.noteCount} {rs.noteCount === 1 ? "note" : "notes"} preserved</span
+                >
+              {/if}
+            </div>
+          </div>
+          {#if onrestoresave}
+            <button
+              class="restore-btn"
+              disabled={restoringId === rs.saveUuid}
+              onclick={() => handleRestore(rs.saveUuid)}
+            >
+              {restoringId === rs.saveUuid ? "..." : "RESTORE"}
+            </button>
+          {/if}
+        </div>
       {/each}
     </div>
   {/if}
@@ -432,6 +486,111 @@
     font-size: 15px;
     color: var(--color-red, #e85a5a);
     padding: 0 18px 8px 44px;
+  }
+
+  /* -- Save remove button (hover reveal) -- */
+
+  /* -- Removed saves section -- */
+
+  .removed-section {
+    border-top: 1px solid rgba(74, 90, 173, 0.1);
+  }
+
+  .removed-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 12px 18px 8px;
+  }
+
+  .removed-count {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    color: var(--color-text-muted);
+    background: rgba(74, 90, 173, 0.08);
+    padding: 1px 5px;
+    border-radius: 2px;
+    border: 1px solid rgba(74, 90, 173, 0.1);
+  }
+
+  .removed-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 18px;
+    border-bottom: 1px solid rgba(74, 90, 173, 0.04);
+    opacity: 0.6;
+  }
+
+  .removed-info {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .removed-name {
+    display: block;
+    font-family: var(--font-body);
+    font-size: 17px;
+    color: var(--color-text-dim);
+    line-height: 1.2;
+    text-decoration: line-through;
+    text-decoration-color: rgba(74, 90, 173, 0.3);
+  }
+
+  .removed-summary {
+    display: block;
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--color-text-muted);
+    line-height: 1.3;
+    margin-top: 2px;
+  }
+
+  .removed-meta {
+    display: flex;
+    gap: 12px;
+    margin-top: 4px;
+  }
+
+  .removed-date {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--color-text-muted);
+    opacity: 0.7;
+  }
+
+  .removed-notes {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    color: var(--color-gold);
+    letter-spacing: 0.5px;
+    align-self: center;
+  }
+
+  .restore-btn {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: var(--color-green);
+    background: rgba(90, 190, 138, 0.08);
+    border: 1px solid rgba(90, 190, 138, 0.2);
+    padding: 4px 10px;
+    border-radius: 2px;
+    cursor: pointer;
+    flex-shrink: 0;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
+  }
+
+  .restore-btn:hover {
+    background: rgba(90, 190, 138, 0.15);
+    border-color: rgba(90, 190, 138, 0.4);
+  }
+
+  .restore-btn:disabled {
+    opacity: 0.5;
+    cursor: default;
   }
 
   /* -- Remove confirmation -- */

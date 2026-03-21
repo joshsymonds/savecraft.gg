@@ -19,6 +19,7 @@
     onnotecreate,
     onnotedelete,
     onnoteedit,
+    onremovesave,
   }: {
     save: Save;
     onclose: () => void;
@@ -31,6 +32,7 @@
       title: string,
       content: string,
     ) => Promise<void>;
+    onremovesave?: (saveUuid: string) => Promise<void>;
   } = $props();
 
   // -- Notes --
@@ -70,6 +72,24 @@
     creating = false;
     newTitle = "";
     newContent = "";
+  }
+
+  // -- Remove save --
+  let removingSave = $state(false);
+  let removeError = $state("");
+
+  async function handleRemoveSave() {
+    if (!onremovesave) return;
+    removingSave = true;
+    removeError = "";
+    try {
+      await onremovesave(save.saveUuid);
+      onclose();
+    } catch (error) {
+      removeError = error instanceof Error ? error.message : "Failed to remove save";
+    } finally {
+      removingSave = false;
+    }
   }
 </script>
 
@@ -129,7 +149,18 @@
     {/if}
   </div>
 
+  {#if removeError}
+    <div class="remove-error-bar">
+      <span>{removeError}</span>
+    </div>
+  {/if}
+
   {#snippet footer()}
+    {#if onremovesave}
+      <button class="modal-btn-danger" onclick={handleRemoveSave} disabled={removingSave}>
+        {removingSave ? "REMOVING..." : "REMOVE SAVE"}
+      </button>
+    {/if}
     <button class="modal-btn" onclick={() => onclose()}>DISMISS</button>
   {/snippet}
 </Modal>
@@ -218,5 +249,14 @@
     display: flex;
     justify-content: flex-end;
     gap: 6px;
+  }
+
+  .remove-error-bar {
+    padding: 8px 18px;
+    background: rgba(232, 90, 90, 0.04);
+    border-top: 1px solid rgba(232, 90, 90, 0.12);
+    font-family: var(--font-body);
+    font-size: 14px;
+    color: var(--color-red, #e85a5a);
   }
 </style>
