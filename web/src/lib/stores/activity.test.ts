@@ -262,6 +262,7 @@ describe("dispatchToActivity", () => {
                 fileCount: 1,
                 fileExtensions: [".d2s"],
                 filePatterns: [],
+                excludeDirs: [],
               },
             ],
           },
@@ -286,6 +287,7 @@ describe("dispatchToActivity", () => {
                 fileCount: 1,
                 fileExtensions: [".d2s"],
                 filePatterns: [],
+                excludeDirs: [],
               },
               {
                 gameId: "wow",
@@ -294,6 +296,7 @@ describe("dispatchToActivity", () => {
                 fileCount: 2,
                 fileExtensions: [".wtf"],
                 filePatterns: [],
+                excludeDirs: [],
               },
             ],
           },
