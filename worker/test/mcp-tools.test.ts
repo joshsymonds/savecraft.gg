@@ -1473,4 +1473,68 @@ describe("MCP Tools", () => {
       expect(data.lookup.source_uuid).toBe("dev-cat-lookup");
     });
   });
+  describe("removed saves", () => {
+    it("list_games excludes removed saves", async () => {
+      await seedSave({
+        saveUuid: "active-save",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Active",
+        summary: "Active char",
+      });
+      await seedSave({
+        saveUuid: "removed-save",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Removed",
+        summary: "Removed char",
+      });
+      // Mark one as removed
+      await env.DB.prepare("UPDATE saves SET removed_at = datetime('now') WHERE uuid = ?")
+        .bind("removed-save")
+        .run();
+
+      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      const d2r = data.games.find((g) => g.game_id === "d2r");
+      expect(d2r!.saves).toHaveLength(1);
+      expect(d2r!.saves[0]!.name).toBe("Active");
+    });
+
+    it("get_save returns not found for removed saves", async () => {
+      await seedSave({
+        saveUuid: "removed-get",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "RemovedGet",
+        summary: "Will be removed",
+      });
+      await env.DB.prepare("UPDATE saves SET removed_at = datetime('now') WHERE uuid = ?")
+        .bind("removed-get")
+        .run();
+
+      const result = await getSave(env.DB, USER_A, "removed-get");
+      expect(result.isError).toBe(true);
+    });
+
+    it("search_saves excludes removed saves", async () => {
+      await seedSave({
+        saveUuid: "search-removed",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "SearchRemoved",
+        summary: "Searchable removed",
+      });
+      // Index it
+      await indexSaveSections(env.DB, "search-removed", "SearchRemoved", sampleGameState.sections);
+      // Mark as removed
+      await env.DB.prepare("UPDATE saves SET removed_at = datetime('now') WHERE uuid = ?")
+        .bind("search-removed")
+        .run();
+
+      const result = await searchSaves(env.DB, USER_A, "SearchRemoved");
+      const data = parseResult(result) as { results: unknown[] };
+      expect(data.results).toHaveLength(0);
+    });
+  });
 }); // MCP Tools

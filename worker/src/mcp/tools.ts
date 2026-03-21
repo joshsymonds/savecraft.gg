@@ -52,7 +52,7 @@ async function lookupSave(
   saveId: string,
 ): Promise<SaveRow | null> {
   return db
-    .prepare("SELECT * FROM saves WHERE uuid = ? AND user_uuid = ?")
+    .prepare("SELECT * FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NULL")
     .bind(saveId, userUuid)
     .first<SaveRow>();
 }
@@ -239,7 +239,9 @@ export async function listGames(
 ): Promise<ToolResult> {
   const [saveRows, notesBySave] = await Promise.all([
     db
-      .prepare(`SELECT * FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC LIMIT 500`)
+      .prepare(
+        `SELECT * FROM saves WHERE user_uuid = ? AND removed_at IS NULL ORDER BY last_updated DESC LIMIT 500`,
+      )
       .bind(userUuid)
       .all<SaveRow>(),
     fetchNotesBySave(db, userUuid),
@@ -795,7 +797,7 @@ export async function searchSaves(
     sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
            WHERE search_index MATCH ? AND save_id = ?
-             AND save_id IN (SELECT uuid FROM saves WHERE user_uuid = ?)
+             AND save_id IN (SELECT uuid FROM saves WHERE user_uuid = ? AND removed_at IS NULL)
            ORDER BY rank
            LIMIT 20`;
     params.push(saveId, userUuid);
@@ -803,7 +805,7 @@ export async function searchSaves(
     sql = `SELECT save_id, save_name, type, ref_id, ref_title, snippet(search_index, 5, '**', '**', '...', 32) as snippet
            FROM search_index
            WHERE search_index MATCH ?
-             AND save_id IN (SELECT uuid FROM saves WHERE user_uuid = ?)
+             AND save_id IN (SELECT uuid FROM saves WHERE user_uuid = ? AND removed_at IS NULL)
            ORDER BY rank
            LIMIT 20`;
     params.push(userUuid);

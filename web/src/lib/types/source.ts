@@ -81,6 +81,16 @@ export interface Game {
   needsConfig: boolean;
 }
 
+// -- Removed saves (for restore UI) --
+
+export interface RemovedSave {
+  saveUuid: string;
+  saveName: string;
+  summary: string;
+  removedAt: string;
+  noteCount: number;
+}
+
 // -- Config modal types --
 
 export type ValidationState = "idle" | "checking" | "valid" | "invalid" | "error";

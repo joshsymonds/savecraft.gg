@@ -1850,6 +1850,100 @@ describe("SourceHub", () => {
     await closeWs(daemon);
   });
 
+  it("rejects pushSave for excluded save with SAVE_REMOVED error", async () => {
+    const userUuid = "push-excluded-save";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Seed source_config with exclude_saves containing the target save
+    await env.DB.prepare(
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions, exclude_saves)
+       VALUES (?, ?, ?, 1, ?, ?)`,
+    )
+      .bind(
+        sourceUuid,
+        "d2r",
+        "/saves/d2r",
+        JSON.stringify([".d2s"]),
+        JSON.stringify(["Atmus.d2s"]),
+      )
+      .run();
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "Atmus.d2s", extra: undefined },
+          summary: "Hammerdin, Level 89",
+          parsedAt: new Date(),
+          sections: [{ name: "stats", description: "Stats", data: { level: 89 } }],
+        },
+      },
+    });
+
+    const resultMsg = await waitForProtoMessage(daemon);
+    const result = requirePayload(resultMsg, "pushSaveResult");
+    expect(result.error).toBe(PushSaveError.PUSH_SAVE_ERROR_SAVE_REMOVED);
+    expect(result.saveUuid).toBe("");
+
+    // No save should have been created
+    const save = await env.DB.prepare(
+      "SELECT 1 FROM saves WHERE save_name = 'Atmus.d2s' AND user_uuid = ?",
+    )
+      .bind(userUuid)
+      .first();
+    expect(save).toBeNull();
+
+    await closeWs(daemon);
+  });
+
+  it("allows pushSave for non-excluded save when exclude_saves is set", async () => {
+    const userUuid = "push-non-excluded-save";
+    const { sourceUuid, sourceToken } = await seedSource(userUuid);
+
+    // Seed source_config with exclude_saves that does NOT include the pushed save
+    await env.DB.prepare(
+      `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions, exclude_saves)
+       VALUES (?, ?, ?, 1, ?, ?)`,
+    )
+      .bind(
+        sourceUuid,
+        "d2r",
+        "/saves/d2r",
+        JSON.stringify([".d2s"]),
+        JSON.stringify(["Atmus.d2s"]),
+      )
+      .run();
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "Blizzara.d2s", extra: undefined },
+          summary: "Blizzard Sorc, Level 78",
+          parsedAt: new Date(),
+          sections: [{ name: "stats", description: "Stats", data: { level: 78 } }],
+        },
+      },
+    });
+
+    const resultMsg = await waitForProtoMessage(daemon);
+    const result = requirePayload(resultMsg, "pushSaveResult");
+    expect(result.error).toBe(PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED);
+    expect(result.saveUuid).not.toBe("");
+
+    await closeWs(daemon);
+  });
+
   it("idempotent push updates existing save instead of duplicating", async () => {
     const userUuid = "push-idempotent";
     const { sourceToken } = await seedSource(userUuid);

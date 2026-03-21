@@ -81,6 +81,7 @@ function serveMcpBrowserPage(env: Env): Response {
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Savecraft Connector</title>
+  <link rel="icon" type="image/png" href="https://savecraft.gg/favicon.png">
   <meta property="og:title" content="Savecraft — Game Save Connector for AI">
   <meta property="og:description" content="This URL connects your game saves to AI assistants like Claude and ChatGPT. Add it in your AI app's settings — not in the chat.">
   <meta property="og:url" content="${connectUrl}">
@@ -172,6 +173,11 @@ export default {
       const rewritten = new URL(request.url);
       rewritten.pathname = "/mcp";
       request = new Request(rewritten.toString(), request);
+    }
+
+    // Serve favicon from main site so Google's favicon service resolves mcp.savecraft.gg.
+    if (mcpHost && url.pathname === "/favicon.ico") {
+      return Response.redirect("https://savecraft.gg/favicon.png", 301);
     }
 
     // Browser GET to MCP subdomain: return help page with OG tags + redirect to /connect.
@@ -655,29 +661,21 @@ async function routeApiEndpoints(request: Request, url: URL, env: Env): Promise<
     const sourceResp = routeSourceManagement(request, url, env, auth.userUuid);
     if (sourceResp) return sourceResp;
   }
-  if (url.pathname.startsWith("/api/v1/games/") && request.method === "DELETE") {
-    const gameId = url.pathname.split("/")[4];
-    if (!validateId(gameId)) {
-      return Response.json({ error: "Invalid game_id" }, { status: 400 });
-    }
-    return handleDeleteGame(env, auth.userUuid, gameId);
+  if (url.pathname.startsWith("/api/v1/games/")) {
+    const gameResp = routeGameManagement(request, url, env, auth.userUuid);
+    if (gameResp) return gameResp;
   }
-  if (url.pathname.startsWith("/api/v1/notes/")) {
-    return handleNotes(request, url, env, auth.userUuid);
-  }
-  if (url.pathname.startsWith("/api/v1/adapters/") && request.method === "POST") {
-    return handleAdapterRoute(url, env, auth.userUuid);
-  }
-
-  return routeReadEndpoints(request, url, env, auth.userUuid);
+  return routeRemainingEndpoints(request, url, env, auth.userUuid);
 }
+
+type RouteResult = Response | Promise<Response> | null;
 
 function routeSourceManagement(
   request: Request,
   url: URL,
   env: Env,
   userUuid: string,
-): Response | Promise<Response> | null {
+): RouteResult {
   const sourceParts = url.pathname.split("/");
   if (url.pathname.endsWith("/config")) {
     return handleSourceConfig(request, url, env, userUuid);
@@ -692,26 +690,72 @@ function routeSourceManagement(
   return null;
 }
 
-function routeReadEndpoints(
+function routeGameManagement(request: Request, url: URL, env: Env, userUuid: string): RouteResult {
+  const parts = url.pathname.split("/");
+  const gameId = parts[4];
+  if (request.method === "DELETE") {
+    if (!validateId(gameId)) {
+      return Response.json({ error: "Invalid game_id" }, { status: 400 });
+    }
+    return handleDeleteGame(env, userUuid, gameId);
+  }
+  if (request.method === "GET" && parts[5] === "removed-saves") {
+    if (!validateId(gameId)) {
+      return Response.json({ error: "Invalid game_id" }, { status: 400 });
+    }
+    return handleGetRemovedSaves(env, userUuid, gameId);
+  }
+  return null;
+}
+
+function routeSaveManagement(request: Request, url: URL, env: Env, userUuid: string): RouteResult {
+  const parts = url.pathname.split("/");
+  const saveUuid = parts[4];
+  if (request.method === "DELETE" && parts.length === 5) {
+    if (!validateId(saveUuid)) {
+      return Response.json({ error: "Invalid save_uuid" }, { status: 400 });
+    }
+    return handleDeleteSave(env, userUuid, saveUuid);
+  }
+  if (request.method === "POST" && parts[5] === "restore") {
+    if (!validateId(saveUuid)) {
+      return Response.json({ error: "Invalid save_uuid" }, { status: 400 });
+    }
+    return handleRestoreSave(env, userUuid, saveUuid);
+  }
+  return null;
+}
+
+function routeRemainingEndpoints(
   request: Request,
   url: URL,
   env: Env,
   userUuid: string,
-): Promise<Response | null> {
+): RouteResult {
+  if (url.pathname.startsWith("/api/v1/saves/")) {
+    const saveResp = routeSaveManagement(request, url, env, userUuid);
+    if (saveResp) return saveResp;
+    if (request.method === "GET") {
+      const saveId = url.pathname.replace("/api/v1/saves/", "");
+      if (!validateId(saveId)) {
+        return Response.json({ error: "Invalid save_id" }, { status: 400 });
+      }
+      return handleGetSave(env, userUuid, saveId);
+    }
+  }
   if (url.pathname === "/api/v1/saves" && request.method === "GET") {
     return handleListSaves(env, userUuid);
   }
-  if (url.pathname.startsWith("/api/v1/saves/") && request.method === "GET") {
-    const saveId = url.pathname.replace("/api/v1/saves/", "");
-    if (!validateId(saveId)) {
-      return Promise.resolve(Response.json({ error: "Invalid save_id" }, { status: 400 }));
-    }
-    return handleGetSave(env, userUuid, saveId);
+  if (url.pathname.startsWith("/api/v1/notes/")) {
+    return handleNotes(request, url, env, userUuid);
+  }
+  if (url.pathname.startsWith("/api/v1/adapters/") && request.method === "POST") {
+    return handleAdapterRoute(url, env, userUuid);
   }
   if (url.pathname === "/api/v1/mcp-status" && request.method === "GET") {
     return handleMcpStatus(env, userUuid);
   }
-  return Promise.resolve(null);
+  return null;
 }
 
 // -- Adapter Routes ------------------------------------------------
@@ -1337,6 +1381,175 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
   });
 }
 
+// -- Save Removal API ----------------------------------------------
+
+async function handleDeleteSave(env: Env, userUuid: string, saveUuid: string): Promise<Response> {
+  // Find the save — must belong to user and not already removed
+  const save = await env.DB.prepare(
+    "SELECT uuid, game_id, save_name FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NULL",
+  )
+    .bind(saveUuid, userUuid)
+    .first<{ uuid: string; game_id: string; save_name: string }>();
+
+  if (!save) {
+    return Response.json({ error: "Save not found" }, { status: 404 });
+  }
+
+  // Hard-delete sections (they'll repopulate from daemon on restore)
+  // Hard-delete search_index
+  // Soft-delete save row (preserve notes)
+  await env.DB.batch([
+    env.DB.prepare("DELETE FROM sections WHERE save_uuid = ?").bind(saveUuid),
+    env.DB.prepare("DELETE FROM search_index WHERE save_id = ?").bind(saveUuid),
+    env.DB.prepare("UPDATE saves SET removed_at = datetime('now') WHERE uuid = ?").bind(saveUuid),
+  ]);
+
+  // Add save_name to exclude_saves in all source_configs for this user+game
+  const configs = await env.DB.prepare(
+    `SELECT sc.source_uuid, sc.exclude_saves
+     FROM source_configs sc
+     JOIN sources s ON sc.source_uuid = s.source_uuid
+     WHERE s.user_uuid = ? AND sc.game_id = ?`,
+  )
+    .bind(userUuid, save.game_id)
+    .all<{ source_uuid: string; exclude_saves: string }>();
+
+  if (configs.results.length > 0) {
+    const updates = configs.results.map((row) => {
+      const current = JSON.parse(row.exclude_saves || "[]") as string[];
+      if (!current.some((s) => s.toLowerCase() === save.save_name.toLowerCase())) {
+        current.push(save.save_name);
+      }
+      return env.DB.prepare(
+        "UPDATE source_configs SET exclude_saves = ? WHERE source_uuid = ? AND game_id = ?",
+      ).bind(JSON.stringify(current), row.source_uuid, save.game_id);
+    });
+    await env.DB.batch(updates);
+  }
+
+  // Push updated config to all connected sources
+  const sources = await env.DB.prepare("SELECT source_uuid FROM sources WHERE user_uuid = ?")
+    .bind(userUuid)
+    .all<{ source_uuid: string }>();
+
+  await Promise.allSettled(
+    sources.results.map((source) => {
+      const doId = env.SOURCE_HUB.idFromName(source.source_uuid);
+      const doStub = env.SOURCE_HUB.get(doId);
+      return doStub.fetch(
+        new Request("https://do/push-config", {
+          method: "POST",
+          body: JSON.stringify({ sourceId: source.source_uuid }),
+        }),
+      );
+    }),
+  );
+
+  // Notify UserHub to refresh state
+  const userHubId = env.USER_HUB.idFromName(userUuid);
+  const userHubStub = env.USER_HUB.get(userHubId);
+  await userHubStub.fetch(new Request("https://do/refresh-state", { method: "POST" }));
+
+  return Response.json({ ok: true });
+}
+
+async function handleRestoreSave(env: Env, userUuid: string, saveUuid: string): Promise<Response> {
+  // Find the removed save
+  const save = await env.DB.prepare(
+    "SELECT uuid, game_id, save_name FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NOT NULL",
+  )
+    .bind(saveUuid, userUuid)
+    .first<{ uuid: string; game_id: string; save_name: string }>();
+
+  if (!save) {
+    return Response.json({ error: "Removed save not found" }, { status: 404 });
+  }
+
+  // Clear removed_at
+  await env.DB.prepare("UPDATE saves SET removed_at = NULL WHERE uuid = ?").bind(saveUuid).run();
+
+  // Remove save_name from exclude_saves in all source_configs for this user+game
+  const configs = await env.DB.prepare(
+    `SELECT sc.source_uuid, sc.exclude_saves
+     FROM source_configs sc
+     JOIN sources s ON sc.source_uuid = s.source_uuid
+     WHERE s.user_uuid = ? AND sc.game_id = ?`,
+  )
+    .bind(userUuid, save.game_id)
+    .all<{ source_uuid: string; exclude_saves: string }>();
+
+  if (configs.results.length > 0) {
+    const updates = configs.results.map((row) => {
+      const current = JSON.parse(row.exclude_saves || "[]") as string[];
+      const filtered = current.filter((s) => s.toLowerCase() !== save.save_name.toLowerCase());
+      return env.DB.prepare(
+        "UPDATE source_configs SET exclude_saves = ? WHERE source_uuid = ? AND game_id = ?",
+      ).bind(JSON.stringify(filtered), row.source_uuid, save.game_id);
+    });
+    await env.DB.batch(updates);
+  }
+
+  // Push updated config to all connected sources
+  const sources = await env.DB.prepare("SELECT source_uuid FROM sources WHERE user_uuid = ?")
+    .bind(userUuid)
+    .all<{ source_uuid: string }>();
+
+  await Promise.allSettled(
+    sources.results.map((source) => {
+      const doId = env.SOURCE_HUB.idFromName(source.source_uuid);
+      const doStub = env.SOURCE_HUB.get(doId);
+      return doStub.fetch(
+        new Request("https://do/push-config", {
+          method: "POST",
+          body: JSON.stringify({ sourceId: source.source_uuid }),
+        }),
+      );
+    }),
+  );
+
+  // Notify UserHub to refresh state
+  const userHubId = env.USER_HUB.idFromName(userUuid);
+  const userHubStub = env.USER_HUB.get(userHubId);
+  await userHubStub.fetch(new Request("https://do/refresh-state", { method: "POST" }));
+
+  return Response.json({ ok: true });
+}
+
+async function handleGetRemovedSaves(
+  env: Env,
+  userUuid: string,
+  gameId: string,
+): Promise<Response> {
+  const saves = await env.DB.prepare(
+    `SELECT uuid, save_name, summary, removed_at
+     FROM saves
+     WHERE user_uuid = ? AND game_id = ? AND removed_at IS NOT NULL
+     ORDER BY removed_at DESC`,
+  )
+    .bind(userUuid, gameId)
+    .all<{ uuid: string; save_name: string; summary: string; removed_at: string }>();
+
+  // Count notes per save
+  const result = await Promise.all(
+    saves.results.map(async (save) => {
+      const noteCount = await env.DB.prepare(
+        "SELECT COUNT(*) as count FROM notes WHERE save_id = ?",
+      )
+        .bind(save.uuid)
+        .first<{ count: number }>();
+      return {
+        saveUuid: save.uuid,
+        saveName: save.save_name,
+        summary: save.summary,
+        removedAt: save.removed_at,
+        noteCount: noteCount?.count ?? 0,
+      };
+    }),
+  );
+
+  return Response.json({ saves: result });
+}
+
 // -- Notes REST API ------------------------------------------------
 
 async function handleNotes(
@@ -1577,7 +1790,7 @@ async function deleteOneNote(
 
 async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
   const rows = await env.DB.prepare(
-    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE user_uuid = ? ORDER BY last_updated DESC",
+    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE user_uuid = ? AND removed_at IS NULL ORDER BY last_updated DESC",
   )
     .bind(userUuid)
     .all<{
@@ -1601,7 +1814,7 @@ async function handleListSaves(env: Env, userUuid: string): Promise<Response> {
 
 async function handleGetSave(env: Env, userUuid: string, saveId: string): Promise<Response> {
   const save = await env.DB.prepare(
-    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE uuid = ? AND user_uuid = ?",
+    "SELECT uuid, game_id, save_name, summary, last_updated FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NULL",
   )
     .bind(saveId, userUuid)
     .first<{

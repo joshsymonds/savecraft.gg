@@ -41,6 +41,7 @@ const statements = [
     last_source_uuid TEXT,
     refresh_status TEXT,
     refresh_error TEXT,
+    removed_at TEXT,
     UNIQUE (user_uuid, game_id, save_name)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_saves_user ON saves(user_uuid)`,
@@ -62,6 +63,7 @@ const statements = [
     file_extensions TEXT NOT NULL DEFAULT '[]',
     file_patterns TEXT NOT NULL DEFAULT '[]',
     exclude_dirs TEXT NOT NULL DEFAULT '[]',
+    exclude_saves TEXT NOT NULL DEFAULT '[]',
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     config_status TEXT NOT NULL DEFAULT 'pending',
     resolved_path TEXT NOT NULL DEFAULT '',

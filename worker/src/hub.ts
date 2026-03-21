@@ -926,30 +926,23 @@ export class SourceHub extends DurableObject<Env> {
         return;
       }
 
-      // Reject pushes for disabled games (e.g., game was removed by user)
-      const config = await this.env.DB.prepare(
-        "SELECT enabled FROM source_configs WHERE source_uuid = ? AND game_id = ?",
-      )
-        .bind(sourceId, push.gameId)
-        .first<{ enabled: number }>();
-
-      if (config && !config.enabled) {
-        this.debugLog.push("warn", "pushSave rejected: game disabled", {
-          gameId: push.gameId,
-          sourceId,
-        });
-        const rejectMsg = Message.encode({
-          payload: {
-            $case: "pushSaveResult",
-            pushSaveResult: {
-              saveUuid: "",
-              snapshotTimestamp: undefined,
-              error: PushSaveError.PUSH_SAVE_ERROR_GAME_REMOVED,
-              gameId: push.gameId,
+      // Check if the push should be rejected (disabled game or excluded save)
+      const rejection = await this.checkPushRejection(sourceId, push.gameId, saveName);
+      if (rejection) {
+        this.debugLog.push("warn", rejection.reason, { gameId: push.gameId, saveName, sourceId });
+        ws.send(
+          Message.encode({
+            payload: {
+              $case: "pushSaveResult",
+              pushSaveResult: {
+                saveUuid: "",
+                snapshotTimestamp: undefined,
+                error: rejection.error,
+                gameId: push.gameId,
+              },
             },
-          },
-        }).finish();
-        ws.send(rejectMsg);
+          }).finish(),
+        );
         return;
       }
 
@@ -999,6 +992,38 @@ export class SourceHub extends DurableObject<Env> {
       });
       await this.persistErrorEvent("handlePushSave", error);
     }
+  }
+
+  /** Check if a push should be rejected due to disabled game or excluded save. */
+  private async checkPushRejection(
+    sourceId: string,
+    gameId: string,
+    saveName: string,
+  ): Promise<{ error: PushSaveError; reason: string } | null> {
+    const config = await this.env.DB.prepare(
+      "SELECT enabled, exclude_saves FROM source_configs WHERE source_uuid = ? AND game_id = ?",
+    )
+      .bind(sourceId, gameId)
+      .first<{ enabled: number; exclude_saves: string }>();
+
+    if (config && !config.enabled) {
+      return {
+        error: PushSaveError.PUSH_SAVE_ERROR_GAME_REMOVED,
+        reason: "pushSave rejected: game disabled",
+      };
+    }
+
+    if (config?.exclude_saves) {
+      const excludeSaves = JSON.parse(config.exclude_saves) as string[];
+      if (excludeSaves.some((s) => s.toLowerCase() === saveName.toLowerCase())) {
+        return {
+          error: PushSaveError.PUSH_SAVE_ERROR_SAVE_REMOVED,
+          reason: "pushSave rejected: save excluded",
+        };
+      }
+    }
+
+    return null;
   }
 
   /** Validate PushSave limits and convert sections in a single pass. */
@@ -1202,7 +1227,7 @@ export class SourceHub extends DurableObject<Env> {
 
   private async pushConfigToSource(sourceId: string): Promise<void> {
     const rows = await this.env.DB.prepare(
-      `SELECT game_id, save_path, enabled, file_extensions, file_patterns, exclude_dirs
+      `SELECT game_id, save_path, enabled, file_extensions, file_patterns, exclude_dirs, exclude_saves
        FROM source_configs
        WHERE source_uuid = ?`,
     )
@@ -1214,6 +1239,7 @@ export class SourceHub extends DurableObject<Env> {
         file_extensions: string;
         file_patterns: string;
         exclude_dirs: string;
+        exclude_saves: string;
       }>();
 
     const games: Record<
@@ -1224,6 +1250,7 @@ export class SourceHub extends DurableObject<Env> {
         fileExtensions: string[];
         filePatterns: string[];
         excludeDirs: string[];
+        excludeSaves: string[];
       }
     > = {};
     const disabledGameIds = new Set<string>();
@@ -1234,6 +1261,7 @@ export class SourceHub extends DurableObject<Env> {
         fileExtensions: JSON.parse(row.file_extensions) as string[],
         filePatterns: JSON.parse(row.file_patterns || "[]") as string[],
         excludeDirs: JSON.parse(row.exclude_dirs || "[]") as string[],
+        excludeSaves: JSON.parse(row.exclude_saves || "[]") as string[],
       };
       if (row.enabled === 0) {
         disabledGameIds.add(row.game_id);

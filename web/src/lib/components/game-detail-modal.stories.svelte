@@ -10,7 +10,7 @@
 </script>
 
 <script lang="ts">
-  import type { Game, GameSourceEntry, Save } from "$lib/types/source";
+  import type { Game, GameSourceEntry, RemovedSave, Save } from "$lib/types/source";
 
   // -- Source fixtures --
 
@@ -249,20 +249,44 @@
     console.log("Remove source:", sourceId);
     await new Promise((resolve) => setTimeout(resolve, 500));
   }
+
+  async function handleRestoreSave(saveUuid: string) {
+    console.log("Restore save:", saveUuid);
+    await new Promise((resolve) => setTimeout(resolve, 800));
+  }
+
+  const removedSaves: RemovedSave[] = [
+    {
+      saveUuid: "r1",
+      saveName: "Windforce.d2s",
+      summary: "Bowazon, Level 92 Amazon",
+      removedAt: "2 days ago",
+      noteCount: 3,
+    },
+    {
+      saveUuid: "r2",
+      saveName: "OldPaladin.d2s",
+      summary: "Zealot, Level 65 Paladin",
+      removedAt: "1 week ago",
+      noteCount: 0,
+    },
+  ];
 </script>
 
-<!-- Healthy game with saves and all sources watching -->
+<!-- Healthy game with saves, sources, and removed saves -->
 <Story name="Default">
   {#if defaultOpen}
     <GameDetailModal
       game={healthyGame}
       {availableSources}
       {defaultPaths}
+      {removedSaves}
       onclose={() => {
         defaultOpen = false;
       }}
       onsaveclick={handleSaveClick}
       onremovegame={handleRemoveGame}
+      onrestoresave={handleRestoreSave}
       onsave={succeedAfter(800)}
       onremovesource={handleRemoveSource}
     />
