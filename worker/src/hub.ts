@@ -1100,8 +1100,8 @@ export class SourceHub extends DurableObject<Env> {
 
       // Auto-create enabled config with the detected path
       await this.env.DB.prepare(
-        `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
-         VALUES (?, ?, ?, 1, '[]')`,
+        `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions, file_patterns)
+         VALUES (?, ?, ?, 1, '[]', '[]')`,
       )
         .bind(sourceUuid, gameId, path)
         .run();
@@ -1151,9 +1151,15 @@ export class SourceHub extends DurableObject<Env> {
       await this.env.DB.batch(
         newGames.map((game) =>
           this.env.DB.prepare(
-            `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions)
-             VALUES (?, ?, ?, 1, ?)`,
-          ).bind(sourceUuid, game.gameId, game.path, JSON.stringify(game.fileExtensions)),
+            `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions, file_patterns)
+             VALUES (?, ?, ?, 1, ?, ?)`,
+          ).bind(
+            sourceUuid,
+            game.gameId,
+            game.path,
+            JSON.stringify(game.fileExtensions),
+            JSON.stringify(game.filePatterns),
+          ),
         ),
       );
 
@@ -1168,7 +1174,7 @@ export class SourceHub extends DurableObject<Env> {
 
   private async pushConfigToSource(sourceId: string): Promise<void> {
     const rows = await this.env.DB.prepare(
-      `SELECT game_id, save_path, enabled, file_extensions
+      `SELECT game_id, save_path, enabled, file_extensions, file_patterns
        FROM source_configs
        WHERE source_uuid = ?`,
     )
@@ -1178,16 +1184,20 @@ export class SourceHub extends DurableObject<Env> {
         save_path: string;
         enabled: number;
         file_extensions: string;
+        file_patterns: string;
       }>();
 
-    const games: Record<string, { savePath: string; enabled: boolean; fileExtensions: string[] }> =
-      {};
+    const games: Record<
+      string,
+      { savePath: string; enabled: boolean; fileExtensions: string[]; filePatterns: string[] }
+    > = {};
     const disabledGameIds = new Set<string>();
     for (const row of rows.results) {
       games[row.game_id] = {
         savePath: row.save_path,
         enabled: row.enabled === 1,
         fileExtensions: JSON.parse(row.file_extensions) as string[],
+        filePatterns: JSON.parse(row.file_patterns || "[]") as string[],
       };
       if (row.enabled === 0) {
         disabledGameIds.add(row.game_id);

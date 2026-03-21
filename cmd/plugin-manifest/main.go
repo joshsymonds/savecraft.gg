@@ -34,6 +34,7 @@ type pluginTOML struct {
 	Channel        string   `toml:"channel"         json:"channel"`
 	Coverage       string   `toml:"coverage"        json:"coverage"`
 	FileExtensions []string `toml:"file_extensions" json:"file_extensions"`
+	FilePatterns   []string `toml:"file_patterns"   json:"file_patterns,omitempty"`
 	Homepage       string   `toml:"homepage"        json:"homepage"`
 	Limitations    []string `toml:"limitations"     json:"limitations"`
 
