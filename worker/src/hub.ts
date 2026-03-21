@@ -1147,18 +1147,17 @@ export class SourceHub extends DurableObject<Env> {
       const existingIds = new Set(existingRows.results.map((row) => row.game_id));
       const newGames = validGames.filter((game) => !existingIds.has(game.gameId));
 
-      // Backfill file_patterns and exclude_dirs on existing rows that have the
-      // default '[]'. This handles upgrades where the plugin gained these fields
-      // after the user already had the game configured.
-      const backfillPatterns = validGames.filter(
-        (game) => existingIds.has(game.gameId) && game.filePatterns.length > 0,
-      );
-      const backfillExcludeDirs = validGames.filter(
-        (game) => existingIds.has(game.gameId) && game.excludeDirs.length > 0,
+      // Backfill file_patterns and exclude_dirs on existing rows that still have
+      // the default '[]'. This handles upgrades where the plugin gained these
+      // fields after the user already had the game configured. One UPDATE per
+      // game covers both columns.
+      const backfillGames = validGames.filter(
+        (game) =>
+          existingIds.has(game.gameId) &&
+          (game.filePatterns.length > 0 || game.excludeDirs.length > 0),
       );
 
-      if (newGames.length === 0 && backfillPatterns.length === 0 && backfillExcludeDirs.length === 0)
-        return;
+      if (newGames.length === 0 && backfillGames.length === 0) return;
 
       const statements = [
         ...newGames.map((game) =>
@@ -1174,17 +1173,19 @@ export class SourceHub extends DurableObject<Env> {
             JSON.stringify(game.excludeDirs),
           ),
         ),
-        ...backfillPatterns.map((game) =>
+        ...backfillGames.map((game) =>
           this.env.DB.prepare(
-            `UPDATE source_configs SET file_patterns = ?
-             WHERE source_uuid = ? AND game_id = ? AND file_patterns = '[]'`,
-          ).bind(JSON.stringify(game.filePatterns), sourceUuid, game.gameId),
-        ),
-        ...backfillExcludeDirs.map((game) =>
-          this.env.DB.prepare(
-            `UPDATE source_configs SET exclude_dirs = ?
-             WHERE source_uuid = ? AND game_id = ? AND exclude_dirs = '[]'`,
-          ).bind(JSON.stringify(game.excludeDirs), sourceUuid, game.gameId),
+            `UPDATE source_configs
+             SET file_patterns = CASE WHEN file_patterns = '[]' THEN ? ELSE file_patterns END,
+                 exclude_dirs = CASE WHEN exclude_dirs = '[]' THEN ? ELSE exclude_dirs END
+             WHERE source_uuid = ? AND game_id = ?
+               AND (file_patterns = '[]' OR exclude_dirs = '[]')`,
+          ).bind(
+            JSON.stringify(game.filePatterns),
+            JSON.stringify(game.excludeDirs),
+            sourceUuid,
+            game.gameId,
+          ),
         ),
       ];
 
