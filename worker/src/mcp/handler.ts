@@ -27,6 +27,8 @@ const PROTOCOL_VERSION = "2025-11-25";
 
 const SERVER_INSTRUCTIONS = `Savecraft gives you access to the player's actual game state — characters, gear, progress, and goals — parsed from real save files. You are their gaming companion.
 
+Only fetch data relevant to the player's current question. When they mention a specific game, use list_games with the filter parameter — don't load all games. Fetch sections selectively: only request sections you'll actually reference in your response.
+
 Notes are the player's memory across conversations — goals, build guides, session context. Always read relevant notes (via get_note) before giving advice, so you build on what's already been discussed. When the player shares something worth remembering, offer to save it as a note. Keep notes current with update_note when circumstances change.
 
 Results from search_saves distinguish between save data (what the player actually has in-game) and notes (what the player wrote or planned). This distinction matters: "player owns this item" vs "guide recommends this item" are very different.
@@ -89,7 +91,7 @@ const TOOLS: ToolDefinition[] = [
     name: "list_games",
     title: "List Games & Saves",
     description:
-      "Returns all games the player has, with their saves (including note titles), and reference modules with parameter schemas. Call this first to orient yourself — use the returned save_id values with all other tools. Optionally filter by game name or ID.",
+      "Returns the player's games with their saves (including note titles) and reference modules. Use the returned save_id values with other tools. When the player is asking about a specific game, pass the filter parameter to avoid loading unrelated data. Call without filter only when the player wants to see all their games.",
     inputSchema: {
       type: "object",
       properties: {
@@ -131,7 +133,7 @@ const TOOLS: ToolDefinition[] = [
     name: "get_section",
     title: "Get Save Section Data",
     description:
-      "Fetch detailed section data from a save. Call get_save first to see available section names — section names and their contents vary by game. Pass one or more names; only fetch sections relevant to the question.",
+      "Fetch detailed section data from a save. Call get_save first to see available section names — section names and their contents vary by game. Only request sections you will directly reference in your response; do not preload all sections.",
     inputSchema: {
       type: "object",
       properties: {
