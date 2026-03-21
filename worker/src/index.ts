@@ -1352,7 +1352,17 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
     .bind(gameId, userUuid)
     .run();
 
-  // Push updated config to each connected source in parallel
+  await pushConfigAndNotify(env, userUuid);
+
+  return Response.json({
+    ok: true,
+    deleted: { saves: saves.results.length, notes: totalNotes },
+  });
+}
+
+// -- Config push + state notification helper -----------------------
+
+async function pushConfigAndNotify(env: Env, userUuid: string): Promise<void> {
   const sources = await env.DB.prepare("SELECT source_uuid FROM sources WHERE user_uuid = ?")
     .bind(userUuid)
     .all<{ source_uuid: string }>();
@@ -1370,15 +1380,9 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
     }),
   );
 
-  // Notify UserHub to rebroadcast updated state to UI clients
   const userHubId = env.USER_HUB.idFromName(userUuid);
   const userHubStub = env.USER_HUB.get(userHubId);
   await userHubStub.fetch(new Request("https://do/refresh-state", { method: "POST" }));
-
-  return Response.json({
-    ok: true,
-    deleted: { saves: saves.results.length, notes: totalNotes },
-  });
 }
 
 // -- Save Removal API ----------------------------------------------
@@ -1427,28 +1431,7 @@ async function handleDeleteSave(env: Env, userUuid: string, saveUuid: string): P
     await env.DB.batch(updates);
   }
 
-  // Push updated config to all connected sources
-  const sources = await env.DB.prepare("SELECT source_uuid FROM sources WHERE user_uuid = ?")
-    .bind(userUuid)
-    .all<{ source_uuid: string }>();
-
-  await Promise.allSettled(
-    sources.results.map((source) => {
-      const doId = env.SOURCE_HUB.idFromName(source.source_uuid);
-      const doStub = env.SOURCE_HUB.get(doId);
-      return doStub.fetch(
-        new Request("https://do/push-config", {
-          method: "POST",
-          body: JSON.stringify({ sourceId: source.source_uuid }),
-        }),
-      );
-    }),
-  );
-
-  // Notify UserHub to refresh state
-  const userHubId = env.USER_HUB.idFromName(userUuid);
-  const userHubStub = env.USER_HUB.get(userHubId);
-  await userHubStub.fetch(new Request("https://do/refresh-state", { method: "POST" }));
+  await pushConfigAndNotify(env, userUuid);
 
   return Response.json({ ok: true });
 }
@@ -1489,28 +1472,7 @@ async function handleRestoreSave(env: Env, userUuid: string, saveUuid: string): 
     await env.DB.batch(updates);
   }
 
-  // Push updated config to all connected sources
-  const sources = await env.DB.prepare("SELECT source_uuid FROM sources WHERE user_uuid = ?")
-    .bind(userUuid)
-    .all<{ source_uuid: string }>();
-
-  await Promise.allSettled(
-    sources.results.map((source) => {
-      const doId = env.SOURCE_HUB.idFromName(source.source_uuid);
-      const doStub = env.SOURCE_HUB.get(doId);
-      return doStub.fetch(
-        new Request("https://do/push-config", {
-          method: "POST",
-          body: JSON.stringify({ sourceId: source.source_uuid }),
-        }),
-      );
-    }),
-  );
-
-  // Notify UserHub to refresh state
-  const userHubId = env.USER_HUB.idFromName(userUuid);
-  const userHubStub = env.USER_HUB.get(userHubId);
-  await userHubStub.fetch(new Request("https://do/refresh-state", { method: "POST" }));
+  await pushConfigAndNotify(env, userUuid);
 
   return Response.json({ ok: true });
 }
@@ -1521,33 +1483,32 @@ async function handleGetRemovedSaves(
   gameId: string,
 ): Promise<Response> {
   const saves = await env.DB.prepare(
-    `SELECT uuid, save_name, summary, removed_at
-     FROM saves
-     WHERE user_uuid = ? AND game_id = ? AND removed_at IS NOT NULL
-     ORDER BY removed_at DESC`,
+    `SELECT s.uuid, s.save_name, s.summary, s.removed_at, COUNT(n.note_id) as note_count
+     FROM saves s
+     LEFT JOIN notes n ON s.uuid = n.save_id
+     WHERE s.user_uuid = ? AND s.game_id = ? AND s.removed_at IS NOT NULL
+     GROUP BY s.uuid
+     ORDER BY s.removed_at DESC
+     LIMIT 100`,
   )
     .bind(userUuid, gameId)
-    .all<{ uuid: string; save_name: string; summary: string; removed_at: string }>();
+    .all<{
+      uuid: string;
+      save_name: string;
+      summary: string;
+      removed_at: string;
+      note_count: number;
+    }>();
 
-  // Count notes per save
-  const result = await Promise.all(
-    saves.results.map(async (save) => {
-      const noteCount = await env.DB.prepare(
-        "SELECT COUNT(*) as count FROM notes WHERE save_id = ?",
-      )
-        .bind(save.uuid)
-        .first<{ count: number }>();
-      return {
-        saveUuid: save.uuid,
-        saveName: save.save_name,
-        summary: save.summary,
-        removedAt: save.removed_at,
-        noteCount: noteCount?.count ?? 0,
-      };
-    }),
-  );
-
-  return Response.json({ saves: result });
+  return Response.json({
+    saves: saves.results.map((s) => ({
+      saveUuid: s.uuid,
+      saveName: s.save_name,
+      summary: s.summary,
+      removedAt: s.removed_at,
+      noteCount: s.note_count,
+    })),
+  });
 }
 
 // -- Notes REST API ------------------------------------------------
