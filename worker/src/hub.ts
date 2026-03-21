@@ -1146,10 +1146,18 @@ export class SourceHub extends DurableObject<Env> {
 
       const existingIds = new Set(existingRows.results.map((row) => row.game_id));
       const newGames = validGames.filter((game) => !existingIds.has(game.gameId));
-      if (newGames.length === 0) return;
 
-      await this.env.DB.batch(
-        newGames.map((game) =>
+      // Backfill file_patterns on existing rows that have the default '[]'.
+      // This handles upgrades where the plugin gained file_patterns after the
+      // user already had the game configured.
+      const backfillGames = validGames.filter(
+        (game) => existingIds.has(game.gameId) && game.filePatterns.length > 0,
+      );
+
+      if (newGames.length === 0 && backfillGames.length === 0) return;
+
+      const statements = [
+        ...newGames.map((game) =>
           this.env.DB.prepare(
             `INSERT INTO source_configs (source_uuid, game_id, save_path, enabled, file_extensions, file_patterns)
              VALUES (?, ?, ?, 1, ?, ?)`,
@@ -1161,7 +1169,15 @@ export class SourceHub extends DurableObject<Env> {
             JSON.stringify(game.filePatterns),
           ),
         ),
-      );
+        ...backfillGames.map((game) =>
+          this.env.DB.prepare(
+            `UPDATE source_configs SET file_patterns = ?
+             WHERE source_uuid = ? AND game_id = ? AND file_patterns = '[]'`,
+          ).bind(JSON.stringify(game.filePatterns), sourceUuid, game.gameId),
+        ),
+      ];
+
+      await this.env.DB.batch(statements);
 
       await this.pushConfigToSource(sourceUuid);
     } catch (error) {
