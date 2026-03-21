@@ -35,6 +35,7 @@ type pluginTOML struct {
 	Coverage       string   `toml:"coverage"        json:"coverage"`
 	FileExtensions []string `toml:"file_extensions" json:"file_extensions"`
 	FilePatterns   []string `toml:"file_patterns"   json:"file_patterns,omitempty"`
+	ExcludeDirs    []string `toml:"exclude_dirs"    json:"exclude_dirs,omitempty"`
 	Homepage       string   `toml:"homepage"        json:"homepage"`
 	Limitations    []string `toml:"limitations"     json:"limitations"`
 
