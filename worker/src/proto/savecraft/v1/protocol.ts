@@ -307,6 +307,7 @@ export interface DiscoveredGame {
   fileCount: number;
   fileExtensions: string[];
   filePatterns: string[];
+  excludeDirs: string[];
 }
 
 /** Source detected a file change and is feeding it to the WASM plugin. */
@@ -399,6 +400,7 @@ export interface GameConfig {
   enabled: boolean;
   fileExtensions: string[];
   filePatterns: string[];
+  excludeDirs: string[];
 }
 
 /** Per-game result of applying a ConfigUpdate. Sent by daemon after processing. */
@@ -2592,7 +2594,7 @@ export const GamesDiscovered: MessageFns<GamesDiscovered> = {
 };
 
 function createBaseDiscoveredGame(): DiscoveredGame {
-  return { gameId: "", name: "", path: "", fileCount: 0, fileExtensions: [], filePatterns: [] };
+  return { gameId: "", name: "", path: "", fileCount: 0, fileExtensions: [], filePatterns: [], excludeDirs: [] };
 }
 
 export const DiscoveredGame: MessageFns<DiscoveredGame> = {
@@ -2614,6 +2616,9 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
     }
     for (const v of message.filePatterns) {
       writer.uint32(50).string(v!);
+    }
+    for (const v of message.excludeDirs) {
+      writer.uint32(58).string(v!);
     }
     return writer;
   },
@@ -2673,6 +2678,14 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
           message.filePatterns.push(reader.string());
           continue;
         }
+        case 7: {
+          if (tag !== 58) {
+            break;
+          }
+
+          message.excludeDirs.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -2706,6 +2719,11 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
         : globalThis.Array.isArray(object?.file_patterns)
         ? object.file_patterns.map((e: any) => globalThis.String(e))
         : [],
+      excludeDirs: globalThis.Array.isArray(object?.excludeDirs)
+        ? object.excludeDirs.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.exclude_dirs)
+        ? object.exclude_dirs.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -2729,6 +2747,9 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
     if (message.filePatterns?.length) {
       obj.filePatterns = message.filePatterns;
     }
+    if (message.excludeDirs?.length) {
+      obj.excludeDirs = message.excludeDirs;
+    }
     return obj;
   },
 
@@ -2743,6 +2764,7 @@ export const DiscoveredGame: MessageFns<DiscoveredGame> = {
     message.fileCount = object.fileCount ?? 0;
     message.fileExtensions = object.fileExtensions?.map((e) => e) || [];
     message.filePatterns = object.filePatterns?.map((e) => e) || [];
+    message.excludeDirs = object.excludeDirs?.map((e) => e) || [];
     return message;
   },
 };
@@ -3949,7 +3971,7 @@ export const ConfigUpdate_GamesEntry: MessageFns<ConfigUpdate_GamesEntry> = {
 };
 
 function createBaseGameConfig(): GameConfig {
-  return { savePath: "", enabled: false, fileExtensions: [], filePatterns: [] };
+  return { savePath: "", enabled: false, fileExtensions: [], filePatterns: [], excludeDirs: [] };
 }
 
 export const GameConfig: MessageFns<GameConfig> = {
@@ -3965,6 +3987,9 @@ export const GameConfig: MessageFns<GameConfig> = {
     }
     for (const v of message.filePatterns) {
       writer.uint32(34).string(v!);
+    }
+    for (const v of message.excludeDirs) {
+      writer.uint32(42).string(v!);
     }
     return writer;
   },
@@ -4008,6 +4033,14 @@ export const GameConfig: MessageFns<GameConfig> = {
           message.filePatterns.push(reader.string());
           continue;
         }
+        case 5: {
+          if (tag !== 42) {
+            break;
+          }
+
+          message.excludeDirs.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -4035,6 +4068,11 @@ export const GameConfig: MessageFns<GameConfig> = {
         : globalThis.Array.isArray(object?.file_patterns)
         ? object.file_patterns.map((e: any) => globalThis.String(e))
         : [],
+      excludeDirs: globalThis.Array.isArray(object?.excludeDirs)
+        ? object.excludeDirs.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.exclude_dirs)
+        ? object.exclude_dirs.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -4052,6 +4090,9 @@ export const GameConfig: MessageFns<GameConfig> = {
     if (message.filePatterns?.length) {
       obj.filePatterns = message.filePatterns;
     }
+    if (message.excludeDirs?.length) {
+      obj.excludeDirs = message.excludeDirs;
+    }
     return obj;
   },
 
@@ -4064,6 +4105,7 @@ export const GameConfig: MessageFns<GameConfig> = {
     message.enabled = object.enabled ?? false;
     message.fileExtensions = object.fileExtensions?.map((e) => e) || [];
     message.filePatterns = object.filePatterns?.map((e) => e) || [];
+    message.excludeDirs = object.excludeDirs?.map((e) => e) || [];
     return message;
   },
 };
