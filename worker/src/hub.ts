@@ -8,7 +8,7 @@ import type {
   SourceInfo,
   SourceState,
 } from "./proto/savecraft/v1/protocol";
-import { GameStatusEnum, Message } from "./proto/savecraft/v1/protocol";
+import { GameStatusEnum, Message, PushSaveError } from "./proto/savecraft/v1/protocol";
 import type { SectionInput } from "./store";
 import { resolveGameName, storePush } from "./store";
 import type { Env } from "./types";
@@ -926,6 +926,33 @@ export class SourceHub extends DurableObject<Env> {
         return;
       }
 
+      // Reject pushes for disabled games (e.g., game was removed by user)
+      const config = await this.env.DB.prepare(
+        "SELECT enabled FROM source_configs WHERE source_uuid = ? AND game_id = ?",
+      )
+        .bind(sourceId, push.gameId)
+        .first<{ enabled: number }>();
+
+      if (config && !config.enabled) {
+        this.debugLog.push("warn", "pushSave rejected: game disabled", {
+          gameId: push.gameId,
+          sourceId,
+        });
+        const rejectMsg = Message.encode({
+          payload: {
+            $case: "pushSaveResult",
+            pushSaveResult: {
+              saveUuid: "",
+              snapshotTimestamp: undefined,
+              error: PushSaveError.PUSH_SAVE_ERROR_GAME_REMOVED,
+              gameId: push.gameId,
+            },
+          },
+        }).finish();
+        ws.send(rejectMsg);
+        return;
+      }
+
       const validated = this.validateAndConvertSections(push);
       if ("reason" in validated) {
         this.debugLog.push("warn", validated.reason, validated.detail);
@@ -953,6 +980,8 @@ export class SourceHub extends DurableObject<Env> {
           pushSaveResult: {
             saveUuid,
             snapshotTimestamp: push.parsedAt,
+            error: PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED,
+            gameId: push.gameId,
           },
         },
       }).finish();

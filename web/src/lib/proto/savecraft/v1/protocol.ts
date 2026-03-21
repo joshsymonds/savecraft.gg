@@ -113,6 +113,40 @@ export function gameStatusEnumToJSON(object: GameStatusEnum): string {
   }
 }
 
+/** Why a PushSave was rejected by the server. */
+export enum PushSaveError {
+  PUSH_SAVE_ERROR_UNSPECIFIED = 0,
+  PUSH_SAVE_ERROR_GAME_REMOVED = 1,
+  UNRECOGNIZED = -1,
+}
+
+export function pushSaveErrorFromJSON(object: any): PushSaveError {
+  switch (object) {
+    case 0:
+    case "PUSH_SAVE_ERROR_UNSPECIFIED":
+      return PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED;
+    case 1:
+    case "PUSH_SAVE_ERROR_GAME_REMOVED":
+      return PushSaveError.PUSH_SAVE_ERROR_GAME_REMOVED;
+    case -1:
+    case "UNRECOGNIZED":
+    default:
+      return PushSaveError.UNRECOGNIZED;
+  }
+}
+
+export function pushSaveErrorToJSON(object: PushSaveError): string {
+  switch (object) {
+    case PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED:
+      return "PUSH_SAVE_ERROR_UNSPECIFIED";
+    case PushSaveError.PUSH_SAVE_ERROR_GAME_REMOVED:
+      return "PUSH_SAVE_ERROR_GAME_REMOVED";
+    case PushSaveError.UNRECOGNIZED:
+    default:
+      return "UNRECOGNIZED";
+  }
+}
+
 /**
  * Message is the top-level WebSocket envelope for daemon↔server communication.
  * Also used inside RelayedMessage for server→UI relay.
@@ -509,10 +543,15 @@ export interface PushSave {
   gameId: string;
 }
 
-/** Server response to PushSave with the resolved save UUID. */
+/**
+ * Server response to PushSave with the resolved save UUID.
+ * If error is set, the push was rejected and save_uuid/snapshot_timestamp are empty.
+ */
 export interface PushSaveResult {
   saveUuid: string;
   snapshotTimestamp: Date | undefined;
+  error: PushSaveError;
+  gameId: string;
 }
 
 /** Source requests a new link code (replacing any existing one). */
@@ -5987,7 +6026,7 @@ export const PushSave: MessageFns<PushSave> = {
 };
 
 function createBasePushSaveResult(): PushSaveResult {
-  return { saveUuid: "", snapshotTimestamp: undefined };
+  return { saveUuid: "", snapshotTimestamp: undefined, error: 0, gameId: "" };
 }
 
 export const PushSaveResult: MessageFns<PushSaveResult> = {
@@ -5997,6 +6036,12 @@ export const PushSaveResult: MessageFns<PushSaveResult> = {
     }
     if (message.snapshotTimestamp !== undefined) {
       Timestamp.encode(toTimestamp(message.snapshotTimestamp), writer.uint32(18).fork()).join();
+    }
+    if (message.error !== 0) {
+      writer.uint32(24).int32(message.error);
+    }
+    if (message.gameId !== "") {
+      writer.uint32(34).string(message.gameId);
     }
     return writer;
   },
@@ -6024,6 +6069,22 @@ export const PushSaveResult: MessageFns<PushSaveResult> = {
           message.snapshotTimestamp = fromTimestamp(Timestamp.decode(reader, reader.uint32()));
           continue;
         }
+        case 3: {
+          if (tag !== 24) {
+            break;
+          }
+
+          message.error = reader.int32() as any;
+          continue;
+        }
+        case 4: {
+          if (tag !== 34) {
+            break;
+          }
+
+          message.gameId = reader.string();
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -6045,6 +6106,12 @@ export const PushSaveResult: MessageFns<PushSaveResult> = {
         : isSet(object.snapshot_timestamp)
         ? fromJsonTimestamp(object.snapshot_timestamp)
         : undefined,
+      error: isSet(object.error) ? pushSaveErrorFromJSON(object.error) : 0,
+      gameId: isSet(object.gameId)
+        ? globalThis.String(object.gameId)
+        : isSet(object.game_id)
+        ? globalThis.String(object.game_id)
+        : "",
     };
   },
 
@@ -6056,6 +6123,12 @@ export const PushSaveResult: MessageFns<PushSaveResult> = {
     if (message.snapshotTimestamp !== undefined) {
       obj.snapshotTimestamp = message.snapshotTimestamp.toISOString();
     }
+    if (message.error !== 0) {
+      obj.error = pushSaveErrorToJSON(message.error);
+    }
+    if (message.gameId !== "") {
+      obj.gameId = message.gameId;
+    }
     return obj;
   },
 
@@ -6066,6 +6139,8 @@ export const PushSaveResult: MessageFns<PushSaveResult> = {
     const message = createBasePushSaveResult();
     message.saveUuid = object.saveUuid ?? "";
     message.snapshotTimestamp = object.snapshotTimestamp ?? undefined;
+    message.error = object.error ?? 0;
+    message.gameId = object.gameId ?? "";
     return message;
   },
 };
