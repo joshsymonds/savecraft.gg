@@ -147,10 +147,10 @@
 </script>
 
 <svelte:head>
-  <title>Savecraft — Player 2 for every game you play alone</title>
+  <title>Savecraft — Your AI already knows your build</title>
   <meta
     name="description"
-    content="Savecraft gives AI assistants access to your actual game state. Celebrate your wins, optimize your builds, and never explain the context again."
+    content="Savecraft gives AI assistants access to your actual game state - characters, gear, skills, progress. Real data from your save files, updated live."
   />
 </svelte:head>
 
@@ -170,16 +170,13 @@
     <section class="hero">
       <div class="hero-grid">
         <div class="hero-text">
-          <div class="hero-eyebrow">PLAYER 2 HAS ENTERED THE GAME</div>
+          <div class="hero-eyebrow">REAL-TIME GAME STATE FOR AI</div>
           <h1 class="hero-title">
             Your AI already<br />knows your build.
           </h1>
           <p class="hero-sub">
             Savecraft connects your AI to your actual game state — gear, skills, quests, progress.
             Not screenshots. Not memory. Real data, updated live.
-          </p>
-          <p class="hero-sub hero-sub-second">
-            Celebrate a drop. Plan your next move. The conversation goes wherever you take it.
           </p>
           <div class="hero-actions">
             <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">START YOUR JOURNEY</a>
@@ -245,7 +242,7 @@
   <section id="how" class="section" bind:this={sections[0]}>
     <div class="section-inner" class:visible={visibleSections.has(0)}>
       <div class="section-eyebrow">HOW IT WORKS</div>
-      <h2 class="section-title">Three steps to Player 2</h2>
+      <h2 class="section-title">Three steps. Zero config.</h2>
 
       <div class="steps-grid">
         <div class="step-card">
@@ -283,9 +280,9 @@
   <!-- ═══ DUAL MODE ═══ -->
   <section class="section" bind:this={sections[1]}>
     <div class="section-inner" class:visible={visibleSections.has(1)}>
-      <div class="section-eyebrow">TWO MODES, ONE CONVERSATION</div>
+      <div class="section-eyebrow">HOW YOU USE IT</div>
       <h2 class="section-title">Companion and optimizer</h2>
-      <p class="section-sub">Same tools, same data. The conversation goes wherever you take it.</p>
+      <p class="section-sub">Your AI reads the same game state either way. You decide where it goes.</p>
 
       <div class="modes-grid">
         <div class="mode-card">
@@ -335,8 +332,8 @@
   <!-- ═══ GAMES ═══ -->
   <section id="games" class="section" bind:this={sections[2]}>
     <div class="section-inner" class:visible={visibleSections.has(2)}>
-      <div class="section-eyebrow">SUPPORTED GAMES</div>
-      <h2 class="section-title">Supported games</h2>
+      <div class="section-eyebrow">GAMES</div>
+      <h2 class="section-title">Growing library</h2>
 
       <div class="games-grid">
         {#each games as game (game.name)}
@@ -422,10 +419,9 @@
   <section class="section" bind:this={sections[4]}>
     <div class="section-inner" class:visible={visibleSections.has(4)}>
       <div class="section-eyebrow">COMMUNITY</div>
-      <h2 class="section-title">Join us</h2>
+      <h2 class="section-title">Built in the open</h2>
       <p class="section-sub">
-        Savecraft is open source and community-driven. Come hang out, request games, report bugs, or
-        just talk builds.
+        Most feature decisions start in Discord. Request a game, report a bug, or share a build.
       </p>
 
       <div class="community-grid">
