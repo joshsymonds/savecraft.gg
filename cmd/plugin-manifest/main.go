@@ -166,6 +166,11 @@ func buildManifest(pluginDir string) (pluginManifest, error) {
 		return manifest, nil
 	}
 
+	// Mod plugins have no WASM — metadata only.
+	if cfg.Source == "mod" {
+		return manifest, nil
+	}
+
 	// WASM plugin: hash parser.wasm and optionally include reference metadata.
 	wasmPath := filepath.Join(pluginDir, "parser.wasm")
 	hash, err := fileSHA256(wasmPath)

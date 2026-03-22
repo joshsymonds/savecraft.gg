@@ -4,7 +4,10 @@
 -->
 <script lang="ts">
   import { PUBLIC_APP_URL, PUBLIC_INSTALL_URL } from "$env/static/public";
+  import type { GameInfo } from "$lib/server/plugins";
   import { onMount } from "svelte";
+
+  let { data } = $props<{ data: { availableGames: GameInfo[] } }>();
 
   // ── Conversation demo state ──────────────────────────────────
   interface Message {
@@ -35,14 +38,28 @@
   let visibleSections = $state(new Set<number>());
 
   // ── Games data ───────────────────────────────────────────────
-  const games = [
-    { name: "Diablo II: Resurrected", status: "AVAILABLE", color: "#5abe8a", icon: "II" },
-    { name: "Stardew Valley", status: "COMING SOON", color: "#c8a84e", icon: "SV" },
-    { name: "Path of Exile 2", status: "COMING SOON", color: "#c8a84e", icon: "P2" },
-    { name: "Baldur's Gate 3", status: "PLANNED", color: "#4a9aea", icon: "BG" },
-    { name: "Stellaris", status: "PLANNED", color: "#4a9aea", icon: "ST" },
-    { name: "Civilization VI", status: "PLANNED", color: "#4a9aea", icon: "CV" },
+  interface HomeGame {
+    name: string;
+    status: string;
+    color: string;
+    iconHtml?: string;
+    iconText?: string;
+  }
+
+  const plannedGames: HomeGame[] = [
+    { name: "Path of Exile 2", status: "COMING SOON", color: "#c8a84e", iconText: "P2" },
+    { name: "Baldur's Gate 3", status: "PLANNED", color: "#4a9aea", iconText: "BG" },
   ];
+
+  const games: HomeGame[] = $derived([
+    ...data.availableGames.map((g: GameInfo) => ({
+      name: g.name,
+      status: "AVAILABLE" as const,
+      color: "#5abe8a",
+      iconHtml: g.iconHtml,
+    })),
+    ...plannedGames,
+  ]);
 
   // ── Pixel particles ─────────────────────────────────────────
   interface Particle {
@@ -354,7 +371,14 @@
       <div class="games-grid">
         {#each games as game (game.name)}
           <div class="game-card">
-            <span class="game-icon">{game.icon}</span>
+            <span class="game-icon">
+              {#if game.iconHtml}
+                <!-- eslint-disable-next-line svelte/no-at-html-tags -- Icon from build-time plugin manifest, not user input -->
+                {@html game.iconHtml}
+              {:else}
+                {game.iconText}
+              {/if}
+            </span>
             <div class="game-info">
               <span class="game-name">{game.name}</span>
             </div>
@@ -1028,6 +1052,20 @@
     color: var(--color-gold-light);
     min-width: 32px;
     text-align: center;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .game-icon :global(img) {
+    width: 24px;
+    height: 24px;
+    border-radius: 2px;
+  }
+
+  .game-icon :global(svg) {
+    width: 24px;
+    height: 24px;
   }
 
   .game-info {

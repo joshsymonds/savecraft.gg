@@ -1,9 +1,7 @@
 import { discoverPlugins } from "$lib/server/plugins";
 
-export type { GameInfo } from "$lib/server/plugins";
-
 export function load() {
   return {
-    games: discoverPlugins(),
+    availableGames: discoverPlugins(),
   };
 }
