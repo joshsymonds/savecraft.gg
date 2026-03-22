@@ -2001,6 +2001,22 @@ describe("SourceHub", () => {
     expect(removedSave).toBeUndefined();
     await closeWs(ui2);
 
+    // Restore the save via API
+    const restoreResp = await SELF.fetch(`https://test-host/api/v1/saves/${saveUuid}/restore`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${userUuid}` },
+    });
+    expect(restoreResp.status).toBe(200);
+
+    // Verify save reappears in SourceState
+    const ui3 = await connectWs("/ws/ui", userUuid);
+    const state3 = requireInnerPayload(await waitForRelayedMessage(ui3), "sourceState");
+    const game3 = state3.sources[0]?.games.find((g) => g.gameId === "d2r");
+    const restoredSave = game3?.saves.find((s) => s.saveUuid === saveUuid);
+    expect(restoredSave).toBeDefined();
+    expect(restoredSave?.summary).toBe("Will be removed");
+    await closeWs(ui3);
+
     await closeWs(daemon);
   });
 

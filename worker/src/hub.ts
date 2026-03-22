@@ -444,6 +444,9 @@ export class SourceHub extends DurableObject<Env> {
       case "/push-update": {
         return this.handlePushUpdate(request);
       }
+      case "/restore-save": {
+        return this.handleRestoreSaveState(request);
+      }
       default: {
         return new Response("Not found", { status: 404 });
       }
@@ -1328,6 +1331,50 @@ export class SourceHub extends DurableObject<Env> {
       }
     }
     return changed;
+  }
+
+  /**
+   * Re-add a restored save to in-memory SourceState so it appears in the UI
+   * immediately, without waiting for the daemon to re-push the file.
+   */
+  private async handleRestoreSaveState(request: Request): Promise<Response> {
+    const { sourceId, gameId, saveUuid, saveName, summary } = await request.json<{
+      sourceId: string;
+      gameId: string;
+      saveUuid: string;
+      saveName: string;
+      summary: string;
+    }>();
+
+    const state = await this.loadState();
+    const source = state.sources.find((s) => s.sourceId === sourceId);
+    if (!source) return Response.json({ ok: true });
+
+    let game = source.games.find((g) => g.gameId === gameId);
+    if (!game) {
+      game = {
+        gameId,
+        gameName: gameId,
+        status: 0,
+        saves: [],
+        lastActivity: new Date(),
+        path: "",
+        error: "",
+      };
+      source.games.push(game);
+    }
+    if (!game.saves.some((s) => s.saveUuid === saveUuid)) {
+      game.saves.push({
+        saveUuid,
+        identity: { name: saveName, extra: undefined },
+        summary,
+        lastUpdated: new Date(),
+      });
+      await this.saveState(state);
+      await this.forwardStateToUserHub();
+    }
+
+    return Response.json({ ok: true });
   }
 
   /**

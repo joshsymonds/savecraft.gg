@@ -1439,10 +1439,16 @@ async function handleDeleteSave(env: Env, userUuid: string, saveUuid: string): P
 async function handleRestoreSave(env: Env, userUuid: string, saveUuid: string): Promise<Response> {
   // Find the removed save
   const save = await env.DB.prepare(
-    "SELECT uuid, game_id, save_name FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NOT NULL",
+    "SELECT uuid, game_id, save_name, summary, last_source_uuid FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NOT NULL",
   )
     .bind(saveUuid, userUuid)
-    .first<{ uuid: string; game_id: string; save_name: string }>();
+    .first<{
+      uuid: string;
+      game_id: string;
+      save_name: string;
+      summary: string;
+      last_source_uuid: string | null;
+    }>();
 
   if (!save) {
     return Response.json({ error: "Removed save not found" }, { status: 404 });
@@ -1473,6 +1479,24 @@ async function handleRestoreSave(env: Env, userUuid: string, saveUuid: string): 
   }
 
   await pushConfigAndNotify(env, userUuid);
+
+  // Re-add save to SourceState so it appears in the UI immediately
+  if (save.last_source_uuid) {
+    const doId = env.SOURCE_HUB.idFromName(save.last_source_uuid);
+    const doStub = env.SOURCE_HUB.get(doId);
+    await doStub.fetch(
+      new Request("https://do/restore-save", {
+        method: "POST",
+        body: JSON.stringify({
+          sourceId: save.last_source_uuid,
+          gameId: save.game_id,
+          saveUuid: save.uuid,
+          saveName: save.save_name,
+          summary: save.summary,
+        }),
+      }),
+    );
+  }
 
   return Response.json({ ok: true });
 }
