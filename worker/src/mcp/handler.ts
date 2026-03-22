@@ -352,8 +352,8 @@ const TOOLS: ToolDefinition[] = [
         category: {
           type: "string",
           description:
-            "Topic to drill into. Omit to get the category menu. 'setup': install instructions, pairing, API game setup. 'privacy': data collection, security, what's NOT collected. 'about': open source links, author, architecture.",
-          enum: ["setup", "privacy", "about"],
+            "Topic to drill into. Omit to get the category menu. 'games': supported games, source types, setup instructions. 'setup': install instructions, pairing, API game setup. 'privacy': data collection, security, what's NOT collected. 'about': open source links, author, architecture.",
+          enum: ["games", "setup", "privacy", "about"],
         },
         platform: {
           type: "string",

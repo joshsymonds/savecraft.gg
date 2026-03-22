@@ -8,12 +8,16 @@ on:
       - 'worker/**'
       - 'web/**'
       - 'site/**'
+      - 'plugins/*/plugin.toml'
+      - 'plugins/*/icon.*'
       - '.github/workflows/deploy-cloud.yml'
   pull_request:
     paths:
       - 'worker/**'
       - 'web/**'
       - 'site/**'
+      - 'plugins/*/plugin.toml'
+      - 'plugins/*/icon.*'
       - '.github/workflows/deploy-cloud.yml'
   workflow_dispatch:
 

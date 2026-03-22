@@ -31,7 +31,7 @@
   <title>Supported Games - Savecraft</title>
   <meta
     name="description"
-    content="Games supported by Savecraft. AI-powered save file parsing for Diablo II, Stardew Valley, and more."
+    content="Games supported by Savecraft — local plugins, in-game mods, and API integrations for AI-powered game state parsing."
   />
 </svelte:head>
 
@@ -39,8 +39,8 @@
   <main class="content">
     <h1 class="page-title">Supported Games</h1>
     <p class="page-subtitle">
-      Every game Savecraft can parse. Each plugin runs as sandboxed WebAssembly on your machine
-      &mdash; your save files never leave your device.
+      Every game Savecraft supports. Local plugins parse save files on your machine, in-game mods
+      push colony state directly, and API integrations connect through official game services.
     </p>
 
     <div class="search-bar">
@@ -66,8 +66,8 @@
         <article class="game-card">
           <div class="card-header">
             <div class="card-icon">
-              <!-- eslint-disable-next-line svelte/no-at-html-tags -- SVG from build-time manifest import, not user input -->
-              {@html game.iconSvg}
+              <!-- eslint-disable-next-line svelte/no-at-html-tags -- Icon HTML from build-time plugin manifest, not user input -->
+              {@html game.iconHtml}
             </div>
             <div class="card-title-area">
               <h2 class="card-name">{game.name}</h2>
@@ -240,6 +240,12 @@
   .card-icon :global(svg) {
     width: 32px;
     height: 32px;
+  }
+
+  .card-icon :global(img) {
+    width: 32px;
+    height: 32px;
+    border-radius: 2px;
   }
 
   .card-title-area {

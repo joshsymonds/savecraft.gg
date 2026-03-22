@@ -1379,14 +1379,142 @@ describe("MCP Tools", () => {
         sources: unknown[];
         categories: Record<string, { description: string }>;
       };
+      expect(data.categories).toHaveProperty("games");
       expect(data.categories).toHaveProperty("setup");
       expect(data.categories).toHaveProperty("privacy");
       expect(data.categories).toHaveProperty("about");
+      expect(data.categories.games!.description).toBeTruthy();
       expect(data.categories.setup!.description).toBeTruthy();
-      // Default should NOT include guide/setup/privacy/about content
+      // Default should NOT include guide/setup/privacy/about/games content
+      expect(data).not.toHaveProperty("games");
       expect(data).not.toHaveProperty("setup");
       expect(data).not.toHaveProperty("privacy");
       expect(data).not.toHaveProperty("about");
+    });
+
+    it("returns all supported games for category='games'", async () => {
+      await env.PLUGINS.put(
+        "plugins/d2r/manifest.json",
+        JSON.stringify({
+          game_id: "d2r",
+          name: "Diablo II: Resurrected",
+          source: "wasm",
+          description: "Parses D2R save files",
+          channel: "beta",
+          coverage: "partial",
+          limitations: ["No shared stash"],
+        }),
+      );
+      await env.PLUGINS.put(
+        "plugins/wow/manifest.json",
+        JSON.stringify({
+          game_id: "wow",
+          name: "World of Warcraft",
+          source: "api",
+          description: "Battle.net API integration",
+          channel: "beta",
+          coverage: "partial",
+        }),
+      );
+      await env.PLUGINS.put(
+        "plugins/rimworld/manifest.json",
+        JSON.stringify({
+          game_id: "rimworld",
+          name: "RimWorld",
+          source: "mod",
+          description: "In-game Harmony mod",
+          channel: "alpha",
+          coverage: "full",
+        }),
+      );
+
+      const result = await getInfo(env, USER_A, "games");
+      const data = parseResult(result) as {
+        sources: unknown[];
+        games: {
+          game_id: string;
+          name: string;
+          description: string;
+          source: string;
+          channel: string;
+          coverage: string;
+          limitations: string[];
+          setup: string;
+        }[];
+      };
+      expect(data.games).toHaveLength(3);
+      // Sorted alphabetically by name
+      expect(data.games[0]!.name).toBe("Diablo II: Resurrected");
+      expect(data.games[1]!.name).toBe("RimWorld");
+      expect(data.games[2]!.name).toBe("World of Warcraft");
+      // Should NOT include other category content
+      expect(data).not.toHaveProperty("categories");
+      expect(data).not.toHaveProperty("setup");
+      expect(data).not.toHaveProperty("privacy");
+    });
+
+    it("games category includes per-source-type setup instructions", async () => {
+      await env.PLUGINS.put(
+        "plugins/d2r/manifest.json",
+        JSON.stringify({ game_id: "d2r", name: "D2R", source: "wasm" }),
+      );
+      await env.PLUGINS.put(
+        "plugins/wow/manifest.json",
+        JSON.stringify({ game_id: "wow", name: "WoW", source: "api" }),
+      );
+      await env.PLUGINS.put(
+        "plugins/rimworld/manifest.json",
+        JSON.stringify({ game_id: "rimworld", name: "RimWorld", source: "mod" }),
+      );
+
+      const result = await getInfo(env, USER_A, "games");
+      const data = parseResult(result) as {
+        games: { game_id: string; source: string; setup: string }[];
+      };
+      const d2r = data.games.find((g) => g.game_id === "d2r")!;
+      const wow = data.games.find((g) => g.game_id === "wow")!;
+      const rimworld = data.games.find((g) => g.game_id === "rimworld")!;
+
+      expect(d2r.setup).toContain("daemon");
+      expect(wow.setup).toContain("OAuth");
+      expect(rimworld.setup).toContain("Steam Workshop");
+    });
+
+    it("games category returns empty array when no manifests exist", async () => {
+      const result = await getInfo(env, USER_A, "games");
+      const data = parseResult(result) as { games: unknown[] };
+      expect(data.games).toEqual([]);
+    });
+
+    it("games category includes full metadata from manifests", async () => {
+      await env.PLUGINS.put(
+        "plugins/d2r/manifest.json",
+        JSON.stringify({
+          game_id: "d2r",
+          name: "Diablo II: Resurrected",
+          source: "wasm",
+          description: "Parses D2R save files",
+          channel: "beta",
+          coverage: "partial",
+          limitations: ["No shared stash", "No ladder data"],
+        }),
+      );
+
+      const result = await getInfo(env, USER_A, "games");
+      const data = parseResult(result) as {
+        games: {
+          game_id: string;
+          description: string;
+          channel: string;
+          coverage: string;
+          limitations: string[];
+        }[];
+      };
+      const d2r = data.games.find((g) => g.game_id === "d2r")!;
+      expect(d2r.description).toBe("Parses D2R save files");
+      expect(d2r.channel).toBe("beta");
+      expect(d2r.coverage).toBe("partial");
+      expect(d2r.limitations).toEqual(["No shared stash", "No ladder data"]);
     });
 
     it("returns privacy info for category='privacy'", async () => {

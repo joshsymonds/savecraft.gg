@@ -75,6 +75,10 @@ interface ManifestData {
   game_id?: string;
   name?: string;
   source?: string;
+  description?: string;
+  channel?: string;
+  coverage?: string;
+  limitations?: string[];
   reference?: {
     modules?: Record<string, ReferenceModule>;
   };
@@ -198,6 +202,15 @@ async function getManifestKeys(plugins: R2Bucket): Promise<string[]> {
     .filter((object) => object.key.endsWith("/manifest.json"))
     .map((object) => object.key);
   manifestKeysCache = { keys, fetchedAt: Date.now() };
+
+  // Evict manifest cache entries for keys no longer in R2
+  const keySet = new Set(keys);
+  for (const cachedKey of manifestCache.keys()) {
+    if (!keySet.has(cachedKey)) {
+      manifestCache.delete(cachedKey);
+    }
+  }
+
   return keys;
 }
 
@@ -1035,6 +1048,7 @@ type GuideEntry = PlatformGuide | string | ApiGamesGuide;
 interface InfoResponse {
   sources: SourceInfo[];
   categories?: Record<string, CategoryDescription>;
+  games?: SupportedGameInfo[];
   setup?: Record<string, GuideEntry>;
   privacy?: string;
   about?: string;
@@ -1110,6 +1124,10 @@ const ADAPTER_SETUP_GUIDE =
   "Some games connect through their official API instead of local save files — for example, World of Warcraft connects through Battle.net. These are called adapter sources. No local daemon install is needed. To set up an API-backed game: visit savecraft.gg, select the game, choose your region if prompted, and complete the OAuth authorization with the game's provider (e.g. Battle.net for WoW). Once authorized, Savecraft discovers your characters automatically. Each adapter source includes an adapter_credentials array showing credential status per game: 'connected' means the OAuth token is valid, 'expired' means the token needs re-authorization at savecraft.gg, and 'missing' means the game is linked but OAuth hasn't been completed yet.";
 
 const CATEGORIES_MENU: Record<string, CategoryDescription> = {
+  games: {
+    description:
+      "All supported games with source type, coverage, limitations, and setup instructions. Use when the player asks what games Savecraft supports or how to set up a specific game.",
+  },
   setup: {
     description:
       "Installation instructions, pairing guide, and API game setup. Use when the player needs help connecting.",
@@ -1148,6 +1166,26 @@ interface AdapterGameInfo {
   game_id: string;
   name: string;
 }
+
+interface SupportedGameInfo {
+  game_id: string;
+  name: string;
+  description: string;
+  source: string;
+  channel: string;
+  coverage: string;
+  limitations: string[];
+  setup: string;
+}
+
+const DEFAULT_SETUP_BLURB =
+  "Install the Savecraft daemon on your machine. It watches your save files, parses them with a sandboxed WASM plugin, and pushes structured game state to Savecraft automatically. Your save files never leave your device — only the parsed data is sent.";
+
+const SOURCE_SETUP_BLURBS: Record<string, string> = {
+  wasm: "Install the Savecraft daemon on your machine. It watches your save files, parses them with a sandboxed WASM plugin, and pushes structured game state to Savecraft automatically. Your save files never leave your device — only the parsed data is sent.",
+  api: "No local install needed. Visit savecraft.gg, select this game, choose your region if prompted, and complete OAuth authorization with the game's provider. Savecraft discovers your characters automatically.",
+  mod: "Subscribe to the Savecraft mod on Steam Workshop. The mod runs inside the game, connects to Savecraft directly, and pushes game state on every save. No external daemon needed.",
+};
 
 function buildDaemonGuide(platform?: string): Record<string, PlatformGuide | string> {
   if (platform) {
@@ -1195,6 +1233,24 @@ async function getApiGamesFromManifests(plugins: R2Bucket): Promise<AdapterGameI
         m !== null && m.source === "api" && !!m.game_id,
     )
     .map((m) => ({ game_id: m.game_id, name: m.name ?? m.game_id }));
+}
+
+async function getAllGamesFromManifests(plugins: R2Bucket): Promise<SupportedGameInfo[]> {
+  const manifestKeys = await getManifestKeys(plugins);
+  const manifests = await Promise.all(manifestKeys.map((key) => getCachedManifest(plugins, key)));
+  return manifests
+    .filter((m): m is ManifestData & { game_id: string } => m !== null && !!m.game_id)
+    .map((m) => ({
+      game_id: m.game_id,
+      name: m.name ?? m.game_id,
+      description: m.description ?? "",
+      source: m.source ?? "wasm",
+      channel: m.channel ?? "beta",
+      coverage: m.coverage ?? "partial",
+      limitations: m.limitations ?? [],
+      setup: SOURCE_SETUP_BLURBS[m.source ?? "wasm"] ?? DEFAULT_SETUP_BLURB,
+    }))
+    .toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
 const SOURCE_COLS =
@@ -1333,6 +1389,10 @@ export async function getInfo(
   switch (category) {
     case undefined: {
       response.categories = CATEGORIES_MENU;
+      break;
+    }
+    case "games": {
+      response.games = await getAllGamesFromManifests(env.PLUGINS);
       break;
     }
     case "setup": {
