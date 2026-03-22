@@ -1360,6 +1360,14 @@ async function handleDeleteGame(env: Env, userUuid: string, gameId: string): Pro
   });
 }
 
+function parseExcludeSaves(raw: string | null | undefined): string[] {
+  try {
+    return JSON.parse(raw ?? "[]") as string[];
+  } catch {
+    return [];
+  }
+}
+
 // -- Config push + state notification helper -----------------------
 
 async function pushConfigAndNotify(env: Env, userUuid: string): Promise<void> {
@@ -1420,7 +1428,7 @@ async function handleDeleteSave(env: Env, userUuid: string, saveUuid: string): P
 
   if (configs.results.length > 0) {
     const updates = configs.results.map((row) => {
-      const current = JSON.parse(row.exclude_saves || "[]") as string[];
+      const current = parseExcludeSaves(row.exclude_saves);
       if (!current.some((s) => s.toLowerCase() === save.save_name.toLowerCase())) {
         current.push(save.save_name);
       }
@@ -1469,7 +1477,7 @@ async function handleRestoreSave(env: Env, userUuid: string, saveUuid: string): 
 
   if (configs.results.length > 0) {
     const updates = configs.results.map((row) => {
-      const current = JSON.parse(row.exclude_saves || "[]") as string[];
+      const current = parseExcludeSaves(row.exclude_saves);
       const filtered = current.filter((s) => s.toLowerCase() !== save.save_name.toLowerCase());
       return env.DB.prepare(
         "UPDATE source_configs SET exclude_saves = ? WHERE source_uuid = ? AND game_id = ?",

@@ -248,7 +248,7 @@ export async function listGames(
     fetchNotesBySave(db, userUuid),
     db
       .prepare(
-        `SELECT game_id, save_name FROM saves WHERE user_uuid = ? AND removed_at IS NOT NULL`,
+        `SELECT game_id, save_name FROM saves WHERE user_uuid = ? AND removed_at IS NOT NULL LIMIT 500`,
       )
       .bind(userUuid)
       .all<{ game_id: string; save_name: string }>(),
