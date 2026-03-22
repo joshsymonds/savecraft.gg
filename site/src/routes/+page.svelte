@@ -90,10 +90,9 @@
     let cancelled = false;
 
     // OS detection (SSR-safe: navigator only exists in browser)
-    const platform =
-      (navigator as any).userAgentData?.platform ?? navigator.platform ?? "";
+    const nav = navigator as Navigator & { userAgentData?: { platform: string } };
+    const platform = nav.userAgentData?.platform ?? navigator.platform ?? "";
     isWindows = /win/i.test(platform);
-
 
     // Demo typing animation
     function showNext() {
@@ -592,10 +591,6 @@
     max-width: 480px;
   }
 
-  .hero-sub-second {
-    margin-top: 12px;
-    margin-bottom: 32px;
-  }
 
   .hero-actions {
     display: flex;
