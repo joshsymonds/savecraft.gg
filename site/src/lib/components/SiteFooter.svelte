@@ -24,6 +24,7 @@
     <a href="/docs" class="footer-link">DOCS</a>
     <a href="/support" class="footer-link">SUPPORT</a>
     <a href="/privacy" class="footer-link">PRIVACY</a>
+    <a href="/terms" class="footer-link">TERMS</a>
     <a href="https://discord.gg/YnC8stpEmF" class="footer-link" target="_blank" rel="noopener"
       >DISCORD</a
     >
