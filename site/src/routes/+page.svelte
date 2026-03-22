@@ -262,7 +262,9 @@
             zero config.
           </p>
           {#if isWindows}
-            <a href={PUBLIC_INSTALL_URL} class="step-code step-link" target="_blank" rel="noopener">Download for Windows</a>
+            <a href={PUBLIC_INSTALL_URL} class="step-code step-link" target="_blank" rel="noopener"
+              >Download for Windows</a
+            >
           {:else}
             <code class="step-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
           {/if}
@@ -294,7 +296,9 @@
     <div class="section-inner" class:visible={visibleSections.has(1)}>
       <div class="section-eyebrow">HOW YOU USE IT</div>
       <h2 class="section-title">Companion and optimizer</h2>
-      <p class="section-sub">Your AI reads the same game state either way. You decide where it goes.</p>
+      <p class="section-sub">
+        Your AI reads the same game state either way. You decide where it goes.
+      </p>
 
       <div class="modes-grid">
         <div class="mode-card">
@@ -490,7 +494,12 @@
       </div>
       <div class="cta-install">
         {#if isWindows}
-          <a href={PUBLIC_INSTALL_URL} class="install-code install-link" target="_blank" rel="noopener">Download for Windows</a>
+          <a
+            href={PUBLIC_INSTALL_URL}
+            class="install-code install-link"
+            target="_blank"
+            rel="noopener">Download for Windows</a
+          >
         {:else}
           <code class="install-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
         {/if}
@@ -590,7 +599,6 @@
     line-height: 1.6;
     max-width: 480px;
   }
-
 
   .hero-actions {
     display: flex;
