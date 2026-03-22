@@ -82,9 +82,18 @@
 
   const particles = seededParticles(60, 42);
 
-  // ── Single onMount: demo, scroll observer ──
+  // ── OS detection for install commands ──────────────────
+  let isWindows = $state(false);
+
+  // ── Single onMount: demo, scroll observer, OS detect ──
   onMount(() => {
     let cancelled = false;
+
+    // OS detection (SSR-safe: navigator only exists in browser)
+    const platform =
+      (navigator as any).userAgentData?.platform ?? navigator.platform ?? "";
+    isWindows = /win/i.test(platform);
+
 
     // Demo typing animation
     function showNext() {
@@ -253,7 +262,11 @@
             A background daemon watches your save files. Runs on PC, Mac, Steam Deck. One command,
             zero config.
           </p>
-          <code class="step-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
+          {#if isWindows}
+            <a href={PUBLIC_INSTALL_URL} class="step-code step-link" target="_blank" rel="noopener">Download for Windows</a>
+          {:else}
+            <code class="step-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
+          {/if}
         </div>
         <div class="step-card">
           <div class="step-num">02</div>
@@ -477,7 +490,11 @@
         <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">GET STARTED</a>
       </div>
       <div class="cta-install">
-        <code class="install-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
+        {#if isWindows}
+          <a href={PUBLIC_INSTALL_URL} class="install-code install-link" target="_blank" rel="noopener">Download for Windows</a>
+        {:else}
+          <code class="install-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
+        {/if}
       </div>
     </div>
   </section>
@@ -876,6 +893,16 @@
     border: 1px solid rgba(90, 190, 138, 0.15);
   }
 
+  .step-link {
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .step-link:hover {
+    color: var(--color-gold);
+    border-color: rgba(200, 168, 78, 0.3);
+  }
+
   /* ── Modes ───────────────────────────────────────────── */
   .modes-grid {
     display: grid;
@@ -1212,6 +1239,15 @@
     font-family: var(--font-body);
     font-size: 20px;
     color: var(--color-green);
+  }
+
+  .install-link {
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .install-link:hover {
+    color: var(--color-gold);
   }
 
   /* ── Footer ──────────────────────────────────────────── */
