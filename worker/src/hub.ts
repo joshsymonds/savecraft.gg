@@ -1017,7 +1017,12 @@ export class SourceHub extends DurableObject<Env> {
     }
 
     if (config?.exclude_saves) {
-      const excludeSaves = JSON.parse(config.exclude_saves) as string[];
+      let excludeSaves: string[] = [];
+      try {
+        excludeSaves = JSON.parse(config.exclude_saves) as string[];
+      } catch {
+        // Corrupted JSON — treat as empty (no saves excluded)
+      }
       if (excludeSaves.some((s) => s.toLowerCase() === saveName.toLowerCase())) {
         return {
           error: PushSaveError.PUSH_SAVE_ERROR_SAVE_REMOVED,
