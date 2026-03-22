@@ -19,8 +19,8 @@
       <strong>TL;DR:</strong> Savecraft parses your game saves and serves that data to AI assistants
       you connect. You own your data. We don't control what AI assistants do with it. Don't abuse
       the service. We can change or discontinue things with notice. Our code is
-      <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">open source</a> — you
-      can verify what we do.
+      <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">open source</a> — you can
+      verify what we do.
     </div>
 
     <section class="privacy-section">
@@ -31,12 +31,14 @@
         Protocol (MCP). It consists of:
       </p>
       <ul>
-        <li>A <strong>local daemon</strong> that runs on your gaming device and parses save files</li>
+        <li>
+          A <strong>local daemon</strong> that runs on your gaming device and parses save files
+        </li>
         <li>A <strong>cloud service</strong> that stores and serves your parsed game data</li>
         <li>A <strong>web interface</strong> at savecraft.gg for managing devices and settings</li>
         <li>
-          <strong>API adapters</strong> that connect to game platform APIs (e.g., Battle.net) on
-          your behalf
+          <strong>API adapters</strong> that connect to game platform APIs (e.g., Battle.net) on your
+          behalf
         </li>
       </ul>
       <p>
@@ -55,65 +57,60 @@
         You must be at least 13 years old to use Savecraft, or at least 16 if you are in the
         European Economic Area. If you are under the age of majority in your jurisdiction, you
         represent that your parent or legal guardian has reviewed and agreed to these terms on your
-        behalf. We do not knowingly collect personal information from children under 13. If we
-        learn we have collected data from a child under 13, we will delete it promptly.
+        behalf. We do not knowingly collect personal information from children under 13. If we learn
+        we have collected data from a child under 13, we will delete it promptly.
       </p>
     </section>
 
     <section class="privacy-section">
       <h2>3. Your data</h2>
       <p>
-        <strong>You own your data.</strong> Your game save data, notes, and any content you create
-        through Savecraft remain yours. We claim no ownership or intellectual property rights over
-        your data.
+        <strong>You own your data.</strong> Your game save data, notes, and any content you create through
+        Savecraft remain yours. We claim no ownership or intellectual property rights over your data.
       </p>
       <p>
         You grant us a limited license to store, process, and serve your data solely to provide the
-        Savecraft service — parsing saves, storing structured game state, serving it to AI assistants
-        you authorize, and displaying it in the web interface. This license ends when you delete your
-        data or account.
+        Savecraft service — parsing saves, storing structured game state, serving it to AI
+        assistants you authorize, and displaying it in the web interface. This license ends when you
+        delete your data or account.
       </p>
       <p>
         <strong>Data portability.</strong> You may export all data Savecraft stores about you
         (account information, parsed saves, notes) by contacting us at
-        <a href="mailto:josh@savecraft.gg" class="text-link">josh@savecraft.gg</a>. We will
-        provide your data in a structured, machine-readable JSON format within 30 days.
+        <a href="mailto:josh@savecraft.gg" class="text-link">josh@savecraft.gg</a>. We will provide
+        your data in a structured, machine-readable JSON format within 30 days.
       </p>
       <p>
-        <strong>Data deletion.</strong> You may request deletion of your account and all associated
-        data at any time by contacting us. We will delete your data within 60 days, including
-        backups. Deletion does not affect data stored by game publishers or AI assistant providers.
+        <strong>Data deletion.</strong> You may request deletion of your account and all associated data
+        at any time by contacting us. We will delete your data within 60 days, including backups. Deletion
+        does not affect data stored by game publishers or AI assistant providers.
       </p>
       <p>
-        If you are a resident of the European Economic Area, the United Kingdom, or California,
-        you have additional rights regarding your personal data, including rights of access,
+        If you are a resident of the European Economic Area, the United Kingdom, or California, you
+        have additional rights regarding your personal data, including rights of access,
         rectification, erasure, portability, and objection. See our
-        <a href="/privacy" class="text-link">Privacy Policy</a> for details on how to exercise
-        these rights.
+        <a href="/privacy" class="text-link">Privacy Policy</a> for details on how to exercise these rights.
       </p>
     </section>
 
     <section class="privacy-section">
       <h2>4. Game platform accounts</h2>
       <p>
-        Some games (such as World of Warcraft) require you to connect a game platform account
-        (e.g., Battle.net) via OAuth. When you do this:
+        Some games (such as World of Warcraft) require you to connect a game platform account (e.g.,
+        Battle.net) via OAuth. When you do this:
       </p>
       <ul>
         <li>We access only the data necessary to fetch your character profiles</li>
         <li>We store OAuth tokens solely for character data retrieval and refresh</li>
         <li>You can disconnect at any time from Savecraft or from the game platform's settings</li>
-        <li>
-          Your use of game platform APIs is also subject to that platform's terms of service
-        </li>
+        <li>Your use of game platform APIs is also subject to that platform's terms of service</li>
       </ul>
       <p>
-        <strong>Third-party data accuracy.</strong> Data retrieved from game platform APIs is
-        provided to you "as is." We do not guarantee the accuracy, completeness, or timeliness of
-        data from third-party sources. Game publishers may change, restrict, or discontinue their
-        APIs at any time without notice to us, which may affect Savecraft's functionality. We are
-        not responsible for any actions you take based on third-party data surfaced through
-        Savecraft.
+        <strong>Third-party data accuracy.</strong> Data retrieved from game platform APIs is provided
+        to you "as is." We do not guarantee the accuracy, completeness, or timeliness of data from third-party
+        sources. Game publishers may change, restrict, or discontinue their APIs at any time without notice
+        to us, which may affect Savecraft's functionality. We are not responsible for any actions you
+        take based on third-party data surfaced through Savecraft.
       </p>
     </section>
 
@@ -121,14 +118,16 @@
       <h2>5. AI assistant integration</h2>
       <p>
         Savecraft serves your game data to AI assistants (Claude, ChatGPT, Gemini, etc.) that you
-        connect via MCP. <strong>We provide structured data only. We do not generate, control,
-        monitor, or store any AI-produced output.</strong>
+        connect via MCP. <strong
+          >We provide structured data only. We do not generate, control, monitor, or store any
+          AI-produced output.</strong
+        >
       </p>
       <p>
         AI assistants may produce inaccurate, misleading, or incomplete responses based on data
         Savecraft provides. The AI assistant provider — not Savecraft — is responsible for how that
-        data is interpreted, presented, or acted upon. You should not rely on AI-generated output
-        as a substitute for your own judgment.
+        data is interpreted, presented, or acted upon. You should not rely on AI-generated output as
+        a substitute for your own judgment.
       </p>
       <p>
         AI assistants can create, update, and delete notes on your behalf during conversation. These
@@ -150,16 +149,14 @@
         <li>Transmits only parsed JSON data, never raw save files</li>
         <li>Can be stopped or uninstalled at any time</li>
       </ul>
+      <p>The daemon is open source. You can inspect exactly what it does before running it.</p>
       <p>
-        The daemon is open source. You can inspect exactly what it does before running it.
-      </p>
-      <p>
-        <strong>Local software risks.</strong> By installing the daemon, you acknowledge that any
-        software running on your device carries inherent risks, including potential conflicts with
-        other software, impact on system performance, and interaction with antivirus or security
-        tools. We are not liable for any system performance issues, software conflicts, or data
-        loss arising from the daemon's operation, except to the extent caused by our gross
-        negligence. You are responsible for maintaining backups of your game saves.
+        <strong>Local software risks.</strong> By installing the daemon, you acknowledge that any software
+        running on your device carries inherent risks, including potential conflicts with other software,
+        impact on system performance, and interaction with antivirus or security tools. We are not liable
+        for any system performance issues, software conflicts, or data loss arising from the daemon's
+        operation, except to the extent caused by our gross negligence. You are responsible for maintaining
+        backups of your game saves.
       </p>
     </section>
 
@@ -177,13 +174,9 @@
           copyrighted game guides or strategy content without permission
         </li>
         <li>Resell access to Savecraft without our permission</li>
-        <li>
-          Use the service to develop a competing product or for competitive analysis
-        </li>
+        <li>Use the service to develop a competing product or for competitive analysis</li>
       </ul>
-      <p>
-        We may suspend or terminate accounts that violate these terms.
-      </p>
+      <p>We may suspend or terminate accounts that violate these terms.</p>
     </section>
 
     <section class="privacy-section">
@@ -200,10 +193,10 @@
       </p>
       <p>
         Your notice must include: identification of the copyrighted work, identification of the
-        infringing material and its location on Savecraft, your contact information, a statement
-        of good faith belief that the use is not authorized, and a statement under penalty of
-        perjury that the information is accurate and you are authorized to act on behalf of the
-        copyright owner.
+        infringing material and its location on Savecraft, your contact information, a statement of
+        good faith belief that the use is not authorized, and a statement under penalty of perjury
+        that the information is accurate and you are authorized to act on behalf of the copyright
+        owner.
       </p>
       <p>
         We will respond to valid DMCA notices promptly and may remove or disable access to the
@@ -216,13 +209,13 @@
       <h2>9. Service availability</h2>
       <p>
         We strive to keep Savecraft available and reliable, but we do not guarantee uninterrupted
-        service. Things break, infrastructure has outages, and we're a small team. We may also
-        need to take the service down for maintenance.
+        service. Things break, infrastructure has outages, and we're a small team. We may also need
+        to take the service down for maintenance.
       </p>
       <p>
         We reserve the right to modify, suspend, or discontinue any part of the service with
-        reasonable notice. For material changes that affect your data, we will provide at least
-        30 days' notice via email and a window to export your data before any deletion occurs.
+        reasonable notice. For material changes that affect your data, we will provide at least 30
+        days' notice via email and a window to export your data before any deletion occurs.
       </p>
     </section>
 
@@ -230,19 +223,22 @@
       <h2>10. Intellectual property and open source</h2>
       <p>
         Savecraft's source code is available under the
-        <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link">Apache License,
-        Version 2.0</a>. <strong>These Terms govern your use of the hosted service at savecraft.gg,
-        not the source code itself.</strong> If you self-host the Savecraft software, only the
-        Apache License applies — these Terms do not.
+        <a href="https://github.com/joshsymonds/savecraft.gg" class="text-link"
+          >Apache License, Version 2.0</a
+        >.
+        <strong
+          >These Terms govern your use of the hosted service at savecraft.gg, not the source code
+          itself.</strong
+        > If you self-host the Savecraft software, only the Apache License applies — these Terms do not.
       </p>
       <p>
-        Nothing in these Terms limits your rights under, or grants you rights that supersede,
-        the terms of any applicable open-source license.
+        Nothing in these Terms limits your rights under, or grants you rights that supersede, the
+        terms of any applicable open-source license.
       </p>
       <p>
-        The Savecraft name, logo, and branding are our trademarks. Game names, characters, and
-        game data referenced through Savecraft are the property of their respective publishers.
-        Savecraft is not affiliated with or endorsed by any game publisher.
+        The Savecraft name, logo, and branding are our trademarks. Game names, characters, and game
+        data referenced through Savecraft are the property of their respective publishers. Savecraft
+        is not affiliated with or endorsed by any game publisher.
       </p>
     </section>
 
@@ -251,29 +247,29 @@
       <p>
         You agree to defend, indemnify, and hold harmless Savecraft and its operator from any
         third-party claims, damages, losses, and expenses (including reasonable attorneys' fees)
-        arising from: your violation of these Terms, your misuse of the service, content you
-        upload or create through the service, your violation of any game platform's terms of
-        service, or your violation of any applicable law.
+        arising from: your violation of these Terms, your misuse of the service, content you upload
+        or create through the service, your violation of any game platform's terms of service, or
+        your violation of any applicable law.
       </p>
     </section>
 
     <section class="privacy-section">
       <h2>12. Disclaimer of warranties</h2>
       <p class="legal-caps">
-        TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, SAVECRAFT IS PROVIDED "AS IS" AND
-        "AS AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, OR STATUTORY,
-        INCLUDING BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A
-        PARTICULAR PURPOSE, TITLE, AND NON-INFRINGEMENT.
+        TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, SAVECRAFT IS PROVIDED "AS IS" AND "AS
+        AVAILABLE" WITHOUT WARRANTIES OF ANY KIND, WHETHER EXPRESS, IMPLIED, OR STATUTORY, INCLUDING
+        BUT NOT LIMITED TO IMPLIED WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE,
+        TITLE, AND NON-INFRINGEMENT.
       </p>
       <p class="legal-caps">
         WE DO NOT WARRANT THAT THE SERVICE WILL BE UNINTERRUPTED, ERROR-FREE, OR SECURE; THAT
         DEFECTS WILL BE CORRECTED; THAT PARSED GAME DATA WILL BE ACCURATE OR COMPLETE; THAT DATA
-        FROM THIRD-PARTY GAME APIS WILL BE AVAILABLE OR CURRENT; OR THAT THE DAEMON SOFTWARE
-        WILL BE COMPATIBLE WITH YOUR SYSTEM CONFIGURATION.
+        FROM THIRD-PARTY GAME APIS WILL BE AVAILABLE OR CURRENT; OR THAT THE DAEMON SOFTWARE WILL BE
+        COMPATIBLE WITH YOUR SYSTEM CONFIGURATION.
       </p>
       <p>
-        Some jurisdictions do not allow the exclusion of certain warranties. In those
-        jurisdictions, the above exclusions apply only to the extent permitted by law.
+        Some jurisdictions do not allow the exclusion of certain warranties. In those jurisdictions,
+        the above exclusions apply only to the extent permitted by law.
       </p>
     </section>
 
@@ -282,10 +278,10 @@
       <p class="legal-caps">
         TO THE MAXIMUM EXTENT PERMITTED BY APPLICABLE LAW, IN NO EVENT SHALL SAVECRAFT OR ITS
         OPERATOR BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE
-        DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, USE, OR GOODWILL, ARISING
-        OUT OF OR IN CONNECTION WITH THESE TERMS OR YOUR USE OF THE SERVICE, REGARDLESS OF THE
-        THEORY OF LIABILITY (CONTRACT, TORT, STRICT LIABILITY, OR OTHERWISE) AND EVEN IF WE
-        HAVE BEEN ADVISED OF THE POSSIBILITY OF SUCH DAMAGES.
+        DAMAGES, INCLUDING BUT NOT LIMITED TO LOSS OF PROFITS, DATA, USE, OR GOODWILL, ARISING OUT
+        OF OR IN CONNECTION WITH THESE TERMS OR YOUR USE OF THE SERVICE, REGARDLESS OF THE THEORY OF
+        LIABILITY (CONTRACT, TORT, STRICT LIABILITY, OR OTHERWISE) AND EVEN IF WE HAVE BEEN ADVISED
+        OF THE POSSIBILITY OF SUCH DAMAGES.
       </p>
       <p class="legal-caps">
         OUR TOTAL AGGREGATE LIABILITY TO YOU FOR ALL CLAIMS ARISING OUT OF OR RELATING TO THESE
@@ -303,36 +299,34 @@
       <p>
         <strong>Informal resolution first.</strong> Before filing any formal proceeding, you agree
         to contact us at
-        <a href="mailto:josh@savecraft.gg" class="text-link">josh@savecraft.gg</a> and attempt
-        to resolve the dispute informally for at least 30 days.
+        <a href="mailto:josh@savecraft.gg" class="text-link">josh@savecraft.gg</a> and attempt to resolve
+        the dispute informally for at least 30 days.
       </p>
       <p>
-        <strong>Binding arbitration.</strong> If we cannot resolve the dispute informally, you and
-        we agree to resolve any claims relating to these Terms or the service through final and
-        binding individual arbitration, except as set forth below. The arbitration will be
-        administered by JAMS under its Streamlined Arbitration Rules or, if JAMS is unavailable,
-        by a mutually agreed provider. The arbitration will be conducted by telephone, online, or
-        based on written submissions — the arbitrator will determine whether a hearing is necessary.
-        The arbitrator's decision will be binding and may be entered as a judgment in any court of
-        competent jurisdiction.
+        <strong>Binding arbitration.</strong> If we cannot resolve the dispute informally, you and we
+        agree to resolve any claims relating to these Terms or the service through final and binding individual
+        arbitration, except as set forth below. The arbitration will be administered by JAMS under its
+        Streamlined Arbitration Rules or, if JAMS is unavailable, by a mutually agreed provider. The arbitration
+        will be conducted by telephone, online, or based on written submissions — the arbitrator will
+        determine whether a hearing is necessary. The arbitrator's decision will be binding and may be
+        entered as a judgment in any court of competent jurisdiction.
       </p>
       <p>
-        <strong>Class action waiver.</strong> You and we agree that disputes will be resolved
-        only on an individual basis and not in a class, consolidated, or representative action.
-        If for any reason a claim proceeds in court rather than in arbitration, you and we each
-        waive any right to a jury trial.
+        <strong>Class action waiver.</strong> You and we agree that disputes will be resolved only on
+        an individual basis and not in a class, consolidated, or representative action. If for any reason
+        a claim proceeds in court rather than in arbitration, you and we each waive any right to a jury
+        trial.
       </p>
       <p>
         <strong>Opt-out.</strong> You may opt out of this arbitration agreement by sending written
         notice to <a href="mailto:josh@savecraft.gg" class="text-link">josh@savecraft.gg</a>
-        within 30 days of first agreeing to these Terms. If you opt out, disputes will be resolved
-        in the state or federal courts located in Santa Barbara County, California.
+        within 30 days of first agreeing to these Terms. If you opt out, disputes will be resolved in
+        the state or federal courts located in Santa Barbara County, California.
       </p>
       <p>
-        <strong>Exceptions.</strong> Either party may bring claims in small claims court if
-        eligible. Either party may seek injunctive or other equitable relief in any court of
-        competent jurisdiction to prevent the actual or threatened infringement of intellectual
-        property rights.
+        <strong>Exceptions.</strong> Either party may bring claims in small claims court if eligible.
+        Either party may seek injunctive or other equitable relief in any court of competent jurisdiction
+        to prevent the actual or threatened infringement of intellectual property rights.
       </p>
     </section>
 
@@ -343,9 +337,9 @@
         <a href="mailto:josh@savecraft.gg" class="text-link">josh@savecraft.gg</a>.
       </p>
       <p>
-        We may suspend or terminate your account if you violate these Terms, if required by law,
-        or if we discontinue the service. If we terminate your account without cause, we will
-        provide at least 30 days' notice and a reasonable window to export your data.
+        We may suspend or terminate your account if you violate these Terms, if required by law, or
+        if we discontinue the service. If we terminate your account without cause, we will provide
+        at least 30 days' notice and a reasonable window to export your data.
       </p>
       <p>
         Upon termination, your right to use the service ceases immediately. Sections that by their
@@ -468,7 +462,7 @@
   }
 
   .privacy-section li::before {
-    content: '';
+    content: "";
     position: absolute;
     left: 0;
     top: 10px;
