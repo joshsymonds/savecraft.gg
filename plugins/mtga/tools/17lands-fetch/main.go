@@ -1,10 +1,13 @@
-// 17lands-fetch downloads 17Lands public datasets and generates Go source files
-// with pre-computed per-card draft statistics.
+// 17lands-fetch downloads 17Lands public datasets and populates D1 with
+// per-card draft statistics when --d1-database-id is provided.
 //
-// Usage: go run ./plugins/mtga/tools/17lands-fetch
+// Usage: go run ./plugins/mtga/tools/17lands-fetch [--d1-database-id=UUID]
 //
 // Data source: 17Lands (17lands.com), licensed CC BY 4.0
-// Generated file: plugins/mtga/reference/data/draft_ratings_gen.go
+//
+// D1 population (when --d1-database-id set):
+//   - mtga_draft_ratings, mtga_draft_color_stats, mtga_draft_set_stats,
+//     mtga_draft_ratings_fts tables via Cloudflare D1 bulk import API
 package main
 
 import (

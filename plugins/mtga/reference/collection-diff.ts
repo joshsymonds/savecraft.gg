@@ -71,17 +71,19 @@ export const collectionDiffModule: NativeReferenceModule = {
       }
     }
 
-    // Look up rarity for deck cards not in collection
-    for (const entry of deck) {
-      const key = entry.name.toLowerCase();
-      if (!rarityByName.has(key)) {
-        const row = await env.DB
-          .prepare("SELECT rarity FROM mtga_cards WHERE name = ?1 COLLATE NOCASE LIMIT 1")
-          .bind(entry.name)
-          .first<{ rarity: string }>();
-        if (row) {
-          rarityByName.set(key, row.rarity);
-        }
+    // Batch lookup rarity for deck cards not in collection
+    const missingNames = deck
+      .filter((e) => !rarityByName.has(e.name.toLowerCase()))
+      .map((e) => e.name);
+    for (let i = 0; i < missingNames.length; i += 50) {
+      const chunk = missingNames.slice(i, i + 50);
+      const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
+      const rows = await env.DB
+        .prepare(`SELECT name, rarity FROM mtga_cards WHERE name COLLATE NOCASE IN (${placeholders})`)
+        .bind(...chunk)
+        .all<{ name: string; rarity: string }>();
+      for (const row of rows.results) {
+        rarityByName.set(row.name.toLowerCase(), row.rarity);
       }
     }
 
