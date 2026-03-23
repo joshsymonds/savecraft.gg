@@ -90,8 +90,10 @@ func buildCardRulingInsertBatches(rulings map[string][]CardRuling, cardNames map
 		}
 	}
 
-	// Append any remaining statements
-	batches = append(batches, current)
+	// Append any remaining statements (guard against empty trailing batch)
+	if len(current.Statements) > 0 {
+		batches = append(batches, current)
+	}
 	return batches
 }
 
@@ -319,6 +321,32 @@ func embedTexts(accountID, apiToken string, texts []string) ([][]float32, error)
 	return result.Result.Data, nil
 }
 
+// embedTextsWithRetry wraps embedTexts with retry and exponential backoff.
+// Retries up to 2 times with 1s then 2s delays.
+func embedTextsWithRetry(accountID, apiToken string, texts []string) ([][]float32, error) {
+	backoffs := []time.Duration{1 * time.Second, 2 * time.Second}
+	var lastErr error
+
+	result, err := embedTexts(accountID, apiToken, texts)
+	if err == nil {
+		return result, nil
+	}
+	lastErr = err
+
+	for _, delay := range backoffs {
+		fmt.Printf("  Embedding failed (%v), retrying in %v...\n", lastErr, delay)
+		time.Sleep(delay)
+
+		result, err = embedTexts(accountID, apiToken, texts)
+		if err == nil {
+			return result, nil
+		}
+		lastErr = err
+	}
+
+	return nil, lastErr
+}
+
 // upsertVectors upserts a batch of vectors to Vectorize.
 func upsertVectors(accountID, indexName, apiToken string, vectors []VectorizeVector) error {
 	client := &http.Client{Timeout: 2 * time.Minute}
@@ -403,7 +431,7 @@ func populateVectorize(accountID, indexName, apiToken string, rules []Rule, card
 			texts[j] = e.text
 		}
 
-		embeddings, err := embedTexts(accountID, apiToken, texts)
+		embeddings, err := embedTextsWithRetry(accountID, apiToken, texts)
 		if err != nil {
 			return fmt.Errorf("embedding batch %d-%d: %w", i, end, err)
 		}

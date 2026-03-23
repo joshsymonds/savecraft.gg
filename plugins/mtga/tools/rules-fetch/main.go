@@ -46,7 +46,7 @@ type CardRuling struct {
 type RulesData struct {
 	EffectiveDate string                  `json:"effectiveDate"`
 	Rules         []Rule                  `json:"rules"`
-	CardRulings   map[string][]CardRuling `json:"cardRulings"` // card name → rulings
+	CardRulings   map[string][]CardRuling `json:"cardRulings"` // oracle_id → rulings
 }
 
 var ruleNumberPattern = regexp.MustCompile(`^(\d{3}\.\d+[a-z]?)\b`)

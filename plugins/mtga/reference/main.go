@@ -205,7 +205,7 @@ func schema() map[string]any {
 					"deck_size": map[string]string{"type": "integer", "description": "40 (limited), 60 (standard/modern, default), 80 (Yorion), or 99 (Commander)."},
 				},
 			},
-			},
+		},
 	}
 }
 
