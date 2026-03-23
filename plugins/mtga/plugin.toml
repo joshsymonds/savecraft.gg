@@ -1,0 +1,53 @@
+game_id = "mtga"
+source = "wasm"
+icon = "icon.png"
+name = "Magic: The Gathering Arena"
+description = "Parses Player.log for collection, decks, match history, play-by-play game logs, drafts, rank, and inventory"
+channel = "beta"
+coverage = "partial"
+file_extensions = []
+file_patterns = ["Player.log", "Player-prev.log"]
+homepage = "https://savecraft.gg/plugins/mtga"
+
+limitations = [
+  "Requires 'Detailed Logs' enabled in MTGA settings",
+  "Log clears on game restart — only current session data available",
+  "Card names require Scryfall data update after new set releases",
+]
+
+[author]
+name = "Josh Symonds"
+github = "joshsymonds"
+
+[default_paths]
+windows = "%USERPROFILE%/AppData/LocalLow/Wizards Of The Coast/MTGA"
+linux = "~/.local/share/Steam/steamapps/compatdata/2141910/pfx/drive_c/users/steamuser/AppData/LocalLow/Wizards Of The Coast/MTGA"
+darwin = "~/Library/Logs/Wizards of the Coast/MTGA"
+
+[reference.modules.card_search]
+name = "Card Search"
+description = "Search Magic: The Gathering cards by name, color, type, mana cost, oracle text, and format legality using Scryfall data. Use to verify card names, check format legality, find cards matching criteria, and prevent hallucinated card recommendations."
+
+[reference.modules.card_search.attribution]
+author = "Josh Symonds"
+data_sources = [
+  { name = "Scryfall Oracle Cards", origin = "Scryfall bulk data (scryfall.com), card data copyright Wizards of the Coast" },
+]
+
+[reference.modules.collection_diff]
+name = "Collection Diff"
+description = "Calculate the wildcard cost to complete a target decklist given a player's current collection. Returns missing cards grouped by rarity with total wildcard cost. Use to answer 'What should I craft next?' and 'What's the cheapest meta deck I can build?'"
+
+[reference.modules.collection_diff.attribution]
+author = "Josh Symonds"
+data_sources = []
+
+[reference.modules.draft_ratings]
+name = "Draft Ratings"
+description = "Per-card draft performance statistics from millions of real games across all available sets. Provides GIH WR, OHWR, IWD, ALSA, ATA with game counts, overall and by 2-color archetype. Responses include set averages as baselines. Key interpretation: GIH WR alone is misleading — always pair with IWD (Improvement When Drawn) to distinguish 'card makes deck better' from 'card goes in already-good decks.' Negative IWD means the deck wins despite this card. Compare stats against set average (included in responses). Sample size (game counts) matters — mythic rares with 500 games aren't comparable to commons with 50,000."
+
+[reference.modules.draft_ratings.attribution]
+author = "Josh Symonds"
+data_sources = [
+  { name = "17Lands Public Datasets", origin = "17lands.com, licensed CC BY 4.0" },
+]
