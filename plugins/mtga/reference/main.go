@@ -19,7 +19,6 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/reference/data"
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/reference/draftratings"
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/reference/manabase"
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/reference/rulessearch"
 )
 
 func main() {
@@ -53,8 +52,6 @@ func main() {
 		handleDraftRatings(enc, query)
 	case "mana_base":
 		handleManaBase(enc, raw)
-	case "rules_search":
-		handleRulesSearch(enc, query)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -135,27 +132,6 @@ func handleDraftRatings(enc *json.Encoder, query map[string]any) {
 	writeResult(enc, result)
 }
 
-func handleRulesSearch(enc *json.Encoder, query map[string]any) {
-	q := rulessearch.Query{
-		Rule:    stringParam(query, "rule"),
-		Keyword: stringParam(query, "keyword"),
-		Topic:   stringParam(query, "topic"),
-		Card:    stringParam(query, "card"),
-		Limit:   intParam(query, "limit", 20),
-	}
-
-	// Build card name → oracle_id mapping from Scryfall card data.
-	cardOracles := make(map[string]string, len(data.Cards))
-	for _, card := range data.Cards {
-		if card.Name != "" && card.OracleID != "" {
-			cardOracles[card.Name] = card.OracleID
-		}
-	}
-
-	result := rulessearch.Search(&data.RulesData, q, cardOracles)
-	writeResult(enc, result)
-}
-
 func handleManaBase(enc *json.Encoder, raw []byte) {
 	var req struct {
 		Module   string               `json:"module"`
@@ -229,19 +205,7 @@ func schema() map[string]any {
 					"deck_size": map[string]string{"type": "integer", "description": "40 (limited), 60 (standard/modern, default), 80 (Yorion), or 99 (Commander)."},
 				},
 			},
-			{
-				"id":          "rules_search",
-				"name":        "Rules Search",
-				"description": "Search MTG Comprehensive Rules and official card rulings. " + fmt.Sprintf("%d rules, %d cards with rulings.", len(data.RulesData.Rules), len(data.RulesData.CardRulings)),
-				"parameters": map[string]any{
-					"rule":    map[string]string{"type": "string", "description": "Rule number (e.g., '702.2' for deathtouch). Returns rule + subrules + cross-references."},
-					"keyword": map[string]string{"type": "string", "description": "Keyword search across all rules (e.g., 'deathtouch', 'trample')."},
-					"topic":   map[string]string{"type": "string", "description": "Multi-word topic search (e.g., 'combat damage', 'state-based actions')."},
-					"card":    map[string]string{"type": "string", "description": "Card name for official Scryfall rulings (e.g., 'Sheoldred')."},
-					"limit":   map[string]string{"type": "integer", "description": "Max results (default 20)."},
-				},
 			},
-		},
 	}
 }
 
