@@ -22,6 +22,10 @@ export const CLEANUP_TABLES = [
   "game_credentials",
   "saves",
   "sources",
+  "mtga_rules_fts",
+  "mtga_card_rulings_fts",
+  "mtga_rules",
+  "mtga_card_rulings",
 ] as const;
 
 /**
