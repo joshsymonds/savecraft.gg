@@ -26,6 +26,7 @@ import (
 // ScryfallCard represents the fields we extract from each Scryfall card object.
 type ScryfallCard struct {
 	ArenaID       int               `json:"arena_id"`
+	OracleID      string            `json:"oracle_id"`
 	Name          string            `json:"name"`
 	ManaCost      string            `json:"mana_cost"`
 	CMC           float64           `json:"cmc"`
@@ -222,6 +223,7 @@ func generateReferenceData(path string, cards []ScryfallCard) error {
 	// Write JSON data file.
 	type jsonCard struct {
 		ArenaID       int               `json:"arenaId"`
+		OracleID      string            `json:"oracleId"`
 		Name          string            `json:"name"`
 		ManaCost      string            `json:"manaCost"`
 		CMC           float64           `json:"cmc"`
@@ -237,7 +239,7 @@ func generateReferenceData(path string, cards []ScryfallCard) error {
 	jsonCards := make(map[string]jsonCard, len(cards))
 	for _, c := range cards {
 		jsonCards[fmt.Sprintf("%d", c.ArenaID)] = jsonCard{
-			ArenaID: c.ArenaID, Name: c.Name, ManaCost: c.ManaCost,
+			ArenaID: c.ArenaID, OracleID: c.OracleID, Name: c.Name, ManaCost: c.ManaCost,
 			CMC: c.CMC, TypeLine: c.TypeLine, OracleText: c.OracleText,
 			Colors: c.Colors, ColorIdentity: c.ColorIdentity,
 			Legalities: c.Legalities, Rarity: c.Rarity, Set: c.Set,
@@ -349,6 +351,7 @@ import (
 // Card contains full Scryfall card data for reference module queries.
 type Card struct {
 	ArenaID       int               ` + "`" + `json:"arenaId"` + "`" + `
+	OracleID      string            ` + "`" + `json:"oracleId"` + "`" + `
 	Name          string            ` + "`" + `json:"name"` + "`" + `
 	ManaCost      string            ` + "`" + `json:"manaCost"` + "`" + `
 	CMC           float64           ` + "`" + `json:"cmc"` + "`" + `
