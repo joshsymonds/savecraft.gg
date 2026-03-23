@@ -206,6 +206,9 @@ func TestImportD1SQL_PollNotImporting(t *testing.T) {
 	if !isImportCompleteError("Not currently importing anything") {
 		t.Error("expected variant without period to also match")
 	}
+	if !isImportCompleteError("Not currently import at bookmark 00000735-00000452-00005037-abc123.") {
+		t.Error("expected 'Not currently import at bookmark...' to be treated as complete")
+	}
 	if isImportCompleteError("some other error") {
 		t.Error("unrelated errors should not be treated as complete")
 	}
