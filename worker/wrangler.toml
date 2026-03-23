@@ -38,6 +38,10 @@ binding = "AI"
 binding = "MTGA_RULES_INDEX"
 index_name = "mtga-rules"
 
+[[vectorize]]
+binding = "MTGA_CARDS_INDEX"
+index_name = "mtga-cards"
+
 [durable_objects]
 bindings = [
   { name = "SOURCE_HUB", class_name = "SourceHub" },
@@ -93,6 +97,10 @@ binding = "AI"
 [[env.production.vectorize]]
 binding = "MTGA_RULES_INDEX"
 index_name = "mtga-rules"
+
+[[env.production.vectorize]]
+binding = "MTGA_CARDS_INDEX"
+index_name = "mtga-cards"
 
 [env.production.durable_objects]
 bindings = [
@@ -151,6 +159,10 @@ binding = "AI"
 [[env.staging.vectorize]]
 binding = "MTGA_RULES_INDEX"
 index_name = "mtga-rules-staging"
+
+[[env.staging.vectorize]]
+binding = "MTGA_CARDS_INDEX"
+index_name = "mtga-cards-staging"
 
 [env.staging.durable_objects]
 bindings = [

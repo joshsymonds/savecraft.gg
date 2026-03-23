@@ -46,4 +46,6 @@ export interface Env {
   AI?: Ai;
   /** Vectorize index for MTG Arena rules semantic search. */
   MTGA_RULES_INDEX?: VectorizeIndex;
+  /** Vectorize index for MTG Arena card semantic search. */
+  MTGA_CARDS_INDEX?: VectorizeIndex;
 }
