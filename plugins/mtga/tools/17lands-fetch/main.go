@@ -10,18 +10,14 @@ package main
 import (
 	"compress/gzip"
 	"encoding/csv"
-	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"math"
 	"net/http"
 	"os"
-	"path/filepath"
-	"runtime"
 	"sort"
 	"strings"
-	"text/template"
 	"time"
 )
 
@@ -128,10 +124,6 @@ func run() error {
 	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (enables D1 population)")
 	flag.Parse()
 
-	_, thisFile, _, _ := runtime.Caller(0)
-	pluginDir := filepath.Join(filepath.Dir(thisFile), "..", "..")
-	outPath := filepath.Join(pluginDir, "reference", "data", "draft_ratings_gen.go")
-
 	var allSets []setResult
 
 	for _, set := range sets {
@@ -158,11 +150,7 @@ func run() error {
 		fmt.Printf("  %s complete: %d cards with stats\n", set, len(sr.Cards))
 	}
 
-	fmt.Printf("\nGenerating %s...\n", outPath)
-	if err := generateFile(outPath, allSets); err != nil {
-		return fmt.Errorf("generating output: %w", err)
-	}
-	fmt.Printf("Done. %d sets, generated to %s\n", len(allSets), outPath)
+	fmt.Printf("Done processing %d sets.\n", len(allSets))
 
 	// ── Cloudflare D1 population ─────────────────────────────
 	if *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != "" {
@@ -173,6 +161,8 @@ func run() error {
 			return fmt.Errorf("D1 import: %w", err)
 		}
 		fmt.Println("D1 population complete")
+	} else {
+		fmt.Println("No --d1-database-id specified; skipping D1 population.")
 	}
 
 	return nil
@@ -443,50 +433,6 @@ func buildSetResult(set string, accums map[string]map[string]*cardAccum) setResu
 	return sr
 }
 
-func convertToSetRatings(sr setResult) map[string]any {
-	cards := make([]map[string]any, len(sr.Cards))
-	for i, c := range sr.Cards {
-		overall := statsToMap(c.Overall)
-		byColor := make(map[string]any, len(c.ByColor))
-		for cp, s := range c.ByColor {
-			byColor[cp] = statsToMap(s)
-		}
-		card := map[string]any{
-			"name":    c.Name,
-			"overall": overall,
-		}
-		if len(byColor) > 0 {
-			card["byColor"] = byColor
-		}
-		cards[i] = card
-	}
-	return map[string]any{
-		"set":    sr.Set,
-		"format": "PremierDraft",
-		"setStats": map[string]any{
-			"totalGames": sr.TotalGames,
-			"cardCount":  sr.CardCount,
-			"avgGihwr":   round4(sr.AvgGIHWR),
-		},
-		"cards": cards,
-	}
-}
-
-func statsToMap(s setCardStats) map[string]any {
-	return map[string]any{
-		"gamesInHand":  s.GamesInHand,
-		"gamesPlayed":  s.GamesPlayed,
-		"gamesNotSeen": s.GamesNotSeen,
-		"gihwr":        round4(s.GIHWR),
-		"ohwr":         round4(s.OHWR),
-		"gdwr":         round4(s.GDWR),
-		"gnswr":        round4(s.GNSWR),
-		"iwd":          round4(s.IWD),
-		"alsa":         round4(s.ALSA),
-		"ata":          round4(s.ATA),
-	}
-}
-
 func downloadGzip(url string) (io.ReadCloser, error) {
 	client := &http.Client{Timeout: 10 * time.Minute}
 	req, err := http.NewRequest("GET", url, nil)
@@ -547,126 +493,3 @@ func round4(f float64) float64 {
 	return math.Round(f*10000) / 10000
 }
 
-func generateFile(path string, allSets []setResult) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0o755); err != nil {
-		return err
-	}
-
-	timestamp := time.Now().UTC().Format(time.RFC3339)
-
-	// Generate one file per set to avoid "function too big" compiler errors
-	// on WASM targets (init functions for large map literals exceed block limits).
-	setCodes := make([]string, 0, len(allSets))
-	for _, sr := range allSets {
-		setCodes = append(setCodes, sr.Set)
-		setLower := strings.ToLower(sr.Set)
-
-		// Write JSON data file (embedded by the Go wrapper).
-		jsonData := convertToSetRatings(sr)
-		jsonBytes, err := json.Marshal(jsonData)
-		if err != nil {
-			return fmt.Errorf("marshaling %s JSON: %w", sr.Set, err)
-		}
-		jsonPath := filepath.Join(dir, fmt.Sprintf("draft_ratings_%s.json", setLower))
-		if err := os.WriteFile(jsonPath, jsonBytes, 0o644); err != nil {
-			return err
-		}
-
-		// Write Go wrapper that embeds and decodes the JSON.
-		var buf strings.Builder
-		if err := setTmpl.Execute(&buf, struct {
-			Timestamp string
-			SetLower  string
-			Set       setResult
-		}{Timestamp: timestamp, SetLower: setLower, Set: sr}); err != nil {
-			return fmt.Errorf("generating %s: %w", sr.Set, err)
-		}
-
-		goPath := filepath.Join(dir, fmt.Sprintf("draft_ratings_%s_gen.go", setLower))
-		if err := os.WriteFile(goPath, []byte(buf.String()), 0o644); err != nil {
-			return err
-		}
-	}
-
-	// Generate index file that assembles the map.
-	var buf strings.Builder
-	if err := indexTmpl.Execute(&buf, struct {
-		Timestamp string
-		Sets      []string
-	}{Timestamp: timestamp, Sets: setCodes}); err != nil {
-		return fmt.Errorf("generating index: %w", err)
-	}
-
-	return os.WriteFile(path, []byte(buf.String()), 0o644)
-}
-
-var funcMap = template.FuncMap{
-	"goStr":   func(s string) string { return fmt.Sprintf("%q", s) },
-	"round4":  round4,
-	"goColor": goColorMap,
-}
-
-func goColorMap(m map[string]setCardStats) string {
-	if len(m) == 0 {
-		return "nil"
-	}
-	keys := make([]string, 0, len(m))
-	for k := range m {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	var parts []string
-	for _, k := range keys {
-		s := m[k]
-		parts = append(parts, fmt.Sprintf(`%q: {GamesInHand: %d, GamesPlayed: %d, GamesNotSeen: %d, GIHWR: %v, OHWR: %v, GDWR: %v, GNSWR: %v, IWD: %v, ALSA: %v, ATA: %v}`,
-			k, s.GamesInHand, s.GamesPlayed, s.GamesNotSeen,
-			round4(s.GIHWR), round4(s.OHWR), round4(s.GDWR), round4(s.GNSWR),
-			round4(s.IWD), round4(s.ALSA), round4(s.ATA)))
-	}
-	return "map[string]draftratings.DraftStats{" + strings.Join(parts, ", ") + "}"
-}
-
-// Per-set template: embeds JSON and decodes at init time to avoid WASM
-// compiler "function too big" errors on large struct literal init functions.
-// Each per-set init registers directly into DraftRatings (declared in draft_ratings_gen.go).
-var setTmpl = template.Must(template.New("set").Funcs(funcMap).Parse(`// Code generated by plugins/mtga/tools/17lands-fetch. DO NOT EDIT.
-// Source: 17Lands (17lands.com), licensed CC BY 4.0
-// Generated: {{ .Timestamp }}
-
-package data
-
-import (
-	_ "embed"
-	"encoding/json"
-
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/reference/draftratings"
-)
-
-//go:embed draft_ratings_{{ .SetLower }}.json
-var draftRatingsJSON{{ .Set.Set }} []byte
-
-func init() {
-	var ratings draftratings.SetRatings
-	if err := json.Unmarshal(draftRatingsJSON{{ .Set.Set }}, &ratings); err != nil {
-		panic("failed to decode {{ .Set.Set }} draft ratings: " + err.Error())
-	}
-	DraftRatings[{{ goStr .Set.Set }}] = ratings
-}
-`))
-
-// Index template: declares the DraftRatings map. Per-set init() functions populate it.
-var indexTmpl = template.Must(template.New("index").Funcs(funcMap).Parse(`// Code generated by plugins/mtga/tools/17lands-fetch. DO NOT EDIT.
-// Source: 17Lands (17lands.com), licensed CC BY 4.0
-// Generated: {{ .Timestamp }}
-
-package data
-
-import "github.com/joshsymonds/savecraft.gg/plugins/mtga/reference/draftratings"
-
-// DraftRatings contains pre-computed draft statistics for all available sets.
-// {{ len .Sets }} sets from 17Lands public datasets.
-// Populated by per-set init() functions in draft_ratings_*_gen.go files.
-var DraftRatings = make(map[string]draftratings.SetRatings, {{ len .Sets }})
-`))
