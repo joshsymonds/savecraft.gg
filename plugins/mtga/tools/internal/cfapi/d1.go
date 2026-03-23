@@ -119,11 +119,21 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 			return nil
 		}
 		if pollResult.Result.Error != "" {
+			if isImportCompleteError(pollResult.Result.Error) {
+				fmt.Println("  D1 import complete (fast): poll found no active import")
+				return nil
+			}
 			return fmt.Errorf("import failed: %s", pollResult.Result.Error)
 		}
 	}
 
 	return fmt.Errorf("import timed out after 120s")
+}
+
+// isImportCompleteError returns true if the poll error indicates the import
+// already finished before we could poll it (small imports complete instantly).
+func isImportCompleteError(errMsg string) bool {
+	return strings.Contains(strings.ToLower(errMsg), "not currently importing")
 }
 
 // initImport calls the D1 import init endpoint. If another import is active,
