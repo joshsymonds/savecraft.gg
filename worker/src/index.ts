@@ -1,3 +1,6 @@
+// Side-effect import: register native reference modules
+import "../../plugins/mtga/reference/register";
+
 import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError, type ApiAdapter } from "./adapters/adapter";
 import { discoverAndReconcileSaves } from "./adapters/discover";
 import { adapters } from "./adapters/registry";
