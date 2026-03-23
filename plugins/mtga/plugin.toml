@@ -62,13 +62,7 @@ data_sources = [
   { name = "Frank Karsten Mana Base Tables", origin = "Frank Karsten, 'How Many Sources Do You Need to Consistently Cast Your Spells? A 2022 Update'" },
 ]
 
-[reference.modules.rules_search]
-name = "Rules Search"
-description = "Search the MTG Comprehensive Rules and official per-card rulings from Scryfall. USE PROACTIVELY: query this module BEFORE making any claim about how a card interaction works, what happens during a game phase, how triggered abilities resolve, or any rules interpretation. Do not rely on training data for rules — verify against the authoritative source. Especially critical for: card interactions between specific cards, triggered vs replacement effects, state-based actions, combat damage assignment with keywords like trample+deathtouch, stack behavior, and any ruling a player might dispute. Query by rule number for specific lookups, by keyword for mechanic rules, by topic for phase/step rules, or by card name for official Scryfall rulings on specific cards."
 
-[reference.modules.rules_search.attribution]
-author = "Josh Symonds"
-data_sources = [
-  { name = "MTG Comprehensive Rules", origin = "Wizards of the Coast, effective November 14, 2025" },
-  { name = "Scryfall Rulings", origin = "Scryfall (scryfall.com), card rulings copyright Wizards of the Coast" },
-]
+# rules_search is now a native TypeScript module (not WASM).
+# See plugins/mtga/reference/rules-search.ts and register.ts.
+# Its metadata is served via the native module registry, not this manifest.
