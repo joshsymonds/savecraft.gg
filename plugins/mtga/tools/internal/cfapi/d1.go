@@ -175,36 +175,41 @@ func initImport(client *http.Client, importURL, apiToken, etag string) (string, 
 		// Parse response — the D1 import API returns different shapes depending on state.
 		var statusCheck struct {
 			Result struct {
-				Success   bool   `json:"success"`
-				Status    string `json:"status"`
-				Error     string `json:"error"`
-				UploadURL string `json:"upload_url"`
-				Filename  string `json:"filename"`
+				Success    bool     `json:"success"`
+				Status     string   `json:"status"`
+				Type       string   `json:"type"`
+				Error      string   `json:"error"`
+				UploadURL  string   `json:"upload_url"`
+				Filename   string   `json:"filename"`
+				AtBookmark string   `json:"at_bookmark"`
+				Messages   []string `json:"messages"`
 			} `json:"result"`
 		}
 		if err := json.Unmarshal(initRespBody, &statusCheck); err != nil {
 			return "", "", fmt.Errorf("init: decode: %w (body: %s)", err, string(initRespBody[:min(len(initRespBody), 300)]))
 		}
+		r := statusCheck.Result
 
 		// Got an upload URL — no active import, proceed.
-		if statusCheck.Result.UploadURL != "" {
-			return statusCheck.Result.UploadURL, statusCheck.Result.Filename, nil
+		if r.UploadURL != "" {
+			return r.UploadURL, r.Filename, nil
 		}
 
 		// Previous import with same etag already completed — data is there.
-		if statusCheck.Result.Status == "complete" {
+		if r.Status == "complete" {
 			return "", "", errImportAlreadyComplete
 		}
 
 		// Another import is active — retry with jittered exponential backoff.
 		// D1 returns this as either status="active" or success=false with an error message
 		// ("Currently processing a long-running import...").
-		isActive := statusCheck.Result.Status == "active" ||
-			(!statusCheck.Result.Success && statusCheck.Result.Error != "")
+		isActive := r.Status == "active" || (!r.Success && r.Error != "")
 		if isActive {
 			delay := min(baseDelay*(1<<attempt), 30*time.Second)
 			jitter := time.Duration(float64(delay) * (0.5 + rand.Float64()))
-			fmt.Printf("  D1 import busy, retrying in %v (attempt %d/%d)...\n", jitter.Round(time.Millisecond), attempt+1, maxRetries)
+			fmt.Printf("  D1 import busy (attempt %d/%d, retrying in %v): status=%q type=%q bookmark=%q error=%q messages=%v\n",
+				attempt+1, maxRetries, jitter.Round(time.Millisecond),
+				r.Status, r.Type, r.AtBookmark, r.Error, r.Messages)
 			time.Sleep(jitter)
 			continue
 		}
