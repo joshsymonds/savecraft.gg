@@ -19,6 +19,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"slices"
 	"sort"
 	"strings"
 	"time"
@@ -125,11 +126,22 @@ func run() error {
 	cfAccountID := flag.String("cf-account-id", os.Getenv("CLOUDFLARE_ACCOUNT_ID"), "Cloudflare account ID")
 	cfAPIToken := flag.String("cf-api-token", os.Getenv("CLOUDFLARE_API_TOKEN"), "Cloudflare API token")
 	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (enables D1 population)")
+	setFilter := flag.String("set", "", "Process a single set (e.g., 'DSK'). If empty, processes all sets.")
 	flag.Parse()
+
+	// Filter to a single set if --set is provided.
+	targetSets := sets
+	if *setFilter != "" {
+		upper := strings.ToUpper(*setFilter)
+		if !slices.Contains(sets, upper) {
+			return fmt.Errorf("unknown set %q; available: %v", *setFilter, sets)
+		}
+		targetSets = []string{upper}
+	}
 
 	var allSets []setResult
 
-	for _, set := range sets {
+	for _, set := range targetSets {
 		fmt.Printf("Processing %s...\n", set)
 
 		// Process game data.
