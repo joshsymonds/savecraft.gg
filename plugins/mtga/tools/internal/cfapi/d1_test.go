@@ -2,6 +2,7 @@ package cfapi
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"sync/atomic"
@@ -149,5 +150,70 @@ func TestInitImport_FailsOnUnexpectedResponse(t *testing.T) {
 	_, _, err := initImport(client, server.URL, "test-token", "test-etag")
 	if err == nil {
 		t.Fatal("expected error on unexpected response")
+	}
+}
+
+func TestInitImport_AlreadyComplete(t *testing.T) {
+	// D1 returns status="complete" when the same etag was already imported.
+	// Should return a sentinel error that ImportD1SQL treats as success.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"result": map[string]any{
+				"success":     true,
+				"status":      "complete",
+				"type":        "import",
+				"at_bookmark": "00000731-00000000-00005037-abc123",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := &http.Client{}
+	_, _, err := initImport(client, server.URL, "test-token", "test-etag")
+	if err == nil {
+		t.Fatal("expected sentinel error for already-complete import")
+	}
+	if !errors.Is(err, errImportAlreadyComplete) {
+		t.Fatalf("expected errImportAlreadyComplete, got: %v", err)
+	}
+}
+
+func TestInitImport_RetriesOnBusyError(t *testing.T) {
+	// D1 returns success=false with an error message when another import is running.
+	// Different from status="active" — this is the "long-running import" variant.
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		n := attempts.Add(1)
+		if n <= 1 {
+			json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"result": map[string]any{
+					"success": false,
+					"error":   "Currently processing a long-running import. Cannot start another import until that completes or times out.",
+				},
+			})
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"result": map[string]any{
+				"upload_url": "https://example.com/upload",
+				"filename":   "test.sql",
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := &http.Client{}
+	url, _, err := initImport(client, server.URL, "test-token", "test-etag")
+	if err != nil {
+		t.Fatalf("initImport should retry and succeed, got: %v", err)
+	}
+	if url != "https://example.com/upload" {
+		t.Errorf("got upload_url %q", url)
+	}
+	if attempts.Load() != 2 {
+		t.Errorf("expected 2 attempts, got %d", attempts.Load())
 	}
 }

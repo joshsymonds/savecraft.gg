@@ -5,6 +5,7 @@ import (
 	"bytes"
 	"crypto/md5"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"math/rand/v2"
@@ -12,6 +13,10 @@ import (
 	"strings"
 	"time"
 )
+
+// errImportAlreadyComplete is returned when D1 reports the import with this
+// etag already completed. The data is already in D1, nothing to do.
+var errImportAlreadyComplete = errors.New("import already complete (same data)")
 
 // SQLQuote escapes a string for safe SQL embedding (single quotes).
 func SQLQuote(s string) string {
@@ -30,6 +35,10 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 
 	// Step 1: Init — get upload URL. Retry if another import is active.
 	uploadURL, filename, err := initImport(client, importURL, apiToken, etag)
+	if errors.Is(err, errImportAlreadyComplete) {
+		fmt.Println("  D1 import skipped: same data already imported")
+		return nil
+	}
 	if err != nil {
 		return err
 	}
@@ -143,10 +152,12 @@ func initImport(client *http.Client, importURL, apiToken, etag string) (string, 
 			return "", "", fmt.Errorf("init: HTTP %d: %s", initResp.StatusCode, string(initRespBody[:min(len(initRespBody), 300)]))
 		}
 
-		// Check if the response indicates an active import.
+		// Parse response — the D1 import API returns different shapes depending on state.
 		var statusCheck struct {
 			Result struct {
+				Success   bool   `json:"success"`
 				Status    string `json:"status"`
+				Error     string `json:"error"`
 				UploadURL string `json:"upload_url"`
 				Filename  string `json:"filename"`
 			} `json:"result"`
@@ -160,17 +171,25 @@ func initImport(client *http.Client, importURL, apiToken, etag string) (string, 
 			return statusCheck.Result.UploadURL, statusCheck.Result.Filename, nil
 		}
 
-		// Active import — wait with jittered exponential backoff.
-		if statusCheck.Result.Status == "active" {
-			// Exponential backoff: 3s, 6s, 12s, 24s... capped at 30s, plus jitter ±50%.
+		// Previous import with same etag already completed — data is there.
+		if statusCheck.Result.Status == "complete" {
+			return "", "", errImportAlreadyComplete
+		}
+
+		// Another import is active — retry with jittered exponential backoff.
+		// D1 returns this as either status="active" or success=false with an error message
+		// ("Currently processing a long-running import...").
+		isActive := statusCheck.Result.Status == "active" ||
+			(!statusCheck.Result.Success && statusCheck.Result.Error != "")
+		if isActive {
 			delay := min(baseDelay*(1<<attempt), 30*time.Second)
 			jitter := time.Duration(float64(delay) * (0.5 + rand.Float64()))
-			fmt.Printf("  D1 import busy (active), retrying in %v (attempt %d/%d)...\n", jitter.Round(time.Millisecond), attempt+1, maxRetries)
+			fmt.Printf("  D1 import busy, retrying in %v (attempt %d/%d)...\n", jitter.Round(time.Millisecond), attempt+1, maxRetries)
 			time.Sleep(jitter)
 			continue
 		}
 
-		return "", "", fmt.Errorf("init: unexpected response (no upload_url, status=%q): %s", statusCheck.Result.Status, string(initRespBody[:min(len(initRespBody), 500)]))
+		return "", "", fmt.Errorf("init: unexpected response: %s", string(initRespBody[:min(len(initRespBody), 500)]))
 	}
 
 	return "", "", fmt.Errorf("init: gave up after %d retries waiting for active import to complete", maxRetries)
