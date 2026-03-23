@@ -1,0 +1,250 @@
+import { env } from "cloudflare:test";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { cardSearchModule } from "../../plugins/mtga/reference/card-search";
+import { registerNativeModule } from "../src/reference/registry";
+
+import { cleanAll } from "./helpers";
+
+describe("card_search native module", () => {
+  beforeEach(async () => {
+    await cleanAll();
+    registerNativeModule("mtga", cardSearchModule);
+  });
+
+  async function seedCards(): Promise<void> {
+    await env.DB.batch([
+      // Structured table
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        87521, "abc-123", "Sheoldred, the Apocalypse", "{2}{B}{B}", 4,
+        "Legendary Creature — Phyrexian Praetor",
+        "Deathtouch\nWhenever you draw a card, you gain 2 life.\nWhenever an opponent draws a card, they lose 2 life.",
+        '["B"]', '["B"]', '{"standard":"banned","historic":"legal"}', "mythic", "DMU", '["deathtouch"]',
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        1, "def-456", "Lightning Bolt", "{R}", 1,
+        "Instant",
+        "Lightning Bolt deals 3 damage to any target.",
+        '["R"]', '["R"]', '{"standard":"not_legal","historic":"legal"}', "common", "STA", '[]',
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        2, "ghi-789", "Llanowar Elves", "{G}", 1,
+        "Creature — Elf Druid",
+        "{T}: Add {G}.",
+        '["G"]', '["G"]', '{"standard":"not_legal","historic":"legal"}', "common", "DAR", '[]',
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        3, "jkl-012", "Thoughtseize", "{B}", 1,
+        "Sorcery",
+        "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.",
+        '["B"]', '["B"]', '{"standard":"not_legal","historic":"legal"}', "rare", "AKR", '[]',
+      ),
+      // FTS5 rows
+      env.DB.prepare(
+        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind(
+        87521, "Sheoldred, the Apocalypse",
+        "Deathtouch\nWhenever you draw a card, you gain 2 life.\nWhenever an opponent draws a card, they lose 2 life.",
+        "Legendary Creature — Phyrexian Praetor",
+      ),
+      env.DB.prepare(
+        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind(1, "Lightning Bolt", "Lightning Bolt deals 3 damage to any target.", "Instant"),
+      env.DB.prepare(
+        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind(2, "Llanowar Elves", "{T}: Add {G}.", "Creature — Elf Druid"),
+      env.DB.prepare(
+        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind(
+        3, "Thoughtseize",
+        "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.",
+        "Sorcery",
+      ),
+    ]);
+  }
+
+  it("searches by card name via FTS5", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ name: "lightning" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(1);
+    expect(cards[0]!.name).toBe("Lightning Bolt");
+    expect(cards[0]!.arenaId).toBe(1);
+  });
+
+  it("searches oracle text via FTS5", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ text: "discard" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(1);
+    expect(cards[0]!.name).toBe("Thoughtseize");
+  });
+
+  it("filters by rarity", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ rarity: "common" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(2);
+    const names = cards.map((c) => c.name);
+    expect(names).toContain("Lightning Bolt");
+    expect(names).toContain("Llanowar Elves");
+  });
+
+  it("filters by set", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ set: "DMU" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(1);
+    expect(cards[0]!.name).toBe("Sheoldred, the Apocalypse");
+  });
+
+  it("filters by color identity", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ colors: "B" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(2);
+    const names = cards.map((c) => c.name);
+    expect(names).toContain("Sheoldred, the Apocalypse");
+    expect(names).toContain("Thoughtseize");
+  });
+
+  it("filters by cmc with operator", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ cmc: 1, cmc_op: "<=" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(3); // Lightning Bolt, Llanowar Elves, Thoughtseize
+  });
+
+  it("filters by format legality", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ format: "standard" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    // Only Sheoldred has a standard legality that isn't "not_legal"
+    // (it's "banned" which is still a legality status, not "not_legal")
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(1);
+    expect(cards[0]!.name).toBe("Sheoldred, the Apocalypse");
+  });
+
+  it("filters by type line", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ type: "creature" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(2);
+    const names = cards.map((c) => c.name);
+    expect(names).toContain("Sheoldred, the Apocalypse");
+    expect(names).toContain("Llanowar Elves");
+  });
+
+  it("combines FTS5 search with structured filters", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ name: "sheoldred", rarity: "mythic" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(1);
+    expect(cards[0]!.name).toBe("Sheoldred, the Apocalypse");
+  });
+
+  it("respects limit parameter", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ rarity: "common", limit: 1 }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(1);
+  });
+
+  it("sorts by cmc", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ sort: "cmc" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(4);
+    // CMC order: Lightning Bolt(1), Llanowar Elves(1), Thoughtseize(1), Sheoldred(4)
+    expect((cards[cards.length - 1]! as Record<string, unknown>).name).toBe("Sheoldred, the Apocalypse");
+  });
+
+  it("returns empty array for no matches", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ name: "nonexistent" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Array<Record<string, unknown>>;
+    expect(cards.length).toBe(0);
+  });
+
+  it("returns all card fields in result", async () => {
+    await seedCards();
+
+    const result = await cardSearchModule.execute({ name: "sheoldred" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const card = (result.data.cards as Array<Record<string, unknown>>)[0]!;
+    expect(card.arenaId).toBe(87521);
+    expect(card.name).toBe("Sheoldred, the Apocalypse");
+    expect(card.manaCost).toBe("{2}{B}{B}");
+    expect(card.cmc).toBe(4);
+    expect(card.typeLine).toBe("Legendary Creature — Phyrexian Praetor");
+    expect(card.oracleText).toContain("Deathtouch");
+    expect(card.colors).toEqual(["B"]);
+    expect(card.colorIdentity).toEqual(["B"]);
+    expect(card.rarity).toBe("mythic");
+    expect(card.set).toBe("DMU");
+    expect(card.keywords).toEqual(["deathtouch"]);
+    expect(card.legalities).toEqual({ standard: "banned", historic: "legal" });
+  });
+});
