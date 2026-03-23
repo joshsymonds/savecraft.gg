@@ -210,4 +210,3 @@ func downloadCardNames() (map[string]string, error) {
 	fmt.Printf("Card name mapping: %d cards (all of Magic)\n", len(names))
 	return names, nil
 }
-

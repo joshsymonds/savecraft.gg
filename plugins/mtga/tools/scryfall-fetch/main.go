@@ -23,10 +23,11 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
 	"strings"
 	"text/template"
 	"time"
+
+	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
 )
 
 // ScryfallCard represents the fields we extract from each Scryfall card object.

@@ -120,9 +120,12 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 // initImport calls the D1 import init endpoint. If another import is active,
 // waits with jittered exponential backoff and retries.
 // Returns (uploadURL, filename, error).
+// initImportBaseDelay controls the base retry delay. Overridden in tests.
+var initImportBaseDelay = 3 * time.Second
+
 func initImport(client *http.Client, importURL, apiToken, etag string) (string, string, error) {
 	const maxRetries = 10
-	baseDelay := 3 * time.Second
+	baseDelay := initImportBaseDelay
 
 	for attempt := range maxRetries {
 		initBody, _ := json.Marshal(map[string]string{"action": "init", "etag": etag})
