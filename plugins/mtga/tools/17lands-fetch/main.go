@@ -495,4 +495,3 @@ func normalizeColors(s string) string {
 func round4(f float64) float64 {
 	return math.Round(f*10000) / 10000
 }
-

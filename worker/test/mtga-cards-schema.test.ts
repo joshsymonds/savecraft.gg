@@ -16,11 +16,11 @@ describe("MTGA cards D1 schema", () => {
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
-        87521,
+        87_521,
         "abc-123",
         "Sheoldred, the Apocalypse",
         "{2}{B}{B}",
-        4.0,
+        4,
         "Legendary Creature — Phyrexian Praetor",
         "Deathtouch\nWhenever you draw a card, you gain 2 life.\nWhenever an opponent draws a card, they lose 2 life.",
         '["B"]',
@@ -33,7 +33,7 @@ describe("MTGA cards D1 schema", () => {
       .run();
 
     const row = await env.DB.prepare("SELECT * FROM mtga_cards WHERE arena_id = ?")
-      .bind(87521)
+      .bind(87_521)
       .first<{
         arena_id: number;
         oracle_id: string;
@@ -50,7 +50,7 @@ describe("MTGA cards D1 schema", () => {
     expect(row).not.toBeNull();
     expect(row!.name).toBe("Sheoldred, the Apocalypse");
     expect(row!.mana_cost).toBe("{2}{B}{B}");
-    expect(row!.cmc).toBe(4.0);
+    expect(row!.cmc).toBe(4);
     expect(row!.rarity).toBe("mythic");
     expect(JSON.parse(row!.colors)).toEqual(["B"]);
   });
@@ -129,10 +129,22 @@ describe("MTGA cards D1 schema", () => {
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, oracle_text, rarity, set_code)
          VALUES (?, ?, ?, ?, ?, ?)`,
-      ).bind(10, "x", "Thoughtseize", "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.", "rare", "AKR"),
+      ).bind(
+        10,
+        "x",
+        "Thoughtseize",
+        "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.",
+        "rare",
+        "AKR",
+      ),
       env.DB.prepare(
         "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
-      ).bind(10, "Thoughtseize", "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.", ""),
+      ).bind(
+        10,
+        "Thoughtseize",
+        "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.",
+        "",
+      ),
     ]);
 
     const results = await env.DB.prepare(
@@ -184,7 +196,7 @@ describe("MTGA draft ratings D1 schema", () => {
          gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind("DSK", "Gloomlake Verge", 15000, 20000, 5000, 0.564, 0.62, 0.54, 0.48, 0.06, 8.5, 9.2)
+      .bind("DSK", "Gloomlake Verge", 15_000, 20_000, 5000, 0.564, 0.62, 0.54, 0.48, 0.06, 8.5, 9.2)
       .run();
 
     const row = await env.DB.prepare(
@@ -205,7 +217,7 @@ describe("MTGA draft ratings D1 schema", () => {
          gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
-      .bind("DSK", "Gloomlake Verge", "UB", 3000, 4000, 1000, 0.59, 0.63, 0.56, 0.49, 0.07, 7.2, 8.0)
+      .bind("DSK", "Gloomlake Verge", "UB", 3000, 4000, 1000, 0.59, 0.63, 0.56, 0.49, 0.07, 7.2, 8)
       .run();
 
     const row = await env.DB.prepare(
@@ -257,7 +269,7 @@ describe("MTGA draft ratings D1 schema", () => {
       `INSERT INTO mtga_draft_set_stats (set_code, format, total_games, card_count, avg_gihwr)
        VALUES (?, ?, ?, ?, ?)`,
     )
-      .bind("DSK", "PremierDraft", 250000, 245, 0.515)
+      .bind("DSK", "PremierDraft", 250_000, 245, 0.515)
       .run();
 
     const row = await env.DB.prepare("SELECT * FROM mtga_draft_set_stats WHERE set_code = ?")
@@ -265,7 +277,7 @@ describe("MTGA draft ratings D1 schema", () => {
       .first<{ total_games: number; card_count: number; avg_gihwr: number }>();
 
     expect(row).not.toBeNull();
-    expect(row!.total_games).toBe(250000);
+    expect(row!.total_games).toBe(250_000);
     expect(row!.avg_gihwr).toBeCloseTo(0.515, 3);
   });
 
@@ -277,12 +289,14 @@ describe("MTGA draft ratings D1 schema", () => {
       env.DB.prepare(
         `INSERT INTO mtga_draft_ratings (set_code, card_name, gihwr) VALUES (?, ?, ?)`,
       ).bind("DSK", "Lightning Bolt", 0.58),
-      env.DB.prepare(
-        "INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (?, ?)",
-      ).bind("DSK", "Gloomlake Verge"),
-      env.DB.prepare(
-        "INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (?, ?)",
-      ).bind("DSK", "Lightning Bolt"),
+      env.DB.prepare("INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (?, ?)").bind(
+        "DSK",
+        "Gloomlake Verge",
+      ),
+      env.DB.prepare("INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (?, ?)").bind(
+        "DSK",
+        "Lightning Bolt",
+      ),
     ]);
 
     const results = await env.DB.prepare(
@@ -299,7 +313,7 @@ describe("MTGA draft ratings D1 schema", () => {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO mtga_draft_ratings (set_code, card_name, gihwr, iwd) VALUES (?, ?, ?, ?)`,
-      ).bind("DSK", "Card A", 0.60, 0.08),
+      ).bind("DSK", "Card A", 0.6, 0.08),
       env.DB.prepare(
         `INSERT INTO mtga_draft_ratings (set_code, card_name, gihwr, iwd) VALUES (?, ?, ?, ?)`,
       ).bind("DSK", "Card B", 0.55, 0.04),

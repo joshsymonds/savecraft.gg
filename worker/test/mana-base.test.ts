@@ -17,12 +17,12 @@ describe("mana_base native module", () => {
       // Mono-black: {2}{B}{B} = 2 generic + 2 black pips
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, colors, rarity, set_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(87521, "abc", "Sheoldred, the Apocalypse", "{2}{B}{B}", 4, '["B"]', "mythic", "DMU"),
+      ).bind(87_521, "abc", "Sheoldred, the Apocalypse", "{2}{B}{B}", 4, '["B"]', "mythic", "DMU"),
       // Mono-red: {R}
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, colors, rarity, set_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(1, "def", "Lightning Bolt", "{R}", 1, '["R"]', "common", "STA"),
-      // Multicolor: {1}{U}{B}
+      // Multicolor gold card (blue-black)
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, colors, rarity, set_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(3, "jkl", "Baleful Strix", "{U}{B}", 2, '["U","B"]', "rare", "STA"),
@@ -36,11 +36,12 @@ describe("mana_base native module", () => {
   it("computes land recommendations for a mono-color deck", async () => {
     await seedCards();
 
-    const result = await manaBaseModule.execute({
-      deck: [
-        { name: "Lightning Bolt", count: 4 },
-      ],
-    }, env);
+    const result = await manaBaseModule.execute(
+      {
+        deck: [{ name: "Lightning Bolt", count: 4 }],
+      },
+      env,
+    );
 
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
@@ -54,11 +55,12 @@ describe("mana_base native module", () => {
   it("handles multicolor cards with gold adjustment", async () => {
     await seedCards();
 
-    const result = await manaBaseModule.execute({
-      deck: [
-        { name: "Baleful Strix", count: 4 },
-      ],
-    }, env);
+    const result = await manaBaseModule.execute(
+      {
+        deck: [{ name: "Baleful Strix", count: 4 }],
+      },
+      env,
+    );
 
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
@@ -73,11 +75,12 @@ describe("mana_base native module", () => {
   it("handles unknown cards gracefully", async () => {
     await seedCards();
 
-    const result = await manaBaseModule.execute({
-      deck: [
-        { name: "Nonexistent Card", count: 4 },
-      ],
-    }, env);
+    const result = await manaBaseModule.execute(
+      {
+        deck: [{ name: "Nonexistent Card", count: 4 }],
+      },
+      env,
+    );
 
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
@@ -88,10 +91,13 @@ describe("mana_base native module", () => {
   it("respects deck_size parameter", async () => {
     await seedCards();
 
-    const result = await manaBaseModule.execute({
-      deck: [{ name: "Lightning Bolt", count: 4 }],
-      deck_size: 40,
-    }, env);
+    const result = await manaBaseModule.execute(
+      {
+        deck: [{ name: "Lightning Bolt", count: 4 }],
+        deck_size: 40,
+      },
+      env,
+    );
 
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
@@ -102,12 +108,15 @@ describe("mana_base native module", () => {
   it("analyzes multiple colors correctly", async () => {
     await seedCards();
 
-    const result = await manaBaseModule.execute({
-      deck: [
-        { name: "Sheoldred, the Apocalypse", count: 4 },
-        { name: "Lightning Bolt", count: 4 },
-      ],
-    }, env);
+    const result = await manaBaseModule.execute(
+      {
+        deck: [
+          { name: "Sheoldred, the Apocalypse", count: 4 },
+          { name: "Lightning Bolt", count: 4 },
+        ],
+      },
+      env,
+    );
 
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
