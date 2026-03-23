@@ -153,6 +153,64 @@ func TestInitImport_FailsOnUnexpectedResponse(t *testing.T) {
 	}
 }
 
+func TestImportD1SQL_PollNotImporting(t *testing.T) {
+	// When a small import completes between ingest and first poll, D1 returns
+	// error "Not currently importing anything". This should be treated as success.
+	var serverURL string
+	step := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "PUT" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		var body map[string]string
+		json.NewDecoder(r.Body).Decode(&body)
+		switch body["action"] {
+		case "init":
+			step = 1
+			json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"result": map[string]any{
+					"upload_url": serverURL + "/upload",
+					"filename":   "test.sql",
+				},
+			})
+		case "ingest":
+			step = 2
+			json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"result": map[string]any{
+					"at_bookmark": "bookmark-123",
+				},
+			})
+		case "poll":
+			step = 3
+			json.NewEncoder(w).Encode(map[string]any{
+				"success": true,
+				"result": map[string]any{
+					"success": false,
+					"error":   "Not currently importing anything.",
+				},
+			})
+		}
+	}))
+	defer server.Close()
+	serverURL = server.URL
+	_ = step
+
+	// We can't call ImportD1SQL directly (it constructs its own URL from accountID/databaseID).
+	// Instead, test the poll error handling by verifying isImportCompleteError.
+	if !isImportCompleteError("Not currently importing anything.") {
+		t.Error("expected 'Not currently importing anything.' to be treated as complete")
+	}
+	if !isImportCompleteError("Not currently importing anything") {
+		t.Error("expected variant without period to also match")
+	}
+	if isImportCompleteError("some other error") {
+		t.Error("unrelated errors should not be treated as complete")
+	}
+}
+
 func TestInitImport_AlreadyComplete(t *testing.T) {
 	// D1 returns status="complete" when the same etag was already imported.
 	// Should return a sentinel error that ImportD1SQL treats as success.
