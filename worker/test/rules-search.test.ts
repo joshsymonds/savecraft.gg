@@ -240,4 +240,45 @@ describe("rules_search native module", () => {
     const text = (result as { content: string }).content;
     expect(text).toContain("No card rulings found");
   });
+
+  // ── Response formatting ──────────────────────────────────
+
+  it("rule lookup includes effective date header", async () => {
+    await seedRules();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ rule: "702.2" }, env);
+    const text = (result as { content: string }).content;
+    expect(text).toContain("MTG Comprehensive Rules (effective");
+  });
+
+  it("rule lookup includes cross-reference annotation", async () => {
+    await seedRules();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ rule: "702.2" }, env);
+    const text = (result as { content: string }).content;
+    expect(text).toContain("auto-expanded from see-also references");
+  });
+
+  it("keyword search includes cite-rules guidance", async () => {
+    await seedRules();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ keyword: "deathtouch" }, env);
+    const text = (result as { content: string }).content;
+    expect(text).toContain("cite specific rule numbers");
+  });
+
+  it("card ruling response includes authority attribution", async () => {
+    await seedCardRulings();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ card: "Sheoldred" }, env);
+    const text = (result as { content: string }).content;
+    expect(text).toContain("Official Scryfall Rulings");
+    expect(text).toContain("Card-specific rulings override general rules");
+  });
+
+  it("module description includes proactive usage guidance", () => {
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    expect(module_.description).toContain("USE PROACTIVELY");
+    expect(module_.description).toContain("Do not rely on training data");
+  });
 });

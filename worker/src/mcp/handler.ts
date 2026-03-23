@@ -35,7 +35,9 @@ Results from search_saves distinguish between save data (what the player actuall
 
 Removed saves and games: Players can remove individual saves or entire games from Savecraft. list_games includes a removed_saves field per game showing the names of removed saves. If a player asks about a character you can't find but it appears in removed_saves, tell them it was removed and they can restore it from the game detail screen on savecraft.gg. Removed games won't appear in list_games at all — if the player asks about a game that's missing entirely, suggest they check their game settings on savecraft.gg to see if it was removed.
 
-All timestamps returned by Savecraft are UTC.`;
+All timestamps returned by Savecraft are UTC.
+
+When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`;
 
 interface JsonRpcRequest {
   jsonrpc: string;

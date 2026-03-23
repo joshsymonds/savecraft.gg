@@ -17,6 +17,8 @@ import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src
 
 const DEFAULT_LIMIT = 20;
 const RRF_K = 60;
+const EFFECTIVE_DATE = "November 14, 2025";
+const RULES_HEADER = `MTG Comprehensive Rules (effective ${EFFECTIVE_DATE})`;
 
 interface RuleRow {
   number: string;
@@ -48,7 +50,7 @@ export function mergeWithRRF(bm25Ids: string[], vectorIds: string[], k: number):
 async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<ReferenceResult> {
   const trimmed = ruleNum.trim();
 
-  // Exact match + prefix match (702.2 → 702.2, 702.2a, 702.2b...)
+  // Exact match + prefix match (702.2 -> 702.2, 702.2a, 702.2b...)
   const rows = await db
     .prepare(
       `SELECT * FROM mtga_rules WHERE number = ?1 OR (number LIKE ?2 AND length(number) = length(?1) + 1)`,
@@ -61,7 +63,8 @@ async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<Refe
   }
 
   const lines: string[] = [];
-  lines.push(`Rules matching ${trimmed}\n`);
+  lines.push(`${RULES_HEADER}\n`);
+  lines.push(`Rule ${trimmed} (${rows.results.length} matching rules)\n`);
 
   for (const r of rows.results) {
     lines.push(`${r.number} ${r.text}`);
@@ -96,14 +99,60 @@ async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<Refe
       .all<RuleRow>();
 
     if (refRows.results.length > 0) {
-      lines.push("\nCross-referenced rules:");
+      lines.push("\nCross-referenced rules (auto-expanded from see-also references):");
       for (const r of refRows.results) {
         lines.push(`${r.number} ${r.text}`);
       }
     }
   }
 
+  // Suggested follow-ups based on content
+  lines.push(buildFollowUpSuggestions(rows.results, seeAlsoRefs));
+
   return { type: "formatted", content: lines.join("\n") + "\n" };
+}
+
+/** Build suggested follow-up queries based on rule content. */
+function buildFollowUpSuggestions(rules: RuleRow[], expandedRefs: Set<string>): string {
+  const suggestions: string[] = [];
+
+  // Collect rule numbers mentioned in text but not already shown
+  const shownNumbers = new Set(rules.map((r) => r.number));
+  for (const num of expandedRefs) {
+    shownNumbers.add(num);
+  }
+
+  const mentionedRules = new Set<string>();
+  for (const r of rules) {
+    const combined = `${r.text} ${r.example ?? ""}`;
+    // Match rule number patterns like 704.5g, 603.7a, 120.4
+    for (const match of combined.matchAll(/\brules? (\d{3}(?:\.\d+[a-z]?))\b/g)) {
+      const ref = match[1]!;
+      if (!shownNumbers.has(ref) && !mentionedRules.has(ref)) {
+        mentionedRules.add(ref);
+      }
+    }
+  }
+
+  if (mentionedRules.size > 0) {
+    const topRefs = [...mentionedRules].slice(0, 5);
+    suggestions.push(`Look up related rules: ${topRefs.map((r) => `rule ${r}`).join(", ")}`);
+  }
+
+  // Suggest card ruling lookup if the rule is about a keyword
+  const keywords = /\b(deathtouch|trample|flying|first strike|double strike|lifelink|vigilance|haste|reach|menace|hexproof|indestructible|ward|flash)\b/i;
+  for (const r of rules) {
+    const match = keywords.exec(r.text);
+    if (match) {
+      suggestions.push(
+        `To see how ${match[1]} works on specific cards, search by card name with the "card" parameter`,
+      );
+      break;
+    }
+  }
+
+  if (suggestions.length === 0) return "";
+  return "\n---\nSuggested follow-ups:\n" + suggestions.map((s) => `- ${s}`).join("\n");
 }
 
 async function searchByKeywordOrTopic(
@@ -148,7 +197,10 @@ async function searchByKeywordOrTopic(
   const topIds = mergedIds.slice(0, limit);
 
   if (topIds.length === 0) {
-    return { type: "formatted", content: `No rules found matching ${label} "${queryText}"\n` };
+    return {
+      type: "formatted",
+      content: `No rules found matching ${label} "${queryText}". Try a different keyword, or use the "rule" parameter with a specific rule number.\n`,
+    };
   }
 
   // Fetch full rule text for merged results
@@ -162,11 +214,20 @@ async function searchByKeywordOrTopic(
   const ruleMap = new Map(ruleRows.results.map((r) => [r.number, r]));
   const orderedRules = topIds.map((id) => ruleMap.get(id)).filter((r): r is RuleRow => r != null);
 
+  const totalMatches = bm25Ids.length + vectorIds.length - topIds.length; // approximate unique total
+  const searchMethod = vectorIds.length > 0 ? "hybrid (keyword + semantic)" : "keyword";
+
   const lines: string[] = [];
-  lines.push(`Rules matching ${label} "${queryText}" (${orderedRules.length} results)\n`);
+  lines.push(`${RULES_HEADER}\n`);
+  lines.push(`${orderedRules.length} rules matching ${label} "${queryText}" (${searchMethod} search, ${totalMatches > orderedRules.length ? `showing top ${orderedRules.length} of ~${totalMatches}` : `${orderedRules.length} total`})\n`);
   for (const r of orderedRules) {
     lines.push(`${r.number} ${r.text}`);
   }
+
+  // Add guidance
+  lines.push("\n---");
+  lines.push("These rules are ranked by relevance. To get the full text of a specific rule including examples and cross-references, query by rule number (e.g., rule=\"702.2\").");
+  lines.push("IMPORTANT: Always cite specific rule numbers when explaining interactions to the player. Do not paraphrase rules from memory — use the text above.");
 
   return { type: "formatted", content: lines.join("\n") + "\n" };
 }
@@ -200,11 +261,13 @@ async function searchCardRulings(
   }
 
   if (seen.size === 0) {
-    return { type: "formatted", content: `No card rulings found for "${cardName}"\n` };
+    return { type: "formatted", content: `No card rulings found for "${cardName}". Try a partial name or check the card name spelling.\n` };
   }
 
   const lines: string[] = [];
+  lines.push("Official Scryfall Rulings (Wizards of the Coast)\n");
   let count = 0;
+  let latestDate = "";
 
   for (const [oracleId, name] of seen) {
     if (count >= 5) {
@@ -220,23 +283,33 @@ async function searchCardRulings(
       .all<{ published_at: string | null; comment: string }>();
 
     if (rulings.results.length > 0) {
-      lines.push(`Official rulings for ${name}:\n`);
+      lines.push(`${name} (${rulings.results.length} rulings):\n`);
       for (const r of rulings.results) {
-        lines.push(`  ${r.published_at ?? "unknown"}: ${r.comment}`);
+        const date = r.published_at ?? "unknown";
+        lines.push(`  [${date}] ${r.comment}`);
+        if (date > latestDate) latestDate = date;
       }
       lines.push("");
     }
     count++;
   }
 
-  if (lines.length === 0) {
+  if (lines.length <= 1) {
     return {
       type: "formatted",
-      content: `No rulings found for "${cardName}" (card exists but has no official rulings)\n`,
+      content: `No rulings found for "${cardName}" (card exists but has no official rulings). Check the Comprehensive Rules for the underlying mechanics instead — use the "keyword" or "topic" parameter.\n`,
     };
   }
 
-  return { type: "formatted", content: lines.join("\n") };
+  // Guidance footer
+  lines.push("---");
+  if (latestDate) {
+    lines.push(`Most recent ruling: ${latestDate}`);
+  }
+  lines.push("These are official WotC rulings via Scryfall. For the underlying game mechanics (e.g., how deathtouch or trample work in general), query by keyword or rule number.");
+  lines.push("IMPORTANT: Card-specific rulings override general rules. Always check both when analyzing an interaction.");
+
+  return { type: "formatted", content: lines.join("\n") + "\n" };
 }
 
 // ── Module definition ────────────────────────────────────────
@@ -244,13 +317,35 @@ async function searchCardRulings(
 export const rulesSearchModule: NativeReferenceModule = {
   id: "rules_search",
   name: "Rules Search",
-  description:
-    "Search MTG Comprehensive Rules and official card rulings. Query by rule number, keyword, topic, or card name.",
+  description: [
+    "Search the MTG Comprehensive Rules and official per-card rulings from Scryfall.",
+    "USE PROACTIVELY: query this module BEFORE making any claim about how a card interaction works, what happens during a game phase, how triggered abilities resolve, or any rules interpretation.",
+    "Do not rely on training data for MTG rules — the Comprehensive Rules are updated with every set release and card-specific rulings are issued continuously. Verify against this authoritative source.",
+    "Especially critical for: card interactions between specific cards, triggered vs replacement effects, state-based actions, combat damage assignment with keywords like trample+deathtouch, stack and priority, layer system, and any ruling a player might dispute.",
+    "Query by rule number for specific lookups with full cross-references, by keyword or topic for ranked search across all rules, or by card name for official Scryfall rulings on specific cards.",
+    "When explaining an interaction, cite the specific rule numbers from the results. If the answer involves multiple rules, make multiple queries to build a complete picture.",
+  ].join(" "),
   parameters: {
-    rule: { type: "string", description: "Rule number (e.g., '702.2' for deathtouch)." },
-    keyword: { type: "string", description: "Keyword search across all rules." },
-    topic: { type: "string", description: "Multi-word topic search." },
-    card: { type: "string", description: "Card name for official Scryfall rulings." },
+    rule: {
+      type: "string",
+      description:
+        "Rule number (e.g., '702.2' for deathtouch). Returns the rule + all subrules + examples + cross-referenced rules. Use this when you know or have found the specific rule number.",
+    },
+    keyword: {
+      type: "string",
+      description:
+        "Keyword search ranked by relevance (e.g., 'deathtouch', 'trample'). Use when looking for rules about a specific game mechanic or term.",
+    },
+    topic: {
+      type: "string",
+      description:
+        "Natural language topic search (e.g., 'what happens when two replacement effects apply', 'combat damage assignment order'). Use for questions about game situations or phase rules.",
+    },
+    card: {
+      type: "string",
+      description:
+        "Card name for official Scryfall rulings (e.g., 'Sheoldred'). Returns card-specific rulings from Wizards of the Coast. Use alongside keyword/rule searches for complete interaction analysis.",
+    },
     limit: { type: "integer", description: "Max results (default 20)." },
   },
 
