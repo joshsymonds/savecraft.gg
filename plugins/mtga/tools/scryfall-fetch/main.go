@@ -273,4 +273,3 @@ var ArenaCards = map[int]ArenaCard{
 {{- end }}
 }
 `))
-

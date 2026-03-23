@@ -16,7 +16,7 @@ describe("collection_diff native module", () => {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, rarity, set_code) VALUES (?, ?, ?, ?, ?)`,
-      ).bind(87521, "abc", "Sheoldred, the Apocalypse", "mythic", "DMU"),
+      ).bind(87_521, "abc", "Sheoldred, the Apocalypse", "mythic", "DMU"),
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, rarity, set_code) VALUES (?, ?, ?, ?, ?)`,
       ).bind(1, "def", "Lightning Bolt", "common", "STA"),
@@ -29,24 +29,27 @@ describe("collection_diff native module", () => {
   it("computes wildcard costs for missing cards", async () => {
     await seedCards();
 
-    const result = await collectionDiffModule.execute({
-      deck: [
-        { name: "Sheoldred, the Apocalypse", count: 4 },
-        { name: "Lightning Bolt", count: 4 },
-        { name: "Thoughtseize", count: 4 },
-      ],
-      collection: [
-        { arenaId: 87521, count: 1 },  // Own 1 Sheoldred
-        { arenaId: 1, count: 4 },       // Own 4 Lightning Bolt
-        // Own 0 Thoughtseize
-      ],
-    }, env);
+    const result = await collectionDiffModule.execute(
+      {
+        deck: [
+          { name: "Sheoldred, the Apocalypse", count: 4 },
+          { name: "Lightning Bolt", count: 4 },
+          { name: "Thoughtseize", count: 4 },
+        ],
+        collection: [
+          { arenaId: 87_521, count: 1 }, // Own 1 Sheoldred
+          { arenaId: 1, count: 4 }, // Own 4 Lightning Bolt
+          // Own 0 Thoughtseize
+        ],
+      },
+      env,
+    );
 
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
     const data = result.data;
-    const missing = data.missing as Array<{ name: string; count: number; rarity: string }>;
+    const missing = data.missing as { name: string; count: number; rarity: string }[];
     const cost = data.wildcardCost as Record<string, number>;
 
     // Need 3 Sheoldred (mythic), 0 Lightning Bolt, 4 Thoughtseize (rare)
@@ -70,10 +73,13 @@ describe("collection_diff native module", () => {
   it("returns empty missing when collection is complete", async () => {
     await seedCards();
 
-    const result = await collectionDiffModule.execute({
-      deck: [{ name: "Lightning Bolt", count: 4 }],
-      collection: [{ arenaId: 1, count: 4 }],
-    }, env);
+    const result = await collectionDiffModule.execute(
+      {
+        deck: [{ name: "Lightning Bolt", count: 4 }],
+        collection: [{ arenaId: 1, count: 4 }],
+      },
+      env,
+    );
 
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
@@ -86,18 +92,21 @@ describe("collection_diff native module", () => {
   it("handles unknown cards gracefully", async () => {
     await seedCards();
 
-    const result = await collectionDiffModule.execute({
-      deck: [
-        { name: "Nonexistent Card", count: 4 },
-        { name: "Lightning Bolt", count: 4 },
-      ],
-      collection: [],
-    }, env);
+    const result = await collectionDiffModule.execute(
+      {
+        deck: [
+          { name: "Nonexistent Card", count: 4 },
+          { name: "Lightning Bolt", count: 4 },
+        ],
+        collection: [],
+      },
+      env,
+    );
 
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const missing = result.data.missing as Array<{ name: string; rarity: string }>;
+    const missing = result.data.missing as { name: string; rarity: string }[];
     // Unknown card should still appear but with empty rarity
     const unknown = missing.find((m) => m.name === "Nonexistent Card");
     expect(unknown).toBeDefined();

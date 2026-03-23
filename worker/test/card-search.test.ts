@@ -19,43 +19,80 @@ describe("card_search native module", () => {
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
-        87521, "abc-123", "Sheoldred, the Apocalypse", "{2}{B}{B}", 4,
+        87_521,
+        "abc-123",
+        "Sheoldred, the Apocalypse",
+        "{2}{B}{B}",
+        4,
         "Legendary Creature — Phyrexian Praetor",
         "Deathtouch\nWhenever you draw a card, you gain 2 life.\nWhenever an opponent draws a card, they lose 2 life.",
-        '["B"]', '["B"]', '{"standard":"banned","historic":"legal"}', "mythic", "DMU", '["deathtouch"]',
+        '["B"]',
+        '["B"]',
+        '{"standard":"banned","historic":"legal"}',
+        "mythic",
+        "DMU",
+        '["deathtouch"]',
       ),
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
-        1, "def-456", "Lightning Bolt", "{R}", 1,
+        1,
+        "def-456",
+        "Lightning Bolt",
+        "{R}",
+        1,
         "Instant",
         "Lightning Bolt deals 3 damage to any target.",
-        '["R"]', '["R"]', '{"standard":"not_legal","historic":"legal"}', "common", "STA", '[]',
+        '["R"]',
+        '["R"]',
+        '{"standard":"not_legal","historic":"legal"}',
+        "common",
+        "STA",
+        "[]",
       ),
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
-        2, "ghi-789", "Llanowar Elves", "{G}", 1,
+        2,
+        "ghi-789",
+        "Llanowar Elves",
+        "{G}",
+        1,
         "Creature — Elf Druid",
         "{T}: Add {G}.",
-        '["G"]', '["G"]', '{"standard":"not_legal","historic":"legal"}', "common", "DAR", '[]',
+        '["G"]',
+        '["G"]',
+        '{"standard":"not_legal","historic":"legal"}',
+        "common",
+        "DAR",
+        "[]",
       ),
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
-        3, "jkl-012", "Thoughtseize", "{B}", 1,
+        3,
+        "jkl-012",
+        "Thoughtseize",
+        "{B}",
+        1,
         "Sorcery",
         "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.",
-        '["B"]', '["B"]', '{"standard":"not_legal","historic":"legal"}', "rare", "AKR", '[]',
+        '["B"]',
+        '["B"]',
+        '{"standard":"not_legal","historic":"legal"}',
+        "rare",
+        "AKR",
+        "[]",
       ),
       // FTS5 rows
       env.DB.prepare(
         "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
       ).bind(
-        87521, "Sheoldred, the Apocalypse",
+        87_521,
+        "Sheoldred, the Apocalypse",
         "Deathtouch\nWhenever you draw a card, you gain 2 life.\nWhenever an opponent draws a card, they lose 2 life.",
         "Legendary Creature — Phyrexian Praetor",
       ),
@@ -68,7 +105,8 @@ describe("card_search native module", () => {
       env.DB.prepare(
         "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
       ).bind(
-        3, "Thoughtseize",
+        3,
+        "Thoughtseize",
         "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.",
         "Sorcery",
       ),
@@ -82,7 +120,7 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(1);
     expect(cards[0]!.name).toBe("Lightning Bolt");
     expect(cards[0]!.arenaId).toBe(1);
@@ -95,7 +133,7 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(1);
     expect(cards[0]!.name).toBe("Thoughtseize");
   });
@@ -107,7 +145,7 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(2);
     const names = cards.map((c) => c.name);
     expect(names).toContain("Lightning Bolt");
@@ -121,7 +159,7 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(1);
     expect(cards[0]!.name).toBe("Sheoldred, the Apocalypse");
   });
@@ -133,7 +171,7 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(2);
     const names = cards.map((c) => c.name);
     expect(names).toContain("Sheoldred, the Apocalypse");
@@ -147,7 +185,7 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(3); // Lightning Bolt, Llanowar Elves, Thoughtseize
   });
 
@@ -160,7 +198,7 @@ describe("card_search native module", () => {
 
     // Only Sheoldred has a standard legality that isn't "not_legal"
     // (it's "banned" which is still a legality status, not "not_legal")
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(1);
     expect(cards[0]!.name).toBe("Sheoldred, the Apocalypse");
   });
@@ -172,7 +210,7 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(2);
     const names = cards.map((c) => c.name);
     expect(names).toContain("Sheoldred, the Apocalypse");
@@ -186,7 +224,7 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(1);
     expect(cards[0]!.name).toBe("Sheoldred, the Apocalypse");
   });
@@ -198,7 +236,7 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(1);
   });
 
@@ -209,10 +247,10 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(4);
     // CMC order: Lightning Bolt(1), Llanowar Elves(1), Thoughtseize(1), Sheoldred(4)
-    expect((cards[cards.length - 1]! as Record<string, unknown>).name).toBe("Sheoldred, the Apocalypse");
+    expect(cards.at(-1)!.name).toBe("Sheoldred, the Apocalypse");
   });
 
   it("returns empty array for no matches", async () => {
@@ -222,7 +260,7 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const cards = result.data.cards as Array<Record<string, unknown>>;
+    const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(0);
   });
 
@@ -233,8 +271,8 @@ describe("card_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const card = (result.data.cards as Array<Record<string, unknown>>)[0]!;
-    expect(card.arenaId).toBe(87521);
+    const card = (result.data.cards as Record<string, unknown>[])[0]!;
+    expect(card.arenaId).toBe(87_521);
     expect(card.name).toBe("Sheoldred, the Apocalypse");
     expect(card.manaCost).toBe("{2}{B}{B}");
     expect(card.cmc).toBe(4);
