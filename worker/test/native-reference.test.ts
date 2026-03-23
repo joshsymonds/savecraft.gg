@@ -1,6 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { queryReference } from "../src/mcp/tools";
 import {
   clearNativeRegistry,
   getNativeModule,
@@ -8,7 +9,6 @@ import {
   registerNativeModule,
 } from "../src/reference/registry";
 import type { NativeReferenceModule } from "../src/reference/types";
-import { queryReference } from "../src/mcp/tools";
 
 // ── Registry unit tests ──────────────────────────────────────
 
@@ -22,7 +22,7 @@ describe("NativeReferenceModule registry", () => {
     name: "Test Module",
     description: "A test module",
     parameters: { type: "object", properties: { q: { type: "string" } } },
-    execute: async () => ({ type: "formatted", content: "hello from native" }),
+    execute: () => Promise.resolve({ type: "formatted", content: "hello from native" }),
   };
 
   it("registers and retrieves a module", () => {
@@ -85,10 +85,11 @@ describe("queryReference native routing", () => {
       id: "test_search",
       name: "Test Search",
       description: "Test search module",
-      execute: async (query) => ({
-        type: "formatted",
-        content: `searched for: ${String(query.keyword)}`,
-      }),
+      execute: (query) =>
+        Promise.resolve({
+          type: "formatted",
+          content: `searched for: ${String(query.keyword)}`,
+        }),
     };
     registerNativeModule("testgame", nativeModule);
 
@@ -109,10 +110,11 @@ describe("queryReference native routing", () => {
       id: "structured_mod",
       name: "Structured Module",
       description: "Returns structured data",
-      execute: async () => ({
-        type: "structured",
-        data: { cards: ["Lightning Bolt"], count: 1 },
-      }),
+      execute: () =>
+        Promise.resolve({
+          type: "structured",
+          data: { cards: ["Lightning Bolt"], count: 1 },
+        }),
     };
     registerNativeModule("testgame", nativeModule);
 
@@ -134,19 +136,13 @@ describe("queryReference native routing", () => {
       id: "failing_mod",
       name: "Failing Module",
       description: "Always fails",
-      execute: async () => {
+      execute: () => {
         throw new Error("database connection failed");
       },
     };
     registerNativeModule("testgame", failingModule);
 
-    const result = await queryReference(
-      env.REFERENCE_PLUGINS,
-      "testgame",
-      "failing_mod",
-      {},
-      env,
-    );
+    const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "failing_mod", {}, env);
 
     expect(result.isError).toBe(true);
     expect(result.content[0]!.text).toContain("database connection failed");
@@ -174,19 +170,13 @@ describe("queryReference native routing", () => {
       id: "module_a",
       name: "Module A",
       description: "A module",
-      execute: async () => ({ type: "formatted", content: "A" }),
+      execute: () => Promise.resolve({ type: "formatted", content: "A" }),
     };
     registerNativeModule("testgame", nativeModule);
 
     // Request module_b, which is not registered natively.
     // Should fall through to WfP dispatch (which will fail in tests).
-    const result = await queryReference(
-      env.REFERENCE_PLUGINS,
-      "testgame",
-      "module_b",
-      {},
-      env,
-    );
+    const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "module_b", {}, env);
 
     expect(result.isError).toBe(true);
     expect(result.content[0]!.text).toMatch(/reference module/i);
