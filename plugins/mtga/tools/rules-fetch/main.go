@@ -10,6 +10,7 @@ package main
 
 import (
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -59,6 +60,12 @@ func main() {
 }
 
 func run() error {
+	cfAccountID := flag.String("cf-account-id", os.Getenv("CLOUDFLARE_ACCOUNT_ID"), "Cloudflare account ID")
+	cfAPIToken := flag.String("cf-api-token", os.Getenv("CLOUDFLARE_API_TOKEN"), "Cloudflare API token")
+	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (enables D1 population)")
+	vectorizeIndex := flag.String("vectorize-index", "", "Vectorize index name (enables Vectorize population)")
+	flag.Parse()
+
 	_, thisFile, _, _ := runtime.Caller(0)
 	pluginDir := filepath.Join(filepath.Dir(thisFile), "..", "..")
 	dataDir := filepath.Join(pluginDir, "reference", "data")
@@ -136,6 +143,59 @@ func init() {
 		return err
 	}
 	fmt.Printf("Generated %s\n", wrapperPath)
+
+	// ── D1 population ────────────────────────────────────────
+	if *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != "" {
+		fmt.Println("\nPopulating D1 tables...")
+
+		// Load card names for card rulings
+		cardsPath := filepath.Join(dataDir, "cards.json")
+		cardNames, err := loadCardNames(cardsPath)
+		if err != nil {
+			return fmt.Errorf("loading card names: %w", err)
+		}
+		fmt.Printf("Card name mapping: %d cards\n", len(cardNames))
+
+		// Clear existing data
+		if err := clearD1Tables(*cfAccountID, *d1DatabaseID, *cfAPIToken); err != nil {
+			return fmt.Errorf("clearing D1 tables: %w", err)
+		}
+		fmt.Println("Cleared existing D1 data")
+
+		// Insert rules
+		ruleBatches := buildRuleInsertBatches(rules, d1BatchSize)
+		fmt.Printf("Inserting %d rules in %d batches...\n", len(rules), len(ruleBatches))
+		if err := executeD1Batches(*cfAccountID, *d1DatabaseID, *cfAPIToken, ruleBatches); err != nil {
+			return fmt.Errorf("inserting rules: %w", err)
+		}
+
+		// Insert card rulings
+		rulingBatches := buildCardRulingInsertBatches(cardRulings, cardNames, d1BatchSize)
+		fmt.Printf("Inserting card rulings in %d batches...\n", len(rulingBatches))
+		if err := executeD1Batches(*cfAccountID, *d1DatabaseID, *cfAPIToken, rulingBatches); err != nil {
+			return fmt.Errorf("inserting card rulings: %w", err)
+		}
+
+		fmt.Println("D1 population complete")
+	}
+
+	// ── Vectorize population ─────────────────────────────────
+	if *vectorizeIndex != "" && *cfAccountID != "" && *cfAPIToken != "" {
+		fmt.Println("\nPopulating Vectorize index...")
+
+		// Load card names if not already loaded
+		cardsPath := filepath.Join(dataDir, "cards.json")
+		cardNames, err := loadCardNames(cardsPath)
+		if err != nil {
+			return fmt.Errorf("loading card names: %w", err)
+		}
+
+		if err := populateVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, rules, cardRulings, cardNames); err != nil {
+			return fmt.Errorf("populating vectorize: %w", err)
+		}
+
+		fmt.Println("Vectorize population complete")
+	}
 
 	return nil
 }
