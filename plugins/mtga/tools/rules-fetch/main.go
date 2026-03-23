@@ -156,24 +156,11 @@ func init() {
 		}
 		fmt.Printf("Card name mapping: %d cards\n", len(cardNames))
 
-		// Clear existing data
-		if err := clearD1Tables(*cfAccountID, *d1DatabaseID, *cfAPIToken); err != nil {
-			return fmt.Errorf("clearing D1 tables: %w", err)
-		}
-		fmt.Println("Cleared existing D1 data")
-
-		// Insert rules
-		ruleBatches := buildRuleInsertBatches(rules, d1BatchSize)
-		fmt.Printf("Inserting %d rules in %d batches...\n", len(rules), len(ruleBatches))
-		if err := executeD1Batches(*cfAccountID, *d1DatabaseID, *cfAPIToken, ruleBatches); err != nil {
-			return fmt.Errorf("inserting rules: %w", err)
-		}
-
-		// Insert card rulings
-		rulingBatches := buildCardRulingInsertBatches(cardRulings, cardNames, d1BatchSize)
-		fmt.Printf("Inserting card rulings in %d batches...\n", len(rulingBatches))
-		if err := executeD1Batches(*cfAccountID, *d1DatabaseID, *cfAPIToken, rulingBatches); err != nil {
-			return fmt.Errorf("inserting card rulings: %w", err)
+		// Build SQL and import via bulk API
+		sql := buildImportSQL(rules, cardRulings, cardNames)
+		fmt.Printf("Generated %.1f MB of SQL (%d rules, %d cards)\n", float64(len(sql))/1048576, len(rules), len(cardNames))
+		if err := importD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
+			return fmt.Errorf("D1 import: %w", err)
 		}
 
 		fmt.Println("D1 population complete")

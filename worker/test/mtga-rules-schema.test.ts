@@ -47,19 +47,17 @@ describe("MTGA rules D1 schema", () => {
         null,
       ),
       // Insert corresponding FTS5 rows
-      env.DB.prepare(
-        "INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)",
-      ).bind("702.2", "Deathtouch is a static ability.", ""),
-      env.DB.prepare(
-        "INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)",
-      ).bind(
+      env.DB.prepare("INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)").bind(
+        "702.2",
+        "Deathtouch is a static ability.",
+        "",
+      ),
+      env.DB.prepare("INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)").bind(
         "702.2a",
         "Deathtouch is a keyword ability that causes damage dealt by the source to be lethal.",
         "",
       ),
-      env.DB.prepare(
-        "INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)",
-      ).bind(
+      env.DB.prepare("INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)").bind(
         "704.5",
         "The state-based actions are as follows: A creature with toughness 0 or less is put into the graveyard.",
         "",
@@ -85,10 +83,17 @@ describe("MTGA rules D1 schema", () => {
     await env.DB.batch([
       env.DB.prepare(
         "INSERT INTO mtga_rules (number, text, example, see_also) VALUES (?, ?, ?, ?)",
-      ).bind("701.7", "Destroying a permanent means moving it from the battlefield to the graveyard.", null, null),
-      env.DB.prepare(
-        "INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)",
-      ).bind("701.7", "Destroying a permanent means moving it from the battlefield to the graveyard.", ""),
+      ).bind(
+        "701.7",
+        "Destroying a permanent means moving it from the battlefield to the graveyard.",
+        null,
+        null,
+      ),
+      env.DB.prepare("INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)").bind(
+        "701.7",
+        "Destroying a permanent means moving it from the battlefield to the graveyard.",
+        "",
+      ),
     ]);
 
     // "destroy" should match "Destroying" via porter stemming
@@ -108,7 +113,12 @@ describe("MTGA rules D1 schema", () => {
     await env.DB.prepare(
       "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
     )
-      .bind("abc-123", "Sheoldred, the Apocalypse", "2025-02-07", "Sheoldred's triggered ability triggers...")
+      .bind(
+        "abc-123",
+        "Sheoldred, the Apocalypse",
+        "2025-02-07",
+        "Sheoldred's triggered ability triggers...",
+      )
       .run();
 
     const row = await env.DB.prepare("SELECT * FROM mtga_card_rulings WHERE oracle_id = ?")
@@ -123,7 +133,12 @@ describe("MTGA rules D1 schema", () => {
     await env.DB.batch([
       env.DB.prepare(
         "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
-      ).bind("abc-123", "Sheoldred, the Apocalypse", "2025-02-07", "Sheoldred triggers when opponent draws."),
+      ).bind(
+        "abc-123",
+        "Sheoldred, the Apocalypse",
+        "2025-02-07",
+        "Sheoldred triggers when opponent draws.",
+      ),
       env.DB.prepare(
         "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
       ).bind("def-456", "Lightning Bolt", "2025-01-01", "Lightning Bolt deals 3 damage."),

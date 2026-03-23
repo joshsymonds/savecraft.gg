@@ -2,10 +2,10 @@ import { getOAuthApi } from "@cloudflare/workers-oauth-provider";
 import { env, SELF } from "cloudflare:test";
 
 import { clearToolCaches } from "../src/mcp/tools";
-import { clearNativeRegistry } from "../src/reference/registry";
 import { OAUTH_ENDPOINTS } from "../src/oauth";
 import type { OAuthProps } from "../src/oauth";
 import { Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
+import { clearNativeRegistry } from "../src/reference/registry";
 import { storePush } from "../src/store";
 import type { SectionInput } from "../src/store";
 

@@ -1,8 +1,8 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { getNativeModule, registerNativeModule } from "../src/reference/registry";
 import { mergeWithRRF, rulesSearchModule } from "../../plugins/mtga/reference/rules-search";
+import { getNativeModule, registerNativeModule } from "../src/reference/registry";
 
 import { cleanAll } from "./helpers";
 
@@ -60,12 +60,7 @@ describe("rules_search native module", () => {
       // Structured table
       env.DB.prepare(
         "INSERT INTO mtga_rules (number, text, example, see_also) VALUES (?, ?, ?, ?)",
-      ).bind(
-        "702.2",
-        "Deathtouch is a static ability.",
-        null,
-        null,
-      ),
+      ).bind("702.2", "Deathtouch is a static ability.", null, null),
       env.DB.prepare(
         "INSERT INTO mtga_rules (number, text, example, see_also) VALUES (?, ?, ?, ?)",
       ).bind(
@@ -76,12 +71,7 @@ describe("rules_search native module", () => {
       ),
       env.DB.prepare(
         "INSERT INTO mtga_rules (number, text, example, see_also) VALUES (?, ?, ?, ?)",
-      ).bind(
-        "704.5",
-        "The state-based actions are as follows.",
-        null,
-        null,
-      ),
+      ).bind("704.5", "The state-based actions are as follows.", null, null),
       env.DB.prepare(
         "INSERT INTO mtga_rules (number, text, example, see_also) VALUES (?, ?, ?, ?)",
       ).bind(
@@ -91,22 +81,22 @@ describe("rules_search native module", () => {
         null,
       ),
       // FTS5 entries (must match structured table)
-      env.DB.prepare(
-        "INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)",
-      ).bind("702.2", "Deathtouch is a static ability.", ""),
-      env.DB.prepare(
-        "INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)",
-      ).bind(
+      env.DB.prepare("INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)").bind(
+        "702.2",
+        "Deathtouch is a static ability.",
+        "",
+      ),
+      env.DB.prepare("INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)").bind(
         "702.2a",
         "Deathtouch is a keyword ability that means any damage dealt by the source is lethal.",
         "",
       ),
-      env.DB.prepare(
-        "INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)",
-      ).bind("704.5", "The state-based actions are as follows.", ""),
-      env.DB.prepare(
-        "INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)",
-      ).bind(
+      env.DB.prepare("INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)").bind(
+        "704.5",
+        "The state-based actions are as follows.",
+        "",
+      ),
+      env.DB.prepare("INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)").bind(
         "614.1",
         "Some continuous effects are replacement effects.",
         "Example: If two replacement effects would apply, the affected player chooses which to apply first.",
@@ -118,13 +108,28 @@ describe("rules_search native module", () => {
     await env.DB.batch([
       env.DB.prepare(
         "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
-      ).bind("abc-123", "Sheoldred, the Apocalypse", "2025-02-07", "Sheoldred triggers when opponent draws."),
+      ).bind(
+        "abc-123",
+        "Sheoldred, the Apocalypse",
+        "2025-02-07",
+        "Sheoldred triggers when opponent draws.",
+      ),
       env.DB.prepare(
         "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
-      ).bind("abc-123", "Sheoldred, the Apocalypse", "2025-03-01", "The ability triggers once per card drawn."),
+      ).bind(
+        "abc-123",
+        "Sheoldred, the Apocalypse",
+        "2025-03-01",
+        "The ability triggers once per card drawn.",
+      ),
       env.DB.prepare(
         "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
-      ).bind("def-456", "Lightning Bolt", "2025-01-01", "Lightning Bolt deals 3 damage to any target."),
+      ).bind(
+        "def-456",
+        "Lightning Bolt",
+        "2025-01-01",
+        "Lightning Bolt deals 3 damage to any target.",
+      ),
       // FTS5 entries
       env.DB.prepare(
         "INSERT INTO mtga_card_rulings_fts (oracle_id, card_name, comment) VALUES (?, ?, ?)",
@@ -139,14 +144,14 @@ describe("rules_search native module", () => {
   }
 
   it("is registered as a native module for mtga", () => {
-    const mod = getNativeModule("mtga", "rules_search");
-    expect(mod).toBeDefined();
-    expect(mod!.name).toBe("Rules Search");
+    const module_ = getNativeModule("mtga", "rules_search");
+    expect(module_).toBeDefined();
+    expect(module_!.name).toBe("Rules Search");
   });
 
   it("returns error for empty query", async () => {
-    const mod = getNativeModule("mtga", "rules_search")!;
-    const result = await mod.execute({}, env);
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({}, env);
     expect(result.type).toBe("formatted");
     expect((result as { content: string }).content).toContain("Specify one of");
   });
@@ -155,8 +160,8 @@ describe("rules_search native module", () => {
 
   it("looks up rule by exact number", async () => {
     await seedRules();
-    const mod = getNativeModule("mtga", "rules_search")!;
-    const result = await mod.execute({ rule: "702.2" }, env);
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ rule: "702.2" }, env);
 
     expect(result.type).toBe("formatted");
     const text = (result as { content: string }).content;
@@ -168,8 +173,8 @@ describe("rules_search native module", () => {
 
   it("expands cross-references from see_also", async () => {
     await seedRules();
-    const mod = getNativeModule("mtga", "rules_search")!;
-    const result = await mod.execute({ rule: "702.2" }, env);
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ rule: "702.2" }, env);
 
     const text = (result as { content: string }).content;
     // 702.2a has see_also: ["704.5"], so 704.5 should appear in cross-references
@@ -179,8 +184,8 @@ describe("rules_search native module", () => {
 
   it("returns not found for nonexistent rule", async () => {
     await seedRules();
-    const mod = getNativeModule("mtga", "rules_search")!;
-    const result = await mod.execute({ rule: "999.99" }, env);
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ rule: "999.99" }, env);
 
     const text = (result as { content: string }).content;
     expect(text).toContain("No rule found");
@@ -190,8 +195,8 @@ describe("rules_search native module", () => {
 
   it("keyword search returns BM25-ranked results", async () => {
     await seedRules();
-    const mod = getNativeModule("mtga", "rules_search")!;
-    const result = await mod.execute({ keyword: "deathtouch" }, env);
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ keyword: "deathtouch" }, env);
 
     expect(result.type).toBe("formatted");
     const text = (result as { content: string }).content;
@@ -203,8 +208,8 @@ describe("rules_search native module", () => {
 
   it("topic search returns relevant results", async () => {
     await seedRules();
-    const mod = getNativeModule("mtga", "rules_search")!;
-    const result = await mod.execute({ topic: "replacement effects" }, env);
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ topic: "replacement effects" }, env);
 
     const text = (result as { content: string }).content;
     expect(text).toContain("614.1");
@@ -215,8 +220,8 @@ describe("rules_search native module", () => {
 
   it("card ruling search finds rulings by card name", async () => {
     await seedCardRulings();
-    const mod = getNativeModule("mtga", "rules_search")!;
-    const result = await mod.execute({ card: "Sheoldred" }, env);
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ card: "Sheoldred" }, env);
 
     expect(result.type).toBe("formatted");
     const text = (result as { content: string }).content;
@@ -229,8 +234,8 @@ describe("rules_search native module", () => {
 
   it("card ruling search returns not found for unknown card", async () => {
     await seedCardRulings();
-    const mod = getNativeModule("mtga", "rules_search")!;
-    const result = await mod.execute({ card: "Nonexistent Card" }, env);
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ card: "Nonexistent Card" }, env);
 
     const text = (result as { content: string }).content;
     expect(text).toContain("No card rulings found");

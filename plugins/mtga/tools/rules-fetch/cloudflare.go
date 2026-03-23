@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"crypto/md5"
 	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -101,67 +103,172 @@ func nilIfEmpty(s string) any {
 	return s
 }
 
-// executeD1Batches sends batches of SQL statements to the D1 HTTP API.
-func executeD1Batches(accountID, databaseID, apiToken string, batches []D1Batch) error {
-	client := &http.Client{Timeout: 2 * time.Minute}
-	baseURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/d1/database/%s/query", accountID, databaseID)
+// importD1SQL uses the D1 bulk import API to execute a large SQL string.
+// Flow: init → upload SQL to R2 → ingest → poll until complete.
+func importD1SQL(accountID, databaseID, apiToken, sql string) error {
+	client := &http.Client{Timeout: 5 * time.Minute}
+	importURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/d1/database/%s/import", accountID, databaseID)
 
-	for i, batch := range batches {
-		if len(batch.Statements) == 0 {
+	// Compute MD5 hash of SQL content.
+	sqlBytes := []byte(sql)
+	etag := fmt.Sprintf("%x", md5.Sum(sqlBytes))
+
+	// Step 1: Init — get upload URL.
+	initBody, _ := json.Marshal(map[string]string{"action": "init", "etag": etag})
+	initReq, _ := http.NewRequest("POST", importURL, bytes.NewReader(initBody))
+	initReq.Header.Set("Authorization", "Bearer "+apiToken)
+	initReq.Header.Set("Content-Type", "application/json")
+
+	initResp, err := client.Do(initReq)
+	if err != nil {
+		return fmt.Errorf("init: %w", err)
+	}
+	initRespBody, _ := io.ReadAll(initResp.Body)
+	initResp.Body.Close()
+	if initResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("init: HTTP %d: %s", initResp.StatusCode, string(initRespBody[:min(len(initRespBody), 300)]))
+	}
+
+	var initResult struct {
+		Result struct {
+			UploadURL string `json:"upload_url"`
+			Filename  string `json:"filename"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(initRespBody, &initResult); err != nil {
+		return fmt.Errorf("init: decode: %w", err)
+	}
+
+	// Step 2: Upload SQL to the temporary R2 URL.
+	uploadReq, _ := http.NewRequest("PUT", initResult.Result.UploadURL, bytes.NewReader(sqlBytes))
+	uploadResp, err := client.Do(uploadReq)
+	if err != nil {
+		return fmt.Errorf("upload: %w", err)
+	}
+	uploadResp.Body.Close()
+	if uploadResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("upload: HTTP %d", uploadResp.StatusCode)
+	}
+
+	// Step 3: Ingest — trigger the import.
+	ingestBody, _ := json.Marshal(map[string]string{
+		"action":   "ingest",
+		"etag":     etag,
+		"filename": initResult.Result.Filename,
+	})
+	ingestReq, _ := http.NewRequest("POST", importURL, bytes.NewReader(ingestBody))
+	ingestReq.Header.Set("Authorization", "Bearer "+apiToken)
+	ingestReq.Header.Set("Content-Type", "application/json")
+
+	ingestResp, err := client.Do(ingestReq)
+	if err != nil {
+		return fmt.Errorf("ingest: %w", err)
+	}
+	ingestRespBody, _ := io.ReadAll(ingestResp.Body)
+	ingestResp.Body.Close()
+	if ingestResp.StatusCode != http.StatusOK {
+		return fmt.Errorf("ingest: HTTP %d: %s", ingestResp.StatusCode, string(ingestRespBody[:min(len(ingestRespBody), 300)]))
+	}
+
+	var ingestResult struct {
+		Result struct {
+			AtBookmark string `json:"at_bookmark"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(ingestRespBody, &ingestResult); err != nil {
+		return fmt.Errorf("ingest: decode: %w", err)
+	}
+
+	// Step 4: Poll until complete.
+	bookmark := ingestResult.Result.AtBookmark
+	for i := 0; i < 120; i++ { // Max 2 minutes
+		time.Sleep(1 * time.Second)
+
+		pollBody, _ := json.Marshal(map[string]string{
+			"action":           "poll",
+			"current_bookmark": bookmark,
+		})
+		pollReq, _ := http.NewRequest("POST", importURL, bytes.NewReader(pollBody))
+		pollReq.Header.Set("Authorization", "Bearer "+apiToken)
+		pollReq.Header.Set("Content-Type", "application/json")
+
+		pollResp, err := client.Do(pollReq)
+		if err != nil {
+			return fmt.Errorf("poll: %w", err)
+		}
+		pollRespBody, _ := io.ReadAll(pollResp.Body)
+		pollResp.Body.Close()
+
+		var pollResult struct {
+			Result struct {
+				Success    bool   `json:"success"`
+				Error      string `json:"error"`
+				NumQueries int    `json:"num_queries"`
+			} `json:"result"`
+		}
+		if err := json.Unmarshal(pollRespBody, &pollResult); err != nil {
 			continue
 		}
 
-		body, err := json.Marshal(batch.Statements)
-		if err != nil {
-			return fmt.Errorf("batch %d: marshal: %w", i, err)
+		if pollResult.Result.Success {
+			fmt.Printf("  D1 import complete: %d queries executed\n", pollResult.Result.NumQueries)
+			return nil
 		}
-
-		req, err := http.NewRequest("POST", baseURL, bytes.NewReader(body))
-		if err != nil {
-			return fmt.Errorf("batch %d: new request: %w", i, err)
-		}
-		req.Header.Set("Authorization", "Bearer "+apiToken)
-		req.Header.Set("Content-Type", "application/json")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return fmt.Errorf("batch %d: http: %w", i, err)
-		}
-
-		respBody, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
-
-		if resp.StatusCode != http.StatusOK {
-			return fmt.Errorf("batch %d: HTTP %d: %s", i, resp.StatusCode, string(respBody[:min(len(respBody), 300)]))
-		}
-
-		var result struct {
-			Success bool `json:"success"`
-			Errors  []struct {
-				Message string `json:"message"`
-			} `json:"errors"`
-		}
-		if err := json.Unmarshal(respBody, &result); err == nil && !result.Success {
-			msg := "unknown error"
-			if len(result.Errors) > 0 {
-				msg = result.Errors[0].Message
-			}
-			return fmt.Errorf("batch %d: D1 error: %s", i, msg)
+		if pollResult.Result.Error != "" {
+			return fmt.Errorf("import failed: %s", pollResult.Result.Error)
 		}
 	}
 
-	return nil
+	return fmt.Errorf("import timed out after 120s")
 }
 
-// clearD1Tables truncates the rules tables before repopulating.
-func clearD1Tables(accountID, databaseID, apiToken string) error {
-	stmts := []D1Statement{
-		{SQL: "DELETE FROM mtga_rules_fts"},
-		{SQL: "DELETE FROM mtga_card_rulings_fts"},
-		{SQL: "DELETE FROM mtga_rules"},
-		{SQL: "DELETE FROM mtga_card_rulings"},
+// buildImportSQL generates a complete SQL string for bulk import.
+func buildImportSQL(rules []Rule, cardRulings map[string][]CardRuling, cardNames map[string]string) string {
+	var b strings.Builder
+
+	// Clear existing data
+	b.WriteString("DELETE FROM mtga_rules_fts;\n")
+	b.WriteString("DELETE FROM mtga_card_rulings_fts;\n")
+	b.WriteString("DELETE FROM mtga_rules;\n")
+	b.WriteString("DELETE FROM mtga_card_rulings;\n")
+
+	// Insert rules
+	for _, r := range rules {
+		seeAlso := "NULL"
+		if len(r.SeeAlso) > 0 {
+			j, _ := json.Marshal(r.SeeAlso)
+			seeAlso = sqlQuote(string(j))
+		}
+		example := "NULL"
+		if r.Example != "" {
+			example = sqlQuote(r.Example)
+		}
+		fmt.Fprintf(&b, "INSERT INTO mtga_rules (number, text, example, see_also) VALUES (%s, %s, %s, %s);\n",
+			sqlQuote(r.Number), sqlQuote(r.Text), example, seeAlso)
+		fmt.Fprintf(&b, "INSERT INTO mtga_rules_fts (number, text, example) VALUES (%s, %s, %s);\n",
+			sqlQuote(r.Number), sqlQuote(r.Text), sqlQuote(r.Example))
 	}
-	return executeD1Batches(accountID, databaseID, apiToken, []D1Batch{{Statements: stmts}})
+
+	// Insert card rulings
+	for oracleID, rulingList := range cardRulings {
+		cardName, ok := cardNames[oracleID]
+		if !ok {
+			continue
+		}
+		for _, r := range rulingList {
+			fmt.Fprintf(&b, "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (%s, %s, %s, %s);\n",
+				sqlQuote(oracleID), sqlQuote(cardName), sqlQuote(r.PublishedAt), sqlQuote(r.Comment))
+			fmt.Fprintf(&b, "INSERT INTO mtga_card_rulings_fts (oracle_id, card_name, comment) VALUES (%s, %s, %s);\n",
+				sqlQuote(oracleID), sqlQuote(cardName), sqlQuote(r.Comment))
+		}
+	}
+
+	return b.String()
+}
+
+// sqlQuote escapes a string for safe SQL embedding (single quotes).
+func sqlQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
 // ── Vectorize ────────────────────────────────────────────────
@@ -346,6 +453,7 @@ func joinShort(parts []string, sep string) string {
 }
 
 // loadCardNames reads cards.json and builds an oracle_id → card name map.
+// cards.json is keyed by arena ID: {"102111": {"oracleId": "...", "name": "...", ...}}
 func loadCardNames(cardsPath string) (map[string]string, error) {
 	type cardEntry struct {
 		OracleID string `json:"oracleId"`
@@ -357,7 +465,7 @@ func loadCardNames(cardsPath string) (map[string]string, error) {
 		return nil, fmt.Errorf("reading cards.json: %w", err)
 	}
 
-	var cards []cardEntry
+	var cards map[string]cardEntry
 	if err := json.Unmarshal(data, &cards); err != nil {
 		return nil, fmt.Errorf("parsing cards.json: %w", err)
 	}

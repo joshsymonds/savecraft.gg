@@ -8,6 +8,7 @@ import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError } from "../adapters/adapter"
 import { adapters } from "../adapters/registry";
 import { resolveCharacterContext } from "../adapters/resolve-character";
 import { getNativeGameIds, getNativeModule, getNativeModules } from "../reference/registry";
+import type { NativeReferenceModule } from "../reference/types";
 import { storePush } from "../store";
 import type { Env } from "../types";
 
@@ -215,6 +216,36 @@ async function getManifestKeys(plugins: R2Bucket): Promise<string[]> {
   return keys;
 }
 
+/**
+ * Merge native reference modules into game entries.
+ * Native modules overlay WASM modules (same id replaces) or add new ones.
+ */
+function mergeNativeModules(gameMap: Map<string, GameEntry>, filter?: string): void {
+  for (const gameId of getNativeGameIds()) {
+    let game = gameMap.get(gameId);
+    if (!game) {
+      // Native-only game (no WASM manifest) — only add if no filter or filter matches.
+      if (filter && !matchesGameFilter(gameId, gameId, filter)) continue;
+      game = { game_id: gameId, game_name: gameId, saves: [] };
+      gameMap.set(gameId, game);
+    }
+    const nativeModules = getNativeModules(gameId);
+    const existing = game.references ?? [];
+    const existingIds = new Set(existing.map((r) => r.id));
+    // Replace existing entries with native versions, append new ones.
+    const merged = existing.map((reference) => {
+      const native = nativeModules.find((n) => n.id === reference.id);
+      return native ?? reference;
+    });
+    for (const native of nativeModules) {
+      if (!existingIds.has(native.id)) {
+        merged.push(native);
+      }
+    }
+    game.references = merged;
+  }
+}
+
 /** Scan R2 manifests and attach reference modules to game entries. */
 async function attachReferenceModules(
   plugins: R2Bucket,
@@ -245,31 +276,7 @@ async function attachReferenceModules(
     }));
   }
 
-  // Merge native reference modules into game entries.
-  // Native modules may overlay WASM modules (same id replaces) or add new ones.
-  for (const gameId of getNativeGameIds()) {
-    let game = gameMap.get(gameId);
-    if (!game) {
-      // Native-only game (no WASM manifest) — only add if no filter or filter matches.
-      if (filter && !matchesGameFilter(gameId, gameId, filter)) continue;
-      game = { game_id: gameId, game_name: gameId, saves: [] };
-      gameMap.set(gameId, game);
-    }
-    const nativeModules = getNativeModules(gameId);
-    const existing = game.references ?? [];
-    const existingIds = new Set(existing.map((r) => r.id));
-    // Replace existing entries with native versions, append new ones.
-    const merged = existing.map((ref) => {
-      const native = nativeModules.find((n) => n.id === ref.id);
-      return native ?? ref;
-    });
-    for (const native of nativeModules) {
-      if (!existingIds.has(native.id)) {
-        merged.push(native);
-      }
-    }
-    game.references = merged;
-  }
+  mergeNativeModules(gameMap, filter);
 }
 
 export async function listGames(
@@ -909,6 +916,25 @@ export async function searchSaves(
 
 // ── Reference Data ───────────────────────────────────────────
 
+/** Execute a native reference module and wrap the result as a ToolResult. */
+async function executeNativeModule(
+  nativeModule: NativeReferenceModule,
+  query: Record<string, unknown>,
+  env: Env,
+): Promise<ToolResult> {
+  try {
+    const result = await nativeModule.execute(query, env);
+    if (result.type === "formatted") {
+      return { content: [{ type: "text" as const, text: result.content }] };
+    }
+    return textResult(result.data);
+  } catch (error) {
+    return errorResult(
+      `Reference module error: ${error instanceof Error ? error.message : String(error)}`,
+    );
+  }
+}
+
 export async function queryReference(
   referencePlugins: DispatchNamespace,
   gameId: string,
@@ -920,17 +946,7 @@ export async function queryReference(
   // with full platform bindings (D1, Vectorize, Workers AI).
   const nativeModule = getNativeModule(gameId, module);
   if (nativeModule && env) {
-    try {
-      const result = await nativeModule.execute(query, env);
-      if (result.type === "formatted") {
-        return { content: [{ type: "text" as const, text: result.content }] };
-      }
-      return textResult(result.data);
-    } catch (err) {
-      return errorResult(
-        `Reference module error: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
+    return executeNativeModule(nativeModule, query, env);
   }
 
   // Fall through to Workers for Platforms dispatch for WASM modules.
