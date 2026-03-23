@@ -504,6 +504,7 @@ function handleQueryReference(
     args.game_id as string,
     args.module as string,
     queryObject,
+    env,
   );
 }
 
