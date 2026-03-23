@@ -18,8 +18,9 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
 	"time"
+
+	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
 )
 
 const (

@@ -23,8 +23,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
 	"time"
+
+	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
 )
 
 // Available sets with 17Lands Premier Draft data.
