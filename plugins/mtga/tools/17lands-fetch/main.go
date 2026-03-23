@@ -22,6 +22,8 @@ import (
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
 	"time"
 )
 
@@ -172,7 +174,7 @@ func run() error {
 		fmt.Println("\nPopulating D1 tables...")
 		sql := buildDraftRatingsImportSQL(allSets)
 		fmt.Printf("Generated %.1f MB of SQL (%d sets)\n", float64(len(sql))/1048576, len(allSets))
-		if err := importD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
+		if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
 			return fmt.Errorf("D1 import: %w", err)
 		}
 		fmt.Println("D1 population complete")
