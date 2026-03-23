@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 )
@@ -452,29 +451,71 @@ func joinShort(parts []string, sep string) string {
 	return result
 }
 
-// loadCardNames reads cards.json and builds an oracle_id → card name map.
-// cards.json is keyed by arena ID: {"102111": {"oracleId": "...", "name": "...", ...}}
-func loadCardNames(cardsPath string) (map[string]string, error) {
-	type cardEntry struct {
-		OracleID string `json:"oracleId"`
-		Name     string `json:"name"`
-	}
-
-	data, err := os.ReadFile(cardsPath)
+// downloadCardNames fetches oracle card names from Scryfall's bulk data API.
+// Uses the "oracle_cards" bulk dataset which covers ALL Magic cards (not just Arena).
+func downloadCardNames() (map[string]string, error) {
+	// Get the oracle cards bulk data URL from Scryfall.
+	resp, err := httpGet("https://api.scryfall.com/bulk-data")
 	if err != nil {
-		return nil, fmt.Errorf("reading cards.json: %w", err)
+		return nil, fmt.Errorf("fetching bulk-data index: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var bulk struct {
+		Data []struct {
+			Type        string `json:"type"`
+			DownloadURI string `json:"download_uri"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(resp.Body).Decode(&bulk); err != nil {
+		return nil, err
 	}
 
-	var cards map[string]cardEntry
-	if err := json.Unmarshal(data, &cards); err != nil {
-		return nil, fmt.Errorf("parsing cards.json: %w", err)
-	}
-
-	names := make(map[string]string, len(cards))
-	for _, c := range cards {
-		if c.OracleID != "" && c.Name != "" {
-			names[c.OracleID] = c.Name
+	var downloadURL string
+	for _, d := range bulk.Data {
+		if d.Type == "oracle_cards" {
+			downloadURL = d.DownloadURI
+			break
 		}
 	}
+	if downloadURL == "" {
+		return nil, fmt.Errorf("oracle_cards bulk data not found")
+	}
+	if !strings.HasPrefix(downloadURL, "https://data.scryfall.io/") {
+		return nil, fmt.Errorf("unexpected oracle cards download URL: %s", downloadURL)
+	}
+
+	fmt.Printf("Downloading oracle card names from %s...\n", downloadURL)
+	resp2, err := httpGet(downloadURL)
+	if err != nil {
+		return nil, err
+	}
+	defer resp2.Body.Close()
+
+	// Stream-parse the JSON array — each entry has oracle_id and name.
+	dec := json.NewDecoder(resp2.Body)
+	tok, err := dec.Token()
+	if err != nil {
+		return nil, err
+	}
+	if delim, ok := tok.(json.Delim); !ok || delim != '[' {
+		return nil, fmt.Errorf("expected '[', got %v", tok)
+	}
+
+	names := make(map[string]string)
+	for dec.More() {
+		var card struct {
+			OracleID string `json:"oracle_id"`
+			Name     string `json:"name"`
+		}
+		if err := dec.Decode(&card); err != nil {
+			continue
+		}
+		if card.OracleID != "" && card.Name != "" {
+			names[card.OracleID] = card.Name
+		}
+	}
+
+	fmt.Printf("Card name mapping: %d cards (all of Magic)\n", len(names))
 	return names, nil
 }

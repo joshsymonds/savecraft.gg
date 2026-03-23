@@ -144,44 +144,34 @@ func init() {
 	}
 	fmt.Printf("Generated %s\n", wrapperPath)
 
-	// ── D1 population ────────────────────────────────────────
-	if *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != "" {
-		fmt.Println("\nPopulating D1 tables...")
+	// ── Cloudflare population (D1 + Vectorize) ──────────────
+	needsD1 := *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != ""
+	needsVectorize := *vectorizeIndex != "" && *cfAccountID != "" && *cfAPIToken != ""
 
-		// Load card names for card rulings
-		cardsPath := filepath.Join(dataDir, "cards.json")
-		cardNames, err := loadCardNames(cardsPath)
+	if needsD1 || needsVectorize {
+		// Download card names from Scryfall (all of Magic, not just Arena)
+		cardNames, err := downloadCardNames()
 		if err != nil {
-			return fmt.Errorf("loading card names: %w", err)
-		}
-		fmt.Printf("Card name mapping: %d cards\n", len(cardNames))
-
-		// Build SQL and import via bulk API
-		sql := buildImportSQL(rules, cardRulings, cardNames)
-		fmt.Printf("Generated %.1f MB of SQL (%d rules, %d cards)\n", float64(len(sql))/1048576, len(rules), len(cardNames))
-		if err := importD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
-			return fmt.Errorf("D1 import: %w", err)
+			return fmt.Errorf("downloading card names: %w", err)
 		}
 
-		fmt.Println("D1 population complete")
-	}
-
-	// ── Vectorize population ─────────────────────────────────
-	if *vectorizeIndex != "" && *cfAccountID != "" && *cfAPIToken != "" {
-		fmt.Println("\nPopulating Vectorize index...")
-
-		// Load card names if not already loaded
-		cardsPath := filepath.Join(dataDir, "cards.json")
-		cardNames, err := loadCardNames(cardsPath)
-		if err != nil {
-			return fmt.Errorf("loading card names: %w", err)
+		if needsD1 {
+			fmt.Println("\nPopulating D1 tables...")
+			sql := buildImportSQL(rules, cardRulings, cardNames)
+			fmt.Printf("Generated %.1f MB of SQL (%d rules, %d cards with rulings)\n", float64(len(sql))/1048576, len(rules), len(cardNames))
+			if err := importD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
+				return fmt.Errorf("D1 import: %w", err)
+			}
+			fmt.Println("D1 population complete")
 		}
 
-		if err := populateVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, rules, cardRulings, cardNames); err != nil {
-			return fmt.Errorf("populating vectorize: %w", err)
+		if needsVectorize {
+			fmt.Println("\nPopulating Vectorize index...")
+			if err := populateVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, rules, cardRulings, cardNames); err != nil {
+				return fmt.Errorf("populating vectorize: %w", err)
+			}
+			fmt.Println("Vectorize population complete")
 		}
-
-		fmt.Println("Vectorize population complete")
 	}
 
 	return nil
