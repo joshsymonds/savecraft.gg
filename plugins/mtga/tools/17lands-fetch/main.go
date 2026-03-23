@@ -11,6 +11,7 @@ import (
 	"compress/gzip"
 	"encoding/csv"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"math"
@@ -122,6 +123,11 @@ func main() {
 }
 
 func run() error {
+	cfAccountID := flag.String("cf-account-id", os.Getenv("CLOUDFLARE_ACCOUNT_ID"), "Cloudflare account ID")
+	cfAPIToken := flag.String("cf-api-token", os.Getenv("CLOUDFLARE_API_TOKEN"), "Cloudflare API token")
+	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (enables D1 population)")
+	flag.Parse()
+
 	_, thisFile, _, _ := runtime.Caller(0)
 	pluginDir := filepath.Join(filepath.Dir(thisFile), "..", "..")
 	outPath := filepath.Join(pluginDir, "reference", "data", "draft_ratings_gen.go")
@@ -157,6 +163,18 @@ func run() error {
 		return fmt.Errorf("generating output: %w", err)
 	}
 	fmt.Printf("Done. %d sets, generated to %s\n", len(allSets), outPath)
+
+	// ── Cloudflare D1 population ─────────────────────────────
+	if *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != "" {
+		fmt.Println("\nPopulating D1 tables...")
+		sql := buildDraftRatingsImportSQL(allSets)
+		fmt.Printf("Generated %.1f MB of SQL (%d sets)\n", float64(len(sql))/1048576, len(allSets))
+		if err := importD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
+			return fmt.Errorf("D1 import: %w", err)
+		}
+		fmt.Println("D1 population complete")
+	}
+
 	return nil
 }
 
