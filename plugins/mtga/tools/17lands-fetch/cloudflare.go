@@ -90,7 +90,10 @@ func importD1SQL(accountID, databaseID, apiToken, sql string) error {
 		} `json:"result"`
 	}
 	if err := json.Unmarshal(initRespBody, &initResult); err != nil {
-		return fmt.Errorf("init: decode: %w", err)
+		return fmt.Errorf("init: decode: %w (body: %s)", err, string(initRespBody[:min(len(initRespBody), 300)]))
+	}
+	if initResult.Result.UploadURL == "" {
+		return fmt.Errorf("init: empty upload_url in response: %s", string(initRespBody[:min(len(initRespBody), 500)]))
 	}
 
 	// Step 2: Upload SQL to the temporary R2 URL.
