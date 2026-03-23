@@ -1,11 +1,14 @@
-// scryfall-fetch downloads Scryfall Oracle Cards bulk data and generates Go source
-// files for the MTGA parser and reference plugins.
+// scryfall-fetch downloads Scryfall Oracle Cards bulk data, generates the parser
+// Go data file, and populates D1 + Vectorize when --d1-database-id is provided.
 //
-// Usage: go run ./plugins/mtga/tools/scryfall-fetch
+// Usage: go run ./plugins/mtga/tools/scryfall-fetch [--d1-database-id=UUID] [--vectorize-index=NAME]
 //
 // Generated files:
 //   - plugins/mtga/parser/data/arena_cards_gen.go  (minimal: arena_id → name/set/rarity)
-//   - plugins/mtga/reference/data/cards_gen.go     (full card data for search/queries)
+//
+// D1 population (when --d1-database-id set):
+//   - mtga_cards + mtga_cards_fts tables via Cloudflare D1 bulk import API
+//   - Vectorize card embeddings (when --vectorize-index also set)
 package main
 
 import (

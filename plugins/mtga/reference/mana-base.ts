@@ -138,13 +138,24 @@ export const manaBaseModule: NativeReferenceModule = {
       count: number;
     }
 
+    // Batch resolve card names to mana costs from D1
+    const cardsByName = new Map<string, { name: string; mana_cost: string; colors: string }>();
+    const names = deck.map((e) => e.name);
+    for (let i = 0; i < names.length; i += 50) {
+      const chunk = names.slice(i, i + 50);
+      const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
+      const rows = await env.DB
+        .prepare(`SELECT name, mana_cost, colors FROM mtga_cards WHERE name COLLATE NOCASE IN (${placeholders})`)
+        .bind(...chunk)
+        .all<{ name: string; mana_cost: string; colors: string }>();
+      for (const row of rows.results) {
+        cardsByName.set(row.name.toLowerCase(), row);
+      }
+    }
+
     const resolved: ResolvedCard[] = [];
     for (const entry of deck) {
-      const row = await env.DB
-        .prepare("SELECT name, mana_cost, colors FROM mtga_cards WHERE name = ?1 COLLATE NOCASE LIMIT 1")
-        .bind(entry.name)
-        .first<{ name: string; mana_cost: string; colors: string }>();
-
+      const row = cardsByName.get(entry.name.toLowerCase());
       if (!row || !row.mana_cost) continue;
 
       resolved.push({

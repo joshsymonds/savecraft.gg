@@ -274,19 +274,16 @@ async function compareCards(db: D1Database, setCode: string, cardNames: string[]
       continue;
     }
 
-    if (colorPair && !row) {
-      lines.push(`${padRight(truncName(name, 28), 28)}  (no data for ${colorPair})`);
-      continue;
-    }
-
     lines.push(`${padRight(truncName(row.card_name, 28), 28)} ${padLeft(pct(row.gihwr), 8)} ${padLeft(iwdFmt(row.iwd), 7)} ${padLeft(pct(row.ohwr), 8)} ${padLeft(row.alsa.toFixed(1), 6)} ${padLeft(row.ata.toFixed(1), 6)} ${padLeft(fmtInt(row.games_in_hand), 8)}`);
   }
 
   return { type: "formatted", content: lines.join("\n") + "\n" };
 }
 
+const VALID_SORT_FIELDS = new Set(["gihwr", "ohwr", "gdwr", "gnswr", "iwd", "alsa", "ata"]);
+
 async function leaderboard(db: D1Database, setCode: string, sortField: string, colorPair: string, limit: number, offset: number, setStats: SetStatsRow): Promise<ReferenceResult> {
-  const field = sortField || "gihwr";
+  const field = VALID_SORT_FIELDS.has(sortField) ? sortField : "gihwr";
   const sortLabel = sortFieldLabel(field);
   // For ALSA and ATA, lower is better so sort ASC
   const direction = (field === "alsa" || field === "ata") ? "ASC" : "DESC";
@@ -370,8 +367,8 @@ export const draftRatingsModule: NativeReferenceModule = {
     const cards = (query.cards as string[]) ?? [];
     const colors = ((query.colors as string) ?? "").toUpperCase();
     const sort = ((query.sort as string) ?? "").toLowerCase();
-    const limit = typeof query.limit === "number" ? query.limit : DEFAULT_PAGE_SIZE;
-    const offset = typeof query.offset === "number" ? query.offset : 0;
+    const limit = Math.min(Math.max(typeof query.limit === "number" ? query.limit : DEFAULT_PAGE_SIZE, 1), 100);
+    const offset = Math.max(typeof query.offset === "number" ? query.offset : 0, 0);
 
     // No set → list available sets
     if (!setCode) {

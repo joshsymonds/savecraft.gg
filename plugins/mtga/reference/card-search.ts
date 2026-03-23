@@ -86,7 +86,7 @@ export const cardSearchModule: NativeReferenceModule = {
     const rarity = (query.rarity as string) ?? "";
     const set = (query.set as string) ?? "";
     const sortBy = (query.sort as string) || "name";
-    const limit = typeof query.limit === "number" ? query.limit : DEFAULT_LIMIT;
+    const limit = Math.min(Math.max(typeof query.limit === "number" ? query.limit : DEFAULT_LIMIT, 1), 100);
 
     const hasFtsQuery = name !== "" || text !== "";
 
