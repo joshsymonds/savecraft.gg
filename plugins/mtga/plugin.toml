@@ -51,3 +51,24 @@ author = "Josh Symonds"
 data_sources = [
   { name = "17Lands Public Datasets", origin = "17lands.com, licensed CC BY 4.0" },
 ]
+
+[reference.modules.mana_base]
+name = "Mana Base Calculator"
+description = "Compute exact colored mana source requirements using Frank Karsten's published methodology. USE PROACTIVELY: query this module whenever reviewing any decklist, analyzing why a player is getting mana screwed, recommending cards to add or cut, building a new deck from a collection, or analyzing a draft pool. The AI's intuition about mana bases ('you probably need more blue sources') is reliably close but never precise — this module gives the exact number ('you need 18 blue sources for 1CC on turn 3'). Supports 40-card (limited), 60-card (standard/modern), 80-card (Yorion), and 99-card (Commander) decks. Applies gold card adjustment (+1 per color for multicolor spells) and cites the most demanding spell per color."
+
+[reference.modules.mana_base.attribution]
+author = "Josh Symonds"
+data_sources = [
+  { name = "Frank Karsten Mana Base Tables", origin = "Frank Karsten, 'How Many Sources Do You Need to Consistently Cast Your Spells? A 2022 Update'" },
+]
+
+[reference.modules.rules_search]
+name = "Rules Search"
+description = "Search the MTG Comprehensive Rules and official per-card rulings from Scryfall. USE PROACTIVELY: query this module BEFORE making any claim about how a card interaction works, what happens during a game phase, how triggered abilities resolve, or any rules interpretation. Do not rely on training data for rules — verify against the authoritative source. Especially critical for: card interactions between specific cards, triggered vs replacement effects, state-based actions, combat damage assignment with keywords like trample+deathtouch, stack behavior, and any ruling a player might dispute. Query by rule number for specific lookups, by keyword for mechanic rules, by topic for phase/step rules, or by card name for official Scryfall rulings on specific cards."
+
+[reference.modules.rules_search.attribution]
+author = "Josh Symonds"
+data_sources = [
+  { name = "MTG Comprehensive Rules", origin = "Wizards of the Coast, effective November 14, 2025" },
+  { name = "Scryfall Rulings", origin = "Scryfall (scryfall.com), card rulings copyright Wizards of the Coast" },
+]
