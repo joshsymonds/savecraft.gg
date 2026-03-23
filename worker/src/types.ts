@@ -42,4 +42,8 @@ export interface Env {
   BATTLENET_CLIENT_SECRET?: string;
   /** Battle.net OAuth region for token endpoint (us, eu, kr, tw). Default: us. */
   BATTLENET_REGION?: string;
+  /** Workers AI binding for embedding queries. */
+  AI?: Ai;
+  /** Vectorize index for MTG Arena rules semantic search. */
+  MTGA_RULES_INDEX?: VectorizeIndex;
 }
