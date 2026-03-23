@@ -7,6 +7,7 @@
 import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError } from "../adapters/adapter";
 import { adapters } from "../adapters/registry";
 import { resolveCharacterContext } from "../adapters/resolve-character";
+import { getNativeGameIds, getNativeModule, getNativeModules } from "../reference/registry";
 import { storePush } from "../store";
 import type { Env } from "../types";
 
@@ -242,6 +243,32 @@ async function attachReferenceModules(
       description: entry.description,
       parameters: entry.parameters,
     }));
+  }
+
+  // Merge native reference modules into game entries.
+  // Native modules may overlay WASM modules (same id replaces) or add new ones.
+  for (const gameId of getNativeGameIds()) {
+    let game = gameMap.get(gameId);
+    if (!game) {
+      // Native-only game (no WASM manifest) — only add if no filter or filter matches.
+      if (filter && !matchesGameFilter(gameId, gameId, filter)) continue;
+      game = { game_id: gameId, game_name: gameId, saves: [] };
+      gameMap.set(gameId, game);
+    }
+    const nativeModules = getNativeModules(gameId);
+    const existing = game.references ?? [];
+    const existingIds = new Set(existing.map((r) => r.id));
+    // Replace existing entries with native versions, append new ones.
+    const merged = existing.map((ref) => {
+      const native = nativeModules.find((n) => n.id === ref.id);
+      return native ?? ref;
+    });
+    for (const native of nativeModules) {
+      if (!existingIds.has(native.id)) {
+        merged.push(native);
+      }
+    }
+    game.references = merged;
   }
 }
 
@@ -887,7 +914,26 @@ export async function queryReference(
   gameId: string,
   module: string,
   query: Record<string, unknown>,
+  env?: Env,
 ): Promise<ToolResult> {
+  // Check native module registry first — native modules run in-process
+  // with full platform bindings (D1, Vectorize, Workers AI).
+  const nativeModule = getNativeModule(gameId, module);
+  if (nativeModule && env) {
+    try {
+      const result = await nativeModule.execute(query, env);
+      if (result.type === "formatted") {
+        return { content: [{ type: "text" as const, text: result.content }] };
+      }
+      return textResult(result.data);
+    } catch (err) {
+      return errorResult(
+        `Reference module error: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  // Fall through to Workers for Platforms dispatch for WASM modules.
   let plugin: Fetcher;
   try {
     plugin = referencePlugins.get(`${gameId}-reference`);
