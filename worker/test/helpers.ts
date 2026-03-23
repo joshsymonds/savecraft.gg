@@ -26,6 +26,12 @@ export const CLEANUP_TABLES = [
   "mtga_card_rulings_fts",
   "mtga_rules",
   "mtga_card_rulings",
+  "mtga_cards_fts",
+  "mtga_cards",
+  "mtga_draft_ratings_fts",
+  "mtga_draft_color_stats",
+  "mtga_draft_ratings",
+  "mtga_draft_set_stats",
 ] as const;
 
 /**
