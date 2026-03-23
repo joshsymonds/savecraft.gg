@@ -9,7 +9,9 @@
 package main
 
 import (
+	"compress/gzip"
 	"encoding/json"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
@@ -60,6 +62,12 @@ func main() {
 }
 
 func run() error {
+	cfAccountID := flag.String("cf-account-id", os.Getenv("CLOUDFLARE_ACCOUNT_ID"), "Cloudflare account ID")
+	cfAPIToken := flag.String("cf-api-token", os.Getenv("CLOUDFLARE_API_TOKEN"), "Cloudflare API token")
+	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (enables D1 population)")
+	vectorizeIndex := flag.String("vectorize-index", "", "Vectorize index name (enables Vectorize population)")
+	flag.Parse()
+
 	// Find project root (where go.mod lives).
 	_, thisFile, _, _ := runtime.Caller(0)
 	pluginDir := filepath.Join(filepath.Dir(thisFile), "..", "..")
@@ -113,6 +121,28 @@ func run() error {
 		return fmt.Errorf("generating reference data: %w", err)
 	}
 	fmt.Printf("Generated %s (%d cards)\n", refPath, len(cards))
+
+	// ── Cloudflare population (D1 + Vectorize) ──────────────
+	needsD1 := *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != ""
+	needsVectorize := *vectorizeIndex != "" && *cfAccountID != "" && *cfAPIToken != ""
+
+	if needsD1 {
+		fmt.Println("\nPopulating D1 tables...")
+		sql := buildCardImportSQL(cards)
+		fmt.Printf("Generated %.1f MB of SQL (%d cards)\n", float64(len(sql))/1048576, len(cards))
+		if err := importD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
+			return fmt.Errorf("D1 import: %w", err)
+		}
+		fmt.Println("D1 population complete")
+	}
+
+	if needsVectorize {
+		fmt.Println("\nPopulating Vectorize index...")
+		if err := populateCardVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, cards); err != nil {
+			return fmt.Errorf("populating vectorize: %w", err)
+		}
+		fmt.Println("Vectorize population complete")
+	}
 
 	return nil
 }
@@ -213,7 +243,7 @@ func generateParserData(path string, cards []ScryfallCard) error {
 }
 
 // generateReferenceData writes the full card data for the reference module.
-// Uses JSON embed + runtime decode to avoid WASM "function too big" on large map literals.
+// Uses gzipped JSON embed + runtime decode to avoid WASM "function too big" on large map literals.
 func generateReferenceData(path string, cards []ScryfallCard) error {
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, 0o755); err != nil {
@@ -255,6 +285,12 @@ func generateReferenceData(path string, cards []ScryfallCard) error {
 		return err
 	}
 
+	// Write gzipped JSON for embedding.
+	gzPath := filepath.Join(dir, "cards.json.gz")
+	if err := writeGzipped(gzPath, jsonBytes); err != nil {
+		return fmt.Errorf("writing gzipped cards JSON: %w", err)
+	}
+
 	// Write Go wrapper.
 	var buf strings.Builder
 	if err := referenceTmpl.Execute(&buf, templateData{
@@ -265,6 +301,21 @@ func generateReferenceData(path string, cards []ScryfallCard) error {
 	}
 
 	return os.WriteFile(path, []byte(buf.String()), 0o644)
+}
+
+// writeGzipped writes data to a gzip-compressed file.
+func writeGzipped(path string, data []byte) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	w := gzip.NewWriter(f)
+	if _, err := w.Write(data); err != nil {
+		return err
+	}
+	return w.Close()
 }
 
 type templateData struct {
@@ -365,14 +416,18 @@ type Card struct {
 	Keywords      []string          ` + "`" + `json:"keywords"` + "`" + `
 }
 
-//go:embed cards.json
-var cardsJSON []byte
+//go:embed cards.json.gz
+var cardsJSONGz []byte
 
 // Cards contains all Arena cards indexed by arena_id.
-// Decoded from embedded JSON at init time to avoid WASM "function too big" on map literals.
+// Decoded from embedded gzipped JSON at init time to avoid WASM "function too big" on map literals.
 var Cards map[int]Card
 
 func init() {
+	cardsJSON, err := Gunzip(cardsJSONGz)
+	if err != nil {
+		panic("failed to decompress cards data: " + err.Error())
+	}
 	var raw map[string]Card
 	if err := json.Unmarshal(cardsJSON, &raw); err != nil {
 		panic("failed to decode Scryfall cards: " + err.Error())
