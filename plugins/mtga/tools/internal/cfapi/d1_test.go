@@ -212,6 +212,14 @@ func TestImportD1SQL_PollNotImporting(t *testing.T) {
 	if isImportCompleteError("some other error") {
 		t.Error("unrelated errors should not be treated as complete")
 	}
+
+	// D1_RESET_DO and other transient errors should be treated as retryable
+	if !isPollRetryableError(`{"D1_RESET_DO":true}`) {
+		t.Error("expected D1_RESET_DO to be retryable")
+	}
+	if isPollRetryableError("some permanent error") {
+		t.Error("unknown errors should not be retryable by default")
+	}
 }
 
 func TestInitImport_AlreadyComplete(t *testing.T) {
