@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -219,6 +220,39 @@ func TestImportD1SQL_PollNotImporting(t *testing.T) {
 	}
 	if isPollRetryableError("some permanent error") {
 		t.Error("unknown errors should not be retryable by default")
+	}
+}
+
+func TestInitImport_FailsImmediatelyOnError(t *testing.T) {
+	// status="error" is a real error (e.g. missing table), not a busy lock.
+	// Should fail immediately, not retry.
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		attempts.Add(1)
+		json.NewEncoder(w).Encode(map[string]any{
+			"success": true,
+			"result": map[string]any{
+				"success":     false,
+				"status":      "error",
+				"type":        "import",
+				"error":       "no such table: mtga_cards_fts: SQLITE_ERROR",
+				"at_bookmark": "000002f2-00000000-00005037-abc123",
+				"messages":    []string{"Starting import..."},
+			},
+		})
+	}))
+	defer server.Close()
+
+	client := &http.Client{}
+	_, _, err := initImport(client, server.URL, "test-token", "test-etag")
+	if err == nil {
+		t.Fatal("expected immediate error for status=error")
+	}
+	if !strings.Contains(err.Error(), "SQLITE_ERROR") {
+		t.Errorf("error should contain the D1 error message, got: %v", err)
+	}
+	if attempts.Load() != 1 {
+		t.Errorf("should not retry on status=error, got %d attempts", attempts.Load())
 	}
 }
 

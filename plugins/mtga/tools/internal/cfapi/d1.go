@@ -200,10 +200,16 @@ func initImport(client *http.Client, importURL, apiToken, etag string) (string, 
 			return "", "", errImportAlreadyComplete
 		}
 
+		// status="error" is a permanent failure (e.g. missing table) — fail immediately.
+		if r.Status == "error" {
+			return "", "", fmt.Errorf("init: D1 import error: %s", r.Error)
+		}
+
 		// Another import is active — retry with jittered exponential backoff.
-		// D1 returns this as either status="active" or success=false with an error message
-		// ("Currently processing a long-running import...").
-		isActive := r.Status == "active" || (!r.Success && r.Error != "")
+		// D1 returns this as either status="active" or success=false with a
+		// "Currently processing a long-running import..." error message.
+		isActive := r.Status == "active" ||
+			(!r.Success && strings.Contains(r.Error, "long-running import"))
 		if isActive {
 			delay := min(baseDelay*(1<<attempt), 30*time.Second)
 			jitter := time.Duration(float64(delay) * (0.5 + rand.Float64()))
