@@ -146,4 +146,3 @@ func writeStatus(enc *json.Encoder, msg string) {
 		os.Exit(1)
 	}
 }
-
