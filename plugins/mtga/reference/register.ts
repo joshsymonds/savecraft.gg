@@ -5,7 +5,9 @@
 
 import { registerNativeModule } from "../../../worker/src/reference/registry";
 import { cardSearchModule } from "./card-search";
+import { draftRatingsModule } from "./draft-ratings";
 import { rulesSearchModule } from "./rules-search";
 
 registerNativeModule("mtga", rulesSearchModule);
 registerNativeModule("mtga", cardSearchModule);
+registerNativeModule("mtga", draftRatingsModule);
