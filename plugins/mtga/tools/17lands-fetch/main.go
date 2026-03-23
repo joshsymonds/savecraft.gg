@@ -22,6 +22,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"time"
 
@@ -142,30 +143,51 @@ func run() error {
 		targetSets = []string{upper}
 	}
 
+	// Process sets concurrently — each set downloads ~100-200MB of CSVs from 17Lands.
+	type setWork struct {
+		result setResult
+		err    error
+	}
+	results := make([]setWork, len(targetSets))
+	var wg sync.WaitGroup
+	// Limit concurrency to avoid overwhelming 17Lands S3.
+	sem := make(chan struct{}, 6)
+
+	for i, set := range targetSets {
+		wg.Add(1)
+		go func(idx int, setCode string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			fmt.Printf("Processing %s...\n", setCode)
+
+			accums, err := processGameData(setCode)
+			if err != nil {
+				fmt.Printf("  WARN: game data for %s failed: %v (skipping)\n", setCode, err)
+				results[idx] = setWork{err: err}
+				return
+			}
+			fmt.Printf("  %s game data: %d cards\n", setCode, len(accums["_overall"]))
+
+			if err := processDraftData(setCode, accums); err != nil {
+				fmt.Printf("  WARN: draft data for %s failed: %v (continuing without ALSA/ATA)\n", setCode, err)
+			} else {
+				fmt.Printf("  %s draft data: merged\n", setCode)
+			}
+
+			sr := buildSetResult(setCode, accums)
+			fmt.Printf("  %s complete: %d cards with stats\n", setCode, len(sr.Cards))
+			results[idx] = setWork{result: sr}
+		}(i, set)
+	}
+	wg.Wait()
+
 	var allSets []setResult
-
-	for _, set := range targetSets {
-		fmt.Printf("Processing %s...\n", set)
-
-		// Process game data.
-		accums, err := processGameData(set)
-		if err != nil {
-			fmt.Printf("  WARN: game data for %s failed: %v (skipping)\n", set, err)
-			continue
+	for _, r := range results {
+		if r.err == nil {
+			allSets = append(allSets, r.result)
 		}
-		fmt.Printf("  Game data: %d cards\n", len(accums["_overall"]))
-
-		// Process draft data (ALSA/ATA).
-		if err := processDraftData(set, accums); err != nil {
-			fmt.Printf("  WARN: draft data for %s failed: %v (continuing without ALSA/ATA)\n", set, err)
-		} else {
-			fmt.Printf("  Draft data: merged\n")
-		}
-
-		// Convert accumulators to results.
-		sr := buildSetResult(set, accums)
-		allSets = append(allSets, sr)
-		fmt.Printf("  %s complete: %d cards with stats\n", set, len(sr.Cards))
 	}
 
 	fmt.Printf("Done processing %d sets.\n", len(allSets))

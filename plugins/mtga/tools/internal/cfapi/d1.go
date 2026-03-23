@@ -123,6 +123,10 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 				fmt.Println("  D1 import complete (fast): poll found no active import")
 				return nil
 			}
+			if isPollRetryableError(pollResult.Result.Error) {
+				fmt.Printf("  D1 transient error (%s), retrying poll...\n", pollResult.Result.Error)
+				continue
+			}
 			return fmt.Errorf("import failed: %s", pollResult.Result.Error)
 		}
 	}
@@ -134,6 +138,12 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 // already finished before we could poll it (small imports complete instantly).
 func isImportCompleteError(errMsg string) bool {
 	return strings.Contains(strings.ToLower(errMsg), "not currently import")
+}
+
+// isPollRetryableError returns true if a poll error is a transient D1 infrastructure
+// error that should be retried rather than treated as a permanent failure.
+func isPollRetryableError(errMsg string) bool {
+	return strings.Contains(errMsg, "D1_RESET_DO")
 }
 
 // initImport calls the D1 import init endpoint. If another import is active,
