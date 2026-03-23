@@ -133,7 +133,7 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 // isImportCompleteError returns true if the poll error indicates the import
 // already finished before we could poll it (small imports complete instantly).
 func isImportCompleteError(errMsg string) bool {
-	return strings.Contains(strings.ToLower(errMsg), "not currently importing")
+	return strings.Contains(strings.ToLower(errMsg), "not currently import")
 }
 
 // initImport calls the D1 import init endpoint. If another import is active,
