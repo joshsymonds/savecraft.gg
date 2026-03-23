@@ -19,6 +19,7 @@ const DEFAULT_LIMIT = 20;
 const RRF_K = 60;
 const EFFECTIVE_DATE = "November 14, 2025";
 const RULES_HEADER = `MTG Comprehensive Rules (effective ${EFFECTIVE_DATE})`;
+const MAX_SEE_ALSO_REFS = 20;
 
 interface RuleRow {
   number: string;
@@ -91,11 +92,14 @@ async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<Refe
     }
   }
 
-  if (seeAlsoRefs.size > 0) {
-    const placeholders = [...seeAlsoRefs].map(() => "?").join(",");
+  // Cap seeAlsoRefs to prevent oversized cross-reference queries
+  const cappedRefs = [...seeAlsoRefs].slice(0, MAX_SEE_ALSO_REFS);
+
+  if (cappedRefs.length > 0) {
+    const placeholders = cappedRefs.map(() => "?").join(",");
     const refRows = await db
       .prepare(`SELECT number, text FROM mtga_rules WHERE number IN (${placeholders})`)
-      .bind(...seeAlsoRefs)
+      .bind(...cappedRefs)
       .all<RuleRow>();
 
     if (refRows.results.length > 0) {
@@ -163,12 +167,15 @@ async function searchByKeywordOrTopic(
   label: string,
   limit: number,
 ): Promise<ReferenceResult> {
+  // Sanitize for FTS5 MATCH: wrap in double quotes, escape internal double quotes
+  const safeQuery = `"${queryText.replace(/"/g, '""')}"`;
+
   // BM25 search via FTS5
   const bm25Results = await db
     .prepare(
       `SELECT number FROM mtga_rules_fts WHERE mtga_rules_fts MATCH ?1 ORDER BY rank LIMIT ?2`,
     )
-    .bind(queryText, limit * 2) // fetch extra for RRF merge
+    .bind(safeQuery, limit * 2) // fetch extra for RRF merge
     .all<{ number: string }>();
 
   const bm25Ids = bm25Results.results.map((r) => r.number);
@@ -187,8 +194,8 @@ async function searchByKeywordOrTopic(
         });
         vectorIds = vectorResults.matches.map((m) => m.id);
       }
-    } catch {
-      // Vectorize unavailable — fall back to BM25 only
+    } catch (error) {
+      console.warn("Vectorize query failed, falling back to BM25-only:", error);
     }
   }
 
@@ -236,21 +243,27 @@ async function searchCardRulings(
   db: D1Database,
   cardName: string,
 ): Promise<ReferenceResult> {
-  // FTS5 search to find matching card names
-  const ftsResults = await db
-    .prepare(
-      `SELECT DISTINCT oracle_id, card_name FROM mtga_card_rulings_fts WHERE mtga_card_rulings_fts MATCH ?1 LIMIT ?2`,
-    )
-    .bind(cardName, 5) // max 5 distinct cards
-    .all<{ oracle_id: string; card_name: string }>();
+  // Sanitize for FTS5 MATCH: wrap in double quotes, escape internal double quotes
+  const safeFtsQuery = `"${cardName.replace(/"/g, '""')}"`;
 
-  // Also try substring match on structured table for exact card name parts
-  const likeResults = await db
-    .prepare(
-      `SELECT DISTINCT oracle_id, card_name FROM mtga_card_rulings WHERE card_name LIKE ?1 LIMIT 5`,
-    )
-    .bind(`%${cardName}%`)
-    .all<{ oracle_id: string; card_name: string }>();
+  // Escape LIKE wildcards in card name
+  const escapedName = cardName.replace(/[%_]/g, "\\$&");
+
+  // Run FTS5 and LIKE queries in parallel — they are independent
+  const [ftsResults, likeResults] = await Promise.all([
+    db
+      .prepare(
+        `SELECT DISTINCT oracle_id, card_name FROM mtga_card_rulings_fts WHERE mtga_card_rulings_fts MATCH ?1 LIMIT ?2`,
+      )
+      .bind(safeFtsQuery, 5)
+      .all<{ oracle_id: string; card_name: string }>(),
+    db
+      .prepare(
+        `SELECT DISTINCT oracle_id, card_name FROM mtga_card_rulings WHERE card_name LIKE ?1 ESCAPE '\\' LIMIT 5`,
+      )
+      .bind(`%${escapedName}%`)
+      .all<{ oracle_id: string; card_name: string }>(),
+  ]);
 
   // Merge unique oracle_ids
   const seen = new Map<string, string>();
@@ -264,6 +277,27 @@ async function searchCardRulings(
     return { type: "formatted", content: `No card rulings found for "${cardName}". Try a partial name or check the card name spelling.\n` };
   }
 
+  // Collect all oracle_ids to fetch rulings in a single query (avoid N+1)
+  const oracleIds = [...seen.keys()].slice(0, 5);
+  const placeholders = oracleIds.map(() => "?").join(",");
+  const allRulings = await db
+    .prepare(
+      `SELECT oracle_id, published_at, comment FROM mtga_card_rulings WHERE oracle_id IN (${placeholders}) ORDER BY oracle_id, published_at DESC`,
+    )
+    .bind(...oracleIds)
+    .all<{ oracle_id: string; published_at: string | null; comment: string }>();
+
+  // Group rulings by oracle_id
+  const rulingsByOracle = new Map<string, Array<{ published_at: string | null; comment: string }>>();
+  for (const r of allRulings.results) {
+    let list = rulingsByOracle.get(r.oracle_id);
+    if (!list) {
+      list = [];
+      rulingsByOracle.set(r.oracle_id, list);
+    }
+    list.push({ published_at: r.published_at, comment: r.comment });
+  }
+
   const lines: string[] = [];
   lines.push("Official Scryfall Rulings (Wizards of the Coast)\n");
   let count = 0;
@@ -275,16 +309,11 @@ async function searchCardRulings(
       break;
     }
 
-    const rulings = await db
-      .prepare(
-        "SELECT published_at, comment FROM mtga_card_rulings WHERE oracle_id = ? ORDER BY published_at DESC",
-      )
-      .bind(oracleId)
-      .all<{ published_at: string | null; comment: string }>();
+    const rulings = rulingsByOracle.get(oracleId) ?? [];
 
-    if (rulings.results.length > 0) {
-      lines.push(`${name} (${rulings.results.length} rulings):\n`);
-      for (const r of rulings.results) {
+    if (rulings.length > 0) {
+      lines.push(`${name} (${rulings.length} rulings):\n`);
+      for (const r of rulings) {
         const date = r.published_at ?? "unknown";
         lines.push(`  [${date}] ${r.comment}`);
         if (date > latestDate) latestDate = date;

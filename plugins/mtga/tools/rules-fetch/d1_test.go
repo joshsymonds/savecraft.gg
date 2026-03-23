@@ -108,11 +108,8 @@ func TestBuildCardRulingSkipsMissingNames(t *testing.T) {
 	cardNames := map[string]string{}
 
 	batches := buildCardRulingInsertBatches(rulings, cardNames, 10)
-	if len(batches) != 1 {
-		t.Fatalf("expected 1 batch, got %d", len(batches))
-	}
-	// Should skip rulings with no card name
-	if len(batches[0].Statements) != 0 {
-		t.Errorf("expected 0 statements for missing card name, got %d", len(batches[0].Statements))
+	// All rulings skipped (no card name), so no batches produced
+	if len(batches) != 0 {
+		t.Fatalf("expected 0 batches, got %d", len(batches))
 	}
 }
