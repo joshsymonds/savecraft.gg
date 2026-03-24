@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"strings"
 	"testing"
 )
 
@@ -111,6 +110,7 @@ func TestPreconDecksFiltered(t *testing.T) {
 }
 
 func TestBuildStartHookInventory(t *testing.T) {
+	// CollationId is an integer in real MTGA logs, not a string.
 	hookJSON := `{
 		"InventoryInfo": {
 			"Gems": 5050,
@@ -121,7 +121,7 @@ func TestBuildStartHookInventory(t *testing.T) {
 			"WildCardMythics": 90,
 			"TotalVaultProgress": 377,
 			"CustomTokens": {"DraftToken": 11, "SealedToken": 0, "PlayInToken": 5},
-			"Boosters": [{"CollationId": "12345", "SetCode": "TMT", "Count": 3}]
+			"Boosters": [{"CollationId": 12345, "SetCode": "TMT"}]
 		}
 	}`
 	entries := []LogEntry{{
@@ -148,8 +148,65 @@ func TestBuildStartHookInventory(t *testing.T) {
 	if len(gs.Inventory.Boosters) != 1 {
 		t.Fatalf("expected 1 booster entry, got %d", len(gs.Inventory.Boosters))
 	}
+	if gs.Inventory.Boosters[0].CollationID != 12345 {
+		t.Errorf("expected booster collationId 12345, got %d", gs.Inventory.Boosters[0].CollationID)
+	}
 	if gs.Inventory.Boosters[0].SetCode != "TMT" {
 		t.Errorf("expected booster set 'TMT', got %q", gs.Inventory.Boosters[0].SetCode)
+	}
+	if gs.Inventory.Boosters[0].Count != 1 {
+		t.Errorf("expected booster count 1 (single entry), got %d", gs.Inventory.Boosters[0].Count)
+	}
+}
+
+func TestBoosterAggregation(t *testing.T) {
+	// Real MTGA logs have one entry per booster (no Count field).
+	// Multiple entries with same CollationId should aggregate.
+	hookJSON := `{
+		"InventoryInfo": {
+			"Gems": 0, "Gold": 0,
+			"WildCardCommons": 0, "WildCardUnCommons": 0, "WildCardRares": 0, "WildCardMythics": 0,
+			"TotalVaultProgress": 0,
+			"Boosters": [
+				{"CollationId": 400058, "SetCode": "Y26ECL"},
+				{"CollationId": 400058, "SetCode": "Y26ECL"},
+				{"CollationId": 400058, "SetCode": "Y26ECL"},
+				{"CollationId": 900980}
+			]
+		}
+	}`
+	entries := []LogEntry{{
+		Arrow: "<==",
+		Label: "StartHook",
+		JSON:  json.RawMessage(hookJSON),
+	}}
+	gs := BuildGameState(entries)
+	if gs.Inventory == nil {
+		t.Fatal("expected inventory section")
+	}
+	if len(gs.Inventory.Boosters) != 2 {
+		t.Fatalf("expected 2 aggregated booster entries, got %d", len(gs.Inventory.Boosters))
+	}
+	// Find the Y26ECL entry
+	var found bool
+	for _, b := range gs.Inventory.Boosters {
+		if b.CollationID == 400058 {
+			if b.Count != 3 {
+				t.Errorf("expected count 3 for collation 400058, got %d", b.Count)
+			}
+			if b.SetCode != "Y26ECL" {
+				t.Errorf("expected set 'Y26ECL', got %q", b.SetCode)
+			}
+			found = true
+		}
+		if b.CollationID == 900980 {
+			if b.Count != 1 {
+				t.Errorf("expected count 1 for collation 900980, got %d", b.Count)
+			}
+		}
+	}
+	if !found {
+		t.Error("expected booster entry for collation 400058")
 	}
 }
 
@@ -209,6 +266,53 @@ func TestBuildRank(t *testing.T) {
 	}
 	if gs.Rank.Constructed.Level != 4 {
 		t.Errorf("expected constructed level 4, got %d", gs.Rank.Constructed.Level)
+	}
+}
+
+func TestRankNormalizationBronze(t *testing.T) {
+	// When limitedClass is empty but level > 0, normalize to "Bronze".
+	rankJSON := `{
+		"constructedClass": "Gold",
+		"constructedLevel": 4,
+		"limitedClass": "",
+		"limitedLevel": 3
+	}`
+	entries := []LogEntry{{
+		Arrow: "<==",
+		Label: "RankGetCombinedRankInfo",
+		JSON:  json.RawMessage(rankJSON),
+	}}
+	gs := BuildGameState(entries)
+	if gs.Rank == nil {
+		t.Fatal("expected rank section")
+	}
+	if gs.Rank.Limited.Class != "Bronze" {
+		t.Errorf("expected limited class 'Bronze', got %q", gs.Rank.Limited.Class)
+	}
+	if gs.Rank.Constructed.Class != "Gold" {
+		t.Errorf("expected constructed class 'Gold', got %q", gs.Rank.Constructed.Class)
+	}
+}
+
+func TestRankNormalizationEmptyZeroLevel(t *testing.T) {
+	// When class is empty and level is 0, leave empty (truly unranked).
+	rankJSON := `{
+		"constructedClass": "Gold",
+		"constructedLevel": 4,
+		"limitedClass": "",
+		"limitedLevel": 0
+	}`
+	entries := []LogEntry{{
+		Arrow: "<==",
+		Label: "RankGetCombinedRankInfo",
+		JSON:  json.RawMessage(rankJSON),
+	}}
+	gs := BuildGameState(entries)
+	if gs.Rank == nil {
+		t.Fatal("expected rank section")
+	}
+	if gs.Rank.Limited.Class != "" {
+		t.Errorf("expected empty limited class for level 0, got %q", gs.Rank.Limited.Class)
 	}
 }
 
@@ -273,8 +377,8 @@ func TestBuildMatchHistory(t *testing.T) {
 	if m.Opponent.Name != "Opponent" {
 		t.Errorf("expected opponent name 'Opponent', got %q", m.Opponent.Name)
 	}
-	if !strings.Contains(m.Date, "T") || !strings.Contains(m.Date, "Z") {
-		t.Errorf("expected ISO 8601 date, got %q", m.Date)
+	if m.Date != "2026-03-22T15:03:09Z" {
+		t.Errorf("expected date '2026-03-22T15:03:09Z', got %q", m.Date)
 	}
 }
 
@@ -381,11 +485,430 @@ func TestBuildGameLog(t *testing.T) {
 		t.Fatal("expected at least 1 action")
 	}
 	action := turn.Actions[0]
-	if action.Action != "cast" {
-		t.Errorf("expected action 'cast', got %q", action.Action)
+	if action.Type != "cast" {
+		t.Errorf("expected action type 'cast', got %q", action.Type)
 	}
-	if action.CardName != "Sheoldred, the Apocalypse" {
-		t.Errorf("expected card 'Sheoldred, the Apocalypse', got %q", action.CardName)
+	if action.Cast == nil {
+		t.Fatal("expected Cast subtype to be non-nil")
+	}
+	if action.Cast.CardName != "Sheoldred, the Apocalypse" {
+		t.Errorf("expected card 'Sheoldred, the Apocalypse', got %q", action.Cast.CardName)
+	}
+	if action.Cast.CardID != 82159 {
+		t.Errorf("expected cardId 82159, got %d", action.Cast.CardID)
+	}
+}
+
+func TestCrossMessageObjectResolution(t *testing.T) {
+	// Object appears in message 1, annotation referencing it appears in message 2.
+	// Persistent object registry should resolve the object across messages.
+	entries := []LogEntry{
+		{Label: "AuthenticateResponse", JSON: json.RawMessage(`{"authenticateResponse":{"clientId":"player1","screenName":"Me"}}`)},
+		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
+			"matchGameRoomStateChangedEvent": {
+				"gameRoomInfo": {
+					"stateType": "MatchGameRoomStateType_Playing",
+					"gameRoomConfig": {
+						"matchId": "match-001",
+						"reservedPlayers": [
+							{"userId": "player1", "playerName": "Me", "systemSeatId": 1, "eventId": "Test"},
+							{"userId": "opp1", "playerName": "Opp", "systemSeatId": 2, "eventId": "Test"}
+						]
+					}
+				}
+			}
+		}`)},
+		// Message 1: introduces game object 100 (Sheoldred)
+		{Label: "GreToClientEvent", JSON: json.RawMessage(`{
+			"greToClientEvent": {
+				"greToClientMessages": [{
+					"type": "GREMessageType_GameStateMessage",
+					"gameStateMessage": {
+						"turnInfo": {"turnNumber": 1, "activePlayer": 1, "phase": "Phase_Main1"},
+						"gameObjects": [
+							{"instanceId": 100, "grpId": 82159, "zoneId": 1, "ownerSeatId": 1, "visibility": "Visibility_Public"}
+						]
+					}
+				}]
+			}
+		}`)},
+		// Message 2: annotation references object 100 but does NOT include it in gameObjects
+		{Label: "GreToClientEvent", JSON: json.RawMessage(`{
+			"greToClientEvent": {
+				"greToClientMessages": [{
+					"type": "GREMessageType_GameStateMessage",
+					"gameStateMessage": {
+						"turnInfo": {"turnNumber": 1, "activePlayer": 1, "phase": "Phase_Main1"},
+						"annotations": [{
+							"id": 10,
+							"affectorId": 100,
+							"affectedIds": [100],
+							"type": ["AnnotationType_ResolutionComplete"]
+						}]
+					}
+				}]
+			}
+		}`)},
+	}
+	gs := BuildGameState(entries)
+	if gs.GameLogs == nil || len(gs.GameLogs.Games) == 0 {
+		t.Fatal("expected game_log section")
+	}
+	game := gs.GameLogs.Games[0]
+
+	// Find the resolve action — it should exist because the persistent registry
+	// resolves object 100 even though it's not in message 2's gameObjects.
+	var found bool
+	for _, turn := range game.Turns {
+		for _, action := range turn.Actions {
+			if action.Type == "resolve" && action.Resolve != nil {
+				if action.Resolve.CardName != "Sheoldred, the Apocalypse" {
+					t.Errorf("expected resolved card 'Sheoldred, the Apocalypse', got %q", action.Resolve.CardName)
+				}
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("expected a resolve action from cross-message object resolution, got none")
+	}
+}
+
+func TestZoneTransferFallsBackToAffectedIds(t *testing.T) {
+	// When affectorId is 0 (system) or a player seat, the card being moved
+	// is in affectedIds. The parser should fall back to affectedIds.
+	entries := []LogEntry{
+		{Label: "AuthenticateResponse", JSON: json.RawMessage(`{"authenticateResponse":{"clientId":"player1","screenName":"Me"}}`)},
+		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
+			"matchGameRoomStateChangedEvent": {
+				"gameRoomInfo": {
+					"stateType": "MatchGameRoomStateType_Playing",
+					"gameRoomConfig": {
+						"matchId": "match-001",
+						"reservedPlayers": [
+							{"userId": "player1", "playerName": "Me", "systemSeatId": 1, "eventId": "Test"},
+							{"userId": "opp1", "playerName": "Opp", "systemSeatId": 2, "eventId": "Test"}
+						]
+					}
+				}
+			}
+		}`)},
+		{Label: "GreToClientEvent", JSON: json.RawMessage(`{
+			"greToClientEvent": {
+				"greToClientMessages": [{
+					"type": "GREMessageType_GameStateMessage",
+					"gameStateMessage": {
+						"turnInfo": {"turnNumber": 1, "activePlayer": 1, "phase": "Phase_Beginning"},
+						"gameObjects": [
+							{"instanceId": 100, "grpId": 82159, "zoneId": 1, "ownerSeatId": 1, "visibility": "Visibility_Public"}
+						],
+						"annotations": [{
+							"id": 1,
+							"affectorId": 0,
+							"affectedIds": [100],
+							"type": ["AnnotationType_ZoneTransfer"],
+							"details": [
+								{"key": "zone_src", "type": "string", "valueString": ["ZoneType_Library"]},
+								{"key": "zone_dest", "type": "string", "valueString": ["ZoneType_Hand"]},
+								{"key": "category", "type": "string", "valueString": ["Draw"]}
+							]
+						}]
+					}
+				}]
+			}
+		}`)},
+	}
+	gs := BuildGameState(entries)
+	if gs.GameLogs == nil || len(gs.GameLogs.Games) == 0 {
+		t.Fatal("expected game_log section")
+	}
+	game := gs.GameLogs.Games[0]
+	var found bool
+	for _, turn := range game.Turns {
+		for _, action := range turn.Actions {
+			if action.Type == "move" && action.Move != nil {
+				if action.Move.CardName != "Sheoldred, the Apocalypse" {
+					t.Errorf("expected card 'Sheoldred, the Apocalypse', got %q", action.Move.CardName)
+				}
+				if action.Move.MoveType != "draw" {
+					t.Errorf("expected moveType 'draw', got %q", action.Move.MoveType)
+				}
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Error("expected a move action from affectedIds fallback, got none")
+	}
+}
+
+// greTestEntries builds log entries that set up a match and inject a GRE message
+// with the given game objects and annotations. This is a test helper to avoid
+// repeating the match setup boilerplate in every annotation handler test.
+func greTestEntries(objects, annotations string) []LogEntry {
+	return []LogEntry{
+		{Label: "AuthenticateResponse", JSON: json.RawMessage(`{"authenticateResponse":{"clientId":"player1","screenName":"Me"}}`)},
+		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
+			"matchGameRoomStateChangedEvent": {"gameRoomInfo": {
+				"stateType": "MatchGameRoomStateType_Playing",
+				"gameRoomConfig": {"matchId": "m1",
+					"reservedPlayers": [
+						{"userId": "player1", "playerName": "Me", "systemSeatId": 1, "eventId": "Test"},
+						{"userId": "opp", "playerName": "Opp", "systemSeatId": 2, "eventId": "Test"}
+					]}
+			}}
+		}`)},
+		{Label: "GreToClientEvent", JSON: json.RawMessage(`{
+			"greToClientEvent": {"greToClientMessages": [{"type": "GREMessageType_GameStateMessage",
+				"gameStateMessage": {
+					"turnInfo": {"turnNumber": 1, "activePlayer": 1, "phase": "Phase_Main1"},
+					"gameObjects": [` + objects + `],
+					"annotations": [` + annotations + `]
+				}
+			}]}
+		}`)},
+	}
+}
+
+// findAction searches all turns for a GameAction with the given type.
+func findAction(gs *GameState, actionType string) *GameAction {
+	if gs.GameLogs == nil {
+		return nil
+	}
+	for _, game := range gs.GameLogs.Games {
+		for _, turn := range game.Turns {
+			for i := range turn.Actions {
+				if turn.Actions[i].Type == actionType {
+					return &turn.Actions[i]
+				}
+			}
+		}
+	}
+	return nil
+}
+
+func TestManaPaidEnrichesCastAction(t *testing.T) {
+	// ManaPaid annotations enrich the CastAction for the spell being paid for.
+	// affectorId=mana source, affectedIds=[spell instance], details: color=int
+	objects := `
+		{"instanceId": 100, "grpId": 82159, "ownerSeatId": 1, "visibility": "Visibility_Public"},
+		{"instanceId": 200, "grpId": 82160, "ownerSeatId": 1, "visibility": "Visibility_Public"}
+	`
+	annotations := `
+		{
+			"id": 1, "affectorId": 0, "affectedIds": [100],
+			"type": ["AnnotationType_ZoneTransfer"],
+			"details": [
+				{"key": "zone_src", "valueString": ["ZoneType_Hand"]},
+				{"key": "zone_dest", "valueString": ["ZoneType_Stack"]},
+				{"key": "category", "valueString": ["CastSpell"]}
+			]
+		},
+		{
+			"id": 2, "affectorId": 200, "affectedIds": [100],
+			"type": ["AnnotationType_ManaPaid"],
+			"details": [
+				{"key": "color", "type": "KeyValuePairValueType_int32", "valueInt32": [1]}
+			]
+		},
+		{
+			"id": 3, "affectorId": 200, "affectedIds": [100],
+			"type": ["AnnotationType_ManaPaid"],
+			"details": [
+				{"key": "color", "type": "KeyValuePairValueType_int32", "valueInt32": [4]}
+			]
+		}
+	`
+	gs := BuildGameState(greTestEntries(objects, annotations))
+	action := findAction(gs, "cast")
+	if action == nil {
+		t.Fatal("expected cast action")
+	}
+	if action.Cast == nil {
+		t.Fatal("expected Cast subtype")
+	}
+	if len(action.Cast.ManaPaid) != 2 {
+		t.Fatalf("expected 2 mana entries, got %d", len(action.Cast.ManaPaid))
+	}
+	// Check that both colors are present (White=1, Red=4)
+	colors := map[string]int{}
+	for _, m := range action.Cast.ManaPaid {
+		colors[m.Color] += m.Count
+	}
+	if colors["W"] != 1 {
+		t.Errorf("expected 1 White mana, got %d", colors["W"])
+	}
+	if colors["R"] != 1 {
+		t.Errorf("expected 1 Red mana, got %d", colors["R"])
+	}
+}
+
+func TestHandleDamageDealt(t *testing.T) {
+	// DamageDealt: affectorId=source card, affectedIds=[target player seat or card]
+	// details: damage=amount, type=1(combat)/2(non-combat)
+	objects := `{"instanceId": 200, "grpId": 82159, "ownerSeatId": 1, "visibility": "Visibility_Public"}`
+	annotations := `{
+		"id": 1, "affectorId": 200, "affectedIds": [2],
+		"type": ["AnnotationType_DamageDealt"],
+		"details": [
+			{"key": "damage", "type": "KeyValuePairValueType_int32", "valueInt32": [3]},
+			{"key": "type", "type": "KeyValuePairValueType_int32", "valueInt32": [1]}
+		]
+	}`
+	gs := BuildGameState(greTestEntries(objects, annotations))
+	action := findAction(gs, "damage")
+	if action == nil {
+		t.Fatal("expected damage action")
+	}
+	if action.Damage == nil {
+		t.Fatal("expected Damage subtype")
+	}
+	if action.Damage.Source != "Sheoldred, the Apocalypse" {
+		t.Errorf("expected source 'Sheoldred, the Apocalypse', got %q", action.Damage.Source)
+	}
+	if action.Damage.Amount != 3 {
+		t.Errorf("expected damage 3, got %d", action.Damage.Amount)
+	}
+	if !action.Damage.IsCombat {
+		t.Error("expected isCombat=true for type=1")
+	}
+}
+
+func TestHandleDamageDealtNonCombat(t *testing.T) {
+	objects := `{"instanceId": 200, "grpId": 82159, "ownerSeatId": 1, "visibility": "Visibility_Public"}`
+	annotations := `{
+		"id": 1, "affectorId": 200, "affectedIds": [1],
+		"type": ["AnnotationType_DamageDealt"],
+		"details": [
+			{"key": "damage", "type": "KeyValuePairValueType_int32", "valueInt32": [2]},
+			{"key": "type", "type": "KeyValuePairValueType_int32", "valueInt32": [2]}
+		]
+	}`
+	gs := BuildGameState(greTestEntries(objects, annotations))
+	action := findAction(gs, "damage")
+	if action == nil {
+		t.Fatal("expected damage action")
+	}
+	if action.Damage.IsCombat {
+		t.Error("expected isCombat=false for type=2")
+	}
+}
+
+func TestHandleTapUntap(t *testing.T) {
+	// TappedUntappedPermanent: affectedIds=[card being tapped], details: tapped=1/0
+	objects := `{"instanceId": 200, "grpId": 82159, "ownerSeatId": 1, "visibility": "Visibility_Public"}`
+	annotations := `{
+		"id": 1, "affectorId": 201, "affectedIds": [200],
+		"type": ["AnnotationType_TappedUntappedPermanent"],
+		"details": [{"key": "tapped", "type": "KeyValuePairValueType_int32", "valueInt32": [1]}]
+	}`
+	gs := BuildGameState(greTestEntries(objects, annotations))
+	action := findAction(gs, "tap")
+	if action == nil {
+		t.Fatal("expected tap action")
+	}
+	if action.Tap == nil {
+		t.Fatal("expected Tap subtype")
+	}
+	if action.Tap.CardName != "Sheoldred, the Apocalypse" {
+		t.Errorf("expected card 'Sheoldred, the Apocalypse', got %q", action.Tap.CardName)
+	}
+	if !action.Tap.Tapped {
+		t.Error("expected tapped=true")
+	}
+}
+
+func TestHandleTapUntapUntapped(t *testing.T) {
+	objects := `{"instanceId": 200, "grpId": 82159, "ownerSeatId": 1, "visibility": "Visibility_Public"}`
+	annotations := `{
+		"id": 1, "affectorId": 201, "affectedIds": [200],
+		"type": ["AnnotationType_TappedUntappedPermanent"],
+		"details": [{"key": "tapped", "type": "KeyValuePairValueType_int32", "valueInt32": [0]}]
+	}`
+	gs := BuildGameState(greTestEntries(objects, annotations))
+	action := findAction(gs, "tap")
+	if action == nil {
+		t.Fatal("expected tap action")
+	}
+	if action.Tap.Tapped {
+		t.Error("expected tapped=false for untap")
+	}
+}
+
+func TestHandleAbilityCreated(t *testing.T) {
+	// AbilityInstanceCreated: affectorId=source card
+	objects := `{"instanceId": 200, "grpId": 82159, "ownerSeatId": 1, "visibility": "Visibility_Public"}`
+	annotations := `{
+		"id": 1, "affectorId": 200, "affectedIds": [300],
+		"type": ["AnnotationType_AbilityInstanceCreated"],
+		"details": [{"key": "source_zone", "type": "KeyValuePairValueType_int32", "valueInt32": [28]}]
+	}`
+	gs := BuildGameState(greTestEntries(objects, annotations))
+	action := findAction(gs, "ability")
+	if action == nil {
+		t.Fatal("expected ability action")
+	}
+	if action.Ability == nil {
+		t.Fatal("expected Ability subtype")
+	}
+	if action.Ability.CardName != "Sheoldred, the Apocalypse" {
+		t.Errorf("expected card 'Sheoldred, the Apocalypse', got %q", action.Ability.CardName)
+	}
+}
+
+func TestHandleTargetSubmitted(t *testing.T) {
+	// PlayerSubmittedTargets: affectedIds=target objects
+	objects := `
+		{"instanceId": 200, "grpId": 82159, "ownerSeatId": 1, "visibility": "Visibility_Public"},
+		{"instanceId": 300, "grpId": 82160, "ownerSeatId": 2, "visibility": "Visibility_Public"}
+	`
+	annotations := `{
+		"id": 1, "affectorId": 200, "affectedIds": [300],
+		"type": ["AnnotationType_PlayerSubmittedTargets"]
+	}`
+	gs := BuildGameState(greTestEntries(objects, annotations))
+	action := findAction(gs, "target")
+	if action == nil {
+		t.Fatal("expected target action")
+	}
+	if action.Target == nil {
+		t.Fatal("expected Target subtype")
+	}
+	if len(action.Target.Targets) != 1 {
+		t.Fatalf("expected 1 target, got %d", len(action.Target.Targets))
+	}
+	if action.Target.Targets[0] != "Sheoldred's Restoration" {
+		t.Errorf("expected target 'Sheoldred's Restoration', got %q", action.Target.Targets[0])
+	}
+}
+
+func TestHandleStatMod(t *testing.T) {
+	// PowerToughnessModCreated: affectedIds=[modified card], details: power=N, toughness=N
+	objects := `{"instanceId": 200, "grpId": 82159, "ownerSeatId": 1, "visibility": "Visibility_Public"}`
+	annotations := `{
+		"id": 1, "affectorId": 300, "affectedIds": [200],
+		"type": ["AnnotationType_PowerToughnessModCreated"],
+		"details": [
+			{"key": "power", "type": "KeyValuePairValueType_int32", "valueInt32": [2]},
+			{"key": "toughness", "type": "KeyValuePairValueType_int32", "valueInt32": [3]}
+		]
+	}`
+	gs := BuildGameState(greTestEntries(objects, annotations))
+	action := findAction(gs, "stat_mod")
+	if action == nil {
+		t.Fatal("expected stat_mod action")
+	}
+	if action.StatMod == nil {
+		t.Fatal("expected StatMod subtype")
+	}
+	if action.StatMod.CardName != "Sheoldred, the Apocalypse" {
+		t.Errorf("expected card 'Sheoldred, the Apocalypse', got %q", action.StatMod.CardName)
+	}
+	if action.StatMod.Power != 2 {
+		t.Errorf("expected power 2, got %d", action.StatMod.Power)
+	}
+	if action.StatMod.Toughness != 3 {
+		t.Errorf("expected toughness 3, got %d", action.StatMod.Toughness)
 	}
 }
 
@@ -621,6 +1144,22 @@ func TestBuildMatchDraw(t *testing.T) {
 	gs := BuildGameState(entries)
 	if gs.Matches.Matches[0].Result != "draw" {
 		t.Errorf("expected 'draw', got %q", gs.Matches.Matches[0].Result)
+	}
+}
+
+func TestFormatTimestamp(t *testing.T) {
+	cases := []struct {
+		input, want string
+	}{
+		{"1774191789619", "2026-03-22T15:03:09Z"},
+		{"not-a-number", "not-a-number"},
+		{"", ""},
+	}
+	for _, tc := range cases {
+		got := formatTimestamp(tc.input)
+		if got != tc.want {
+			t.Errorf("formatTimestamp(%q) = %q, want %q", tc.input, got, tc.want)
+		}
 	}
 }
 
