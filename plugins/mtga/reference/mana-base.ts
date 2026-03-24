@@ -145,7 +145,7 @@ export const manaBaseModule: NativeReferenceModule = {
       const chunk = names.slice(i, i + 50);
       const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
       const rows = await env.DB
-        .prepare(`SELECT name, mana_cost, colors FROM mtga_cards WHERE name COLLATE NOCASE IN (${placeholders})`)
+        .prepare(`SELECT name, mana_cost, colors FROM mtga_cards WHERE is_default = 1 AND name COLLATE NOCASE IN (${placeholders})`)
         .bind(...chunk)
         .all<{ name: string; mana_cost: string; colors: string }>();
       for (const row of rows.results) {
