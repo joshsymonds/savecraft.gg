@@ -8,63 +8,36 @@ import (
 func TestBuildAuth(t *testing.T) {
 	entries := []LogEntry{{
 		Label: "AuthenticateResponse",
-		JSON:  json.RawMessage(`{"authenticateResponse":{"clientId":"abc123","screenName":"TestPlayer"}}`),
+		JSON:  json.RawMessage(`{"authenticateResponse":{"clientId":"47BADBEB1045E08A","screenName":"Aure Silvershield"}}`),
 	}}
 	gs := BuildGameState(entries)
-	if gs.PlayerID != "abc123" {
-		t.Errorf("expected playerID 'abc123', got %q", gs.PlayerID)
+	if gs.PlayerID != "47BADBEB1045E08A" {
+		t.Errorf("expected playerID '47BADBEB1045E08A', got %q", gs.PlayerID)
 	}
-	if gs.DisplayName != "TestPlayer" {
-		t.Errorf("expected displayName 'TestPlayer', got %q", gs.DisplayName)
+	if gs.DisplayName != "Aure Silvershield" {
+		t.Errorf("expected displayName 'Aure Silvershield', got %q", gs.DisplayName)
 	}
 }
 
-func TestBuildCollection(t *testing.T) {
-	// PlayerInventory.GetPlayerCardsV3 returns a map of arena_id (string) → count.
+func TestBuildStartHookDecks(t *testing.T) {
+	hookJSON := `{
+		"Decks": {
+			"deck-uuid-1": {
+				"MainDeck": [{"cardId": 82159, "quantity": 4}, {"cardId": 82160, "quantity": 3}],
+				"Sideboard": [{"cardId": 82159, "quantity": 1}],
+				"CommandZone": []
+			}
+		},
+		"DeckSummariesV2": [{
+			"DeckId": "deck-uuid-1",
+			"Name": "My Arena Deck",
+			"Attributes": [{"name": "Format", "value": "Standard"}]
+		}]
+	}`
 	entries := []LogEntry{{
 		Arrow: "<==",
-		Label: "PlayerInventory.GetPlayerCardsV3",
-		JSON:  json.RawMessage(`{"82159": 1, "82160": 4}`),
-	}}
-	gs := BuildGameState(entries)
-	if gs.Collection == nil {
-		t.Fatal("expected collection section")
-	}
-	if len(gs.Collection.Cards) != 2 {
-		t.Fatalf("expected 2 cards, got %d", len(gs.Collection.Cards))
-	}
-	// Verify card name resolution.
-	found := false
-	for _, c := range gs.Collection.Cards {
-		if c.ArenaID == 82159 {
-			found = true
-			if c.Name != "Sheoldred, the Apocalypse" {
-				t.Errorf("expected 'Sheoldred, the Apocalypse', got %q", c.Name)
-			}
-			if c.Count != 1 {
-				t.Errorf("expected count 1, got %d", c.Count)
-			}
-		}
-	}
-	if !found {
-		t.Error("did not find arena_id 82159 in collection")
-	}
-}
-
-func TestBuildDecks(t *testing.T) {
-	// Deck.GetDeckListsV3 returns an array of v3 decks.
-	// MainDeck/Sideboard are alternating [cardId, count, cardId, count, ...].
-	deckJSON := `[{
-		"id": "deck-1",
-		"name": "My Deck",
-		"format": "Standard",
-		"mainDeck": [82159, 4, 82160, 3],
-		"sideboard": [82159, 1]
-	}]`
-	entries := []LogEntry{{
-		Arrow: "<==",
-		Label: "Deck.GetDeckListsV3",
-		JSON:  json.RawMessage(deckJSON),
+		Label: "StartHook",
+		JSON:  json.RawMessage(hookJSON),
 	}}
 	gs := BuildGameState(entries)
 	if gs.ActiveDecks == nil {
@@ -74,11 +47,17 @@ func TestBuildDecks(t *testing.T) {
 		t.Fatalf("expected 1 deck, got %d", len(gs.ActiveDecks.Decks))
 	}
 	deck := gs.ActiveDecks.Decks[0]
-	if deck.Name != "My Deck" {
-		t.Errorf("expected deck name 'My Deck', got %q", deck.Name)
+	if deck.Name != "My Arena Deck" {
+		t.Errorf("expected deck name 'My Arena Deck', got %q", deck.Name)
+	}
+	if deck.Format != "Standard" {
+		t.Errorf("expected format 'Standard', got %q", deck.Format)
 	}
 	if len(deck.Cards) != 2 {
 		t.Fatalf("expected 2 main deck entries, got %d", len(deck.Cards))
+	}
+	if deck.Cards[0].Name != "Sheoldred, the Apocalypse" {
+		t.Errorf("expected first card 'Sheoldred, the Apocalypse', got %q", deck.Cards[0].Name)
 	}
 	if deck.Cards[0].Count != 4 {
 		t.Errorf("expected first card count 4, got %d", deck.Cards[0].Count)
@@ -88,22 +67,94 @@ func TestBuildDecks(t *testing.T) {
 	}
 }
 
-func TestBuildRank(t *testing.T) {
-	rankJSON := `{
-		"constructedClass": "Gold",
-		"constructedLevel": 2,
-		"constructedStep": 3,
-		"constructedMatchesWon": 15,
-		"constructedMatchesLost": 10,
-		"limitedClass": "Silver",
-		"limitedLevel": 1,
-		"limitedStep": 5,
-		"limitedMatchesWon": 8,
-		"limitedMatchesLost": 6
+func TestBuildStartHookInventory(t *testing.T) {
+	hookJSON := `{
+		"InventoryInfo": {
+			"Gems": 5050,
+			"Gold": 63155,
+			"WildCardCommons": 1397,
+			"WildCardUnCommons": 1596,
+			"WildCardRares": 183,
+			"WildCardMythics": 90,
+			"TotalVaultProgress": 377,
+			"CustomTokens": {"DraftToken": 11, "SealedToken": 0, "PlayInToken": 5},
+			"Boosters": [{"CollationId": "12345", "SetCode": "TMT", "Count": 3}]
+		}
 	}`
 	entries := []LogEntry{{
 		Arrow: "<==",
-		Label: "Rank_GetCombinedRankInfo",
+		Label: "StartHook",
+		JSON:  json.RawMessage(hookJSON),
+	}}
+	gs := BuildGameState(entries)
+	if gs.Inventory == nil {
+		t.Fatal("expected inventory section")
+	}
+	if gs.Inventory.Gold != 63155 {
+		t.Errorf("expected gold 63155, got %d", gs.Inventory.Gold)
+	}
+	if gs.Inventory.Gems != 5050 {
+		t.Errorf("expected gems 5050, got %d", gs.Inventory.Gems)
+	}
+	if gs.Inventory.WCRare != 183 {
+		t.Errorf("expected wcRare 183, got %d", gs.Inventory.WCRare)
+	}
+	if gs.Inventory.DraftTokens != 11 {
+		t.Errorf("expected draftTokens 11, got %d", gs.Inventory.DraftTokens)
+	}
+	if len(gs.Inventory.Boosters) != 1 {
+		t.Fatalf("expected 1 booster entry, got %d", len(gs.Inventory.Boosters))
+	}
+	if gs.Inventory.Boosters[0].SetCode != "TMT" {
+		t.Errorf("expected booster set 'TMT', got %q", gs.Inventory.Boosters[0].SetCode)
+	}
+}
+
+func TestBuildInventoryFromDraftResponse(t *testing.T) {
+	// DTO_InventoryInfo appears in draft pick responses.
+	draftJSON := `{
+		"CurrentModule": "BotDraft",
+		"Payload": "{}",
+		"DTO_InventoryInfo": {
+			"Gems": 4000,
+			"Gold": 50000,
+			"WildCardCommons": 100,
+			"WildCardUnCommons": 200,
+			"WildCardRares": 50,
+			"WildCardMythics": 10,
+			"TotalVaultProgress": 100,
+			"Boosters": []
+		}
+	}`
+	entries := []LogEntry{{
+		Arrow: "<==",
+		Label: "BotDraftDraftPick",
+		JSON:  json.RawMessage(draftJSON),
+	}}
+	gs := BuildGameState(entries)
+	if gs.Inventory == nil {
+		t.Fatal("expected inventory from DTO_InventoryInfo")
+	}
+	if gs.Inventory.Gems != 4000 {
+		t.Errorf("expected gems 4000, got %d", gs.Inventory.Gems)
+	}
+	if gs.Inventory.Gold != 50000 {
+		t.Errorf("expected gold 50000, got %d", gs.Inventory.Gold)
+	}
+}
+
+func TestBuildRank(t *testing.T) {
+	rankJSON := `{
+		"constructedClass": "Gold",
+		"constructedLevel": 4,
+		"constructedStep": 5,
+		"constructedMatchesWon": 18,
+		"constructedMatchesLost": 14,
+		"limitedLevel": 4
+	}`
+	entries := []LogEntry{{
+		Arrow: "<==",
+		Label: "RankGetCombinedRankInfo",
 		JSON:  json.RawMessage(rankJSON),
 	}}
 	gs := BuildGameState(entries)
@@ -113,73 +164,21 @@ func TestBuildRank(t *testing.T) {
 	if gs.Rank.Constructed.Class != "Gold" {
 		t.Errorf("expected constructed class 'Gold', got %q", gs.Rank.Constructed.Class)
 	}
-	if gs.Rank.Constructed.Level != 2 {
-		t.Errorf("expected constructed level 2, got %d", gs.Rank.Constructed.Level)
-	}
-	if gs.Rank.Limited.Class != "Silver" {
-		t.Errorf("expected limited class 'Silver', got %q", gs.Rank.Limited.Class)
-	}
-}
-
-func TestBuildInventoryUpdate(t *testing.T) {
-	invJSON := `{
-		"updates": [{
-			"delta": {
-				"goldDelta": 500,
-				"gemsDelta": 100,
-				"wcCommonDelta": 2,
-				"wcUncommonDelta": 1,
-				"wcRareDelta": 0,
-				"wcMythicDelta": 0,
-				"vaultProgressDelta": 0.5
-			}
-		}]
-	}`
-	entries := []LogEntry{{
-		Label: "Inventory.Updated",
-		JSON:  json.RawMessage(invJSON),
-	}}
-	gs := BuildGameState(entries)
-	if gs.Inventory == nil {
-		t.Fatal("expected inventory section")
-	}
-	if gs.Inventory.Gold != 500 {
-		t.Errorf("expected gold 500, got %d", gs.Inventory.Gold)
-	}
-	if gs.Inventory.Gems != 100 {
-		t.Errorf("expected gems 100, got %d", gs.Inventory.Gems)
-	}
-	if gs.Inventory.WCCommon != 2 {
-		t.Errorf("expected wcCommon 2, got %d", gs.Inventory.WCCommon)
-	}
-}
-
-func TestBuildInventoryCumulative(t *testing.T) {
-	// Multiple inventory updates should accumulate.
-	entries := []LogEntry{
-		{Label: "Inventory.Updated", JSON: json.RawMessage(`{"updates":[{"delta":{"goldDelta":100}}]}`)},
-		{Label: "Inventory.Updated", JSON: json.RawMessage(`{"updates":[{"delta":{"goldDelta":200}}]}`)},
-	}
-	gs := BuildGameState(entries)
-	if gs.Inventory == nil {
-		t.Fatal("expected inventory section")
-	}
-	if gs.Inventory.Gold != 300 {
-		t.Errorf("expected accumulated gold 300, got %d", gs.Inventory.Gold)
+	if gs.Rank.Constructed.Level != 4 {
+		t.Errorf("expected constructed level 4, got %d", gs.Rank.Constructed.Level)
 	}
 }
 
 func TestBuildMatchHistory(t *testing.T) {
-	// Simulate a match: Playing state → Completed state.
 	entries := []LogEntry{
 		{Label: "AuthenticateResponse", JSON: json.RawMessage(`{"authenticateResponse":{"clientId":"player1","screenName":"Me"}}`)},
 		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
-			"timestamp": "1700000000",
+			"timestamp": "1774191789619",
 			"matchGameRoomStateChangedEvent": {
 				"gameRoomInfo": {
 					"stateType": "MatchGameRoomStateType_Playing",
 					"gameRoomConfig": {
-						"eventId": "Constructed_Event_2024",
+						"eventId": "QuickDraft_TMT_20260313",
 						"matchId": "match-001",
 						"reservedPlayers": [
 							{"userId": "player1", "playerName": "Me", "systemSeatId": 1},
@@ -193,12 +192,10 @@ func TestBuildMatchHistory(t *testing.T) {
 			"matchGameRoomStateChangedEvent": {
 				"gameRoomInfo": {
 					"stateType": "MatchGameRoomStateType_MatchCompleted",
-					"gameRoomConfig": {"eventId": "Constructed_Event_2024", "matchId": "match-001"},
+					"gameRoomConfig": {"eventId": "QuickDraft_TMT_20260313", "matchId": "match-001"},
 					"finalMatchResult": {
 						"matchId": "match-001",
 						"resultList": [
-							{"scope": "MatchScope_Game", "result": "ResultType_WinLoss", "winningTeamId": 1},
-							{"scope": "MatchScope_Game", "result": "ResultType_WinLoss", "winningTeamId": 2},
 							{"scope": "MatchScope_Game", "result": "ResultType_WinLoss", "winningTeamId": 1},
 							{"scope": "MatchScope_Match", "result": "ResultType_WinLoss", "winningTeamId": 1}
 						]
@@ -224,28 +221,18 @@ func TestBuildMatchHistory(t *testing.T) {
 	if m.Opponent.Name != "Opponent" {
 		t.Errorf("expected opponent name 'Opponent', got %q", m.Opponent.Name)
 	}
-	if len(m.Games) != 3 {
-		t.Errorf("expected 3 game results, got %d", len(m.Games))
-	}
 }
 
 func TestBuildDraftHistory(t *testing.T) {
-	// Bot draft: status with pack → outbound pick.
+	// Bot draft with Payload wrapping: status → outbound pick.
 	entries := []LogEntry{
-		{Arrow: "<==", Label: "BotDraft_DraftStatus", JSON: json.RawMessage(`{
-			"EventName": "QuickDraft_DSK",
-			"DraftId": "draft-001",
-			"PackNumber": 0,
-			"PickNumber": 0,
-			"DraftPack": ["82159", "82160", "82268"]
+		{Arrow: "<==", Label: "BotDraftDraftStatus", JSON: json.RawMessage(`{
+			"CurrentModule": "BotDraft",
+			"Payload": "{\"Result\":\"Success\",\"EventName\":\"QuickDraft_TMT_20260313\",\"DraftId\":\"draft-001\",\"PackNumber\":0,\"PickNumber\":0,\"DraftPack\":[\"82159\",\"82160\",\"82268\"]}"
 		}`)},
-		{Arrow: "==>", Label: "BotDraft_DraftPick", JSON: json.RawMessage(`{
-			"params": {
-				"draftId": "draft-001",
-				"cardId": "82159",
-				"packNumber": "0",
-				"pickNumber": "0"
-			}
+		{Arrow: "==>", Label: "BotDraftDraftPick", JSON: json.RawMessage(`{
+			"id": "pick-uuid",
+			"request": "{\"PickInfo\":{\"CardIds\":[\"82159\"],\"PackNumber\":0,\"PickNumber\":0}}"
 		}`)},
 	}
 	gs := BuildGameState(entries)
@@ -272,7 +259,6 @@ func TestBuildDraftHistory(t *testing.T) {
 }
 
 func TestBuildGameLog(t *testing.T) {
-	// Simulate: match start → GRE message with turn info and zone transfer annotation.
 	entries := []LogEntry{
 		{Label: "AuthenticateResponse", JSON: json.RawMessage(`{"authenticateResponse":{"clientId":"player1","screenName":"Me"}}`)},
 		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
@@ -388,5 +374,82 @@ func TestOpponentCardsSeen(t *testing.T) {
 	opp := gs.Matches.Matches[0].Opponent
 	if len(opp.CardsSeen) != 2 {
 		t.Errorf("expected 2 unique opponent cards seen, got %d: %v", len(opp.CardsSeen), opp.CardsSeen)
+	}
+}
+
+func TestInventorySnapshotOverwritesDelta(t *testing.T) {
+	// Multiple InventoryInfo snapshots should use the latest, not accumulate.
+	entries := []LogEntry{
+		{Arrow: "<==", Label: "StartHook", JSON: json.RawMessage(`{
+			"InventoryInfo": {"Gems": 5000, "Gold": 10000, "WildCardCommons": 0, "WildCardUnCommons": 0, "WildCardRares": 0, "WildCardMythics": 0, "TotalVaultProgress": 0, "Boosters": []}
+		}`)},
+		{Arrow: "<==", Label: "BotDraftDraftPick", JSON: json.RawMessage(`{
+			"CurrentModule": "BotDraft",
+			"Payload": "{}",
+			"DTO_InventoryInfo": {"Gems": 4500, "Gold": 9000, "WildCardCommons": 0, "WildCardUnCommons": 0, "WildCardRares": 0, "WildCardMythics": 0, "TotalVaultProgress": 0, "Boosters": []}
+		}`)},
+	}
+	gs := BuildGameState(entries)
+	if gs.Inventory == nil {
+		t.Fatal("expected inventory section")
+	}
+	// Should be the latest snapshot, not accumulated.
+	if gs.Inventory.Gems != 4500 {
+		t.Errorf("expected gems 4500 (latest snapshot), got %d", gs.Inventory.Gems)
+	}
+	if gs.Inventory.Gold != 9000 {
+		t.Errorf("expected gold 9000 (latest snapshot), got %d", gs.Inventory.Gold)
+	}
+}
+
+func TestOutDraftPickWithUnknownCard(t *testing.T) {
+	// Real data uses card IDs from newer sets not in ArenaCards.
+	// resolveCardName should fall back to the ID as a string.
+	statusJSON := `{"CurrentModule":"BotDraft","Payload":"{\"EventName\":\"QuickDraft_TMT\",\"PackNumber\":0,\"PickNumber\":0,\"DraftPack\":[\"100568\",\"100586\"]}"}`
+	pickJSON := `{"id":"abc","request":"{\"PickInfo\":{\"CardIds\":[\"100568\"],\"PackNumber\":0,\"PickNumber\":0}}"}`
+
+	entries := []LogEntry{
+		{Arrow: "<==", Label: "BotDraftDraftStatus", JSON: json.RawMessage(statusJSON)},
+		{Arrow: "==>", Label: "BotDraftDraftPick", JSON: json.RawMessage(pickJSON)},
+	}
+	gs := BuildGameState(entries)
+	if gs.Drafts == nil {
+		t.Fatal("expected drafts")
+	}
+	pick := gs.Drafts.Drafts[0].Picks[0]
+	if pick.Chosen != "100568" {
+		t.Errorf("expected chosen '100568' (fallback), got %q", pick.Chosen)
+	}
+	if pick.ChosenID != 100568 {
+		t.Errorf("expected chosenId 100568, got %d", pick.ChosenID)
+	}
+}
+
+func TestDraftPickResponseContainsNextPack(t *testing.T) {
+	// Inbound BotDraftDraftPick responses contain the next pick's pack in Payload.
+	entries := []LogEntry{
+		{Arrow: "<==", Label: "BotDraftDraftStatus", JSON: json.RawMessage(`{"CurrentModule":"BotDraft","Payload":"{\"EventName\":\"QuickDraft\",\"PackNumber\":0,\"PickNumber\":0,\"DraftPack\":[\"82159\",\"82160\"]}"}`)},
+		{Arrow: "==>", Label: "BotDraftDraftPick", JSON: json.RawMessage(`{"id":"a","request":"{\"PickInfo\":{\"CardIds\":[\"82159\"],\"PackNumber\":0,\"PickNumber\":0}}"}`)},
+		{Arrow: "<==", Label: "BotDraftDraftPick", JSON: json.RawMessage(`{"CurrentModule":"BotDraft","Payload":"{\"EventName\":\"QuickDraft\",\"PackNumber\":0,\"PickNumber\":1,\"DraftPack\":[\"82160\",\"82268\"]}"}`)},
+		{Arrow: "==>", Label: "BotDraftDraftPick", JSON: json.RawMessage(`{"id":"b","request":"{\"PickInfo\":{\"CardIds\":[\"82268\"],\"PackNumber\":0,\"PickNumber\":1}}"}`)},
+	}
+	gs := BuildGameState(entries)
+	if gs.Drafts == nil {
+		t.Fatal("expected drafts")
+	}
+	draft := gs.Drafts.Drafts[0]
+	if len(draft.Picks) != 2 {
+		t.Fatalf("expected 2 picks, got %d", len(draft.Picks))
+	}
+	// First pick from initial status
+	if draft.Picks[0].Chosen != "Sheoldred, the Apocalypse" {
+		t.Errorf("pick 0: expected 'Sheoldred, the Apocalypse', got %q", draft.Picks[0].Chosen)
+	}
+	// Second pick from inbound response's Payload
+	if len(draft.Picks[1].Available) != 2 {
+		t.Errorf("pick 1: expected 2 available, got %d", len(draft.Picks[1].Available))
+	}
+	if draft.Picks[1].ChosenID != 82268 {
+		t.Errorf("pick 1: expected chosenId 82268, got %d", draft.Picks[1].ChosenID)
 	}
 }

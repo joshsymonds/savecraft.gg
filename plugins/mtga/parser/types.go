@@ -7,27 +7,12 @@ type GameState struct {
 	DisplayName string
 
 	// Section data
-	Collection  *CollectionSection
 	ActiveDecks *ActiveDecksSection
 	Rank        *RankSection
 	Inventory   *InventorySection
 	Matches     *MatchHistorySection
 	GameLogs    *GameLogSection
 	Drafts      *DraftHistorySection
-}
-
-// CollectionSection contains all owned cards.
-type CollectionSection struct {
-	Cards []CollectionCard `json:"cards"`
-}
-
-// CollectionCard is a card in the player's collection.
-type CollectionCard struct {
-	ArenaID int    `json:"arenaId"`
-	Name    string `json:"name"`
-	Set     string `json:"set"`
-	Rarity  string `json:"rarity"`
-	Count   int    `json:"count"`
 }
 
 // ActiveDecksSection contains the player's deck lists.
@@ -37,11 +22,12 @@ type ActiveDecksSection struct {
 
 // Deck is a player-constructed deck.
 type Deck struct {
-	ID        string     `json:"id"`
-	Name      string     `json:"name"`
-	Format    string     `json:"format"`
-	Cards     []DeckCard `json:"cards"`
-	Sideboard []DeckCard `json:"sideboard"`
+	ID          string     `json:"id"`
+	Name        string     `json:"name"`
+	Format      string     `json:"format"`
+	Cards       []DeckCard `json:"cards"`
+	Sideboard   []DeckCard `json:"sideboard"`
+	CommandZone []DeckCard `json:"commandZone,omitempty"`
 }
 
 // DeckCard is a card entry in a deck.
@@ -70,22 +56,24 @@ type RankInfo struct {
 
 // InventorySection contains currency and wildcards.
 type InventorySection struct {
-	Gold          int           `json:"gold"`
-	Gems          int           `json:"gems"`
-	WCCommon      int           `json:"wcCommon"`
-	WCUncommon    int           `json:"wcUncommon"`
-	WCRare        int           `json:"wcRare"`
-	WCMythic      int           `json:"wcMythic"`
-	VaultProgress float64       `json:"vaultProgress"`
-	DraftTokens   int           `json:"draftTokens"`
-	SealedTokens  int           `json:"sealedTokens"`
-	Boosters      []BoosterInfo `json:"boosters"`
+	Gold          int            `json:"gold"`
+	Gems          int            `json:"gems"`
+	WCCommon      int            `json:"wcCommon"`
+	WCUncommon    int            `json:"wcUncommon"`
+	WCRare        int            `json:"wcRare"`
+	WCMythic      int            `json:"wcMythic"`
+	VaultProgress float64        `json:"vaultProgress"`
+	DraftTokens   int            `json:"draftTokens"`
+	SealedTokens  int            `json:"sealedTokens"`
+	Boosters      []BoosterInfo  `json:"boosters"`
+	CustomTokens  map[string]int `json:"customTokens,omitempty"`
 }
 
 // BoosterInfo tracks booster pack counts.
 type BoosterInfo struct {
-	CollationID int `json:"collationId"`
-	Count       int `json:"count"`
+	CollationID int    `json:"collationId"`
+	SetCode     string `json:"setCode,omitempty"`
+	Count       int    `json:"count"`
 }
 
 // MatchHistorySection contains match results.
