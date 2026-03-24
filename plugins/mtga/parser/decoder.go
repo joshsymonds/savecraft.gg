@@ -30,7 +30,7 @@ type LogEntry struct {
 var (
 	arrowPattern        = regexp.MustCompile(`^\[UnityCrossThreadLogger\](==>|<==) (\S+)`)
 	arrowPatternNew     = regexp.MustCompile(`^(==>|<==) (\S+?)(?:\(|$)`)
-	eventPattern        = regexp.MustCompile(`^\[UnityCrossThreadLogger\][^:]+: (?:Match to )?(\w+)(?: to Match)?: (.+)$`)
+	eventPattern        = regexp.MustCompile(`^\[UnityCrossThreadLogger\].+?: (?:Match to )?(\w+)(?: to Match)?: (.+)$`)
 	labelPattern        = regexp.MustCompile(`^\[UnityCrossThreadLogger\](\S+)\s*$`)
 	detailedLogsPattern = regexp.MustCompile(`DETAILED LOGS: (.*)`)
 )
@@ -98,6 +98,11 @@ func DecodeLog(r io.Reader) []LogEntry {
 		if !ok {
 			continue
 		}
+		// If the entry already has inline JSON, emit it directly.
+		if entry.JSON != nil {
+			entries = append(entries, entry)
+			continue
+		}
 		pending = &entry
 	}
 
@@ -113,8 +118,14 @@ func DecodeLogString(data string) []LogEntry {
 }
 
 func matchHeader(line string) (LogEntry, bool) {
-	if m := arrowPattern.FindStringSubmatch(line); m != nil {
-		return LogEntry{Arrow: m[1], Label: m[2]}, true
+	if loc := arrowPattern.FindStringSubmatchIndex(line); loc != nil {
+		entry := LogEntry{Arrow: line[loc[2]:loc[3]], Label: line[loc[4]:loc[5]]}
+		// Check for inline JSON after the label on the same line.
+		rest := strings.TrimSpace(line[loc[1]:])
+		if len(rest) > 0 && rest[0] == '{' {
+			entry.JSON = json.RawMessage(rest)
+		}
+		return entry, true
 	}
 	if m := arrowPatternNew.FindStringSubmatch(line); m != nil {
 		return LogEntry{Arrow: m[1], Label: m[2]}, true
