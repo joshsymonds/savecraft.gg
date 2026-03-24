@@ -167,8 +167,15 @@ async function searchByKeywordOrTopic(
   label: string,
   limit: number,
 ): Promise<ReferenceResult> {
-  // Sanitize for FTS5 MATCH: wrap in double quotes, escape internal double quotes
-  const safeQuery = `"${queryText.replace(/"/g, '""')}"`;
+  // Build FTS5 MATCH expression from query text.
+  // Split into individual terms, quote each for injection safety.
+  // keyword mode: OR (find rules about any term, ranked by relevance)
+  // topic mode: AND (find rules containing all terms)
+  const connector = label === "keyword" ? " OR " : " AND ";
+  const terms = queryText.trim().split(/\s+/).filter(Boolean);
+  const safeQuery = terms.length > 0
+    ? terms.map((t) => `"${t.replace(/"/g, '""')}"`).join(connector)
+    : `"${queryText.replace(/"/g, '""')}"`;
 
   // BM25 search via FTS5
   const bm25Results = await db
