@@ -288,7 +288,7 @@ export class SourceHub extends DurableObject<Env> {
 
     if (!tags.includes("daemon")) return;
 
-    const rpc = this.parseMessage(msgBuf);
+    const rpc = await this.parseMessage(msgBuf);
     const payloadType = rpc?.payload?.$case ?? "unknown";
     this.debugLog.push("info", "message received", { payloadType });
 
@@ -762,9 +762,11 @@ export class SourceHub extends DurableObject<Env> {
     return this.ctx.storage.get<string>(connTag);
   }
 
-  private parseMessage(data: ArrayBuffer): Message | undefined {
+  private async parseMessage(data: ArrayBuffer): Promise<Message | undefined> {
     try {
-      const rpc = Message.decode(new Uint8Array(data));
+      const raw = new Uint8Array(data);
+      const bytes = isGzipped(raw) ? await gunzip(raw) : raw;
+      const rpc = Message.decode(bytes);
       return rpc.payload ? rpc : undefined;
     } catch {
       return undefined;
@@ -1958,4 +1960,34 @@ export class SourceHub extends DurableObject<Env> {
       // recursion — persistEvent IS the D1 write path, so retrying would loop.
     }
   }
+}
+
+// --- Gzip helpers ---
+
+/** Check for gzip magic header (0x1f 0x8b). */
+function isGzipped(data: Uint8Array): boolean {
+  return data.length >= 2 && data[0] === 0x1f && data[1] === 0x8b;
+}
+
+/** Decompress gzipped data using the Web Streams DecompressionStream API. */
+async function gunzip(data: Uint8Array): Promise<Uint8Array> {
+  const ds = new DecompressionStream("gzip");
+  const writer = ds.writable.getWriter();
+  writer.write(data);
+  writer.close();
+  const reader = ds.readable.getReader();
+  const chunks: Uint8Array[] = [];
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value);
+  }
+  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
+  const result = new Uint8Array(totalLength);
+  let offset = 0;
+  for (const chunk of chunks) {
+    result.set(chunk, offset);
+    offset += chunk.length;
+  }
+  return result;
 }
