@@ -653,9 +653,9 @@ func TestRefinePutAction(t *testing.T) {
 		{"ZoneType_Graveyard", "put_into_graveyard"},
 		{"ZoneType_Hand", "put_into_hand"},
 		{"ZoneType_Library", "put_into_library"},
-		{"ZoneType_Exile", "put"},     // no special subtype for exile — use generic
-		{"ZoneType_Stack", "put"},     // fallback
-		{"", "put"},                   // empty zone
+		{"ZoneType_Exile", "put"}, // no special subtype for exile — use generic
+		{"ZoneType_Stack", "put"}, // fallback
+		{"", "put"},               // empty zone
 	}
 	for _, tc := range cases {
 		got := refinePutAction(tc.zoneTo)
