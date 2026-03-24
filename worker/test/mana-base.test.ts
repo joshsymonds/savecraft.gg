@@ -127,4 +127,29 @@ describe("mana_base native module", () => {
     // Sheoldred has BB (2 pips) — most demanding for black
     expect(result.content).toContain("Sheoldred");
   });
+
+  it("reports unresolved cards in output", async () => {
+    await seedCards();
+
+    const result = await manaBaseModule.execute(
+      {
+        deck: [
+          { name: "Lightning Bolt", count: 4 },
+          { name: "Counterspell", count: 4 },
+          { name: "Force of Will", count: 4 },
+        ],
+      },
+      env,
+    );
+
+    expect(result.type).toBe("formatted");
+    if (result.type !== "formatted") throw new Error("unexpected type");
+
+    // Should mention the unresolved cards
+    expect(result.content).toContain("Counterspell");
+    expect(result.content).toContain("Force of Will");
+    expect(result.content).toContain("not found");
+    // Should still analyze Lightning Bolt (the only resolved card)
+    expect(result.content).toContain("Red");
+  });
 });

@@ -154,9 +154,13 @@ export const manaBaseModule: NativeReferenceModule = {
     }
 
     const resolved: ResolvedCard[] = [];
+    const unresolvedCards: string[] = [];
     for (const entry of deck) {
       const row = cardsByName.get(entry.name.toLowerCase());
-      if (!row || !row.mana_cost) continue;
+      if (!row || !row.mana_cost) {
+        unresolvedCards.push(entry.name);
+        continue;
+      }
 
       resolved.push({
         name: row.name,
@@ -167,7 +171,10 @@ export const manaBaseModule: NativeReferenceModule = {
     }
 
     if (resolved.length === 0) {
-      return { type: "formatted", content: "No spells with mana costs found in deck.\n" };
+      const note = unresolvedCards.length > 0
+        ? `\nCards not found in Arena card database: ${unresolvedCards.join(", ")}\n`
+        : "";
+      return { type: "formatted", content: `No spells with mana costs found in deck.${note}\n` };
     }
 
     // For each color, find the most demanding spell
@@ -256,6 +263,10 @@ export const manaBaseModule: NativeReferenceModule = {
     lines.push(`\nKarsten guidelines assume ${landCount} lands in a ${deckSize}-card deck.`);
     if (requirements.length > 1) {
       lines.push("For multicolor decks, dual lands and fetch lands satisfy multiple color requirements simultaneously.");
+    }
+
+    if (unresolvedCards.length > 0) {
+      lines.push(`\nNote: ${unresolvedCards.length} card(s) not found in Arena card database and excluded from analysis: ${unresolvedCards.join(", ")}`);
     }
 
     return { type: "formatted", content: lines.join("\n") + "\n" };
