@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"sort"
 	"strings"
 )
 
@@ -46,17 +45,6 @@ func main() {
 
 func buildOutputSections(gs *GameState) map[string]any {
 	sections := map[string]any{}
-
-	if gs.Collection != nil {
-		// Sort collection by name for consistent output.
-		sort.Slice(gs.Collection.Cards, func(i, j int) bool {
-			return gs.Collection.Cards[i].Name < gs.Collection.Cards[j].Name
-		})
-		sections["collection"] = map[string]any{
-			"description": "Complete card collection with set and rarity — use to assess deck-building options, wildcard investment priorities, and format coverage gaps",
-			"data":        gs.Collection,
-		}
-	}
 
 	if gs.ActiveDecks != nil {
 		sections["active_decks"] = map[string]any{
@@ -131,9 +119,6 @@ func buildExtra(gs *GameState) map[string]any {
 		if gs.Rank.Limited.Class != "" {
 			extra["limitedRank"] = fmt.Sprintf("%s %d", gs.Rank.Limited.Class, gs.Rank.Limited.Level)
 		}
-	}
-	if gs.Collection != nil {
-		extra["collectionSize"] = len(gs.Collection.Cards)
 	}
 	if gs.ActiveDecks != nil {
 		extra["deckCount"] = len(gs.ActiveDecks.Decks)

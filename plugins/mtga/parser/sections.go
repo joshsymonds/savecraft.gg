@@ -17,26 +17,27 @@ func BuildGameState(entries []LogEntry) *GameState {
 		switch {
 		case e.Label == "AuthenticateResponse":
 			processAuth(gs, e.JSON)
-		case e.Arrow == "<==" && e.Label == "PlayerInventory.GetPlayerCardsV3":
-			processCollection(gs, e.JSON)
-		case e.Arrow == "<==" && e.Label == "Deck.GetDeckListsV3":
-			processDecks(gs, e.JSON)
-		case e.Arrow == "<==" && e.Label == "Rank_GetCombinedRankInfo":
+		case e.Arrow == "<==" && e.Label == "StartHook":
+			processStartHook(gs, e.JSON)
+		case e.Arrow == "<==" && e.Label == "RankGetCombinedRankInfo":
 			processRank(gs, e.JSON)
-		case e.Label == "Inventory.Updated":
-			processInventoryUpdate(gs, e.JSON)
 		case e.Label == "MatchGameRoomStateChangedEvent":
 			processMatchRoom(gs, e.JSON)
 		case e.Label == "GreToClientEvent":
 			processGRE(gs, e.JSON)
-		case e.Arrow == "<==" && e.Label == "BotDraft_DraftStatus":
+		case e.Arrow == "<==" && e.Label == "BotDraftDraftStatus":
 			processBotDraftStatus(gs, e.JSON)
-		case e.Arrow == "<==" && e.Label == "Draft.Notify":
+		case e.Arrow == "<==" && e.Label == "DraftNotify":
 			processDraftNotify(gs, e.JSON)
-		case e.Arrow == "<==" && (e.Label == "BotDraft_DraftPick" || e.Label == "Draft.MakeHumanDraftPick"):
-			processDraftPick(gs, e.JSON)
-		case e.Arrow == "==>" && (e.Label == "BotDraft_DraftPick" || e.Label == "Draft.MakeHumanDraftPick"):
+		case e.Arrow == "<==" && (e.Label == "BotDraftDraftPick" || e.Label == "DraftMakeHumanDraftPick" || e.Label == "EventPlayerDraftMakePick"):
+			processDraftPickResponse(gs, e.JSON)
+		case e.Arrow == "==>" && (e.Label == "BotDraftDraftPick" || e.Label == "DraftMakeHumanDraftPick" || e.Label == "EventPlayerDraftMakePick"):
 			processOutDraftPick(gs, e.JSON)
+		}
+
+		// Extract InventoryInfo from any response that contains it.
+		if e.JSON != nil {
+			processInventoryInfo(gs, e.JSON)
 		}
 	}
 
@@ -57,72 +58,150 @@ func processAuth(gs *GameState, raw json.RawMessage) {
 	gs.DisplayName = msg.AuthenticateResponse.ScreenName
 }
 
-func processCollection(gs *GameState, raw json.RawMessage) {
-	// Collection is a map of arena_id (as string) → count.
-	var cards map[string]int
-	if err := json.Unmarshal(raw, &cards); err != nil {
+func processStartHook(gs *GameState, raw json.RawMessage) {
+	var hook struct {
+		Decks           map[string]startHookDeck   `json:"Decks"`
+		DeckSummariesV2 []startHookDeckSummary     `json:"DeckSummariesV2"`
+		InventoryInfo   *startHookInventory        `json:"InventoryInfo"`
+	}
+	if err := json.Unmarshal(raw, &hook); err != nil {
 		return
 	}
 
-	section := &CollectionSection{}
-	for idStr, count := range cards {
-		id, err := strconv.Atoi(idStr)
-		if err != nil {
-			continue
-		}
-		card := data.ArenaCards[id]
-		section.Cards = append(section.Cards, CollectionCard{
-			ArenaID: id,
-			Name:    card.Name,
-			Set:     card.Set,
-			Rarity:  card.Rarity,
-			Count:   count,
-		})
+	// Build deck summaries index by ID for O(1) join.
+	summaryByID := make(map[string]startHookDeckSummary, len(hook.DeckSummariesV2))
+	for _, s := range hook.DeckSummariesV2 {
+		summaryByID[s.DeckID] = s
 	}
-	gs.Collection = section
+
+	// Join Decks + DeckSummariesV2 to produce complete Deck objects.
+	if len(hook.Decks) > 0 {
+		section := &ActiveDecksSection{}
+		for deckID, deckData := range hook.Decks {
+			summary := summaryByID[deckID]
+			deck := Deck{
+				ID:          deckID,
+				Name:        summary.Name,
+				Format:      summary.format(),
+				Cards:       parseCardEntries(deckData.MainDeck),
+				Sideboard:   parseCardEntries(deckData.Sideboard),
+				CommandZone: parseCardEntries(deckData.CommandZone),
+			}
+			section.Decks = append(section.Decks, deck)
+		}
+		gs.ActiveDecks = section
+	}
+
+	// Extract inventory snapshot.
+	if hook.InventoryInfo != nil {
+		applyInventorySnapshot(gs, hook.InventoryInfo)
+	}
 }
 
-func processDecks(gs *GameState, raw json.RawMessage) {
-	// DeckListsV3 is an array of deck objects.
-	var arenaDecks []struct {
-		ID        string `json:"id"`
-		Name      string `json:"name"`
-		Format    string `json:"format"`
-		MainDeck  []int  `json:"mainDeck"` // v3 format: alternating [cardId, count, cardId, count, ...]
-		Sideboard []int  `json:"sideboard"`
-	}
-	if err := json.Unmarshal(raw, &arenaDecks); err != nil {
-		return
-	}
-
-	section := &ActiveDecksSection{}
-	for _, ad := range arenaDecks {
-		deck := Deck{
-			ID:     ad.ID,
-			Name:   ad.Name,
-			Format: ad.Format,
-		}
-		deck.Cards = parseV3CardList(ad.MainDeck)
-		deck.Sideboard = parseV3CardList(ad.Sideboard)
-		section.Decks = append(section.Decks, deck)
-	}
-	gs.ActiveDecks = section
+type startHookDeck struct {
+	MainDeck    []cardEntry `json:"MainDeck"`
+	Sideboard   []cardEntry `json:"Sideboard"`
+	CommandZone []cardEntry `json:"CommandZone"`
 }
 
-// parseV3CardList parses the Arena v3 deck format: [cardId, count, cardId, count, ...].
-func parseV3CardList(ids []int) []DeckCard {
+type cardEntry struct {
+	CardID   int `json:"cardId"`
+	Quantity int `json:"quantity"`
+}
+
+type startHookDeckSummary struct {
+	DeckID     string `json:"DeckId"`
+	Name       string `json:"Name"`
+	Attributes []struct {
+		Name  string `json:"name"`
+		Value string `json:"value"`
+	} `json:"Attributes"`
+}
+
+func (s startHookDeckSummary) format() string {
+	for _, attr := range s.Attributes {
+		if attr.Name == "Format" {
+			return attr.Value
+		}
+	}
+	return ""
+}
+
+type startHookInventory struct {
+	Gems               int            `json:"Gems"`
+	Gold               int            `json:"Gold"`
+	WildCardCommons    int            `json:"WildCardCommons"`
+	WildCardUnCommons  int            `json:"WildCardUnCommons"`
+	WildCardRares      int            `json:"WildCardRares"`
+	WildCardMythics    int            `json:"WildCardMythics"`
+	TotalVaultProgress float64        `json:"TotalVaultProgress"`
+	CustomTokens       map[string]int `json:"CustomTokens"`
+	Boosters           []struct {
+		CollationID string `json:"CollationId"`
+		SetCode     string `json:"SetCode"`
+		Count       int    `json:"Count"`
+	} `json:"Boosters"`
+}
+
+func parseCardEntries(entries []cardEntry) []DeckCard {
 	var cards []DeckCard
-	for i := 0; i+1 < len(ids); i += 2 {
-		arenaID := ids[i]
-		count := ids[i+1]
-		card := data.ArenaCards[arenaID]
+	for _, e := range entries {
+		card := data.ArenaCards[e.CardID]
 		cards = append(cards, DeckCard{
-			ArenaID: arenaID,
+			ArenaID: e.CardID,
 			Name:    card.Name,
-			Count:   count,
+			Count:   e.Quantity,
 		})
 	}
 	return cards
+}
+
+func applyInventorySnapshot(gs *GameState, inv *startHookInventory) {
+	section := &InventorySection{
+		Gold:          inv.Gold,
+		Gems:          inv.Gems,
+		WCCommon:      inv.WildCardCommons,
+		WCUncommon:    inv.WildCardUnCommons,
+		WCRare:        inv.WildCardRares,
+		WCMythic:      inv.WildCardMythics,
+		VaultProgress: inv.TotalVaultProgress,
+		CustomTokens:  inv.CustomTokens,
+	}
+
+	if inv.CustomTokens != nil {
+		section.DraftTokens = inv.CustomTokens["DraftToken"]
+		section.SealedTokens = inv.CustomTokens["SealedToken"]
+	}
+
+	for _, b := range inv.Boosters {
+		collID, _ := strconv.Atoi(b.CollationID)
+		section.Boosters = append(section.Boosters, BoosterInfo{
+			CollationID: collID,
+			SetCode:     b.SetCode,
+			Count:       b.Count,
+		})
+	}
+
+	gs.Inventory = section
+}
+
+// processInventoryInfo extracts InventoryInfo from any response that embeds it.
+func processInventoryInfo(gs *GameState, raw json.RawMessage) {
+	var msg struct {
+		InventoryInfo    *startHookInventory `json:"InventoryInfo"`
+		DTOInventoryInfo *startHookInventory `json:"DTO_InventoryInfo"`
+	}
+	if err := json.Unmarshal(raw, &msg); err != nil {
+		return
+	}
+	inv := msg.InventoryInfo
+	if inv == nil {
+		inv = msg.DTOInventoryInfo
+	}
+	if inv == nil {
+		return
+	}
+	applyInventorySnapshot(gs, inv)
 }
 
 func processRank(gs *GameState, raw json.RawMessage) {
@@ -168,51 +247,9 @@ func processRank(gs *GameState, raw json.RawMessage) {
 	}
 }
 
-func processInventoryUpdate(gs *GameState, raw json.RawMessage) {
-	var msg struct {
-		Updates []struct {
-			Delta struct {
-				GemsDelta          int           `json:"gemsDelta"`
-				GoldDelta          int           `json:"goldDelta"`
-				WCCommonDelta      int           `json:"wcCommonDelta"`
-				WCUncommonDelta    int           `json:"wcUncommonDelta"`
-				WCRareDelta        int           `json:"wcRareDelta"`
-				WCMythicDelta      int           `json:"wcMythicDelta"`
-				VaultProgressDelta float64       `json:"vaultProgressDelta"`
-				DraftTokensDelta   int           `json:"draftTokensDelta"`
-				SealedTokensDelta  int           `json:"sealedTokensDelta"`
-				BoosterDelta       []BoosterInfo `json:"boosterDelta"`
-			} `json:"delta"`
-		} `json:"updates"`
-	}
-	if err := json.Unmarshal(raw, &msg); err != nil {
-		return
-	}
-
-	if gs.Inventory == nil {
-		gs.Inventory = &InventorySection{}
-	}
-
-	for _, u := range msg.Updates {
-		gs.Inventory.Gold += u.Delta.GoldDelta
-		gs.Inventory.Gems += u.Delta.GemsDelta
-		gs.Inventory.WCCommon += u.Delta.WCCommonDelta
-		gs.Inventory.WCUncommon += u.Delta.WCUncommonDelta
-		gs.Inventory.WCRare += u.Delta.WCRareDelta
-		gs.Inventory.WCMythic += u.Delta.WCMythicDelta
-		gs.Inventory.VaultProgress += u.Delta.VaultProgressDelta
-		gs.Inventory.DraftTokens += u.Delta.DraftTokensDelta
-		gs.Inventory.SealedTokens += u.Delta.SealedTokensDelta
-	}
-}
-
 func processMatchRoom(gs *GameState, raw json.RawMessage) {
 	var msg struct {
-		Timestamp string `json:"timestamp"`
-		Players   []struct {
-			UserID       string `json:"userId"`
-			SystemSeatID int    `json:"systemSeatId"`
-		} `json:"players"`
+		Timestamp                      string `json:"timestamp"`
 		MatchGameRoomStateChangedEvent struct {
 			GameRoomInfo struct {
 				StateType      string `json:"stateType"`
@@ -248,7 +285,6 @@ func processMatchRoom(gs *GameState, raw json.RawMessage) {
 	}
 
 	if room.StateType == "MatchGameRoomStateType_Playing" {
-		// Match started — create a new match entry.
 		match := MatchResult{
 			MatchID: room.GameRoomConfig.MatchID,
 			EventID: room.GameRoomConfig.EventID,
@@ -271,7 +307,6 @@ func processMatchRoom(gs *GameState, raw json.RawMessage) {
 		}
 		gs.Matches.Matches = append(gs.Matches.Matches, match)
 
-		// Also start a new game log.
 		if gs.GameLogs == nil {
 			gs.GameLogs = &GameLogSection{}
 		}
@@ -281,7 +316,6 @@ func processMatchRoom(gs *GameState, raw json.RawMessage) {
 	}
 
 	if room.StateType == "MatchGameRoomStateType_MatchCompleted" && room.FinalMatchResult != nil {
-		// Match completed — update the last match with results.
 		matchID := room.FinalMatchResult.MatchID
 		for i := range gs.Matches.Matches {
 			if gs.Matches.Matches[i].MatchID == matchID {
@@ -293,7 +327,6 @@ func processMatchRoom(gs *GameState, raw json.RawMessage) {
 						})
 					}
 					if r.Scope == "MatchScope_Match" {
-						// Determine win/loss.
 						playerSeat := gs.Matches.Matches[i].Player.Seat
 						if r.WinningTeamID == playerSeat {
 							gs.Matches.Matches[i].Result = "win"
@@ -312,7 +345,6 @@ func processMatchRoom(gs *GameState, raw json.RawMessage) {
 
 func processGRE(gs *GameState, raw json.RawMessage) {
 	var msg struct {
-		Timestamp        string `json:"timestamp"`
 		GreToClientEvent struct {
 			GreToClientMessages []struct {
 				Type             string `json:"type"`
@@ -364,14 +396,12 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 		}
 		gsm := greMsg.GameStateMessage
 
-		// Track opponent cards seen.
 		if gsm.GameObjects != nil && gs.Matches != nil && len(gs.Matches.Matches) > 0 {
 			currentMatch := &gs.Matches.Matches[len(gs.Matches.Matches)-1]
 			for _, obj := range gsm.GameObjects {
 				if obj.OwnerSeatID == currentMatch.Opponent.Seat &&
 					obj.GrpID > 0 &&
 					obj.Visibility == "Visibility_Public" {
-					// Track unique cards seen from opponent.
 					if !slices.Contains(currentMatch.Opponent.CardsSeen, obj.GrpID) {
 						currentMatch.Opponent.CardsSeen = append(currentMatch.Opponent.CardsSeen, obj.GrpID)
 					}
@@ -379,16 +409,13 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 			}
 		}
 
-		// Build a game object index for O(1) lookups.
 		objIndex := make(map[int]greGameObject, len(gsm.GameObjects))
 		for _, obj := range gsm.GameObjects {
 			objIndex[obj.InstanceID] = obj
 		}
 
-		// Build turn-by-turn log from game state messages.
 		if gsm.TurnInfo != nil {
 			ti := gsm.TurnInfo
-			// Find or create the turn entry.
 			var turn *TurnLog
 			for i := range currentGame.Turns {
 				if currentGame.Turns[i].TurnNumber == ti.TurnNumber &&
@@ -406,7 +433,6 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 				turn = &currentGame.Turns[len(currentGame.Turns)-1]
 			}
 
-			// Capture player state (life totals, mana, hand contents).
 			if gsm.Players != nil {
 				var players []PlayerState
 				for _, p := range gsm.Players {
@@ -422,7 +448,6 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 					}
 					players = append(players, ps)
 				}
-				// Populate hand cards from zones (visible hand objects).
 				if gsm.Zones != nil {
 					for _, zone := range gsm.Zones {
 						if strings.Contains(zone.Type, "Hand") {
@@ -444,7 +469,6 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 				turn.Players = players
 			}
 
-			// Extract actions from annotations using the object index.
 			if gsm.Annotations != nil {
 				for _, ann := range gsm.Annotations {
 					action := annotationToActionIndexed(ann, objIndex)
@@ -457,7 +481,6 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 	}
 }
 
-// greGameObject is the parsed shape of a game object from GRE messages.
 type greGameObject struct {
 	InstanceID  int      `json:"instanceId"`
 	GrpID       int      `json:"grpId"`
@@ -467,7 +490,6 @@ type greGameObject struct {
 	CardTypes   []string `json:"cardTypes"`
 }
 
-// greAnnotation is the parsed shape of an annotation from GRE messages.
 type greAnnotation struct {
 	ID          int      `json:"id"`
 	AffectorID  int      `json:"affectorId"`
@@ -481,8 +503,6 @@ type greAnnotation struct {
 	} `json:"details"`
 }
 
-// annotationToActionIndexed converts a GRE annotation to an ActionLog entry
-// using a pre-built instance ID index for O(1) lookups.
 func annotationToActionIndexed(ann greAnnotation, objIndex map[int]greGameObject) *ActionLog {
 	for _, annType := range ann.Type {
 		switch annType {
@@ -575,6 +595,8 @@ func inferAction(from, to string) string {
 }
 
 func processBotDraftStatus(gs *GameState, raw json.RawMessage) {
+	raw = unwrapPayload(raw)
+
 	var status struct {
 		EventName  string   `json:"EventName"`
 		DraftID    string   `json:"DraftId"`
@@ -590,10 +612,8 @@ func processBotDraftStatus(gs *GameState, raw json.RawMessage) {
 		gs.Drafts = &DraftHistorySection{}
 	}
 
-	// Find or create the draft session.
 	draft := findOrCreateDraft(gs, status.EventName, status.DraftID, "bot")
 
-	// Record the available pack.
 	available := make([]string, len(status.DraftPack))
 	for i, idStr := range status.DraftPack {
 		id, _ := strconv.Atoi(idStr)
@@ -605,7 +625,57 @@ func processBotDraftStatus(gs *GameState, raw json.RawMessage) {
 		}
 	}
 
-	// Add a pick entry (chosen card will be filled by the outbound pick event).
+	draft.Picks = append(draft.Picks, DraftPick{
+		PackNumber: status.PackNumber,
+		PickNumber: status.PickNumber,
+		Available:  available,
+	})
+}
+
+// unwrapPayload handles the double-encoded Payload pattern used by draft responses.
+func unwrapPayload(raw json.RawMessage) json.RawMessage {
+	var wrapper struct {
+		Payload string `json:"Payload"`
+	}
+	if err := json.Unmarshal(raw, &wrapper); err != nil || wrapper.Payload == "" {
+		return raw
+	}
+	return json.RawMessage(wrapper.Payload)
+}
+
+// processDraftPickResponse handles inbound draft pick responses which contain
+// the next pick's pack contents in their Payload.
+func processDraftPickResponse(gs *GameState, raw json.RawMessage) {
+	inner := unwrapPayload(raw)
+
+	var status struct {
+		EventName  string   `json:"EventName"`
+		DraftID    string   `json:"DraftId"`
+		PackNumber int      `json:"PackNumber"`
+		PickNumber int      `json:"PickNumber"`
+		DraftPack  []string `json:"DraftPack"`
+	}
+	if err := json.Unmarshal(inner, &status); err != nil || len(status.DraftPack) == 0 {
+		return
+	}
+
+	if gs.Drafts == nil {
+		gs.Drafts = &DraftHistorySection{}
+	}
+
+	draft := findOrCreateDraft(gs, status.EventName, status.DraftID, "bot")
+
+	available := make([]string, len(status.DraftPack))
+	for i, idStr := range status.DraftPack {
+		id, _ := strconv.Atoi(idStr)
+		card := data.ArenaCards[id]
+		if card.Name != "" {
+			available[i] = card.Name
+		} else {
+			available[i] = idStr
+		}
+	}
+
 	draft.Picks = append(draft.Picks, DraftPick{
 		PackNumber: status.PackNumber,
 		PickNumber: status.PickNumber,
@@ -630,7 +700,6 @@ func processDraftNotify(gs *GameState, raw json.RawMessage) {
 
 	draft := findOrCreateDraft(gs, "", notify.DraftID, "premier")
 
-	// PackCards is a comma-separated list of arena_ids.
 	var available []string
 	for _, idStr := range strings.Split(notify.PackCards, ",") {
 		idStr = strings.TrimSpace(idStr)
@@ -651,21 +720,31 @@ func processDraftNotify(gs *GameState, raw json.RawMessage) {
 	})
 }
 
-func processDraftPick(gs *GameState, raw json.RawMessage) {
-	// Inbound pick confirmation — not much to do here, the outbound pick
-	// has the actual card chosen.
+// resolveCardName returns the card name from ArenaCards, or the ID as string if unknown.
+func resolveCardName(arenaID int) string {
+	card := data.ArenaCards[arenaID]
+	if card.Name != "" {
+		return card.Name
+	}
+	return strconv.Itoa(arenaID)
 }
 
 func processOutDraftPick(gs *GameState, raw json.RawMessage) {
-	var pick struct {
-		Params struct {
-			DraftID    string `json:"draftId"`
-			CardID     string `json:"cardId"`
-			PackNumber string `json:"packNumber"`
-			PickNumber string `json:"pickNumber"`
-		} `json:"params"`
+	var msg struct {
+		Request string `json:"request"`
 	}
-	if err := json.Unmarshal(raw, &pick); err != nil {
+	if err := json.Unmarshal(raw, &msg); err != nil || msg.Request == "" {
+		return
+	}
+
+	var req struct {
+		PickInfo struct {
+			CardIDs    []string `json:"CardIds"`
+			PackNumber int      `json:"PackNumber"`
+			PickNumber int      `json:"PickNumber"`
+		} `json:"PickInfo"`
+	}
+	if err := json.Unmarshal([]byte(msg.Request), &req); err != nil {
 		return
 	}
 
@@ -673,34 +752,39 @@ func processOutDraftPick(gs *GameState, raw json.RawMessage) {
 		return
 	}
 
-	cardID, _ := strconv.Atoi(pick.Params.CardID)
-	card := data.ArenaCards[cardID]
+	if len(req.PickInfo.CardIDs) == 0 {
+		return
+	}
+	cardID, _ := strconv.Atoi(req.PickInfo.CardIDs[0])
+	cardName := resolveCardName(cardID)
 
-	// Find the matching pick in the most recent draft and fill in the chosen card.
 	draft := &gs.Drafts.Drafts[len(gs.Drafts.Drafts)-1]
-	packNum, _ := strconv.Atoi(pick.Params.PackNumber)
-	pickNum, _ := strconv.Atoi(pick.Params.PickNumber)
+	packNum := req.PickInfo.PackNumber
+	pickNum := req.PickInfo.PickNumber
 
 	for i := range draft.Picks {
 		if draft.Picks[i].PackNumber == packNum && draft.Picks[i].PickNumber == pickNum {
-			draft.Picks[i].Chosen = card.Name
+			draft.Picks[i].Chosen = cardName
 			draft.Picks[i].ChosenID = cardID
 			return
 		}
 	}
 
-	// If no matching pick found, add one.
 	draft.Picks = append(draft.Picks, DraftPick{
 		PackNumber: packNum,
 		PickNumber: pickNum,
-		Chosen:     card.Name,
+		Chosen:     cardName,
 		ChosenID:   cardID,
 	})
 }
 
 func findOrCreateDraft(gs *GameState, eventName, draftID, draftType string) *DraftSession {
+	// Match by DraftID if available, otherwise by EventName.
 	for i := range gs.Drafts.Drafts {
-		if gs.Drafts.Drafts[i].DraftID == draftID && draftID != "" {
+		if draftID != "" && gs.Drafts.Drafts[i].DraftID == draftID {
+			return &gs.Drafts.Drafts[i]
+		}
+		if draftID == "" && eventName != "" && gs.Drafts.Drafts[i].EventName == eventName {
 			return &gs.Drafts.Drafts[i]
 		}
 	}
