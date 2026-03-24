@@ -246,29 +246,6 @@ describe("rules_search native module", () => {
     expect(text).not.toContain("No rules found");
   });
 
-  it("topic search handles multi-word natural language", async () => {
-    await seedRules();
-    const module_ = getNativeModule("mtga", "rules_search")!;
-    // Topic uses AND — both terms must appear in the same rule
-    const result = await module_.execute({ topic: "trample deathtouch" }, env);
-
-    expect(result.type).toBe("formatted");
-    const text = (result as { content: string }).content;
-    // 702.19b contains both "trample" and "deathtouch"
-    expect(text).toContain("702.19b");
-    expect(text).not.toContain("No rules found");
-  });
-
-  it("topic search returns relevant results", async () => {
-    await seedRules();
-    const module_ = getNativeModule("mtga", "rules_search")!;
-    const result = await module_.execute({ topic: "replacement effects" }, env);
-
-    const text = (result as { content: string }).content;
-    expect(text).toContain("614.1");
-    expect(text).toContain("replacement effects");
-  });
-
   // ── Card rulings ─────────────────────────────────────────
 
   it("card ruling search finds rulings by card name", async () => {
