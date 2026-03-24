@@ -151,7 +151,9 @@ export const cardSearchModule: NativeReferenceModule = {
     }
 
     // ── Build SQL query with structured filters ────────────────
-    const conditions: string[] = [];
+    // Always filter to default printings (one result per card name).
+    // Non-default printings exist for collection_diff arena_id lookups.
+    const conditions: string[] = ["is_default = 1"];
     const params: unknown[] = [];
     let paramIdx = 1;
 

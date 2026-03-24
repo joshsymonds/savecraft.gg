@@ -175,11 +175,14 @@ const statements = [
     legalities TEXT NOT NULL DEFAULT '{}',
     rarity TEXT NOT NULL DEFAULT '',
     set_code TEXT NOT NULL DEFAULT '',
-    keywords TEXT NOT NULL DEFAULT '[]'
+    keywords TEXT NOT NULL DEFAULT '[]',
+    is_default INTEGER NOT NULL DEFAULT 0
   )`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_name ON mtga_cards(name)`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_set ON mtga_cards(set_code)`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_rarity ON mtga_cards(rarity)`,
+  `CREATE INDEX IF NOT EXISTS idx_mtga_cards_is_default ON mtga_cards(is_default)`,
+  `CREATE INDEX IF NOT EXISTS idx_mtga_cards_name_default ON mtga_cards(name, is_default)`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS mtga_cards_fts USING fts5(
     arena_id UNINDEXED,
     name,
