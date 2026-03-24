@@ -1969,20 +1969,27 @@ function isGzipped(data: Uint8Array): boolean {
   return data.length >= 2 && data[0] === 0x1f && data[1] === 0x8b;
 }
 
+/** Max decompressed size (10MB) — defense-in-depth against decompression bombs. */
+const MAX_DECOMPRESSED_BYTES = 10 * 1024 * 1024;
+
 /** Decompress gzipped data using the Web Streams DecompressionStream API. */
 async function gunzip(data: Uint8Array): Promise<Uint8Array> {
   const ds = new DecompressionStream("gzip");
   const writer = ds.writable.getWriter();
-  writer.write(data);
-  writer.close();
+  await writer.write(data);
+  await writer.close();
   const reader = ds.readable.getReader();
   const chunks: Uint8Array[] = [];
+  let totalLength = 0;
   for (;;) {
     const { done, value } = await reader.read();
     if (done) break;
+    totalLength += value.length;
+    if (totalLength > MAX_DECOMPRESSED_BYTES) {
+      throw new Error("decompressed payload exceeds size limit");
+    }
     chunks.push(value);
   }
-  const totalLength = chunks.reduce((sum, c) => sum + c.length, 0);
   const result = new Uint8Array(totalLength);
   let offset = 0;
   for (const chunk of chunks) {
