@@ -122,8 +122,9 @@ type GameLogSection struct {
 
 // GameLog is a play-by-play log for one game.
 type GameLog struct {
-	MatchID string    `json:"matchId"`
-	Turns   []TurnLog `json:"turns"`
+	MatchID      string           `json:"matchId"`
+	Turns        []TurnLog        `json:"turns"`
+	sessionState *greSessionState `json:"-"` // persistent GRE state, not serialized
 }
 
 // TurnLog records actions in a single turn with decision context.
@@ -132,7 +133,7 @@ type TurnLog struct {
 	ActivePlayer int           `json:"activePlayer"`
 	Phase        string        `json:"phase"`
 	Players      []PlayerState `json:"players,omitempty"`
-	Actions      []ActionLog   `json:"actions"`
+	Actions      []GameAction  `json:"actions"`
 }
 
 // PlayerState captures the game state for a player at a point in time.
@@ -149,14 +150,80 @@ type ManaEntry struct {
 	Count int    `json:"count"`
 }
 
-// ActionLog is a single game action.
-type ActionLog struct {
-	Player   int    `json:"player"`
-	Action   string `json:"action"` // "cast", "attack", "block", "draw", "play_land", "activate", "resolve"
-	CardName string `json:"cardName,omitempty"`
-	CardID   int    `json:"cardId,omitempty"`
+// GameAction is a discriminated union for game actions. Type is the discriminator
+// and exactly one subtype pointer is non-nil.
+type GameAction struct {
+	Player int    `json:"player"`
+	Type   string `json:"type"` // "cast", "resolve", "move", "damage", "tap", "ability", "target", "stat_mod"
+
+	Cast    *CastAction    `json:"cast,omitempty"`
+	Resolve *ResolveAction `json:"resolve,omitempty"`
+	Move    *MoveAction    `json:"move,omitempty"`
+	Damage  *DamageAction  `json:"damage,omitempty"`
+	Tap     *TapAction     `json:"tap,omitempty"`
+	Ability *AbilityAction `json:"ability,omitempty"`
+	Target  *TargetAction  `json:"target,omitempty"`
+	StatMod *StatModAction `json:"statMod,omitempty"`
+}
+
+// CastAction represents a spell being cast.
+type CastAction struct {
+	CardName string      `json:"cardName"`
+	CardID   int         `json:"cardId"`
+	ManaPaid []ManaEntry `json:"manaPaid,omitempty"`
+}
+
+// ResolveAction represents a spell or ability resolving.
+type ResolveAction struct {
+	CardName string `json:"cardName"`
+	CardID   int    `json:"cardId"`
+}
+
+// MoveAction represents a zone transfer (draw, discard, destroy, exile, etc.).
+type MoveAction struct {
+	CardName string `json:"cardName"`
+	CardID   int    `json:"cardId"`
+	MoveType string `json:"moveType"` // "draw", "discard", "destroy", "exile", "play_land", "put_into_play", "put_into_graveyard", "put_into_hand", "put_into_library", "move"
 	ZoneFrom string `json:"zoneFrom,omitempty"`
 	ZoneTo   string `json:"zoneTo,omitempty"`
+}
+
+// DamageAction represents damage being dealt.
+type DamageAction struct {
+	Source   string `json:"source"`
+	SourceID int    `json:"sourceId"`
+	Target   string `json:"target"`
+	Amount   int    `json:"amount"`
+	IsCombat bool   `json:"isCombat"`
+}
+
+// TapAction represents a permanent being tapped or untapped.
+type TapAction struct {
+	CardName string `json:"cardName"`
+	CardID   int    `json:"cardId"`
+	Tapped   bool   `json:"tapped"`
+}
+
+// AbilityAction represents a triggered or activated ability.
+type AbilityAction struct {
+	CardName    string `json:"cardName"`
+	CardID      int    `json:"cardId"`
+	AbilityType string `json:"abilityType"` // "triggered", "activated"
+}
+
+// TargetAction represents targets being selected for a spell or ability.
+type TargetAction struct {
+	CardName string   `json:"cardName"`
+	CardID   int      `json:"cardId"`
+	Targets  []string `json:"targets"`
+}
+
+// StatModAction represents a power/toughness modification.
+type StatModAction struct {
+	CardName  string `json:"cardName"`
+	CardID    int    `json:"cardId"`
+	Power     int    `json:"power"`
+	Toughness int    `json:"toughness"`
 }
 
 // DraftHistorySection contains draft session data.

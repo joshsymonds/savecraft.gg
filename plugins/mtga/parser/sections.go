@@ -145,9 +145,8 @@ type startHookInventory struct {
 	TotalVaultProgress float64        `json:"TotalVaultProgress"`
 	CustomTokens       map[string]int `json:"CustomTokens"`
 	Boosters           []struct {
-		CollationID string `json:"CollationId"`
+		CollationID int    `json:"CollationId"`
 		SetCode     string `json:"SetCode"`
-		Count       int    `json:"Count"`
 	} `json:"Boosters"`
 }
 
@@ -182,13 +181,22 @@ func applyInventorySnapshot(gs *GameState, inv *startHookInventory) {
 		section.SealedTokens = inv.CustomTokens["SealedToken"]
 	}
 
+	// Aggregate booster entries by CollationId. MTGA logs have one entry per
+	// booster (no Count field), so we count occurrences.
+	boosterCounts := map[int]*BoosterInfo{}
 	for _, b := range inv.Boosters {
-		collID, _ := strconv.Atoi(b.CollationID)
-		section.Boosters = append(section.Boosters, BoosterInfo{
-			CollationID: collID,
-			SetCode:     b.SetCode,
-			Count:       b.Count,
-		})
+		if existing, ok := boosterCounts[b.CollationID]; ok {
+			existing.Count++
+		} else {
+			boosterCounts[b.CollationID] = &BoosterInfo{
+				CollationID: b.CollationID,
+				SetCode:     b.SetCode,
+				Count:       1,
+			}
+		}
+	}
+	for _, bi := range boosterCounts {
+		section.Boosters = append(section.Boosters, *bi)
 	}
 
 	gs.Inventory = section
@@ -236,7 +244,7 @@ func processRank(gs *GameState, raw json.RawMessage) {
 
 	gs.Rank = &RankSection{
 		Constructed: RankInfo{
-			Class:            rank.ConstructedClass,
+			Class:            normalizeRankClass(rank.ConstructedClass, rank.ConstructedLevel),
 			Level:            rank.ConstructedLevel,
 			Step:             rank.ConstructedStep,
 			MatchesWon:       rank.ConstructedMatchesWon,
@@ -245,7 +253,7 @@ func processRank(gs *GameState, raw json.RawMessage) {
 			LeaderboardPlace: rank.ConstructedLeaderboardPlace,
 		},
 		Limited: RankInfo{
-			Class:            rank.LimitedClass,
+			Class:            normalizeRankClass(rank.LimitedClass, rank.LimitedLevel),
 			Level:            rank.LimitedLevel,
 			Step:             rank.LimitedStep,
 			MatchesWon:       rank.LimitedMatchesWon,
@@ -254,6 +262,15 @@ func processRank(gs *GameState, raw json.RawMessage) {
 			LeaderboardPlace: rank.LimitedLeaderboardPlace,
 		},
 	}
+}
+
+// normalizeRankClass returns "Bronze" when MTGA omits the rank class but the
+// player has a non-zero level (indicating they've played ranked matches).
+func normalizeRankClass(class string, level int) string {
+	if class == "" && level > 0 {
+		return "Bronze"
+	}
+	return class
 }
 
 func processMatchRoom(gs *GameState, raw json.RawMessage) {
@@ -356,6 +373,21 @@ func processMatchRoom(gs *GameState, raw json.RawMessage) {
 	}
 }
 
+// greSessionState tracks persistent state across GRE messages within a game.
+// MTGA sends incremental game state updates — objects persist until explicitly
+// removed, so we accumulate them across messages for annotation resolution.
+type greSessionState struct {
+	objectRegistry map[int]greGameObject // instanceId → game object, persists across messages
+	seenCards      map[int]bool          // GrpIDs already recorded for opponent card tracking
+}
+
+func newGRESessionState() *greSessionState {
+	return &greSessionState{
+		objectRegistry: make(map[int]greGameObject),
+		seenCards:      make(map[int]bool),
+	}
+}
+
 func processGRE(gs *GameState, raw json.RawMessage) {
 	var msg struct {
 		GreToClientEvent struct {
@@ -403,16 +435,21 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 
 	currentGame := &gs.GameLogs.Games[len(gs.GameLogs.Games)-1]
 
-	// Track seen annotation IDs to avoid duplicates across GRE messages within this event.
-	seenAnnotations := map[int]bool{}
+	// Initialize or retrieve the persistent session state for this game.
+	if currentGame.sessionState == nil {
+		currentGame.sessionState = newGRESessionState()
+	}
+	session := currentGame.sessionState
 
-	// Track opponent cards already recorded to avoid O(n) scan per game object.
-	seenCards := map[int]bool{}
-	if gs.Matches != nil && len(gs.Matches.Matches) > 0 {
+	// Seed seenCards from existing opponent card data.
+	if len(session.seenCards) == 0 && gs.Matches != nil && len(gs.Matches.Matches) > 0 {
 		for _, c := range gs.Matches.Matches[len(gs.Matches.Matches)-1].Opponent.CardsSeen {
-			seenCards[c.ArenaID] = true
+			session.seenCards[c.ArenaID] = true
 		}
 	}
+
+	// Track seen annotation IDs to avoid duplicates across GRE messages within this event.
+	seenAnnotations := map[int]bool{}
 
 	for _, greMsg := range msg.GreToClientEvent.GreToClientMessages {
 		if greMsg.GameStateMessage == nil {
@@ -420,32 +457,34 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 		}
 		gsm := greMsg.GameStateMessage
 
-		if gsm.GameObjects != nil && gs.Matches != nil && len(gs.Matches.Matches) > 0 {
-			currentMatch := &gs.Matches.Matches[len(gs.Matches.Matches)-1]
-			for _, obj := range gsm.GameObjects {
-				if obj.OwnerSeatID == currentMatch.Opponent.Seat &&
-					obj.GrpID > 0 &&
-					obj.isCard() &&
-					obj.Visibility == "Visibility_Public" &&
-					!seenCards[obj.GrpID] {
-					seenCards[obj.GrpID] = true
-					card := data.ArenaCards[obj.GrpID]
-					currentMatch.Opponent.CardsSeen = append(currentMatch.Opponent.CardsSeen, CardSeen{
-						Name:    card.Name,
-						ArenaID: obj.GrpID,
-					})
-				}
+		// Accumulate game objects into the persistent registry and track opponent cards.
+		var currentMatch *MatchResult
+		if gs.Matches != nil && len(gs.Matches.Matches) > 0 {
+			currentMatch = &gs.Matches.Matches[len(gs.Matches.Matches)-1]
+		}
+		for _, obj := range gsm.GameObjects {
+			session.objectRegistry[obj.InstanceID] = obj
+			if currentMatch != nil &&
+				obj.OwnerSeatID == currentMatch.Opponent.Seat &&
+				obj.GrpID > 0 &&
+				obj.isCard() &&
+				obj.Visibility == "Visibility_Public" &&
+				!session.seenCards[obj.GrpID] {
+				session.seenCards[obj.GrpID] = true
+				card := data.ArenaCards[obj.GrpID]
+				currentMatch.Opponent.CardsSeen = append(currentMatch.Opponent.CardsSeen, CardSeen{
+					Name:    card.Name,
+					ArenaID: obj.GrpID,
+				})
 			}
 		}
 
-		objIndex := make(map[int]greGameObject, len(gsm.GameObjects))
-		for _, obj := range gsm.GameObjects {
-			objIndex[obj.InstanceID] = obj
-		}
-
+		// Find or create the turn for this message. When turnInfo is present,
+		// match by turnNumber+phase. When absent, append to the most recent turn
+		// (many annotations like CastSpell arrive in messages without turnInfo).
+		var turn *TurnLog
 		if gsm.TurnInfo != nil {
 			ti := gsm.TurnInfo
-			var turn *TurnLog
 			for i := range currentGame.Turns {
 				if currentGame.Turns[i].TurnNumber == ti.TurnNumber &&
 					currentGame.Turns[i].Phase == ti.Phase {
@@ -461,33 +500,35 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 				})
 				turn = &currentGame.Turns[len(currentGame.Turns)-1]
 			}
+		} else if len(currentGame.Turns) > 0 {
+			turn = &currentGame.Turns[len(currentGame.Turns)-1]
+		}
 
-			if gsm.Players != nil {
-				var players []PlayerState
-				for _, p := range gsm.Players {
-					ps := PlayerState{
-						Seat:      p.SystemSeatNumber,
-						LifeTotal: p.LifeTotal,
-					}
-					for _, m := range p.ManaPool {
-						ps.ManaPool = append(ps.ManaPool, ManaEntry{
-							Color: m.Color,
-							Count: m.Count,
-						})
-					}
-					players = append(players, ps)
+		if turn != nil && gsm.Players != nil {
+			var players []PlayerState
+			for _, p := range gsm.Players {
+				ps := PlayerState{
+					Seat:      p.SystemSeatNumber,
+					LifeTotal: p.LifeTotal,
 				}
-				if gsm.Zones != nil {
-					for _, zone := range gsm.Zones {
-						if strings.Contains(zone.Type, "Hand") {
-							for _, objID := range zone.ObjectInstanceIDs {
-								if obj, ok := objIndex[objID]; ok {
-									card := data.ArenaCards[obj.GrpID]
-									if card.Name != "" {
-										for i := range players {
-											if players[i].Seat == zone.OwnerSeatID {
-												players[i].HandCards = append(players[i].HandCards, card.Name)
-											}
+				for _, m := range p.ManaPool {
+					ps.ManaPool = append(ps.ManaPool, ManaEntry{
+						Color: m.Color,
+						Count: m.Count,
+					})
+				}
+				players = append(players, ps)
+			}
+			if gsm.Zones != nil {
+				for _, zone := range gsm.Zones {
+					if strings.Contains(zone.Type, "Hand") {
+						for _, objID := range zone.ObjectInstanceIDs {
+							if obj, ok := session.objectRegistry[objID]; ok {
+								card := data.ArenaCards[obj.GrpID]
+								if card.Name != "" {
+									for i := range players {
+										if players[i].Seat == zone.OwnerSeatID {
+											players[i].HandCards = append(players[i].HandCards, card.Name)
 										}
 									}
 								}
@@ -495,22 +536,88 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 						}
 					}
 				}
-				turn.Players = players
 			}
+			turn.Players = players
+		}
 
-			if gsm.Annotations != nil {
-				for _, ann := range gsm.Annotations {
-					if seenAnnotations[ann.ID] {
-						continue
-					}
-					seenAnnotations[ann.ID] = true
-					action := annotationToActionIndexed(ann, objIndex)
-					if action != nil {
-						turn.Actions = append(turn.Actions, *action)
-					}
+		if turn != nil && gsm.Annotations != nil {
+			for _, ann := range gsm.Annotations {
+				if seenAnnotations[ann.ID] {
+					continue
+				}
+				seenAnnotations[ann.ID] = true
+				action := annotationToAction(ann, session.objectRegistry)
+				if action != nil {
+					turn.Actions = append(turn.Actions, *action)
 				}
 			}
+
+			// Second pass: enrich CastActions with ManaPaid data.
+			enrichManaPaid(turn, gsm.Annotations, session.objectRegistry)
 		}
+	}
+}
+
+// enrichManaPaid processes ManaPaid annotations and appends mana entries to
+// the matching CastAction in the turn. ManaPaid annotations have affectedIds[0]
+// pointing to the spell being paid for, and details with color (1=W,2=U,3=B,4=R,5=G).
+func enrichManaPaid(turn *TurnLog, annotations []greAnnotation, registry map[int]greGameObject) {
+	for _, ann := range annotations {
+		isManaPaid := false
+		for _, t := range ann.Type {
+			if t == "AnnotationType_ManaPaid" {
+				isManaPaid = true
+				break
+			}
+		}
+		if !isManaPaid || len(ann.AffectedIDs) == 0 {
+			continue
+		}
+
+		// Find the spell this mana is paying for.
+		spellObj, ok := registry[ann.AffectedIDs[0]]
+		if !ok || !spellObj.isCard() {
+			continue
+		}
+
+		// Extract mana color from details.
+		var colorInt int
+		for _, d := range ann.Details {
+			if d.Key == "color" && len(d.ValueInt32) > 0 {
+				colorInt = d.ValueInt32[0]
+			}
+		}
+		color := manaColorName(colorInt)
+
+		// Find the CastAction for this spell and append.
+		for i := range turn.Actions {
+			if turn.Actions[i].Type == "cast" && turn.Actions[i].Cast != nil &&
+				turn.Actions[i].Cast.CardID == spellObj.GrpID {
+				turn.Actions[i].Cast.ManaPaid = append(turn.Actions[i].Cast.ManaPaid, ManaEntry{
+					Color: color,
+					Count: 1,
+				})
+				break
+			}
+		}
+	}
+}
+
+// manaColorName converts MTGA's integer mana color to a string symbol.
+func manaColorName(color int) string {
+	switch color {
+	case 1:
+		return "W"
+	case 2:
+		return "U"
+	case 3:
+		return "B"
+	case 4:
+		return "R"
+	case 5:
+		return "G"
+	default:
+		return "C" // colorless
 	}
 }
 
@@ -548,58 +655,285 @@ type greAnnotation struct {
 	} `json:"details"`
 }
 
-func annotationToActionIndexed(ann greAnnotation, objIndex map[int]greGameObject) *ActionLog {
+func annotationToAction(ann greAnnotation, registry map[int]greGameObject) *GameAction {
 	for _, annType := range ann.Type {
 		switch annType {
 		case "AnnotationType_ZoneTransfer":
-			action := &ActionLog{}
-			if obj, ok := objIndex[ann.AffectorID]; ok && obj.isCard() {
-				action.CardID = obj.GrpID
-				card := data.ArenaCards[obj.GrpID]
-				action.CardName = card.Name
-				action.Player = obj.OwnerSeatID
-			}
-
-			for _, d := range ann.Details {
-				switch d.Key {
-				case "zone_src":
-					if len(d.ValueString) > 0 {
-						action.ZoneFrom = d.ValueString[0]
-					}
-				case "zone_dest":
-					if len(d.ValueString) > 0 {
-						action.ZoneTo = d.ValueString[0]
-					}
-				case "category":
-					if len(d.ValueString) > 0 {
-						action.Action = categorizeZoneTransfer(d.ValueString[0])
-					}
-				}
-			}
-			if action.Action == "put" {
-				action.Action = refinePutAction(action.ZoneTo)
-			}
-			if action.Action == "" {
-				action.Action = inferAction(action.ZoneFrom, action.ZoneTo)
-			}
-			if action.CardName != "" {
-				return action
-			}
-
+			return handleZoneTransfer(ann, registry)
 		case "AnnotationType_ResolutionComplete":
-			if obj, ok := objIndex[ann.AffectorID]; ok && obj.isCard() && obj.GrpID > 0 {
-				card := data.ArenaCards[obj.GrpID]
-				return &ActionLog{
-					Player:   obj.OwnerSeatID,
-					Action:   "resolve",
-					CardName: card.Name,
-					CardID:   obj.GrpID,
-				}
+			return handleResolutionComplete(ann, registry)
+		case "AnnotationType_DamageDealt":
+			return handleDamageDealt(ann, registry)
+		case "AnnotationType_TappedUntappedPermanent":
+			return handleTapUntap(ann, registry)
+		case "AnnotationType_AbilityInstanceCreated":
+			return handleAbilityCreated(ann, registry)
+		case "AnnotationType_PlayerSubmittedTargets":
+			return handleTargetSubmitted(ann, registry)
+		case "AnnotationType_PowerToughnessModCreated":
+			return handleStatMod(ann, registry)
+		}
+	}
+	return nil
+}
+
+func handleZoneTransfer(ann greAnnotation, registry map[int]greGameObject) *GameAction {
+	// Try affectorId first (the card causing the move), then fall back to
+	// affectedIds (the card being moved). Many zone transfers have affectorId=0
+	// (system) or a player seat ID — in those cases the actual card is in affectedIds.
+	obj, ok := registry[ann.AffectorID]
+	if !ok || !obj.isCard() {
+		// Fall back to first affectedId that resolves to a card.
+		ok = false
+		for _, aid := range ann.AffectedIDs {
+			if candidate, found := registry[aid]; found && candidate.isCard() {
+				obj = candidate
+				ok = true
+				break
+			}
+		}
+	}
+	if !ok {
+		return nil
+	}
+	card := data.ArenaCards[obj.GrpID]
+	if card.Name == "" {
+		return nil
+	}
+
+	var zoneFrom, zoneTo, category string
+	for _, d := range ann.Details {
+		switch d.Key {
+		case "zone_src":
+			if len(d.ValueString) > 0 {
+				zoneFrom = d.ValueString[0]
+			}
+		case "zone_dest":
+			if len(d.ValueString) > 0 {
+				zoneTo = d.ValueString[0]
+			}
+		case "category":
+			if len(d.ValueString) > 0 {
+				category = d.ValueString[0]
 			}
 		}
 	}
 
-	return nil
+	// Cast spells get their own action type.
+	if strings.Contains(category, "Cast") {
+		return &GameAction{
+			Player: obj.OwnerSeatID,
+			Type:   "cast",
+			Cast: &CastAction{
+				CardName: card.Name,
+				CardID:   obj.GrpID,
+			},
+		}
+	}
+
+	// Everything else is a move action.
+	moveType := categorizeZoneTransfer(category)
+	if moveType == "put" {
+		moveType = refinePutAction(zoneTo)
+	}
+	if moveType == "" || moveType == "cast" {
+		moveType = inferAction(zoneFrom, zoneTo)
+	}
+
+	return &GameAction{
+		Player: obj.OwnerSeatID,
+		Type:   "move",
+		Move: &MoveAction{
+			CardName: card.Name,
+			CardID:   obj.GrpID,
+			MoveType: moveType,
+			ZoneFrom: zoneFrom,
+			ZoneTo:   zoneTo,
+		},
+	}
+}
+
+func handleResolutionComplete(ann greAnnotation, registry map[int]greGameObject) *GameAction {
+	obj, ok := registry[ann.AffectorID]
+	if !ok || !obj.isCard() || obj.GrpID == 0 {
+		return nil
+	}
+	card := data.ArenaCards[obj.GrpID]
+	return &GameAction{
+		Player: obj.OwnerSeatID,
+		Type:   "resolve",
+		Resolve: &ResolveAction{
+			CardName: card.Name,
+			CardID:   obj.GrpID,
+		},
+	}
+}
+
+func handleDamageDealt(ann greAnnotation, registry map[int]greGameObject) *GameAction {
+	obj, ok := registry[ann.AffectorID]
+	if !ok || !obj.isCard() || obj.GrpID == 0 {
+		return nil
+	}
+	card := data.ArenaCards[obj.GrpID]
+
+	var amount, dmgType int
+	for _, d := range ann.Details {
+		switch d.Key {
+		case "damage":
+			if len(d.ValueInt32) > 0 {
+				amount = d.ValueInt32[0]
+			}
+		case "type":
+			if len(d.ValueInt32) > 0 {
+				dmgType = d.ValueInt32[0]
+			}
+		}
+	}
+
+	// Resolve target: affectedIds may be a player seat or a game object.
+	target := "unknown"
+	if len(ann.AffectedIDs) > 0 {
+		targetID := ann.AffectedIDs[0]
+		if targetObj, found := registry[targetID]; found && targetObj.isCard() {
+			targetCard := data.ArenaCards[targetObj.GrpID]
+			if targetCard.Name != "" {
+				target = targetCard.Name
+			}
+		} else if targetID == 1 || targetID == 2 {
+			target = "player"
+		}
+	}
+
+	return &GameAction{
+		Player: obj.OwnerSeatID,
+		Type:   "damage",
+		Damage: &DamageAction{
+			Source:   card.Name,
+			SourceID: obj.GrpID,
+			Target:   target,
+			Amount:   amount,
+			IsCombat: dmgType == 1,
+		},
+	}
+}
+
+func handleTapUntap(ann greAnnotation, registry map[int]greGameObject) *GameAction {
+	// The tapped card is in affectedIds, not affectorId.
+	if len(ann.AffectedIDs) == 0 {
+		return nil
+	}
+	obj, ok := registry[ann.AffectedIDs[0]]
+	if !ok || !obj.isCard() || obj.GrpID == 0 {
+		return nil
+	}
+	card := data.ArenaCards[obj.GrpID]
+
+	tapped := false
+	for _, d := range ann.Details {
+		if d.Key == "tapped" && len(d.ValueInt32) > 0 {
+			tapped = d.ValueInt32[0] == 1
+		}
+	}
+
+	return &GameAction{
+		Player: obj.OwnerSeatID,
+		Type:   "tap",
+		Tap: &TapAction{
+			CardName: card.Name,
+			CardID:   obj.GrpID,
+			Tapped:   tapped,
+		},
+	}
+}
+
+func handleAbilityCreated(ann greAnnotation, registry map[int]greGameObject) *GameAction {
+	obj, ok := registry[ann.AffectorID]
+	if !ok || !obj.isCard() || obj.GrpID == 0 {
+		return nil
+	}
+	card := data.ArenaCards[obj.GrpID]
+
+	return &GameAction{
+		Player: obj.OwnerSeatID,
+		Type:   "ability",
+		Ability: &AbilityAction{
+			CardName:    card.Name,
+			CardID:      obj.GrpID,
+			AbilityType: "triggered",
+		},
+	}
+}
+
+func handleTargetSubmitted(ann greAnnotation, registry map[int]greGameObject) *GameAction {
+	// affectorId is the source card (or player seat), affectedIds are the targets.
+	// Try affectorId first, fall back to looking up the source.
+	obj, ok := registry[ann.AffectorID]
+	if !ok || !obj.isCard() {
+		// affectorId might be a player seat — still create the action if we have targets.
+		// Use a zero-value source.
+		obj = greGameObject{OwnerSeatID: ann.AffectorID}
+	}
+	card := data.ArenaCards[obj.GrpID]
+
+	var targets []string
+	for _, aid := range ann.AffectedIDs {
+		if targetObj, found := registry[aid]; found && targetObj.isCard() {
+			targetCard := data.ArenaCards[targetObj.GrpID]
+			if targetCard.Name != "" {
+				targets = append(targets, targetCard.Name)
+			}
+		}
+	}
+	if len(targets) == 0 {
+		return nil
+	}
+
+	return &GameAction{
+		Player: obj.OwnerSeatID,
+		Type:   "target",
+		Target: &TargetAction{
+			CardName: card.Name,
+			CardID:   obj.GrpID,
+			Targets:  targets,
+		},
+	}
+}
+
+func handleStatMod(ann greAnnotation, registry map[int]greGameObject) *GameAction {
+	// The modified card is in affectedIds.
+	if len(ann.AffectedIDs) == 0 {
+		return nil
+	}
+	obj, ok := registry[ann.AffectedIDs[0]]
+	if !ok || !obj.isCard() || obj.GrpID == 0 {
+		return nil
+	}
+	card := data.ArenaCards[obj.GrpID]
+
+	var power, toughness int
+	for _, d := range ann.Details {
+		switch d.Key {
+		case "power":
+			if len(d.ValueInt32) > 0 {
+				power = d.ValueInt32[0]
+			}
+		case "toughness":
+			if len(d.ValueInt32) > 0 {
+				toughness = d.ValueInt32[0]
+			}
+		}
+	}
+
+	return &GameAction{
+		Player: obj.OwnerSeatID,
+		Type:   "stat_mod",
+		StatMod: &StatModAction{
+			CardName:  card.Name,
+			CardID:    obj.GrpID,
+			Power:     power,
+			Toughness: toughness,
+		},
+	}
 }
 
 func categorizeZoneTransfer(category string) string {
