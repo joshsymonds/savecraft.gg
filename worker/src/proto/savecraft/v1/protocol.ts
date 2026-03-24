@@ -552,6 +552,13 @@ export interface PushSave {
   sections: GameSection[];
   parsedAt: Date | undefined;
   gameId: string;
+  /**
+   * Complete list of section names the plugin currently produces.
+   * Sections stored in D1 whose names are not in this list are deleted
+   * (the plugin stopped emitting them). When empty, no deletion occurs
+   * — this preserves backwards compatibility with older daemons.
+   */
+  allSectionNames: string[];
 }
 
 /**
@@ -6001,7 +6008,7 @@ export const GameSection: MessageFns<GameSection> = {
 };
 
 function createBasePushSave(): PushSave {
-  return { identity: undefined, summary: "", sections: [], parsedAt: undefined, gameId: "" };
+  return { identity: undefined, summary: "", sections: [], parsedAt: undefined, gameId: "", allSectionNames: [] };
 }
 
 export const PushSave: MessageFns<PushSave> = {
@@ -6020,6 +6027,9 @@ export const PushSave: MessageFns<PushSave> = {
     }
     if (message.gameId !== "") {
       writer.uint32(42).string(message.gameId);
+    }
+    for (const v of message.allSectionNames) {
+      writer.uint32(50).string(v!);
     }
     return writer;
   },
@@ -6071,6 +6081,14 @@ export const PushSave: MessageFns<PushSave> = {
           message.gameId = reader.string();
           continue;
         }
+        case 6: {
+          if (tag !== 50) {
+            break;
+          }
+
+          message.allSectionNames.push(reader.string());
+          continue;
+        }
       }
       if ((tag & 7) === 4 || tag === 0) {
         break;
@@ -6097,6 +6115,11 @@ export const PushSave: MessageFns<PushSave> = {
         : isSet(object.game_id)
         ? globalThis.String(object.game_id)
         : "",
+      allSectionNames: globalThis.Array.isArray(object?.allSectionNames)
+        ? object.allSectionNames.map((e: any) => globalThis.String(e))
+        : globalThis.Array.isArray(object?.all_section_names)
+        ? object.all_section_names.map((e: any) => globalThis.String(e))
+        : [],
     };
   },
 
@@ -6117,6 +6140,9 @@ export const PushSave: MessageFns<PushSave> = {
     if (message.gameId !== "") {
       obj.gameId = message.gameId;
     }
+    if (message.allSectionNames?.length) {
+      obj.allSectionNames = message.allSectionNames;
+    }
     return obj;
   },
 
@@ -6132,6 +6158,7 @@ export const PushSave: MessageFns<PushSave> = {
     message.sections = object.sections?.map((e) => GameSection.fromPartial(e)) || [];
     message.parsedAt = object.parsedAt ?? undefined;
     message.gameId = object.gameId ?? "";
+    message.allSectionNames = object.allSectionNames?.map((e) => e) || [];
     return message;
   },
 };

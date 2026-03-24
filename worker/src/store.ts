@@ -60,6 +60,7 @@ export async function storePush(
   summary: string,
   parsedAt: string,
   sections: Record<string, SectionInput>,
+  allSectionNames?: string[],
 ): Promise<{ saveUuid: string; changed: boolean }> {
   // Linked sources dedup by (user_uuid, game_id, save_name).
   // Unlinked sources dedup by (last_source_uuid, game_id, save_name) where user_uuid IS NULL.
@@ -112,7 +113,7 @@ export async function storePush(
     }
   }
 
-  await env.DB.batch([
+  const batch: D1PreparedStatement[] = [
     env.DB.prepare(
       "UPDATE saves SET summary = ?, last_updated = ?, last_source_uuid = ? WHERE uuid = ?",
     ).bind(summary, parsedAt, sourceUuid, saveUuid),
@@ -123,23 +124,36 @@ export async function storePush(
       saveUuid,
     ),
     ...buildSectionStatements(env.DB, saveUuid, saveName, sections),
-  ]);
+  ];
+
+  // Delete stale sections no longer produced by the plugin.
+  if (allSectionNames && allSectionNames.length > 0) {
+    const placeholders = allSectionNames.map(() => "?").join(", ");
+    batch.push(
+      env.DB.prepare(
+        `DELETE FROM sections WHERE save_uuid = ? AND name NOT IN (${placeholders})`,
+      ).bind(saveUuid, ...allSectionNames),
+    );
+  }
+
+  await env.DB.batch(batch);
   return { saveUuid, changed: true };
 }
 
-/** Compare stored D1 sections to incoming sections. */
+/**
+ * Compare incoming sections against their stored counterparts.
+ * Only incoming sections are checked — missing stored sections (partial push)
+ * are treated as unchanged, not as a mismatch.
+ */
 function sectionsMatch(
   stored: { name: string; description: string; data: string }[],
   incoming: Record<string, SectionInput>,
 ): boolean {
-  const incomingEntries = Object.entries(incoming).toSorted(([a], [b]) => a.localeCompare(b));
-  if (stored.length !== incomingEntries.length) return false;
+  const storedByName = new Map(stored.map((s) => [s.name, s]));
 
-  for (const [index, s] of stored.entries()) {
-    const entry = incomingEntries[index];
-    if (!entry) return false;
-    const [name, section] = entry;
-    if (s.name !== name) return false;
+  for (const [name, section] of Object.entries(incoming)) {
+    const s = storedByName.get(name);
+    if (!s) return false; // new section not in stored → changed
     if (s.description !== section.description) return false;
     if (s.data !== JSON.stringify(section.data)) return false;
   }

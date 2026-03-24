@@ -967,6 +967,7 @@ export class SourceHub extends DurableObject<Env> {
         push.summary,
         parsedAt,
         sections,
+        push.allSectionNames,
       );
 
       // Send PushSaveResult back to daemon
