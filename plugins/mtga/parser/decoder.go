@@ -3,6 +3,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"encoding/json"
 	"io"
 	"regexp"
@@ -15,8 +16,8 @@ type LogEntry struct {
 	// Empty for event-style entries (e.g., GreToClientEvent).
 	Arrow string
 
-	// Label identifies the event type (e.g., "Deck.GetDeckListsV3",
-	// "GreToClientEvent", "Rank_GetCombinedRankInfo").
+	// Label identifies the event type (e.g., "RankGetCombinedRankInfo",
+	// "GreToClientEvent", "BotDraftDraftStatus").
 	Label string
 
 	// PlayerID is the player's ID from event-style entries.
@@ -43,7 +44,7 @@ func DecodeLog(r io.Reader) []LogEntry {
 
 	var entries []LogEntry
 	var pending *LogEntry // entry waiting for JSON payload
-	var jsonBuf strings.Builder
+	var jsonBuf bytes.Buffer
 	jsonDepth := 0
 	inString := false
 	escaped := false
@@ -51,7 +52,7 @@ func DecodeLog(r io.Reader) []LogEntry {
 	emit := func() {
 		if pending != nil {
 			if jsonBuf.Len() > 0 {
-				pending.JSON = json.RawMessage(jsonBuf.String())
+				pending.JSON = json.RawMessage(bytes.Clone(jsonBuf.Bytes()))
 			}
 			entries = append(entries, *pending)
 			pending = nil

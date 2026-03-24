@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"slices"
 	"strconv"
@@ -36,7 +37,8 @@ func BuildGameState(entries []LogEntry) *GameState {
 		}
 
 		// Extract InventoryInfo from any response that contains it.
-		if e.JSON != nil {
+		// Guard with a cheap prefix check to avoid unmarshaling every entry.
+		if e.JSON != nil && bytes.Contains(e.JSON, []byte("InventoryInfo")) {
 			processInventoryInfo(gs, e.JSON)
 		}
 	}
@@ -390,6 +392,9 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 
 	currentGame := &gs.GameLogs.Games[len(gs.GameLogs.Games)-1]
 
+	// Track seen annotation IDs to avoid duplicates across GRE messages.
+	seenAnnotations := map[int]bool{}
+
 	for _, greMsg := range msg.GreToClientEvent.GreToClientMessages {
 		if greMsg.GameStateMessage == nil {
 			continue
@@ -471,6 +476,10 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 
 			if gsm.Annotations != nil {
 				for _, ann := range gsm.Annotations {
+					if seenAnnotations[ann.ID] {
+						continue
+					}
+					seenAnnotations[ann.ID] = true
 					action := annotationToActionIndexed(ann, objIndex)
 					if action != nil {
 						turn.Actions = append(turn.Actions, *action)
@@ -595,8 +604,19 @@ func inferAction(from, to string) string {
 }
 
 func processBotDraftStatus(gs *GameState, raw json.RawMessage) {
-	raw = unwrapPayload(raw)
+	processDraftPackStatus(gs, unwrapPayload(raw), false)
+}
 
+// processDraftPickResponse handles inbound draft pick responses which contain
+// the next pick's pack contents in their Payload.
+func processDraftPickResponse(gs *GameState, raw json.RawMessage) {
+	processDraftPackStatus(gs, unwrapPayload(raw), true)
+}
+
+// processDraftPackStatus extracts a draft pack from a status payload and records
+// the available cards. Used by both initial BotDraftDraftStatus and inbound
+// BotDraftDraftPick responses (which embed the next pick's pack in their Payload).
+func processDraftPackStatus(gs *GameState, raw json.RawMessage, requirePack bool) {
 	var status struct {
 		EventName  string   `json:"EventName"`
 		DraftID    string   `json:"DraftId"`
@@ -607,22 +627,19 @@ func processBotDraftStatus(gs *GameState, raw json.RawMessage) {
 	if err := json.Unmarshal(raw, &status); err != nil {
 		return
 	}
+	if requirePack && len(status.DraftPack) == 0 {
+		return
+	}
 
 	if gs.Drafts == nil {
 		gs.Drafts = &DraftHistorySection{}
 	}
 
-	draft := findOrCreateDraft(gs, status.EventName, status.DraftID, "bot")
+	draft := findOrCreateDraft(gs, status.EventName, status.DraftID, "quick")
 
 	available := make([]string, len(status.DraftPack))
 	for i, idStr := range status.DraftPack {
-		id, _ := strconv.Atoi(idStr)
-		card := data.ArenaCards[id]
-		if card.Name != "" {
-			available[i] = card.Name
-		} else {
-			available[i] = idStr
-		}
+		available[i] = resolveCardName(atoiSafe(idStr), idStr)
 	}
 
 	draft.Picks = append(draft.Picks, DraftPick{
@@ -643,44 +660,10 @@ func unwrapPayload(raw json.RawMessage) json.RawMessage {
 	return json.RawMessage(wrapper.Payload)
 }
 
-// processDraftPickResponse handles inbound draft pick responses which contain
-// the next pick's pack contents in their Payload.
-func processDraftPickResponse(gs *GameState, raw json.RawMessage) {
-	inner := unwrapPayload(raw)
-
-	var status struct {
-		EventName  string   `json:"EventName"`
-		DraftID    string   `json:"DraftId"`
-		PackNumber int      `json:"PackNumber"`
-		PickNumber int      `json:"PickNumber"`
-		DraftPack  []string `json:"DraftPack"`
-	}
-	if err := json.Unmarshal(inner, &status); err != nil || len(status.DraftPack) == 0 {
-		return
-	}
-
-	if gs.Drafts == nil {
-		gs.Drafts = &DraftHistorySection{}
-	}
-
-	draft := findOrCreateDraft(gs, status.EventName, status.DraftID, "bot")
-
-	available := make([]string, len(status.DraftPack))
-	for i, idStr := range status.DraftPack {
-		id, _ := strconv.Atoi(idStr)
-		card := data.ArenaCards[id]
-		if card.Name != "" {
-			available[i] = card.Name
-		} else {
-			available[i] = idStr
-		}
-	}
-
-	draft.Picks = append(draft.Picks, DraftPick{
-		PackNumber: status.PackNumber,
-		PickNumber: status.PickNumber,
-		Available:  available,
-	})
+// atoiSafe converts a string to int, returning 0 on error.
+func atoiSafe(s string) int {
+	n, _ := strconv.Atoi(s)
+	return n
 }
 
 func processDraftNotify(gs *GameState, raw json.RawMessage) {
@@ -704,12 +687,7 @@ func processDraftNotify(gs *GameState, raw json.RawMessage) {
 	for _, idStr := range strings.Split(notify.PackCards, ",") {
 		idStr = strings.TrimSpace(idStr)
 		if id, err := strconv.Atoi(idStr); err == nil {
-			card := data.ArenaCards[id]
-			if card.Name != "" {
-				available = append(available, card.Name)
-			} else {
-				available = append(available, idStr)
-			}
+			available = append(available, resolveCardName(id, idStr))
 		}
 	}
 
@@ -720,11 +698,15 @@ func processDraftNotify(gs *GameState, raw json.RawMessage) {
 	})
 }
 
-// resolveCardName returns the card name from ArenaCards, or the ID as string if unknown.
-func resolveCardName(arenaID int) string {
+// resolveCardName returns the card name from ArenaCards, or the fallback if unknown.
+// If no fallback is provided, uses the card ID as string.
+func resolveCardName(arenaID int, fallback ...string) string {
 	card := data.ArenaCards[arenaID]
 	if card.Name != "" {
 		return card.Name
+	}
+	if len(fallback) > 0 {
+		return fallback[0]
 	}
 	return strconv.Itoa(arenaID)
 }
