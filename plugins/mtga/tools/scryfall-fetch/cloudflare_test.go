@@ -21,6 +21,7 @@ func TestBuildCardImportSQL(t *testing.T) {
 			Rarity:        "mythic",
 			Set:           "DMU",
 			Keywords:      []string{"deathtouch"},
+			IsDefault:     true,
 		},
 		{
 			ArenaID:    1,
@@ -33,6 +34,7 @@ func TestBuildCardImportSQL(t *testing.T) {
 			Colors:     []string{"R"},
 			Rarity:     "common",
 			Set:        "STA",
+			IsDefault:  true,
 		},
 	}
 
@@ -57,25 +59,69 @@ func TestBuildCardImportSQL(t *testing.T) {
 		t.Error("SQL should contain card name Lightning Bolt")
 	}
 
-	// Should contain INSERT into mtga_cards_fts for each card
+	// Should contain is_default in INSERT
+	if !strings.Contains(sql, "is_default") {
+		t.Error("SQL should contain is_default column")
+	}
+
+	// Both cards are default, so FTS5 INSERTs for both
 	if !strings.Contains(sql, "INSERT INTO mtga_cards_fts") {
 		t.Error("SQL should contain INSERT INTO mtga_cards_fts")
 	}
 
-	// Count INSERT statements: 2 cards × 2 tables = 4 INSERTs
+	// Count INSERT statements: 2 default cards × 2 tables = 4 INSERTs
 	insertCount := strings.Count(sql, "INSERT INTO")
 	if insertCount != 4 {
 		t.Errorf("expected 4 INSERT statements, got %d", insertCount)
 	}
 
-	// Should handle single quotes in card names (SQL injection safety)
-	if strings.Contains(sql, "Sheoldred, the Apocalypse") {
-		// Good — it's there but let's also test escaping
-	}
-
 	// JSON arrays should be present for colors/legalities
 	if !strings.Contains(sql, `["B"]`) {
 		t.Error("SQL should contain JSON array for colors")
+	}
+}
+
+func TestBuildCardImportSQL_NonDefaultSkipsFTS(t *testing.T) {
+	cards := []ScryfallCard{
+		{
+			ArenaID:    100,
+			OracleID:   "oracle-1",
+			Name:       "Go for the Throat",
+			Rarity:     "uncommon",
+			Set:        "BRO",
+			IsDefault:  false,
+		},
+		{
+			ArenaID:    200,
+			OracleID:   "oracle-1",
+			Name:       "Go for the Throat",
+			Rarity:     "uncommon",
+			Set:        "FDN",
+			IsDefault:  true,
+		},
+	}
+
+	sql := buildCardImportSQL(cards)
+
+	// Both cards get mtga_cards INSERT
+	mtgaInserts := strings.Count(sql, "INSERT INTO mtga_cards (")
+	if mtgaInserts != 2 {
+		t.Errorf("expected 2 mtga_cards INSERTs, got %d", mtgaInserts)
+	}
+
+	// Only default card gets FTS5 INSERT
+	ftsInserts := strings.Count(sql, "INSERT INTO mtga_cards_fts")
+	if ftsInserts != 1 {
+		t.Errorf("expected 1 mtga_cards_fts INSERT (default only), got %d", ftsInserts)
+	}
+
+	// Non-default has is_default 0
+	if !strings.Contains(sql, ", 0);") {
+		t.Error("SQL should contain is_default = 0 for non-default card")
+	}
+	// Default has is_default 1
+	if !strings.Contains(sql, ", 1);") {
+		t.Error("SQL should contain is_default = 1 for default card")
 	}
 }
 
@@ -88,6 +134,7 @@ func TestBuildCardImportSQL_EscapesSingleQuotes(t *testing.T) {
 			OracleText: "It's dangerous to go alone.",
 			Rarity:     "rare",
 			Set:        "LTR",
+			IsDefault:  true,
 		},
 	}
 
@@ -116,6 +163,35 @@ func TestBuildCardImportSQL_EmptyCards(t *testing.T) {
 	// Should NOT contain any INSERT statements
 	if strings.Contains(sql, "INSERT") {
 		t.Error("SQL should not contain INSERT with empty cards")
+	}
+}
+
+func TestComputeDefaults(t *testing.T) {
+	cards := []ScryfallCard{
+		{ArenaID: 100, OracleID: "oracle-1", Name: "Go for the Throat", Set: "BRO"},
+		{ArenaID: 300, OracleID: "oracle-1", Name: "Go for the Throat", Set: "FDN"},
+		{ArenaID: 200, OracleID: "oracle-1", Name: "Go for the Throat", Set: "DSK"},
+		{ArenaID: 500, OracleID: "oracle-2", Name: "Lightning Bolt", Set: "STA"},
+	}
+
+	computeDefaults(cards)
+
+	// Highest arena_id per oracle_id should be default
+	for _, c := range cards {
+		switch {
+		case c.OracleID == "oracle-1" && c.ArenaID == 300:
+			if !c.IsDefault {
+				t.Errorf("Go for the Throat (FDN, arena_id=300) should be default")
+			}
+		case c.OracleID == "oracle-1":
+			if c.IsDefault {
+				t.Errorf("Go for the Throat (arena_id=%d) should NOT be default", c.ArenaID)
+			}
+		case c.OracleID == "oracle-2":
+			if !c.IsDefault {
+				t.Errorf("Lightning Bolt should be default (only printing)")
+			}
+		}
 	}
 }
 
