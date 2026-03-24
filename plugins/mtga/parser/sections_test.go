@@ -1264,3 +1264,107 @@ func TestBuildExtra(t *testing.T) {
 		t.Errorf("expected deckCount 2, got %v", extra["deckCount"])
 	}
 }
+
+func TestVaultProgressNormalized(t *testing.T) {
+	// MTGA stores vault progress on a 0-1000 scale (1000 = one vault).
+	// We normalize to percentage: 377 → 37.7%, 1050 → 105.0%.
+	tests := []struct {
+		name     string
+		raw      float64
+		expected float64
+	}{
+		{"typical progress", 377, 37.7},
+		{"zero", 0, 0},
+		{"full vault", 1000, 100.0},
+		{"over one vault", 1050, 105.0},
+		{"fractional", 505, 50.5},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			hookJSON, _ := json.Marshal(map[string]any{
+				"InventoryInfo": map[string]any{
+					"Gems": 0, "Gold": 0,
+					"WildCardCommons": 0, "WildCardUnCommons": 0,
+					"WildCardRares": 0, "WildCardMythics": 0,
+					"TotalVaultProgress": tt.raw,
+					"Boosters":           []any{},
+				},
+			})
+			entries := []LogEntry{{Arrow: "<==", Label: "StartHook", JSON: json.RawMessage(hookJSON)}}
+			gs := BuildGameState(entries)
+			if gs.Inventory == nil {
+				t.Fatal("expected inventory section")
+			}
+			if gs.Inventory.VaultProgress != tt.expected {
+				t.Errorf("expected vault progress %.1f, got %.1f", tt.expected, gs.Inventory.VaultProgress)
+			}
+		})
+	}
+}
+
+func TestTurnActionsNeverNull(t *testing.T) {
+	// Turns created from GRE messages without annotations must have an empty
+	// Actions slice (not nil), so JSON serialization produces [] not null.
+	entries := []LogEntry{
+		{Label: "AuthenticateResponse", JSON: json.RawMessage(`{"authenticateResponse":{"clientId":"p1","screenName":"Me"}}`)},
+		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
+			"matchGameRoomStateChangedEvent": {
+				"gameRoomInfo": {
+					"stateType": "MatchGameRoomStateType_Playing",
+					"gameRoomConfig": {
+						"matchId": "m1",
+						"reservedPlayers": [
+							{"userId": "p1", "playerName": "Me", "systemSeatId": 1, "eventId": "Test"},
+							{"userId": "p2", "playerName": "Opp", "systemSeatId": 2, "eventId": "Test"}
+						]
+					}
+				}
+			}
+		}`)},
+		// GRE message with turnInfo but no annotations → creates a turn with zero actions.
+		{Label: "GreToClientEvent", JSON: json.RawMessage(`{
+			"greToClientEvent": {
+				"greToClientMessages": [{
+					"type": "GREMessageType_GameStateMessage",
+					"gameStateMessage": {
+						"turnInfo": {"turnNumber": 1, "activePlayer": 1, "phase": "Phase_Beginning"},
+						"gameObjects": [],
+						"annotations": []
+					}
+				}, {
+					"type": "GREMessageType_GameStateMessage",
+					"gameStateMessage": {
+						"turnInfo": {"turnNumber": 1, "activePlayer": 1, "phase": "Phase_Combat"},
+						"gameObjects": [],
+						"annotations": []
+					}
+				}]
+			}
+		}`)},
+	}
+	gs := BuildGameState(entries)
+	if gs.GameLogs == nil || len(gs.GameLogs.Games) == 0 {
+		t.Fatal("expected game log")
+	}
+	for _, turn := range gs.GameLogs.Games[0].Turns {
+		if turn.Actions == nil {
+			t.Errorf("turn %d phase %s has nil Actions, want empty slice", turn.TurnNumber, turn.Phase)
+		}
+		// Verify JSON serialization produces [] not null.
+		b, err := json.Marshal(turn)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !json.Valid(b) {
+			t.Fatal("invalid JSON from turn marshal")
+		}
+		var m map[string]any
+		json.Unmarshal(b, &m)
+		actions, ok := m["actions"]
+		if !ok {
+			t.Errorf("turn %d phase %s: missing 'actions' key in JSON", turn.TurnNumber, turn.Phase)
+		} else if actions == nil {
+			t.Errorf("turn %d phase %s: 'actions' is null in JSON, want []", turn.TurnNumber, turn.Phase)
+		}
+	}
+}
