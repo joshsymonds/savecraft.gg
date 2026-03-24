@@ -267,11 +267,10 @@ describe("card_search native module", () => {
   it("excludes non-default printings from results", async () => {
     await seedCards();
     // Add a non-default printing of Lightning Bolt (different arena_id, is_default = 0)
-    await env.DB
-      .prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+    await env.DB.prepare(
+      `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
-      )
+    )
       .bind(
         99,
         "def-456",
