@@ -3,7 +3,6 @@ package main
 import (
 	"bytes"
 	"encoding/json"
-	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -80,10 +79,14 @@ func processStartHook(gs *GameState, raw json.RawMessage) {
 	}
 
 	// Join Decks + DeckSummariesV2 to produce complete Deck objects.
+	// Skip precon decks with unlocalized names (MTGA internal localization keys).
 	if len(hook.Decks) > 0 {
 		section := &ActiveDecksSection{}
 		for deckID, deckData := range hook.Decks {
 			summary := summaryByID[deckID]
+			if strings.HasPrefix(summary.Name, "?=?Loc/") {
+				continue
+			}
 			deck := Deck{
 				ID:          deckID,
 				Name:        summary.Name,
@@ -260,12 +263,12 @@ func processMatchRoom(gs *GameState, raw json.RawMessage) {
 			GameRoomInfo struct {
 				StateType      string `json:"stateType"`
 				GameRoomConfig struct {
-					EventID         string `json:"eventId"`
 					MatchID         string `json:"matchId"`
 					ReservedPlayers []struct {
 						UserID       string `json:"userId"`
 						PlayerName   string `json:"playerName"`
 						SystemSeatID int    `json:"systemSeatId"`
+						EventID      string `json:"eventId"`
 					} `json:"reservedPlayers"`
 				} `json:"gameRoomConfig"`
 				FinalMatchResult *struct {
@@ -291,9 +294,13 @@ func processMatchRoom(gs *GameState, raw json.RawMessage) {
 	}
 
 	if room.StateType == "MatchGameRoomStateType_Playing" {
+		var eventID string
+		if len(room.GameRoomConfig.ReservedPlayers) > 0 {
+			eventID = room.GameRoomConfig.ReservedPlayers[0].EventID
+		}
 		match := MatchResult{
 			MatchID: room.GameRoomConfig.MatchID,
-			EventID: room.GameRoomConfig.EventID,
+			EventID: eventID,
 			Date:    formatTimestamp(msg.Timestamp),
 		}
 		for _, p := range room.GameRoomConfig.ReservedPlayers {
@@ -396,8 +403,16 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 
 	currentGame := &gs.GameLogs.Games[len(gs.GameLogs.Games)-1]
 
-	// Track seen annotation IDs to avoid duplicates across GRE messages.
+	// Track seen annotation IDs to avoid duplicates across GRE messages within this event.
 	seenAnnotations := map[int]bool{}
+
+	// Track opponent cards already recorded to avoid O(n) scan per game object.
+	seenCards := map[int]bool{}
+	if gs.Matches != nil && len(gs.Matches.Matches) > 0 {
+		for _, c := range gs.Matches.Matches[len(gs.Matches.Matches)-1].Opponent.CardsSeen {
+			seenCards[c.ArenaID] = true
+		}
+	}
 
 	for _, greMsg := range msg.GreToClientEvent.GreToClientMessages {
 		if greMsg.GameStateMessage == nil {
@@ -411,16 +426,14 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 				if obj.OwnerSeatID == currentMatch.Opponent.Seat &&
 					obj.GrpID > 0 &&
 					obj.isCard() &&
-					obj.Visibility == "Visibility_Public" {
-					if !slices.ContainsFunc(currentMatch.Opponent.CardsSeen, func(c CardSeen) bool {
-						return c.ArenaID == obj.GrpID
-					}) {
-						card := data.ArenaCards[obj.GrpID]
-						currentMatch.Opponent.CardsSeen = append(currentMatch.Opponent.CardsSeen, CardSeen{
-							Name:    card.Name,
-							ArenaID: obj.GrpID,
-						})
-					}
+					obj.Visibility == "Visibility_Public" &&
+					!seenCards[obj.GrpID] {
+					seenCards[obj.GrpID] = true
+					card := data.ArenaCards[obj.GrpID]
+					currentMatch.Opponent.CardsSeen = append(currentMatch.Opponent.CardsSeen, CardSeen{
+						Name:    card.Name,
+						ArenaID: obj.GrpID,
+					})
 				}
 			}
 		}
@@ -563,6 +576,9 @@ func annotationToActionIndexed(ann greAnnotation, objIndex map[int]greGameObject
 					}
 				}
 			}
+			if action.Action == "put" {
+				action.Action = refinePutAction(action.ZoneTo)
+			}
 			if action.Action == "" {
 				action.Action = inferAction(action.ZoneFrom, action.ZoneTo)
 			}
@@ -606,6 +622,22 @@ func categorizeZoneTransfer(category string) string {
 		return "put"
 	default:
 		return "move"
+	}
+}
+
+// refinePutAction refines the generic "put" action into a zone-specific subtype.
+func refinePutAction(zoneTo string) string {
+	switch {
+	case strings.Contains(zoneTo, "Battlefield"):
+		return "put_into_play"
+	case strings.Contains(zoneTo, "Graveyard"):
+		return "put_into_graveyard"
+	case strings.Contains(zoneTo, "Hand"):
+		return "put_into_hand"
+	case strings.Contains(zoneTo, "Library"):
+		return "put_into_library"
+	default:
+		return "put"
 	}
 }
 
@@ -707,7 +739,7 @@ func processDraftNotify(gs *GameState, raw json.RawMessage) {
 	draft := findOrCreateDraft(gs, "", notify.DraftID, "premier")
 
 	var available []string
-	for _, idStr := range strings.Split(notify.PackCards, ",") {
+	for idStr := range strings.SplitSeq(notify.PackCards, ",") {
 		idStr = strings.TrimSpace(idStr)
 		if id, err := strconv.Atoi(idStr); err == nil {
 			available = append(available, resolveCardName(id, idStr))

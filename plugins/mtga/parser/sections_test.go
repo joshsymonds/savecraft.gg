@@ -68,6 +68,48 @@ func TestBuildStartHookDecks(t *testing.T) {
 	}
 }
 
+func TestPreconDecksFiltered(t *testing.T) {
+	hookJSON := `{
+		"Decks": {
+			"deck-user-1": {
+				"MainDeck": [{"cardId": 82159, "quantity": 4}],
+				"Sideboard": [],
+				"CommandZone": []
+			},
+			"deck-precon-1": {
+				"MainDeck": [{"cardId": 82160, "quantity": 4}],
+				"Sideboard": [],
+				"CommandZone": []
+			},
+			"deck-precon-2": {
+				"MainDeck": [{"cardId": 82159, "quantity": 2}],
+				"Sideboard": [],
+				"CommandZone": []
+			}
+		},
+		"DeckSummariesV2": [
+			{"DeckId": "deck-user-1", "Name": "[S] Landfall", "Attributes": [{"name": "Format", "value": "Standard"}]},
+			{"DeckId": "deck-precon-1", "Name": "?=?Loc/Decks/Precon/Precon_EPP2024_RW", "Attributes": [{"name": "Format", "value": "Alchemy"}]},
+			{"DeckId": "deck-precon-2", "Name": "?=?Loc/Decks/Precon/CC_ANB_B", "Attributes": [{"name": "Format", "value": "Alchemy"}]}
+		]
+	}`
+	entries := []LogEntry{{
+		Arrow: "<==",
+		Label: "StartHook",
+		JSON:  json.RawMessage(hookJSON),
+	}}
+	gs := BuildGameState(entries)
+	if gs.ActiveDecks == nil {
+		t.Fatal("expected active_decks section")
+	}
+	if len(gs.ActiveDecks.Decks) != 1 {
+		t.Fatalf("expected 1 deck after filtering precons, got %d", len(gs.ActiveDecks.Decks))
+	}
+	if gs.ActiveDecks.Decks[0].Name != "[S] Landfall" {
+		t.Errorf("expected user deck '[S] Landfall', got %q", gs.ActiveDecks.Decks[0].Name)
+	}
+}
+
 func TestBuildStartHookInventory(t *testing.T) {
 	hookJSON := `{
 		"InventoryInfo": {
@@ -171,6 +213,7 @@ func TestBuildRank(t *testing.T) {
 }
 
 func TestBuildMatchHistory(t *testing.T) {
+	// eventId lives inside reservedPlayers[], not at gameRoomConfig level — matches real MTGA JSON.
 	entries := []LogEntry{
 		{Label: "AuthenticateResponse", JSON: json.RawMessage(`{"authenticateResponse":{"clientId":"player1","screenName":"Me"}}`)},
 		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
@@ -179,11 +222,10 @@ func TestBuildMatchHistory(t *testing.T) {
 				"gameRoomInfo": {
 					"stateType": "MatchGameRoomStateType_Playing",
 					"gameRoomConfig": {
-						"eventId": "QuickDraft_TMT_20260313",
 						"matchId": "match-001",
 						"reservedPlayers": [
-							{"userId": "player1", "playerName": "Me", "systemSeatId": 1},
-							{"userId": "opp1", "playerName": "Opponent", "systemSeatId": 2}
+							{"userId": "player1", "playerName": "Me", "systemSeatId": 1, "eventId": "QuickDraft_TMT_20260313"},
+							{"userId": "opp1", "playerName": "Opponent", "systemSeatId": 2, "eventId": "QuickDraft_TMT_20260313"}
 						]
 					}
 				}
@@ -193,7 +235,13 @@ func TestBuildMatchHistory(t *testing.T) {
 			"matchGameRoomStateChangedEvent": {
 				"gameRoomInfo": {
 					"stateType": "MatchGameRoomStateType_MatchCompleted",
-					"gameRoomConfig": {"eventId": "QuickDraft_TMT_20260313", "matchId": "match-001"},
+					"gameRoomConfig": {
+						"matchId": "match-001",
+						"reservedPlayers": [
+							{"userId": "player1", "playerName": "Me", "systemSeatId": 1, "eventId": "QuickDraft_TMT_20260313"},
+							{"userId": "opp1", "playerName": "Opponent", "systemSeatId": 2, "eventId": "QuickDraft_TMT_20260313"}
+						]
+					},
 					"finalMatchResult": {
 						"matchId": "match-001",
 						"resultList": [
@@ -215,6 +263,9 @@ func TestBuildMatchHistory(t *testing.T) {
 	m := gs.Matches.Matches[0]
 	if m.MatchID != "match-001" {
 		t.Errorf("expected matchId 'match-001', got %q", m.MatchID)
+	}
+	if m.EventID != "QuickDraft_TMT_20260313" {
+		t.Errorf("expected eventId 'QuickDraft_TMT_20260313', got %q", m.EventID)
 	}
 	if m.Result != "win" {
 		t.Errorf("expected result 'win', got %q", m.Result)
@@ -270,11 +321,10 @@ func TestBuildGameLog(t *testing.T) {
 				"gameRoomInfo": {
 					"stateType": "MatchGameRoomStateType_Playing",
 					"gameRoomConfig": {
-						"eventId": "Test",
 						"matchId": "match-001",
 						"reservedPlayers": [
-							{"userId": "player1", "playerName": "Me", "systemSeatId": 1},
-							{"userId": "opp1", "playerName": "Opp", "systemSeatId": 2}
+							{"userId": "player1", "playerName": "Me", "systemSeatId": 1, "eventId": "Test"},
+							{"userId": "opp1", "playerName": "Opp", "systemSeatId": 2, "eventId": "Test"}
 						]
 					}
 				}
@@ -347,10 +397,10 @@ func TestOpponentCardsSeen(t *testing.T) {
 				"gameRoomInfo": {
 					"stateType": "MatchGameRoomStateType_Playing",
 					"gameRoomConfig": {
-						"eventId": "Test", "matchId": "match-001",
+						"matchId": "match-001",
 						"reservedPlayers": [
-							{"userId": "player1", "playerName": "Me", "systemSeatId": 1},
-							{"userId": "opp1", "playerName": "Opp", "systemSeatId": 2}
+							{"userId": "player1", "playerName": "Me", "systemSeatId": 1, "eventId": "Test"},
+							{"userId": "opp1", "playerName": "Opp", "systemSeatId": 2, "eventId": "Test"}
 						]
 					}
 				}
@@ -398,10 +448,10 @@ func TestAbilityObjectsFilteredFromCardsSeen(t *testing.T) {
 				"gameRoomInfo": {
 					"stateType": "MatchGameRoomStateType_Playing",
 					"gameRoomConfig": {
-						"eventId": "Test", "matchId": "match-001",
+						"matchId": "match-001",
 						"reservedPlayers": [
-							{"userId": "player1", "playerName": "Me", "systemSeatId": 1},
-							{"userId": "opp1", "playerName": "Opp", "systemSeatId": 2}
+							{"userId": "player1", "playerName": "Me", "systemSeatId": 1, "eventId": "Test"},
+							{"userId": "opp1", "playerName": "Opp", "systemSeatId": 2, "eventId": "Test"}
 						]
 					}
 				}
@@ -521,10 +571,10 @@ func TestBuildMatchLoss(t *testing.T) {
 		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
 			"matchGameRoomStateChangedEvent": {"gameRoomInfo": {
 				"stateType": "MatchGameRoomStateType_Playing",
-				"gameRoomConfig": {"eventId": "Test", "matchId": "m1",
+				"gameRoomConfig": {"matchId": "m1",
 					"reservedPlayers": [
-						{"userId": "player1", "playerName": "Me", "systemSeatId": 1},
-						{"userId": "opp", "playerName": "Opp", "systemSeatId": 2}
+						{"userId": "player1", "playerName": "Me", "systemSeatId": 1, "eventId": "Test"},
+						{"userId": "opp", "playerName": "Opp", "systemSeatId": 2, "eventId": "Test"}
 					]}
 			}}
 		}`)},
@@ -551,10 +601,10 @@ func TestBuildMatchDraw(t *testing.T) {
 		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
 			"matchGameRoomStateChangedEvent": {"gameRoomInfo": {
 				"stateType": "MatchGameRoomStateType_Playing",
-				"gameRoomConfig": {"eventId": "Test", "matchId": "m1",
+				"gameRoomConfig": {"matchId": "m1",
 					"reservedPlayers": [
-						{"userId": "player1", "playerName": "Me", "systemSeatId": 1},
-						{"userId": "opp", "playerName": "Opp", "systemSeatId": 2}
+						{"userId": "player1", "playerName": "Me", "systemSeatId": 1, "eventId": "Test"},
+						{"userId": "opp", "playerName": "Opp", "systemSeatId": 2, "eventId": "Test"}
 					]}
 			}}
 		}`)},
@@ -594,6 +644,27 @@ func TestInferAction(t *testing.T) {
 	}
 }
 
+func TestRefinePutAction(t *testing.T) {
+	cases := []struct {
+		zoneTo string
+		want   string
+	}{
+		{"ZoneType_Battlefield", "put_into_play"},
+		{"ZoneType_Graveyard", "put_into_graveyard"},
+		{"ZoneType_Hand", "put_into_hand"},
+		{"ZoneType_Library", "put_into_library"},
+		{"ZoneType_Exile", "put"},     // no special subtype for exile — use generic
+		{"ZoneType_Stack", "put"},     // fallback
+		{"", "put"},                   // empty zone
+	}
+	for _, tc := range cases {
+		got := refinePutAction(tc.zoneTo)
+		if got != tc.want {
+			t.Errorf("refinePutAction(%q) = %q, want %q", tc.zoneTo, got, tc.want)
+		}
+	}
+}
+
 func TestBuildSummaryWithRank(t *testing.T) {
 	gs := &GameState{
 		DisplayName: "TestPlayer",
@@ -605,6 +676,27 @@ func TestBuildSummaryWithRank(t *testing.T) {
 	summary := buildSummary(gs)
 	if summary != "TestPlayer, Gold 4 Constructed, Silver 2 Limited" {
 		t.Errorf("expected full summary, got %q", summary)
+	}
+}
+
+func TestBuildSummaryEmptyLimitedClass(t *testing.T) {
+	gs := &GameState{
+		DisplayName: "TestPlayer",
+		Rank: &RankSection{
+			Constructed: RankInfo{Class: "Gold", Level: 4},
+			Limited:     RankInfo{Class: "", Level: 3}, // MTGA omits limitedClass when unranked
+		},
+	}
+	summary := buildSummary(gs)
+	if summary != "TestPlayer, Gold 4 Constructed" {
+		t.Errorf("expected summary without Limited, got %q", summary)
+	}
+	extra := buildExtra(gs)
+	if _, ok := extra["limitedRank"]; ok {
+		t.Errorf("expected no limitedRank in extra, got %v", extra["limitedRank"])
+	}
+	if extra["constructedRank"] != "Gold 4" {
+		t.Errorf("expected constructedRank 'Gold 4', got %v", extra["constructedRank"])
 	}
 }
 
