@@ -62,9 +62,9 @@ func processAuth(gs *GameState, raw json.RawMessage) {
 
 func processStartHook(gs *GameState, raw json.RawMessage) {
 	var hook struct {
-		Decks           map[string]startHookDeck   `json:"Decks"`
-		DeckSummariesV2 []startHookDeckSummary     `json:"DeckSummariesV2"`
-		InventoryInfo   *startHookInventory        `json:"InventoryInfo"`
+		Decks           map[string]startHookDeck `json:"Decks"`
+		DeckSummariesV2 []startHookDeckSummary   `json:"DeckSummariesV2"`
+		InventoryInfo   *startHookInventory      `json:"InventoryInfo"`
 	}
 	if err := json.Unmarshal(raw, &hook); err != nil {
 		return

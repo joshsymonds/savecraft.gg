@@ -84,20 +84,20 @@ func TestBuildCardImportSQL(t *testing.T) {
 func TestBuildCardImportSQL_NonDefaultSkipsFTS(t *testing.T) {
 	cards := []ScryfallCard{
 		{
-			ArenaID:    100,
-			OracleID:   "oracle-1",
-			Name:       "Go for the Throat",
-			Rarity:     "uncommon",
-			Set:        "BRO",
-			IsDefault:  false,
+			ArenaID:   100,
+			OracleID:  "oracle-1",
+			Name:      "Go for the Throat",
+			Rarity:    "uncommon",
+			Set:       "BRO",
+			IsDefault: false,
 		},
 		{
-			ArenaID:    200,
-			OracleID:   "oracle-1",
-			Name:       "Go for the Throat",
-			Rarity:     "uncommon",
-			Set:        "FDN",
-			IsDefault:  true,
+			ArenaID:   200,
+			OracleID:  "oracle-1",
+			Name:      "Go for the Throat",
+			Rarity:    "uncommon",
+			Set:       "FDN",
+			IsDefault: true,
 		},
 	}
 
