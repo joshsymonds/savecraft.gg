@@ -91,7 +91,20 @@ func run() error {
 	if err != nil {
 		return fmt.Errorf("downloading cards: %w", err)
 	}
-	fmt.Printf("Found %d Arena cards (%d printings)\n", countUniqueOracleIDs(cards), len(cards))
+	// Deduplicate by arena_id. default_cards can list multiple printings of the
+	// same card sharing one arena_id (e.g., a set printing + a Historic Anthology
+	// reprint). Keep only one entry per arena_id.
+	seen := make(map[int]struct{}, len(cards))
+	deduped := cards[:0]
+	for _, c := range cards {
+		if _, ok := seen[c.ArenaID]; ok {
+			continue
+		}
+		seen[c.ArenaID] = struct{}{}
+		deduped = append(deduped, c)
+	}
+	cards = deduped
+	fmt.Printf("Found %d Arena cards (%d unique arena_ids)\n", countUniqueOracleIDs(cards), len(cards))
 
 	// Mark the most recent Arena printing (highest arena_id) per oracle_id as default.
 	computeDefaults(cards)
