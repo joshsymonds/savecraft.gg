@@ -101,6 +101,28 @@ describe("rules_search native module", () => {
         "Some continuous effects are replacement effects.",
         "Example: If two replacement effects would apply, the affected player chooses which to apply first.",
       ),
+      // Trample rules for multi-keyword testing
+      env.DB.prepare(
+        "INSERT INTO mtga_rules (number, text, example, see_also) VALUES (?, ?, ?, ?)",
+      ).bind("702.19", "Trample is a static ability that modifies the rules for assigning combat damage.", null, null),
+      env.DB.prepare(
+        "INSERT INTO mtga_rules (number, text, example, see_also) VALUES (?, ?, ?, ?)",
+      ).bind(
+        "702.19b",
+        "A creature with trample and deathtouch assigns 1 damage to each blocking creature and the rest to the defending player.",
+        null,
+        null,
+      ),
+      env.DB.prepare("INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)").bind(
+        "702.19",
+        "Trample is a static ability that modifies the rules for assigning combat damage.",
+        "",
+      ),
+      env.DB.prepare("INSERT INTO mtga_rules_fts (number, text, example) VALUES (?, ?, ?)").bind(
+        "702.19b",
+        "A creature with trample and deathtouch assigns 1 damage to each blocking creature and the rest to the defending player.",
+        "",
+      ),
     ]);
   }
 
@@ -204,6 +226,32 @@ describe("rules_search native module", () => {
     expect(text).toContain("702.2a");
     // Should NOT contain unrelated rules
     expect(text).not.toContain("614.1");
+  });
+
+  it("keyword search handles multiple terms", async () => {
+    await seedRules();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ keyword: "trample deathtouch" }, env);
+
+    expect(result.type).toBe("formatted");
+    const text = (result as { content: string }).content;
+    // Should find rules about both trample and deathtouch
+    expect(text).toContain("702.19b");
+    // Should not return "No rules found"
+    expect(text).not.toContain("No rules found");
+  });
+
+  it("topic search handles multi-word natural language", async () => {
+    await seedRules();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    // Topic uses AND — both terms must appear in the same rule
+    const result = await module_.execute({ topic: "trample deathtouch" }, env);
+
+    expect(result.type).toBe("formatted");
+    const text = (result as { content: string }).content;
+    // 702.19b contains both "trample" and "deathtouch"
+    expect(text).toContain("702.19b");
+    expect(text).not.toContain("No rules found");
   });
 
   it("topic search returns relevant results", async () => {
