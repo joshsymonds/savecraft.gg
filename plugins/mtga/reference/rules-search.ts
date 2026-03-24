@@ -5,10 +5,9 @@
  * merged via Reciprocal Rank Fusion. Falls back to FTS5-only when Vectorize is
  * unavailable.
  *
- * Four query modes:
+ * Three query modes:
  *   rule    — exact D1 lookup + cross-reference expansion
  *   keyword — hybrid FTS5 + Vectorize search
- *   topic   — hybrid FTS5 + Vectorize search
  *   card    — card ruling lookup by name
  */
 
@@ -159,22 +158,19 @@ function buildFollowUpSuggestions(rules: RuleRow[], expandedRefs: Set<string>): 
   return "\n---\nSuggested follow-ups:\n" + suggestions.map((s) => `- ${s}`).join("\n");
 }
 
-async function searchByKeywordOrTopic(
+async function searchByKeyword(
   db: D1Database,
   ai: Ai | undefined,
   vectorIndex: VectorizeIndex | undefined,
   queryText: string,
-  label: string,
   limit: number,
 ): Promise<ReferenceResult> {
   // Build FTS5 MATCH expression from query text.
   // Split into individual terms, quote each for injection safety.
-  // keyword mode: OR (find rules about any term, ranked by relevance)
-  // topic mode: AND (find rules containing all terms)
-  const connector = label === "keyword" ? " OR " : " AND ";
+  // OR: find rules about any term, ranked by relevance.
   const terms = queryText.trim().split(/\s+/).filter(Boolean);
   const safeQuery = terms.length > 0
-    ? terms.map((t) => `"${t.replace(/"/g, '""')}"`).join(connector)
+    ? terms.map((t) => `"${t.replace(/"/g, '""')}"`).join(" OR ")
     : `"${queryText.replace(/"/g, '""')}"`;
 
   // BM25 search via FTS5
@@ -213,7 +209,7 @@ async function searchByKeywordOrTopic(
   if (topIds.length === 0) {
     return {
       type: "formatted",
-      content: `No rules found matching ${label} "${queryText}". Try a different keyword, or use the "rule" parameter with a specific rule number.\n`,
+      content: `No rules found matching keyword "${queryText}". Try a different keyword, or use the "rule" parameter with a specific rule number.\n`,
     };
   }
 
@@ -233,7 +229,7 @@ async function searchByKeywordOrTopic(
 
   const lines: string[] = [];
   lines.push(`${RULES_HEADER}\n`);
-  lines.push(`${orderedRules.length} rules matching ${label} "${queryText}" (${searchMethod} search, ${totalMatches > orderedRules.length ? `showing top ${orderedRules.length} of ~${totalMatches}` : `${orderedRules.length} total`})\n`);
+  lines.push(`${orderedRules.length} rules matching keyword "${queryText}" (${searchMethod} search, ${totalMatches > orderedRules.length ? `showing top ${orderedRules.length} of ~${totalMatches}` : `${orderedRules.length} total`})\n`);
   for (const r of orderedRules) {
     lines.push(`${r.number} ${r.text}`);
   }
@@ -333,7 +329,7 @@ async function searchCardRulings(
   if (lines.length <= 1) {
     return {
       type: "formatted",
-      content: `No rulings found for "${cardName}" (card exists but has no official rulings). Check the Comprehensive Rules for the underlying mechanics instead — use the "keyword" or "topic" parameter.\n`,
+      content: `No rulings found for "${cardName}" (card exists but has no official rulings). Check the Comprehensive Rules for the underlying mechanics instead — use the "keyword" parameter.\n`,
     };
   }
 
@@ -358,7 +354,7 @@ export const rulesSearchModule: NativeReferenceModule = {
     "USE PROACTIVELY: query this module BEFORE making any claim about how a card interaction works, what happens during a game phase, how triggered abilities resolve, or any rules interpretation.",
     "Do not rely on training data for MTG rules — the Comprehensive Rules are updated with every set release and card-specific rulings are issued continuously. Verify against this authoritative source.",
     "Especially critical for: card interactions between specific cards, triggered vs replacement effects, state-based actions, combat damage assignment with keywords like trample+deathtouch, stack and priority, layer system, and any ruling a player might dispute.",
-    "Query by rule number for specific lookups with full cross-references, by keyword or topic for ranked search across all rules, or by card name for official Scryfall rulings on specific cards.",
+    "Query by rule number for specific lookups with full cross-references, by keyword for ranked search across all rules, or by card name for official Scryfall rulings on specific cards.",
     "When explaining an interaction, cite the specific rule numbers from the results. If the answer involves multiple rules, make multiple queries to build a complete picture.",
   ].join(" "),
   parameters: {
@@ -370,12 +366,7 @@ export const rulesSearchModule: NativeReferenceModule = {
     keyword: {
       type: "string",
       description:
-        "Keyword search ranked by relevance (e.g., 'deathtouch', 'trample'). Use when looking for rules about a specific game mechanic or term.",
-    },
-    topic: {
-      type: "string",
-      description:
-        "Natural language topic search (e.g., 'what happens when two replacement effects apply', 'combat damage assignment order'). Use for questions about game situations or phase rules.",
+        "Keyword search ranked by relevance (e.g., 'deathtouch', 'trample'). Multi-word queries match rules containing ANY term (OR). For complex interactions involving multiple mechanics (e.g., trample + deathtouch), query each keyword separately and synthesize the results — this finds the specific rules for each mechanic rather than only rules that happen to mention both.",
     },
     card: {
       type: "string",
@@ -388,7 +379,6 @@ export const rulesSearchModule: NativeReferenceModule = {
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
     const rule = (query.rule as string) ?? "";
     const keyword = (query.keyword as string) ?? "";
-    const topic = (query.topic as string) ?? "";
     const card = (query.card as string) ?? "";
     const limit = typeof query.limit === "number" ? query.limit : DEFAULT_LIMIT;
 
@@ -399,12 +389,9 @@ export const rulesSearchModule: NativeReferenceModule = {
       return searchCardRulings(env.DB, card);
     }
     if (keyword) {
-      return searchByKeywordOrTopic(env.DB, env.AI, env.MTGA_RULES_INDEX, keyword, "keyword", limit);
-    }
-    if (topic) {
-      return searchByKeywordOrTopic(env.DB, env.AI, env.MTGA_RULES_INDEX, topic, "topic", limit);
+      return searchByKeyword(env.DB, env.AI, env.MTGA_RULES_INDEX, keyword, limit);
     }
 
-    return { type: "formatted", content: "Specify one of: rule (number), keyword, topic, or card.\n" };
+    return { type: "formatted", content: "Specify one of: rule (number), keyword, or card.\n" };
   },
 };
