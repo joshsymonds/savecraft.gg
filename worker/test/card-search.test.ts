@@ -264,6 +264,42 @@ describe("card_search native module", () => {
     expect(cards.length).toBe(0);
   });
 
+  it("excludes non-default printings from results", async () => {
+    await seedCards();
+    // Add a non-default printing of Lightning Bolt (different arena_id, is_default = 0)
+    await env.DB
+      .prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      )
+      .bind(
+        99,
+        "def-456",
+        "Lightning Bolt",
+        "{R}",
+        1,
+        "Instant",
+        "Lightning Bolt deals 3 damage to any target.",
+        '["R"]',
+        '["R"]',
+        '{"standard":"not_legal","historic":"legal"}',
+        "common",
+        "OldSet",
+        "[]",
+      )
+      .run();
+
+    // Search should return only the default printing
+    const result = await cardSearchModule.execute({ rarity: "common" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Record<string, unknown>[];
+    const bolts = cards.filter((c) => c.name === "Lightning Bolt");
+    expect(bolts.length).toBe(1);
+    expect(bolts[0]!.arenaId).toBe(1); // default printing, not arena_id 99
+  });
+
   it("returns all card fields in result", async () => {
     await seedCards();
 

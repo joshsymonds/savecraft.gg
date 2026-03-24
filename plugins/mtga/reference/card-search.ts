@@ -153,6 +153,8 @@ export const cardSearchModule: NativeReferenceModule = {
     // ── Build SQL query with structured filters ────────────────
     // Always filter to default printings (one result per card name).
     // Non-default printings exist for collection_diff arena_id lookups.
+    // Redundant when FTS narrows results (FTS only indexes defaults), but
+    // serves as defense-in-depth for non-FTS queries (e.g. rarity-only).
     const conditions: string[] = ["is_default = 1"];
     const params: unknown[] = [];
     let paramIdx = 1;
