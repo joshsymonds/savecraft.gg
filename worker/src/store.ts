@@ -101,9 +101,8 @@ export async function storePush(
 
   // For existing saves, compare incoming data to stored data — skip write if identical.
   if (existingSave.summary === summary) {
-    // ORDER BY name is required — sectionsMatch compares entries by sorted name order
     const storedSections = await env.DB.prepare(
-      "SELECT name, description, data FROM sections WHERE save_uuid = ? ORDER BY name",
+      "SELECT name, description, data FROM sections WHERE save_uuid = ?",
     )
       .bind(saveUuid)
       .all<{ name: string; description: string; data: string }>();

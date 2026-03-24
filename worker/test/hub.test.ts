@@ -2074,6 +2074,128 @@ describe("SourceHub", () => {
     await closeWs(daemon);
   });
 
+  it("partial push preserves existing sections in D1", async () => {
+    const userUuid = "partial-push-user";
+    const { sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    // First push: 3 sections.
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "PartialChar", extra: undefined },
+          summary: "Level 50",
+          parsedAt: new Date("2026-03-20T12:00:00Z"),
+          sections: [
+            { name: "overview", description: "Overview", data: { level: 50 } },
+            { name: "skills", description: "Skills", data: { points: 100 } },
+            { name: "inventory", description: "Inventory", data: { gold: 5000 } },
+          ],
+          allSectionNames: ["overview", "skills", "inventory"],
+        },
+      },
+    });
+    const first = await waitForProtoMessage(daemon);
+    const firstResult = requirePayload(first, "pushSaveResult");
+
+    // Second push: only overview changed (partial push).
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "PartialChar", extra: undefined },
+          summary: "Level 51",
+          parsedAt: new Date("2026-03-20T12:01:00Z"),
+          sections: [{ name: "overview", description: "Overview", data: { level: 51 } }],
+          allSectionNames: ["overview", "skills", "inventory"],
+        },
+      },
+    });
+    const second = await waitForProtoMessage(daemon);
+    const secondResult = requirePayload(second, "pushSaveResult");
+    expect(secondResult.saveUuid).toBe(firstResult.saveUuid);
+
+    // Verify all 3 sections exist in D1 with correct data.
+    const sections = await env.DB.prepare(
+      "SELECT name, data FROM sections WHERE save_uuid = ? ORDER BY name",
+    )
+      .bind(firstResult.saveUuid)
+      .all<{ name: string; data: string }>();
+
+    expect(sections.results.length).toBe(3);
+    const byName = new Map(sections.results.map((s) => [s.name, JSON.parse(s.data)]));
+    expect(byName.get("overview").level).toBe(51); // updated
+    expect(byName.get("skills").points).toBe(100); // preserved
+    expect(byName.get("inventory").gold).toBe(5000); // preserved
+
+    await closeWs(daemon);
+  });
+
+  it("allSectionNames deletes stale sections from D1", async () => {
+    const userUuid = "stale-section-user";
+    const { sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    // First push: 3 sections.
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "StaleChar", extra: undefined },
+          summary: "Level 50",
+          parsedAt: new Date("2026-03-20T12:00:00Z"),
+          sections: [
+            { name: "overview", description: "Overview", data: { level: 50 } },
+            { name: "skills", description: "Skills", data: { points: 100 } },
+            { name: "draft", description: "Draft", data: { picks: 3 } },
+          ],
+          allSectionNames: ["overview", "skills", "draft"],
+        },
+      },
+    });
+    const first = await waitForProtoMessage(daemon);
+    const firstResult = requirePayload(first, "pushSaveResult");
+
+    // Second push: plugin stopped producing "draft" section.
+    sendProto(daemon, {
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "StaleChar", extra: undefined },
+          summary: "Level 51",
+          parsedAt: new Date("2026-03-20T12:01:00Z"),
+          sections: [{ name: "overview", description: "Overview", data: { level: 51 } }],
+          allSectionNames: ["overview", "skills"], // draft removed
+        },
+      },
+    });
+    await waitForProtoMessage(daemon);
+
+    // Verify: overview updated, skills preserved, draft deleted.
+    const sections = await env.DB.prepare(
+      "SELECT name FROM sections WHERE save_uuid = ? ORDER BY name",
+    )
+      .bind(firstResult.saveUuid)
+      .all<{ name: string }>();
+
+    const names = sections.results.map((s) => s.name);
+    expect(names).toEqual(["overview", "skills"]);
+    expect(names).not.toContain("draft");
+
+    await closeWs(daemon);
+  });
+
   it("accepts gzip-compressed pushSave messages", async () => {
     const userUuid = "gzip-push-user";
     const { sourceToken } = await seedSource(userUuid);
