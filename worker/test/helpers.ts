@@ -4,7 +4,7 @@ import { env, SELF } from "cloudflare:test";
 import { clearToolCaches } from "../src/mcp/tools";
 import { OAUTH_ENDPOINTS } from "../src/oauth";
 import type { OAuthProps } from "../src/oauth";
-import { Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
+import { Message, RelayedMessage, type DeepPartial } from "../src/proto/savecraft/v1/protocol";
 import { clearNativeRegistry } from "../src/reference/registry";
 import { storePush } from "../src/store";
 import type { SectionInput } from "../src/store";
@@ -111,9 +111,12 @@ export async function closeWs(ws: WebSocket): Promise<void> {
 
 /**
  * Send a binary proto Message over a WebSocket.
+ * Normalizes through fromPartial so callers can use partial object literals
+ * without worrying about default values for new fields.
  */
-export function sendProto(ws: WebSocket, msg: Message): void {
-  const bytes = Message.encode(msg).finish();
+export function sendProto(ws: WebSocket, msg: DeepPartial<Message>): void {
+  const normalized = Message.fromPartial(msg);
+  const bytes = Message.encode(normalized).finish();
   ws.send(bytes);
 }
 
