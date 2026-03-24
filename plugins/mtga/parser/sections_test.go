@@ -243,8 +243,8 @@ func TestBuildDraftHistory(t *testing.T) {
 		t.Fatalf("expected 1 draft, got %d", len(gs.Drafts.Drafts))
 	}
 	draft := gs.Drafts.Drafts[0]
-	if draft.DraftType != "bot" {
-		t.Errorf("expected draftType 'bot', got %q", draft.DraftType)
+	if draft.DraftType != "quick" {
+		t.Errorf("expected draftType 'quick', got %q", draft.DraftType)
 	}
 	if len(draft.Picks) != 1 {
 		t.Fatalf("expected 1 pick, got %d", len(draft.Picks))
@@ -451,5 +451,124 @@ func TestDraftPickResponseContainsNextPack(t *testing.T) {
 	}
 	if draft.Picks[1].ChosenID != 82268 {
 		t.Errorf("pick 1: expected chosenId 82268, got %d", draft.Picks[1].ChosenID)
+	}
+}
+
+func TestBuildMatchLoss(t *testing.T) {
+	entries := []LogEntry{
+		{Label: "AuthenticateResponse", JSON: json.RawMessage(`{"authenticateResponse":{"clientId":"player1"}}`)},
+		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
+			"matchGameRoomStateChangedEvent": {"gameRoomInfo": {
+				"stateType": "MatchGameRoomStateType_Playing",
+				"gameRoomConfig": {"eventId": "Test", "matchId": "m1",
+					"reservedPlayers": [
+						{"userId": "player1", "playerName": "Me", "systemSeatId": 1},
+						{"userId": "opp", "playerName": "Opp", "systemSeatId": 2}
+					]}
+			}}
+		}`)},
+		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
+			"matchGameRoomStateChangedEvent": {"gameRoomInfo": {
+				"stateType": "MatchGameRoomStateType_MatchCompleted",
+				"gameRoomConfig": {"matchId": "m1"},
+				"finalMatchResult": {"matchId": "m1", "resultList": [
+					{"scope": "MatchScope_Game", "result": "ResultType_WinLoss", "winningTeamId": 2},
+					{"scope": "MatchScope_Match", "result": "ResultType_WinLoss", "winningTeamId": 2}
+				]}
+			}}
+		}`)},
+	}
+	gs := BuildGameState(entries)
+	if gs.Matches.Matches[0].Result != "loss" {
+		t.Errorf("expected 'loss', got %q", gs.Matches.Matches[0].Result)
+	}
+}
+
+func TestBuildMatchDraw(t *testing.T) {
+	entries := []LogEntry{
+		{Label: "AuthenticateResponse", JSON: json.RawMessage(`{"authenticateResponse":{"clientId":"player1"}}`)},
+		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
+			"matchGameRoomStateChangedEvent": {"gameRoomInfo": {
+				"stateType": "MatchGameRoomStateType_Playing",
+				"gameRoomConfig": {"eventId": "Test", "matchId": "m1",
+					"reservedPlayers": [
+						{"userId": "player1", "playerName": "Me", "systemSeatId": 1},
+						{"userId": "opp", "playerName": "Opp", "systemSeatId": 2}
+					]}
+			}}
+		}`)},
+		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
+			"matchGameRoomStateChangedEvent": {"gameRoomInfo": {
+				"stateType": "MatchGameRoomStateType_MatchCompleted",
+				"gameRoomConfig": {"matchId": "m1"},
+				"finalMatchResult": {"matchId": "m1", "resultList": [
+					{"scope": "MatchScope_Match", "result": "ResultType_Draw", "winningTeamId": 0}
+				]}
+			}}
+		}`)},
+	}
+	gs := BuildGameState(entries)
+	if gs.Matches.Matches[0].Result != "draw" {
+		t.Errorf("expected 'draw', got %q", gs.Matches.Matches[0].Result)
+	}
+}
+
+func TestInferAction(t *testing.T) {
+	cases := []struct {
+		from, to string
+		want     string
+	}{
+		{"ZoneType_Library", "ZoneType_Hand", "draw"},
+		{"ZoneType_Hand", "ZoneType_Stack", "cast"},
+		{"ZoneType_Hand", "ZoneType_Battlefield", "play_land"},
+		{"ZoneType_Battlefield", "ZoneType_Graveyard", "destroy"},
+		{"ZoneType_Battlefield", "ZoneType_Exile", "exile"},
+		{"ZoneType_Library", "ZoneType_Battlefield", "move"},
+	}
+	for _, tc := range cases {
+		got := inferAction(tc.from, tc.to)
+		if got != tc.want {
+			t.Errorf("inferAction(%q, %q) = %q, want %q", tc.from, tc.to, got, tc.want)
+		}
+	}
+}
+
+func TestBuildSummaryWithRank(t *testing.T) {
+	gs := &GameState{
+		DisplayName: "TestPlayer",
+		Rank: &RankSection{
+			Constructed: RankInfo{Class: "Gold", Level: 4},
+			Limited:     RankInfo{Class: "Silver", Level: 2},
+		},
+	}
+	summary := buildSummary(gs)
+	if summary != "TestPlayer, Gold 4 Constructed, Silver 2 Limited" {
+		t.Errorf("expected full summary, got %q", summary)
+	}
+}
+
+func TestBuildSummaryNoRank(t *testing.T) {
+	gs := &GameState{}
+	summary := buildSummary(gs)
+	if summary != "MTG Arena Player" {
+		t.Errorf("expected 'MTG Arena Player', got %q", summary)
+	}
+}
+
+func TestBuildExtra(t *testing.T) {
+	gs := &GameState{
+		Rank: &RankSection{
+			Constructed: RankInfo{Class: "Gold", Level: 4},
+		},
+		ActiveDecks: &ActiveDecksSection{
+			Decks: []Deck{{Name: "A"}, {Name: "B"}},
+		},
+	}
+	extra := buildExtra(gs)
+	if extra["constructedRank"] != "Gold 4" {
+		t.Errorf("expected constructedRank 'Gold 4', got %v", extra["constructedRank"])
+	}
+	if extra["deckCount"] != 2 {
+		t.Errorf("expected deckCount 2, got %v", extra["deckCount"])
 	}
 }

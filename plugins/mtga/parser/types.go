@@ -162,7 +162,7 @@ type DraftHistorySection struct {
 type DraftSession struct {
 	EventName string      `json:"eventName"`
 	DraftID   string      `json:"draftId,omitempty"`
-	DraftType string      `json:"draftType"` // "premier", "quick", "traditional", "sealed"
+	DraftType string      `json:"draftType"` // "quick", "premier", "traditional", "sealed"
 	Picks     []DraftPick `json:"picks"`
 }
 
