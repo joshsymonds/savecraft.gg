@@ -45,17 +45,24 @@ func buildCardImportSQL(cards []ScryfallCard) string {
 
 		q := cfapi.SQLQuote
 
-		// Structured table
-		fmt.Fprintf(&b, "INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords) VALUES (%d, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s);\n",
+		isDefault := 0
+		if c.IsDefault {
+			isDefault = 1
+		}
+
+		// Structured table (all printings)
+		fmt.Fprintf(&b, "INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default) VALUES (%d, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s, %d);\n",
 			c.ArenaID, q(c.OracleID), q(c.Name), q(c.ManaCost), c.CMC,
 			q(c.TypeLine), q(c.OracleText), q(colorsJSON), q(colorIdentityJSON),
-			q(legalitiesJSON), q(c.Rarity), q(c.Set), q(keywordsJSON),
+			q(legalitiesJSON), q(c.Rarity), q(c.Set), q(keywordsJSON), isDefault,
 		)
 
-		// FTS5 table
-		fmt.Fprintf(&b, "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (%d, %s, %s, %s);\n",
-			c.ArenaID, q(c.Name), q(c.OracleText), q(c.TypeLine),
-		)
+		// FTS5 table (default printings only — one search result per card name)
+		if c.IsDefault {
+			fmt.Fprintf(&b, "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (%d, %s, %s, %s);\n",
+				c.ArenaID, q(c.Name), q(c.OracleText), q(c.TypeLine),
+			)
+		}
 	}
 
 	return b.String()

@@ -1,5 +1,7 @@
-// scryfall-fetch downloads Scryfall Oracle Cards bulk data, generates the parser
+// scryfall-fetch downloads Scryfall Default Cards bulk data, generates the parser
 // Go data file, and populates D1 + Vectorize when --d1-database-id is provided.
+// Stores all Arena printings in D1, with is_default=1 for the most recent printing
+// per oracle_id (highest arena_id). FTS5 and Vectorize only index defaults.
 //
 // Usage: go run ./plugins/mtga/tools/scryfall-fetch [--d1-database-id=UUID] [--vectorize-index=NAME]
 //
@@ -46,6 +48,7 @@ type ScryfallCard struct {
 	Set           string            `json:"set"`
 	Keywords      []string          `json:"keywords"`
 	Games         []string          `json:"games"`
+	IsDefault     bool              `json:"-"` // computed, not from Scryfall
 }
 
 // BulkDataResponse is the Scryfall /bulk-data API response.
@@ -78,37 +81,20 @@ func run() error {
 	pluginDir := filepath.Join(filepath.Dir(thisFile), "..", "..")
 
 	fmt.Println("Fetching Scryfall bulk data index...")
-	downloadURL, err := getOracleCardsURL()
+	downloadURL, err := getDefaultCardsURL()
 	if err != nil {
 		return fmt.Errorf("fetching bulk data index: %w", err)
 	}
 
-	fmt.Printf("Downloading Oracle Cards from %s...\n", downloadURL)
+	fmt.Printf("Downloading Default Cards from %s...\n", downloadURL)
 	cards, err := downloadAndFilter(downloadURL)
 	if err != nil {
 		return fmt.Errorf("downloading cards: %w", err)
 	}
-	fmt.Printf("Found %d Arena cards\n", len(cards))
+	fmt.Printf("Found %d Arena cards (%d printings)\n", countUniqueOracleIDs(cards), len(cards))
 
-	// Deduplicate by arena_id. Scryfall has both original and Alchemy-rebalanced
-	// ("A-" prefixed) cards sharing the same arena_id. Prefer the non-Alchemy
-	// version since the original card is canonical.
-	byID := make(map[int]ScryfallCard, len(cards))
-	for _, c := range cards {
-		if existing, ok := byID[c.ArenaID]; ok {
-			// Prefer the non-Alchemy version (no "A-" prefix).
-			if strings.HasPrefix(existing.Name, "A-") && !strings.HasPrefix(c.Name, "A-") {
-				byID[c.ArenaID] = c
-			}
-			continue
-		}
-		byID[c.ArenaID] = c
-	}
-	cards = make([]ScryfallCard, 0, len(byID))
-	for _, c := range byID {
-		cards = append(cards, c)
-	}
-	fmt.Printf("After dedup: %d unique arena_ids\n", len(cards))
+	// Mark the most recent Arena printing (highest arena_id) per oracle_id as default.
+	computeDefaults(cards)
 
 	// Sort by arena_id for deterministic output.
 	sort.Slice(cards, func(i, j int) bool {
@@ -136,8 +122,15 @@ func run() error {
 	}
 
 	if needsVectorize {
-		fmt.Println("\nPopulating Vectorize index...")
-		if err := populateCardVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, cards); err != nil {
+		// Only embed default printings — one vector per card name.
+		var defaults []ScryfallCard
+		for _, c := range cards {
+			if c.IsDefault {
+				defaults = append(defaults, c)
+			}
+		}
+		fmt.Printf("\nPopulating Vectorize index (%d default cards)...\n", len(defaults))
+		if err := populateCardVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, defaults); err != nil {
 			return fmt.Errorf("populating vectorize: %w", err)
 		}
 		fmt.Println("Vectorize population complete")
@@ -146,7 +139,7 @@ func run() error {
 	return nil
 }
 
-func getOracleCardsURL() (string, error) {
+func getDefaultCardsURL() (string, error) {
 	resp, err := httpGet("https://api.scryfall.com/bulk-data")
 	if err != nil {
 		return "", err
@@ -159,11 +152,11 @@ func getOracleCardsURL() (string, error) {
 	}
 
 	for _, entry := range bulk.Data {
-		if entry.Type == "oracle_cards" {
+		if entry.Type == "default_cards" {
 			return entry.DownloadURI, nil
 		}
 	}
-	return "", fmt.Errorf("oracle_cards not found in bulk data response")
+	return "", fmt.Errorf("default_cards not found in bulk data response")
 }
 
 func downloadAndFilter(url string) ([]ScryfallCard, error) {
@@ -197,10 +190,39 @@ func downloadAndFilter(url string) ([]ScryfallCard, error) {
 		if !slices.Contains(card.Games, "arena") {
 			continue
 		}
+		// Skip Alchemy rebalanced cards ("A-" prefix). They have their own
+		// oracle_ids and arena_ids and would pollute search results.
+		if strings.HasPrefix(card.Name, "A-") {
+			continue
+		}
 		cards = append(cards, card)
 	}
 
 	return cards, nil
+}
+
+// computeDefaults marks the highest arena_id per oracle_id as IsDefault = true.
+// This makes the most recently added Arena printing the canonical one for
+// search (FTS5) and Vectorize, while all printings remain in the structured table.
+func computeDefaults(cards []ScryfallCard) {
+	// Find highest arena_id per oracle_id.
+	best := make(map[string]int) // oracle_id → index in cards slice
+	for i, c := range cards {
+		if prev, ok := best[c.OracleID]; !ok || c.ArenaID > cards[prev].ArenaID {
+			best[c.OracleID] = i
+		}
+	}
+	for _, idx := range best {
+		cards[idx].IsDefault = true
+	}
+}
+
+func countUniqueOracleIDs(cards []ScryfallCard) int {
+	seen := make(map[string]struct{}, len(cards))
+	for _, c := range cards {
+		seen[c.OracleID] = struct{}{}
+	}
+	return len(seen)
 }
 
 func httpGet(url string) (*http.Response, error) {
