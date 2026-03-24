@@ -2,7 +2,7 @@ import { env, fetchMock, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import type { Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
-import { PushSaveError } from "../src/proto/savecraft/v1/protocol";
+import { Message as MessageCodec, PushSaveError } from "../src/proto/savecraft/v1/protocol";
 
 import {
   cleanAll,
@@ -2070,6 +2070,116 @@ describe("SourceHub", () => {
       .first<{ data: string }>();
     const parsed = JSON.parse(section!.data);
     expect(parsed.level).toBe(42);
+
+    await closeWs(daemon);
+  });
+
+  it("accepts gzip-compressed pushSave messages", async () => {
+    const userUuid = "gzip-push-user";
+    const { sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    // Build a PushSave message and gzip it manually.
+    const msg = MessageCodec.fromPartial({
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "GzipChar", extra: undefined },
+          summary: "Gzip Test, Level 50",
+          parsedAt: new Date(),
+          sections: [{ name: "stats", description: "Stats", data: { level: 50 } }],
+        },
+      },
+    });
+    const raw = MessageCodec.encode(msg).finish();
+
+    // Compress with CompressionStream (gzip)
+    const cs = new CompressionStream("gzip");
+    const writer = cs.writable.getWriter();
+    writer.write(raw);
+    writer.close();
+    const reader = cs.readable.getReader();
+    const chunks: Uint8Array[] = [];
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+    }
+    const compressed = new Uint8Array(chunks.reduce((s, c) => s + c.length, 0));
+    let offset = 0;
+    for (const chunk of chunks) {
+      compressed.set(chunk, offset);
+      offset += chunk.length;
+    }
+
+    // Verify it's actually gzipped (magic header)
+    expect(compressed[0]).toBe(0x1f);
+    expect(compressed[1]).toBe(0x8b);
+
+    // Send gzipped bytes directly
+    daemon.send(compressed);
+
+    const response = await waitForProtoMessage(daemon);
+    const result = requirePayload(response, "pushSaveResult");
+    expect(result.saveUuid).toBeTruthy();
+    expect(result.error).toBe(PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED);
+
+    // Verify data was stored correctly
+    const section = await env.DB.prepare(
+      "SELECT data FROM sections WHERE save_uuid = ? AND name = 'stats'",
+    )
+      .bind(result.saveUuid)
+      .first<{ data: string }>();
+    expect(JSON.parse(section!.data).level).toBe(50);
+
+    await closeWs(daemon);
+  });
+
+  it("accepts uncompressed pushSave messages (backwards compat)", async () => {
+    const userUuid = "raw-push-user";
+    const { sourceToken } = await seedSource(userUuid);
+
+    const daemon = await connectDaemonWs(sourceToken);
+    await sendSourceOnlineAndDrainLinkState(daemon);
+    await waitForProtoMessage(daemon); // drain configUpdate
+
+    // Build a PushSave message and send raw bytes (no gzip).
+    const msg = MessageCodec.fromPartial({
+      payload: {
+        $case: "pushSave",
+        pushSave: {
+          gameId: "d2r",
+          identity: { name: "RawChar", extra: undefined },
+          summary: "Raw Test, Level 30",
+          parsedAt: new Date(),
+          sections: [{ name: "stats", description: "Stats", data: { level: 30 } }],
+        },
+      },
+    });
+    const raw = MessageCodec.encode(msg).finish();
+
+    // Verify it's NOT gzipped
+    expect(raw[0]).not.toBe(0x1f);
+
+    // Send raw bytes directly
+    daemon.send(raw);
+
+    const response = await waitForProtoMessage(daemon);
+    const result = requirePayload(response, "pushSaveResult");
+    expect(result.saveUuid).toBeTruthy();
+    expect(result.error).toBe(PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED);
+
+    // Verify data was stored correctly
+    const section = await env.DB.prepare(
+      "SELECT data FROM sections WHERE save_uuid = ? AND name = 'stats'",
+    )
+      .bind(result.saveUuid)
+      .first<{ data: string }>();
+    expect(JSON.parse(section!.data).level).toBe(30);
 
     await closeWs(daemon);
   });
