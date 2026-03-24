@@ -6,9 +6,12 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/parser/data"
 )
+
+var inventoryInfoKey = []byte("InventoryInfo")
 
 // BuildGameState processes decoded log entries and accumulates game state.
 func BuildGameState(entries []LogEntry) *GameState {
@@ -38,7 +41,7 @@ func BuildGameState(entries []LogEntry) *GameState {
 
 		// Extract InventoryInfo from any response that contains it.
 		// Guard with a cheap prefix check to avoid unmarshaling every entry.
-		if e.JSON != nil && bytes.Contains(e.JSON, []byte("InventoryInfo")) {
+		if e.JSON != nil && bytes.Contains(e.JSON, inventoryInfoKey) {
 			processInventoryInfo(gs, e.JSON)
 		}
 	}
@@ -146,7 +149,7 @@ type startHookInventory struct {
 }
 
 func parseCardEntries(entries []cardEntry) []DeckCard {
-	var cards []DeckCard
+	cards := make([]DeckCard, 0, len(entries))
 	for _, e := range entries {
 		card := data.ArenaCards[e.CardID]
 		cards = append(cards, DeckCard{
@@ -167,6 +170,7 @@ func applyInventorySnapshot(gs *GameState, inv *startHookInventory) {
 		WCRare:        inv.WildCardRares,
 		WCMythic:      inv.WildCardMythics,
 		VaultProgress: inv.TotalVaultProgress,
+		Boosters:      []BoosterInfo{},
 		CustomTokens:  inv.CustomTokens,
 	}
 
@@ -290,7 +294,7 @@ func processMatchRoom(gs *GameState, raw json.RawMessage) {
 		match := MatchResult{
 			MatchID: room.GameRoomConfig.MatchID,
 			EventID: room.GameRoomConfig.EventID,
-			Date:    msg.Timestamp,
+			Date:    formatTimestamp(msg.Timestamp),
 		}
 		for _, p := range room.GameRoomConfig.ReservedPlayers {
 			if p.UserID == gs.PlayerID {
@@ -406,9 +410,16 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 			for _, obj := range gsm.GameObjects {
 				if obj.OwnerSeatID == currentMatch.Opponent.Seat &&
 					obj.GrpID > 0 &&
+					obj.isCard() &&
 					obj.Visibility == "Visibility_Public" {
-					if !slices.Contains(currentMatch.Opponent.CardsSeen, obj.GrpID) {
-						currentMatch.Opponent.CardsSeen = append(currentMatch.Opponent.CardsSeen, obj.GrpID)
+					if !slices.ContainsFunc(currentMatch.Opponent.CardsSeen, func(c CardSeen) bool {
+						return c.ArenaID == obj.GrpID
+					}) {
+						card := data.ArenaCards[obj.GrpID]
+						currentMatch.Opponent.CardsSeen = append(currentMatch.Opponent.CardsSeen, CardSeen{
+							Name:    card.Name,
+							ArenaID: obj.GrpID,
+						})
 					}
 				}
 			}
@@ -493,10 +504,22 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 type greGameObject struct {
 	InstanceID  int      `json:"instanceId"`
 	GrpID       int      `json:"grpId"`
+	Type        string   `json:"type"`
 	ZoneID      int      `json:"zoneId"`
 	OwnerSeatID int      `json:"ownerSeatId"`
 	Visibility  string   `json:"visibility"`
 	CardTypes   []string `json:"cardTypes"`
+}
+
+// isCard returns true if the game object represents a card or token (not an ability).
+func (o greGameObject) isCard() bool {
+	switch o.Type {
+	case "GameObjectType_Card", "GameObjectType_Token", "GameObjectType_RevealedCard", "":
+		// Empty type is treated as card for backwards compatibility with older logs.
+		return true
+	default:
+		return false
+	}
 }
 
 type greAnnotation struct {
@@ -517,7 +540,7 @@ func annotationToActionIndexed(ann greAnnotation, objIndex map[int]greGameObject
 		switch annType {
 		case "AnnotationType_ZoneTransfer":
 			action := &ActionLog{}
-			if obj, ok := objIndex[ann.AffectorID]; ok {
+			if obj, ok := objIndex[ann.AffectorID]; ok && obj.isCard() {
 				action.CardID = obj.GrpID
 				card := data.ArenaCards[obj.GrpID]
 				action.CardName = card.Name
@@ -548,7 +571,7 @@ func annotationToActionIndexed(ann greAnnotation, objIndex map[int]greGameObject
 			}
 
 		case "AnnotationType_ResolutionComplete":
-			if obj, ok := objIndex[ann.AffectorID]; ok && obj.GrpID > 0 {
+			if obj, ok := objIndex[ann.AffectorID]; ok && obj.isCard() && obj.GrpID > 0 {
 				card := data.ArenaCards[obj.GrpID]
 				return &ActionLog{
 					Player:   obj.OwnerSeatID,
@@ -776,4 +799,14 @@ func findOrCreateDraft(gs *GameState, eventName, draftID, draftType string) *Dra
 		DraftType: draftType,
 	})
 	return &gs.Drafts.Drafts[len(gs.Drafts.Drafts)-1]
+}
+
+// formatTimestamp converts a millisecond epoch string to ISO 8601 (RFC 3339).
+// Returns the original string if parsing fails.
+func formatTimestamp(ts string) string {
+	ms, err := strconv.ParseInt(ts, 10, 64)
+	if err != nil {
+		return ts
+	}
+	return time.UnixMilli(ms).UTC().Format(time.RFC3339)
 }

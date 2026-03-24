@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -221,6 +222,9 @@ func TestBuildMatchHistory(t *testing.T) {
 	if m.Opponent.Name != "Opponent" {
 		t.Errorf("expected opponent name 'Opponent', got %q", m.Opponent.Name)
 	}
+	if !strings.Contains(m.Date, "T") || !strings.Contains(m.Date, "Z") {
+		t.Errorf("expected ISO 8601 date, got %q", m.Date)
+	}
 }
 
 func TestBuildDraftHistory(t *testing.T) {
@@ -373,7 +377,64 @@ func TestOpponentCardsSeen(t *testing.T) {
 	}
 	opp := gs.Matches.Matches[0].Opponent
 	if len(opp.CardsSeen) != 2 {
-		t.Errorf("expected 2 unique opponent cards seen, got %d: %v", len(opp.CardsSeen), opp.CardsSeen)
+		t.Fatalf("expected 2 unique opponent cards seen, got %d: %v", len(opp.CardsSeen), opp.CardsSeen)
+	}
+	// CardsSeen should contain resolved names and arena IDs.
+	for _, cs := range opp.CardsSeen {
+		if cs.ArenaID == 0 {
+			t.Error("expected non-zero ArenaID in CardsSeen")
+		}
+		if cs.Name == "" {
+			t.Errorf("expected non-empty Name in CardsSeen for ArenaID %d", cs.ArenaID)
+		}
+	}
+}
+
+func TestAbilityObjectsFilteredFromCardsSeen(t *testing.T) {
+	entries := []LogEntry{
+		{Label: "AuthenticateResponse", JSON: json.RawMessage(`{"authenticateResponse":{"clientId":"player1"}}`)},
+		{Label: "MatchGameRoomStateChangedEvent", JSON: json.RawMessage(`{
+			"matchGameRoomStateChangedEvent": {
+				"gameRoomInfo": {
+					"stateType": "MatchGameRoomStateType_Playing",
+					"gameRoomConfig": {
+						"eventId": "Test", "matchId": "match-001",
+						"reservedPlayers": [
+							{"userId": "player1", "playerName": "Me", "systemSeatId": 1},
+							{"userId": "opp1", "playerName": "Opp", "systemSeatId": 2}
+						]
+					}
+				}
+			}
+		}`)},
+		{Label: "GreToClientEvent", JSON: json.RawMessage(`{
+			"greToClientEvent": {
+				"greToClientMessages": [{
+					"type": "GREMessageType_GameStateMessage",
+					"gameStateMessage": {
+						"gameObjects": [
+							{"instanceId": 200, "grpId": 82159, "type": "GameObjectType_Card", "zoneId": 5, "ownerSeatId": 2, "visibility": "Visibility_Public"},
+							{"instanceId": 201, "grpId": 203096, "type": "GameObjectType_Ability", "zoneId": 5, "ownerSeatId": 2, "visibility": "Visibility_Public"},
+							{"instanceId": 202, "grpId": 82160, "type": "GameObjectType_Token", "zoneId": 5, "ownerSeatId": 2, "visibility": "Visibility_Public"}
+						]
+					}
+				}]
+			}
+		}`)},
+	}
+	gs := BuildGameState(entries)
+	if gs.Matches == nil || len(gs.Matches.Matches) == 0 {
+		t.Fatal("expected match data")
+	}
+	opp := gs.Matches.Matches[0].Opponent
+	// Should have 2 cards (Card + Token), not 3 (ability filtered out).
+	if len(opp.CardsSeen) != 2 {
+		t.Errorf("expected 2 cards seen (ability filtered), got %d: %v", len(opp.CardsSeen), opp.CardsSeen)
+	}
+	for _, cs := range opp.CardsSeen {
+		if cs.ArenaID == 203096 {
+			t.Error("ability grpId 203096 should not appear in CardsSeen")
+		}
 	}
 }
 
@@ -405,8 +466,8 @@ func TestInventorySnapshotOverwritesDelta(t *testing.T) {
 func TestOutDraftPickWithUnknownCard(t *testing.T) {
 	// Real data uses card IDs from newer sets not in ArenaCards.
 	// resolveCardName should fall back to the ID as a string.
-	statusJSON := `{"CurrentModule":"BotDraft","Payload":"{\"EventName\":\"QuickDraft_TMT\",\"PackNumber\":0,\"PickNumber\":0,\"DraftPack\":[\"100568\",\"100586\"]}"}`
-	pickJSON := `{"id":"abc","request":"{\"PickInfo\":{\"CardIds\":[\"100568\"],\"PackNumber\":0,\"PickNumber\":0}}"}`
+	statusJSON := `{"CurrentModule":"BotDraft","Payload":"{\"EventName\":\"QuickDraft_TMT\",\"PackNumber\":0,\"PickNumber\":0,\"DraftPack\":[\"999999\",\"999998\"]}"}`
+	pickJSON := `{"id":"abc","request":"{\"PickInfo\":{\"CardIds\":[\"999999\"],\"PackNumber\":0,\"PickNumber\":0}}"}`
 
 	entries := []LogEntry{
 		{Arrow: "<==", Label: "BotDraftDraftStatus", JSON: json.RawMessage(statusJSON)},
@@ -417,11 +478,11 @@ func TestOutDraftPickWithUnknownCard(t *testing.T) {
 		t.Fatal("expected drafts")
 	}
 	pick := gs.Drafts.Drafts[0].Picks[0]
-	if pick.Chosen != "100568" {
-		t.Errorf("expected chosen '100568' (fallback), got %q", pick.Chosen)
+	if pick.Chosen != "999999" {
+		t.Errorf("expected chosen '999999' (fallback), got %q", pick.Chosen)
 	}
-	if pick.ChosenID != 100568 {
-		t.Errorf("expected chosenId 100568, got %d", pick.ChosenID)
+	if pick.ChosenID != 999999 {
+		t.Errorf("expected chosenId 999999, got %d", pick.ChosenID)
 	}
 }
 

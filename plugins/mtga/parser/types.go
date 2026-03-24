@@ -94,12 +94,18 @@ type MatchResult struct {
 
 // MatchPlayer is a player in a match.
 type MatchPlayer struct {
-	Name      string `json:"name"`
-	UserID    string `json:"userId"`
-	Seat      int    `json:"seat"`
-	Rank      string `json:"rank,omitempty"`
-	Tier      int    `json:"tier,omitempty"`
-	CardsSeen []int  `json:"cardsSeen,omitempty"`
+	Name      string     `json:"name"`
+	UserID    string     `json:"userId"`
+	Seat      int        `json:"seat"`
+	Rank      string     `json:"rank,omitempty"`
+	Tier      int        `json:"tier,omitempty"`
+	CardsSeen []CardSeen `json:"cardsSeen,omitempty"`
+}
+
+// CardSeen is a card observed during a match (e.g. opponent's revealed cards).
+type CardSeen struct {
+	Name    string `json:"name"`
+	ArenaID int    `json:"arenaId"`
 }
 
 // GameResult is the result of a single game within a match.
