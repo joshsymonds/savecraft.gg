@@ -171,7 +171,7 @@ func applyInventorySnapshot(gs *GameState, inv *startHookInventory) {
 		WCUncommon:    inv.WildCardUnCommons,
 		WCRare:        inv.WildCardRares,
 		WCMythic:      inv.WildCardMythics,
-		VaultProgress: inv.TotalVaultProgress,
+		VaultProgress: inv.TotalVaultProgress / 10.0,
 		Boosters:      []BoosterInfo{},
 		CustomTokens:  inv.CustomTokens,
 	}
@@ -497,6 +497,7 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 					TurnNumber:   ti.TurnNumber,
 					ActivePlayer: ti.ActivePlayer,
 					Phase:        ti.Phase,
+					Actions:      []GameAction{},
 				})
 				turn = &currentGame.Turns[len(currentGame.Turns)-1]
 			}
