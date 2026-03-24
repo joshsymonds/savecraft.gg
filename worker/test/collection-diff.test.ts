@@ -107,9 +107,61 @@ describe("collection_diff native module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
 
     const missing = result.data.missing as { name: string; rarity: string }[];
-    // Unknown card should still appear but with empty rarity
+    // Unknown card should still appear but with "unknown" rarity
     const unknown = missing.find((m) => m.name === "Nonexistent Card");
     expect(unknown).toBeDefined();
-    expect(unknown!.rarity).toBe("");
+    expect(unknown!.rarity).toBe("unknown");
+  });
+
+  it("wildcard total matches rarity breakdown including unknown", async () => {
+    await seedCards();
+
+    const result = await collectionDiffModule.execute(
+      {
+        deck: [
+          { name: "Sheoldred, the Apocalypse", count: 4 },
+          { name: "Nonexistent Card", count: 4 },
+        ],
+        collection: [],
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cost = result.data.wildcardCost as Record<string, number>;
+    // 4 mythic (Sheoldred) + 4 unknown (Nonexistent)
+    expect(cost.mythic).toBe(4);
+    expect(cost.unknown).toBe(4);
+    expect(cost.total).toBe(
+      (cost.common ?? 0) +
+        (cost.uncommon ?? 0) +
+        (cost.rare ?? 0) +
+        (cost.mythic ?? 0) +
+        (cost.unknown ?? 0),
+    );
+  });
+
+  it("includes unresolved card names in response", async () => {
+    await seedCards();
+
+    const result = await collectionDiffModule.execute(
+      {
+        deck: [
+          { name: "Nonexistent Card", count: 4 },
+          { name: "Lightning Bolt", count: 4 },
+        ],
+        collection: [],
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const unresolved = result.data.unresolvedCards as string[];
+    expect(unresolved).toContain("Nonexistent Card");
+    expect(unresolved).not.toContain("Lightning Bolt");
   });
 });

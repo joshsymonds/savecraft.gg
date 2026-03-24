@@ -104,7 +104,12 @@ describe("rules_search native module", () => {
       // Trample rules for multi-keyword testing
       env.DB.prepare(
         "INSERT INTO mtga_rules (number, text, example, see_also) VALUES (?, ?, ?, ?)",
-      ).bind("702.19", "Trample is a static ability that modifies the rules for assigning combat damage.", null, null),
+      ).bind(
+        "702.19",
+        "Trample is a static ability that modifies the rules for assigning combat damage.",
+        null,
+        null,
+      ),
       env.DB.prepare(
         "INSERT INTO mtga_rules (number, text, example, see_also) VALUES (?, ?, ?, ?)",
       ).bind(

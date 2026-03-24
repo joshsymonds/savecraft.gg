@@ -89,7 +89,8 @@ export const collectionDiffModule: NativeReferenceModule = {
 
     // Compute diff
     const missing: Array<{ name: string; count: number; rarity: string }> = [];
-    const wildcardCost = { common: 0, uncommon: 0, rare: 0, mythic: 0, total: 0 };
+    const wildcardCost = { common: 0, uncommon: 0, rare: 0, mythic: 0, unknown: 0, total: 0 };
+    const unresolvedCards: string[] = [];
 
     for (const entry of deck) {
       const key = entry.name.toLowerCase();
@@ -97,7 +98,13 @@ export const collectionDiffModule: NativeReferenceModule = {
       const need = entry.count - have;
       if (need <= 0) continue;
 
-      const rarity = rarityByName.get(key) ?? "";
+      let rarity = rarityByName.get(key) ?? "";
+      if (rarity === "") {
+        rarity = "unknown";
+        if (!unresolvedCards.includes(entry.name)) {
+          unresolvedCards.push(entry.name);
+        }
+      }
       missing.push({ name: entry.name, count: need, rarity });
 
       switch (rarity) {
@@ -105,10 +112,11 @@ export const collectionDiffModule: NativeReferenceModule = {
         case "uncommon": wildcardCost.uncommon += need; break;
         case "rare": wildcardCost.rare += need; break;
         case "mythic": wildcardCost.mythic += need; break;
+        case "unknown": wildcardCost.unknown += need; break;
       }
       wildcardCost.total += need;
     }
 
-    return { type: "structured", data: { missing, wildcardCost } };
+    return { type: "structured", data: { missing, wildcardCost, unresolvedCards } };
   },
 };
