@@ -810,7 +810,7 @@ describe("MCP Tools", () => {
     });
   });
 
-  // ── get_savecraft_info ──────────────────────────────────────
+  // ── setup_help ──────────────────────────────────────────
 
   describe("getInfo", () => {
     /** Seed a source with full control over fields for setup help tests. */

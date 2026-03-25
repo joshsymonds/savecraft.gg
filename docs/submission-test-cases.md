@@ -58,7 +58,7 @@ Prompts where Savecraft **should** trigger. Expected tool chain and result descr
 
 **Prompt:** "How do I set up Savecraft?"
 
-**Expected tools:** `get_savecraft_info`
+**Expected tools:** `setup_help`
 
 **Expected result:** Returns setup instructions appropriate for the user's context — how to install the daemon, connect sources, or link an AI assistant.
 
