@@ -1032,6 +1032,14 @@ func processDraftPackStatus(gs *GameState, raw json.RawMessage, requirePack bool
 		available[i] = resolveCardName(atoiSafe(idStr), idStr)
 	}
 
+	// Deduplicate: update existing pick if same (PackNumber, PickNumber).
+	for i := range draft.Picks {
+		if draft.Picks[i].PackNumber == status.PackNumber && draft.Picks[i].PickNumber == status.PickNumber {
+			draft.Picks[i].Available = available
+			return
+		}
+	}
+
 	draft.Picks = append(draft.Picks, DraftPick{
 		PackNumber: status.PackNumber,
 		PickNumber: status.PickNumber,
@@ -1078,6 +1086,14 @@ func processDraftNotify(gs *GameState, raw json.RawMessage) {
 		idStr = strings.TrimSpace(idStr)
 		if id, err := strconv.Atoi(idStr); err == nil {
 			available = append(available, resolveCardName(id, idStr))
+		}
+	}
+
+	// Deduplicate: update existing pick if same (PackNumber, PickNumber).
+	for i := range draft.Picks {
+		if draft.Picks[i].PackNumber == notify.SelfPack && draft.Picks[i].PickNumber == notify.SelfPick {
+			draft.Picks[i].Available = available
+			return
 		}
 	}
 

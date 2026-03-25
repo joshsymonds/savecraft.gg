@@ -1089,6 +1089,53 @@ func TestDraftPickResponseContainsNextPack(t *testing.T) {
 	}
 }
 
+func TestDuplicateBotDraftStatusDedup(t *testing.T) {
+	// MTGA can emit duplicate BotDraftDraftStatus for the same pack/pick.
+	// We should deduplicate, not append a second DraftPick.
+	entries := []LogEntry{
+		{Arrow: "<==", Label: "BotDraftDraftStatus", JSON: json.RawMessage(`{"CurrentModule":"BotDraft","Payload":"{\"EventName\":\"QuickDraft\",\"DraftId\":\"d1\",\"PackNumber\":0,\"PickNumber\":0,\"DraftPack\":[\"82159\",\"82160\"]}"}`)},
+		// Duplicate status for same pack/pick (different pack order is fine — latest wins)
+		{Arrow: "<==", Label: "BotDraftDraftStatus", JSON: json.RawMessage(`{"CurrentModule":"BotDraft","Payload":"{\"EventName\":\"QuickDraft\",\"DraftId\":\"d1\",\"PackNumber\":0,\"PickNumber\":0,\"DraftPack\":[\"82160\",\"82159\"]}"}`)},
+		{Arrow: "==>", Label: "BotDraftDraftPick", JSON: json.RawMessage(`{"id":"a","request":"{\"PickInfo\":{\"CardIds\":[\"82159\"],\"PackNumber\":0,\"PickNumber\":0}}"}`)},
+	}
+	gs := BuildGameState(entries)
+	if gs.Drafts == nil {
+		t.Fatal("expected drafts")
+	}
+	draft := gs.Drafts.Drafts[0]
+	if len(draft.Picks) != 1 {
+		t.Fatalf("expected 1 pick (deduped), got %d", len(draft.Picks))
+	}
+	// Available should reflect the latest status (82160 first)
+	if draft.Picks[0].Available[0] == "Sheoldred, the Apocalypse" {
+		t.Error("expected Available to be updated to latest status (82160 first)")
+	}
+	if draft.Picks[0].Chosen != "Sheoldred, the Apocalypse" {
+		t.Errorf("expected chosen card set, got %q", draft.Picks[0].Chosen)
+	}
+}
+
+func TestDuplicatePremierDraftNotifyDedup(t *testing.T) {
+	// Premier draft uses DraftNotify — same dedup requirement.
+	entries := []LogEntry{
+		{Arrow: "<==", Label: "DraftNotify", JSON: json.RawMessage(`{"draftId":"d1","SelfPack":0,"SelfPick":0,"PackCards":"82159, 82160"}`)},
+		// Duplicate notify for same pack/pick
+		{Arrow: "<==", Label: "DraftNotify", JSON: json.RawMessage(`{"draftId":"d1","SelfPack":0,"SelfPick":0,"PackCards":"82160, 82159"}`)},
+	}
+	gs := BuildGameState(entries)
+	if gs.Drafts == nil {
+		t.Fatal("expected drafts")
+	}
+	draft := gs.Drafts.Drafts[0]
+	if len(draft.Picks) != 1 {
+		t.Fatalf("expected 1 pick (deduped), got %d", len(draft.Picks))
+	}
+	// Available should reflect the latest notify (82160 first)
+	if draft.Picks[0].Available[0] == "Sheoldred, the Apocalypse" {
+		t.Error("expected Available to be updated to latest notify (82160 first)")
+	}
+}
+
 func TestBuildMatchLoss(t *testing.T) {
 	entries := []LogEntry{
 		{Label: "AuthenticateResponse", JSON: json.RawMessage(`{"authenticateResponse":{"clientId":"player1"}}`)},
