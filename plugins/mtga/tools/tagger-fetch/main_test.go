@@ -99,3 +99,43 @@ func TestMultiRoleCard(t *testing.T) {
 		t.Errorf("expected 2 entries (creature + removal), got %d", len(deduped))
 	}
 }
+
+func TestDetectFixingLands(t *testing.T) {
+	cards := []d1Card{
+		{OracleID: "dual-1", FrontFaceName: "Sunpetal Grove", TypeLine: "Land", ProducedMana: `["G","W"]`},
+		{OracleID: "basic-1", FrontFaceName: "Forest", TypeLine: "Basic Land — Forest", ProducedMana: `["G"]`},
+		{OracleID: "art-1", FrontFaceName: "Arcane Signet", TypeLine: "Artifact", ProducedMana: `["W","U","B","R","G"]`},
+		{OracleID: "tri-1", FrontFaceName: "Jetmir's Garden", TypeLine: "Land — Mountain Forest Plains", ProducedMana: `["R","G","W"]`},
+		{OracleID: "empty-1", FrontFaceName: "Maze's End", TypeLine: "Land — Gate", ProducedMana: `[]`},
+		{OracleID: "no-pm", FrontFaceName: "Unknown Land", TypeLine: "Land", ProducedMana: ""},
+	}
+
+	entries := detectFixingLands(cards, "DSK")
+
+	got := make(map[string]bool)
+	for _, e := range entries {
+		if e.Role != "mana_fixing" {
+			t.Errorf("detectFixingLands returned non-mana_fixing role %q for %s", e.Role, e.FrontFaceName)
+		}
+		got[e.OracleID] = true
+	}
+
+	if !got["dual-1"] {
+		t.Error("dual land (Sunpetal Grove) should get mana_fixing")
+	}
+	if !got["tri-1"] {
+		t.Error("triome (Jetmir's Garden) should get mana_fixing")
+	}
+	if got["basic-1"] {
+		t.Error("basic land (Forest) should NOT get mana_fixing")
+	}
+	if got["art-1"] {
+		t.Error("artifact (Arcane Signet) should NOT get mana_fixing from land detection")
+	}
+	if got["empty-1"] {
+		t.Error("land with empty produced_mana should NOT get mana_fixing")
+	}
+	if got["no-pm"] {
+		t.Error("land with missing produced_mana should NOT get mana_fixing")
+	}
+}
