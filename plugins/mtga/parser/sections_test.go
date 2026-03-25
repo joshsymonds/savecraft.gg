@@ -413,8 +413,8 @@ func TestBuildDraftHistory(t *testing.T) {
 	if len(pick.Available) != 3 {
 		t.Errorf("expected 3 available cards, got %d", len(pick.Available))
 	}
-	if pick.Chosen != "Sheoldred, the Apocalypse" {
-		t.Errorf("expected chosen 'Sheoldred, the Apocalypse', got %q", pick.Chosen)
+	if pick.Picked != "Sheoldred, the Apocalypse" {
+		t.Errorf("expected chosen 'Sheoldred, the Apocalypse', got %q", pick.Picked)
 	}
 }
 
@@ -1052,11 +1052,11 @@ func TestOutDraftPickWithUnknownCard(t *testing.T) {
 		t.Fatal("expected drafts")
 	}
 	pick := gs.Drafts.Drafts[0].Picks[0]
-	if pick.Chosen != "999999" {
-		t.Errorf("expected chosen '999999' (fallback), got %q", pick.Chosen)
+	if pick.Picked != "999999" {
+		t.Errorf("expected chosen '999999' (fallback), got %q", pick.Picked)
 	}
-	if pick.ChosenID != 999999 {
-		t.Errorf("expected chosenId 999999, got %d", pick.ChosenID)
+	if pick.PickedID != 999999 {
+		t.Errorf("expected chosenId 999999, got %d", pick.PickedID)
 	}
 }
 
@@ -1077,15 +1077,15 @@ func TestDraftPickResponseContainsNextPack(t *testing.T) {
 		t.Fatalf("expected 2 picks, got %d", len(draft.Picks))
 	}
 	// First pick from initial status
-	if draft.Picks[0].Chosen != "Sheoldred, the Apocalypse" {
-		t.Errorf("pick 0: expected 'Sheoldred, the Apocalypse', got %q", draft.Picks[0].Chosen)
+	if draft.Picks[0].Picked != "Sheoldred, the Apocalypse" {
+		t.Errorf("pick 0: expected 'Sheoldred, the Apocalypse', got %q", draft.Picks[0].Picked)
 	}
 	// Second pick from inbound response's Payload
 	if len(draft.Picks[1].Available) != 2 {
 		t.Errorf("pick 1: expected 2 available, got %d", len(draft.Picks[1].Available))
 	}
-	if draft.Picks[1].ChosenID != 82268 {
-		t.Errorf("pick 1: expected chosenId 82268, got %d", draft.Picks[1].ChosenID)
+	if draft.Picks[1].PickedID != 82268 {
+		t.Errorf("pick 1: expected chosenId 82268, got %d", draft.Picks[1].PickedID)
 	}
 }
 
@@ -1110,8 +1110,8 @@ func TestDuplicateBotDraftStatusDedup(t *testing.T) {
 	if draft.Picks[0].Available[0] == "Sheoldred, the Apocalypse" {
 		t.Error("expected Available to be updated to latest status (82160 first)")
 	}
-	if draft.Picks[0].Chosen != "Sheoldred, the Apocalypse" {
-		t.Errorf("expected chosen card set, got %q", draft.Picks[0].Chosen)
+	if draft.Picks[0].Picked != "Sheoldred, the Apocalypse" {
+		t.Errorf("expected chosen card set, got %q", draft.Picks[0].Picked)
 	}
 }
 
@@ -1289,7 +1289,7 @@ func TestBuildOutputSectionsPlayerSummary(t *testing.T) {
 			}},
 		},
 		Drafts: &DraftHistorySection{
-			Drafts: []DraftSession{{EventName: "QuickDraft", DraftType: "quick", Picks: []DraftPick{{PackNumber: 0, PickNumber: 0, Available: []string{"A"}, Chosen: "A"}}}},
+			Drafts: []DraftSession{{EventName: "QuickDraft", DraftType: "quick", Picks: []DraftPick{{PackNumber: 0, PickNumber: 0, Available: []string{"A"}, Picked: "A"}}}},
 		},
 	}
 

@@ -1152,8 +1152,8 @@ func processOutDraftPick(gs *GameState, raw json.RawMessage) {
 
 	for i := range draft.Picks {
 		if draft.Picks[i].PackNumber == packNum && draft.Picks[i].PickNumber == pickNum {
-			draft.Picks[i].Chosen = cardName
-			draft.Picks[i].ChosenID = cardID
+			draft.Picks[i].Picked = cardName
+			draft.Picks[i].PickedID = cardID
 			return
 		}
 	}
@@ -1161,8 +1161,8 @@ func processOutDraftPick(gs *GameState, raw json.RawMessage) {
 	draft.Picks = append(draft.Picks, DraftPick{
 		PackNumber: packNum,
 		PickNumber: pickNum,
-		Chosen:     cardName,
-		ChosenID:   cardID,
+		Picked:     cardName,
+		PickedID:   cardID,
 	})
 }
 

@@ -73,8 +73,19 @@ func buildOutputSections(gs *GameState) map[string]any {
 	}
 
 	if gs.Drafts != nil && len(gs.Drafts.Drafts) > 0 {
+		// Populate in_deck for each pick (cumulative pool of previously picked cards).
+		for d := range gs.Drafts.Drafts {
+			var pool []string
+			for i := range gs.Drafts.Drafts[d].Picks {
+				gs.Drafts.Drafts[d].Picks[i].InDeck = append([]string{}, pool...)
+				if gs.Drafts.Drafts[d].Picks[i].Picked != "" {
+					pool = append(pool, gs.Drafts.Drafts[d].Picks[i].Picked)
+				}
+			}
+		}
+
 		sections["draft_history"] = map[string]any{
-			"description": "Draft picks with full pack contents at each selection. ALWAYS use query_reference with the draft_advisor module to evaluate picks — never look up individual card stats.\n\nLIVE DRAFTING: If the last pick has no 'chosen' card, the player is mid-draft. Pass pool (all previously chosen cards) and pack (last pick's 'available') to draft_advisor for a contextual pick recommendation.\n\nCOMPLETED DRAFT: If all picks have 'chosen', pass the full pick_history to draft_advisor for batch review — it evaluates every pick and returns a summary with optimal/good/questionable/miss classifications.\n\nDO NOT query card_stats for individual card GIH WR to evaluate draft picks. The draft_advisor scores cards on 6 contextual axes (synergy, curve, role, signal, castability, baseline) which are far more informative than raw stats.",
+			"description": "Draft picks with pool and pack at each selection. Each pick has in_deck (cards already drafted), available (pack contents), and picked (card chosen).\n\nTo evaluate picks, use query_reference with draft_advisor:\n- BATCH OVERVIEW: Pass set + full pick_history to get a compact summary classifying every pick as optimal/good/questionable/miss. Use this first to identify which picks to examine.\n- DETAILED ANALYSIS: For specific picks, call draft_advisor with set + pool (= in_deck) + pack (= available) + pick_number. This returns full 6-axis contextual scores for every card in the pack.\n\nIf the last pick has no 'picked' card, the player is LIVE DRAFTING — call draft_advisor with pool + pack for a recommendation.\n\nDO NOT use card_stats to evaluate draft picks. The draft_advisor's contextual scoring (synergy, curve, role, signal, castability, baseline) is far more informative than raw GIH WR stats.",
 			"data":        gs.Drafts,
 		}
 	}
