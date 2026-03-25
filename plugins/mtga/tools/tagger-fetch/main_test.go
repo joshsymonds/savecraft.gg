@@ -126,8 +126,8 @@ func TestDeriveCABS(t *testing.T) {
 
 	// Existing roles: creature for Grizzly Bears, removal for Murder
 	existingRoles := map[roleKey]struct{}{
-		{OracleID: "c-1", Role: "creature", SetCode: "DSK"}:  {},
-		{OracleID: "r-1", Role: "removal", SetCode: "DSK"}:   {},
+		{OracleID: "c-1", Role: "creature", SetCode: "DSK"}:               {},
+		{OracleID: "r-1", Role: "removal", SetCode: "DSK"}:                {},
 		{OracleID: "d-1", Role: "noncreature_nonremoval", SetCode: "DSK"}: {},
 	}
 
