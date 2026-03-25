@@ -100,6 +100,74 @@ func TestMultiRoleCard(t *testing.T) {
 	}
 }
 
+func TestDeriveCABS(t *testing.T) {
+	cards := []d1Card{
+		// Creature → CABS
+		{OracleID: "c-1", FrontFaceName: "Grizzly Bears", TypeLine: "Creature — Bear"},
+		// Removal spell → CABS (via existing role)
+		{OracleID: "r-1", FrontFaceName: "Murder", TypeLine: "Instant"},
+		// Aura → CABS
+		{OracleID: "a-1", FrontFaceName: "Pacifism", TypeLine: "Enchantment — Aura"},
+		// Equipment → CABS
+		{OracleID: "e-1", FrontFaceName: "Short Sword", TypeLine: "Artifact — Equipment"},
+		// Planeswalker → CABS
+		{OracleID: "p-1", FrontFaceName: "Liliana of the Veil", TypeLine: "Legendary Planeswalker — Liliana"},
+		// Vehicle → CABS
+		{OracleID: "v-1", FrontFaceName: "Smuggler's Copter", TypeLine: "Artifact — Vehicle"},
+		// Pure draw spell → NOT CABS
+		{OracleID: "d-1", FrontFaceName: "Divination", TypeLine: "Sorcery"},
+		// Lifegain spell → NOT CABS
+		{OracleID: "l-1", FrontFaceName: "Revitalize", TypeLine: "Instant"},
+		// Non-aura enchantment → NOT CABS
+		{OracleID: "n-1", FrontFaceName: "Omen of the Sea", TypeLine: "Enchantment"},
+		// Land → NOT CABS (not a spell)
+		{OracleID: "land-1", FrontFaceName: "Island", TypeLine: "Basic Land — Island"},
+	}
+
+	// Existing roles: creature for Grizzly Bears, removal for Murder
+	existingRoles := map[roleKey]struct{}{
+		{OracleID: "c-1", Role: "creature", SetCode: "DSK"}:  {},
+		{OracleID: "r-1", Role: "removal", SetCode: "DSK"}:   {},
+		{OracleID: "d-1", Role: "noncreature_nonremoval", SetCode: "DSK"}: {},
+	}
+
+	entries := deriveCABS(cards, existingRoles, "DSK")
+
+	got := make(map[string]bool)
+	for _, e := range entries {
+		if e.Role != "cabs" {
+			t.Errorf("deriveCABS returned role %q for %s, want 'cabs'", e.Role, e.FrontFaceName)
+		}
+		got[e.OracleID] = true
+	}
+
+	// Should be CABS
+	for _, tc := range []struct{ id, name string }{
+		{"c-1", "Grizzly Bears (creature)"},
+		{"r-1", "Murder (removal)"},
+		{"a-1", "Pacifism (aura)"},
+		{"e-1", "Short Sword (equipment)"},
+		{"p-1", "Liliana of the Veil (planeswalker)"},
+		{"v-1", "Smuggler's Copter (vehicle)"},
+	} {
+		if !got[tc.id] {
+			t.Errorf("%s should be CABS", tc.name)
+		}
+	}
+
+	// Should NOT be CABS
+	for _, tc := range []struct{ id, name string }{
+		{"d-1", "Divination (draw spell)"},
+		{"l-1", "Revitalize (lifegain)"},
+		{"n-1", "Omen of the Sea (enchantment)"},
+		{"land-1", "Island (land)"},
+	} {
+		if got[tc.id] {
+			t.Errorf("%s should NOT be CABS", tc.name)
+		}
+	}
+}
+
 func TestDetectFixingLands(t *testing.T) {
 	cards := []d1Card{
 		{OracleID: "dual-1", FrontFaceName: "Sunpetal Grove", TypeLine: "Land", ProducedMana: `["G","W"]`},
