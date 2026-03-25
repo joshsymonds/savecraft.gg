@@ -74,7 +74,7 @@ func buildOutputSections(gs *GameState) map[string]any {
 
 	if gs.Drafts != nil && len(gs.Drafts.Drafts) > 0 {
 		sections["draft_history"] = map[string]any{
-			"description": "Draft picks with full pack contents at each selection. If the last pick has no 'chosen' card, the player is LIVE DRAFTING — 'available' is their current pack. Use query_reference with draft_ratings to evaluate picks. Pass the full pick history as pick_history (array of {available, chosen} per completed pick) to enable accumulated archetype signal tracking. Don't just report stats — recommend a pick with reasoning about archetype fit, curve, and signals. Compare ALSA to pick position to read signals (late picks of high-ALSA cards = open archetype).",
+			"description": "Draft picks with full pack contents at each selection. ALWAYS use query_reference with the draft_advisor module to evaluate picks — never look up individual card stats.\n\nLIVE DRAFTING: If the last pick has no 'chosen' card, the player is mid-draft. Pass pool (all previously chosen cards) and pack (last pick's 'available') to draft_advisor for a contextual pick recommendation.\n\nCOMPLETED DRAFT: If all picks have 'chosen', pass the full pick_history to draft_advisor for batch review — it evaluates every pick and returns a summary with optimal/good/questionable/miss classifications.\n\nDO NOT query card_stats for individual card GIH WR to evaluate draft picks. The draft_advisor scores cards on 6 contextual axes (synergy, curve, role, signal, castability, baseline) which are far more informative than raw stats.",
 			"data":        gs.Drafts,
 		}
 	}
