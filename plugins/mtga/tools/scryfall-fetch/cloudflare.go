@@ -42,6 +42,11 @@ func buildCardImportSQL(cards []ScryfallCard) string {
 			j, _ := json.Marshal(c.Keywords)
 			keywordsJSON = string(j)
 		}
+		producedManaJSON := "[]"
+		if len(c.ProducedMana) > 0 {
+			j, _ := json.Marshal(c.ProducedMana)
+			producedManaJSON = string(j)
+		}
 
 		q := cfapi.SQLQuote
 
@@ -51,10 +56,10 @@ func buildCardImportSQL(cards []ScryfallCard) string {
 		}
 
 		// Structured table (all printings)
-		fmt.Fprintf(&b, "INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default) VALUES (%d, %s, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s, %d);\n",
+		fmt.Fprintf(&b, "INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default, produced_mana) VALUES (%d, %s, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s, %d, %s);\n",
 			c.ArenaID, q(c.OracleID), q(c.Name), q(c.FrontFaceName), q(c.ManaCost), c.CMC,
 			q(c.TypeLine), q(c.OracleText), q(colorsJSON), q(colorIdentityJSON),
-			q(legalitiesJSON), q(c.Rarity), q(c.Set), q(keywordsJSON), isDefault,
+			q(legalitiesJSON), q(c.Rarity), q(c.Set), q(keywordsJSON), isDefault, q(producedManaJSON),
 		)
 
 		// FTS5 table (default printings only — one search result per card name)

@@ -44,6 +44,7 @@ type ScryfallCard struct {
 	Rarity        string            `json:"rarity"`
 	Set           string            `json:"set"`
 	Keywords      []string          `json:"keywords"`
+	ProducedMana  []string          `json:"produced_mana"`
 	Games         []string          `json:"games"`
 	IsDefault     bool              `json:"-"` // computed, not from Scryfall
 	FrontFaceName string            `json:"-"` // computed: Name split on " // ", first part
@@ -73,6 +74,20 @@ func run() error {
 	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (enables D1 population)")
 	vectorizeIndex := flag.String("vectorize-index", "", "Vectorize index name (enables Vectorize population)")
 	flag.Parse()
+
+	// Validate Cloudflare credentials early — don't download data we can't store.
+	if *d1DatabaseID != "" || *vectorizeIndex != "" {
+		var missing []string
+		if *cfAccountID == "" {
+			missing = append(missing, "--cf-account-id / CLOUDFLARE_ACCOUNT_ID")
+		}
+		if *cfAPIToken == "" {
+			missing = append(missing, "--cf-api-token / CLOUDFLARE_API_TOKEN")
+		}
+		if len(missing) > 0 {
+			return fmt.Errorf("Cloudflare output requested but missing: %s", strings.Join(missing, ", "))
+		}
+	}
 
 	fmt.Println("Fetching Scryfall bulk data index...")
 	downloadURL, err := getDefaultCardsURL()
@@ -109,10 +124,7 @@ func run() error {
 	})
 
 	// ── Cloudflare population (D1 + Vectorize) ──────────────
-	needsD1 := *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != ""
-	needsVectorize := *vectorizeIndex != "" && *cfAccountID != "" && *cfAPIToken != ""
-
-	if needsD1 {
+	if *d1DatabaseID != "" {
 		fmt.Println("\nPopulating D1 tables...")
 		sql := buildCardImportSQL(cards)
 		fmt.Printf("Generated %.1f MB of SQL (%d cards)\n", float64(len(sql))/1048576, len(cards))
@@ -122,7 +134,7 @@ func run() error {
 		fmt.Println("D1 population complete")
 	}
 
-	if needsVectorize {
+	if *vectorizeIndex != "" {
 		// Only embed default printings — one vector per card name.
 		var defaults []ScryfallCard
 		for _, c := range cards {

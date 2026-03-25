@@ -59,9 +59,12 @@ func TestBuildCardImportSQL(t *testing.T) {
 		t.Error("SQL should contain card name Lightning Bolt")
 	}
 
-	// Should contain is_default in INSERT
+	// Should contain is_default and produced_mana in INSERT
 	if !strings.Contains(sql, "is_default") {
 		t.Error("SQL should contain is_default column")
+	}
+	if !strings.Contains(sql, "produced_mana") {
+		t.Error("SQL should contain produced_mana column")
 	}
 
 	// Both cards are default, so FTS5 INSERTs for both
@@ -78,6 +81,47 @@ func TestBuildCardImportSQL(t *testing.T) {
 	// JSON arrays should be present for colors/legalities
 	if !strings.Contains(sql, `["B"]`) {
 		t.Error("SQL should contain JSON array for colors")
+	}
+
+	// Cards without produced_mana should default to empty JSON array
+	if strings.Count(sql, "'[]'") < 2 {
+		t.Error("SQL should contain empty JSON arrays for cards without produced_mana")
+	}
+}
+
+func TestBuildCardImportSQL_ProducedMana(t *testing.T) {
+	cards := []ScryfallCard{
+		{
+			ArenaID:      1,
+			OracleID:     "land-1",
+			Name:         "Sunpetal Grove",
+			TypeLine:     "Land",
+			Rarity:       "rare",
+			Set:          "DSK",
+			ProducedMana: []string{"G", "W"},
+			IsDefault:    true,
+		},
+		{
+			ArenaID:      2,
+			OracleID:     "land-2",
+			Name:         "Forest",
+			TypeLine:     "Basic Land — Forest",
+			Rarity:       "common",
+			Set:          "DSK",
+			ProducedMana: []string{"G"},
+			IsDefault:    true,
+		},
+	}
+
+	sql := buildCardImportSQL(cards)
+
+	// Dual land should have produced_mana with both colors
+	if !strings.Contains(sql, `["G","W"]`) {
+		t.Error("SQL should contain produced_mana JSON for dual land")
+	}
+	// Basic land should have single-color produced_mana
+	if !strings.Contains(sql, `["G"]`) {
+		t.Error("SQL should contain produced_mana JSON for basic land")
 	}
 }
 
@@ -115,12 +159,11 @@ func TestBuildCardImportSQL_NonDefaultSkipsFTS(t *testing.T) {
 		t.Errorf("expected 1 mtga_cards_fts INSERT (default only), got %d", ftsInserts)
 	}
 
-	// Non-default has is_default 0
-	if !strings.Contains(sql, ", 0);") {
+	// Non-default has is_default 0, default has is_default 1
+	if !strings.Contains(sql, ", 0, '[]');") {
 		t.Error("SQL should contain is_default = 0 for non-default card")
 	}
-	// Default has is_default 1
-	if !strings.Contains(sql, ", 1);") {
+	if !strings.Contains(sql, ", 1, '[]');") {
 		t.Error("SQL should contain is_default = 1 for default card")
 	}
 }
