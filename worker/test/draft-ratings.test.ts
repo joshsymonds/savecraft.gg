@@ -223,16 +223,16 @@ describe("draft_ratings native module", () => {
   async function seedContextualData(): Promise<void> {
     await seedDraftData();
     await env.DB.batch([
-      // Card metadata in mtga_cards (need front_face_name, cmc, colors for pool analysis)
+      // Card metadata in mtga_cards (need front_face_name, cmc, colors, type_line for pool analysis)
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(1, "oracle-1", "Gloomlake Verge", "Gloomlake Verge", "{U}{B}", 2, '["U","B"]', 1),
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(1, "oracle-1", "Gloomlake Verge", "Gloomlake Verge", "{U}{B}", 2, "Creature — Horror", '["U","B"]', 1),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(2, "oracle-2", "Blazing Bolt", "Blazing Bolt", "{R}", 1, '["R"]', 1),
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(2, "oracle-2", "Blazing Bolt", "Blazing Bolt", "{R}", 1, "Instant", '["R"]', 1),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(3, "oracle-3", "Forest Bear", "Forest Bear", "{G}{G}", 2, '["G"]', 1),
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(3, "oracle-3", "Forest Bear", "Forest Bear", "{G}{G}", 2, "Creature — Bear", '["G"]', 1),
 
       // Synergy data (both directions)
       env.DB.prepare(

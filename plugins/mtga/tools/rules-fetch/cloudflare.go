@@ -92,11 +92,6 @@ func populateVectorize(accountID, indexName, apiToken string, rules []Rule, card
 	fmt.Printf("Embedding %d entries...\n", len(entries))
 
 	// Build batches.
-	type batchResult struct {
-		index   int
-		vectors []cfapi.VectorizeVector
-	}
-
 	var batches [][]entry
 	for i := 0; i < len(entries); i += embeddingBatchSize {
 		end := min(i+embeddingBatchSize, len(entries))
@@ -110,7 +105,7 @@ func populateVectorize(accountID, indexName, apiToken string, rules []Rule, card
 	var firstErr error
 	var wg sync.WaitGroup
 	completed := 0
-	milestones := milestoneSet(len(batches))
+	milestones := cfapi.MilestoneSet(len(batches), 1)
 
 	for batchIdx, batch := range batches {
 		wg.Add(1)
@@ -186,7 +181,7 @@ func populateVectorize(accountID, indexName, apiToken string, rules []Rule, card
 
 	fmt.Printf("Upserting %d vectors to Vectorize...\n", len(allVectors))
 	upsertBatches := (len(allVectors) + vectorizeBatchSize - 1) / vectorizeBatchSize
-	upsertMilestones := milestoneSet(upsertBatches)
+	upsertMilestones := cfapi.MilestoneSet(upsertBatches, 1)
 	upsertCount := 0
 	for i := 0; i < len(allVectors); i += vectorizeBatchSize {
 		end := min(i+vectorizeBatchSize, len(allVectors))
@@ -201,18 +196,6 @@ func populateVectorize(accountID, indexName, apiToken string, rules []Rule, card
 	}
 
 	return nil
-}
-
-// milestoneSet returns a set of batch indices (1-indexed) at which to print
-// progress: 25%, 50%, 75%, and 100% of total.
-func milestoneSet(total int) map[int]bool {
-	m := make(map[int]bool, 4)
-	for _, pct := range []int{25, 50, 75, 100} {
-		idx := total * pct / 100
-		idx = max(idx, 1)
-		m[idx] = true
-	}
-	return m
 }
 
 func joinShort(parts []string, sep string) string {

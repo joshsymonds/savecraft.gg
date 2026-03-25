@@ -87,7 +87,7 @@ func populateCardVectorize(accountID, indexName, apiToken string, cards []Scryfa
 	batchResults := make([][]cfapi.VectorizeVector, numBatches)
 
 	// Milestone progress: report at 25%, 50%, 75%, 100%.
-	embeddingMilestones := milestoneSet(len(cards), embeddingBatchSize)
+	embeddingMilestones := cfapi.MilestoneSet(len(cards), embeddingBatchSize)
 
 	sem := make(chan struct{}, embeddingConcurrency)
 	var mu sync.Mutex
@@ -100,10 +100,10 @@ func populateCardVectorize(accountID, indexName, apiToken string, cards []Scryfa
 		batch := cards[i:end]
 
 		wg.Add(1)
-		sem <- struct{}{} // acquire semaphore slot
-
 		go func(batchIdx, end int, batch []ScryfallCard) {
 			defer wg.Done()
+
+			sem <- struct{}{}        // acquire semaphore slot
 			defer func() { <-sem }() // release semaphore slot
 
 			// Skip work if a previous batch already failed.
@@ -171,7 +171,7 @@ func populateCardVectorize(accountID, indexName, apiToken string, cards []Scryfa
 
 	// Upsert in batches
 	fmt.Printf("Upserting %d card vectors to Vectorize...\n", len(allVectors))
-	upsertMilestones := milestoneSet(len(allVectors), vectorizeBatchSize)
+	upsertMilestones := cfapi.MilestoneSet(len(allVectors), vectorizeBatchSize)
 	for i := 0; i < len(allVectors); i += vectorizeBatchSize {
 		end := min(i+vectorizeBatchSize, len(allVectors))
 		if err := cfapi.UpsertVectors(accountID, indexName, apiToken, allVectors[i:end]); err != nil {
@@ -183,19 +183,4 @@ func populateCardVectorize(accountID, indexName, apiToken string, cards []Scryfa
 	}
 
 	return nil
-}
-
-// milestoneSet returns a set of "end" values at which progress should be printed.
-// It computes the batch-end values closest to 25%, 50%, 75%, and 100% of total,
-// given a fixed batchSize.
-func milestoneSet(total, batchSize int) map[int]bool {
-	milestones := map[int]bool{}
-	for _, pct := range []int{25, 50, 75, 100} {
-		target := total * pct / 100
-		// Round up to next batch boundary.
-		batchEnd := ((target + batchSize - 1) / batchSize) * batchSize
-		batchEnd = min(batchEnd, total)
-		milestones[batchEnd] = true
-	}
-	return milestones
 }

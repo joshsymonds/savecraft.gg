@@ -80,7 +80,7 @@ func (a *cardAccum) stats() setCardStats {
 		if a.takenCount > 1 {
 			// Population stddev: σ = sqrt(E[X²] - (E[X])²)
 			meanSq := a.takenAtSumSq / float64(a.takenCount)
-			s.ATAStddev = math.Sqrt(meanSq - s.ATA*s.ATA)
+			s.ATAStddev = math.Sqrt(max(0, meanSq-s.ATA*s.ATA))
 		}
 	}
 	return s

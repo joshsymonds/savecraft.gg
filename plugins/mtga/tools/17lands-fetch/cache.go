@@ -80,7 +80,9 @@ func fetchETag(url string) (string, error) {
 }
 
 // downloadToFile performs a GET request and writes the raw response body
-// to the specified file path.
+// to the specified file path. The write is atomic: data is written to a
+// temporary file first, then renamed into place on success. On error,
+// the temporary file is cleaned up.
 func downloadToFile(url string, path string) error {
 	client := &http.Client{Timeout: 10 * time.Minute}
 	req, err := http.NewRequest("GET", url, nil)
@@ -99,15 +101,26 @@ func downloadToFile(url string, path string) error {
 		return fmt.Errorf("HTTP %d for %s", resp.StatusCode, url)
 	}
 
-	f, err := os.Create(path)
+	tmpPath := path + ".tmp"
+	f, err := os.Create(tmpPath)
 	if err != nil {
-		return fmt.Errorf("creating cache file: %w", err)
+		return fmt.Errorf("creating temp cache file: %w", err)
 	}
-	defer f.Close()
 
 	if _, err := io.Copy(f, resp.Body); err != nil {
-		os.Remove(path) // Clean up partial file.
+		f.Close()
+		os.Remove(tmpPath)
 		return fmt.Errorf("writing cache file: %w", err)
+	}
+
+	if err := f.Close(); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("closing temp cache file: %w", err)
+	}
+
+	if err := os.Rename(tmpPath, path); err != nil {
+		os.Remove(tmpPath)
+		return fmt.Errorf("renaming temp cache file: %w", err)
 	}
 
 	return nil
