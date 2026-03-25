@@ -7,6 +7,8 @@ import { registerNativeModule } from "../src/reference/registry";
 
 import { cleanAll } from "./helpers";
 
+type SourceModel = "current" | "splash" | "pivot";
+
 // ── Shared seed data ─────────────────────────────────────────
 
 async function seedDraftData(): Promise<void> {
@@ -298,6 +300,9 @@ describe("draft_advisor native module", () => {
             contribution: number;
             max_pips: number;
             estimated_sources: number;
+            potential_sources: number;
+            effective_sources: number;
+            source_model: SourceModel;
           };
           signal: {
             raw: number;
@@ -559,6 +564,597 @@ describe("draft_advisor native module", () => {
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
     expect(result.content).toContain("Set code is required");
+  });
+
+  // ── Liliana vs Elenda regression test (the scenario that exposed the bug) ──
+
+  it("ranks Liliana above Elenda at P2P1 with a WU pool", async () => {
+    // Exact scenario from FDN draft: WU pool at pick 13, pack contains Liliana (BB)
+    // and Elenda (WB). Before the pivot-potential fix, Elenda ranked #1 because
+    // Liliana's double-black castability was ~0. Reddit unanimously said Liliana.
+    await env.DB.batch([
+      // Set stats
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_set_stats (set_code, format, total_games, card_count, avg_gihwr) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "PremierDraft", 500_000, 20, 0.515),
+
+      // Pool cards (WU-heavy)
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        100,
+        "o-fd",
+        "Fleeting Distraction",
+        "Fleeting Distraction",
+        "{U}",
+        1,
+        "Instant",
+        '["U"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        101,
+        "o-hh",
+        "Helpful Hunter",
+        "Helpful Hunter",
+        "{1}{W}",
+        2,
+        "Creature — Cat",
+        '["W"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        102,
+        "o-sl",
+        "Strix Lookout",
+        "Strix Lookout",
+        "{U}",
+        1,
+        "Creature — Bird",
+        '["U"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(103, "o-tt", "Think Twice", "Think Twice", "{1}{U}", 2, "Instant", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(104, "o-ft", "Faebloom Trick", "Faebloom Trick", "{1}{U}", 2, "Instant", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(105, "o-ref", "Refute", "Refute", "{1}{U}{U}", 3, "Instant", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        106,
+        "o-ld",
+        "Lightshell Duo",
+        "Lightshell Duo",
+        "{3}{U}",
+        4,
+        "Creature — Otter",
+        '["U"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        107,
+        "o-ssz",
+        "Soul-Shackled Zombie",
+        "Soul-Shackled Zombie",
+        "{1}{B}",
+        2,
+        "Creature — Zombie",
+        '["B"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(108, "o-lr", "Luminous Rebuke", "Luminous Rebuke", "{4}{W}", 5, "Instant", '["W"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default, produced_mana) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        109,
+        "o-ew",
+        "Evolving Wilds",
+        "Evolving Wilds",
+        "",
+        0,
+        "Land",
+        "[]",
+        1,
+        '["W","U","B","R","G"]',
+      ),
+
+      // Pack cards
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        110,
+        "o-lili",
+        "Liliana, Dreadhorde General",
+        "Liliana, Dreadhorde General",
+        "{4}{B}{B}",
+        6,
+        "Legendary Planeswalker — Liliana",
+        '["B"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        111,
+        "o-elenda",
+        "Elenda, Saint of Dusk",
+        "Elenda, Saint of Dusk",
+        "{2}{W}{B}",
+        4,
+        "Legendary Creature — Vampire Knight",
+        '["W","B"]',
+        1,
+      ),
+
+      // Draft ratings — using realistic GIH WR from 17lands
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Liliana, Dreadhorde General",
+        10_000,
+        12_000,
+        3000,
+        0.642,
+        0.66,
+        0.62,
+        0.5,
+        0.12,
+        1.2,
+        1.24,
+        0.5,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Elenda, Saint of Dusk",
+        8000,
+        10_000,
+        2000,
+        0.583,
+        0.6,
+        0.57,
+        0.5,
+        0.06,
+        2,
+        2.07,
+        0.8,
+      ),
+      // Minimal ratings for pool cards (needed for signal axis)
+      ...(
+        [
+          "Fleeting Distraction",
+          "Helpful Hunter",
+          "Strix Lookout",
+          "Think Twice",
+          "Faebloom Trick",
+          "Refute",
+          "Lightshell Duo",
+          "Soul-Shackled Zombie",
+          "Luminous Rebuke",
+          "Evolving Wilds",
+        ] as const
+      ).map((name, index) =>
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind("FDN", name, 5000, 7000, 2000, 0.51, 0.52, 0.5, 0.49, 0.01, 6 + index, 7 + index, 2),
+      ),
+    ]);
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "FDN",
+        pool: [
+          "Fleeting Distraction",
+          "Helpful Hunter",
+          "Helpful Hunter",
+          "Strix Lookout",
+          "Think Twice",
+          "Faebloom Trick",
+          "Refute",
+          "Lightshell Duo",
+          "Lightshell Duo",
+          "Soul-Shackled Zombie",
+          "Luminous Rebuke",
+          "Evolving Wilds",
+        ],
+        pack: ["Liliana, Dreadhorde General", "Elenda, Saint of Dusk"],
+        pick_number: 13,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const data = result.data as {
+      recommendations: {
+        card: string;
+        composite_score: number;
+        rank: number;
+        axes: {
+          castability: {
+            raw: number;
+            estimated_sources: number;
+            potential_sources: number;
+            effective_sources: number;
+            source_model: SourceModel;
+          };
+        };
+      }[];
+    };
+
+    const lili = data.recommendations.find((r) => r.card === "Liliana, Dreadhorde General");
+    const elenda = data.recommendations.find((r) => r.card === "Elenda, Saint of Dusk");
+    expect(lili).toBeDefined();
+    expect(elenda).toBeDefined();
+
+    // THE FIX: Liliana must rank above Elenda. Before pivot-potential, Liliana's
+    // BB castability was ~0.001 which cratered her composite via WPM. With pivot-
+    // potential, her effective sources reflect acquirable black sources over 29
+    // remaining picks, giving reasonable castability that lets her 64.2% GIH WR
+    // express itself.
+    expect(lili!.rank).toBe(1);
+    expect(lili!.composite_score).toBeGreaterThan(elenda!.composite_score);
+
+    // Liliana's castability should be modeled as a pivot (BB, zero current black sources)
+    expect(lili!.axes.castability.source_model).toBe("pivot");
+    expect(lili!.axes.castability.raw).toBeGreaterThanOrEqual(0.5);
+
+    // Elenda's castability should be modeled as a splash (single B pip)
+    expect(elenda!.axes.castability.source_model).toBe("splash");
+  });
+
+  // ── Pivot-potential castability tests ─────────────────────
+
+  it("scores double-pip off-color card as pivot at mid-draft", async () => {
+    await seedContextualData();
+    // Seed a BB card (like Liliana) — double black pip at CMC 6
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        10,
+        "oracle-lili",
+        "Dark Bomb",
+        "Dark Bomb",
+        "{4}{B}{B}",
+        6,
+        "Creature — Zombie",
+        '["B"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Dark Bomb", 10_000, 12_000, 2000, 0.64, 0.66, 0.62, 0.5, 0.1, 1.5, 2),
+    ]);
+
+    // Pool is WU (no black pips) at pick 13
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Blazing Bolt", "Blazing Bolt", "Forest Bear"], // R and G pips, no B
+        pack: ["Dark Bomb"],
+        pick_number: 13,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const data = result.data as {
+      recommendations: {
+        card: string;
+        axes: {
+          castability: {
+            raw: number;
+            estimated_sources: number;
+            potential_sources: number;
+            effective_sources: number;
+            source_model: SourceModel;
+          };
+        };
+      }[];
+    };
+
+    const rec = data.recommendations.find((r) => r.card === "Dark Bomb");
+    expect(rec).toBeDefined();
+    // Epic success criterion: BB at pick 13 with no black sources → castability ≥ 0.5
+    expect(rec!.axes.castability.raw).toBeGreaterThanOrEqual(0.5);
+    expect(rec!.axes.castability.estimated_sources).toBe(0);
+    expect(rec!.axes.castability.potential_sources).toBeGreaterThan(0);
+    expect(rec!.axes.castability.source_model).toBe("pivot");
+  });
+
+  it("scores single-pip off-color card as splash at mid-draft", async () => {
+    await seedContextualData();
+    // Seed a 1B card (like Elenda) — single black pip at CMC 4
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        11,
+        "oracle-elenda",
+        "Splash Bomb",
+        "Splash Bomb",
+        "{3}{B}",
+        4,
+        "Creature — Vampire",
+        '["B"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Splash Bomb", 8000, 10_000, 2000, 0.583, 0.6, 0.56, 0.5, 0.06, 2.5, 3),
+    ]);
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Blazing Bolt", "Blazing Bolt", "Forest Bear"],
+        pack: ["Splash Bomb"],
+        pick_number: 13,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const data = result.data as {
+      recommendations: {
+        card: string;
+        axes: {
+          castability: {
+            raw: number;
+            source_model: SourceModel;
+          };
+        };
+      }[];
+    };
+
+    const rec = data.recommendations.find((r) => r.card === "Splash Bomb");
+    expect(rec).toBeDefined();
+    // Epic success criterion: 1B at pick 13 → castability ≥ 0.6
+    expect(rec!.axes.castability.raw).toBeGreaterThanOrEqual(0.6);
+    expect(rec!.axes.castability.source_model).toBe("splash");
+  });
+
+  it("gives near-zero castability to double-pip off-color card late in draft", async () => {
+    await seedContextualData();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        12,
+        "oracle-late",
+        "Late Bomb",
+        "Late Bomb",
+        "{4}{B}{B}",
+        6,
+        "Creature — Demon",
+        '["B"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Late Bomb", 5000, 7000, 2000, 0.6, 0.62, 0.58, 0.5, 0.08, 2, 2.5),
+    ]);
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Blazing Bolt", "Blazing Bolt", "Forest Bear"],
+        pack: ["Late Bomb"],
+        pick_number: 38,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const data = result.data as {
+      recommendations: {
+        card: string;
+        axes: { castability: { raw: number } };
+      }[];
+    };
+
+    const rec = data.recommendations.find((r) => r.card === "Late Bomb");
+    expect(rec).toBeDefined();
+    // Epic success criterion: BB at pick 38 → castability < 0.1
+    expect(rec!.axes.castability.raw).toBeLessThan(0.1);
+  });
+
+  it("uses 'current' source model for on-color cards", async () => {
+    await seedContextualData();
+
+    // Gloomlake Verge is {U}{B} — pool is full of UB cards, so it's on-color.
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge", "Gloomlake Verge", "Gloomlake Verge"],
+        pack: ["Gloomlake Verge"],
+        pick_number: 13,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const data = result.data as {
+      recommendations: {
+        card: string;
+        axes: {
+          castability: {
+            raw: number;
+            source_model: SourceModel;
+          };
+        };
+      }[];
+    };
+
+    const rec = data.recommendations.find((r) => r.card === "Gloomlake Verge");
+    expect(rec).toBeDefined();
+    // UB card in a UB pool — current sources are high, so source_model should be "current"
+    expect(rec!.axes.castability.source_model).toBe("current");
+  });
+
+  it("counts Evolving Wilds produced_mana as sources", async () => {
+    await seedContextualData();
+    // Add Evolving Wilds with produced_mana for all 5 colors
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default, produced_mana) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        13,
+        "oracle-ew",
+        "Evolving Wilds",
+        "Evolving Wilds",
+        "",
+        0,
+        "Land",
+        "[]",
+        1,
+        '["W","U","B","R","G"]',
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Evolving Wilds", 12_000, 15_000, 3000, 0.54, 0.55, 0.53, 0.49, 0.03, 6, 7),
+      // A single-pip black card to test castability against
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        14,
+        "oracle-sb2",
+        "Black Splash",
+        "Black Splash",
+        "{3}{B}",
+        4,
+        "Creature — Horror",
+        '["B"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Black Splash", 8000, 10_000, 2000, 0.56, 0.58, 0.54, 0.5, 0.04, 5, 6),
+    ]);
+
+    // Pool: UB cards + Evolving Wilds. Evolving Wilds should contribute black source.
+    const withEW = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge", "Gloomlake Verge", "Evolving Wilds"],
+        pack: ["Black Splash"],
+        pick_number: 20,
+      },
+      env,
+    );
+
+    const withoutEW = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge", "Gloomlake Verge"],
+        pack: ["Black Splash"],
+        pick_number: 20,
+      },
+      env,
+    );
+
+    expect(withEW.type).toBe("structured");
+    expect(withoutEW.type).toBe("structured");
+    if (withEW.type !== "structured" || withoutEW.type !== "structured")
+      throw new Error("unexpected type");
+
+    const ewData = withEW.data as {
+      recommendations: {
+        card: string;
+        axes: { castability: { estimated_sources: number } };
+      }[];
+    };
+    const noEwData = withoutEW.data as {
+      recommendations: {
+        card: string;
+        axes: { castability: { estimated_sources: number } };
+      }[];
+    };
+
+    const ewRec = ewData.recommendations.find((r) => r.card === "Black Splash");
+    const noEwRec = noEwData.recommendations.find((r) => r.card === "Black Splash");
+    expect(ewRec).toBeDefined();
+    expect(noEwRec).toBeDefined();
+
+    // With Evolving Wilds, estimated (current) sources for black should be higher
+    expect(ewRec!.axes.castability.estimated_sources).toBeGreaterThan(
+      noEwRec!.axes.castability.estimated_sources,
+    );
+  });
+
+  it("potential sources at pick 1 give high castability for off-color cards", async () => {
+    await seedContextualData();
+    // At pick 1, remainingPicks = 41, so even BB cards should get reasonable castability
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        15,
+        "oracle-p1",
+        "Pick One Bomb",
+        "Pick One Bomb",
+        "{4}{B}{B}",
+        6,
+        "Creature — Demon",
+        '["B"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Pick One Bomb", 5000, 7000, 2000, 0.62, 0.64, 0.6, 0.5, 0.08, 1.5, 2),
+    ]);
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Forest Bear"],
+        pack: ["Pick One Bomb", "Blazing Bolt"],
+        pick_number: 1,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const data = result.data as {
+      recommendations: {
+        card: string;
+        axes: { castability: { raw: number; source_model: SourceModel } };
+      }[];
+    };
+
+    const rec = data.recommendations.find((r) => r.card === "Pick One Bomb");
+    expect(rec).toBeDefined();
+    // At pick 1 with 41 remaining picks, pivot model should give high castability
+    // (replaces the old pick 1-5 dampening)
+    expect(rec!.axes.castability.raw).toBeGreaterThanOrEqual(0.5);
+    expect(rec!.axes.castability.source_model).toBe("pivot");
   });
 
   // ── Batch review tests ───────────────────────────────────

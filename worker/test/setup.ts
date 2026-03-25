@@ -177,7 +177,8 @@ const statements = [
     set_code TEXT NOT NULL DEFAULT '',
     keywords TEXT NOT NULL DEFAULT '[]',
     is_default INTEGER NOT NULL DEFAULT 0,
-    front_face_name TEXT NOT NULL DEFAULT ''
+    front_face_name TEXT NOT NULL DEFAULT '',
+    produced_mana TEXT NOT NULL DEFAULT '[]'
   )`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_name ON mtga_cards(name)`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_set ON mtga_cards(set_code)`,
@@ -285,6 +286,12 @@ const statements = [
     center REAL NOT NULL,
     steepness REAL NOT NULL,
     PRIMARY KEY (set_code, axis)
+  )`,
+  // Set metadata (migration 0025)
+  `CREATE TABLE IF NOT EXISTS mtga_set_metadata (
+    set_code TEXT PRIMARY KEY,
+    asfan REAL NOT NULL DEFAULT 0.4,
+    pack_size INTEGER NOT NULL DEFAULT 14
   )`,
 ];
 

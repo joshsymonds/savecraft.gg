@@ -49,6 +49,13 @@ interface CardMetaRow {
   mana_cost: string;
   colors: string;
   type_line: string;
+  produced_mana: string;
+}
+
+interface SetMetadataRow {
+  set_code: string;
+  asfan: number;
+  pack_size: number;
 }
 
 interface SynergyDbRow {
@@ -103,7 +110,13 @@ interface PickRecommendation {
       pool_at_cmc: number;
       ideal_at_cmc: number;
     };
-    castability: AxisScore & { max_pips: number; estimated_sources: number };
+    castability: AxisScore & {
+      max_pips: number;
+      estimated_sources: number;
+      potential_sources: number;
+      effective_sources: number;
+      source_model: "current" | "splash" | "pivot";
+    };
     signal: AxisScore & { ata: number; current_pick: number };
   };
   waspas: { wsm: number; wpm: number; lambda: number };
@@ -124,6 +137,10 @@ interface PreloadedSetData {
   allColorStats: Map<string, Map<string, RatingRow>>;
   /** Shared metadata cache (grows during batch review). */
   metaCache: Map<string, CardMetaRow>;
+  /** Fixing land density per pack (from set_metadata, default 0.4). */
+  asfan: number;
+  /** Cards per booster pack (from set_metadata, default 14). */
+  packSize: number;
 }
 
 // ── Karsten castability table ────────────────────────────────
@@ -204,7 +221,53 @@ function estimateSources(poolMeta: CardMetaRow[]): Map<string, number> {
   for (const [color, count] of totalPips) {
     sources.set(color, Math.round((17 * count) / pipSum));
   }
+
+  // Fixing lands (e.g. Evolving Wilds) have no colored pips in their mana cost
+  // but tap for one or more colors. Each such card is +1 source for every color
+  // it produces, including colors already in the pip distribution — a UB deck
+  // with Evolving Wilds genuinely has one more U and B source than without it.
+  for (const card of poolMeta) {
+    if (!card.produced_mana || card.produced_mana === "[]") continue;
+    try {
+      const produced = JSON.parse(card.produced_mana) as string[];
+      for (const color of produced) {
+        if (["W", "U", "B", "R", "G"].includes(color)) {
+          sources.set(color, (sources.get(color) ?? 0) + 1);
+        }
+      }
+    } catch {
+      // Malformed produced_mana — skip.
+    }
+  }
+
   return sources;
+}
+
+// ── Pivot-potential source estimation ─────────────────────────
+
+const DEFAULT_ASFAN = 0.4;
+const DEFAULT_PACK_SIZE = 14;
+
+/**
+ * Estimate acquirable sources for an off-color card based on remaining picks.
+ *
+ * Two categorically separate curves:
+ * - Splash (1 pip): models acquiring fixing lands. Rate is ASFAN-dependent
+ *   because fixing density varies enormously by format (0.05–1.1 ASFAN).
+ * - Pivot (2+ pips): models drafting on-color cards in a new color. Rate is
+ *   ASFAN-independent because on-color cards exist at ~20% per color across
+ *   all formats — you're picking up playable cards and basics, not just duals.
+ */
+function estimatePotentialSources(
+  remainingPicks: number,
+  pips: number,
+  asfan: number,
+): number {
+  if (pips <= 1) {
+    return Math.min(4, remainingPicks * asfan * 0.35);
+  }
+  const pivotViability = sigmoid(remainingPicks, 18, 0.25);
+  return Math.min(7, remainingPicks * 0.22 * pivotViability);
 }
 
 interface ArchetypeCandidate {
@@ -333,6 +396,7 @@ function placeholders(count: number, startIdx: number): string {
 function computeSignalFromHistory(
   pickHistory: PickHistoryEntry[],
   ataByCard: Map<string, { ata: number; stddev: number }>,
+  packSize: number,
 ): Map<string, number> {
   const openness = new Map<string, number>();
   const learningRate = 0.15;
@@ -341,8 +405,8 @@ function computeSignalFromHistory(
   for (let i = 0; i < pickHistory.length; i++) {
     const entry = pickHistory[i]!;
     const globalPick = i + 1;
-    const packIndex = Math.floor(i / 14);
-    const pickInPack = (i % 14) + 1;
+    const packIndex = Math.floor(i / packSize);
+    const pickInPack = (i % packSize) + 1;
 
     const confidence = Math.exp(-0.5 * ((pickInPack - 8) / 4) ** 2);
     const pMult = packMultiplier[Math.min(packIndex, 2)] ?? 0.8;
@@ -409,7 +473,7 @@ async function preloadSetData(
     metaChunks.push(
       db
         .prepare(
-          `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
+          `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
         )
         .bind(...chunk)
         .all<CardMetaRow>(),
@@ -418,6 +482,7 @@ async function preloadSetData(
 
   const [
     calibrationResult,
+    setMetaResult,
     roleTargetResult,
     curveResult,
     cardRoleResult,
@@ -431,6 +496,12 @@ async function preloadSetData(
       )
       .bind(setCode)
       .all<CalibrationRow>(),
+    db
+      .prepare(
+        `SELECT asfan, pack_size FROM mtga_set_metadata WHERE set_code = ?1`,
+      )
+      .bind(setCode)
+      .all<SetMetadataRow>(),
     db
       .prepare(
         `SELECT color_pair, role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1`,
@@ -496,6 +567,7 @@ async function preloadSetData(
     }
   }
 
+  const setMeta = setMetaResult.results[0];
   return {
     sigmoidParams,
     roleTargets: roleTargetResult.results,
@@ -504,6 +576,8 @@ async function preloadSetData(
     allRatings,
     allColorStats,
     metaCache,
+    asfan: setMeta?.asfan ?? DEFAULT_ASFAN,
+    packSize: setMeta?.pack_size ?? DEFAULT_PACK_SIZE,
   };
 }
 
@@ -540,7 +614,7 @@ async function contextualPick(
         const ph = placeholders(chunk.length, 1);
         const result = await db
           .prepare(
-            `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
+            `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
           )
           .bind(...chunk)
           .all<CardMetaRow>();
@@ -554,7 +628,7 @@ async function contextualPick(
     const metaPlaceholders = placeholders(allNames.length, 1);
     const metaResult = await db
       .prepare(
-        `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line FROM mtga_cards WHERE front_face_name IN (${metaPlaceholders}) AND is_default = 1`,
+        `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM mtga_cards WHERE front_face_name IN (${metaPlaceholders}) AND is_default = 1`,
       )
       .bind(...allNames)
       .all<CardMetaRow>();
@@ -700,6 +774,15 @@ async function contextualPick(
         .bind(setCode)
         .all<CalibrationRow>();
 
+  const setMetaPromise: Promise<{ results: SetMetadataRow[] }> = preloaded
+    ? Promise.resolve({ results: [] as SetMetadataRow[] }) // already loaded
+    : db
+        .prepare(
+          `SELECT asfan, pack_size FROM mtga_set_metadata WHERE set_code = ?1`,
+        )
+        .bind(setCode)
+        .all<SetMetadataRow>();
+
   const allResults = await Promise.all([
     overallPromise,
     ...colorStatsPromises,
@@ -708,6 +791,7 @@ async function contextualPick(
     rolePromise,
     roleTargetPromise,
     calibrationPromise,
+    setMetaPromise,
   ]);
   const overallRatings = allResults[0] as Awaited<typeof overallPromise>;
   const colorStatsResults = allResults.slice(
@@ -720,12 +804,14 @@ async function contextualPick(
     roleResult,
     roleTargetResult,
     calibrationResult,
+    setMetaResult,
   ] = allResults.slice(1 + colorStatsPromises.length) as [
     Awaited<typeof synergyPromise>,
     Awaited<typeof curvePromise>,
     Awaited<typeof rolePromise>,
     Awaited<typeof roleTargetPromise>,
     Awaited<typeof calibrationPromise>,
+    Awaited<typeof setMetaPromise>,
   ];
 
   const overallByName = new Map(
@@ -820,6 +906,16 @@ async function contextualPick(
         return built;
       })();
 
+  // Resolve set metadata (ASFAN + pack size).
+  const asfan = preloaded
+    ? preloaded.asfan
+    : (setMetaResult.results[0]?.asfan ?? DEFAULT_ASFAN);
+  const packSize = preloaded
+    ? preloaded.packSize
+    : (setMetaResult.results[0]?.pack_size ?? DEFAULT_PACK_SIZE);
+  const totalPicks = packSize * 3;
+  const remainingPicks = Math.max(0, totalPicks - pickNumber);
+
   // Compute accumulated signal from pick history (if provided).
   let archetypeOpenness: Map<string, number> | null = null;
   if (pickHistory && pickHistory.length > 0) {
@@ -875,7 +971,7 @@ async function contextualPick(
             const ph = placeholders(chunk.length, 1);
             const extraMeta = await db
               .prepare(
-                `SELECT front_face_name AS name, cmc, mana_cost, colors FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
+                `SELECT front_face_name AS name, cmc, mana_cost, colors, produced_mana FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
               )
               .bind(...chunk)
               .all<CardMetaRow>();
@@ -891,7 +987,7 @@ async function contextualPick(
           const missingPH = placeholders(missingMeta.length, 1);
           const extraMeta = await db
             .prepare(
-              `SELECT front_face_name AS name, cmc, mana_cost, colors FROM mtga_cards WHERE front_face_name IN (${missingPH}) AND is_default = 1`,
+              `SELECT front_face_name AS name, cmc, mana_cost, colors, produced_mana FROM mtga_cards WHERE front_face_name IN (${missingPH}) AND is_default = 1`,
             )
             .bind(...missingMeta)
             .all<CardMetaRow>();
@@ -901,7 +997,7 @@ async function contextualPick(
         }
       }
 
-      const cardOpenness = computeSignalFromHistory(pickHistory, ataByCard);
+      const cardOpenness = computeSignalFromHistory(pickHistory, ataByCard, packSize);
       archetypeOpenness = aggregateArchetypeOpenness(cardOpenness, metaByName);
     }
   }
@@ -1008,29 +1104,35 @@ async function contextualPick(
       }
     }
 
-    // Castability.
+    // Castability — with pivot-potential source estimation.
     const cardPips = countPips(packCard.mana_cost);
     const maxPips = Math.max(0, ...[...cardPips.values()]);
     const castTurn = Math.max(1, Math.min(6, Math.ceil(packCard.cmc)));
     let castabilityScore = 1.0;
-    let castabilitySources = 17;
+    let worstCurrentSources = 17;
+    let worstPotentialSources = 0;
+    let worstEffectiveSources = 17;
+    let worstSourceModel: "current" | "splash" | "pivot" = "current";
     if (maxPips > 0) {
       let worstCastability = 1.0;
       for (const [color, pips] of cardPips) {
-        const sources = estimatedSources.get(color) ?? 0;
-        const prob = castabilityLookup(sources, pips, castTurn);
+        const currentSrc = estimatedSources.get(color) ?? 0;
+        const potentialSrc = estimatePotentialSources(remainingPicks, pips, asfan);
+        const effectiveSrc = Math.max(currentSrc, potentialSrc);
+        const prob = castabilityLookup(effectiveSrc, pips, castTurn);
         if (prob < worstCastability) {
           worstCastability = prob;
-          castabilitySources = sources;
+          worstCurrentSources = currentSrc;
+          worstPotentialSources = potentialSrc;
+          worstEffectiveSources = effectiveSrc;
+          worstSourceModel = currentSrc >= potentialSrc
+            ? "current"
+            : pips <= 1
+              ? "splash"
+              : "pivot";
         }
       }
       castabilityScore = worstCastability;
-    }
-
-    if (pickNumber <= 5) {
-      const dampenFactor = Math.max(0, (6 - pickNumber) / 5);
-      castabilityScore =
-        castabilityScore + (1 - castabilityScore) * dampenFactor;
     }
 
     // Sigmoid normalization.
@@ -1064,7 +1166,7 @@ async function contextualPick(
       roleNorm ** weights.role *
       castNormSafe ** weights.castability;
 
-    const lambda = 0.85 - 0.35 * (pickNumber / 42);
+    const lambda = 0.85 - 0.35 * (pickNumber / totalPicks);
     const compositeScore = lambda * wsm + (1 - lambda) * wpm;
 
     recommendations.push({
@@ -1110,7 +1212,10 @@ async function contextualPick(
           weight: r4(weights.castability),
           contribution: r4(weights.castability * castabilityNorm),
           max_pips: maxPips,
-          estimated_sources: castabilitySources,
+          estimated_sources: worstCurrentSources,
+          potential_sources: r4(worstPotentialSources),
+          effective_sources: r4(worstEffectiveSources),
+          source_model: worstSourceModel,
         },
         signal: {
           raw: r4(signalScore),
@@ -1184,6 +1289,7 @@ async function batchReview(
 
   // Preload all set-level data once.
   const preloaded = await preloadSetData(db, setCode, [...allCardNames]);
+  const batchPackSize = preloaded.packSize;
 
   const results: BatchPickResult[] = [];
   const poolSoFar: string[] = [];
@@ -1197,8 +1303,8 @@ async function batchReview(
     if (!entry.chosen || entry.available.length === 0) continue;
 
     const pickNumber = i + 1;
-    const packNumber = Math.floor(i / 14);
-    const pickInPack = (i % 14) + 1;
+    const packNumber = Math.floor(i / batchPackSize);
+    const pickInPack = (i % batchPackSize) + 1;
 
     // Run contextual evaluation for this pick with pool-so-far and the history up to this point.
     const historyUpToNow = pickHistory.slice(0, i);
@@ -1292,7 +1398,9 @@ export const draftAdvisorModule: NativeReferenceModule = {
     "   - 'optimal' = chosen was rank 1, 'good' = rank 2, 'questionable' = rank 3, 'miss' = rank 4+.",
     "   - For detailed analysis of specific picks, call LIVE PICK mode with pool = in_deck, pack = available, pick_number from the draft_history section data.",
     "",
-    "WEIGHT PROFILES: Early picks (1-5) favor baseline + signal + castability. Mid picks (6-20) balance all axes. Late picks (21-42) favor synergy + role + curve.",
+    "WEIGHT PROFILES: Early picks (1-5) favor baseline + signal + castability. Mid picks (6-20) balance all axes. Late picks (21+) favor synergy + role + curve.",
+    "",
+    "CASTABILITY uses pivot-potential modeling: off-color cards get credit for sources you could acquire over remaining picks. Single-pip cards use splash curve (ASFAN-dependent), double-pip cards use pivot curve (steeper decay). Output includes source_model ('current'/'splash'/'pivot') to explain the estimation basis.",
     "",
     "SPLASH RULES: Only splash single-pip cards at CMC 4+ with 3+ sources. Never splash double-pip. Check castability score — below 0.7 means unreliable.",
     "",
@@ -1314,7 +1422,7 @@ export const draftAdvisorModule: NativeReferenceModule = {
     pick_number: {
       type: "integer",
       description:
-        "Current pick number (1-42). Affects weight profile. Default 10.",
+        "Current pick number (1-based, typically 1 to pack_size*3). Affects weight profile and castability potential. Default 10.",
     },
     pick_history: {
       type: "array",
@@ -1337,16 +1445,17 @@ export const draftAdvisorModule: NativeReferenceModule = {
     const setCode = ((query.set as string) ?? "").toUpperCase();
     const pool = ((query.pool as string[]) ?? []).slice(0, 45);
     const pack = ((query.pack as string[]) ?? []).slice(0, 15);
+    const maxPicks = 60; // generous upper bound; actual totalPicks derived from set_metadata inside contextualPick
     const pickNumber = Math.max(
       1,
       Math.min(
-        42,
+        maxPicks,
         typeof query.pick_number === "number" ? query.pick_number : 10,
       ),
     );
     const pickHistory = Array.isArray(query.pick_history)
       ? (query.pick_history as Array<{ available?: string[]; chosen?: string }>)
-          .slice(0, 42)
+          .slice(0, maxPicks)
           .filter((e) => Array.isArray(e?.available))
           .map((e) => ({
             available: e.available!.slice(0, 15),
