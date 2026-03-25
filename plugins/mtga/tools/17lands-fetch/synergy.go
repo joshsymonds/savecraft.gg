@@ -39,12 +39,28 @@ type roleTargetRow struct {
 	TotalDecks int
 }
 
-// synergyDataResult holds all synergy, curve, role target, and calibration rows for a single set.
+// deckStatsRow represents aggregate deck composition statistics for an archetype.
+// Computed from winning decks to provide empirical deckbuilding targets.
+type deckStatsRow struct {
+	ColorPair        string
+	AvgLands         float64
+	AvgCreatures     float64
+	AvgNoncreatures  float64
+	AvgFixing        float64
+	SplashRate       float64
+	SplashAvgSources float64
+	SplashWinrate    float64
+	NonsplashWinrate float64
+	TotalDecks       int
+}
+
+// synergyDataResult holds all synergy, curve, role target, deck stats, and calibration rows for a single set.
 type synergyDataResult struct {
 	Set         string
 	Synergies   []synergyRow
 	Curves      []curveRow
 	RoleTargets []roleTargetRow
+	DeckStats   []deckStatsRow
 	Calibration []calibrationRow
 }
 
@@ -77,6 +93,26 @@ type roleTargetAccum struct {
 	roleCounts map[string]int // role name → total cards with this role across all winning decks
 }
 
+// deckStatsAccum tracks aggregate deck composition for an archetype.
+// Composition stats (lands, creatures, etc.) are accumulated from winning decks.
+// Win rate stats (splash vs non-splash) use ALL games for accurate rates.
+type deckStatsAccum struct {
+	// Composition stats (winning decks only).
+	winDecks       int
+	totalLands     int
+	totalCreatures int
+	totalNoncreat  int
+	totalFixing    int
+	// Splash composition (winning splash decks only).
+	splashWinDecks   int
+	splashFixingTotal int
+	// Win rate tracking (ALL games, not just wins).
+	splashGames      int
+	splashWins       int
+	nonsplashGames   int
+	nonsplashWins    int
+}
+
 // cmcBucket maps a CMC value to its bucket index (0-7, where 7 = 7+).
 func cmcBucket(cmc float64) int {
 	b := int(cmc)
@@ -98,12 +134,14 @@ var colorPairSet = func() map[string]bool {
 
 // processGameAndSynergyData downloads (or reads from cache) the game_data CSV
 // for a set and performs a single streaming pass to accumulate both per-card
-// statistics (for draft ratings) and pairwise synergy/curve/role-target data.
+// statistics (for draft ratings) and pairwise synergy/curve/role-target/deck-stats data.
 //
 // cardCMC maps card names to their converted mana cost. If nil, curve
 // computation is skipped. cardRoles maps card names to their set of roles
 // (e.g., "creature", "removal"). If nil, role target computation is skipped.
-func processGameAndSynergyData(set string, cacheDir string, cardCMC map[string]float64, cardRoles map[string]map[string]bool) (map[string]map[string]*cardAccum, synergyDataResult, error) {
+// cardLands identifies land cards. cardFixing identifies non-basic lands that
+// produce colored mana (fixing lands). If both nil, deck stats are skipped.
+func processGameAndSynergyData(set string, cacheDir string, cardCMC map[string]float64, cardRoles map[string]map[string]bool, cardLands map[string]bool, cardFixing map[string]bool) (map[string]map[string]*cardAccum, synergyDataResult, error) {
 	url := fmt.Sprintf(sets.GameDataURL, set)
 	filename := fmt.Sprintf("game_data_public.%s.PremierDraft.csv.gz", set)
 	reader, err := cachedDownloadGzip(url, cacheDir, filename)
@@ -112,7 +150,7 @@ func processGameAndSynergyData(set string, cacheDir string, cardCMC map[string]f
 	}
 	defer reader.Close()
 
-	accums, syn, err := processGameAndSynergyCSV(reader, set, cardCMC, cardRoles)
+	accums, syn, err := processGameAndSynergyCSV(reader, set, cardCMC, cardRoles, cardLands, cardFixing)
 	if err != nil {
 		return nil, synergyDataResult{}, err
 	}
@@ -121,15 +159,17 @@ func processGameAndSynergyData(set string, cacheDir string, cardCMC map[string]f
 
 // processGameAndSynergyCSV performs a single streaming pass over a game_data
 // CSV, accumulating both per-card statistics (for draft ratings) and pairwise
-// synergy/curve/role-target data.
+// synergy/curve/role-target/deck-stats data.
 //
 // It parses the superset of columns needed by both card stats and synergy
-// computation: deck_*, opening_hand_*, drawn_*, won, main_colors.
+// computation: deck_*, opening_hand_*, drawn_*, won, main_colors, splash_colors.
 //
 // cardCMC maps card names to their converted mana cost. If nil, curve
 // computation is skipped. cardRoles maps card names to their set of roles
 // (e.g., "creature", "removal"). If nil, role target computation is skipped.
-func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float64, cardRoles map[string]map[string]bool) (map[string]map[string]*cardAccum, synergyDataResult, error) {
+// cardLands identifies land cards. cardFixing identifies non-basic fixing lands.
+// If both nil, deck stats computation is skipped.
+func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float64, cardRoles map[string]map[string]bool, cardLands map[string]bool, cardFixing map[string]bool) (map[string]map[string]*cardAccum, synergyDataResult, error) {
 	csvReader := csv.NewReader(r)
 	header, err := csvReader.Read()
 	if err != nil {
@@ -163,6 +203,7 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 	// Find column indices for metadata.
 	wonCol := indexOf(header, "won")
 	colorsCol := indexOf(header, "main_colors")
+	splashCol := indexOf(header, "splash_colors")
 
 	if wonCol < 0 {
 		return nil, synergyDataResult{}, fmt.Errorf("'won' column not found")
@@ -189,6 +230,7 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 	cardsByColor := make(map[string]map[string]*cardDeckAccum) // colorPair → cardName → accum
 	curves := make(map[string]*curveAccum)                     // color pair → curve accumulator
 	roleTargets := make(map[string]*roleTargetAccum)           // color pair → role target accumulator
+	deckStats := make(map[string]*deckStatsAccum)              // color pair → deck stats accumulator
 
 	// Buffer for cards in deck per row (reused to avoid allocation).
 	inDeck := make([]string, 0, 50)
@@ -307,6 +349,68 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 					if won {
 						p.winsTogether++
 					}
+				}
+			}
+		}
+
+		// ── Deck stats accumulation ──────────────────────────────
+		// Win rate tracking uses ALL games; composition uses winning only.
+		if cardLands != nil && colorPairSet[mainColors] {
+			hasSplash := splashCol >= 0 && splashCol < len(row) && row[splashCol] != ""
+
+			ds, ok := deckStats[mainColors]
+			if !ok {
+				ds = &deckStatsAccum{}
+				deckStats[mainColors] = ds
+			}
+
+			// Win rate tracking (all games).
+			if hasSplash {
+				ds.splashGames++
+				if won {
+					ds.splashWins++
+				}
+			} else {
+				ds.nonsplashGames++
+				if won {
+					ds.nonsplashWins++
+				}
+			}
+
+			// Composition stats (winning decks only).
+			if won {
+				ds.winDecks++
+				var landCount, creatureCount, noncreatureCount, fixingCount int
+				for _, name := range inDeck {
+					cols := cards[name]
+					count := 0
+					if cols.deck > 0 && cols.deck < len(row) {
+						fmt.Sscanf(row[cols.deck], "%d", &count)
+					}
+					if cardLands[name] {
+						landCount += count
+						if cardFixing[name] {
+							fixingCount += count
+						}
+					} else if cardRoles != nil {
+						if roles, ok := cardRoles[name]; ok && roles["creature"] {
+							creatureCount += count
+						} else {
+							noncreatureCount += count
+						}
+					} else {
+						// Without role data, classify by type_line-derived land status only.
+						noncreatureCount += count
+					}
+				}
+				ds.totalLands += landCount
+				ds.totalCreatures += creatureCount
+				ds.totalNoncreat += noncreatureCount
+				ds.totalFixing += fixingCount
+
+				if hasSplash {
+					ds.splashWinDecks++
+					ds.splashFixingTotal += fixingCount
 				}
 			}
 		}
@@ -460,7 +564,36 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 		}
 	}
 
-	syn := synergyDataResult{Set: set, Synergies: synergies, Curves: curveRows, RoleTargets: roleTargetRows}
+	// Compute deck stats averages.
+	var deckStatsRows []deckStatsRow
+	for cp, ds := range deckStats {
+		if ds.winDecks == 0 {
+			continue
+		}
+		row := deckStatsRow{
+			ColorPair:       cp,
+			AvgLands:        round4(float64(ds.totalLands) / float64(ds.winDecks)),
+			AvgCreatures:    round4(float64(ds.totalCreatures) / float64(ds.winDecks)),
+			AvgNoncreatures: round4(float64(ds.totalNoncreat) / float64(ds.winDecks)),
+			AvgFixing:       round4(float64(ds.totalFixing) / float64(ds.winDecks)),
+			TotalDecks:      ds.winDecks,
+		}
+		totalSplashDecks := ds.splashGames
+		totalNonsplashDecks := ds.nonsplashGames
+		if totalSplashDecks > 0 {
+			row.SplashRate = round4(float64(totalSplashDecks) / float64(totalSplashDecks+totalNonsplashDecks))
+			row.SplashWinrate = round4(float64(ds.splashWins) / float64(totalSplashDecks))
+		}
+		if totalNonsplashDecks > 0 {
+			row.NonsplashWinrate = round4(float64(ds.nonsplashWins) / float64(totalNonsplashDecks))
+		}
+		if ds.splashWinDecks > 0 {
+			row.SplashAvgSources = round4(float64(ds.splashFixingTotal) / float64(ds.splashWinDecks))
+		}
+		deckStatsRows = append(deckStatsRows, row)
+	}
+
+	syn := synergyDataResult{Set: set, Synergies: synergies, Curves: curveRows, RoleTargets: roleTargetRows, DeckStats: deckStatsRows}
 	return accums, syn, nil
 }
 
@@ -472,6 +605,7 @@ func buildSynergyImportSQL(results []synergyDataResult) string {
 	b.WriteString("DELETE FROM mtga_draft_synergies;\n")
 	b.WriteString("DELETE FROM mtga_draft_archetype_curves;\n")
 	b.WriteString("DELETE FROM mtga_draft_role_targets;\n")
+	b.WriteString("DELETE FROM mtga_draft_deck_stats;\n")
 	b.WriteString("DELETE FROM mtga_draft_calibration;\n")
 
 	for _, r := range results {
@@ -486,6 +620,10 @@ func buildSynergyImportSQL(results []synergyDataResult) string {
 		for _, rt := range r.RoleTargets {
 			fmt.Fprintf(&b, "INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (%s, %s, %s, %g, %d);\n",
 				q(r.Set), q(rt.ColorPair), q(rt.Role), rt.AvgCount, rt.TotalDecks)
+		}
+		for _, ds := range r.DeckStats {
+			fmt.Fprintf(&b, "INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (%s, %s, %g, %g, %g, %g, %g, %g, %g, %g, %d);\n",
+				q(r.Set), q(ds.ColorPair), ds.AvgLands, ds.AvgCreatures, ds.AvgNoncreatures, ds.AvgFixing, ds.SplashRate, ds.SplashAvgSources, ds.SplashWinrate, ds.NonsplashWinrate, ds.TotalDecks)
 		}
 		for _, cal := range r.Calibration {
 			fmt.Fprintf(&b, "INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (%s, %s, %g, %g);\n",

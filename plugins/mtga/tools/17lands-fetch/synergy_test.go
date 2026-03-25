@@ -49,7 +49,7 @@ func TestProcessGameAndSynergyData_BasicPair(t *testing.T) {
 	r := openTestCSV(t, cacheDir, csv)
 	defer r.Close()
 
-	accums, result, err := processGameAndSynergyCSV(r, "TST", nil, nil)
+	accums, result, err := processGameAndSynergyCSV(r, "TST", nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -96,7 +96,7 @@ func TestProcessGameAndSynergyData_AboveThreshold(t *testing.T) {
 	r := openTestCSV(t, cacheDir, b.String())
 	defer r.Close()
 
-	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestProcessGameAndSynergyData_ThreeCards(t *testing.T) {
 	r := openTestCSV(t, cacheDir, b.String())
 	defer r.Close()
 
-	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestProcessGameAndSynergyData_CurvesNilCMC(t *testing.T) {
 	r := openTestCSV(t, cacheDir, csv)
 	defer r.Close()
 
-	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -207,7 +207,7 @@ func TestProcessGameAndSynergyData_CurvesWithCMC(t *testing.T) {
 		"CardB": 4.0,
 	}
 
-	_, result, err := processGameAndSynergyCSV(r, "TST", cardCMC, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", cardCMC, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -267,7 +267,7 @@ func TestProcessGameAndSynergyData_CurveCMC7Plus(t *testing.T) {
 
 	cardCMC := map[string]float64{"BigCard": 9.0}
 
-	_, result, err := processGameAndSynergyCSV(r, "TST", cardCMC, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", cardCMC, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -410,7 +410,7 @@ func TestProcessGameAndSynergyData_StratifiedDeconfounding(t *testing.T) {
 	r := openTestCSV(t, cacheDir, b.String())
 	defer r.Close()
 
-	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -465,7 +465,7 @@ func TestProcessGameAndSynergyData_RoleTargets(t *testing.T) {
 		"CardB": {"removal": true},
 	}
 
-	_, result, err := processGameAndSynergyCSV(r, "TST", nil, cardRoles)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, cardRoles, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -541,7 +541,7 @@ func TestProcessGameAndSynergyData_RoleTargetsMultiRole(t *testing.T) {
 		"Chupacabra": {"creature": true, "removal": true},
 	}
 
-	_, result, err := processGameAndSynergyCSV(r, "TST", nil, cardRoles)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, cardRoles, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -589,5 +589,226 @@ func TestBuildSynergyImportSQL_RoleTargets(t *testing.T) {
 	}
 	if !strings.Contains(sql, "'removal'") {
 		t.Error("SQL should contain removal role")
+	}
+}
+
+func TestProcessGameAndSynergyData_DeckStats(t *testing.T) {
+	// Scenario: 2 archetypes (WU, UB) with different deck compositions.
+	// WU: 10 winning decks, each with Land1 (land), Land2 (fixing land),
+	//     Creature1 (creature), Spell1 (noncreature nonland).
+	//     5 of the 10 WU decks have splash_colors set (splash decks).
+	// UB: 5 winning decks with Land1, Creature1 only (no fixing, no splash).
+	// Losing decks should NOT contribute.
+	var b strings.Builder
+	b.WriteString("won,main_colors,splash_colors,deck_Land1,deck_Land2,deck_Creature1,deck_Spell1\n")
+	// WU winning, splash (5 decks): 8 lands, 1 fixing, 1 creature, 1 spell
+	for range 5 {
+		b.WriteString("True,WU,R,8,1,1,1\n")
+	}
+	// WU winning, no splash (5 decks): 9 lands, 1 fixing, 1 creature, 1 spell
+	for range 5 {
+		b.WriteString("True,WU,,9,1,1,1\n")
+	}
+	// WU losing (should be excluded from deck stats)
+	for range 10 {
+		b.WriteString("False,WU,,7,1,1,1\n")
+	}
+	// UB winning, no splash (5 decks): 7 lands, no fixing, 1 creature, no spell
+	for range 5 {
+		b.WriteString("True,UB,,7,0,1,0\n")
+	}
+
+	cacheDir := t.TempDir()
+	r := openTestCSV(t, cacheDir, b.String())
+	defer r.Close()
+
+	cardLands := map[string]bool{"Land1": true, "Land2": true}
+	cardFixing := map[string]bool{"Land2": true}
+	cardRoles := map[string]map[string]bool{
+		"Creature1": {"creature": true},
+	}
+
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, cardRoles, cardLands, cardFixing)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(result.DeckStats) < 2 {
+		t.Fatalf("expected at least 2 deck stat rows, got %d", len(result.DeckStats))
+	}
+
+	// Find WU deck stats.
+	var wu deckStatsRow
+	for _, ds := range result.DeckStats {
+		if ds.ColorPair == "WU" {
+			wu = ds
+			break
+		}
+	}
+	if wu.ColorPair == "" {
+		t.Fatal("WU deck stats not found")
+	}
+	if wu.TotalDecks != 10 {
+		t.Errorf("WU total_decks = %d, want 10", wu.TotalDecks)
+	}
+	// WU avg lands: 5 decks × (8+1)=9 lands + 5 decks × (9+1)=10 lands = 95/10 = 9.5
+	if wu.AvgLands != 9.5 {
+		t.Errorf("WU avg_lands = %.2f, want 9.5", wu.AvgLands)
+	}
+	// WU avg creatures: all 10 decks have 1 creature each = 1.0
+	if wu.AvgCreatures != 1.0 {
+		t.Errorf("WU avg_creatures = %.2f, want 1.0", wu.AvgCreatures)
+	}
+	// WU avg noncreatures: all 10 decks have 1 spell each = 1.0
+	if wu.AvgNoncreatures != 1.0 {
+		t.Errorf("WU avg_noncreatures = %.2f, want 1.0", wu.AvgNoncreatures)
+	}
+	// WU avg fixing: all 10 decks have 1 fixing land each = 1.0
+	if wu.AvgFixing != 1.0 {
+		t.Errorf("WU avg_fixing = %.2f, want 1.0", wu.AvgFixing)
+	}
+	// WU splash rate: 5 splash games / 20 total games = 0.25
+	if wu.SplashRate != 0.25 {
+		t.Errorf("WU splash_rate = %.4f, want 0.25", wu.SplashRate)
+	}
+	// WU splash avg sources (fixing in splash decks): 5 splash decks × 1 fixing = 1.0
+	if wu.SplashAvgSources != 1.0 {
+		t.Errorf("WU splash_avg_sources = %.2f, want 1.0", wu.SplashAvgSources)
+	}
+
+	// Find UB deck stats.
+	var ub deckStatsRow
+	for _, ds := range result.DeckStats {
+		if ds.ColorPair == "UB" {
+			ub = ds
+			break
+		}
+	}
+	if ub.ColorPair == "" {
+		t.Fatal("UB deck stats not found")
+	}
+	if ub.TotalDecks != 5 {
+		t.Errorf("UB total_decks = %d, want 5", ub.TotalDecks)
+	}
+	// UB avg lands: 5 decks × 7 lands = 7.0
+	if ub.AvgLands != 7.0 {
+		t.Errorf("UB avg_lands = %.2f, want 7.0", ub.AvgLands)
+	}
+	// UB avg fixing: 0 (no fixing lands)
+	if ub.AvgFixing != 0.0 {
+		t.Errorf("UB avg_fixing = %.2f, want 0.0", ub.AvgFixing)
+	}
+	// UB splash rate: 0 (no splash decks)
+	if ub.SplashRate != 0.0 {
+		t.Errorf("UB splash_rate = %.2f, want 0.0", ub.SplashRate)
+	}
+}
+
+func TestProcessGameAndSynergyData_DeckStatsNilMaps(t *testing.T) {
+	// When cardLands and cardFixing are nil, deck stats should be skipped.
+	csv := "won,main_colors,deck_CardA\n" +
+		"True,WU,1\n"
+
+	cacheDir := t.TempDir()
+	r := openTestCSV(t, cacheDir, csv)
+	defer r.Close()
+
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(result.DeckStats) != 0 {
+		t.Errorf("expected 0 deck stats with nil maps, got %d", len(result.DeckStats))
+	}
+}
+
+func TestProcessGameAndSynergyData_DeckStatsSplashWinrates(t *testing.T) {
+	// Verify splash vs non-splash win rates are tracked correctly.
+	// We need BOTH winning and losing games to compute win rates.
+	var b strings.Builder
+	b.WriteString("won,main_colors,splash_colors,deck_Land1,deck_Creature1\n")
+	// WU splash wins: 3
+	for range 3 {
+		b.WriteString("True,WU,G,7,1\n")
+	}
+	// WU splash losses: 1
+	b.WriteString("False,WU,G,7,1\n")
+	// WU non-splash wins: 4
+	for range 4 {
+		b.WriteString("True,WU,,7,1\n")
+	}
+	// WU non-splash losses: 2
+	for range 2 {
+		b.WriteString("False,WU,,7,1\n")
+	}
+
+	cacheDir := t.TempDir()
+	r := openTestCSV(t, cacheDir, b.String())
+	defer r.Close()
+
+	cardLands := map[string]bool{"Land1": true}
+	cardFixing := map[string]bool{}
+
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil, cardLands, cardFixing)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var wu deckStatsRow
+	for _, ds := range result.DeckStats {
+		if ds.ColorPair == "WU" {
+			wu = ds
+			break
+		}
+	}
+	if wu.ColorPair == "" {
+		t.Fatal("WU deck stats not found")
+	}
+
+	// Total decks = wins only for composition stats = 7 (3 splash + 4 non-splash wins)
+	// But win rates need ALL games.
+	// Splash: 3 wins / 4 games = 0.75
+	// Non-splash: 4 wins / 6 games ≈ 0.6667
+	if diff := wu.SplashWinrate - 0.75; diff > 0.01 || diff < -0.01 {
+		t.Errorf("WU splash_winrate = %.4f, want ≈0.75", wu.SplashWinrate)
+	}
+	if diff := wu.NonsplashWinrate - 0.6667; diff > 0.01 || diff < -0.01 {
+		t.Errorf("WU nonsplash_winrate = %.4f, want ≈0.6667", wu.NonsplashWinrate)
+	}
+}
+
+func TestBuildSynergyImportSQL_DeckStats(t *testing.T) {
+	result := synergyDataResult{
+		Set: "DSK",
+		DeckStats: []deckStatsRow{
+			{
+				ColorPair:        "WU",
+				AvgLands:         17.2,
+				AvgCreatures:     15.5,
+				AvgNoncreatures:  7.3,
+				AvgFixing:        1.8,
+				SplashRate:       0.35,
+				SplashAvgSources: 2.1,
+				SplashWinrate:    0.52,
+				NonsplashWinrate: 0.55,
+				TotalDecks:       1000,
+			},
+		},
+	}
+
+	sql := buildSynergyImportSQL([]synergyDataResult{result})
+
+	if !strings.Contains(sql, "DELETE FROM mtga_draft_deck_stats;") {
+		t.Error("SQL should contain DELETE for deck stats")
+	}
+
+	dsCount := strings.Count(sql, "INSERT INTO mtga_draft_deck_stats")
+	if dsCount != 1 {
+		t.Errorf("expected 1 deck stats INSERT, got %d", dsCount)
+	}
+
+	if !strings.Contains(sql, "'WU'") {
+		t.Error("SQL should contain color pair WU")
 	}
 }
