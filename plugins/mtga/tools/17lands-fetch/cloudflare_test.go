@@ -18,13 +18,13 @@ func TestBuildDraftRatingsImportSQL(t *testing.T) {
 					Overall: setCardStats{
 						GamesInHand: 15000, GamesPlayed: 20000, GamesNotSeen: 5000,
 						GIHWR: 0.564, OHWR: 0.62, GDWR: 0.54, GNSWR: 0.48, IWD: 0.06,
-						ALSA: 8.5, ATA: 9.2,
+						ALSA: 8.5, ATA: 9.2, ATAStddev: 3.1,
 					},
 					ByColor: map[string]setCardStats{
 						"UB": {
 							GamesInHand: 3000, GamesPlayed: 4000, GamesNotSeen: 1000,
 							GIHWR: 0.59, OHWR: 0.63, GDWR: 0.56, GNSWR: 0.49, IWD: 0.07,
-							ALSA: 7.2, ATA: 8.0,
+							ALSA: 7.2, ATA: 8.0, ATAStddev: 2.8,
 						},
 					},
 				},
@@ -33,7 +33,7 @@ func TestBuildDraftRatingsImportSQL(t *testing.T) {
 					Overall: setCardStats{
 						GamesInHand: 10000, GamesPlayed: 12000, GamesNotSeen: 2000,
 						GIHWR: 0.58, OHWR: 0.60, GDWR: 0.55, GNSWR: 0.50, IWD: 0.05,
-						ALSA: 3.0, ATA: 2.5,
+						ALSA: 3.0, ATA: 2.5, ATAStddev: 1.2,
 					},
 				},
 			},
@@ -83,6 +83,17 @@ func TestBuildDraftRatingsImportSQL(t *testing.T) {
 	// Should contain INSERT into FTS5 for both cards
 	if !strings.Contains(sql, "INSERT INTO mtga_draft_ratings_fts") {
 		t.Error("SQL should contain INSERT INTO mtga_draft_ratings_fts")
+	}
+
+	// Should contain ata_stddev column and values.
+	if !strings.Contains(sql, "ata_stddev") {
+		t.Error("SQL should contain ata_stddev column")
+	}
+	if !strings.Contains(sql, "3.1") {
+		t.Error("SQL should contain Gloomlake Verge ata_stddev value 3.1")
+	}
+	if !strings.Contains(sql, "2.8") {
+		t.Error("SQL should contain UB ata_stddev value 2.8")
 	}
 
 	// Count overall rating INSERTs: 2 cards

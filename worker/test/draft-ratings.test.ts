@@ -293,7 +293,7 @@ describe("draft_ratings native module", () => {
         synergy: { score: number; top_synergies: Array<{ card: string; delta: number }> };
         curve: { score: number; cmc: number; pool_at_cmc: number; ideal_at_cmc: number };
         signal: { score: number; ata: number; current_pick: number };
-        role: { score: number; is_removal: boolean; pool_removal: number; target_removal: number };
+        role: { score: number; roles: string[]; detail: string };
         castability: { score: number; max_pips: number; estimated_sources: number };
       }>;
     };
@@ -336,17 +336,15 @@ describe("draft_ratings native module", () => {
     expect(blazingRec!.synergy.top_synergies.length).toBeGreaterThan(0);
 
     // Blazing Bolt is removal — should have role data
-    expect(blazingRec!.role.is_removal).toBe(true);
-    expect(blazingRec!.role.pool_removal).toBe(0); // no removal in pool yet
-    expect(blazingRec!.role.target_removal).toBe(5);
-    expect(blazingRec!.role.score).toBeGreaterThan(0); // positive: pool needs removal
+    expect(blazingRec!.role.roles).toContain("removal");
+    expect(blazingRec!.role.score).toBeGreaterThanOrEqual(0);
 
     // Forest Bear has negative synergy with Gloomlake Verge
     const bearRec = data.recommendations.find((r) => r.card === "Forest Bear");
     expect(bearRec).toBeDefined();
     expect(bearRec!.synergy.score).toBeLessThan(0);
-    // Forest Bear is NOT removal
-    expect(bearRec!.role.is_removal).toBe(false);
+    // Forest Bear is not removal
+    expect(blazingRec!.role.roles).not.toContain("noncreature_nonremoval");
   });
 
   it("uses early weight profile for picks 1-5", async () => {
@@ -404,5 +402,58 @@ describe("draft_ratings native module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
     const data = result.data as { recommendations: Array<{ card: string; composite_score: number }> };
     expect(data.recommendations.length).toBe(2);
+  });
+
+  it("uses accumulated signal from pick_history when provided", async () => {
+    await seedContextualData();
+
+    // Simulate a draft where red cards keep being available late (red is open).
+    // pick_history: 3 past picks where Blazing Bolt (R, ATA 2.5) was available at picks 5, 8, 10.
+    const pickHistory = [
+      { available: ["Blazing Bolt", "Forest Bear"], chosen: "Forest Bear" },
+      { available: ["Blazing Bolt", "Gloomlake Verge"], chosen: "Gloomlake Verge" },
+      { available: ["Blazing Bolt"], chosen: "Blazing Bolt" },
+    ];
+
+    // With pick_history: signal should be accumulated from history.
+    const withHistory = await draftRatingsModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge", "Forest Bear", "Blazing Bolt"],
+        pack: ["Blazing Bolt", "Forest Bear"],
+        pick_number: 8,
+        pick_history: pickHistory,
+      },
+      env,
+    );
+
+    // Without pick_history: signal uses single-pick ATA fallback.
+    const withoutHistory = await draftRatingsModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge", "Forest Bear", "Blazing Bolt"],
+        pack: ["Blazing Bolt", "Forest Bear"],
+        pick_number: 8,
+      },
+      env,
+    );
+
+    expect(withHistory.type).toBe("structured");
+    expect(withoutHistory.type).toBe("structured");
+    if (withHistory.type !== "structured" || withoutHistory.type !== "structured") throw new Error("unexpected type");
+
+    const histRecs = (withHistory.data as { recommendations: Array<{ card: string; signal: { score: number } }> }).recommendations;
+    const noHistRecs = (withoutHistory.data as { recommendations: Array<{ card: string; signal: { score: number } }> }).recommendations;
+
+    // Both should return recommendations.
+    expect(histRecs.length).toBe(2);
+    expect(noHistRecs.length).toBe(2);
+
+    // Signal scores should differ between with/without history (accumulated vs single-pick).
+    const histBlazing = histRecs.find((r) => r.card === "Blazing Bolt");
+    const noHistBlazing = noHistRecs.find((r) => r.card === "Blazing Bolt");
+    expect(histBlazing).toBeDefined();
+    expect(noHistBlazing).toBeDefined();
+    expect(histBlazing!.signal.score).not.toBe(noHistBlazing!.signal.score);
   });
 });

@@ -31,7 +31,7 @@ func TestProcessSynergyData_BasicPair(t *testing.T) {
 	cacheDir := t.TempDir()
 	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), csv)
 
-	result, err := processSynergyData("TST", cacheDir, nil)
+	result, err := processSynergyData("TST", cacheDir, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -66,7 +66,7 @@ func TestProcessSynergyData_AboveThreshold(t *testing.T) {
 	cacheDir := t.TempDir()
 	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
 
-	result, err := processSynergyData("TST", cacheDir, nil)
+	result, err := processSynergyData("TST", cacheDir, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -123,7 +123,7 @@ func TestProcessSynergyData_ThreeCards(t *testing.T) {
 	cacheDir := t.TempDir()
 	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
 
-	result, err := processSynergyData("TST", cacheDir, nil)
+	result, err := processSynergyData("TST", cacheDir, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -140,7 +140,7 @@ func TestProcessSynergyData_CurvesNilCMC(t *testing.T) {
 	cacheDir := t.TempDir()
 	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), csv)
 
-	result, err := processSynergyData("TST", cacheDir, nil)
+	result, err := processSynergyData("TST", cacheDir, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -174,7 +174,7 @@ func TestProcessSynergyData_CurvesWithCMC(t *testing.T) {
 		"CardB": 4.0,
 	}
 
-	result, err := processSynergyData("TST", cacheDir, cardCMC)
+	result, err := processSynergyData("TST", cacheDir, cardCMC, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -233,7 +233,7 @@ func TestProcessSynergyData_CurveCMC7Plus(t *testing.T) {
 
 	cardCMC := map[string]float64{"BigCard": 9.0}
 
-	result, err := processSynergyData("TST", cacheDir, cardCMC)
+	result, err := processSynergyData("TST", cacheDir, cardCMC, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -375,7 +375,7 @@ func TestProcessSynergyData_StratifiedDeconfounding(t *testing.T) {
 	cacheDir := t.TempDir()
 	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
 
-	result, err := processSynergyData("TST", cacheDir, nil)
+	result, err := processSynergyData("TST", cacheDir, nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -402,5 +402,155 @@ func TestProcessSynergyData_StratifiedDeconfounding(t *testing.T) {
 	// Weighted avg = (0.02*200 + 0.00*50) / 250 = 0.016
 	if found.SynergyDelta > 0.025 || found.SynergyDelta < 0.01 {
 		t.Errorf("synergy_delta = %.4f, want 0.01–0.025 (deconfounded ~0.016)", found.SynergyDelta)
+	}
+}
+
+func TestProcessSynergyData_RoleTargets(t *testing.T) {
+	// 10 winning WU decks: each has CardA (creature) and CardB (removal) in deck.
+	// 5 winning UB decks: each has CardA (creature) only.
+	var b strings.Builder
+	b.WriteString("won,main_colors,deck_CardA,deck_CardB\n")
+	for range 10 {
+		b.WriteString("True,WU,1,1\n")
+	}
+	for range 5 {
+		b.WriteString("True,UB,1,0\n")
+	}
+	// Losing games should not contribute to role targets.
+	for range 20 {
+		b.WriteString("False,WU,1,1\n")
+	}
+
+	cacheDir := t.TempDir()
+	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
+
+	cardRoles := map[string]map[string]bool{
+		"CardA": {"creature": true},
+		"CardB": {"removal": true},
+	}
+
+	result, err := processSynergyData("TST", cacheDir, nil, cardRoles)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if len(result.RoleTargets) < 2 {
+		t.Fatalf("expected at least 2 role target rows, got %d", len(result.RoleTargets))
+	}
+
+	// WU should have creature avg 1.0 and removal avg 1.0 (each of 10 winning decks has 1 of each).
+	var wuCreature, wuRemoval roleTargetRow
+	for _, rt := range result.RoleTargets {
+		if rt.ColorPair == "WU" && rt.Role == "creature" {
+			wuCreature = rt
+		}
+		if rt.ColorPair == "WU" && rt.Role == "removal" {
+			wuRemoval = rt
+		}
+	}
+
+	if wuCreature.ColorPair == "" {
+		t.Fatal("WU creature role target not found")
+	}
+	if wuCreature.AvgCount != 1.0 {
+		t.Errorf("WU creature avg_count = %.2f, want 1.0", wuCreature.AvgCount)
+	}
+	if wuCreature.TotalDecks != 10 {
+		t.Errorf("WU creature total_decks = %d, want 10", wuCreature.TotalDecks)
+	}
+
+	if wuRemoval.ColorPair == "" {
+		t.Fatal("WU removal role target not found")
+	}
+	if wuRemoval.AvgCount != 1.0 {
+		t.Errorf("WU removal avg_count = %.2f, want 1.0", wuRemoval.AvgCount)
+	}
+
+	// UB should have creature avg 1.0 but no removal (CardB not in UB decks).
+	var ubCreature roleTargetRow
+	var ubRemovalFound bool
+	for _, rt := range result.RoleTargets {
+		if rt.ColorPair == "UB" && rt.Role == "creature" {
+			ubCreature = rt
+		}
+		if rt.ColorPair == "UB" && rt.Role == "removal" {
+			ubRemovalFound = true
+		}
+	}
+
+	if ubCreature.ColorPair == "" {
+		t.Fatal("UB creature role target not found")
+	}
+	if ubCreature.AvgCount != 1.0 {
+		t.Errorf("UB creature avg_count = %.2f, want 1.0", ubCreature.AvgCount)
+	}
+	if ubRemovalFound {
+		t.Error("UB should not have a removal role target (no removal cards in UB decks)")
+	}
+}
+
+func TestProcessSynergyData_RoleTargetsMultiRole(t *testing.T) {
+	// A card with multiple roles (creature + removal) should count toward both.
+	var b strings.Builder
+	b.WriteString("won,main_colors,deck_Chupacabra\n")
+	for range 10 {
+		b.WriteString("True,WU,1\n")
+	}
+
+	cacheDir := t.TempDir()
+	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
+
+	cardRoles := map[string]map[string]bool{
+		"Chupacabra": {"creature": true, "removal": true},
+	}
+
+	result, err := processSynergyData("TST", cacheDir, nil, cardRoles)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var creatureCount, removalCount float64
+	for _, rt := range result.RoleTargets {
+		if rt.ColorPair == "WU" && rt.Role == "creature" {
+			creatureCount = rt.AvgCount
+		}
+		if rt.ColorPair == "WU" && rt.Role == "removal" {
+			removalCount = rt.AvgCount
+		}
+	}
+
+	if creatureCount != 1.0 {
+		t.Errorf("WU creature avg_count = %.2f, want 1.0", creatureCount)
+	}
+	if removalCount != 1.0 {
+		t.Errorf("WU removal avg_count = %.2f, want 1.0", removalCount)
+	}
+}
+
+func TestBuildSynergyImportSQL_RoleTargets(t *testing.T) {
+	result := synergyDataResult{
+		Set: "DSK",
+		RoleTargets: []roleTargetRow{
+			{ColorPair: "WU", Role: "creature", AvgCount: 14.5, TotalDecks: 1000},
+			{ColorPair: "WU", Role: "removal", AvgCount: 4.2, TotalDecks: 1000},
+		},
+	}
+
+	sql := buildSynergyImportSQL([]synergyDataResult{result})
+
+	if !strings.Contains(sql, "DELETE FROM mtga_draft_role_targets;") {
+		t.Error("SQL should contain DELETE for role targets")
+	}
+
+	rtCount := strings.Count(sql, "INSERT INTO mtga_draft_role_targets")
+	if rtCount != 2 {
+		t.Errorf("expected 2 role target INSERTs, got %d", rtCount)
+	}
+
+	if !strings.Contains(sql, "'creature'") {
+		t.Error("SQL should contain creature role")
+	}
+	if !strings.Contains(sql, "'removal'") {
+		t.Error("SQL should contain removal role")
 	}
 }

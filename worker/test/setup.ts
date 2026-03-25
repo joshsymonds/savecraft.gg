@@ -206,6 +206,7 @@ const statements = [
     iwd REAL NOT NULL DEFAULT 0,
     alsa REAL NOT NULL DEFAULT 0,
     ata REAL NOT NULL DEFAULT 0,
+    ata_stddev REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (set_code, card_name)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_draft_ratings_set ON mtga_draft_ratings(set_code)`,
@@ -225,6 +226,7 @@ const statements = [
     iwd REAL NOT NULL DEFAULT 0,
     alsa REAL NOT NULL DEFAULT 0,
     ata REAL NOT NULL DEFAULT 0,
+    ata_stddev REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (set_code, card_name, color_pair)
   )`,
   `CREATE TABLE IF NOT EXISTS mtga_draft_set_stats (
@@ -266,6 +268,24 @@ const statements = [
   )`,
   `CREATE INDEX IF NOT EXISTS idx_card_roles_name ON mtga_card_roles(front_face_name, set_code)`,
   `CREATE INDEX IF NOT EXISTS idx_card_roles_set ON mtga_card_roles(set_code)`,
+  // Role targets (migration 0022)
+  `CREATE TABLE IF NOT EXISTS mtga_draft_role_targets (
+    set_code TEXT NOT NULL,
+    color_pair TEXT NOT NULL,
+    role TEXT NOT NULL,
+    avg_count REAL NOT NULL,
+    total_decks INTEGER NOT NULL,
+    PRIMARY KEY (set_code, color_pair, role)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_role_targets_set ON mtga_draft_role_targets(set_code)`,
+  // Sigmoid calibration (migration 0023)
+  `CREATE TABLE IF NOT EXISTS mtga_draft_calibration (
+    set_code TEXT NOT NULL,
+    axis TEXT NOT NULL,
+    center REAL NOT NULL,
+    steepness REAL NOT NULL,
+    PRIMARY KEY (set_code, axis)
+  )`,
 ];
 
 for (const sql of statements) {

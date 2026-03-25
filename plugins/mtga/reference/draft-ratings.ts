@@ -27,6 +27,12 @@ interface RatingRow {
   iwd: number;
   alsa: number;
   ata: number;
+  ata_stddev: number;
+}
+
+interface PickHistoryEntry {
+  available: string[];
+  chosen: string;
 }
 
 interface ColorRow extends RatingRow {
@@ -66,10 +72,17 @@ interface CardRoleRow {
   role: string;
 }
 
-// Target deck composition for limited (community consensus).
-const ROLE_TARGETS = {
-  removal: 5, // 4-6 removal spells, target 5
-} as const;
+interface RoleTargetRow {
+  color_pair: string;
+  role: string;
+  avg_count: number;
+}
+
+interface CalibrationRow {
+  axis: string;
+  center: number;
+  steepness: number;
+}
 
 interface PickRecommendation {
   card: string;
@@ -78,7 +91,7 @@ interface PickRecommendation {
   synergy: { score: number; top_synergies: Array<{ card: string; delta: number }> };
   curve: { score: number; cmc: number; pool_at_cmc: number; ideal_at_cmc: number };
   signal: { score: number; ata: number; current_pick: number };
-  role: { score: number; is_removal: boolean; pool_removal: number; target_removal: number };
+  role: { score: number; roles: string[]; detail: string };
   castability: { score: number; max_pips: number; estimated_sources: number };
 }
 
@@ -180,14 +193,14 @@ function sigmoid(x: number, center: number, steepness: number): number {
   return 1 / (1 + Math.exp(-steepness * (x - center)));
 }
 
-// Per-component sigmoid parameters calibrated to empirical 17Lands data.
-// center = typical midpoint, steepness = how quickly it saturates.
-const SIGMOID_PARAMS = {
-  baseline: { center: 0.52, steepness: 20 },  // GIH WR: mean ~52%, ±1σ ≈ 4.7%
-  synergy:  { center: 0, steepness: 4 },       // Sum of deltas: typically ±0.5
-  curve:    { center: 0, steepness: 3 },        // Gap score: typically ±1
-  signal:   { center: 0, steepness: 3 },        // Pick deviation: typically ±1
-} as const;
+// Default sigmoid parameters — used as fallback when D1 calibration data is unavailable.
+const DEFAULT_SIGMOID_PARAMS: Record<string, { center: number; steepness: number }> = {
+  baseline: { center: 0.52, steepness: 20 },
+  synergy:  { center: 0, steepness: 4 },
+  curve:    { center: 0, steepness: 3 },
+  signal:   { center: 0, steepness: 3 },
+  role:     { center: 0.3, steepness: 5 },
+};
 
 // ── Continuous pick-adaptive weights ─────────────────────────
 // Smooth sigmoid transitions instead of discrete bands.
@@ -544,42 +557,35 @@ const ALL_COLOR_PAIRS = [
   "WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG",
 ];
 
-function parseColors(jsonStr: string): string[] {
-  try {
-    const arr = JSON.parse(jsonStr);
-    return Array.isArray(arr) ? arr.filter((c): c is string => typeof c === "string") : [];
-  } catch {
-    return [];
-  }
-}
-
 function determineCandidateArchetypes(
   poolMeta: CardMetaRow[],
 ): ArchetypeCandidate[] {
-  // Count color pips across pool.
+  // Count color pips across pool from mana costs (not just color identity).
+  // A UU card contributes 2 blue pips; a 1U card contributes 1.
   const pips: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   for (const card of poolMeta) {
-    for (const c of parseColors(card.colors)) {
-      if (c in pips) pips[c] = (pips[c] ?? 0) + 1;
+    for (const [color, count] of countPips(card.mana_cost)) {
+      if (color in pips) pips[color] = (pips[color] ?? 0) + count;
     }
   }
 
-  // Score each color pair by combined pip count.
+  // Score each color pair by multiplicative pip product.
+  // pip[A] × pip[B] naturally suppresses pairs with zero pips in either color.
   const scored = ALL_COLOR_PAIRS.map((pair) => ({
     colorPair: pair,
-    score: (pips[pair[0]!] ?? 0) + (pips[pair[1]!] ?? 0),
+    score: (pips[pair[0]!] ?? 0) * (pips[pair[1]!] ?? 0),
   }));
-  scored.sort((a, b) => b.score - a.score);
 
-  // Take top 3 with nonzero scores.
-  const top = scored.filter((s) => s.score > 0).slice(0, 3);
-  if (top.length === 0) {
-    // No color signal — return overall as fallback.
+  // Filter to nonzero scores and normalize.
+  const nonzero = scored.filter((s) => s.score > 0);
+  if (nonzero.length === 0) {
+    // No two-color signal — return overall as fallback.
     return [{ colorPair: "_overall", weight: 1.0 }];
   }
 
-  const totalScore = top.reduce((s, t) => s + t.score, 0);
-  return top.map((t) => ({
+  nonzero.sort((a, b) => b.score - a.score);
+  const totalScore = nonzero.reduce((s, t) => s + t.score, 0);
+  return nonzero.map((t) => ({
     colorPair: t.colorPair,
     weight: t.score / totalScore,
   }));
@@ -590,12 +596,95 @@ function placeholders(count: number, startIdx: number): string {
   return Array.from({ length: count }, (_, i) => `?${startIdx + i}`).join(",");
 }
 
+/**
+ * Compute per-archetype openness from pick history using Bayesian signal tracking.
+ * For each card seen in each past pack, computes σ-normalized ATA deviation
+ * weighted by pack-position confidence and pack multiplier.
+ * Returns a map of color → accumulated openness signal.
+ */
+function computeSignalFromHistory(
+  pickHistory: PickHistoryEntry[],
+  ataByCard: Map<string, { ata: number; stddev: number }>,
+): Map<string, number> {
+  const openness = new Map<string, number>();
+  const learningRate = 0.15;
+
+  // Pack multipliers: P1 has most signal, P2 is opposite direction, P3 slightly discounted.
+  const packMultiplier = [1.0, 0.6, 0.8];
+
+  for (let i = 0; i < pickHistory.length; i++) {
+    const entry = pickHistory[i]!;
+    const globalPick = i + 1; // 1-indexed
+    const packIndex = Math.floor(i / 14); // 0, 1, 2
+    const pickInPack = (i % 14) + 1; // 1-14 within pack
+
+    // Pack-position confidence: bell curve peaked at pick 8 in pack, σ=4.
+    const confidence = Math.exp(-0.5 * ((pickInPack - 8) / 4) ** 2);
+    const pMult = packMultiplier[Math.min(packIndex, 2)] ?? 0.8;
+
+    for (const cardName of entry.available) {
+      const stats = ataByCard.get(cardName);
+      if (!stats || stats.ata <= 0) continue;
+
+      // σ-normalized signal evidence.
+      // Card still available at a pick later than expected → evidence of openness.
+      // Floor at 0.5 to avoid extreme signals from low-sample cards;
+      // 2.0 = conservative default (~1 pack width of pick variance).
+      const stddev = stats.stddev > 0.5 ? stats.stddev : 2.0;
+      const evidence = (globalPick - stats.ata) / stddev;
+      const weightedEvidence = evidence * confidence * pMult * learningRate;
+
+      // Accumulate per-card openness signal. The caller aggregates into
+      // per-archetype openness using card metadata (color → archetype mapping).
+      openness.set(cardName, (openness.get(cardName) ?? 0) + weightedEvidence);
+    }
+  }
+
+  return openness;
+}
+
+/**
+ * Aggregate per-card openness signals into per-archetype openness.
+ * For each archetype (color pair), average the openness of cards whose
+ * colors match that archetype.
+ */
+function aggregateArchetypeOpenness(
+  cardOpenness: Map<string, number>,
+  cardMeta: Map<string, CardMetaRow>,
+): Map<string, number> {
+  const archSums = new Map<string, number>();
+  const archCounts = new Map<string, number>();
+
+  for (const [cardName, signal] of cardOpenness) {
+    const meta = cardMeta.get(cardName);
+    if (!meta) continue;
+    const colors = countPips(meta.mana_cost);
+    const colorSet = new Set(colors.keys());
+
+    // This card contributes signal to every archetype containing its colors.
+    for (const pair of ALL_COLOR_PAIRS) {
+      if (colorSet.has(pair[0]!) || colorSet.has(pair[1]!)) {
+        archSums.set(pair, (archSums.get(pair) ?? 0) + signal);
+        archCounts.set(pair, (archCounts.get(pair) ?? 0) + 1);
+      }
+    }
+  }
+
+  const result = new Map<string, number>();
+  for (const [pair, sum] of archSums) {
+    const count = archCounts.get(pair) ?? 1;
+    result.set(pair, Math.max(-1, Math.min(1, sum / count))); // Clamp to [-1, 1]
+  }
+  return result;
+}
+
 async function contextualPick(
   db: D1Database,
   setCode: string,
   pool: string[],
   pack: string[],
   pickNumber: number,
+  pickHistory?: PickHistoryEntry[],
 ): Promise<ReferenceResult> {
   // 1. Resolve card metadata for all pool + pack cards.
   const allNames = [...new Set([...pool, ...pack])];
@@ -673,16 +762,38 @@ async function contextualPick(
     })()
     : Promise.resolve({ results: [] as CardRoleRow[] });
 
-  // Await all in parallel.
-  const [overallRatings, ...colorStatsResults] = await Promise.all([
+  // Role targets: per-archetype average role counts from winning decks.
+  // Blend across candidate archetypes for the need[role] formula.
+  const roleTargetPromise = db
+    .prepare(`SELECT color_pair, role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1`)
+    .bind(setCode)
+    .all<RoleTargetRow>();
+
+  // Sigmoid calibration: empirical center/steepness per axis for this set.
+  const calibrationPromise = db
+    .prepare(`SELECT axis, center, steepness FROM mtga_draft_calibration WHERE set_code = ?1`)
+    .bind(setCode)
+    .all<CalibrationRow>();
+
+  // Await all queries in a single parallel batch — no data dependencies between them.
+  const allResults = await Promise.all([
     overallPromise,
     ...colorStatsPromises,
-  ]);
-  const [synergyResult, curveResult, roleResult] = await Promise.all([
     synergyPromise,
     curvePromise,
     rolePromise,
+    roleTargetPromise,
+    calibrationPromise,
   ]);
+  const overallRatings = allResults[0] as Awaited<typeof overallPromise>;
+  const colorStatsResults = allResults.slice(1, 1 + colorStatsPromises.length) as Array<Awaited<(typeof colorStatsPromises)[number]>>;
+  const [synergyResult, curveResult, roleResult, roleTargetResult, calibrationResult] = allResults.slice(1 + colorStatsPromises.length) as [
+    Awaited<typeof synergyPromise>,
+    Awaited<typeof curvePromise>,
+    Awaited<typeof rolePromise>,
+    Awaited<typeof roleTargetPromise>,
+    Awaited<typeof calibrationPromise>,
+  ];
 
   // Process results.
   const overallByName = new Map(overallRatings.results.map((r) => [r.card_name, r]));
@@ -715,23 +826,113 @@ async function contextualPick(
     poolCMCHist.set(bucket, (poolCMCHist.get(bucket) ?? 0) + 1);
   }
 
-  const roleSet = new Set<string>();
+  // Build card → roles map (a card can have multiple roles).
+  const cardRolesMap = new Map<string, Set<string>>();
   for (const row of roleResult.results) {
-    if (row.role === "removal" || row.role === "sweeper" || row.role === "counterspell") {
-      roleSet.add(row.front_face_name);
+    let roles = cardRolesMap.get(row.front_face_name);
+    if (!roles) {
+      roles = new Set();
+      cardRolesMap.set(row.front_face_name, roles);
+    }
+    roles.add(row.role);
+  }
+
+  // Blend role targets across candidate archetypes.
+  // roleTargetsByRole[role] = blended average count from winning decks.
+  const roleTargetsByRole = new Map<string, number>();
+  if (roleTargetResult.results.length > 0) {
+    // Group targets by (color_pair, role).
+    const targetsByPairRole = new Map<string, number>();
+    for (const rt of roleTargetResult.results) {
+      targetsByPairRole.set(`${rt.color_pair}:${rt.role}`, rt.avg_count);
+    }
+    // Collect all roles.
+    const allRoles = new Set(roleTargetResult.results.map((rt) => rt.role));
+    for (const role of allRoles) {
+      let blended = 0;
+      let totalWeight = 0;
+      for (const cand of realCandidates) {
+        const key = `${cand.colorPair}:${role}`;
+        const target = targetsByPairRole.get(key);
+        if (target !== undefined) {
+          blended += target * cand.weight;
+          totalWeight += cand.weight;
+        }
+      }
+      if (totalWeight > 0) {
+        roleTargetsByRole.set(role, blended / totalWeight);
+      }
     }
   }
 
-  // Count removal spells in pool.
-  const poolRemoval = poolMeta.filter((m) => roleSet.has(m.name)).length;
+  // Count pool cards per role.
+  const poolRoleCounts = new Map<string, number>();
+  for (const card of poolMeta) {
+    const roles = cardRolesMap.get(card.name);
+    if (roles) {
+      for (const role of roles) {
+        poolRoleCounts.set(role, (poolRoleCounts.get(role) ?? 0) + 1);
+      }
+    }
+  }
 
-  // 7. Estimate mana base for castability scoring.
+  // Load sigmoid calibration from D1, falling back to defaults.
+  const sp: Record<string, { center: number; steepness: number }> = { ...DEFAULT_SIGMOID_PARAMS };
+  for (const cal of calibrationResult.results) {
+    sp[cal.axis] = { center: cal.center, steepness: cal.steepness };
+  }
+
+  // 7. Compute accumulated signal from pick history (if provided).
+  let archetypeOpenness: Map<string, number> | null = null;
+  if (pickHistory && pickHistory.length > 0) {
+    // Collect all unique card names seen across pick history.
+    const historyCards = new Set<string>();
+    for (const entry of pickHistory) {
+      for (const card of entry.available) {
+        historyCards.add(card);
+      }
+    }
+
+    // Batch-query ATA + ata_stddev for all history cards.
+    if (historyCards.size > 0) {
+      const historyNames = [...historyCards];
+      const histPH = placeholders(historyNames.length, 2);
+      const ataResult = await db
+        .prepare(`SELECT card_name, ata, ata_stddev FROM mtga_draft_ratings WHERE set_code = ?1 AND card_name IN (${histPH})`)
+        .bind(setCode, ...historyNames)
+        .all<{ card_name: string; ata: number; ata_stddev: number }>();
+
+      const ataByCard = new Map<string, { ata: number; stddev: number }>();
+      for (const row of ataResult.results) {
+        ataByCard.set(row.card_name, { ata: row.ata, stddev: row.ata_stddev });
+      }
+
+      // Also resolve metadata for history cards (needed for archetype mapping).
+      // Many will already be in metaByName from pool/pack; fetch the rest.
+      const missingMeta = historyNames.filter((n) => !metaByName.has(n));
+      if (missingMeta.length > 0) {
+        const missingPH = placeholders(missingMeta.length, 1);
+        const extraMeta = await db
+          .prepare(`SELECT front_face_name AS name, cmc, mana_cost, colors FROM mtga_cards WHERE front_face_name IN (${missingPH}) AND is_default = 1`)
+          .bind(...missingMeta)
+          .all<CardMetaRow>();
+        for (const r of extraMeta.results) {
+          metaByName.set(r.name, r);
+        }
+      }
+
+      // Compute per-card openness signals, then aggregate into per-archetype.
+      const cardOpenness = computeSignalFromHistory(pickHistory, ataByCard);
+      archetypeOpenness = aggregateArchetypeOpenness(cardOpenness, metaByName);
+    }
+  }
+
+  // 8. Estimate mana base for castability scoring.
   const estimatedSources = estimateSources(poolMeta);
 
-  // 8. Compute scores for each pack card.
+  // 9. Compute scores for each pack card.
   const weights = getWeights(pickNumber);
   const profileLabel = getWeightProfileLabel(pickNumber);
-  const sp = SIGMOID_PARAMS;
 
   const recommendations: PickRecommendation[] = [];
 
@@ -779,22 +980,55 @@ async function contextualPick(
       curveScore = 0.5;
     }
 
-    // Signal: compare ATA (Average Taken At) against current pick.
-    // ATA is preferred over ALSA because ALSA has systematic downward bias
-    // (P1P1 always records ALSA=1 for the opened card).
+    // Signal: archetype openness.
+    // If pick_history is provided, uses accumulated Bayesian signal across all prior picks.
+    // Otherwise falls back to single-pick ATA deviation.
     const ata = overallByName.get(name)?.ata ?? 0;
     let signalScore = 0;
-    if (ata > 0) {
-      signalScore = (pickNumber - ata) / ata;
+    if (archetypeOpenness && archetypeOpenness.size > 0) {
+      // Find best matching archetype for this card's colors.
+      const cardColors = countPips(packCard.mana_cost);
+      const colorSet = new Set(cardColors.keys());
+      let bestOpenness = 0;
+      for (const pair of ALL_COLOR_PAIRS) {
+        if (colorSet.has(pair[0]!) || colorSet.has(pair[1]!)) {
+          const o = archetypeOpenness.get(pair) ?? 0;
+          if (Math.abs(o) > Math.abs(bestOpenness)) {
+            bestOpenness = o;
+          }
+        }
+      }
+      signalScore = bestOpenness;
+    } else if (ata > 0) {
+      // No pick_history: single-pick σ-normalized signal (no cross-pick accumulation).
+      const ataStddev = overallByName.get(name)?.ata_stddev ?? 0;
+      const stddev = ataStddev > 0.5 ? ataStddev : 2.0;
+      signalScore = Math.max(-1, Math.min(1, (pickNumber - ata) / stddev));
     }
 
     // Role: does this card fill a deck composition gap?
-    const isRemoval = roleSet.has(name);
-    // Score: positive if the pool needs more removal and this card is removal.
-    // Neutral for non-removal cards. Slightly negative if pool already has enough.
+    // For each of the card's roles, compute need[role] = max(0, (target - pool_count) / target).
+    // Multi-role cards take the max need across applicable roles (rewarding flexibility).
+    const cardRoles = cardRolesMap.get(name);
     let roleScore = 0;
-    if (isRemoval) {
-      roleScore = (ROLE_TARGETS.removal - poolRemoval) / ROLE_TARGETS.removal;
+    let bestRoleDetail = "";
+    const roleList: string[] = cardRoles ? [...cardRoles] : [];
+    if (cardRoles && roleTargetsByRole.size > 0) {
+      for (const role of cardRoles) {
+        const target = roleTargetsByRole.get(role) ?? 0;
+        if (target <= 0) continue;
+        const poolCount = poolRoleCounts.get(role) ?? 0;
+        let need = Math.max(0, (target - poolCount) / target);
+        // Late-draft urgency: 1.5× when pool has zero of a role the deck needs ≥3 of.
+        if (poolCount === 0 && target >= 3 && pickNumber >= 25) {
+          need *= 1.5;
+        }
+        if (need > roleScore) {
+          roleScore = need;
+          const poolStr = `${poolCount}/${Math.round(target * 10) / 10}`;
+          bestRoleDetail = `${role} (pool has ${poolStr} target)`;
+        }
+      }
     }
 
     // Castability: can this card be cast reliably given the pool's mana base?
@@ -817,12 +1051,24 @@ async function contextualPick(
       castabilityScore = worstCastability;
     }
 
-    // Sigmoid normalization for all components.
-    const baselineNorm = sigmoid(baselineGihwr, sp.baseline.center, sp.baseline.steepness);
-    const synergyNorm = sigmoid(synergySum, sp.synergy.center, sp.synergy.steepness);
-    const curveNorm = sigmoid(curveScore, sp.curve.center, sp.curve.steepness);
-    const signalNorm = sigmoid(signalScore, sp.signal.center, sp.signal.steepness);
-    const roleNorm = sigmoid(roleScore, 0, 3);
+    // Early-pick dampening: before color commitment is meaningful (picks 1–5),
+    // dampen castability toward 1.0 so off-color cards aren't penalized.
+    if (pickNumber <= 5) {
+      const dampenFactor = Math.max(0, (6 - pickNumber) / 5);
+      castabilityScore = castabilityScore + (1 - castabilityScore) * dampenFactor;
+    }
+
+    // Sigmoid normalization for all components (using calibrated or default params).
+    const bsp = sp.baseline ?? DEFAULT_SIGMOID_PARAMS.baseline!;
+    const ssp = sp.synergy ?? DEFAULT_SIGMOID_PARAMS.synergy!;
+    const csp = sp.curve ?? DEFAULT_SIGMOID_PARAMS.curve!;
+    const sigsp = sp.signal ?? DEFAULT_SIGMOID_PARAMS.signal!;
+    const rsp = sp.role ?? DEFAULT_SIGMOID_PARAMS.role!;
+    const baselineNorm = sigmoid(baselineGihwr, bsp.center, bsp.steepness);
+    const synergyNorm = sigmoid(synergySum, ssp.center, ssp.steepness);
+    const curveNorm = sigmoid(curveScore, csp.center, csp.steepness);
+    const signalNorm = sigmoid(signalScore, sigsp.center, sigsp.steepness);
+    const roleNorm = sigmoid(roleScore, rsp.center, rsp.steepness);
     // Castability is already 0-1 (probability), use it directly.
     const castabilityNorm = castabilityScore;
 
@@ -846,8 +1092,9 @@ async function contextualPick(
       roleNorm ** weights.role *
       castNormSafe ** weights.castability;
 
-    // λ: 0.8 early (compensatory) → 0.3 late (non-compensatory).
-    const lambda = smoothWeight(pickNumber, 0.8, 0.3, 15, 0.2);
+    // λ: 0.85 early (compensatory) → 0.50 late (non-compensatory).
+    // Linear interpolation: λ = 0.85 - 0.35 × (pick / 42).
+    const lambda = 0.85 - 0.35 * (pickNumber / 42);
     const compositeScore = lambda * wsm + (1 - lambda) * wpm;
 
     recommendations.push({
@@ -875,9 +1122,8 @@ async function contextualPick(
       },
       role: {
         score: Math.round(roleScore * 10000) / 10000,
-        is_removal: isRemoval,
-        pool_removal: poolRemoval,
-        target_removal: ROLE_TARGETS.removal,
+        roles: roleList,
+        detail: bestRoleDetail || "no role data",
       },
       castability: {
         score: Math.round(castabilityScore * 10000) / 10000,
@@ -925,11 +1171,11 @@ export const draftRatingsModule: NativeReferenceModule = {
     "Query with just a set code for an overview. Add a card name for detailed stats with color pair breakdowns. Compare specific cards side-by-side with the cards parameter.",
     "",
     "CONTEXTUAL PICK ADVICE: When the player is mid-draft, pass their current pool and pack to get ranked pick recommendations.",
-    "Each card scores on 7 axes: baseline (archetype-weighted win rate), synergy (pairwise interaction with pool cards, deconfounded from archetype strength), curve (gap detection + ideal archetype CMC distribution), signal (archetype openness via ATA deviation), role (deck composition needs — removal, sweepers), castability (Karsten hypergeometric probability of casting on curve given estimated mana base), and a WASPAS hybrid composite that blends additive and multiplicative scoring.",
+    "Each card scores on 7 axes: baseline (archetype-weighted win rate), synergy (pairwise interaction with pool cards, deconfounded from archetype strength), curve (gap detection + ideal archetype CMC distribution), signal (archetype openness via ATA deviation), role (4-category deck composition — creature, removal, mana_fixing, noncreature_nonremoval — scored against per-archetype targets from winning decks), castability (Karsten hypergeometric probability of casting on curve given estimated mana base), and a WASPAS hybrid composite that blends additive and multiplicative scoring.",
     "Component breakdowns explain WHY a card is recommended — use these to give the player actionable reasoning, not just 'pick this'. The composite ranks cards, but the components tell the story.",
     "Weights adapt smoothly to draft phase: early picks favor baseline + signal (card quality + is the archetype open?), mid picks balance all factors with signal peaking in the reading window (picks 6-10), late picks favor synergy + curve + role (deck optimization).",
     "",
-    "DECK COMPOSITION: A typical limited deck wants ~16 creatures, 4-6 removal spells, and ~7 non-creature spells (23 total nonlands + 17 lands). The role score tracks removal count against a target of 5. If the pool is short on removal, removal spells score higher. Tell the player when their deck is light on removal or heavy on one card type.",
+    "DECK COMPOSITION: The role axis tracks 4 categories — creature, removal, mana_fixing, noncreature_nonremoval — against per-archetype targets derived from winning decks. Cards filling the biggest gap score highest. Multi-role cards (e.g., creatures with ETB removal) score on their best-fitting role. The 'detail' field explains which role drove the score. Tell the player when their deck is light on any category.",
     "COLOR COMMITMENT: The castability score uses Frank Karsten's hypergeometric model. A card requiring {U}{U} with only 6 blue sources has ~65% castability — unreliable. Single-pip cards need 8+ sources; double-pip need 12+. Warn the player when a card's castability is below 80%. For splash cards (off-color, few sources), castability will be very low — explain that they'd need mana fixing (dual lands, mana rocks) to reliably cast it.",
     "SPLASH RULES: Only splash single-pip cards at CMC 4+, and only with 3+ sources of the splash color. Never splash double-pip cards. If the player asks about splashing, check the castability score — if it's below 0.7, the splash is unreliable without additional fixing.",
     "",
@@ -946,6 +1192,7 @@ export const draftRatingsModule: NativeReferenceModule = {
     pool: { type: "array", items: { type: "string" }, description: "Card names already drafted (current pool). Used with 'pack' for contextual pick recommendations." },
     pack: { type: "array", items: { type: "string" }, description: "Card names available in current pack. Used with 'pool' for contextual pick recommendations." },
     pick_number: { type: "integer", description: "Current pick number (1-42). Affects weight profile: early (1-5), mid (6-20), late (21-42). Default 10." },
+    pick_history: { type: "array", items: { type: "object", properties: { available: { type: "array", items: { type: "string" } }, chosen: { type: "string" } } }, description: "Full draft pick history for signal tracking. Each entry has 'available' (cards in pack) and 'chosen' (card picked). Enables accumulated archetype openness signal across all prior picks." },
   },
 
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
@@ -956,9 +1203,15 @@ export const draftRatingsModule: NativeReferenceModule = {
     const sort = ((query.sort as string) ?? "").toLowerCase();
     const limit = Math.min(Math.max(typeof query.limit === "number" ? query.limit : DEFAULT_PAGE_SIZE, 1), 100);
     const offset = Math.max(typeof query.offset === "number" ? query.offset : 0, 0);
-    const pool = (query.pool as string[]) ?? [];
-    const pack = (query.pack as string[]) ?? [];
+    const pool = ((query.pool as string[]) ?? []).slice(0, 45);
+    const pack = ((query.pack as string[]) ?? []).slice(0, 15);
     const pickNumber = Math.max(1, Math.min(42, typeof query.pick_number === "number" ? query.pick_number : 10));
+    const pickHistory = Array.isArray(query.pick_history)
+      ? (query.pick_history as Array<{ available?: string[]; chosen?: string }>)
+          .slice(0, 42)
+          .filter((e) => Array.isArray(e?.available))
+          .map((e) => ({ available: e.available!.slice(0, 15), chosen: e.chosen ?? "" }))
+      : undefined;
 
     // No set → list available sets
     if (!setCode) {
@@ -982,7 +1235,7 @@ export const draftRatingsModule: NativeReferenceModule = {
     // Route to query mode
     // Mode 6: contextual pick (pool + pack present)
     if (pool.length > 0 && pack.length > 0) {
-      return contextualPick(env.DB, setCode, pool, pack, pickNumber);
+      return contextualPick(env.DB, setCode, pool, pack, pickNumber, pickHistory);
     }
 
     if (cards.length > 0) {

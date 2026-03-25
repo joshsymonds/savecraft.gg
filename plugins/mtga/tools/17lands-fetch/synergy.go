@@ -29,11 +29,22 @@ type curveRow struct {
 	TotalDecks int
 }
 
-// synergyDataResult holds all synergy and curve rows for a single set.
+// roleTargetRow represents the average count of a role in winning decks
+// for an archetype. Used by the scoring engine's role fulfillment axis.
+type roleTargetRow struct {
+	ColorPair  string
+	Role       string
+	AvgCount   float64
+	TotalDecks int
+}
+
+// synergyDataResult holds all synergy, curve, role target, and calibration rows for a single set.
 type synergyDataResult struct {
-	Set       string
-	Synergies []synergyRow
-	Curves    []curveRow
+	Set         string
+	Synergies   []synergyRow
+	Curves      []curveRow
+	RoleTargets []roleTargetRow
+	Calibration []calibrationRow
 }
 
 // cardPair is the canonical key for a card pair (a < b lexicographically).
@@ -57,6 +68,12 @@ type cardDeckAccum struct {
 type curveAccum struct {
 	totalDecks int
 	cmcCounts  [8]int // CMC 0, 1, 2, 3, 4, 5, 6, 7+
+}
+
+// roleTargetAccum tracks role counts for winning decks of an archetype.
+type roleTargetAccum struct {
+	totalDecks int
+	roleCounts map[string]int // role name → total cards with this role across all winning decks
 }
 
 // cmcBucket maps a CMC value to its bucket index (0-7, where 7 = 7+).
@@ -84,7 +101,7 @@ var colorPairSet = func() map[string]bool {
 
 // processSynergyData reads the cached game_data CSV for a set and computes
 // pairwise card synergies (stratified by color pair to remove archetype
-// confounding) and (optionally) archetype CMC curves.
+// confounding), archetype CMC curves, and role targets.
 //
 // Stratification: synergy is computed within each 2-color archetype separately,
 // then the final delta is a weighted average across archetypes (weighted by
@@ -92,9 +109,12 @@ var colorPairSet = func() map[string]bool {
 // in strong archetypes falsely show positive synergy.
 //
 // cardCMC maps card names to their converted mana cost. If nil, curve
-// computation is skipped. It returns both-direction synergy rows filtered
-// to pairs with at least minGamesTogether total games across all archetypes.
-func processSynergyData(set string, cacheDir string, cardCMC map[string]float64) (synergyDataResult, error) {
+// computation is skipped. cardRoles maps card names to their set of roles
+// (e.g., "creature", "removal"). If nil, role target computation is skipped.
+//
+// It returns both-direction synergy rows filtered to pairs with at least
+// minGamesTogether total games across all archetypes.
+func processSynergyData(set string, cacheDir string, cardCMC map[string]float64, cardRoles map[string]map[string]bool) (synergyDataResult, error) {
 	filename := fmt.Sprintf("game_data_public.%s.PremierDraft.csv.gz", set)
 	reader, err := openCachedGzip(fmt.Sprintf("%s/%s", cacheDir, filename))
 	if err != nil {
@@ -134,6 +154,7 @@ func processSynergyData(set string, cacheDir string, cardCMC map[string]float64)
 	pairsByColor := make(map[string]map[cardPair]*pairAccum)  // colorPair → pair → accum
 	cardsByColor := make(map[string]map[string]*cardDeckAccum) // colorPair → cardName → accum
 	curves := make(map[string]*curveAccum)                     // color pair → curve accumulator
+	roleTargets := make(map[string]*roleTargetAccum)           // color pair → role target accumulator
 
 	// Buffer for cards in deck per row (reused to avoid allocation).
 	inDeck := make([]string, 0, 50)
@@ -209,17 +230,35 @@ func processSynergyData(set string, cacheDir string, cardCMC map[string]float64)
 			}
 		}
 
-		// Accumulate CMC curves for winning decks (only if CMC data available).
-		if won && cardCMC != nil && colorPairSet[mainColors] {
-			ca, ok := curves[mainColors]
-			if !ok {
-				ca = &curveAccum{}
-				curves[mainColors] = ca
+		// Accumulate CMC curves and role targets for winning decks.
+		if won && colorPairSet[mainColors] {
+			if cardCMC != nil {
+				ca, ok := curves[mainColors]
+				if !ok {
+					ca = &curveAccum{}
+					curves[mainColors] = ca
+				}
+				ca.totalDecks++
+				for _, name := range inDeck {
+					if cmc, ok := cardCMC[name]; ok {
+						ca.cmcCounts[cmcBucket(cmc)]++
+					}
+				}
 			}
-			ca.totalDecks++
-			for _, name := range inDeck {
-				if cmc, ok := cardCMC[name]; ok {
-					ca.cmcCounts[cmcBucket(cmc)]++
+
+			if cardRoles != nil {
+				ra, ok := roleTargets[mainColors]
+				if !ok {
+					ra = &roleTargetAccum{roleCounts: make(map[string]int)}
+					roleTargets[mainColors] = ra
+				}
+				ra.totalDecks++
+				for _, name := range inDeck {
+					if roles, ok := cardRoles[name]; ok {
+						for role := range roles {
+							ra.roleCounts[role]++
+						}
+					}
 				}
 			}
 		}
@@ -320,16 +359,34 @@ func processSynergyData(set string, cacheDir string, cardCMC map[string]float64)
 		}
 	}
 
-	return synergyDataResult{Set: set, Synergies: synergies, Curves: curveRows}, nil
+	// Compute role target averages.
+	var roleTargetRows []roleTargetRow
+	for cp, ra := range roleTargets {
+		if ra.totalDecks == 0 {
+			continue
+		}
+		for role, count := range ra.roleCounts {
+			roleTargetRows = append(roleTargetRows, roleTargetRow{
+				ColorPair:  cp,
+				Role:       role,
+				AvgCount:   round4(float64(count) / float64(ra.totalDecks)),
+				TotalDecks: ra.totalDecks,
+			})
+		}
+	}
+
+	return synergyDataResult{Set: set, Synergies: synergies, Curves: curveRows, RoleTargets: roleTargetRows}, nil
 }
 
-// buildSynergyImportSQL generates SQL for D1 bulk import of synergy and curve data.
+// buildSynergyImportSQL generates SQL for D1 bulk import of synergy, curve, role target, and calibration data.
 func buildSynergyImportSQL(results []synergyDataResult) string {
 	var b strings.Builder
 	q := cfapi.SQLQuote
 
 	b.WriteString("DELETE FROM mtga_draft_synergies;\n")
 	b.WriteString("DELETE FROM mtga_draft_archetype_curves;\n")
+	b.WriteString("DELETE FROM mtga_draft_role_targets;\n")
+	b.WriteString("DELETE FROM mtga_draft_calibration;\n")
 
 	for _, r := range results {
 		for _, s := range r.Synergies {
@@ -339,6 +396,14 @@ func buildSynergyImportSQL(results []synergyDataResult) string {
 		for _, c := range r.Curves {
 			fmt.Fprintf(&b, "INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (%s, %s, %d, %g, %d);\n",
 				q(r.Set), q(c.ColorPair), c.CMC, c.AvgCount, c.TotalDecks)
+		}
+		for _, rt := range r.RoleTargets {
+			fmt.Fprintf(&b, "INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (%s, %s, %s, %g, %d);\n",
+				q(r.Set), q(rt.ColorPair), q(rt.Role), rt.AvgCount, rt.TotalDecks)
+		}
+		for _, cal := range r.Calibration {
+			fmt.Fprintf(&b, "INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (%s, %s, %g, %g);\n",
+				q(r.Set), q(cal.Axis), cal.Center, cal.Steepness)
 		}
 	}
 
