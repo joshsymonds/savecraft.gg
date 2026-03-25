@@ -27,6 +27,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/joshsymonds/savecraft.gg/plugins/mtga/parser/data"
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
 )
 
@@ -213,16 +214,19 @@ func downloadAndFilter(url string) ([]ScryfallCard, error) {
 		return nil, fmt.Errorf("expected '[', got %v", tok)
 	}
 
+	// Build reverse lookup from MTGA client data: (name, set) → arena_id.
+	// Scryfall bulk data often lacks arena_id for newer Universes Beyond sets
+	// even when the cards are on Arena. The MTGA client database has 100% coverage.
+	arenaLookup := buildArenaLookup()
+
 	var cards []ScryfallCard
+	var resolved int
 	for dec.More() {
 		var card ScryfallCard
 		if err := dec.Decode(&card); err != nil {
 			return nil, fmt.Errorf("decoding card: %w", err)
 		}
-		if card.ArenaID == 0 {
-			continue
-		}
-		// Double-check: card must be available on Arena.
+		// Card must be available on Arena.
 		if !slices.Contains(card.Games, "arena") {
 			continue
 		}
@@ -232,10 +236,41 @@ func downloadAndFilter(url string) ([]ScryfallCard, error) {
 		} else {
 			card.FrontFaceName = card.Name
 		}
+		// Fall back to MTGA client data for arena_id when Scryfall doesn't have it.
+		if card.ArenaID == 0 {
+			key := arenaKey{strings.ToLower(card.FrontFaceName), strings.ToLower(card.Set)}
+			if id, ok := arenaLookup[key]; ok {
+				card.ArenaID = id
+				resolved++
+			} else {
+				continue
+			}
+		}
 		cards = append(cards, card)
 	}
 
+	if resolved > 0 {
+		fmt.Printf("Resolved %d arena_ids from MTGA client data (Scryfall bulk data was missing them)\n", resolved)
+	}
 	return cards, nil
+}
+
+type arenaKey struct {
+	name string
+	set  string
+}
+
+// buildArenaLookup creates a (name, set) → arena_id index from the generated ArenaCards map.
+func buildArenaLookup() map[arenaKey]int {
+	lookup := make(map[arenaKey]int, len(data.ArenaCards))
+	for id, card := range data.ArenaCards {
+		key := arenaKey{strings.ToLower(card.Name), card.Set} // card.Set already lowercase
+		// Keep highest arena_id per (name, set) to match computeDefaults behavior.
+		if existing, ok := lookup[key]; !ok || id > existing {
+			lookup[key] = id
+		}
+	}
+	return lookup
 }
 
 // computeDefaults marks the highest arena_id per oracle_id as IsDefault = true.
