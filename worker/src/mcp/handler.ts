@@ -516,13 +516,17 @@ async function handleQueryReference(env: Env, args: Record<string, unknown>): Pr
   const gameId = args.game_id as string;
   const module = args.module as string;
 
-  const settled = await Promise.all(
+  const responses = await Promise.allSettled(
     queries.map((q) =>
       queryReference(env.REFERENCE_PLUGINS, gameId, module, q as Record<string, unknown>, env),
     ),
   );
 
-  const results = settled.map((result) => {
+  const results = responses.map((outcome) => {
+    if (outcome.status === "rejected") {
+      return { error: String(outcome.reason) };
+    }
+    const result = outcome.value;
     if (result.isError) {
       return { error: result.content[0]?.text ?? "Unknown error" };
     }
