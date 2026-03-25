@@ -152,12 +152,12 @@ describe("MCP Protocol", () => {
       "delete_note",
       "get_note",
       "get_save",
-      "get_savecraft_info",
       "get_section",
       "list_games",
       "query_reference",
       "refresh_save",
       "search_saves",
+      "setup_help",
       "update_note",
     ]);
   });
@@ -343,7 +343,7 @@ describe("MCP Protocol", () => {
     expect(data.games[0]!.game_id).toBe("d2r");
   });
 
-  it("query_reference returns error for unknown game", async () => {
+  it("query_reference returns per-query errors for unknown game", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {
         protocolVersion: "2025-11-25",
@@ -355,7 +355,36 @@ describe("MCP Protocol", () => {
     const resp = await SELF.fetch(
       mcpRequest("tools/call", 13, {
         name: "query_reference",
-        arguments: { game_id: "nonexistent", module: "drop_calc", query: "{}" },
+        arguments: { game_id: "nonexistent", module: "drop_calc", queries: [{}] },
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: { content: { type: string; text: string }[]; isError?: boolean };
+    };
+    // Batch always succeeds at the top level — errors are per-query
+    expect(body.result.isError).toBeFalsy();
+    const data = JSON.parse(body.result.content[0]!.text) as {
+      results: { error?: string }[];
+    };
+    expect(data.results).toHaveLength(1);
+    expect(data.results[0]!.error).toContain("No reference module found");
+  });
+
+  it("query_reference rejects empty queries array", async () => {
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 14, {
+        name: "query_reference",
+        arguments: { game_id: "mtga", module: "card_search", queries: [] },
       }),
     );
     expect(resp.status).toBe(200);
@@ -364,6 +393,31 @@ describe("MCP Protocol", () => {
       result: { content: { type: string; text: string }[]; isError?: boolean };
     };
     expect(body.result.isError).toBe(true);
-    expect(body.result.content[0]!.text).toContain("No reference module found");
+    expect(body.result.content[0]!.text).toContain("non-empty array");
+  });
+
+  it("query_reference rejects too many queries", async () => {
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const queries = Array.from({ length: 51 }, () => ({}));
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 15, {
+        name: "query_reference",
+        arguments: { game_id: "mtga", module: "card_search", queries },
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: { content: { type: string; text: string }[]; isError?: boolean };
+    };
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content[0]!.text).toContain("maximum 50");
   });
 });

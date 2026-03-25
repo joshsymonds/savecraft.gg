@@ -72,7 +72,7 @@ OpenAI requires written justifications for each tool annotation at submission ti
 - **idempotentHint: true** — The same game_id, module, and query parameters always produce the same computed result from the same game data tables.
 - **openWorldHint: false** — The reference Worker is invoked via Cloudflare's internal Dispatch Namespace binding, not via an external HTTP call to a third-party service. All computation happens within Savecraft's infrastructure.
 
-## get_savecraft_info
+## setup_help
 
 - **readOnlyHint: true** — Reads source records from D1 and returns static informational content about Savecraft setup, privacy, and architecture.
 - **destructiveHint: false** — No data is written, updated, or deleted.

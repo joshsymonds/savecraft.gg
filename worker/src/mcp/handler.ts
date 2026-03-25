@@ -27,9 +27,9 @@ const PROTOCOL_VERSION = "2025-11-25";
 
 const SERVER_INSTRUCTIONS = `Savecraft gives you access to the player's actual game state — characters, gear, progress, and goals — parsed from real save files. You are their gaming companion.
 
-Always fetch live data — never assume you know a player's saves, characters, or game state from memory or prior conversations. Save data changes constantly as players play. Call list_games, get_save, or get_section to get current state before answering. Memory is useful for player goals and preferences, but never for game state. Fetch only what's relevant: use the filter parameter on list_games, and request only the sections you'll actually reference.
+Always fetch live data — never assume you know a player's saves, characters, or game state from memory or prior conversations. Save data changes constantly as players play. Fetch only what's relevant: use the filter parameter on list_games, and request only the sections you'll actually reference. Memory is useful for player goals and preferences, but never for game state.
 
-Notes are the player's memory across conversations — goals, build guides, session context. Always read relevant notes (via get_note) before giving advice, so you build on what's already been discussed. When the player shares something worth remembering, offer to save it as a note. Keep notes current with update_note when circumstances change.
+Tool workflow: Start with list_games to see the player's games, characters, and saves. Use get_save for a specific character, then get_section for detailed data like equipment, skills, or stats — section names vary by game. search_saves for cross-character or cross-game queries when you don't know which save contains something. Always read relevant notes (get_note) before giving advice — they contain goals, builds, and session context from prior conversations. When the player shares something worth remembering, offer to save it as a note. Keep notes current with update_note when circumstances change. refresh_save when the player says something just changed in-game. setup_help when the player has no saves, mentions a pairing code, or asks how to connect a game.
 
 Results from search_saves distinguish between save data (what the player actually has in-game) and notes (what the player wrote or planned). This distinction matters: "player owns this item" vs "guide recommends this item" are very different.
 
@@ -74,18 +74,16 @@ interface ToolDefinition {
   annotations: ToolAnnotations;
 }
 
-// Tool descriptions serve double duty: they tell the AI what each tool does,
-// and they guide *when* and *why* to use it. The AI has no system prompt for
-// Savecraft — these descriptions are its entire playbook.
+// Tool descriptions are optimized for two-stage discovery:
+//   1. ToolSearch retrieval — keyword scoring against name + description (name: 12pts, desc: 2pts)
+//   2. LLM selection — Claude reads full schema to pick the right tool
 //
-// Progressive disclosure order:
-//   1. list_games → orient (what games, characters, saves, references exist)
-//   2. get_save → context on a character (summary, overview, sections, notes)
-//   3. get_note → read the player's goals/guides before giving advice
-//   4. get_section → fetch specific game data as needed
-//   5. refresh_save → pull fresh data when player reports changes
-//   6. search_saves → cross-save or "I don't know where this is" queries
-//   7. query_reference → authoritative game calculations (drop rates, builds)
+// Design principles (see docs/mcp-design.md):
+//   - Tool descriptions handle SELECTION ("should I pick this tool?")
+//   - Parameter descriptions handle INVOCATION ("how do I use it?")
+//   - Server instructions (above) handle WORKFLOW ("what order to call tools")
+//   - No cross-tool name references in descriptions (creates keyword noise)
+//   - Front-load discriminative terms in first sentence (retrieval bait)
 //
 // Two interaction modes (same tools, different intent):
 //   - Companion: player is talking, venting, celebrating. React with context.
@@ -97,14 +95,14 @@ const TOOLS: ToolDefinition[] = [
     name: "list_games",
     title: "List Games & Saves",
     description:
-      "Returns the player's games with their saves (including note titles), removed save names, and reference modules. Use the returned save_id values with other tools. When the player is asking about a specific game, pass the filter parameter to avoid loading unrelated data. Call without filter only when the player wants to see all their games. Check the removed_saves field if the player asks about a character you can't find — it may have been removed.",
+      "The player's complete game library — all games, characters, saves, notes, and reference modules they have access to. Start here when beginning any conversation about the player's game state. If a character seems missing, check removed_saves — it may have been removed rather than deleted.",
     inputSchema: {
       type: "object",
       properties: {
         filter: {
           type: "string",
           description:
-            "Filter games by name or ID (case-insensitive substring match). Omit to see all games.",
+            "Filter by game name or ID (case-insensitive substring). Pass this when the player asks about a specific game to avoid loading unrelated data. Omit to see all games.",
         },
       },
     },
@@ -119,11 +117,11 @@ const TOOLS: ToolDefinition[] = [
     name: "get_save",
     title: "Get Save Details",
     description:
-      "Get a save's summary, overview data, available section names, and attached notes. Use when the player mentions a specific character or save. Section names and contents vary by game — use the returned names with get_section to fetch detailed data.",
+      "Detailed view of a single character or save — summary, overview stats, list of available data sections, and attached notes. Use when the player asks about a specific character, playthrough, or save file.",
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_games" },
+        save_id: { type: "string", description: "Save UUID from the game listing" },
       },
       required: ["save_id"],
     },
@@ -139,15 +137,15 @@ const TOOLS: ToolDefinition[] = [
     name: "get_section",
     title: "Get Save Section Data",
     description:
-      "Fetch detailed section data from a save. Call get_save first to see available section names — section names and their contents vary by game. Only request sections you will directly reference in your response; do not preload all sections. The data returned represents what the player has actually experienced — ground your response in it.",
+      "Deep data for specific aspects of a save — equipment, skills, quests, stats, inventory, abilities, or any game-specific section. Returns actual in-game state the player has experienced. Only request sections you will directly reference in your response.",
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_games" },
+        save_id: { type: "string", description: "Save UUID from the game listing" },
         sections: {
           type: "array",
           description:
-            "Section names to fetch (from get_save's section listing). Pass one name or several.",
+            "Section names from the save's section listing. Pass one name or several. Available sections vary by game.",
           items: { type: "string" },
         },
       },
@@ -169,12 +167,12 @@ const TOOLS: ToolDefinition[] = [
     name: "get_note",
     title: "Get Note Content",
     description:
-      "Fetch the full content of a note. Use when get_save or search_saves returns note metadata and the note is relevant to the player's question.",
+      "Full content of a player's note — build guides, goals, session memories, farming plans, or strategy context they saved for future conversations. Read relevant notes before giving advice so you build on prior discussion.",
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_games" },
-        note_id: { type: "string", description: "Note UUID returned by get_save or search_saves" },
+        save_id: { type: "string", description: "Save UUID from the game listing" },
+        note_id: { type: "string", description: "Note UUID from save details or search results" },
       },
       required: ["save_id", "note_id"],
     },
@@ -189,11 +187,11 @@ const TOOLS: ToolDefinition[] = [
     name: "create_note",
     title: "Create Note",
     description:
-      "Create a note attached to a save. Use for build guides, goals, session memories, or anything the player might want recalled in future sessions. Maximum 10 notes per save.",
+      "Save information the player wants remembered across conversations — build guides, goals, farming plans, session context, or strategy notes. Attach to a specific save. Maximum 10 notes per save.",
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_games" },
+        save_id: { type: "string", description: "Save UUID from the game listing" },
         title: {
           type: "string",
           description:
@@ -218,12 +216,12 @@ const TOOLS: ToolDefinition[] = [
     name: "update_note",
     title: "Update Note",
     description:
-      "Update a note's title or content. Use when the player's plans, goals, or save state has changed and an existing note is outdated. Pass only the fields to change — omit title or content to leave them unchanged.",
+      "Revise an existing note when the player's plans, goals, or game state has changed. Preferred over deleting — keeps the note's identity stable across sessions.",
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_games" },
-        note_id: { type: "string", description: "Note UUID returned by get_save or search_saves" },
+        save_id: { type: "string", description: "Save UUID from the game listing" },
+        note_id: { type: "string", description: "Note UUID from save details or search results" },
         title: { type: "string", description: "New title (omit to keep current title)" },
         content: {
           type: "string",
@@ -243,12 +241,12 @@ const TOOLS: ToolDefinition[] = [
     name: "delete_note",
     title: "Delete Note",
     description:
-      "Permanently delete a note from a save. Use only when the player explicitly asks to remove a note — prefer update_note to revise outdated content rather than deleting.",
+      "Permanently remove a note. Only when the player explicitly asks to delete — prefer updating to revise outdated content.",
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_games" },
-        note_id: { type: "string", description: "Note UUID returned by get_save or search_saves" },
+        save_id: { type: "string", description: "Save UUID from the game listing" },
+        note_id: { type: "string", description: "Note UUID from save details or search results" },
       },
       required: ["save_id", "note_id"],
     },
@@ -264,11 +262,11 @@ const TOOLS: ToolDefinition[] = [
     name: "refresh_save",
     title: "Refresh Save",
     description:
-      "Request fresh data for a save from the player's source or game API. Use when the player says something just changed ('I just found a rare item', 'I just equipped new gear', 'I just finished the quest'). The server handles whether this goes to the local daemon or a game API — you don't need to know which.",
+      "Pull the latest game data for a save — re-parse the save file or fetch fresh API data. Use when the player says something just changed in-game: found an item, leveled up, equipped gear, finished a quest.",
     inputSchema: {
       type: "object",
       properties: {
-        save_id: { type: "string", description: "Save UUID returned by list_games" },
+        save_id: { type: "string", description: "Save UUID from the game listing" },
       },
       required: ["save_id"],
     },
@@ -284,7 +282,7 @@ const TOOLS: ToolDefinition[] = [
     name: "search_saves",
     title: "Search Saves & Notes",
     description:
-      "Full-text search across all saves and notes. Use when you need to find something specific and don't know which save or section contains it — especially useful for cross-character queries. Results distinguish between save data (what the player has) and notes (what the player wrote or planned).",
+      "Full-text keyword search across all saves and notes — find items, skills, quests, characters, or any game data without knowing which save contains it. Ideal for cross-character and cross-game queries. Results distinguish between save data and player-written notes.",
     inputSchema: {
       type: "object",
       properties: {
@@ -317,25 +315,26 @@ const TOOLS: ToolDefinition[] = [
     name: "query_reference",
     title: "Query Game Reference Data",
     description:
-      "Execute a reference data computation for a game — use for authoritative quantitative results (drop rates, stat calculations, build thresholds) where AI estimation would be unreliable. Available modules and their parameter schemas are returned by list_games.",
+      "Authoritative game calculations — drop rates, stat thresholds, build comparisons, draft ratings, mana curves, or any quantitative query where estimation would be unreliable. Batch multiple queries in a single call to avoid round-trips. Max 50 queries per call.",
     inputSchema: {
       type: "object",
       properties: {
         game_id: {
           type: "string",
-          description: "Game ID from list_games.",
+          description: "Game ID from the game listing.",
         },
         module: {
           type: "string",
-          description: "Reference module ID from list_games.",
+          description: "Reference module ID from the game listing.",
         },
-        query: {
-          type: "string",
+        queries: {
+          type: "array",
           description:
-            "JSON-encoded query object with module-specific parameters. The exact structure is defined by the module's parameter schema in the list_games response — build from that schema, do not guess field names.",
+            "Array of query objects with module-specific parameters. Each object's structure is defined by the module's parameter schema in the game listing — build from that schema, do not guess field names. Results are returned in the same positional order.",
+          items: { type: "object" },
         },
       },
-      required: ["game_id", "module", "query"],
+      required: ["game_id", "module", "queries"],
     },
     annotations: {
       readOnlyHint: true,
@@ -344,19 +343,19 @@ const TOOLS: ToolDefinition[] = [
       openWorldHint: false,
     },
   },
-  // ── Savecraft Info ──────────────────────────────────────────
+  // ── Setup & Help ──────────────────────────────────────────
   {
-    name: "get_savecraft_info",
-    title: "Savecraft Setup & Info",
+    name: "setup_help",
+    title: "Setup & Help",
     description:
-      "Get information about the player's Savecraft setup or the project itself. Use when list_games returns no saves, the player mentions a pairing code or connecting a game, asks about privacy/security, or wants to know what Savecraft is. Always returns the player's source list. Omit category for a topic menu; pass a category for focused content.",
+      "Savecraft setup, installation, pairing, and project information. Use when the player has no saves yet, mentions a pairing code, asks how to connect a game, or asks about privacy and security. Also shows connected sources and their status.",
     inputSchema: {
       type: "object",
       properties: {
         category: {
           type: "string",
           description:
-            "Topic to drill into. Omit to get the category menu. 'games': supported games, source types, setup instructions. 'setup': install instructions, pairing, API game setup. 'privacy': data collection, security, what's NOT collected. 'about': open source links, author, architecture.",
+            "Topic to drill into. Omit for a topic menu; pass a category for focused content. 'games': supported games, source types, setup instructions. 'setup': install instructions, pairing, API game setup. 'privacy': data collection, security, what's NOT collected. 'about': open source links, author, architecture.",
           enum: ["games", "setup", "privacy", "about"],
         },
         platform: {
@@ -466,7 +465,7 @@ async function handleToolCall(
     case "query_reference": {
       return handleQueryReference(env, args);
     }
-    case "get_savecraft_info": {
+    case "setup_help": {
       return handleGetInfo(env, userUuid, args);
     }
     default: {
@@ -490,26 +489,51 @@ function handleGetInfo(
   );
 }
 
-function handleQueryReference(
-  env: Env,
-  args: Record<string, unknown>,
-): Promise<ToolResult> | ToolResult {
-  let queryObject: Record<string, unknown>;
-  try {
-    queryObject = JSON.parse(args.query as string) as Record<string, unknown>;
-  } catch {
+const MAX_BATCH_QUERIES = 50;
+
+async function handleQueryReference(env: Env, args: Record<string, unknown>): Promise<ToolResult> {
+  const queries = args.queries;
+  if (!Array.isArray(queries) || queries.length === 0) {
     return {
-      content: [{ type: "text", text: "Invalid query: must be a valid JSON object string." }],
+      content: [
+        { type: "text", text: "Invalid queries: must be a non-empty array of query objects." },
+      ],
       isError: true,
     };
   }
-  return queryReference(
-    env.REFERENCE_PLUGINS,
-    args.game_id as string,
-    args.module as string,
-    queryObject,
-    env,
+  if (queries.length > MAX_BATCH_QUERIES) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Too many queries: maximum ${String(MAX_BATCH_QUERIES)}, got ${String(queries.length)}.`,
+        },
+      ],
+      isError: true,
+    };
+  }
+
+  const gameId = args.game_id as string;
+  const module = args.module as string;
+
+  const settled = await Promise.all(
+    queries.map((q) =>
+      queryReference(env.REFERENCE_PLUGINS, gameId, module, q as Record<string, unknown>, env),
+    ),
   );
+
+  const results = settled.map((result) => {
+    if (result.isError) {
+      return { error: result.content[0]?.text ?? "Unknown error" };
+    }
+    try {
+      return JSON.parse(result.content[0]?.text ?? "null") as unknown;
+    } catch {
+      return result.content[0]?.text ?? null;
+    }
+  });
+
+  return { content: [{ type: "text", text: JSON.stringify({ results }) }] };
 }
 
 function parseRpc(request: Request): Promise<JsonRpcRequest> {

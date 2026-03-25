@@ -224,7 +224,7 @@
             <td>Runs a reference computation (drop rates, stat calculations, breakpoints).</td>
           </tr>
           <tr>
-            <td><code>get_savecraft_info</code></td>
+            <td><code>setup_help</code></td>
             <td>Returns setup help, privacy info, or project details.</td>
           </tr>
         </tbody>
