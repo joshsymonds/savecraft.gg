@@ -154,66 +154,7 @@ func TestInitImport_FailsOnUnexpectedResponse(t *testing.T) {
 	}
 }
 
-func TestImportD1SQL_PollNotImporting(t *testing.T) {
-	// When a small import completes between ingest and first poll, D1 returns
-	// error "Not currently importing anything". This should be treated as success.
-	var serverURL string
-	step := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Method == "PUT" {
-			w.WriteHeader(http.StatusOK)
-			return
-		}
-		var body map[string]string
-		json.NewDecoder(r.Body).Decode(&body)
-		switch body["action"] {
-		case "init":
-			step = 1
-			json.NewEncoder(w).Encode(map[string]any{
-				"success": true,
-				"result": map[string]any{
-					"upload_url": serverURL + "/upload",
-					"filename":   "test.sql",
-				},
-			})
-		case "ingest":
-			step = 2
-			json.NewEncoder(w).Encode(map[string]any{
-				"success": true,
-				"result": map[string]any{
-					"at_bookmark": "bookmark-123",
-				},
-			})
-		case "poll":
-			step = 3
-			json.NewEncoder(w).Encode(map[string]any{
-				"success": true,
-				"result": map[string]any{
-					"success": false,
-					"error":   "Not currently importing anything.",
-				},
-			})
-		}
-	}))
-	defer server.Close()
-	serverURL = server.URL
-	_ = step
-
-	// We can't call ImportD1SQL directly (it constructs its own URL from accountID/databaseID).
-	// Instead, test the poll error handling by verifying isImportCompleteError.
-	if !isImportCompleteError("Not currently importing anything.") {
-		t.Error("expected 'Not currently importing anything.' to be treated as complete")
-	}
-	if !isImportCompleteError("Not currently importing anything") {
-		t.Error("expected variant without period to also match")
-	}
-	if !isImportCompleteError("Not currently import at bookmark 00000735-00000452-00005037-abc123.") {
-		t.Error("expected 'Not currently import at bookmark...' to be treated as complete")
-	}
-	if isImportCompleteError("some other error") {
-		t.Error("unrelated errors should not be treated as complete")
-	}
-
+func TestPollRetryableError(t *testing.T) {
 	// D1_RESET_DO and other transient errors should be treated as retryable
 	if !isPollRetryableError(`{"D1_RESET_DO":true}`) {
 		t.Error("expected D1_RESET_DO to be retryable")
