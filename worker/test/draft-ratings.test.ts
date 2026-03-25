@@ -467,4 +467,69 @@ describe("draft_ratings native module", () => {
     expect(noHistBlazing).toBeDefined();
     expect(histBlazing!.axes.signal.raw).not.toBe(noHistBlazing!.axes.signal.raw);
   });
+
+  it("scores lands with zero curve and mana_fixing role", async () => {
+    await seedContextualData();
+    // Add a dual land card + its draft rating + mana_fixing role + role target
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(4, "oracle-land", "Darkslick Shores", "Darkslick Shores", "", 0, "Land", '[]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Darkslick Shores", 12_000, 16_000, 4000, 0.56, 0.58, 0.54, 0.49, 0.04, 4, 3.5),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("oracle-land", "Darkslick Shores", "mana_fixing", "DSK"),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("DSK", "UB", "mana_fixing", 2.5, 1000),
+    ]);
+
+    // Pool > 3 cards so the CMC-0 fallback (curveScore = 0.5) would normally
+    // trigger for a card at CMC 0 with no ideal curve data. Lands should skip
+    // this entirely and get curveScore = 0.
+    const result = await draftRatingsModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge", "Blazing Bolt", "Forest Bear", "Gloomlake Verge"],
+        pack: ["Darkslick Shores", "Blazing Bolt"],
+        pick_number: 15,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const data = result.data as {
+      recommendations: Array<{
+        card: string;
+        axes: {
+          curve: { raw: number };
+          role: { raw: number; roles: string[] };
+          castability: { raw: number };
+        };
+      }>;
+    };
+
+    const landRec = data.recommendations.find((r) => r.card === "Darkslick Shores");
+    expect(landRec).toBeDefined();
+
+    // Land should have curve score of exactly 0 (not scored against CMC-0 bucket)
+    expect(landRec!.axes.curve.raw).toBe(0);
+
+    // Land should have mana_fixing role and positive role score (pool needs fixing)
+    expect(landRec!.axes.role.roles).toContain("mana_fixing");
+    expect(landRec!.axes.role.raw).toBeGreaterThan(0);
+
+    // Land with no color pips should have castability 1.0
+    expect(landRec!.axes.castability.raw).toBe(1);
+
+    // Non-land card should still have normal curve scoring
+    const boltRec = data.recommendations.find((r) => r.card === "Blazing Bolt");
+    expect(boltRec).toBeDefined();
+    // Blazing Bolt at CMC 1 with ideal curve data — should have non-zero curve
+    expect(boltRec!.axes.curve.raw).not.toBe(0);
+  });
 });
