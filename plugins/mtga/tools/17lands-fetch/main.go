@@ -159,14 +159,16 @@ func run() error {
 		return err
 	}
 
-	// Fetch card CMC and roles from D1 concurrently — independent queries used
-	// for archetype curve and role target computation respectively.
+	// Fetch card CMC, roles, and land info from D1 concurrently — independent
+	// queries used for curve, role target, and deck stats computation respectively.
 	var cardCMC map[string]float64
 	var cardRoles map[string]map[string]bool
+	var cardLands map[string]bool
+	var cardFixing map[string]bool
 	if *d1DatabaseID != "" {
-		var cmcErr, rolesErr error
+		var cmcErr, rolesErr, landErr error
 		var d1wg sync.WaitGroup
-		d1wg.Add(2)
+		d1wg.Add(3)
 		go func() {
 			defer d1wg.Done()
 			cardCMC, cmcErr = fetchCardCMC(*cfAccountID, *d1DatabaseID, *cfAPIToken)
@@ -174,6 +176,10 @@ func run() error {
 		go func() {
 			defer d1wg.Done()
 			cardRoles, rolesErr = fetchCardRoles(*cfAccountID, *d1DatabaseID, *cfAPIToken)
+		}()
+		go func() {
+			defer d1wg.Done()
+			cardLands, cardFixing, landErr = fetchCardLandInfo(*cfAccountID, *d1DatabaseID, *cfAPIToken)
 		}()
 		d1wg.Wait()
 
@@ -186,6 +192,11 @@ func run() error {
 			fmt.Printf("WARN: could not fetch card roles from D1: %v (role targets will be skipped)\n", rolesErr)
 		} else {
 			fmt.Printf("Loaded role data for %d cards from D1\n", len(cardRoles))
+		}
+		if landErr != nil {
+			fmt.Printf("WARN: could not fetch land info from D1: %v (deck stats will be skipped)\n", landErr)
+		} else {
+			fmt.Printf("Loaded land info: %d lands, %d fixing from D1\n", len(cardLands), len(cardFixing))
 		}
 	}
 
@@ -210,7 +221,7 @@ func run() error {
 			fmt.Printf("Processing %s...\n", setCode)
 
 			// Single-pass: card stats + synergies from one CSV read.
-			accums, syn, err := processGameAndSynergyData(setCode, *cacheDir, cardCMC, cardRoles)
+			accums, syn, err := processGameAndSynergyData(setCode, *cacheDir, cardCMC, cardRoles, cardLands, cardFixing)
 			if err != nil {
 				fmt.Printf("  WARN: game data for %s failed: %v (skipping)\n", setCode, err)
 				results[idx] = setWork{err: err}
@@ -241,7 +252,7 @@ func run() error {
 	for _, r := range results {
 		if r.err == nil {
 			allSets = append(allSets, r.result)
-			if len(r.synergy.Synergies) > 0 || len(r.synergy.Curves) > 0 {
+			if len(r.synergy.Synergies) > 0 || len(r.synergy.Curves) > 0 || len(r.synergy.DeckStats) > 0 {
 				allSynergies = append(allSynergies, r.synergy)
 			}
 		}
