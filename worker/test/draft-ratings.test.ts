@@ -254,10 +254,10 @@ describe("draft_ratings native module", () => {
       ).bind("DSK", "UB", 1, 3.5, 1000),
       env.DB.prepare(
         `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
-      ).bind("DSK", "UB", 2, 5.0, 1000),
+      ).bind("DSK", "UB", 2, 5, 1000),
       env.DB.prepare(
         `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
-      ).bind("DSK", "UB", 3, 4.0, 1000),
+      ).bind("DSK", "UB", 3, 4, 1000),
 
       // Card roles (Blazing Bolt is removal)
       env.DB.prepare(
@@ -283,23 +283,69 @@ describe("draft_ratings native module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
 
     const data = result.data as {
-      archetype: { primary: string; candidates: Array<{ color_pair: string; weight: number }>; confidence: number };
+      archetype: {
+        primary: string;
+        candidates: { color_pair: string; weight: number }[];
+        confidence: number;
+      };
       pick_number: number;
       weight_profile: string;
-      recommendations: Array<{
+      recommendations: {
         card: string;
         composite_score: number;
         rank: number;
         axes: {
-          baseline: { raw: number; normalized: number; weight: number; contribution: number; gihwr: number; source: string };
-          synergy: { raw: number; normalized: number; weight: number; contribution: number; top_synergies: Array<{ card: string; delta: number }> };
-          role: { raw: number; normalized: number; weight: number; contribution: number; roles: string[]; detail: string };
-          curve: { raw: number; normalized: number; weight: number; contribution: number; cmc: number; pool_at_cmc: number; ideal_at_cmc: number };
-          castability: { raw: number; normalized: number; weight: number; contribution: number; max_pips: number; estimated_sources: number };
-          signal: { raw: number; normalized: number; weight: number; contribution: number; ata: number; current_pick: number };
+          baseline: {
+            raw: number;
+            normalized: number;
+            weight: number;
+            contribution: number;
+            gihwr: number;
+            source: string;
+          };
+          synergy: {
+            raw: number;
+            normalized: number;
+            weight: number;
+            contribution: number;
+            top_synergies: { card: string; delta: number }[];
+          };
+          role: {
+            raw: number;
+            normalized: number;
+            weight: number;
+            contribution: number;
+            roles: string[];
+            detail: string;
+          };
+          curve: {
+            raw: number;
+            normalized: number;
+            weight: number;
+            contribution: number;
+            cmc: number;
+            pool_at_cmc: number;
+            ideal_at_cmc: number;
+          };
+          castability: {
+            raw: number;
+            normalized: number;
+            weight: number;
+            contribution: number;
+            max_pips: number;
+            estimated_sources: number;
+          };
+          signal: {
+            raw: number;
+            normalized: number;
+            weight: number;
+            contribution: number;
+            ata: number;
+            current_pick: number;
+          };
         };
         waspas: { wsm: number; wpm: number; lambda: number };
-      }>;
+      }[];
     };
 
     // Pick 8 = mid weight profile
@@ -307,12 +353,23 @@ describe("draft_ratings native module", () => {
     expect(data.pick_number).toBe(8);
 
     // Continuous weights should be present and sum to ~1.0
-    const w = (result.data as { weights: { baseline: number; synergy: number; curve: number; signal: number; role: number; castability: number } }).weights;
+    const w = (
+      result.data as {
+        weights: {
+          baseline: number;
+          synergy: number;
+          curve: number;
+          signal: number;
+          role: number;
+          castability: number;
+        };
+      }
+    ).weights;
     expect(w.baseline).toBeGreaterThan(0);
     expect(w.synergy).toBeGreaterThan(0);
     expect(w.curve).toBeGreaterThan(0);
     expect(w.signal).toBeGreaterThan(0);
-    expect(w.baseline + w.synergy + w.curve + w.signal + w.role + w.castability).toBeCloseTo(1.0, 1);
+    expect(w.baseline + w.synergy + w.curve + w.signal + w.role + w.castability).toBeCloseTo(1, 1);
 
     // Pool has UB card, so UB should be primary or a candidate
     expect(data.archetype.candidates.length).toBeGreaterThan(0);
@@ -327,7 +384,14 @@ describe("draft_ratings native module", () => {
       expect(typeof rec.rank).toBe("number");
       expect(rec.rank).toBeGreaterThan(0);
       // All axes present with raw/normalized/weight/contribution
-      for (const axis of ["baseline", "synergy", "role", "curve", "castability", "signal"] as const) {
+      for (const axis of [
+        "baseline",
+        "synergy",
+        "role",
+        "curve",
+        "castability",
+        "signal",
+      ] as const) {
         expect(rec.axes[axis]).toBeDefined();
         expect(typeof rec.axes[axis].raw).toBe("number");
         expect(typeof rec.axes[axis].normalized).toBe("number");
@@ -411,7 +475,7 @@ describe("draft_ratings native module", () => {
 
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
-    const data = result.data as { recommendations: Array<{ card: string; composite_score: number }> };
+    const data = result.data as { recommendations: { card: string; composite_score: number }[] };
     expect(data.recommendations.length).toBe(2);
   });
 
@@ -451,10 +515,17 @@ describe("draft_ratings native module", () => {
 
     expect(withHistory.type).toBe("structured");
     expect(withoutHistory.type).toBe("structured");
-    if (withHistory.type !== "structured" || withoutHistory.type !== "structured") throw new Error("unexpected type");
+    if (withHistory.type !== "structured" || withoutHistory.type !== "structured")
+      throw new Error("unexpected type");
 
-    const histRecs = (withHistory.data as { recommendations: Array<{ card: string; axes: { signal: { raw: number } } }> }).recommendations;
-    const noHistRecs = (withoutHistory.data as { recommendations: Array<{ card: string; axes: { signal: { raw: number } } }> }).recommendations;
+    const histRecs = (
+      withHistory.data as { recommendations: { card: string; axes: { signal: { raw: number } } }[] }
+    ).recommendations;
+    const noHistRecs = (
+      withoutHistory.data as {
+        recommendations: { card: string; axes: { signal: { raw: number } } }[];
+      }
+    ).recommendations;
 
     // Both should return recommendations.
     expect(histRecs.length).toBe(2);
@@ -474,7 +545,7 @@ describe("draft_ratings native module", () => {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(4, "oracle-land", "Darkslick Shores", "Darkslick Shores", "", 0, "Land", '[]', 1),
+      ).bind(4, "oracle-land", "Darkslick Shores", "Darkslick Shores", "", 0, "Land", "[]", 1),
       env.DB.prepare(
         `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind("DSK", "Darkslick Shores", 12_000, 16_000, 4000, 0.56, 0.58, 0.54, 0.49, 0.04, 4, 3.5),
@@ -503,14 +574,14 @@ describe("draft_ratings native module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
 
     const data = result.data as {
-      recommendations: Array<{
+      recommendations: {
         card: string;
         axes: {
           curve: { raw: number };
           role: { raw: number; roles: string[] };
           castability: { raw: number };
         };
-      }>;
+      }[];
     };
 
     const landRec = data.recommendations.find((r) => r.card === "Darkslick Shores");

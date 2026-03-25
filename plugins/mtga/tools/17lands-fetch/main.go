@@ -141,6 +141,20 @@ func run() error {
 	cacheDir := flag.String("cache-dir", defaultCacheDir(), "Local cache directory for downloaded CSVs")
 	flag.Parse()
 
+	// Validate Cloudflare credentials early — don't download data we can't store.
+	if *d1DatabaseID != "" {
+		var missing []string
+		if *cfAccountID == "" {
+			missing = append(missing, "--cf-account-id / CLOUDFLARE_ACCOUNT_ID")
+		}
+		if *cfAPIToken == "" {
+			missing = append(missing, "--cf-api-token / CLOUDFLARE_API_TOKEN")
+		}
+		if len(missing) > 0 {
+			return fmt.Errorf("--d1-database-id provided but missing: %s", strings.Join(missing, ", "))
+		}
+	}
+
 	// Filter to a single set if --set is provided.
 	targetSets := sets.MTGA
 	if *setFilter != "" {
@@ -151,27 +165,31 @@ func run() error {
 		targetSets = []string{upper}
 	}
 
-	// Fetch card CMC data from D1 for archetype curve computation.
-	// Optional: if D1 credentials aren't available or query fails, curves are skipped.
+	// Fetch card CMC and roles from D1 concurrently — independent queries used
+	// for archetype curve and role target computation respectively.
 	var cardCMC map[string]float64
-	if *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != "" {
-		var err error
-		cardCMC, err = fetchCardCMC(*cfAccountID, *d1DatabaseID, *cfAPIToken)
-		if err != nil {
-			fmt.Printf("WARN: could not fetch card CMC from D1: %v (curves will be skipped)\n", err)
+	var cardRoles map[string]map[string]bool
+	if *d1DatabaseID != "" {
+		var cmcErr, rolesErr error
+		var d1wg sync.WaitGroup
+		d1wg.Add(2)
+		go func() {
+			defer d1wg.Done()
+			cardCMC, cmcErr = fetchCardCMC(*cfAccountID, *d1DatabaseID, *cfAPIToken)
+		}()
+		go func() {
+			defer d1wg.Done()
+			cardRoles, rolesErr = fetchCardRoles(*cfAccountID, *d1DatabaseID, *cfAPIToken)
+		}()
+		d1wg.Wait()
+
+		if cmcErr != nil {
+			fmt.Printf("WARN: could not fetch card CMC from D1: %v (curves will be skipped)\n", cmcErr)
 		} else {
 			fmt.Printf("Loaded CMC data for %d cards from D1\n", len(cardCMC))
 		}
-	}
-
-	// Fetch card roles from D1 for role target computation.
-	// Optional: if D1 credentials aren't available or query fails, role targets are skipped.
-	var cardRoles map[string]map[string]bool
-	if *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != "" {
-		var err error
-		cardRoles, err = fetchCardRoles(*cfAccountID, *d1DatabaseID, *cfAPIToken)
-		if err != nil {
-			fmt.Printf("WARN: could not fetch card roles from D1: %v (role targets will be skipped)\n", err)
+		if rolesErr != nil {
+			fmt.Printf("WARN: could not fetch card roles from D1: %v (role targets will be skipped)\n", rolesErr)
 		} else {
 			fmt.Printf("Loaded role data for %d cards from D1\n", len(cardRoles))
 		}
@@ -185,8 +203,8 @@ func run() error {
 	}
 	results := make([]setWork, len(targetSets))
 	var wg sync.WaitGroup
-	// Limit concurrency to avoid overwhelming 17Lands S3.
-	sem := make(chan struct{}, 6)
+	// Limit concurrency — mostly IO-bound (cached CSV reads + network downloads).
+	sem := make(chan struct{}, 12)
 
 	for i, set := range targetSets {
 		wg.Add(1)
@@ -197,14 +215,14 @@ func run() error {
 
 			fmt.Printf("Processing %s...\n", setCode)
 
-			// Pass 1: card-level stats (downloads + caches CSV).
-			accums, err := processGameData(setCode, *cacheDir)
+			// Single-pass: card stats + synergies from one CSV read.
+			accums, syn, err := processGameAndSynergyData(setCode, *cacheDir, cardCMC, cardRoles)
 			if err != nil {
 				fmt.Printf("  WARN: game data for %s failed: %v (skipping)\n", setCode, err)
 				results[idx] = setWork{err: err}
 				return
 			}
-			fmt.Printf("  %s game data: %d cards\n", setCode, len(accums["_overall"]))
+			fmt.Printf("  %s game data: %d cards, %d synergy pairs, %d curve rows\n", setCode, len(accums["_overall"]), len(syn.Synergies), len(syn.Curves))
 
 			if err := processDraftData(setCode, *cacheDir, accums); err != nil {
 				fmt.Printf("  WARN: draft data for %s failed: %v (continuing without ALSA/ATA)\n", setCode, err)
@@ -214,14 +232,6 @@ func run() error {
 
 			sr := buildSetResult(setCode, accums)
 			fmt.Printf("  %s complete: %d cards with stats\n", setCode, len(sr.Cards))
-
-			// Pass 2: pairwise synergies + archetype curves + role targets (reads from cache).
-			syn, err := processSynergyData(setCode, *cacheDir, cardCMC, cardRoles)
-			if err != nil {
-				fmt.Printf("  WARN: synergy data for %s failed: %v (continuing without synergies)\n", setCode, err)
-			} else {
-				fmt.Printf("  %s synergies: %d rows, curves: %d rows\n", setCode, len(syn.Synergies), len(syn.Curves))
-			}
 
 			// Compute sigmoid calibration from empirical distributions.
 			syn.Calibration = computeCalibration(sr, syn.Synergies)
@@ -246,7 +256,7 @@ func run() error {
 	fmt.Printf("Done processing %d sets.\n", len(allSets))
 
 	// ── Cloudflare D1 population ─────────────────────────────
-	if *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != "" {
+	if *d1DatabaseID != "" {
 		fmt.Println("\nPopulating D1 tables...")
 
 		// Import draft ratings.
@@ -273,133 +283,6 @@ func run() error {
 	return nil
 }
 
-func processGameData(set string, cacheDir string) (map[string]map[string]*cardAccum, error) {
-	url := fmt.Sprintf(gameDataURL, set)
-	filename := fmt.Sprintf("game_data_public.%s.PremierDraft.csv.gz", set)
-	reader, err := cachedDownloadGzip(url, cacheDir, filename)
-	if err != nil {
-		return nil, err
-	}
-	defer reader.Close()
-
-	csvReader := csv.NewReader(reader)
-	header, err := csvReader.Read()
-	if err != nil {
-		return nil, fmt.Errorf("reading header: %w", err)
-	}
-
-	// Parse header to find card columns.
-	// Format: opening_hand_{name}, drawn_{name}, tutored_{name}, deck_{name}, sideboard_{name}
-	type cardCols struct {
-		openingHand int
-		drawn       int
-		deck        int
-	}
-	cards := make(map[string]cardCols)
-	for i, h := range header {
-		if name, ok := strings.CutPrefix(h, "opening_hand_"); ok {
-			cc := cards[name]
-			cc.openingHand = i
-			cards[name] = cc
-		} else if name, ok := strings.CutPrefix(h, "drawn_"); ok {
-			cc := cards[name]
-			cc.drawn = i
-			cards[name] = cc
-		} else if name, ok := strings.CutPrefix(h, "deck_"); ok {
-			cc := cards[name]
-			cc.deck = i
-			cards[name] = cc
-		}
-	}
-
-	// Find column indices for metadata.
-	wonCol := indexOf(header, "won")
-	colorsCol := indexOf(header, "main_colors")
-
-	if wonCol < 0 {
-		return nil, fmt.Errorf("'won' column not found")
-	}
-
-	// accums[colorKey][cardName] = *cardAccum
-	// "_overall" is the aggregate across all colors.
-	accums := make(map[string]map[string]*cardAccum)
-	accums["_overall"] = make(map[string]*cardAccum)
-	for _, cp := range colorPairs {
-		accums[cp] = make(map[string]*cardAccum)
-	}
-
-	rowCount := 0
-	for {
-		row, err := csvReader.Read()
-		if err == io.EOF {
-			break
-		}
-		if err != nil {
-			continue // Skip malformed rows.
-		}
-		rowCount++
-
-		won := row[wonCol] == "True"
-		mainColors := ""
-		if colorsCol >= 0 {
-			mainColors = normalizeColors(row[colorsCol])
-		}
-
-		for cardName, cols := range cards {
-			inDeck := cols.deck > 0 && cols.deck < len(row) && row[cols.deck] != "0" && row[cols.deck] != ""
-			if !inDeck {
-				continue
-			}
-
-			inOpeningHand := cols.openingHand > 0 && cols.openingHand < len(row) && row[cols.openingHand] != "0" && row[cols.openingHand] != ""
-			wasDrawn := cols.drawn > 0 && cols.drawn < len(row) && row[cols.drawn] != "0" && row[cols.drawn] != ""
-			inHand := inOpeningHand || wasDrawn
-
-			// Update accumulators for overall and matching color pair.
-			for _, key := range []string{"_overall", mainColors} {
-				m, ok := accums[key]
-				if !ok {
-					continue
-				}
-				a, ok := m[cardName]
-				if !ok {
-					a = &cardAccum{}
-					m[cardName] = a
-				}
-
-				a.gamesInDeck++
-				if inHand {
-					a.gamesInHand++
-					if won {
-						a.winsInHand++
-					}
-				}
-				if inOpeningHand {
-					a.gamesOpeningHand++
-					if won {
-						a.winsOpeningHand++
-					}
-				}
-				if wasDrawn {
-					a.gamesDrawn++
-					if won {
-						a.winsDrawn++
-					}
-				}
-				if !inHand {
-					a.gamesNotSeen++
-					if won {
-						a.winsNotSeen++
-					}
-				}
-			}
-		}
-	}
-
-	fmt.Printf("  Processed %d games\n", rowCount)
-	return accums, nil
-}
-
 func processDraftData(set string, cacheDir string, accums map[string]map[string]*cardAccum) error {
 	url := fmt.Sprintf(draftDataURL, set)
 	filename := fmt.Sprintf("draft_data_public.%s.PremierDraft.csv.gz", set)
@@ -416,9 +299,6 @@ func processDraftData(set string, cacheDir string, accums map[string]map[string]
 	}
 
 	// Find pack_card_* columns for ALSA, and pick/pick_number columns for ATA.
-	type packCol struct {
-		idx int
-	}
 	packCards := make(map[string]int) // cardName → column index
 	for i, h := range header {
 		if name, ok := strings.CutPrefix(h, "pack_card_"); ok {
@@ -541,7 +421,6 @@ func buildSetResult(set string, accums map[string]map[string]*cardAccum) setResu
 
 	return sr
 }
-
 
 func indexOf(slice []string, val string) int {
 	for i, s := range slice {

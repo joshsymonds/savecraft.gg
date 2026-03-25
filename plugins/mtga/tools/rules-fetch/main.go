@@ -17,6 +17,7 @@ import (
 	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	"time"
 
@@ -67,50 +68,110 @@ func run() error {
 	vectorizeIndex := flag.String("vectorize-index", "", "Vectorize index name (enables Vectorize population)")
 	flag.Parse()
 
-	fmt.Println("Downloading Comprehensive Rules...")
-	rulesText, err := downloadText(compRulesURL)
-	if err != nil {
-		return fmt.Errorf("downloading rules: %w", err)
+	// Validate Cloudflare credentials early — don't download data we can't store.
+	if *d1DatabaseID != "" || *vectorizeIndex != "" {
+		var missing []string
+		if *cfAccountID == "" {
+			missing = append(missing, "--cf-account-id / CLOUDFLARE_ACCOUNT_ID")
+		}
+		if *cfAPIToken == "" {
+			missing = append(missing, "--cf-api-token / CLOUDFLARE_API_TOKEN")
+		}
+		if len(missing) > 0 {
+			return fmt.Errorf("Cloudflare output requested but missing: %s", strings.Join(missing, ", "))
+		}
 	}
-	fmt.Printf("Comprehensive Rules: %d bytes\n", len(rulesText))
+
+	// ── Download all three sources concurrently ──────────────
+	var (
+		rulesText   string
+		cardRulings map[string][]CardRuling
+		cardNames   map[string]string
+
+		rulesErr    error
+		rulingsErr  error
+		cardNmErr   error
+	)
+
+	var wg sync.WaitGroup
+	wg.Add(3)
+
+	go func() {
+		defer wg.Done()
+		fmt.Println("Downloading Comprehensive Rules...")
+		rulesText, rulesErr = downloadText(compRulesURL)
+		if rulesErr == nil {
+			fmt.Printf("Comprehensive Rules: %d bytes\n", len(rulesText))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		fmt.Println("Downloading Scryfall Rulings...")
+		cardRulings, rulingsErr = downloadAndParseRulings()
+		if rulingsErr == nil {
+			fmt.Printf("Card rulings: %d cards\n", len(cardRulings))
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		cardNames, cardNmErr = downloadCardNames()
+	}()
+
+	wg.Wait()
+
+	if rulesErr != nil {
+		return fmt.Errorf("downloading rules: %w", rulesErr)
+	}
+	if rulingsErr != nil {
+		return fmt.Errorf("downloading rulings: %w", rulingsErr)
+	}
+	if cardNmErr != nil {
+		return fmt.Errorf("downloading card names: %w", cardNmErr)
+	}
 
 	rules := parseComprehensiveRules(rulesText)
 	fmt.Printf("Parsed %d rules\n", len(rules))
 
-	fmt.Println("Downloading Scryfall Rulings...")
-	cardRulings, err := downloadAndParseRulings()
-	if err != nil {
-		return fmt.Errorf("downloading rulings: %w", err)
-	}
-	fmt.Printf("Card rulings: %d cards\n", len(cardRulings))
-
-	// ── Cloudflare population (D1 + Vectorize) ──────────────
-	needsD1 := *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != ""
-	needsVectorize := *vectorizeIndex != "" && *cfAccountID != "" && *cfAPIToken != ""
+	// ── Cloudflare population (D1 + Vectorize concurrently) ──────────────
+	needsD1 := *d1DatabaseID != ""
+	needsVectorize := *vectorizeIndex != ""
 
 	if needsD1 || needsVectorize {
-		// Download card names from Scryfall (all of Magic, not just Arena)
-		cardNames, err := downloadCardNames()
-		if err != nil {
-			return fmt.Errorf("downloading card names: %w", err)
-		}
+		var cfWg sync.WaitGroup
+		errs := make(chan error, 2)
 
 		if needsD1 {
-			fmt.Println("\nPopulating D1 tables...")
-			sql := buildImportSQL(rules, cardRulings, cardNames)
-			fmt.Printf("Generated %.1f MB of SQL (%d rules, %d cards with rulings)\n", float64(len(sql))/1048576, len(rules), len(cardNames))
-			if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
-				return fmt.Errorf("D1 import: %w", err)
-			}
-			fmt.Println("D1 population complete")
+			cfWg.Go(func() {
+				fmt.Println("\nPopulating D1 tables...")
+				sql := buildImportSQL(rules, cardRulings, cardNames)
+				fmt.Printf("Generated %.1f MB of SQL (%d rules, %d cards with rulings)\n", float64(len(sql))/1048576, len(rules), len(cardNames))
+				if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
+					errs <- fmt.Errorf("D1 import: %w", err)
+					return
+				}
+				fmt.Println("D1 population complete")
+			})
 		}
 
 		if needsVectorize {
-			fmt.Println("\nPopulating Vectorize index...")
-			if err := populateVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, rules, cardRulings, cardNames); err != nil {
-				return fmt.Errorf("populating vectorize: %w", err)
-			}
-			fmt.Println("Vectorize population complete")
+			cfWg.Go(func() {
+				fmt.Println("\nPopulating Vectorize index...")
+				if err := populateVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, rules, cardRulings, cardNames); err != nil {
+					errs <- fmt.Errorf("populating vectorize: %w", err)
+					return
+				}
+				fmt.Println("Vectorize population complete")
+			})
+		}
+
+		cfWg.Wait()
+		close(errs)
+
+		// Return the first error encountered.
+		for err := range errs {
+			return err
 		}
 	}
 

@@ -24,6 +24,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
@@ -124,29 +125,51 @@ func run() error {
 	})
 
 	// ── Cloudflare population (D1 + Vectorize) ──────────────
+	// D1 and Vectorize are independent — run them concurrently when both are requested.
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+
 	if *d1DatabaseID != "" {
-		fmt.Println("\nPopulating D1 tables...")
-		sql := buildCardImportSQL(cards)
-		fmt.Printf("Generated %.1f MB of SQL (%d cards)\n", float64(len(sql))/1048576, len(cards))
-		if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
-			return fmt.Errorf("D1 import: %w", err)
-		}
-		fmt.Println("D1 population complete")
+		wg.Go(func() {
+			fmt.Println("\nPopulating D1 tables...")
+			sql := buildCardImportSQL(cards)
+			fmt.Printf("Generated %.1f MB of SQL (%d cards)\n", float64(len(sql))/1048576, len(cards))
+			if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
+				errs <- fmt.Errorf("D1 import: %w", err)
+				return
+			}
+			fmt.Println("D1 population complete")
+		})
 	}
 
 	if *vectorizeIndex != "" {
-		// Only embed default printings — one vector per card name.
-		var defaults []ScryfallCard
-		for _, c := range cards {
-			if c.IsDefault {
-				defaults = append(defaults, c)
+		wg.Go(func() {
+			// Only embed default printings — one vector per card name.
+			var defaults []ScryfallCard
+			for _, c := range cards {
+				if c.IsDefault {
+					defaults = append(defaults, c)
+				}
 			}
-		}
-		fmt.Printf("\nPopulating Vectorize index (%d default cards)...\n", len(defaults))
-		if err := populateCardVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, defaults); err != nil {
-			return fmt.Errorf("populating vectorize: %w", err)
-		}
-		fmt.Println("Vectorize population complete")
+			fmt.Printf("\nPopulating Vectorize index (%d default cards)...\n", len(defaults))
+			if err := populateCardVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, defaults); err != nil {
+				errs <- fmt.Errorf("populating vectorize: %w", err)
+				return
+			}
+			fmt.Println("Vectorize population complete")
+		})
+	}
+
+	wg.Wait()
+	close(errs)
+
+	// Collect all errors.
+	var errMsgs []string
+	for err := range errs {
+		errMsgs = append(errMsgs, err.Error())
+	}
+	if len(errMsgs) > 0 {
+		return fmt.Errorf("cloudflare population failed:\n  %s", strings.Join(errMsgs, "\n  "))
 	}
 
 	return nil

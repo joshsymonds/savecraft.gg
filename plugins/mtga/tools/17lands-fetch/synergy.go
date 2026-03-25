@@ -79,12 +79,8 @@ type roleTargetAccum struct {
 // cmcBucket maps a CMC value to its bucket index (0-7, where 7 = 7+).
 func cmcBucket(cmc float64) int {
 	b := int(cmc)
-	if b > 7 {
-		b = 7
-	}
-	if b < 0 {
-		b = 0
-	}
+	b = min(b, 7)
+	b = max(b, 0)
 	return b
 }
 
@@ -99,58 +95,95 @@ var colorPairSet = func() map[string]bool {
 	return m
 }()
 
-// processSynergyData reads the cached game_data CSV for a set and computes
-// pairwise card synergies (stratified by color pair to remove archetype
-// confounding), archetype CMC curves, and role targets.
-//
-// Stratification: synergy is computed within each 2-color archetype separately,
-// then the final delta is a weighted average across archetypes (weighted by
-// games_together per archetype). This removes the "coattail effect" where cards
-// in strong archetypes falsely show positive synergy.
+// processGameAndSynergyData downloads (or reads from cache) the game_data CSV
+// for a set and performs a single streaming pass to accumulate both per-card
+// statistics (for draft ratings) and pairwise synergy/curve/role-target data.
 //
 // cardCMC maps card names to their converted mana cost. If nil, curve
 // computation is skipped. cardRoles maps card names to their set of roles
 // (e.g., "creature", "removal"). If nil, role target computation is skipped.
-//
-// It returns both-direction synergy rows filtered to pairs with at least
-// minGamesTogether total games across all archetypes.
-func processSynergyData(set string, cacheDir string, cardCMC map[string]float64, cardRoles map[string]map[string]bool) (synergyDataResult, error) {
+func processGameAndSynergyData(set string, cacheDir string, cardCMC map[string]float64, cardRoles map[string]map[string]bool) (map[string]map[string]*cardAccum, synergyDataResult, error) {
+	url := fmt.Sprintf(gameDataURL, set)
 	filename := fmt.Sprintf("game_data_public.%s.PremierDraft.csv.gz", set)
-	reader, err := openCachedGzip(fmt.Sprintf("%s/%s", cacheDir, filename))
+	reader, err := cachedDownloadGzip(url, cacheDir, filename)
 	if err != nil {
-		return synergyDataResult{}, fmt.Errorf("opening cached game data: %w", err)
+		return nil, synergyDataResult{}, err
 	}
 	defer reader.Close()
 
-	csvReader := csv.NewReader(reader)
+	accums, syn, err := processGameAndSynergyCSV(reader, set, cardCMC, cardRoles)
+	if err != nil {
+		return nil, synergyDataResult{}, err
+	}
+	return accums, syn, nil
+}
+
+// processGameAndSynergyCSV performs a single streaming pass over a game_data
+// CSV, accumulating both per-card statistics (for draft ratings) and pairwise
+// synergy/curve/role-target data.
+//
+// It parses the superset of columns needed by both card stats and synergy
+// computation: deck_*, opening_hand_*, drawn_*, won, main_colors.
+//
+// cardCMC maps card names to their converted mana cost. If nil, curve
+// computation is skipped. cardRoles maps card names to their set of roles
+// (e.g., "creature", "removal"). If nil, role target computation is skipped.
+func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float64, cardRoles map[string]map[string]bool) (map[string]map[string]*cardAccum, synergyDataResult, error) {
+	csvReader := csv.NewReader(r)
 	header, err := csvReader.Read()
 	if err != nil {
-		return synergyDataResult{}, fmt.Errorf("reading header: %w", err)
+		return nil, synergyDataResult{}, fmt.Errorf("reading header: %w", err)
 	}
 
-	// Parse header for deck_* columns.
-	deckCols := make(map[string]int) // cardName → column index
+	// Parse header to find card columns.
+	// Format: opening_hand_{name}, drawn_{name}, tutored_{name}, deck_{name}, sideboard_{name}
+	type cardCols struct {
+		openingHand int
+		drawn       int
+		deck        int
+	}
+	cards := make(map[string]cardCols)
 	for i, h := range header {
-		if name, ok := strings.CutPrefix(h, "deck_"); ok {
-			deckCols[name] = i
+		if name, ok := strings.CutPrefix(h, "opening_hand_"); ok {
+			cc := cards[name]
+			cc.openingHand = i
+			cards[name] = cc
+		} else if name, ok := strings.CutPrefix(h, "drawn_"); ok {
+			cc := cards[name]
+			cc.drawn = i
+			cards[name] = cc
+		} else if name, ok := strings.CutPrefix(h, "deck_"); ok {
+			cc := cards[name]
+			cc.deck = i
+			cards[name] = cc
 		}
 	}
 
+	// Find column indices for metadata.
 	wonCol := indexOf(header, "won")
-	if wonCol < 0 {
-		return synergyDataResult{}, fmt.Errorf("'won' column not found")
-	}
-
 	colorsCol := indexOf(header, "main_colors")
 
-	// Pre-allocate card name slice for reuse across rows.
-	cardNames := make([]string, 0, len(deckCols))
-	for name := range deckCols {
+	if wonCol < 0 {
+		return nil, synergyDataResult{}, fmt.Errorf("'won' column not found")
+	}
+
+	// ── Card accumulators (for draft ratings) ──────────────────
+	// accums[colorKey][cardName] = *cardAccum
+	// "_overall" is the aggregate across all colors.
+	accums := make(map[string]map[string]*cardAccum)
+	accums["_overall"] = make(map[string]*cardAccum)
+	for _, cp := range colorPairs {
+		accums[cp] = make(map[string]*cardAccum)
+	}
+
+	// ── Synergy accumulators ───────────────────────────────────
+	// Pre-allocate sorted card name slice for deterministic pair ordering.
+	cardNames := make([]string, 0, len(cards))
+	for name := range cards {
 		cardNames = append(cardNames, name)
 	}
 	sort.Strings(cardNames)
 
-	// Stratified accumulators: one set of pair + card maps per color pair.
 	pairsByColor := make(map[string]map[cardPair]*pairAccum)  // colorPair → pair → accum
 	cardsByColor := make(map[string]map[string]*cardDeckAccum) // colorPair → cardName → accum
 	curves := make(map[string]*curveAccum)                     // color pair → curve accumulator
@@ -159,6 +192,7 @@ func processSynergyData(set string, cacheDir string, cardCMC map[string]float64,
 	// Buffer for cards in deck per row (reused to avoid allocation).
 	inDeck := make([]string, 0, 50)
 
+	rowCount := 0
 	for {
 		row, err := csvReader.Read()
 		if err == io.EOF {
@@ -167,24 +201,70 @@ func processSynergyData(set string, cacheDir string, cardCMC map[string]float64,
 		if err != nil {
 			continue // Skip malformed rows.
 		}
+		rowCount++
 
 		won := row[wonCol] == "True"
-
-		// Determine color pair for stratification.
-		var mainColors string
+		mainColors := ""
 		if colorsCol >= 0 {
 			mainColors = normalizeColors(row[colorsCol])
 		}
 
-		// Collect cards in this game's deck.
+		// ── Card-level stats (draft ratings) + inDeck collection ──
 		inDeck = inDeck[:0]
-		for _, name := range cardNames {
-			colIdx := deckCols[name]
-			if colIdx < len(row) && row[colIdx] != "0" && row[colIdx] != "" {
-				inDeck = append(inDeck, name)
+		for _, cardName := range cardNames {
+			cols := cards[cardName]
+			isDeckCard := cols.deck > 0 && cols.deck < len(row) && row[cols.deck] != "0" && row[cols.deck] != ""
+			if !isDeckCard {
+				continue
+			}
+
+			inDeck = append(inDeck, cardName)
+
+			inOpeningHand := cols.openingHand > 0 && cols.openingHand < len(row) && row[cols.openingHand] != "0" && row[cols.openingHand] != ""
+			wasDrawn := cols.drawn > 0 && cols.drawn < len(row) && row[cols.drawn] != "0" && row[cols.drawn] != ""
+			inHand := inOpeningHand || wasDrawn
+
+			// Update accumulators for overall and matching color pair.
+			for _, key := range []string{"_overall", mainColors} {
+				m, ok := accums[key]
+				if !ok {
+					continue
+				}
+				a, ok := m[cardName]
+				if !ok {
+					a = &cardAccum{}
+					m[cardName] = a
+				}
+
+				a.gamesInDeck++
+				if inHand {
+					a.gamesInHand++
+					if won {
+						a.winsInHand++
+					}
+				}
+				if inOpeningHand {
+					a.gamesOpeningHand++
+					if won {
+						a.winsOpeningHand++
+					}
+				}
+				if wasDrawn {
+					a.gamesDrawn++
+					if won {
+						a.winsDrawn++
+					}
+				}
+				if !inHand {
+					a.gamesNotSeen++
+					if won {
+						a.winsNotSeen++
+					}
+				}
 			}
 		}
 
+		// ── Synergy accumulation ───────────────────────────────
 		// Only accumulate synergy data for recognized 2-color pairs.
 		// Mono-color and 3+ color games are noise for stratified analysis.
 		if colorPairSet[mainColors] {
@@ -263,6 +343,10 @@ func processSynergyData(set string, cacheDir string, cardCMC map[string]float64,
 			}
 		}
 	}
+
+	fmt.Printf("  Processed %d games\n", rowCount)
+
+	// ── Post-processing: compute synergy deltas ────────────────
 
 	// Collect all unique pairs across all color pairs and sum total games.
 	type pairTotal struct {
@@ -346,7 +430,7 @@ func processSynergyData(set string, cacheDir string, cardCMC map[string]float64,
 		if ca.totalDecks == 0 {
 			continue
 		}
-		for cmc := 0; cmc < 8; cmc++ {
+		for cmc := range 8 {
 			if ca.cmcCounts[cmc] == 0 {
 				continue
 			}
@@ -375,7 +459,8 @@ func processSynergyData(set string, cacheDir string, cardCMC map[string]float64,
 		}
 	}
 
-	return synergyDataResult{Set: set, Synergies: synergies, Curves: curveRows, RoleTargets: roleTargetRows}, nil
+	syn := synergyDataResult{Set: set, Synergies: synergies, Curves: curveRows, RoleTargets: roleTargetRows}
+	return accums, syn, nil
 }
 
 // buildSynergyImportSQL generates SQL for D1 bulk import of synergy, curve, role target, and calibration data.

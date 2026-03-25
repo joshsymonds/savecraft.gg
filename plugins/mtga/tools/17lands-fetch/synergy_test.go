@@ -21,7 +21,24 @@ func writeTestCSV(t *testing.T, path string, csvContent string) {
 	gz.Close()
 }
 
-func TestProcessSynergyData_BasicPair(t *testing.T) {
+// openTestCSV opens a gzipped test CSV and returns a decompressed reader.
+func openTestCSV(t *testing.T, cacheDir string, csvContent string) *gzipReadCloser {
+	t.Helper()
+	path := filepath.Join(cacheDir, "test.csv.gz")
+	writeTestCSV(t, path, csvContent)
+	f, err := os.Open(path)
+	if err != nil {
+		t.Fatalf("opening test CSV: %v", err)
+	}
+	gz, err := gzip.NewReader(f)
+	if err != nil {
+		f.Close()
+		t.Fatalf("gzip reader: %v", err)
+	}
+	return &gzipReadCloser{gz: gz, body: f}
+}
+
+func TestProcessGameAndSynergyData_BasicPair(t *testing.T) {
 	csv := "won,main_colors,deck_CardA,deck_CardB\n" +
 		"True,WU,1,1\n" +
 		"False,WU,1,1\n" +
@@ -29,9 +46,10 @@ func TestProcessSynergyData_BasicPair(t *testing.T) {
 		"False,WU,0,1\n"
 
 	cacheDir := t.TempDir()
-	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), csv)
+	r := openTestCSV(t, cacheDir, csv)
+	defer r.Close()
 
-	result, err := processSynergyData("TST", cacheDir, nil, nil)
+	accums, result, err := processGameAndSynergyCSV(r, "TST", nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -39,9 +57,20 @@ func TestProcessSynergyData_BasicPair(t *testing.T) {
 	if len(result.Synergies) != 0 {
 		t.Errorf("expected 0 synergies (below threshold), got %d", len(result.Synergies))
 	}
+
+	// Verify card accums were populated.
+	overall := accums["_overall"]
+	if overall == nil {
+		t.Fatal("expected _overall accums")
+	}
+	if a, ok := overall["CardA"]; !ok {
+		t.Error("CardA not in _overall accums")
+	} else if a.gamesInDeck != 3 {
+		t.Errorf("CardA gamesInDeck = %d, want 3", a.gamesInDeck)
+	}
 }
 
-func TestProcessSynergyData_AboveThreshold(t *testing.T) {
+func TestProcessGameAndSynergyData_AboveThreshold(t *testing.T) {
 	var b strings.Builder
 	b.WriteString("won,main_colors,deck_CardA,deck_CardB\n")
 	for range 200 {
@@ -64,9 +93,10 @@ func TestProcessSynergyData_AboveThreshold(t *testing.T) {
 	}
 
 	cacheDir := t.TempDir()
-	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
+	r := openTestCSV(t, cacheDir, b.String())
+	defer r.Close()
 
-	result, err := processSynergyData("TST", cacheDir, nil, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -110,7 +140,7 @@ func TestProcessSynergyData_AboveThreshold(t *testing.T) {
 	}
 }
 
-func TestProcessSynergyData_ThreeCards(t *testing.T) {
+func TestProcessGameAndSynergyData_ThreeCards(t *testing.T) {
 	var b strings.Builder
 	b.WriteString("won,main_colors,deck_CardA,deck_CardB,deck_CardC\n")
 	for range 250 {
@@ -121,9 +151,10 @@ func TestProcessSynergyData_ThreeCards(t *testing.T) {
 	}
 
 	cacheDir := t.TempDir()
-	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
+	r := openTestCSV(t, cacheDir, b.String())
+	defer r.Close()
 
-	result, err := processSynergyData("TST", cacheDir, nil, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -133,14 +164,15 @@ func TestProcessSynergyData_ThreeCards(t *testing.T) {
 	}
 }
 
-func TestProcessSynergyData_CurvesNilCMC(t *testing.T) {
+func TestProcessGameAndSynergyData_CurvesNilCMC(t *testing.T) {
 	csv := "won,main_colors,deck_CardA\n" +
 		"True,WU,1\n"
 
 	cacheDir := t.TempDir()
-	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), csv)
+	r := openTestCSV(t, cacheDir, csv)
+	defer r.Close()
 
-	result, err := processSynergyData("TST", cacheDir, nil, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -150,7 +182,7 @@ func TestProcessSynergyData_CurvesNilCMC(t *testing.T) {
 	}
 }
 
-func TestProcessSynergyData_CurvesWithCMC(t *testing.T) {
+func TestProcessGameAndSynergyData_CurvesWithCMC(t *testing.T) {
 	// 10 winning WU games with CardA (CMC 2) and CardB (CMC 4) in deck.
 	// 5 winning UB games with CardA (CMC 2) only.
 	var b strings.Builder
@@ -167,14 +199,15 @@ func TestProcessSynergyData_CurvesWithCMC(t *testing.T) {
 	}
 
 	cacheDir := t.TempDir()
-	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
+	r := openTestCSV(t, cacheDir, b.String())
+	defer r.Close()
 
 	cardCMC := map[string]float64{
 		"CardA": 2.0,
 		"CardB": 4.0,
 	}
 
-	result, err := processSynergyData("TST", cacheDir, cardCMC, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", cardCMC, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -220,7 +253,7 @@ func TestProcessSynergyData_CurvesWithCMC(t *testing.T) {
 	}
 }
 
-func TestProcessSynergyData_CurveCMC7Plus(t *testing.T) {
+func TestProcessGameAndSynergyData_CurveCMC7Plus(t *testing.T) {
 	// Cards with CMC >= 7 should all bucket into CMC 7.
 	var b strings.Builder
 	b.WriteString("won,main_colors,deck_BigCard\n")
@@ -229,11 +262,12 @@ func TestProcessSynergyData_CurveCMC7Plus(t *testing.T) {
 	}
 
 	cacheDir := t.TempDir()
-	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
+	r := openTestCSV(t, cacheDir, b.String())
+	defer r.Close()
 
 	cardCMC := map[string]float64{"BigCard": 9.0}
 
-	result, err := processSynergyData("TST", cacheDir, cardCMC, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", cardCMC, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -308,7 +342,7 @@ func TestBuildSynergyImportSQL_EscapesQuotes(t *testing.T) {
 	}
 }
 
-func TestProcessSynergyData_StratifiedDeconfounding(t *testing.T) {
+func TestProcessGameAndSynergyData_StratifiedDeconfounding(t *testing.T) {
 	// Demonstrates the coattail effect: cards A and B co-occur in strong (WU)
 	// and weak (BG) archetypes. Globally, synergy appears high because WU inflates
 	// the co-occurrence WR. Stratified within each color pair, synergy is low.
@@ -373,9 +407,10 @@ func TestProcessSynergyData_StratifiedDeconfounding(t *testing.T) {
 	}
 
 	cacheDir := t.TempDir()
-	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
+	r := openTestCSV(t, cacheDir, b.String())
+	defer r.Close()
 
-	result, err := processSynergyData("TST", cacheDir, nil, nil)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, nil)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -405,7 +440,7 @@ func TestProcessSynergyData_StratifiedDeconfounding(t *testing.T) {
 	}
 }
 
-func TestProcessSynergyData_RoleTargets(t *testing.T) {
+func TestProcessGameAndSynergyData_RoleTargets(t *testing.T) {
 	// 10 winning WU decks: each has CardA (creature) and CardB (removal) in deck.
 	// 5 winning UB decks: each has CardA (creature) only.
 	var b strings.Builder
@@ -422,14 +457,15 @@ func TestProcessSynergyData_RoleTargets(t *testing.T) {
 	}
 
 	cacheDir := t.TempDir()
-	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
+	r := openTestCSV(t, cacheDir, b.String())
+	defer r.Close()
 
 	cardRoles := map[string]map[string]bool{
 		"CardA": {"creature": true},
 		"CardB": {"removal": true},
 	}
 
-	result, err := processSynergyData("TST", cacheDir, nil, cardRoles)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, cardRoles)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -489,7 +525,7 @@ func TestProcessSynergyData_RoleTargets(t *testing.T) {
 	}
 }
 
-func TestProcessSynergyData_RoleTargetsMultiRole(t *testing.T) {
+func TestProcessGameAndSynergyData_RoleTargetsMultiRole(t *testing.T) {
 	// A card with multiple roles (creature + removal) should count toward both.
 	var b strings.Builder
 	b.WriteString("won,main_colors,deck_Chupacabra\n")
@@ -498,13 +534,14 @@ func TestProcessSynergyData_RoleTargetsMultiRole(t *testing.T) {
 	}
 
 	cacheDir := t.TempDir()
-	writeTestCSV(t, filepath.Join(cacheDir, "game_data_public.TST.PremierDraft.csv.gz"), b.String())
+	r := openTestCSV(t, cacheDir, b.String())
+	defer r.Close()
 
 	cardRoles := map[string]map[string]bool{
 		"Chupacabra": {"creature": true, "removal": true},
 	}
 
-	result, err := processSynergyData("TST", cacheDir, nil, cardRoles)
+	_, result, err := processGameAndSynergyCSV(r, "TST", nil, cardRoles)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

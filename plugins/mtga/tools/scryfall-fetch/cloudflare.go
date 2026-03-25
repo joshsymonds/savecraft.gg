@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
 )
@@ -73,55 +74,128 @@ func buildCardImportSQL(cards []ScryfallCard) string {
 	return b.String()
 }
 
-// populateCardVectorize embeds all cards and upserts to Vectorize.
+// populateCardVectorize embeds all cards concurrently and upserts to Vectorize.
 func populateCardVectorize(accountID, indexName, apiToken string, cards []ScryfallCard) error {
-	const embeddingBatchSize = 50
+	const embeddingBatchSize = 100
 	const vectorizeBatchSize = 1000
+	const embeddingConcurrency = 6
 
 	fmt.Printf("Embedding %d cards...\n", len(cards))
 
-	var allVectors []cfapi.VectorizeVector
-	for i := 0; i < len(cards); i += embeddingBatchSize {
+	// Pre-allocate slots so concurrent goroutines write to distinct indices.
+	numBatches := (len(cards) + embeddingBatchSize - 1) / embeddingBatchSize
+	batchResults := make([][]cfapi.VectorizeVector, numBatches)
+
+	// Milestone progress: report at 25%, 50%, 75%, 100%.
+	embeddingMilestones := milestoneSet(len(cards), embeddingBatchSize)
+
+	sem := make(chan struct{}, embeddingConcurrency)
+	var mu sync.Mutex
+	var firstErr error
+	var wg sync.WaitGroup
+
+	for batchIdx := range numBatches {
+		i := batchIdx * embeddingBatchSize
 		end := min(i+embeddingBatchSize, len(cards))
 		batch := cards[i:end]
 
-		texts := make([]string, len(batch))
-		for j, c := range batch {
-			texts[j] = cardEmbeddingText(c)
-		}
+		wg.Add(1)
+		sem <- struct{}{} // acquire semaphore slot
 
-		embeddings, err := cfapi.EmbedTextsWithRetry(accountID, apiToken, texts)
-		if err != nil {
-			return fmt.Errorf("embedding batch %d-%d: %w", i, end, err)
-		}
+		go func(batchIdx, end int, batch []ScryfallCard) {
+			defer wg.Done()
+			defer func() { <-sem }() // release semaphore slot
 
-		if len(embeddings) != len(batch) {
-			return fmt.Errorf("embedding batch %d-%d: expected %d embeddings, got %d", i, end, len(batch), len(embeddings))
-		}
+			// Skip work if a previous batch already failed.
+			mu.Lock()
+			failed := firstErr != nil
+			mu.Unlock()
+			if failed {
+				return
+			}
 
-		for j, c := range batch {
-			allVectors = append(allVectors, cfapi.VectorizeVector{
-				ID:     fmt.Sprintf("card:%d", c.ArenaID),
-				Values: embeddings[j],
-				Metadata: map[string]string{
-					"type": "card",
-					"name": c.Name,
-				},
-			})
-		}
+			texts := make([]string, len(batch))
+			for j, c := range batch {
+				texts[j] = cardEmbeddingText(c)
+			}
 
-		fmt.Printf("  Embedded %d/%d\n", end, len(cards))
+			embeddings, err := cfapi.EmbedTextsWithRetry(accountID, apiToken, texts)
+			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("embedding batch ending at %d: %w", end, err)
+				}
+				mu.Unlock()
+				return
+			}
+
+			if len(embeddings) != len(batch) {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("embedding batch ending at %d: expected %d embeddings, got %d", end, len(batch), len(embeddings))
+				}
+				mu.Unlock()
+				return
+			}
+
+			vectors := make([]cfapi.VectorizeVector, len(batch))
+			for j, c := range batch {
+				vectors[j] = cfapi.VectorizeVector{
+					ID:     fmt.Sprintf("card:%d", c.ArenaID),
+					Values: embeddings[j],
+					Metadata: map[string]string{
+						"type": "card",
+						"name": c.Name,
+					},
+				}
+			}
+			batchResults[batchIdx] = vectors
+
+			if embeddingMilestones[end] {
+				fmt.Printf("  Embedded %d/%d\n", end, len(cards))
+			}
+		}(batchIdx, end, batch)
+	}
+
+	wg.Wait()
+
+	if firstErr != nil {
+		return firstErr
+	}
+
+	// Flatten batch results in order.
+	var allVectors []cfapi.VectorizeVector
+	for _, vecs := range batchResults {
+		allVectors = append(allVectors, vecs...)
 	}
 
 	// Upsert in batches
 	fmt.Printf("Upserting %d card vectors to Vectorize...\n", len(allVectors))
+	upsertMilestones := milestoneSet(len(allVectors), vectorizeBatchSize)
 	for i := 0; i < len(allVectors); i += vectorizeBatchSize {
 		end := min(i+vectorizeBatchSize, len(allVectors))
 		if err := cfapi.UpsertVectors(accountID, indexName, apiToken, allVectors[i:end]); err != nil {
 			return fmt.Errorf("vectorize upsert %d-%d: %w", i, end, err)
 		}
-		fmt.Printf("  Upserted %d/%d\n", end, len(allVectors))
+		if upsertMilestones[end] {
+			fmt.Printf("  Upserted %d/%d\n", end, len(allVectors))
+		}
 	}
 
 	return nil
+}
+
+// milestoneSet returns a set of "end" values at which progress should be printed.
+// It computes the batch-end values closest to 25%, 50%, 75%, and 100% of total,
+// given a fixed batchSize.
+func milestoneSet(total, batchSize int) map[int]bool {
+	milestones := map[int]bool{}
+	for _, pct := range []int{25, 50, 75, 100} {
+		target := total * pct / 100
+		// Round up to next batch boundary.
+		batchEnd := ((target + batchSize - 1) / batchSize) * batchSize
+		batchEnd = min(batchEnd, total)
+		milestones[batchEnd] = true
+	}
+	return milestones
 }
