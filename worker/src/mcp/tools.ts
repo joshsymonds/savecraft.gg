@@ -442,6 +442,16 @@ export async function getSection(
     .all<{ name: string; data: string }>();
 
   if (rows.results.length === 0) {
+    // For deck: misses, suggest close matches from available deck sections.
+    const deckMisses = sections.filter((s) => s.startsWith("deck:"));
+    if (deckMisses.length > 0) {
+      const suggestions = await suggestDeckSections(db, saveId, deckMisses[0]!);
+      if (suggestions.length > 0) {
+        return errorResult(
+          `Section '${deckMisses[0]}' not found. Did you mean: ${suggestions.join(", ")}?`,
+        );
+      }
+    }
     return errorResult(
       `None of the requested sections were found: ${sections.join(", ")}. Call get_save to see available section names.`,
     );
@@ -451,8 +461,18 @@ export async function getSection(
   if (sections.length === 1) {
     const row = rows.results[0];
     if (!row) {
+      // For deck: misses, suggest close matches.
+      const requested = sections[0] ?? "";
+      if (requested.startsWith("deck:")) {
+        const suggestions = await suggestDeckSections(db, saveId, requested);
+        if (suggestions.length > 0) {
+          return errorResult(
+            `Section '${requested}' not found. Did you mean: ${suggestions.join(", ")}?`,
+          );
+        }
+      }
       return errorResult(
-        `Section '${sections[0] ?? ""}' not found in this save. Call get_save to see available section names.`,
+        `Section '${requested}' not found in this save. Call get_save to see available section names.`,
       );
     }
     const byteSize = new TextEncoder().encode(row.data).length;
@@ -489,6 +509,42 @@ export async function getSection(
   if (missing.length > 0) response.missing = missing;
   if (oversized.length > 0) response.oversized = oversized;
   return textResult(response);
+}
+
+/**
+ * Find deck sections with names similar to the requested one.
+ * Uses case-insensitive substring matching, returning up to 3 suggestions.
+ */
+async function suggestDeckSections(
+  db: D1Database,
+  saveUuid: string,
+  requested: string,
+): Promise<string[]> {
+  const allDecks = await db
+    .prepare("SELECT name FROM sections WHERE save_uuid = ? AND name LIKE 'deck:%'")
+    .bind(saveUuid)
+    .all<{ name: string }>();
+
+  if (allDecks.results.length === 0) return [];
+
+  // Extract the query part after "deck:" and lowercase for matching.
+  const query = requested.slice(5).toLowerCase();
+
+  // Score each deck: lower is better. Substring match gets priority.
+  const scored = allDecks.results
+    .map((row) => {
+      const deckPart = row.name.slice(5).toLowerCase();
+      // Exact substring match (best)
+      if (deckPart.includes(query) || query.includes(deckPart)) {
+        return { name: row.name, score: 0 };
+      }
+      // Simple character overlap ratio
+      const overlap = [...query].filter((ch) => deckPart.includes(ch)).length;
+      return { name: row.name, score: 1 - overlap / Math.max(query.length, 1) };
+    })
+    .sort((a, b) => a.score - b.score);
+
+  return scored.slice(0, 3).map((s) => s.name);
 }
 
 // ── Note tools ───────────────────────────────────────────────
