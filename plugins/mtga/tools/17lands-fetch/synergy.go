@@ -104,13 +104,13 @@ type deckStatsAccum struct {
 	totalNoncreat  int
 	totalFixing    int
 	// Splash composition (winning splash decks only).
-	splashWinDecks   int
+	splashWinDecks    int
 	splashFixingTotal int
 	// Win rate tracking (ALL games, not just wins).
-	splashGames      int
-	splashWins       int
-	nonsplashGames   int
-	nonsplashWins    int
+	splashGames    int
+	splashWins     int
+	nonsplashGames int
+	nonsplashWins  int
 }
 
 // cmcBucket maps a CMC value to its bucket index (0-7, where 7 = 7+).
