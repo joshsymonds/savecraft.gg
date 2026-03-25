@@ -68,12 +68,13 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 	client := &http.Client{Timeout: 5 * time.Minute}
 	importURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/d1/database/%s/import", accountID, databaseID)
 
+	// Prepend a timestamp comment so re-runs with identical data produce
+	// different SQL content (and thus a different etag). Without this, D1's
+	// etag-based deduplication can silently skip imports when a previous
+	// attempt with the same SQL failed (e.g., missing table).
+	sql = fmt.Sprintf("-- import_ts: %d\n%s", time.Now().UnixNano(), sql)
 	sqlBytes := []byte(sql)
-	// Include a timestamp nonce in the etag so re-runs with identical SQL
-	// aren't deduplicated by D1. Without this, a failed import (e.g., missing
-	// table) caches the etag as "complete" and subsequent retries silently skip.
-	nonce := fmt.Sprintf("%d", time.Now().UnixNano())
-	etag := fmt.Sprintf("%x", md5.Sum(append(sqlBytes, nonce...)))
+	etag := fmt.Sprintf("%x", md5.Sum(sqlBytes))
 
 	// Step 1: Init — get upload URL. Retry if another import is active.
 	uploadURL, filename, err := initImport(client, importURL, apiToken, etag)
@@ -147,17 +148,20 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 
 		var pollResult struct {
 			Result struct {
-				Success    bool   `json:"success"`
-				Error      string `json:"error"`
-				NumQueries int    `json:"num_queries"`
+				Success bool   `json:"success"`
+				Status  string `json:"status"`
+				Error   string `json:"error"`
+				Result  struct {
+					NumQueries int `json:"num_queries"`
+				} `json:"result"`
 			} `json:"result"`
 		}
 		if err := json.Unmarshal(pollRespBody, &pollResult); err != nil {
 			continue
 		}
 
-		if pollResult.Result.Success {
-			fmt.Printf("  D1 import complete: %d queries executed\n", pollResult.Result.NumQueries)
+		if pollResult.Result.Success && pollResult.Result.Status == "complete" {
+			fmt.Printf("  D1 import complete: %d queries executed\n", pollResult.Result.Result.NumQueries)
 			return nil
 		}
 		if pollResult.Result.Error != "" {
