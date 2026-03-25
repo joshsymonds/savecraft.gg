@@ -32,3 +32,31 @@ func fetchCardCMC(accountID, databaseID, apiToken string) (map[string]float64, e
 
 	return cardCMC, nil
 }
+
+// fetchCardRoles queries D1 for card name → set of roles mapping from mtga_card_roles.
+// Returns a map of front_face_name → set of role strings.
+func fetchCardRoles(accountID, databaseID, apiToken string) (map[string]map[string]bool, error) {
+	rows, err := cfapi.QueryD1(accountID, databaseID, apiToken,
+		"SELECT front_face_name, role FROM mtga_card_roles WHERE front_face_name != ''")
+	if err != nil {
+		return nil, fmt.Errorf("querying mtga_card_roles: %w", err)
+	}
+
+	cardRoles := make(map[string]map[string]bool)
+	for _, row := range rows {
+		name, ok := row["front_face_name"].(string)
+		if !ok {
+			continue
+		}
+		role, ok := row["role"].(string)
+		if !ok {
+			continue
+		}
+		if cardRoles[name] == nil {
+			cardRoles[name] = make(map[string]bool)
+		}
+		cardRoles[name][role] = true
+	}
+
+	return cardRoles, nil
+}

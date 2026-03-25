@@ -28,11 +28,11 @@ func buildDraftRatingsImportSQL(sets []setResult) string {
 			o := c.Overall
 
 			// Overall ratings
-			fmt.Fprintf(&b, "INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (%s, %s, %d, %d, %d, %g, %g, %g, %g, %g, %g, %g);\n",
+			fmt.Fprintf(&b, "INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (%s, %s, %d, %d, %d, %g, %g, %g, %g, %g, %g, %g, %g);\n",
 				q(sr.Set), q(c.Name),
 				o.GamesInHand, o.GamesPlayed, o.GamesNotSeen,
 				round4(o.GIHWR), round4(o.OHWR), round4(o.GDWR), round4(o.GNSWR),
-				round4(o.IWD), round4(o.ALSA), round4(o.ATA))
+				round4(o.IWD), round4(o.ALSA), round4(o.ATA), round4(o.ATAStddev))
 
 			// FTS5 for card name search
 			fmt.Fprintf(&b, "INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (%s, %s);\n",
@@ -40,11 +40,11 @@ func buildDraftRatingsImportSQL(sets []setResult) string {
 
 			// Color pair breakdowns
 			for cp, s := range c.ByColor {
-				fmt.Fprintf(&b, "INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (%s, %s, %s, %d, %d, %d, %g, %g, %g, %g, %g, %g, %g);\n",
+				fmt.Fprintf(&b, "INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (%s, %s, %s, %d, %d, %d, %g, %g, %g, %g, %g, %g, %g, %g);\n",
 					q(sr.Set), q(c.Name), q(cp),
 					s.GamesInHand, s.GamesPlayed, s.GamesNotSeen,
 					round4(s.GIHWR), round4(s.OHWR), round4(s.GDWR), round4(s.GNSWR),
-					round4(s.IWD), round4(s.ALSA), round4(s.ATA))
+					round4(s.IWD), round4(s.ALSA), round4(s.ATA), round4(s.ATAStddev))
 			}
 		}
 	}

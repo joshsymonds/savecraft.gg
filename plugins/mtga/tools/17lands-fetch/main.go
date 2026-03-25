@@ -49,6 +49,7 @@ type cardAccum struct {
 	totalLastSeen float64
 	lastSeenCount int
 	totalTakenAt  float64
+	takenAtSumSq  float64 // sum of squared pick positions for stddev
 	takenCount    int
 }
 
@@ -76,6 +77,11 @@ func (a *cardAccum) stats() setCardStats {
 	}
 	if a.takenCount > 0 {
 		s.ATA = a.totalTakenAt / float64(a.takenCount)
+		if a.takenCount > 1 {
+			// Population stddev: σ = sqrt(E[X²] - (E[X])²)
+			meanSq := a.takenAtSumSq / float64(a.takenCount)
+			s.ATAStddev = math.Sqrt(meanSq - s.ATA*s.ATA)
+		}
 	}
 	return s
 }
@@ -91,6 +97,7 @@ type setCardStats struct {
 	IWD          float64
 	ALSA         float64
 	ATA          float64
+	ATAStddev    float64
 }
 
 type setResult struct {
@@ -157,6 +164,19 @@ func run() error {
 		}
 	}
 
+	// Fetch card roles from D1 for role target computation.
+	// Optional: if D1 credentials aren't available or query fails, role targets are skipped.
+	var cardRoles map[string]map[string]bool
+	if *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != "" {
+		var err error
+		cardRoles, err = fetchCardRoles(*cfAccountID, *d1DatabaseID, *cfAPIToken)
+		if err != nil {
+			fmt.Printf("WARN: could not fetch card roles from D1: %v (role targets will be skipped)\n", err)
+		} else {
+			fmt.Printf("Loaded role data for %d cards from D1\n", len(cardRoles))
+		}
+	}
+
 	// Process sets concurrently — each set downloads ~100-200MB of CSVs from 17Lands.
 	type setWork struct {
 		result  setResult
@@ -195,13 +215,17 @@ func run() error {
 			sr := buildSetResult(setCode, accums)
 			fmt.Printf("  %s complete: %d cards with stats\n", setCode, len(sr.Cards))
 
-			// Pass 2: pairwise synergies + archetype curves (reads from cache).
-			syn, err := processSynergyData(setCode, *cacheDir, cardCMC)
+			// Pass 2: pairwise synergies + archetype curves + role targets (reads from cache).
+			syn, err := processSynergyData(setCode, *cacheDir, cardCMC, cardRoles)
 			if err != nil {
 				fmt.Printf("  WARN: synergy data for %s failed: %v (continuing without synergies)\n", setCode, err)
 			} else {
 				fmt.Printf("  %s synergies: %d rows, curves: %d rows\n", setCode, len(syn.Synergies), len(syn.Curves))
 			}
+
+			// Compute sigmoid calibration from empirical distributions.
+			syn.Calibration = computeCalibration(sr, syn.Synergies)
+			fmt.Printf("  %s calibration: %d axes\n", setCode, len(syn.Calibration))
 
 			results[idx] = setWork{result: sr, synergy: syn}
 		}(i, set)
@@ -451,7 +475,9 @@ func processDraftData(set string, cacheDir string, accums map[string]map[string]
 					a = &cardAccum{}
 					overall[pickedCard] = a
 				}
-				a.totalTakenAt += float64(pickNumber + 1)
+				pn := float64(pickNumber + 1)
+				a.totalTakenAt += pn
+				a.takenAtSumSq += pn * pn
 				a.takenCount++
 			}
 		}
