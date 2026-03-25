@@ -123,7 +123,7 @@ func run() error {
 	}
 
 	// Phase 1: Fetch Scryfall Tagger function tags (4 sets concurrently).
-	sem := make(chan struct{}, 4)
+	sem := make(chan struct{}, 2) // Low concurrency to stay within Scryfall rate limits.
 	results := make([]setResult, len(targetSets))
 	var wg sync.WaitGroup
 
@@ -429,7 +429,7 @@ func fetchTaggedCards(setCode string, tag string, role string) ([]roleEntry, err
 // Returns the response body, status code, and any error.
 func scryfallGet(client *http.Client, url string) ([]byte, int, error) {
 	const maxRetries = 5
-	backoff := 2 * time.Second
+	backoff := 10 * time.Second
 
 	for attempt := range maxRetries {
 		req, err := http.NewRequest("GET", url, nil)
