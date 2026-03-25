@@ -19,6 +19,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -26,7 +27,6 @@ import (
 	"net/http"
 	"net/url"
 	"os"
-	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -117,13 +117,19 @@ func run() error {
 		}
 	}
 
-	targetSets := sets.MTGA
+	// Resolve target sets: --set bypasses discovery, otherwise probe 17Lands.
+	var targetSets []string
 	if *setFilter != "" {
-		upper := strings.ToUpper(*setFilter)
-		if !slices.Contains(sets.MTGA, upper) {
-			return fmt.Errorf("unknown set %q; available: %v", *setFilter, sets.MTGA)
+		targetSets = []string{strings.ToUpper(*setFilter)}
+	} else {
+		discovered, err := sets.Discover(context.Background())
+		if err != nil {
+			return fmt.Errorf("discovering sets: %w", err)
 		}
-		targetSets = []string{upper}
+		if len(discovered) == 0 {
+			return fmt.Errorf("no sets with 17Lands data found")
+		}
+		targetSets = discovered
 	}
 
 	// Phase 1: Fetch Scryfall Tagger function tags (4 sets concurrently).

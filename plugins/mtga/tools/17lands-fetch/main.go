@@ -11,6 +11,7 @@
 package main
 
 import (
+	"context"
 	"encoding/csv"
 	"flag"
 	"fmt"
@@ -18,7 +19,6 @@ import (
 	"math"
 	"os"
 	"path/filepath"
-	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -155,14 +155,19 @@ func run() error {
 		}
 	}
 
-	// Filter to a single set if --set is provided.
-	targetSets := sets.MTGA
+	// Resolve target sets: --set bypasses discovery, otherwise probe 17Lands.
+	var targetSets []string
 	if *setFilter != "" {
-		upper := strings.ToUpper(*setFilter)
-		if !slices.Contains(sets.MTGA, upper) {
-			return fmt.Errorf("unknown set %q; available: %v", *setFilter, sets.MTGA)
+		targetSets = []string{strings.ToUpper(*setFilter)}
+	} else {
+		discovered, err := sets.Discover(context.Background())
+		if err != nil {
+			return fmt.Errorf("discovering sets: %w", err)
 		}
-		targetSets = []string{upper}
+		if len(discovered) == 0 {
+			return fmt.Errorf("no sets with 17Lands data found")
+		}
+		targetSets = discovered
 	}
 
 	// Fetch card CMC and roles from D1 concurrently — independent queries used
