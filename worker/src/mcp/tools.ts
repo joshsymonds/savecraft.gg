@@ -443,12 +443,12 @@ export async function getSection(
 
   if (rows.results.length === 0) {
     // For deck: misses, suggest close matches from available deck sections.
-    const deckMisses = sections.filter((s) => s.startsWith("deck:"));
-    if (deckMisses.length > 0) {
-      const suggestions = await suggestDeckSections(db, saveId, deckMisses[0]!);
+    const firstDeckMiss = sections.find((s) => s.startsWith("deck:"));
+    if (firstDeckMiss) {
+      const suggestions = await suggestDeckSections(db, saveId, firstDeckMiss);
       if (suggestions.length > 0) {
         return errorResult(
-          `Section '${deckMisses[0]}' not found. Did you mean: ${suggestions.join(", ")}?`,
+          `Section '${firstDeckMiss}' not found. Did you mean: ${suggestions.join(", ")}?`,
         );
       }
     }
@@ -459,22 +459,7 @@ export async function getSection(
 
   // Single section — return flat result
   if (sections.length === 1) {
-    const row = rows.results[0];
-    if (!row) {
-      // For deck: misses, suggest close matches.
-      const requested = sections[0] ?? "";
-      if (requested.startsWith("deck:")) {
-        const suggestions = await suggestDeckSections(db, saveId, requested);
-        if (suggestions.length > 0) {
-          return errorResult(
-            `Section '${requested}' not found. Did you mean: ${suggestions.join(", ")}?`,
-          );
-        }
-      }
-      return errorResult(
-        `Section '${requested}' not found in this save. Call get_save to see available section names.`,
-      );
-    }
+    const row = rows.results[0]!;
     const byteSize = new TextEncoder().encode(row.data).length;
     if (byteSize > SECTION_SIZE_LIMIT) {
       const sizeKb = String(Math.round(byteSize / 1024));
@@ -513,7 +498,7 @@ export async function getSection(
 
 /**
  * Find deck sections with names similar to the requested one.
- * Uses case-insensitive substring matching, returning up to 3 suggestions.
+ * Uses Levenshtein distance on the name portion after "deck:", returning up to 3 suggestions.
  */
 async function suggestDeckSections(
   db: D1Database,
@@ -527,24 +512,37 @@ async function suggestDeckSections(
 
   if (allDecks.results.length === 0) return [];
 
-  // Extract the query part after "deck:" and lowercase for matching.
   const query = requested.slice(5).toLowerCase();
 
-  // Score each deck: lower is better. Substring match gets priority.
+  // Score by Levenshtein distance, normalized to [0, 1]. Filter out poor matches.
+  const maxDist = Math.max(query.length, 1);
   const scored = allDecks.results
-    .map((row) => {
-      const deckPart = row.name.slice(5).toLowerCase();
-      // Exact substring match (best)
-      if (deckPart.includes(query) || query.includes(deckPart)) {
-        return { name: row.name, score: 0 };
-      }
-      // Simple character overlap ratio
-      const overlap = [...query].filter((ch) => deckPart.includes(ch)).length;
-      return { name: row.name, score: 1 - overlap / Math.max(query.length, 1) };
-    })
-    .sort((a, b) => a.score - b.score);
+    .map((row) => ({
+      name: row.name,
+      dist: levenshtein(query, row.name.slice(5).toLowerCase()),
+    }))
+    .filter((s) => s.dist / Math.max(s.name.length - 5, maxDist) < 0.7)
+    .toSorted((a, b) => a.dist - b.dist);
 
   return scored.slice(0, 3).map((s) => s.name);
+}
+
+/** Levenshtein edit distance between two strings. */
+function levenshtein(a: string, b: string): number {
+  if (a.length === 0) return b.length;
+  if (b.length === 0) return a.length;
+
+  // Single-row DP: prev[j] holds distance for (i-1, j).
+  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
+  for (let i = 1; i <= a.length; i++) {
+    const curr = [i] as number[];
+    for (let j = 1; j <= b.length; j++) {
+      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
+      curr[j] = Math.min(prev[j]! + 1, curr[j - 1]! + 1, prev[j - 1]! + cost);
+    }
+    prev = curr;
+  }
+  return prev[b.length]!;
 }
 
 // ── Note tools ───────────────────────────────────────────────

@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 )
 
@@ -1332,7 +1333,7 @@ func TestBuildOutputSectionsSize(t *testing.T) {
 		for j := range cards {
 			cards[j] = DeckCard{ArenaID: 80000 + j, Name: "Some Card Name Here", Count: 4}
 		}
-		decks[i] = Deck{ID: "d" + string(rune('0'+i)), Name: "[HB] Deck " + string(rune('A'+i%26)), Format: "Brawl", Cards: cards}
+		decks[i] = Deck{ID: fmt.Sprintf("d%d", i), Name: fmt.Sprintf("[HB] Deck %d", i), Format: "Brawl", Cards: cards}
 	}
 	gs := &GameState{
 		DisplayName: "TestPlayer",
@@ -1343,6 +1344,39 @@ func TestBuildOutputSectionsSize(t *testing.T) {
 	psJSON, _ := json.Marshal(psMap["data"])
 	if len(psJSON) > 15*1024 {
 		t.Errorf("player_summary is %d bytes, expected < 15KB", len(psJSON))
+	}
+}
+
+func TestBuildOutputSectionsGameWithoutMatch(t *testing.T) {
+	// Game log entry with no corresponding match should still appear in game index
+	// but without opponent/result fields.
+	gs := &GameState{
+		GameLogs: &GameLogSection{
+			Games: []GameLog{{
+				MatchID: "orphan-match",
+				Turns:   []TurnLog{{TurnNumber: 1, ActivePlayer: 1, Phase: "Phase_Main1", Actions: []GameAction{}}},
+			}},
+		},
+	}
+	sections := buildOutputSections(gs)
+	psMap := sections["player_summary"].(map[string]any)
+	data := psMap["data"].(map[string]any)
+	games := data["games"].([]map[string]any)
+	if len(games) != 1 {
+		t.Fatalf("expected 1 game index entry, got %d", len(games))
+	}
+	entry := games[0]
+	if entry["matchId"] != "orphan-match" {
+		t.Errorf("expected matchId 'orphan-match', got %v", entry["matchId"])
+	}
+	if entry["section"] != "game:orphan-match" {
+		t.Errorf("expected section 'game:orphan-match', got %v", entry["section"])
+	}
+	if _, ok := entry["opponent"]; ok {
+		t.Error("expected no opponent key when match is absent")
+	}
+	if _, ok := entry["result"]; ok {
+		t.Error("expected no result key when match is absent")
 	}
 }
 
