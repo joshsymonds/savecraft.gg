@@ -37,6 +37,8 @@ Removed saves and games: Players can remove individual saves or entire games fro
 
 All timestamps returned by Savecraft are UTC.
 
+Live drafting: For MTG Arena, when the draft_history section has a last pick with 'available' cards but no 'chosen' card, the player is mid-draft. Fetch draft_history to see their pool and current pack, then use query_reference with draft_ratings (colors parameter set to their archetype) to evaluate the available cards in context. Don't just report raw stats — recommend a pick with reasoning about archetype fit, curve, and signals.
+
 When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`;
 
 interface JsonRpcRequest {

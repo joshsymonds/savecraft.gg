@@ -349,6 +349,7 @@ export const draftRatingsModule: NativeReferenceModule = {
     "USE PROACTIVELY: query this module when a player asks about draft picks, card evaluations, or archetype performance.",
     "Data includes Games in Hand Win Rate (GIH WR), Improvement When Drawn (IWD), Opening Hand Win Rate (OHWR), Average Last Seen At (ALSA), and Average Taken At (ATA).",
     "Query with just a set code for an overview. Add a card name for detailed stats with color pair breakdowns. Compare specific cards side-by-side with the cards parameter.",
+    "LIVE DRAFT ADVICE: When the player's draft_history section shows an in-progress pick (last entry has 'available' but no 'chosen'), use the 'colors' parameter with the player's dominant color pair (count pips across all chosen cards) to get archetype-specific ratings for the available cards. Use the 'cards' parameter to compare the top candidates side-by-side. Factor in curve needs from the pool and signal reading (card appearing late relative to its ALSA = open archetype).",
     "Data source: 17Lands (17lands.com), licensed CC BY 4.0.",
   ].join(" "),
   parameters: {
