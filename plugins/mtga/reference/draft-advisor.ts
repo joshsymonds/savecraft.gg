@@ -13,27 +13,38 @@ import type {
   NativeReferenceModule,
   ReferenceResult,
 } from "../../../worker/src/reference/types";
-
-interface RatingRow {
-  set_code: string;
-  card_name: string;
-  games_in_hand: number;
-  games_played: number;
-  games_not_seen: number;
-  gihwr: number;
-  ohwr: number;
-  gdwr: number;
-  gnswr: number;
-  iwd: number;
-  alsa: number;
-  ata: number;
-  ata_stddev: number;
-}
-
-interface PickHistoryEntry {
-  available: string[];
-  chosen: string;
-}
+import {
+  type RatingRow,
+  type CardMetaRow,
+  type SetMetadataRow,
+  type SynergyDbRow,
+  type CurveDbRow,
+  type CardRoleRow,
+  type RoleTargetRow,
+  type CalibrationRow,
+  type AxisScore,
+  type ArchetypeCandidate,
+  type WeightSet,
+  type PickHistoryEntry,
+  DEFAULT_ASFAN,
+  DEFAULT_PACK_SIZE,
+  META_BATCH_SIZE,
+  ALL_COLOR_PAIRS,
+  DEFAULT_SIGMOID_PARAMS,
+  castabilityLookup,
+  countPips,
+  estimateSources,
+  estimatePotentialSources,
+  sigmoid,
+  smoothWeight,
+  getWeights,
+  getWeightProfileLabel,
+  determineCandidateArchetypes,
+  computeSignalFromHistory,
+  aggregateArchetypeOpenness,
+  placeholders,
+  r4,
+} from "./scoring";
 
 interface SetStatsRow {
   set_code: string;
@@ -41,58 +52,6 @@ interface SetStatsRow {
   total_games: number;
   card_count: number;
   avg_gihwr: number;
-}
-
-interface CardMetaRow {
-  name: string;
-  cmc: number;
-  mana_cost: string;
-  colors: string;
-  type_line: string;
-  produced_mana: string;
-}
-
-interface SetMetadataRow {
-  set_code: string;
-  asfan: number;
-  pack_size: number;
-}
-
-interface SynergyDbRow {
-  card_a: string;
-  card_b: string;
-  synergy_delta: number;
-}
-
-interface CurveDbRow {
-  color_pair: string;
-  cmc: number;
-  avg_count: number;
-  total_decks: number;
-}
-
-interface CardRoleRow {
-  front_face_name: string;
-  role: string;
-}
-
-interface RoleTargetRow {
-  color_pair: string;
-  role: string;
-  avg_count: number;
-}
-
-interface CalibrationRow {
-  axis: string;
-  center: number;
-  steepness: number;
-}
-
-interface AxisScore {
-  raw: number;
-  normalized: number;
-  weight: number;
-  contribution: number;
 }
 
 interface PickRecommendation {
@@ -143,321 +102,7 @@ interface PreloadedSetData {
   packSize: number;
 }
 
-// ── Karsten castability table ────────────────────────────────
-
-function hypergeomCDF(N: number, K: number, n: number, k: number): number {
-  if (k <= 0) return 1;
-  if (K < k) return 0;
-  let sum = 0;
-  for (let i = 0; i < k; i++) {
-    sum += (binomCoeff(K, i) * binomCoeff(N - K, n - i)) / binomCoeff(N, n);
-  }
-  return 1 - sum;
-}
-
-function binomCoeff(n: number, k: number): number {
-  if (k < 0 || k > n) return 0;
-  if (k === 0 || k === n) return 1;
-  let result = 1;
-  const m = Math.min(k, n - k);
-  for (let i = 0; i < m; i++) {
-    result = (result * (n - i)) / (i + 1);
-  }
-  return Math.round(result);
-}
-
-const CASTABILITY_TABLE: number[][][] = (() => {
-  const table: number[][][] = [];
-  for (let sources = 0; sources <= 17; sources++) {
-    table[sources] = [];
-    for (let pips = 1; pips <= 3; pips++) {
-      table[sources]![pips] = [];
-      for (let turn = 1; turn <= 6; turn++) {
-        const cardsSeen = 7 + turn - 1;
-        table[sources]![pips]![turn] = hypergeomCDF(
-          40,
-          sources,
-          cardsSeen,
-          pips,
-        );
-      }
-    }
-  }
-  return table;
-})();
-
-function castabilityLookup(
-  sources: number,
-  pips: number,
-  turn: number,
-): number {
-  const s = Math.max(0, Math.min(17, Math.round(sources)));
-  const p = Math.max(1, Math.min(3, pips));
-  const t = Math.max(1, Math.min(6, turn));
-  return CASTABILITY_TABLE[s]?.[p]?.[t] ?? 0;
-}
-
-function countPips(manaCost: string): Map<string, number> {
-  const pips = new Map<string, number>();
-  const matches = manaCost.matchAll(/\{([WUBRG])\}/g);
-  for (const m of matches) {
-    const color = m[1]!;
-    pips.set(color, (pips.get(color) ?? 0) + 1);
-  }
-  return pips;
-}
-
-function estimateSources(poolMeta: CardMetaRow[]): Map<string, number> {
-  const totalPips = new Map<string, number>();
-  for (const card of poolMeta) {
-    for (const [color, count] of countPips(card.mana_cost)) {
-      totalPips.set(color, (totalPips.get(color) ?? 0) + count);
-    }
-  }
-  const pipSum = [...totalPips.values()].reduce((a, b) => a + b, 0);
-  if (pipSum === 0) return new Map();
-
-  const sources = new Map<string, number>();
-  for (const [color, count] of totalPips) {
-    sources.set(color, Math.round((17 * count) / pipSum));
-  }
-
-  // Fixing lands (e.g. Evolving Wilds) have no colored pips in their mana cost
-  // but tap for one or more colors. Each such card is +1 source for every color
-  // it produces, including colors already in the pip distribution — a UB deck
-  // with Evolving Wilds genuinely has one more U and B source than without it.
-  for (const card of poolMeta) {
-    if (!card.produced_mana || card.produced_mana === "[]") continue;
-    try {
-      const produced = JSON.parse(card.produced_mana) as string[];
-      for (const color of produced) {
-        if (["W", "U", "B", "R", "G"].includes(color)) {
-          sources.set(color, (sources.get(color) ?? 0) + 1);
-        }
-      }
-    } catch {
-      // Malformed produced_mana — skip.
-    }
-  }
-
-  return sources;
-}
-
-// ── Pivot-potential source estimation ─────────────────────────
-
-const DEFAULT_ASFAN = 0.4;
-const DEFAULT_PACK_SIZE = 14;
-
-/**
- * Estimate acquirable sources for an off-color card based on remaining picks.
- *
- * Two categorically separate curves:
- * - Splash (1 pip): models acquiring fixing lands. Rate is ASFAN-dependent
- *   because fixing density varies enormously by format (0.05–1.1 ASFAN).
- * - Pivot (2+ pips): models drafting on-color cards in a new color. Rate is
- *   ASFAN-independent because on-color cards exist at ~20% per color across
- *   all formats — you're picking up playable cards and basics, not just duals.
- */
-function estimatePotentialSources(
-  remainingPicks: number,
-  pips: number,
-  asfan: number,
-): number {
-  if (pips <= 1) {
-    return Math.min(4, remainingPicks * asfan * 0.35);
-  }
-  const pivotViability = sigmoid(remainingPicks, 18, 0.25);
-  return Math.min(7, remainingPicks * 0.22 * pivotViability);
-}
-
-interface ArchetypeCandidate {
-  colorPair: string;
-  weight: number;
-}
-
-// ── Sigmoid normalization ────────────────────────────────────
-
-function sigmoid(x: number, center: number, steepness: number): number {
-  return 1 / (1 + Math.exp(-steepness * (x - center)));
-}
-
-const DEFAULT_SIGMOID_PARAMS: Record<
-  string,
-  { center: number; steepness: number }
-> = {
-  baseline: { center: 0.535, steepness: 25 },
-  synergy: { center: 0, steepness: 4 },
-  curve: { center: 0, steepness: 3 },
-  signal: { center: 0, steepness: 3 },
-  role: { center: 0.3, steepness: 5 },
-};
-
-// ── Continuous pick-adaptive weights ─────────────────────────
-
-function smoothWeight(
-  pick: number,
-  startVal: number,
-  endVal: number,
-  midpoint: number,
-  steepness: number,
-): number {
-  const t = sigmoid(pick, midpoint, steepness);
-  return startVal + (endVal - startVal) * t;
-}
-
-interface WeightSet {
-  baseline: number;
-  synergy: number;
-  curve: number;
-  signal: number;
-  role: number;
-  castability: number;
-}
-
-function getWeights(pickNumber: number): WeightSet {
-  const baseline = smoothWeight(pickNumber, 0.4, 0.15, 15, 0.25);
-  const synergy = smoothWeight(pickNumber, 0.05, 0.3, 18, 0.2);
-  const curve = smoothWeight(pickNumber, 0.05, 0.15, 22, 0.2);
-  const signal = smoothWeight(pickNumber, 0.25, 0.1, 12, 0.25);
-  const role = smoothWeight(pickNumber, 0.05, 0.25, 20, 0.25);
-  const castability = smoothWeight(pickNumber, 0.2, 0.05, 10, 1 / 3);
-
-  const total = baseline + synergy + curve + signal + role + castability;
-  return {
-    baseline: baseline / total,
-    synergy: synergy / total,
-    curve: curve / total,
-    signal: signal / total,
-    role: role / total,
-    castability: castability / total,
-  };
-}
-
-function getWeightProfileLabel(pickNumber: number): string {
-  if (pickNumber <= 5) return "early";
-  if (pickNumber <= 20) return "mid";
-  return "late";
-}
-
-/** Round to 4 decimal places for output precision. */
-function r4(v: number): number {
-  return Math.round(v * 10000) / 10000;
-}
-
-// ── Archetype detection ──────────────────────────────────────
-
-const ALL_COLOR_PAIRS = [
-  "WU",
-  "WB",
-  "WR",
-  "WG",
-  "UB",
-  "UR",
-  "UG",
-  "BR",
-  "BG",
-  "RG",
-];
-
-function determineCandidateArchetypes(
-  poolMeta: CardMetaRow[],
-): ArchetypeCandidate[] {
-  const pips: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
-  for (const card of poolMeta) {
-    for (const [color, count] of countPips(card.mana_cost)) {
-      if (color in pips) pips[color] = (pips[color] ?? 0) + count;
-    }
-  }
-
-  const scored = ALL_COLOR_PAIRS.map((pair) => ({
-    colorPair: pair,
-    score: (pips[pair[0]!] ?? 0) * (pips[pair[1]!] ?? 0),
-  }));
-
-  const nonzero = scored.filter((s) => s.score > 0);
-  if (nonzero.length === 0) {
-    return [{ colorPair: "_overall", weight: 1.0 }];
-  }
-
-  nonzero.sort((a, b) => b.score - a.score);
-  const totalScore = nonzero.reduce((s, t) => s + t.score, 0);
-  return nonzero.map((t) => ({
-    colorPair: t.colorPair,
-    weight: t.score / totalScore,
-  }));
-}
-
-function placeholders(count: number, startIdx: number): string {
-  return Array.from({ length: count }, (_, i) => `?${startIdx + i}`).join(",");
-}
-
-// ── Signal tracking ──────────────────────────────────────────
-
-function computeSignalFromHistory(
-  pickHistory: PickHistoryEntry[],
-  ataByCard: Map<string, { ata: number; stddev: number }>,
-  packSize: number,
-): Map<string, number> {
-  const openness = new Map<string, number>();
-  const learningRate = 0.15;
-  const packMultiplier = [1.0, 0.6, 0.8];
-
-  for (let i = 0; i < pickHistory.length; i++) {
-    const entry = pickHistory[i]!;
-    const globalPick = i + 1;
-    const packIndex = Math.floor(i / packSize);
-    const pickInPack = (i % packSize) + 1;
-
-    const confidence = Math.exp(-0.5 * ((pickInPack - 8) / 4) ** 2);
-    const pMult = packMultiplier[Math.min(packIndex, 2)] ?? 0.8;
-
-    for (const cardName of entry.available) {
-      const stats = ataByCard.get(cardName);
-      if (!stats || stats.ata <= 0) continue;
-
-      const stddev = stats.stddev > 0.5 ? stats.stddev : 2.0;
-      const evidence = (globalPick - stats.ata) / stddev;
-      const weightedEvidence = evidence * confidence * pMult * learningRate;
-
-      openness.set(cardName, (openness.get(cardName) ?? 0) + weightedEvidence);
-    }
-  }
-
-  return openness;
-}
-
-function aggregateArchetypeOpenness(
-  cardOpenness: Map<string, number>,
-  cardMeta: Map<string, CardMetaRow>,
-): Map<string, number> {
-  const archSums = new Map<string, number>();
-  const archCounts = new Map<string, number>();
-
-  for (const [cardName, signal] of cardOpenness) {
-    const meta = cardMeta.get(cardName);
-    if (!meta) continue;
-    const colors = countPips(meta.mana_cost);
-    const colorSet = new Set(colors.keys());
-
-    for (const pair of ALL_COLOR_PAIRS) {
-      if (colorSet.has(pair[0]!) || colorSet.has(pair[1]!)) {
-        archSums.set(pair, (archSums.get(pair) ?? 0) + signal);
-        archCounts.set(pair, (archCounts.get(pair) ?? 0) + 1);
-      }
-    }
-  }
-
-  const result = new Map<string, number>();
-  for (const [pair, sum] of archSums) {
-    const count = archCounts.get(pair) ?? 1;
-    result.set(pair, Math.max(-1, Math.min(1, sum / count)));
-  }
-  return result;
-}
-
 // ── Preload set-level data for batch review ──────────────────
-
-const META_BATCH_SIZE = 99;
 
 async function preloadSetData(
   db: D1Database,
@@ -1386,6 +1031,8 @@ export const draftAdvisorModule: NativeReferenceModule = {
   description: [
     "Contextual draft pick evaluation for MTG Arena. This module evaluates cards IN CONTEXT — it does NOT look up individual card stats (use card_stats for that).",
     "",
+    "SET: Do not pass 'set' — it is auto-detected from the card names you provide. Only pass set explicitly to force a specific set.",
+    "",
     "TWO MODES:",
     "",
     "1. LIVE PICK (set + pool + pack): Rank each card in the pack using 6 axes — baseline (archetype-weighted GIH WR), synergy (pairwise interaction with pool), curve (CMC gap detection), signal (archetype openness), role (creature/removal/fixing composition), castability (Karsten hypergeometric). Combined via WASPAS hybrid scoring.",
@@ -1407,7 +1054,7 @@ export const draftAdvisorModule: NativeReferenceModule = {
     "Data source: 17Lands (17lands.com), licensed CC BY 4.0.",
   ].join("\n"),
   parameters: {
-    set: { type: "string", description: "Set code (e.g., 'TMT'). Required." },
+    set: { type: "string", description: "Set code — auto-detected from card names when omitted. Only pass to override auto-detection." },
     pool: {
       type: "array",
       items: { type: "string" },
@@ -1442,7 +1089,7 @@ export const draftAdvisorModule: NativeReferenceModule = {
     query: Record<string, unknown>,
     env: Env,
   ): Promise<ReferenceResult> {
-    const setCode = ((query.set as string) ?? "").toUpperCase();
+    let setCode = ((query.set as string) ?? "").toUpperCase();
     const pool = ((query.pool as string[]) ?? []).slice(0, 45);
     const pack = ((query.pack as string[]) ?? []).slice(0, 15);
     const maxPicks = 60; // generous upper bound; actual totalPicks derived from set_metadata inside contextualPick
@@ -1463,11 +1110,72 @@ export const draftAdvisorModule: NativeReferenceModule = {
           }))
       : undefined;
 
+    // Auto-infer set from card names when not provided.
     if (!setCode) {
-      return {
-        type: "formatted",
-        content: "Set code is required. Pass {set: 'TMT'} or similar.\n",
-      };
+      const allNames = new Set<string>();
+      for (const name of pack) allNames.add(name);
+      for (const name of pool) allNames.add(name);
+      if (pickHistory) {
+        for (const entry of pickHistory) {
+          if (entry.chosen) allNames.add(entry.chosen);
+        }
+      }
+
+      if (allNames.size === 0) {
+        return {
+          type: "formatted",
+          content:
+            "Cannot determine set: no card names provided. Pass pack, pool, or pick_history with card names, or specify {set: 'TMT'} explicitly.\n",
+        };
+      }
+
+      const nameList = [...allNames];
+      const setCounts = new Map<string, number>();
+
+      for (let i = 0; i < nameList.length; i += META_BATCH_SIZE) {
+        const chunk = nameList.slice(i, i + META_BATCH_SIZE);
+        const inferPH = placeholders(chunk.length, 1);
+        const chunkResult = await env.DB.prepare(
+          `SELECT set_code, COUNT(*) as matches FROM mtga_draft_ratings WHERE card_name IN (${inferPH}) GROUP BY set_code`,
+        )
+          .bind(...chunk)
+          .all<{ set_code: string; matches: number }>();
+
+        for (const row of chunkResult.results) {
+          setCounts.set(
+            row.set_code,
+            (setCounts.get(row.set_code) ?? 0) + row.matches,
+          );
+        }
+      }
+
+      const rows = [...setCounts.entries()]
+        .map(([set_code, matches]) => ({ set_code, matches }))
+        .toSorted((a, b) => b.matches - a.matches)
+        .slice(0, 2);
+
+      if (rows.length === 0) {
+        const available = await env.DB.prepare(
+          "SELECT set_code FROM mtga_draft_set_stats ORDER BY set_code",
+        ).all<{ set_code: string }>();
+        const codes = available.results.map((r) => r.set_code).join(", ");
+        return {
+          type: "formatted",
+          content: `No draft data found for these card names. Available sets: ${codes}\n`,
+        };
+      }
+
+      const top = rows[0]!;
+      const runner = rows[1];
+
+      if (!runner || top.matches - runner.matches >= 3) {
+        setCode = top.set_code;
+      } else {
+        return {
+          type: "formatted",
+          content: `Could not determine set: cards match ${top.set_code} (${top.matches} matches) and ${runner.set_code} (${runner.matches} matches). Pass {set: '${top.set_code}'} to specify.\n`,
+        };
+      }
     }
 
     // Validate set exists.
