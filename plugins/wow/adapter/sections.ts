@@ -71,6 +71,32 @@ export function mapCharacterOverview(
     last_login: profile.last_login_timestamp
       ? new Date(profile.last_login_timestamp).toISOString()
       : null,
+    sections: [
+      {
+        name: "equipped_gear",
+        hint: "All equipped items with ilvl, stats, enchants, gems, set bonuses",
+      },
+      {
+        name: "character_stats",
+        hint: "Primary/secondary/tertiary stats, attack/spell power, armor, defenses",
+      },
+      {
+        name: "talents",
+        hint: "Active talent build: class, spec, hero, and PvP talents with loadout code",
+      },
+      {
+        name: "mythic_plus",
+        hint: "M+ best runs, keystone levels, ratings, Raider.io scores",
+      },
+      {
+        name: "raid_progression",
+        hint: "Boss kills by difficulty across all expansions",
+      },
+      {
+        name: "professions",
+        hint: "Primary and secondary professions with skill points and recipe counts",
+      },
+    ],
   };
 
   if (raiderio) {
@@ -82,7 +108,7 @@ export function mapCharacterOverview(
 
   return {
     description:
-      "Character identity, level, class, spec, guild, item level, and achievement points",
+      "Character identity, gear score, and section index — start here to understand who this character is and which sections to fetch next",
     data,
     enrichment: [raiderioEnrichment(raiderio)],
   };
@@ -126,7 +152,7 @@ export function mapEquippedGear(
 ): GameStateSection {
   return {
     description:
-      "All equipped items with item level, stats, enchantments, gems, and set bonuses",
+      "All equipped items with item level, stats, enchantments, gems, and set bonuses — fetch to evaluate gear upgrades, find missing enchants/gems, or check set bonus status",
     data: {
       items: equipment.equipped_items.map(mapItem),
     },
@@ -142,7 +168,7 @@ export function mapCharacterStats(
 ): GameStateSection {
   return {
     description:
-      "Combat statistics: primary stats, secondary ratings, attack/spell power, armor, and defenses",
+      "Combat statistics: primary stats, secondary ratings, attack/spell power, armor, and defenses — fetch to analyze stat priorities, check breakpoints, or compare gear trade-offs",
     data: {
       health: statistics.health,
       power: statistics.power,
@@ -238,7 +264,7 @@ export function mapTalents(
 
   return {
     description:
-      "Active talent build: class talents, spec talents, hero talents, PvP talents, and loadout import code",
+      "Active talent build with class, spec, hero, and PvP talents plus loadout import code — fetch to review build choices, suggest talent swaps, or export the build",
     data: {
       spec_name: activeSpec?.specialization.name ?? null,
       loadout_code: activeLoadout?.talent_loadout_code ?? null,
@@ -306,7 +332,7 @@ export function mapMythicPlus(
 
   return {
     description:
-      "Mythic+ dungeon performance: best runs per dungeon with keystone level, rating, and Raider.io scores",
+      "Mythic+ dungeon performance: best runs, keystone levels, ratings, and Raider.io scores — fetch to evaluate M+ progress, identify weak dungeons, or plan key pushes",
     data,
     enrichment: [raiderioEnrichment(raiderio)],
   };
@@ -353,7 +379,7 @@ export function mapRaidProgression(
 
   return {
     description:
-      "Raid boss kills by difficulty across all expansions, with Raider.io progression summary for current tier",
+      "Raid boss kills by difficulty across all expansions — fetch to check progression, identify undefeated bosses, or review current tier status",
     data,
     enrichment: [raiderioEnrichment(raiderio)],
   };
@@ -379,7 +405,7 @@ export function mapProfessions(
 
   return {
     description:
-      "Primary and secondary professions with skill points per expansion tier and recipe counts",
+      "Primary and secondary professions with skill points per expansion tier and recipe counts — fetch to check crafting progress or identify unleveled professions",
     data: {
       primaries: mapProf(professions.primaries),
       secondaries: mapProf(professions.secondaries),
