@@ -433,6 +433,26 @@ describe("draft_advisor native module", () => {
     expect(data.recommendations.length).toBe(2);
   });
 
+  it("accepts P1P1 with empty pool", async () => {
+    await seedContextualData();
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: [],
+        pack: ["Blazing Bolt", "Gloomlake Verge", "Forest Bear"],
+        pick_number: 1,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as { recommendations: { card: string; composite_score: number }[] };
+    expect(data.recommendations.length).toBe(3);
+    expect(data.recommendations[0]!.card).toBeDefined();
+  });
+
   it("uses accumulated signal from pick_history when provided", async () => {
     await seedContextualData();
 
