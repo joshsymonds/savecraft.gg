@@ -91,21 +91,21 @@ async function seedDeckbuildingData(): Promise<void> {
     // Draft ratings (DSK set)
     env.DB.prepare(
       `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind("DSK", "Vengeful Strangler", 10000, 12000, 2000, 0.56, 0.58, 0.54, 0.5, 0.04, 5, 4),
+    ).bind("DSK", "Vengeful Strangler", 10_000, 12_000, 2000, 0.56, 0.58, 0.54, 0.5, 0.04, 5, 4),
     env.DB.prepare(
       `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "Doomsday Excruciator", 5000, 8000, 3000, 0.62, 0.65, 0.6, 0.48, 0.12, 2, 1.5),
     env.DB.prepare(
       `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind("DSK", "Go for the Throat", 8000, 10000, 2000, 0.59, 0.61, 0.57, 0.5, 0.07, 3, 2),
+    ).bind("DSK", "Go for the Throat", 8000, 10_000, 2000, 0.59, 0.61, 0.57, 0.5, 0.07, 3, 2),
     env.DB.prepare(
       `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind("DSK", "Gloomlake Verge", 15000, 20000, 5000, 0.564, 0.62, 0.54, 0.48, 0.06, 8.5, 9.2),
+    ).bind("DSK", "Gloomlake Verge", 15_000, 20_000, 5000, 0.564, 0.62, 0.54, 0.48, 0.06, 8.5, 9.2),
 
     // Set stats
     env.DB.prepare(
       `INSERT INTO mtga_draft_set_stats (set_code, format, total_games, card_count, avg_gihwr) VALUES (?, ?, ?, ?, ?)`,
-    ).bind("DSK", "PremierDraft", 250000, 4, 0.55),
+    ).bind("DSK", "PremierDraft", 250_000, 4, 0.55),
 
     // Deck stats for UB archetype
     env.DB.prepare(
@@ -121,7 +121,7 @@ async function seedDeckbuildingData(): Promise<void> {
     ).bind("DSK", "UB", 2, 5.5, 5000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
-    ).bind("DSK", "UB", 3, 4.0, 5000),
+    ).bind("DSK", "UB", 3, 4, 5000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 6, 1.5, 5000),
@@ -198,13 +198,13 @@ describe("deckbuilding native module", () => {
         mode: string;
         set: string;
         archetype: string;
-        sections: Array<{
+        sections: {
           name: string;
           status: string;
           actual: number;
           expected: number;
           note: string;
-        }>;
+        }[];
       };
 
       expect(data.mode).toBe("health_check");
@@ -266,7 +266,7 @@ describe("deckbuilding native module", () => {
       expect(result.type).toBe("structured");
       if (result.type !== "structured") throw new Error("unexpected");
       const data = result.data as {
-        sections: Array<{ name: string; status: string; note: string }>;
+        sections: { name: string; status: string; note: string }[];
       };
       const landSection = data.sections.find((s) => s.name === "lands");
       expect(landSection).toBeDefined();
@@ -319,7 +319,7 @@ describe("deckbuilding native module", () => {
       expect(result.type).toBe("structured");
       if (result.type !== "structured") throw new Error("unexpected");
       const data = result.data as {
-        sections: Array<{ name: string; status: string; actual: number; note: string }>;
+        sections: { name: string; status: string; actual: number; note: string }[];
       };
       const cabsSection = data.sections.find((s) => s.name === "cabs");
       expect(cabsSection).toBeDefined();
@@ -354,7 +354,7 @@ describe("deckbuilding native module", () => {
       if (result.type !== "structured") throw new Error("unexpected");
       const data = result.data as {
         mode: string;
-        candidates: Array<{
+        candidates: {
           card: string;
           score: number;
           axes: {
@@ -365,7 +365,7 @@ describe("deckbuilding native module", () => {
             castability: number;
           };
           reason: string;
-        }>;
+        }[];
       };
 
       expect(data.mode).toBe("cut_advisor");
@@ -405,7 +405,7 @@ describe("deckbuilding native module", () => {
       expect(result.type).toBe("structured");
       if (result.type !== "structured") throw new Error("unexpected");
       const data = result.data as {
-        candidates: Array<{ card: string }>;
+        candidates: { card: string }[];
       };
 
       const landNames = ["Evolving Wilds", "Island", "Swamp"];
