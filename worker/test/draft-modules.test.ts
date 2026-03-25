@@ -22,20 +22,7 @@ async function seedDraftData(): Promise<void> {
     // DSK cards
     env.DB.prepare(
       `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      "DSK",
-      "Gloomlake Verge",
-      15_000,
-      20_000,
-      5000,
-      0.564,
-      0.62,
-      0.54,
-      0.48,
-      0.06,
-      8.5,
-      9.2,
-    ),
+    ).bind("DSK", "Gloomlake Verge", 15_000, 20_000, 5000, 0.564, 0.62, 0.54, 0.48, 0.06, 8.5, 9.2),
     env.DB.prepare(
       `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "Blazing Bolt", 10_000, 12_000, 2000, 0.58, 0.6, 0.55, 0.5, 0.05, 3, 2.5),
@@ -54,21 +41,7 @@ async function seedDraftData(): Promise<void> {
     // Color stats for Gloomlake Verge
     env.DB.prepare(
       `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      "DSK",
-      "Gloomlake Verge",
-      "UB",
-      3000,
-      4000,
-      1000,
-      0.59,
-      0.63,
-      0.56,
-      0.49,
-      0.07,
-      7.2,
-      8,
-    ),
+    ).bind("DSK", "Gloomlake Verge", "UB", 3000, 4000, 1000, 0.59, 0.63, 0.56, 0.49, 0.07, 7.2, 8),
     env.DB.prepare(
       `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "Gloomlake Verge", "BG", 2000, 3000, 1000, 0.52, 0.54, 0.5, 0.49, 0.01, 9, 10),
@@ -118,17 +91,7 @@ async function seedContextualData(): Promise<void> {
     ).bind(2, "oracle-2", "Blazing Bolt", "Blazing Bolt", "{R}", 1, "Instant", '["R"]', 1),
     env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      3,
-      "oracle-3",
-      "Forest Bear",
-      "Forest Bear",
-      "{G}{G}",
-      2,
-      "Creature — Bear",
-      '["G"]',
-      1,
-    ),
+    ).bind(3, "oracle-3", "Forest Bear", "Forest Bear", "{G}{G}", 2, "Creature — Bear", '["G"]', 1),
 
     env.DB.prepare(
       `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
@@ -250,10 +213,7 @@ describe("card_stats native module", () => {
   it("filters leaderboard by color pair", async () => {
     await seedDraftData();
 
-    const result = await cardStatsModule.execute(
-      { set: "DSK", sort: "gihwr", colors: "UB" },
-      env,
-    );
+    const result = await cardStatsModule.execute({ set: "DSK", sort: "gihwr", colors: "UB" }, env);
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
 
@@ -612,10 +572,7 @@ describe("draft_advisor native module", () => {
       { available: ["Forest Bear"], chosen: "Forest Bear" },
     ];
 
-    const result = await draftAdvisorModule.execute(
-      { set: "DSK", pick_history: pickHistory },
-      env,
-    );
+    const result = await draftAdvisorModule.execute({ set: "DSK", pick_history: pickHistory }, env);
 
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
