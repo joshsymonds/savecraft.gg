@@ -1204,6 +1204,148 @@ func TestRefinePutAction(t *testing.T) {
 	}
 }
 
+func TestBuildOutputSectionsPlayerSummary(t *testing.T) {
+	gs := &GameState{
+		DisplayName: "TestPlayer",
+		PlayerID:    "abc123",
+		Rank: &RankSection{
+			Constructed: RankInfo{Class: "Gold", Level: 4, Step: 5, MatchesWon: 18, MatchesLost: 14},
+			Limited:     RankInfo{Class: "Silver", Level: 2},
+		},
+		Inventory: &InventorySection{
+			Gold: 63155, Gems: 5050,
+			WCCommon: 100, WCUncommon: 200, WCRare: 50, WCMythic: 10,
+			VaultProgress: 37.7,
+			DraftTokens:   2,
+			Boosters:      []BoosterInfo{{CollationID: 12345, SetCode: "TMT", Count: 3}},
+		},
+		ActiveDecks: &ActiveDecksSection{
+			Decks: []Deck{
+				{ID: "d1", Name: "[S] Landfall", Format: "Standard", Cards: []DeckCard{{ArenaID: 82159, Name: "Card A", Count: 4}}},
+				{ID: "d2", Name: "[HB] Slivers", Format: "Brawl", Cards: []DeckCard{{ArenaID: 82160, Name: "Card B", Count: 1}}},
+			},
+		},
+		Matches: &MatchHistorySection{
+			Matches: []MatchResult{{
+				MatchID: "match-001", EventID: "Ranked", Date: "2026-03-22T15:03:09Z",
+				Result:   "win",
+				Opponent: MatchPlayer{Name: "Opp1", Seat: 2},
+				Player:   MatchPlayer{Name: "TestPlayer", Seat: 1},
+				Games:    []GameResult{{GameNumber: 1, WinningSeat: 1}},
+			}},
+		},
+		GameLogs: &GameLogSection{
+			Games: []GameLog{{
+				MatchID: "match-001",
+				Turns:   []TurnLog{{TurnNumber: 1, ActivePlayer: 1, Phase: "Phase_Main1", Actions: []GameAction{}}},
+			}},
+		},
+		Drafts: &DraftHistorySection{
+			Drafts: []DraftSession{{EventName: "QuickDraft", DraftType: "quick", Picks: []DraftPick{{PackNumber: 0, PickNumber: 0, Available: []string{"A"}, Chosen: "A"}}}},
+		},
+	}
+
+	sections := buildOutputSections(gs)
+
+	// player_summary must exist
+	ps, ok := sections["player_summary"]
+	if !ok {
+		t.Fatal("expected player_summary section")
+	}
+	psMap := ps.(map[string]any)
+	data := psMap["data"].(map[string]any)
+	if data["display_name"] != "TestPlayer" {
+		t.Errorf("expected display_name 'TestPlayer', got %v", data["display_name"])
+	}
+	if data["rank"] == nil {
+		t.Error("expected rank in player_summary")
+	}
+	if data["inventory"] == nil {
+		t.Error("expected inventory in player_summary")
+	}
+	decks := data["decks"].([]map[string]any)
+	if len(decks) != 2 {
+		t.Errorf("expected 2 decks in summary, got %d", len(decks))
+	}
+	if decks[0]["name"] != "[S] Landfall" {
+		t.Errorf("expected deck name '[S] Landfall', got %v", decks[0]["name"])
+	}
+	if decks[0]["format"] != "Standard" {
+		t.Errorf("expected deck format 'Standard', got %v", decks[0]["format"])
+	}
+	// Deck summary should reference the section name
+	if decks[0]["section"] != "deck:[S] Landfall" {
+		t.Errorf("expected section 'deck:[S] Landfall', got %v", decks[0]["section"])
+	}
+	matches := data["matches"].([]map[string]any)
+	if len(matches) != 1 {
+		t.Errorf("expected 1 match in summary, got %d", len(matches))
+	}
+	games := data["games"].([]map[string]any)
+	if len(games) != 1 {
+		t.Errorf("expected 1 game index entry, got %d", len(games))
+	}
+	if games[0]["section"] != "game:match-001" {
+		t.Errorf("expected game section 'game:match-001', got %v", games[0]["section"])
+	}
+
+	// Old sections must NOT exist
+	for _, name := range []string{"active_decks", "match_history", "game_log", "rank", "inventory"} {
+		if _, ok := sections[name]; ok {
+			t.Errorf("section %q should not exist in new layout", name)
+		}
+	}
+
+	// Per-deck sections
+	if _, ok := sections["deck:[S] Landfall"]; !ok {
+		t.Error("expected deck:[S] Landfall section")
+	}
+	if _, ok := sections["deck:[HB] Slivers"]; !ok {
+		t.Error("expected deck:[HB] Slivers section")
+	}
+
+	// Per-game sections
+	if _, ok := sections["game:match-001"]; !ok {
+		t.Error("expected game:match-001 section")
+	}
+
+	// Draft history unchanged
+	if _, ok := sections["draft_history"]; !ok {
+		t.Error("expected draft_history section")
+	}
+}
+
+func TestBuildOutputSectionsEmpty(t *testing.T) {
+	// Empty GameState should still produce player_summary
+	gs := &GameState{}
+	sections := buildOutputSections(gs)
+	if _, ok := sections["player_summary"]; !ok {
+		t.Fatal("expected player_summary even with empty state")
+	}
+}
+
+func TestBuildOutputSectionsSize(t *testing.T) {
+	// player_summary with many decks should stay small (no card lists)
+	decks := make([]Deck, 80)
+	for i := range decks {
+		cards := make([]DeckCard, 60)
+		for j := range cards {
+			cards[j] = DeckCard{ArenaID: 80000 + j, Name: "Some Card Name Here", Count: 4}
+		}
+		decks[i] = Deck{ID: "d" + string(rune('0'+i)), Name: "[HB] Deck " + string(rune('A'+i%26)), Format: "Brawl", Cards: cards}
+	}
+	gs := &GameState{
+		DisplayName: "TestPlayer",
+		ActiveDecks: &ActiveDecksSection{Decks: decks},
+	}
+	sections := buildOutputSections(gs)
+	psMap := sections["player_summary"].(map[string]any)
+	psJSON, _ := json.Marshal(psMap["data"])
+	if len(psJSON) > 15*1024 {
+		t.Errorf("player_summary is %d bytes, expected < 15KB", len(psJSON))
+	}
+}
+
 func TestBuildSummaryWithRank(t *testing.T) {
 	gs := &GameState{
 		DisplayName: "TestPlayer",

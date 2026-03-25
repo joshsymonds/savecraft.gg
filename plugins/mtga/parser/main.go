@@ -46,38 +46,29 @@ func main() {
 func buildOutputSections(gs *GameState) map[string]any {
 	sections := map[string]any{}
 
+	// Always emit player_summary — the compact overview for get_save.
+	sections["player_summary"] = map[string]any{
+		"description": "Player overview: rank, inventory, deck names, match results, and game log index — start here to understand the player's current state",
+		"data":        buildPlayerSummary(gs),
+	}
+
+	// Per-deck sections with full card lists.
 	if gs.ActiveDecks != nil {
-		sections["active_decks"] = map[string]any{
-			"description": "All constructed deck lists with main deck and sideboard — use to analyze deck composition, mana curves, card choices, and sideboard strategy",
-			"data":        gs.ActiveDecks,
+		for _, deck := range gs.ActiveDecks.Decks {
+			sections["deck:"+deck.Name] = map[string]any{
+				"description": fmt.Sprintf("Deck list for %s (%s) — main deck, sideboard, and command zone cards", deck.Name, deck.Format),
+				"data":        deck,
+			}
 		}
 	}
 
-	if gs.Rank != nil {
-		sections["rank"] = map[string]any{
-			"description": "Current ranked ladder position for Constructed and Limited — use to contextualize performance, set improvement goals, and calibrate advice difficulty",
-			"data":        gs.Rank,
-		}
-	}
-
-	if gs.Inventory != nil {
-		sections["inventory"] = map[string]any{
-			"description": "Currency, wildcards, draft tokens, and booster packs — use to evaluate crafting budget and recommend efficient wildcard spending",
-			"data":        gs.Inventory,
-		}
-	}
-
-	if gs.Matches != nil && len(gs.Matches.Matches) > 0 {
-		sections["match_history"] = map[string]any{
-			"description": "Match results with opponent info and cards seen — use to identify matchup patterns, analyze win rates by event/deck, and recommend sideboard adjustments",
-			"data":        gs.Matches,
-		}
-	}
-
-	if gs.GameLogs != nil && len(gs.GameLogs.Games) > 0 {
-		sections["game_log"] = map[string]any{
-			"description": "Turn-by-turn game log with decision context — use to analyze play sequencing, identify misplays, evaluate lines of play, and review key turning points",
-			"data":        gs.GameLogs,
+	// Per-game sections with full turn-by-turn data.
+	if gs.GameLogs != nil {
+		for _, game := range gs.GameLogs.Games {
+			sections["game:"+game.MatchID] = map[string]any{
+				"description": fmt.Sprintf("Turn-by-turn game log for match %s — use to analyze play sequencing, identify misplays, and review key turning points", game.MatchID),
+				"data":        game,
+			}
 		}
 	}
 
@@ -89,6 +80,77 @@ func buildOutputSections(gs *GameState) map[string]any {
 	}
 
 	return sections
+}
+
+func buildPlayerSummary(gs *GameState) map[string]any {
+	summary := map[string]any{}
+
+	if gs.DisplayName != "" {
+		summary["display_name"] = gs.DisplayName
+	}
+
+	if gs.Rank != nil {
+		summary["rank"] = gs.Rank
+	}
+
+	if gs.Inventory != nil {
+		summary["inventory"] = gs.Inventory
+	}
+
+	// Deck index: names, formats, and section pointers (no card lists).
+	if gs.ActiveDecks != nil {
+		deckList := make([]map[string]any, len(gs.ActiveDecks.Decks))
+		for i, deck := range gs.ActiveDecks.Decks {
+			deckList[i] = map[string]any{
+				"name":    deck.Name,
+				"format":  deck.Format,
+				"section": "deck:" + deck.Name,
+			}
+		}
+		summary["decks"] = deckList
+	}
+
+	// Match results with full metadata.
+	if gs.Matches != nil && len(gs.Matches.Matches) > 0 {
+		matchList := make([]map[string]any, len(gs.Matches.Matches))
+		for i, m := range gs.Matches.Matches {
+			matchList[i] = map[string]any{
+				"matchId":  m.MatchID,
+				"eventId":  m.EventID,
+				"date":     m.Date,
+				"opponent": m.Opponent.Name,
+				"result":   m.Result,
+				"games":    m.Games,
+			}
+		}
+		summary["matches"] = matchList
+	}
+
+	// Game log index: matchId, opponent, result, turn count, section pointer.
+	if gs.GameLogs != nil && len(gs.GameLogs.Games) > 0 {
+		gameIndex := make([]map[string]any, len(gs.GameLogs.Games))
+		for i, game := range gs.GameLogs.Games {
+			entry := map[string]any{
+				"matchId": game.MatchID,
+				"turns":   len(game.Turns),
+				"section": "game:" + game.MatchID,
+			}
+			// Cross-reference match data for opponent/result if available.
+			if gs.Matches != nil {
+				for _, m := range gs.Matches.Matches {
+					if m.MatchID == game.MatchID {
+						entry["opponent"] = m.Opponent.Name
+						entry["result"] = m.Result
+						break
+					}
+				}
+			}
+			gameIndex[i] = entry
+		}
+		summary["games"] = gameIndex
+	}
+
+	return summary
 }
 
 func buildSummary(gs *GameState) string {
