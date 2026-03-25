@@ -11,7 +11,7 @@ import (
 )
 
 // Minimum games together for a pair to be included in synergy output.
-const minGamesTogether = 200
+const minGamesTogether = 100
 
 // synergyRow represents one direction of a pairwise synergy relationship.
 type synergyRow struct {

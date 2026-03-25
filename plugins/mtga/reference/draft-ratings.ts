@@ -84,15 +84,26 @@ interface CalibrationRow {
   steepness: number;
 }
 
+interface AxisScore {
+  raw: number;
+  normalized: number;
+  weight: number;
+  contribution: number;
+}
+
 interface PickRecommendation {
   card: string;
   composite_score: number;
-  baseline: { score: number; gihwr: number; source: string };
-  synergy: { score: number; top_synergies: Array<{ card: string; delta: number }> };
-  curve: { score: number; cmc: number; pool_at_cmc: number; ideal_at_cmc: number };
-  signal: { score: number; ata: number; current_pick: number };
-  role: { score: number; roles: string[]; detail: string };
-  castability: { score: number; max_pips: number; estimated_sources: number };
+  rank: number;
+  axes: {
+    baseline: AxisScore & { gihwr: number; source: string };
+    synergy: AxisScore & { top_synergies: Array<{ card: string; delta: number }> };
+    role: AxisScore & { roles: string[]; detail: string };
+    curve: AxisScore & { cmc: number; pool_at_cmc: number; ideal_at_cmc: number };
+    castability: AxisScore & { max_pips: number; estimated_sources: number };
+    signal: AxisScore & { ata: number; current_pick: number };
+  };
+  waspas: { wsm: number; wpm: number; lambda: number };
 }
 
 // ── Karsten castability table ────────────────────────────────
@@ -195,7 +206,7 @@ function sigmoid(x: number, center: number, steepness: number): number {
 
 // Default sigmoid parameters — used as fallback when D1 calibration data is unavailable.
 const DEFAULT_SIGMOID_PARAMS: Record<string, { center: number; steepness: number }> = {
-  baseline: { center: 0.52, steepness: 20 },
+  baseline: { center: 0.535, steepness: 25 },
   synergy:  { center: 0, steepness: 4 },
   curve:    { center: 0, steepness: 3 },
   signal:   { center: 0, steepness: 3 },
@@ -221,20 +232,18 @@ interface WeightSet {
 }
 
 function getWeights(pickNumber: number): WeightSet {
-  // Baseline: decreases from ~50% early to ~20% late (midpoint pick 12).
-  const baseline = smoothWeight(pickNumber, 0.50, 0.20, 12, 0.25);
-  // Synergy: increases from ~10% early to ~28% late (midpoint pick 15).
-  const synergy = smoothWeight(pickNumber, 0.10, 0.28, 15, 0.25);
-  // Curve: increases from ~8% early to ~18% late (midpoint pick 12).
-  const curve = smoothWeight(pickNumber, 0.08, 0.18, 12, 0.25);
-  // Signal: peaks mid-pack (~picks 6-10), then decreases.
-  const signalPeak = Math.exp(-0.5 * ((pickNumber - 8) / 6) ** 2);
-  const signal = 0.05 + 0.22 * signalPeak;
-  // Role: increases from ~4% early to ~12% late (midpoint pick 10).
-  const role = smoothWeight(pickNumber, 0.04, 0.12, 10, 0.25);
-  // Castability: increases from ~5% early to ~12% late (midpoint pick 8).
-  // Color commitment matters more as the mana base solidifies.
-  const castability = smoothWeight(pickNumber, 0.05, 0.12, 8, 0.25);
+  // Baseline: dominates early (take the best card), fades as deck-building takes over.
+  const baseline = smoothWeight(pickNumber, 0.40, 0.15, 15, 0.25);
+  // Synergy: near-zero early (pool too small), ramps to dominant mid-late.
+  const synergy = smoothWeight(pickNumber, 0.05, 0.30, 18, 0.20);
+  // Curve: near-zero early, peaks late as curve gaps become critical.
+  const curve = smoothWeight(pickNumber, 0.05, 0.15, 22, 0.20);
+  // Signal: high early (read what's open), fades as commitment solidifies.
+  const signal = smoothWeight(pickNumber, 0.25, 0.10, 12, 0.25);
+  // Role: near-zero early, ramps to dominant late as composition gaps matter.
+  const role = smoothWeight(pickNumber, 0.05, 0.25, 20, 0.25);
+  // Castability: significant early (prefer flexible/colorless), fades as colors lock.
+  const castability = smoothWeight(pickNumber, 0.20, 0.05, 10, 1 / 3);
 
   // Normalize so weights sum to 1.
   const total = baseline + synergy + curve + signal + role + castability;
@@ -282,6 +291,11 @@ function padRight(s: string, len: number): string {
 
 function padLeft(s: string, len: number): string {
   return s.length >= len ? s : " ".repeat(len - s.length) + s;
+}
+
+/** Round to 4 decimal places for output precision. */
+function r4(v: number): number {
+  return Math.round(v * 10000) / 10000;
 }
 
 function sortFieldLabel(field: string): string {
@@ -1099,42 +1113,67 @@ async function contextualPick(
 
     recommendations.push({
       card: name,
-      composite_score: Math.round(compositeScore * 10000) / 10000,
-      baseline: {
-        score: Math.round(baselineNorm * 10000) / 10000,
-        gihwr: baselineGihwr,
-        source: baselineSource,
+      composite_score: r4(compositeScore),
+      rank: 0, // Set after sorting.
+      axes: {
+        baseline: {
+          raw: r4(baselineGihwr),
+          normalized: r4(baselineNorm),
+          weight: r4(weights.baseline),
+          contribution: r4(weights.baseline * baselineNorm),
+          gihwr: baselineGihwr,
+          source: baselineSource,
+        },
+        synergy: {
+          raw: r4(synergySum),
+          normalized: r4(synergyNorm),
+          weight: r4(weights.synergy),
+          contribution: r4(weights.synergy * synergyNorm),
+          top_synergies: topSynergies,
+        },
+        role: {
+          raw: r4(roleScore),
+          normalized: r4(roleNorm),
+          weight: r4(weights.role),
+          contribution: r4(weights.role * roleNorm),
+          roles: roleList,
+          detail: bestRoleDetail || "no role data",
+        },
+        curve: {
+          raw: r4(curveScore),
+          normalized: r4(curveNorm),
+          weight: r4(weights.curve),
+          contribution: r4(weights.curve * curveNorm),
+          cmc: cardCMC,
+          pool_at_cmc: poolAtCMC,
+          ideal_at_cmc: Math.round(idealAtCMC * 100) / 100,
+        },
+        castability: {
+          raw: r4(castabilityScore),
+          normalized: r4(castabilityNorm),
+          weight: r4(weights.castability),
+          contribution: r4(weights.castability * castabilityNorm),
+          max_pips: maxPips,
+          estimated_sources: castabilitySources,
+        },
+        signal: {
+          raw: r4(signalScore),
+          normalized: r4(signalNorm),
+          weight: r4(weights.signal),
+          contribution: r4(weights.signal * signalNorm),
+          ata,
+          current_pick: pickNumber,
+        },
       },
-      synergy: {
-        score: Math.round(synergySum * 10000) / 10000,
-        top_synergies: topSynergies,
-      },
-      curve: {
-        score: Math.round(curveScore * 10000) / 10000,
-        cmc: cardCMC,
-        pool_at_cmc: poolAtCMC,
-        ideal_at_cmc: Math.round(idealAtCMC * 100) / 100,
-      },
-      signal: {
-        score: Math.round(signalScore * 10000) / 10000,
-        ata,
-        current_pick: pickNumber,
-      },
-      role: {
-        score: Math.round(roleScore * 10000) / 10000,
-        roles: roleList,
-        detail: bestRoleDetail || "no role data",
-      },
-      castability: {
-        score: Math.round(castabilityScore * 10000) / 10000,
-        max_pips: maxPips,
-        estimated_sources: castabilitySources,
-      },
+      waspas: { wsm: r4(wsm), wpm: r4(wpm), lambda: r4(lambda) },
     });
   }
 
-  // Sort by composite score descending.
+  // Sort by composite score descending, then assign ranks.
   recommendations.sort((a, b) => b.composite_score - a.composite_score);
+  for (let i = 0; i < recommendations.length; i++) {
+    recommendations[i]!.rank = i + 1;
+  }
 
   return {
     type: "structured",
@@ -1171,9 +1210,9 @@ export const draftRatingsModule: NativeReferenceModule = {
     "Query with just a set code for an overview. Add a card name for detailed stats with color pair breakdowns. Compare specific cards side-by-side with the cards parameter.",
     "",
     "CONTEXTUAL PICK ADVICE: When the player is mid-draft, pass their current pool and pack to get ranked pick recommendations.",
-    "Each card scores on 7 axes: baseline (archetype-weighted win rate), synergy (pairwise interaction with pool cards, deconfounded from archetype strength), curve (gap detection + ideal archetype CMC distribution), signal (archetype openness via ATA deviation), role (4-category deck composition — creature, removal, mana_fixing, noncreature_nonremoval — scored against per-archetype targets from winning decks), castability (Karsten hypergeometric probability of casting on curve given estimated mana base), and a WASPAS hybrid composite that blends additive and multiplicative scoring.",
-    "Component breakdowns explain WHY a card is recommended — use these to give the player actionable reasoning, not just 'pick this'. The composite ranks cards, but the components tell the story.",
-    "Weights adapt smoothly to draft phase: early picks favor baseline + signal (card quality + is the archetype open?), mid picks balance all factors with signal peaking in the reading window (picks 6-10), late picks favor synergy + curve + role (deck optimization).",
+    "Each card scores on 6 axes: baseline (archetype-weighted win rate), synergy (pairwise interaction with pool cards, deconfounded from archetype strength), curve (gap detection + ideal archetype CMC distribution), signal (archetype openness via ATA deviation), role (4-category deck composition — creature, removal, mana_fixing, noncreature_nonremoval — scored against per-archetype targets from winning decks), and castability (Karsten hypergeometric probability of casting on curve given estimated mana base). These are combined via a WASPAS hybrid that blends additive (WSM) and multiplicative (WPM) scoring.",
+    "Component breakdowns (raw, normalized, weight, contribution per axis) explain WHY a card is recommended — use these to give the player actionable reasoning, not just 'pick this'. The composite ranks cards, but the components tell the story. The waspas field exposes WSM, WPM, and lambda for full transparency.",
+    "Weights adapt smoothly to draft phase: early picks favor baseline + signal + castability (card quality + is the archetype open? + color flexibility), mid picks balance all factors as signal fades and synergy ramps, late picks favor synergy + role + curve (deck optimization).",
     "",
     "DECK COMPOSITION: The role axis tracks 4 categories — creature, removal, mana_fixing, noncreature_nonremoval — against per-archetype targets derived from winning decks. Cards filling the biggest gap score highest. Multi-role cards (e.g., creatures with ETB removal) score on their best-fitting role. The 'detail' field explains which role drove the score. Tell the player when their deck is light on any category.",
     "COLOR COMMITMENT: The castability score uses Frank Karsten's hypergeometric model. A card requiring {U}{U} with only 6 blue sources has ~65% castability — unreliable. Single-pip cards need 8+ sources; double-pip need 12+. Warn the player when a card's castability is below 80%. For splash cards (off-color, few sources), castability will be very low — explain that they'd need mana fixing (dual lands, mana rocks) to reliably cast it.",

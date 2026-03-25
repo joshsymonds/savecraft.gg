@@ -289,12 +289,16 @@ describe("draft_ratings native module", () => {
       recommendations: Array<{
         card: string;
         composite_score: number;
-        baseline: { score: number; gihwr: number; source: string };
-        synergy: { score: number; top_synergies: Array<{ card: string; delta: number }> };
-        curve: { score: number; cmc: number; pool_at_cmc: number; ideal_at_cmc: number };
-        signal: { score: number; ata: number; current_pick: number };
-        role: { score: number; roles: string[]; detail: string };
-        castability: { score: number; max_pips: number; estimated_sources: number };
+        rank: number;
+        axes: {
+          baseline: { raw: number; normalized: number; weight: number; contribution: number; gihwr: number; source: string };
+          synergy: { raw: number; normalized: number; weight: number; contribution: number; top_synergies: Array<{ card: string; delta: number }> };
+          role: { raw: number; normalized: number; weight: number; contribution: number; roles: string[]; detail: string };
+          curve: { raw: number; normalized: number; weight: number; contribution: number; cmc: number; pool_at_cmc: number; ideal_at_cmc: number };
+          castability: { raw: number; normalized: number; weight: number; contribution: number; max_pips: number; estimated_sources: number };
+          signal: { raw: number; normalized: number; weight: number; contribution: number; ata: number; current_pick: number };
+        };
+        waspas: { wsm: number; wpm: number; lambda: number };
       }>;
     };
 
@@ -316,35 +320,42 @@ describe("draft_ratings native module", () => {
     // Should have 2 recommendations (one per pack card)
     expect(data.recommendations).toHaveLength(2);
 
-    // Each recommendation should have all components
+    // Each recommendation should have all components in spec format
     for (const rec of data.recommendations) {
       expect(rec.card).toBeTruthy();
       expect(typeof rec.composite_score).toBe("number");
-      expect(rec.baseline).toBeDefined();
-      expect(rec.synergy).toBeDefined();
-      expect(rec.curve).toBeDefined();
-      expect(rec.signal).toBeDefined();
-      expect(rec.role).toBeDefined();
-      expect(rec.castability).toBeDefined();
-      expect(typeof rec.castability.score).toBe("number");
+      expect(typeof rec.rank).toBe("number");
+      expect(rec.rank).toBeGreaterThan(0);
+      // All axes present with raw/normalized/weight/contribution
+      for (const axis of ["baseline", "synergy", "role", "curve", "castability", "signal"] as const) {
+        expect(rec.axes[axis]).toBeDefined();
+        expect(typeof rec.axes[axis].raw).toBe("number");
+        expect(typeof rec.axes[axis].normalized).toBe("number");
+        expect(typeof rec.axes[axis].weight).toBe("number");
+        expect(typeof rec.axes[axis].contribution).toBe("number");
+      }
+      // WASPAS intermediates exposed
+      expect(typeof rec.waspas.wsm).toBe("number");
+      expect(typeof rec.waspas.wpm).toBe("number");
+      expect(typeof rec.waspas.lambda).toBe("number");
     }
 
     // Blazing Bolt has positive synergy with Gloomlake Verge
     const blazingRec = data.recommendations.find((r) => r.card === "Blazing Bolt");
     expect(blazingRec).toBeDefined();
-    expect(blazingRec!.synergy.score).toBeGreaterThan(0);
-    expect(blazingRec!.synergy.top_synergies.length).toBeGreaterThan(0);
+    expect(blazingRec!.axes.synergy.raw).toBeGreaterThan(0);
+    expect(blazingRec!.axes.synergy.top_synergies.length).toBeGreaterThan(0);
 
     // Blazing Bolt is removal — should have role data
-    expect(blazingRec!.role.roles).toContain("removal");
-    expect(blazingRec!.role.score).toBeGreaterThanOrEqual(0);
+    expect(blazingRec!.axes.role.roles).toContain("removal");
+    expect(blazingRec!.axes.role.raw).toBeGreaterThanOrEqual(0);
 
     // Forest Bear has negative synergy with Gloomlake Verge
     const bearRec = data.recommendations.find((r) => r.card === "Forest Bear");
     expect(bearRec).toBeDefined();
-    expect(bearRec!.synergy.score).toBeLessThan(0);
+    expect(bearRec!.axes.synergy.raw).toBeLessThan(0);
     // Forest Bear is not removal
-    expect(blazingRec!.role.roles).not.toContain("noncreature_nonremoval");
+    expect(bearRec!.axes.role.roles).not.toContain("removal");
   });
 
   it("uses early weight profile for picks 1-5", async () => {
@@ -442,8 +453,8 @@ describe("draft_ratings native module", () => {
     expect(withoutHistory.type).toBe("structured");
     if (withHistory.type !== "structured" || withoutHistory.type !== "structured") throw new Error("unexpected type");
 
-    const histRecs = (withHistory.data as { recommendations: Array<{ card: string; signal: { score: number } }> }).recommendations;
-    const noHistRecs = (withoutHistory.data as { recommendations: Array<{ card: string; signal: { score: number } }> }).recommendations;
+    const histRecs = (withHistory.data as { recommendations: Array<{ card: string; axes: { signal: { raw: number } } }> }).recommendations;
+    const noHistRecs = (withoutHistory.data as { recommendations: Array<{ card: string; axes: { signal: { raw: number } } }> }).recommendations;
 
     // Both should return recommendations.
     expect(histRecs.length).toBe(2);
@@ -454,6 +465,6 @@ describe("draft_ratings native module", () => {
     const noHistBlazing = noHistRecs.find((r) => r.card === "Blazing Bolt");
     expect(histBlazing).toBeDefined();
     expect(noHistBlazing).toBeDefined();
-    expect(histBlazing!.signal.score).not.toBe(noHistBlazing!.signal.score);
+    expect(histBlazing!.axes.signal.raw).not.toBe(noHistBlazing!.axes.signal.raw);
   });
 });
