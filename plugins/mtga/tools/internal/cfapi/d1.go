@@ -69,7 +69,11 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 	importURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/d1/database/%s/import", accountID, databaseID)
 
 	sqlBytes := []byte(sql)
-	etag := fmt.Sprintf("%x", md5.Sum(sqlBytes))
+	// Include a timestamp nonce in the etag so re-runs with identical SQL
+	// aren't deduplicated by D1. Without this, a failed import (e.g., missing
+	// table) caches the etag as "complete" and subsequent retries silently skip.
+	nonce := fmt.Sprintf("%d", time.Now().UnixNano())
+	etag := fmt.Sprintf("%x", md5.Sum(append(sqlBytes, nonce...)))
 
 	// Step 1: Init — get upload URL. Retry if another import is active.
 	uploadURL, filename, err := initImport(client, importURL, apiToken, etag)
@@ -157,10 +161,6 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 			return nil
 		}
 		if pollResult.Result.Error != "" {
-			if isImportCompleteError(pollResult.Result.Error) {
-				fmt.Println("  D1 import complete (fast): poll found no active import")
-				return nil
-			}
 			if isPollRetryableError(pollResult.Result.Error) {
 				fmt.Printf("  D1 transient error (%s), retrying poll...\n", pollResult.Result.Error)
 				continue
@@ -170,12 +170,6 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 	}
 
 	return fmt.Errorf("import timed out after 120s")
-}
-
-// isImportCompleteError returns true if the poll error indicates the import
-// already finished before we could poll it (small imports complete instantly).
-func isImportCompleteError(errMsg string) bool {
-	return strings.Contains(strings.ToLower(errMsg), "not currently import")
 }
 
 // isPollRetryableError returns true if a poll error is a transient D1 infrastructure
