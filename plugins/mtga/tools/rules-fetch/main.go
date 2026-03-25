@@ -88,9 +88,9 @@ func run() error {
 		cardRulings map[string][]CardRuling
 		cardNames   map[string]string
 
-		rulesErr    error
-		rulingsErr  error
-		cardNmErr   error
+		rulesErr   error
+		rulingsErr error
+		cardNmErr  error
 	)
 
 	var wg sync.WaitGroup

@@ -184,7 +184,7 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 	}
 	sort.Strings(cardNames)
 
-	pairsByColor := make(map[string]map[cardPair]*pairAccum)  // colorPair → pair → accum
+	pairsByColor := make(map[string]map[cardPair]*pairAccum)   // colorPair → pair → accum
 	cardsByColor := make(map[string]map[string]*cardDeckAccum) // colorPair → cardName → accum
 	curves := make(map[string]*curveAccum)                     // color pair → curve accumulator
 	roleTargets := make(map[string]*roleTargetAccum)           // color pair → role target accumulator
