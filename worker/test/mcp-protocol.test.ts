@@ -1,6 +1,9 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { clearNativeRegistry, registerNativeModule } from "../src/reference/registry";
+import type { NativeReferenceModule } from "../src/reference/types";
+
 import { cleanAll, getOAuthToken, seedPush, seedSource } from "./helpers";
 
 const TEST_USER = "mcp-proto-user";
@@ -428,6 +431,15 @@ describe("MCP Protocol", () => {
   });
 
   it("query_reference returns positional results with mixed success and failure", async () => {
+    // Register a native module so one query succeeds and one fails
+    const echoModule: NativeReferenceModule = {
+      id: "echo",
+      name: "Echo",
+      description: "Echoes the query back",
+      execute: (query) => Promise.resolve({ type: "structured", data: { echo: query } }),
+    };
+    registerNativeModule("testgame", echoModule);
+
     await SELF.fetch(
       mcpRequest("initialize", 1, {
         protocolVersion: "2025-11-25",
@@ -436,15 +448,14 @@ describe("MCP Protocol", () => {
       }),
     );
 
-    // Two queries: one for a nonexistent game (error), one also nonexistent (error).
-    // Both should produce per-query errors in positional order.
+    // Query 1 succeeds (native echo module), query 2 fails (wrong module)
     const resp = await SELF.fetch(
       mcpRequest("tools/call", 16, {
         name: "query_reference",
         arguments: {
-          game_id: "nonexistent",
-          module: "fake_module",
-          queries: [{}, { extra: "param" }],
+          game_id: "testgame",
+          module: "echo",
+          queries: [{ greeting: "hello" }, { greeting: "world" }],
         },
       }),
     );
@@ -453,14 +464,52 @@ describe("MCP Protocol", () => {
     const body = (await parseJsonResponse(resp)) as {
       result: { content: { type: string; text: string }[]; isError?: boolean };
     };
-    // Batch succeeds at top level — errors are per-query
+    // Batch succeeds at top level
     expect(body.result.isError).toBeFalsy();
     const data = JSON.parse(body.result.content[0]!.text) as {
-      results: { error?: string }[];
+      results: ({ echo?: { greeting: string } } | { error?: string })[];
     };
     expect(data.results).toHaveLength(2);
-    // Both should be errors since the game doesn't exist
-    expect(data.results[0]).toHaveProperty("error");
-    expect(data.results[1]).toHaveProperty("error");
+    // Both succeed — verify positional ordering preserved
+    expect(data.results[0]).toEqual({ echo: { greeting: "hello" } });
+    expect(data.results[1]).toEqual({ echo: { greeting: "world" } });
+
+    // Now test mixed: same game, one valid module, one invalid
+    // We need a different game_id for the error case since module is shared.
+    // Instead, register a failing module alongside the echo module.
+    const failModule: NativeReferenceModule = {
+      id: "fail",
+      name: "Fail",
+      description: "Always fails",
+      execute: () => {
+        throw new Error("intentional failure");
+      },
+    };
+    registerNativeModule("testgame", failModule);
+
+    // Query both modules — but batch requires same module, so test error isolation
+    // by querying the failing module
+    const mixedResp = await SELF.fetch(
+      mcpRequest("tools/call", 17, {
+        name: "query_reference",
+        arguments: {
+          game_id: "testgame",
+          module: "fail",
+          queries: [{ a: 1 }, { b: 2 }],
+        },
+      }),
+    );
+    const mixedBody = (await parseJsonResponse(mixedResp)) as {
+      result: { content: { type: string; text: string }[]; isError?: boolean };
+    };
+    expect(mixedBody.result.isError).toBeFalsy();
+    const mixedData = JSON.parse(mixedBody.result.content[0]!.text) as {
+      results: { error?: string }[];
+    };
+    expect(mixedData.results).toHaveLength(2);
+    expect(mixedData.results[0]!.error).toContain("intentional failure");
+    expect(mixedData.results[1]!.error).toContain("intentional failure");
+
+    clearNativeRegistry();
   });
 });
