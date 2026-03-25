@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/sets"
 )
 
 // Minimum games together for a pair to be included in synergy output.
@@ -103,7 +104,7 @@ var colorPairSet = func() map[string]bool {
 // computation is skipped. cardRoles maps card names to their set of roles
 // (e.g., "creature", "removal"). If nil, role target computation is skipped.
 func processGameAndSynergyData(set string, cacheDir string, cardCMC map[string]float64, cardRoles map[string]map[string]bool) (map[string]map[string]*cardAccum, synergyDataResult, error) {
-	url := fmt.Sprintf(gameDataURL, set)
+	url := fmt.Sprintf(sets.GameDataURL, set)
 	filename := fmt.Sprintf("game_data_public.%s.PremierDraft.csv.gz", set)
 	reader, err := cachedDownloadGzip(url, cacheDir, filename)
 	if err != nil {
