@@ -83,7 +83,7 @@ func buildOutputSections(gs *GameState) map[string]any {
 
 	if gs.Drafts != nil && len(gs.Drafts.Drafts) > 0 {
 		sections["draft_history"] = map[string]any{
-			"description": "Draft picks with full pack contents at each selection — use to evaluate pick quality, identify archetype signals, and improve draft strategy",
+			"description": "Draft picks with full pack contents at each selection. If the last pick has no 'chosen' card, the player is LIVE DRAFTING — 'available' is their current pack. Combine their previous picks (the pool) with draft_ratings using the colors parameter to give archetype-aware pick advice. Compare ALSA to pick position to read signals (late picks of high-ALSA cards = open archetype).",
 			"data":        gs.Drafts,
 		}
 	}
