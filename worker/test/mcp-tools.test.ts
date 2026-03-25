@@ -380,6 +380,59 @@ describe("MCP Tools", () => {
       const result = await getSection(env.DB, USER_A, "save-other-sec", ["equipped_gear"]);
       expect(result.isError).toBe(true);
     });
+
+    it("suggests similar deck names when deck: section not found", async () => {
+      const mtgaState = {
+        identity: { saveName: "Player", gameId: "mtga" },
+        summary: "Player",
+        sections: {
+          player_summary: {
+            description: "Player overview",
+            data: { display_name: "Player" },
+          },
+          "deck:[HB] Slivers": {
+            description: "Deck list for [HB] Slivers",
+            data: { name: "[HB] Slivers" },
+          },
+          "deck:[S] Control": {
+            description: "Deck list for [S] Control",
+            data: { name: "[S] Control" },
+          },
+          "deck:[S] Landfall": {
+            description: "Deck list for [S] Landfall",
+            data: { name: "[S] Landfall" },
+          },
+        },
+      };
+      await seedSave({
+        saveUuid: "save-deck-fuzzy",
+        userUuid: USER_A,
+        gameId: "mtga",
+        saveName: "Player",
+        summary: "Player",
+        gameState: mtgaState as unknown as typeof sampleGameState,
+      });
+
+      const result = await getSection(env.DB, USER_A, "save-deck-fuzzy", ["deck:Slivers"]);
+      expect(result.isError).toBe(true);
+      const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+      expect(text).toContain("deck:[HB] Slivers");
+    });
+
+    it("does not suggest deck matches for non-deck section misses", async () => {
+      await seedSave({
+        saveUuid: "save-nodeck-fuzzy",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Hammerdin",
+        summary: "Paladin, Level 89",
+      });
+
+      const result = await getSection(env.DB, USER_A, "save-nodeck-fuzzy", ["nonexistent"]);
+      expect(result.isError).toBe(true);
+      const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+      expect(text).not.toContain("Did you mean");
+    });
   });
 
   // ── get_save ────────────────────────────────────────────────
