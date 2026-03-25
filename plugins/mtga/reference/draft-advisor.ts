@@ -1488,8 +1488,8 @@ export const draftAdvisorModule: NativeReferenceModule = {
       };
     }
 
-    // Mode 1: Live pick (pool + pack present).
-    if (pool.length > 0 && pack.length > 0) {
+    // Mode 1: Live pick (pack present, pool may be empty for P1P1).
+    if (pack.length > 0) {
       return contextualPick(
         env.DB,
         setCode,
