@@ -579,11 +579,98 @@ describe("draft_advisor native module", () => {
     expect(result.content).toContain("not found");
   });
 
-  it("returns error when no set provided", async () => {
+  it("infers set from pack card names when set omitted", async () => {
+    await seedContextualData();
+
+    const result = await draftAdvisorModule.execute(
+      { pack: ["Blazing Bolt", "Forest Bear"], pick_number: 1 },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as { recommendations: { card: string }[] };
+    expect(data.recommendations.length).toBe(2);
+  });
+
+  it("infers set from pool + pack card names when set omitted", async () => {
+    await seedContextualData();
+
+    const result = await draftAdvisorModule.execute(
+      {
+        pool: ["Gloomlake Verge"],
+        pack: ["Blazing Bolt", "Forest Bear"],
+        pick_number: 5,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as { recommendations: { card: string }[] };
+    expect(data.recommendations.length).toBe(2);
+  });
+
+  it("returns ambiguity error when sets match equally", async () => {
+    await seedContextualData();
+    // Add a card that exists in both DSK and BLB
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("BLB", "Shared Card", 5000, 7000, 2000, 0.55, 0.56, 0.53, 0.5, 0.03, 5, 6),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Shared Card", 5000, 7000, 2000, 0.55, 0.56, 0.53, 0.5, 0.03, 5, 6),
+    ]);
+
+    const result = await draftAdvisorModule.execute({ pack: ["Shared Card"], pick_number: 1 }, env);
+
+    expect(result.type).toBe("formatted");
+    if (result.type !== "formatted") throw new Error("unexpected type");
+    expect(result.content).toContain("Could not determine set");
+    expect(result.content).toContain("DSK");
+    expect(result.content).toContain("BLB");
+  });
+
+  it("returns no-match error for unknown card names", async () => {
+    await seedContextualData();
+
+    const result = await draftAdvisorModule.execute(
+      { pack: ["Nonexistent Card", "Another Fake Card"], pick_number: 1 },
+      env,
+    );
+
+    expect(result.type).toBe("formatted");
+    if (result.type !== "formatted") throw new Error("unexpected type");
+    expect(result.content).toContain("No draft data found");
+    expect(result.content).toContain("Available sets");
+  });
+
+  it("returns error when no set and no card names provided", async () => {
     const result = await draftAdvisorModule.execute({}, env);
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
-    expect(result.content).toContain("Set code is required");
+    expect(result.content).toContain("Cannot determine set");
+  });
+
+  it("infers set from pick_history chosen cards in batch review", async () => {
+    await seedContextualData();
+
+    const result = await draftAdvisorModule.execute(
+      {
+        pick_history: [
+          { available: ["Blazing Bolt", "Forest Bear"], chosen: "Blazing Bolt" },
+          { available: ["Forest Bear", "Gloomlake Verge"], chosen: "Forest Bear" },
+          { available: ["Gloomlake Verge"], chosen: "Gloomlake Verge" },
+        ],
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as { summary: unknown };
+    expect(data.summary).toBeDefined();
   });
 
   // ── Liliana vs Elenda regression test (the scenario that exposed the bug) ──
