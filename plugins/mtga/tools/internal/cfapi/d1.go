@@ -10,6 +10,7 @@ import (
 	"io"
 	"math/rand/v2"
 	"net/http"
+	"os"
 	"strings"
 	"time"
 )
@@ -64,7 +65,35 @@ func SQLQuote(s string) string {
 // ImportD1SQL uses the D1 bulk import API to execute a large SQL string.
 // If another import is active on the same database, waits with jittered
 // exponential backoff (up to ~5 minutes total) before retrying.
+// If D1 loses track of an import (stale bookmark), the entire import is
+// restarted from scratch (up to 3 attempts).
 func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
+	const maxAttempts = 3
+
+	for attempt := range maxAttempts {
+		err := importD1SQLOnce(accountID, databaseID, apiToken, sql)
+		if err == nil {
+			return nil
+		}
+		if !isBookmarkError(err) || attempt == maxAttempts-1 {
+			return err
+		}
+		wait := time.Duration(5*(attempt+1)) * time.Second
+		fmt.Fprintf(os.Stderr, "  D1 stale bookmark, restarting import in %v (attempt %d/%d)\n", wait, attempt+1, maxAttempts)
+		time.Sleep(wait)
+	}
+	return fmt.Errorf("unreachable")
+}
+
+// errStaleBookmark is returned when D1 loses track of an in-progress import.
+var errStaleBookmark = errors.New("stale bookmark")
+
+// isBookmarkError checks if an error is a stale bookmark error.
+func isBookmarkError(err error) bool {
+	return errors.Is(err, errStaleBookmark)
+}
+
+func importD1SQLOnce(accountID, databaseID, apiToken, sql string) error {
 	client := &http.Client{Timeout: 5 * time.Minute}
 	importURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/d1/database/%s/import", accountID, databaseID)
 
@@ -168,6 +197,9 @@ func ImportD1SQL(accountID, databaseID, apiToken, sql string) error {
 			if isPollRetryableError(pollResult.Result.Error) {
 				fmt.Printf("  D1 transient error (%s), retrying poll...\n", pollResult.Result.Error)
 				continue
+			}
+			if strings.Contains(pollResult.Result.Error, "Not currently import at bookmark") {
+				return fmt.Errorf("%w: %s", errStaleBookmark, pollResult.Result.Error)
 			}
 			return fmt.Errorf("import failed: %s", pollResult.Result.Error)
 		}
