@@ -1027,9 +1027,10 @@ func processDraftPackStatus(gs *GameState, raw json.RawMessage, requirePack bool
 
 	draft := findOrCreateDraft(gs, status.EventName, status.DraftID, "quick")
 
-	available := make([]string, len(status.DraftPack))
+	available := make([]DraftCard, len(status.DraftPack))
 	for i, idStr := range status.DraftPack {
-		available[i] = resolveCardName(atoiSafe(idStr), idStr)
+		id := atoiSafe(idStr)
+		available[i] = DraftCard{Name: resolveCardName(id, idStr), ID: id}
 	}
 
 	// Deduplicate: update existing pick if same (PackNumber, PickNumber).
@@ -1081,11 +1082,11 @@ func processDraftNotify(gs *GameState, raw json.RawMessage) {
 
 	draft := findOrCreateDraft(gs, "", notify.DraftID, "premier")
 
-	var available []string
+	var available []DraftCard
 	for idStr := range strings.SplitSeq(notify.PackCards, ",") {
 		idStr = strings.TrimSpace(idStr)
 		if id, err := strconv.Atoi(idStr); err == nil {
-			available = append(available, resolveCardName(id, idStr))
+			available = append(available, DraftCard{Name: resolveCardName(id, idStr), ID: id})
 		}
 	}
 

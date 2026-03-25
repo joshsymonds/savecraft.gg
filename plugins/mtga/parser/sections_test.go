@@ -1107,7 +1107,7 @@ func TestDuplicateBotDraftStatusDedup(t *testing.T) {
 		t.Fatalf("expected 1 pick (deduped), got %d", len(draft.Picks))
 	}
 	// Available should reflect the latest status (82160 first)
-	if draft.Picks[0].Available[0] == "Sheoldred, the Apocalypse" {
+	if draft.Picks[0].Available[0].Name == "Sheoldred, the Apocalypse" {
 		t.Error("expected Available to be updated to latest status (82160 first)")
 	}
 	if draft.Picks[0].Picked != "Sheoldred, the Apocalypse" {
@@ -1131,7 +1131,7 @@ func TestDuplicatePremierDraftNotifyDedup(t *testing.T) {
 		t.Fatalf("expected 1 pick (deduped), got %d", len(draft.Picks))
 	}
 	// Available should reflect the latest notify (82160 first)
-	if draft.Picks[0].Available[0] == "Sheoldred, the Apocalypse" {
+	if draft.Picks[0].Available[0].Name == "Sheoldred, the Apocalypse" {
 		t.Error("expected Available to be updated to latest notify (82160 first)")
 	}
 }
@@ -1289,7 +1289,7 @@ func TestBuildOutputSectionsPlayerSummary(t *testing.T) {
 			}},
 		},
 		Drafts: &DraftHistorySection{
-			Drafts: []DraftSession{{EventName: "QuickDraft", DraftType: "quick", Picks: []DraftPick{{PackNumber: 0, PickNumber: 0, Available: []string{"A"}, Picked: "A"}}}},
+			Drafts: []DraftSession{{EventName: "QuickDraft", DraftType: "quick", Picks: []DraftPick{{PackNumber: 0, PickNumber: 0, Available: []DraftCard{{Name: "A", ID: 1}}, Picked: "A"}}}},
 		},
 	}
 
