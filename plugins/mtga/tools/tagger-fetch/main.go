@@ -224,6 +224,19 @@ func run() error {
 			fixingN++
 		}
 
+		// Derive CABS roles from existing roles + type_line.
+		cabsEntries := deriveCABS(res.AllCards, seen, res.SetCode)
+		var cabsN int
+		for _, e := range cabsEntries {
+			key := roleKey{e.OracleID, e.Role, e.SetCode}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			allEntries = append(allEntries, e)
+			cabsN++
+		}
+
 		// Compute noncreature_nonremoval as remainder.
 		for _, card := range res.AllCards {
 			hasRole := false
@@ -250,7 +263,7 @@ func run() error {
 			}
 		}
 
-		fmt.Printf("  %s: %d creature, %d mana_fixing (land), %d noncreature_nonremoval\n", res.SetCode, res.CreatureN, fixingN, res.RemainderN)
+		fmt.Printf("  %s: %d creature, %d mana_fixing (land), %d cabs, %d noncreature_nonremoval\n", res.SetCode, res.CreatureN, fixingN, cabsN, res.RemainderN)
 	}
 
 	fmt.Printf("Total: %d role entries across %d sets\n", len(allEntries), len(targetSets))
@@ -336,6 +349,45 @@ func fetchCreaturesAndAllCards(accountID, databaseID, apiToken, setCode string) 
 	}
 
 	return creatures, allCards, nil
+}
+
+// deriveCABS returns "cabs" (Cards that Affect the Board State) role entries.
+// A card is CABS if it has a creature or removal role, or if its type_line
+// contains Aura, Equipment, Planeswalker, or Vehicle. Lands are excluded.
+func deriveCABS(cards []d1Card, existingRoles map[roleKey]struct{}, setCode string) []roleEntry {
+	sc := strings.ToUpper(setCode)
+	var entries []roleEntry
+	for _, card := range cards {
+		if strings.Contains(card.TypeLine, "Land") {
+			continue
+		}
+		// Check existing roles: creature or removal → CABS
+		_, isCreature := existingRoles[roleKey{card.OracleID, "creature", sc}]
+		_, isRemoval := existingRoles[roleKey{card.OracleID, "removal", sc}]
+		if isCreature || isRemoval {
+			entries = append(entries, roleEntry{
+				OracleID:      card.OracleID,
+				FrontFaceName: card.FrontFaceName,
+				Role:          "cabs",
+				SetCode:       sc,
+			})
+			continue
+		}
+		// Check type_line for board-affecting permanent types
+		tl := card.TypeLine
+		if strings.Contains(tl, "Aura") ||
+			strings.Contains(tl, "Equipment") ||
+			strings.Contains(tl, "Planeswalker") ||
+			strings.Contains(tl, "Vehicle") {
+			entries = append(entries, roleEntry{
+				OracleID:      card.OracleID,
+				FrontFaceName: card.FrontFaceName,
+				Role:          "cabs",
+				SetCode:       sc,
+			})
+		}
+	}
+	return entries
 }
 
 // detectFixingLands returns mana_fixing role entries for lands that produce 2+ colors.
