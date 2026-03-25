@@ -117,19 +117,9 @@ func run() error {
 		}
 	}
 
-	// Resolve target sets: --set bypasses discovery, otherwise probe 17Lands.
-	var targetSets []string
-	if *setFilter != "" {
-		targetSets = []string{strings.ToUpper(*setFilter)}
-	} else {
-		discovered, err := sets.Discover(context.Background())
-		if err != nil {
-			return fmt.Errorf("discovering sets: %w", err)
-		}
-		if len(discovered) == 0 {
-			return fmt.Errorf("no sets with 17Lands data found")
-		}
-		targetSets = discovered
+	targetSets, err := sets.Resolve(context.Background(), *setFilter)
+	if err != nil {
+		return err
 	}
 
 	// Phase 1: Fetch Scryfall Tagger function tags (4 sets concurrently).
