@@ -52,6 +52,7 @@ interface CardMetaRow {
   cmc: number;
   mana_cost: string; // e.g. "{2}{U}{B}"
   colors: string; // JSON array, e.g. '["W","U"]'
+  type_line: string; // e.g. "Creature — Human Wizard" or "Land"
 }
 
 interface SynergyDbRow {
@@ -704,7 +705,7 @@ async function contextualPick(
   const allNames = [...new Set([...pool, ...pack])];
   const metaPlaceholders = placeholders(allNames.length, 1);
   const metaResult = await db
-    .prepare(`SELECT front_face_name AS name, cmc, mana_cost, colors FROM mtga_cards WHERE front_face_name IN (${metaPlaceholders}) AND is_default = 1`)
+    .prepare(`SELECT front_face_name AS name, cmc, mana_cost, colors, type_line FROM mtga_cards WHERE front_face_name IN (${metaPlaceholders}) AND is_default = 1`)
     .bind(...allNames)
     .all<CardMetaRow>();
   const metaByName = new Map(metaResult.results.map((r) => [r.name, r]));
@@ -984,14 +985,18 @@ async function contextualPick(
     const topSynergies = [...synergies].sort((a, b) => b.delta - a.delta).slice(0, 3);
 
     // Curve: gap detection + ideal curve comparison.
+    // Lands don't fill mana curve slots — skip curve scoring entirely.
+    const isLand = packCard.type_line?.includes("Land") ?? false;
     const cardCMC = Math.min(Math.floor(packCard.cmc), 7);
     const poolAtCMC = poolCMCHist.get(cardCMC) ?? 0;
     const idealAtCMC = idealCurve?.get(cardCMC) ?? 0;
     let curveScore = 0;
-    if (idealCurve && idealAtCMC > 0) {
-      curveScore = (idealAtCMC - poolAtCMC) / idealAtCMC;
-    } else if (poolAtCMC === 0 && pool.length > 3) {
-      curveScore = 0.5;
+    if (!isLand) {
+      if (idealCurve && idealAtCMC > 0) {
+        curveScore = (idealAtCMC - poolAtCMC) / idealAtCMC;
+      } else if (poolAtCMC === 0 && pool.length > 3) {
+        curveScore = 0.5;
+      }
     }
 
     // Signal: archetype openness.
