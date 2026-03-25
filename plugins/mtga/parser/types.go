@@ -239,12 +239,18 @@ type DraftSession struct {
 	Picks     []DraftPick `json:"picks"`
 }
 
+// DraftCard is a card reference in a draft pick (name + arena ID for disambiguation).
+type DraftCard struct {
+	Name string `json:"name"`
+	ID   int    `json:"id"` // arena_id
+}
+
 // DraftPick is a single pick in a draft.
 type DraftPick struct {
-	PackNumber int      `json:"packNumber"`
-	PickNumber int      `json:"pickNumber"`
-	InDeck     []string `json:"in_deck"`   // cards already drafted (pool so far)
-	Available  []string `json:"available"` // card names available in the pack
-	Picked     string   `json:"picked"`    // card name chosen (empty if live drafting)
-	PickedID   int      `json:"pickedId"`  // arena_id of chosen card
+	PackNumber int         `json:"packNumber"`
+	PickNumber int         `json:"pickNumber"`
+	InDeck     []DraftCard `json:"in_deck"`   // cards already drafted (pool so far)
+	Available  []DraftCard `json:"available"` // cards available in the pack
+	Picked     string      `json:"picked"`    // card name chosen (empty if live drafting)
+	PickedID   int         `json:"pickedId"`  // arena_id of chosen card
 }

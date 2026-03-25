@@ -75,17 +75,20 @@ func buildOutputSections(gs *GameState) map[string]any {
 	if gs.Drafts != nil && len(gs.Drafts.Drafts) > 0 {
 		// Populate in_deck for each pick (cumulative pool of previously picked cards).
 		for d := range gs.Drafts.Drafts {
-			var pool []string
+			var pool []DraftCard
 			for i := range gs.Drafts.Drafts[d].Picks {
-				gs.Drafts.Drafts[d].Picks[i].InDeck = append([]string{}, pool...)
+				gs.Drafts.Drafts[d].Picks[i].InDeck = append([]DraftCard{}, pool...)
 				if gs.Drafts.Drafts[d].Picks[i].Picked != "" {
-					pool = append(pool, gs.Drafts.Drafts[d].Picks[i].Picked)
+					pool = append(pool, DraftCard{
+						Name: gs.Drafts.Drafts[d].Picks[i].Picked,
+						ID:   gs.Drafts.Drafts[d].Picks[i].PickedID,
+					})
 				}
 			}
 		}
 
 		sections["draft_history"] = map[string]any{
-			"description": "Draft picks with pool and pack at each selection. Each pick has in_deck (cards already drafted), available (pack contents), and picked (card chosen).\n\nTo evaluate picks, use query_reference with draft_advisor:\n- BATCH OVERVIEW: Pass set + full pick_history to get a compact summary classifying every pick as optimal/good/questionable/miss. Use this first to identify which picks to examine.\n- DETAILED ANALYSIS: For specific picks, call draft_advisor with set + pool (= in_deck) + pack (= available) + pick_number. This returns full 6-axis contextual scores for every card in the pack.\n\nIf the last pick has no 'picked' card, the player is LIVE DRAFTING — call draft_advisor with pool + pack for a recommendation.\n\nDO NOT use card_stats to evaluate draft picks. The draft_advisor's contextual scoring (synergy, curve, role, signal, castability, baseline) is far more informative than raw GIH WR stats.",
+			"description": "Draft picks with pool and pack at each selection. Each pick has in_deck (cards already drafted), available (pack contents), and picked (card chosen). Each card has a name and id (arena_id) for disambiguation — cards with similar names have different IDs.\n\nTo evaluate picks, use query_reference with draft_advisor:\n- BATCH OVERVIEW: Pass set + full pick_history to get a compact summary classifying every pick as optimal/good/questionable/miss. Use this first to identify which picks to examine.\n- DETAILED ANALYSIS: For specific picks, call draft_advisor with set + pool (= in_deck card names) + pack (= available card names) + pick_number. This returns full 6-axis contextual scores for every card in the pack.\n\nIf the last pick has no 'picked' card, the player is LIVE DRAFTING — call draft_advisor with pool + pack for a recommendation.\n\nDO NOT use card_stats to evaluate draft picks. The draft_advisor's contextual scoring (synergy, curve, role, signal, castability, baseline) is far more informative than raw GIH WR stats.",
 			"data":        gs.Drafts,
 		}
 	}
