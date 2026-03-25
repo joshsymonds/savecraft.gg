@@ -221,6 +221,7 @@ func downloadAndFilter(url string) ([]ScryfallCard, error) {
 
 	var cards []ScryfallCard
 	var resolved int
+	var unresolved []string
 	for dec.More() {
 		var card ScryfallCard
 		if err := dec.Decode(&card); err != nil {
@@ -243,6 +244,7 @@ func downloadAndFilter(url string) ([]ScryfallCard, error) {
 				card.ArenaID = id
 				resolved++
 			} else {
+				unresolved = append(unresolved, fmt.Sprintf("%s [%s]", card.Name, card.Set))
 				continue
 			}
 		}
@@ -252,6 +254,12 @@ func downloadAndFilter(url string) ([]ScryfallCard, error) {
 	if resolved > 0 {
 		fmt.Printf("Resolved %d arena_ids from MTGA client data (Scryfall bulk data was missing them)\n", resolved)
 	}
+	if len(unresolved) > 0 {
+		fmt.Fprintf(os.Stderr, "WARN: %d Arena cards skipped (no arena_id in Scryfall or MTGA client data):\n", len(unresolved))
+		for _, name := range unresolved {
+			fmt.Fprintf(os.Stderr, "  %s\n", name)
+		}
+	}
 	return cards, nil
 }
 
@@ -260,11 +268,18 @@ type arenaKey struct {
 	set  string
 }
 
-// buildArenaLookup creates a (name, set) → arena_id index from the generated ArenaCards map.
+// buildArenaLookup creates a (front_face_name, set) → arena_id index from the
+// generated ArenaCards map. MTGA stores full names for split/DFC cards (e.g.,
+// "Fire // Ice") so we extract the front face to match Scryfall's FrontFaceName.
 func buildArenaLookup() map[arenaKey]int {
 	lookup := make(map[arenaKey]int, len(data.ArenaCards))
 	for id, card := range data.ArenaCards {
-		key := arenaKey{strings.ToLower(card.Name), card.Set} // card.Set already lowercase
+		name := strings.ToLower(card.Name)
+		// Extract front face name for split/adventure/DFC cards.
+		if before, _, ok := strings.Cut(name, " // "); ok {
+			name = before
+		}
+		key := arenaKey{name, card.Set} // card.Set already lowercase
 		// Keep highest arena_id per (name, set) to match computeDefaults behavior.
 		if existing, ok := lookup[key]; !ok || id > existing {
 			lookup[key] = id
