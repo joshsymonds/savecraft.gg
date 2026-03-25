@@ -1,7 +1,19 @@
-# Copy a plugin's reference.wasm for infrastructure testing.
-# Uses D2R by default; any conformant plugin would work.
-prepare game="d2r":
-    cp ../plugins/{{game}}/reference.wasm reference.wasm
+# Copy any plugin's reference.wasm for infrastructure testing.
+# Accepts an explicit game, otherwise finds the first available.
+prepare game="":
+    #!/usr/bin/env bash
+    set -euo pipefail
+    if [ -n "{{game}}" ]; then
+        cp "../plugins/{{game}}/reference.wasm" reference.wasm
+    else
+        for f in ../plugins/*/reference.wasm; do
+            [ -f "$f" ] || continue
+            cp "$f" reference.wasm
+            exit 0
+        done
+        echo "No reference.wasm found in any plugin" >&2
+        exit 1
+    fi
 
 test: prepare
     npm test
