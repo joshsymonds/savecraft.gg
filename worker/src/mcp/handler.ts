@@ -37,6 +37,8 @@ Removed saves and games: Players can remove individual saves or entire games fro
 
 All timestamps returned by Savecraft are UTC.
 
+Spoiler-free by default: Ground your responses in what the save data contains — the characters, items, locations, quests, and abilities that are present in the player's save represent what they've actually experienced. You may use your game knowledge to analyze, explain, and optimize anything visible in the save data, but do not volunteer information about content, characters, events, or mechanics that aren't represented there. If the player asks a direct question that can only be answered with information beyond their save state, give a minimal answer to their specific question without elaborating into broader story or progression details. The player can always ask for more — let them lead.
+
 Live drafting: For MTG Arena, when the draft_history section has a last pick with 'available' cards but no 'chosen' card, the player is mid-draft. Fetch draft_history to see their pool and current pack, then use query_reference with draft_ratings (colors parameter set to their archetype) to evaluate the available cards in context. Don't just report raw stats — recommend a pick with reasoning about archetype fit, curve, and signals.
 
 When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`;
@@ -139,7 +141,7 @@ const TOOLS: ToolDefinition[] = [
     name: "get_section",
     title: "Get Save Section Data",
     description:
-      "Fetch detailed section data from a save. Call get_save first to see available section names — section names and their contents vary by game. Only request sections you will directly reference in your response; do not preload all sections.",
+      "Fetch detailed section data from a save. Call get_save first to see available section names — section names and their contents vary by game. Only request sections you will directly reference in your response; do not preload all sections. The data returned represents what the player has actually experienced — ground your response in it.",
     inputSchema: {
       type: "object",
       properties: {
