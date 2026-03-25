@@ -13,36 +13,91 @@ async function seedDeckbuildingData(): Promise<void> {
     // Cards: a mix of creatures, spells, lands, and a fixing land
     env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(100, "o-1", "Vengeful Strangler", "Vengeful Strangler", "{1}{B}", 2, "Creature — Human Rogue", '["B"]', '[]', 1),
+    ).bind(
+      100,
+      "o-1",
+      "Vengeful Strangler",
+      "Vengeful Strangler",
+      "{1}{B}",
+      2,
+      "Creature — Human Rogue",
+      '["B"]',
+      "[]",
+      1,
+    ),
     env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(101, "o-2", "Doomsday Excruciator", "Doomsday Excruciator", "{4}{B}{B}", 6, "Creature — Demon", '["B"]', '[]', 1),
+    ).bind(
+      101,
+      "o-2",
+      "Doomsday Excruciator",
+      "Doomsday Excruciator",
+      "{4}{B}{B}",
+      6,
+      "Creature — Demon",
+      '["B"]',
+      "[]",
+      1,
+    ),
     env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(102, "o-3", "Go for the Throat", "Go for the Throat", "{1}{B}", 2, "Instant", '["B"]', '[]', 1),
+    ).bind(
+      102,
+      "o-3",
+      "Go for the Throat",
+      "Go for the Throat",
+      "{1}{B}",
+      2,
+      "Instant",
+      '["B"]',
+      "[]",
+      1,
+    ),
     env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(103, "o-4", "Gloomlake Verge", "Gloomlake Verge", "{U}{B}", 2, "Creature — Horror", '["U","B"]', '[]', 1),
+    ).bind(
+      103,
+      "o-4",
+      "Gloomlake Verge",
+      "Gloomlake Verge",
+      "{U}{B}",
+      2,
+      "Creature — Horror",
+      '["U","B"]',
+      "[]",
+      1,
+    ),
     env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(104, "o-5", "Evolving Wilds", "Evolving Wilds", "", 0, "Land", '[]', '["W","U","B","R","G"]', 1),
+    ).bind(
+      104,
+      "o-5",
+      "Evolving Wilds",
+      "Evolving Wilds",
+      "",
+      0,
+      "Land",
+      "[]",
+      '["W","U","B","R","G"]',
+      1,
+    ),
     env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(105, "o-6", "Island", "Island", "", 0, "Basic Land — Island", '[]', '["U"]', 1),
+    ).bind(105, "o-6", "Island", "Island", "", 0, "Basic Land — Island", "[]", '["U"]', 1),
     env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(106, "o-7", "Swamp", "Swamp", "", 0, "Basic Land — Swamp", '[]', '["B"]', 1),
+    ).bind(106, "o-7", "Swamp", "Swamp", "", 0, "Basic Land — Swamp", "[]", '["B"]', 1),
 
     // Draft ratings (DSK set)
     env.DB.prepare(
       `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind("DSK", "Vengeful Strangler", 10000, 12000, 2000, 0.56, 0.58, 0.54, 0.50, 0.04, 5, 4),
+    ).bind("DSK", "Vengeful Strangler", 10000, 12000, 2000, 0.56, 0.58, 0.54, 0.5, 0.04, 5, 4),
     env.DB.prepare(
       `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind("DSK", "Doomsday Excruciator", 5000, 8000, 3000, 0.62, 0.65, 0.60, 0.48, 0.12, 2, 1.5),
+    ).bind("DSK", "Doomsday Excruciator", 5000, 8000, 3000, 0.62, 0.65, 0.6, 0.48, 0.12, 2, 1.5),
     env.DB.prepare(
       `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind("DSK", "Go for the Throat", 8000, 10000, 2000, 0.59, 0.61, 0.57, 0.50, 0.07, 3, 2),
+    ).bind("DSK", "Go for the Throat", 8000, 10000, 2000, 0.59, 0.61, 0.57, 0.5, 0.07, 3, 2),
     env.DB.prepare(
       `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "Gloomlake Verge", 15000, 20000, 5000, 0.564, 0.62, 0.54, 0.48, 0.06, 8.5, 9.2),
@@ -143,7 +198,13 @@ describe("deckbuilding native module", () => {
         mode: string;
         set: string;
         archetype: string;
-        sections: Array<{ name: string; status: string; actual: number; expected: number; note: string }>;
+        sections: Array<{
+          name: string;
+          status: string;
+          actual: number;
+          expected: number;
+          note: string;
+        }>;
       };
 
       expect(data.mode).toBe("health_check");
@@ -212,6 +273,60 @@ describe("deckbuilding native module", () => {
       expect(landSection!.status).toBe("issue");
       expect(landSection!.note).toContain("Low land count");
     });
+
+    it("reports CABS ratio when cabs role data exists", async () => {
+      await seedDeckbuildingData();
+
+      // Add cabs roles: creatures and removal are CABS, Divination-like spell is not
+      await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+        ).bind("o-1", "Vengeful Strangler", "cabs", "DSK"),
+        env.DB.prepare(
+          `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+        ).bind("o-2", "Doomsday Excruciator", "cabs", "DSK"),
+        env.DB.prepare(
+          `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+        ).bind("o-3", "Go for the Throat", "cabs", "DSK"),
+        env.DB.prepare(
+          `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+        ).bind("o-4", "Gloomlake Verge", "cabs", "DSK"),
+      ]);
+
+      // Add a non-CABS card to the DB
+      await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(200, "o-draw", "Divination", "Divination", "{2}{U}", 3, "Sorcery", '["U"]', "[]", 1),
+      ]);
+
+      const result = await deckbuildingModule.execute(
+        {
+          set: "DSK",
+          deck: [
+            { name: "Vengeful Strangler", count: 2 },
+            { name: "Doomsday Excruciator", count: 1 },
+            { name: "Go for the Throat", count: 1 },
+            { name: "Gloomlake Verge", count: 2 },
+            { name: "Divination", count: 3 }, // 3 non-CABS cards
+            { name: "Island", count: 8 },
+            { name: "Swamp", count: 8 },
+          ],
+        },
+        env,
+      );
+
+      expect(result.type).toBe("structured");
+      if (result.type !== "structured") throw new Error("unexpected");
+      const data = result.data as {
+        sections: Array<{ name: string; status: string; actual: number; note: string }>;
+      };
+      const cabsSection = data.sections.find((s) => s.name === "cabs");
+      expect(cabsSection).toBeDefined();
+      // 6 CABS spells out of 9 total spells → 3 non-CABS
+      expect(cabsSection!.actual).toBe(3); // non-CABS count
+      expect(cabsSection!.note).toContain("board");
+    });
   });
 
   describe("cut advisor mode", () => {
@@ -242,7 +357,13 @@ describe("deckbuilding native module", () => {
         candidates: Array<{
           card: string;
           score: number;
-          axes: { baseline: number; synergy: number; curve: number; role: number; castability: number };
+          axes: {
+            baseline: number;
+            synergy: number;
+            curve: number;
+            role: number;
+            castability: number;
+          };
           reason: string;
         }>;
       };
