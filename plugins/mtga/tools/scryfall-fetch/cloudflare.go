@@ -51,8 +51,8 @@ func buildCardImportSQL(cards []ScryfallCard) string {
 		}
 
 		// Structured table (all printings)
-		fmt.Fprintf(&b, "INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default) VALUES (%d, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s, %d);\n",
-			c.ArenaID, q(c.OracleID), q(c.Name), q(c.ManaCost), c.CMC,
+		fmt.Fprintf(&b, "INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default) VALUES (%d, %s, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s, %d);\n",
+			c.ArenaID, q(c.OracleID), q(c.Name), q(c.FrontFaceName), q(c.ManaCost), c.CMC,
 			q(c.TypeLine), q(c.OracleText), q(colorsJSON), q(colorIdentityJSON),
 			q(legalitiesJSON), q(c.Rarity), q(c.Set), q(keywordsJSON), isDefault,
 		)

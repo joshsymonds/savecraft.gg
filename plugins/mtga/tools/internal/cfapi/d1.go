@@ -14,6 +14,44 @@ import (
 	"time"
 )
 
+// QueryD1 executes a read-only SQL query against a D1 database and returns
+// the result rows as a slice of maps (column name → value).
+func QueryD1(accountID, databaseID, apiToken, sql string) ([]map[string]any, error) {
+	client := &http.Client{Timeout: 30 * time.Second}
+	queryURL := fmt.Sprintf("https://api.cloudflare.com/client/v4/accounts/%s/d1/database/%s/query", accountID, databaseID)
+
+	body, _ := json.Marshal(map[string]string{"sql": sql})
+	req, _ := http.NewRequest("POST", queryURL, bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+apiToken)
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, fmt.Errorf("D1 query: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("D1 query: HTTP %d: %s", resp.StatusCode, string(respBody[:min(len(respBody), 300)]))
+	}
+
+	var result struct {
+		Result []struct {
+			Results []map[string]any `json:"results"`
+		} `json:"result"`
+		Success bool `json:"success"`
+	}
+	if err := json.Unmarshal(respBody, &result); err != nil {
+		return nil, fmt.Errorf("D1 query: decode: %w", err)
+	}
+	if !result.Success || len(result.Result) == 0 {
+		return nil, fmt.Errorf("D1 query: unsuccessful or empty result")
+	}
+
+	return result.Result[0].Results, nil
+}
+
 // errImportAlreadyComplete is returned when D1 reports the import with this
 // etag already completed. The data is already in D1, nothing to do.
 var errImportAlreadyComplete = errors.New("import already complete (same data)")

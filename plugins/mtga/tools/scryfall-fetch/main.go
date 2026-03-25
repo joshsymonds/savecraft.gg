@@ -23,6 +23,7 @@ import (
 	"os"
 	"slices"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
@@ -45,6 +46,7 @@ type ScryfallCard struct {
 	Keywords      []string          `json:"keywords"`
 	Games         []string          `json:"games"`
 	IsDefault     bool              `json:"-"` // computed, not from Scryfall
+	FrontFaceName string            `json:"-"` // computed: Name split on " // ", first part
 }
 
 // BulkDataResponse is the Scryfall /bulk-data API response.
@@ -188,6 +190,12 @@ func downloadAndFilter(url string) ([]ScryfallCard, error) {
 		// Double-check: card must be available on Arena.
 		if !slices.Contains(card.Games, "arena") {
 			continue
+		}
+		// Split/adventure/DFC cards: extract front face name.
+		if before, _, ok := strings.Cut(card.Name, " // "); ok {
+			card.FrontFaceName = before
+		} else {
+			card.FrontFaceName = card.Name
 		}
 		cards = append(cards, card)
 	}
