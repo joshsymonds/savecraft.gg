@@ -442,24 +442,16 @@ export async function getSection(
     .all<{ name: string; data: string }>();
 
   if (rows.results.length === 0) {
-    // For deck: misses, suggest close matches from available deck sections.
-    const firstDeckMiss = sections.find((s) => s.startsWith("deck:"));
-    if (firstDeckMiss) {
-      const suggestions = await suggestDeckSections(db, saveId, firstDeckMiss);
-      if (suggestions.length > 0) {
-        return errorResult(
-          `Section '${firstDeckMiss}' not found. Did you mean: ${suggestions.join(", ")}?`,
-        );
-      }
-    }
+    const deckSuggestion = await deckMissError(db, saveId, sections);
+    if (deckSuggestion) return deckSuggestion;
     return errorResult(
       `None of the requested sections were found: ${sections.join(", ")}. Call get_save to see available section names.`,
     );
   }
 
   // Single section — return flat result
-  if (sections.length === 1) {
-    const row = rows.results[0]!;
+  if (sections.length === 1 && rows.results[0]) {
+    const row = rows.results[0];
     const byteSize = new TextEncoder().encode(row.data).length;
     if (byteSize > SECTION_SIZE_LIMIT) {
       const sizeKb = String(Math.round(byteSize / 1024));
@@ -496,6 +488,21 @@ export async function getSection(
   return textResult(response);
 }
 
+/** If any requested section starts with "deck:", suggest close matches. */
+async function deckMissError(
+  db: D1Database,
+  saveUuid: string,
+  sections: string[],
+): Promise<ToolResult | null> {
+  const firstDeckMiss = sections.find((s) => s.startsWith("deck:"));
+  if (!firstDeckMiss) return null;
+  const suggestions = await suggestDeckSections(db, saveUuid, firstDeckMiss);
+  if (suggestions.length === 0) return null;
+  return errorResult(
+    `Section '${firstDeckMiss}' not found. Did you mean: ${suggestions.join(", ")}?`,
+  );
+}
+
 /**
  * Find deck sections with names similar to the requested one.
  * Uses Levenshtein distance on the name portion after "deck:", returning up to 3 suggestions.
@@ -515,34 +522,38 @@ async function suggestDeckSections(
   const query = requested.slice(5).toLowerCase();
 
   // Score by Levenshtein distance, normalized to [0, 1]. Filter out poor matches.
-  const maxDist = Math.max(query.length, 1);
+  const maxDistance = Math.max(query.length, 1);
   const scored = allDecks.results
     .map((row) => ({
       name: row.name,
-      dist: levenshtein(query, row.name.slice(5).toLowerCase()),
+      distance: levenshtein(query, row.name.slice(5).toLowerCase()),
     }))
-    .filter((s) => s.dist / Math.max(s.name.length - 5, maxDist) < 0.7)
-    .toSorted((a, b) => a.dist - b.dist);
+    .filter((s) => s.distance / Math.max(s.name.length - 5, maxDistance) < 0.7)
+    .toSorted((a, b) => a.distance - b.distance);
 
   return scored.slice(0, 3).map((s) => s.name);
 }
 
 /** Levenshtein edit distance between two strings. */
-function levenshtein(a: string, b: string): number {
-  if (a.length === 0) return b.length;
-  if (b.length === 0) return a.length;
+function levenshtein(source: string, target: string): number {
+  if (source.length === 0) return target.length;
+  if (target.length === 0) return source.length;
 
-  // Single-row DP: prev[j] holds distance for (i-1, j).
-  let prev = Array.from({ length: b.length + 1 }, (_, j) => j);
-  for (let i = 1; i <= a.length; i++) {
-    const curr = [i] as number[];
-    for (let j = 1; j <= b.length; j++) {
-      const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-      curr[j] = Math.min(prev[j]! + 1, curr[j - 1]! + 1, prev[j - 1]! + cost);
+  // Single-row DP: previous[col] holds distance for (row-1, col).
+  let previous: number[] = Array.from({ length: target.length + 1 }, (_, column) => column);
+  for (let row = 1; row <= source.length; row++) {
+    const current: number[] = [row];
+    for (let column = 1; column <= target.length; column++) {
+      const cost = source[row - 1] === target[column - 1] ? 0 : 1;
+      current[column] = Math.min(
+        (previous[column] ?? 0) + 1,
+        (current[column - 1] ?? 0) + 1,
+        (previous[column - 1] ?? 0) + cost,
+      );
     }
-    prev = curr;
+    previous = current;
   }
-  return prev[b.length]!;
+  return previous[target.length] ?? 0;
 }
 
 // ── Note tools ───────────────────────────────────────────────
