@@ -11,30 +11,21 @@
 package main
 
 import (
-	"compress/gzip"
 	"encoding/csv"
 	"flag"
 	"fmt"
 	"io"
 	"math"
-	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
 	"sync"
 
-	"time"
-
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/sets"
 )
-
-// Available sets with 17Lands Premier Draft data.
-var sets = []string{
-	"FDN", "DSK", "BLB", "OTJ", "MKM", "LCI", "WOE", "MOM",
-	"ONE", "BRO", "DMU", "SNC", "NEO", "VOW", "MID", "AFR",
-	"STX", "KHM",
-}
 
 const (
 	gameDataURL  = "https://17lands-public.s3.amazonaws.com/analysis_data/game_data/game_data_public.%s.PremierDraft.csv.gz"
@@ -126,27 +117,51 @@ func main() {
 	}
 }
 
+// defaultCacheDir returns ~/.cache/savecraft/17lands.
+func defaultCacheDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(os.TempDir(), "savecraft", "17lands")
+	}
+	return filepath.Join(home, ".cache", "savecraft", "17lands")
+}
+
 func run() error {
 	cfAccountID := flag.String("cf-account-id", os.Getenv("CLOUDFLARE_ACCOUNT_ID"), "Cloudflare account ID")
 	cfAPIToken := flag.String("cf-api-token", os.Getenv("CLOUDFLARE_API_TOKEN"), "Cloudflare API token")
 	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (enables D1 population)")
 	setFilter := flag.String("set", "", "Process a single set (e.g., 'DSK'). If empty, processes all sets.")
+	cacheDir := flag.String("cache-dir", defaultCacheDir(), "Local cache directory for downloaded CSVs")
 	flag.Parse()
 
 	// Filter to a single set if --set is provided.
-	targetSets := sets
+	targetSets := sets.MTGA
 	if *setFilter != "" {
 		upper := strings.ToUpper(*setFilter)
-		if !slices.Contains(sets, upper) {
-			return fmt.Errorf("unknown set %q; available: %v", *setFilter, sets)
+		if !slices.Contains(sets.MTGA, upper) {
+			return fmt.Errorf("unknown set %q; available: %v", *setFilter, sets.MTGA)
 		}
 		targetSets = []string{upper}
 	}
 
+	// Fetch card CMC data from D1 for archetype curve computation.
+	// Optional: if D1 credentials aren't available or query fails, curves are skipped.
+	var cardCMC map[string]float64
+	if *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != "" {
+		var err error
+		cardCMC, err = fetchCardCMC(*cfAccountID, *d1DatabaseID, *cfAPIToken)
+		if err != nil {
+			fmt.Printf("WARN: could not fetch card CMC from D1: %v (curves will be skipped)\n", err)
+		} else {
+			fmt.Printf("Loaded CMC data for %d cards from D1\n", len(cardCMC))
+		}
+	}
+
 	// Process sets concurrently — each set downloads ~100-200MB of CSVs from 17Lands.
 	type setWork struct {
-		result setResult
-		err    error
+		result  setResult
+		synergy synergyDataResult
+		err     error
 	}
 	results := make([]setWork, len(targetSets))
 	var wg sync.WaitGroup
@@ -162,7 +177,8 @@ func run() error {
 
 			fmt.Printf("Processing %s...\n", setCode)
 
-			accums, err := processGameData(setCode)
+			// Pass 1: card-level stats (downloads + caches CSV).
+			accums, err := processGameData(setCode, *cacheDir)
 			if err != nil {
 				fmt.Printf("  WARN: game data for %s failed: %v (skipping)\n", setCode, err)
 				results[idx] = setWork{err: err}
@@ -170,7 +186,7 @@ func run() error {
 			}
 			fmt.Printf("  %s game data: %d cards\n", setCode, len(accums["_overall"]))
 
-			if err := processDraftData(setCode, accums); err != nil {
+			if err := processDraftData(setCode, *cacheDir, accums); err != nil {
 				fmt.Printf("  WARN: draft data for %s failed: %v (continuing without ALSA/ATA)\n", setCode, err)
 			} else {
 				fmt.Printf("  %s draft data: merged\n", setCode)
@@ -178,15 +194,28 @@ func run() error {
 
 			sr := buildSetResult(setCode, accums)
 			fmt.Printf("  %s complete: %d cards with stats\n", setCode, len(sr.Cards))
-			results[idx] = setWork{result: sr}
+
+			// Pass 2: pairwise synergies + archetype curves (reads from cache).
+			syn, err := processSynergyData(setCode, *cacheDir, cardCMC)
+			if err != nil {
+				fmt.Printf("  WARN: synergy data for %s failed: %v (continuing without synergies)\n", setCode, err)
+			} else {
+				fmt.Printf("  %s synergies: %d rows, curves: %d rows\n", setCode, len(syn.Synergies), len(syn.Curves))
+			}
+
+			results[idx] = setWork{result: sr, synergy: syn}
 		}(i, set)
 	}
 	wg.Wait()
 
 	var allSets []setResult
+	var allSynergies []synergyDataResult
 	for _, r := range results {
 		if r.err == nil {
 			allSets = append(allSets, r.result)
+			if len(r.synergy.Synergies) > 0 || len(r.synergy.Curves) > 0 {
+				allSynergies = append(allSynergies, r.synergy)
+			}
 		}
 	}
 
@@ -195,12 +224,24 @@ func run() error {
 	// ── Cloudflare D1 population ─────────────────────────────
 	if *d1DatabaseID != "" && *cfAccountID != "" && *cfAPIToken != "" {
 		fmt.Println("\nPopulating D1 tables...")
-		sql := buildDraftRatingsImportSQL(allSets)
-		fmt.Printf("Generated %.1f MB of SQL (%d sets)\n", float64(len(sql))/1048576, len(allSets))
-		if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
-			return fmt.Errorf("D1 import: %w", err)
+
+		// Import draft ratings.
+		ratingsSQL := buildDraftRatingsImportSQL(allSets)
+		fmt.Printf("Generated %.1f MB of ratings SQL (%d sets)\n", float64(len(ratingsSQL))/1048576, len(allSets))
+		if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, ratingsSQL); err != nil {
+			return fmt.Errorf("D1 ratings import: %w", err)
 		}
-		fmt.Println("D1 population complete")
+		fmt.Println("D1 ratings population complete")
+
+		// Import synergy data.
+		if len(allSynergies) > 0 {
+			synergySQL := buildSynergyImportSQL(allSynergies)
+			fmt.Printf("Generated %.1f MB of synergy SQL (%d sets)\n", float64(len(synergySQL))/1048576, len(allSynergies))
+			if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, synergySQL); err != nil {
+				return fmt.Errorf("D1 synergy import: %w", err)
+			}
+			fmt.Println("D1 synergy population complete")
+		}
 	} else {
 		fmt.Println("No --d1-database-id specified; skipping D1 population.")
 	}
@@ -208,9 +249,10 @@ func run() error {
 	return nil
 }
 
-func processGameData(set string) (map[string]map[string]*cardAccum, error) {
+func processGameData(set string, cacheDir string) (map[string]map[string]*cardAccum, error) {
 	url := fmt.Sprintf(gameDataURL, set)
-	reader, err := downloadGzip(url)
+	filename := fmt.Sprintf("game_data_public.%s.PremierDraft.csv.gz", set)
+	reader, err := cachedDownloadGzip(url, cacheDir, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -334,9 +376,10 @@ func processGameData(set string) (map[string]map[string]*cardAccum, error) {
 	return accums, nil
 }
 
-func processDraftData(set string, accums map[string]map[string]*cardAccum) error {
+func processDraftData(set string, cacheDir string, accums map[string]map[string]*cardAccum) error {
 	url := fmt.Sprintf(draftDataURL, set)
-	reader, err := downloadGzip(url)
+	filename := fmt.Sprintf("draft_data_public.%s.PremierDraft.csv.gz", set)
+	reader, err := cachedDownloadGzip(url, cacheDir, filename)
 	if err != nil {
 		return err
 	}
@@ -473,42 +516,6 @@ func buildSetResult(set string, accums map[string]map[string]*cardAccum) setResu
 	return sr
 }
 
-func downloadGzip(url string) (io.ReadCloser, error) {
-	client := &http.Client{Timeout: 10 * time.Minute}
-	req, err := http.NewRequest("GET", url, nil)
-	if err != nil {
-		return nil, err
-	}
-	req.Header.Set("User-Agent", "Savecraft/1.0 (savecraft.gg)")
-
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, err
-	}
-	if resp.StatusCode != http.StatusOK {
-		resp.Body.Close()
-		return nil, fmt.Errorf("HTTP %d for %s", resp.StatusCode, url)
-	}
-
-	gz, err := gzip.NewReader(resp.Body)
-	if err != nil {
-		resp.Body.Close()
-		return nil, fmt.Errorf("gzip: %w", err)
-	}
-
-	return &gzipReadCloser{gz: gz, body: resp.Body}, nil
-}
-
-type gzipReadCloser struct {
-	gz   *gzip.Reader
-	body io.ReadCloser
-}
-
-func (g *gzipReadCloser) Read(p []byte) (int, error) { return g.gz.Read(p) }
-func (g *gzipReadCloser) Close() error {
-	g.gz.Close()
-	return g.body.Close()
-}
 
 func indexOf(slice []string, val string) int {
 	for i, s := range slice {
@@ -519,8 +526,30 @@ func indexOf(slice []string, val string) int {
 	return -1
 }
 
-// normalizeColors converts "WU", "UW", etc. to a canonical form.
+// normalizeColors converts "WU", "UW", etc. to canonical WUBRG order.
+// Uses a precomputed lookup for 1-2 char strings (99%+ of cases) to avoid
+// per-row allocation in the hot CSV loop (~2M calls per set).
+var normalizedColorCache = func() map[string]string {
+	order := "WUBRGC"
+	m := make(map[string]string)
+	for i := 0; i < len(order); i++ {
+		m[string(order[i])] = string(order[i])
+		for j := 0; j < len(order); j++ {
+			a, b := order[i], order[j]
+			if strings.Index(order, string(a)) > strings.Index(order, string(b)) {
+				a, b = b, a
+			}
+			m[string(order[i])+string(order[j])] = string(a) + string(b)
+		}
+	}
+	return m
+}()
+
 func normalizeColors(s string) string {
+	if cached, ok := normalizedColorCache[s]; ok {
+		return cached
+	}
+	// Fallback for 3+ colors (rare).
 	order := "WUBRGC"
 	colors := strings.Split(s, "")
 	sort.Slice(colors, func(i, j int) bool {

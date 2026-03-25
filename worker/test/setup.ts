@@ -176,13 +176,16 @@ const statements = [
     rarity TEXT NOT NULL DEFAULT '',
     set_code TEXT NOT NULL DEFAULT '',
     keywords TEXT NOT NULL DEFAULT '[]',
-    is_default INTEGER NOT NULL DEFAULT 0
+    is_default INTEGER NOT NULL DEFAULT 0,
+    front_face_name TEXT NOT NULL DEFAULT ''
   )`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_name ON mtga_cards(name)`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_set ON mtga_cards(set_code)`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_rarity ON mtga_cards(rarity)`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_is_default ON mtga_cards(is_default)`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_name_default ON mtga_cards(name, is_default)`,
+  `CREATE INDEX IF NOT EXISTS idx_mtga_cards_front_face ON mtga_cards(front_face_name)`,
+  `CREATE INDEX IF NOT EXISTS idx_mtga_cards_front_face_default ON mtga_cards(front_face_name, is_default)`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS mtga_cards_fts USING fts5(
     arena_id UNINDEXED,
     name,
@@ -236,6 +239,33 @@ const statements = [
     card_name,
     tokenize='porter unicode61'
   )`,
+  // Draft synergies + archetype curves (migration 0017)
+  `CREATE TABLE IF NOT EXISTS mtga_draft_synergies (
+    set_code TEXT NOT NULL,
+    card_a TEXT NOT NULL,
+    card_b TEXT NOT NULL,
+    synergy_delta REAL NOT NULL DEFAULT 0,
+    games_together INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (set_code, card_a, card_b)
+  )`,
+  `CREATE TABLE IF NOT EXISTS mtga_draft_archetype_curves (
+    set_code TEXT NOT NULL,
+    color_pair TEXT NOT NULL,
+    cmc INTEGER NOT NULL,
+    avg_count REAL NOT NULL DEFAULT 0,
+    total_decks INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (set_code, color_pair, cmc)
+  )`,
+  // Card role tags from Scryfall Tagger (migration 0019)
+  `CREATE TABLE IF NOT EXISTS mtga_card_roles (
+    oracle_id TEXT NOT NULL,
+    front_face_name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    set_code TEXT NOT NULL,
+    PRIMARY KEY (oracle_id, role, set_code)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_card_roles_name ON mtga_card_roles(front_face_name, set_code)`,
+  `CREATE INDEX IF NOT EXISTS idx_card_roles_set ON mtga_card_roles(set_code)`,
 ];
 
 for (const sql of statements) {
