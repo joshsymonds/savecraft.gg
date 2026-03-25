@@ -456,7 +456,7 @@ describe("MCP Protocol", () => {
     // Batch succeeds at top level — errors are per-query
     expect(body.result.isError).toBeFalsy();
     const data = JSON.parse(body.result.content[0]!.text) as {
-      results: ({ error?: string } | unknown)[];
+      results: { error?: string }[];
     };
     expect(data.results).toHaveLength(2);
     // Both should be errors since the game doesn't exist
