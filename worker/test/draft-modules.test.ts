@@ -596,7 +596,6 @@ describe("draft_advisor native module", () => {
         recommended: string;
         recommended_composite: number;
         classification: string;
-        recommendations: unknown[];
       }[];
     };
 
@@ -604,7 +603,7 @@ describe("draft_advisor native module", () => {
     expect(data.summary.total_picks).toBe(3);
     expect(data.picks).toHaveLength(3);
 
-    // Each pick should have full structure
+    // Each pick should have compact structure (no full recommendations)
     for (const pick of data.picks) {
       expect(pick.pick_number).toBeGreaterThan(0);
       expect(pick.pack_number).toBeGreaterThan(0);
@@ -613,7 +612,8 @@ describe("draft_advisor native module", () => {
       expect(typeof pick.chosen_composite).toBe("number");
       expect(pick.recommended).toBeTruthy();
       expect(["optimal", "good", "questionable", "miss"]).toContain(pick.classification);
-      expect(pick.recommendations.length).toBeGreaterThan(0);
+      // Batch review should NOT include full recommendations (use live pick for detail)
+      expect((pick as Record<string, unknown>).recommendations).toBeUndefined();
     }
 
     // Summary counts should add up

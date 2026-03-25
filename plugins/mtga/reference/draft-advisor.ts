@@ -1168,7 +1168,6 @@ interface BatchPickResult {
   recommended: string;
   recommended_composite: number;
   classification: "optimal" | "good" | "questionable" | "miss";
-  recommendations: PickRecommendation[];
 }
 
 async function batchReview(
@@ -1251,7 +1250,6 @@ async function batchReview(
       recommended: topRec.card,
       recommended_composite: topRec.composite_score,
       classification,
-      recommendations: recs,
     });
   }
 
@@ -1289,10 +1287,10 @@ export const draftAdvisorModule: NativeReferenceModule = {
     "   - Read component breakdowns to explain WHY a card scores high — don't just report the rank.",
     "   - Warn when castability < 80%. Warn when a role category is empty.",
     "",
-    "2. BATCH REVIEW (set + pick_history where all picks have 'chosen'): Evaluate every pick in a completed draft. Returns summary (optimal/good/questionable/miss counts) plus full contextual scores for each pick. Use this when reviewing a completed draft.",
+    "2. BATCH REVIEW (set + pick_history where all picks have 'chosen'): Compact overview of a completed draft. Returns summary (optimal/good/questionable/miss counts) plus per-pick classification with chosen rank and top recommendation. NO full axis breakdowns — use this to identify which picks to examine, then call LIVE PICK mode for detailed analysis of specific picks.",
     "   - Each pick is evaluated with the pool-so-far and history-so-far at that point.",
     "   - 'optimal' = chosen was rank 1, 'good' = rank 2, 'questionable' = rank 3, 'miss' = rank 4+.",
-    "   - Focus commentary on questionable/miss picks — explain what the advisor recommended instead and why.",
+    "   - For detailed analysis of specific picks, call LIVE PICK mode with pool = in_deck, pack = available, pick_number from the draft_history section data.",
     "",
     "WEIGHT PROFILES: Early picks (1-5) favor baseline + signal + castability. Mid picks (6-20) balance all axes. Late picks (21-42) favor synergy + role + curve.",
     "",
