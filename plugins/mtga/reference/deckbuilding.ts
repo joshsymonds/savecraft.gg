@@ -27,6 +27,7 @@ import {
   determineCandidateArchetypes,
   placeholders,
   r4,
+  META_BATCH_SIZE,
 } from "./scoring";
 
 // ── Types ────────────────────────────────────────────────────
@@ -81,8 +82,8 @@ async function resolveCards(
 ): Promise<Map<string, CardMetaRow>> {
   const result = new Map<string, CardMetaRow>();
   const unique = [...new Set(names)];
-  for (let i = 0; i < unique.length; i += 50) {
-    const chunk = unique.slice(i, i + 50);
+  for (let i = 0; i < unique.length; i += META_BATCH_SIZE) {
+    const chunk = unique.slice(i, i + META_BATCH_SIZE);
     const ph = placeholders(chunk.length, 1);
     const rows = await db
       .prepare(
@@ -104,8 +105,8 @@ async function inferSet(
   cardNames: string[],
 ): Promise<string | null> {
   const setCounts = new Map<string, number>();
-  for (let i = 0; i < cardNames.length; i += 50) {
-    const chunk = cardNames.slice(i, i + 50);
+  for (let i = 0; i < cardNames.length; i += META_BATCH_SIZE) {
+    const chunk = cardNames.slice(i, i + META_BATCH_SIZE);
     const ph = placeholders(chunk.length, 1);
     const rows = await db
       .prepare(
@@ -194,39 +195,36 @@ async function healthCheck(
   const candidates = determineCandidateArchetypes(spellMeta);
   const primaryArchetype = candidates[0]?.colorPair ?? "_overall";
 
-  // Fetch empirical deck stats for this archetype
-  const deckStatsResult = await db
-    .prepare(
-      `SELECT * FROM mtga_draft_deck_stats WHERE set_code = ?1 AND color_pair = ?2`,
-    )
-    .bind(setCode, primaryArchetype)
-    .all<DeckStatsRow>();
+  // Fetch all set-level data in parallel — independent D1 queries.
+  const [deckStatsResult, curveResult, roleResult, cardRolesResult] =
+    await Promise.all([
+      db
+        .prepare(
+          `SELECT * FROM mtga_draft_deck_stats WHERE set_code = ?1 AND color_pair = ?2`,
+        )
+        .bind(setCode, primaryArchetype)
+        .all<DeckStatsRow>(),
+      db
+        .prepare(
+          `SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND color_pair = ?2`,
+        )
+        .bind(setCode, primaryArchetype)
+        .all<CurveDbRow>(),
+      db
+        .prepare(
+          `SELECT role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1 AND color_pair = ?2`,
+        )
+        .bind(setCode, primaryArchetype)
+        .all<RoleTargetRow>(),
+      db
+        .prepare(
+          `SELECT front_face_name, role FROM mtga_card_roles WHERE set_code = ?1`,
+        )
+        .bind(setCode)
+        .all<CardRoleRow>(),
+    ]);
 
   const stats = deckStatsResult.results[0];
-
-  // Fetch archetype curve
-  const curveResult = await db
-    .prepare(
-      `SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND color_pair = ?2`,
-    )
-    .bind(setCode, primaryArchetype)
-    .all<CurveDbRow>();
-
-  // Fetch role targets
-  const roleResult = await db
-    .prepare(
-      `SELECT role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1 AND color_pair = ?2`,
-    )
-    .bind(setCode, primaryArchetype)
-    .all<RoleTargetRow>();
-
-  // Fetch card roles for the set
-  const cardRolesResult = await db
-    .prepare(
-      `SELECT front_face_name, role FROM mtga_card_roles WHERE set_code = ?1`,
-    )
-    .bind(setCode)
-    .all<CardRoleRow>();
   const cardRoleMap = new Map<string, Set<string>>();
   for (const row of cardRolesResult.results) {
     if (!cardRoleMap.has(row.front_face_name)) {
@@ -296,6 +294,29 @@ async function healthCheck(
           ? `Low fixing — winning decks average ${r4(stats.avg_fixing)} fixing lands`
           : `Fixing land count is reasonable for ${primaryArchetype}`,
     });
+
+    // Splash viability — assess when deck has 3+ colors in spell pips
+    const deckColors = new Set<string>();
+    for (const card of spellMeta) {
+      for (const [color] of countPips(card.mana_cost)) {
+        deckColors.add(color);
+      }
+    }
+    if (deckColors.size >= 3 && stats.splash_rate > 0) {
+      const splashWrDelta = stats.splash_winrate - stats.nonsplash_winrate;
+      const splashViable = fixingCount >= stats.splash_avg_sources;
+      sections.push({
+        name: "splash",
+        status: splashViable ? (splashWrDelta >= -0.02 ? "good" : "warning") : "issue",
+        actual: fixingCount,
+        expected: r4(stats.splash_avg_sources),
+        note: splashViable
+          ? `Splashing with ${fixingCount} fixing sources (avg ${r4(stats.splash_avg_sources)} in winning splash decks). ` +
+            `Splash win rate: ${Math.round(stats.splash_winrate * 100)}% vs ${Math.round(stats.nonsplash_winrate * 100)}% non-splash in ${primaryArchetype}.`
+          : `Low fixing for a splash — winning splash decks average ${r4(stats.splash_avg_sources)} fixing sources. ` +
+            `${Math.round(stats.splash_rate * 100)}% of ${primaryArchetype} games involve a splash.`,
+      });
+    }
   }
 
   // Curve analysis
@@ -314,7 +335,25 @@ async function healthCheck(
       actualCurve.set(cmc, (actualCurve.get(cmc) ?? 0) + entry.count);
     }
 
-    // Check 2-drops specifically (most impactful slot)
+    // Full curve assessment — check each CMC slot against archetype ideal
+    const allCmcs = new Set([...idealCurve.keys(), ...actualCurve.keys()]);
+    let worstCmcDelta = 0;
+    let worstCmcSlot = 0;
+    const deviations: Array<{ cmc: number; actual: number; ideal: number; delta: number }> = [];
+    for (const cmc of [...allCmcs].sort((a, b) => a - b)) {
+      const actual = actualCurve.get(cmc) ?? 0;
+      const ideal = idealCurve.get(cmc) ?? 0;
+      if (ideal > 0) {
+        const delta = actual - ideal;
+        deviations.push({ cmc, actual, ideal: r4(ideal), delta: r4(delta) });
+        if (Math.abs(delta) > Math.abs(worstCmcDelta)) {
+          worstCmcDelta = delta;
+          worstCmcSlot = cmc;
+        }
+      }
+    }
+
+    // 2-drops get a dedicated section (most impactful slot in limited)
     const actual2 = actualCurve.get(2) ?? 0;
     const ideal2 = idealCurve.get(2) ?? 5;
     sections.push({
@@ -327,6 +366,20 @@ async function healthCheck(
           ? `Low on 2-drops (${actual2} vs ${r4(ideal2)} avg) — this is the most important curve slot in limited`
           : `2-drop count is healthy for ${primaryArchetype}`,
     });
+
+    // Overall curve health — flag worst deviation if significant
+    if (Math.abs(worstCmcDelta) > 2) {
+      const cmcLabel = worstCmcSlot >= 7 ? "7+" : String(worstCmcSlot);
+      sections.push({
+        name: "curve_overall",
+        status: statusFromDelta(0, Math.abs(worstCmcDelta), 2, 4),
+        actual: worstCmcDelta,
+        expected: 0,
+        note: worstCmcDelta > 0
+          ? `Surplus at ${cmcLabel} CMC (${r4(worstCmcDelta)} above avg) — consider cutting high-CMC cards`
+          : `Deficit at ${cmcLabel} CMC (${r4(Math.abs(worstCmcDelta))} below avg) — deck may lack plays at this slot`,
+      });
+    }
   }
 
   // Mana source assessment
@@ -401,6 +454,37 @@ async function healthCheck(
     }
   }
 
+  // CABS assessment — count non-CABS cards (don't affect the board state).
+  // Only report if cabs role data exists for this set.
+  const hasCabsRoles = [...cardRoleMap.values()].some((roles) =>
+    roles.has("cabs"),
+  );
+  if (hasCabsRoles) {
+    let cabsCount = 0;
+    let totalSpells = 0;
+    for (const entry of deck) {
+      const card = meta.get(entry.name.toLowerCase());
+      if (!card || card.type_line.includes("Land")) continue;
+      totalSpells += entry.count;
+      const roles = cardRoleMap.get(card.name);
+      if (roles?.has("cabs")) cabsCount += entry.count;
+    }
+    const nonCabs = totalSpells - cabsCount;
+    // More than 3 non-CABS cards is a warning; more than 5 is an issue.
+    sections.push({
+      name: "cabs",
+      status: nonCabs <= 3 ? "good" : nonCabs <= 5 ? "warning" : "issue",
+      actual: nonCabs,
+      expected: 0,
+      note:
+        nonCabs > 5
+          ? `${nonCabs} non-CABS cards (don't directly affect the board). Winning limited decks prioritize cards that impact the board — consider replacing some with creatures or removal.`
+          : nonCabs > 3
+            ? `${nonCabs} non-CABS cards — watch for too many spells that don't impact the board state`
+            : `Board presence is strong — ${cabsCount}/${totalSpells} spells directly affect the board`,
+    });
+  }
+
   return { sections, archetype: primaryArchetype, unresolved };
 }
 
@@ -432,8 +516,8 @@ async function cutAdvisor(
   // Load ratings
   const ratingMap = new Map<string, number>();
   const spellNames = [...new Set(spellEntries.map((e) => e.name))];
-  for (let i = 0; i < spellNames.length; i += 50) {
-    const chunk = spellNames.slice(i, i + 50);
+  for (let i = 0; i < spellNames.length; i += META_BATCH_SIZE) {
+    const chunk = spellNames.slice(i, i + META_BATCH_SIZE);
     const ph = placeholders(chunk.length, 2);
     const rows = await db
       .prepare(
@@ -448,8 +532,8 @@ async function cutAdvisor(
 
   // Load synergies for all card pairs in deck
   const synergyMap = new Map<string, number>(); // "cardA|cardB" → delta
-  for (let i = 0; i < spellNames.length; i += 50) {
-    const chunk = spellNames.slice(i, i + 50);
+  for (let i = 0; i < spellNames.length; i += META_BATCH_SIZE) {
+    const chunk = spellNames.slice(i, i + META_BATCH_SIZE);
     const ph = placeholders(chunk.length, 2);
     const rows = await db
       .prepare(
@@ -462,41 +546,44 @@ async function cutAdvisor(
     }
   }
 
-  // Load archetype curve
-  const curveResult = await db
-    .prepare(
-      `SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND color_pair = ?2`,
-    )
-    .bind(setCode, primaryArchetype)
-    .all<CurveDbRow>();
+  // Load archetype curve, card roles, and role targets in parallel
+  const [cutCurveResult, cutCardRolesResult, cutRoleTargetResult] =
+    await Promise.all([
+      db
+        .prepare(
+          `SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND color_pair = ?2`,
+        )
+        .bind(setCode, primaryArchetype)
+        .all<CurveDbRow>(),
+      db
+        .prepare(
+          `SELECT front_face_name, role FROM mtga_card_roles WHERE set_code = ?1`,
+        )
+        .bind(setCode)
+        .all<CardRoleRow>(),
+      db
+        .prepare(
+          `SELECT role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1 AND color_pair = ?2`,
+        )
+        .bind(setCode, primaryArchetype)
+        .all<RoleTargetRow>(),
+    ]);
+
   const idealCurve = new Map<number, number>();
-  for (const row of curveResult.results) {
+  for (const row of cutCurveResult.results) {
     idealCurve.set(row.cmc, row.avg_count);
   }
 
-  // Load card roles + role targets
-  const cardRolesResult = await db
-    .prepare(
-      `SELECT front_face_name, role FROM mtga_card_roles WHERE set_code = ?1`,
-    )
-    .bind(setCode)
-    .all<CardRoleRow>();
   const cardRoleMap = new Map<string, Set<string>>();
-  for (const row of cardRolesResult.results) {
+  for (const row of cutCardRolesResult.results) {
     if (!cardRoleMap.has(row.front_face_name)) {
       cardRoleMap.set(row.front_face_name, new Set());
     }
     cardRoleMap.get(row.front_face_name)!.add(row.role);
   }
 
-  const roleTargetResult = await db
-    .prepare(
-      `SELECT role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1 AND color_pair = ?2`,
-    )
-    .bind(setCode, primaryArchetype)
-    .all<RoleTargetRow>();
   const roleTargets = new Map<string, number>();
-  for (const rt of roleTargetResult.results) {
+  for (const rt of cutRoleTargetResult.results) {
     roleTargets.set(rt.role, rt.avg_count);
   }
 
