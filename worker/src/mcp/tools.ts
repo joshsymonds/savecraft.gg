@@ -317,7 +317,7 @@ export async function listGames(
   const games = [...gameMap.values()];
   if (filter && games.length === 0) {
     return errorResult(
-      `No games matching "${filter}". Call list_games without a filter to see all available games.`,
+      `No games matching "${filter}". Try without a filter to see all available games.`,
     );
   }
   return textResult({ games });
@@ -352,7 +352,7 @@ export async function getSave(
         `"${removedName}" has been removed by the player. They can restore it from the game detail screen on savecraft.gg. Once restored, the daemon will re-parse the save file and data will repopulate automatically.`,
       );
     }
-    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
+    return errorResult("Save not found. Check the game listing for available saves and their IDs.");
   }
 
   const sectionRows = await db
@@ -432,7 +432,7 @@ export async function getSection(
 
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
+    return errorResult("Save not found. Check the game listing for available saves and their IDs.");
 
   // Query requested sections from D1
   const placeholders = sections.map(() => "?").join(", ");
@@ -577,7 +577,7 @@ export async function getNote(
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
+    return errorResult("Save not found. Check the game listing for available saves and their IDs.");
 
   const note = await db
     .prepare("SELECT * FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
@@ -606,7 +606,7 @@ export async function createNote(
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
+    return errorResult("Save not found. Check the game listing for available saves and their IDs.");
 
   // Check 50KB limit
   if (new TextEncoder().encode(content).length > 50 * 1024) {
@@ -651,7 +651,7 @@ export async function updateNote(
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
+    return errorResult("Save not found. Check the game listing for available saves and their IDs.");
 
   const existing = await db
     .prepare("SELECT note_id FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
@@ -712,7 +712,7 @@ export async function deleteNote(
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
+    return errorResult("Save not found. Check the game listing for available saves and their IDs.");
 
   const existing = await db
     .prepare("SELECT note_id FROM notes WHERE note_id = ? AND save_id = ? AND user_uuid = ?")
@@ -740,7 +740,7 @@ export async function deleteNote(
 export async function refreshSave(env: Env, userUuid: string, saveId: string): Promise<ToolResult> {
   const save = await lookupSave(env.DB, userUuid, saveId);
   if (!save)
-    return errorResult("Save not found. Call list_games to see available saves and their IDs.");
+    return errorResult("Save not found. Check the game listing for available saves and their IDs.");
 
   if (!save.last_source_uuid) {
     return errorResult(
@@ -1020,7 +1020,7 @@ export async function queryReference(
     plugin = referencePlugins.get(`${gameId}-reference`);
   } catch {
     return errorResult(
-      `No reference module found for game "${gameId}". Call list_games to see available games and their reference modules.`,
+      `No reference module found for game "${gameId}". Check the game listing for available games and their reference modules.`,
     );
   }
 
@@ -1037,7 +1037,7 @@ export async function queryReference(
     );
   } catch {
     return errorResult(
-      `Reference module for "${gameId}" is not available. It may not be deployed yet. Call list_games to see available games and their reference modules.`,
+      `Reference module for "${gameId}" is not available. It may not be deployed yet. Check the game listing for available games and their reference modules.`,
     );
   }
 

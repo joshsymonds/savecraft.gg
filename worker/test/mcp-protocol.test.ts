@@ -86,13 +86,19 @@ describe("MCP Protocol", () => {
     const body = (await parseJsonResponse(resp)) as {
       jsonrpc: string;
       id: number;
-      result: { protocolVersion: string; capabilities: unknown; serverInfo: unknown };
+      result: {
+        protocolVersion: string;
+        capabilities: unknown;
+        serverInfo: unknown;
+        instructions: string;
+      };
     };
     expect(body.jsonrpc).toBe("2.0");
     expect(body.id).toBe(1);
     expect(body.result.protocolVersion).toBeDefined();
     expect(body.result.serverInfo).toEqual({ name: "savecraft", version: "dev" });
     expect(body.result.capabilities).toBeDefined();
+    expect(body.result.instructions).toContain("gaming companion");
   });
 
   it("includes Content-Security-Policy header on all response types", async () => {
@@ -419,5 +425,42 @@ describe("MCP Protocol", () => {
     };
     expect(body.result.isError).toBe(true);
     expect(body.result.content[0]!.text).toContain("maximum 50");
+  });
+
+  it("query_reference returns positional results with mixed success and failure", async () => {
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    // Two queries: one for a nonexistent game (error), one also nonexistent (error).
+    // Both should produce per-query errors in positional order.
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 16, {
+        name: "query_reference",
+        arguments: {
+          game_id: "nonexistent",
+          module: "fake_module",
+          queries: [{}, { extra: "param" }],
+        },
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: { content: { type: string; text: string }[]; isError?: boolean };
+    };
+    // Batch succeeds at top level — errors are per-query
+    expect(body.result.isError).toBeFalsy();
+    const data = JSON.parse(body.result.content[0]!.text) as {
+      results: ({ error?: string } | unknown)[];
+    };
+    expect(data.results).toHaveLength(2);
+    // Both should be errors since the game doesn't exist
+    expect(data.results[0]).toHaveProperty("error");
+    expect(data.results[1]).toHaveProperty("error");
   });
 });
