@@ -28,6 +28,7 @@ import (
 	"os"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
@@ -70,6 +71,24 @@ type roleKey struct {
 	SetCode  string
 }
 
+// setResult holds all role entries and per-tag counts for a single set from Phase 1.
+type setResult struct {
+	SetCode   string
+	Entries   []roleEntry
+	TagCounts map[string]int // tag → count of cards found
+	Err       error          // first error encountered, if any
+}
+
+// phase2Result holds creature derivation results for a single set.
+type phase2Result struct {
+	SetCode    string
+	Creatures  []roleEntry
+	AllCards   []d1Card
+	CreatureN  int
+	RemainderN int
+	Err        error
+}
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -84,6 +103,20 @@ func run() error {
 	setFilter := flag.String("set", "", "Process a single set (e.g., 'DSK'). If empty, processes all sets.")
 	flag.Parse()
 
+	// Validate Cloudflare credentials early — don't download data we can't store.
+	if *d1DatabaseID != "" {
+		var missing []string
+		if *cfAccountID == "" {
+			missing = append(missing, "--cf-account-id / CLOUDFLARE_ACCOUNT_ID")
+		}
+		if *cfAPIToken == "" {
+			missing = append(missing, "--cf-api-token / CLOUDFLARE_API_TOKEN")
+		}
+		if len(missing) > 0 {
+			return fmt.Errorf("--d1-database-id provided but missing: %s", strings.Join(missing, ", "))
+		}
+	}
+
 	targetSets := sets.MTGA
 	if *setFilter != "" {
 		upper := strings.ToUpper(*setFilter)
@@ -93,46 +126,40 @@ func run() error {
 		targetSets = []string{upper}
 	}
 
-	// Phase 1: Fetch Scryfall Tagger function tags.
+	// Phase 1: Fetch Scryfall Tagger function tags (4 sets concurrently).
+	sem := make(chan struct{}, 4)
+	results := make([]setResult, len(targetSets))
+	var wg sync.WaitGroup
+
+	for i, setCode := range targetSets {
+		wg.Add(1)
+		go func(idx int, sc string) {
+			defer wg.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+			results[idx] = fetchSetTags(sc)
+		}(i, setCode)
+	}
+	wg.Wait()
+
+	// Merge Phase 1 results and deduplicate.
 	seen := make(map[roleKey]struct{})
 	var allEntries []roleEntry
 
-	for _, setCode := range targetSets {
-		for tag, role := range taggerRoles {
-			entries, err := fetchTaggedCards(setCode, tag, role)
-			if err != nil {
-				fmt.Printf("  WARN: %s/%s failed: %v\n", setCode, tag, err)
-				continue
-			}
-			fmt.Printf("  %s function:%s → %d cards (role: %s)\n", setCode, tag, len(entries), role)
-			for _, e := range entries {
-				key := roleKey{e.OracleID, e.Role, e.SetCode}
-				if _, ok := seen[key]; ok {
-					continue // Deduplicate: same card+role already seen from another tag.
-				}
-				seen[key] = struct{}{}
-				allEntries = append(allEntries, e)
-			}
-		}
-	}
-
-	fmt.Printf("Phase 1 (tagger): %d role entries across %d sets\n", len(allEntries), len(targetSets))
-
-	if *d1DatabaseID == "" || *cfAccountID == "" || *cfAPIToken == "" {
-		fmt.Println("No --d1-database-id specified; skipping creature derivation and D1 population.")
-		return nil
-	}
-
-	// Phase 2: Derive creature roles from mtga_cards type_line in D1.
-	// Also collect all oracle_ids per set for remainder computation.
-	for _, setCode := range targetSets {
-		creatures, allCards, err := fetchCreaturesAndAllCards(*cfAccountID, *d1DatabaseID, *cfAPIToken, setCode)
-		if err != nil {
-			fmt.Printf("  WARN: %s creature derivation failed: %v (continuing)\n", setCode, err)
+	for _, res := range results {
+		if res.Err != nil {
+			fmt.Printf("  WARN: %s tagger fetch failed: %v\n", res.SetCode, res.Err)
 			continue
 		}
 
-		for _, e := range creatures {
+		// Build summary line: "FDN: 84 removal, 12 mana_fixing"
+		var parts []string
+		for _, tag := range []string{"removal", "mana_fixing"} {
+			parts = append(parts, fmt.Sprintf("%d %s", res.TagCounts[tag], tag))
+		}
+		fmt.Printf("  %s: %s\n", res.SetCode, strings.Join(parts, ", "))
+
+		for _, e := range res.Entries {
 			key := roleKey{e.OracleID, e.Role, e.SetCode}
 			if _, ok := seen[key]; ok {
 				continue
@@ -140,14 +167,73 @@ func run() error {
 			seen[key] = struct{}{}
 			allEntries = append(allEntries, e)
 		}
-		fmt.Printf("  %s creatures: %d cards\n", setCode, len(creatures))
+	}
 
-		// Phase 3: Compute noncreature_nonremoval as remainder.
-		var remainder int
-		for _, card := range allCards {
+	fmt.Printf("Phase 1 (tagger): %d role entries across %d sets\n", len(allEntries), len(targetSets))
+
+	if *d1DatabaseID == "" {
+		fmt.Println("No --d1-database-id specified; skipping creature derivation and D1 population.")
+		return nil
+	}
+
+	// Phase 2: Derive creature roles from mtga_cards type_line in D1 (4 sets concurrently).
+	p2Results := make([]phase2Result, len(targetSets))
+	var wg2 sync.WaitGroup
+
+	for i, setCode := range targetSets {
+		wg2.Add(1)
+		go func(idx int, sc string) {
+			defer wg2.Done()
+			sem <- struct{}{}
+			defer func() { <-sem }()
+
+			creatures, allCards, err := fetchCreaturesAndAllCards(*cfAccountID, *d1DatabaseID, *cfAPIToken, sc)
+			p2Results[idx] = phase2Result{
+				SetCode:   sc,
+				Creatures: creatures,
+				AllCards:  allCards,
+				Err:       err,
+			}
+		}(i, setCode)
+	}
+	wg2.Wait()
+
+	// Merge Phase 2 results: add creatures and compute remainders.
+	for i := range p2Results {
+		res := &p2Results[i]
+		if res.Err != nil {
+			fmt.Printf("  WARN: %s creature derivation failed: %v (continuing)\n", res.SetCode, res.Err)
+			continue
+		}
+
+		for _, e := range res.Creatures {
+			key := roleKey{e.OracleID, e.Role, e.SetCode}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			allEntries = append(allEntries, e)
+			res.CreatureN++
+		}
+
+		// Auto-detect mana_fixing for multi-color lands (supplements Tagger Phase 1).
+		fixingLands := detectFixingLands(res.AllCards, res.SetCode)
+		var fixingN int
+		for _, e := range fixingLands {
+			key := roleKey{e.OracleID, e.Role, e.SetCode}
+			if _, ok := seen[key]; ok {
+				continue // Already tagged by Tagger in Phase 1.
+			}
+			seen[key] = struct{}{}
+			allEntries = append(allEntries, e)
+			fixingN++
+		}
+
+		// Compute noncreature_nonremoval as remainder.
+		for _, card := range res.AllCards {
 			hasRole := false
 			for _, role := range []string{"creature", "removal", "mana_fixing"} {
-				key := roleKey{card.OracleID, role, setCode}
+				key := roleKey{card.OracleID, role, res.SetCode}
 				if _, ok := seen[key]; ok {
 					hasRole = true
 					break
@@ -158,17 +244,18 @@ func run() error {
 					OracleID:      card.OracleID,
 					FrontFaceName: card.FrontFaceName,
 					Role:          "noncreature_nonremoval",
-					SetCode:       setCode,
+					SetCode:       res.SetCode,
 				}
-				key := roleKey{card.OracleID, entry.Role, setCode}
+				key := roleKey{card.OracleID, entry.Role, res.SetCode}
 				if _, ok := seen[key]; !ok {
 					seen[key] = struct{}{}
 					allEntries = append(allEntries, entry)
-					remainder++
+					res.RemainderN++
 				}
 			}
 		}
-		fmt.Printf("  %s noncreature_nonremoval: %d cards\n", setCode, remainder)
+
+		fmt.Printf("  %s: %d creature, %d mana_fixing (land), %d noncreature_nonremoval\n", res.SetCode, res.CreatureN, fixingN, res.RemainderN)
 	}
 
 	fmt.Printf("Total: %d role entries across %d sets\n", len(allEntries), len(targetSets))
@@ -183,18 +270,40 @@ func run() error {
 	return nil
 }
 
+// fetchSetTags fetches all tagger function tags for a single set.
+// Each tag query respects Scryfall's 50ms rate limit independently.
+func fetchSetTags(setCode string) setResult {
+	res := setResult{
+		SetCode:   setCode,
+		TagCounts: make(map[string]int),
+	}
+
+	for tag, role := range taggerRoles {
+		entries, err := fetchTaggedCards(setCode, tag, role)
+		if err != nil {
+			fmt.Printf("  WARN: %s/%s failed: %v\n", setCode, tag, err)
+			continue
+		}
+		res.TagCounts[role] += len(entries)
+		res.Entries = append(res.Entries, entries...)
+	}
+
+	return res
+}
+
 // d1Card is a minimal card record from D1 for role derivation.
 type d1Card struct {
 	OracleID      string
 	FrontFaceName string
 	TypeLine      string
+	ProducedMana  string // JSON array from D1, e.g. '["W","U"]'
 }
 
 // fetchCreaturesAndAllCards queries D1 for all default cards in a set.
 // Returns creature role entries and the full card list (for remainder computation).
 func fetchCreaturesAndAllCards(accountID, databaseID, apiToken, setCode string) ([]roleEntry, []d1Card, error) {
 	sql := fmt.Sprintf(
-		"SELECT oracle_id, front_face_name, type_line FROM mtga_cards WHERE set_code = %s AND is_default = 1",
+		"SELECT oracle_id, front_face_name, type_line, produced_mana FROM mtga_cards WHERE set_code = %s AND is_default = 1",
 		cfapi.SQLQuote(strings.ToLower(setCode)),
 	)
 	rows, err := cfapi.QueryD1(accountID, databaseID, apiToken, sql)
@@ -209,6 +318,7 @@ func fetchCreaturesAndAllCards(accountID, databaseID, apiToken, setCode string) 
 		oracleID, _ := row["oracle_id"].(string)
 		frontFace, _ := row["front_face_name"].(string)
 		typeLine, _ := row["type_line"].(string)
+		producedMana, _ := row["produced_mana"].(string)
 		if oracleID == "" || frontFace == "" {
 			continue
 		}
@@ -217,6 +327,7 @@ func fetchCreaturesAndAllCards(accountID, databaseID, apiToken, setCode string) 
 			OracleID:      oracleID,
 			FrontFaceName: frontFace,
 			TypeLine:      typeLine,
+			ProducedMana:  producedMana,
 		})
 
 		if strings.Contains(typeLine, "Creature") {
@@ -230,6 +341,33 @@ func fetchCreaturesAndAllCards(accountID, databaseID, apiToken, setCode string) 
 	}
 
 	return creatures, allCards, nil
+}
+
+// detectFixingLands returns mana_fixing role entries for lands that produce 2+ colors.
+// This supplements Tagger-based mana-fixer detection for lands that Tagger may miss.
+func detectFixingLands(cards []d1Card, setCode string) []roleEntry {
+	var entries []roleEntry
+	for _, card := range cards {
+		if !strings.Contains(card.TypeLine, "Land") {
+			continue
+		}
+		if card.ProducedMana == "" {
+			continue
+		}
+		var colors []string
+		if err := json.Unmarshal([]byte(card.ProducedMana), &colors); err != nil {
+			continue
+		}
+		if len(colors) > 1 {
+			entries = append(entries, roleEntry{
+				OracleID:      card.OracleID,
+				FrontFaceName: card.FrontFaceName,
+				Role:          "mana_fixing",
+				SetCode:       strings.ToUpper(setCode),
+			})
+		}
+	}
+	return entries
 }
 
 // fetchTaggedCards queries Scryfall for cards matching a function tag in a set.
