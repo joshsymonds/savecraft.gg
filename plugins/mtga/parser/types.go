@@ -244,7 +244,7 @@ type DraftPick struct {
 	PackNumber int      `json:"packNumber"`
 	PickNumber int      `json:"pickNumber"`
 	InDeck     []string `json:"in_deck"`   // cards already drafted (pool so far)
-	Available  []string `json:"available"`  // card names available in the pack
-	Picked     string   `json:"picked"`     // card name chosen (empty if live drafting)
-	PickedID   int      `json:"pickedId"`   // arena_id of chosen card
+	Available  []string `json:"available"` // card names available in the pack
+	Picked     string   `json:"picked"`    // card name chosen (empty if live drafting)
+	PickedID   int      `json:"pickedId"`  // arena_id of chosen card
 }
