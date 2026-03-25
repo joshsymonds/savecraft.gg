@@ -144,8 +144,7 @@ func run() error {
 
 	for _, res := range results {
 		if res.Err != nil {
-			fmt.Printf("  WARN: %s tagger fetch failed: %v\n", res.SetCode, res.Err)
-			continue
+			return fmt.Errorf("tagger fetch failed for %s: %w", res.SetCode, res.Err)
 		}
 
 		// Build summary line: "FDN: 84 removal, 12 mana_fixing"
@@ -277,8 +276,8 @@ func fetchSetTags(setCode string) setResult {
 	for tag, role := range taggerRoles {
 		entries, err := fetchTaggedCards(setCode, tag, role)
 		if err != nil {
-			fmt.Printf("  WARN: %s/%s failed: %v\n", setCode, tag, err)
-			continue
+			res.Err = fmt.Errorf("%s/%s: %w", setCode, tag, err)
+			return res
 		}
 		res.TagCounts[role] += len(entries)
 		res.Entries = append(res.Entries, entries...)
@@ -385,26 +384,17 @@ func fetchTaggedCards(setCode string, tag string, role string) ([]roleEntry, err
 	for pageURL := searchURL; pageURL != ""; {
 		time.Sleep(50 * time.Millisecond) // Scryfall rate limit.
 
-		req, err := http.NewRequest("GET", pageURL, nil)
+		body, statusCode, err := scryfallGet(client, pageURL)
 		if err != nil {
 			return nil, err
 		}
-		req.Header.Set("User-Agent", "Savecraft/1.0 (savecraft.gg)")
-		req.Header.Set("Accept", "application/json")
-
-		resp, err := client.Do(req)
-		if err != nil {
-			return nil, err
-		}
-		body, _ := io.ReadAll(resp.Body)
-		resp.Body.Close()
 
 		// 404 = no results for this query (valid — not all sets have sweepers).
-		if resp.StatusCode == http.StatusNotFound {
+		if statusCode == http.StatusNotFound {
 			return nil, nil
 		}
-		if resp.StatusCode != http.StatusOK {
-			return nil, fmt.Errorf("HTTP %d: %s", resp.StatusCode, string(body[:min(len(body), 200)]))
+		if statusCode != http.StatusOK {
+			return nil, fmt.Errorf("HTTP %d: %s", statusCode, string(body[:min(len(body), 200)]))
 		}
 
 		var list scryfallList
@@ -433,6 +423,44 @@ func fetchTaggedCards(setCode string, tag string, role string) ([]roleEntry, err
 	}
 
 	return entries, nil
+}
+
+// scryfallGet performs an HTTP GET with exponential backoff on 429 rate limits.
+// Returns the response body, status code, and any error.
+func scryfallGet(client *http.Client, url string) ([]byte, int, error) {
+	const maxRetries = 5
+	backoff := 2 * time.Second
+
+	for attempt := range maxRetries {
+		req, err := http.NewRequest("GET", url, nil)
+		if err != nil {
+			return nil, 0, err
+		}
+		req.Header.Set("User-Agent", "Savecraft/1.0 (savecraft.gg)")
+		req.Header.Set("Accept", "application/json")
+
+		resp, err := client.Do(req)
+		if err != nil {
+			return nil, 0, err
+		}
+		body, _ := io.ReadAll(resp.Body)
+		resp.Body.Close()
+
+		if resp.StatusCode != http.StatusTooManyRequests {
+			return body, resp.StatusCode, nil
+		}
+
+		if attempt == maxRetries-1 {
+			return body, resp.StatusCode, nil
+		}
+
+		fmt.Printf("    rate limited, retrying in %s (attempt %d/%d)\n", backoff, attempt+1, maxRetries)
+		time.Sleep(backoff)
+		backoff *= 2
+	}
+
+	// Unreachable, but satisfies the compiler.
+	return nil, 0, fmt.Errorf("unreachable")
 }
 
 // buildRolesImportSQL generates SQL for D1 bulk import of card role data.
