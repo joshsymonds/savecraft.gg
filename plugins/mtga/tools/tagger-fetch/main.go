@@ -354,11 +354,18 @@ func detectFixingLands(cards []d1Card, setCode string) []roleEntry {
 		if card.ProducedMana == "" {
 			continue
 		}
-		var colors []string
-		if err := json.Unmarshal([]byte(card.ProducedMana), &colors); err != nil {
+		var produced []string
+		if err := json.Unmarshal([]byte(card.ProducedMana), &produced); err != nil {
 			continue
 		}
-		if len(colors) > 1 {
+		// Count only real colors (WUBRG) — colorless ("C") doesn't count as mana fixing.
+		var colorCount int
+		for _, c := range produced {
+			if c != "C" {
+				colorCount++
+			}
+		}
+		if colorCount > 1 {
 			entries = append(entries, roleEntry{
 				OracleID:      card.OracleID,
 				FrontFaceName: card.FrontFaceName,

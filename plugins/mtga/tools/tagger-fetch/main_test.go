@@ -108,6 +108,7 @@ func TestDetectFixingLands(t *testing.T) {
 		{OracleID: "tri-1", FrontFaceName: "Jetmir's Garden", TypeLine: "Land — Mountain Forest Plains", ProducedMana: `["R","G","W"]`},
 		{OracleID: "empty-1", FrontFaceName: "Maze's End", TypeLine: "Land — Gate", ProducedMana: `[]`},
 		{OracleID: "no-pm", FrontFaceName: "Unknown Land", TypeLine: "Land", ProducedMana: ""},
+		{OracleID: "utility-1", FrontFaceName: "Hive of the Eye Tyrant", TypeLine: "Land", ProducedMana: `["B","C"]`},
 	}
 
 	entries := detectFixingLands(cards, "DSK")
@@ -137,5 +138,9 @@ func TestDetectFixingLands(t *testing.T) {
 	}
 	if got["no-pm"] {
 		t.Error("land with missing produced_mana should NOT get mana_fixing")
+	}
+	// Land producing one color + colorless: NOT mana fixing (colorless isn't a color)
+	if got["utility-1"] {
+		t.Error("land producing one color + colorless (Hive of the Eye Tyrant) should NOT get mana_fixing")
 	}
 }

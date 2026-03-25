@@ -42,6 +42,11 @@ func TestCacheDownload_FirstDownload(t *testing.T) {
 	if string(etag) != "etag-abc123" {
 		t.Errorf("etag = %q, want %q", etag, "etag-abc123")
 	}
+
+	// Verify no .tmp file remains after successful download.
+	if _, err := os.Stat(filepath.Join(cacheDir, "test.csv.gz.tmp")); !os.IsNotExist(err) {
+		t.Error(".tmp file should not exist after successful download")
+	}
 }
 
 func TestCacheDownload_CacheHit(t *testing.T) {
@@ -148,6 +153,63 @@ func TestCacheDownload_NoETagHeader(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(cacheDir, "test.csv.gz.etag")); !os.IsNotExist(err) {
 		t.Error("etag file should not exist when server returns no ETag")
+	}
+}
+
+func TestDownloadToFile_AtomicWrite_CleansUpOnError(t *testing.T) {
+	// Server returns a 500 error — verify no .tmp file remains.
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == "HEAD" {
+			w.WriteHeader(http.StatusOK)
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "output.gz")
+
+	err := downloadToFile(server.URL, path)
+	if err == nil {
+		t.Fatal("expected error from 500 response")
+	}
+
+	// Neither the final file nor the .tmp file should exist.
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Error("final file should not exist after failed download")
+	}
+	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
+		t.Error(".tmp file should not exist after failed download")
+	}
+}
+
+func TestDownloadToFile_AtomicWrite_SuccessNoTmpResidue(t *testing.T) {
+	content := "some data"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Write([]byte(content))
+	}))
+	defer server.Close()
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "output.dat")
+
+	if err := downloadToFile(server.URL, path); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// Final file should contain the content.
+	got, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("reading output: %v", err)
+	}
+	if string(got) != content {
+		t.Errorf("got %q, want %q", got, content)
+	}
+
+	// No .tmp file should remain.
+	if _, err := os.Stat(path + ".tmp"); !os.IsNotExist(err) {
+		t.Error(".tmp file should not exist after successful download")
 	}
 }
 
