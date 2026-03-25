@@ -7,7 +7,10 @@
  */
 
 import type { Env } from "../../../worker/src/types";
-import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
+import type {
+  NativeReferenceModule,
+  ReferenceResult,
+} from "../../../worker/src/reference/types";
 
 const DEFAULT_PAGE_SIZE = 25;
 
@@ -70,14 +73,22 @@ function padLeft(s: string, len: number): string {
 
 function sortFieldLabel(field: string): string {
   switch (field) {
-    case "gihwr": return "GIH WR";
-    case "ohwr": return "OHWR";
-    case "gdwr": return "GD WR";
-    case "gnswr": return "GNS WR";
-    case "iwd": return "IWD";
-    case "alsa": return "ALSA (earliest seen)";
-    case "ata": return "ATA (earliest taken)";
-    default: return "GIH WR";
+    case "gihwr":
+      return "GIH WR";
+    case "ohwr":
+      return "OHWR";
+    case "gdwr":
+      return "GD WR";
+    case "gnswr":
+      return "GNS WR";
+    case "iwd":
+      return "IWD";
+    case "alsa":
+      return "ALSA (earliest seen)";
+    case "ata":
+      return "ATA (earliest taken)";
+    default:
+      return "GIH WR";
   }
 }
 
@@ -95,62 +106,91 @@ async function listAvailableSets(db: D1Database): Promise<ReferenceResult> {
   const lines: string[] = [];
   lines.push("Available sets with 17Lands draft ratings:\n");
   for (const r of rows.results) {
-    lines.push(`  ${r.set_code} — ${r.format}, ${fmtInt(r.total_games)} games, ${r.card_count} cards, avg GIH WR ${pct(r.avg_gihwr)}`);
+    lines.push(
+      `  ${r.set_code} — ${r.format}, ${fmtInt(r.total_games)} games, ${r.card_count} cards, avg GIH WR ${pct(r.avg_gihwr)}`,
+    );
   }
-  lines.push(`\nSpecify a set code to see details. Data source: 17Lands (CC BY 4.0).`);
+  lines.push(
+    `\nSpecify a set code to see details. Data source: 17Lands (CC BY 4.0).`,
+  );
 
   return { type: "formatted", content: lines.join("\n") + "\n" };
 }
 
-async function setOverview(db: D1Database, setCode: string, setStats: SetStatsRow): Promise<ReferenceResult> {
+async function setOverview(
+  db: D1Database,
+  setCode: string,
+  setStats: SetStatsRow,
+): Promise<ReferenceResult> {
   const allCards = await db
-    .prepare("SELECT * FROM mtga_draft_ratings WHERE set_code = ?1 ORDER BY gihwr DESC")
+    .prepare(
+      "SELECT * FROM mtga_draft_ratings WHERE set_code = ?1 ORDER BY gihwr DESC",
+    )
     .bind(setCode)
     .all<RatingRow>();
 
   const cards = allCards.results;
   const lines: string[] = [];
 
-  lines.push(`${setCode} ${setStats.format} — ${fmtInt(setStats.total_games)} games, ${setStats.card_count} cards`);
+  lines.push(
+    `${setCode} ${setStats.format} — ${fmtInt(setStats.total_games)} games, ${setStats.card_count} cards`,
+  );
   lines.push(`Set avg GIH WR: ${pct(setStats.avg_gihwr)}\n`);
 
   const n = Math.min(5, cards.length);
   lines.push("Top 5 by GIH WR:");
   for (let i = 0; i < n; i++) {
     const c = cards[i]!;
-    lines.push(` ${i + 1}. ${padRight(truncName(c.card_name, 28), 28)} ${pct(c.gihwr)} (IWD ${iwdFmt(c.iwd)}, ${fmtInt(c.games_in_hand)} games)`);
+    lines.push(
+      ` ${i + 1}. ${padRight(truncName(c.card_name, 28), 28)} ${pct(c.gihwr)} (IWD ${iwdFmt(c.iwd)}, ${fmtInt(c.games_in_hand)} games)`,
+    );
   }
 
   lines.push("\nBottom 5 by GIH WR:");
   for (let i = Math.max(0, cards.length - n); i < cards.length; i++) {
     const c = cards[i]!;
-    lines.push(` ${i + 1}. ${padRight(truncName(c.card_name, 28), 28)} ${pct(c.gihwr)} (IWD ${iwdFmt(c.iwd)}, ${fmtInt(c.games_in_hand)} games)`);
+    lines.push(
+      ` ${i + 1}. ${padRight(truncName(c.card_name, 28), 28)} ${pct(c.gihwr)} (IWD ${iwdFmt(c.iwd)}, ${fmtInt(c.games_in_hand)} games)`,
+    );
   }
 
   const byIwd = [...cards].sort((a, b) => b.iwd - a.iwd);
   lines.push("\nTop 5 by IWD (most impactful when drawn):");
   for (let i = 0; i < Math.min(5, byIwd.length); i++) {
     const c = byIwd[i]!;
-    lines.push(` ${i + 1}. ${padRight(truncName(c.card_name, 28), 28)} IWD ${iwdFmt(c.iwd)} (GIH WR ${pct(c.gihwr)}, ${fmtInt(c.games_in_hand)} games)`);
+    lines.push(
+      ` ${i + 1}. ${padRight(truncName(c.card_name, 28), 28)} IWD ${iwdFmt(c.iwd)} (GIH WR ${pct(c.gihwr)}, ${fmtInt(c.games_in_hand)} games)`,
+    );
   }
 
-  const byUndervalued = [...cards].sort((a, b) => (b.gihwr * b.alsa) - (a.gihwr * a.alsa));
+  const byUndervalued = [...cards].sort(
+    (a, b) => b.gihwr * b.alsa - a.gihwr * a.alsa,
+  );
   lines.push("\nMost undervalued (high GIH WR, late ALSA):");
   let shown = 0;
   for (const c of byUndervalued) {
     if (c.alsa >= 4.0 && c.gihwr > setStats.avg_gihwr) {
-      lines.push(` ${shown + 1}. ${padRight(truncName(c.card_name, 28), 28)} GIH WR ${pct(c.gihwr)}, ALSA ${c.alsa.toFixed(1)}`);
+      lines.push(
+        ` ${shown + 1}. ${padRight(truncName(c.card_name, 28), 28)} GIH WR ${pct(c.gihwr)}, ALSA ${c.alsa.toFixed(1)}`,
+      );
       shown++;
       if (shown >= 5) break;
     }
   }
 
-  lines.push(`\n${setStats.card_count} cards available. Query with card, limit, sort, or colors for details.`);
+  lines.push(
+    `\n${setStats.card_count} cards available. Query with card, limit, sort, or colors for details.`,
+  );
 
   return { type: "formatted", content: lines.join("\n") + "\n" };
 }
 
-async function cardDetail(db: D1Database, setCode: string, cardQuery: string, setStats: SetStatsRow): Promise<ReferenceResult> {
+async function cardDetail(
+  db: D1Database,
+  setCode: string,
+  cardQuery: string,
+  setStats: SetStatsRow,
+): Promise<ReferenceResult> {
   const safeFtsQuery = `"${cardQuery.replace(/"/g, '""')}"`;
   const ftsResults = await db
     .prepare(
@@ -176,17 +216,24 @@ async function cardDetail(db: D1Database, setCode: string, cardQuery: string, se
   }
 
   if (matchNames.length === 0) {
-    return { type: "formatted", content: `No cards matching "${cardQuery}" in ${setCode}\n` };
+    return {
+      type: "formatted",
+      content: `No cards matching "${cardQuery}" in ${setCode}\n`,
+    };
   }
 
   const placeholders = matchNames.map((_, i) => `?${i + 2}`).join(",");
   const ratings = await db
-    .prepare(`SELECT * FROM mtga_draft_ratings WHERE set_code = ?1 AND card_name IN (${placeholders})`)
+    .prepare(
+      `SELECT * FROM mtga_draft_ratings WHERE set_code = ?1 AND card_name IN (${placeholders})`,
+    )
     .bind(setCode, ...matchNames)
     .all<RatingRow>();
 
   const colorStats = await db
-    .prepare(`SELECT * FROM mtga_draft_color_stats WHERE set_code = ?1 AND card_name IN (${placeholders}) ORDER BY color_pair`)
+    .prepare(
+      `SELECT * FROM mtga_draft_color_stats WHERE set_code = ?1 AND card_name IN (${placeholders}) ORDER BY color_pair`,
+    )
     .bind(setCode, ...matchNames)
     .all<ColorRow>();
 
@@ -205,58 +252,92 @@ async function cardDetail(db: D1Database, setCode: string, cardQuery: string, se
     const card = ratings.results[i]!;
     if (i > 0) lines.push("\n---\n");
 
-    lines.push(`${card.card_name} — ${setCode} ${setStats.format} (set avg GIH WR: ${pct(setStats.avg_gihwr)})\n`);
+    lines.push(
+      `${card.card_name} — ${setCode} ${setStats.format} (set avg GIH WR: ${pct(setStats.avg_gihwr)})\n`,
+    );
 
-    lines.push(`Overall:  GIH WR ${pct(card.gihwr)} | IWD ${iwdFmt(card.iwd)} | OHWR ${pct(card.ohwr)} | GD WR ${pct(card.gdwr)} | GNS WR ${pct(card.gnswr)}`);
-    lines.push(`          ALSA ${card.alsa.toFixed(1)} | ATA ${card.ata.toFixed(1)} | ${fmtInt(card.games_in_hand)} games in hand, ${fmtInt(card.games_played)} games in deck`);
+    lines.push(
+      `Overall:  GIH WR ${pct(card.gihwr)} | IWD ${iwdFmt(card.iwd)} | OHWR ${pct(card.ohwr)} | GD WR ${pct(card.gdwr)} | GNS WR ${pct(card.gnswr)}`,
+    );
+    lines.push(
+      `          ALSA ${card.alsa.toFixed(1)} | ATA ${card.ata.toFixed(1)} | ${fmtInt(card.games_in_hand)} games in hand, ${fmtInt(card.games_played)} games in deck`,
+    );
 
     const colors = colorsByCard.get(card.card_name);
     if (colors && colors.length > 0) {
       lines.push("\nBy archetype:");
       for (const cs of colors) {
-        lines.push(`  ${padRight(cs.color_pair, 5)}  GIH WR ${pct(cs.gihwr)} | IWD ${iwdFmt(cs.iwd)} | ${fmtInt(cs.games_in_hand)} games`);
+        lines.push(
+          `  ${padRight(cs.color_pair, 5)}  GIH WR ${pct(cs.gihwr)} | IWD ${iwdFmt(cs.iwd)} | ${fmtInt(cs.games_in_hand)} games`,
+        );
       }
     }
   }
 
   if (ratings.results.length > 5) {
-    lines.push(`\n(${ratings.results.length - 5} more matches, narrow your search)`);
+    lines.push(
+      `\n(${ratings.results.length - 5} more matches, narrow your search)`,
+    );
   }
 
   return { type: "formatted", content: lines.join("\n") + "\n" };
 }
 
-const VALID_SORT_FIELDS = new Set(["gihwr", "ohwr", "gdwr", "gnswr", "iwd", "alsa", "ata"]);
+const VALID_SORT_FIELDS = new Set([
+  "gihwr",
+  "ohwr",
+  "gdwr",
+  "gnswr",
+  "iwd",
+  "alsa",
+  "ata",
+]);
 
-async function leaderboard(db: D1Database, setCode: string, sortField: string, colorPair: string, limit: number, offset: number, setStats: SetStatsRow): Promise<ReferenceResult> {
+async function leaderboard(
+  db: D1Database,
+  setCode: string,
+  sortField: string,
+  colorPair: string,
+  limit: number,
+  offset: number,
+  setStats: SetStatsRow,
+): Promise<ReferenceResult> {
   const field = VALID_SORT_FIELDS.has(sortField) ? sortField : "gihwr";
   const sortLabel = sortFieldLabel(field);
-  const direction = (field === "alsa" || field === "ata") ? "ASC" : "DESC";
+  const direction = field === "alsa" || field === "ata" ? "ASC" : "DESC";
 
   let rows: RatingRow[];
   let total: number;
 
   if (colorPair) {
     const countResult = await db
-      .prepare("SELECT COUNT(*) as cnt FROM mtga_draft_color_stats WHERE set_code = ?1 AND color_pair = ?2")
+      .prepare(
+        "SELECT COUNT(*) as cnt FROM mtga_draft_color_stats WHERE set_code = ?1 AND color_pair = ?2",
+      )
       .bind(setCode, colorPair.toUpperCase())
       .first<{ cnt: number }>();
     total = countResult?.cnt ?? 0;
 
     const result = await db
-      .prepare(`SELECT set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_color_stats WHERE set_code = ?1 AND color_pair = ?2 ORDER BY ${field} ${direction} LIMIT ?3 OFFSET ?4`)
+      .prepare(
+        `SELECT set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_color_stats WHERE set_code = ?1 AND color_pair = ?2 ORDER BY ${field} ${direction} LIMIT ?3 OFFSET ?4`,
+      )
       .bind(setCode, colorPair.toUpperCase(), limit, offset)
       .all<RatingRow>();
     rows = result.results;
   } else {
     const countResult = await db
-      .prepare("SELECT COUNT(*) as cnt FROM mtga_draft_ratings WHERE set_code = ?1")
+      .prepare(
+        "SELECT COUNT(*) as cnt FROM mtga_draft_ratings WHERE set_code = ?1",
+      )
       .bind(setCode)
       .first<{ cnt: number }>();
     total = countResult?.cnt ?? 0;
 
     const result = await db
-      .prepare(`SELECT * FROM mtga_draft_ratings WHERE set_code = ?1 ORDER BY ${field} ${direction} LIMIT ?2 OFFSET ?3`)
+      .prepare(
+        `SELECT * FROM mtga_draft_ratings WHERE set_code = ?1 ORDER BY ${field} ${direction} LIMIT ?2 OFFSET ?3`,
+      )
       .bind(setCode, limit, offset)
       .all<RatingRow>();
     rows = result.results;
@@ -269,16 +350,22 @@ async function leaderboard(db: D1Database, setCode: string, sortField: string, c
   lines.push(header);
   lines.push(`Showing ${offset + 1}–${offset + rows.length} of ${total}\n`);
 
-  lines.push(`${padLeft("#", 4)}  ${padRight("Card", 28)} ${padLeft("GIH WR", 8)} ${padLeft("IWD", 7)} ${padLeft("OHWR", 8)} ${padLeft("ALSA", 6)} ${padLeft("ATA", 6)} ${padLeft("Games", 8)}`);
+  lines.push(
+    `${padLeft("#", 4)}  ${padRight("Card", 28)} ${padLeft("GIH WR", 8)} ${padLeft("IWD", 7)} ${padLeft("OHWR", 8)} ${padLeft("ALSA", 6)} ${padLeft("ATA", 6)} ${padLeft("Games", 8)}`,
+  );
 
   for (let i = 0; i < rows.length; i++) {
     const r = rows[i]!;
-    lines.push(`${padLeft(String(offset + i + 1) + ".", 4)}  ${padRight(truncName(r.card_name, 28), 28)} ${padLeft(pct(r.gihwr), 8)} ${padLeft(iwdFmt(r.iwd), 7)} ${padLeft(pct(r.ohwr), 8)} ${padLeft(r.alsa.toFixed(1), 6)} ${padLeft(r.ata.toFixed(1), 6)} ${padLeft(fmtInt(r.games_in_hand), 8)}`);
+    lines.push(
+      `${padLeft(String(offset + i + 1) + ".", 4)}  ${padRight(truncName(r.card_name, 28), 28)} ${padLeft(pct(r.gihwr), 8)} ${padLeft(iwdFmt(r.iwd), 7)} ${padLeft(pct(r.ohwr), 8)} ${padLeft(r.alsa.toFixed(1), 6)} ${padLeft(r.ata.toFixed(1), 6)} ${padLeft(fmtInt(r.games_in_hand), 8)}`,
+    );
   }
 
   const remaining = total - offset - rows.length;
   if (remaining > 0) {
-    lines.push(`\n${remaining} more results. Use offset=${offset + rows.length} for next page.`);
+    lines.push(
+      `\n${remaining} more results. Use offset=${offset + rows.length} for next page.`,
+    );
   }
 
   return { type: "formatted", content: lines.join("\n") + "\n" };
@@ -303,44 +390,90 @@ export const cardStatsModule: NativeReferenceModule = {
     "Data source: 17Lands (17lands.com), licensed CC BY 4.0.",
   ].join("\n"),
   parameters: {
-    set: { type: "string", description: "Set code (e.g., 'DSK'). Required for all queries except listing available sets." },
-    card: { type: "string", description: "Card name search (fuzzy). Returns detailed stats including color pair breakdowns." },
-    colors: { type: "string", description: "Color pair filter for archetype-specific stats (e.g., 'UB')." },
-    sort: { type: "string", description: "Sort field for leaderboard: 'gihwr' (default), 'ohwr', 'iwd', 'alsa', 'ata'." },
-    limit: { type: "integer", description: "Max results for leaderboard (default 25)." },
-    offset: { type: "integer", description: "Pagination offset for leaderboard." },
+    set: {
+      type: "string",
+      description:
+        "Set code (e.g., 'DSK'). Required for all queries except listing available sets.",
+    },
+    card: {
+      type: "string",
+      description:
+        "Card name search (fuzzy). Returns detailed stats including color pair breakdowns.",
+    },
+    colors: {
+      type: "string",
+      description:
+        "Color pair filter for archetype-specific stats (e.g., 'UB').",
+    },
+    sort: {
+      type: "string",
+      description:
+        "Sort field for leaderboard: 'gihwr' (default), 'ohwr', 'iwd', 'alsa', 'ata'.",
+    },
+    limit: {
+      type: "integer",
+      description: "Max results for leaderboard (default 25).",
+    },
+    offset: {
+      type: "integer",
+      description: "Pagination offset for leaderboard.",
+    },
   },
 
-  async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
+  async execute(
+    query: Record<string, unknown>,
+    env: Env,
+  ): Promise<ReferenceResult> {
     const setCode = ((query.set as string) ?? "").toUpperCase();
     const card = (query.card as string) ?? "";
     const colors = ((query.colors as string) ?? "").toUpperCase();
     const sort = ((query.sort as string) ?? "").toLowerCase();
-    const limit = Math.min(Math.max(typeof query.limit === "number" ? query.limit : DEFAULT_PAGE_SIZE, 1), 100);
-    const offset = Math.max(typeof query.offset === "number" ? query.offset : 0, 0);
+    const limit = Math.min(
+      Math.max(
+        typeof query.limit === "number" ? query.limit : DEFAULT_PAGE_SIZE,
+        1,
+      ),
+      100,
+    );
+    const offset = Math.max(
+      typeof query.offset === "number" ? query.offset : 0,
+      0,
+    );
 
     if (!setCode) {
       return listAvailableSets(env.DB);
     }
 
-    const setStats = await env.DB
-      .prepare("SELECT * FROM mtga_draft_set_stats WHERE set_code = ?1")
+    const setStats = await env.DB.prepare(
+      "SELECT * FROM mtga_draft_set_stats WHERE set_code = ?1",
+    )
       .bind(setCode)
       .first<SetStatsRow>();
 
     if (!setStats) {
-      const available = await env.DB
-        .prepare("SELECT set_code FROM mtga_draft_set_stats ORDER BY set_code")
-        .all<{ set_code: string }>();
+      const available = await env.DB.prepare(
+        "SELECT set_code FROM mtga_draft_set_stats ORDER BY set_code",
+      ).all<{ set_code: string }>();
       const codes = available.results.map((r) => r.set_code).join(", ");
-      return { type: "formatted", content: `Set "${setCode}" not found. Available sets: ${codes}\n` };
+      return {
+        type: "formatted",
+        content: `Set "${setCode}" not found. Available sets: ${codes}\n`,
+      };
     }
 
     if (card) {
       return cardDetail(env.DB, setCode, card, setStats);
     }
     if (sort || limit !== DEFAULT_PAGE_SIZE || offset > 0) {
-      return leaderboard(env.DB, setCode, sort, colors, limit, offset, setStats);
+      return leaderboard(
+        env.DB,
+        setCode,
+        sort,
+        colors,
+        limit,
+        offset,
+        setStats,
+      );
     }
 
     return setOverview(env.DB, setCode, setStats);

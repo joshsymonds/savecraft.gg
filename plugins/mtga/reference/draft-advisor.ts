@@ -9,7 +9,10 @@
  */
 
 import type { Env } from "../../../worker/src/types";
-import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
+import type {
+  NativeReferenceModule,
+  ReferenceResult,
+} from "../../../worker/src/reference/types";
 
 interface RatingRow {
   set_code: string;
@@ -91,9 +94,15 @@ interface PickRecommendation {
   rank: number;
   axes: {
     baseline: AxisScore & { gihwr: number; source: string };
-    synergy: AxisScore & { top_synergies: Array<{ card: string; delta: number }> };
+    synergy: AxisScore & {
+      top_synergies: Array<{ card: string; delta: number }>;
+    };
     role: AxisScore & { roles: string[]; detail: string };
-    curve: AxisScore & { cmc: number; pool_at_cmc: number; ideal_at_cmc: number };
+    curve: AxisScore & {
+      cmc: number;
+      pool_at_cmc: number;
+      ideal_at_cmc: number;
+    };
     castability: AxisScore & { max_pips: number; estimated_sources: number };
     signal: AxisScore & { ata: number; current_pick: number };
   };
@@ -124,7 +133,7 @@ function hypergeomCDF(N: number, K: number, n: number, k: number): number {
   if (K < k) return 0;
   let sum = 0;
   for (let i = 0; i < k; i++) {
-    sum += binomCoeff(K, i) * binomCoeff(N - K, n - i) / binomCoeff(N, n);
+    sum += (binomCoeff(K, i) * binomCoeff(N - K, n - i)) / binomCoeff(N, n);
   }
   return 1 - sum;
 }
@@ -135,7 +144,7 @@ function binomCoeff(n: number, k: number): number {
   let result = 1;
   const m = Math.min(k, n - k);
   for (let i = 0; i < m; i++) {
-    result = result * (n - i) / (i + 1);
+    result = (result * (n - i)) / (i + 1);
   }
   return Math.round(result);
 }
@@ -148,14 +157,23 @@ const CASTABILITY_TABLE: number[][][] = (() => {
       table[sources]![pips] = [];
       for (let turn = 1; turn <= 6; turn++) {
         const cardsSeen = 7 + turn - 1;
-        table[sources]![pips]![turn] = hypergeomCDF(40, sources, cardsSeen, pips);
+        table[sources]![pips]![turn] = hypergeomCDF(
+          40,
+          sources,
+          cardsSeen,
+          pips,
+        );
       }
     }
   }
   return table;
 })();
 
-function castabilityLookup(sources: number, pips: number, turn: number): number {
+function castabilityLookup(
+  sources: number,
+  pips: number,
+  turn: number,
+): number {
   const s = Math.max(0, Math.min(17, Math.round(sources)));
   const p = Math.max(1, Math.min(3, pips));
   const t = Math.max(1, Math.min(6, turn));
@@ -184,7 +202,7 @@ function estimateSources(poolMeta: CardMetaRow[]): Map<string, number> {
 
   const sources = new Map<string, number>();
   for (const [color, count] of totalPips) {
-    sources.set(color, Math.round(17 * count / pipSum));
+    sources.set(color, Math.round((17 * count) / pipSum));
   }
   return sources;
 }
@@ -200,17 +218,26 @@ function sigmoid(x: number, center: number, steepness: number): number {
   return 1 / (1 + Math.exp(-steepness * (x - center)));
 }
 
-const DEFAULT_SIGMOID_PARAMS: Record<string, { center: number; steepness: number }> = {
+const DEFAULT_SIGMOID_PARAMS: Record<
+  string,
+  { center: number; steepness: number }
+> = {
   baseline: { center: 0.535, steepness: 25 },
-  synergy:  { center: 0, steepness: 4 },
-  curve:    { center: 0, steepness: 3 },
-  signal:   { center: 0, steepness: 3 },
-  role:     { center: 0.3, steepness: 5 },
+  synergy: { center: 0, steepness: 4 },
+  curve: { center: 0, steepness: 3 },
+  signal: { center: 0, steepness: 3 },
+  role: { center: 0.3, steepness: 5 },
 };
 
 // ── Continuous pick-adaptive weights ─────────────────────────
 
-function smoothWeight(pick: number, startVal: number, endVal: number, midpoint: number, steepness: number): number {
+function smoothWeight(
+  pick: number,
+  startVal: number,
+  endVal: number,
+  midpoint: number,
+  steepness: number,
+): number {
   const t = sigmoid(pick, midpoint, steepness);
   return startVal + (endVal - startVal) * t;
 }
@@ -225,12 +252,12 @@ interface WeightSet {
 }
 
 function getWeights(pickNumber: number): WeightSet {
-  const baseline = smoothWeight(pickNumber, 0.40, 0.15, 15, 0.25);
-  const synergy = smoothWeight(pickNumber, 0.05, 0.30, 18, 0.20);
-  const curve = smoothWeight(pickNumber, 0.05, 0.15, 22, 0.20);
-  const signal = smoothWeight(pickNumber, 0.25, 0.10, 12, 0.25);
+  const baseline = smoothWeight(pickNumber, 0.4, 0.15, 15, 0.25);
+  const synergy = smoothWeight(pickNumber, 0.05, 0.3, 18, 0.2);
+  const curve = smoothWeight(pickNumber, 0.05, 0.15, 22, 0.2);
+  const signal = smoothWeight(pickNumber, 0.25, 0.1, 12, 0.25);
   const role = smoothWeight(pickNumber, 0.05, 0.25, 20, 0.25);
-  const castability = smoothWeight(pickNumber, 0.20, 0.05, 10, 1 / 3);
+  const castability = smoothWeight(pickNumber, 0.2, 0.05, 10, 1 / 3);
 
   const total = baseline + synergy + curve + signal + role + castability;
   return {
@@ -257,7 +284,16 @@ function r4(v: number): number {
 // ── Archetype detection ──────────────────────────────────────
 
 const ALL_COLOR_PAIRS = [
-  "WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG",
+  "WU",
+  "WB",
+  "WR",
+  "WG",
+  "UB",
+  "UR",
+  "UG",
+  "BR",
+  "BG",
+  "RG",
 ];
 
 function determineCandidateArchetypes(
@@ -371,36 +407,65 @@ async function preloadSetData(
     const chunk = uniqueNames.slice(i, i + META_BATCH_SIZE);
     const ph = placeholders(chunk.length, 1);
     metaChunks.push(
-      db.prepare(`SELECT front_face_name AS name, cmc, mana_cost, colors, type_line FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`)
+      db
+        .prepare(
+          `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
+        )
         .bind(...chunk)
         .all<CardMetaRow>(),
     );
   }
 
-  const [calibrationResult, roleTargetResult, curveResult, cardRoleResult, ratingsResult, colorStatsResult, ...metaResults] = await Promise.all([
-    db.prepare(`SELECT axis, center, steepness FROM mtga_draft_calibration WHERE set_code = ?1`)
+  const [
+    calibrationResult,
+    roleTargetResult,
+    curveResult,
+    cardRoleResult,
+    ratingsResult,
+    colorStatsResult,
+    ...metaResults
+  ] = await Promise.all([
+    db
+      .prepare(
+        `SELECT axis, center, steepness FROM mtga_draft_calibration WHERE set_code = ?1`,
+      )
       .bind(setCode)
       .all<CalibrationRow>(),
-    db.prepare(`SELECT color_pair, role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1`)
+    db
+      .prepare(
+        `SELECT color_pair, role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1`,
+      )
       .bind(setCode)
       .all<RoleTargetRow>(),
-    db.prepare(`SELECT color_pair, cmc, avg_count, total_decks FROM mtga_draft_archetype_curves WHERE set_code = ?1`)
+    db
+      .prepare(
+        `SELECT color_pair, cmc, avg_count, total_decks FROM mtga_draft_archetype_curves WHERE set_code = ?1`,
+      )
       .bind(setCode)
       .all<CurveDbRow>(),
-    db.prepare(`SELECT front_face_name, role FROM mtga_card_roles WHERE set_code = ?1`)
+    db
+      .prepare(
+        `SELECT front_face_name, role FROM mtga_card_roles WHERE set_code = ?1`,
+      )
       .bind(setCode)
       .all<CardRoleRow>(),
-    db.prepare(`SELECT * FROM mtga_draft_ratings WHERE set_code = ?1`)
+    db
+      .prepare(`SELECT * FROM mtga_draft_ratings WHERE set_code = ?1`)
       .bind(setCode)
       .all<RatingRow>(),
-    db.prepare(`SELECT set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_color_stats WHERE set_code = ?1`)
+    db
+      .prepare(
+        `SELECT set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_color_stats WHERE set_code = ?1`,
+      )
       .bind(setCode)
       .all<RatingRow & { color_pair: string }>(),
     ...metaChunks,
   ]);
 
   // Build sigmoid params.
-  const sigmoidParams: Record<string, { center: number; steepness: number }> = { ...DEFAULT_SIGMOID_PARAMS };
+  const sigmoidParams: Record<string, { center: number; steepness: number }> = {
+    ...DEFAULT_SIGMOID_PARAMS,
+  };
   for (const cal of calibrationResult.results) {
     sigmoidParams[cal.axis] = { center: cal.center, steepness: cal.steepness };
   }
@@ -474,7 +539,9 @@ async function contextualPick(
         const chunk = missing.slice(i, i + META_BATCH_SIZE);
         const ph = placeholders(chunk.length, 1);
         const result = await db
-          .prepare(`SELECT front_face_name AS name, cmc, mana_cost, colors, type_line FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`)
+          .prepare(
+            `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
+          )
           .bind(...chunk)
           .all<CardMetaRow>();
         for (const row of result.results) {
@@ -486,36 +553,55 @@ async function contextualPick(
   } else {
     const metaPlaceholders = placeholders(allNames.length, 1);
     const metaResult = await db
-      .prepare(`SELECT front_face_name AS name, cmc, mana_cost, colors, type_line FROM mtga_cards WHERE front_face_name IN (${metaPlaceholders}) AND is_default = 1`)
+      .prepare(
+        `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line FROM mtga_cards WHERE front_face_name IN (${metaPlaceholders}) AND is_default = 1`,
+      )
       .bind(...allNames)
       .all<CardMetaRow>();
     metaByName = new Map(metaResult.results.map((r) => [r.name, r]));
   }
 
-  const poolMeta = pool.map((n) => metaByName.get(n)).filter((m): m is CardMetaRow => m != null);
-  const packMeta = pack.map((n) => metaByName.get(n)).filter((m): m is CardMetaRow => m != null);
+  const poolMeta = pool
+    .map((n) => metaByName.get(n))
+    .filter((m): m is CardMetaRow => m != null);
+  const packMeta = pack
+    .map((n) => metaByName.get(n))
+    .filter((m): m is CardMetaRow => m != null);
 
   // 2. Determine candidate archetypes.
   const candidates = determineCandidateArchetypes(poolMeta);
   const primaryArchetype = candidates[0]?.colorPair ?? "_overall";
-  const confidence = candidates.length > 0
-    ? (candidates[0]?.weight ?? 0)
-    : 0;
+  const confidence = candidates.length > 0 ? (candidates[0]?.weight ?? 0) : 0;
 
   // 3. Fetch baseline stats for pack cards.
   const packNames = packMeta.map((m) => m.name);
   if (packNames.length === 0) {
-    return { type: "structured", data: { error: "No pack cards found in card database" } };
+    return {
+      type: "structured",
+      data: { error: "No pack cards found in card database" },
+    };
   }
 
   const realCandidates = candidates.filter((c) => c.colorPair !== "_overall");
   const poolNames = poolMeta.map((m) => m.name);
-  const allCardNames = [...new Set([...poolMeta.map((m) => m.name), ...packMeta.map((m) => m.name)])];
+  const allCardNames = [
+    ...new Set([
+      ...poolMeta.map((m) => m.name),
+      ...packMeta.map((m) => m.name),
+    ]),
+  ];
 
   // Build all query promises — use preloaded data when available.
   const overallPromise: Promise<{ results: RatingRow[] }> = preloaded
-    ? Promise.resolve({ results: packNames.map((n) => preloaded.allRatings.get(n)).filter((r): r is RatingRow => r != null) })
-    : db.prepare(`SELECT * FROM mtga_draft_ratings WHERE set_code = ?1 AND card_name IN (${placeholders(packNames.length, 2)})`)
+    ? Promise.resolve({
+        results: packNames
+          .map((n) => preloaded.allRatings.get(n))
+          .filter((r): r is RatingRow => r != null),
+      })
+    : db
+        .prepare(
+          `SELECT * FROM mtga_draft_ratings WHERE set_code = ?1 AND card_name IN (${placeholders(packNames.length, 2)})`,
+        )
         .bind(setCode, ...packNames)
         .all<RatingRow>();
 
@@ -523,56 +609,74 @@ async function contextualPick(
     ? realCandidates.map((cand) => {
         const byCard = preloaded.allColorStats.get(cand.colorPair);
         const results = byCard
-          ? packNames.map((n) => byCard.get(n)).filter((r): r is RatingRow => r != null)
+          ? packNames
+              .map((n) => byCard.get(n))
+              .filter((r): r is RatingRow => r != null)
           : [];
         return Promise.resolve({ results });
       })
     : realCandidates.map((cand) => {
         const colorPlaceholders = placeholders(packNames.length, 3);
         return db
-          .prepare(`SELECT set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_color_stats WHERE set_code = ?1 AND color_pair = ?2 AND card_name IN (${colorPlaceholders})`)
+          .prepare(
+            `SELECT set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_color_stats WHERE set_code = ?1 AND color_pair = ?2 AND card_name IN (${colorPlaceholders})`,
+          )
           .bind(setCode, cand.colorPair, ...packNames)
           .all<RatingRow>();
       });
 
   // Synergies are always pick-dependent — always query.
-  const synergyPromise = (poolNames.length > 0 && packNames.length > 0)
-    ? (() => {
-      const packPH = placeholders(packNames.length, 2);
-      const poolPH = placeholders(poolNames.length, 2 + packNames.length);
-      return db
-        .prepare(`SELECT card_a, card_b, synergy_delta FROM mtga_draft_synergies WHERE set_code = ?1 AND card_a IN (${packPH}) AND card_b IN (${poolPH})`)
-        .bind(setCode, ...packNames, ...poolNames)
-        .all<SynergyDbRow>();
-    })()
-    : Promise.resolve({ results: [] as SynergyDbRow[] });
+  const synergyPromise =
+    poolNames.length > 0 && packNames.length > 0
+      ? (() => {
+          const packPH = placeholders(packNames.length, 2);
+          const poolPH = placeholders(poolNames.length, 2 + packNames.length);
+          return db
+            .prepare(
+              `SELECT card_a, card_b, synergy_delta FROM mtga_draft_synergies WHERE set_code = ?1 AND card_a IN (${packPH}) AND card_b IN (${poolPH})`,
+            )
+            .bind(setCode, ...packNames, ...poolNames)
+            .all<SynergyDbRow>();
+        })()
+      : Promise.resolve({ results: [] as SynergyDbRow[] });
 
   const curvePromise: Promise<{ results: CurveDbRow[] }> = preloaded
     ? Promise.resolve({
-        results: primaryArchetype !== "_overall"
-          ? preloaded.allCurves.filter((r) => r.color_pair === primaryArchetype)
-          : [],
+        results:
+          primaryArchetype !== "_overall"
+            ? preloaded.allCurves.filter(
+                (r) => r.color_pair === primaryArchetype,
+              )
+            : [],
       })
-    : (primaryArchetype !== "_overall")
-      ? db.prepare(`SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND color_pair = ?2`)
+    : primaryArchetype !== "_overall"
+      ? db
+          .prepare(
+            `SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND color_pair = ?2`,
+          )
           .bind(setCode, primaryArchetype)
           .all<CurveDbRow>()
       : Promise.resolve({ results: [] as CurveDbRow[] });
 
   const rolePromise: Promise<{ results: CardRoleRow[] }> = preloaded
     ? Promise.resolve({
-        results: allCardNames.length > 0
-          ? (() => {
-              const nameSet = new Set(allCardNames);
-              return preloaded.allCardRoles.filter((r) => nameSet.has(r.front_face_name));
-            })()
-          : [],
+        results:
+          allCardNames.length > 0
+            ? (() => {
+                const nameSet = new Set(allCardNames);
+                return preloaded.allCardRoles.filter((r) =>
+                  nameSet.has(r.front_face_name),
+                );
+              })()
+            : [],
       })
-    : (allCardNames.length > 0)
+    : allCardNames.length > 0
       ? (() => {
           const rolePH = placeholders(allCardNames.length, 2);
           return db
-            .prepare(`SELECT front_face_name, role FROM mtga_card_roles WHERE set_code = ?1 AND front_face_name IN (${rolePH})`)
+            .prepare(
+              `SELECT front_face_name, role FROM mtga_card_roles WHERE set_code = ?1 AND front_face_name IN (${rolePH})`,
+            )
             .bind(setCode, ...allCardNames)
             .all<CardRoleRow>();
         })()
@@ -580,13 +684,19 @@ async function contextualPick(
 
   const roleTargetPromise: Promise<{ results: RoleTargetRow[] }> = preloaded
     ? Promise.resolve({ results: preloaded.roleTargets })
-    : db.prepare(`SELECT color_pair, role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1`)
+    : db
+        .prepare(
+          `SELECT color_pair, role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1`,
+        )
         .bind(setCode)
         .all<RoleTargetRow>();
 
   const calibrationPromise: Promise<{ results: CalibrationRow[] }> = preloaded
     ? Promise.resolve({ results: [] as CalibrationRow[] }) // sigmoid params already built
-    : db.prepare(`SELECT axis, center, steepness FROM mtga_draft_calibration WHERE set_code = ?1`)
+    : db
+        .prepare(
+          `SELECT axis, center, steepness FROM mtga_draft_calibration WHERE set_code = ?1`,
+        )
         .bind(setCode)
         .all<CalibrationRow>();
 
@@ -600,8 +710,17 @@ async function contextualPick(
     calibrationPromise,
   ]);
   const overallRatings = allResults[0] as Awaited<typeof overallPromise>;
-  const colorStatsResults = allResults.slice(1, 1 + colorStatsPromises.length) as Array<Awaited<(typeof colorStatsPromises)[number]>>;
-  const [synergyResult, curveResult, roleResult, roleTargetResult, calibrationResult] = allResults.slice(1 + colorStatsPromises.length) as [
+  const colorStatsResults = allResults.slice(
+    1,
+    1 + colorStatsPromises.length,
+  ) as Array<Awaited<(typeof colorStatsPromises)[number]>>;
+  const [
+    synergyResult,
+    curveResult,
+    roleResult,
+    roleTargetResult,
+    calibrationResult,
+  ] = allResults.slice(1 + colorStatsPromises.length) as [
     Awaited<typeof synergyPromise>,
     Awaited<typeof curvePromise>,
     Awaited<typeof rolePromise>,
@@ -609,15 +728,22 @@ async function contextualPick(
     Awaited<typeof calibrationPromise>,
   ];
 
-  const overallByName = new Map(overallRatings.results.map((r) => [r.card_name, r]));
+  const overallByName = new Map(
+    overallRatings.results.map((r) => [r.card_name, r]),
+  );
 
   const colorStatsByPairAndCard = new Map<string, Map<string, RatingRow>>();
   for (let i = 0; i < realCandidates.length; i++) {
-    const byCard = new Map(colorStatsResults[i]!.results.map((r) => [r.card_name, r]));
+    const byCard = new Map(
+      colorStatsResults[i]!.results.map((r) => [r.card_name, r]),
+    );
     colorStatsByPairAndCard.set(realCandidates[i]!.colorPair, byCard);
   }
 
-  const synergyByPackCard = new Map<string, Array<{ card: string; delta: number }>>();
+  const synergyByPackCard = new Map<
+    string,
+    Array<{ card: string; delta: number }>
+  >();
   for (const row of synergyResult.results) {
     let list = synergyByPackCard.get(row.card_a);
     if (!list) {
@@ -685,7 +811,9 @@ async function contextualPick(
   const sp: Record<string, { center: number; steepness: number }> = preloaded
     ? preloaded.sigmoidParams
     : (() => {
-        const built: Record<string, { center: number; steepness: number }> = { ...DEFAULT_SIGMOID_PARAMS };
+        const built: Record<string, { center: number; steepness: number }> = {
+          ...DEFAULT_SIGMOID_PARAMS,
+        };
         for (const cal of calibrationResult.results) {
           built[cal.axis] = { center: cal.center, steepness: cal.steepness };
         }
@@ -717,11 +845,16 @@ async function contextualPick(
       } else {
         const histPH = placeholders(historyNames.length, 2);
         const ataResult = await db
-          .prepare(`SELECT card_name, ata, ata_stddev FROM mtga_draft_ratings WHERE set_code = ?1 AND card_name IN (${histPH})`)
+          .prepare(
+            `SELECT card_name, ata, ata_stddev FROM mtga_draft_ratings WHERE set_code = ?1 AND card_name IN (${histPH})`,
+          )
           .bind(setCode, ...historyNames)
           .all<{ card_name: string; ata: number; ata_stddev: number }>();
         for (const row of ataResult.results) {
-          ataByCard.set(row.card_name, { ata: row.ata, stddev: row.ata_stddev });
+          ataByCard.set(row.card_name, {
+            ata: row.ata,
+            stddev: row.ata_stddev,
+          });
         }
       }
 
@@ -741,7 +874,9 @@ async function contextualPick(
             const chunk = stillMissing.slice(i, i + META_BATCH_SIZE);
             const ph = placeholders(chunk.length, 1);
             const extraMeta = await db
-              .prepare(`SELECT front_face_name AS name, cmc, mana_cost, colors FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`)
+              .prepare(
+                `SELECT front_face_name AS name, cmc, mana_cost, colors FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
+              )
               .bind(...chunk)
               .all<CardMetaRow>();
             for (const r of extraMeta.results) {
@@ -755,7 +890,9 @@ async function contextualPick(
         if (missingMeta.length > 0) {
           const missingPH = placeholders(missingMeta.length, 1);
           const extraMeta = await db
-            .prepare(`SELECT front_face_name AS name, cmc, mana_cost, colors FROM mtga_cards WHERE front_face_name IN (${missingPH}) AND is_default = 1`)
+            .prepare(
+              `SELECT front_face_name AS name, cmc, mana_cost, colors FROM mtga_cards WHERE front_face_name IN (${missingPH}) AND is_default = 1`,
+            )
             .bind(...missingMeta)
             .all<CardMetaRow>();
           for (const r of extraMeta.results) {
@@ -809,7 +946,9 @@ async function contextualPick(
     // Synergy: sum of deltas with pool cards.
     const synergies = synergyByPackCard.get(name) ?? [];
     const synergySum = synergies.reduce((s, syn) => s + syn.delta, 0);
-    const topSynergies = [...synergies].sort((a, b) => b.delta - a.delta).slice(0, 3);
+    const topSynergies = [...synergies]
+      .sort((a, b) => b.delta - a.delta)
+      .slice(0, 3);
 
     // Curve: gap detection + ideal curve comparison.
     const isLand = packCard.type_line?.includes("Land") ?? false;
@@ -890,7 +1029,8 @@ async function contextualPick(
 
     if (pickNumber <= 5) {
       const dampenFactor = Math.max(0, (6 - pickNumber) / 5);
-      castabilityScore = castabilityScore + (1 - castabilityScore) * dampenFactor;
+      castabilityScore =
+        castabilityScore + (1 - castabilityScore) * dampenFactor;
     }
 
     // Sigmoid normalization.
@@ -995,7 +1135,10 @@ async function contextualPick(
     data: {
       archetype: {
         primary: primaryArchetype,
-        candidates: candidates.map((c) => ({ color_pair: c.colorPair, weight: Math.round(c.weight * 100) / 100 })),
+        candidates: candidates.map((c) => ({
+          color_pair: c.colorPair,
+          weight: Math.round(c.weight * 100) / 100,
+        })),
         confidence: Math.round(confidence * 100) / 100,
       },
       pick_number: pickNumber,
@@ -1061,7 +1204,11 @@ async function batchReview(
     // Run contextual evaluation for this pick with pool-so-far and the history up to this point.
     const historyUpToNow = pickHistory.slice(0, i);
     const pickResult = await contextualPick(
-      db, setCode, [...poolSoFar], entry.available, pickNumber,
+      db,
+      setCode,
+      [...poolSoFar],
+      entry.available,
+      pickNumber,
       historyUpToNow.length > 0 ? historyUpToNow : undefined,
       preloaded,
     );
@@ -1117,9 +1264,10 @@ async function batchReview(
         good,
         questionable,
         misses,
-        score: results.length > 0
-          ? `${optimal}/${results.length} optimal, ${good} good, ${questionable} questionable, ${misses} misses`
-          : "No picks to evaluate",
+        score:
+          results.length > 0
+            ? `${optimal}/${results.length} optimal, ${good} good, ${questionable} questionable, ${misses} misses`
+            : "No picks to evaluate",
       },
       picks: results,
     },
@@ -1154,61 +1302,116 @@ export const draftAdvisorModule: NativeReferenceModule = {
   ].join("\n"),
   parameters: {
     set: { type: "string", description: "Set code (e.g., 'TMT'). Required." },
-    pool: { type: "array", items: { type: "string" }, description: "Card names already drafted. Required for live pick mode." },
-    pack: { type: "array", items: { type: "string" }, description: "Card names available in current pack. Required for live pick mode." },
-    pick_number: { type: "integer", description: "Current pick number (1-42). Affects weight profile. Default 10." },
-    pick_history: { type: "array", items: { type: "object", properties: { available: { type: "array", items: { type: "string" } }, chosen: { type: "string" } } }, description: "Full draft pick history. Each entry: {available: string[], chosen: string}. For live pick: enables accumulated signal. For batch review: all picks must have 'chosen' set." },
+    pool: {
+      type: "array",
+      items: { type: "string" },
+      description: "Card names already drafted. Required for live pick mode.",
+    },
+    pack: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Card names available in current pack. Required for live pick mode.",
+    },
+    pick_number: {
+      type: "integer",
+      description:
+        "Current pick number (1-42). Affects weight profile. Default 10.",
+    },
+    pick_history: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          available: { type: "array", items: { type: "string" } },
+          chosen: { type: "string" },
+        },
+      },
+      description:
+        "Full draft pick history. Each entry: {available: string[], chosen: string}. For live pick: enables accumulated signal. For batch review: all picks must have 'chosen' set.",
+    },
   },
 
-  async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
+  async execute(
+    query: Record<string, unknown>,
+    env: Env,
+  ): Promise<ReferenceResult> {
     const setCode = ((query.set as string) ?? "").toUpperCase();
     const pool = ((query.pool as string[]) ?? []).slice(0, 45);
     const pack = ((query.pack as string[]) ?? []).slice(0, 15);
-    const pickNumber = Math.max(1, Math.min(42, typeof query.pick_number === "number" ? query.pick_number : 10));
+    const pickNumber = Math.max(
+      1,
+      Math.min(
+        42,
+        typeof query.pick_number === "number" ? query.pick_number : 10,
+      ),
+    );
     const pickHistory = Array.isArray(query.pick_history)
       ? (query.pick_history as Array<{ available?: string[]; chosen?: string }>)
           .slice(0, 42)
           .filter((e) => Array.isArray(e?.available))
-          .map((e) => ({ available: e.available!.slice(0, 15), chosen: e.chosen ?? "" }))
+          .map((e) => ({
+            available: e.available!.slice(0, 15),
+            chosen: e.chosen ?? "",
+          }))
       : undefined;
 
     if (!setCode) {
-      return { type: "formatted", content: "Set code is required. Pass {set: 'TMT'} or similar.\n" };
+      return {
+        type: "formatted",
+        content: "Set code is required. Pass {set: 'TMT'} or similar.\n",
+      };
     }
 
     // Validate set exists.
-    const setStats = await env.DB
-      .prepare("SELECT * FROM mtga_draft_set_stats WHERE set_code = ?1")
+    const setStats = await env.DB.prepare(
+      "SELECT * FROM mtga_draft_set_stats WHERE set_code = ?1",
+    )
       .bind(setCode)
       .first<SetStatsRow>();
 
     if (!setStats) {
-      const available = await env.DB
-        .prepare("SELECT set_code FROM mtga_draft_set_stats ORDER BY set_code")
-        .all<{ set_code: string }>();
+      const available = await env.DB.prepare(
+        "SELECT set_code FROM mtga_draft_set_stats ORDER BY set_code",
+      ).all<{ set_code: string }>();
       const codes = available.results.map((r) => r.set_code).join(", ");
-      return { type: "formatted", content: `Set "${setCode}" not found. Available sets: ${codes}\n` };
+      return {
+        type: "formatted",
+        content: `Set "${setCode}" not found. Available sets: ${codes}\n`,
+      };
     }
 
     // Mode 1: Live pick (pool + pack present).
     if (pool.length > 0 && pack.length > 0) {
-      return contextualPick(env.DB, setCode, pool, pack, pickNumber, pickHistory);
+      return contextualPick(
+        env.DB,
+        setCode,
+        pool,
+        pack,
+        pickNumber,
+        pickHistory,
+      );
     }
 
     // Mode 2: Batch review (pick_history with all chosen present, no pool/pack).
-    if (pickHistory && pickHistory.length > 0 && pickHistory.every((e) => e.chosen !== "")) {
+    if (
+      pickHistory &&
+      pickHistory.length > 0 &&
+      pickHistory.every((e) => e.chosen !== "")
+    ) {
       return batchReview(env.DB, setCode, pickHistory);
     }
 
     return {
       type: "formatted",
-      content: [
-        "Draft Advisor requires either:",
-        "  1. Live pick: set + pool + pack (+ optional pick_number, pick_history)",
-        "  2. Batch review: set + pick_history (all picks must have 'chosen')",
-        "",
-        "For browsing card stats without draft context, use card_stats instead.",
-      ].join("\n") + "\n",
+      content:
+        [
+          "Draft Advisor requires either:",
+          "  1. Live pick: set + pool + pack (+ optional pick_number, pick_history)",
+          "  2. Batch review: set + pick_history (all picks must have 'chosen')",
+          "",
+          "For browsing card stats without draft context, use card_stats instead.",
+        ].join("\n") + "\n",
     };
   },
 };
