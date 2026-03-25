@@ -4,13 +4,6 @@ on:
   push:
     branches: [main]
     tags: ["cloud-v*"]
-    paths:
-      - 'worker/**'
-      - 'web/**'
-      - 'site/**'
-      - 'plugins/*/plugin.toml'
-      - 'plugins/*/icon.*'
-      - '.github/workflows/deploy-cloud.yml'
   pull_request:
     paths:
       - 'worker/**'
