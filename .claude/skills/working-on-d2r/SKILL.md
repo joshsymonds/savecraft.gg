@@ -5,7 +5,7 @@ description: D2R save file parser development for Savecraft. Use when working on
 
 # Working on the D2R Parser
 
-The parser lives in `plugins/d2r/d2s/`. It's a WASM plugin that reads `.d2s` binary save files and emits ndjson to stdout. See `docs/plugins.md` for the plugin contract and `working-on-plugins` skill for section design guidance. Note: the D2R character parser's `character` section doesn't match `OVERVIEW_SECTION_NAMES` — it needs renaming to `character_overview` or adding a dedicated overview section.
+The parser lives in `plugins/d2r/d2s/`. It's a WASM plugin that reads `.d2s` binary save files and emits ndjson to stdout. See `docs/plugins.md` for the plugin contract and `working-on-plugins` skill for section design guidance.
 
 ## Verification
 

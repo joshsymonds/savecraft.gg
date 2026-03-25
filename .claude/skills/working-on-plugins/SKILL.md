@@ -106,12 +106,12 @@ Section descriptions are the AI's guide for when to fetch a section. Write them 
 
 | Game | Overview Section | Per-Item Sections | Reference |
 |------|-----------------|-------------------|-----------|
-| D2R Character | `character` (no overview match — needs fix) | None (sections are small) | `plugins/d2r/parser/main.go` |
+| D2R Character | `character_overview` | None (sections are small) | `plugins/d2r/parser/main.go` |
 | D2R Stash | `overview` | `tab1`, `tab2`, ... | `plugins/d2r/parser/main.go:545` |
 | MTGA | `player_summary` | `deck:*`, `game:*` | `plugins/mtga/parser/main.go` |
 | Clair Obscur | `overview` | `character:*` | `plugins/clair-obscur/parser/` |
 | WoW | `character_overview` | None (API data is bounded) | `worker/src/adapters/wow/` |
-| SDV | None (falls back to `bundles` — needs fix) | None | `plugins/sdv/parser/main.go` |
+| SDV | `player_summary` | None (data is naturally bounded) | `plugins/sdv/parser/main.go` |
 
 ## Checklist for New Plugins
 
