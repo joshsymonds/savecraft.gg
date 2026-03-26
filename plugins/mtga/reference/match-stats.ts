@@ -11,7 +11,7 @@ import type {
   NativeReferenceModule,
   ReferenceResult,
 } from "../../../worker/src/reference/types";
-import { classifyArchetype } from "./archetype";
+import { buildColorMap, classifyFromColorMap } from "./archetype";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -50,22 +50,7 @@ function padLeft(s: string, len: number): string {
 // ── Query implementations ────────────────────────────────────
 
 async function overview(userId: string, env: Env): Promise<ReferenceResult> {
-  const total = await env.DB.prepare(
-    "SELECT COUNT(*) as n FROM mtga_match_history WHERE user_uuid = ?",
-  )
-    .bind(userId)
-    .first<{ n: number }>();
-
-  if (!total || total.n === 0) {
-    return { type: "formatted", content: "No match history found." };
-  }
-
-  const wins = await env.DB.prepare(
-    "SELECT COUNT(*) as n FROM mtga_match_history WHERE user_uuid = ? AND result = 'win'",
-  )
-    .bind(userId)
-    .first<{ n: number }>();
-
+  // Single query: format breakdown gives us totals for free
   const byFormat = await env.DB.prepare(
     `SELECT format as group_key, COUNT(*) as total,
             SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins
@@ -75,8 +60,15 @@ async function overview(userId: string, env: Env): Promise<ReferenceResult> {
     .bind(userId)
     .all<WinRateRow>();
 
+  if (byFormat.results.length === 0) {
+    return { type: "formatted", content: "No match history found." };
+  }
+
+  const totalMatches = byFormat.results.reduce((sum, f) => sum + f.total, 0);
+  const totalWins = byFormat.results.reduce((sum, f) => sum + f.wins, 0);
+
   const lines: string[] = [];
-  lines.push(`Match History — ${total.n} matches, ${pct(wins!.n, total.n)} overall win rate`);
+  lines.push(`Match History — ${totalMatches} matches, ${pct(totalWins, totalMatches)} overall win rate`);
   lines.push("");
 
   if (byFormat.results.length > 0) {
@@ -153,39 +145,53 @@ async function byFormat(userId: string, env: Env): Promise<ReferenceResult> {
   return { type: "formatted", content: lines.join("\n") + "\n" };
 }
 
+const MATCHUP_LIMIT = 500;
+
 async function byMatchup(
   userId: string,
   format: string | undefined,
   env: Env,
 ): Promise<ReferenceResult> {
-  // Get all matches with opponent cards
-  let query = "SELECT * FROM mtga_match_history WHERE user_uuid = ?";
+  let query = "SELECT match_id, result, opponent_cards FROM mtga_match_history WHERE user_uuid = ?";
   const binds: unknown[] = [userId];
   if (format) {
     query += " AND format = ?";
     binds.push(format);
   }
-  query += " ORDER BY played_at DESC";
+  query += ` ORDER BY played_at DESC LIMIT ${MATCHUP_LIMIT}`;
 
   const matches = await env.DB.prepare(query)
     .bind(...binds)
-    .all<MatchRow>();
+    .all<{ match_id: string; result: string; opponent_cards: string }>();
 
   if (matches.results.length === 0) {
     return { type: "formatted", content: "No match history found." };
   }
 
-  // Classify each opponent and aggregate
-  const archetypeStats = new Map<string, { wins: number; total: number }>();
+  // Collect all arena_ids across all matches for a single batch lookup
+  const allParsedCards: { matchIdx: number; cards: { name: string; arena_id: number }[] }[] = [];
+  const allArenaIds: number[] = [];
 
-  for (const m of matches.results) {
+  for (let i = 0; i < matches.results.length; i++) {
     let cards: { name: string; arena_id: number }[] = [];
     try {
-      cards = JSON.parse(m.opponent_cards);
+      cards = JSON.parse(matches.results[i].opponent_cards);
     } catch {
       // skip
     }
-    const archetype = await classifyArchetype(env.DB, cards);
+    allParsedCards.push({ matchIdx: i, cards });
+    for (const c of cards) allArenaIds.push(c.arena_id);
+  }
+
+  // Single batch D1 query for all card colors
+  const colorMap = await buildColorMap(env.DB, allArenaIds);
+
+  // Classify each match in memory
+  const archetypeStats = new Map<string, { wins: number; total: number }>();
+
+  for (const { matchIdx, cards } of allParsedCards) {
+    const m = matches.results[matchIdx];
+    const archetype = classifyFromColorMap(colorMap, cards);
     const stats = archetypeStats.get(archetype) ?? { wins: 0, total: 0 };
     stats.total++;
     if (m.result === "win") stats.wins++;
@@ -209,17 +215,20 @@ async function byMatchup(
   return { type: "formatted", content: lines.join("\n") + "\n" };
 }
 
+const MAX_TREND_COUNT = 100;
+
 async function trend(
   userId: string,
   count: number,
   env: Env,
 ): Promise<ReferenceResult> {
+  const safeCount = Math.min(Math.max(1, count), MAX_TREND_COUNT);
   const rows = await env.DB.prepare(
     `SELECT match_id, format, deck_name, result, opponent_name, played_at
      FROM mtga_match_history WHERE user_uuid = ?
      ORDER BY played_at DESC LIMIT ?`,
   )
-    .bind(userId, count)
+    .bind(userId, safeCount)
     .all<MatchRow>();
 
   if (rows.results.length === 0) {

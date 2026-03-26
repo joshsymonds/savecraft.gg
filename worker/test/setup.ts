@@ -319,7 +319,7 @@ const statements = [
   )`,
   // Constructed: match history (migration 0029)
   `CREATE TABLE IF NOT EXISTS mtga_match_history (
-    match_id TEXT PRIMARY KEY,
+    match_id TEXT NOT NULL,
     user_uuid TEXT NOT NULL,
     event_id TEXT NOT NULL,
     format TEXT NOT NULL DEFAULT '',
@@ -329,7 +329,8 @@ const statements = [
     opponent_name TEXT NOT NULL DEFAULT '',
     opponent_rank TEXT NOT NULL DEFAULT '',
     opponent_cards TEXT NOT NULL DEFAULT '[]',
-    played_at TEXT NOT NULL
+    played_at TEXT NOT NULL,
+    PRIMARY KEY (match_id, user_uuid)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_match_history_user_format ON mtga_match_history(user_uuid, format)`,
   `CREATE INDEX IF NOT EXISTS idx_match_history_user_deck ON mtga_match_history(user_uuid, deck_name)`,

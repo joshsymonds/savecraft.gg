@@ -14,7 +14,7 @@ import type {
   NativeReferenceModule,
   ReferenceResult,
 } from "../../../worker/src/reference/types";
-import { classifyArchetype } from "./archetype";
+import { buildColorMap, classifyFromColorMap } from "./archetype";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -44,7 +44,7 @@ interface BO3Stats {
 // ── Helpers ──────────────────────────────────────────────────
 
 function pct(wins: number, total: number): string {
-  if (total === 0) return "—";
+  if (total === 0) return "0.0%";
   return `${((wins / total) * 100).toFixed(1)}%`;
 }
 
@@ -85,11 +85,13 @@ function computeBO3Stats(games: GameResult[]): { g1Won: boolean; postBoardWins: 
 
 // ── Query implementations ────────────────────────────────────
 
+const MATCHUP_LIMIT = 500;
+
 async function bo3Overview(userId: string, env: Env): Promise<ReferenceResult> {
   const rows = await env.DB.prepare(
     `SELECT match_id, format, result, game_results, opponent_cards, played_at
      FROM mtga_match_history WHERE user_uuid = ?
-     ORDER BY played_at DESC`,
+     ORDER BY played_at DESC LIMIT ${MATCHUP_LIMIT}`,
   )
     .bind(userId)
     .all<MatchRow>();
@@ -146,20 +148,21 @@ async function byMatchup(
   format: string | undefined,
   env: Env,
 ): Promise<ReferenceResult> {
-  let query = "SELECT * FROM mtga_match_history WHERE user_uuid = ?";
+  let query = "SELECT match_id, result, opponent_cards, game_results FROM mtga_match_history WHERE user_uuid = ?";
   const binds: unknown[] = [userId];
   if (format) {
     query += " AND format = ?";
     binds.push(format);
   }
-  query += " ORDER BY played_at DESC";
+  query += ` ORDER BY played_at DESC LIMIT ${MATCHUP_LIMIT}`;
 
   const rows = await env.DB.prepare(query)
     .bind(...binds)
     .all<MatchRow>();
 
-  // Filter to BO3 and classify archetypes
-  const archetypeStats = new Map<string, BO3Stats>();
+  // Parse all matches and collect arena_ids for batch lookup
+  const parsedMatches: { row: MatchRow; games: GameResult[]; cards: { name: string; arena_id: number }[] }[] = [];
+  const allArenaIds: number[] = [];
 
   for (const row of rows.results) {
     const games = parseGames(row.game_results);
@@ -171,7 +174,22 @@ async function byMatchup(
     } catch {
       // skip
     }
-    const archetype = await classifyArchetype(env.DB, cards);
+    parsedMatches.push({ row, games, cards });
+    for (const c of cards) allArenaIds.push(c.arena_id);
+  }
+
+  if (parsedMatches.length === 0) {
+    return { type: "formatted", content: "No best-of-three match history found." };
+  }
+
+  // Single batch D1 query for all card colors
+  const colorMap = await buildColorMap(env.DB, allArenaIds);
+
+  // Classify each match in memory
+  const archetypeStats = new Map<string, BO3Stats>();
+
+  for (const { games, cards } of parsedMatches) {
+    const archetype = classifyFromColorMap(colorMap, cards);
     const existing = archetypeStats.get(archetype) ?? {
       matches: 0,
       g1_wins: 0,
