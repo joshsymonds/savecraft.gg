@@ -459,8 +459,9 @@ func resolveCardIDs(pipeStr string, arenaCards map[int]arenaCardInfo) []string {
 	return names
 }
 
-// countCreatures counts the number of creature names in a pipe-separated arena ID string.
-func countCreatures(pipeStr string, arenaCards map[int]arenaCardInfo) int {
+// countCreatures counts creatures in a pipe-separated arena ID string.
+// Counts all valid IDs including tokens (unresolvable IDs are still on the battlefield).
+func countCreatures(pipeStr string) int {
 	if pipeStr == "" {
 		return 0
 	}
@@ -470,14 +471,7 @@ func countCreatures(pipeStr string, arenaCards map[int]arenaCardInfo) int {
 		if p == "" {
 			continue
 		}
-		id, err := strconv.Atoi(p)
-		if err != nil {
-			continue
-		}
-		if _, ok := arenaCards[id]; ok {
-			count++
-		} else {
-			// Token — still count it as a creature (it's on the battlefield)
+		if _, err := strconv.Atoi(p); err == nil {
 			count++
 		}
 	}
