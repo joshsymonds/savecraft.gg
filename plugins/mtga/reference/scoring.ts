@@ -46,6 +46,7 @@ export interface SynergyDbRow {
   card_a: string;
   card_b: string;
   synergy_delta: number;
+  games_together: number;
 }
 
 export interface CurveDbRow {

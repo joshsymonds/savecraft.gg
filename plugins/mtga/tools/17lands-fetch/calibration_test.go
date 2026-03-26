@@ -286,15 +286,16 @@ func TestComputeCalibration_AllAxes(t *testing.T) {
 
 	rows := computeCalibration(sr, synergies)
 
-	// Should have 8 axes: baseline, synergy, signal + 5 state-dependent
-	if len(rows) != 8 {
-		t.Fatalf("expected 8 calibration rows, got %d", len(rows))
+	// Should have 10 axes: baseline, synergy, signal + 5 state-dependent + 2 priors
+	if len(rows) != 10 {
+		t.Fatalf("expected 10 calibration rows, got %d", len(rows))
 	}
 
 	axes := make(map[string]bool)
 	for _, r := range rows {
 		axes[r.Axis] = true
-		if r.Steepness <= 0 {
+		// Prior axes have steepness 0 — skip the > 0 check for them.
+		if r.Axis != "archetype_prior" && r.Axis != "synergy_prior" && r.Steepness <= 0 {
 			t.Errorf("axis %s: steepness = %g, want > 0", r.Axis, r.Steepness)
 		}
 	}
@@ -302,6 +303,7 @@ func TestComputeCalibration_AllAxes(t *testing.T) {
 	for _, expected := range []string{
 		"baseline", "synergy", "signal",
 		"castability", "color_commitment", "opportunity_cost", "curve", "role",
+		"archetype_prior", "synergy_prior",
 	} {
 		if !axes[expected] {
 			t.Errorf("missing axis %q", expected)
@@ -318,15 +320,15 @@ func TestComputeCalibration_DegenerateInputs(t *testing.T) {
 
 	rows := computeCalibration(sr, nil)
 
-	if len(rows) != 5 {
-		t.Fatalf("expected 5 calibration rows (state-dependent only), got %d", len(rows))
+	if len(rows) != 7 {
+		t.Fatalf("expected 7 calibration rows (state-dependent + priors), got %d", len(rows))
 	}
 
 	axes := make(map[string]bool)
 	for _, r := range rows {
 		axes[r.Axis] = true
 	}
-	for _, expected := range []string{"castability", "color_commitment", "opportunity_cost", "curve", "role"} {
+	for _, expected := range []string{"castability", "color_commitment", "opportunity_cost", "curve", "role", "archetype_prior", "synergy_prior"} {
 		if !axes[expected] {
 			t.Errorf("missing axis %q", expected)
 		}

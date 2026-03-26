@@ -48,6 +48,12 @@ func computeCalibration(sr setResult, synergies []synergyRow) []calibrationRow {
 		calibrationRow{Axis: "role", Center: 0.3, Steepness: 5},
 	)
 
+	// Bayesian priors: median sample sizes for shrinkage in the scoring engine.
+	// archetype_prior: median games_in_hand across all archetype-card rows.
+	// synergy_prior: median games_together across all synergy pairs.
+	rows = append(rows, calibrateArchetypePrior(sr))
+	rows = append(rows, calibrateSynergyPrior(synergies))
+
 	return rows
 }
 
@@ -123,6 +129,52 @@ func calibrateSignal(sr setResult) *calibrationRow {
 		}
 	}
 	return percentileSigmoid("signal", values, 0.5)
+}
+
+// calibrateArchetypePrior computes the Bayesian prior for archetype GIH WR
+// shrinkage. Uses the median games_in_hand across all per-archetype card stats.
+func calibrateArchetypePrior(sr setResult) calibrationRow {
+	var values []float64
+	for _, c := range sr.Cards {
+		for _, s := range c.ByColor {
+			if s.GamesInHand > 0 {
+				values = append(values, float64(s.GamesInHand))
+			}
+		}
+	}
+	prior := 750.0 // default
+	if len(values) > 0 {
+		sort.Float64s(values)
+		prior = values[len(values)/2]
+	}
+	return calibrationRow{Axis: "archetype_prior", Center: prior, Steepness: 0}
+}
+
+// calibrateSynergyPrior computes the Bayesian prior for synergy delta
+// shrinkage. Uses the median games_together across all synergy pairs.
+func calibrateSynergyPrior(synergies []synergyRow) calibrationRow {
+	var values []float64
+	seen := make(map[string]bool)
+	for _, s := range synergies {
+		// Synergies are stored in both directions — deduplicate.
+		key := s.CardA + "|" + s.CardB
+		if s.CardA > s.CardB {
+			key = s.CardB + "|" + s.CardA
+		}
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		if s.GamesTogether > 0 {
+			values = append(values, float64(s.GamesTogether))
+		}
+	}
+	prior := 75.0 // default
+	if len(values) > 0 {
+		sort.Float64s(values)
+		prior = values[len(values)/2]
+	}
+	return calibrationRow{Axis: "synergy_prior", Center: prior, Steepness: 0}
 }
 
 // round4 is defined in main.go.

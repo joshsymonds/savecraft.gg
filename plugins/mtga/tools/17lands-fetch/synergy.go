@@ -11,8 +11,6 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/sets"
 )
 
-// Minimum games together for a pair to be included in synergy output.
-const minGamesTogether = 100
 
 // synergyRow represents one direction of a pairwise synergy relationship.
 type synergyRow struct {
@@ -469,10 +467,6 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 	// Compute stratified synergy deltas: weighted average across color pairs.
 	var synergies []synergyRow
 	for pair, pt := range allPairs {
-		if pt.totalGames < minGamesTogether {
-			continue
-		}
-
 		// Compute delta within each color pair, then weighted-average.
 		var weightedDelta float64
 		var totalWeight int
