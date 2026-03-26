@@ -198,7 +198,9 @@ func importD1SQLOnce(accountID, databaseID, apiToken, sql string) error {
 				fmt.Printf("  D1 transient error (%s), retrying poll...\n", pollResult.Result.Error)
 				continue
 			}
-			if strings.Contains(pollResult.Result.Error, "Not currently import at bookmark") {
+			// D1 lost track of the import — either stale bookmark or complete amnesia.
+			// Both are recoverable by restarting the import from scratch.
+			if strings.Contains(pollResult.Result.Error, "Not currently import") {
 				return fmt.Errorf("%w: %s", errStaleBookmark, pollResult.Result.Error)
 			}
 			return fmt.Errorf("import failed: %s", pollResult.Result.Error)
