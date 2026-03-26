@@ -270,7 +270,7 @@ func processCombat(row []string, turnCols map[turnColKey]int, turn, clampedTurn 
 		return
 	}
 	creaturesStr := getCol(row, creaturesIdx)
-	userCreatures := countCreatures(creaturesStr, arenaCards)
+	userCreatures := countCreatures(creaturesStr)
 	if userCreatures == 0 {
 		return // No creatures to attack with.
 	}
@@ -278,7 +278,7 @@ func processCombat(row []string, turnCols map[turnColKey]int, turn, clampedTurn 
 	oppoCreaturesIdx, ok := turnCols[turnColKey{side: "user", turn: turn, field: "eot_oppo_creatures_in_play"}]
 	oppoCreatures := 0
 	if ok {
-		oppoCreatures = countCreatures(getCol(row, oppoCreaturesIdx), arenaCards)
+		oppoCreatures = countCreatures(getCol(row, oppoCreaturesIdx))
 	}
 
 	// Get creatures that attacked.
@@ -326,11 +326,9 @@ func processMulligan(openingHand string, archetype string, onPlay bool, numMulli
 		return
 	}
 
-	names := resolveCardIDs(openingHand, arenaCards)
-	if len(names) == 0 {
-		return
-	}
-
+	// Classify hand by CMC: lands have CMC 0, nonlands have CMC > 0.
+	// We don't have type_line in arenaCardInfo, so CMC 0 is our land proxy
+	// (free spells like Ornithopter are rare enough to ignore).
 	landCount := 0
 	var nonlandCMCs []float64
 	for _, idStr := range strings.Split(openingHand, "|") {
@@ -344,42 +342,15 @@ func processMulligan(openingHand string, archetype string, onPlay bool, numMulli
 		if !ok {
 			continue
 		}
-		if isBasicLand(card.name) || strings.Contains(strings.ToLower(card.name), "land") {
-			// Heuristic: check if CMC is 0 and name suggests land.
-			// Better: use type_line, but we don't have it in arenaCardInfo.
-			// For now, use CMC == 0 as land proxy (most lands have CMC 0).
+		if card.cmc == 0 {
 			landCount++
-		} else if card.cmc == 0 {
-			// CMC 0 non-land (e.g., Mox, Ornithopter) — still a nonland.
-			nonlandCMCs = append(nonlandCMCs, card.cmc)
 		} else {
 			nonlandCMCs = append(nonlandCMCs, card.cmc)
 		}
 	}
 
-	// Better land detection: count cards with CMC 0 that are known lands.
-	// Since we don't have type_line, recalculate using a simpler approach:
-	// Lands are IDs that appear in lands_played columns. But for mulligan
-	// analysis, CMC-based bucketing of the hand shape is what matters.
-	// Let's use a simpler approach: count by CMC.
-	landCount = 0
-	nonlandCMCs = nonlandCMCs[:0]
-	for _, idStr := range strings.Split(openingHand, "|") {
-		idStr = strings.TrimSpace(idStr)
-		if idStr == "" {
-			continue
-		}
-		id := 0
-		fmt.Sscanf(idStr, "%d", &id)
-		card, ok := arenaCards[id]
-		if !ok {
-			continue
-		}
-		if card.cmc == 0 {
-			landCount++ // CMC 0 = land (or free spell, rare enough to ignore)
-		} else {
-			nonlandCMCs = append(nonlandCMCs, card.cmc)
-		}
+	if landCount == 0 && len(nonlandCMCs) == 0 {
+		return
 	}
 
 	avgNonlandCMC := 0.0
@@ -447,7 +418,7 @@ func processBaseline(row []string, turnCols map[turnColKey]int, turn, clampedTur
 	// Attacks possible (creatures in play at EOT — proxy for available attackers).
 	attacksPossible := 0
 	if idx, ok := turnCols[turnColKey{side: "user", turn: turn, field: "eot_user_creatures_in_play"}]; ok {
-		attacksPossible = countCreatures(getCol(row, idx), arenaCards)
+		attacksPossible = countCreatures(getCol(row, idx))
 	}
 
 	for _, arch := range []string{archetype, "ALL"} {

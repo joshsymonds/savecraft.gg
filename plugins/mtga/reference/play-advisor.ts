@@ -70,6 +70,13 @@ interface TurnInput {
   oppo_creatures?: number;
 }
 
+// ── Constants ────────────────────────────────────────────────
+
+const MAX_CARDS = 50;
+const MAX_TURNS = 30;
+const MAX_HAND = 7;
+const MAX_CREATURES_PER_TURN = 20;
+
 // ── Formatting helpers ───────────────────────────────────────
 
 function pct(wins: number, total: number): string {
@@ -97,7 +104,26 @@ function coverageLine(found: number, total: number): string {
 
 function disclaimer(format: string | undefined): string {
   if (!format || format === "PremierDraft") return "";
-  return "Note: Baselines from Premier Draft data — advice may not reflect " + format + " meta.\n\n";
+  const safeFormat = String(format).slice(0, 50);
+  return `Note: Baselines from Premier Draft data — advice may not reflect ${safeFormat} meta.\n\n`;
+}
+
+// ── Archetype resolution ─────────────────────────────────────
+
+/** Probe D1 once to check if a specific archetype has data. Returns the archetype to use. */
+async function resolveArchetype(
+  env: Env,
+  table: string,
+  set: string,
+  archetype: string,
+): Promise<string> {
+  if (archetype === "ALL") return "ALL";
+  const probe = await env.DB.prepare(
+    `SELECT 1 FROM ${table} WHERE set_code = ? AND archetype = ? LIMIT 1`,
+  )
+    .bind(set, archetype)
+    .first();
+  return probe ? archetype : "ALL";
 }
 
 // ── Query: card_timing ───────────────────────────────────────
@@ -107,12 +133,33 @@ async function cardTiming(
   env: Env,
 ): Promise<ReferenceResult> {
   const set = query.set as string;
-  const cards = query.cards as string[];
+  const rawCards = (query.cards as string[])?.slice(0, MAX_CARDS) ?? [];
   const archetype = (query.archetype as string) ?? "ALL";
   const format = query.format as string | undefined;
 
-  if (!set || !cards?.length) {
+  if (!set || rawCards.length === 0) {
     return { type: "formatted", content: "Error: card_timing requires set and cards parameters." };
+  }
+
+  const arch = await resolveArchetype(env, "mtga_play_card_timing", set, archetype);
+
+  // Batch: fetch all card timing rows for these cards in one query.
+  const placeholders = rawCards.map(() => "?").join(", ");
+  const rows = await env.DB.prepare(
+    `SELECT card_name, turn_number, times_deployed, games_won, total_games
+     FROM mtga_play_card_timing
+     WHERE set_code = ? AND archetype = ? AND card_name IN (${placeholders})
+     ORDER BY card_name, turn_number`,
+  )
+    .bind(set, arch, ...rawCards)
+    .all<CardTimingRow>();
+
+  // Group by card name.
+  const byCard = new Map<string, CardTimingRow[]>();
+  for (const r of rows.results) {
+    const existing = byCard.get(r.card_name) ?? [];
+    existing.push(r);
+    byCard.set(r.card_name, existing);
   }
 
   const lines: string[] = [];
@@ -121,32 +168,15 @@ async function cardTiming(
   lines.push("═".repeat(50));
   lines.push("");
 
-  let found = 0;
-  for (const card of cards) {
-    // Try specific archetype first, fall back to ALL.
-    let rows = await env.DB.prepare(
-      `SELECT turn_number, times_deployed, games_won, total_games
-       FROM mtga_play_card_timing
-       WHERE set_code = ? AND card_name = ? AND archetype = ?
-       ORDER BY turn_number`,
-    ).bind(set, card, archetype).all<CardTimingRow>();
+  const cardsWithData = new Set<string>();
+  for (const card of rawCards) {
+    const cardRows = byCard.get(card);
+    if (!cardRows || cardRows.length === 0) continue;
+    cardsWithData.add(card);
 
-    if (rows.results.length === 0 && archetype !== "ALL") {
-      rows = await env.DB.prepare(
-        `SELECT turn_number, times_deployed, games_won, total_games
-         FROM mtga_play_card_timing
-         WHERE set_code = ? AND card_name = ? AND archetype = 'ALL'
-         ORDER BY turn_number`,
-      ).bind(set, card).all<CardTimingRow>();
-    }
-
-    if (rows.results.length === 0) continue;
-    found++;
-
-    // Find best turn.
     let bestTurn = 0;
     let bestWR = 0;
-    for (const r of rows.results) {
+    for (const r of cardRows) {
       const w = wr(r.games_won, r.total_games);
       if (w > bestWR) {
         bestWR = w;
@@ -154,16 +184,15 @@ async function cardTiming(
       }
     }
 
-    lines.push(`${card} (best on turn ${bestTurn}, ${pct(Math.round(bestWR * rows.results[0]!.total_games), rows.results[0]!.total_games)} → ${(bestWR * 100).toFixed(1)}% WR)`);
+    lines.push(`${card} (best on turn ${bestTurn}, ${(bestWR * 100).toFixed(1)}% WR)`);
     lines.push(`  ${padR("Turn", 6)} ${padL("Played", 8)} ${padL("Win Rate", 10)} ${padL("Games", 8)}`);
-    for (const r of rows.results) {
+    for (const r of cardRows) {
       lines.push(`  ${padR(`T${r.turn_number}`, 6)} ${padL(String(r.times_deployed), 8)} ${padL(pct(r.games_won, r.total_games), 10)} ${padL(String(r.total_games), 8)}`);
     }
     lines.push("");
   }
 
-  lines.push(coverageLine(found, cards.length));
-
+  lines.push(coverageLine(cardsWithData.size, rawCards.length));
   return { type: "formatted", content: lines.join("\n") };
 }
 
@@ -176,11 +205,43 @@ async function manaEfficiency(
   const set = query.set as string;
   const archetype = (query.archetype as string) ?? "ALL";
   const onPlay = query.on_play === true ? 1 : 0;
-  const turns = query.turns as { turn: number; mana_spent: number }[];
+  const turns = ((query.turns as { turn: number; mana_spent: number }[]) ?? []).slice(0, MAX_TURNS);
   const format = query.format as string | undefined;
 
-  if (!set || !turns?.length) {
+  if (!set || turns.length === 0) {
     return { type: "formatted", content: "Error: mana_efficiency requires set and turns parameters." };
+  }
+
+  const arch = await resolveArchetype(env, "mtga_play_tempo", set, archetype);
+  const turnNums = turns.map((t) => t.turn);
+  const turnPlaceholders = turnNums.map(() => "?").join(", ");
+
+  // Batch: fetch all tempo rows for these turns.
+  const tempoRows = await env.DB.prepare(
+    `SELECT turn_number, mana_spent_bucket, games_won, total_games
+     FROM mtga_play_tempo
+     WHERE set_code = ? AND archetype = ? AND on_play = ? AND turn_number IN (${turnPlaceholders})`,
+  )
+    .bind(set, arch, onPlay, ...turnNums)
+    .all<TempoRow>();
+
+  // Batch: fetch all baselines for these turns.
+  const baselineRows = await env.DB.prepare(
+    `SELECT turn_number, total_mana_spent, games_won, total_games
+     FROM mtga_play_turn_baselines
+     WHERE set_code = ? AND archetype = ? AND on_play = ? AND turn_number IN (${turnPlaceholders})`,
+  )
+    .bind(set, arch, onPlay, ...turnNums)
+    .all<BaselineRow>();
+
+  // Index by turn.
+  const tempoByTurnBucket = new Map<string, TempoRow>();
+  for (const r of tempoRows.results) {
+    tempoByTurnBucket.set(`${r.turn_number}:${r.mana_spent_bucket}`, r);
+  }
+  const baselineByTurn = new Map<number, BaselineRow>();
+  for (const r of baselineRows.results) {
+    baselineByTurn.set(r.turn_number, r);
   }
 
   const lines: string[] = [];
@@ -192,37 +253,12 @@ async function manaEfficiency(
 
   for (const t of turns) {
     const bucket = Math.min(5, Math.max(0, Math.round(t.mana_spent)));
-
-    // Fetch this bucket's win rate.
-    let row = await env.DB.prepare(
-      `SELECT games_won, total_games FROM mtga_play_tempo
-       WHERE set_code = ? AND archetype = ? AND turn_number = ? AND on_play = ? AND mana_spent_bucket = ?`,
-    ).bind(set, archetype, t.turn, onPlay, bucket).first<TempoRow>();
-
-    if (!row && archetype !== "ALL") {
-      row = await env.DB.prepare(
-        `SELECT games_won, total_games FROM mtga_play_tempo
-         WHERE set_code = ? AND archetype = 'ALL' AND turn_number = ? AND on_play = ? AND mana_spent_bucket = ?`,
-      ).bind(set, t.turn, onPlay, bucket).first<TempoRow>();
-    }
-
-    // Fetch baseline avg for comparison.
-    let baseline = await env.DB.prepare(
-      `SELECT total_mana_spent, games_won, total_games FROM mtga_play_turn_baselines
-       WHERE set_code = ? AND archetype = ? AND turn_number = ? AND on_play = ?`,
-    ).bind(set, archetype, t.turn, onPlay).first<BaselineRow>();
-
-    if (!baseline && archetype !== "ALL") {
-      baseline = await env.DB.prepare(
-        `SELECT total_mana_spent, games_won, total_games FROM mtga_play_turn_baselines
-         WHERE set_code = ? AND archetype = 'ALL' AND turn_number = ? AND on_play = ?`,
-      ).bind(set, t.turn, onPlay).first<BaselineRow>();
-    }
+    const row = tempoByTurnBucket.get(`${t.turn}:${bucket}`);
+    const baseline = baselineByTurn.get(t.turn);
 
     const bucketWR = row ? pct(row.games_won, row.total_games) : "N/A";
     const avgWR = baseline ? pct(baseline.games_won, baseline.total_games) : "N/A";
 
-    // Rate: compare player's mana spent to average.
     let rating = "—";
     if (baseline && baseline.total_games > 0) {
       const avg = baseline.total_mana_spent / baseline.total_games;
@@ -235,8 +271,7 @@ async function manaEfficiency(
   }
 
   lines.push("");
-  lines.push(`Avg mana column shows baseline win rate at the average mana expenditure for this archetype.`);
-
+  lines.push("Avg mana column shows baseline win rate at the average mana expenditure for this archetype.");
   return { type: "formatted", content: lines.join("\n") };
 }
 
@@ -255,11 +290,40 @@ async function attackAnalysis(
   env: Env,
 ): Promise<ReferenceResult> {
   const set = query.set as string;
-  const turns = query.turns as AttackTurnInput[];
+  const turns = ((query.turns as AttackTurnInput[]) ?? []).slice(0, MAX_TURNS);
   const format = query.format as string | undefined;
 
-  if (!set || !turns?.length) {
+  if (!set || turns.length === 0) {
     return { type: "formatted", content: "Error: attack_analysis requires set and turns parameters." };
+  }
+
+  // Collect all unique creature names across all turns for batch query.
+  const allCreatureNames = new Set<string>();
+  for (const t of turns) {
+    for (const c of (t.creatures ?? []).slice(0, MAX_CREATURES_PER_TURN)) {
+      allCreatureNames.add(c);
+    }
+  }
+
+  // Batch: fetch all combat rows for all creatures in one query.
+  const creatureList = [...allCreatureNames];
+  let combatData: CombatRow[] = [];
+  if (creatureList.length > 0) {
+    const placeholders = creatureList.map(() => "?").join(", ");
+    const result = await env.DB.prepare(
+      `SELECT attacker_name, turn_number, user_creatures_count, oppo_creatures_count, attacked, games_won, total_games
+       FROM mtga_play_combat
+       WHERE set_code = ? AND attacker_name IN (${placeholders})`,
+    )
+      .bind(set, ...creatureList)
+      .all<CombatRow>();
+    combatData = result.results;
+  }
+
+  // Index: creature+turn+userC+oppoC+attacked → row
+  const combatIndex = new Map<string, CombatRow>();
+  for (const r of combatData) {
+    combatIndex.set(`${r.attacker_name}:${r.turn_number}:${r.user_creatures_count}:${r.oppo_creatures_count}:${r.attacked}`, r);
   }
 
   const lines: string[] = [];
@@ -268,8 +332,7 @@ async function attackAnalysis(
   lines.push("═".repeat(50));
   lines.push("");
 
-  const allCreatures = new Set<string>();
-  let foundCreatures = 0;
+  const creaturesWithData = new Set<string>();
 
   for (const t of turns) {
     const userC = Math.min(4, Math.max(0, t.user_creatures));
@@ -278,26 +341,16 @@ async function attackAnalysis(
 
     lines.push(`Turn ${t.turn} (${t.user_creatures} vs ${t.oppo_creatures} creatures):`);
 
-    for (const creature of t.creatures) {
-      allCreatures.add(creature);
+    for (const creature of (t.creatures ?? []).slice(0, MAX_CREATURES_PER_TURN)) {
       const didAttack = attackedSet.has(creature);
-
-      // Look up attack vs hold win rates.
-      const attackRow = await env.DB.prepare(
-        `SELECT games_won, total_games FROM mtga_play_combat
-         WHERE set_code = ? AND attacker_name = ? AND turn_number = ? AND user_creatures_count = ? AND oppo_creatures_count = ? AND attacked = 1`,
-      ).bind(set, creature, t.turn, userC, oppoC).first<CombatRow>();
-
-      const holdRow = await env.DB.prepare(
-        `SELECT games_won, total_games FROM mtga_play_combat
-         WHERE set_code = ? AND attacker_name = ? AND turn_number = ? AND user_creatures_count = ? AND oppo_creatures_count = ? AND attacked = 0`,
-      ).bind(set, creature, t.turn, userC, oppoC).first<CombatRow>();
+      const attackRow = combatIndex.get(`${creature}:${t.turn}:${userC}:${oppoC}:1`);
+      const holdRow = combatIndex.get(`${creature}:${t.turn}:${userC}:${oppoC}:0`);
 
       if (!attackRow && !holdRow) {
         lines.push(`  ${creature}: ${didAttack ? "attacked" : "held"} — no data`);
         continue;
       }
-      foundCreatures++;
+      creaturesWithData.add(creature);
 
       const attackWR = attackRow ? wr(attackRow.games_won, attackRow.total_games) : 0;
       const holdWR = holdRow ? wr(holdRow.games_won, holdRow.total_games) : 0;
@@ -312,8 +365,7 @@ async function attackAnalysis(
     lines.push("");
   }
 
-  lines.push(coverageLine(foundCreatures, allCreatures.size));
-
+  lines.push(coverageLine(creaturesWithData.size, allCreatureNames.size));
   return { type: "formatted", content: lines.join("\n") };
 }
 
@@ -326,75 +378,75 @@ async function mulligan(
   const set = query.set as string;
   const archetype = (query.archetype as string) ?? "ALL";
   const onPlay = query.on_play === true ? 1 : 0;
-  const hand = query.hand as string[];
+  const hand = ((query.hand as string[]) ?? []).slice(0, MAX_HAND);
   const format = query.format as string | undefined;
 
-  if (!set || !hand?.length) {
+  if (!set || hand.length === 0) {
     return { type: "formatted", content: "Error: mulligan requires set and hand parameters." };
   }
+
+  const arch = await resolveArchetype(env, "mtga_play_mulligan", set, archetype);
+
+  // Look up CMC from mtga_cards for accurate land detection + CMC bucketing.
+  const placeholders = hand.map(() => "?").join(", ");
+  const cardRows = await env.DB.prepare(
+    `SELECT name, cmc, type_line FROM mtga_cards
+     WHERE is_default = 1 AND name IN (${placeholders})`,
+  )
+    .bind(...hand)
+    .all<{ name: string; cmc: number; type_line: string }>();
+
+  const cardInfo = new Map<string, { cmc: number; isLand: boolean }>();
+  for (const r of cardRows.results) {
+    cardInfo.set(r.name, {
+      cmc: r.cmc,
+      isLand: r.type_line.includes("Land"),
+    });
+  }
+
+  let landCount = 0;
+  const nonlandCMCs: number[] = [];
+  for (const card of hand) {
+    const info = cardInfo.get(card);
+    if (info?.isLand) {
+      landCount++;
+    } else {
+      nonlandCMCs.push(info?.cmc ?? 2.5);
+    }
+  }
+
+  const avgCMC =
+    nonlandCMCs.length > 0 ? nonlandCMCs.reduce((a, b) => a + b, 0) / nonlandCMCs.length : 0;
+  const cmcBucket = avgCMC < 2.0 ? "low" : avgCMC <= 3.0 ? "mid" : "high";
 
   const lines: string[] = [];
   lines.push(disclaimer(format));
   lines.push("Mulligan Analysis");
   lines.push("═".repeat(50));
   lines.push("");
-
-  // Classify hand shape.
-  // Simple heuristic: basic lands and common dual lands have 0 CMC in typical data.
-  // For this analysis, count cards that are commonly lands (this is approximate —
-  // the module works with card names, not type lines).
-  const basicLands = new Set(["Plains", "Island", "Swamp", "Mountain", "Forest"]);
-  let landCount = 0;
-  const nonlandCMCs: number[] = [];
-
-  for (const card of hand) {
-    if (basicLands.has(card)) {
-      landCount++;
-    } else {
-      // Rough CMC estimation — we don't have the card DB here.
-      // In practice Claude would provide CMC data, but for the module
-      // we bucket by hand composition which is format-agnostic.
-      nonlandCMCs.push(2.5); // default mid-range guess
-    }
-  }
-
-  const avgCMC = nonlandCMCs.length > 0
-    ? nonlandCMCs.reduce((a, b) => a + b, 0) / nonlandCMCs.length
-    : 0;
-  const cmcBucket = avgCMC < 2.0 ? "low" : avgCMC <= 3.0 ? "mid" : "high";
-
   lines.push(`Hand: ${hand.length} cards, ${landCount} lands, nonland CMC: ${cmcBucket}`);
   lines.push(`On play: ${onPlay === 1 ? "yes" : "no"}`);
   lines.push("");
 
-  // Look up keep (0 mulligans) win rate.
-  let keepRow = await env.DB.prepare(
+  // Batch: fetch keep and mull rows together.
+  const keepRow = await env.DB.prepare(
     `SELECT games_won, total_games FROM mtga_play_mulligan
      WHERE set_code = ? AND archetype = ? AND on_play = ? AND land_count = ? AND nonland_cmc_bucket = ? AND num_mulligans = 0`,
-  ).bind(set, archetype, onPlay, landCount, cmcBucket).first<MulliganRow>();
+  )
+    .bind(set, arch, onPlay, landCount, cmcBucket)
+    .first<MulliganRow>();
 
-  if (!keepRow && archetype !== "ALL") {
-    keepRow = await env.DB.prepare(
-      `SELECT games_won, total_games FROM mtga_play_mulligan
-       WHERE set_code = ? AND archetype = 'ALL' AND on_play = ? AND land_count = ? AND nonland_cmc_bucket = ? AND num_mulligans = 0`,
-    ).bind(set, onPlay, landCount, cmcBucket).first<MulliganRow>();
-  }
-
-  // Look up mulligan to 6 win rate.
-  let mullRow = await env.DB.prepare(
+  const mullRow = await env.DB.prepare(
     `SELECT games_won, total_games FROM mtga_play_mulligan
      WHERE set_code = ? AND archetype = ? AND on_play = ? AND num_mulligans = 1`,
-  ).bind(set, archetype, onPlay).first<MulliganRow>();
-
-  if (!mullRow && archetype !== "ALL") {
-    mullRow = await env.DB.prepare(
-      `SELECT games_won, total_games FROM mtga_play_mulligan
-       WHERE set_code = ? AND archetype = 'ALL' AND on_play = ? AND num_mulligans = 1`,
-    ).bind(set, onPlay).first<MulliganRow>();
-  }
+  )
+    .bind(set, arch, onPlay)
+    .first<MulliganRow>();
 
   if (keepRow) {
-    lines.push(`Keep (${landCount} lands, ${cmcBucket} curve): ${pct(keepRow.games_won, keepRow.total_games)} WR (${keepRow.total_games} games)`);
+    lines.push(
+      `Keep (${landCount} lands, ${cmcBucket} curve): ${pct(keepRow.games_won, keepRow.total_games)} WR (${keepRow.total_games} games)`,
+    );
   } else {
     lines.push(`Keep: No data for ${landCount}-land ${cmcBucket}-CMC hands.`);
   }
@@ -441,11 +493,20 @@ interface GameSectionData {
 }
 
 function extractTurnsFromSection(section: GameSectionData, playerSeat: number): TurnInput[] {
-  const turnMap = new Map<number, { manaSpent: number; cardsPlayed: string[]; creaturesAttacked: string[]; userCreatures: number; oppoCreatures: number }>();
+  const turnMap = new Map<
+    number,
+    { manaSpent: number; cardsPlayed: string[]; creaturesAttacked: string[]; userCreatures: number; oppoCreatures: number }
+  >();
   const landNames = new Set(["Plains", "Island", "Swamp", "Mountain", "Forest"]);
 
   for (const turn of section.turns) {
-    const existing = turnMap.get(turn.turnNumber) ?? { manaSpent: 0, cardsPlayed: [], creaturesAttacked: [], userCreatures: 0, oppoCreatures: 0 };
+    const existing = turnMap.get(turn.turnNumber) ?? {
+      manaSpent: 0,
+      cardsPlayed: [],
+      creaturesAttacked: [],
+      userCreatures: 0,
+      oppoCreatures: 0,
+    };
     for (const action of turn.actions) {
       if (action.player !== playerSeat) continue;
       if (action.type === "cast" && action.cast) {
@@ -454,7 +515,12 @@ function extractTurnsFromSection(section: GameSectionData, playerSeat: number): 
           for (const mana of action.cast.manaPaid) existing.manaSpent += mana.count;
         }
       }
-      if (action.type === "move" && action.move && action.move.moveType === "play_land" && !landNames.has(action.move.cardName)) {
+      if (
+        action.type === "move" &&
+        action.move &&
+        action.move.moveType === "play_land" &&
+        !landNames.has(action.move.cardName)
+      ) {
         existing.cardsPlayed.push(action.move.cardName);
       }
       if (action.type === "damage" && action.damage?.isCombat && action.damage.amount > 0) {
@@ -464,32 +530,43 @@ function extractTurnsFromSection(section: GameSectionData, playerSeat: number): 
     turnMap.set(turn.turnNumber, existing);
   }
 
-  return [...turnMap.entries()].sort((a, b) => a[0] - b[0]).map(([turnNum, data]) => ({
-    turn: turnNum,
-    mana_spent: data.manaSpent,
-    cards_played: data.cardsPlayed,
-    creatures_attacked: [...new Set(data.creaturesAttacked)],
-    user_creatures: data.userCreatures,
-    oppo_creatures: data.oppoCreatures,
-  }));
+  return [...turnMap.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([turnNum, data]) => ({
+      turn: turnNum,
+      mana_spent: data.manaSpent,
+      cards_played: data.cardsPlayed,
+      creatures_attacked: [...new Set(data.creaturesAttacked)],
+      user_creatures: data.userCreatures,
+      oppo_creatures: data.oppoCreatures,
+    }));
 }
 
-async function loadTurnsFromMatchId(matchId: string, userId: string, env: Env): Promise<TurnInput[] | string> {
-  const saves = await env.DB.prepare("SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = 'mtga'").bind(userId).all<{ uuid: string }>();
-  if (saves.results.length === 0) return "No MTGA saves found for this user.";
-
+async function loadTurnsFromMatchId(
+  matchId: string,
+  userId: string,
+  env: Env,
+): Promise<TurnInput[] | string> {
+  // Single JOIN query instead of N saves loop.
   const sectionName = `game:${matchId}`;
-  for (const save of saves.results) {
-    const row = await env.DB.prepare("SELECT data FROM sections WHERE save_uuid = ? AND name = ?").bind(save.uuid, sectionName).first<{ data: string }>();
-    if (row) {
-      try {
-        return extractTurnsFromSection(JSON.parse(row.data) as GameSectionData, 1);
-      } catch {
-        return `Failed to parse game section data for ${matchId}.`;
-      }
-    }
+  const row = await env.DB.prepare(
+    `SELECT sec.data FROM sections sec
+     JOIN saves sv ON sv.uuid = sec.save_uuid
+     WHERE sv.user_uuid = ? AND sv.game_id = 'mtga' AND sec.name = ?
+     LIMIT 1`,
+  )
+    .bind(userId, sectionName)
+    .first<{ data: string }>();
+
+  if (!row) {
+    return `Game section "${sectionName}" not found in any MTGA save.`;
   }
-  return `Game section "${sectionName}" not found in any MTGA save.`;
+
+  try {
+    return extractTurnsFromSection(JSON.parse(row.data) as GameSectionData, 1);
+  } catch {
+    return `Failed to parse game section data for ${matchId}.`;
+  }
 }
 
 // ── Query: game_review ───────────────────────────────────────
@@ -515,7 +592,10 @@ async function gameReview(
 
   if (matchId) {
     if (!userId) {
-      return { type: "formatted", content: "Error: match_id lookup requires user_id (provided automatically by MCP context)." };
+      return {
+        type: "formatted",
+        content: "Error: match_id lookup requires user_id (provided automatically by MCP context).",
+      };
     }
     const loaded = await loadTurnsFromMatchId(matchId, userId, env);
     if (typeof loaded === "string") {
@@ -525,27 +605,64 @@ async function gameReview(
   }
 
   if (!set || !turns?.length) {
-    return { type: "formatted", content: "Error: game_review requires set and (turns OR match_id) parameters." };
+    return {
+      type: "formatted",
+      content: "Error: game_review requires set and (turns OR match_id) parameters.",
+    };
   }
 
+  turns = turns.slice(0, MAX_TURNS);
+  const arch = await resolveArchetype(env, "mtga_play_turn_baselines", set, archetype);
+
+  // ── Pre-fetch all data in bulk ──
+  const turnNums = turns.map((t) => t.turn);
+  const turnPlaceholders = turnNums.map(() => "?").join(", ");
+
+  // Baselines for all turns.
+  const baselines = await env.DB.prepare(
+    `SELECT turn_number, total_mana_spent, total_creatures_attacked, total_attacks_possible, games_won, total_games
+     FROM mtga_play_turn_baselines
+     WHERE set_code = ? AND archetype = ? AND on_play = ? AND turn_number IN (${turnPlaceholders})`,
+  )
+    .bind(set, arch, onPlay, ...turnNums)
+    .all<BaselineRow>();
+
+  const baselineByTurn = new Map<number, BaselineRow>();
+  for (const r of baselines.results) baselineByTurn.set(r.turn_number, r);
+
+  // Card timing for all played cards.
+  const allPlayedCards = new Set<string>();
+  for (const t of turns) {
+    for (const c of t.cards_played ?? []) allPlayedCards.add(c);
+  }
+
+  const cardTimingMap = new Map<string, CardTimingRow[]>();
+  if (allPlayedCards.size > 0) {
+    const cardList = [...allPlayedCards];
+    const cardPlaceholders = cardList.map(() => "?").join(", ");
+    const timingRows = await env.DB.prepare(
+      `SELECT card_name, turn_number, games_won, total_games
+       FROM mtga_play_card_timing
+       WHERE set_code = ? AND archetype = ? AND card_name IN (${cardPlaceholders})
+       ORDER BY card_name, turn_number`,
+    )
+      .bind(set, arch, ...cardList)
+      .all<CardTimingRow>();
+
+    for (const r of timingRows.results) {
+      const existing = cardTimingMap.get(r.card_name) ?? [];
+      existing.push(r);
+      cardTimingMap.set(r.card_name, existing);
+    }
+  }
+
+  // ── Analysis ──
   const findings: ReviewFinding[] = [];
-  const allCards = new Set<string>();
-  let cardsWithData = 0;
+  const cardsWithData = new Set<string>();
 
   for (const t of turns) {
-    // ── Mana efficiency check ──
-    let baseline = await env.DB.prepare(
-      `SELECT total_mana_spent, games_won, total_games FROM mtga_play_turn_baselines
-       WHERE set_code = ? AND archetype = ? AND turn_number = ? AND on_play = ?`,
-    ).bind(set, archetype, t.turn, onPlay).first<BaselineRow>();
-
-    if (!baseline && archetype !== "ALL") {
-      baseline = await env.DB.prepare(
-        `SELECT total_mana_spent, games_won, total_games FROM mtga_play_turn_baselines
-         WHERE set_code = ? AND archetype = 'ALL' AND turn_number = ? AND on_play = ?`,
-      ).bind(set, t.turn, onPlay).first<BaselineRow>();
-    }
-
+    // Mana efficiency check.
+    const baseline = baselineByTurn.get(t.turn);
     if (baseline && baseline.total_games > 0 && t.mana_spent !== undefined) {
       const avgMana = baseline.total_mana_spent / baseline.total_games;
       const diff = avgMana - t.mana_spent;
@@ -559,89 +676,60 @@ async function gameReview(
       }
     }
 
-    // ── Card timing check ──
-    if (t.cards_played) {
-      for (const card of t.cards_played) {
-        allCards.add(card);
+    // Card timing check.
+    for (const card of t.cards_played ?? []) {
+      allPlayedCards.add(card);
+      const cardRows = cardTimingMap.get(card);
+      if (!cardRows || cardRows.length === 0) continue;
+      cardsWithData.add(card);
 
-        let rows = await env.DB.prepare(
-          `SELECT turn_number, games_won, total_games FROM mtga_play_card_timing
-           WHERE set_code = ? AND card_name = ? AND archetype = ?
-           ORDER BY turn_number`,
-        ).bind(set, card, archetype).all<CardTimingRow>();
-
-        if (rows.results.length === 0 && archetype !== "ALL") {
-          rows = await env.DB.prepare(
-            `SELECT turn_number, games_won, total_games FROM mtga_play_card_timing
-             WHERE set_code = ? AND card_name = ? AND archetype = 'ALL'
-             ORDER BY turn_number`,
-          ).bind(set, card).all<CardTimingRow>();
+      let bestTurn = t.turn;
+      let bestWR = 0;
+      let currentWR = 0;
+      for (const r of cardRows) {
+        const w = wr(r.games_won, r.total_games);
+        if (w > bestWR) {
+          bestWR = w;
+          bestTurn = r.turn_number;
         }
+        if (r.turn_number === t.turn) currentWR = w;
+      }
 
-        if (rows.results.length === 0) continue;
-        cardsWithData++;
-
-        // Find the best turn and compare.
-        let bestTurn = t.turn;
-        let bestWR = 0;
-        let currentWR = 0;
-        for (const r of rows.results) {
-          const w = wr(r.games_won, r.total_games);
-          if (w > bestWR) {
-            bestWR = w;
-            bestTurn = r.turn_number;
-          }
-          if (r.turn_number === t.turn) currentWR = w;
-        }
-
-        const wrDiff = bestWR - currentWR;
-        if (wrDiff > 0.02 && bestTurn !== t.turn) {
-          findings.push({
-            turn: t.turn,
-            category: "Timing",
-            description: `Played ${card} on turn ${t.turn} (${(currentWR * 100).toFixed(1)}% WR). Best on turn ${bestTurn} (${(bestWR * 100).toFixed(1)}% WR, +${(wrDiff * 100).toFixed(1)}pp).`,
-            impact: wrDiff * 10,
-          });
-        }
+      const wrDiff = bestWR - currentWR;
+      if (wrDiff > 0.02 && bestTurn !== t.turn) {
+        findings.push({
+          turn: t.turn,
+          category: "Timing",
+          description: `Played ${card} on turn ${t.turn} (${(currentWR * 100).toFixed(1)}% WR). Best on turn ${bestTurn} (${(bestWR * 100).toFixed(1)}% WR, +${(wrDiff * 100).toFixed(1)}pp).`,
+          impact: wrDiff * 10,
+        });
       }
     }
 
-    // ── Attack check ──
-    if (t.creatures_attacked !== undefined && t.user_creatures !== undefined && t.oppo_creatures !== undefined) {
-      const attackedSet = new Set(t.creatures_attacked ?? []);
+    // Attack check.
+    if (
+      t.creatures_attacked !== undefined &&
+      t.user_creatures !== undefined &&
+      t.oppo_creatures !== undefined &&
+      baseline &&
+      baseline.total_attacks_possible > 0
+    ) {
+      const avgAttackRate = baseline.total_creatures_attacked / baseline.total_attacks_possible;
+      const playerAttackRate =
+        t.user_creatures > 0 ? (t.creatures_attacked?.length ?? 0) / t.user_creatures : 0;
 
-      // Check baseline attack rate.
-      let blRow = await env.DB.prepare(
-        `SELECT total_creatures_attacked, total_attacks_possible, total_games FROM mtga_play_turn_baselines
-         WHERE set_code = ? AND archetype = ? AND turn_number = ? AND on_play = ?`,
-      ).bind(set, archetype, t.turn, onPlay).first<BaselineRow>();
-
-      if (!blRow && archetype !== "ALL") {
-        blRow = await env.DB.prepare(
-          `SELECT total_creatures_attacked, total_attacks_possible, total_games FROM mtga_play_turn_baselines
-           WHERE set_code = ? AND archetype = 'ALL' AND turn_number = ? AND on_play = ?`,
-        ).bind(set, t.turn, onPlay).first<BaselineRow>();
-      }
-
-      if (blRow && blRow.total_attacks_possible > 0) {
-        const avgAttackRate = blRow.total_creatures_attacked / blRow.total_attacks_possible;
-        const playerAttackRate = t.user_creatures > 0
-          ? (t.creatures_attacked?.length ?? 0) / t.user_creatures
-          : 0;
-
-        if (avgAttackRate > 0.5 && playerAttackRate < 0.2 && t.user_creatures > 0) {
-          findings.push({
-            turn: t.turn,
-            category: "Combat",
-            description: `Attacked with ${attackedSet.size}/${t.user_creatures} creatures (avg attack rate: ${(avgAttackRate * 100).toFixed(0)}%). Missed attacks may have cost tempo.`,
-            impact: (avgAttackRate - playerAttackRate) * 3,
-          });
-        }
+      if (avgAttackRate > 0.5 && playerAttackRate < 0.2 && t.user_creatures > 0) {
+        const attackedCount = t.creatures_attacked?.length ?? 0;
+        findings.push({
+          turn: t.turn,
+          category: "Combat",
+          description: `Attacked with ${attackedCount}/${t.user_creatures} creatures (avg attack rate: ${(avgAttackRate * 100).toFixed(0)}%). Missed attacks may have cost tempo.`,
+          impact: (avgAttackRate - playerAttackRate) * 3,
+        });
       }
     }
   }
 
-  // Sort by impact (highest first) and present top findings.
   findings.sort((a, b) => b.impact - a.impact);
 
   const lines: string[] = [];
@@ -655,15 +743,13 @@ async function gameReview(
   } else {
     lines.push(`Found ${findings.length} potential improvement${findings.length > 1 ? "s" : ""}:`);
     lines.push("");
-
     for (const f of findings.slice(0, 5)) {
       lines.push(`Turn ${f.turn} [${f.category}]: ${f.description}`);
     }
   }
 
   lines.push("");
-  lines.push(coverageLine(cardsWithData, allCards.size));
-
+  lines.push(coverageLine(cardsWithData.size, allPlayedCards.size));
   return { type: "formatted", content: lines.join("\n") };
 }
 
@@ -681,14 +767,17 @@ export const playAdvisorModule: NativeReferenceModule = {
     '2. mode="mana_efficiency" → Compare mana spent per turn against archetype baselines. Params: set, archetype?, on_play, turns[{turn, mana_spent}]',
     '3. mode="attack_analysis" → Were attacks made when they should have been? Params: set, turns[{turn, creatures[], attacked[], user_creatures, oppo_creatures}]',
     '4. mode="mulligan" → Should this hand have been kept? Params: set, archetype?, on_play, hand[]',
-    '5. mode="game_review" → Full post-game analysis identifying biggest deviations. Params: set, archetype?, on_play, turns[{turn, mana_spent, cards_played[], creatures_attacked[], user_creatures, oppo_creatures}]',
+    '5. mode="game_review" → Full post-game analysis identifying biggest deviations.',
+    "   Inline: set, archetype?, on_play, turns[{turn, mana_spent, cards_played[], creatures_attacked[], user_creatures, oppo_creatures}]",
+    "   Match lookup: set, match_id (loads game data from save sections via user_id)",
     "",
     "All modes accept optional format parameter. Non-PremierDraft formats receive a disclaimer.",
   ].join("\n"),
   parameters: {
     mode: {
       type: "string",
-      description: 'Query mode: "card_timing", "mana_efficiency", "attack_analysis", "mulligan", or "game_review".',
+      description:
+        'Query mode: "card_timing", "mana_efficiency", "attack_analysis", "mulligan", or "game_review".',
       required: true,
     },
     set: {
@@ -697,7 +786,8 @@ export const playAdvisorModule: NativeReferenceModule = {
     },
     archetype: {
       type: "string",
-      description: "Color archetype (e.g., 'UB'). Falls back to 'ALL' if no data for specific archetype.",
+      description:
+        "Color archetype (e.g., 'UB'). Falls back to 'ALL' if no data for specific archetype.",
     },
     format: {
       type: "string",
@@ -709,27 +799,25 @@ export const playAdvisorModule: NativeReferenceModule = {
     },
     cards: {
       type: "array",
-      description: "Card names for card_timing mode.",
+      description: "Card names for card_timing mode (max 50).",
     },
     hand: {
       type: "array",
-      description: "Card names in opening hand for mulligan mode.",
+      description: "Card names in opening hand for mulligan mode (max 7).",
     },
     turns: {
       type: "array",
-      description: "Turn data array for mana_efficiency, attack_analysis, and game_review modes.",
+      description: "Turn data array for mana_efficiency, attack_analysis, and game_review modes (max 30).",
     },
     match_id: {
       type: "string",
-      description: "Match ID for game_review mode. Loads game data from save sections via user_id.",
+      description:
+        "Match ID for game_review mode. Loads game data from save sections via user_id.",
     },
   },
 
-  async execute(
-    query: Record<string, unknown>,
-    env: Env,
-  ): Promise<ReferenceResult> {
-    const mode = (query.mode as string) ?? "";
+  async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
+    const mode = String(query.mode ?? "").slice(0, 50);
 
     switch (mode) {
       case "card_timing":
