@@ -52,6 +52,18 @@ function buildSectionStatements(
   return statements;
 }
 
+/** Run game-specific post-push hooks (e.g., MTGA match history extraction). */
+async function postPushHooks(
+  db: D1Database,
+  gameId: string,
+  userUuid: string | null,
+  sections: Record<string, SectionInput>,
+): Promise<void> {
+  if (gameId === "mtga" && userUuid) {
+    await ingestMatchHistory(db, userUuid, sections);
+  }
+}
+
 export async function storePush(
   env: Env,
   userUuid: string | null,
@@ -91,9 +103,7 @@ export async function storePush(
       ).bind(sourceUuid),
       ...buildSectionStatements(env.DB, saveUuid, saveName, sections),
     ]);
-    if (gameId === "mtga" && userUuid) {
-      await ingestMatchHistory(env.DB, userUuid, sections);
-    }
+    await postPushHooks(env.DB, gameId, userUuid, sections);
     return { saveUuid, changed: true };
   }
 
