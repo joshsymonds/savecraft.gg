@@ -2769,9 +2769,14 @@ describe("draft_advisor native module", () => {
       };
     };
 
-    // WG should be suppressed from candidates (100 decks out of 8100 total = 1.2%)
+    // WG is the primary (pool has W+G pips), so it's included despite <2% deck_share.
+    // But non-primary archetypes below 2% should still be suppressed.
     const wg = data.archetype.candidates.find((c) => c.archetype === "WG");
-    expect(wg).toBeUndefined();
+    expect(wg).toBeDefined();
+    expect(wg!.deck_share).toBeLessThan(0.02);
+    // Verify that UB (5000 decks, well above 2%) is also present
+    const ub = data.archetype.candidates.find((c) => c.archetype === "UB");
+    expect(ub).toBeDefined();
   });
 
   it("reports correct viability for primary archetype even when below 2% filter", async () => {
