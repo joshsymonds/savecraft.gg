@@ -83,7 +83,7 @@ export interface AxisScore {
 }
 
 export interface ArchetypeCandidate {
-  colorPair: string;
+  archetype: string;
   weight: number;
 }
 
@@ -398,7 +398,7 @@ export function computeColorCommitment(
 export function deriveArchetypeWeights(
   commitments: Map<string, number>,
 ): ArchetypeCandidate[] {
-  const candidates: { colorPair: string; raw: number }[] = [];
+  const candidates: { archetype: string; raw: number }[] = [];
   for (const combo of ALL_COLOR_COMBOS) {
     let raw: number;
     if (combo.length === 1) {
@@ -416,17 +416,17 @@ export function deriveArchetypeWeights(
         raw *= commitments.get(c) ?? 0;
       }
     }
-    candidates.push({ colorPair: combo, raw });
+    candidates.push({ archetype: combo, raw });
   }
 
   const totalRaw = candidates.reduce((s, p) => s + p.raw, 0);
   if (totalRaw < PAIR_THRESHOLD) {
-    return [{ colorPair: "_overall", weight: 1.0 }];
+    return [{ archetype: "_overall", weight: 1.0 }];
   }
 
   candidates.sort((a, b) => b.raw - a.raw);
   return candidates.map((p) => ({
-    colorPair: p.colorPair,
+    archetype: p.archetype,
     weight: p.raw / totalRaw,
   }));
 }

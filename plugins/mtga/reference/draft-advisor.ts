@@ -109,7 +109,7 @@ interface PreloadedSetData {
   allCardRoles: CardRoleRow[];
   /** All overall draft ratings for the set. */
   allRatings: Map<string, RatingRow>;
-  /** All color pair stats for the set: colorPair -> cardName -> row. */
+  /** All color pair stats for the set: archetype -> cardName -> row. */
   allColorStats: Map<string, Map<string, RatingRow>>;
   /** Shared metadata cache (grows during batch review). */
   metaCache: Map<string, CardMetaRow>;
@@ -219,11 +219,11 @@ async function preloadSetData(
   // Build nested color stats map.
   const allColorStats = new Map<string, Map<string, RatingRow>>();
   for (const row of colorStatsResult.results) {
-    const colorPair = (row as RatingRow & { archetype: string }).archetype;
-    let byCard = allColorStats.get(colorPair);
+    const archetype = (row as RatingRow & { archetype: string }).archetype;
+    let byCard = allColorStats.get(archetype);
     if (!byCard) {
       byCard = new Map();
-      allColorStats.set(colorPair, byCard);
+      allColorStats.set(archetype, byCard);
     }
     byCard.set(row.card_name, row);
   }
@@ -322,7 +322,7 @@ async function contextualPick(
 
   // 2. Determine candidate archetypes.
   const candidates = determineCandidateArchetypes(poolMeta, pickNumber);
-  const primaryArchetype = candidates[0]?.colorPair ?? "_overall";
+  const primaryArchetype = candidates[0]?.archetype ?? "_overall";
   const confidence = candidates.length > 0 ? (candidates[0]?.weight ?? 0) : 0;
 
   // 3. Fetch baseline stats for pack cards.
@@ -334,7 +334,7 @@ async function contextualPick(
     };
   }
 
-  const realCandidates = candidates.filter((c) => c.colorPair !== "_overall");
+  const realCandidates = candidates.filter((c) => c.archetype !== "_overall");
   const poolNames = poolMeta.map((m) => m.name);
   const allCardNames = [
     ...new Set([
@@ -593,7 +593,7 @@ async function contextualPick(
       let blended = 0;
       let totalWeight = 0;
       for (const cand of realCandidates) {
-        const key = `${cand.colorPair}:${role}`;
+        const key = `${cand.archetype}:${role}`;
         const target = targetsByPairRole.get(key);
         if (target !== undefined) {
           blended += target * cand.weight;
@@ -748,7 +748,7 @@ async function contextualPick(
       let weightedSum = 0;
       let totalWeight = 0;
       for (const cand of realCandidates) {
-        const colorRow = colorStatsByPairAndCard.get(cand.colorPair)?.get(name);
+        const colorRow = colorStatsByPairAndCard.get(cand.archetype)?.get(name);
         if (colorRow) {
           const n = colorRow.games_in_hand;
           const effectiveGihwr =
@@ -759,7 +759,7 @@ async function contextualPick(
           weightedSum += effectiveGihwr * cand.weight;
           totalWeight += cand.weight;
           if (cand.weight > 0 && baselineSource === "_overall") {
-            baselineSource = cand.colorPair;
+            baselineSource = cand.archetype;
           }
         }
       }
@@ -890,20 +890,20 @@ async function contextualPick(
       // Try each candidate pair that overlaps with the card's colors.
       const overlappingPairs = candidates.filter(
         (c) =>
-          c.colorPair !== "_overall" &&
-          (cardColorSet.has(c.colorPair[0]!) || cardColorSet.has(c.colorPair[1]!)),
+          c.archetype !== "_overall" &&
+          (cardColorSet.has(c.archetype[0]!) || cardColorSet.has(c.archetype[1]!)),
       );
       // Also consider the primary pair as fallback.
       const pairsToTry =
         overlappingPairs.length > 0
           ? overlappingPairs
-          : candidates.filter((c) => c.colorPair !== "_overall").slice(0, 1);
+          : candidates.filter((c) => c.archetype !== "_overall").slice(0, 1);
 
       let bestStrandedValue = Infinity;
       let found = false;
 
       for (const candidate of pairsToTry) {
-        const pairColors = new Set([candidate.colorPair[0]!, candidate.colorPair[1]!]);
+        const pairColors = new Set([candidate.archetype[0]!, candidate.archetype[1]!]);
         let strandedValue = 0;
 
         for (let idx = 0; idx < poolMeta.length; idx++) {
@@ -1077,15 +1077,15 @@ async function contextualPick(
         primary: primaryArchetype,
         candidates: candidates
           .filter((c) => {
-            if (c.colorPair === "_overall") return true;
+            if (c.archetype === "_overall") return true;
             if (totalDecksAllPairs === 0) return true;
-            const deckCount = deckCountByPair.get(c.colorPair) ?? 0;
+            const deckCount = deckCountByPair.get(c.archetype) ?? 0;
             return deckCount / totalDecksAllPairs >= 0.02;
           })
           .map((c) => {
-            const deckCount = deckCountByPair.get(c.colorPair) ?? 0;
+            const deckCount = deckCountByPair.get(c.archetype) ?? 0;
             return {
-              archetype: c.colorPair,
+              archetype: c.archetype,
               weight: Math.round(c.weight * 100) / 100,
               deck_count: deckCount,
               deck_share:
