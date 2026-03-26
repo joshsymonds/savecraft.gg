@@ -12,15 +12,48 @@ async function seedCards(): Promise<void> {
     env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(1001, "o-1001", "Monastery Swiftspear", "{R}", 1, "Creature", '["R"]', '["R"]', "uncommon", "FDN"),
+    ).bind(
+      1001,
+      "o-1001",
+      "Monastery Swiftspear",
+      "{R}",
+      1,
+      "Creature",
+      '["R"]',
+      '["R"]',
+      "uncommon",
+      "FDN",
+    ),
     env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(1005, "o-1005", "Teferi, Hero of Dominaria", "{3}{W}{U}", 5, "Planeswalker", '["W","U"]', '["W","U"]', "mythic", "DOM"),
+    ).bind(
+      1005,
+      "o-1005",
+      "Teferi, Hero of Dominaria",
+      "{3}{W}{U}",
+      5,
+      "Planeswalker",
+      '["W","U"]',
+      '["W","U"]',
+      "mythic",
+      "DOM",
+    ),
     env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(1003, "o-1003", "Sheoldred, the Apocalypse", "{2}{B}{B}", 4, "Creature", '["B"]', '["B"]', "mythic", "DMU"),
+    ).bind(
+      1003,
+      "o-1003",
+      "Sheoldred, the Apocalypse",
+      "{2}{B}{B}",
+      4,
+      "Creature",
+      '["B"]',
+      '["B"]',
+      "mythic",
+      "DMU",
+    ),
   ]);
 }
 
@@ -31,42 +64,65 @@ async function seedBO3Matches(): Promise<void> {
   const matches = [
     // vs Red: Win G1, Lose G2, Lose G3 (sideboarding hurts)
     {
-      id: "bo3-1", user: "user-abc", format: "Standard", result: "loss",
+      id: "bo3-1",
+      user: "user-abc",
+      format: "Standard",
+      result: "loss",
       oppCards: '[{"name":"Monastery Swiftspear","arena_id":1001}]',
-      games: '[{"game_number":1,"winning_seat":1,"player_seat":1},{"game_number":2,"winning_seat":2,"player_seat":1},{"game_number":3,"winning_seat":2,"player_seat":1}]',
+      games:
+        '[{"game_number":1,"winning_seat":1,"player_seat":1},{"game_number":2,"winning_seat":2,"player_seat":1},{"game_number":3,"winning_seat":2,"player_seat":1}]',
       date: "2026-03-20T10:00:00Z",
     },
     // vs Red: Win G1, Win G2 (sideboarding fine, 2-0)
     {
-      id: "bo3-2", user: "user-abc", format: "Standard", result: "win",
+      id: "bo3-2",
+      user: "user-abc",
+      format: "Standard",
+      result: "win",
       oppCards: '[{"name":"Monastery Swiftspear","arena_id":1001}]',
-      games: '[{"game_number":1,"winning_seat":1,"player_seat":1},{"game_number":2,"winning_seat":1,"player_seat":1}]',
+      games:
+        '[{"game_number":1,"winning_seat":1,"player_seat":1},{"game_number":2,"winning_seat":1,"player_seat":1}]',
       date: "2026-03-21T10:00:00Z",
     },
     // vs Red: Lose G1, Win G2, Win G3 (sideboarding helps)
     {
-      id: "bo3-3", user: "user-abc", format: "Standard", result: "win",
+      id: "bo3-3",
+      user: "user-abc",
+      format: "Standard",
+      result: "win",
       oppCards: '[{"name":"Monastery Swiftspear","arena_id":1001}]',
-      games: '[{"game_number":1,"winning_seat":2,"player_seat":1},{"game_number":2,"winning_seat":1,"player_seat":1},{"game_number":3,"winning_seat":1,"player_seat":1}]',
+      games:
+        '[{"game_number":1,"winning_seat":2,"player_seat":1},{"game_number":2,"winning_seat":1,"player_seat":1},{"game_number":3,"winning_seat":1,"player_seat":1}]',
       date: "2026-03-22T10:00:00Z",
     },
     // vs Azorius: Lose G1, Lose G2 (bad matchup pre and post board)
     {
-      id: "bo3-4", user: "user-abc", format: "Standard", result: "loss",
+      id: "bo3-4",
+      user: "user-abc",
+      format: "Standard",
+      result: "loss",
       oppCards: '[{"name":"Teferi, Hero of Dominaria","arena_id":1005}]',
-      games: '[{"game_number":1,"winning_seat":2,"player_seat":1},{"game_number":2,"winning_seat":2,"player_seat":1}]',
+      games:
+        '[{"game_number":1,"winning_seat":2,"player_seat":1},{"game_number":2,"winning_seat":2,"player_seat":1}]',
       date: "2026-03-23T10:00:00Z",
     },
     // vs Azorius: Win G1, Lose G2, Win G3 (sideboarding works out)
     {
-      id: "bo3-5", user: "user-abc", format: "Standard", result: "win",
+      id: "bo3-5",
+      user: "user-abc",
+      format: "Standard",
+      result: "win",
       oppCards: '[{"name":"Teferi, Hero of Dominaria","arena_id":1005}]',
-      games: '[{"game_number":1,"winning_seat":1,"player_seat":1},{"game_number":2,"winning_seat":2,"player_seat":1},{"game_number":3,"winning_seat":1,"player_seat":1}]',
+      games:
+        '[{"game_number":1,"winning_seat":1,"player_seat":1},{"game_number":2,"winning_seat":2,"player_seat":1},{"game_number":3,"winning_seat":1,"player_seat":1}]',
       date: "2026-03-24T10:00:00Z",
     },
     // BO1 match (should be excluded from sideboard analysis)
     {
-      id: "bo1-1", user: "user-abc", format: "Standard", result: "win",
+      id: "bo1-1",
+      user: "user-abc",
+      format: "Standard",
+      result: "win",
       oppCards: '[{"name":"Sheoldred, the Apocalypse","arena_id":1003}]',
       games: '[{"game_number":1,"winning_seat":1,"player_seat":1}]',
       date: "2026-03-25T10:00:00Z",
@@ -79,7 +135,9 @@ async function seedBO3Matches(): Promise<void> {
         (match_id, user_uuid, event_id, format, deck_name, result,
          game_results, opponent_name, opponent_rank, opponent_cards, played_at)
        VALUES (?, ?, 'event', ?, '', ?, ?, '', '', ?, ?)`,
-    ).bind(m.id, m.user, m.format, m.result, m.games, m.oppCards, m.date).run();
+    )
+      .bind(m.id, m.user, m.format, m.result, m.games, m.oppCards, m.date)
+      .run();
   }
 }
 
@@ -129,10 +187,7 @@ describe("sideboard_analysis reference module", () => {
   });
 
   it("returns error for missing user_id", async () => {
-    const result = await sideboardAnalysisModule.execute(
-      { mode: "bo3_overview" },
-      env,
-    );
+    const result = await sideboardAnalysisModule.execute({ mode: "bo3_overview" }, env);
     const content = (result as { type: "formatted"; content: string }).content;
     expect(content).toMatch(/user_id.*required/i);
   });

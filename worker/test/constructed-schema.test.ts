@@ -30,9 +30,7 @@ describe("MTGA Constructed D1 schema", () => {
       )
       .run();
 
-    const row = await env.DB.prepare(
-      "SELECT * FROM mtga_match_history WHERE match_id = ?",
-    )
+    const row = await env.DB.prepare("SELECT * FROM mtga_match_history WHERE match_id = ?")
       .bind("match-001")
       .first<{
         match_id: string;
