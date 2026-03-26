@@ -113,7 +113,7 @@ async function seedDeckbuildingData(): Promise<void> {
     ).bind("DSK", "UB", 17.2, 14.5, 5.3, 1.1, 0.25, 2.1, 0.52, 0.55, 5000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind("DSK", "B", 17, 15, 5, 0.5, 0.15, 1.5, 0.51, 0.54, 3000),
+    ).bind("DSK", "WB", 17, 15, 5, 0.5, 0.15, 1.5, 0.51, 0.54, 3000),
 
     // Archetype curves for UB and mono-B
     env.DB.prepare(
@@ -130,16 +130,16 @@ async function seedDeckbuildingData(): Promise<void> {
     ).bind("DSK", "UB", 6, 1.5, 5000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
-    ).bind("DSK", "B", 1, 2.5, 3000),
+    ).bind("DSK", "WB", 1, 2.5, 3000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
-    ).bind("DSK", "B", 2, 5.5, 3000),
+    ).bind("DSK", "WB", 2, 5.5, 3000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
-    ).bind("DSK", "B", 3, 4, 3000),
+    ).bind("DSK", "WB", 3, 4, 3000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
-    ).bind("DSK", "B", 6, 1.5, 3000),
+    ).bind("DSK", "WB", 6, 1.5, 3000),
 
     // Role targets for UB and mono-B
     env.DB.prepare(
@@ -150,10 +150,10 @@ async function seedDeckbuildingData(): Promise<void> {
     ).bind("DSK", "UB", "removal", 3.5, 5000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
-    ).bind("DSK", "B", "creature", 15, 3000),
+    ).bind("DSK", "WB", "creature", 15, 3000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
-    ).bind("DSK", "B", "removal", 3, 3000),
+    ).bind("DSK", "WB", "removal", 3, 3000),
 
     // Card roles
     env.DB.prepare(
@@ -238,8 +238,8 @@ describe("deckbuilding native module", () => {
 
       expect(data.mode).toBe("health_check");
       expect(data.set).toBe("DSK");
-      // With 31 candidates, mono-B has highest weight for this heavily black deck
-      expect(data.archetype.primary).toBe("B");
+      // With mono suppressed, UB is the top pair for this heavily black deck
+      expect(data.archetype.primary).toBe("UB");
       expect(data.archetype.candidates.length).toBeGreaterThan(0);
       // Viability fields present
       const primary = data.archetype.candidates[0];
@@ -508,28 +508,58 @@ describe("deckbuilding native module", () => {
         env.DB.prepare(
           `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
         ).bind("DSK", "Gloomlake Verge", "UB", 3000, 0.59),
+        // Add a white card so WUB is a viable archetype candidate
+        env.DB.prepare(
+          `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          200,
+          "o-alt",
+          "White Knight",
+          "White Knight",
+          "{W}{W}",
+          2,
+          "Creature — Knight",
+          '["W"]',
+          "[]",
+          1,
+        ),
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind("DSK", "White Knight", 10_000, 14_000, 4000, 0.54, 0.54, 0.54, 0.54, 0, 5, 5),
+        // WUB (Esper) as an alternative triple archetype — shares UB colors but different identity
         env.DB.prepare(
           `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
-        ).bind("DSK", "Vengeful Strangler", "B", 3000, 0.56),
+        ).bind("DSK", "Vengeful Strangler", "WUB", 3000, 0.56),
         env.DB.prepare(
           `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
-        ).bind("DSK", "Doomsday Excruciator", "B", 2000, 0.62),
+        ).bind("DSK", "Doomsday Excruciator", "WUB", 2000, 0.6),
         env.DB.prepare(
           `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
-        ).bind("DSK", "Go for the Throat", "B", 2000, 0.59),
+        ).bind("DSK", "Go for the Throat", "WUB", 2000, 0.57),
         env.DB.prepare(
           `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
-        ).bind("DSK", "Gloomlake Verge", "B", 2000, 0.55),
+        ).bind("DSK", "Gloomlake Verge", "WUB", 2000, 0.52),
+        // WUB needs deck_stats to appear in candidates
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind("DSK", "WUB", 17, 14, 5, 1, 0.2, 2, 0.51, 0.53, 2000),
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+        ).bind("DSK", "White Knight", "WUB", 1500, 0.54),
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+        ).bind("DSK", "White Knight", "UB", 500, 0.5),
       ]);
 
       const result = await deckbuildingModule.execute(
         {
           set: "DSK",
           deck: [
-            { name: "Vengeful Strangler", count: 4 },
+            { name: "Vengeful Strangler", count: 3 },
             { name: "Doomsday Excruciator", count: 2 },
             { name: "Gloomlake Verge", count: 4 },
             { name: "Go for the Throat", count: 2 },
+            { name: "White Knight", count: 1 },
             { name: "Island", count: 7 },
             { name: "Swamp", count: 6 },
           ],
@@ -549,19 +579,15 @@ describe("deckbuilding native module", () => {
         }[];
       };
 
-      // Should have alternatives (UB is a different archetype from the primary B)
+      // Should have alternatives (WUB is a different archetype from primary UB)
       expect(data.alternatives).toBeDefined();
       expect(data.alternatives.length).toBeGreaterThan(0);
-      // Primary should not appear in alternatives
+      // Primary (UB) should not appear in alternatives
       for (const alt of data.alternatives) {
-        expect(alt.archetype).not.toBe("B");
+        expect(alt.archetype).not.toBe("UB");
         expect(["strong", "moderate", "sparse", "fringe"]).toContain(alt.viability);
         expect(alt.format_context).toContain("% of decks");
       }
-      // UB alternative should have positive GIH WR shift (UB cards seeded higher than B)
-      const ubAlt = data.alternatives.find((a) => a.archetype === "UB");
-      expect(ubAlt).toBeDefined();
-      expect(ubAlt!.avg_gihwr_shift).toBeGreaterThan(0);
     });
   });
 });

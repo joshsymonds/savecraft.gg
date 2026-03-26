@@ -2879,7 +2879,7 @@ describe("computeColorCommitment", () => {
 });
 
 describe("deriveArchetypeWeights", () => {
-  it("returns exactly 31 candidates", () => {
+  it("returns 26 candidates (mono suppressed)", () => {
     const commitments = new Map([
       ["W", 0.6],
       ["U", 0.99],
@@ -2888,10 +2888,11 @@ describe("deriveArchetypeWeights", () => {
       ["G", 0.1],
     ]);
     const candidates = deriveArchetypeWeights(commitments);
-    expect(candidates).toHaveLength(31);
+    // 10 pair + 10 triple + 5 quad + 1 five-color = 26 (no mono)
+    expect(candidates).toHaveLength(26);
   });
 
-  it("gives mono U the highest weight when U is strongly committed", () => {
+  it("gives WU highest weight when U is locked and W is secondary", () => {
     const commitments = new Map([
       ["W", 0.6],
       ["U", 0.99],
@@ -2900,12 +2901,21 @@ describe("deriveArchetypeWeights", () => {
       ["G", 0.1],
     ]);
     const candidates = deriveArchetypeWeights(commitments);
-    // Mono U (0.99) beats pair WU (~0.71) because single-color
-    // commitment is higher than the pair product + open bonus
-    expect(candidates[0]!.archetype).toBe("U");
-    // WU should still be the top pair
-    const topPair = candidates.find((p) => p.archetype.length === 2);
-    expect(topPair!.archetype).toBe("WU");
+    // With mono suppressed, WU pair is the top candidate
+    expect(candidates[0]!.archetype).toBe("WU");
+  });
+
+  it("does not include mono-color candidates", () => {
+    const commitments = new Map([
+      ["W", 0.1],
+      ["U", 0.99],
+      ["B", 0.1],
+      ["R", 0.1],
+      ["G", 0.1],
+    ]);
+    const candidates = deriveArchetypeWeights(commitments);
+    const monos = candidates.filter((c) => c.archetype.length === 1);
+    expect(monos).toHaveLength(0);
   });
 
   it("gives meaningful weight to UB/UR/UG when U is locked and others are open", () => {
@@ -2926,7 +2936,7 @@ describe("deriveArchetypeWeights", () => {
     expect(Math.abs(ub.weight - ur.weight)).toBeLessThan(0.02);
   });
 
-  it("normalizes all 31 weights to sum to 1.0", () => {
+  it("normalizes all 26 weights to sum to 1.0", () => {
     const commitments = new Map([
       ["W", 0.6],
       ["U", 0.99],
@@ -2953,19 +2963,19 @@ describe("deriveArchetypeWeights", () => {
     expect(candidates[0]!.weight).toBe(1);
   });
 
-  it("uses pure commitment for mono-color weights", () => {
+  it("never lets a mono archetype be the primary", () => {
+    // Even with extreme single-color commitment, mono is suppressed
     const commitments = new Map([
-      ["W", 0.1],
-      ["U", 0.95],
-      ["B", 0.1],
-      ["R", 0.1],
-      ["G", 0.1],
+      ["W", 0.01],
+      ["U", 0.99],
+      ["B", 0.01],
+      ["R", 0.01],
+      ["G", 0.01],
     ]);
     const candidates = deriveArchetypeWeights(commitments);
-    const monoU = candidates.find((p) => p.archetype === "U")!;
-    const monoW = candidates.find((p) => p.archetype === "W")!;
-    // U should have much higher mono weight than W
-    expect(monoU.weight).toBeGreaterThan(monoW.weight * 3);
+    expect(candidates[0]!.archetype.length).toBeGreaterThanOrEqual(2);
+    // The top candidate should be a U-pair (UW, UB, UR, or UG)
+    expect(candidates[0]!.archetype).toContain("U");
   });
 
   it("uses pure product for triple-color weights", () => {
