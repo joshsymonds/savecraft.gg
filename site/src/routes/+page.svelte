@@ -132,11 +132,11 @@
           <button
             class="install-tab"
             class:active={selectedPlatform === "linux"}
-            onclick={() => (selectedPlatform = "linux")}>Linux / Steam Deck</button
+            onclick={() => (selectedPlatform = "linux")}>Linux</button
           >
         </div>
         {#if selectedPlatform === "windows"}
-          <a href={PUBLIC_INSTALL_URL} class="step-code step-link" target="_blank" rel="noopener"
+          <a href={PUBLIC_INSTALL_URL} class="install-btn" target="_blank" rel="noopener"
             >Download installer</a
           >
         {:else}
@@ -350,15 +350,12 @@
           <button
             class="install-tab"
             class:active={selectedPlatform === "linux"}
-            onclick={() => (selectedPlatform = "linux")}>Linux / Steam Deck</button
+            onclick={() => (selectedPlatform = "linux")}>Linux</button
           >
         </div>
         {#if selectedPlatform === "windows"}
-          <a
-            href={PUBLIC_INSTALL_URL}
-            class="install-code install-link"
-            target="_blank"
-            rel="noopener">Download installer</a
+          <a href={PUBLIC_INSTALL_URL} class="install-btn" target="_blank" rel="noopener"
+            >Download installer</a
           >
         {:else}
           <code class="install-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
@@ -575,14 +572,25 @@
     border: 1px solid rgba(90, 190, 138, 0.15);
   }
 
-  .step-link {
+  .install-btn {
+    display: block;
+    text-align: center;
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    letter-spacing: 2px;
+    color: var(--color-gold);
+    background: rgba(200, 168, 78, 0.1);
+    border: 1px solid rgba(200, 168, 78, 0.3);
+    border-radius: 4px;
+    padding: 12px 20px;
     text-decoration: none;
     cursor: pointer;
+    transition: all 0.15s;
   }
 
-  .step-link:hover {
-    color: var(--color-gold);
-    border-color: rgba(200, 168, 78, 0.3);
+  .install-btn:hover {
+    background: rgba(200, 168, 78, 0.2);
+    border-color: var(--color-gold);
   }
 
   .install-tabs {
@@ -890,15 +898,6 @@
     font-family: var(--font-body);
     font-size: 20px;
     color: var(--color-green);
-  }
-
-  .install-link {
-    text-decoration: none;
-    cursor: pointer;
-  }
-
-  .install-link:hover {
-    color: var(--color-gold);
   }
 
   /* ── Responsive ──────────────────────────────────────── */
