@@ -20,6 +20,8 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -27,6 +29,8 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -268,14 +272,87 @@ func run() error {
 
 	fmt.Printf("Total: %d role entries across %d sets\n", len(allEntries), len(targetSets))
 
-	sql := buildRolesImportSQL(allEntries)
-	fmt.Printf("Generated %.1f KB of SQL\n", float64(len(sql))/1024)
-	if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
-		return fmt.Errorf("D1 import: %w", err)
+	// Group entries by set for per-set import.
+	entriesBySet := make(map[string][]roleEntry)
+	for _, e := range allEntries {
+		entriesBySet[e.SetCode] = append(entriesBySet[e.SetCode], e)
 	}
-	fmt.Println("D1 population complete")
 
+	// Determine SQL cache directory.
+	cacheDir := defaultCacheDir()
+	sqlDir := filepath.Join(cacheDir, "sql")
+	if err := os.MkdirAll(sqlDir, 0755); err != nil {
+		return fmt.Errorf("creating SQL cache dir: %w", err)
+	}
+
+	// Per-set import with hash checking.
+	var importErrors []string
+	for _, setCode := range targetSets {
+		entries := entriesBySet[strings.ToUpper(setCode)]
+
+		// Compute content hash from the card list for this set.
+		contentHash := hashRoleEntries(entries)
+
+		// Check pipeline state — skip if unchanged.
+		existing, err := cfapi.GetPipelineHash(*cfAccountID, *d1DatabaseID, *cfAPIToken, "tagger", setCode)
+		if err == nil && existing == contentHash {
+			fmt.Printf("  %s: unchanged (hash match), skipping\n", setCode)
+			continue
+		}
+
+		// Generate per-set SQL.
+		sql := buildSetRolesSQL(strings.ToUpper(setCode), entries)
+		sqlPath := filepath.Join(sqlDir, setCode+"_roles.sql")
+		if err := os.WriteFile(sqlPath, []byte(sql), 0644); err != nil {
+			return fmt.Errorf("writing roles SQL for %s: %w", setCode, err)
+		}
+
+		// Import.
+		fmt.Printf("  %s: importing roles (%d entries, %.1f KB)...\n", setCode, len(entries), float64(len(sql))/1024)
+		if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
+			fmt.Printf("  FAIL: %s roles import: %v\n", setCode, err)
+			importErrors = append(importErrors, setCode)
+			continue
+		}
+		os.Remove(sqlPath)
+
+		// Update pipeline state.
+		if err := cfapi.UpdatePipelineState(*cfAccountID, *d1DatabaseID, *cfAPIToken, "tagger", setCode, contentHash, len(entries)); err != nil {
+			fmt.Printf("  WARN: %s pipeline state update failed: %v\n", setCode, err)
+		}
+	}
+
+	if len(importErrors) > 0 {
+		return fmt.Errorf("D1 import failed for %d sets: %s (SQL cached in %s)", len(importErrors), strings.Join(importErrors, ", "), sqlDir)
+	}
+
+	fmt.Println("D1 population complete")
 	return nil
+}
+
+// defaultCacheDir returns ~/.cache/savecraft/17lands.
+func defaultCacheDir() string {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return filepath.Join(os.TempDir(), "savecraft", "17lands")
+	}
+	return filepath.Join(home, ".cache", "savecraft", "17lands")
+}
+
+// hashRoleEntries computes a SHA-256 hash of role entries for content change detection.
+func hashRoleEntries(entries []roleEntry) string {
+	h := sha256.New()
+	// Sort for deterministic hash.
+	sorted := make([]string, len(entries))
+	for i, e := range entries {
+		sorted[i] = e.OracleID + "|" + e.Role + "|" + e.SetCode
+	}
+	sort.Strings(sorted)
+	for _, s := range sorted {
+		io.WriteString(h, s)
+		io.WriteString(h, "\n")
+	}
+	return hex.EncodeToString(h.Sum(nil))
 }
 
 // fetchSetTags fetches all tagger function tags for a single set.
@@ -515,12 +592,12 @@ func scryfallGet(client *http.Client, url string) ([]byte, int, error) {
 	return nil, 0, fmt.Errorf("unreachable")
 }
 
-// buildRolesImportSQL generates SQL for D1 bulk import of card role data.
-func buildRolesImportSQL(entries []roleEntry) string {
+// buildSetRolesSQL generates per-set SQL for card role data with per-set DELETEs.
+func buildSetRolesSQL(setCode string, entries []roleEntry) string {
 	var b strings.Builder
 	q := cfapi.SQLQuote
 
-	b.WriteString("DELETE FROM mtga_card_roles;\n")
+	fmt.Fprintf(&b, "DELETE FROM mtga_card_roles WHERE set_code = %s;\n", q(setCode))
 
 	for _, e := range entries {
 		fmt.Fprintf(&b, "INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (%s, %s, %s, %s);\n",
