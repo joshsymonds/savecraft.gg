@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/fetch"
 )
 
 // processReplayData downloads (or reads from cache) the replay_data CSV for a
@@ -14,7 +15,7 @@ import (
 func processReplayData(set string, cacheDir string, arenaCards map[int]arenaCardInfo) (*replayResult, error) {
 	url := fmt.Sprintf(replayDataURL, set)
 	filename := fmt.Sprintf("replay_data_public.%s.PremierDraft.csv.gz", set)
-	reader, err := cachedDownloadGzip(url, cacheDir, filename)
+	reader, err := fetch.CachedDownloadGzip(url, cacheDir, filename)
 	if err != nil {
 		return nil, err
 	}
@@ -34,12 +35,12 @@ func processReplayCSV(r io.Reader, set string, arenaCards map[int]arenaCardInfo)
 	}
 
 	// Find metadata column indices.
-	wonCol := indexOf(header, "won")
-	colorsCol := indexOf(header, "main_colors")
-	onPlayCol := indexOf(header, "on_play")
-	numTurnsCol := indexOf(header, "num_turns")
-	numMulligansCol := indexOf(header, "num_mulligans")
-	openingHandCol := indexOf(header, "opening_hand")
+	wonCol := fetch.IndexOf(header, "won")
+	colorsCol := fetch.IndexOf(header, "main_colors")
+	onPlayCol := fetch.IndexOf(header, "on_play")
+	numTurnsCol := fetch.IndexOf(header, "num_turns")
+	numMulligansCol := fetch.IndexOf(header, "num_mulligans")
+	openingHandCol := fetch.IndexOf(header, "opening_hand")
 
 	if wonCol < 0 || numTurnsCol < 0 {
 		return nil, fmt.Errorf("required columns not found (won, num_turns)")
@@ -69,7 +70,7 @@ func processReplayCSV(r io.Reader, set string, arenaCards map[int]arenaCardInfo)
 		won := getCol(row, wonCol) == "True"
 		mainColors := ""
 		if colorsCol >= 0 {
-			mainColors = normalizeColors(getCol(row, colorsCol))
+			mainColors = fetch.NormalizeColors(getCol(row, colorsCol))
 		}
 		onPlay := getCol(row, onPlayCol) == "True"
 		numTurns := getColInt(row, numTurnsCol)
@@ -504,7 +505,7 @@ func buildReplaySQL(r *replayResult) string {
 			onPlay = 1
 		}
 		fmt.Fprintf(&b, "INSERT INTO mtga_play_turn_baselines (set_code, archetype, turn_number, on_play, total_mana_spent, total_creatures_cast, total_spells_cast, total_creatures_attacked, total_attacks_possible, games_won, total_games) VALUES (%s, %s, %d, %d, %g, %d, %d, %d, %d, %d, %d);\n",
-			sc, q(bl.Archetype), bl.TurnNumber, onPlay, round4(bl.TotalManaSpent), bl.TotalCreaturesCast, bl.TotalSpellsCast, bl.TotalCreaturesAttacked, bl.TotalAttacksPossible, bl.GamesWon, bl.TotalGames)
+			sc, q(bl.Archetype), bl.TurnNumber, onPlay, fetch.Round4(bl.TotalManaSpent), bl.TotalCreaturesCast, bl.TotalSpellsCast, bl.TotalCreaturesAttacked, bl.TotalAttacksPossible, bl.GamesWon, bl.TotalGames)
 	}
 
 	return b.String()

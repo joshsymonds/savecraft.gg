@@ -2,7 +2,7 @@ game_id = "mtga"
 source = "wasm"
 icon = "icon.png"
 name = "Magic: The Gathering Arena"
-description = "Parses Player.log for collection, decks, match history, play-by-play game logs, drafts, rank, and inventory. Constructed coaching: personal match stats, sideboard analysis, deck evaluation."
+description = "Parses Player.log for collection, decks, match history, play-by-play game logs, drafts, rank, and inventory. Constructed coaching: personal match stats, sideboard analysis, deck evaluation. Gameplay analysis: per-turn play advice, mana efficiency, card timing, attack decisions, mulligan evaluation."
 channel = "beta"
 coverage = "partial"
 file_extensions = []
@@ -105,6 +105,16 @@ description = "Personal Constructed match statistics from your Arena play histor
 
 [reference.modules.match_stats.attribution]
 author = "Josh Symonds"
+
+[reference.modules.play_advisor]
+name = "Play Advisor"
+description = "Per-turn gameplay analysis using 17Lands Premier Draft replay data. Compares mana efficiency, card deployment timing, attack decisions, and mulligan choices against population baselines. Post-game review identifies the biggest deviations from winning patterns. Works for all formats with draft-data disclaimer."
+
+[reference.modules.play_advisor.attribution]
+author = "Josh Symonds"
+data_sources = [
+  { name = "17Lands Replay Data", origin = "17lands.com, licensed CC BY 4.0" },
+]
 
 [reference.modules.sideboard_analysis]
 name = "Sideboard Analysis"

@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/fetch"
 )
 
 // testArenaCards provides a minimal arena ID → card mapping for tests.
@@ -314,9 +316,9 @@ func TestNormalizeColors(t *testing.T) {
 		{"W", "W"},
 	}
 	for _, tt := range tests {
-		got := normalizeColors(tt.input)
+		got := fetch.NormalizeColors(tt.input)
 		if got != tt.expected {
-			t.Errorf("normalizeColors(%q) = %q, want %q", tt.input, got, tt.expected)
+			t.Errorf("fetch.NormalizeColors(%q) = %q, want %q", tt.input, got, tt.expected)
 		}
 	}
 }
