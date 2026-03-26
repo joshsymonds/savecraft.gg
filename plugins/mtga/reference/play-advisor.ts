@@ -417,6 +417,81 @@ async function mulligan(
   return { type: "formatted", content: lines.join("\n") };
 }
 
+// ── Section lookup: convert game section to TurnInput[] ──────
+
+interface GameSectionAction {
+  player: number;
+  type: string;
+  cast?: { cardName: string; cardId: number; manaPaid?: { color: string; count: number }[] };
+  move?: { cardName: string; cardId: number; moveType: string };
+  damage?: { source: string; sourceId: number; target: string; amount: number; isCombat: boolean };
+}
+
+interface GameSectionTurn {
+  turnNumber: number;
+  activePlayer: number;
+  phase: string;
+  players?: { seat: number; lifeTotal: number; manaPool?: { color: string; count: number }[] }[];
+  actions: GameSectionAction[];
+}
+
+interface GameSectionData {
+  matchId: string;
+  turns: GameSectionTurn[];
+}
+
+function extractTurnsFromSection(section: GameSectionData, playerSeat: number): TurnInput[] {
+  const turnMap = new Map<number, { manaSpent: number; cardsPlayed: string[]; creaturesAttacked: string[]; userCreatures: number; oppoCreatures: number }>();
+  const landNames = new Set(["Plains", "Island", "Swamp", "Mountain", "Forest"]);
+
+  for (const turn of section.turns) {
+    const existing = turnMap.get(turn.turnNumber) ?? { manaSpent: 0, cardsPlayed: [], creaturesAttacked: [], userCreatures: 0, oppoCreatures: 0 };
+    for (const action of turn.actions) {
+      if (action.player !== playerSeat) continue;
+      if (action.type === "cast" && action.cast) {
+        existing.cardsPlayed.push(action.cast.cardName);
+        if (action.cast.manaPaid) {
+          for (const mana of action.cast.manaPaid) existing.manaSpent += mana.count;
+        }
+      }
+      if (action.type === "move" && action.move && action.move.moveType === "play_land" && !landNames.has(action.move.cardName)) {
+        existing.cardsPlayed.push(action.move.cardName);
+      }
+      if (action.type === "damage" && action.damage?.isCombat && action.damage.amount > 0) {
+        existing.creaturesAttacked.push(action.damage.source);
+      }
+    }
+    turnMap.set(turn.turnNumber, existing);
+  }
+
+  return [...turnMap.entries()].sort((a, b) => a[0] - b[0]).map(([turnNum, data]) => ({
+    turn: turnNum,
+    mana_spent: data.manaSpent,
+    cards_played: data.cardsPlayed,
+    creatures_attacked: [...new Set(data.creaturesAttacked)],
+    user_creatures: data.userCreatures,
+    oppo_creatures: data.oppoCreatures,
+  }));
+}
+
+async function loadTurnsFromMatchId(matchId: string, userId: string, env: Env): Promise<TurnInput[] | string> {
+  const saves = await env.DB.prepare("SELECT uuid FROM saves WHERE user_uuid = ? AND game_id = 'mtga'").bind(userId).all<{ uuid: string }>();
+  if (saves.results.length === 0) return "No MTGA saves found for this user.";
+
+  const sectionName = `game:${matchId}`;
+  for (const save of saves.results) {
+    const row = await env.DB.prepare("SELECT data FROM sections WHERE save_uuid = ? AND name = ?").bind(save.uuid, sectionName).first<{ data: string }>();
+    if (row) {
+      try {
+        return extractTurnsFromSection(JSON.parse(row.data) as GameSectionData, 1);
+      } catch {
+        return `Failed to parse game section data for ${matchId}.`;
+      }
+    }
+  }
+  return `Game section "${sectionName}" not found in any MTGA save.`;
+}
+
 // ── Query: game_review ───────────────────────────────────────
 
 interface ReviewFinding {
@@ -433,11 +508,24 @@ async function gameReview(
   const set = query.set as string;
   const archetype = (query.archetype as string) ?? "ALL";
   const onPlay = query.on_play === true ? 1 : 0;
-  const turns = query.turns as TurnInput[];
+  let turns = query.turns as TurnInput[] | undefined;
   const format = query.format as string | undefined;
+  const matchId = query.match_id as string | undefined;
+  const userId = query.user_id as string | undefined;
+
+  if (matchId) {
+    if (!userId) {
+      return { type: "formatted", content: "Error: match_id lookup requires user_id (provided automatically by MCP context)." };
+    }
+    const loaded = await loadTurnsFromMatchId(matchId, userId, env);
+    if (typeof loaded === "string") {
+      return { type: "formatted", content: `Error: ${loaded}` };
+    }
+    turns = loaded;
+  }
 
   if (!set || !turns?.length) {
-    return { type: "formatted", content: "Error: game_review requires set and turns parameters." };
+    return { type: "formatted", content: "Error: game_review requires set and (turns OR match_id) parameters." };
   }
 
   const findings: ReviewFinding[] = [];
@@ -630,6 +718,10 @@ export const playAdvisorModule: NativeReferenceModule = {
     turns: {
       type: "array",
       description: "Turn data array for mana_efficiency, attack_analysis, and game_review modes.",
+    },
+    match_id: {
+      type: "string",
+      description: "Match ID for game_review mode. Loads game data from save sections via user_id.",
     },
   },
 

@@ -278,6 +278,71 @@ describe("play_advisor reference module", () => {
     expect(content).toContain("Coverage: 1/1");
   });
 
+  it("game_review works via match_id lookup from sections", async () => {
+    const saveUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).bind(saveUuid, "user-play-test", "mtga", "mtga", "TestPlayer", "test").run();
+
+    const gameSection = JSON.stringify({
+      matchId: "match-abc-123",
+      turns: [
+        {
+          turnNumber: 1, activePlayer: 1, phase: "Phase_Main1",
+          players: [{ seat: 1, lifeTotal: 20 }, { seat: 2, lifeTotal: 20 }],
+          actions: [
+            { player: 1, type: "move", move: { cardName: "Island", cardId: 95194, moveType: "play_land" } },
+          ],
+        },
+        {
+          turnNumber: 2, activePlayer: 1, phase: "Phase_Main1",
+          players: [{ seat: 1, lifeTotal: 20 }, { seat: 2, lifeTotal: 20 }],
+          actions: [
+            { player: 1, type: "move", move: { cardName: "Island", cardId: 95194, moveType: "play_land" } },
+            { player: 1, type: "cast", cast: { cardName: "Gleaming Barrier", cardId: 93965, manaPaid: [{ color: "Colorless", count: 2 }] } },
+          ],
+        },
+        {
+          turnNumber: 3, activePlayer: 1, phase: "Phase_Main1",
+          players: [{ seat: 1, lifeTotal: 20 }, { seat: 2, lifeTotal: 20 }],
+          actions: [
+            { player: 1, type: "move", move: { cardName: "Island", cardId: 95194, moveType: "play_land" } },
+            { player: 1, type: "cast", cast: { cardName: "Kaito, Cunning Infiltrator", cardId: 93757, manaPaid: [{ color: "Blue", count: 3 }] } },
+          ],
+        },
+      ],
+    });
+
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    ).bind(saveUuid, "game:match-abc-123", "Game log", gameSection).run();
+
+    const result = await playAdvisorModule.execute(
+      { mode: "game_review", set: "FDN", archetype: "UB", on_play: true, match_id: "match-abc-123", user_id: "user-play-test" },
+      env,
+    );
+    expect(result.type).toBe("formatted");
+    const content = (result as { type: "formatted"; content: string }).content;
+    expect(content).toContain("Game Review");
+    expect(content).toContain("Coverage:");
+  });
+
+  it("game_review returns error when match_id not found", async () => {
+    const saveUuid = crypto.randomUUID();
+    await env.DB.prepare(
+      `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
+       VALUES (?, ?, ?, ?, ?, ?)`,
+    ).bind(saveUuid, "user-notfound", "mtga", "mtga", "TestPlayer", "test").run();
+
+    const result = await playAdvisorModule.execute(
+      { mode: "game_review", set: "FDN", match_id: "nonexistent-match", user_id: "user-notfound" },
+      env,
+    );
+    const content = (result as { type: "formatted"; content: string }).content;
+    expect(content).toContain("not found");
+  });
+
   it("returns error for unknown mode", async () => {
     const result = await playAdvisorModule.execute(
       { mode: "unknown_mode" },
