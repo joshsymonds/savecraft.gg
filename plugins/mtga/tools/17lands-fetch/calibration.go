@@ -29,10 +29,17 @@ func computeCalibration(sr setResult, synergies []synergyRow) []calibrationRow {
 	// These axes produce values that are already naturally bounded or centered.
 	// The default steepness of 3 maps ±0.67 to ~0.12–0.88, which is appropriate
 	// for gap scores and ATA-normalized deviations.
+	//
+	// Color commitment and opportunity cost: hardcoded from the research design.
+	// color_commitment scores pip-share commitment [0,1] — center=0.5, k=4.
+	// opportunity_cost scores stranded pool value [0,1] — center=0.85, k=8
+	// (most picks strand little, steep penalty for high-cost pivots).
 	rows = append(rows,
 		calibrationRow{Axis: "curve", Center: 0, Steepness: 3},
 		calibrationRow{Axis: "signal", Center: 0, Steepness: 3},
 		calibrationRow{Axis: "role", Center: 0.3, Steepness: 5},
+		calibrationRow{Axis: "color_commitment", Center: 0.5, Steepness: 4},
+		calibrationRow{Axis: "opportunity_cost", Center: 0.85, Steepness: 8},
 	)
 
 	return rows
