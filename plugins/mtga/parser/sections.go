@@ -536,6 +536,33 @@ func processGRE(gs *GameState, raw json.RawMessage) {
 							}
 						}
 					}
+					if strings.Contains(zone.Type, "Battlefield") {
+						for _, objID := range zone.ObjectInstanceIDs {
+							if obj, ok := session.objectRegistry[objID]; ok && obj.isCard() {
+								name := data.ArenaCards[obj.GrpID].Name
+								perm := Permanent{
+									CardName:  name,
+									CardID:    obj.GrpID,
+									CardTypes: obj.CardTypes,
+									SubTypes:  obj.SubTypes,
+									Power:     obj.Power.Value,
+									Toughness: obj.Toughness.Value,
+									IsTapped:  obj.IsTapped,
+									Damage:    obj.Damage,
+								}
+								// Use controllerSeatId for steal effects; fall back to ownerSeatId.
+								seatID := obj.ControllerSeatID
+								if seatID == 0 {
+									seatID = zone.OwnerSeatID
+								}
+								for i := range players {
+									if players[i].Seat == seatID {
+										players[i].Battlefield = append(players[i].Battlefield, perm)
+									}
+								}
+							}
+						}
+					}
 				}
 			}
 			turn.Players = players
@@ -623,13 +650,23 @@ func manaColorName(color int) string {
 }
 
 type greGameObject struct {
-	InstanceID  int      `json:"instanceId"`
-	GrpID       int      `json:"grpId"`
-	Type        string   `json:"type"`
-	ZoneID      int      `json:"zoneId"`
-	OwnerSeatID int      `json:"ownerSeatId"`
-	Visibility  string   `json:"visibility"`
-	CardTypes   []string `json:"cardTypes"`
+	InstanceID       int      `json:"instanceId"`
+	GrpID            int      `json:"grpId"`
+	Type             string   `json:"type"`
+	ZoneID           int      `json:"zoneId"`
+	OwnerSeatID      int      `json:"ownerSeatId"`
+	ControllerSeatID int      `json:"controllerSeatId"`
+	Visibility       string   `json:"visibility"`
+	CardTypes        []string `json:"cardTypes"`
+	SubTypes         []string `json:"subtypes"`
+	Power            struct {
+		Value int `json:"value"`
+	} `json:"power"`
+	Toughness struct {
+		Value int `json:"value"`
+	} `json:"toughness"`
+	IsTapped bool `json:"isTapped"`
+	Damage   int  `json:"damage"`
 }
 
 // isCard returns true if the game object represents a card or token (not an ability).

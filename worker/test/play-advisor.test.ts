@@ -320,8 +320,26 @@ async function seedBaselines(): Promise<void> {
   }
 }
 
+async function seedCards(): Promise<void> {
+  // Minimal card data needed for mulligan CMC lookup.
+  const cards = [
+    { id: 95194, name: "Island", cmc: 0, type: "Basic Land — Island" },
+    { id: 95196, name: "Swamp", cmc: 0, type: "Basic Land — Swamp" },
+    { id: 93965, name: "Gleaming Barrier", cmc: 2, type: "Artifact Creature — Wall" },
+    { id: 93757, name: "Kaito, Cunning Infiltrator", cmc: 3, type: "Legendary Planeswalker — Kaito" },
+    { id: 93885, name: "Eaten Alive", cmc: 1, type: "Sorcery" },
+    { id: 93743, name: "Archmage of Runes", cmc: 5, type: "Creature — Giant Wizard" },
+  ];
+  for (const c of cards) {
+    await env.DB.prepare(
+      `INSERT INTO mtga_cards (arena_id, oracle_id, name, cmc, type_line, is_default, front_face_name)
+       VALUES (?, ?, ?, ?, ?, 1, ?)`,
+    ).bind(c.id, `oracle-${c.id}`, c.name, c.cmc, c.type, c.name).run();
+  }
+}
+
 async function seedAll(): Promise<void> {
-  await Promise.all([seedCardTiming(), seedTempo(), seedCombat(), seedMulligan(), seedBaselines()]);
+  await Promise.all([seedCards(), seedCardTiming(), seedTempo(), seedCombat(), seedMulligan(), seedBaselines()]);
 }
 
 // ── Tests ────────────────────────────────────────────────────
@@ -333,7 +351,7 @@ describe("play_advisor reference module", () => {
     await seedAll();
   });
 
-  it("returns card timing analysis", async () => {
+  it("returns card timing with best turn and win rates", async () => {
     const result = await playAdvisorModule.execute(
       {
         mode: "card_timing",
@@ -345,8 +363,14 @@ describe("play_advisor reference module", () => {
     );
     expect(result.type).toBe("formatted");
     const content = (result as { type: "formatted"; content: string }).content;
+    // Gleaming Barrier: best on turn 2 (55.0% WR from seeded data: 110/200)
     expect(content).toContain("Gleaming Barrier");
+    expect(content).toContain("best on turn 2");
+    expect(content).toContain("55.0%");
+    // Kaito: best on turn 3 (60.0% WR from seeded data: 90/150)
     expect(content).toContain("Kaito");
+    expect(content).toContain("best on turn 3");
+    expect(content).toContain("60.0%");
     expect(content).toContain("Coverage: 2/2");
   });
 
@@ -364,7 +388,7 @@ describe("play_advisor reference module", () => {
     expect(content).toContain("Coverage: 1/2");
   });
 
-  it("returns mana efficiency analysis", async () => {
+  it("returns mana efficiency with ratings", async () => {
     const result = await playAdvisorModule.execute(
       {
         mode: "mana_efficiency",
@@ -382,10 +406,16 @@ describe("play_advisor reference module", () => {
     expect(result.type).toBe("formatted");
     const content = (result as { type: "formatted"; content: string }).content;
     expect(content).toContain("Mana Efficiency");
+    // Turn 3: avg mana = 200/50 = 4.0, player spent 3 → 3 >= 4*0.5 → "Low"
     expect(content).toContain("T3");
+    expect(content).toContain("Low");
+    // Turn 3 bucket 3 WR: 60/100 = 60.0%
+    expect(content).toContain("60.0%");
   });
 
-  it("returns attack analysis", async () => {
+  it("returns attack analysis with hold recommendation", async () => {
+    // Seeded data: Gleaming Barrier turn 3, 2v2 creatures:
+    //   attack WR: 30/80 = 37.5%, hold WR: 50/80 = 62.5% → data says hold
     const result = await playAdvisorModule.execute(
       {
         mode: "attack_analysis",
@@ -405,10 +435,17 @@ describe("play_advisor reference module", () => {
     expect(result.type).toBe("formatted");
     const content = (result as { type: "formatted"; content: string }).content;
     expect(content).toContain("Gleaming Barrier");
+    // Player attacked but data says hold → should show ✗ marker
+    expect(content).toContain("✗");
+    expect(content).toContain("data says hold");
+    expect(content).toContain("37.5%"); // attack WR
+    expect(content).toContain("62.5%"); // hold WR
     expect(content).toContain("Coverage: 1/1");
   });
 
-  it("returns mulligan analysis", async () => {
+  it("returns mulligan analysis with keep recommendation", async () => {
+    // Seeded data: UB on_play, 2 lands, mid CMC, 0 mulls → 70/120 = 58.3% WR (keep)
+    // Mulligan to 6: 40/100 = 40.0% WR → keep wins by 18.3pp
     const result = await playAdvisorModule.execute(
       {
         mode: "mulligan",
@@ -429,7 +466,12 @@ describe("play_advisor reference module", () => {
     );
     expect(result.type).toBe("formatted");
     const content = (result as { type: "formatted"; content: string }).content;
-    expect(content).toContain("Mulligan");
+    expect(content).toContain("Mulligan Analysis");
+    // Note: mulligan now looks up CMC from mtga_cards. Without seeded cards,
+    // it falls back to 2.5 default CMC → "mid" bucket. With 3 basic lands
+    // (Island, Island, Swamp) → landCount=3.
+    // Seeded data has 3-land mid at 65/120 = 54.2%
+    expect(content).toContain("KEEP");
   });
 
   it("returns game review analysis", async () => {
@@ -519,7 +561,7 @@ describe("play_advisor reference module", () => {
     expect(content).toContain("Coverage: 1/1");
   });
 
-  it("game_review works via match_id lookup from sections", async () => {
+  it("game_review works via match_id lookup with battlefield data", async () => {
     const saveUuid = crypto.randomUUID();
     await env.DB.prepare(
       `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
@@ -532,69 +574,42 @@ describe("play_advisor reference module", () => {
       matchId: "match-abc-123",
       turns: [
         {
-          turnNumber: 1,
-          activePlayer: 1,
-          phase: "Phase_Main1",
+          turnNumber: 1, activePlayer: 1, phase: "Phase_Main1",
           players: [
-            { seat: 1, lifeTotal: 20 },
-            { seat: 2, lifeTotal: 20 },
+            { seat: 1, lifeTotal: 20, battlefield: [] },
+            { seat: 2, lifeTotal: 20, battlefield: [] },
           ],
           actions: [
-            {
-              player: 1,
-              type: "move",
-              move: { cardName: "Island", cardId: 95_194, moveType: "play_land" },
-            },
+            { player: 1, type: "move", move: { cardName: "Island", cardId: 95194, moveType: "play_land" } },
           ],
         },
         {
-          turnNumber: 2,
-          activePlayer: 1,
-          phase: "Phase_Main1",
+          turnNumber: 2, activePlayer: 1, phase: "Phase_Main1",
           players: [
-            { seat: 1, lifeTotal: 20 },
-            { seat: 2, lifeTotal: 20 },
+            { seat: 1, lifeTotal: 20, battlefield: [
+              { cardName: "Gleaming Barrier", cardId: 93965, cardTypes: ["CardType_Creature"], power: 0, toughness: 4 },
+            ]},
+            { seat: 2, lifeTotal: 20, battlefield: [] },
           ],
           actions: [
-            {
-              player: 1,
-              type: "move",
-              move: { cardName: "Island", cardId: 95_194, moveType: "play_land" },
-            },
-            {
-              player: 1,
-              type: "cast",
-              cast: {
-                cardName: "Gleaming Barrier",
-                cardId: 93_965,
-                manaPaid: [{ color: "Colorless", count: 2 }],
-              },
-            },
+            { player: 1, type: "move", move: { cardName: "Island", cardId: 95194, moveType: "play_land" } },
+            { player: 1, type: "cast", cast: { cardName: "Gleaming Barrier", cardId: 93965, manaPaid: [{ color: "Colorless", count: 2 }] } },
           ],
         },
         {
-          turnNumber: 3,
-          activePlayer: 1,
-          phase: "Phase_Main1",
+          turnNumber: 3, activePlayer: 1, phase: "Phase_Main1",
           players: [
-            { seat: 1, lifeTotal: 20 },
-            { seat: 2, lifeTotal: 20 },
+            { seat: 1, lifeTotal: 20, battlefield: [
+              { cardName: "Gleaming Barrier", cardId: 93965, cardTypes: ["CardType_Creature"], power: 0, toughness: 4 },
+            ]},
+            { seat: 2, lifeTotal: 20, battlefield: [
+              { cardName: "Ajani's Pridemate", cardId: 93848, cardTypes: ["CardType_Creature"], power: 2, toughness: 2 },
+              { cardName: "Burnished Hart", cardId: 93963, cardTypes: ["CardType_Creature"], power: 2, toughness: 2 },
+            ]},
           ],
           actions: [
-            {
-              player: 1,
-              type: "move",
-              move: { cardName: "Island", cardId: 95_194, moveType: "play_land" },
-            },
-            {
-              player: 1,
-              type: "cast",
-              cast: {
-                cardName: "Kaito, Cunning Infiltrator",
-                cardId: 93_757,
-                manaPaid: [{ color: "Blue", count: 3 }],
-              },
-            },
+            { player: 1, type: "move", move: { cardName: "Island", cardId: 95194, moveType: "play_land" } },
+            { player: 1, type: "cast", cast: { cardName: "Kaito, Cunning Infiltrator", cardId: 93757, manaPaid: [{ color: "Blue", count: 3 }] } },
           ],
         },
       ],
@@ -602,25 +617,18 @@ describe("play_advisor reference module", () => {
 
     await env.DB.prepare(
       "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
-    )
-      .bind(saveUuid, "game:match-abc-123", "Game log", gameSection)
-      .run();
+    ).bind(saveUuid, "game:match-abc-123", "Game log", gameSection).run();
 
     const result = await playAdvisorModule.execute(
-      {
-        mode: "game_review",
-        set: "FDN",
-        archetype: "UB",
-        on_play: true,
-        match_id: "match-abc-123",
-        user_id: "user-play-test",
-      },
+      { mode: "game_review", set: "FDN", archetype: "UB", on_play: true, match_id: "match-abc-123", user_id: "user-play-test" },
       env,
     );
     expect(result.type).toBe("formatted");
     const content = (result as { type: "formatted"; content: string }).content;
     expect(content).toContain("Game Review");
     expect(content).toContain("Coverage:");
+    // Turn 3 has 1 user creature, 2 opponent creatures (extracted from battlefield)
+    // The game_review should be able to run combat analysis with these counts
   });
 
   it("game_review returns error when match_id not found", async () => {
