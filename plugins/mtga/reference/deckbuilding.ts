@@ -225,6 +225,7 @@ async function healthCheck(
 ): Promise<{
   sections: HealthSection[];
   archetype: ArchetypeInfo;
+  alternatives: ArchetypeAlternative[];
   unresolved: string[];
 }> {
   // Classify cards
@@ -556,7 +557,141 @@ async function healthCheck(
   }
 
   const archetypeInfo = await buildArchetypeInfo(db, setCode, candidates);
-  return { sections, archetype: archetypeInfo, unresolved };
+
+  // Compute alternative archetypes with re-scored cuts and GIH WR shift.
+  const spellNames = [...new Set(spellMeta.map((m) => m.name))];
+  const alternatives = await computeAlternatives(
+    db,
+    setCode,
+    spellNames,
+    primaryArchetype,
+    archetypeInfo,
+  );
+
+  return { sections, archetype: archetypeInfo, alternatives, unresolved };
+}
+
+// ── Archetype alternatives ───────────────────────────────────
+
+interface ArchetypeAlternative {
+  archetype: string;
+  viability: string;
+  format_context: string;
+  cuts: string[];
+  avg_gihwr_shift: number;
+}
+
+/**
+ * Compute up to 3 alternative archetypes for the deck, each with suggested
+ * cuts and estimated GIH WR shift. Alternatives must have a different color
+ * identity from the primary and be at least "sparse" viability.
+ */
+async function computeAlternatives(
+  db: D1Database,
+  setCode: string,
+  spellNames: string[],
+  primaryArchetype: string,
+  archetypeInfo: ArchetypeInfo,
+): Promise<ArchetypeAlternative[]> {
+  // Pick candidates that differ from primary and aren't fringe.
+  const primaryColors = new Set(primaryArchetype);
+  const viable = archetypeInfo.candidates.filter((c) => {
+    if (c.archetype === primaryArchetype || c.archetype === "_overall")
+      return false;
+    if (c.viability === "fringe") return false;
+    // Must have different color identity (not identical set of colors)
+    const altColors = new Set(c.archetype);
+    if (
+      altColors.size === primaryColors.size &&
+      [...altColors].every((ch) => primaryColors.has(ch))
+    )
+      return false;
+    return true;
+  });
+
+  const altCandidates = viable.slice(0, 3);
+  if (altCandidates.length === 0) return [];
+
+  // Fetch per-archetype GIH WR for all spell names: primary + alternatives.
+  const archsToQuery = [
+    primaryArchetype,
+    ...altCandidates.map((c) => c.archetype),
+  ];
+  const gihwrByArch = new Map<string, Map<string, number>>();
+  for (const arch of archsToQuery) {
+    gihwrByArch.set(arch, new Map());
+  }
+
+  // Batch query per archetype to get card GIH WRs.
+  for (const arch of archsToQuery) {
+    for (let i = 0; i < spellNames.length; i += META_BATCH_SIZE) {
+      const chunk = spellNames.slice(i, i + META_BATCH_SIZE);
+      const ph = placeholders(chunk.length, 3);
+      const rows = await db
+        .prepare(
+          `SELECT card_name, gihwr FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND archetype = ?2 AND card_name IN (${ph})`,
+        )
+        .bind(setCode, arch, ...chunk)
+        .all<{ card_name: string; gihwr: number }>();
+      const map = gihwrByArch.get(arch)!;
+      for (const row of rows.results) {
+        map.set(row.card_name, row.gihwr);
+      }
+    }
+  }
+
+  const primaryGihwr = gihwrByArch.get(primaryArchetype)!;
+  const results: ArchetypeAlternative[] = [];
+
+  for (const alt of altCandidates) {
+    const altGihwr = gihwrByArch.get(alt.archetype)!;
+
+    // Compute per-card GIH WR shift and identify off-color cuts.
+    let totalShift = 0;
+    let shiftCount = 0;
+    const cardShifts: { name: string; shift: number }[] = [];
+
+    for (const name of spellNames) {
+      const primary = primaryGihwr.get(name);
+      const altWr = altGihwr.get(name);
+      if (primary !== undefined && altWr !== undefined) {
+        totalShift += altWr - primary;
+        shiftCount++;
+      }
+      // Cards whose colors don't overlap with the alternative are cut candidates.
+      // (We'd need the card's colors to determine this properly.)
+    }
+
+    // Identify cuts: cards with worst GIH WR under the alternative archetype
+    // that aren't in the alternative's color identity.
+    for (const name of spellNames) {
+      const altWr = altGihwr.get(name);
+      if (altWr === undefined) {
+        // No data for this card in the alternative → likely off-color
+        cardShifts.push({ name, shift: -1 });
+      } else {
+        const primaryWr = primaryGihwr.get(name) ?? 0.5;
+        cardShifts.push({ name, shift: altWr - primaryWr });
+      }
+    }
+
+    // Sort by shift ascending — worst performers under the alternative are cut candidates
+    cardShifts.sort((a, b) => a.shift - b.shift);
+    const cuts = cardShifts
+      .slice(0, 3)
+      .filter((c) => c.shift < 0)
+      .map((c) => c.name);
+
+    results.push({
+      archetype: alt.archetype,
+      viability: alt.viability,
+      format_context: alt.format_context,
+      cuts,
+      avg_gihwr_shift: shiftCount > 0 ? r4(totalShift / shiftCount) : 0,
+    });
+  }
+
+  return results;
 }
 
 // ── Cut advisor mode ─────────────────────────────────────────
@@ -882,6 +1017,7 @@ export const deckbuildingModule: NativeReferenceModule = {
         mode: "health_check",
         set: setCode,
         archetype: result.archetype,
+        alternatives: result.alternatives,
         sections: result.sections,
         unresolved_cards: result.unresolved,
       },

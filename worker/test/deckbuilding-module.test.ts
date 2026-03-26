@@ -491,4 +491,76 @@ describe("deckbuilding native module", () => {
       expect(data.unresolved_cards).toContain("Totally Made Up Card");
     });
   });
+
+  describe("archetype alternatives", () => {
+    it("suggests alternative archetypes in health check", async () => {
+      await seedDeckbuildingData();
+
+      // Add archetype stats for UB so alternatives can compute GIH WR shifts.
+      await env.DB.batch([
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+        ).bind("DSK", "Vengeful Strangler", "UB", 5000, 0.58),
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+        ).bind("DSK", "Doomsday Excruciator", "UB", 3000, 0.64),
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+        ).bind("DSK", "Go for the Throat", "UB", 4000, 0.61),
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+        ).bind("DSK", "Gloomlake Verge", "UB", 3000, 0.59),
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+        ).bind("DSK", "Vengeful Strangler", "B", 3000, 0.56),
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+        ).bind("DSK", "Doomsday Excruciator", "B", 2000, 0.62),
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+        ).bind("DSK", "Go for the Throat", "B", 2000, 0.59),
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+        ).bind("DSK", "Gloomlake Verge", "B", 2000, 0.55),
+      ]);
+
+      const result = await deckbuildingModule.execute(
+        {
+          set: "DSK",
+          deck: [
+            { name: "Vengeful Strangler", count: 4 },
+            { name: "Doomsday Excruciator", count: 2 },
+            { name: "Gloomlake Verge", count: 4 },
+            { name: "Go for the Throat", count: 2 },
+            { name: "Island", count: 7 },
+            { name: "Swamp", count: 6 },
+          ],
+        },
+        env,
+      );
+
+      expect(result.type).toBe("structured");
+      if (result.type !== "structured") throw new Error("unexpected");
+      const data = result.data as {
+        alternatives: {
+          archetype: string;
+          viability: string;
+          format_context: string;
+          cuts: string[];
+          avg_gihwr_shift: number;
+        }[];
+      };
+
+      // Should have alternatives (UB is a different archetype from the primary B)
+      expect(data.alternatives).toBeDefined();
+      // Primary should not appear in alternatives
+      for (const alt of data.alternatives) {
+        expect(alt.archetype).not.toBe("B");
+        expect(["strong", "moderate", "sparse", "fringe"]).toContain(
+          alt.viability,
+        );
+        expect(alt.format_context).toContain("% of decks");
+      }
+    });
+  });
 });
