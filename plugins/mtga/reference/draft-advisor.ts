@@ -1298,6 +1298,41 @@ async function batchReview(
     });
   }
 
+  // Generate archetype warnings: flag transitions to sparse/fringe archetypes
+  // and archetype drift. Hoisted to summary so LLMs can't miss them.
+  const archetypeWarnings: string[] = [];
+  let prevPrimary = "";
+  for (const pick of results) {
+    const snap = pick.archetype_snapshot;
+    if (snap.primary !== prevPrimary && prevPrimary !== "") {
+      const tierNote =
+        snap.viability === "sparse" || snap.viability === "fringe"
+          ? ` (${snap.viability} archetype)`
+          : "";
+      archetypeWarnings.push(
+        `${pick.display_label}: archetype shifted from ${prevPrimary} to ${snap.primary}${tierNote}`,
+      );
+    } else if (
+      prevPrimary === "" &&
+      (snap.viability === "sparse" || snap.viability === "fringe")
+    ) {
+      archetypeWarnings.push(
+        `${pick.display_label}: starting in ${snap.primary} (${snap.viability} archetype — only ${snap.viability === "fringe" ? "<5%" : "5-25%"} of winning decks)`,
+      );
+    }
+    prevPrimary = snap.primary;
+  }
+  // Flag if the final archetype is sparse/fringe
+  const finalSnap = results[results.length - 1]?.archetype_snapshot;
+  if (
+    finalSnap &&
+    (finalSnap.viability === "sparse" || finalSnap.viability === "fringe")
+  ) {
+    archetypeWarnings.push(
+      `Final archetype ${finalSnap.primary} is ${finalSnap.viability} — consider pivoting in deckbuilding`,
+    );
+  }
+
   return {
     type: "structured",
     data: {
@@ -1311,6 +1346,7 @@ async function batchReview(
           results.length > 0
             ? `${optimal}/${results.length} optimal, ${good} good, ${questionable} questionable, ${misses} misses`
             : "No picks to evaluate",
+        archetype_warnings: archetypeWarnings,
       },
       picks: results,
     },
