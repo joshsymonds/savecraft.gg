@@ -2883,8 +2883,8 @@ describe("deriveArchetypeWeights", () => {
     // commitment is higher than the pair product + open bonus
     expect(candidates[0]!.archetype).toBe("U");
     // WU should still be the top pair
-    const pairs = candidates.filter((p) => p.archetype.length === 2);
-    expect(pairs[0]!.archetype).toBe("WU");
+    const topPair = candidates.find((p) => p.archetype.length === 2);
+    expect(topPair!.archetype).toBe("WU");
   });
 
   it("gives meaningful weight to UB/UR/UG when U is locked and others are open", () => {
@@ -3019,7 +3019,7 @@ describe("Bayesian shrinkage", () => {
       // Archetype "U" has very few games — should be shrunk heavily
       env.DB.prepare(
         `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind("TST", "Test Card", "U", 10, 15, 5, 0.70, 0.70, 0.70, 0.55, 0.15, 5, 5),
+      ).bind("TST", "Test Card", "U", 10, 15, 5, 0.7, 0.7, 0.7, 0.55, 0.15, 5, 5),
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(1, "o-1", "Test Card", "Test Card", "{U}", 1, "Creature", '["U"]', 1),
@@ -3079,7 +3079,7 @@ describe("Bayesian shrinkage", () => {
     // With shrinkage: effective ≈ (10*0.70 + 750*0.55) / 760 ≈ 0.552
     // WITHOUT shrinkage: would use 0.70 directly
     // The baseline raw score should be close to 0.552, not 0.70
-    expect(rec!.axes.baseline.raw).toBeLessThan(0.60);
+    expect(rec!.axes.baseline.raw).toBeLessThan(0.6);
     expect(rec!.axes.baseline.raw).toBeGreaterThan(0.54);
   });
 
@@ -3106,7 +3106,7 @@ describe("Bayesian shrinkage", () => {
       // Sparse synergy: high delta but very few games
       env.DB.prepare(
         `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
-      ).bind("SYN", "Pack Card", "Pool Card", 0.10, 5),
+      ).bind("SYN", "Pack Card", "Pool Card", 0.1, 5),
       // Calibration
       env.DB.prepare(
         `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
