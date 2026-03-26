@@ -456,6 +456,39 @@ describe("draft_advisor native module", () => {
     expect(bear.axes.color_commitment.color_fit).toBeLessThan(0.5);
   });
 
+  it("uses max commitment across colors for multi-color card colorFit", async () => {
+    await seedContextualData();
+
+    // Pool is UB (3x Gloomlake Verge). Gloomlake Verge in the pack is {U}{B}.
+    // colorFit should be max(commitment_U, commitment_B) — both are committed,
+    // so colorFit should be high.
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge", "Gloomlake Verge", "Gloomlake Verge"],
+        pack: ["Gloomlake Verge", "Forest Bear"],
+        pick_number: 15,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      recommendations: {
+        card: string;
+        axes: { color_commitment: { color_fit: number } };
+      }[];
+    };
+
+    const gloomlake = data.recommendations.find((r) => r.card === "Gloomlake Verge")!;
+    const bear = data.recommendations.find((r) => r.card === "Forest Bear")!;
+    // Gloomlake Verge is on-color (UB in UB pool) — high colorFit
+    // Forest Bear is off-color (GG in UB pool) — low colorFit
+    expect(gloomlake.axes.color_commitment.color_fit).toBeGreaterThan(bear.axes.color_commitment.color_fit);
+    expect(gloomlake.axes.color_commitment.color_fit).toBeGreaterThan(0.5);
+  });
+
   it("gives off-color card higher opportunity cost than on-color card", async () => {
     await seedContextualData();
 

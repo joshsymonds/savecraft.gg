@@ -726,6 +726,7 @@ async function contextualPick(
 
   for (const packCard of packMeta) {
     const name = packCard.name;
+    const packCardPips = countPips(packCard.mana_cost);
 
     // Baseline: multi-archetype weighted GIH WR.
     let baselineGihwr = 0;
@@ -777,8 +778,7 @@ async function contextualPick(
     const ata = overallByName.get(name)?.ata ?? 0;
     let signalScore = 0;
     if (archetypeOpenness && archetypeOpenness.size > 0) {
-      const cardColors = countPips(packCard.mana_cost);
-      const colorSet = new Set(cardColors.keys());
+      const colorSet = new Set(packCardPips.keys());
       let bestOpenness = 0;
       for (const pair of ALL_COLOR_PAIRS) {
         if (colorSet.has(pair[0]!) || colorSet.has(pair[1]!)) {
@@ -818,7 +818,7 @@ async function contextualPick(
     }
 
     // Castability — with pivot-potential source estimation.
-    const cardPips = countPips(packCard.mana_cost);
+    const cardPips = packCardPips;
     const maxPips = Math.max(0, ...[...cardPips.values()]);
     const castTurn = Math.max(1, Math.min(6, Math.ceil(packCard.cmc)));
     let castabilityScore = 1.0;
@@ -849,20 +849,24 @@ async function contextualPick(
     }
 
     // Color commitment: how well this card fits the current draft direction.
-    const cardColors = countPips(packCard.mana_cost);
     let colorFit = 1.0; // Colorless cards always fit
-    if (cardColors.size > 0) {
-      colorFit = Math.max(...[...cardColors.keys()].map((c) => colorCommitments.get(c) ?? 0));
+    if (packCardPips.size > 0) {
+      colorFit = Math.max(...[...packCardPips.keys()].map((c) => colorCommitments.get(c) ?? 0));
     }
 
     // Opportunity cost: what pool value do we strand by taking this card?
     let opportunityScore = 1.0;
-    if (cardColors.size > 0 && poolMeta.length > 0) {
+    if (packCardPips.size > 0 && poolMeta.length > 0) {
       // Find the implied pair: highest-weight candidate that includes at least
       // one of this card's colors. If none match, use the top candidate.
-      const cardColorSet = new Set(cardColors.keys());
-      let bestImpliedPair: string | undefined;
-      let bestStrandedValue = Infinity;
+      const cardColorSet = new Set(packCardPips.keys());
+
+      // Compute total pool value once (shared across all candidate pairs).
+      let totalPoolValue = 0;
+      for (let idx = 0; idx < poolMeta.length; idx++) {
+        const baseline = overallByName.get(poolMeta[idx]!.name)?.gihwr ?? 0;
+        if (baseline > 0) totalPoolValue += baseline * ((idx + 1) / pickNumber);
+      }
 
       // Try each candidate pair that overlaps with the card's colors.
       const overlappingPairs = candidates.filter(
@@ -876,10 +880,12 @@ async function contextualPick(
           ? overlappingPairs
           : candidates.filter((c) => c.colorPair !== "_overall").slice(0, 1);
 
+      let bestStrandedValue = Infinity;
+      let found = false;
+
       for (const candidate of pairsToTry) {
         const pairColors = new Set([candidate.colorPair[0]!, candidate.colorPair[1]!]);
         let strandedValue = 0;
-        let totalValue = 0;
 
         for (let idx = 0; idx < poolMeta.length; idx++) {
           const poolCard = poolMeta[idx]!;
@@ -887,36 +893,24 @@ async function contextualPick(
           const poolBaseline = overallByName.get(poolCard.name)?.gihwr ?? 0;
           if (poolBaseline <= 0) continue;
 
-          // Time decay: earlier pool cards cost less to strand.
-          const pickInvestmentWeight = (idx + 1) / pickNumber;
-          const weightedBaseline = poolBaseline * pickInvestmentWeight;
-          totalValue += weightedBaseline;
-
           // Colorless pool cards are never stranded.
           if (poolCardColors.size === 0) continue;
 
           // Card is stranded if none of its colors are in the implied pair.
           const onColor = [...poolCardColors.keys()].some((c) => pairColors.has(c));
           if (!onColor) {
-            strandedValue += weightedBaseline;
+            strandedValue += poolBaseline * ((idx + 1) / pickNumber);
           }
         }
 
         if (strandedValue < bestStrandedValue) {
           bestStrandedValue = strandedValue;
-          bestImpliedPair = candidate.colorPair;
+          found = true;
         }
       }
 
-      if (bestImpliedPair !== undefined) {
-        const totalValue = poolMeta.reduce((sum, card, idx) => {
-          const baseline = overallByName.get(card.name)?.gihwr ?? 0;
-          return sum + baseline * ((idx + 1) / pickNumber);
-        }, 0);
-        opportunityScore =
-          totalValue > 0
-            ? Math.max(0, Math.min(1, 1 - bestStrandedValue / totalValue))
-            : 1.0;
+      if (found && totalPoolValue > 0) {
+        opportunityScore = Math.max(0, Math.min(1, 1 - bestStrandedValue / totalPoolValue));
       }
     }
 
@@ -1232,7 +1226,7 @@ export const draftAdvisorModule: NativeReferenceModule = {
     "",
     "TWO MODES:",
     "",
-    "1. LIVE PICK (set + pool + pack): Rank each card in the pack using 6 axes — baseline (archetype-weighted GIH WR), synergy (pairwise interaction with pool), curve (CMC gap detection), signal (archetype openness), role (creature/removal/fixing composition), castability (Karsten hypergeometric). Combined via WASPAS hybrid scoring.",
+    "1. LIVE PICK (set + pool + pack): Rank each card in the pack using 8 axes — baseline (archetype-weighted GIH WR), synergy (pairwise interaction with pool), curve (CMC gap detection), signal (archetype openness), role (creature/removal/fixing composition), castability (Karsten hypergeometric), color commitment (draft direction fit), opportunity cost (stranded pool value). Combined via WASPAS hybrid scoring.",
     "   - Pass pick_history (array of {available, chosen}) to enable accumulated signal tracking across the full draft.",
     "   - Read component breakdowns to explain WHY a card scores high — don't just report the rank.",
     "   - Warn when castability < 80%. Warn when a role category is empty.",
