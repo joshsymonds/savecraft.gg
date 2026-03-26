@@ -1,32 +1,26 @@
 import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 
+// Each test file runs serially within its shard, but `npm run test:shard`
+// launches N vitest processes in parallel (each with its own Miniflare).
+// This sidesteps Miniflare's isolatedStorage WAL bug while giving us true
+// file-level parallelism across shards.
 export default defineWorkersConfig({
   test: {
     setupFiles: ["./test/setup.ts"],
     fileParallelism: false,
     poolOptions: {
       workers: {
-        // All test files share one Miniflare instance. Without this, each
-        // file gets its own instance and SELF.fetch() writes (worker context)
-        // are invisible to env.DB reads (test context) across files.
         singleWorker: true,
         wrangler: { configPath: "./wrangler.toml" },
         miniflare: {
           bindings: {
-            // Override .dev.vars: tests use stub auth (bearer token = user UUID)
-            // for session/daemon routes. MCP auth uses library tokens.
             CLERK_ISSUER: "",
-            // Admin API key for debug introspection tests
             ADMIN_API_KEY: "test-admin-key-secret",
-            // Short intervals for alarm tests (production defaults: 90000 / 30000)
             STALE_THRESHOLD_MS: 200,
             ALARM_INTERVAL_MS: 100,
           },
           kvNamespaces: ["OAUTH_KV"],
         },
-        // Disabled because Miniflare's storage frame tracker can't handle
-        // Durable Object SQLite WAL files. Tests use beforeEach(cleanAll)
-        // inside describe blocks for per-test isolation instead.
         isolatedStorage: false,
       },
     },
