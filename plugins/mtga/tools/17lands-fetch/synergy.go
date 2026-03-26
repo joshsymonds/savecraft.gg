@@ -11,7 +11,6 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/sets"
 )
 
-
 // synergyRow represents one direction of a pairwise synergy relationship.
 type synergyRow struct {
 	CardA         string
