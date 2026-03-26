@@ -463,7 +463,7 @@ async function handleToolCall(
       );
     }
     case "query_reference": {
-      return handleQueryReference(env, args);
+      return handleQueryReference(env, userUuid, args);
     }
     case "setup_help": {
       return handleGetInfo(env, userUuid, args);
@@ -491,7 +491,11 @@ function handleGetInfo(
 
 const MAX_BATCH_QUERIES = 50;
 
-async function handleQueryReference(env: Env, args: Record<string, unknown>): Promise<ToolResult> {
+async function handleQueryReference(
+  env: Env,
+  userUuid: string,
+  args: Record<string, unknown>,
+): Promise<ToolResult> {
   const queries = args.queries;
   if (!Array.isArray(queries) || queries.length === 0) {
     return {
@@ -518,7 +522,13 @@ async function handleQueryReference(env: Env, args: Record<string, unknown>): Pr
 
   const responses = await Promise.allSettled(
     queries.map((q) =>
-      queryReference(env.REFERENCE_PLUGINS, gameId, module, q as Record<string, unknown>, env),
+      queryReference(
+        env.REFERENCE_PLUGINS,
+        gameId,
+        module,
+        { ...(q as Record<string, unknown>), user_id: userUuid },
+        env,
+      ),
     ),
   );
 

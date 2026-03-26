@@ -470,9 +470,9 @@ describe("MCP Protocol", () => {
       results: ({ echo?: { greeting: string } } | { error?: string })[];
     };
     expect(data.results).toHaveLength(2);
-    // Both succeed — verify positional ordering preserved
-    expect(data.results[0]).toEqual({ echo: { greeting: "hello" } });
-    expect(data.results[1]).toEqual({ echo: { greeting: "world" } });
+    // Both succeed — verify positional ordering preserved and user_id injected
+    expect(data.results[0]).toEqual({ echo: { greeting: "hello", user_id: TEST_USER } });
+    expect(data.results[1]).toEqual({ echo: { greeting: "world", user_id: TEST_USER } });
 
     // Now test mixed: same game, one valid module, one invalid
     // We need a different game_id for the error case since module is shared.
