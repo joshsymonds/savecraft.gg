@@ -13,14 +13,14 @@
  */
 
 // Event prefixes that indicate Limited (not Constructed) — skip these.
-const LIMITED_PREFIXES = [
+const LIMITED_PREFIXES = new Set([
   "QuickDraft",
   "PremierDraft",
   "TradDraft",
   "BotDraft",
   "Sealed",
   "TraditionalSealed",
-];
+]);
 
 // Token → format mapping. Order matters: StandardBrawl before Standard and Brawl.
 const TOKEN_FORMATS: [string, string][] = [
@@ -42,11 +42,11 @@ export function deriveFormat(eventId: string): string {
   const tokens = eventId.split("_");
 
   // Skip Limited events
-  if (tokens[0] && LIMITED_PREFIXES.includes(tokens[0])) return "";
+  if (tokens[0] && LIMITED_PREFIXES.has(tokens[0])) return "";
 
   // Check tokens for format keywords
   for (const [keyword, format] of TOKEN_FORMATS) {
-    if (tokens.some((t) => t === keyword)) return format;
+    if (tokens.includes(keyword)) return format;
   }
 
   return "";

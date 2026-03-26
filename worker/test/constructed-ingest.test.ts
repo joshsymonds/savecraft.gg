@@ -1,9 +1,9 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { deriveFormat } from "../src/mtga/format";
 import { storePush } from "../src/store";
 import type { SectionInput } from "../src/store";
-import { deriveFormat } from "../src/mtga/format";
 
 import { cleanAll, seedSource } from "./helpers";
 
@@ -21,8 +21,8 @@ function matchSection(overrides: Record<string, unknown> = {}): SectionInput {
         rank: "Platinum",
         tier: 3,
         cardsSeen: [
-          { name: "Sheoldred, the Apocalypse", arenaId: 87521 },
-          { name: "Go for the Throat", arenaId: 91234 },
+          { name: "Sheoldred, the Apocalypse", arenaId: 87_521 },
+          { name: "Go for the Throat", arenaId: 91_234 },
         ],
       },
       player: { name: "Me", seat: 1 },
@@ -61,7 +61,7 @@ describe("MTGA Constructed match ingest", () => {
         opponent: {
           name: "ExplorerFan",
           rank: "Diamond",
-          cardsSeen: [{ name: "Fable of the Mirror-Breaker", arenaId: 80001 }],
+          cardsSeen: [{ name: "Fable of the Mirror-Breaker", arenaId: 80_001 }],
         },
       }),
     };
@@ -170,9 +170,9 @@ describe("MTGA Constructed match ingest", () => {
       sections,
     );
 
-    const count = await env.DB.prepare(
-      "SELECT COUNT(*) as n FROM mtga_match_history",
-    ).first<{ n: number }>();
+    const count = await env.DB.prepare("SELECT COUNT(*) as n FROM mtga_match_history").first<{
+      n: number;
+    }>();
 
     expect(count!.n).toBe(0);
   });
@@ -196,9 +196,9 @@ describe("MTGA Constructed match ingest", () => {
       sections,
     );
 
-    const count = await env.DB.prepare(
-      "SELECT COUNT(*) as n FROM mtga_match_history",
-    ).first<{ n: number }>();
+    const count = await env.DB.prepare("SELECT COUNT(*) as n FROM mtga_match_history").first<{
+      n: number;
+    }>();
 
     expect(count!.n).toBe(0);
   });
