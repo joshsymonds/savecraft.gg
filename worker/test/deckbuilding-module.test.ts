@@ -243,9 +243,7 @@ describe("deckbuilding native module", () => {
       expect(data.archetype.candidates.length).toBeGreaterThan(0);
       // Viability fields present
       const primary = data.archetype.candidates[0];
-      expect(["strong", "moderate", "sparse", "fringe"]).toContain(
-        primary?.viability,
-      );
+      expect(["strong", "moderate", "sparse", "fringe"]).toContain(primary?.viability);
       expect(primary?.format_context).toContain("% of decks");
       expect(data.sections.length).toBeGreaterThan(0);
 
@@ -553,14 +551,17 @@ describe("deckbuilding native module", () => {
 
       // Should have alternatives (UB is a different archetype from the primary B)
       expect(data.alternatives).toBeDefined();
+      expect(data.alternatives.length).toBeGreaterThan(0);
       // Primary should not appear in alternatives
       for (const alt of data.alternatives) {
         expect(alt.archetype).not.toBe("B");
-        expect(["strong", "moderate", "sparse", "fringe"]).toContain(
-          alt.viability,
-        );
+        expect(["strong", "moderate", "sparse", "fringe"]).toContain(alt.viability);
         expect(alt.format_context).toContain("% of decks");
       }
+      // UB alternative should have positive GIH WR shift (UB cards seeded higher than B)
+      const ubAlt = data.alternatives.find((a) => a.archetype === "UB");
+      expect(ubAlt).toBeDefined();
+      expect(ubAlt!.avg_gihwr_shift).toBeGreaterThan(0);
     });
   });
 });
