@@ -24,7 +24,7 @@ type synergyRow struct {
 
 // curveRow represents one CMC bucket in an archetype's average deck curve.
 type curveRow struct {
-	ColorPair  string
+	Archetype  string
 	CMC        int
 	AvgCount   float64
 	TotalDecks int
@@ -33,7 +33,7 @@ type curveRow struct {
 // roleTargetRow represents the average count of a role in winning decks
 // for an archetype. Used by the scoring engine's role fulfillment axis.
 type roleTargetRow struct {
-	ColorPair  string
+	Archetype  string
 	Role       string
 	AvgCount   float64
 	TotalDecks int
@@ -42,7 +42,7 @@ type roleTargetRow struct {
 // deckStatsRow represents aggregate deck composition statistics for an archetype.
 // Computed from winning decks to provide empirical deckbuilding targets.
 type deckStatsRow struct {
-	ColorPair        string
+	Archetype        string
 	AvgLands         float64
 	AvgCreatures     float64
 	AvgNoncreatures  float64
@@ -121,13 +121,11 @@ func cmcBucket(cmc float64) int {
 	return b
 }
 
-// validColorPair returns true if the normalized color string is one of the
-// 10 canonical two-color pairs. Mono-color and 3+ color games are excluded
-// from stratified synergy computation.
-var colorPairSet = func() map[string]bool {
-	m := make(map[string]bool, len(colorPairs))
-	for _, cp := range colorPairs {
-		m[cp] = true
+// colorComboSet contains all 31 valid color combinations for fast lookup.
+var colorComboSet = func() map[string]bool {
+	m := make(map[string]bool, len(colorCombos))
+	for _, cc := range colorCombos {
+		m[cc] = true
 	}
 	return m
 }()
@@ -214,8 +212,8 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 	// "_overall" is the aggregate across all colors.
 	accums := make(map[string]map[string]*cardAccum)
 	accums["_overall"] = make(map[string]*cardAccum)
-	for _, cp := range colorPairs {
-		accums[cp] = make(map[string]*cardAccum)
+	for _, cc := range colorCombos {
+		accums[cc] = make(map[string]*cardAccum)
 	}
 
 	// ── Synergy accumulators ───────────────────────────────────
@@ -226,11 +224,11 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 	}
 	sort.Strings(cardNames)
 
-	pairsByColor := make(map[string]map[cardPair]*pairAccum)   // colorPair → pair → accum
-	cardsByColor := make(map[string]map[string]*cardDeckAccum) // colorPair → cardName → accum
-	curves := make(map[string]*curveAccum)                     // color pair → curve accumulator
-	roleTargets := make(map[string]*roleTargetAccum)           // color pair → role target accumulator
-	deckStats := make(map[string]*deckStatsAccum)              // color pair → deck stats accumulator
+	pairsByColor := make(map[string]map[cardPair]*pairAccum)   // archetype → pair → accum
+	cardsByColor := make(map[string]map[string]*cardDeckAccum) // archetype → cardName → accum
+	curves := make(map[string]*curveAccum)                     // archetype → curve accumulator
+	roleTargets := make(map[string]*roleTargetAccum)           // archetype → role target accumulator
+	deckStats := make(map[string]*deckStatsAccum)              // archetype → deck stats accumulator
 
 	// Buffer for cards in deck per row (reused to avoid allocation).
 	inDeck := make([]string, 0, 50)
@@ -308,9 +306,8 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 		}
 
 		// ── Synergy accumulation ───────────────────────────────
-		// Only accumulate synergy data for recognized 2-color pairs.
-		// Mono-color and 3+ color games are noise for stratified analysis.
-		if colorPairSet[mainColors] {
+		// Accumulate synergy data for all valid color combinations (1-5 colors).
+		if colorComboSet[mainColors] {
 			// Get or create per-color accumulators.
 			pairMap, ok := pairsByColor[mainColors]
 			if !ok {
@@ -355,7 +352,7 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 
 		// ── Deck stats accumulation ──────────────────────────────
 		// Win rate tracking uses ALL games; composition uses winning only.
-		if cardLands != nil && colorPairSet[mainColors] {
+		if cardLands != nil && colorComboSet[mainColors] {
 			hasSplash := splashCol >= 0 && splashCol < len(row) && row[splashCol] != ""
 
 			ds, ok := deckStats[mainColors]
@@ -416,7 +413,7 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 		}
 
 		// Accumulate CMC curves and role targets for winning decks.
-		if won && colorPairSet[mainColors] {
+		if won && colorComboSet[mainColors] {
 			if cardCMC != nil {
 				ca, ok := curves[mainColors]
 				if !ok {
@@ -540,7 +537,7 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 				continue
 			}
 			curveRows = append(curveRows, curveRow{
-				ColorPair:  cp,
+				Archetype:  cp,
 				CMC:        cmc,
 				AvgCount:   round4(float64(ca.cmcCounts[cmc]) / float64(ca.totalDecks)),
 				TotalDecks: ca.totalDecks,
@@ -556,7 +553,7 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 		}
 		for role, count := range ra.roleCounts {
 			roleTargetRows = append(roleTargetRows, roleTargetRow{
-				ColorPair:  cp,
+				Archetype:  cp,
 				Role:       role,
 				AvgCount:   round4(float64(count) / float64(ra.totalDecks)),
 				TotalDecks: ra.totalDecks,
@@ -571,7 +568,7 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 			continue
 		}
 		row := deckStatsRow{
-			ColorPair:       cp,
+			Archetype:       cp,
 			AvgLands:        round4(float64(ds.totalLands) / float64(ds.winDecks)),
 			AvgCreatures:    round4(float64(ds.totalCreatures) / float64(ds.winDecks)),
 			AvgNoncreatures: round4(float64(ds.totalNoncreat) / float64(ds.winDecks)),
@@ -616,16 +613,16 @@ func buildSetSynergySQL(r synergyDataResult) string {
 			sc, q(s.CardA), q(s.CardB), s.SynergyDelta, s.GamesTogether)
 	}
 	for _, c := range r.Curves {
-		fmt.Fprintf(&b, "INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (%s, %s, %d, %g, %d);\n",
-			sc, q(c.ColorPair), c.CMC, c.AvgCount, c.TotalDecks)
+		fmt.Fprintf(&b, "INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (%s, %s, %d, %g, %d);\n",
+			sc, q(c.Archetype), c.CMC, c.AvgCount, c.TotalDecks)
 	}
 	for _, rt := range r.RoleTargets {
-		fmt.Fprintf(&b, "INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (%s, %s, %s, %g, %d);\n",
-			sc, q(rt.ColorPair), q(rt.Role), rt.AvgCount, rt.TotalDecks)
+		fmt.Fprintf(&b, "INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (%s, %s, %s, %g, %d);\n",
+			sc, q(rt.Archetype), q(rt.Role), rt.AvgCount, rt.TotalDecks)
 	}
 	for _, ds := range r.DeckStats {
-		fmt.Fprintf(&b, "INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (%s, %s, %g, %g, %g, %g, %g, %g, %g, %g, %d);\n",
-			sc, q(ds.ColorPair), ds.AvgLands, ds.AvgCreatures, ds.AvgNoncreatures, ds.AvgFixing, ds.SplashRate, ds.SplashAvgSources, ds.SplashWinrate, ds.NonsplashWinrate, ds.TotalDecks)
+		fmt.Fprintf(&b, "INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (%s, %s, %g, %g, %g, %g, %g, %g, %g, %g, %d);\n",
+			sc, q(ds.Archetype), ds.AvgLands, ds.AvgCreatures, ds.AvgNoncreatures, ds.AvgFixing, ds.SplashRate, ds.SplashAvgSources, ds.SplashWinrate, ds.NonsplashWinrate, ds.TotalDecks)
 	}
 	for _, cal := range r.Calibration {
 		fmt.Fprintf(&b, "INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (%s, %s, %g, %g);\n",
@@ -643,7 +640,7 @@ func buildSetRatingsSQL(sr setResult) string {
 
 	// Per-set DELETEs.
 	fmt.Fprintf(&b, "DELETE FROM mtga_draft_ratings_fts WHERE set_code = %s;\n", sc)
-	fmt.Fprintf(&b, "DELETE FROM mtga_draft_color_stats WHERE set_code = %s;\n", sc)
+	fmt.Fprintf(&b, "DELETE FROM mtga_draft_archetype_stats WHERE set_code = %s;\n", sc)
 	fmt.Fprintf(&b, "DELETE FROM mtga_draft_ratings WHERE set_code = %s;\n", sc)
 	fmt.Fprintf(&b, "DELETE FROM mtga_draft_set_stats WHERE set_code = %s;\n", sc)
 
@@ -660,7 +657,7 @@ func buildSetRatingsSQL(sr setResult) string {
 		fmt.Fprintf(&b, "INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (%s, %s);\n",
 			sc, q(c.Name))
 		for cp, s := range c.ByColor {
-			fmt.Fprintf(&b, "INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (%s, %s, %s, %d, %d, %d, %g, %g, %g, %g, %g, %g, %g, %g);\n",
+			fmt.Fprintf(&b, "INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (%s, %s, %s, %d, %d, %d, %g, %g, %g, %g, %g, %g, %g, %g);\n",
 				sc, q(c.Name), q(cp),
 				s.GamesInHand, s.GamesPlayed, s.GamesNotSeen,
 				round4(s.GIHWR), round4(s.OHWR), round4(s.GDWR), round4(s.GNSWR),

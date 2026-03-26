@@ -38,6 +38,158 @@ func openTestCSV(t *testing.T, cacheDir string, csvContent string) *gzipReadClos
 	return &gzipReadCloser{gz: gz, body: f}
 }
 
+func TestAllColorCombos(t *testing.T) {
+	combos := allColorCombos()
+
+	if len(combos) != 31 {
+		t.Fatalf("expected 31 combos, got %d", len(combos))
+	}
+
+	// Verify size grouping: 5 mono, 10 pair, 10 triple, 5 quad, 1 five.
+	sizes := map[int]int{}
+	for _, c := range combos {
+		sizes[len(c)]++
+	}
+	if sizes[1] != 5 {
+		t.Errorf("expected 5 mono combos, got %d", sizes[1])
+	}
+	if sizes[2] != 10 {
+		t.Errorf("expected 10 pair combos, got %d", sizes[2])
+	}
+	if sizes[3] != 10 {
+		t.Errorf("expected 10 triple combos, got %d", sizes[3])
+	}
+	if sizes[4] != 5 {
+		t.Errorf("expected 5 quad combos, got %d", sizes[4])
+	}
+	if sizes[5] != 1 {
+		t.Errorf("expected 1 five-color combo, got %d", sizes[5])
+	}
+
+	// Verify WUBRG order within size groups.
+	if combos[0] != "W" || combos[4] != "G" {
+		t.Errorf("mono colors should be W..G, got %s..%s", combos[0], combos[4])
+	}
+	if combos[5] != "WU" || combos[14] != "RG" {
+		t.Errorf("pairs should start WU end RG, got %s..%s", combos[5], combos[14])
+	}
+	if combos[30] != "WUBRG" {
+		t.Errorf("last combo should be WUBRG, got %s", combos[30])
+	}
+
+	// Verify all combos are in canonical WUBRG order.
+	for _, c := range combos {
+		if normalizeColors(c) != c {
+			t.Errorf("combo %q not in canonical WUBRG order (normalized: %q)", c, normalizeColors(c))
+		}
+	}
+
+	// Verify no duplicates.
+	seen := map[string]bool{}
+	for _, c := range combos {
+		if seen[c] {
+			t.Errorf("duplicate combo: %s", c)
+		}
+		seen[c] = true
+	}
+}
+
+func TestProcessGameAndSynergyData_ThreeColorAccumulation(t *testing.T) {
+	// Three-color games (previously excluded) should now accumulate.
+	csv := "won,main_colors,deck_CardA,deck_CardB\n" +
+		"True,WUB,1,1\n" +
+		"True,WUB,1,1\n" +
+		"False,WUB,1,0\n"
+
+	cacheDir := t.TempDir()
+	r := openTestCSV(t, cacheDir, csv)
+	defer r.Close()
+
+	accums, _, err := processGameAndSynergyCSV(r, "TST", nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	// WUB accum should exist and have CardA with 3 games.
+	wub := accums["WUB"]
+	if wub == nil {
+		t.Fatal("expected WUB accums to exist")
+	}
+	if a, ok := wub["CardA"]; !ok {
+		t.Error("CardA not in WUB accums")
+	} else if a.gamesInDeck != 3 {
+		t.Errorf("CardA WUB gamesInDeck = %d, want 3", a.gamesInDeck)
+	}
+
+	// Overall should also have it.
+	overall := accums["_overall"]
+	if a, ok := overall["CardA"]; !ok {
+		t.Error("CardA not in _overall accums")
+	} else if a.gamesInDeck != 3 {
+		t.Errorf("CardA overall gamesInDeck = %d, want 3", a.gamesInDeck)
+	}
+}
+
+func TestProcessGameAndSynergyData_MonoColorAccumulation(t *testing.T) {
+	// Mono-color games (previously excluded) should now accumulate.
+	csv := "won,main_colors,deck_CardA\n" +
+		"True,R,1\n" +
+		"False,R,1\n"
+
+	cacheDir := t.TempDir()
+	r := openTestCSV(t, cacheDir, csv)
+	defer r.Close()
+
+	accums, _, err := processGameAndSynergyCSV(r, "TST", nil, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	mono := accums["R"]
+	if mono == nil {
+		t.Fatal("expected R accums to exist")
+	}
+	if a, ok := mono["CardA"]; !ok {
+		t.Error("CardA not in R accums")
+	} else if a.gamesInDeck != 2 {
+		t.Errorf("CardA R gamesInDeck = %d, want 2", a.gamesInDeck)
+	}
+}
+
+func TestProcessGameAndSynergyData_ThreeColorCurves(t *testing.T) {
+	// Three-color winning decks should produce curve data.
+	var b strings.Builder
+	b.WriteString("won,main_colors,deck_CardA\n")
+	for range 10 {
+		b.WriteString("True,WUB,1\n")
+	}
+
+	cacheDir := t.TempDir()
+	r := openTestCSV(t, cacheDir, b.String())
+	defer r.Close()
+
+	cardCMC := map[string]float64{"CardA": 3.0}
+
+	_, result, err := processGameAndSynergyCSV(r, "TST", cardCMC, nil, nil, nil)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var found curveRow
+	for _, c := range result.Curves {
+		if c.Archetype == "WUB" && c.CMC == 3 {
+			found = c
+			break
+		}
+	}
+	if found.Archetype == "" {
+		t.Fatal("WUB CMC 3 curve not found")
+	}
+	if found.TotalDecks != 10 {
+		t.Errorf("WUB total_decks = %d, want 10", found.TotalDecks)
+	}
+}
+
 func TestProcessGameAndSynergyData_BasicPair(t *testing.T) {
 	csv := "won,main_colors,deck_CardA,deck_CardB\n" +
 		"True,WU,1,1\n" +
@@ -221,12 +373,12 @@ func TestProcessGameAndSynergyData_CurvesWithCMC(t *testing.T) {
 	// Find WU CMC 2 curve.
 	var wuCMC2 curveRow
 	for _, c := range result.Curves {
-		if c.ColorPair == "WU" && c.CMC == 2 {
+		if c.Archetype == "WU" && c.CMC == 2 {
 			wuCMC2 = c
 			break
 		}
 	}
-	if wuCMC2.ColorPair == "" {
+	if wuCMC2.Archetype == "" {
 		t.Fatal("WU CMC 2 curve not found")
 	}
 	if wuCMC2.TotalDecks != 10 {
@@ -240,12 +392,12 @@ func TestProcessGameAndSynergyData_CurvesWithCMC(t *testing.T) {
 	// Find UB CMC 2 curve.
 	var ubCMC2 curveRow
 	for _, c := range result.Curves {
-		if c.ColorPair == "UB" && c.CMC == 2 {
+		if c.Archetype == "UB" && c.CMC == 2 {
 			ubCMC2 = c
 			break
 		}
 	}
-	if ubCMC2.ColorPair == "" {
+	if ubCMC2.Archetype == "" {
 		t.Fatal("UB CMC 2 curve not found")
 	}
 	if ubCMC2.TotalDecks != 5 {
@@ -274,12 +426,12 @@ func TestProcessGameAndSynergyData_CurveCMC7Plus(t *testing.T) {
 
 	var found curveRow
 	for _, c := range result.Curves {
-		if c.ColorPair == "WU" && c.CMC == 7 {
+		if c.Archetype == "WU" && c.CMC == 7 {
 			found = c
 			break
 		}
 	}
-	if found.ColorPair == "" {
+	if found.Archetype == "" {
 		t.Fatal("CMC 7+ bucket not found for WU")
 	}
 	if found.AvgCount != 1.0 {
@@ -295,7 +447,7 @@ func TestBuildSetSynergySQL(t *testing.T) {
 			{CardA: "Card B", CardB: "Card A", SynergyDelta: 0.1234, GamesTogether: 500},
 		},
 		Curves: []curveRow{
-			{ColorPair: "WU", CMC: 2, AvgCount: 3.5, TotalDecks: 1000},
+			{Archetype: "WU", CMC: 2, AvgCount: 3.5, TotalDecks: 1000},
 		},
 	}
 
@@ -483,15 +635,15 @@ func TestProcessGameAndSynergyData_RoleTargets(t *testing.T) {
 	// WU should have creature avg 1.0 and removal avg 1.0 (each of 10 winning decks has 1 of each).
 	var wuCreature, wuRemoval roleTargetRow
 	for _, rt := range result.RoleTargets {
-		if rt.ColorPair == "WU" && rt.Role == "creature" {
+		if rt.Archetype == "WU" && rt.Role == "creature" {
 			wuCreature = rt
 		}
-		if rt.ColorPair == "WU" && rt.Role == "removal" {
+		if rt.Archetype == "WU" && rt.Role == "removal" {
 			wuRemoval = rt
 		}
 	}
 
-	if wuCreature.ColorPair == "" {
+	if wuCreature.Archetype == "" {
 		t.Fatal("WU creature role target not found")
 	}
 	if wuCreature.AvgCount != 1.0 {
@@ -501,7 +653,7 @@ func TestProcessGameAndSynergyData_RoleTargets(t *testing.T) {
 		t.Errorf("WU creature total_decks = %d, want 10", wuCreature.TotalDecks)
 	}
 
-	if wuRemoval.ColorPair == "" {
+	if wuRemoval.Archetype == "" {
 		t.Fatal("WU removal role target not found")
 	}
 	if wuRemoval.AvgCount != 1.0 {
@@ -512,15 +664,15 @@ func TestProcessGameAndSynergyData_RoleTargets(t *testing.T) {
 	var ubCreature roleTargetRow
 	var ubRemovalFound bool
 	for _, rt := range result.RoleTargets {
-		if rt.ColorPair == "UB" && rt.Role == "creature" {
+		if rt.Archetype == "UB" && rt.Role == "creature" {
 			ubCreature = rt
 		}
-		if rt.ColorPair == "UB" && rt.Role == "removal" {
+		if rt.Archetype == "UB" && rt.Role == "removal" {
 			ubRemovalFound = true
 		}
 	}
 
-	if ubCreature.ColorPair == "" {
+	if ubCreature.Archetype == "" {
 		t.Fatal("UB creature role target not found")
 	}
 	if ubCreature.AvgCount != 1.0 {
@@ -554,10 +706,10 @@ func TestProcessGameAndSynergyData_RoleTargetsMultiRole(t *testing.T) {
 
 	var creatureCount, removalCount float64
 	for _, rt := range result.RoleTargets {
-		if rt.ColorPair == "WU" && rt.Role == "creature" {
+		if rt.Archetype == "WU" && rt.Role == "creature" {
 			creatureCount = rt.AvgCount
 		}
-		if rt.ColorPair == "WU" && rt.Role == "removal" {
+		if rt.Archetype == "WU" && rt.Role == "removal" {
 			removalCount = rt.AvgCount
 		}
 	}
@@ -574,8 +726,8 @@ func TestBuildSynergyImportSQL_RoleTargets(t *testing.T) {
 	result := synergyDataResult{
 		Set: "DSK",
 		RoleTargets: []roleTargetRow{
-			{ColorPair: "WU", Role: "creature", AvgCount: 14.5, TotalDecks: 1000},
-			{ColorPair: "WU", Role: "removal", AvgCount: 4.2, TotalDecks: 1000},
+			{Archetype: "WU", Role: "creature", AvgCount: 14.5, TotalDecks: 1000},
+			{Archetype: "WU", Role: "removal", AvgCount: 4.2, TotalDecks: 1000},
 		},
 	}
 
@@ -646,12 +798,12 @@ func TestProcessGameAndSynergyData_DeckStats(t *testing.T) {
 	// Find WU deck stats.
 	var wu deckStatsRow
 	for _, ds := range result.DeckStats {
-		if ds.ColorPair == "WU" {
+		if ds.Archetype == "WU" {
 			wu = ds
 			break
 		}
 	}
-	if wu.ColorPair == "" {
+	if wu.Archetype == "" {
 		t.Fatal("WU deck stats not found")
 	}
 	if wu.TotalDecks != 10 {
@@ -685,12 +837,12 @@ func TestProcessGameAndSynergyData_DeckStats(t *testing.T) {
 	// Find UB deck stats.
 	var ub deckStatsRow
 	for _, ds := range result.DeckStats {
-		if ds.ColorPair == "UB" {
+		if ds.Archetype == "UB" {
 			ub = ds
 			break
 		}
 	}
-	if ub.ColorPair == "" {
+	if ub.Archetype == "" {
 		t.Fatal("UB deck stats not found")
 	}
 	if ub.TotalDecks != 5 {
@@ -763,12 +915,12 @@ func TestProcessGameAndSynergyData_DeckStatsSplashWinrates(t *testing.T) {
 
 	var wu deckStatsRow
 	for _, ds := range result.DeckStats {
-		if ds.ColorPair == "WU" {
+		if ds.Archetype == "WU" {
 			wu = ds
 			break
 		}
 	}
-	if wu.ColorPair == "" {
+	if wu.Archetype == "" {
 		t.Fatal("WU deck stats not found")
 	}
 
@@ -789,7 +941,7 @@ func TestBuildSynergyImportSQL_DeckStats(t *testing.T) {
 		Set: "DSK",
 		DeckStats: []deckStatsRow{
 			{
-				ColorPair:        "WU",
+				Archetype:        "WU",
 				AvgLands:         17.2,
 				AvgCreatures:     15.5,
 				AvgNoncreatures:  7.3,
@@ -872,8 +1024,8 @@ func TestBuildSetRatingsSQL(t *testing.T) {
 	if !strings.Contains(sql, "Gloomlake Verge") {
 		t.Error("SQL should contain card name")
 	}
-	if !strings.Contains(sql, "INSERT INTO mtga_draft_color_stats") {
-		t.Error("SQL should contain INSERT INTO mtga_draft_color_stats")
+	if !strings.Contains(sql, "INSERT INTO mtga_draft_archetype_stats") {
+		t.Error("SQL should contain INSERT INTO mtga_draft_archetype_stats")
 	}
 	if !strings.Contains(sql, "'UB'") {
 		t.Error("SQL should contain color pair UB")
@@ -886,7 +1038,7 @@ func TestBuildSetRatingsSQL(t *testing.T) {
 	if overallCount != 2 {
 		t.Errorf("expected 2 overall rating INSERTs, got %d", overallCount)
 	}
-	colorCount := strings.Count(sql, "INSERT INTO mtga_draft_color_stats")
+	colorCount := strings.Count(sql, "INSERT INTO mtga_draft_archetype_stats")
 	if colorCount != 1 {
 		t.Errorf("expected 1 color stat INSERT, got %d", colorCount)
 	}
