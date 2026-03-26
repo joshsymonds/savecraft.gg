@@ -142,7 +142,7 @@ func run() error {
 			h := sha256.Sum256([]byte(sql))
 			contentHash := hex.EncodeToString(h[:])
 
-			existing, err := cfapi.GetPipelineHash(*cfAccountID, *d1DatabaseID, *cfAPIToken, "scryfall", "_global")
+			existing, err := cfapi.GetPipelineHash(*cfAccountID, *d1DatabaseID, *cfAPIToken, "scryfall", cfapi.PipelineGlobalSet)
 			if err == nil && existing == contentHash {
 				fmt.Println("D1 cards unchanged (hash match), skipping import")
 				return
@@ -161,7 +161,7 @@ func run() error {
 			}
 			os.Remove(sqlPath)
 
-			if err := cfapi.UpdatePipelineState(*cfAccountID, *d1DatabaseID, *cfAPIToken, "scryfall", "_global", contentHash, len(cards)); err != nil {
+			if err := cfapi.UpdatePipelineState(*cfAccountID, *d1DatabaseID, *cfAPIToken, "scryfall", cfapi.PipelineGlobalSet, contentHash, len(cards)); err != nil {
 				fmt.Printf("WARN: pipeline state update failed: %v\n", err)
 			}
 			fmt.Println("D1 population complete")
