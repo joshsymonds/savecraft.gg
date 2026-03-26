@@ -206,8 +206,10 @@ func TestProcessGameAndSynergyData_BasicPair(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if len(result.Synergies) != 0 {
-		t.Errorf("expected 0 synergies (below threshold), got %d", len(result.Synergies))
+	// With no minimum threshold (Bayesian shrinkage handles data quality),
+	// even small samples produce synergy rows (both directions).
+	if len(result.Synergies) != 2 {
+		t.Errorf("expected 2 synergy rows (both directions), got %d", len(result.Synergies))
 	}
 
 	// Verify card accums were populated.

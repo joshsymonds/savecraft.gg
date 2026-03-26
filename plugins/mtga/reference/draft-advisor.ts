@@ -392,7 +392,7 @@ async function contextualPick(
           const poolPH = placeholders(poolNames.length, 2 + packNames.length);
           return db
             .prepare(
-              `SELECT card_a, card_b, synergy_delta FROM mtga_draft_synergies WHERE set_code = ?1 AND card_a IN (${packPH}) AND card_b IN (${poolPH})`,
+              `SELECT card_a, card_b, synergy_delta, games_together FROM mtga_draft_synergies WHERE set_code = ?1 AND card_a IN (${packPH}) AND card_b IN (${poolPH})`,
             )
             .bind(setCode, ...packNames, ...poolNames)
             .all<SynergyDbRow>();
@@ -520,6 +520,18 @@ async function contextualPick(
     byCard.set(row.card_name, row);
   }
 
+  // Bayesian priors for shrinkage. Stored as `center` values in calibration.
+  const DEFAULT_ARCHETYPE_PRIOR = 750;
+  const DEFAULT_SYNERGY_PRIOR = 75;
+  const archetypePrior = preloaded
+    ? (preloaded.sigmoidParams["archetype_prior"]?.center ?? DEFAULT_ARCHETYPE_PRIOR)
+    : (calibrationResult.results.find((c) => c.axis === "archetype_prior")?.center ??
+        DEFAULT_ARCHETYPE_PRIOR);
+  const synergyPrior = preloaded
+    ? (preloaded.sigmoidParams["synergy_prior"]?.center ?? DEFAULT_SYNERGY_PRIOR)
+    : (calibrationResult.results.find((c) => c.axis === "synergy_prior")?.center ??
+        DEFAULT_SYNERGY_PRIOR);
+
   // Build deck stats for archetype viability filtering.
   const deckCountByPair = new Map<string, number>();
   for (const row of deckStatsResult.results) {
@@ -540,7 +552,13 @@ async function contextualPick(
       list = [];
       synergyByPackCard.set(row.card_a, list);
     }
-    list.push({ card: row.card_b, delta: row.synergy_delta });
+    // Bayesian shrinkage: sparse synergy pairs shrink toward zero delta.
+    const n = row.games_together;
+    const effectiveDelta =
+      n + synergyPrior > 0
+        ? (n * row.synergy_delta) / (n + synergyPrior)
+        : 0;
+    list.push({ card: row.card_b, delta: effectiveDelta });
   }
 
   let idealCurve: Map<number, number> | null = null;
@@ -607,14 +625,6 @@ async function contextualPick(
         }
         return built;
       })();
-
-  // Bayesian prior for archetype GIH WR shrinkage.
-  // Stored as the `center` value of the `archetype_prior` calibration axis.
-  const DEFAULT_ARCHETYPE_PRIOR = 750;
-  const archetypePrior = preloaded
-    ? (preloaded.sigmoidParams["archetype_prior"]?.center ?? DEFAULT_ARCHETYPE_PRIOR)
-    : (calibrationResult.results.find((c) => c.axis === "archetype_prior")?.center ??
-        DEFAULT_ARCHETYPE_PRIOR);
 
   // Resolve set metadata (ASFAN + pack size).
   const asfan = preloaded
