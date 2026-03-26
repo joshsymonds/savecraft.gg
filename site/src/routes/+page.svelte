@@ -55,12 +55,13 @@
   ]);
 
   // ── OS detection for install commands ──────────────────
-  let isWindows = $state(false);
+  type Platform = "windows" | "linux";
+  let selectedPlatform: Platform = $state("linux");
 
   onMount(() => {
     const nav = navigator as Navigator & { userAgentData?: { platform: string } };
     const platform = nav.userAgentData?.platform ?? navigator.platform ?? "";
-    isWindows = /win/i.test(platform);
+    if (/win/i.test(platform)) selectedPlatform = "windows";
   });
 </script>
 
@@ -119,12 +120,24 @@
         <div class="step-icon" style="color: var(--color-green);">></div>
         <h3 class="step-name">INSTALL</h3>
         <p class="step-desc">
-          A background daemon watches your save files. Runs on PC, Mac, Steam Deck. One command,
-          zero config.
+          A background daemon watches your save files. Runs on Windows, Linux, and Steam Deck. One
+          click or one command.
         </p>
-        {#if isWindows}
+        <div class="install-tabs">
+          <button
+            class="install-tab"
+            class:active={selectedPlatform === "windows"}
+            onclick={() => (selectedPlatform = "windows")}>Windows</button
+          >
+          <button
+            class="install-tab"
+            class:active={selectedPlatform === "linux"}
+            onclick={() => (selectedPlatform = "linux")}>Linux / Steam Deck</button
+          >
+        </div>
+        {#if selectedPlatform === "windows"}
           <a href={PUBLIC_INSTALL_URL} class="step-code step-link" target="_blank" rel="noopener"
-            >Download for Windows</a
+            >Download installer</a
           >
         {:else}
           <code class="step-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
@@ -328,12 +341,24 @@
         <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">GET STARTED</a>
       </div>
       <div class="cta-install">
-        {#if isWindows}
+        <div class="install-tabs cta-install-tabs">
+          <button
+            class="install-tab"
+            class:active={selectedPlatform === "windows"}
+            onclick={() => (selectedPlatform = "windows")}>Windows</button
+          >
+          <button
+            class="install-tab"
+            class:active={selectedPlatform === "linux"}
+            onclick={() => (selectedPlatform = "linux")}>Linux / Steam Deck</button
+          >
+        </div>
+        {#if selectedPlatform === "windows"}
           <a
             href={PUBLIC_INSTALL_URL}
             class="install-code install-link"
             target="_blank"
-            rel="noopener">Download for Windows</a
+            rel="noopener">Download installer</a
           >
         {:else}
           <code class="install-code">curl -sSL {PUBLIC_INSTALL_URL} | bash</code>
@@ -541,7 +566,6 @@
 
   .step-code {
     display: block;
-    margin-top: 14px;
     font-family: var(--font-body);
     font-size: 17px;
     color: var(--color-green);
@@ -559,6 +583,42 @@
   .step-link:hover {
     color: var(--color-gold);
     border-color: rgba(200, 168, 78, 0.3);
+  }
+
+  .install-tabs {
+    display: flex;
+    gap: 4px;
+    margin-top: 14px;
+    margin-bottom: 8px;
+  }
+
+  .install-tab {
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    letter-spacing: 1px;
+    color: var(--color-text-muted);
+    background: none;
+    border: 1px solid rgba(74, 90, 173, 0.2);
+    border-radius: 3px;
+    padding: 6px 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+
+  .install-tab:hover {
+    border-color: var(--color-border-light);
+    color: var(--color-text-dim);
+  }
+
+  .install-tab.active {
+    color: var(--color-green);
+    border-color: rgba(90, 190, 138, 0.3);
+    background: rgba(90, 190, 138, 0.06);
+  }
+
+  .cta-install-tabs {
+    justify-content: center;
+    margin-bottom: 10px;
   }
 
   /* ── Modes ───────────────────────────────────────────── */
