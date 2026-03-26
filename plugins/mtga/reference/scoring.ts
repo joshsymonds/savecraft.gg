@@ -294,7 +294,7 @@ export function getWeights(pickNumber: number): WeightSet {
   const curve = smoothWeight(pickNumber, 0.05, 0.15, 22, 0.2);
   const signal = smoothWeight(pickNumber, 0.25, 0.1, 12, 0.25);
   const role = smoothWeight(pickNumber, 0.05, 0.25, 20, 0.25);
-  const castability = smoothWeight(pickNumber, 0.2, 0.05, 10, 1 / 3);
+  const castability = smoothWeight(pickNumber, 0.0, 0.30, 20, 0.25);
 
   const total = baseline + synergy + curve + signal + role + castability;
   return {
