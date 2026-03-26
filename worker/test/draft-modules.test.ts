@@ -4,9 +4,9 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { cardStatsModule } from "../../plugins/mtga/reference/card-stats";
 import { draftAdvisorModule } from "../../plugins/mtga/reference/draft-advisor";
 import {
+  type CardMetaRow,
   computeColorCommitment,
   derivePairWeights,
-  type CardMetaRow,
 } from "../../plugins/mtga/reference/scoring";
 import { registerNativeModule } from "../src/reference/registry";
 
@@ -317,6 +317,19 @@ describe("draft_advisor native module", () => {
             ata: number;
             current_pick: number;
           };
+          color_commitment: {
+            raw: number;
+            normalized: number;
+            weight: number;
+            contribution: number;
+            color_fit: number;
+          };
+          opportunity_cost: {
+            raw: number;
+            normalized: number;
+            weight: number;
+            contribution: number;
+          };
         };
         waspas: { wsm: number; wpm: number; lambda: number };
       }[];
@@ -334,6 +347,8 @@ describe("draft_advisor native module", () => {
           signal: number;
           role: number;
           castability: number;
+          color_commitment: number;
+          opportunity_cost: number;
         };
       }
     ).weights;
@@ -341,7 +356,16 @@ describe("draft_advisor native module", () => {
     expect(w.synergy).toBeGreaterThan(0);
     expect(w.curve).toBeGreaterThan(0);
     expect(w.signal).toBeGreaterThan(0);
-    expect(w.baseline + w.synergy + w.curve + w.signal + w.role + w.castability).toBeCloseTo(1, 1);
+    expect(
+      w.baseline +
+        w.synergy +
+        w.curve +
+        w.signal +
+        w.role +
+        w.castability +
+        w.color_commitment +
+        w.opportunity_cost,
+    ).toBeCloseTo(1, 1);
 
     expect(data.archetype.candidates.length).toBeGreaterThan(0);
     expect(data.recommendations).toHaveLength(2);
@@ -358,6 +382,8 @@ describe("draft_advisor native module", () => {
         "curve",
         "castability",
         "signal",
+        "color_commitment",
+        "opportunity_cost",
       ] as const) {
         expect(rec.axes[axis]).toBeDefined();
         expect(typeof rec.axes[axis].raw).toBe("number");
@@ -381,6 +407,41 @@ describe("draft_advisor native module", () => {
     expect(bearRec).toBeDefined();
     expect(bearRec!.axes.synergy.raw).toBeLessThan(0);
     expect(bearRec!.axes.role.roles).not.toContain("removal");
+  });
+
+  it("scores on-color card higher on color_commitment than off-color card", async () => {
+    await seedContextualData();
+
+    // Pool is UB (Gloomlake Verge = {U}{B}). Blazing Bolt is {R} (off-color),
+    // Forest Bear is {G}{G} (off-color). Both should have lower color_commitment
+    // than a hypothetical on-color card. But we can compare: the UB pool means
+    // U and B are committed. Blazing Bolt (R) and Forest Bear (G) are both off-color.
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge", "Gloomlake Verge", "Gloomlake Verge"],
+        pack: ["Blazing Bolt", "Forest Bear"],
+        pick_number: 15,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      recommendations: {
+        card: string;
+        axes: {
+          color_commitment: { raw: number; normalized: number; color_fit: number };
+        };
+      }[];
+    };
+
+    // Both cards are off-color in a UB pool — their color_fit should be low
+    const blazing = data.recommendations.find((r) => r.card === "Blazing Bolt")!;
+    const bear = data.recommendations.find((r) => r.card === "Forest Bear")!;
+    expect(blazing.axes.color_commitment.color_fit).toBeLessThan(0.5);
+    expect(bear.axes.color_commitment.color_fit).toBeLessThan(0.5);
   });
 
   it("uses early weight profile for picks 1-5", async () => {
@@ -942,10 +1003,20 @@ describe("draft_advisor native module", () => {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(12, "oracle-filler", "Dark Filler", "Dark Filler", "{4}{B}{B}", 6, "Creature — Zombie", '["B"]', 1),
+      ).bind(
+        12,
+        "oracle-filler",
+        "Dark Filler",
+        "Dark Filler",
+        "{4}{B}{B}",
+        6,
+        "Creature — Zombie",
+        '["B"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind("DSK", "Dark Filler", 5000, 7000, 2000, 0.50, 0.51, 0.49, 0.49, 0.0, 8, 9),
+      ).bind("DSK", "Dark Filler", 5000, 7000, 2000, 0.5, 0.51, 0.49, 0.49, 0, 8, 9),
     ]);
 
     const result = await draftAdvisorModule.execute(
@@ -974,7 +1045,17 @@ describe("draft_advisor native module", () => {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(13, "oracle-latebomb", "Late Bomb", "Late Bomb", "{4}{B}{B}", 6, "Creature — Demon", '["B"]', 1),
+      ).bind(
+        13,
+        "oracle-latebomb",
+        "Late Bomb",
+        "Late Bomb",
+        "{4}{B}{B}",
+        6,
+        "Creature — Demon",
+        '["B"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind("DSK", "Late Bomb", 10_000, 12_000, 2000, 0.64, 0.66, 0.62, 0.5, 0.1, 1.5, 2),
@@ -1562,10 +1643,7 @@ describe("computeColorCommitment", () => {
 
   it("dampens toward 0.2 for picks 1-5 (early-pick flattening)", () => {
     // Same pool at pick 1 vs pick 15
-    const pool = [
-      makeCard("Blue 1", "{U}{U}"),
-      makeCard("Blue 2", "{U}{U}"),
-    ];
+    const pool = [makeCard("Blue 1", "{U}{U}"), makeCard("Blue 2", "{U}{U}")];
     const earlyCommitments = computeColorCommitment(pool, 1);
     const midCommitments = computeColorCommitment(pool, 15);
     // At pick 1, all commitments should be close to 0.2
@@ -1644,20 +1722,20 @@ describe("derivePairWeights", () => {
     ]);
     const pairs = derivePairWeights(commitments);
     const total = pairs.reduce((s, p) => s + p.weight, 0);
-    expect(total).toBeCloseTo(1.0, 4);
+    expect(total).toBeCloseTo(1, 4);
   });
 
   it("returns _overall fallback when all commitments are near-zero", () => {
     const commitments = new Map([
-      ["W", 0.0],
-      ["U", 0.0],
-      ["B", 0.0],
-      ["R", 0.0],
-      ["G", 0.0],
+      ["W", 0],
+      ["U", 0],
+      ["B", 0],
+      ["R", 0],
+      ["G", 0],
     ]);
     const pairs = derivePairWeights(commitments);
     expect(pairs).toHaveLength(1);
     expect(pairs[0]!.colorPair).toBe("_overall");
-    expect(pairs[0]!.weight).toBe(1.0);
+    expect(pairs[0]!.weight).toBe(1);
   });
 });

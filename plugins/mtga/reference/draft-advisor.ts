@@ -41,6 +41,7 @@ import {
   getWeights,
   getWeightProfileLabel,
   determineCandidateArchetypes,
+  computeColorCommitment,
   computeSignalFromHistory,
   aggregateArchetypeOpenness,
   placeholders,
@@ -92,6 +93,8 @@ interface PickRecommendation {
       bomb_dampening: number;
     };
     signal: AxisScore & { ata: number; current_pick: number };
+    color_commitment: AxisScore & { color_fit: number };
+    opportunity_cost: AxisScore;
   };
   waspas: { wsm: number; wpm: number; lambda: number };
 }
@@ -667,6 +670,9 @@ async function contextualPick(
   // Estimate mana base for castability scoring.
   const estimatedSources = estimateSources(poolMeta);
 
+  // Compute per-color commitment for color_commitment axis.
+  const colorCommitments = computeColorCommitment(poolMeta, pickNumber);
+
   // Compute scores for each pack card.
   const weights = getWeights(pickNumber);
   const profileLabel = getWeightProfileLabel(pickNumber);
@@ -797,6 +803,16 @@ async function contextualPick(
       castabilityScore = worstCastability;
     }
 
+    // Color commitment: how well this card fits the current draft direction.
+    const cardColors = countPips(packCard.mana_cost);
+    let colorFit = 1.0; // Colorless cards always fit
+    if (cardColors.size > 0) {
+      colorFit = Math.max(...[...cardColors.keys()].map((c) => colorCommitments.get(c) ?? 0));
+    }
+
+    // Opportunity cost: placeholder — full implementation in next task.
+    const opportunityScore = 1.0;
+
     // Sigmoid normalization.
     const bsp = sp.baseline ?? DEFAULT_SIGMOID_PARAMS.baseline!;
     const ssp = sp.synergy ?? DEFAULT_SIGMOID_PARAMS.synergy!;
@@ -808,6 +824,10 @@ async function contextualPick(
     const curveNorm = sigmoid(curveScore, csp.center, csp.steepness);
     const signalNorm = sigmoid(signalScore, sigsp.center, sigsp.steepness);
     const roleNorm = sigmoid(roleScore, rsp.center, rsp.steepness);
+    const ccsp = sp.color_commitment ?? DEFAULT_SIGMOID_PARAMS.color_commitment!;
+    const ocsp = sp.opportunity_cost ?? DEFAULT_SIGMOID_PARAMS.opportunity_cost!;
+    const colorCommitmentNorm = sigmoid(colorFit, ccsp.center, ccsp.steepness);
+    const opportunityCostNorm = sigmoid(opportunityScore, ocsp.center, ocsp.steepness);
     // Power-aware castability dampening for elite cards early in draft.
     const bombExcess = Math.max(0, baselineNorm - BOMB_BASELINE_THRESHOLD);
     const earlyFactor = Math.max(
@@ -828,16 +848,22 @@ async function contextualPick(
       weights.curve * curveNorm +
       weights.signal * signalNorm +
       weights.role * roleNorm +
-      weights.castability * castabilityNorm;
+      weights.castability * castabilityNorm +
+      weights.colorCommitment * colorCommitmentNorm +
+      weights.opportunityCost * opportunityCostNorm;
 
     const castNormSafe = Math.max(0.001, castabilityNorm);
+    const ccNormSafe = Math.max(0.001, colorCommitmentNorm);
+    const ocNormSafe = Math.max(0.001, opportunityCostNorm);
     const wpm =
       baselineNorm ** weights.baseline *
       synergyNorm ** weights.synergy *
       curveNorm ** weights.curve *
       signalNorm ** weights.signal *
       roleNorm ** weights.role *
-      castNormSafe ** weights.castability;
+      castNormSafe ** weights.castability *
+      ccNormSafe ** weights.colorCommitment *
+      ocNormSafe ** weights.opportunityCost;
 
     const lambda = 0.85 - 0.35 * (pickNumber / totalPicks);
     const compositeScore = lambda * wsm + (1 - lambda) * wpm;
@@ -899,6 +925,19 @@ async function contextualPick(
           ata,
           current_pick: pickNumber,
         },
+        color_commitment: {
+          raw: r4(colorFit),
+          normalized: r4(colorCommitmentNorm),
+          weight: r4(weights.colorCommitment),
+          contribution: r4(weights.colorCommitment * colorCommitmentNorm),
+          color_fit: r4(colorFit),
+        },
+        opportunity_cost: {
+          raw: r4(opportunityScore),
+          normalized: r4(opportunityCostNorm),
+          weight: r4(weights.opportunityCost),
+          contribution: r4(weights.opportunityCost * opportunityCostNorm),
+        },
       },
       waspas: { wsm: r4(wsm), wpm: r4(wpm), lambda: r4(lambda) },
     });
@@ -929,6 +968,8 @@ async function contextualPick(
         signal: Math.round(weights.signal * 100) / 100,
         role: Math.round(weights.role * 100) / 100,
         castability: Math.round(weights.castability * 100) / 100,
+        color_commitment: Math.round(weights.colorCommitment * 100) / 100,
+        opportunity_cost: Math.round(weights.opportunityCost * 100) / 100,
       },
       recommendations,
     },
