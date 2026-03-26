@@ -117,8 +117,8 @@
     <section class="privacy-section">
       <h2>5. AI assistant integration</h2>
       <p>
-        Savecraft serves your game data to AI assistants (Claude, ChatGPT, etc.) that you
-        connect via MCP. <strong
+        Savecraft serves your game data to AI assistants (Claude, ChatGPT, etc.) that you connect
+        via MCP. <strong
           >We provide structured data only. We do not generate, control, monitor, or store any
           AI-produced output.</strong
         >

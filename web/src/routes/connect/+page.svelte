@@ -47,8 +47,8 @@
       <div class="logo">SAVECRAFT</div>
       <h1 class="title">Your connector URL</h1>
       <p class="subtitle">
-        Copy this URL and paste it into your AI app's <strong>settings</strong> &mdash; not in the
-        chat or browser.
+        Copy this URL and paste it into your AI app's <strong>settings</strong> &mdash; not in the chat
+        or browser.
       </p>
     </div>
 
