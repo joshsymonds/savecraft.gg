@@ -287,7 +287,7 @@ func TestProcessGameAndSynergyData_CurveCMC7Plus(t *testing.T) {
 	}
 }
 
-func TestBuildSynergyImportSQL(t *testing.T) {
+func TestBuildSetSynergySQL(t *testing.T) {
 	result := synergyDataResult{
 		Set: "DSK",
 		Synergies: []synergyRow{
@@ -299,19 +299,25 @@ func TestBuildSynergyImportSQL(t *testing.T) {
 		},
 	}
 
-	sql := buildSynergyImportSQL([]synergyDataResult{result})
+	sql := buildSetSynergySQL(result)
 
-	if !strings.Contains(sql, "DELETE FROM mtga_draft_synergies;") {
-		t.Error("SQL should contain DELETE for synergies")
+	// Per-set DELETEs with WHERE clause (not global DELETE)
+	if !strings.Contains(sql, "DELETE FROM mtga_draft_synergies WHERE set_code = 'DSK';") {
+		t.Error("SQL should contain per-set DELETE for synergies")
 	}
-	if !strings.Contains(sql, "DELETE FROM mtga_draft_archetype_curves;") {
-		t.Error("SQL should contain DELETE for curves")
+	if !strings.Contains(sql, "DELETE FROM mtga_draft_archetype_curves WHERE set_code = 'DSK';") {
+		t.Error("SQL should contain per-set DELETE for curves")
 	}
+	if !strings.Contains(sql, "DELETE FROM mtga_draft_deck_stats WHERE set_code = 'DSK';") {
+		t.Error("SQL should contain per-set DELETE for deck stats")
+	}
+	// Must NOT contain global DELETEs
+	if strings.Contains(sql, "DELETE FROM mtga_draft_synergies;") {
+		t.Error("SQL should NOT contain global DELETE (no WHERE clause)")
+	}
+
 	if !strings.Contains(sql, "INSERT INTO mtga_draft_synergies") {
 		t.Error("SQL should contain synergy INSERT")
-	}
-	if !strings.Contains(sql, "INSERT INTO mtga_draft_archetype_curves") {
-		t.Error("SQL should contain curve INSERT")
 	}
 	if !strings.Contains(sql, "'WU'") {
 		t.Error("SQL should contain color pair WU")
@@ -335,7 +341,7 @@ func TestBuildSynergyImportSQL_EscapesQuotes(t *testing.T) {
 		},
 	}
 
-	sql := buildSynergyImportSQL([]synergyDataResult{result})
+	sql := buildSetSynergySQL(result)
 
 	if !strings.Contains(sql, "Frodo''s Ring") {
 		t.Error("SQL should escape single quotes")
@@ -573,10 +579,10 @@ func TestBuildSynergyImportSQL_RoleTargets(t *testing.T) {
 		},
 	}
 
-	sql := buildSynergyImportSQL([]synergyDataResult{result})
+	sql := buildSetSynergySQL(result)
 
-	if !strings.Contains(sql, "DELETE FROM mtga_draft_role_targets;") {
-		t.Error("SQL should contain DELETE for role targets")
+	if !strings.Contains(sql, "DELETE FROM mtga_draft_role_targets WHERE set_code = 'DSK';") {
+		t.Error("SQL should contain per-set DELETE for role targets")
 	}
 
 	rtCount := strings.Count(sql, "INSERT INTO mtga_draft_role_targets")
@@ -797,10 +803,10 @@ func TestBuildSynergyImportSQL_DeckStats(t *testing.T) {
 		},
 	}
 
-	sql := buildSynergyImportSQL([]synergyDataResult{result})
+	sql := buildSetSynergySQL(result)
 
-	if !strings.Contains(sql, "DELETE FROM mtga_draft_deck_stats;") {
-		t.Error("SQL should contain DELETE for deck stats")
+	if !strings.Contains(sql, "DELETE FROM mtga_draft_deck_stats WHERE set_code = 'DSK';") {
+		t.Error("SQL should contain per-set DELETE for deck stats")
 	}
 
 	dsCount := strings.Count(sql, "INSERT INTO mtga_draft_deck_stats")

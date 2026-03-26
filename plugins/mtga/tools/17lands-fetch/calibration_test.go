@@ -283,10 +283,10 @@ func TestBuildSynergyImportSQL_Calibration(t *testing.T) {
 		},
 	}
 
-	sql := buildSynergyImportSQL([]synergyDataResult{result})
+	sql := buildSetSynergySQL(result)
 
-	if !strings.Contains(sql, "DELETE FROM mtga_draft_calibration;") {
-		t.Error("SQL should contain DELETE for calibration")
+	if !strings.Contains(sql, "DELETE FROM mtga_draft_calibration WHERE set_code = 'DSK';") {
+		t.Error("SQL should contain per-set DELETE for calibration")
 	}
 
 	calCount := strings.Count(sql, "INSERT INTO mtga_draft_calibration")
