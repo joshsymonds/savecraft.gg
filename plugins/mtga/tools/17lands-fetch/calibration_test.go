@@ -15,19 +15,24 @@ func TestCalibrateBaseline(t *testing.T) {
 		wantSteep  [2]float64 // min, max range
 	}{
 		{
-			name: "happy path: 4/stddev formula",
+			name: "percentile calibration: spread distribution",
 			cards: func() []cardResult {
-				// 10 cards with GIH WR spread: 0.48, 0.50, 0.52, 0.54, 0.56 (repeated twice)
-				// Mean = 0.52, sigma = sqrt((0.0016+0.0004+0+0.0004+0.0016)/5) = sqrt(0.0008) ~ 0.0283
-				// Steepness = 4/0.0283 ~ 141.4
+				// 20 cards with GIH WR spread: 0.45 to 0.64
+				// P10 ~ 0.47, P50 ~ 0.545, P90 ~ 0.62
+				// Steepness = 4.4 / (0.62 - 0.47) = 4.4/0.15 ~ 29.3
 				var cards []cardResult
-				for _, wr := range []float64{0.48, 0.50, 0.52, 0.54, 0.56, 0.48, 0.50, 0.52, 0.54, 0.56} {
-					cards = append(cards, cardResult{Overall: setCardStats{GIHWR: wr, GamesInHand: 500}})
+				for i := range 20 {
+					cards = append(cards, cardResult{
+						Overall: setCardStats{
+							GIHWR:       0.45 + float64(i)*0.01,
+							GamesInHand: 500,
+						},
+					})
 				}
 				return cards
 			}(),
-			wantCenter: 0.52,
-			wantSteep:  [2]float64{100, 200},
+			wantCenter: 0.545, // median of 0.45..0.64
+			wantSteep:  [2]float64{25, 35},
 		},
 		{
 			name: "fewer than 10 cards",
@@ -40,11 +45,10 @@ func TestCalibrateBaseline(t *testing.T) {
 			name: "10 cards but fewer than 10 with sufficient games",
 			cards: func() []cardResult {
 				var cards []cardResult
-				// Only 5 have enough games, rest have too few.
 				for i := range 10 {
 					gih := 500
 					if i >= 5 {
-						gih = 50 // Below the 200 threshold in calibrateBaseline.
+						gih = 50 // Below the 200 threshold.
 					}
 					cards = append(cards, cardResult{Overall: setCardStats{GIHWR: 0.50, GamesInHand: gih}})
 				}
@@ -53,7 +57,7 @@ func TestCalibrateBaseline(t *testing.T) {
 			wantNil: true,
 		},
 		{
-			name: "stddev near zero: all identical win rates",
+			name: "degenerate: all identical win rates",
 			cards: func() []cardResult {
 				var cards []cardResult
 				for range 20 {
@@ -61,7 +65,7 @@ func TestCalibrateBaseline(t *testing.T) {
 				}
 				return cards
 			}(),
-			wantNil: true, // stddev < 0.001 triggers nil return.
+			wantNil: true, // P90 - P10 < 0.01 triggers nil return.
 		},
 	}
 
@@ -83,7 +87,7 @@ func TestCalibrateBaseline(t *testing.T) {
 			if cal.Axis != "baseline" {
 				t.Errorf("axis = %q, want baseline", cal.Axis)
 			}
-			if math.Abs(cal.Center-tt.wantCenter) > 0.01 {
+			if math.Abs(cal.Center-tt.wantCenter) > 0.02 {
 				t.Errorf("center = %g, want ~%g", cal.Center, tt.wantCenter)
 			}
 			if cal.Steepness < tt.wantSteep[0] || cal.Steepness > tt.wantSteep[1] {
@@ -93,11 +97,12 @@ func TestCalibrateBaseline(t *testing.T) {
 	}
 }
 
-func TestCalibrateBaseline_Formula(t *testing.T) {
-	// Verify the 4/stddev formula exactly with known values.
+func TestCalibrateBaseline_PercentileFormula(t *testing.T) {
 	// 10 cards: five at 0.50, five at 0.60.
-	// Mean = 0.55, stddev = sqrt((5*0.0025 + 5*0.0025)/10) = sqrt(0.0025) = 0.05
-	// Steepness = 4/0.05 = 80
+	// Sorted: [0.50 x5, 0.60 x5]
+	// P10 = values[1] = 0.50, P50 = values[5] = 0.60, P90 = values[9] = 0.60
+	// Spread = 0.60 - 0.50 = 0.10
+	// Steepness = 4.4 / 0.10 = 44.0
 	var cards []cardResult
 	for range 5 {
 		cards = append(cards, cardResult{Overall: setCardStats{GIHWR: 0.50, GamesInHand: 500}})
@@ -111,14 +116,75 @@ func TestCalibrateBaseline_Formula(t *testing.T) {
 		t.Fatal("expected non-nil calibration")
 	}
 
-	wantCenter := 0.55
-	wantSteepness := 80.0
-
-	if math.Abs(cal.Center-wantCenter) > 0.001 {
-		t.Errorf("center = %g, want %g", cal.Center, wantCenter)
-	}
+	wantSteepness := 44.0
 	if math.Abs(cal.Steepness-wantSteepness) > 1.0 {
-		t.Errorf("steepness = %g, want %g", cal.Steepness, wantSteepness)
+		t.Errorf("steepness = %g, want ~%g", cal.Steepness, wantSteepness)
+	}
+}
+
+func TestCalibrateSignal(t *testing.T) {
+	tests := []struct {
+		name    string
+		cards   []cardResult
+		wantNil bool
+	}{
+		{
+			name: "happy path: ATA distribution",
+			cards: func() []cardResult {
+				var cards []cardResult
+				for i := range 20 {
+					cards = append(cards, cardResult{
+						Overall: setCardStats{
+							ATA:         1.0 + float64(i)*0.5,
+							GamesInHand: 500,
+						},
+					})
+				}
+				return cards
+			}(),
+		},
+		{
+			name: "fewer than 10 cards with ATA",
+			cards: []cardResult{
+				{Overall: setCardStats{ATA: 5.0, GamesInHand: 500}},
+			},
+			wantNil: true,
+		},
+		{
+			name: "all identical ATA",
+			cards: func() []cardResult {
+				var cards []cardResult
+				for range 20 {
+					cards = append(cards, cardResult{Overall: setCardStats{ATA: 5.0, GamesInHand: 500}})
+				}
+				return cards
+			}(),
+			wantNil: true, // P90 - P10 < 0.5 triggers nil.
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			sr := setResult{Set: "TST", Cards: tt.cards}
+			cal := calibrateSignal(sr)
+
+			if tt.wantNil {
+				if cal != nil {
+					t.Fatalf("expected nil, got center=%g steepness=%g", cal.Center, cal.Steepness)
+				}
+				return
+			}
+
+			if cal == nil {
+				t.Fatal("expected non-nil calibration")
+			}
+			if cal.Axis != "signal" {
+				t.Errorf("axis = %q, want signal", cal.Axis)
+			}
+			if cal.Steepness <= 0 {
+				t.Errorf("steepness = %g, want > 0", cal.Steepness)
+			}
+		})
 	}
 }
 
@@ -144,7 +210,7 @@ func TestCalibrateSynergy(t *testing.T) {
 			wantNil: true,
 		},
 		{
-			name: "stddev near zero: all identical deltas",
+			name: "all identical deltas",
 			rows: func() []synergyRow {
 				var s []synergyRow
 				for range 30 {
@@ -152,7 +218,7 @@ func TestCalibrateSynergy(t *testing.T) {
 				}
 				return s
 			}(),
-			wantNil: true, // stddev < 0.0001 triggers nil return.
+			wantNil: true, // P90 - P10 < 0.001 triggers nil.
 		},
 	}
 
@@ -173,10 +239,6 @@ func TestCalibrateSynergy(t *testing.T) {
 			if cal.Axis != "synergy" {
 				t.Errorf("axis = %q, want synergy", cal.Axis)
 			}
-			// Center should be near 0 (mean of -0.15 to +0.14 ~ -0.005)
-			if math.Abs(cal.Center) > 0.02 {
-				t.Errorf("center = %g, want near 0", cal.Center)
-			}
 			if cal.Steepness <= 0 {
 				t.Errorf("steepness = %g, want > 0", cal.Steepness)
 			}
@@ -184,42 +246,16 @@ func TestCalibrateSynergy(t *testing.T) {
 	}
 }
 
-func TestCalibrateSynergy_Formula(t *testing.T) {
-	// Verify 4/stddev formula with known uniform distribution.
-	// 20 values: 0.0, 0.1, 0.2, ..., 1.9
-	// Mean = 0.95
-	// Variance = sum((x - 0.95)^2)/20
-	var rows []synergyRow
-	for i := range 20 {
-		rows = append(rows, synergyRow{SynergyDelta: float64(i) * 0.1})
-	}
-
-	cal := calibrateSynergy(rows)
-	if cal == nil {
-		t.Fatal("expected non-nil calibration")
-	}
-
-	// Compute expected stddev.
-	mean := 0.95
-	var sumSq float64
-	for i := range 20 {
-		diff := float64(i)*0.1 - mean
-		sumSq += diff * diff
-	}
-	expectedStddev := math.Sqrt(sumSq / 20)
-	expectedSteepness := round4(4 / expectedStddev)
-
-	if math.Abs(cal.Steepness-expectedSteepness) > 0.01 {
-		t.Errorf("steepness = %g, want %g (4/stddev where stddev=%g)", cal.Steepness, expectedSteepness, expectedStddev)
-	}
-}
-
 func TestComputeCalibration_AllAxes(t *testing.T) {
 	sr := setResult{Set: "TST"}
 	for i := range 20 {
 		sr.Cards = append(sr.Cards, cardResult{
-			Name:    string(rune('A' + i)),
-			Overall: setCardStats{GIHWR: 0.45 + float64(i)*0.01, GamesInHand: 500},
+			Name: string(rune('A' + i)),
+			Overall: setCardStats{
+				GIHWR:       0.45 + float64(i)*0.01,
+				GamesInHand: 500,
+				ATA:         1.0 + float64(i)*0.5,
+			},
 		})
 	}
 
@@ -230,9 +266,9 @@ func TestComputeCalibration_AllAxes(t *testing.T) {
 
 	rows := computeCalibration(sr, synergies)
 
-	// Should have 5 axes: baseline, synergy, curve, signal, role
-	if len(rows) != 5 {
-		t.Fatalf("expected 5 calibration rows, got %d", len(rows))
+	// Should have 8 axes: baseline, synergy, signal + 5 state-dependent
+	if len(rows) != 8 {
+		t.Fatalf("expected 8 calibration rows, got %d", len(rows))
 	}
 
 	axes := make(map[string]bool)
@@ -243,7 +279,10 @@ func TestComputeCalibration_AllAxes(t *testing.T) {
 		}
 	}
 
-	for _, expected := range []string{"baseline", "synergy", "curve", "signal", "role"} {
+	for _, expected := range []string{
+		"baseline", "synergy", "signal",
+		"castability", "color_commitment", "opportunity_cost", "curve", "role",
+	} {
 		if !axes[expected] {
 			t.Errorf("missing axis %q", expected)
 		}
@@ -251,23 +290,23 @@ func TestComputeCalibration_AllAxes(t *testing.T) {
 }
 
 func TestComputeCalibration_DegenerateInputs(t *testing.T) {
-	// Both baseline and synergy have insufficient data — should still
-	// return the 3 fixed axes (curve, signal, role).
+	// Both baseline, synergy, and signal have insufficient data —
+	// should still return the 5 state-dependent axes.
 	sr := setResult{Set: "TST", Cards: []cardResult{
 		{Overall: setCardStats{GIHWR: 0.50, GamesInHand: 500}},
 	}}
 
 	rows := computeCalibration(sr, nil)
 
-	if len(rows) != 3 {
-		t.Fatalf("expected 3 calibration rows (fixed axes only), got %d", len(rows))
+	if len(rows) != 5 {
+		t.Fatalf("expected 5 calibration rows (state-dependent only), got %d", len(rows))
 	}
 
 	axes := make(map[string]bool)
 	for _, r := range rows {
 		axes[r.Axis] = true
 	}
-	for _, expected := range []string{"curve", "signal", "role"} {
+	for _, expected := range []string{"castability", "color_commitment", "opportunity_cost", "curve", "role"} {
 		if !axes[expected] {
 			t.Errorf("missing axis %q", expected)
 		}
@@ -299,5 +338,26 @@ func TestBuildSynergyImportSQL_Calibration(t *testing.T) {
 	}
 	if !strings.Contains(sql, "'synergy'") {
 		t.Error("SQL should contain synergy axis")
+	}
+}
+
+func TestPercentileSigmoid(t *testing.T) {
+	// 100 values uniformly from 0.0 to 0.99
+	// P10 = values[10] = 0.10, P50 = values[50] = 0.50, P90 = values[90] = 0.90
+	// Steepness = 4.4 / (0.90 - 0.10) = 4.4 / 0.80 = 5.5
+	values := make([]float64, 100)
+	for i := range 100 {
+		values[i] = float64(i) * 0.01
+	}
+
+	cal := percentileSigmoid("test", values, 0.01)
+	if cal == nil {
+		t.Fatal("expected non-nil")
+	}
+	if math.Abs(cal.Center-0.50) > 0.02 {
+		t.Errorf("center = %g, want ~0.50", cal.Center)
+	}
+	if math.Abs(cal.Steepness-5.5) > 0.5 {
+		t.Errorf("steepness = %g, want ~5.5", cal.Steepness)
 	}
 }
