@@ -513,6 +513,60 @@ export function aggregateArchetypeOpenness(
   return result;
 }
 
+// ── Archetype viability ──────────────────────────────────────
+
+export type ViabilityTier = "strong" | "moderate" | "sparse" | "fringe";
+
+export interface ViabilityInfo {
+  viability: ViabilityTier;
+  format_context: string;
+}
+
+/**
+ * Compute a viability tier for an archetype based on its deck_share
+ * relative to the format's distribution.
+ *
+ * Tiers are percentile-based so they adapt per format:
+ *   strong:   top 25% of archetypes by deck_share
+ *   moderate: 25th–75th percentile
+ *   sparse:   75th–95th percentile
+ *   fringe:   bottom 5%
+ */
+export function computeViabilityTier(
+  deckShare: number,
+  allDeckShares: number[],
+): ViabilityInfo {
+  const avgShare =
+    allDeckShares.length > 0
+      ? allDeckShares.reduce((a, b) => a + b, 0) / allDeckShares.length
+      : 0;
+  const formatContext = `${(deckShare * 100).toFixed(1)}% of decks (format avg: ${(avgShare * 100).toFixed(1)}%)`;
+
+  if (allDeckShares.length === 0) {
+    return { viability: "fringe", format_context: formatContext };
+  }
+  if (allDeckShares.length === 1) {
+    return { viability: "strong", format_context: formatContext };
+  }
+
+  const sorted = [...allDeckShares].sort((a, b) => a - b);
+  const rank = sorted.filter((s) => s < deckShare).length;
+  const percentile = rank / (sorted.length - 1);
+
+  let viability: ViabilityTier;
+  if (percentile >= 0.75) {
+    viability = "strong";
+  } else if (percentile >= 0.25) {
+    viability = "moderate";
+  } else if (percentile >= 0.05) {
+    viability = "sparse";
+  } else {
+    viability = "fringe";
+  }
+
+  return { viability, format_context: formatContext };
+}
+
 // ── Utilities ────────────────────────────────────────────────
 
 export function placeholders(count: number, startIdx: number): string {

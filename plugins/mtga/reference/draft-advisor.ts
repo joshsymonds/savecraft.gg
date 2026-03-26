@@ -45,6 +45,7 @@ import {
   aggregateArchetypeOpenness,
   placeholders,
   r4,
+  computeViabilityTier,
 } from "./scoring";
 
 // ── Bomb dampening constants ─────────────────────────────────
@@ -1073,29 +1074,41 @@ async function contextualPick(
   return {
     type: "structured",
     data: {
-      archetype: {
-        primary: primaryArchetype,
-        candidates: candidates
-          .filter((c) => {
-            if (c.archetype === "_overall") return true;
-            if (totalDecksAllPairs === 0) return true;
-            const deckCount = deckCountByPair.get(c.archetype) ?? 0;
-            return deckCount / totalDecksAllPairs >= 0.02;
-          })
-          .map((c) => {
-            const deckCount = deckCountByPair.get(c.archetype) ?? 0;
-            return {
-              archetype: c.archetype,
-              weight: Math.round(c.weight * 100) / 100,
-              deck_count: deckCount,
-              deck_share:
+      archetype: (() => {
+        const allDeckShares = [...deckCountByPair.values()].map((c) =>
+          totalDecksAllPairs > 0 ? c / totalDecksAllPairs : 0,
+        );
+        return {
+          primary: primaryArchetype,
+          candidates: candidates
+            .filter((c) => {
+              if (c.archetype === "_overall") return true;
+              if (totalDecksAllPairs === 0) return true;
+              const deckCount = deckCountByPair.get(c.archetype) ?? 0;
+              return deckCount / totalDecksAllPairs >= 0.02;
+            })
+            .map((c) => {
+              const deckCount = deckCountByPair.get(c.archetype) ?? 0;
+              const deckShare =
                 totalDecksAllPairs > 0
                   ? Math.round((deckCount / totalDecksAllPairs) * 1000) / 1000
-                  : 0,
-            };
-          }),
-        confidence: Math.round(confidence * 100) / 100,
-      },
+                  : 0;
+              const { viability, format_context } = computeViabilityTier(
+                deckShare,
+                allDeckShares,
+              );
+              return {
+                archetype: c.archetype,
+                weight: Math.round(c.weight * 100) / 100,
+                deck_count: deckCount,
+                deck_share: deckShare,
+                viability,
+                format_context,
+              };
+            }),
+          confidence: Math.round(confidence * 100) / 100,
+        };
+      })(),
       pick_number: pickNumber,
       weight_profile: profileLabel,
       weights: {

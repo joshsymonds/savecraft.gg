@@ -6,6 +6,7 @@ import { draftAdvisorModule } from "../../plugins/mtga/reference/draft-advisor";
 import {
   type CardMetaRow,
   computeColorCommitment,
+  computeViabilityTier,
   deriveArchetypeWeights,
 } from "../../plugins/mtga/reference/scoring";
 import { registerNativeModule } from "../src/reference/registry";
@@ -2692,6 +2693,8 @@ describe("draft_advisor native module", () => {
           weight: number;
           deck_count: number;
           deck_share: number;
+          viability: string;
+          format_context: string;
         }[];
       };
     };
@@ -2703,6 +2706,12 @@ describe("draft_advisor native module", () => {
     for (const c of withStats) {
       expect(c.deck_share).toBeGreaterThan(0);
       expect(c.deck_share).toBeLessThanOrEqual(1);
+    }
+    // viability and format_context should be present on all candidates
+    for (const c of data.archetype.candidates) {
+      expect(["strong", "moderate", "sparse", "fringe"]).toContain(c.viability);
+      expect(c.format_context).toContain("% of decks");
+      expect(c.format_context).toContain("format avg:");
     }
   });
 
@@ -3159,5 +3168,51 @@ describe("Bayesian shrinkage", () => {
     // Raw synergy should be heavily dampened
     expect(rec!.axes.synergy.raw).toBeLessThan(0.02);
     expect(rec!.axes.synergy.raw).toBeGreaterThanOrEqual(0);
+  });
+});
+
+describe("computeViabilityTier", () => {
+  it("classifies top 25% as strong", () => {
+    // 10 archetypes: shares from 0.02 to 0.20
+    const shares = [0.02, 0.04, 0.05, 0.06, 0.08, 0.1, 0.12, 0.13, 0.15, 0.2];
+    const result = computeViabilityTier(0.2, shares);
+    expect(result.viability).toBe("strong");
+    expect(result.format_context).toContain("20.0% of decks");
+  });
+
+  it("classifies 25th-75th percentile as moderate", () => {
+    const shares = [0.02, 0.04, 0.05, 0.06, 0.08, 0.1, 0.12, 0.13, 0.15, 0.2];
+    const result = computeViabilityTier(0.08, shares);
+    expect(result.viability).toBe("moderate");
+  });
+
+  it("classifies 5th-25th percentile as sparse", () => {
+    const shares = [0.02, 0.04, 0.05, 0.06, 0.08, 0.1, 0.12, 0.13, 0.15, 0.2];
+    const result = computeViabilityTier(0.04, shares);
+    expect(result.viability).toBe("sparse");
+  });
+
+  it("classifies bottom 5% as fringe", () => {
+    // 20 archetypes so 5% = 1 archetype. The very lowest is fringe.
+    const shares = Array.from({ length: 20 }, (_, i) => (i + 1) * 0.005);
+    const result = computeViabilityTier(0.005, shares);
+    expect(result.viability).toBe("fringe");
+  });
+
+  it("returns fringe with empty deck shares", () => {
+    const result = computeViabilityTier(0, []);
+    expect(result.viability).toBe("fringe");
+    expect(result.format_context).toContain("format avg: 0.0%");
+  });
+
+  it("includes format average in context string", () => {
+    const shares = [0.1, 0.2, 0.3];
+    const result = computeViabilityTier(0.2, shares);
+    expect(result.format_context).toContain("format avg: 20.0%");
+  });
+
+  it("handles single archetype as strong", () => {
+    const result = computeViabilityTier(1.0, [1.0]);
+    expect(result.viability).toBe("strong");
   });
 });
