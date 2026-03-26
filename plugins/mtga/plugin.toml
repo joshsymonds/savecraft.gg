@@ -74,7 +74,7 @@ data_sources = [
 
 [reference.modules.draft_advisor]
 name = "Draft Advisor"
-description = "Contextual draft pick evaluation using 8-axis WASPAS scoring across all 31 color archetypes. Bayesian-calibrated baseline win rate, archetype-stratified pairwise synergy, curve fit, signal openness, role composition, castability, color commitment, and opportunity cost. Each archetype candidate includes a viability tier (strong/moderate/sparse/fringe) so the AI warns when you're in an underrepresented archetype. Batch review tracks archetype evolution across picks. Supports live pick ranking and full draft batch review."
+description = "Contextual draft pick evaluation using 8-axis WASPAS scoring across all 31 color archetypes, format-adjusted by empirical win rate so the system steers toward stronger archetypes when commitment is equal. Bayesian-calibrated baseline win rate, archetype-stratified pairwise synergy, curve fit, signal openness, role composition, castability, color commitment, and opportunity cost. Each archetype candidate includes a viability tier (strong/moderate/sparse/fringe) so the AI warns when you're in an underrepresented archetype. Batch review tracks archetype evolution across picks. Supports live pick ranking and full draft batch review."
 
 [reference.modules.draft_advisor.attribution]
 author = "Josh Symonds"
