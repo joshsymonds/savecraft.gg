@@ -317,6 +317,113 @@ const statements = [
     row_count INTEGER NOT NULL,
     PRIMARY KEY (tool, set_code)
   )`,
+  // Constructed: match history (migration 0029)
+  `CREATE TABLE IF NOT EXISTS mtga_match_history (
+    match_id TEXT PRIMARY KEY,
+    user_uuid TEXT NOT NULL,
+    event_id TEXT NOT NULL,
+    format TEXT NOT NULL DEFAULT '',
+    deck_name TEXT NOT NULL DEFAULT '',
+    result TEXT NOT NULL,
+    game_results TEXT NOT NULL DEFAULT '[]',
+    opponent_name TEXT NOT NULL DEFAULT '',
+    opponent_rank TEXT NOT NULL DEFAULT '',
+    opponent_cards TEXT NOT NULL DEFAULT '[]',
+    played_at TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_match_history_user_format ON mtga_match_history(user_uuid, format)`,
+  `CREATE INDEX IF NOT EXISTS idx_match_history_user_deck ON mtga_match_history(user_uuid, deck_name)`,
+  `CREATE INDEX IF NOT EXISTS idx_match_history_user_time ON mtga_match_history(user_uuid, played_at DESC)`,
+  // Constructed: metagame archetypes (migration 0029)
+  `CREATE TABLE IF NOT EXISTS mtga_meta_archetypes (
+    format TEXT NOT NULL,
+    archetype_name TEXT NOT NULL,
+    metagame_share REAL NOT NULL DEFAULT 0,
+    win_rate REAL NOT NULL DEFAULT 0,
+    sample_size INTEGER NOT NULL DEFAULT 0,
+    last_updated TEXT NOT NULL,
+    PRIMARY KEY (format, archetype_name)
+  )`,
+  // Constructed: tournament decklists (migration 0029)
+  `CREATE TABLE IF NOT EXISTS mtga_meta_decklists (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    format TEXT NOT NULL,
+    archetype_name TEXT NOT NULL,
+    tournament_id TEXT NOT NULL,
+    tournament_name TEXT NOT NULL DEFAULT '',
+    player_name TEXT NOT NULL DEFAULT '',
+    placement INTEGER,
+    decklist TEXT NOT NULL DEFAULT '{}',
+    date TEXT NOT NULL
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_meta_decklists_format_archetype ON mtga_meta_decklists(format, archetype_name)`,
+  `CREATE INDEX IF NOT EXISTS idx_meta_decklists_format_date ON mtga_meta_decklists(format, date DESC)`,
+  // Constructed: archetype matchups (migration 0029)
+  `CREATE TABLE IF NOT EXISTS mtga_meta_matchups (
+    format TEXT NOT NULL,
+    archetype_a TEXT NOT NULL,
+    archetype_b TEXT NOT NULL,
+    win_rate_a REAL NOT NULL DEFAULT 0,
+    sample_size INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (format, archetype_a, archetype_b)
+  )`,
+  // Play advisor tables (migration 0030)
+  `CREATE TABLE IF NOT EXISTS mtga_play_card_timing (
+    set_code TEXT NOT NULL,
+    card_name TEXT NOT NULL,
+    archetype TEXT NOT NULL,
+    turn_number INTEGER NOT NULL,
+    times_deployed INTEGER NOT NULL DEFAULT 0,
+    games_won INTEGER NOT NULL DEFAULT 0,
+    total_games INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (set_code, card_name, archetype, turn_number)
+  )`,
+  `CREATE TABLE IF NOT EXISTS mtga_play_tempo (
+    set_code TEXT NOT NULL,
+    archetype TEXT NOT NULL,
+    turn_number INTEGER NOT NULL,
+    on_play INTEGER NOT NULL,
+    mana_spent_bucket INTEGER NOT NULL,
+    games_won INTEGER NOT NULL DEFAULT 0,
+    total_games INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (set_code, archetype, turn_number, on_play, mana_spent_bucket)
+  )`,
+  `CREATE TABLE IF NOT EXISTS mtga_play_combat (
+    set_code TEXT NOT NULL,
+    attacker_name TEXT NOT NULL,
+    turn_number INTEGER NOT NULL,
+    user_creatures_count INTEGER NOT NULL,
+    oppo_creatures_count INTEGER NOT NULL,
+    attacked INTEGER NOT NULL,
+    games_won INTEGER NOT NULL DEFAULT 0,
+    total_games INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (set_code, attacker_name, turn_number, user_creatures_count, oppo_creatures_count, attacked)
+  )`,
+  `CREATE TABLE IF NOT EXISTS mtga_play_mulligan (
+    set_code TEXT NOT NULL,
+    archetype TEXT NOT NULL,
+    on_play INTEGER NOT NULL,
+    land_count INTEGER NOT NULL,
+    nonland_cmc_bucket TEXT NOT NULL,
+    num_mulligans INTEGER NOT NULL,
+    games_won INTEGER NOT NULL DEFAULT 0,
+    total_games INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (set_code, archetype, on_play, land_count, nonland_cmc_bucket, num_mulligans)
+  )`,
+  `CREATE TABLE IF NOT EXISTS mtga_play_turn_baselines (
+    set_code TEXT NOT NULL,
+    archetype TEXT NOT NULL,
+    turn_number INTEGER NOT NULL,
+    on_play INTEGER NOT NULL,
+    total_mana_spent REAL NOT NULL DEFAULT 0,
+    total_creatures_cast INTEGER NOT NULL DEFAULT 0,
+    total_spells_cast INTEGER NOT NULL DEFAULT 0,
+    total_creatures_attacked INTEGER NOT NULL DEFAULT 0,
+    total_attacks_possible INTEGER NOT NULL DEFAULT 0,
+    games_won INTEGER NOT NULL DEFAULT 0,
+    total_games INTEGER NOT NULL DEFAULT 0,
+    PRIMARY KEY (set_code, archetype, turn_number, on_play)
+  )`,
 ];
 
 for (const sql of statements) {

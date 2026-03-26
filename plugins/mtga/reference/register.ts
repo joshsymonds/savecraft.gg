@@ -10,7 +10,10 @@ import { collectionDiffModule } from "./collection-diff";
 import { deckbuildingModule } from "./deckbuilding";
 import { draftAdvisorModule } from "./draft-advisor";
 import { manaBaseModule } from "./mana-base";
+import { matchStatsModule } from "./match-stats";
 import { rulesSearchModule } from "./rules-search";
+import { playAdvisorModule } from "./play-advisor";
+import { sideboardAnalysisModule } from "./sideboard-analysis";
 
 registerNativeModule("mtga", rulesSearchModule);
 registerNativeModule("mtga", cardSearchModule);
@@ -19,3 +22,6 @@ registerNativeModule("mtga", collectionDiffModule);
 registerNativeModule("mtga", deckbuildingModule);
 registerNativeModule("mtga", draftAdvisorModule);
 registerNativeModule("mtga", manaBaseModule);
+registerNativeModule("mtga", matchStatsModule);
+registerNativeModule("mtga", playAdvisorModule);
+registerNativeModule("mtga", sideboardAnalysisModule);

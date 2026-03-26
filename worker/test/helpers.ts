@@ -40,6 +40,15 @@ export const CLEANUP_TABLES = [
   "mtga_draft_deck_stats",
   "mtga_set_metadata",
   "mtga_pipeline_state",
+  "mtga_play_card_timing",
+  "mtga_play_tempo",
+  "mtga_play_combat",
+  "mtga_play_mulligan",
+  "mtga_play_turn_baselines",
+  "mtga_match_history",
+  "mtga_meta_decklists",
+  "mtga_meta_matchups",
+  "mtga_meta_archetypes",
 ] as const;
 
 /**

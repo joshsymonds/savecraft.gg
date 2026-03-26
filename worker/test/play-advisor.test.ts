@@ -1,0 +1,289 @@
+import { env } from "cloudflare:test";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { registerNativeModule } from "../src/reference/registry";
+import { playAdvisorModule } from "../../plugins/mtga/reference/play-advisor";
+
+import { cleanAll } from "./helpers";
+
+// ── Seed helpers ─────────────────────────────────────────────
+
+async function seedCardTiming(): Promise<void> {
+  const rows = [
+    // Gleaming Barrier timing: better when played on turn 2
+    { set: "FDN", card: "Gleaming Barrier", arch: "UB", turn: 1, deployed: 100, won: 45, total: 100 },
+    { set: "FDN", card: "Gleaming Barrier", arch: "UB", turn: 2, deployed: 200, won: 110, total: 200 },
+    { set: "FDN", card: "Gleaming Barrier", arch: "UB", turn: 3, deployed: 80, won: 35, total: 80 },
+    { set: "FDN", card: "Gleaming Barrier", arch: "ALL", turn: 1, deployed: 150, won: 70, total: 150 },
+    { set: "FDN", card: "Gleaming Barrier", arch: "ALL", turn: 2, deployed: 300, won: 165, total: 300 },
+    { set: "FDN", card: "Gleaming Barrier", arch: "ALL", turn: 3, deployed: 120, won: 52, total: 120 },
+    // Kaito timing: best on turn 3
+    { set: "FDN", card: "Kaito, Cunning Infiltrator", arch: "UB", turn: 3, deployed: 150, won: 90, total: 150 },
+    { set: "FDN", card: "Kaito, Cunning Infiltrator", arch: "UB", turn: 4, deployed: 120, won: 65, total: 120 },
+    { set: "FDN", card: "Kaito, Cunning Infiltrator", arch: "UB", turn: 5, deployed: 80, won: 38, total: 80 },
+    { set: "FDN", card: "Kaito, Cunning Infiltrator", arch: "ALL", turn: 3, deployed: 200, won: 120, total: 200 },
+    { set: "FDN", card: "Kaito, Cunning Infiltrator", arch: "ALL", turn: 4, deployed: 180, won: 95, total: 180 },
+    { set: "FDN", card: "Kaito, Cunning Infiltrator", arch: "ALL", turn: 5, deployed: 100, won: 45, total: 100 },
+  ];
+  for (const r of rows) {
+    await env.DB.prepare(
+      `INSERT INTO mtga_play_card_timing (set_code, card_name, archetype, turn_number, times_deployed, games_won, total_games)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(r.set, r.card, r.arch, r.turn, r.deployed, r.won, r.total).run();
+  }
+}
+
+async function seedTempo(): Promise<void> {
+  const rows = [
+    // UB tempo: mana_spent_bucket 0-5 for turn 3, on_play=1
+    { set: "FDN", arch: "UB", turn: 3, onPlay: 1, bucket: 0, won: 20, total: 50 },
+    { set: "FDN", arch: "UB", turn: 3, onPlay: 1, bucket: 1, won: 25, total: 55 },
+    { set: "FDN", arch: "UB", turn: 3, onPlay: 1, bucket: 2, won: 40, total: 70 },
+    { set: "FDN", arch: "UB", turn: 3, onPlay: 1, bucket: 3, won: 60, total: 100 },
+    { set: "FDN", arch: "ALL", turn: 3, onPlay: 1, bucket: 0, won: 30, total: 80 },
+    { set: "FDN", arch: "ALL", turn: 3, onPlay: 1, bucket: 3, won: 90, total: 150 },
+  ];
+  for (const r of rows) {
+    await env.DB.prepare(
+      `INSERT INTO mtga_play_tempo (set_code, archetype, turn_number, on_play, mana_spent_bucket, games_won, total_games)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(r.set, r.arch, r.turn, r.onPlay, r.bucket, r.won, r.total).run();
+  }
+}
+
+async function seedCombat(): Promise<void> {
+  const rows = [
+    // Gleaming Barrier: better to hold back when opponent has creatures
+    { set: "FDN", attacker: "Gleaming Barrier", turn: 3, userC: 2, oppoC: 2, attacked: 1, won: 30, total: 80 },
+    { set: "FDN", attacker: "Gleaming Barrier", turn: 3, userC: 2, oppoC: 2, attacked: 0, won: 50, total: 80 },
+    // Gleaming Barrier: attack when opponent has no creatures
+    { set: "FDN", attacker: "Gleaming Barrier", turn: 3, userC: 2, oppoC: 0, attacked: 1, won: 55, total: 80 },
+    { set: "FDN", attacker: "Gleaming Barrier", turn: 3, userC: 2, oppoC: 0, attacked: 0, won: 30, total: 80 },
+  ];
+  for (const r of rows) {
+    await env.DB.prepare(
+      `INSERT INTO mtga_play_combat (set_code, attacker_name, turn_number, user_creatures_count, oppo_creatures_count, attacked, games_won, total_games)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(r.set, r.attacker, r.turn, r.userC, r.oppoC, r.attacked, r.won, r.total).run();
+  }
+}
+
+async function seedMulligan(): Promise<void> {
+  const rows = [
+    // UB on_play: 2 lands with mid-CMC nonlands is good
+    { set: "FDN", arch: "UB", onPlay: 1, lands: 2, cmc: "mid", mulls: 0, won: 70, total: 120 },
+    { set: "FDN", arch: "UB", onPlay: 1, lands: 3, cmc: "mid", mulls: 0, won: 65, total: 120 },
+    { set: "FDN", arch: "UB", onPlay: 1, lands: 1, cmc: "high", mulls: 0, won: 30, total: 100 },
+    { set: "FDN", arch: "UB", onPlay: 1, lands: 2, cmc: "mid", mulls: 1, won: 40, total: 100 },
+    { set: "FDN", arch: "ALL", onPlay: 1, lands: 2, cmc: "mid", mulls: 0, won: 100, total: 180 },
+  ];
+  for (const r of rows) {
+    await env.DB.prepare(
+      `INSERT INTO mtga_play_mulligan (set_code, archetype, on_play, land_count, nonland_cmc_bucket, num_mulligans, games_won, total_games)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(r.set, r.arch, r.onPlay, r.lands, r.cmc, r.mulls, r.won, r.total).run();
+  }
+}
+
+async function seedBaselines(): Promise<void> {
+  const rows = [
+    { set: "FDN", arch: "UB", turn: 1, onPlay: 1, mana: 50.0, creatures: 10, spells: 15, attacked: 0, possible: 5, won: 30, total: 50 },
+    { set: "FDN", arch: "UB", turn: 2, onPlay: 1, mana: 150.0, creatures: 40, spells: 45, attacked: 15, possible: 30, won: 30, total: 50 },
+    { set: "FDN", arch: "UB", turn: 3, onPlay: 1, mana: 200.0, creatures: 35, spells: 50, attacked: 25, possible: 40, won: 30, total: 50 },
+    { set: "FDN", arch: "ALL", turn: 1, onPlay: 1, mana: 80.0, creatures: 20, spells: 25, attacked: 0, possible: 10, won: 50, total: 100 },
+    { set: "FDN", arch: "ALL", turn: 2, onPlay: 1, mana: 250.0, creatures: 70, spells: 80, attacked: 30, possible: 60, won: 50, total: 100 },
+    { set: "FDN", arch: "ALL", turn: 3, onPlay: 1, mana: 380.0, creatures: 60, spells: 90, attacked: 50, possible: 80, won: 50, total: 100 },
+  ];
+  for (const r of rows) {
+    await env.DB.prepare(
+      `INSERT INTO mtga_play_turn_baselines (set_code, archetype, turn_number, on_play, total_mana_spent, total_creatures_cast, total_spells_cast, total_creatures_attacked, total_attacks_possible, games_won, total_games)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(r.set, r.arch, r.turn, r.onPlay, r.mana, r.creatures, r.spells, r.attacked, r.possible, r.won, r.total).run();
+  }
+}
+
+async function seedAll(): Promise<void> {
+  await Promise.all([
+    seedCardTiming(),
+    seedTempo(),
+    seedCombat(),
+    seedMulligan(),
+    seedBaselines(),
+  ]);
+}
+
+// ── Tests ────────────────────────────────────────────────────
+
+describe("play_advisor reference module", () => {
+  beforeEach(async () => {
+    await cleanAll();
+    registerNativeModule("mtga", playAdvisorModule);
+    await seedAll();
+  });
+
+  it("returns card timing analysis", async () => {
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "card_timing",
+        set: "FDN",
+        cards: ["Gleaming Barrier", "Kaito, Cunning Infiltrator"],
+        archetype: "UB",
+      },
+      env,
+    );
+    expect(result.type).toBe("formatted");
+    const content = (result as { type: "formatted"; content: string }).content;
+    expect(content).toContain("Gleaming Barrier");
+    expect(content).toContain("Kaito");
+    expect(content).toContain("Coverage: 2/2");
+  });
+
+  it("reports coverage for missing cards", async () => {
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "card_timing",
+        set: "FDN",
+        cards: ["Gleaming Barrier", "Nonexistent Card"],
+        archetype: "UB",
+      },
+      env,
+    );
+    const content = (result as { type: "formatted"; content: string }).content;
+    expect(content).toContain("Coverage: 1/2");
+  });
+
+  it("returns mana efficiency analysis", async () => {
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "mana_efficiency",
+        set: "FDN",
+        archetype: "UB",
+        on_play: true,
+        turns: [
+          { turn: 1, mana_spent: 0 },
+          { turn: 2, mana_spent: 2 },
+          { turn: 3, mana_spent: 3 },
+        ],
+      },
+      env,
+    );
+    expect(result.type).toBe("formatted");
+    const content = (result as { type: "formatted"; content: string }).content;
+    expect(content).toContain("Mana Efficiency");
+    expect(content).toContain("T3");
+  });
+
+  it("returns attack analysis", async () => {
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "attack_analysis",
+        set: "FDN",
+        turns: [
+          {
+            turn: 3,
+            creatures: ["Gleaming Barrier"],
+            attacked: ["Gleaming Barrier"],
+            oppo_creatures: 2,
+            user_creatures: 2,
+          },
+        ],
+      },
+      env,
+    );
+    expect(result.type).toBe("formatted");
+    const content = (result as { type: "formatted"; content: string }).content;
+    expect(content).toContain("Gleaming Barrier");
+    expect(content).toContain("Coverage: 1/1");
+  });
+
+  it("returns mulligan analysis", async () => {
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "mulligan",
+        set: "FDN",
+        archetype: "UB",
+        on_play: true,
+        hand: ["Island", "Island", "Swamp", "Kaito, Cunning Infiltrator", "Gleaming Barrier", "Eaten Alive", "Archmage of Runes"],
+      },
+      env,
+    );
+    expect(result.type).toBe("formatted");
+    const content = (result as { type: "formatted"; content: string }).content;
+    expect(content).toContain("Mulligan");
+  });
+
+  it("returns game review analysis", async () => {
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "game_review",
+        set: "FDN",
+        archetype: "UB",
+        on_play: true,
+        turns: [
+          { turn: 1, mana_spent: 0, cards_played: [], creatures_attacked: [], user_creatures: 0, oppo_creatures: 0 },
+          { turn: 2, mana_spent: 2, cards_played: ["Gleaming Barrier"], creatures_attacked: [], user_creatures: 1, oppo_creatures: 0 },
+          { turn: 3, mana_spent: 3, cards_played: ["Kaito, Cunning Infiltrator"], creatures_attacked: ["Gleaming Barrier"], user_creatures: 1, oppo_creatures: 2 },
+        ],
+      },
+      env,
+    );
+    expect(result.type).toBe("formatted");
+    const content = (result as { type: "formatted"; content: string }).content;
+    expect(content).toContain("Game Review");
+  });
+
+  it("includes disclaimer for non-draft format", async () => {
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "card_timing",
+        set: "FDN",
+        cards: ["Gleaming Barrier"],
+        archetype: "UB",
+        format: "Standard",
+      },
+      env,
+    );
+    const content = (result as { type: "formatted"; content: string }).content;
+    expect(content).toContain("Premier Draft");
+  });
+
+  it("does not include disclaimer for PremierDraft format", async () => {
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "card_timing",
+        set: "FDN",
+        cards: ["Gleaming Barrier"],
+        archetype: "UB",
+        format: "PremierDraft",
+      },
+      env,
+    );
+    const content = (result as { type: "formatted"; content: string }).content;
+    expect(content).not.toContain("Baselines from Premier Draft");
+  });
+
+  it("falls back to ALL archetype when specific archetype has no data", async () => {
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "card_timing",
+        set: "FDN",
+        cards: ["Gleaming Barrier"],
+        archetype: "WR", // no WR data seeded
+      },
+      env,
+    );
+    const content = (result as { type: "formatted"; content: string }).content;
+    // Should still return data using ALL fallback
+    expect(content).toContain("Gleaming Barrier");
+    expect(content).toContain("Coverage: 1/1");
+  });
+
+  it("returns error for unknown mode", async () => {
+    const result = await playAdvisorModule.execute(
+      { mode: "unknown_mode" },
+      env,
+    );
+    const content = (result as { type: "formatted"; content: string }).content;
+    expect(content).toContain("Unknown mode");
+  });
+});
