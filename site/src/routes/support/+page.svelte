@@ -76,9 +76,9 @@
       <div class="faq-item">
         <h3>How do I connect an AI assistant?</h3>
         <p>
-          In Claude, ChatGPT, or any MCP-compatible assistant, add Savecraft as an MCP server using
-          <code>https://mcp.savecraft.gg/mcp</code>. You'll be redirected to sign in. After that,
-          the assistant can access your game data.
+          Follow the step-by-step instructions on our
+          <a href="/docs" class="text-link">docs page</a>. You'll paste a URL into your AI app's
+          settings, sign in to Savecraft, and you're done.
         </p>
       </div>
 
@@ -229,15 +229,6 @@
     font-weight: 400;
     color: var(--color-text-dim);
     line-height: 1.7;
-  }
-
-  .faq-item code {
-    font-family: var(--font-body);
-    font-size: 18px;
-    color: var(--color-green);
-    background: rgba(5, 7, 26, 0.6);
-    padding: 2px 6px;
-    border-radius: 2px;
   }
 
   /* -- Links -- */

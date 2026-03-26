@@ -1,26 +1,20 @@
 <!--
   @component
   AI connect card: compact CTA when no AI client connected, compact status once connected.
-  When not connected, shows a pulsing gold border and expands instructions by default on first visit.
+  When not connected, shows a pulsing gold border with URL + copy button and link to docs.
 
   Pass `initialState` to bypass API calls and show a specific visual state (for Storybook).
-  Pass `initialExpanded` to control initial expand state (for Storybook).
 -->
 <script lang="ts">
-  import { browser } from "$app/environment";
   import { PUBLIC_MCP_URL } from "$env/static/public";
   import { fetchMcpStatus } from "$lib/api/client";
   import { Panel } from "$lib/components";
   import { onDestroy, onMount } from "svelte";
 
-  const DISMISSED_KEY = "savecraft:mcpHowDismissed";
-
   let {
     initialState,
-    initialExpanded,
   }: {
     initialState?: { connected: boolean };
-    initialExpanded?: boolean;
   } = $props();
 
   const mcpUrl = PUBLIC_MCP_URL;
@@ -29,12 +23,6 @@
   let connected = $state(false);
   let copied = $state(false);
   let copyError = $state(false);
-
-  // Expand by default on first visit; once user collapses, remember via sessionStorage
-  // svelte-ignore state_referenced_locally
-  let expanded = $state(
-    initialExpanded ?? (browser ? !sessionStorage.getItem(DISMISSED_KEY) : true),
-  );
 
   $effect.pre(() => {
     if (!initialState) return;
@@ -79,13 +67,6 @@
   }
 
   onDestroy(() => clearTimeout(copyTimer));
-
-  function toggleExpand(): void {
-    expanded = !expanded;
-    if (!expanded && browser) {
-      sessionStorage.setItem(DISMISSED_KEY, "1");
-    }
-  }
 </script>
 
 {#if !loading}
@@ -102,7 +83,7 @@
         </div>
       </div>
       <div class="post-connect-hint">
-        Open Claude, ChatGPT, or Gemini and ask about your game &mdash; it can read your saves.
+        Open Claude or ChatGPT and ask about your game &mdash; it can read your saves.
       </div>
     </Panel>
   {:else}
@@ -131,35 +112,14 @@
             <button class="copy-btn copy-btn-cta" class:copied onclick={copyUrl}>{copyLabel}</button
             >
           </div>
-          <button class="expand-btn" onclick={toggleExpand}>
-            {expanded ? "HIDE" : "HOW?"}
-          </button>
         </div>
 
-        {#if expanded}
-          <div class="details">
-            <span class="details-hint">Paste this URL into your AI client:</span>
-            <div class="detail-row">
-              <span class="client-name">Claude.ai</span>
-              <span class="client-arrow">&rarr;</span>
-              <span class="client-steps"
-                >Settings &rarr; Connectors &rarr; Add custom connector</span
-              >
-            </div>
-            <div class="detail-row">
-              <span class="client-name">Claude Code</span>
-              <span class="client-arrow">&rarr;</span>
-              <span class="client-steps">
-                <code class="inline-code">claude mcp add-remote savecraft {mcpUrl}</code>
-              </span>
-            </div>
-            <div class="detail-row">
-              <span class="client-name">ChatGPT</span>
-              <span class="client-arrow">&rarr;</span>
-              <span class="client-steps">Settings &rarr; Connections &rarr; Add remote server</span>
-            </div>
-          </div>
-        {/if}
+        <div class="docs-hint">
+          Copy the URL above and paste it into Claude or ChatGPT.
+          <a href="https://savecraft.gg/docs" class="docs-link" target="_blank" rel="noopener"
+            >Step-by-step guide &rarr;</a
+          >
+        </div>
       </Panel>
     </div>
   {/if}
@@ -363,90 +323,25 @@
     color: var(--color-gold);
   }
 
-  /* -- Expand button ------------------------------------------ */
+  /* -- Docs hint ---------------------------------------------- */
 
-  .expand-btn {
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    color: var(--color-text-muted);
-    letter-spacing: 1px;
-    background: none;
-    border: 1px solid rgba(74, 90, 173, 0.2);
-    border-radius: 3px;
-    padding: 8px 14px;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-    flex-shrink: 0;
-  }
-
-  .expand-btn:hover {
-    border-color: var(--color-border-light);
-    color: var(--color-text-dim);
-  }
-
-  /* -- Expandable details ------------------------------------- */
-
-  .details {
+  .docs-hint {
     padding: 0 18px 14px;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    animation: fade-in 0.15s ease-out;
-  }
-
-  .details-hint {
-    font-family: var(--font-body);
-    font-size: 16px;
-    color: var(--color-text-muted);
-    margin-bottom: 4px;
-  }
-
-  @keyframes fade-in {
-    from {
-      opacity: 0;
-    }
-    to {
-      opacity: 1;
-    }
-  }
-
-  .detail-row {
-    display: flex;
-    align-items: baseline;
-    gap: 10px;
-    padding: 8px 12px;
-    border-radius: 3px;
-    background: rgba(5, 7, 26, 0.3);
-  }
-
-  .client-name {
-    font-family: var(--font-pixel);
-    font-size: 13px;
-    color: var(--color-text);
-    letter-spacing: 1px;
-    min-width: 120px;
-    flex-shrink: 0;
-  }
-
-  .client-arrow {
-    color: var(--color-text-muted);
-    font-size: 16px;
-  }
-
-  .client-steps {
-    font-family: var(--font-body);
-    font-size: 16px;
-    color: var(--color-text-dim);
-  }
-
-  .inline-code {
     font-family: var(--font-body);
     font-size: 15px;
-    color: var(--color-text);
-    background: rgba(74, 90, 173, 0.1);
-    padding: 3px 8px;
-    border-radius: 3px;
-    border: 1px solid rgba(74, 90, 173, 0.15);
+    color: var(--color-text-muted);
+    line-height: 1.4;
+  }
+
+  .docs-link {
+    color: var(--color-gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(200, 168, 78, 0.3);
+    transition: border-color 0.2s;
+    white-space: nowrap;
+  }
+
+  .docs-link:hover {
+    border-color: var(--color-gold);
   }
 </style>

@@ -244,7 +244,7 @@
           >
             <span
               style="font-family: {headingFont}; font-size: 10px; color: var(--color-text-muted);"
-              >Works with Claude, ChatGPT, and Gemini</span
+              >Works with Claude and ChatGPT</span
             >
             <span style="font-family: {pixelFont}; font-size: 8px; color: var(--color-text-muted);"
               >*</span

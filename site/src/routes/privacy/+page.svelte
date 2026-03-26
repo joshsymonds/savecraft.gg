@@ -37,7 +37,7 @@
       </p>
       <p>
         Savecraft is a gaming companion tool that parses your game save files and serves structured
-        game state data to AI assistants (Claude, ChatGPT, Gemini) via the Model Context Protocol
+        game state data to AI assistants (Claude, ChatGPT) via the Model Context Protocol
         (MCP). It consists of a local daemon that runs on your gaming device, a cloud service that
         stores and serves your data, and a web interface for managing your devices and settings.
       </p>
@@ -194,7 +194,7 @@
           application code never reads, stores, or logs them.
         </li>
         <li>
-          <strong>No conversation history.</strong> We never see what you say to Claude, ChatGPT, or Gemini.
+          <strong>No conversation history.</strong> We never see what you say to Claude or ChatGPT.
           The AI assistant requests specific data from us (e.g., "get this character's equipped gear"),
           and we return structured JSON. The conversation itself stays entirely between you and the AI
           provider.

@@ -10,7 +10,7 @@
   <title>Docs - Savecraft</title>
   <meta
     name="description"
-    content="Connect your AI assistant to your game saves. Setup guides for Claude, ChatGPT, Cursor, and more."
+    content="Connect your AI assistant to your game saves. Setup guides for Claude and ChatGPT."
   />
 </svelte:head>
 
@@ -42,72 +42,50 @@
   <section class="section">
     <h2 class="section-title">Connect your assistant</h2>
     <p class="section-intro">
-      Add Savecraft as an MCP server in your AI client. You'll sign in once via Clerk (our auth
-      provider) and then the assistant can access your game data.
+      Add Savecraft to your AI assistant. You'll sign in once and then the assistant can access your
+      game data. The same URL works for every client:
     </p>
+    <code class="url-block">https://mcp.savecraft.gg</code>
 
-    <div class="client-grid">
-      <div class="client-card">
+    <div class="client-walkthroughs">
+      <div class="client-walkthrough">
         <h3 class="client-name">Claude.ai</h3>
-        <p>
-          Go to <strong>Settings &rarr; Integrations &rarr; Add MCP Server</strong>. Enter the URL:
-        </p>
-        <code class="url-block">https://mcp.savecraft.gg/sse</code>
-        <p class="client-note">You'll be redirected to Clerk to sign in, then back to Claude.</p>
+        <ol class="steps">
+          <li>Open <a href="https://claude.ai" class="text-link" target="_blank" rel="noopener">claude.ai</a> and sign in.</li>
+          <li>Click your profile icon in the lower left, then click <strong>Settings</strong>.</li>
+          <li>Click <strong>Connectors</strong> in the sidebar.</li>
+          <li>Click <strong>Add Custom Connector</strong>.</li>
+          <li>Paste this URL and click <strong>Save</strong>:
+            <code class="url-block">https://mcp.savecraft.gg</code>
+          </li>
+          <li>Claude will ask you to <strong>authorize Savecraft</strong>. Click Allow. You'll sign in to Savecraft if you aren't already.</li>
+          <li>Go back to a chat and ask something like: <em>&ldquo;What games do I have in Savecraft?&rdquo;</em></li>
+          <li class="success-step"><strong>Success looks like:</strong> Claude responds with your game saves &mdash; character names, levels, builds, and stats.</li>
+        </ol>
       </div>
 
-      <div class="client-card">
+      <div class="client-walkthrough">
         <h3 class="client-name">ChatGPT</h3>
-        <p>
-          Once Savecraft is listed in the App Directory, enable it from
-          <strong>Settings &rarr; Connected Apps</strong>. Until then, use the MCP developer preview
-          with this URL:
-        </p>
-        <code class="url-block">https://mcp.savecraft.gg/mcp</code>
-      </div>
-
-      <div class="client-card">
-        <h3 class="client-name">Claude Code</h3>
-        <p>Run this command in your terminal:</p>
-        <pre class="config-block">claude mcp add savecraft \
-  --transport sse \
-  https://mcp.savecraft.gg/sse</pre>
-      </div>
-
-      <div class="client-card">
-        <h3 class="client-name">Cursor / VS Code</h3>
-        <p>
-          Add to your <code>.cursor/mcp.json</code> or VS Code MCP settings:
-        </p>
-        <pre class="config-block">{`{
-  "servers": {
-    "savecraft": {
-      "type": "sse",
-      "url": "https://mcp.savecraft.gg/sse"
-    }
-  }
-}`}</pre>
+        <ol class="steps">
+          <li>Open <a href="https://chatgpt.com" class="text-link" target="_blank" rel="noopener">chatgpt.com</a> and sign in.</li>
+          <li>Click your profile icon in the top right, then click <strong>Settings</strong>.</li>
+          <li>Click <strong>Connections</strong> in the sidebar.</li>
+          <li>Click <strong>Add remote server</strong>.</li>
+          <li>Paste this URL and click <strong>Save</strong>:
+            <code class="url-block">https://mcp.savecraft.gg</code>
+          </li>
+          <li>ChatGPT will ask you to <strong>authorize Savecraft</strong>. Click Allow. You'll sign in to Savecraft if you aren't already.</li>
+          <li>Start a new chat and ask something like: <em>&ldquo;What games do I have in Savecraft?&rdquo;</em></li>
+          <li class="success-step"><strong>Success looks like:</strong> ChatGPT responds with your game saves &mdash; character names, levels, builds, and stats.</li>
+        </ol>
       </div>
     </div>
-  </section>
 
-  <!-- AUTHENTICATION -->
-  <section class="section">
-    <h2 class="section-title">Authentication</h2>
-    <p>
-      Savecraft delegates all authentication to <a
-        href="https://clerk.com"
-        class="text-link"
-        target="_blank"
-        rel="noopener">Clerk</a
-      >. When you connect an AI assistant, you'll be redirected to a Clerk-hosted sign-in page.
-      After authenticating, you're sent back to Savecraft and the assistant receives a scoped OAuth
-      token. The assistant never sees your password or credentials &mdash; only a token that grants
-      access to your saves and notes.
-    </p>
-    <p>
+    <p class="section-note">
       You can revoke access at any time from your
       <a href={`${PUBLIC_APP_URL}/sources`} class="text-link">sources page</a>.
+      Your AI assistant never sees your password &mdash; only a token that grants access to your
+      saves and notes.
     </p>
   </section>
 
@@ -345,42 +323,71 @@
     margin-bottom: 12px;
   }
 
-  /* -- Client setup grid -- */
-  .client-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 16px;
-    margin-top: 20px;
+  /* -- Client setup walkthroughs -- */
+  .client-walkthroughs {
+    display: flex;
+    flex-direction: column;
+    gap: 28px;
+    margin-top: 24px;
   }
 
-  .client-card {
+  .client-walkthrough {
     padding: 24px;
     background: linear-gradient(135deg, #0a0e2e 0%, #111b47 50%, #0a0e2e 100%);
     border: 1px solid var(--color-border);
     border-radius: 4px;
   }
 
-  .client-card p {
-    font-family: var(--font-heading);
-    font-size: 15px;
-    font-weight: 400;
-    color: var(--color-text-dim);
-    line-height: 1.6;
-    margin-bottom: 10px;
-  }
-
   .client-name {
     font-family: var(--font-heading);
-    font-size: 17px;
+    font-size: 18px;
     font-weight: 600;
     color: var(--color-text);
-    margin-bottom: 10px;
+    margin-bottom: 16px;
     letter-spacing: 0.5px;
   }
 
-  .client-note {
-    font-size: 14px !important;
-    color: var(--color-text-muted) !important;
+  .steps {
+    list-style: decimal;
+    padding-left: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 0;
+  }
+
+  .steps li {
+    font-family: var(--font-heading);
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--color-text-dim);
+    line-height: 1.6;
+  }
+
+  .steps li strong {
+    color: var(--color-text);
+  }
+
+  .steps li em {
+    color: var(--color-gold-light, var(--color-gold));
+    font-style: italic;
+  }
+
+  .success-step {
+    padding: 10px 14px;
+    background: rgba(90, 190, 138, 0.06);
+    border-left: 3px solid var(--color-green);
+    border-radius: 0 4px 4px 0;
+    margin-top: 4px;
+  }
+
+  .section-note {
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--color-text-muted);
+    line-height: 1.7;
+    margin-top: 20px;
   }
 
   .url-block {
@@ -393,20 +400,6 @@
     border-radius: 2px;
     margin-bottom: 10px;
     word-break: break-all;
-  }
-
-  .config-block {
-    display: block;
-    font-family: var(--font-body);
-    font-size: 13px;
-    color: var(--color-green);
-    background: rgba(5, 7, 26, 0.6);
-    padding: 12px 14px;
-    border-radius: 2px;
-    margin-bottom: 10px;
-    white-space: pre;
-    overflow-x: auto;
-    line-height: 1.5;
   }
 
   /* -- Examples -- */
@@ -581,10 +574,6 @@
   @media (max-width: 700px) {
     .docs {
       padding: 100px 20px 60px;
-    }
-
-    .client-grid {
-      grid-template-columns: 1fr;
     }
 
     .examples {
