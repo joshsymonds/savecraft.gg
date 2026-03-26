@@ -594,6 +594,7 @@ async function computeAlternatives(
   archetypeInfo: ArchetypeInfo,
 ): Promise<ArchetypeAlternative[]> {
   // Pick candidates that differ from primary and aren't fringe.
+  // Archetype strings are WUBRG single-char color codes (e.g. "UB", "WBG").
   const primaryColors = new Set(primaryArchetype);
   const viable = archetypeInfo.candidates.filter((c) => {
     if (c.archetype === primaryArchetype || c.archetype === "_overall")
@@ -612,7 +613,7 @@ async function computeAlternatives(
   const altCandidates = viable.slice(0, 3);
   if (altCandidates.length === 0) return [];
 
-  // Fetch per-archetype GIH WR for all spell names: primary + alternatives.
+  // Fetch per-archetype GIH WR for all archetypes in one query per chunk.
   const archsToQuery = [
     primaryArchetype,
     ...altCandidates.map((c) => c.archetype),
@@ -622,21 +623,19 @@ async function computeAlternatives(
     gihwrByArch.set(arch, new Map());
   }
 
-  // Batch query per archetype to get card GIH WRs.
-  for (const arch of archsToQuery) {
-    for (let i = 0; i < spellNames.length; i += META_BATCH_SIZE) {
-      const chunk = spellNames.slice(i, i + META_BATCH_SIZE);
-      const ph = placeholders(chunk.length, 3);
-      const rows = await db
-        .prepare(
-          `SELECT card_name, gihwr FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND archetype = ?2 AND card_name IN (${ph})`,
-        )
-        .bind(setCode, arch, ...chunk)
-        .all<{ card_name: string; gihwr: number }>();
-      const map = gihwrByArch.get(arch)!;
-      for (const row of rows.results) {
-        map.set(row.card_name, row.gihwr);
-      }
+  // Single bulk query: all archetypes × all cards in one pass per chunk.
+  for (let i = 0; i < spellNames.length; i += META_BATCH_SIZE) {
+    const chunk = spellNames.slice(i, i + META_BATCH_SIZE);
+    const cardPH = placeholders(chunk.length, 2);
+    const rows = await db
+      .prepare(
+        `SELECT card_name, archetype, gihwr FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND card_name IN (${cardPH})`,
+      )
+      .bind(setCode, ...chunk)
+      .all<{ card_name: string; archetype: string; gihwr: number }>();
+    for (const row of rows.results) {
+      const map = gihwrByArch.get(row.archetype);
+      if (map) map.set(row.card_name, row.gihwr);
     }
   }
 
@@ -646,36 +645,26 @@ async function computeAlternatives(
   for (const alt of altCandidates) {
     const altGihwr = gihwrByArch.get(alt.archetype)!;
 
-    // Compute per-card GIH WR shift and identify off-color cuts.
+    // Single pass: compute GIH WR shift and build cut candidates.
     let totalShift = 0;
     let shiftCount = 0;
     const cardShifts: { name: string; shift: number }[] = [];
 
     for (const name of spellNames) {
-      const primary = primaryGihwr.get(name);
+      const primaryWr = primaryGihwr.get(name);
       const altWr = altGihwr.get(name);
-      if (primary !== undefined && altWr !== undefined) {
-        totalShift += altWr - primary;
+      if (primaryWr !== undefined && altWr !== undefined) {
+        totalShift += altWr - primaryWr;
         shiftCount++;
       }
-      // Cards whose colors don't overlap with the alternative are cut candidates.
-      // (We'd need the card's colors to determine this properly.)
-    }
-
-    // Identify cuts: cards with worst GIH WR under the alternative archetype
-    // that aren't in the alternative's color identity.
-    for (const name of spellNames) {
-      const altWr = altGihwr.get(name);
+      // Cards with no archetype data are likely off-color → worst cut candidates.
       if (altWr === undefined) {
-        // No data for this card in the alternative → likely off-color
         cardShifts.push({ name, shift: -1 });
       } else {
-        const primaryWr = primaryGihwr.get(name) ?? 0.5;
-        cardShifts.push({ name, shift: altWr - primaryWr });
+        cardShifts.push({ name, shift: altWr - (primaryWr ?? 0.5) });
       }
     }
 
-    // Sort by shift ascending — worst performers under the alternative are cut candidates
     cardShifts.sort((a, b) => a.shift - b.shift);
     const cuts = cardShifts
       .slice(0, 3)

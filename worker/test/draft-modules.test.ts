@@ -2540,6 +2540,11 @@ describe("draft_advisor native module", () => {
         recommended: string;
         recommended_composite: number;
         classification: string;
+        archetype_snapshot: {
+          primary: string;
+          confidence: number;
+          viability: string;
+        };
       }[];
     };
 
@@ -2558,6 +2563,13 @@ describe("draft_advisor native module", () => {
       expect(["optimal", "good", "questionable", "miss"]).toContain(pick.classification);
       // Batch review should NOT include full recommendations (use live pick for detail)
       expect((pick as Record<string, unknown>).recommendations).toBeUndefined();
+      // Archetype snapshot should be present per pick
+      expect(pick.archetype_snapshot).toBeDefined();
+      expect(pick.archetype_snapshot.primary).toBeTruthy();
+      expect(typeof pick.archetype_snapshot.confidence).toBe("number");
+      expect(["strong", "moderate", "sparse", "fringe"]).toContain(
+        pick.archetype_snapshot.viability,
+      );
     }
 
     // Summary counts should add up
@@ -3194,7 +3206,7 @@ describe("computeViabilityTier", () => {
 
   it("classifies bottom 5% as fringe", () => {
     // 20 archetypes so 5% = 1 archetype. The very lowest is fringe.
-    const shares = Array.from({ length: 20 }, (_, i) => (i + 1) * 0.005);
+    const shares = Array.from({ length: 20 }, (_, index) => (index + 1) * 0.005);
     const result = computeViabilityTier(0.005, shares);
     expect(result.viability).toBe("fringe");
   });
@@ -3212,7 +3224,7 @@ describe("computeViabilityTier", () => {
   });
 
   it("handles single archetype as strong", () => {
-    const result = computeViabilityTier(1.0, [1.0]);
+    const result = computeViabilityTier(1, [1]);
     expect(result.viability).toBe("strong");
   });
 });
@@ -3317,6 +3329,7 @@ describe("format-adjusted archetype weighting", () => {
 
     // UB should have higher weight than UR due to format adjustment
     // (55% WR vs 45% WR, with similar commitment weights)
-    expect(ub!.weight).toBeGreaterThan(ur!.weight);
+    // Ratio should be roughly 55/45 ≈ 1.22x
+    expect(ub!.weight).toBeGreaterThan(ur!.weight * 1.1);
   });
 });
