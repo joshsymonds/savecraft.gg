@@ -56,16 +56,16 @@ See `docs/mcp.md` for the full tool contracts and OAuth architecture.
 
 ## Test Infrastructure
 
-**Critical configuration** in `vitest.config.ts`:
+**Sharded parallelism:** `just test-worker` runs 4 vitest shards in parallel (`worker/scripts/test-sharded.mjs`), each with its own Miniflare instance. This sidesteps Miniflare's `isolatedStorage` WAL bug while giving true file-level parallelism. `npm test` still works for single-shard runs.
 
-- `singleWorker: true` — all test files share one Miniflare instance. Without this, each file gets its own D1/R2, and `SELF.fetch` writes aren't visible to `env.DB` reads.
-- `isolatedStorage: false` — Miniflare's storage frame tracker can't handle DO SQLite WAL files created by `doStub.fetch()`.
+**Within each shard** (`vitest.config.ts`): `singleWorker: true` + `isolatedStorage: false` + `fileParallelism: false` — files run serially sharing one Miniflare instance per shard.
 
 **Test lifecycle:**
 
 - `setup.ts`: Creates tables (migrations) + one-time cleanup at suite start.
-- `helpers.ts`: `cleanAll()` deletes all D1 tables (FK-safe order) + R2 objects.
+- `helpers.ts`: `cleanAll()` batch-deletes all D1 tables (FK-safe order) + R2 objects.
 - **Every `describe` block** must have `beforeEach(cleanAll)` — NOT at module level. Module-level `beforeEach` leaks to all test files in singleWorker mode.
+- **Always consume DO fetch responses** (call `.json()` or `.text()`) — unconsumed responses leave SQLite WAL files that break `isolatedStorage` if ever re-enabled.
 
 **DO gotcha:** `DurableObject.ctx.id.toString()` returns a hex hash, NOT the original `idFromName()` string. Pass the real `userUuid` via `X-User-UUID` header if you need it inside the DO.
 
@@ -85,6 +85,7 @@ worker/src/mcp/handler.ts    # JSON-RPC 2.0 protocol handler
 worker/src/mcp/tools.ts      # Pure MCP tool functions
 worker/test/helpers.ts       # cleanAll(), getOAuthToken(), test utilities
 worker/test/setup.ts         # Table creation, one-time cleanup
-worker/vitest.config.ts      # singleWorker + isolatedStorage config
+worker/vitest.config.ts      # Per-shard config (singleWorker + isolatedStorage)
+worker/scripts/test-sharded.mjs # Parallel shard runner (4 vitest processes)
 worker/wrangler.toml         # Bindings, D1, R2, KV, DO
 ```
