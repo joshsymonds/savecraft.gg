@@ -3216,3 +3216,107 @@ describe("computeViabilityTier", () => {
     expect(result.viability).toBe("strong");
   });
 });
+
+describe("format-adjusted archetype weighting", () => {
+  beforeEach(async () => {
+    await cleanAll(env.DB);
+  });
+
+  it("steers toward stronger archetype when commitment is equal", async () => {
+    // Pool has equal R and U pips — commitment to UR and UB should be similar.
+    // But UB has a higher archetype win rate (0.55) than UR (0.45).
+    // Format adjustment should make UB's weight higher than UR's.
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_set_stats (set_code, format, total_games, card_count, avg_gihwr) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FMT", "PremierDraft", 100_000, 3, 0.5),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(1, "o-1", "Blue Card", "Blue Card", "{U}", 1, "Creature", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(2, "o-2", "Black Card", "Black Card", "{B}", 1, "Creature", '["B"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(3, "o-3", "Red Card", "Red Card", "{R}", 1, "Creature", '["R"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(4, "o-4", "Pack Card", "Pack Card", "{U}", 1, "Creature", '["U"]', 1),
+      // Ratings for all cards
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FMT", "Blue Card", 50_000, 70_000, 20_000, 0.55, 0.55, 0.55, 0.55, 0, 5, 5),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FMT", "Black Card", 50_000, 70_000, 20_000, 0.55, 0.55, 0.55, 0.55, 0, 5, 5),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FMT", "Red Card", 50_000, 70_000, 20_000, 0.55, 0.55, 0.55, 0.55, 0, 5, 5),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FMT", "Pack Card", 50_000, 70_000, 20_000, 0.55, 0.55, 0.55, 0.55, 0, 5, 5),
+      // UB is a strong archetype (55% WR), UR is weak (45% WR)
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FMT", "UB", 17, 14, 5, 1, 0, 0, 0, 0.55, 5000),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FMT", "UR", 17, 14, 5, 1, 0, 0, 0, 0.45, 5000),
+      // Calibration
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("FMT", "baseline", 0.55, 30),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("FMT", "synergy", 0, 10),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("FMT", "signal", 5, 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("FMT", "castability", 0.75, 8),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("FMT", "color_commitment", 0.5, 4),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("FMT", "opportunity_cost", 0.85, 8),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("FMT", "curve", 0, 3),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("FMT", "role", 0.3, 5),
+    ]);
+
+    // Pool: 1 blue + 1 black + 1 red → equally open to UB and UR
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "FMT",
+        pool: ["Blue Card", "Black Card", "Red Card"],
+        pack: ["Pack Card"],
+        pick_number: 10,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      archetype: {
+        candidates: { archetype: string; weight: number }[];
+      };
+    };
+
+    const ub = data.archetype.candidates.find((c) => c.archetype === "UB");
+    const ur = data.archetype.candidates.find((c) => c.archetype === "UR");
+
+    // Both should exist (equal commitment)
+    expect(ub).toBeDefined();
+    expect(ur).toBeDefined();
+
+    // UB should have higher weight than UR due to format adjustment
+    // (55% WR vs 45% WR, with similar commitment weights)
+    expect(ub!.weight).toBeGreaterThan(ur!.weight);
+  });
+});

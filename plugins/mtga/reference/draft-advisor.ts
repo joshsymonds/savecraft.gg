@@ -118,8 +118,8 @@ interface PreloadedSetData {
   asfan: number;
   /** Cards per booster pack (from set_metadata, default 14). */
   packSize: number;
-  /** Deck counts per color pair from mtga_draft_deck_stats. */
-  deckStatsByPair: Map<string, number>;
+  /** Deck stats per archetype from mtga_draft_deck_stats. */
+  deckStatsByPair: Map<string, { total_decks: number; winrate: number }>;
 }
 
 // ── Preload set-level data for batch review ──────────────────
@@ -198,10 +198,10 @@ async function preloadSetData(
       .all<RatingRow & { archetype: string }>(),
     db
       .prepare(
-        `SELECT archetype, total_decks FROM mtga_draft_deck_stats WHERE set_code = ?1`,
+        `SELECT archetype, total_decks, splash_rate, splash_winrate, nonsplash_winrate FROM mtga_draft_deck_stats WHERE set_code = ?1`,
       )
       .bind(setCode)
-      .all<{ archetype: string; total_decks: number }>(),
+      .all<{ archetype: string; total_decks: number; splash_rate: number; splash_winrate: number; nonsplash_winrate: number }>(),
     ...metaChunks,
   ]);
 
@@ -237,10 +237,16 @@ async function preloadSetData(
     }
   }
 
-  // Build deck stats map.
-  const deckStatsByPair = new Map<string, number>();
+  // Build deck stats map with derived archetype win rate.
+  const deckStatsByPair = new Map<
+    string,
+    { total_decks: number; winrate: number }
+  >();
   for (const row of deckStatsResult.results) {
-    deckStatsByPair.set(row.archetype, row.total_decks);
+    const wr =
+      row.splash_rate * row.splash_winrate +
+      (1 - row.splash_rate) * row.nonsplash_winrate;
+    deckStatsByPair.set(row.archetype, { total_decks: row.total_decks, winrate: wr });
   }
 
   const setMeta = setMetaResult.results[0];
@@ -470,19 +476,37 @@ async function contextualPick(
         .all<SetMetadataRow>();
 
   const deckStatsPromise: Promise<{
-    results: { archetype: string; total_decks: number }[];
+    results: {
+      archetype: string;
+      total_decks: number;
+      splash_rate: number;
+      splash_winrate: number;
+      nonsplash_winrate: number;
+    }[];
   }> = preloaded
     ? Promise.resolve({
         results: [...preloaded.deckStatsByPair.entries()].map(
-          ([archetype, total_decks]) => ({ archetype, total_decks }),
+          ([archetype, stats]) => ({
+            archetype,
+            total_decks: stats.total_decks,
+            splash_rate: 0,
+            splash_winrate: stats.winrate,
+            nonsplash_winrate: stats.winrate,
+          }),
         ),
       })
     : db
         .prepare(
-          `SELECT archetype, total_decks FROM mtga_draft_deck_stats WHERE set_code = ?1`,
+          `SELECT archetype, total_decks, splash_rate, splash_winrate, nonsplash_winrate FROM mtga_draft_deck_stats WHERE set_code = ?1`,
         )
         .bind(setCode)
-        .all<{ archetype: string; total_decks: number }>();
+        .all<{
+          archetype: string;
+          total_decks: number;
+          splash_rate: number;
+          splash_winrate: number;
+          nonsplash_winrate: number;
+        }>();
 
   const [
     overallRatings,
@@ -533,15 +557,41 @@ async function contextualPick(
     : (calibrationResult.results.find((c) => c.axis === "synergy_prior")?.center ??
         DEFAULT_SYNERGY_PRIOR);
 
-  // Build deck stats for archetype viability filtering.
+  // Build deck stats for archetype viability filtering and format-adjusted weighting.
   const deckCountByPair = new Map<string, number>();
+  const archetypeWinRate = new Map<string, number>();
   for (const row of deckStatsResult.results) {
     deckCountByPair.set(row.archetype, row.total_decks);
+    const wr =
+      row.splash_rate * row.splash_winrate +
+      (1 - row.splash_rate) * row.nonsplash_winrate;
+    archetypeWinRate.set(row.archetype, wr);
   }
   const totalDecksAllPairs = [...deckCountByPair.values()].reduce(
     (a, b) => a + b,
     0,
   );
+
+  // Format-adjust archetype weights: multiply each candidate's weight by the
+  // archetype's empirical win rate, then re-normalize. When commitment is
+  // roughly equal between two archetypes, this steers toward the stronger one.
+  // When one archetype dominates by commitment, the adjustment barely matters.
+  if (archetypeWinRate.size > 0) {
+    const avgWr =
+      [...archetypeWinRate.values()].reduce((a, b) => a + b, 0) /
+      archetypeWinRate.size;
+    let adjustedTotal = 0;
+    for (const c of realCandidates) {
+      const wr = archetypeWinRate.get(c.archetype) ?? avgWr;
+      c.weight *= wr;
+      adjustedTotal += c.weight;
+    }
+    if (adjustedTotal > 0) {
+      for (const c of realCandidates) {
+        c.weight /= adjustedTotal;
+      }
+    }
+  }
 
   const synergyByPackCard = new Map<
     string,
