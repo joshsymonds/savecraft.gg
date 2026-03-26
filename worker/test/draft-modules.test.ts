@@ -1331,7 +1331,17 @@ describe("draft_advisor native module", () => {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(9999, "oracle-mountain", "Mountain", "Mountain", "", 0, "Basic Land — Mountain", "[]", 1),
+      ).bind(
+        9999,
+        "oracle-mountain",
+        "Mountain",
+        "Mountain",
+        "",
+        0,
+        "Basic Land — Mountain",
+        "[]",
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind("DSK", "Mountain", 49_000, 55_000, 6000, 0.576, 0.58, 0.57, 0.5, 0.02, 14, 13.9),
@@ -1403,12 +1413,20 @@ describe("draft_advisor native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
     const data = result.data as {
-      summary: { total_picks: number; optimal: number; good: number; questionable: number; misses: number };
+      summary: {
+        total_picks: number;
+        optimal: number;
+        good: number;
+        questionable: number;
+        misses: number;
+      };
       picks: { chosen: string }[];
     };
     // Mountain pick should be skipped entirely
     expect(data.picks.map((p) => p.chosen)).not.toContain("Mountain");
     expect(data.summary.total_picks).toBe(2);
-    expect(data.summary.optimal + data.summary.good + data.summary.questionable + data.summary.misses).toBe(2);
+    expect(
+      data.summary.optimal + data.summary.good + data.summary.questionable + data.summary.misses,
+    ).toBe(2);
   });
 });
