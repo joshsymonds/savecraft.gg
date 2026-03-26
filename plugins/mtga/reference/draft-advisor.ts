@@ -358,25 +358,31 @@ async function contextualPick(
         .bind(setCode, ...allCardNames)
         .all<RatingRow>();
 
-  const colorStatsPromises: Array<Promise<{ results: RatingRow[] }>> = preloaded
-    ? realCandidates.map((cand) => {
-        const byCard = preloaded.allColorStats.get(cand.colorPair);
-        const results = byCard
-          ? packNames
-              .map((n) => byCard.get(n))
-              .filter((r): r is RatingRow => r != null)
-          : [];
-        return Promise.resolve({ results });
+  // Single bulk fetch for all archetype stats — no per-candidate queries.
+  const colorStatsPromise: Promise<{
+    results: (RatingRow & { archetype: string })[];
+  }> = preloaded
+    ? Promise.resolve({
+        results: (() => {
+          const all: (RatingRow & { archetype: string })[] = [];
+          for (const [arch, byCard] of preloaded.allColorStats) {
+            for (const name of packNames) {
+              const row = byCard.get(name);
+              if (row)
+                all.push({ ...row, archetype: arch } as RatingRow & {
+                  archetype: string;
+                });
+            }
+          }
+          return all;
+        })(),
       })
-    : realCandidates.map((cand) => {
-        const colorPlaceholders = placeholders(packNames.length, 3);
-        return db
-          .prepare(
-            `SELECT set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND archetype = ?2 AND card_name IN (${colorPlaceholders})`,
-          )
-          .bind(setCode, cand.colorPair, ...packNames)
-          .all<RatingRow>();
-      });
+    : db
+        .prepare(
+          `SELECT set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND card_name IN (${placeholders(packNames.length, 2)})`,
+        )
+        .bind(setCode, ...packNames)
+        .all<RatingRow & { archetype: string }>();
 
   // Synergies are always pick-dependent — always query.
   const synergyPromise =
@@ -477,9 +483,19 @@ async function contextualPick(
         .bind(setCode)
         .all<{ archetype: string; total_decks: number }>();
 
-  const allResults = await Promise.all([
+  const [
+    overallRatings,
+    colorStatsResult,
+    synergyResult,
+    curveResult,
+    roleResult,
+    roleTargetResult,
+    calibrationResult,
+    setMetaResult,
+    deckStatsResult,
+  ] = await Promise.all([
     overallPromise,
-    ...colorStatsPromises,
+    colorStatsPromise,
     synergyPromise,
     curvePromise,
     rolePromise,
@@ -488,39 +504,20 @@ async function contextualPick(
     setMetaPromise,
     deckStatsPromise,
   ]);
-  const overallRatings = allResults[0] as Awaited<typeof overallPromise>;
-  const colorStatsResults = allResults.slice(
-    1,
-    1 + colorStatsPromises.length,
-  ) as Array<Awaited<(typeof colorStatsPromises)[number]>>;
-  const [
-    synergyResult,
-    curveResult,
-    roleResult,
-    roleTargetResult,
-    calibrationResult,
-    setMetaResult,
-    deckStatsResult,
-  ] = allResults.slice(1 + colorStatsPromises.length) as [
-    Awaited<typeof synergyPromise>,
-    Awaited<typeof curvePromise>,
-    Awaited<typeof rolePromise>,
-    Awaited<typeof roleTargetPromise>,
-    Awaited<typeof calibrationPromise>,
-    Awaited<typeof setMetaPromise>,
-    Awaited<typeof deckStatsPromise>,
-  ];
 
   const overallByName = new Map(
     overallRatings.results.map((r) => [r.card_name, r]),
   );
 
+  // Build nested archetype → card → stats map from bulk result.
   const colorStatsByPairAndCard = new Map<string, Map<string, RatingRow>>();
-  for (let i = 0; i < realCandidates.length; i++) {
-    const byCard = new Map(
-      colorStatsResults[i]!.results.map((r) => [r.card_name, r]),
-    );
-    colorStatsByPairAndCard.set(realCandidates[i]!.colorPair, byCard);
+  for (const row of colorStatsResult.results) {
+    let byCard = colorStatsByPairAndCard.get(row.archetype);
+    if (!byCard) {
+      byCard = new Map();
+      colorStatsByPairAndCard.set(row.archetype, byCard);
+    }
+    byCard.set(row.card_name, row);
   }
 
   // Build deck stats for archetype viability filtering.
@@ -610,6 +607,14 @@ async function contextualPick(
         }
         return built;
       })();
+
+  // Bayesian prior for archetype GIH WR shrinkage.
+  // Stored as the `center` value of the `archetype_prior` calibration axis.
+  const DEFAULT_ARCHETYPE_PRIOR = 750;
+  const archetypePrior = preloaded
+    ? (preloaded.sigmoidParams["archetype_prior"]?.center ?? DEFAULT_ARCHETYPE_PRIOR)
+    : (calibrationResult.results.find((c) => c.axis === "archetype_prior")?.center ??
+        DEFAULT_ARCHETYPE_PRIOR);
 
   // Resolve set metadata (ASFAN + pack size).
   const asfan = preloaded
@@ -723,7 +728,10 @@ async function contextualPick(
     const name = packCard.name;
     const packCardPips = countPips(packCard.mana_cost);
 
-    // Baseline: multi-archetype weighted GIH WR.
+    // Baseline: multi-archetype weighted GIH WR with Bayesian shrinkage.
+    // Each archetype's GIH WR is blended toward the overall mean based on
+    // sample size: effective = (n * arch_gihwr + prior * overall) / (n + prior)
+    const overallGihwr = overallByName.get(name)?.gihwr ?? 0;
     let baselineGihwr = 0;
     let baselineSource = "_overall";
     if (realCandidates.length > 0) {
@@ -732,7 +740,13 @@ async function contextualPick(
       for (const cand of realCandidates) {
         const colorRow = colorStatsByPairAndCard.get(cand.colorPair)?.get(name);
         if (colorRow) {
-          weightedSum += colorRow.gihwr * cand.weight;
+          const n = colorRow.games_in_hand;
+          const effectiveGihwr =
+            n + archetypePrior > 0
+              ? (n * colorRow.gihwr + archetypePrior * overallGihwr) /
+                (n + archetypePrior)
+              : overallGihwr;
+          weightedSum += effectiveGihwr * cand.weight;
           totalWeight += cand.weight;
           if (cand.weight > 0 && baselineSource === "_overall") {
             baselineSource = cand.colorPair;
@@ -742,10 +756,10 @@ async function contextualPick(
       if (totalWeight > 0) {
         baselineGihwr = weightedSum / totalWeight;
       } else {
-        baselineGihwr = overallByName.get(name)?.gihwr ?? 0;
+        baselineGihwr = overallGihwr;
       }
     } else {
-      baselineGihwr = overallByName.get(name)?.gihwr ?? 0;
+      baselineGihwr = overallGihwr;
     }
 
     // Synergy: sum of deltas with pool cards.
