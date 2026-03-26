@@ -47,6 +47,19 @@ import {
   r4,
 } from "./scoring";
 
+// ── Bomb dampening constants ─────────────────────────────────
+// Power-aware castability dampening for elite cards early in draft.
+// Based on Saxe's λ_t research and PVDDR's value-above-replacement principle.
+
+/** baselineNorm above this threshold triggers bomb dampening. */
+const BOMB_BASELINE_THRESHOLD = 0.80;
+/** Dampening reaches zero at this fraction of totalPicks. */
+const BOMB_EARLY_DRAFT_FRACTION = 0.6;
+/** Controls how aggressively dampening scales with bomb excess. */
+const BOMB_DAMPENING_MULTIPLIER = 2.5;
+/** Maximum dampening value (caps the castability boost). */
+const BOMB_MAX_DAMPENING = 0.35;
+
 interface SetStatsRow {
   set_code: string;
   format: string;
@@ -795,17 +808,18 @@ async function contextualPick(
     const curveNorm = sigmoid(curveScore, csp.center, csp.steepness);
     const signalNorm = sigmoid(signalScore, sigsp.center, sigsp.steepness);
     const roleNorm = sigmoid(roleScore, rsp.center, rsp.steepness);
-    // Power-aware castability dampening: bombs get a castability pass early in
-    // draft. Based on Saxe's λ_t research and PVDDR's value-above-replacement
-    // principle — the higher a card's baseline, the less castability should
-    // matter because the EV of "take the bomb, fix mana later" dominates.
-    const bombThreshold = 0.80;
-    const bombExcess = Math.max(0, baselineNorm - bombThreshold);
-    const earlyFactor = Math.max(0, 1 - pickNumber / (totalPicks * 0.6));
-    const bombDampening = Math.min(0.35, bombExcess * earlyFactor * 2.5);
-    const dampedCastability =
+    // Power-aware castability dampening for elite cards early in draft.
+    const bombExcess = Math.max(0, baselineNorm - BOMB_BASELINE_THRESHOLD);
+    const earlyFactor = Math.max(
+      0,
+      1 - pickNumber / (totalPicks * BOMB_EARLY_DRAFT_FRACTION),
+    );
+    const bombDampening = Math.min(
+      BOMB_MAX_DAMPENING,
+      bombExcess * earlyFactor * BOMB_DAMPENING_MULTIPLIER,
+    );
+    const castabilityNorm =
       castabilityScore + (1 - castabilityScore) * bombDampening;
-    const castabilityNorm = dampedCastability;
 
     // WASPAS hybrid.
     const wsm =
@@ -867,9 +881,9 @@ async function contextualPick(
         },
         castability: {
           raw: r4(castabilityScore),
-          normalized: r4(dampedCastability),
+          normalized: r4(castabilityNorm),
           weight: r4(weights.castability),
-          contribution: r4(weights.castability * dampedCastability),
+          contribution: r4(weights.castability * castabilityNorm),
           max_pips: maxPips,
           estimated_sources: worstCurrentSources,
           potential_sources: r4(worstPotentialSources),

@@ -317,7 +317,7 @@ describe("draft_advisor native module", () => {
       }[];
     };
 
-    expect(data.weight_profile).toBe("mid");
+    expect(data.weight_profile).toBe("early");
     expect(data.pick_number).toBe(8);
 
     const w = (
@@ -896,10 +896,12 @@ describe("draft_advisor native module", () => {
         axes: {
           castability: {
             raw: number;
+            normalized: number;
             estimated_sources: number;
             potential_sources: number;
             effective_sources: number;
             source_model: SourceModel;
+            bomb_dampening: number;
           };
         };
       }[];
@@ -910,11 +912,8 @@ describe("draft_advisor native module", () => {
     expect(lili).toBeDefined();
     expect(elenda).toBeDefined();
 
-    // THE FIX: Liliana must rank above Elenda. Before pivot-potential, Liliana's
-    // BB castability was ~0.001 which cratered her composite via WPM. With pivot-
-    // potential, her effective sources reflect acquirable black sources over 29
-    // remaining picks, giving reasonable castability that lets her 64.2% GIH WR
-    // express itself.
+    // THE FIX: Liliana must rank above Elenda. Her 64.2% GIH WR dominates in
+    // pack 1 where castability weight is near-zero.
     expect(lili!.rank).toBe(1);
     expect(lili!.composite_score).toBeGreaterThan(elenda!.composite_score);
 
@@ -922,8 +921,79 @@ describe("draft_advisor native module", () => {
     expect(lili!.axes.castability.source_model).toBe("pivot");
     expect(lili!.axes.castability.raw).toBeGreaterThanOrEqual(0.5);
 
+    // Bomb dampening: Liliana's elite baseline triggers positive dampening at pick 13
+    expect(lili!.axes.castability.bomb_dampening).toBeGreaterThan(0);
+    expect(lili!.axes.castability.normalized).toBeGreaterThan(lili!.axes.castability.raw);
+
     // Elenda's castability should be modeled as a splash (single B pip)
     expect(elenda!.axes.castability.source_model).toBe("splash");
+  });
+
+  // ── Bomb dampening tests ─────────────────────────────────
+
+  it("applies zero bomb dampening to non-bomb cards", async () => {
+    await seedContextualData();
+    // Dark Filler has a mediocre GIH WR — below the bomb threshold
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(12, "oracle-filler", "Dark Filler", "Dark Filler", "{4}{B}{B}", 6, "Creature — Zombie", '["B"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Dark Filler", 5000, 7000, 2000, 0.50, 0.51, 0.49, 0.49, 0.0, 8, 9),
+    ]);
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Blazing Bolt", "Blazing Bolt", "Forest Bear"],
+        pack: ["Dark Filler"],
+        pick_number: 5,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      recommendations: { card: string; axes: { castability: { bomb_dampening: number } } }[];
+    };
+    const rec = data.recommendations.find((r) => r.card === "Dark Filler");
+    expect(rec).toBeDefined();
+    // 50% GIH WR → baselineNorm well below 0.80 → zero dampening
+    expect(rec!.axes.castability.bomb_dampening).toBe(0);
+  });
+
+  it("applies zero bomb dampening in late draft regardless of card power", async () => {
+    await seedContextualData();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(13, "oracle-latebomb", "Late Bomb", "Late Bomb", "{4}{B}{B}", 6, "Creature — Demon", '["B"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Late Bomb", 10_000, 12_000, 2000, 0.64, 0.66, 0.62, 0.5, 0.1, 1.5, 2),
+    ]);
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Blazing Bolt", "Blazing Bolt", "Forest Bear"],
+        pack: ["Late Bomb"],
+        pick_number: 35,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      recommendations: { card: string; axes: { castability: { bomb_dampening: number } } }[];
+    };
+    const rec = data.recommendations.find((r) => r.card === "Late Bomb");
+    expect(rec).toBeDefined();
+    // earlyFactor = max(0, 1 - 35/(42*0.6)) = max(0, 1-1.39) = 0 → zero dampening
+    expect(rec!.axes.castability.bomb_dampening).toBe(0);
   });
 
   // ── Pivot-potential castability tests ─────────────────────
