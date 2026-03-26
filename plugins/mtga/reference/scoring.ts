@@ -93,6 +93,8 @@ export interface WeightSet {
   signal: number;
   role: number;
   castability: number;
+  colorCommitment: number;
+  opportunityCost: number;
 }
 
 // ── Constants ────────────────────────────────────────────────
@@ -141,6 +143,8 @@ export const DEFAULT_SIGMOID_PARAMS: Record<
   curve: { center: 0, steepness: 3 },
   signal: { center: 0, steepness: 3 },
   role: { center: 0.3, steepness: 5 },
+  color_commitment: { center: 0.5, steepness: 4 },
+  opportunity_cost: { center: 0.85, steepness: 8 },
 };
 
 // ── Karsten castability table ────────────────────────────────
@@ -289,14 +293,17 @@ export function smoothWeight(
 }
 
 export function getWeights(pickNumber: number): WeightSet {
-  const baseline = smoothWeight(pickNumber, 0.4, 0.15, 15, 0.25);
-  const synergy = smoothWeight(pickNumber, 0.05, 0.3, 18, 0.2);
-  const curve = smoothWeight(pickNumber, 0.05, 0.15, 22, 0.2);
-  const signal = smoothWeight(pickNumber, 0.25, 0.1, 12, 0.25);
-  const role = smoothWeight(pickNumber, 0.05, 0.25, 20, 0.25);
-  const castability = smoothWeight(pickNumber, 0.0, 0.40, 25, 0.25);
+  const baseline = smoothWeight(pickNumber, 0.45, 0.12, 15, 4);
+  const synergy = smoothWeight(pickNumber, 0.05, 0.28, 18, 5);
+  const role = smoothWeight(pickNumber, 0.05, 0.22, 20, 4);
+  const curve = smoothWeight(pickNumber, 0.03, 0.13, 22, 5);
+  const castability = smoothWeight(pickNumber, 0.02, 0.10, 25, 4);
+  const signal = smoothWeight(pickNumber, 0.25, 0.05, 12, 4);
+  const colorCommitment = smoothWeight(pickNumber, 0.05, 0.05, 21, 6);
+  const opportunityCost = smoothWeight(pickNumber, 0.10, 0.05, 16, 5);
 
-  const total = baseline + synergy + curve + signal + role + castability;
+  const total =
+    baseline + synergy + role + curve + castability + signal + colorCommitment + opportunityCost;
   return {
     baseline: baseline / total,
     synergy: synergy / total,
@@ -304,6 +311,8 @@ export function getWeights(pickNumber: number): WeightSet {
     signal: signal / total,
     role: role / total,
     castability: castability / total,
+    colorCommitment: colorCommitment / total,
+    opportunityCost: opportunityCost / total,
   };
 }
 
