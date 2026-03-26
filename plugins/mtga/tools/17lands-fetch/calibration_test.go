@@ -18,8 +18,8 @@ func TestCalibrateBaseline(t *testing.T) {
 			name: "percentile calibration: spread distribution",
 			cards: func() []cardResult {
 				// 20 cards with GIH WR spread: 0.45 to 0.64
-				// P10 ~ 0.47, P50 ~ 0.545, P90 ~ 0.62
-				// Steepness = 4.4 / (0.62 - 0.47) = 4.4/0.15 ~ 29.3
+				// P10 = values[2] = 0.47, P50 = values[10] = 0.55, P90 = values[18] = 0.63
+				// Steepness = 3.0 / (0.63 - 0.47) = 3.0/0.16 ~ 18.75
 				var cards []cardResult
 				for i := range 20 {
 					cards = append(cards, cardResult{
@@ -31,8 +31,8 @@ func TestCalibrateBaseline(t *testing.T) {
 				}
 				return cards
 			}(),
-			wantCenter: 0.545, // median of 0.45..0.64
-			wantSteep:  [2]float64{25, 35},
+			wantCenter: 0.55, // median of 0.45..0.64
+			wantSteep:  [2]float64{15, 22},
 		},
 		{
 			name: "fewer than 10 cards",
@@ -102,7 +102,7 @@ func TestCalibrateBaseline_PercentileFormula(t *testing.T) {
 	// Sorted: [0.50 x5, 0.60 x5]
 	// P10 = values[1] = 0.50, P50 = values[5] = 0.60, P90 = values[9] = 0.60
 	// Spread = 0.60 - 0.50 = 0.10
-	// Steepness = 4.4 / 0.10 = 44.0
+	// Steepness = 3.0 / 0.10 = 30.0
 	var cards []cardResult
 	for range 5 {
 		cards = append(cards, cardResult{Overall: setCardStats{GIHWR: 0.50, GamesInHand: 500}})
@@ -116,7 +116,7 @@ func TestCalibrateBaseline_PercentileFormula(t *testing.T) {
 		t.Fatal("expected non-nil calibration")
 	}
 
-	wantSteepness := 44.0
+	wantSteepness := 30.0
 	if math.Abs(cal.Steepness-wantSteepness) > 1.0 {
 		t.Errorf("steepness = %g, want ~%g", cal.Steepness, wantSteepness)
 	}
@@ -195,30 +195,41 @@ func TestCalibrateSynergy(t *testing.T) {
 		wantNil bool
 	}{
 		{
-			name: "happy path",
+			name: "happy path: per-card sums from pairwise deltas",
 			rows: func() []synergyRow {
+				// 10 cards, each with 5 pairwise synergies.
+				// Card "A" has deltas: -0.02, -0.01, 0, +0.01, +0.02 → sum = 0
+				// Card "B" has deltas: +0.01 x5 → sum = 0.05
+				// etc. — creates a spread of per-card sums.
 				var s []synergyRow
-				for i := range 30 {
-					s = append(s, synergyRow{SynergyDelta: float64(i-15) * 0.01})
+				cards := []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J"}
+				for i, card := range cards {
+					for j := range 5 {
+						s = append(s, synergyRow{
+							CardA:        card,
+							CardB:        cards[(i+j+1)%len(cards)],
+							SynergyDelta: float64(i-5)*0.01 + float64(j-2)*0.005,
+						})
+					}
 				}
 				return s
 			}(),
 		},
 		{
 			name:    "fewer than 20 rows",
-			rows:    []synergyRow{{SynergyDelta: 0.1}},
+			rows:    []synergyRow{{CardA: "X", SynergyDelta: 0.1}},
 			wantNil: true,
 		},
 		{
-			name: "all identical deltas",
+			name: "all cards have identical sums",
 			rows: func() []synergyRow {
 				var s []synergyRow
 				for range 30 {
-					s = append(s, synergyRow{SynergyDelta: 0.05})
+					s = append(s, synergyRow{CardA: "X", SynergyDelta: 0.05})
 				}
 				return s
 			}(),
-			wantNil: true, // P90 - P10 < 0.001 triggers nil.
+			wantNil: true, // Only 1 card → fewer than 10 per-card sums.
 		},
 	}
 
@@ -259,9 +270,18 @@ func TestComputeCalibration_AllAxes(t *testing.T) {
 		})
 	}
 
+	// 15 cards, each with 10 pairwise synergies — creates 150 rows with
+	// 15 unique per-card sums spread across a meaningful range.
+	cards := []string{"A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N", "O"}
 	var synergies []synergyRow
-	for i := range 30 {
-		synergies = append(synergies, synergyRow{SynergyDelta: float64(i-15) * 0.01})
+	for i, card := range cards {
+		for j := range 10 {
+			synergies = append(synergies, synergyRow{
+				CardA:        card,
+				CardB:        cards[(i+j+1)%len(cards)],
+				SynergyDelta: float64(i-7)*0.02 + float64(j-5)*0.005,
+			})
+		}
 	}
 
 	rows := computeCalibration(sr, synergies)
@@ -344,7 +364,7 @@ func TestBuildSynergyImportSQL_Calibration(t *testing.T) {
 func TestPercentileSigmoid(t *testing.T) {
 	// 100 values uniformly from 0.0 to 0.99
 	// P10 = values[10] = 0.10, P50 = values[50] = 0.50, P90 = values[90] = 0.90
-	// Steepness = 4.4 / (0.90 - 0.10) = 4.4 / 0.80 = 5.5
+	// Steepness = 3.0 / (0.90 - 0.10) = 3.0 / 0.80 = 3.75
 	values := make([]float64, 100)
 	for i := range 100 {
 		values[i] = float64(i) * 0.01
@@ -357,7 +377,7 @@ func TestPercentileSigmoid(t *testing.T) {
 	if math.Abs(cal.Center-0.50) > 0.02 {
 		t.Errorf("center = %g, want ~0.50", cal.Center)
 	}
-	if math.Abs(cal.Steepness-5.5) > 0.5 {
-		t.Errorf("steepness = %g, want ~5.5", cal.Steepness)
+	if math.Abs(cal.Steepness-3.75) > 0.5 {
+		t.Errorf("steepness = %g, want ~3.75", cal.Steepness)
 	}
 }
