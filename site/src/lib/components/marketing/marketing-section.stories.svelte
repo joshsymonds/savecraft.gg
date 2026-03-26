@@ -52,9 +52,7 @@
     title="Your data stays yours"
     eyebrowColor="var(--color-green)"
   >
-    <div
-      style="padding: 24px; color: var(--color-text-dim); font-family: var(--font-heading);"
-    >
+    <div style="padding: 24px; color: var(--color-text-dim); font-family: var(--font-heading);">
       Security features content
     </div>
   </MarketingSection>

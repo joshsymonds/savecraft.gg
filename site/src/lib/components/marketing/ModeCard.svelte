@@ -24,7 +24,11 @@
   <div class="mode-body">
     {#each examples as ex (ex.text)}
       <div class="mode-example">
-        <span class="mode-role" class:role-player={ex.role === "player"} class:role-ai={ex.role === "ai"}>
+        <span
+          class="mode-role"
+          class:role-player={ex.role === "player"}
+          class:role-ai={ex.role === "ai"}
+        >
           {ex.role === "player" ? "YOU" : "AI"}
         </span>
         <span class="mode-text">{ex.text}</span>

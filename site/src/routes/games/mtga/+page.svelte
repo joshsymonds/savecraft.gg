@@ -187,7 +187,8 @@
         </div>
         <div class="tier-body">
           <p class="tier-desc">
-            Install the Savecraft daemon to sync your Player.log. Your AI can then coach with your actual game state:
+            Install the Savecraft daemon to sync your Player.log. Your AI can then coach with your
+            actual game state:
           </p>
           <ul class="tier-features">
             <li>Review your draft picks against optimal lines</li>
@@ -211,31 +212,30 @@
       <div class="method-item">
         <span class="method-source">17Lands</span>
         <span class="method-desc">
-          Per-card win rates, archetype performance, synergy matrices, and draft signal data
-          from millions of real Arena games. Licensed CC BY 4.0.
+          Per-card win rates, archetype performance, synergy matrices, and draft signal data from
+          millions of real Arena games. Licensed CC BY 4.0.
         </span>
       </div>
       <div class="method-item">
         <span class="method-source">Frank Karsten</span>
         <span class="method-desc">
-          Hypergeometric mana base calculations from "How Many Sources Do You Need to
-          Consistently Cast Your Spells?" Pre-computed castability tables for exact on-curve
-          probability.
+          Hypergeometric mana base calculations from "How Many Sources Do You Need to Consistently
+          Cast Your Spells?" Pre-computed castability tables for exact on-curve probability.
         </span>
       </div>
       <div class="method-item">
         <span class="method-source">WASPAS</span>
         <span class="method-desc">
-          Weighted Aggregation with Signal Processing — a multi-criteria decision method that
-          blends 6 scoring axes with pick-adaptive weights. Early picks favor baseline power;
-          late picks favor synergy and castability.
+          Weighted Aggregation with Signal Processing — a multi-criteria decision method that blends
+          6 scoring axes with pick-adaptive weights. Early picks favor baseline power; late picks
+          favor synergy and castability.
         </span>
       </div>
       <div class="method-item">
         <span class="method-source">Scryfall + WotC</span>
         <span class="method-desc">
-          Complete card database, oracle text, and the full MTG Comprehensive Rules with
-          semantic search via Reciprocal Rank Fusion (keyword + vector embedding).
+          Complete card database, oracle text, and the full MTG Comprehensive Rules with semantic
+          search via Reciprocal Rank Fusion (keyword + vector embedding).
         </span>
       </div>
     </div>
@@ -245,9 +245,7 @@
   <section class="section cta-section">
     <div class="cta-inner">
       <h2 class="cta-title">Draft smarter.</h2>
-      <p class="cta-sub">
-        Connect your AI in 30 seconds. Works with Claude, ChatGPT, and Gemini.
-      </p>
+      <p class="cta-sub">Connect your AI in 30 seconds. Works with Claude, ChatGPT, and Gemini.</p>
       <div class="cta-actions">
         <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">GET STARTED</a>
       </div>
