@@ -20,6 +20,7 @@ export default tseslint.config(
       "dist/**",
       ".wrangler/**",
       "coverage/**",
+      "scripts/**", // Plain JS build scripts, not application code
       "*.config.ts", // Config files aren't application code
     ],
   },
