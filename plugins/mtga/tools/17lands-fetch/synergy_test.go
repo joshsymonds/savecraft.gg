@@ -819,7 +819,6 @@ func TestBuildSynergyImportSQL_DeckStats(t *testing.T) {
 	}
 }
 
-
 func TestBuildSetRatingsSQL(t *testing.T) {
 	sr := setResult{
 		Set:        "DSK",
