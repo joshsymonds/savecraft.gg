@@ -1303,38 +1303,60 @@ async function batchReview(
     });
   }
 
-  // Generate archetype warnings: flag transitions to sparse/fringe archetypes
-  // and archetype drift. Hoisted to summary so LLMs can't miss them.
+  // Generate archetype warnings. Pack 1 shifts are normal (reading signals),
+  // so we only warn about: (1) settling into a weak archetype after pack 1,
+  // (2) late pivots (pack 2+), (3) final archetype being weak.
   const archetypeWarnings: string[] = [];
   let prevPrimary = "";
+  let settledArchetype = ""; // archetype at start of pack 2
   for (const pick of results) {
     const snap = pick.archetype_snapshot;
+    const isPack1 = pick.pack_number === 1;
+
     if (snap.primary !== prevPrimary && prevPrimary !== "") {
-      const tierNote =
-        snap.viability === "sparse" || snap.viability === "fringe"
-          ? ` (${snap.viability} archetype)`
-          : "";
-      archetypeWarnings.push(
-        `${pick.display_label}: archetype shifted from ${prevPrimary} to ${snap.primary}${tierNote}`,
-      );
-    } else if (
-      prevPrimary === "" &&
-      (snap.viability === "sparse" || snap.viability === "fringe")
-    ) {
-      archetypeWarnings.push(
-        `${pick.display_label}: starting in ${snap.primary} (${snap.viability} archetype — only ${snap.viability === "fringe" ? "<5%" : "5-25%"} of winning decks)`,
-      );
+      if (!isPack1) {
+        // Post-pack-1 pivots are costly — always flag them
+        const tierNote =
+          snap.viability === "sparse" || snap.viability === "fringe"
+            ? ` (${snap.viability} archetype)`
+            : "";
+        archetypeWarnings.push(
+          `${pick.display_label}: late pivot from ${prevPrimary} to ${snap.primary}${tierNote}`,
+        );
+      }
     }
+
+    // Track archetype at pack 2 start
+    if (pick.pack_number === 2 && pick.pick_in_pack === 1) {
+      settledArchetype = snap.primary;
+      // Warn if you settled into a weak archetype
+      if (snap.viability === "sparse" || snap.viability === "fringe") {
+        archetypeWarnings.push(
+          `Settled into ${snap.primary} at pack 2 (${snap.viability} — only ${snap.viability === "fringe" ? "<5%" : "5-25%"} of winning decks in this format)`,
+        );
+      }
+    }
+
     prevPrimary = snap.primary;
   }
-  // Flag if the final archetype is sparse/fringe
+  // Flag if the final archetype is weak
   const finalSnap = results[results.length - 1]?.archetype_snapshot;
   if (
     finalSnap &&
     (finalSnap.viability === "sparse" || finalSnap.viability === "fringe")
   ) {
     archetypeWarnings.push(
-      `Final archetype ${finalSnap.primary} is ${finalSnap.viability} — consider pivoting in deckbuilding`,
+      `Final archetype ${finalSnap.primary} is ${finalSnap.viability} — consider alternatives in deckbuilding`,
+    );
+  }
+  // Flag if the archetype changed between settling and final (unstable commitment)
+  if (
+    settledArchetype &&
+    finalSnap &&
+    finalSnap.primary !== settledArchetype
+  ) {
+    archetypeWarnings.push(
+      `Archetype drifted from ${settledArchetype} (pack 2 start) to ${finalSnap.primary} (final) — unstable commitment may have cost card quality`,
     );
   }
 
