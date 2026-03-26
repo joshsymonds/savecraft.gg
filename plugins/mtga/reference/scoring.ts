@@ -134,18 +134,21 @@ export const ALL_COLOR_PAIRS = [
   "RG",
 ];
 
-export const DEFAULT_SIGMOID_PARAMS: Record<
-  string,
-  { center: number; steepness: number }
-> = {
-  baseline: { center: 0.535, steepness: 25 },
-  synergy: { center: 0, steepness: 4 },
-  curve: { center: 0, steepness: 3 },
-  signal: { center: 0, steepness: 3 },
-  role: { center: 0.3, steepness: 5 },
-  color_commitment: { center: 0.5, steepness: 4 },
-  opportunity_cost: { center: 0.85, steepness: 8 },
-};
+/** Required sigmoid calibration axes. All params come from the D1
+ *  mtga_draft_calibration table — card-intrinsic axes (baseline, synergy,
+ *  signal) are percentile-calibrated during import, state-dependent axes
+ *  (castability, color_commitment, opportunity_cost, curve, role) use
+ *  theoretical constants written by the Go pipeline. */
+export const REQUIRED_CALIBRATION_AXES = [
+  "baseline",
+  "synergy",
+  "signal",
+  "castability",
+  "color_commitment",
+  "opportunity_cost",
+  "curve",
+  "role",
+] as const;
 
 // ── Karsten castability table ────────────────────────────────
 
@@ -299,11 +302,21 @@ export function getWeights(pickNumber: number): WeightSet {
   const curve = smoothWeight(pickNumber, 0.03, 0.13, 22, 5);
   const castability = smoothWeight(pickNumber, 0.02, 0.10, 25, 4);
   const signal = smoothWeight(pickNumber, 0.25, 0.05, 12, 4);
-  const colorCommitment = smoothWeight(pickNumber, 0.05, 0.05, 21, 6);
-  const opportunityCost = smoothWeight(pickNumber, 0.10, 0.05, 16, 5);
+  const colorCommitment = smoothWeight(pickNumber, 0.03, 0.05, 21, 6);
+  const opportunityCost = smoothWeight(pickNumber, 0.02, 0.12, 24, 4);
 
-  const total =
-    baseline + synergy + role + curve + castability + signal + colorCommitment + opportunityCost;
+  // Cap combined color commitment + opportunity cost at 18% of total weight.
+  // Both axes penalize off-color cards — without a cap they double-team and
+  // can erase a bomb's baseline advantage.
+  const maxColorShare = 0.18;
+  const rawOther = baseline + synergy + role + curve + castability + signal;
+  const rawColor = colorCommitment + opportunityCost;
+  const colorCap = rawOther * (maxColorShare / (1 - maxColorShare));
+  const colorScale = rawColor > colorCap ? colorCap / rawColor : 1;
+  const adjColorCommitment = colorCommitment * colorScale;
+  const adjOpportunityCost = opportunityCost * colorScale;
+
+  const total = rawOther + adjColorCommitment + adjOpportunityCost;
   return {
     baseline: baseline / total,
     synergy: synergy / total,
@@ -311,8 +324,8 @@ export function getWeights(pickNumber: number): WeightSet {
     signal: signal / total,
     role: role / total,
     castability: castability / total,
-    colorCommitment: colorCommitment / total,
-    opportunityCost: opportunityCost / total,
+    colorCommitment: adjColorCommitment / total,
+    opportunityCost: adjOpportunityCost / total,
   };
 }
 

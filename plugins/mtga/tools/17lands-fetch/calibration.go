@@ -52,7 +52,13 @@ func computeCalibration(sr setResult, synergies []synergyRow) []calibrationRow {
 }
 
 // percentileSigmoid computes sigmoid params from a sorted slice of values.
-// center = P50 (median), steepness = 4.4 / (P90 - P10).
+// center = P50 (median), steepness = 3.0 / (P90 - P10).
+//
+// The 3.0 constant maps P10 → ~0.18 and P90 → ~0.82 on the sigmoid,
+// leaving headroom at both extremes for bombs (>P90) and unplayables (<P10)
+// to differentiate. A tighter constant like 4.4 (mapping to 0.1/0.9) compresses
+// the top end too aggressively for sets with narrow GIH WR distributions.
+//
 // Returns nil if the P90-P10 range is too narrow (degenerate distribution).
 func percentileSigmoid(axis string, values []float64, minRange float64) *calibrationRow {
 	n := len(values)
@@ -73,7 +79,7 @@ func percentileSigmoid(axis string, values []float64, minRange float64) *calibra
 	return &calibrationRow{
 		Axis:      axis,
 		Center:    round4(p50),
-		Steepness: round4(4.4 / spread),
+		Steepness: round4(3.0 / spread),
 	}
 }
 
@@ -91,11 +97,22 @@ func calibrateSynergy(synergies []synergyRow) *calibrationRow {
 	if len(synergies) < 20 {
 		return nil
 	}
-	values := make([]float64, len(synergies))
-	for i, s := range synergies {
-		values[i] = s.SynergyDelta
+	// The synergy axis sums pairwise deltas across all pool cards, not
+	// individual deltas. Calibrate against per-card synergy sums: for each
+	// card, sum all its pairwise deltas. This matches the distribution of
+	// values the sigmoid actually sees during scoring.
+	sumByCard := make(map[string]float64)
+	for _, s := range synergies {
+		sumByCard[s.CardA] += s.SynergyDelta
 	}
-	return percentileSigmoid("synergy", values, 0.001)
+	if len(sumByCard) < 10 {
+		return nil
+	}
+	values := make([]float64, 0, len(sumByCard))
+	for _, sum := range sumByCard {
+		values = append(values, sum)
+	}
+	return percentileSigmoid("synergy", values, 0.01)
 }
 
 func calibrateSignal(sr setResult) *calibrationRow {

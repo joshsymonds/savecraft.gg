@@ -138,6 +138,34 @@ async function seedContextualData(): Promise<void> {
     env.DB.prepare(
       `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "WG", 17, 15, 4, 0.5, 0.1, 1, 0.48, 0.49, 100),
+
+    // Calibration: all 8 axes required (no hardcoded defaults in TS).
+    // Card-intrinsic axes use percentile-based values for the DSK test set.
+    // State-dependent axes use theoretical constants.
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+    ).bind("DSK", "baseline", 0.535, 30),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+    ).bind("DSK", "synergy", 0, 10),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+    ).bind("DSK", "signal", 7, 0.5),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+    ).bind("DSK", "castability", 0.75, 8),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+    ).bind("DSK", "color_commitment", 0.5, 4),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+    ).bind("DSK", "opportunity_cost", 0.85, 8),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+    ).bind("DSK", "curve", 0, 3),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+    ).bind("DSK", "role", 0.3, 5),
   ]);
 }
 
@@ -1053,6 +1081,23 @@ describe("draft_advisor native module", () => {
           `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind("FDN", name, 5000, 7000, 2000, 0.51, 0.52, 0.5, 0.49, 0.01, 6 + index, 7 + index, 2),
       ),
+      // Calibration for all 8 axes (required — no TS defaults).
+      ...(
+        [
+          ["baseline", 0.535, 30],
+          ["synergy", 0, 10],
+          ["signal", 7, 0.5],
+          ["castability", 0.75, 8],
+          ["color_commitment", 0.5, 4],
+          ["opportunity_cost", 0.85, 8],
+          ["curve", 0, 3],
+          ["role", 0.3, 5],
+        ] as const
+      ).map(([axis, center, steepness]) =>
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+        ).bind("FDN", axis, center, steepness),
+      ),
     ]);
 
     const result = await draftAdvisorModule.execute(
@@ -1120,6 +1165,889 @@ describe("draft_advisor native module", () => {
 
     // Elenda's castability should be modeled as a splash (single B pip)
     expect(elenda!.axes.castability.source_model).toBe("splash");
+  });
+
+  // Shared seed for realistic FDN Liliana scenarios (production data).
+  async function seedRealisticFDN(): Promise<void> {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_set_stats (set_code, format, total_games, card_count, avg_gihwr) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "PremierDraft", 500_000, 20, 0.515),
+      // Pool cards (same as existing Liliana test)
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        100,
+        "o-fd",
+        "Fleeting Distraction",
+        "Fleeting Distraction",
+        "{U}",
+        1,
+        "Instant",
+        '["U"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(101, "o-hh", "Helpful Hunter", "Helpful Hunter", "{1}{W}", 2, "Creature", '["W"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(102, "o-sl", "Strix Lookout", "Strix Lookout", "{U}", 1, "Creature", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(103, "o-tt", "Think Twice", "Think Twice", "{1}{U}", 2, "Instant", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(104, "o-ft", "Faebloom Trick", "Faebloom Trick", "{1}{U}", 2, "Instant", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(105, "o-ref", "Refute", "Refute", "{1}{U}{U}", 3, "Instant", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(106, "o-ld", "Lightshell Duo", "Lightshell Duo", "{3}{U}", 4, "Creature", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        107,
+        "o-ssz",
+        "Soul-Shackled Zombie",
+        "Soul-Shackled Zombie",
+        "{1}{B}",
+        2,
+        "Creature",
+        '["B"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(108, "o-lr", "Luminous Rebuke", "Luminous Rebuke", "{4}{W}", 5, "Instant", '["W"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default, produced_mana) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        109,
+        "o-ew",
+        "Evolving Wilds",
+        "Evolving Wilds",
+        "",
+        0,
+        "Land",
+        "[]",
+        1,
+        '["W","U","B","R","G"]',
+      ),
+      // Pack cards (Liliana + Elenda from existing test, plus 6 more)
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        110,
+        "o-lili",
+        "Liliana, Dreadhorde General",
+        "Liliana, Dreadhorde General",
+        "{4}{B}{B}",
+        6,
+        "Legendary Planeswalker",
+        '["B"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        111,
+        "o-elenda",
+        "Elenda, Saint of Dusk",
+        "Elenda, Saint of Dusk",
+        "{2}{W}{B}",
+        4,
+        "Legendary Creature",
+        '["W","B"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        112,
+        "o-iitm",
+        "Imprisoned in the Moon",
+        "Imprisoned in the Moon",
+        "{2}{U}",
+        3,
+        "Enchantment — Aura",
+        '["U"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        113,
+        "o-fa",
+        "Fiery Annihilation",
+        "Fiery Annihilation",
+        "{2}{R}",
+        3,
+        "Sorcery",
+        '["R"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        114,
+        "o-hr",
+        "Heroic Reinforcements",
+        "Heroic Reinforcements",
+        "{2}{R}{W}",
+        4,
+        "Sorcery",
+        '["R","W"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        115,
+        "o-ag",
+        "Armasaur Guide",
+        "Armasaur Guide",
+        "{4}{W}",
+        5,
+        "Creature — Dinosaur",
+        '["W"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        116,
+        "o-ms",
+        "Mocking Sprite",
+        "Mocking Sprite",
+        "{2}{U}",
+        3,
+        "Creature — Faerie",
+        '["U"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        117,
+        "o-cf",
+        "Crypt Feaster",
+        "Crypt Feaster",
+        "{2}{B}",
+        3,
+        "Creature — Zombie",
+        '["B"]',
+        1,
+      ),
+      // Ratings for all cards
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Liliana, Dreadhorde General",
+        10_000,
+        12_000,
+        3000,
+        0.6412,
+        0.66,
+        0.62,
+        0.5,
+        0.12,
+        1.2,
+        1.24,
+        0.6013,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Elenda, Saint of Dusk",
+        8000,
+        10_000,
+        2000,
+        0.6154,
+        0.63,
+        0.6,
+        0.5,
+        0.1,
+        2,
+        2.0662,
+        1.5732,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Imprisoned in the Moon",
+        7000,
+        9000,
+        2000,
+        0.5005,
+        0.51,
+        0.5,
+        0.5,
+        0,
+        7.836,
+        7.836,
+        3.4173,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Fiery Annihilation",
+        6000,
+        8000,
+        2000,
+        0.5817,
+        0.59,
+        0.58,
+        0.5,
+        0.08,
+        3.4674,
+        3.4674,
+        2.1816,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Heroic Reinforcements",
+        5000,
+        7000,
+        2000,
+        0.5578,
+        0.57,
+        0.55,
+        0.49,
+        0.06,
+        6.0336,
+        6.0336,
+        3.4022,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Armasaur Guide",
+        4000,
+        6000,
+        2000,
+        0.5052,
+        0.51,
+        0.5,
+        0.49,
+        0.01,
+        10.7973,
+        10.7973,
+        2.5215,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Mocking Sprite",
+        5000,
+        7000,
+        2000,
+        0.4998,
+        0.5,
+        0.5,
+        0.5,
+        0,
+        9.6963,
+        9.6963,
+        3.0962,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Crypt Feaster",
+        4000,
+        6000,
+        2000,
+        0.5038,
+        0.51,
+        0.5,
+        0.5,
+        0,
+        11.3835,
+        11.3835,
+        2.2789,
+      ),
+      // Pool card ratings from production D1
+      ...(
+        [
+          [
+            "Fleeting Distraction",
+            5000,
+            7000,
+            2000,
+            0.5483,
+            0.55,
+            0.54,
+            0.49,
+            0.01,
+            8.036,
+            8.036,
+            3.2359,
+          ],
+          [
+            "Helpful Hunter",
+            5000,
+            7000,
+            2000,
+            0.5745,
+            0.58,
+            0.57,
+            0.49,
+            0.01,
+            4.4729,
+            4.4729,
+            2.478,
+          ],
+          [
+            "Strix Lookout",
+            5000,
+            7000,
+            2000,
+            0.5496,
+            0.55,
+            0.54,
+            0.49,
+            0.01,
+            7.0549,
+            7.0549,
+            3.1916,
+          ],
+          ["Think Twice", 5000, 7000, 2000, 0.5658, 0.57, 0.56, 0.49, 0.01, 6.4807, 6.4807, 3.1259],
+          [
+            "Faebloom Trick",
+            5000,
+            7000,
+            2000,
+            0.5908,
+            0.6,
+            0.58,
+            0.49,
+            0.01,
+            3.6875,
+            3.6875,
+            2.3187,
+          ],
+          ["Refute", 5000, 7000, 2000, 0.5755, 0.58, 0.57, 0.49, 0.01, 7.0905, 7.0905, 3.3091],
+          [
+            "Lightshell Duo",
+            5000,
+            7000,
+            2000,
+            0.5572,
+            0.56,
+            0.55,
+            0.49,
+            0.01,
+            9.5006,
+            9.5006,
+            3.0608,
+          ],
+          [
+            "Soul-Shackled Zombie",
+            5000,
+            7000,
+            2000,
+            0.5505,
+            0.56,
+            0.54,
+            0.49,
+            0.01,
+            9.2303,
+            9.2303,
+            3.0107,
+          ],
+          [
+            "Luminous Rebuke",
+            5000,
+            7000,
+            2000,
+            0.5771,
+            0.58,
+            0.57,
+            0.49,
+            0.01,
+            5.2066,
+            5.2066,
+            2.7506,
+          ],
+          [
+            "Evolving Wilds",
+            5000,
+            7000,
+            2000,
+            0.5459,
+            0.55,
+            0.54,
+            0.49,
+            0.01,
+            6.6791,
+            6.6791,
+            2.6879,
+          ],
+        ] as const
+      ).map(([name, ...vals]) =>
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind("FDN", name, ...vals),
+      ),
+      // Production color stats: per-archetype GIH WR for pack cards.
+      // Liliana has UB/WB stats but NO WU stats (rarely in WU decks).
+      // Elenda has WU/WB/UB stats — boosted in WB (0.6387).
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Liliana, Dreadhorde General",
+        "UB",
+        3000,
+        4000,
+        1000,
+        0.6558,
+        0.67,
+        0.64,
+        0.5,
+        0.14,
+        1.2,
+        1.24,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Liliana, Dreadhorde General",
+        "WB",
+        2000,
+        3000,
+        1000,
+        0.6595,
+        0.67,
+        0.65,
+        0.5,
+        0.15,
+        1.2,
+        1.24,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Liliana, Dreadhorde General",
+        "WU",
+        500,
+        800,
+        200,
+        0.6347,
+        0.65,
+        0.62,
+        0.5,
+        0.12,
+        1.2,
+        1.24,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Elenda, Saint of Dusk",
+        "WU",
+        2000,
+        3000,
+        1000,
+        0.5751,
+        0.59,
+        0.57,
+        0.5,
+        0.07,
+        2,
+        2.07,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Elenda, Saint of Dusk",
+        "WB",
+        3000,
+        4000,
+        1000,
+        0.6387,
+        0.65,
+        0.63,
+        0.5,
+        0.13,
+        2,
+        2.07,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Elenda, Saint of Dusk",
+        "UB",
+        1500,
+        2000,
+        500,
+        0.588,
+        0.6,
+        0.58,
+        0.5,
+        0.08,
+        2,
+        2.07,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Imprisoned in the Moon",
+        "WU",
+        3000,
+        4000,
+        1000,
+        0.5164,
+        0.52,
+        0.51,
+        0.5,
+        0.01,
+        7.8,
+        7.8,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Fiery Annihilation",
+        "WU",
+        2000,
+        3000,
+        1000,
+        0.5946,
+        0.6,
+        0.59,
+        0.5,
+        0.09,
+        3.5,
+        4,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Mocking Sprite",
+        "WU",
+        2000,
+        3000,
+        1000,
+        0.5186,
+        0.53,
+        0.51,
+        0.5,
+        0.01,
+        9.7,
+        9.7,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FDN",
+        "Armasaur Guide",
+        "WU",
+        1000,
+        2000,
+        500,
+        0.4952,
+        0.5,
+        0.49,
+        0.49,
+        0,
+        10.8,
+        10.8,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FDN", "Crypt Feaster", "UB", 1500, 2000, 500, 0.5066, 0.51, 0.5, 0.5, 0, 11.4, 11.4),
+      // Synergies: Elenda has positive synergy with WU pool, Liliana has none
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "Elenda, Saint of Dusk", "Helpful Hunter", 0.0234, 500),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "Elenda, Saint of Dusk", "Luminous Rebuke", 0.0224, 400),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "Elenda, Saint of Dusk", "Refute", 0.0227, 300),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "Elenda, Saint of Dusk", "Strix Lookout", 0.0171, 300),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "Elenda, Saint of Dusk", "Think Twice", 0.0154, 300),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "Elenda, Saint of Dusk", "Evolving Wilds", 0.0097, 200),
+      // Production archetype curves for WU
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", 0, 3.3333, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", 1, 2.4387, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", 2, 4.9018, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", 3, 5.0339, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", 4, 3.6567, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", 5, 1.9489, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", 6, 0.5642, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", 7, 0.2927, 52_087),
+      // Production card roles (from production D1)
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-lili", "Liliana, Dreadhorde General", "removal", "FDN"),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-lili", "Liliana, Dreadhorde General", "cabs", "FDN"),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-iitm", "Imprisoned in the Moon", "removal", "FDN"),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-fa", "Fiery Annihilation", "removal", "FDN"),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-fa", "Fiery Annihilation", "cabs", "FDN"),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-elenda", "Elenda, Saint of Dusk", "creature", "FDN"),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-elenda", "Elenda, Saint of Dusk", "cabs", "FDN"),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-cf", "Crypt Feaster", "creature", "FDN"),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-cf", "Crypt Feaster", "cabs", "FDN"),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-ms", "Mocking Sprite", "creature", "FDN"),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-ag", "Armasaur Guide", "creature", "FDN"),
+      env.DB.prepare(
+        `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      ).bind("o-ag", "Armasaur Guide", "cabs", "FDN"),
+      // Production role targets for WU
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", "removal", 4.9243, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", "creature", 11.9805, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", "cabs", 16.316, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", "noncreature_nonremoval", 5.4901, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", "mana_fixing", 0.7828, 52_087),
+      // Production deck stats
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WU", 17, 14, 5, 1, 0.2, 2, 0.52, 0.55, 52_087),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FDN", "UB", 17, 14, 5, 1, 0.2, 2, 0.51, 0.53, 57_137),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FDN", "WB", 17, 14, 5, 1, 0.2, 2, 0.52, 0.54, 68_040),
+      // Calibration from real pipeline output (3.0 percentile constant).
+      // Card-intrinsic axes: percentile-calibrated from FDN 17Lands data.
+      // State-dependent axes: theoretical constants from bounded ranges.
+      ...(
+        [
+          ["baseline", 0.5462, 32.2729],
+          ["synergy", -1.2402, 0.418],
+          ["signal", 6.4154, 0.3693],
+          ["castability", 0.75, 8],
+          ["color_commitment", 0.5, 4],
+          ["opportunity_cost", 0.85, 8],
+          ["curve", 0, 3],
+          ["role", 0.3, 5],
+        ] as const
+      ).map(([axis, center, steepness]) =>
+        env.DB.prepare(
+          `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+        ).bind("FDN", axis, center, steepness),
+      ),
+    ]);
+  }
+
+  it("ranks Liliana #1 in realistic 8-card P2P1 pack with WU pool", async () => {
+    // Full scenario from Reddit: P2P1, 8-card pack, 12-card WU pool.
+    // Liliana (4BB, 64.1%) must rank above Elenda (2WB, 61.5%) despite
+    // being off-color. Additional pack cards seed the full context.
+    await seedRealisticFDN();
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "FDN",
+        pool: [
+          "Fleeting Distraction",
+          "Helpful Hunter",
+          "Helpful Hunter",
+          "Strix Lookout",
+          "Think Twice",
+          "Faebloom Trick",
+          "Refute",
+          "Lightshell Duo",
+          "Lightshell Duo",
+          "Soul-Shackled Zombie",
+          "Luminous Rebuke",
+          "Evolving Wilds",
+        ],
+        pack: [
+          "Liliana, Dreadhorde General",
+          "Elenda, Saint of Dusk",
+          "Imprisoned in the Moon",
+          "Fiery Annihilation",
+          "Heroic Reinforcements",
+          "Armasaur Guide",
+          "Mocking Sprite",
+          "Crypt Feaster",
+        ],
+        pick_number: 15,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const data = result.data as {
+      recommendations: {
+        card: string;
+        composite_score: number;
+        rank: number;
+      }[];
+    };
+
+    const lili = data.recommendations.find((r) => r.card === "Liliana, Dreadhorde General")!;
+    const elenda = data.recommendations.find((r) => r.card === "Elenda, Saint of Dusk")!;
+    expect(lili).toBeDefined();
+    expect(elenda).toBeDefined();
+
+    // Liliana (64.1% GIH WR bomb) must rank above Elenda (61.5%) at P2P1.
+    // A 3-point GIH WR gap between a format-defining mythic and a good rare
+    // must not be erased by color commitment + opportunity cost penalties.
+    expect(lili.rank).toBe(1);
+    expect(lili.composite_score).toBeGreaterThan(elenda.composite_score);
+  });
+
+  it("ranks Elenda above Liliana at pick 25 (mid pack 2) with WU pool", async () => {
+    // Same scenario but deeper into pack 2. By pick 25, castability,
+    // color commitment, and opportunity cost weights have risen enough
+    // that Elenda's on-color advantage should clearly dominate Liliana's
+    // raw power. This validates the pick-adaptive weight progression.
+    await seedRealisticFDN();
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "FDN",
+        pool: [
+          "Fleeting Distraction",
+          "Helpful Hunter",
+          "Helpful Hunter",
+          "Strix Lookout",
+          "Think Twice",
+          "Faebloom Trick",
+          "Refute",
+          "Lightshell Duo",
+          "Lightshell Duo",
+          "Soul-Shackled Zombie",
+          "Luminous Rebuke",
+          "Evolving Wilds",
+        ],
+        pack: ["Liliana, Dreadhorde General", "Elenda, Saint of Dusk"],
+        pick_number: 25,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      recommendations: { card: string; composite_score: number; rank: number }[];
+    };
+
+    const lili = data.recommendations.find((r) => r.card === "Liliana, Dreadhorde General")!;
+    const elenda = data.recommendations.find((r) => r.card === "Elenda, Saint of Dusk")!;
+    expect(elenda.rank).toBe(1);
+    expect(elenda.composite_score).toBeGreaterThan(lili.composite_score);
+  });
+
+  it("ranks Elenda far above Liliana at pick 35 (late pack 3) with WU pool", async () => {
+    // Late pack 3: castability and color commitment dominate. Liliana's
+    // double-black is nearly uncastable in a committed WU deck. The gap
+    // should be substantial — not close at all.
+    await seedRealisticFDN();
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "FDN",
+        pool: [
+          "Fleeting Distraction",
+          "Helpful Hunter",
+          "Helpful Hunter",
+          "Strix Lookout",
+          "Think Twice",
+          "Faebloom Trick",
+          "Refute",
+          "Lightshell Duo",
+          "Lightshell Duo",
+          "Soul-Shackled Zombie",
+          "Luminous Rebuke",
+          "Evolving Wilds",
+        ],
+        pack: ["Liliana, Dreadhorde General", "Elenda, Saint of Dusk"],
+        pick_number: 35,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      recommendations: { card: string; composite_score: number; rank: number }[];
+    };
+
+    const lili = data.recommendations.find((r) => r.card === "Liliana, Dreadhorde General")!;
+    const elenda = data.recommendations.find((r) => r.card === "Elenda, Saint of Dusk")!;
+    expect(elenda.rank).toBe(1);
+    // At pick 35, the gap should be substantial (>5 cents).
+    expect(elenda.composite_score - lili.composite_score).toBeGreaterThan(0.05);
   });
 
   // ── Bomb dampening tests ─────────────────────────────────

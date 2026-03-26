@@ -31,7 +31,6 @@ import {
   DEFAULT_PACK_SIZE,
   META_BATCH_SIZE,
   ALL_COLOR_PAIRS,
-  DEFAULT_SIGMOID_PARAMS,
   castabilityLookup,
   countPips,
   estimateSources,
@@ -205,10 +204,8 @@ async function preloadSetData(
     ...metaChunks,
   ]);
 
-  // Build sigmoid params.
-  const sigmoidParams: Record<string, { center: number; steepness: number }> = {
-    ...DEFAULT_SIGMOID_PARAMS,
-  };
+  // Build sigmoid params from D1 calibration table (no hardcoded defaults).
+  const sigmoidParams: Record<string, { center: number; steepness: number }> = {};
   for (const cal of calibrationResult.results) {
     sigmoidParams[cal.axis] = { center: cal.center, steepness: cal.steepness };
   }
@@ -607,9 +604,7 @@ async function contextualPick(
   const sp: Record<string, { center: number; steepness: number }> = preloaded
     ? preloaded.sigmoidParams
     : (() => {
-        const built: Record<string, { center: number; steepness: number }> = {
-          ...DEFAULT_SIGMOID_PARAMS,
-        };
+        const built: Record<string, { center: number; steepness: number }> = {};
         for (const cal of calibrationResult.results) {
           built[cal.axis] = { center: cal.center, steepness: cal.steepness };
         }
@@ -914,19 +909,21 @@ async function contextualPick(
       }
     }
 
-    // Sigmoid normalization.
-    const bsp = sp.baseline ?? DEFAULT_SIGMOID_PARAMS.baseline!;
-    const ssp = sp.synergy ?? DEFAULT_SIGMOID_PARAMS.synergy!;
-    const csp = sp.curve ?? DEFAULT_SIGMOID_PARAMS.curve!;
-    const sigsp = sp.signal ?? DEFAULT_SIGMOID_PARAMS.signal!;
-    const rsp = sp.role ?? DEFAULT_SIGMOID_PARAMS.role!;
+    // Sigmoid normalization — all params from D1 calibration table.
+    // Card-intrinsic axes (baseline, synergy, signal) use percentile-based
+    // calibration; state-dependent axes use theoretical constants.
+    const bsp = sp.baseline!;
+    const ssp = sp.synergy!;
+    const csp = sp.curve!;
+    const sigsp = sp.signal!;
+    const rsp = sp.role!;
+    const ccsp = sp.color_commitment!;
+    const ocsp = sp.opportunity_cost!;
     const baselineNorm = sigmoid(baselineGihwr, bsp.center, bsp.steepness);
     const synergyNorm = sigmoid(synergySum, ssp.center, ssp.steepness);
     const curveNorm = sigmoid(curveScore, csp.center, csp.steepness);
     const signalNorm = sigmoid(signalScore, sigsp.center, sigsp.steepness);
     const roleNorm = sigmoid(roleScore, rsp.center, rsp.steepness);
-    const ccsp = sp.color_commitment ?? DEFAULT_SIGMOID_PARAMS.color_commitment!;
-    const ocsp = sp.opportunity_cost ?? DEFAULT_SIGMOID_PARAMS.opportunity_cost!;
     const colorCommitmentNorm = sigmoid(colorFit, ccsp.center, ccsp.steepness);
     const opportunityCostNorm = sigmoid(opportunityScore, ocsp.center, ocsp.steepness);
     // Power-aware castability dampening for elite cards early in draft.
