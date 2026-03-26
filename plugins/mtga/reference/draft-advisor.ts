@@ -169,13 +169,13 @@ async function preloadSetData(
       .all<SetMetadataRow>(),
     db
       .prepare(
-        `SELECT color_pair, role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1`,
+        `SELECT archetype, role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1`,
       )
       .bind(setCode)
       .all<RoleTargetRow>(),
     db
       .prepare(
-        `SELECT color_pair, cmc, avg_count, total_decks FROM mtga_draft_archetype_curves WHERE set_code = ?1`,
+        `SELECT archetype, cmc, avg_count, total_decks FROM mtga_draft_archetype_curves WHERE set_code = ?1`,
       )
       .bind(setCode)
       .all<CurveDbRow>(),
@@ -191,16 +191,16 @@ async function preloadSetData(
       .all<RatingRow>(),
     db
       .prepare(
-        `SELECT set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_color_stats WHERE set_code = ?1`,
+        `SELECT set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_archetype_stats WHERE set_code = ?1`,
       )
       .bind(setCode)
-      .all<RatingRow & { color_pair: string }>(),
+      .all<RatingRow & { archetype: string }>(),
     db
       .prepare(
-        `SELECT color_pair, total_decks FROM mtga_draft_deck_stats WHERE set_code = ?1`,
+        `SELECT archetype, total_decks FROM mtga_draft_deck_stats WHERE set_code = ?1`,
       )
       .bind(setCode)
-      .all<{ color_pair: string; total_decks: number }>(),
+      .all<{ archetype: string; total_decks: number }>(),
     ...metaChunks,
   ]);
 
@@ -219,7 +219,7 @@ async function preloadSetData(
   // Build nested color stats map.
   const allColorStats = new Map<string, Map<string, RatingRow>>();
   for (const row of colorStatsResult.results) {
-    const colorPair = (row as RatingRow & { color_pair: string }).color_pair;
+    const colorPair = (row as RatingRow & { archetype: string }).archetype;
     let byCard = allColorStats.get(colorPair);
     if (!byCard) {
       byCard = new Map();
@@ -239,7 +239,7 @@ async function preloadSetData(
   // Build deck stats map.
   const deckStatsByPair = new Map<string, number>();
   for (const row of deckStatsResult.results) {
-    deckStatsByPair.set(row.color_pair, row.total_decks);
+    deckStatsByPair.set(row.archetype, row.total_decks);
   }
 
   const setMeta = setMetaResult.results[0];
@@ -372,7 +372,7 @@ async function contextualPick(
         const colorPlaceholders = placeholders(packNames.length, 3);
         return db
           .prepare(
-            `SELECT set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_color_stats WHERE set_code = ?1 AND color_pair = ?2 AND card_name IN (${colorPlaceholders})`,
+            `SELECT set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND archetype = ?2 AND card_name IN (${colorPlaceholders})`,
           )
           .bind(setCode, cand.colorPair, ...packNames)
           .all<RatingRow>();
@@ -398,14 +398,14 @@ async function contextualPick(
         results:
           primaryArchetype !== "_overall"
             ? preloaded.allCurves.filter(
-                (r) => r.color_pair === primaryArchetype,
+                (r) => r.archetype === primaryArchetype,
               )
             : [],
       })
     : primaryArchetype !== "_overall"
       ? db
           .prepare(
-            `SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND color_pair = ?2`,
+            `SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND archetype = ?2`,
           )
           .bind(setCode, primaryArchetype)
           .all<CurveDbRow>()
@@ -439,7 +439,7 @@ async function contextualPick(
     ? Promise.resolve({ results: preloaded.roleTargets })
     : db
         .prepare(
-          `SELECT color_pair, role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1`,
+          `SELECT archetype, role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1`,
         )
         .bind(setCode)
         .all<RoleTargetRow>();
@@ -463,19 +463,19 @@ async function contextualPick(
         .all<SetMetadataRow>();
 
   const deckStatsPromise: Promise<{
-    results: { color_pair: string; total_decks: number }[];
+    results: { archetype: string; total_decks: number }[];
   }> = preloaded
     ? Promise.resolve({
         results: [...preloaded.deckStatsByPair.entries()].map(
-          ([color_pair, total_decks]) => ({ color_pair, total_decks }),
+          ([archetype, total_decks]) => ({ archetype, total_decks }),
         ),
       })
     : db
         .prepare(
-          `SELECT color_pair, total_decks FROM mtga_draft_deck_stats WHERE set_code = ?1`,
+          `SELECT archetype, total_decks FROM mtga_draft_deck_stats WHERE set_code = ?1`,
         )
         .bind(setCode)
-        .all<{ color_pair: string; total_decks: number }>();
+        .all<{ archetype: string; total_decks: number }>();
 
   const allResults = await Promise.all([
     overallPromise,
@@ -526,7 +526,7 @@ async function contextualPick(
   // Build deck stats for archetype viability filtering.
   const deckCountByPair = new Map<string, number>();
   for (const row of deckStatsResult.results) {
-    deckCountByPair.set(row.color_pair, row.total_decks);
+    deckCountByPair.set(row.archetype, row.total_decks);
   }
   const totalDecksAllPairs = [...deckCountByPair.values()].reduce(
     (a, b) => a + b,
@@ -571,7 +571,7 @@ async function contextualPick(
   if (roleTargetResult.results.length > 0) {
     const targetsByPairRole = new Map<string, number>();
     for (const rt of roleTargetResult.results) {
-      targetsByPairRole.set(`${rt.color_pair}:${rt.role}`, rt.avg_count);
+      targetsByPairRole.set(`${rt.archetype}:${rt.role}`, rt.avg_count);
     }
     const allRoles = new Set(roleTargetResult.results.map((rt) => rt.role));
     for (const role of allRoles) {
@@ -1061,7 +1061,7 @@ async function contextualPick(
           .map((c) => {
             const deckCount = deckCountByPair.get(c.colorPair) ?? 0;
             return {
-              color_pair: c.colorPair,
+              archetype: c.colorPair,
               weight: Math.round(c.weight * 100) / 100,
               deck_count: deckCount,
               deck_share:

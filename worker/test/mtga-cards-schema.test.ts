@@ -210,10 +210,10 @@ describe("MTGA draft ratings D1 schema", () => {
     expect(row!.iwd).toBeCloseTo(0.06, 3);
   });
 
-  it("inserts and retrieves color pair stats", async () => {
+  it("inserts and retrieves archetype stats", async () => {
     await env.DB.prepare(
-      `INSERT INTO mtga_draft_color_stats
-        (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen,
+      `INSERT INTO mtga_draft_archetype_stats
+        (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen,
          gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
@@ -221,13 +221,13 @@ describe("MTGA draft ratings D1 schema", () => {
       .run();
 
     const row = await env.DB.prepare(
-      "SELECT * FROM mtga_draft_color_stats WHERE set_code = ? AND card_name = ? AND color_pair = ?",
+      "SELECT * FROM mtga_draft_archetype_stats WHERE set_code = ? AND card_name = ? AND archetype = ?",
     )
       .bind("DSK", "Gloomlake Verge", "UB")
-      .first<{ gihwr: number; color_pair: string }>();
+      .first<{ gihwr: number; archetype: string }>();
 
     expect(row).not.toBeNull();
-    expect(row!.color_pair).toBe("UB");
+    expect(row!.archetype).toBe("UB");
     expect(row!.gihwr).toBeCloseTo(0.59, 3);
   });
 
@@ -238,29 +238,29 @@ describe("MTGA draft ratings D1 schema", () => {
           (set_code, card_name, gihwr, iwd) VALUES (?, ?, ?, ?)`,
       ).bind("DSK", "Gloomlake Verge", 0.564, 0.06),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats
-          (set_code, card_name, color_pair, gihwr, iwd) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats
+          (set_code, card_name, archetype, gihwr, iwd) VALUES (?, ?, ?, ?, ?)`,
       ).bind("DSK", "Gloomlake Verge", "UB", 0.59, 0.07),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats
-          (set_code, card_name, color_pair, gihwr, iwd) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats
+          (set_code, card_name, archetype, gihwr, iwd) VALUES (?, ?, ?, ?, ?)`,
       ).bind("DSK", "Gloomlake Verge", "BG", 0.52, 0.03),
     ]);
 
     const results = await env.DB.prepare(
-      `SELECT r.card_name, r.gihwr AS overall_gihwr, c.color_pair, c.gihwr AS color_gihwr
+      `SELECT r.card_name, r.gihwr AS overall_gihwr, c.archetype, c.gihwr AS color_gihwr
        FROM mtga_draft_ratings r
-       JOIN mtga_draft_color_stats c
+       JOIN mtga_draft_archetype_stats c
          ON r.set_code = c.set_code AND r.card_name = c.card_name
        WHERE r.set_code = ? AND r.card_name = ?
-       ORDER BY c.color_pair`,
+       ORDER BY c.archetype`,
     )
       .bind("DSK", "Gloomlake Verge")
-      .all<{ card_name: string; overall_gihwr: number; color_pair: string; color_gihwr: number }>();
+      .all<{ card_name: string; overall_gihwr: number; archetype: string; color_gihwr: number }>();
 
     expect(results.results.length).toBe(2);
-    expect(results.results[0]!.color_pair).toBe("BG");
-    expect(results.results[1]!.color_pair).toBe("UB");
+    expect(results.results[0]!.archetype).toBe("BG");
+    expect(results.results[1]!.archetype).toBe("UB");
     expect(results.results[0]!.overall_gihwr).toBeCloseTo(0.564, 3);
   });
 

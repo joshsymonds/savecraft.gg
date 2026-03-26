@@ -29,7 +29,7 @@ export const CLEANUP_TABLES = [
   "mtga_cards_fts",
   "mtga_cards",
   "mtga_draft_ratings_fts",
-  "mtga_draft_color_stats",
+  "mtga_draft_archetype_stats",
   "mtga_draft_ratings",
   "mtga_draft_set_stats",
   "mtga_draft_synergies",

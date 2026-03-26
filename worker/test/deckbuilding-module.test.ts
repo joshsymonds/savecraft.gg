@@ -109,29 +109,29 @@ async function seedDeckbuildingData(): Promise<void> {
 
     // Deck stats for UB archetype
     env.DB.prepare(
-      `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 17.2, 14.5, 5.3, 1.1, 0.25, 2.1, 0.52, 0.55, 5000),
 
     // Archetype curves for UB
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 1, 2.5, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 2, 5.5, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 3, 4, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 6, 1.5, 5000),
 
     // Role targets for UB
     env.DB.prepare(
-      `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", "creature", 14.5, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", "removal", 3.5, 5000),
 
     // Card roles
