@@ -104,7 +104,7 @@
 
   <!-- ═══ SOCIAL PROOF LINE (divider between hero and content) ═══ -->
   <div class="proof-bar">
-    <span class="proof-item">Works with Claude, ChatGPT, and Gemini</span>
+    <span class="proof-item">Works with Claude and ChatGPT</span>
     <span class="proof-sep">*</span>
     <span class="proof-item">Open source daemon</span>
     <span class="proof-sep">*</span>
@@ -144,7 +144,7 @@
         <div class="step-icon" style="color: var(--color-gold);">?</div>
         <h3 class="step-name">ASK</h3>
         <p class="step-desc">
-          Connect Claude, ChatGPT, or Gemini. Your AI reads your actual game state and gives answers
+          Connect Claude or ChatGPT. Your AI reads your actual game state and gives answers
           grounded in real data — not hallucinated guesses.
         </p>
       </div>
@@ -323,7 +323,7 @@
   <section class="section cta-section">
     <div class="cta-inner">
       <h2 class="cta-title">Ready for Player 2?</h2>
-      <p class="cta-sub">Install in 30 seconds. Works with Claude, ChatGPT, and Gemini.</p>
+      <p class="cta-sub">Install in 30 seconds. Works with Claude and ChatGPT.</p>
       <div class="cta-actions">
         <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">GET STARTED</a>
       </div>

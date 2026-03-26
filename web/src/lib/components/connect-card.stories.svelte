@@ -9,17 +9,10 @@
   });
 </script>
 
-<!-- CTA collapsed: pulsing gold border, "NEXT: CONNECT AI" -->
-<Story name="CTACollapsed">
+<!-- CTA: pulsing gold border, "NEXT: CONNECT AI", URL + docs link -->
+<Story name="CTA">
   <div style="width: 720px;">
-    <ConnectCard initialState={{ connected: false }} initialExpanded={false} />
-  </div>
-</Story>
-
-<!-- CTA expanded: instructions visible (default on first visit) -->
-<Story name="CTAExpanded">
-  <div style="width: 720px;">
-    <ConnectCard initialState={{ connected: false }} initialExpanded={true} />
+    <ConnectCard initialState={{ connected: false }} />
   </div>
 </Story>
 

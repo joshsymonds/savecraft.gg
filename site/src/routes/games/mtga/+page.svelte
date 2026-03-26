@@ -169,7 +169,7 @@
         </div>
         <div class="tier-body">
           <p class="tier-desc">
-            Connect Savecraft to Claude, ChatGPT, or Gemini. Your AI immediately gets access to:
+            Connect Savecraft to Claude or ChatGPT. Your AI immediately gets access to:
           </p>
           <ul class="tier-features">
             {#each instantModules as mod (mod.name)}
@@ -245,7 +245,7 @@
   <section class="section cta-section">
     <div class="cta-inner">
       <h2 class="cta-title">Draft smarter.</h2>
-      <p class="cta-sub">Connect your AI in 30 seconds. Works with Claude, ChatGPT, and Gemini.</p>
+      <p class="cta-sub">Connect your AI in 30 seconds. Works with Claude and ChatGPT.</p>
       <div class="cta-actions">
         <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">GET STARTED</a>
       </div>

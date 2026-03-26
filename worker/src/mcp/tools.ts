@@ -1245,7 +1245,7 @@ const PLATFORM_GUIDES: Record<string, PlatformGuide> = {
 };
 
 const PAIRING_GUIDE =
-  "After installing, the daemon self-registers and displays a pairing link (https://savecraft.gg/link/<code>). Click the link, use the tray app's 'Link Account' button, or enter the 6-digit code on the savecraft.gg homepage. Once paired, your game saves appear automatically. Codes expire after 20 minutes — restart the daemon to generate a new one.";
+  "After installing, the daemon self-registers and displays a pairing link (https://my.savecraft.gg/link/<code>). Click the link, use the tray app's 'Link Account' button, or enter the 6-digit code on the my.savecraft.gg homepage. Once paired, your game saves appear automatically. Codes expire after 20 minutes — restart the daemon to generate a new one.";
 
 const ADAPTER_SETUP_GUIDE =
   "Some games connect through their official API instead of local save files — for example, World of Warcraft connects through Battle.net. These are called adapter sources. No local daemon install is needed. To set up an API-backed game: visit savecraft.gg, select the game, choose your region if prompted, and complete the OAuth authorization with the game's provider (e.g. Battle.net for WoW). Once authorized, Savecraft discovers your characters automatically. Each adapter source includes an adapter_credentials array showing credential status per game: 'connected' means the OAuth token is valid, 'expired' means the token needs re-authorization at savecraft.gg, and 'missing' means the game is linked but OAuth hasn't been completed yet.";
