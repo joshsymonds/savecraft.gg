@@ -2881,10 +2881,10 @@ describe("deriveArchetypeWeights", () => {
     const candidates = deriveArchetypeWeights(commitments);
     // Mono U (0.99) beats pair WU (~0.71) because single-color
     // commitment is higher than the pair product + open bonus
-    expect(candidates[0]!.colorPair).toBe("U");
+    expect(candidates[0]!.archetype).toBe("U");
     // WU should still be the top pair
-    const pairs = candidates.filter((p) => p.colorPair.length === 2);
-    expect(pairs[0]!.colorPair).toBe("WU");
+    const pairs = candidates.filter((p) => p.archetype.length === 2);
+    expect(pairs[0]!.archetype).toBe("WU");
   });
 
   it("gives meaningful weight to UB/UR/UG when U is locked and others are open", () => {
@@ -2896,9 +2896,9 @@ describe("deriveArchetypeWeights", () => {
       ["G", 0.1],
     ]);
     const candidates = deriveArchetypeWeights(commitments);
-    const ub = candidates.find((p) => p.colorPair === "UB")!;
-    const ur = candidates.find((p) => p.colorPair === "UR")!;
-    const ug = candidates.find((p) => p.colorPair === "UG")!;
+    const ub = candidates.find((p) => p.archetype === "UB")!;
+    const ur = candidates.find((p) => p.archetype === "UR")!;
+    const ug = candidates.find((p) => p.archetype === "UG")!;
     expect(ub.weight).toBeGreaterThan(0.02);
     expect(ur.weight).toBeGreaterThan(0.02);
     expect(ug.weight).toBeGreaterThan(0.02);
@@ -2928,7 +2928,7 @@ describe("deriveArchetypeWeights", () => {
     ]);
     const candidates = deriveArchetypeWeights(commitments);
     expect(candidates).toHaveLength(1);
-    expect(candidates[0]!.colorPair).toBe("_overall");
+    expect(candidates[0]!.archetype).toBe("_overall");
     expect(candidates[0]!.weight).toBe(1);
   });
 
@@ -2941,8 +2941,8 @@ describe("deriveArchetypeWeights", () => {
       ["G", 0.1],
     ]);
     const candidates = deriveArchetypeWeights(commitments);
-    const monoU = candidates.find((p) => p.colorPair === "U")!;
-    const monoW = candidates.find((p) => p.colorPair === "W")!;
+    const monoU = candidates.find((p) => p.archetype === "U")!;
+    const monoW = candidates.find((p) => p.archetype === "W")!;
     // U should have much higher mono weight than W
     expect(monoU.weight).toBeGreaterThan(monoW.weight * 3);
   });
@@ -2957,8 +2957,8 @@ describe("deriveArchetypeWeights", () => {
       ["G", 0.1],
     ]);
     const candidates = deriveArchetypeWeights(commitments);
-    const wub = candidates.find((p) => p.colorPair === "WUB")!;
-    const wur = candidates.find((p) => p.colorPair === "WUR")!;
+    const wub = candidates.find((p) => p.archetype === "WUB")!;
+    const wur = candidates.find((p) => p.archetype === "WUR")!;
     // WUB (0.8*0.7*0.6 = 0.336) should be much higher than WUR (0.8*0.7*0.1 = 0.056)
     expect(wub.weight).toBeGreaterThan(wur.weight * 3);
   });
@@ -2972,9 +2972,9 @@ describe("deriveArchetypeWeights", () => {
       ["G", 0.5],
     ]);
     const candidates = deriveArchetypeWeights(commitments);
-    const fiveColor = candidates.find((p) => p.colorPair === "WUBRG")!;
-    const fourColor = candidates.find((p) => p.colorPair === "WUBR")!;
-    const pair = candidates.find((p) => p.colorPair === "WU")!;
+    const fiveColor = candidates.find((p) => p.archetype === "WUBRG")!;
+    const fourColor = candidates.find((p) => p.archetype === "WUBR")!;
+    const pair = candidates.find((p) => p.archetype === "WU")!;
     // 5-color product (0.5^5 = 0.03125) << pair weight
     expect(fiveColor.weight).toBeLessThan(pair.weight);
     expect(fourColor.weight).toBeLessThan(pair.weight);
@@ -2992,8 +2992,8 @@ describe("deriveArchetypeWeights", () => {
       ["G", 0.1],
     ]);
     const candidates = deriveArchetypeWeights(commitments);
-    const wu = candidates.find((p) => p.colorPair === "WU")!;
-    const wub = candidates.find((p) => p.colorPair === "WUB")!;
+    const wu = candidates.find((p) => p.archetype === "WU")!;
+    const wub = candidates.find((p) => p.archetype === "WUB")!;
     // Pair with open bonus >> triple pure product
     expect(wu.weight).toBeGreaterThan(wub.weight * 5);
   });
@@ -3081,5 +3081,83 @@ describe("Bayesian shrinkage", () => {
     // The baseline raw score should be close to 0.552, not 0.70
     expect(rec!.axes.baseline.raw).toBeLessThan(0.60);
     expect(rec!.axes.baseline.raw).toBeGreaterThan(0.54);
+  });
+
+  it("shrinks sparse synergy deltas toward zero", async () => {
+    // Card pair has synergy_delta 0.10 but only 5 games together.
+    // With synergy_prior = 75: effective = (5 * 0.10) / (5 + 75) = 0.00625
+    // Without shrinkage: synergy sum would be 0.10
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_set_stats (set_code, format, total_games, card_count, avg_gihwr) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("SYN", "PremierDraft", 100_000, 2, 0.55),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("SYN", "Pack Card", 50_000, 70_000, 20_000, 0.55, 0.55, 0.55, 0.55, 0, 5, 5),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("SYN", "Pool Card", 50_000, 70_000, 20_000, 0.55, 0.55, 0.55, 0.55, 0, 5, 5),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(1, "o-1", "Pack Card", "Pack Card", "{U}", 1, "Creature", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(2, "o-2", "Pool Card", "Pool Card", "{U}", 1, "Creature", '["U"]', 1),
+      // Sparse synergy: high delta but very few games
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("SYN", "Pack Card", "Pool Card", 0.10, 5),
+      // Calibration
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("SYN", "baseline", 0.55, 30),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("SYN", "synergy", 0, 10),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("SYN", "signal", 5, 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("SYN", "castability", 0.75, 8),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("SYN", "color_commitment", 0.5, 4),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("SYN", "opportunity_cost", 0.85, 8),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("SYN", "curve", 0, 3),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("SYN", "role", 0.3, 5),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("SYN", "synergy_prior", 75, 0),
+    ]);
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "SYN",
+        pool: ["Pool Card"],
+        pack: ["Pack Card"],
+        pick_number: 15,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      recommendations: { card: string; axes: { synergy: { raw: number } } }[];
+    };
+    const rec = data.recommendations.find((r) => r.card === "Pack Card");
+    expect(rec).toBeDefined();
+    // With shrinkage: effective = (5 * 0.10) / (5 + 75) = 0.00625
+    // Without shrinkage: would be 0.10
+    // Raw synergy should be heavily dampened
+    expect(rec!.axes.synergy.raw).toBeLessThan(0.02);
+    expect(rec!.axes.synergy.raw).toBeGreaterThanOrEqual(0);
   });
 });

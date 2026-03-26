@@ -193,7 +193,7 @@ async function healthCheck(
 
   // Detect archetype — post-draft, so use late pick to suppress early flattening.
   const candidates = determineCandidateArchetypes(spellMeta, 42);
-  const primaryArchetype = candidates[0]?.colorPair ?? "_overall";
+  const primaryArchetype = candidates[0]?.archetype ?? "_overall";
 
   // Fetch all set-level data in parallel — independent D1 queries.
   const [deckStatsResult, curveResult, roleResult, cardRolesResult] =
@@ -511,7 +511,7 @@ async function cutAdvisor(
   }
 
   const candidates = determineCandidateArchetypes(allMeta, 42);
-  const primaryArchetype = candidates[0]?.colorPair ?? "_overall";
+  const primaryArchetype = candidates[0]?.archetype ?? "_overall";
 
   // Load ratings
   const ratingMap = new Map<string, number>();

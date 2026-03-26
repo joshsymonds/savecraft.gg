@@ -297,7 +297,7 @@ async function leaderboard(
   db: D1Database,
   setCode: string,
   sortField: string,
-  colorPair: string,
+  archetype: string,
   limit: number,
   offset: number,
   setStats: SetStatsRow,
@@ -309,12 +309,12 @@ async function leaderboard(
   let rows: RatingRow[];
   let total: number;
 
-  if (colorPair) {
+  if (archetype) {
     const countResult = await db
       .prepare(
         "SELECT COUNT(*) as cnt FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND archetype = ?2",
       )
-      .bind(setCode, colorPair.toUpperCase())
+      .bind(setCode, archetype.toUpperCase())
       .first<{ cnt: number }>();
     total = countResult?.cnt ?? 0;
 
@@ -322,7 +322,7 @@ async function leaderboard(
       .prepare(
         `SELECT set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND archetype = ?2 ORDER BY ${field} ${direction} LIMIT ?3 OFFSET ?4`,
       )
-      .bind(setCode, colorPair.toUpperCase(), limit, offset)
+      .bind(setCode, archetype.toUpperCase(), limit, offset)
       .all<RatingRow>();
     rows = result.results;
   } else {
@@ -345,7 +345,7 @@ async function leaderboard(
 
   const lines: string[] = [];
   let header = `Top cards by ${sortLabel} — ${setCode} ${setStats.format}`;
-  if (colorPair) header += ` (${colorPair})`;
+  if (archetype) header += ` (${archetype})`;
   header += ` (set avg GIH WR: ${pct(setStats.avg_gihwr)})`;
   lines.push(header);
   lines.push(`Showing ${offset + 1}–${offset + rows.length} of ${total}\n`);
