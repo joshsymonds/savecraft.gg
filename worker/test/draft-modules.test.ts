@@ -134,7 +134,7 @@ async function seedContextualData(): Promise<void> {
     ).bind("DSK", "UB", 17, 14, 5, 1, 0.2, 2, 0.52, 0.55, 5000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind("DSK", "RG", 17, 15, 4, 0.5, 0.1, 1, 0.50, 0.53, 3000),
+    ).bind("DSK", "RG", 17, 15, 4, 0.5, 0.1, 1, 0.5, 0.53, 3000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "WG", 17, 15, 4, 0.5, 0.1, 1, 0.48, 0.49, 100),
@@ -485,7 +485,9 @@ describe("draft_advisor native module", () => {
     const bear = data.recommendations.find((r) => r.card === "Forest Bear")!;
     // Gloomlake Verge is on-color (UB in UB pool) — high colorFit
     // Forest Bear is off-color (GG in UB pool) — low colorFit
-    expect(gloomlake.axes.color_commitment.color_fit).toBeGreaterThan(bear.axes.color_commitment.color_fit);
+    expect(gloomlake.axes.color_commitment.color_fit).toBeGreaterThan(
+      bear.axes.color_commitment.color_fit,
+    );
     expect(gloomlake.axes.color_commitment.color_fit).toBeGreaterThan(0.5);
   });
 
@@ -520,7 +522,7 @@ describe("draft_advisor native module", () => {
     // Forest Bear is on-color (RG pool) — should have higher opportunity score
     // Gloomlake Verge is off-color — should strand R and G cards
     expect(bear.axes.opportunity_cost.raw).toBeGreaterThan(gloomlake.axes.opportunity_cost.raw);
-    expect(gloomlake.axes.opportunity_cost.raw).toBeLessThan(1.0);
+    expect(gloomlake.axes.opportunity_cost.raw).toBeLessThan(1);
   });
 
   it("gives colorless pack card opportunity cost of 1.0", async () => {
@@ -566,7 +568,7 @@ describe("draft_advisor native module", () => {
     };
 
     const ew = data.recommendations.find((r) => r.card === "Evolving Wilds")!;
-    expect(ew.axes.opportunity_cost.raw).toBe(1.0);
+    expect(ew.axes.opportunity_cost.raw).toBe(1);
   });
 
   it("uses early weight profile for picks 1-5", async () => {
@@ -1728,7 +1730,12 @@ describe("draft_advisor native module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
     const data = result.data as {
       archetype: {
-        candidates: { color_pair: string; weight: number; deck_count: number; deck_share: number }[];
+        candidates: {
+          color_pair: string;
+          weight: number;
+          deck_count: number;
+          deck_share: number;
+        }[];
       };
     };
 
@@ -1750,10 +1757,20 @@ describe("draft_advisor native module", () => {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(20, "oracle-wp", "White Pilgrim", "White Pilgrim", "{W}{W}", 2, "Creature", '["W"]', 1),
+      ).bind(
+        20,
+        "oracle-wp",
+        "White Pilgrim",
+        "White Pilgrim",
+        "{W}{W}",
+        2,
+        "Creature",
+        '["W"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind("DSK", "White Pilgrim", 3000, 5000, 2000, 0.51, 0.52, 0.50, 0.49, 0.01, 8, 9),
+      ).bind("DSK", "White Pilgrim", 3000, 5000, 2000, 0.51, 0.52, 0.5, 0.49, 0.01, 8, 9),
     ]);
 
     const result = await draftAdvisorModule.execute(
@@ -1796,7 +1813,12 @@ describe("draft_advisor native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
     const data = result.data as {
-      picks: { pick_number: number; pack_number: number; pick_in_pack: number; display_label: string }[];
+      picks: {
+        pick_number: number;
+        pack_number: number;
+        pick_in_pack: number;
+        display_label: string;
+      }[];
     };
 
     expect(data.picks[0]!.display_label).toBe("P1P1");
