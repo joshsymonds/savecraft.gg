@@ -74,7 +74,7 @@ data_sources = [
 
 [reference.modules.draft_advisor]
 name = "Draft Advisor"
-description = "Contextual draft pick evaluation using 8-axis WASPAS scoring across all 31 color archetypes. Bayesian-calibrated baseline win rate, archetype-stratified pairwise synergy, curve fit, signal openness, role composition, castability, color commitment, and opportunity cost. Supports live pick ranking and full draft batch review."
+description = "Contextual draft pick evaluation using 8-axis WASPAS scoring across all 31 color archetypes. Bayesian-calibrated baseline win rate, archetype-stratified pairwise synergy, curve fit, signal openness, role composition, castability, color commitment, and opportunity cost. Each archetype candidate includes a viability tier (strong/moderate/sparse/fringe) so the AI warns when you're in an underrepresented archetype. Batch review tracks archetype evolution across picks. Supports live pick ranking and full draft batch review."
 
 [reference.modules.draft_advisor.attribution]
 author = "Josh Symonds"
@@ -84,7 +84,7 @@ data_sources = [
 
 [reference.modules.deckbuilding]
 name = "Deck Health & Cut Advisor"
-description = "Analyze a limited deck against empirical data from winning decks across all 31 color archetypes. Health check compares composition against archetype averages. Cut advisor scores every card across 5 axes to identify the weakest cards to cut."
+description = "Analyze a limited deck against empirical data from winning decks across all 31 color archetypes. Health check compares composition against archetype averages and suggests up to 3 alternative archetypes your pool supports with cards to cut and estimated win rate shift. Cut advisor scores every card across 5 axes to identify the weakest cards to cut."
 
 [reference.modules.deckbuilding.attribution]
 author = "Josh Symonds"
