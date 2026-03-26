@@ -1139,12 +1139,13 @@ describe("SourceHub", () => {
     // Trigger push-config on the SourceHub (like handleDeleteGame does)
     const doId = env.SOURCE_HUB.idFromName(sourceUuid);
     const doStub = env.SOURCE_HUB.get(doId);
-    await doStub.fetch(
+    const configResp = await doStub.fetch(
       new Request("https://do/push-config", {
         method: "POST",
         body: JSON.stringify({ sourceId: sourceUuid }),
       }),
     );
+    await configResp.text();
 
     // Wait for state to propagate
     await new Promise((r) => setTimeout(r, 200));

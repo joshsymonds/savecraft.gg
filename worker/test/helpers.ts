@@ -56,14 +56,12 @@ export const CLEANUP_TABLES = [
  * Delete order: children before parents (FK-safe).
  */
 export async function cleanAll(): Promise<void> {
-  for (const table of CLEANUP_TABLES) {
-    await env.DB.prepare(`DELETE FROM ${table}`).run();
-  }
-  for (const bucket of [env.PLUGINS]) {
-    const listed = await bucket.list();
-    for (const object of listed.objects) {
-      await bucket.delete(object.key);
-    }
+  await env.DB.batch(
+    CLEANUP_TABLES.map((table) => env.DB.prepare(`DELETE FROM ${table}`)),
+  );
+  const listed = await env.PLUGINS.list();
+  for (const object of listed.objects) {
+    await env.PLUGINS.delete(object.key);
   }
   clearToolCaches();
   clearNativeRegistry();
