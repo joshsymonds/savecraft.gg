@@ -12,7 +12,9 @@ package main
 
 import (
 	"context"
+	"crypto/sha256"
 	"encoding/csv"
+	"encoding/hex"
 	"flag"
 	"fmt"
 	"io"
@@ -247,45 +249,123 @@ func run() error {
 	}
 	wg.Wait()
 
-	var allSets []setResult
-	var allSynergies []synergyDataResult
+	// Collect successful results.
+	type processedSet struct {
+		result  setResult
+		synergy synergyDataResult
+	}
+	var processed []processedSet
 	for _, r := range results {
 		if r.err == nil {
-			allSets = append(allSets, r.result)
-			if len(r.synergy.Synergies) > 0 || len(r.synergy.Curves) > 0 || len(r.synergy.DeckStats) > 0 {
-				allSynergies = append(allSynergies, r.synergy)
-			}
+			processed = append(processed, processedSet{result: r.result, synergy: r.synergy})
 		}
 	}
 
-	fmt.Printf("Done processing %d sets.\n", len(allSets))
+	fmt.Printf("Done processing %d sets.\n", len(processed))
 
-	// ── Cloudflare D1 population ─────────────────────────────
+	// ── Write SQL to disk + per-set D1 import ────────────────
 	if *d1DatabaseID != "" {
-		fmt.Println("\nPopulating D1 tables...")
-
-		// Import draft ratings.
-		ratingsSQL := buildDraftRatingsImportSQL(allSets)
-		fmt.Printf("Generated %.1f MB of ratings SQL (%d sets)\n", float64(len(ratingsSQL))/1048576, len(allSets))
-		if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, ratingsSQL); err != nil {
-			return fmt.Errorf("D1 ratings import: %w", err)
+		sqlDir := filepath.Join(*cacheDir, "sql")
+		if err := os.MkdirAll(sqlDir, 0755); err != nil {
+			return fmt.Errorf("creating SQL cache dir: %w", err)
 		}
-		fmt.Println("D1 ratings population complete")
 
-		// Import synergy data.
-		if len(allSynergies) > 0 {
-			synergySQL := buildSynergyImportSQL(allSynergies)
-			fmt.Printf("Generated %.1f MB of synergy SQL (%d sets)\n", float64(len(synergySQL))/1048576, len(allSynergies))
-			if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, synergySQL); err != nil {
-				return fmt.Errorf("D1 synergy import: %w", err)
+		fmt.Println("\nWriting SQL and importing per-set...")
+
+		var importErrors []string
+		for _, ps := range processed {
+			setCode := ps.result.Set
+
+			// Compute content hash from the cached CSV file.
+			csvPath := filepath.Join(*cacheDir, fmt.Sprintf("game_data_public.%s.PremierDraft.csv.gz", setCode))
+			csvHash, err := fileHash(csvPath)
+			if err != nil {
+				fmt.Printf("  WARN: could not hash CSV for %s: %v (importing anyway)\n", setCode, err)
+				csvHash = "" // Force import if hash unavailable.
 			}
-			fmt.Println("D1 synergy population complete")
+
+			// Check pipeline state — skip if unchanged.
+			if csvHash != "" {
+				existing, err := cfapi.GetPipelineHash(*cfAccountID, *d1DatabaseID, *cfAPIToken, "17lands", setCode)
+				if err == nil && existing == csvHash {
+					fmt.Printf("  %s: unchanged (hash match), skipping\n", setCode)
+					continue
+				}
+			}
+
+			// Generate per-set SQL.
+			ratingsSQL := buildSetRatingsSQL(ps.result)
+			ratingsPath := filepath.Join(sqlDir, setCode+"_ratings.sql")
+			if err := os.WriteFile(ratingsPath, []byte(ratingsSQL), 0644); err != nil {
+				return fmt.Errorf("writing ratings SQL for %s: %w", setCode, err)
+			}
+
+			hasSynergy := len(ps.synergy.Synergies) > 0 || len(ps.synergy.Curves) > 0 || len(ps.synergy.DeckStats) > 0
+			var synergyPath string
+			if hasSynergy {
+				synergySQL := buildSetSynergySQL(ps.synergy)
+				synergyPath = filepath.Join(sqlDir, setCode+"_synergy.sql")
+				if err := os.WriteFile(synergyPath, []byte(synergySQL), 0644); err != nil {
+					return fmt.Errorf("writing synergy SQL for %s: %w", setCode, err)
+				}
+			}
+
+			// Import ratings.
+			fmt.Printf("  %s: importing ratings (%.1f KB)...\n", setCode, float64(len(ratingsSQL))/1024)
+			if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, ratingsSQL); err != nil {
+				fmt.Printf("  FAIL: %s ratings import: %v\n", setCode, err)
+				importErrors = append(importErrors, setCode+" ratings")
+				continue // Leave SQL on disk for retry.
+			}
+			os.Remove(ratingsPath)
+
+			// Import synergy.
+			if hasSynergy {
+				synergySQL, _ := os.ReadFile(synergyPath)
+				fmt.Printf("  %s: importing synergy (%.1f MB)...\n", setCode, float64(len(synergySQL))/1048576)
+				if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, string(synergySQL)); err != nil {
+					fmt.Printf("  FAIL: %s synergy import: %v\n", setCode, err)
+					importErrors = append(importErrors, setCode+" synergy")
+					continue // Leave SQL on disk for retry.
+				}
+				os.Remove(synergyPath)
+			}
+
+			// Update pipeline state on success.
+			if csvHash != "" {
+				rowCount := len(ps.result.Cards) + len(ps.synergy.Synergies) + len(ps.synergy.Curves)
+				if err := cfapi.UpdatePipelineState(*cfAccountID, *d1DatabaseID, *cfAPIToken, "17lands", setCode, csvHash, rowCount); err != nil {
+					fmt.Printf("  WARN: %s pipeline state update failed: %v\n", setCode, err)
+				}
+			}
+
+			fmt.Printf("  %s: done\n", setCode)
 		}
+
+		if len(importErrors) > 0 {
+			return fmt.Errorf("D1 import failed for %d sets: %s (SQL cached in %s for retry)", len(importErrors), strings.Join(importErrors, ", "), sqlDir)
+		}
+
+		fmt.Println("D1 population complete")
 	} else {
 		fmt.Println("No --d1-database-id specified; skipping D1 population.")
 	}
 
 	return nil
+}
+
+// fileHash computes the SHA-256 hash of a file on disk.
+func fileHash(path string) (string, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return "", err
+	}
+	defer f.Close()
+	h := sha256.New()
+	if _, err := io.Copy(h, f); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
 func processDraftData(set string, cacheDir string, accums map[string]map[string]*cardAccum) error {

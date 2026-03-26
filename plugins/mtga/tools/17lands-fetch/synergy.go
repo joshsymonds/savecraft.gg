@@ -597,37 +597,74 @@ func processGameAndSynergyCSV(r io.Reader, set string, cardCMC map[string]float6
 	return accums, syn, nil
 }
 
-// buildSynergyImportSQL generates SQL for D1 bulk import of synergy, curve, role target, and calibration data.
-func buildSynergyImportSQL(results []synergyDataResult) string {
+// buildSetSynergySQL generates per-set SQL with per-set DELETEs (WHERE set_code = X)
+// instead of global DELETEs. Each set can be imported independently.
+func buildSetSynergySQL(r synergyDataResult) string {
 	var b strings.Builder
 	q := cfapi.SQLQuote
+	sc := q(r.Set)
 
-	b.WriteString("DELETE FROM mtga_draft_synergies;\n")
-	b.WriteString("DELETE FROM mtga_draft_archetype_curves;\n")
-	b.WriteString("DELETE FROM mtga_draft_role_targets;\n")
-	b.WriteString("DELETE FROM mtga_draft_deck_stats;\n")
-	b.WriteString("DELETE FROM mtga_draft_calibration;\n")
+	// Per-set DELETEs — only remove this set's data, not all sets.
+	fmt.Fprintf(&b, "DELETE FROM mtga_draft_synergies WHERE set_code = %s;\n", sc)
+	fmt.Fprintf(&b, "DELETE FROM mtga_draft_archetype_curves WHERE set_code = %s;\n", sc)
+	fmt.Fprintf(&b, "DELETE FROM mtga_draft_role_targets WHERE set_code = %s;\n", sc)
+	fmt.Fprintf(&b, "DELETE FROM mtga_draft_deck_stats WHERE set_code = %s;\n", sc)
+	fmt.Fprintf(&b, "DELETE FROM mtga_draft_calibration WHERE set_code = %s;\n", sc)
 
-	for _, r := range results {
-		for _, s := range r.Synergies {
-			fmt.Fprintf(&b, "INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (%s, %s, %s, %g, %d);\n",
-				q(r.Set), q(s.CardA), q(s.CardB), s.SynergyDelta, s.GamesTogether)
-		}
-		for _, c := range r.Curves {
-			fmt.Fprintf(&b, "INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (%s, %s, %d, %g, %d);\n",
-				q(r.Set), q(c.ColorPair), c.CMC, c.AvgCount, c.TotalDecks)
-		}
-		for _, rt := range r.RoleTargets {
-			fmt.Fprintf(&b, "INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (%s, %s, %s, %g, %d);\n",
-				q(r.Set), q(rt.ColorPair), q(rt.Role), rt.AvgCount, rt.TotalDecks)
-		}
-		for _, ds := range r.DeckStats {
-			fmt.Fprintf(&b, "INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (%s, %s, %g, %g, %g, %g, %g, %g, %g, %g, %d);\n",
-				q(r.Set), q(ds.ColorPair), ds.AvgLands, ds.AvgCreatures, ds.AvgNoncreatures, ds.AvgFixing, ds.SplashRate, ds.SplashAvgSources, ds.SplashWinrate, ds.NonsplashWinrate, ds.TotalDecks)
-		}
-		for _, cal := range r.Calibration {
-			fmt.Fprintf(&b, "INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (%s, %s, %g, %g);\n",
-				q(r.Set), q(cal.Axis), cal.Center, cal.Steepness)
+	for _, s := range r.Synergies {
+		fmt.Fprintf(&b, "INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (%s, %s, %s, %g, %d);\n",
+			sc, q(s.CardA), q(s.CardB), s.SynergyDelta, s.GamesTogether)
+	}
+	for _, c := range r.Curves {
+		fmt.Fprintf(&b, "INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (%s, %s, %d, %g, %d);\n",
+			sc, q(c.ColorPair), c.CMC, c.AvgCount, c.TotalDecks)
+	}
+	for _, rt := range r.RoleTargets {
+		fmt.Fprintf(&b, "INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (%s, %s, %s, %g, %d);\n",
+			sc, q(rt.ColorPair), q(rt.Role), rt.AvgCount, rt.TotalDecks)
+	}
+	for _, ds := range r.DeckStats {
+		fmt.Fprintf(&b, "INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (%s, %s, %g, %g, %g, %g, %g, %g, %g, %g, %d);\n",
+			sc, q(ds.ColorPair), ds.AvgLands, ds.AvgCreatures, ds.AvgNoncreatures, ds.AvgFixing, ds.SplashRate, ds.SplashAvgSources, ds.SplashWinrate, ds.NonsplashWinrate, ds.TotalDecks)
+	}
+	for _, cal := range r.Calibration {
+		fmt.Fprintf(&b, "INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (%s, %s, %g, %g);\n",
+			sc, q(cal.Axis), cal.Center, cal.Steepness)
+	}
+
+	return b.String()
+}
+
+// buildSetRatingsSQL generates per-set SQL for draft ratings with per-set DELETEs.
+func buildSetRatingsSQL(sr setResult) string {
+	var b strings.Builder
+	q := cfapi.SQLQuote
+	sc := q(sr.Set)
+
+	// Per-set DELETEs.
+	fmt.Fprintf(&b, "DELETE FROM mtga_draft_ratings_fts WHERE set_code = %s;\n", sc)
+	fmt.Fprintf(&b, "DELETE FROM mtga_draft_color_stats WHERE set_code = %s;\n", sc)
+	fmt.Fprintf(&b, "DELETE FROM mtga_draft_ratings WHERE set_code = %s;\n", sc)
+	fmt.Fprintf(&b, "DELETE FROM mtga_draft_set_stats WHERE set_code = %s;\n", sc)
+
+	fmt.Fprintf(&b, "INSERT INTO mtga_draft_set_stats (set_code, format, total_games, card_count, avg_gihwr) VALUES (%s, 'PremierDraft', %d, %d, %g);\n",
+		sc, sr.TotalGames, sr.CardCount, round4(sr.AvgGIHWR))
+
+	for _, c := range sr.Cards {
+		o := c.Overall
+		fmt.Fprintf(&b, "INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (%s, %s, %d, %d, %d, %g, %g, %g, %g, %g, %g, %g, %g);\n",
+			sc, q(c.Name),
+			o.GamesInHand, o.GamesPlayed, o.GamesNotSeen,
+			round4(o.GIHWR), round4(o.OHWR), round4(o.GDWR), round4(o.GNSWR),
+			round4(o.IWD), round4(o.ALSA), round4(o.ATA), round4(o.ATAStddev))
+		fmt.Fprintf(&b, "INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (%s, %s);\n",
+			sc, q(c.Name))
+		for cp, s := range c.ByColor {
+			fmt.Fprintf(&b, "INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata, ata_stddev) VALUES (%s, %s, %s, %d, %d, %d, %g, %g, %g, %g, %g, %g, %g, %g);\n",
+				sc, q(c.Name), q(cp),
+				s.GamesInHand, s.GamesPlayed, s.GamesNotSeen,
+				round4(s.GIHWR), round4(s.OHWR), round4(s.GDWR), round4(s.GNSWR),
+				round4(s.IWD), round4(s.ALSA), round4(s.ATA), round4(s.ATAStddev))
 		}
 	}
 
