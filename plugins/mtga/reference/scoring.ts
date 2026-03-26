@@ -101,6 +101,24 @@ export const DEFAULT_ASFAN = 0.4;
 export const DEFAULT_PACK_SIZE = 14;
 export const META_BATCH_SIZE = 99;
 
+/** All basic land card names in Magic: The Gathering. These are always
+ *  available for free during Arena deckbuilding, so drafting one has zero
+ *  marginal value. The draft advisor excludes them from recommendations. */
+export const BASIC_LAND_NAMES: ReadonlySet<string> = new Set([
+  "Plains",
+  "Island",
+  "Swamp",
+  "Mountain",
+  "Forest",
+  "Wastes",
+  "Snow-Covered Plains",
+  "Snow-Covered Island",
+  "Snow-Covered Swamp",
+  "Snow-Covered Mountain",
+  "Snow-Covered Forest",
+  "Snow-Covered Wastes",
+]);
+
 export const ALL_COLOR_PAIRS = [
   "WU",
   "WB",

@@ -1324,4 +1324,91 @@ describe("draft_advisor native module", () => {
       data.summary.optimal + data.summary.good + data.summary.questionable + data.summary.misses,
     ).toBe(data.summary.total_picks);
   });
+
+  // ── Basic land filtering tests ──────────────────────────────
+
+  async function seedBasicLand(): Promise<void> {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(9999, "oracle-mountain", "Mountain", "Mountain", "", 0, "Basic Land — Mountain", "[]", 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Mountain", 49_000, 55_000, 6000, 0.576, 0.58, 0.57, 0.5, 0.02, 14, 13.9),
+    ]);
+  }
+
+  it("excludes basic lands from live pick recommendations", async () => {
+    await seedContextualData();
+    await seedBasicLand();
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge"],
+        pack: ["Blazing Bolt", "Forest Bear", "Mountain"],
+        pick_number: 5,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as { recommendations: { card: string }[] };
+    const cardNames = data.recommendations.map((r) => r.card);
+    expect(cardNames).not.toContain("Mountain");
+    expect(cardNames).toHaveLength(2);
+  });
+
+  it("returns no scorable cards when pack is all basic lands", async () => {
+    await seedContextualData();
+    await seedBasicLand();
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge"],
+        pack: ["Mountain"],
+        pick_number: 14,
+      },
+      env,
+    );
+
+    // All basics filtered → empty packMeta → early return with error
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as { error?: string; recommendations?: unknown[] };
+    expect(data.error).toBeDefined();
+    expect(data.recommendations).toBeUndefined();
+  });
+
+  it("skips basic land picks in batch review", async () => {
+    await seedContextualData();
+    await seedBasicLand();
+
+    // Mountain is in the MIDDLE of pick_history — verifies it doesn't
+    // pollute poolSoFar for the Forest Bear evaluation that follows it.
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pick_history: [
+          { available: ["Blazing Bolt", "Forest Bear", "Mountain"], chosen: "Blazing Bolt" },
+          { available: ["Forest Bear", "Mountain"], chosen: "Mountain" },
+          { available: ["Forest Bear", "Gloomlake Verge"], chosen: "Forest Bear" },
+        ],
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      summary: { total_picks: number; optimal: number; good: number; questionable: number; misses: number };
+      picks: { chosen: string }[];
+    };
+    // Mountain pick should be skipped entirely
+    expect(data.picks.map((p) => p.chosen)).not.toContain("Mountain");
+    expect(data.summary.total_picks).toBe(2);
+    expect(data.summary.optimal + data.summary.good + data.summary.questionable + data.summary.misses).toBe(2);
+  });
 });

@@ -26,6 +26,7 @@ import {
   type ArchetypeCandidate,
   type WeightSet,
   type PickHistoryEntry,
+  BASIC_LAND_NAMES,
   DEFAULT_ASFAN,
   DEFAULT_PACK_SIZE,
   META_BATCH_SIZE,
@@ -285,7 +286,9 @@ async function contextualPick(
     .filter((m): m is CardMetaRow => m != null);
   const packMeta = pack
     .map((n) => metaByName.get(n))
-    .filter((m): m is CardMetaRow => m != null);
+    .filter(
+      (m): m is CardMetaRow => m != null && !BASIC_LAND_NAMES.has(m.name),
+    );
 
   // 2. Determine candidate archetypes.
   const candidates = determineCandidateArchetypes(poolMeta);
@@ -946,6 +949,9 @@ async function batchReview(
   for (let i = 0; i < pickHistory.length; i++) {
     const entry = pickHistory[i]!;
     if (!entry.chosen || entry.available.length === 0) continue;
+    // Skip basic land picks entirely — they have zero marginal value in Arena
+    // (unlimited basics available for free during deckbuilding).
+    if (BASIC_LAND_NAMES.has(entry.chosen)) continue;
 
     const pickNumber = i + 1;
     const packNumber = Math.floor(i / batchPackSize);
