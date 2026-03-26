@@ -331,17 +331,18 @@ async function contextualPick(
   ];
 
   // Build all query promises — use preloaded data when available.
+  // Query all card names (pack + pool) so opportunity cost can use pool baselines.
   const overallPromise: Promise<{ results: RatingRow[] }> = preloaded
     ? Promise.resolve({
-        results: packNames
+        results: allCardNames
           .map((n) => preloaded.allRatings.get(n))
           .filter((r): r is RatingRow => r != null),
       })
     : db
         .prepare(
-          `SELECT * FROM mtga_draft_ratings WHERE set_code = ?1 AND card_name IN (${placeholders(packNames.length, 2)})`,
+          `SELECT * FROM mtga_draft_ratings WHERE set_code = ?1 AND card_name IN (${placeholders(allCardNames.length, 2)})`,
         )
-        .bind(setCode, ...packNames)
+        .bind(setCode, ...allCardNames)
         .all<RatingRow>();
 
   const colorStatsPromises: Array<Promise<{ results: RatingRow[] }>> = preloaded
@@ -810,8 +811,70 @@ async function contextualPick(
       colorFit = Math.max(...[...cardColors.keys()].map((c) => colorCommitments.get(c) ?? 0));
     }
 
-    // Opportunity cost: placeholder — full implementation in next task.
-    const opportunityScore = 1.0;
+    // Opportunity cost: what pool value do we strand by taking this card?
+    let opportunityScore = 1.0;
+    if (cardColors.size > 0 && poolMeta.length > 0) {
+      // Find the implied pair: highest-weight candidate that includes at least
+      // one of this card's colors. If none match, use the top candidate.
+      const cardColorSet = new Set(cardColors.keys());
+      let bestImpliedPair: string | undefined;
+      let bestStrandedValue = Infinity;
+
+      // Try each candidate pair that overlaps with the card's colors.
+      const overlappingPairs = candidates.filter(
+        (c) =>
+          c.colorPair !== "_overall" &&
+          (cardColorSet.has(c.colorPair[0]!) || cardColorSet.has(c.colorPair[1]!)),
+      );
+      // Also consider the primary pair as fallback.
+      const pairsToTry =
+        overlappingPairs.length > 0
+          ? overlappingPairs
+          : candidates.filter((c) => c.colorPair !== "_overall").slice(0, 1);
+
+      for (const candidate of pairsToTry) {
+        const pairColors = new Set([candidate.colorPair[0]!, candidate.colorPair[1]!]);
+        let strandedValue = 0;
+        let totalValue = 0;
+
+        for (let idx = 0; idx < poolMeta.length; idx++) {
+          const poolCard = poolMeta[idx]!;
+          const poolCardColors = countPips(poolCard.mana_cost);
+          const poolBaseline = overallByName.get(poolCard.name)?.gihwr ?? 0;
+          if (poolBaseline <= 0) continue;
+
+          // Time decay: earlier pool cards cost less to strand.
+          const pickInvestmentWeight = (idx + 1) / pickNumber;
+          const weightedBaseline = poolBaseline * pickInvestmentWeight;
+          totalValue += weightedBaseline;
+
+          // Colorless pool cards are never stranded.
+          if (poolCardColors.size === 0) continue;
+
+          // Card is stranded if none of its colors are in the implied pair.
+          const onColor = [...poolCardColors.keys()].some((c) => pairColors.has(c));
+          if (!onColor) {
+            strandedValue += weightedBaseline;
+          }
+        }
+
+        if (strandedValue < bestStrandedValue) {
+          bestStrandedValue = strandedValue;
+          bestImpliedPair = candidate.colorPair;
+        }
+      }
+
+      if (bestImpliedPair !== undefined) {
+        const totalValue = poolMeta.reduce((sum, card, idx) => {
+          const baseline = overallByName.get(card.name)?.gihwr ?? 0;
+          return sum + baseline * ((idx + 1) / pickNumber);
+        }, 0);
+        opportunityScore =
+          totalValue > 0
+            ? Math.max(0, Math.min(1, 1 - bestStrandedValue / totalValue))
+            : 1.0;
+      }
+    }
 
     // Sigmoid normalization.
     const bsp = sp.baseline ?? DEFAULT_SIGMOID_PARAMS.baseline!;

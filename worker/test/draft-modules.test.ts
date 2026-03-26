@@ -444,6 +444,86 @@ describe("draft_advisor native module", () => {
     expect(bear.axes.color_commitment.color_fit).toBeLessThan(0.5);
   });
 
+  it("gives off-color card higher opportunity cost than on-color card", async () => {
+    await seedContextualData();
+
+    // Pool has Blazing Bolt (R) and Forest Bear (GG) — committed to RG.
+    // Pack has Gloomlake Verge (UB, off-color) and Forest Bear (GG, on-color).
+    // Gloomlake Verge implies a pair with U or B — stranding the R and G cards.
+    // Forest Bear is on-color (G is committed) — no stranding.
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Blazing Bolt", "Blazing Bolt", "Forest Bear", "Forest Bear", "Forest Bear"],
+        pack: ["Gloomlake Verge", "Forest Bear"],
+        pick_number: 15,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      recommendations: {
+        card: string;
+        axes: { opportunity_cost: { raw: number } };
+      }[];
+    };
+
+    const gloomlake = data.recommendations.find((r) => r.card === "Gloomlake Verge")!;
+    const bear = data.recommendations.find((r) => r.card === "Forest Bear")!;
+    // Forest Bear is on-color (RG pool) — should have higher opportunity score
+    // Gloomlake Verge is off-color — should strand R and G cards
+    expect(bear.axes.opportunity_cost.raw).toBeGreaterThan(gloomlake.axes.opportunity_cost.raw);
+    expect(gloomlake.axes.opportunity_cost.raw).toBeLessThan(1.0);
+  });
+
+  it("gives colorless pack card opportunity cost of 1.0", async () => {
+    await seedContextualData();
+    // Add Evolving Wilds (colorless land with produced_mana) to cards table
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        10,
+        "oracle-ew",
+        "Evolving Wilds",
+        "Evolving Wilds",
+        "",
+        0,
+        "Land",
+        "[]",
+        '["W","U","B","R","G"]',
+        1,
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "Evolving Wilds", 5000, 8000, 3000, 0.54, 0.55, 0.52, 0.5, 0.02, 6, 5),
+    ]);
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge", "Gloomlake Verge"],
+        pack: ["Evolving Wilds", "Forest Bear"],
+        pick_number: 10,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      recommendations: {
+        card: string;
+        axes: { opportunity_cost: { raw: number } };
+      }[];
+    };
+
+    const ew = data.recommendations.find((r) => r.card === "Evolving Wilds")!;
+    expect(ew.axes.opportunity_cost.raw).toBe(1.0);
+  });
+
   it("uses early weight profile for picks 1-5", async () => {
     await seedContextualData();
 
