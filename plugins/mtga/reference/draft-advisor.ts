@@ -76,6 +76,7 @@ interface PickRecommendation {
       potential_sources: number;
       effective_sources: number;
       source_model: "current" | "splash" | "pivot";
+      bomb_dampening: number;
     };
     signal: AxisScore & { ata: number; current_pick: number };
   };
@@ -794,7 +795,17 @@ async function contextualPick(
     const curveNorm = sigmoid(curveScore, csp.center, csp.steepness);
     const signalNorm = sigmoid(signalScore, sigsp.center, sigsp.steepness);
     const roleNorm = sigmoid(roleScore, rsp.center, rsp.steepness);
-    const castabilityNorm = castabilityScore;
+    // Power-aware castability dampening: bombs get a castability pass early in
+    // draft. Based on Saxe's λ_t research and PVDDR's value-above-replacement
+    // principle — the higher a card's baseline, the less castability should
+    // matter because the EV of "take the bomb, fix mana later" dominates.
+    const bombThreshold = 0.80;
+    const bombExcess = Math.max(0, baselineNorm - bombThreshold);
+    const earlyFactor = Math.max(0, 1 - pickNumber / (totalPicks * 0.6));
+    const bombDampening = Math.min(0.35, bombExcess * earlyFactor * 2.5);
+    const dampedCastability =
+      castabilityScore + (1 - castabilityScore) * bombDampening;
+    const castabilityNorm = dampedCastability;
 
     // WASPAS hybrid.
     const wsm =
@@ -856,14 +867,15 @@ async function contextualPick(
         },
         castability: {
           raw: r4(castabilityScore),
-          normalized: r4(castabilityNorm),
+          normalized: r4(dampedCastability),
           weight: r4(weights.castability),
-          contribution: r4(weights.castability * castabilityNorm),
+          contribution: r4(weights.castability * dampedCastability),
           max_pips: maxPips,
           estimated_sources: worstCurrentSources,
           potential_sources: r4(worstPotentialSources),
           effective_sources: r4(worstEffectiveSources),
           source_model: worstSourceModel,
+          bomb_dampening: r4(bombDampening),
         },
         signal: {
           raw: r4(signalScore),
@@ -1051,11 +1063,13 @@ export const draftAdvisorModule: NativeReferenceModule = {
     "   - 'optimal' = chosen was rank 1, 'good' = rank 2, 'questionable' = rank 3, 'miss' = rank 4+.",
     "   - For detailed analysis of specific picks, call LIVE PICK mode with pool = in_deck, pack = available, pick_number from the draft_history section data.",
     "",
-    "WEIGHT PROFILES: Early picks (1-5) favor baseline + signal + castability. Mid picks (6-20) balance all axes. Late picks (21+) favor synergy + role + curve.",
+    "WEIGHT PROFILES: Early picks (1-14, pack 1) favor baseline + signal — castability is near-zero because color commitment should be minimal through pack 1. Mid picks (15-28, pack 2) balance all axes as castability rises. Late picks (29+, pack 3) favor synergy + role + curve + castability.",
     "",
     "CASTABILITY uses pivot-potential modeling: off-color cards get credit for sources you could acquire over remaining picks. Single-pip cards use splash curve (ASFAN-dependent), double-pip cards use pivot curve (steeper decay). Output includes source_model ('current'/'splash'/'pivot') to explain the estimation basis.",
     "",
-    "SPLASH RULES: Only splash single-pip cards at CMC 4+ with 3+ sources. Never splash double-pip. Check castability score — below 0.7 means unreliable.",
+    "BOMB DAMPENING: Cards with exceptional baseline (normalized > 0.80) receive power-aware castability dampening early in draft — the bomb_dampening field shows the boost. This reflects draft theory: 'take the bomb, fix the mana later' dominates color concerns in pack 1. Double-pip off-color in pack 1 is a deck-building flag, not a draft-time disqualifier. Note the mana difficulty but do not steer the drafter away from bombs based on castability alone.",
+    "",
+    "SPLASH RULES (deck-building, not early-draft): Only splash single-pip cards at CMC 4+ with 3+ sources. Never splash double-pip. Check castability score — below 0.7 means unreliable.",
     "",
     "Data source: 17Lands (17lands.com), licensed CC BY 4.0.",
   ].join("\n"),
