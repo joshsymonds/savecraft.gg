@@ -118,6 +118,8 @@ interface PreloadedSetData {
   asfan: number;
   /** Cards per booster pack (from set_metadata, default 14). */
   packSize: number;
+  /** Deck counts per color pair from mtga_draft_deck_stats. */
+  deckStatsByPair: Map<string, number>;
 }
 
 // ── Preload set-level data for batch review ──────────────────
@@ -151,6 +153,7 @@ async function preloadSetData(
     cardRoleResult,
     ratingsResult,
     colorStatsResult,
+    deckStatsResult,
     ...metaResults
   ] = await Promise.all([
     db
@@ -193,6 +196,12 @@ async function preloadSetData(
       )
       .bind(setCode)
       .all<RatingRow & { color_pair: string }>(),
+    db
+      .prepare(
+        `SELECT color_pair, total_decks FROM mtga_draft_deck_stats WHERE set_code = ?1`,
+      )
+      .bind(setCode)
+      .all<{ color_pair: string; total_decks: number }>(),
     ...metaChunks,
   ]);
 
@@ -230,6 +239,12 @@ async function preloadSetData(
     }
   }
 
+  // Build deck stats map.
+  const deckStatsByPair = new Map<string, number>();
+  for (const row of deckStatsResult.results) {
+    deckStatsByPair.set(row.color_pair, row.total_decks);
+  }
+
   const setMeta = setMetaResult.results[0];
   return {
     sigmoidParams,
@@ -241,6 +256,7 @@ async function preloadSetData(
     metaCache,
     asfan: setMeta?.asfan ?? DEFAULT_ASFAN,
     packSize: setMeta?.pack_size ?? DEFAULT_PACK_SIZE,
+    deckStatsByPair,
   };
 }
 
@@ -449,6 +465,21 @@ async function contextualPick(
         .bind(setCode)
         .all<SetMetadataRow>();
 
+  const deckStatsPromise: Promise<{
+    results: { color_pair: string; total_decks: number }[];
+  }> = preloaded
+    ? Promise.resolve({
+        results: [...preloaded.deckStatsByPair.entries()].map(
+          ([color_pair, total_decks]) => ({ color_pair, total_decks }),
+        ),
+      })
+    : db
+        .prepare(
+          `SELECT color_pair, total_decks FROM mtga_draft_deck_stats WHERE set_code = ?1`,
+        )
+        .bind(setCode)
+        .all<{ color_pair: string; total_decks: number }>();
+
   const allResults = await Promise.all([
     overallPromise,
     ...colorStatsPromises,
@@ -458,6 +489,7 @@ async function contextualPick(
     roleTargetPromise,
     calibrationPromise,
     setMetaPromise,
+    deckStatsPromise,
   ]);
   const overallRatings = allResults[0] as Awaited<typeof overallPromise>;
   const colorStatsResults = allResults.slice(
@@ -471,6 +503,7 @@ async function contextualPick(
     roleTargetResult,
     calibrationResult,
     setMetaResult,
+    deckStatsResult,
   ] = allResults.slice(1 + colorStatsPromises.length) as [
     Awaited<typeof synergyPromise>,
     Awaited<typeof curvePromise>,
@@ -478,6 +511,7 @@ async function contextualPick(
     Awaited<typeof roleTargetPromise>,
     Awaited<typeof calibrationPromise>,
     Awaited<typeof setMetaPromise>,
+    Awaited<typeof deckStatsPromise>,
   ];
 
   const overallByName = new Map(
@@ -491,6 +525,16 @@ async function contextualPick(
     );
     colorStatsByPairAndCard.set(realCandidates[i]!.colorPair, byCard);
   }
+
+  // Build deck stats for archetype viability filtering.
+  const deckCountByPair = new Map<string, number>();
+  for (const row of deckStatsResult.results) {
+    deckCountByPair.set(row.color_pair, row.total_decks);
+  }
+  const totalDecksAllPairs = [...deckCountByPair.values()].reduce(
+    (a, b) => a + b,
+    0,
+  );
 
   const synergyByPackCard = new Map<
     string,
@@ -1016,10 +1060,25 @@ async function contextualPick(
     data: {
       archetype: {
         primary: primaryArchetype,
-        candidates: candidates.map((c) => ({
-          color_pair: c.colorPair,
-          weight: Math.round(c.weight * 100) / 100,
-        })),
+        candidates: candidates
+          .filter((c) => {
+            if (c.colorPair === "_overall") return true;
+            if (totalDecksAllPairs === 0) return true;
+            const deckCount = deckCountByPair.get(c.colorPair) ?? 0;
+            return deckCount / totalDecksAllPairs >= 0.02;
+          })
+          .map((c) => {
+            const deckCount = deckCountByPair.get(c.colorPair) ?? 0;
+            return {
+              color_pair: c.colorPair,
+              weight: Math.round(c.weight * 100) / 100,
+              deck_count: deckCount,
+              deck_share:
+                totalDecksAllPairs > 0
+                  ? Math.round((deckCount / totalDecksAllPairs) * 1000) / 1000
+                  : 0,
+            };
+          }),
         confidence: Math.round(confidence * 100) / 100,
       },
       pick_number: pickNumber,
@@ -1045,6 +1104,7 @@ interface BatchPickResult {
   pick_number: number;
   pack_number: number;
   pick_in_pack: number;
+  display_label: string;
   chosen: string;
   chosen_rank: number;
   chosen_composite: number;
@@ -1131,6 +1191,7 @@ async function batchReview(
       pick_number: pickNumber,
       pack_number: packNumber + 1,
       pick_in_pack: pickInPack,
+      display_label: `P${packNumber + 1}P${pickInPack}`,
       chosen: entry.chosen,
       chosen_rank: chosenRank,
       chosen_composite: chosenComposite,
