@@ -144,8 +144,8 @@
         <div class="step-icon" style="color: var(--color-gold);">?</div>
         <h3 class="step-name">ASK</h3>
         <p class="step-desc">
-          Connect Claude or ChatGPT. Your AI reads your actual game state and gives answers
-          grounded in real data — not hallucinated guesses.
+          Connect Claude or ChatGPT. Your AI reads your actual game state and gives answers grounded
+          in real data — not hallucinated guesses.
         </p>
       </div>
     </div>

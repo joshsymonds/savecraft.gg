@@ -51,41 +51,70 @@
       <div class="client-walkthrough">
         <h3 class="client-name">Claude.ai</h3>
         <ol class="steps">
-          <li>Open <a href="https://claude.ai" class="text-link" target="_blank" rel="noopener">claude.ai</a> and sign in.</li>
+          <li>
+            Open <a href="https://claude.ai" class="text-link" target="_blank" rel="noopener"
+              >claude.ai</a
+            > and sign in.
+          </li>
           <li>Click your profile icon in the lower left, then click <strong>Settings</strong>.</li>
           <li>Click <strong>Connectors</strong> in the sidebar.</li>
           <li>Click <strong>Add Custom Connector</strong>.</li>
-          <li>Paste this URL and click <strong>Save</strong>:
+          <li>
+            Paste this URL and click <strong>Save</strong>:
             <code class="url-block">https://mcp.savecraft.gg</code>
           </li>
-          <li>Claude will ask you to <strong>authorize Savecraft</strong>. Click Allow. You'll sign in to Savecraft if you aren't already.</li>
-          <li>Go back to a chat and ask something like: <em>&ldquo;What games do I have in Savecraft?&rdquo;</em></li>
-          <li class="success-step"><strong>Success looks like:</strong> Claude responds with your game saves &mdash; character names, levels, builds, and stats.</li>
+          <li>
+            Claude will ask you to <strong>authorize Savecraft</strong>. Click Allow. You'll sign in
+            to Savecraft if you aren't already.
+          </li>
+          <li>
+            Go back to a chat and ask something like: <em
+              >&ldquo;What games do I have in Savecraft?&rdquo;</em
+            >
+          </li>
+          <li class="success-step">
+            <strong>Success looks like:</strong> Claude responds with your game saves &mdash; character
+            names, levels, builds, and stats.
+          </li>
         </ol>
       </div>
 
       <div class="client-walkthrough">
         <h3 class="client-name">ChatGPT</h3>
         <ol class="steps">
-          <li>Open <a href="https://chatgpt.com" class="text-link" target="_blank" rel="noopener">chatgpt.com</a> and sign in.</li>
+          <li>
+            Open <a href="https://chatgpt.com" class="text-link" target="_blank" rel="noopener"
+              >chatgpt.com</a
+            > and sign in.
+          </li>
           <li>Click your profile icon in the top right, then click <strong>Settings</strong>.</li>
           <li>Click <strong>Connections</strong> in the sidebar.</li>
           <li>Click <strong>Add remote server</strong>.</li>
-          <li>Paste this URL and click <strong>Save</strong>:
+          <li>
+            Paste this URL and click <strong>Save</strong>:
             <code class="url-block">https://mcp.savecraft.gg</code>
           </li>
-          <li>ChatGPT will ask you to <strong>authorize Savecraft</strong>. Click Allow. You'll sign in to Savecraft if you aren't already.</li>
-          <li>Start a new chat and ask something like: <em>&ldquo;What games do I have in Savecraft?&rdquo;</em></li>
-          <li class="success-step"><strong>Success looks like:</strong> ChatGPT responds with your game saves &mdash; character names, levels, builds, and stats.</li>
+          <li>
+            ChatGPT will ask you to <strong>authorize Savecraft</strong>. Click Allow. You'll sign
+            in to Savecraft if you aren't already.
+          </li>
+          <li>
+            Start a new chat and ask something like: <em
+              >&ldquo;What games do I have in Savecraft?&rdquo;</em
+            >
+          </li>
+          <li class="success-step">
+            <strong>Success looks like:</strong> ChatGPT responds with your game saves &mdash; character
+            names, levels, builds, and stats.
+          </li>
         </ol>
       </div>
     </div>
 
     <p class="section-note">
       You can revoke access at any time from your
-      <a href={`${PUBLIC_APP_URL}/sources`} class="text-link">sources page</a>.
-      Your AI assistant never sees your password &mdash; only a token that grants access to your
-      saves and notes.
+      <a href={`${PUBLIC_APP_URL}/sources`} class="text-link">sources page</a>. Your AI assistant
+      never sees your password &mdash; only a token that grants access to your saves and notes.
     </p>
   </section>
 
