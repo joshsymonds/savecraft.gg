@@ -6,7 +6,7 @@
 // Data source: 17Lands (17lands.com), licensed CC BY 4.0
 //
 // D1 population (when --d1-database-id set):
-//   - mtga_draft_ratings, mtga_draft_color_stats, mtga_draft_set_stats,
+//   - mtga_draft_ratings, mtga_draft_archetype_stats, mtga_draft_set_stats,
 //     mtga_draft_ratings_fts tables via Cloudflare D1 bulk import API
 package main
 
@@ -115,8 +115,32 @@ type cardResult struct {
 	ByColor map[string]setCardStats
 }
 
-// Color pairs for archetype breakdowns.
-var colorPairs = []string{"WU", "WB", "WR", "WG", "UB", "UR", "UG", "BR", "BG", "RG"}
+// colorCombos holds all 31 non-empty subsets of WUBRG, ordered by size then
+// WUBRG position. Used as archetype keys for stratified card stats, curves,
+// role targets, and deck stats.
+var colorCombos = allColorCombos()
+
+// allColorCombos returns all 31 non-empty subsets of WUBRG in canonical order:
+// 5 mono, 10 pair, 10 triple, 5 quad, 1 five-color.
+func allColorCombos() []string {
+	colors := "WUBRG"
+	var combos []string
+	for mask := 1; mask < (1 << len(colors)); mask++ {
+		var buf []byte
+		for i := range len(colors) {
+			if mask&(1<<i) != 0 {
+				buf = append(buf, colors[i])
+			}
+		}
+		combos = append(combos, string(buf))
+	}
+	// Sort by length (mono first, five-color last), preserving WUBRG
+	// order within each group via stable sort.
+	sort.SliceStable(combos, func(i, j int) bool {
+		return len(combos[i]) < len(combos[j])
+	})
+	return combos
+}
 
 func main() {
 	if err := run(); err != nil {
@@ -488,9 +512,9 @@ func buildSetResult(set string, accums map[string]map[string]*cardAccum) setResu
 			ByColor: make(map[string]setCardStats),
 		}
 
-		for _, cp := range colorPairs {
-			if ca, ok := accums[cp][name]; ok && ca.gamesInDeck >= 100 {
-				cr.ByColor[cp] = ca.stats()
+		for _, arch := range colorCombos {
+			if ca, ok := accums[arch][name]; ok && ca.gamesInDeck >= 100 {
+				cr.ByColor[arch] = ca.stats()
 			}
 		}
 
