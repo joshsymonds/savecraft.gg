@@ -121,18 +121,21 @@ export const BASIC_LAND_NAMES: ReadonlySet<string> = new Set([
   "Snow-Covered Wastes",
 ]);
 
-export const ALL_COLOR_PAIRS = [
-  "WU",
-  "WB",
-  "WR",
-  "WG",
-  "UB",
-  "UR",
-  "UG",
-  "BR",
-  "BG",
-  "RG",
-];
+/** All 31 non-empty subsets of WUBRG, ordered by size then WUBRG position.
+ *  5 mono + 10 pair + 10 triple + 5 quad + 1 five-color. */
+export const ALL_COLOR_COMBOS: readonly string[] = (() => {
+  const colors = "WUBRG";
+  const combos: string[] = [];
+  for (let mask = 1; mask < 1 << colors.length; mask++) {
+    let combo = "";
+    for (let i = 0; i < colors.length; i++) {
+      if (mask & (1 << i)) combo += colors[i];
+    }
+    combos.push(combo);
+  }
+  combos.sort((a, b) => a.length - b.length);
+  return combos;
+})();
 
 /** Required sigmoid calibration axes. All params come from the D1
  *  mtga_draft_calibration table — card-intrinsic axes (baseline, synergy,
@@ -378,48 +381,66 @@ export function computeColorCommitment(
 }
 
 /**
- * Layer 2: Derive 10 two-color pair weights from individual commitments.
+ * Layer 2: Derive archetype weights from individual color commitments.
  *
- * Uses an open_bonus term that gives extra weight to pairs where one color
- * is locked and the other is open — modeling "blue + ?" distributions.
- * Returns normalized weights summing to 1.0.
+ * Produces weights for all 31 WUBRG subsets using a tiered formula:
+ *   - Mono (1 color): c_X
+ *   - Pair (2 colors): c_A * c_B + OPEN_BONUS * (1-c_A) * c_B + OPEN_BONUS * c_A * (1-c_B)
+ *   - Triple+ (3-5 colors): Π(c_X for X in combo) — pure product
+ *
+ * The open bonus models the two-color strategic question "what's my second
+ * color?" For three or more colors, commitment is either intentional (wedge
+ * format) or incidental (splash), both captured by the pure product.
+ *
+ * Returns normalized weights summing to 1.0, sorted by weight descending.
  */
-export function derivePairWeights(
+export function deriveArchetypeWeights(
   commitments: Map<string, number>,
 ): ArchetypeCandidate[] {
-  const pairs: { colorPair: string; raw: number }[] = [];
-  for (const pair of ALL_COLOR_PAIRS) {
-    const cA = commitments.get(pair[0]!) ?? 0;
-    const cB = commitments.get(pair[1]!) ?? 0;
-    const raw =
-      cA * cB +
-      OPEN_BONUS * (1 - cA) * cB +
-      OPEN_BONUS * cA * (1 - cB);
-    pairs.push({ colorPair: pair, raw });
+  const candidates: { colorPair: string; raw: number }[] = [];
+  for (const combo of ALL_COLOR_COMBOS) {
+    let raw: number;
+    if (combo.length === 1) {
+      raw = commitments.get(combo) ?? 0;
+    } else if (combo.length === 2) {
+      const cA = commitments.get(combo[0]!) ?? 0;
+      const cB = commitments.get(combo[1]!) ?? 0;
+      raw =
+        cA * cB +
+        OPEN_BONUS * (1 - cA) * cB +
+        OPEN_BONUS * cA * (1 - cB);
+    } else {
+      raw = 1;
+      for (const c of combo) {
+        raw *= commitments.get(c) ?? 0;
+      }
+    }
+    candidates.push({ colorPair: combo, raw });
   }
 
-  const totalRaw = pairs.reduce((s, p) => s + p.raw, 0);
+  const totalRaw = candidates.reduce((s, p) => s + p.raw, 0);
   if (totalRaw < PAIR_THRESHOLD) {
     return [{ colorPair: "_overall", weight: 1.0 }];
   }
 
-  pairs.sort((a, b) => b.raw - a.raw);
-  return pairs.map((p) => ({
+  candidates.sort((a, b) => b.raw - a.raw);
+  return candidates.map((p) => ({
     colorPair: p.colorPair,
     weight: p.raw / totalRaw,
   }));
 }
 
 /**
- * Replacement for the old determineCandidateArchetypes().
- * Uses the two-layer color commitment model instead of pip multiplication.
+ * Determines candidate archetypes from pool cards using a two-layer model:
+ * Layer 1 computes per-color commitment from pip shares, Layer 2 derives
+ * weights for all 31 color combinations.
  */
 export function determineCandidateArchetypes(
   poolMeta: CardMetaRow[],
   pickNumber: number = 15,
 ): ArchetypeCandidate[] {
   const commitments = computeColorCommitment(poolMeta, pickNumber);
-  return derivePairWeights(commitments);
+  return deriveArchetypeWeights(commitments);
 }
 
 // ── Signal tracking ──────────────────────────────────────────
@@ -475,10 +496,10 @@ export function aggregateArchetypeOpenness(
     const colors = countPips(meta.mana_cost);
     const colorSet = new Set(colors.keys());
 
-    for (const pair of ALL_COLOR_PAIRS) {
-      if (colorSet.has(pair[0]!) || colorSet.has(pair[1]!)) {
-        archSums.set(pair, (archSums.get(pair) ?? 0) + signal);
-        archCounts.set(pair, (archCounts.get(pair) ?? 0) + 1);
+    for (const combo of ALL_COLOR_COMBOS) {
+      if ([...combo].some((c) => colorSet.has(c))) {
+        archSums.set(combo, (archSums.get(combo) ?? 0) + signal);
+        archCounts.set(combo, (archCounts.get(combo) ?? 0) + 1);
       }
     }
   }
