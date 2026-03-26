@@ -398,11 +398,19 @@ export function computeColorCommitment(
 export function deriveArchetypeWeights(
   commitments: Map<string, number>,
 ): ArchetypeCandidate[] {
+  // Minimum archetype size: mono decks are noise in all current limited
+  // formats (618 games for mono-W vs 35K+ for real archetypes in TMT).
+  // Skip combos below this threshold. If a mono-friendly format ever
+  // ships, this can be made per-set via set_metadata.
+  const MIN_ARCHETYPE_COLORS = 2;
+
   const candidates: { archetype: string; raw: number }[] = [];
   for (const combo of ALL_COLOR_COMBOS) {
+    if (combo.length < MIN_ARCHETYPE_COLORS) continue;
     let raw: number;
     if (combo.length === 1) {
-      raw = commitments.get(combo) ?? 0;
+      // Squared to match the product-of-commitments scale of pairs.
+      raw = (commitments.get(combo) ?? 0) ** 2;
     } else if (combo.length === 2) {
       const cA = commitments.get(combo[0]!) ?? 0;
       const cB = commitments.get(combo[1]!) ?? 0;
