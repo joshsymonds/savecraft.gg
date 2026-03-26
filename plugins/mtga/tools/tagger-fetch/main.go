@@ -611,4 +611,3 @@ func buildSetRolesSQL(setCode string, entries []roleEntry) string {
 
 	return b.String()
 }
-
