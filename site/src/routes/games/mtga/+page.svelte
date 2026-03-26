@@ -53,7 +53,7 @@
   <meta property="og:title" content="Savecraft — AI Coaching for MTG Arena" />
   <meta
     property="og:description"
-    content="Draft analysis, deck health checks, mana base math, and rules lookup — powered by 17Lands data from millions of games."
+    content="Draft analysis across 31 color archetypes, deck health checks, mana base math, and rules lookup — powered by Bayesian-calibrated 17Lands data."
   />
   <meta property="og:url" content="https://savecraft.gg/games/mtga" />
   <meta property="og:type" content="website" />
@@ -94,7 +94,7 @@
 
   <!-- ═══ CREDIBILITY BAR ═══ -->
   <div class="proof-bar">
-    <span class="proof-item">17Lands data from millions of games</span>
+    <span class="proof-item">17Lands data across 31 color archetypes</span>
     <span class="proof-sep">*</span>
     <span class="proof-item">Frank Karsten mana base methodology</span>
     <span class="proof-sep">*</span>
@@ -212,8 +212,10 @@
       <div class="method-item">
         <span class="method-source">17Lands</span>
         <span class="method-desc">
-          Per-card win rates, archetype performance, synergy matrices, and draft signal data from
-          millions of real Arena games. Licensed CC BY 4.0.
+          Per-card win rates across all 31 color archetypes — mono through five-color — plus synergy
+          matrices and draft signal data from millions of real Arena games. Bayesian shrinkage
+          ensures sparse archetypes blend toward the overall mean instead of producing noisy
+          recommendations. Licensed CC BY 4.0.
         </span>
       </div>
       <div class="method-item">
@@ -226,9 +228,10 @@
       <div class="method-item">
         <span class="method-source">WASPAS</span>
         <span class="method-desc">
-          Weighted Aggregation with Signal Processing — a multi-criteria decision method that blends
-          6 scoring axes with pick-adaptive weights. Early picks favor baseline power; late picks
-          favor synergy and castability.
+          Weighted Aggregated Sum Product Assessment — a multi-criteria decision method that blends
+          8 scoring axes with pick-adaptive weights across all 31 archetype candidates. Early picks
+          favor baseline power; late picks favor synergy and castability. Sigmoid-calibrated from
+          each set's empirical distribution.
         </span>
       </div>
       <div class="method-item">

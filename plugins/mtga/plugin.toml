@@ -54,7 +54,7 @@ author = "Josh Symonds"
 
 [reference.modules.draft_ratings]
 name = "Draft Ratings"
-description = "Per-card draft performance statistics from millions of real games across all available sets. Provides GIH WR, OHWR, IWD, ALSA, ATA with game counts, overall and by 2-color archetype."
+description = "Per-card draft performance statistics from millions of real games across all available sets. Provides GIH WR, OHWR, IWD, ALSA, ATA with game counts, overall and by archetype (mono through five-color)."
 
 [reference.modules.draft_ratings.attribution]
 author = "Josh Symonds"
@@ -64,7 +64,7 @@ data_sources = [
 
 [reference.modules.card_stats]
 name = "Card Stats"
-description = "Browse 17Lands draft statistics for MTG Arena. List available sets, view set overviews with top and bottom performers, get single card detail with per-archetype breakdowns, or sort leaderboards by any stat."
+description = "Browse 17Lands draft statistics for MTG Arena. List available sets, view set overviews with top and bottom performers, get single card detail with breakdowns across all 31 color archetypes, or sort leaderboards by any stat."
 
 [reference.modules.card_stats.attribution]
 author = "Josh Symonds"
@@ -74,7 +74,7 @@ data_sources = [
 
 [reference.modules.draft_advisor]
 name = "Draft Advisor"
-description = "Contextual draft pick evaluation using 6-axis WASPAS scoring: baseline win rate, synergy, curve fit, signal openness, role composition, and castability. Supports live pick ranking and full draft batch review."
+description = "Contextual draft pick evaluation using 8-axis WASPAS scoring across all 31 color archetypes. Bayesian-calibrated baseline win rate, archetype-stratified pairwise synergy, curve fit, signal openness, role composition, castability, color commitment, and opportunity cost. Supports live pick ranking and full draft batch review."
 
 [reference.modules.draft_advisor.attribution]
 author = "Josh Symonds"
@@ -84,7 +84,7 @@ data_sources = [
 
 [reference.modules.deckbuilding]
 name = "Deck Health & Cut Advisor"
-description = "Analyze a limited deck against empirical data from winning decks. Health check compares composition against archetype averages. Cut advisor scores every card across 5 axes to identify the weakest cards to cut."
+description = "Analyze a limited deck against empirical data from winning decks across all 31 color archetypes. Health check compares composition against archetype averages. Cut advisor scores every card across 5 axes to identify the weakest cards to cut."
 
 [reference.modules.deckbuilding.attribution]
 author = "Josh Symonds"
