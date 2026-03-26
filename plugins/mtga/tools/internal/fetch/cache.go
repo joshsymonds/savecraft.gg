@@ -1,4 +1,6 @@
-package main
+// Package fetch provides shared HTTP download and caching utilities for
+// MTGA data pipeline tools (17lands-fetch, replay-fetch, etc.).
+package fetch
 
 import (
 	"compress/gzip"
@@ -10,12 +12,14 @@ import (
 	"time"
 )
 
-// cachedDownloadGzip downloads a gzipped URL with ETag-based caching.
-// Stores the compressed file at cacheDir/filename and the ETag at
+// CachedDownloadGzip downloads a gzipped URL with ETag-based caching.
+// It stores the compressed file at cacheDir/filename and the ETag at
 // cacheDir/filename.etag. On subsequent calls, a HEAD request checks
 // whether the remote ETag matches the cached one; if so, the local
 // file is used without re-downloading.
-func cachedDownloadGzip(url string, cacheDir string, filename string) (io.ReadCloser, error) {
+//
+// Returns a decompressed io.ReadCloser (same contract as downloadGzip).
+func CachedDownloadGzip(url string, cacheDir string, filename string) (io.ReadCloser, error) {
 	if err := os.MkdirAll(cacheDir, 0755); err != nil {
 		return nil, fmt.Errorf("creating cache dir: %w", err)
 	}
@@ -23,11 +27,13 @@ func cachedDownloadGzip(url string, cacheDir string, filename string) (io.ReadCl
 	cachePath := filepath.Join(cacheDir, filename)
 	etagPath := cachePath + ".etag"
 
+	// Check remote ETag via HEAD request.
 	remoteETag, err := fetchETag(url)
 	if err != nil {
 		return nil, fmt.Errorf("HEAD request: %w", err)
 	}
 
+	// If we have a cached file and ETags match, use the cache.
 	if remoteETag != "" {
 		if storedETag, err := os.ReadFile(etagPath); err == nil {
 			if string(storedETag) == remoteETag {
@@ -36,19 +42,24 @@ func cachedDownloadGzip(url string, cacheDir string, filename string) (io.ReadCl
 		}
 	}
 
+	// Cache miss — download and tee to cache file.
 	if err := downloadToFile(url, cachePath); err != nil {
 		return nil, err
 	}
 
+	// Write ETag file only if server provided one.
 	if remoteETag != "" {
 		os.WriteFile(etagPath, []byte(remoteETag), 0644)
 	} else {
+		// Remove stale etag file if server no longer provides one.
 		os.Remove(etagPath)
 	}
 
 	return openCachedGzip(cachePath)
 }
 
+// fetchETag sends a HEAD request and returns the ETag header value.
+// Returns empty string if the server doesn't provide an ETag.
 func fetchETag(url string) (string, error) {
 	client := &http.Client{Timeout: 30 * time.Second}
 	req, err := http.NewRequest("HEAD", url, nil)
@@ -70,8 +81,12 @@ func fetchETag(url string) (string, error) {
 	return resp.Header.Get("ETag"), nil
 }
 
+// downloadToFile performs a GET request and writes the raw response body
+// to the specified file path. The write is atomic: data is written to a
+// temporary file first, then renamed into place on success. On error,
+// the temporary file is cleaned up.
 func downloadToFile(url string, path string) error {
-	client := &http.Client{Timeout: 30 * time.Minute} // replay data is ~438MB, needs longer timeout
+	client := &http.Client{Timeout: 30 * time.Minute}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
 		return err
@@ -124,6 +139,7 @@ func (g *gzipReadCloser) Close() error {
 	return g.body.Close()
 }
 
+// openCachedGzip opens a gzipped cache file and returns a decompressed reader.
 func openCachedGzip(path string) (io.ReadCloser, error) {
 	f, err := os.Open(path)
 	if err != nil {

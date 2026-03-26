@@ -13,21 +13,18 @@ package main
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"flag"
 	"fmt"
-	"io"
 	"math"
 	"os"
 	"path/filepath"
 	"regexp"
-	"sort"
 	"strconv"
 	"strings"
 	"sync"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/fetch"
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/sets"
 )
 
@@ -142,7 +139,7 @@ func run() error {
 		setCode := result.set
 
 		csvPath := filepath.Join(*cacheDir, fmt.Sprintf("replay_data_public.%s.PremierDraft.csv.gz", setCode))
-		csvHash, err := fileHash(csvPath)
+		csvHash, err := fetch.FileHash(csvPath)
 		if err != nil {
 			fmt.Printf("  WARN: could not hash CSV for %s: %v (importing anyway)\n", setCode, err)
 			csvHash = ""
@@ -213,24 +210,6 @@ func fetchArenaCards(accountID, databaseID, apiToken string) (map[int]arenaCardI
 		cards[int(arenaID)] = arenaCardInfo{name: name, cmc: cmc}
 	}
 	return cards, nil
-}
-
-// fileHash computes the SHA-256 hash of a file.
-func fileHash(path string) (string, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return "", err
-	}
-	defer f.Close()
-	h := sha256.New()
-	if _, err := io.Copy(h, f); err != nil {
-		return "", err
-	}
-	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-func round4(f float64) float64 {
-	return math.Round(f*10000) / 10000
 }
 
 // clampTurn clamps a turn number to [1, maxTurn].
@@ -476,45 +455,6 @@ func countCreatures(pipeStr string) int {
 		}
 	}
 	return count
-}
-
-// normalizeColors converts "WU", "UW", etc. to canonical WUBRG order.
-var normalizedColorCache = func() map[string]string {
-	order := "WUBRGC"
-	m := make(map[string]string)
-	for i := 0; i < len(order); i++ {
-		m[string(order[i])] = string(order[i])
-		for j := 0; j < len(order); j++ {
-			a, b := order[i], order[j]
-			if strings.Index(order, string(a)) > strings.Index(order, string(b)) {
-				a, b = b, a
-			}
-			m[string(order[i])+string(order[j])] = string(a) + string(b)
-		}
-	}
-	return m
-}()
-
-func normalizeColors(s string) string {
-	if cached, ok := normalizedColorCache[s]; ok {
-		return cached
-	}
-	order := "WUBRGC"
-	colors := strings.Split(s, "")
-	sort.Slice(colors, func(i, j int) bool {
-		return strings.Index(order, colors[i]) < strings.Index(order, colors[j])
-	})
-	return strings.Join(colors, "")
-}
-
-// indexOf returns the index of val in slice, or -1.
-func indexOf(slice []string, val string) int {
-	for i, s := range slice {
-		if s == val {
-			return i
-		}
-	}
-	return -1
 }
 
 // getCol safely reads a column value from a row.
