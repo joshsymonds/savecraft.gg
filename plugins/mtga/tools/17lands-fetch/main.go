@@ -140,6 +140,7 @@ func run() error {
 	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (enables D1 population)")
 	setFilter := flag.String("set", "", "Process a single set (e.g., 'DSK'). If empty, processes all sets.")
 	cacheDir := flag.String("cache-dir", defaultCacheDir(), "Local cache directory for downloaded CSVs")
+	retry := flag.Bool("retry", false, "Retry mode: import cached SQL files without reprocessing CSVs")
 	flag.Parse()
 
 	// Validate Cloudflare credentials early — don't download data we can't store.
@@ -154,6 +155,14 @@ func run() error {
 		if len(missing) > 0 {
 			return fmt.Errorf("--d1-database-id provided but missing: %s", strings.Join(missing, ", "))
 		}
+	}
+
+	// ── Retry mode: import cached SQL without reprocessing ──
+	if *retry {
+		if *d1DatabaseID == "" {
+			return fmt.Errorf("--retry requires --d1-database-id")
+		}
+		return retryImport(*cfAccountID, *d1DatabaseID, *cfAPIToken, *cacheDir)
 	}
 
 	targetSets, err := sets.Resolve(context.Background(), *setFilter)
@@ -366,6 +375,57 @@ func fileHash(path string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
+}
+
+// retryImport scans the SQL cache directory for cached SQL files and imports
+// them to D1. Used after a failed import to retry without reprocessing CSVs.
+func retryImport(cfAccountID, d1DatabaseID, cfAPIToken, cacheDir string) error {
+	sqlDir := filepath.Join(cacheDir, "sql")
+	entries, err := os.ReadDir(sqlDir)
+	if err != nil {
+		return fmt.Errorf("reading SQL cache dir %s: %w", sqlDir, err)
+	}
+
+	var sqlFiles []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
+			sqlFiles = append(sqlFiles, e.Name())
+		}
+	}
+
+	if len(sqlFiles) == 0 {
+		fmt.Println("No cached SQL files found — nothing to retry.")
+		return nil
+	}
+
+	fmt.Printf("Found %d cached SQL files to retry:\n", len(sqlFiles))
+	sort.Strings(sqlFiles)
+
+	var importErrors []string
+	for _, name := range sqlFiles {
+		path := filepath.Join(sqlDir, name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Printf("  SKIP %s: %v\n", name, err)
+			continue
+		}
+
+		fmt.Printf("  %s: importing (%.1f MB)...\n", name, float64(len(data))/1048576)
+		if err := cfapi.ImportD1SQL(cfAccountID, d1DatabaseID, cfAPIToken, string(data)); err != nil {
+			fmt.Printf("  FAIL %s: %v\n", name, err)
+			importErrors = append(importErrors, name)
+			continue
+		}
+		os.Remove(path)
+		fmt.Printf("  %s: done\n", name)
+	}
+
+	if len(importErrors) > 0 {
+		return fmt.Errorf("retry failed for %d files: %s", len(importErrors), strings.Join(importErrors, ", "))
+	}
+
+	fmt.Println("Retry complete — all cached SQL imported successfully.")
+	return nil
 }
 
 func processDraftData(set string, cacheDir string, accums map[string]map[string]*cardAccum) error {
