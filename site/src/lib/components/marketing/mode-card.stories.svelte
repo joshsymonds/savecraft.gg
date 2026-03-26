@@ -67,7 +67,9 @@
 </Story>
 
 <Story name="SideBySide">
-  <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1100px; margin: 40px auto; padding: 0 32px;">
+  <div
+    style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; max-width: 1100px; margin: 40px auto; padding: 0 32px;"
+  >
     <ModeCard
       icon="~"
       label="COMPANION"

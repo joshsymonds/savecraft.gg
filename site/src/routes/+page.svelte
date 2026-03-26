@@ -96,10 +96,7 @@
         </div>
 
         <!-- Conversation demo -->
-        <ConversationDemo
-          {conversation}
-          headerLabel="STARDEW VALLEY — SUNRISE FARM, YEAR 3"
-        />
+        <ConversationDemo {conversation} headerLabel="STARDEW VALLEY — SUNRISE FARM, YEAR 3" />
       </div>
     </section>
   </div>
@@ -147,8 +144,8 @@
         <div class="step-icon" style="color: var(--color-gold);">?</div>
         <h3 class="step-name">ASK</h3>
         <p class="step-desc">
-          Connect Claude, ChatGPT, or Gemini. Your AI reads your actual game state and gives
-          answers grounded in real data — not hallucinated guesses.
+          Connect Claude, ChatGPT, or Gemini. Your AI reads your actual game state and gives answers
+          grounded in real data — not hallucinated guesses.
         </p>
       </div>
     </div>
@@ -229,7 +226,11 @@
   </MarketingSection>
 
   <!-- ═══ SECURITY ═══ -->
-  <MarketingSection eyebrow="SECURITY" title="Your data stays yours" eyebrowColor="var(--color-green)">
+  <MarketingSection
+    eyebrow="SECURITY"
+    title="Your data stays yours"
+    eyebrowColor="var(--color-green)"
+  >
     <div class="security-grid">
       <div class="security-item">
         <span class="security-check">+</span>
@@ -275,14 +276,13 @@
   </MarketingSection>
 
   <!-- ═══ COMMUNITY ═══ -->
-  <MarketingSection eyebrow="COMMUNITY" title="Built in the open" subtitle="Most feature decisions start in Discord. Request a game, report a bug, or share a build.">
+  <MarketingSection
+    eyebrow="COMMUNITY"
+    title="Built in the open"
+    subtitle="Most feature decisions start in Discord. Request a game, report a bug, or share a build."
+  >
     <div class="community-grid">
-      <a
-        href="https://discord.gg/YnC8stpEmF"
-        class="community-card"
-        target="_blank"
-        rel="noopener"
-      >
+      <a href="https://discord.gg/YnC8stpEmF" class="community-card" target="_blank" rel="noopener">
         <div class="community-icon discord-icon">
           <svg width="28" height="22" viewBox="0 0 71 55" fill="currentColor"
             ><path

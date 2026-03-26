@@ -13,7 +13,14 @@ const tsconfigRootDir = dirname(fileURLToPath(import.meta.url));
 export default tseslint.config(
   // ── Ignores ──────────────────────────────────────────────
   {
-    ignores: [".svelte-kit/**", ".storybook/**", "build/**", "node_modules/**", "*.config.ts", "*.config.js"],
+    ignores: [
+      ".svelte-kit/**",
+      ".storybook/**",
+      "build/**",
+      "node_modules/**",
+      "*.config.ts",
+      "*.config.js",
+    ],
   },
 
   // ── Base presets ──────────────────────────────────────────
