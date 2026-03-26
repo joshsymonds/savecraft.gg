@@ -313,34 +313,91 @@ export function getWeightProfileLabel(pickNumber: number): string {
   return "late";
 }
 
-// ── Archetype detection ──────────────────────────────────────
+// ── Color commitment model ───────────────────────────────────
 
-export function determineCandidateArchetypes(
+const COLORS = ["W", "U", "B", "R", "G"] as const;
+const OPEN_BONUS = 0.3;
+const PAIR_THRESHOLD = 1e-6;
+
+/**
+ * Layer 1: Per-color commitment via sigmoid on pip share.
+ *
+ * Maps each color's fraction of total pips to a 0–1 commitment level:
+ *   0% pips → ~0.1 (open, not locked out)
+ *  15% pips → ~0.5 (present but not dominant)
+ *  40%+ pips → ~0.95 (locked in)
+ *
+ * For picks 1–5, all commitments are dampened toward a uniform 0.2
+ * so the first card's color doesn't overdetermine the draft direction.
+ */
+export function computeColorCommitment(
   poolMeta: CardMetaRow[],
-): ArchetypeCandidate[] {
-  const pips: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
+  pickNumber: number,
+): Map<string, number> {
+  const pipCounts: Record<string, number> = { W: 0, U: 0, B: 0, R: 0, G: 0 };
   for (const card of poolMeta) {
     for (const [color, count] of countPips(card.mana_cost)) {
-      if (color in pips) pips[color] = (pips[color] ?? 0) + count;
+      if (color in pipCounts) pipCounts[color] = (pipCounts[color] ?? 0) + count;
     }
   }
 
-  const scored = ALL_COLOR_PAIRS.map((pair) => ({
-    colorPair: pair,
-    score: (pips[pair[0]!] ?? 0) * (pips[pair[1]!] ?? 0),
-  }));
+  const totalPips = Object.values(pipCounts).reduce((a, b) => a + b, 0);
+  const earlyDampen = Math.max(0, (6 - pickNumber) / 5);
 
-  const nonzero = scored.filter((s) => s.score > 0);
-  if (nonzero.length === 0) {
+  const commitments = new Map<string, number>();
+  for (const color of COLORS) {
+    const pipShare = totalPips > 0 ? pipCounts[color]! / totalPips : 0;
+    const raw = sigmoid(pipShare, 0.15, 15);
+    const effective = raw * (1 - earlyDampen) + 0.2 * earlyDampen;
+    commitments.set(color, effective);
+  }
+
+  return commitments;
+}
+
+/**
+ * Layer 2: Derive 10 two-color pair weights from individual commitments.
+ *
+ * Uses an open_bonus term that gives extra weight to pairs where one color
+ * is locked and the other is open — modeling "blue + ?" distributions.
+ * Returns normalized weights summing to 1.0.
+ */
+export function derivePairWeights(
+  commitments: Map<string, number>,
+): ArchetypeCandidate[] {
+  const pairs: { colorPair: string; raw: number }[] = [];
+  for (const pair of ALL_COLOR_PAIRS) {
+    const cA = commitments.get(pair[0]!) ?? 0;
+    const cB = commitments.get(pair[1]!) ?? 0;
+    const raw =
+      cA * cB +
+      OPEN_BONUS * (1 - cA) * cB +
+      OPEN_BONUS * cA * (1 - cB);
+    pairs.push({ colorPair: pair, raw });
+  }
+
+  const totalRaw = pairs.reduce((s, p) => s + p.raw, 0);
+  if (totalRaw < PAIR_THRESHOLD) {
     return [{ colorPair: "_overall", weight: 1.0 }];
   }
 
-  nonzero.sort((a, b) => b.score - a.score);
-  const totalScore = nonzero.reduce((s, t) => s + t.score, 0);
-  return nonzero.map((t) => ({
-    colorPair: t.colorPair,
-    weight: t.score / totalScore,
+  pairs.sort((a, b) => b.raw - a.raw);
+  return pairs.map((p) => ({
+    colorPair: p.colorPair,
+    weight: p.raw / totalRaw,
   }));
+}
+
+/**
+ * Replacement for the old determineCandidateArchetypes().
+ * Uses the two-layer color commitment model instead of pip multiplication.
+ */
+export function determineCandidateArchetypes(
+  poolMeta: CardMetaRow[],
+  pickNumber: number = 15,
+): ArchetypeCandidate[] {
+  const commitments = computeColorCommitment(poolMeta, pickNumber);
+  return derivePairWeights(commitments);
 }
 
 // ── Signal tracking ──────────────────────────────────────────

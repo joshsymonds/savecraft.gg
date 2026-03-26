@@ -305,7 +305,7 @@ async function contextualPick(
     );
 
   // 2. Determine candidate archetypes.
-  const candidates = determineCandidateArchetypes(poolMeta);
+  const candidates = determineCandidateArchetypes(poolMeta, pickNumber);
   const primaryArchetype = candidates[0]?.colorPair ?? "_overall";
   const confidence = candidates.length > 0 ? (candidates[0]?.weight ?? 0) : 0;
 
