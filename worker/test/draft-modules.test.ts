@@ -2998,3 +2998,88 @@ describe("deriveArchetypeWeights", () => {
     expect(wu.weight).toBeGreaterThan(wub.weight * 5);
   });
 });
+
+describe("Bayesian shrinkage", () => {
+  beforeEach(async () => {
+    await cleanAll(env.DB);
+  });
+
+  it("blends sparse archetype GIH WR toward overall mean", async () => {
+    // Card has overall GIH WR 0.55. In archetype "U" it has 0.70 but
+    // only 10 games — the archetype stat is unreliable.
+    // With Bayesian shrinkage (prior ~750), effective ≈ (10*0.70 + 750*0.55) / 760 ≈ 0.552
+    // Without shrinkage, the archetype-specific 0.70 would dominate.
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_set_stats (set_code, format, total_games, card_count, avg_gihwr) VALUES (?, ?, ?, ?, ?)`,
+      ).bind("TST", "PremierDraft", 100_000, 1, 0.55),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("TST", "Test Card", 50_000, 70_000, 20_000, 0.55, 0.55, 0.55, 0.55, 0, 5, 5),
+      // Archetype "U" has very few games — should be shrunk heavily
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("TST", "Test Card", "U", 10, 15, 5, 0.70, 0.70, 0.70, 0.55, 0.15, 5, 5),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(1, "o-1", "Test Card", "Test Card", "{U}", 1, "Creature", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(2, "o-2", "Pool Card", "Pool Card", "{U}", 1, "Creature", '["U"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("TST", "Pool Card", 50_000, 70_000, 20_000, 0.55, 0.55, 0.55, 0.55, 0, 5, 5),
+      // Calibration: all required axes + archetype_prior
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("TST", "baseline", 0.55, 30),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("TST", "synergy", 0, 10),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("TST", "signal", 5, 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("TST", "castability", 0.75, 8),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("TST", "color_commitment", 0.5, 4),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("TST", "opportunity_cost", 0.85, 8),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("TST", "curve", 0, 3),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("TST", "role", 0.3, 5),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_calibration (set_code, axis, center, steepness) VALUES (?, ?, ?, ?)`,
+      ).bind("TST", "archetype_prior", 750, 0),
+    ]);
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "TST",
+        pool: ["Pool Card"],
+        pack: ["Test Card"],
+        pick_number: 15,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      recommendations: { card: string; axes: { baseline: { raw: number } } }[];
+    };
+    const rec = data.recommendations.find((r) => r.card === "Test Card");
+    expect(rec).toBeDefined();
+    // With shrinkage: effective ≈ (10*0.70 + 750*0.55) / 760 ≈ 0.552
+    // WITHOUT shrinkage: would use 0.70 directly
+    // The baseline raw score should be close to 0.552, not 0.70
+    expect(rec!.axes.baseline.raw).toBeLessThan(0.60);
+    expect(rec!.axes.baseline.raw).toBeGreaterThan(0.54);
+  });
+});
