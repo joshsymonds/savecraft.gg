@@ -47,10 +47,10 @@ async function seedDraftData(): Promise<void> {
 
     // Color stats for Gloomlake Verge
     env.DB.prepare(
-      `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "Gloomlake Verge", "UB", 3000, 4000, 1000, 0.59, 0.63, 0.56, 0.49, 0.07, 7.2, 8),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "Gloomlake Verge", "BG", 2000, 3000, 1000, 0.52, 0.54, 0.5, 0.49, 0.01, 9, 10),
 
     // FTS5 rows for card name search
@@ -114,13 +114,13 @@ async function seedContextualData(): Promise<void> {
     ).bind("DSK", "Gloomlake Verge", "Forest Bear", -0.02, 300),
 
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 1, 3.5, 1000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 2, 5, 1000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 3, 4, 1000),
 
     env.DB.prepare(
@@ -130,13 +130,13 @@ async function seedContextualData(): Promise<void> {
     // Deck stats: UB is a real archetype (5000 decks), RG has moderate (3000),
     // WG is marginal (100 decks = ~1% of total).
     env.DB.prepare(
-      `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 17, 14, 5, 1, 0.2, 2, 0.52, 0.55, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "RG", 17, 15, 4, 0.5, 0.1, 1, 0.5, 0.53, 3000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "WG", 17, 15, 4, 0.5, 0.1, 1, 0.48, 0.49, 100),
 
     // Calibration: all 8 axes required (no hardcoded defaults in TS).
@@ -296,7 +296,7 @@ describe("draft_advisor native module", () => {
     const data = result.data as {
       archetype: {
         primary: string;
-        candidates: { color_pair: string; weight: number }[];
+        candidates: { archetype: string; weight: number }[];
         confidence: number;
       };
       pick_number: number;
@@ -741,7 +741,7 @@ describe("draft_advisor native module", () => {
         `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
       ).bind("oracle-land", "Darkslick Shores", "mana_fixing", "DSK"),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("DSK", "UB", "mana_fixing", 2.5, 1000),
     ]);
 
@@ -1604,7 +1604,7 @@ describe("draft_advisor native module", () => {
       // Liliana has UB/WB stats but NO WU stats (rarely in WU decks).
       // Elenda has WU/WB/UB stats — boosted in WB (0.6387).
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         "FDN",
         "Liliana, Dreadhorde General",
@@ -1621,7 +1621,7 @@ describe("draft_advisor native module", () => {
         1.24,
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         "FDN",
         "Liliana, Dreadhorde General",
@@ -1638,7 +1638,7 @@ describe("draft_advisor native module", () => {
         1.24,
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         "FDN",
         "Liliana, Dreadhorde General",
@@ -1655,7 +1655,7 @@ describe("draft_advisor native module", () => {
         1.24,
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         "FDN",
         "Elenda, Saint of Dusk",
@@ -1672,7 +1672,7 @@ describe("draft_advisor native module", () => {
         2.07,
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         "FDN",
         "Elenda, Saint of Dusk",
@@ -1689,7 +1689,7 @@ describe("draft_advisor native module", () => {
         2.07,
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         "FDN",
         "Elenda, Saint of Dusk",
@@ -1706,7 +1706,7 @@ describe("draft_advisor native module", () => {
         2.07,
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         "FDN",
         "Imprisoned in the Moon",
@@ -1723,7 +1723,7 @@ describe("draft_advisor native module", () => {
         7.8,
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         "FDN",
         "Fiery Annihilation",
@@ -1740,7 +1740,7 @@ describe("draft_advisor native module", () => {
         4,
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         "FDN",
         "Mocking Sprite",
@@ -1757,7 +1757,7 @@ describe("draft_advisor native module", () => {
         9.7,
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
         "FDN",
         "Armasaur Guide",
@@ -1774,7 +1774,7 @@ describe("draft_advisor native module", () => {
         10.8,
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_color_stats (set_code, card_name, color_pair, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind("FDN", "Crypt Feaster", "UB", 1500, 2000, 500, 0.5066, 0.51, 0.5, 0.5, 0, 11.4, 11.4),
       // Synergies: Elenda has positive synergy with WU pool, Liliana has none
       env.DB.prepare(
@@ -1797,28 +1797,28 @@ describe("draft_advisor native module", () => {
       ).bind("FDN", "Elenda, Saint of Dusk", "Evolving Wilds", 0.0097, 200),
       // Production archetype curves for WU
       env.DB.prepare(
-        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", 0, 3.3333, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", 1, 2.4387, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", 2, 4.9018, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", 3, 5.0339, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", 4, 3.6567, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", 5, 1.9489, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", 6, 0.5642, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_archetype_curves (set_code, color_pair, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", 7, 0.2927, 52_087),
       // Production card roles (from production D1)
       env.DB.prepare(
@@ -1859,29 +1859,29 @@ describe("draft_advisor native module", () => {
       ).bind("o-ag", "Armasaur Guide", "cabs", "FDN"),
       // Production role targets for WU
       env.DB.prepare(
-        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", "removal", 4.9243, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", "creature", 11.9805, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", "cabs", 16.316, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", "noncreature_nonremoval", 5.4901, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_role_targets (set_code, color_pair, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", "mana_fixing", 0.7828, 52_087),
       // Production deck stats
       env.DB.prepare(
-        `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind("FDN", "WU", 17, 14, 5, 1, 0.2, 2, 0.52, 0.55, 52_087),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind("FDN", "UB", 17, 14, 5, 1, 0.2, 2, 0.51, 0.53, 57_137),
       env.DB.prepare(
-        `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind("FDN", "WB", 17, 14, 5, 1, 0.2, 2, 0.52, 0.54, 68_040),
       // Calibration from real pipeline output (3.0 percentile constant).
       // Card-intrinsic axes: percentile-calibrated from FDN 17Lands data.
@@ -2659,7 +2659,7 @@ describe("draft_advisor native module", () => {
     const data = result.data as {
       archetype: {
         candidates: {
-          color_pair: string;
+          archetype: string;
           weight: number;
           deck_count: number;
           deck_share: number;
@@ -2715,12 +2715,12 @@ describe("draft_advisor native module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
     const data = result.data as {
       archetype: {
-        candidates: { color_pair: string; deck_count: number; deck_share: number }[];
+        candidates: { archetype: string; deck_count: number; deck_share: number }[];
       };
     };
 
     // WG should be suppressed (100 decks out of 8100 total = 1.2%)
-    const wg = data.archetype.candidates.find((c) => c.color_pair === "WG");
+    const wg = data.archetype.candidates.find((c) => c.archetype === "WG");
     expect(wg).toBeUndefined();
   });
 

@@ -29,8 +29,8 @@ interface RatingRow {
   ata: number;
 }
 
-interface ColorRow extends RatingRow {
-  color_pair: string;
+interface ArchetypeRow extends RatingRow {
+  archetype: string;
 }
 
 interface SetStatsRow {
@@ -232,12 +232,12 @@ async function cardDetail(
 
   const colorStats = await db
     .prepare(
-      `SELECT * FROM mtga_draft_color_stats WHERE set_code = ?1 AND card_name IN (${placeholders}) ORDER BY color_pair`,
+      `SELECT * FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND card_name IN (${placeholders}) ORDER BY archetype`,
     )
     .bind(setCode, ...matchNames)
-    .all<ColorRow>();
+    .all<ArchetypeRow>();
 
-  const colorsByCard = new Map<string, ColorRow[]>();
+  const colorsByCard = new Map<string, ArchetypeRow[]>();
   for (const r of colorStats.results) {
     let list = colorsByCard.get(r.card_name);
     if (!list) {
@@ -268,7 +268,7 @@ async function cardDetail(
       lines.push("\nBy archetype:");
       for (const cs of colors) {
         lines.push(
-          `  ${padRight(cs.color_pair, 5)}  GIH WR ${pct(cs.gihwr)} | IWD ${iwdFmt(cs.iwd)} | ${fmtInt(cs.games_in_hand)} games`,
+          `  ${padRight(cs.archetype, 5)}  GIH WR ${pct(cs.gihwr)} | IWD ${iwdFmt(cs.iwd)} | ${fmtInt(cs.games_in_hand)} games`,
         );
       }
     }
@@ -312,7 +312,7 @@ async function leaderboard(
   if (colorPair) {
     const countResult = await db
       .prepare(
-        "SELECT COUNT(*) as cnt FROM mtga_draft_color_stats WHERE set_code = ?1 AND color_pair = ?2",
+        "SELECT COUNT(*) as cnt FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND archetype = ?2",
       )
       .bind(setCode, colorPair.toUpperCase())
       .first<{ cnt: number }>();
@@ -320,7 +320,7 @@ async function leaderboard(
 
     const result = await db
       .prepare(
-        `SELECT set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_color_stats WHERE set_code = ?1 AND color_pair = ?2 ORDER BY ${field} ${direction} LIMIT ?3 OFFSET ?4`,
+        `SELECT set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND archetype = ?2 ORDER BY ${field} ${direction} LIMIT ?3 OFFSET ?4`,
       )
       .bind(setCode, colorPair.toUpperCase(), limit, offset)
       .all<RatingRow>();

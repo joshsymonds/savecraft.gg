@@ -49,7 +49,7 @@ export interface SynergyDbRow {
 }
 
 export interface CurveDbRow {
-  color_pair: string;
+  archetype: string;
   cmc: number;
   avg_count: number;
   total_decks: number;
@@ -61,7 +61,7 @@ export interface CardRoleRow {
 }
 
 export interface RoleTargetRow {
-  color_pair: string;
+  archetype: string;
   role: string;
   avg_count: number;
 }

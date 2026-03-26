@@ -213,10 +213,10 @@ const statements = [
   `CREATE INDEX IF NOT EXISTS idx_draft_ratings_set ON mtga_draft_ratings(set_code)`,
   `CREATE INDEX IF NOT EXISTS idx_draft_ratings_gihwr ON mtga_draft_ratings(set_code, gihwr DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_draft_ratings_iwd ON mtga_draft_ratings(set_code, iwd DESC)`,
-  `CREATE TABLE IF NOT EXISTS mtga_draft_color_stats (
+  `CREATE TABLE IF NOT EXISTS mtga_draft_archetype_stats (
     set_code TEXT NOT NULL,
     card_name TEXT NOT NULL,
-    color_pair TEXT NOT NULL,
+    archetype TEXT NOT NULL,
     games_in_hand INTEGER NOT NULL DEFAULT 0,
     games_played INTEGER NOT NULL DEFAULT 0,
     games_not_seen INTEGER NOT NULL DEFAULT 0,
@@ -228,7 +228,7 @@ const statements = [
     alsa REAL NOT NULL DEFAULT 0,
     ata REAL NOT NULL DEFAULT 0,
     ata_stddev REAL NOT NULL DEFAULT 0,
-    PRIMARY KEY (set_code, card_name, color_pair)
+    PRIMARY KEY (set_code, card_name, archetype)
   )`,
   `CREATE TABLE IF NOT EXISTS mtga_draft_set_stats (
     set_code TEXT PRIMARY KEY,
@@ -253,11 +253,11 @@ const statements = [
   )`,
   `CREATE TABLE IF NOT EXISTS mtga_draft_archetype_curves (
     set_code TEXT NOT NULL,
-    color_pair TEXT NOT NULL,
+    archetype TEXT NOT NULL,
     cmc INTEGER NOT NULL,
     avg_count REAL NOT NULL DEFAULT 0,
     total_decks INTEGER NOT NULL DEFAULT 0,
-    PRIMARY KEY (set_code, color_pair, cmc)
+    PRIMARY KEY (set_code, archetype, cmc)
   )`,
   // Card role tags from Scryfall Tagger (migration 0019)
   `CREATE TABLE IF NOT EXISTS mtga_card_roles (
@@ -272,11 +272,11 @@ const statements = [
   // Role targets (migration 0022)
   `CREATE TABLE IF NOT EXISTS mtga_draft_role_targets (
     set_code TEXT NOT NULL,
-    color_pair TEXT NOT NULL,
+    archetype TEXT NOT NULL,
     role TEXT NOT NULL,
     avg_count REAL NOT NULL,
     total_decks INTEGER NOT NULL,
-    PRIMARY KEY (set_code, color_pair, role)
+    PRIMARY KEY (set_code, archetype, role)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_role_targets_set ON mtga_draft_role_targets(set_code)`,
   // Sigmoid calibration (migration 0023)
@@ -296,7 +296,7 @@ const statements = [
   // Deck stats (migration 0026)
   `CREATE TABLE IF NOT EXISTS mtga_draft_deck_stats (
     set_code TEXT NOT NULL,
-    color_pair TEXT NOT NULL,
+    archetype TEXT NOT NULL,
     avg_lands REAL NOT NULL,
     avg_creatures REAL NOT NULL,
     avg_noncreatures REAL NOT NULL,
@@ -306,7 +306,7 @@ const statements = [
     splash_winrate REAL NOT NULL,
     nonsplash_winrate REAL NOT NULL,
     total_decks INTEGER NOT NULL,
-    PRIMARY KEY (set_code, color_pair)
+    PRIMARY KEY (set_code, archetype)
   )`,
   // Pipeline state (migration 0027)
   `CREATE TABLE IF NOT EXISTS mtga_pipeline_state (

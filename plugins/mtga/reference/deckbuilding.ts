@@ -39,7 +39,7 @@ interface DeckEntry {
 
 interface DeckStatsRow {
   set_code: string;
-  color_pair: string;
+  archetype: string;
   avg_lands: number;
   avg_creatures: number;
   avg_noncreatures: number;
@@ -200,19 +200,19 @@ async function healthCheck(
     await Promise.all([
       db
         .prepare(
-          `SELECT * FROM mtga_draft_deck_stats WHERE set_code = ?1 AND color_pair = ?2`,
+          `SELECT * FROM mtga_draft_deck_stats WHERE set_code = ?1 AND archetype = ?2`,
         )
         .bind(setCode, primaryArchetype)
         .all<DeckStatsRow>(),
       db
         .prepare(
-          `SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND color_pair = ?2`,
+          `SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND archetype = ?2`,
         )
         .bind(setCode, primaryArchetype)
         .all<CurveDbRow>(),
       db
         .prepare(
-          `SELECT role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1 AND color_pair = ?2`,
+          `SELECT role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1 AND archetype = ?2`,
         )
         .bind(setCode, primaryArchetype)
         .all<RoleTargetRow>(),
@@ -551,7 +551,7 @@ async function cutAdvisor(
     await Promise.all([
       db
         .prepare(
-          `SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND color_pair = ?2`,
+          `SELECT cmc, avg_count FROM mtga_draft_archetype_curves WHERE set_code = ?1 AND archetype = ?2`,
         )
         .bind(setCode, primaryArchetype)
         .all<CurveDbRow>(),
@@ -563,7 +563,7 @@ async function cutAdvisor(
         .all<CardRoleRow>(),
       db
         .prepare(
-          `SELECT role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1 AND color_pair = ?2`,
+          `SELECT role, avg_count FROM mtga_draft_role_targets WHERE set_code = ?1 AND archetype = ?2`,
         )
         .bind(setCode, primaryArchetype)
         .all<RoleTargetRow>(),
