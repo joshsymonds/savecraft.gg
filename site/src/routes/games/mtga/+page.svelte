@@ -132,11 +132,11 @@
         examples={[
           {
             role: "player",
-            text: "P1P5 — is the format fast enough for a 6-drop here?",
+            text: "P1P5 — should I stay in GW or pivot?",
           },
           {
             role: "ai",
-            text: "In Selesnya the average game goes 8.3 turns. A 6-drop with 58.1% GIH WR is playable — but your curve already has three 5+ drops. Take the Pacifism instead; you need removal more than top-end.",
+            text: "GW is sparse in this format (1.9% of decks). Your pool leans Abzan — taking the Siege Rhino here locks you into a strong archetype (12% of decks, 56.6% avg GIH WR). The opportunity cost of pivoting is low at pick 5.",
           },
         ]}
       />
@@ -145,10 +145,13 @@
         label="DECK DOCTOR"
         color="var(--color-green)"
         examples={[
-          { role: "player", text: "I have 24 playables. What do I cut?" },
+          {
+            role: "player",
+            text: "I have 24 playables in GW. What do I cut?",
+          },
           {
             role: "ai",
-            text: "Your weakest cards by composite score: Tusked Rager (low synergy with your +1/+1 counter theme, 52.3% GIH WR), and Summit Prowler (you only have 5 red sources, need 8 for RR). Cutting both brings you to a clean 40.",
+            text: "GW is a sparse archetype here (1.9% of decks). Your pool actually supports Abzan (WBG) better — 12% of decks, +1.8% avg win rate. For cuts: Tusked Rager (low synergy, 52.3% GIH WR) and Summit Prowler (only 5 red sources, need 8 for RR). That brings you to 40.",
           },
         ]}
       />
