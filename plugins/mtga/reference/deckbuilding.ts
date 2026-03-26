@@ -976,7 +976,7 @@ async function constructedHealthCheck(
     }
 
     const pips = countPips(data.mana_cost);
-    for (const [color, count] of Object.entries(pips)) {
+    for (const [color, count] of pips) {
       colorPips.set(color, (colorPips.get(color) ?? 0) + count * entry.count);
     }
 

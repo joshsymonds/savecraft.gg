@@ -5,7 +5,7 @@
 -- ── Per-user match history ─────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS mtga_match_history (
-  match_id         TEXT PRIMARY KEY,
+  match_id         TEXT NOT NULL,
   user_uuid        TEXT NOT NULL,
   event_id         TEXT NOT NULL,
   format           TEXT NOT NULL DEFAULT '',
@@ -15,7 +15,8 @@ CREATE TABLE IF NOT EXISTS mtga_match_history (
   opponent_name    TEXT NOT NULL DEFAULT '',
   opponent_rank    TEXT NOT NULL DEFAULT '',
   opponent_cards   TEXT NOT NULL DEFAULT '[]',   -- JSON: [{name, arena_id}]
-  played_at        TEXT NOT NULL                 -- ISO 8601 UTC
+  played_at        TEXT NOT NULL,                -- ISO 8601 UTC
+  PRIMARY KEY (match_id, user_uuid)
 );
 
 CREATE INDEX IF NOT EXISTS idx_match_history_user_format
