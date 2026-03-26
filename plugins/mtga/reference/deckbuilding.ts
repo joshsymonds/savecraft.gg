@@ -191,8 +191,8 @@ async function healthCheck(
     }
   }
 
-  // Detect archetype
-  const candidates = determineCandidateArchetypes(spellMeta);
+  // Detect archetype — post-draft, so use late pick to suppress early flattening.
+  const candidates = determineCandidateArchetypes(spellMeta, 42);
   const primaryArchetype = candidates[0]?.colorPair ?? "_overall";
 
   // Fetch all set-level data in parallel — independent D1 queries.
@@ -510,7 +510,7 @@ async function cutAdvisor(
     }
   }
 
-  const candidates = determineCandidateArchetypes(allMeta);
+  const candidates = determineCandidateArchetypes(allMeta, 42);
   const primaryArchetype = candidates[0]?.colorPair ?? "_overall";
 
   // Load ratings

@@ -3,6 +3,11 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { cardStatsModule } from "../../plugins/mtga/reference/card-stats";
 import { draftAdvisorModule } from "../../plugins/mtga/reference/draft-advisor";
+import {
+  computeColorCommitment,
+  derivePairWeights,
+  type CardMetaRow,
+} from "../../plugins/mtga/reference/scoring";
 import { registerNativeModule } from "../src/reference/registry";
 
 import { cleanAll } from "./helpers";
@@ -1498,5 +1503,161 @@ describe("draft_advisor native module", () => {
     expect(
       data.summary.optimal + data.summary.good + data.summary.questionable + data.summary.misses,
     ).toBe(2);
+  });
+});
+
+// ── Color commitment model unit tests ────────────────────────
+
+function makeCard(name: string, manaCost: string): CardMetaRow {
+  return {
+    name,
+    cmc: 0,
+    mana_cost: manaCost,
+    colors: "[]",
+    type_line: "Creature",
+    produced_mana: "[]",
+  };
+}
+
+describe("computeColorCommitment", () => {
+  it("returns low commitment (~0.1) for colors with 0% of pips", () => {
+    // Pool is all blue — green should have near-zero commitment
+    const pool = [
+      makeCard("Blue Card 1", "{U}{U}"),
+      makeCard("Blue Card 2", "{U}{U}"),
+      makeCard("Blue Card 3", "{U}"),
+    ];
+    const commitments = computeColorCommitment(pool, 10);
+    expect(commitments.get("G")).toBeLessThan(0.15);
+    expect(commitments.get("R")).toBeLessThan(0.15);
+  });
+
+  it("returns high commitment (~0.95+) for dominant color", () => {
+    // Pool is overwhelmingly blue
+    const pool = [
+      makeCard("Blue 1", "{U}{U}"),
+      makeCard("Blue 2", "{U}{U}"),
+      makeCard("Blue 3", "{U}"),
+      makeCard("Blue 4", "{U}{U}"),
+      makeCard("Splash W", "{W}"),
+    ];
+    const commitments = computeColorCommitment(pool, 15);
+    expect(commitments.get("U")).toBeGreaterThan(0.9);
+  });
+
+  it("returns moderate commitment (~0.5) for secondary color at ~15% pips", () => {
+    // 7 blue pips, 2 white pips → white is ~22% of pips
+    const pool = [
+      makeCard("Blue 1", "{U}{U}"),
+      makeCard("Blue 2", "{U}{U}"),
+      makeCard("Blue 3", "{U}{U}"),
+      makeCard("Blue 4", "{U}"),
+      makeCard("White Splash", "{W}{W}"),
+    ];
+    const commitments = computeColorCommitment(pool, 15);
+    const white = commitments.get("W")!;
+    expect(white).toBeGreaterThan(0.3);
+    expect(white).toBeLessThan(0.8);
+  });
+
+  it("dampens toward 0.2 for picks 1-5 (early-pick flattening)", () => {
+    // Same pool at pick 1 vs pick 15
+    const pool = [
+      makeCard("Blue 1", "{U}{U}"),
+      makeCard("Blue 2", "{U}{U}"),
+    ];
+    const earlyCommitments = computeColorCommitment(pool, 1);
+    const midCommitments = computeColorCommitment(pool, 15);
+    // At pick 1, all commitments should be close to 0.2
+    const earlyBlue = earlyCommitments.get("U")!;
+    const midBlue = midCommitments.get("U")!;
+    expect(earlyBlue).toBeCloseTo(0.2, 0);
+    expect(midBlue).toBeGreaterThan(earlyBlue);
+  });
+
+  it("returns uniform 0.2 for empty pool", () => {
+    const commitments = computeColorCommitment([], 1);
+    for (const color of ["W", "U", "B", "R", "G"]) {
+      expect(commitments.get(color)).toBeCloseTo(0.2, 1);
+    }
+  });
+});
+
+describe("derivePairWeights", () => {
+  it("gives UW highest weight when U is locked and W is secondary", () => {
+    const commitments = new Map([
+      ["W", 0.6],
+      ["U", 0.99],
+      ["B", 0.1],
+      ["R", 0.1],
+      ["G", 0.1],
+    ]);
+    const pairs = derivePairWeights(commitments);
+    const uw = pairs.find((p) => p.colorPair === "WU");
+    expect(uw).toBeDefined();
+    expect(uw!.weight).toBeGreaterThan(0);
+    // UW should be the top pair
+    expect(pairs[0]!.colorPair).toBe("WU");
+  });
+
+  it("gives meaningful weight to UB/UR/UG when U is locked and others are open", () => {
+    const commitments = new Map([
+      ["W", 0.1],
+      ["U", 0.99],
+      ["B", 0.1],
+      ["R", 0.1],
+      ["G", 0.1],
+    ]);
+    const pairs = derivePairWeights(commitments);
+    const ub = pairs.find((p) => p.colorPair === "UB")!;
+    const ur = pairs.find((p) => p.colorPair === "UR")!;
+    const ug = pairs.find((p) => p.colorPair === "UG")!;
+    // All blue pairs should have roughly equal weight (open_bonus)
+    expect(ub.weight).toBeGreaterThan(0.05);
+    expect(ur.weight).toBeGreaterThan(0.05);
+    expect(ug.weight).toBeGreaterThan(0.05);
+    // They should be approximately equal
+    expect(Math.abs(ub.weight - ur.weight)).toBeLessThan(0.02);
+  });
+
+  it("gives negligible weight to pairs with no locked color", () => {
+    const commitments = new Map([
+      ["W", 0.1],
+      ["U", 0.99],
+      ["B", 0.1],
+      ["R", 0.1],
+      ["G", 0.1],
+    ]);
+    const pairs = derivePairWeights(commitments);
+    const br = pairs.find((p) => p.colorPair === "BR")!;
+    // BR has two open colors and no locked one — should be minimal
+    expect(br.weight).toBeLessThan(0.05);
+  });
+
+  it("normalizes weights to sum to 1.0", () => {
+    const commitments = new Map([
+      ["W", 0.6],
+      ["U", 0.99],
+      ["B", 0.1],
+      ["R", 0.1],
+      ["G", 0.1],
+    ]);
+    const pairs = derivePairWeights(commitments);
+    const total = pairs.reduce((s, p) => s + p.weight, 0);
+    expect(total).toBeCloseTo(1.0, 4);
+  });
+
+  it("returns _overall fallback when all commitments are near-zero", () => {
+    const commitments = new Map([
+      ["W", 0.0],
+      ["U", 0.0],
+      ["B", 0.0],
+      ["R", 0.0],
+      ["G", 0.0],
+    ]);
+    const pairs = derivePairWeights(commitments);
+    expect(pairs).toHaveLength(1);
+    expect(pairs[0]!.colorPair).toBe("_overall");
+    expect(pairs[0]!.weight).toBe(1.0);
   });
 });
