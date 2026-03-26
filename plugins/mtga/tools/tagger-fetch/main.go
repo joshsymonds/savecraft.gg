@@ -113,7 +113,8 @@ func run() error {
 		if *d1DatabaseID == "" {
 			return fmt.Errorf("--retry requires --d1-database-id")
 		}
-		return retryRolesImport(*cfAccountID, *d1DatabaseID, *cfAPIToken)
+		sqlDir := filepath.Join(cfapi.DefaultCacheDir(), "sql")
+		return cfapi.RetryFromDisk(*cfAccountID, *d1DatabaseID, *cfAPIToken, sqlDir, "_roles.sql")
 	}
 
 	// Validate Cloudflare credentials early — don't download data we can't store.
@@ -288,10 +289,15 @@ func run() error {
 	}
 
 	// Determine SQL cache directory.
-	cacheDir := defaultCacheDir()
-	sqlDir := filepath.Join(cacheDir, "sql")
+	sqlDir := filepath.Join(cfapi.DefaultCacheDir(), "sql")
 	if err := os.MkdirAll(sqlDir, 0755); err != nil {
 		return fmt.Errorf("creating SQL cache dir: %w", err)
+	}
+
+	// Batch-fetch all existing pipeline hashes in one query.
+	existingHashes, _ := cfapi.GetAllPipelineHashes(*cfAccountID, *d1DatabaseID, *cfAPIToken, "tagger")
+	if existingHashes == nil {
+		existingHashes = make(map[string]string)
 	}
 
 	// Per-set import with hash checking.
@@ -303,8 +309,7 @@ func run() error {
 		contentHash := hashRoleEntries(entries)
 
 		// Check pipeline state — skip if unchanged.
-		existing, err := cfapi.GetPipelineHash(*cfAccountID, *d1DatabaseID, *cfAPIToken, "tagger", setCode)
-		if err == nil && existing == contentHash {
+		if existingHashes[setCode] == contentHash {
 			fmt.Printf("  %s: unchanged (hash match), skipping\n", setCode)
 			continue
 		}
@@ -337,15 +342,6 @@ func run() error {
 
 	fmt.Println("D1 population complete")
 	return nil
-}
-
-// defaultCacheDir returns ~/.cache/savecraft/17lands.
-func defaultCacheDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(os.TempDir(), "savecraft", "17lands")
-	}
-	return filepath.Join(home, ".cache", "savecraft", "17lands")
 }
 
 // hashRoleEntries computes a SHA-256 hash of role entries for content change detection.
@@ -616,53 +612,3 @@ func buildSetRolesSQL(setCode string, entries []roleEntry) string {
 	return b.String()
 }
 
-// retryRolesImport scans the SQL cache directory for cached roles SQL files
-// and imports them to D1 without reprocessing.
-func retryRolesImport(cfAccountID, d1DatabaseID, cfAPIToken string) error {
-	sqlDir := filepath.Join(defaultCacheDir(), "sql")
-	entries, err := os.ReadDir(sqlDir)
-	if err != nil {
-		return fmt.Errorf("reading SQL cache dir %s: %w", sqlDir, err)
-	}
-
-	var sqlFiles []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), "_roles.sql") {
-			sqlFiles = append(sqlFiles, e.Name())
-		}
-	}
-
-	if len(sqlFiles) == 0 {
-		fmt.Println("No cached roles SQL files found — nothing to retry.")
-		return nil
-	}
-
-	fmt.Printf("Found %d cached roles SQL files to retry:\n", len(sqlFiles))
-	sort.Strings(sqlFiles)
-
-	var importErrors []string
-	for _, name := range sqlFiles {
-		path := filepath.Join(sqlDir, name)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			fmt.Printf("  SKIP %s: %v\n", name, err)
-			continue
-		}
-
-		fmt.Printf("  %s: importing (%.1f KB)...\n", name, float64(len(data))/1024)
-		if err := cfapi.ImportD1SQL(cfAccountID, d1DatabaseID, cfAPIToken, string(data)); err != nil {
-			fmt.Printf("  FAIL %s: %v\n", name, err)
-			importErrors = append(importErrors, name)
-			continue
-		}
-		os.Remove(path)
-		fmt.Printf("  %s: done\n", name)
-	}
-
-	if len(importErrors) > 0 {
-		return fmt.Errorf("retry failed for %d files: %s", len(importErrors), strings.Join(importErrors, ", "))
-	}
-
-	fmt.Println("Retry complete — all cached roles SQL imported successfully.")
-	return nil
-}

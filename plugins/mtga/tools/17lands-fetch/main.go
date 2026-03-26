@@ -125,14 +125,7 @@ func main() {
 	}
 }
 
-// defaultCacheDir returns ~/.cache/savecraft/17lands.
-func defaultCacheDir() string {
-	home, err := os.UserHomeDir()
-	if err != nil {
-		return filepath.Join(os.TempDir(), "savecraft", "17lands")
-	}
-	return filepath.Join(home, ".cache", "savecraft", "17lands")
-}
+func defaultCacheDir() string { return cfapi.DefaultCacheDir() }
 
 func run() error {
 	cfAccountID := flag.String("cf-account-id", os.Getenv("CLOUDFLARE_ACCOUNT_ID"), "Cloudflare account ID")
@@ -162,7 +155,8 @@ func run() error {
 		if *d1DatabaseID == "" {
 			return fmt.Errorf("--retry requires --d1-database-id")
 		}
-		return retryImport(*cfAccountID, *d1DatabaseID, *cfAPIToken, *cacheDir)
+		sqlDir := filepath.Join(*cacheDir, "sql")
+		return cfapi.RetryFromDisk(*cfAccountID, *d1DatabaseID, *cfAPIToken, sqlDir, ".sql")
 	}
 
 	targetSets, err := sets.Resolve(context.Background(), *setFilter)
@@ -281,6 +275,12 @@ func run() error {
 
 		fmt.Println("\nWriting SQL and importing per-set...")
 
+		// Batch-fetch all existing pipeline hashes in one query.
+		existingHashes, _ := cfapi.GetAllPipelineHashes(*cfAccountID, *d1DatabaseID, *cfAPIToken, "17lands")
+		if existingHashes == nil {
+			existingHashes = make(map[string]string)
+		}
+
 		var importErrors []string
 		for _, ps := range processed {
 			setCode := ps.result.Set
@@ -294,12 +294,9 @@ func run() error {
 			}
 
 			// Check pipeline state — skip if unchanged.
-			if csvHash != "" {
-				existing, err := cfapi.GetPipelineHash(*cfAccountID, *d1DatabaseID, *cfAPIToken, "17lands", setCode)
-				if err == nil && existing == csvHash {
-					fmt.Printf("  %s: unchanged (hash match), skipping\n", setCode)
-					continue
-				}
+			if csvHash != "" && existingHashes[setCode] == csvHash {
+				fmt.Printf("  %s: unchanged (hash match), skipping\n", setCode)
+				continue
 			}
 
 			// Generate per-set SQL.
@@ -310,9 +307,10 @@ func run() error {
 			}
 
 			hasSynergy := len(ps.synergy.Synergies) > 0 || len(ps.synergy.Curves) > 0 || len(ps.synergy.DeckStats) > 0
+			var synergySQL string
 			var synergyPath string
 			if hasSynergy {
-				synergySQL := buildSetSynergySQL(ps.synergy)
+				synergySQL = buildSetSynergySQL(ps.synergy)
 				synergyPath = filepath.Join(sqlDir, setCode+"_synergy.sql")
 				if err := os.WriteFile(synergyPath, []byte(synergySQL), 0644); err != nil {
 					return fmt.Errorf("writing synergy SQL for %s: %w", setCode, err)
@@ -328,11 +326,10 @@ func run() error {
 			}
 			os.Remove(ratingsPath)
 
-			// Import synergy.
+			// Import synergy (reuse in-memory string, don't re-read from disk).
 			if hasSynergy {
-				synergySQL, _ := os.ReadFile(synergyPath)
 				fmt.Printf("  %s: importing synergy (%.1f MB)...\n", setCode, float64(len(synergySQL))/1048576)
-				if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, string(synergySQL)); err != nil {
+				if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, synergySQL); err != nil {
 					fmt.Printf("  FAIL: %s synergy import: %v\n", setCode, err)
 					importErrors = append(importErrors, setCode+" synergy")
 					continue // Leave SQL on disk for retry.
@@ -375,57 +372,6 @@ func fileHash(path string) (string, error) {
 		return "", err
 	}
 	return hex.EncodeToString(h.Sum(nil)), nil
-}
-
-// retryImport scans the SQL cache directory for cached SQL files and imports
-// them to D1. Used after a failed import to retry without reprocessing CSVs.
-func retryImport(cfAccountID, d1DatabaseID, cfAPIToken, cacheDir string) error {
-	sqlDir := filepath.Join(cacheDir, "sql")
-	entries, err := os.ReadDir(sqlDir)
-	if err != nil {
-		return fmt.Errorf("reading SQL cache dir %s: %w", sqlDir, err)
-	}
-
-	var sqlFiles []string
-	for _, e := range entries {
-		if !e.IsDir() && strings.HasSuffix(e.Name(), ".sql") {
-			sqlFiles = append(sqlFiles, e.Name())
-		}
-	}
-
-	if len(sqlFiles) == 0 {
-		fmt.Println("No cached SQL files found — nothing to retry.")
-		return nil
-	}
-
-	fmt.Printf("Found %d cached SQL files to retry:\n", len(sqlFiles))
-	sort.Strings(sqlFiles)
-
-	var importErrors []string
-	for _, name := range sqlFiles {
-		path := filepath.Join(sqlDir, name)
-		data, err := os.ReadFile(path)
-		if err != nil {
-			fmt.Printf("  SKIP %s: %v\n", name, err)
-			continue
-		}
-
-		fmt.Printf("  %s: importing (%.1f MB)...\n", name, float64(len(data))/1048576)
-		if err := cfapi.ImportD1SQL(cfAccountID, d1DatabaseID, cfAPIToken, string(data)); err != nil {
-			fmt.Printf("  FAIL %s: %v\n", name, err)
-			importErrors = append(importErrors, name)
-			continue
-		}
-		os.Remove(path)
-		fmt.Printf("  %s: done\n", name)
-	}
-
-	if len(importErrors) > 0 {
-		return fmt.Errorf("retry failed for %d files: %s", len(importErrors), strings.Join(importErrors, ", "))
-	}
-
-	fmt.Println("Retry complete — all cached SQL imported successfully.")
-	return nil
 }
 
 func processDraftData(set string, cacheDir string, accums map[string]map[string]*cardAccum) error {
