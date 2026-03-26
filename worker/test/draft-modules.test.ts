@@ -2544,6 +2544,7 @@ describe("draft_advisor native module", () => {
           primary: string;
           confidence: number;
           viability: string;
+          phase: string;
         };
       }[];
     };
@@ -2569,6 +2570,9 @@ describe("draft_advisor native module", () => {
       expect(typeof pick.archetype_snapshot.confidence).toBe("number");
       expect(["strong", "moderate", "sparse", "fringe"]).toContain(
         pick.archetype_snapshot.viability,
+      );
+      expect(["exploration", "emerging", "committed"]).toContain(
+        pick.archetype_snapshot.phase,
       );
     }
 

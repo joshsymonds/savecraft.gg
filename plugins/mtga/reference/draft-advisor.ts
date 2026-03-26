@@ -1194,6 +1194,7 @@ interface BatchPickResult {
     primary: string;
     confidence: number;
     viability: string;
+    phase: "exploration" | "emerging" | "committed";
   };
 }
 
@@ -1299,40 +1300,48 @@ async function batchReview(
         primary: data.archetype?.primary ?? "_overall",
         confidence: data.archetype?.confidence ?? 0,
         viability: primaryViability,
+        phase:
+          pickNumber < 12
+            ? "exploration"
+            : pickNumber < 15
+              ? "emerging"
+              : "committed",
       },
     });
   }
 
-  // Generate archetype warnings. Pack 1 shifts are normal (reading signals),
-  // so we only warn about: (1) settling into a weak archetype after pack 1,
-  // (2) late pivots (pack 2+), (3) final archetype being weak.
+  // Generate archetype warnings based on draft phase research:
+  //   Picks 1-11: Exploration phase. Archetype detection is informational only.
+  //   Pick 12+: Archetype should be emerging. Drift becomes meaningful.
+  //   Pick 15+ (P2P1): Last accepted pivot point. Drift flagged assertively.
+  // We warn about: (1) settling into a weak archetype by pick 12,
+  // (2) drift after pick 12, (3) final archetype being weak.
+  const DRIFT_START_PICK = 12;
   const archetypeWarnings: string[] = [];
   let prevPrimary = "";
-  let settledArchetype = ""; // archetype at start of pack 2
+  let settledArchetype = ""; // archetype at pick 12 (when commitment should emerge)
   for (const pick of results) {
     const snap = pick.archetype_snapshot;
-    const isPack1 = pick.pack_number === 1;
 
-    if (snap.primary !== prevPrimary && prevPrimary !== "") {
-      if (!isPack1) {
-        // Post-pack-1 pivots are costly — always flag them
-        const tierNote =
-          snap.viability === "sparse" || snap.viability === "fringe"
-            ? ` (${snap.viability} archetype)`
-            : "";
+    // Track archetype at the commitment threshold
+    if (pick.pick_number === DRIFT_START_PICK && !settledArchetype) {
+      settledArchetype = snap.primary;
+      if (snap.viability === "sparse" || snap.viability === "fringe") {
         archetypeWarnings.push(
-          `${pick.display_label}: late pivot from ${prevPrimary} to ${snap.primary}${tierNote}`,
+          `Entering commitment phase in ${snap.primary} (${snap.viability} — only ${snap.viability === "fringe" ? "<5%" : "5-25%"} of winning decks in this format)`,
         );
       }
     }
 
-    // Track archetype at pack 2 start
-    if (pick.pack_number === 2 && pick.pick_in_pack === 1) {
-      settledArchetype = snap.primary;
-      // Warn if you settled into a weak archetype
-      if (snap.viability === "sparse" || snap.viability === "fringe") {
+    if (snap.primary !== prevPrimary && prevPrimary !== "") {
+      if (pick.pick_number >= DRIFT_START_PICK) {
+        const tierNote =
+          snap.viability === "sparse" || snap.viability === "fringe"
+            ? ` (${snap.viability} archetype)`
+            : "";
+        const urgency = pick.pick_number >= 15 ? "late pivot" : "drift";
         archetypeWarnings.push(
-          `Settled into ${snap.primary} at pack 2 (${snap.viability} — only ${snap.viability === "fringe" ? "<5%" : "5-25%"} of winning decks in this format)`,
+          `${pick.display_label}: ${urgency} from ${prevPrimary} to ${snap.primary}${tierNote}`,
         );
       }
     }
@@ -1349,14 +1358,14 @@ async function batchReview(
       `Final archetype ${finalSnap.primary} is ${finalSnap.viability} — consider alternatives in deckbuilding`,
     );
   }
-  // Flag if the archetype changed between settling and final (unstable commitment)
+  // Flag if archetype changed between commitment point and final
   if (
     settledArchetype &&
     finalSnap &&
     finalSnap.primary !== settledArchetype
   ) {
     archetypeWarnings.push(
-      `Archetype drifted from ${settledArchetype} (pack 2 start) to ${finalSnap.primary} (final) — unstable commitment may have cost card quality`,
+      `Archetype shifted from ${settledArchetype} (pick ${DRIFT_START_PICK}) to ${finalSnap.primary} (final) — late commitment changes cost card quality`,
     );
   }
 
