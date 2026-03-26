@@ -2786,7 +2786,17 @@ describe("draft_advisor native module", () => {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(20, "oracle-wp", "White Pilgrim", "White Pilgrim", "{W}{W}", 2, "Creature", '["W"]', 1),
+      ).bind(
+        20,
+        "oracle-wp",
+        "White Pilgrim",
+        "White Pilgrim",
+        "{W}{W}",
+        2,
+        "Creature",
+        '["W"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind("DSK", "White Pilgrim", 3000, 5000, 2000, 0.51, 0.52, 0.5, 0.49, 0.01, 8, 9),
@@ -2823,9 +2833,7 @@ describe("draft_advisor native module", () => {
     // WG has 100 decks out of 8100 total (1.2%) — that's "sparse" or "fringe",
     // not "strong". If this test sees "strong", the viability is being read
     // from the wrong candidate (e.g. UB at 5000 decks which passed the 2% filter).
-    const primaryCand = data.archetype.candidates.find(
-      (c) => c.archetype === "WG",
-    );
+    const primaryCand = data.archetype.candidates.find((c) => c.archetype === "WG");
     // WG should be included in candidates since it's the primary
     expect(primaryCand).toBeDefined();
     // And its viability should NOT be "strong"
