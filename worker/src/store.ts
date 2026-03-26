@@ -4,6 +4,7 @@
  * storePush upserts a save in D1 (metadata + sections) and indexes sections in FTS.
  */
 
+import { ingestMatchHistory } from "./mtga/ingest";
 import type { Env } from "./types";
 
 /** Per-isolate cache for game name lookups — avoids R2 read on every new save. */
@@ -90,6 +91,9 @@ export async function storePush(
       ).bind(sourceUuid),
       ...buildSectionStatements(env.DB, saveUuid, saveName, sections),
     ]);
+    if (gameId === "mtga" && userUuid) {
+      await ingestMatchHistory(env.DB, userUuid, sections);
+    }
     return { saveUuid, changed: true };
   }
 
@@ -136,6 +140,9 @@ export async function storePush(
   }
 
   await env.DB.batch(batch);
+  if (gameId === "mtga" && userUuid) {
+    await ingestMatchHistory(env.DB, userUuid, sections);
+  }
   return { saveUuid, changed: true };
 }
 

@@ -1277,7 +1277,7 @@ func TestBuildOutputSectionsPlayerSummary(t *testing.T) {
 			Matches: []MatchResult{{
 				MatchID: "match-001", EventID: "Ranked", Date: "2026-03-22T15:03:09Z",
 				Result:   "win",
-				Opponent: MatchPlayer{Name: "Opp1", Seat: 2},
+				Opponent: MatchPlayer{Name: "Opp1", Seat: 2, Rank: "Platinum", Tier: 3, CardsSeen: []CardSeen{{Name: "Sheoldred, the Apocalypse", ArenaID: 87521}}},
 				Player:   MatchPlayer{Name: "TestPlayer", Seat: 1},
 				Games:    []GameResult{{GameNumber: 1, WinningSeat: 1}},
 			}},
@@ -1329,6 +1329,9 @@ func TestBuildOutputSectionsPlayerSummary(t *testing.T) {
 	if len(matches) != 1 {
 		t.Errorf("expected 1 match in summary, got %d", len(matches))
 	}
+	if matches[0]["section"] != "match:match-001" {
+		t.Errorf("expected match section 'match:match-001', got %v", matches[0]["section"])
+	}
 	games := data["games"].([]map[string]any)
 	if len(games) != 1 {
 		t.Errorf("expected 1 game index entry, got %d", len(games))
@@ -1350,6 +1353,28 @@ func TestBuildOutputSectionsPlayerSummary(t *testing.T) {
 	}
 	if _, ok := sections["deck:[HB] Slivers"]; !ok {
 		t.Error("expected deck:[HB] Slivers section")
+	}
+
+	// Per-match sections with full metadata including opponent cards
+	matchSection, ok := sections["match:match-001"]
+	if !ok {
+		t.Error("expected match:match-001 section")
+	} else {
+		matchData := matchSection.(map[string]any)["data"].(MatchResult)
+		if matchData.Opponent.Name != "Opp1" {
+			t.Errorf("expected opponent name 'Opp1', got %q", matchData.Opponent.Name)
+		}
+		if matchData.Result != "win" {
+			t.Errorf("expected result 'win', got %q", matchData.Result)
+		}
+		if matchData.Opponent.Rank != "Platinum" {
+			t.Errorf("expected opponent rank 'Platinum', got %q", matchData.Opponent.Rank)
+		}
+		if len(matchData.Opponent.CardsSeen) != 1 {
+			t.Errorf("expected 1 opponent card seen, got %d", len(matchData.Opponent.CardsSeen))
+		} else if matchData.Opponent.CardsSeen[0].Name != "Sheoldred, the Apocalypse" {
+			t.Errorf("expected card 'Sheoldred, the Apocalypse', got %q", matchData.Opponent.CardsSeen[0].Name)
+		}
 	}
 
 	// Per-game sections

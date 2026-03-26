@@ -62,6 +62,16 @@ func buildOutputSections(gs *GameState) map[string]any {
 		}
 	}
 
+	// Per-match sections with full match metadata (opponent cards seen, rank, game results).
+	if gs.Matches != nil {
+		for _, m := range gs.Matches.Matches {
+			sections["match:"+m.MatchID] = map[string]any{
+				"description": fmt.Sprintf("Match result for %s vs %s — includes opponent cards seen, rank, and per-game outcomes", m.MatchID, m.Opponent.Name),
+				"data":        m,
+			}
+		}
+	}
+
 	// Per-game sections with full turn-by-turn data.
 	if gs.GameLogs != nil {
 		for _, game := range gs.GameLogs.Games {
@@ -124,7 +134,7 @@ func buildPlayerSummary(gs *GameState) map[string]any {
 		summary["decks"] = deckList
 	}
 
-	// Match results with full metadata.
+	// Match index: matchId, eventId, opponent, result, and section pointer (no opponent cards).
 	if gs.Matches != nil && len(gs.Matches.Matches) > 0 {
 		matchList := make([]map[string]any, len(gs.Matches.Matches))
 		for i, m := range gs.Matches.Matches {
@@ -135,6 +145,7 @@ func buildPlayerSummary(gs *GameState) map[string]any {
 				"opponent": m.Opponent.Name,
 				"result":   m.Result,
 				"games":    m.Games,
+				"section":  "match:" + m.MatchID,
 			}
 		}
 		summary["matches"] = matchList

@@ -906,27 +906,186 @@ async function cutAdvisor(
   };
 }
 
+// ── Constructed health check ─────────────────────────────────
+
+function padRightFmt(s: string, len: number): string {
+  return s.length >= len ? s : s + " ".repeat(len - s.length);
+}
+
+function padLeftFmt(s: string, len: number): string {
+  return s.length >= len ? s : " ".repeat(len - s.length) + s;
+}
+
+interface LegalityRow {
+  name: string;
+  legalities: string;
+  type_line: string;
+  cmc: number;
+  mana_cost: string;
+  colors: string;
+}
+
+async function constructedHealthCheck(
+  db: D1Database,
+  deck: DeckEntry[],
+  sideboard: DeckEntry[] | undefined,
+  format: string | undefined,
+): Promise<ReferenceResult> {
+  const allNames = [...new Set(deck.map((e) => e.name))];
+  const ph = placeholders(allNames.length, 1);
+  const rows = await db
+    .prepare(
+      `SELECT front_face_name AS name, legalities, type_line, cmc, mana_cost, colors
+       FROM mtga_cards WHERE front_face_name COLLATE NOCASE IN (${ph}) AND is_default = 1`,
+    )
+    .bind(...allNames)
+    .all<LegalityRow>();
+
+  const cardData = new Map<string, LegalityRow>();
+  for (const row of rows.results) {
+    cardData.set(row.name.toLowerCase(), row);
+  }
+
+  const totalCards = deck.reduce((sum, e) => sum + e.count, 0);
+  const sideboardCards = sideboard ? sideboard.reduce((sum, e) => sum + e.count, 0) : undefined;
+
+  let creatures = 0;
+  let noncreatures = 0;
+  let lands = 0;
+  const cmcCounts = new Map<number, number>();
+  const colorPips = new Map<string, number>();
+  const illegalCards: { name: string; status: string }[] = [];
+  const unresolvedCards: string[] = [];
+
+  for (const entry of deck) {
+    const data = cardData.get(entry.name.toLowerCase());
+    if (!data) {
+      unresolvedCards.push(entry.name);
+      continue;
+    }
+
+    const typeLine = data.type_line.toLowerCase();
+    if (typeLine.includes("land")) {
+      lands += entry.count;
+    } else if (typeLine.includes("creature")) {
+      creatures += entry.count;
+      cmcCounts.set(data.cmc, (cmcCounts.get(data.cmc) ?? 0) + entry.count);
+    } else {
+      noncreatures += entry.count;
+      cmcCounts.set(data.cmc, (cmcCounts.get(data.cmc) ?? 0) + entry.count);
+    }
+
+    const pips = countPips(data.mana_cost);
+    for (const [color, count] of Object.entries(pips)) {
+      colorPips.set(color, (colorPips.get(color) ?? 0) + count * entry.count);
+    }
+
+    if (format) {
+      try {
+        const legalities = JSON.parse(data.legalities) as Record<string, string>;
+        const status = legalities[format.toLowerCase()] ?? "not_legal";
+        if (status !== "legal") {
+          illegalCards.push({ name: data.name, status });
+        }
+      } catch {
+        // skip unparseable legalities
+      }
+    }
+  }
+
+  const lines: string[] = [];
+  const header = format
+    ? `Constructed Deck Analysis (${format}):`
+    : "Constructed Deck Analysis:";
+  lines.push(header);
+  lines.push("");
+
+  if (format && illegalCards.length > 0) {
+    lines.push("  LEGALITY ISSUES:");
+    for (const card of illegalCards) {
+      lines.push(`    ${card.name} — ${card.status} in ${format}`);
+    }
+    lines.push("");
+  } else if (format) {
+    lines.push(`  All cards legal in ${format}.`);
+    lines.push("");
+  }
+
+  lines.push("  Composition:");
+  lines.push(`    Total:         ${totalCards} cards`);
+  lines.push(`    Creatures:     ${creatures}`);
+  lines.push(`    Noncreatures:  ${noncreatures}`);
+  lines.push(`    Lands:         ${lands}`);
+  if (totalCards < 60) {
+    lines.push(`    Deck has ${totalCards} cards (minimum 60 for Constructed)`);
+  }
+  lines.push("");
+
+  if (sideboardCards !== undefined) {
+    lines.push(`  Sideboard: ${sideboardCards} cards`);
+    if (sideboardCards !== 15 && sideboardCards !== 0) {
+      lines.push(`    Note: Standard sideboard is 15 cards (have ${sideboardCards})`);
+    }
+    lines.push("");
+  }
+
+  const maxCmc = Math.max(...cmcCounts.keys(), 0);
+  if (maxCmc > 0) {
+    lines.push("  Curve (non-land spells):");
+    lines.push(
+      `    ${padRightFmt("CMC", 6)} ${padLeftFmt("Count", 6)}  Bar`,
+    );
+    for (let cmc = 0; cmc <= Math.min(maxCmc, 7); cmc++) {
+      const count = cmcCounts.get(cmc) ?? 0;
+      const label = cmc === 7 ? "7+" : String(cmc);
+      const bar = "\u2588".repeat(Math.min(count, 30));
+      lines.push(
+        `    ${padRightFmt(label, 6)} ${padLeftFmt(String(count), 6)}  ${bar}`,
+      );
+    }
+    lines.push("");
+  }
+
+  if (colorPips.size > 0) {
+    const cNames: Record<string, string> = {
+      W: "White", U: "Blue", B: "Black", R: "Red", G: "Green",
+    };
+    lines.push("  Color Requirements (total pips across spells):");
+    const sorted = [...colorPips.entries()].sort((a, b) => b[1] - a[1]);
+    for (const [color, total] of sorted) {
+      lines.push(`    ${cNames[color] ?? color}: ${total} pips`);
+    }
+    lines.push("  Use mana_base module for detailed Karsten source requirements.");
+    lines.push("");
+  }
+
+  if (unresolvedCards.length > 0) {
+    lines.push(`  Unresolved cards (not in database): ${unresolvedCards.join(", ")}`);
+    lines.push("");
+  }
+
+  return { type: "formatted", content: lines.join("\n") + "\n" };
+}
+
 // ── Module definition ────────────────────────────────────────
 
 export const deckbuildingModule: NativeReferenceModule = {
   id: "deckbuilding",
   name: "Deck Health & Cut Advisor",
   description: [
-    "Analyze a limited deck against empirical data from winning decks. Two modes:",
+    "Analyze a deck against empirical data. Three modes:",
     "",
-    "1. HEALTH CHECK (deck only): Compares your deck's composition (land count, creature count, curve, fixing, removal, castability) against the empirical averages of winning decks in the same archetype and set. Returns per-section status (good/warning/issue) with explanations.",
+    "1. HEALTH CHECK (deck only, draft): Compares your limited deck's composition against the empirical averages of winning decks in the same archetype and set.",
     "",
-    "2. CUT ADVISOR (deck + cuts): Scores every non-land card's contribution across 5 axes — baseline win rate, synergy with other deck cards, curve fit, role fulfillment, and castability. Returns the N weakest cards ranked as cut candidates with per-axis breakdown and plain-language reasons.",
+    "2. CUT ADVISOR (deck + cuts, draft): Scores every non-land card's contribution across 5 axes. Returns the N weakest cards ranked as cut candidates.",
     "",
-    "REQUIRES: A deck list (card names + counts). For general deckbuilding questions without a specific deck (e.g., 'how many Evolving Wilds should I play?'), construct a representative deck and run it through this module at varying configurations to ground your advice in data.",
+    '3. CONSTRUCTED (mode="constructed"): Analyzes a Constructed deck — format legality check, composition summary, mana curve, color pip requirements, sideboard size. No draft data needed.',
     "",
-    "FOR CARD AVAILABILITY QUESTIONS ('what fixing is in this format?', 'what removal exists?'), use card_search instead.",
-    "FOR CARD PERFORMANCE QUESTIONS ('how does Evolving Wilds actually perform?'), use card_stats instead.",
+    "REQUIRES: A deck list (card names + counts). For Constructed mode, also pass format (e.g., 'standard') and optionally sideboard.",
+    "",
     "FOR MANA SOURCE MATH (Karsten colored source requirements), use mana_base instead.",
     "",
-    "This module provides the empirical 'what do winning decks look like?' perspective. Combine with mana_base (mathematical requirements) and card_search/card_stats (card-level data) for complete deckbuilding advice.",
-    "",
-    "Data source: 17Lands (17lands.com), licensed CC BY 4.0.",
+    "Data source: 17Lands (17lands.com) for draft modes, Scryfall card data for constructed mode.",
   ].join("\n"),
   parameters: {
     deck: {
@@ -935,15 +1094,31 @@ export const deckbuildingModule: NativeReferenceModule = {
       description:
         "Deck list: array of {name, count}. Include all cards — lands and spells.",
     },
+    mode: {
+      type: "string",
+      description:
+        'Set to "constructed" for Constructed deck analysis. Omit for draft mode (default).',
+    },
+    format: {
+      type: "string",
+      description:
+        'Arena format for legality checking in constructed mode (e.g., "standard", "historic", "explorer").',
+    },
+    sideboard: {
+      type: "array",
+      items: { type: "object", properties: { name: { type: "string" }, count: { type: "integer" } } },
+      description:
+        "Sideboard list for constructed mode: array of {name, count}.",
+    },
     set: {
       type: "string",
       description:
-        "Set code (e.g., 'DSK'). Auto-detected from card names when omitted.",
+        "Set code (e.g., 'DSK'). For draft mode only. Auto-detected from card names when omitted.",
     },
     cuts: {
       type: "integer",
       description:
-        "Number of cut candidates to suggest. When present, switches to cut advisor mode. Omit for health check mode.",
+        "Number of cut candidates to suggest. For draft mode only. When present, switches to cut advisor mode.",
     },
   },
 
@@ -960,6 +1135,11 @@ export const deckbuildingModule: NativeReferenceModule = {
     }
 
     const db = env.DB;
+
+    // Constructed mode — format-aware analysis without draft data
+    if (query.mode === "constructed") {
+      return constructedHealthCheck(db, deck, query.sideboard as DeckEntry[] | undefined, query.format as string | undefined);
+    }
 
     // Resolve card names
     const allNames = deck.map((e) => e.name);
