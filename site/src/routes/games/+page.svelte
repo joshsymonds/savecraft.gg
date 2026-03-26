@@ -83,7 +83,12 @@
             </div>
           </div>
 
-          <p class="card-description">{game.description}</p>
+          <p class="card-description">
+            {game.description}
+            {#if game.gameId === "mtga"}
+              <a href="/games/mtga" class="card-detail-link">See what your AI can do &rarr;</a>
+            {/if}
+          </p>
 
           {#if game.referenceModules.length > 0}
             <div class="modules-section">
@@ -301,6 +306,22 @@
     color: var(--color-text-dim);
     line-height: 1.6;
     margin-bottom: 16px;
+  }
+
+  .card-detail-link {
+    display: inline-block;
+    margin-top: 6px;
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-gold);
+    text-decoration: none;
+    border-bottom: 1px solid rgba(200, 168, 78, 0.3);
+    transition: border-color 0.2s;
+  }
+
+  .card-detail-link:hover {
+    border-color: var(--color-gold);
   }
 
   /* -- Reference modules -------------------------------------- */

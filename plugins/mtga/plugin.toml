@@ -62,6 +62,36 @@ data_sources = [
   { name = "17Lands Public Datasets", origin = "17lands.com, licensed CC BY 4.0" },
 ]
 
+[reference.modules.card_stats]
+name = "Card Stats"
+description = "Browse 17Lands draft statistics for MTG Arena. List available sets, view set overviews with top and bottom performers, get single card detail with per-archetype breakdowns, or sort leaderboards by any stat."
+
+[reference.modules.card_stats.attribution]
+author = "Josh Symonds"
+data_sources = [
+  { name = "17Lands Public Datasets", origin = "17lands.com, licensed CC BY 4.0" },
+]
+
+[reference.modules.draft_advisor]
+name = "Draft Advisor"
+description = "Contextual draft pick evaluation using 6-axis WASPAS scoring: baseline win rate, synergy, curve fit, signal openness, role composition, and castability. Supports live pick ranking and full draft batch review."
+
+[reference.modules.draft_advisor.attribution]
+author = "Josh Symonds"
+data_sources = [
+  { name = "17Lands Public Datasets", origin = "17lands.com, licensed CC BY 4.0" },
+]
+
+[reference.modules.deckbuilding]
+name = "Deck Health & Cut Advisor"
+description = "Analyze a limited deck against empirical data from winning decks. Health check compares composition against archetype averages. Cut advisor scores every card across 5 axes to identify the weakest cards to cut."
+
+[reference.modules.deckbuilding.attribution]
+author = "Josh Symonds"
+data_sources = [
+  { name = "17Lands Public Datasets", origin = "17lands.com, licensed CC BY 4.0" },
+]
+
 [reference.modules.mana_base]
 name = "Mana Base"
 description = "Analyze colored mana source requirements for a deck using Frank Karsten's methodology. Returns the number of colored sources needed per color to achieve ~89%+ on-curve consistency."
