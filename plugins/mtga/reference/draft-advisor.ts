@@ -1133,6 +1133,7 @@ async function contextualPick(
           candidates: candidates
             .filter((c) => {
               if (c.archetype === "_overall") return true;
+              if (c.archetype === primaryArchetype) return true;
               if (totalDecksAllPairs === 0) return true;
               const deckCount = deckCountByPair.get(c.archetype) ?? 0;
               return deckCount / totalDecksAllPairs >= 0.02;
@@ -1277,8 +1278,12 @@ async function batchReview(
       misses++;
     }
 
-    const primaryViability =
-      data.archetype?.candidates?.[0]?.viability ?? "fringe";
+    const primaryCand = (
+      data.archetype?.candidates as
+        | { archetype: string; viability: string }[]
+        | undefined
+    )?.find((c) => c.archetype === data.archetype?.primary);
+    const primaryViability = primaryCand?.viability ?? "fringe";
     results.push({
       pick_number: pickNumber,
       pack_number: packNumber + 1,

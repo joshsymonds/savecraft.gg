@@ -2769,9 +2769,62 @@ describe("draft_advisor native module", () => {
       };
     };
 
-    // WG should be suppressed (100 decks out of 8100 total = 1.2%)
+    // WG should be suppressed from candidates (100 decks out of 8100 total = 1.2%)
     const wg = data.archetype.candidates.find((c) => c.archetype === "WG");
     expect(wg).toBeUndefined();
+  });
+
+  it("reports correct viability for primary archetype even when below 2% filter", async () => {
+    await seedContextualData();
+
+    // White Pilgrim card for W pips
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(20, "oracle-wp", "White Pilgrim", "White Pilgrim", "{W}{W}", 2, "Creature", '["W"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "White Pilgrim", 3000, 5000, 2000, 0.51, 0.52, 0.5, 0.49, 0.01, 8, 9),
+    ]);
+
+    // Pool: W+G pips → primary will be WG, which has only 100 decks (1.2%)
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["White Pilgrim", "White Pilgrim", "Forest Bear", "Forest Bear"],
+        pack: ["Blazing Bolt"],
+        pick_number: 10,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      archetype: {
+        primary: string;
+        candidates: {
+          archetype: string;
+          viability: string;
+          deck_share: number;
+        }[];
+      };
+    };
+
+    // Primary should be WG (most committed pair from W+G pips)
+    expect(data.archetype.primary).toBe("WG");
+
+    // BUG TEST: The viability for WG should NOT be "strong".
+    // WG has 100 decks out of 8100 total (1.2%) — that's "sparse" or "fringe",
+    // not "strong". If this test sees "strong", the viability is being read
+    // from the wrong candidate (e.g. UB at 5000 decks which passed the 2% filter).
+    const primaryCand = data.archetype.candidates.find(
+      (c) => c.archetype === "WG",
+    );
+    // WG should be included in candidates since it's the primary
+    expect(primaryCand).toBeDefined();
+    // And its viability should NOT be "strong"
+    expect(primaryCand!.viability).not.toBe("strong");
   });
 
   it("includes display_label in batch review picks", async () => {
