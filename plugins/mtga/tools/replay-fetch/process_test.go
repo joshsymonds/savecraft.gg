@@ -139,21 +139,21 @@ func TestProcessReplayCSV_MinimalGame(t *testing.T) {
 		"2", "True",
 		"95194|93965|93757|93782|93743|93831|95194", // opening hand: 2 Island, Gleaming Barrier, Kaito, Seeker's Folly, Archmage, Dreadwing
 		// Turn 1
-		"95194",  // lands_played: Island
-		"93965",  // creatures_cast: Gleaming Barrier
-		"",       // non_creatures_cast
-		"2.0",    // mana_spent
-		"",       // creatures_attacked (none)
-		"93965",  // eot_user_creatures: Gleaming Barrier
-		"",       // eot_oppo_creatures
+		"95194", // lands_played: Island
+		"93965", // creatures_cast: Gleaming Barrier
+		"",      // non_creatures_cast
+		"2.0",   // mana_spent
+		"",      // creatures_attacked (none)
+		"93965", // eot_user_creatures: Gleaming Barrier
+		"",      // eot_oppo_creatures
 		// Turn 2
-		"95194",  // lands_played: Island
-		"",       // creatures_cast
-		"93757",  // non_creatures_cast: Kaito
-		"3.0",    // mana_spent
-		"93965",  // creatures_attacked: Gleaming Barrier
-		"93965",  // eot_user_creatures
-		"93848",  // eot_oppo_creatures: Ajani's Pridemate
+		"95194", // lands_played: Island
+		"",      // creatures_cast
+		"93757", // non_creatures_cast: Kaito
+		"3.0",   // mana_spent
+		"93965", // creatures_attacked: Gleaming Barrier
+		"93965", // eot_user_creatures
+		"93848", // eot_oppo_creatures: Ajani's Pridemate
 	}
 
 	csvData := strings.Join(header, ",") + "\n" + strings.Join(row, ",") + "\n"
@@ -206,13 +206,13 @@ func TestProcessReplayCSV_SampleSizeFilter(t *testing.T) {
 		"True", "0", "0", "WU",
 		"1", "True",
 		"95194|93965|93757|93782|93743|93831|95194",
-		"95194",  // lands played
-		"93965",  // creatures cast: Gleaming Barrier
-		"",       // non creatures
-		"2.0",    // mana spent
-		"93965",  // attacked: Gleaming Barrier
-		"93965",  // eot user creatures
-		"93848",  // eot oppo creatures
+		"95194", // lands played
+		"93965", // creatures cast: Gleaming Barrier
+		"",      // non creatures
+		"2.0",   // mana spent
+		"93965", // attacked: Gleaming Barrier
+		"93965", // eot user creatures
+		"93848", // eot oppo creatures
 	}
 
 	var b strings.Builder
