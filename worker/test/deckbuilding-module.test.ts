@@ -107,12 +107,15 @@ async function seedDeckbuildingData(): Promise<void> {
       `INSERT INTO mtga_draft_set_stats (set_code, format, total_games, card_count, avg_gihwr) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "PremierDraft", 250_000, 4, 0.55),
 
-    // Deck stats for UB archetype
+    // Deck stats for UB and mono-B archetypes
     env.DB.prepare(
       `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 17.2, 14.5, 5.3, 1.1, 0.25, 2.1, 0.52, 0.55, 5000),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind("DSK", "B", 17, 15, 5, 0.5, 0.15, 1.5, 0.51, 0.54, 3000),
 
-    // Archetype curves for UB
+    // Archetype curves for UB and mono-B
     env.DB.prepare(
       `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 1, 2.5, 5000),
@@ -125,14 +128,32 @@ async function seedDeckbuildingData(): Promise<void> {
     env.DB.prepare(
       `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 6, 1.5, 5000),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "B", 1, 2.5, 3000),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "B", 2, 5.5, 3000),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "B", 3, 4, 3000),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "B", 6, 1.5, 3000),
 
-    // Role targets for UB
+    // Role targets for UB and mono-B
     env.DB.prepare(
       `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", "creature", 14.5, 5000),
     env.DB.prepare(
       `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", "removal", 3.5, 5000),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "B", "creature", 15, 3000),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "B", "removal", 3, 3000),
 
     // Card roles
     env.DB.prepare(
@@ -209,7 +230,8 @@ describe("deckbuilding native module", () => {
 
       expect(data.mode).toBe("health_check");
       expect(data.set).toBe("DSK");
-      expect(data.archetype).toBe("UB");
+      // With 31 candidates, mono-B has highest weight for this heavily black deck
+      expect(data.archetype).toBe("B");
       expect(data.sections.length).toBeGreaterThan(0);
 
       // Verify section names exist

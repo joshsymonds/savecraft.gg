@@ -30,7 +30,7 @@ import {
   DEFAULT_ASFAN,
   DEFAULT_PACK_SIZE,
   META_BATCH_SIZE,
-  ALL_COLOR_PAIRS,
+  ALL_COLOR_COMBOS,
   castabilityLookup,
   countPips,
   estimateSources,
@@ -775,9 +775,9 @@ async function contextualPick(
     if (archetypeOpenness && archetypeOpenness.size > 0) {
       const colorSet = new Set(packCardPips.keys());
       let bestOpenness = 0;
-      for (const pair of ALL_COLOR_PAIRS) {
-        if (colorSet.has(pair[0]!) || colorSet.has(pair[1]!)) {
-          const o = archetypeOpenness.get(pair) ?? 0;
+      for (const combo of ALL_COLOR_COMBOS) {
+        if ([...combo].some((c) => colorSet.has(c))) {
+          const o = archetypeOpenness.get(combo) ?? 0;
           if (Math.abs(o) > Math.abs(bestOpenness)) {
             bestOpenness = o;
           }

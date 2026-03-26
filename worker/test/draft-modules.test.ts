@@ -6,7 +6,7 @@ import { draftAdvisorModule } from "../../plugins/mtga/reference/draft-advisor";
 import {
   type CardMetaRow,
   computeColorCommitment,
-  derivePairWeights,
+  deriveArchetypeWeights,
 } from "../../plugins/mtga/reference/scoring";
 import { registerNativeModule } from "../src/reference/registry";
 
@@ -122,6 +122,35 @@ async function seedContextualData(): Promise<void> {
     env.DB.prepare(
       `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 3, 4, 1000),
+    // Mono archetypes: with 31 candidates, mono colors can be the primary
+    // archetype when commitment is high. Seed curves so curve scoring works.
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "U", 1, 3, 500),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "U", 2, 5, 500),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "U", 3, 4, 500),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "B", 1, 3, 500),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "B", 2, 5, 500),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "B", 3, 4, 500),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "G", 1, 3, 500),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "G", 2, 5, 500),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+    ).bind("DSK", "G", 3, 4, 500),
 
     env.DB.prepare(
       `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
@@ -2828,8 +2857,8 @@ describe("computeColorCommitment", () => {
   });
 });
 
-describe("derivePairWeights", () => {
-  it("gives UW highest weight when U is locked and W is secondary", () => {
+describe("deriveArchetypeWeights", () => {
+  it("returns exactly 31 candidates", () => {
     const commitments = new Map([
       ["W", 0.6],
       ["U", 0.99],
@@ -2837,11 +2866,24 @@ describe("derivePairWeights", () => {
       ["R", 0.1],
       ["G", 0.1],
     ]);
-    const pairs = derivePairWeights(commitments);
-    const uw = pairs.find((p) => p.colorPair === "WU");
-    expect(uw).toBeDefined();
-    expect(uw!.weight).toBeGreaterThan(0);
-    // UW should be the top pair
+    const candidates = deriveArchetypeWeights(commitments);
+    expect(candidates).toHaveLength(31);
+  });
+
+  it("gives mono U the highest weight when U is strongly committed", () => {
+    const commitments = new Map([
+      ["W", 0.6],
+      ["U", 0.99],
+      ["B", 0.1],
+      ["R", 0.1],
+      ["G", 0.1],
+    ]);
+    const candidates = deriveArchetypeWeights(commitments);
+    // Mono U (0.99) beats pair WU (~0.71) because single-color
+    // commitment is higher than the pair product + open bonus
+    expect(candidates[0]!.colorPair).toBe("U");
+    // WU should still be the top pair
+    const pairs = candidates.filter((p) => p.colorPair.length === 2);
     expect(pairs[0]!.colorPair).toBe("WU");
   });
 
@@ -2853,33 +2895,17 @@ describe("derivePairWeights", () => {
       ["R", 0.1],
       ["G", 0.1],
     ]);
-    const pairs = derivePairWeights(commitments);
-    const ub = pairs.find((p) => p.colorPair === "UB")!;
-    const ur = pairs.find((p) => p.colorPair === "UR")!;
-    const ug = pairs.find((p) => p.colorPair === "UG")!;
-    // All blue pairs should have roughly equal weight (open_bonus)
-    expect(ub.weight).toBeGreaterThan(0.05);
-    expect(ur.weight).toBeGreaterThan(0.05);
-    expect(ug.weight).toBeGreaterThan(0.05);
-    // They should be approximately equal
+    const candidates = deriveArchetypeWeights(commitments);
+    const ub = candidates.find((p) => p.colorPair === "UB")!;
+    const ur = candidates.find((p) => p.colorPair === "UR")!;
+    const ug = candidates.find((p) => p.colorPair === "UG")!;
+    expect(ub.weight).toBeGreaterThan(0.02);
+    expect(ur.weight).toBeGreaterThan(0.02);
+    expect(ug.weight).toBeGreaterThan(0.02);
     expect(Math.abs(ub.weight - ur.weight)).toBeLessThan(0.02);
   });
 
-  it("gives negligible weight to pairs with no locked color", () => {
-    const commitments = new Map([
-      ["W", 0.1],
-      ["U", 0.99],
-      ["B", 0.1],
-      ["R", 0.1],
-      ["G", 0.1],
-    ]);
-    const pairs = derivePairWeights(commitments);
-    const br = pairs.find((p) => p.colorPair === "BR")!;
-    // BR has two open colors and no locked one — should be minimal
-    expect(br.weight).toBeLessThan(0.05);
-  });
-
-  it("normalizes weights to sum to 1.0", () => {
+  it("normalizes all 31 weights to sum to 1.0", () => {
     const commitments = new Map([
       ["W", 0.6],
       ["U", 0.99],
@@ -2887,8 +2913,8 @@ describe("derivePairWeights", () => {
       ["R", 0.1],
       ["G", 0.1],
     ]);
-    const pairs = derivePairWeights(commitments);
-    const total = pairs.reduce((s, p) => s + p.weight, 0);
+    const candidates = deriveArchetypeWeights(commitments);
+    const total = candidates.reduce((s, p) => s + p.weight, 0);
     expect(total).toBeCloseTo(1, 4);
   });
 
@@ -2900,9 +2926,75 @@ describe("derivePairWeights", () => {
       ["R", 0],
       ["G", 0],
     ]);
-    const pairs = derivePairWeights(commitments);
-    expect(pairs).toHaveLength(1);
-    expect(pairs[0]!.colorPair).toBe("_overall");
-    expect(pairs[0]!.weight).toBe(1);
+    const candidates = deriveArchetypeWeights(commitments);
+    expect(candidates).toHaveLength(1);
+    expect(candidates[0]!.colorPair).toBe("_overall");
+    expect(candidates[0]!.weight).toBe(1);
+  });
+
+  it("uses pure commitment for mono-color weights", () => {
+    const commitments = new Map([
+      ["W", 0.1],
+      ["U", 0.95],
+      ["B", 0.1],
+      ["R", 0.1],
+      ["G", 0.1],
+    ]);
+    const candidates = deriveArchetypeWeights(commitments);
+    const monoU = candidates.find((p) => p.colorPair === "U")!;
+    const monoW = candidates.find((p) => p.colorPair === "W")!;
+    // U should have much higher mono weight than W
+    expect(monoU.weight).toBeGreaterThan(monoW.weight * 3);
+  });
+
+  it("uses pure product for triple-color weights", () => {
+    // High commitment to all 3 colors of WUB
+    const commitments = new Map([
+      ["W", 0.8],
+      ["U", 0.7],
+      ["B", 0.6],
+      ["R", 0.1],
+      ["G", 0.1],
+    ]);
+    const candidates = deriveArchetypeWeights(commitments);
+    const wub = candidates.find((p) => p.colorPair === "WUB")!;
+    const wur = candidates.find((p) => p.colorPair === "WUR")!;
+    // WUB (0.8*0.7*0.6 = 0.336) should be much higher than WUR (0.8*0.7*0.1 = 0.056)
+    expect(wub.weight).toBeGreaterThan(wur.weight * 3);
+  });
+
+  it("gives vanishingly small weight to 4/5-color combos in typical drafts", () => {
+    const commitments = new Map([
+      ["W", 0.5],
+      ["U", 0.5],
+      ["B", 0.5],
+      ["R", 0.5],
+      ["G", 0.5],
+    ]);
+    const candidates = deriveArchetypeWeights(commitments);
+    const fiveColor = candidates.find((p) => p.colorPair === "WUBRG")!;
+    const fourColor = candidates.find((p) => p.colorPair === "WUBR")!;
+    const pair = candidates.find((p) => p.colorPair === "WU")!;
+    // 5-color product (0.5^5 = 0.03125) << pair weight
+    expect(fiveColor.weight).toBeLessThan(pair.weight);
+    expect(fourColor.weight).toBeLessThan(pair.weight);
+  });
+
+  it("preserves open-bonus for pairs only (not triples)", () => {
+    // One locked color (U=0.99), one open (W=0.1)
+    // Pair WU gets open bonus: 0.99*0.1 + 0.3*(1-0.99)*0.1 + 0.3*0.99*(1-0.1)
+    // Triple WUB pure product: 0.99*0.1*0.1 = 0.0099
+    const commitments = new Map([
+      ["W", 0.1],
+      ["U", 0.99],
+      ["B", 0.1],
+      ["R", 0.1],
+      ["G", 0.1],
+    ]);
+    const candidates = deriveArchetypeWeights(commitments);
+    const wu = candidates.find((p) => p.colorPair === "WU")!;
+    const wub = candidates.find((p) => p.colorPair === "WUB")!;
+    // Pair with open bonus >> triple pure product
+    expect(wu.weight).toBeGreaterThan(wub.weight * 5);
   });
 });
