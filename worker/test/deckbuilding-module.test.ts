@@ -218,7 +218,15 @@ describe("deckbuilding native module", () => {
       const data = result.data as {
         mode: string;
         set: string;
-        archetype: string;
+        archetype: {
+          primary: string;
+          candidates: {
+            archetype: string;
+            viability: string;
+            format_context: string;
+          }[];
+          confidence: number;
+        };
         sections: {
           name: string;
           status: string;
@@ -231,7 +239,14 @@ describe("deckbuilding native module", () => {
       expect(data.mode).toBe("health_check");
       expect(data.set).toBe("DSK");
       // With 31 candidates, mono-B has highest weight for this heavily black deck
-      expect(data.archetype).toBe("B");
+      expect(data.archetype.primary).toBe("B");
+      expect(data.archetype.candidates.length).toBeGreaterThan(0);
+      // Viability fields present
+      const primary = data.archetype.candidates[0];
+      expect(["strong", "moderate", "sparse", "fringe"]).toContain(
+        primary?.viability,
+      );
+      expect(primary?.format_context).toContain("% of decks");
       expect(data.sections.length).toBeGreaterThan(0);
 
       // Verify section names exist
