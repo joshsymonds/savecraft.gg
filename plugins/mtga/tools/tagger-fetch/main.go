@@ -105,7 +105,16 @@ func run() error {
 	cfAPIToken := flag.String("cf-api-token", os.Getenv("CLOUDFLARE_API_TOKEN"), "Cloudflare API token")
 	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (required)")
 	setFilter := flag.String("set", "", "Process a single set (e.g., 'DSK'). If empty, processes all sets.")
+	retry := flag.Bool("retry", false, "Retry mode: import cached SQL files without reprocessing")
 	flag.Parse()
+
+	// ── Retry mode ──
+	if *retry {
+		if *d1DatabaseID == "" {
+			return fmt.Errorf("--retry requires --d1-database-id")
+		}
+		return retryRolesImport(*cfAccountID, *d1DatabaseID, *cfAPIToken)
+	}
 
 	// Validate Cloudflare credentials early — don't download data we can't store.
 	if *d1DatabaseID != "" {
@@ -605,4 +614,55 @@ func buildSetRolesSQL(setCode string, entries []roleEntry) string {
 	}
 
 	return b.String()
+}
+
+// retryRolesImport scans the SQL cache directory for cached roles SQL files
+// and imports them to D1 without reprocessing.
+func retryRolesImport(cfAccountID, d1DatabaseID, cfAPIToken string) error {
+	sqlDir := filepath.Join(defaultCacheDir(), "sql")
+	entries, err := os.ReadDir(sqlDir)
+	if err != nil {
+		return fmt.Errorf("reading SQL cache dir %s: %w", sqlDir, err)
+	}
+
+	var sqlFiles []string
+	for _, e := range entries {
+		if !e.IsDir() && strings.HasSuffix(e.Name(), "_roles.sql") {
+			sqlFiles = append(sqlFiles, e.Name())
+		}
+	}
+
+	if len(sqlFiles) == 0 {
+		fmt.Println("No cached roles SQL files found — nothing to retry.")
+		return nil
+	}
+
+	fmt.Printf("Found %d cached roles SQL files to retry:\n", len(sqlFiles))
+	sort.Strings(sqlFiles)
+
+	var importErrors []string
+	for _, name := range sqlFiles {
+		path := filepath.Join(sqlDir, name)
+		data, err := os.ReadFile(path)
+		if err != nil {
+			fmt.Printf("  SKIP %s: %v\n", name, err)
+			continue
+		}
+
+		fmt.Printf("  %s: importing (%.1f KB)...\n", name, float64(len(data))/1024)
+		if err := cfapi.ImportD1SQL(cfAccountID, d1DatabaseID, cfAPIToken, string(data)); err != nil {
+			fmt.Printf("  FAIL %s: %v\n", name, err)
+			importErrors = append(importErrors, name)
+			continue
+		}
+		os.Remove(path)
+		fmt.Printf("  %s: done\n", name)
+	}
+
+	if len(importErrors) > 0 {
+		return fmt.Errorf("retry failed for %d files: %s", len(importErrors), strings.Join(importErrors, ", "))
+	}
+
+	fmt.Println("Retry complete — all cached roles SQL imported successfully.")
+	return nil
 }
