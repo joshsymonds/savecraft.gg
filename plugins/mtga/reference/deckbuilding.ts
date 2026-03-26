@@ -28,6 +28,7 @@ import {
   placeholders,
   r4,
   META_BATCH_SIZE,
+  computeViabilityTier,
 } from "./scoring";
 
 // ── Types ────────────────────────────────────────────────────
@@ -147,6 +148,75 @@ function statusFromDelta(
   return "issue";
 }
 
+interface ArchetypeInfo {
+  primary: string;
+  candidates: {
+    archetype: string;
+    weight: number;
+    deck_count: number;
+    deck_share: number;
+    viability: string;
+    format_context: string;
+  }[];
+  confidence: number;
+}
+
+async function buildArchetypeInfo(
+  db: D1Database,
+  setCode: string,
+  candidates: { archetype: string; weight: number }[],
+): Promise<ArchetypeInfo> {
+  const allDeckStats = await db
+    .prepare(
+      `SELECT archetype, total_decks FROM mtga_draft_deck_stats WHERE set_code = ?1`,
+    )
+    .bind(setCode)
+    .all<{ archetype: string; total_decks: number }>();
+
+  const deckCountByArch = new Map<string, number>();
+  for (const row of allDeckStats.results) {
+    deckCountByArch.set(row.archetype, row.total_decks);
+  }
+  const totalDecks = [...deckCountByArch.values()].reduce((a, b) => a + b, 0);
+  const allShares = [...deckCountByArch.values()].map((c) =>
+    totalDecks > 0 ? c / totalDecks : 0,
+  );
+
+  const primary = candidates[0]?.archetype ?? "_overall";
+  const confidence = candidates[0]?.weight ?? 0;
+
+  return {
+    primary,
+    candidates: candidates
+      .filter((c) => {
+        if (c.archetype === "_overall") return true;
+        if (totalDecks === 0) return true;
+        const count = deckCountByArch.get(c.archetype) ?? 0;
+        return count / totalDecks >= 0.02;
+      })
+      .map((c) => {
+        const count = deckCountByArch.get(c.archetype) ?? 0;
+        const share =
+          totalDecks > 0
+            ? Math.round((count / totalDecks) * 1000) / 1000
+            : 0;
+        const { viability, format_context } = computeViabilityTier(
+          share,
+          allShares,
+        );
+        return {
+          archetype: c.archetype,
+          weight: Math.round(c.weight * 100) / 100,
+          deck_count: count,
+          deck_share: share,
+          viability,
+          format_context,
+        };
+      }),
+    confidence: Math.round(confidence * 100) / 100,
+  };
+}
+
 async function healthCheck(
   db: D1Database,
   deck: DeckEntry[],
@@ -154,7 +224,7 @@ async function healthCheck(
   setCode: string,
 ): Promise<{
   sections: HealthSection[];
-  archetype: string;
+  archetype: ArchetypeInfo;
   unresolved: string[];
 }> {
   // Classify cards
@@ -485,7 +555,8 @@ async function healthCheck(
     });
   }
 
-  return { sections, archetype: primaryArchetype, unresolved };
+  const archetypeInfo = await buildArchetypeInfo(db, setCode, candidates);
+  return { sections, archetype: archetypeInfo, unresolved };
 }
 
 // ── Cut advisor mode ─────────────────────────────────────────
@@ -496,7 +567,7 @@ async function cutAdvisor(
   meta: Map<string, CardMetaRow>,
   setCode: string,
   cuts: number,
-): Promise<{ candidates: CutCandidate[]; archetype: string }> {
+): Promise<{ candidates: CutCandidate[]; archetype: ArchetypeInfo }> {
   const spellEntries: Array<{ name: string; meta: CardMetaRow }> = [];
   const allMeta: CardMetaRow[] = [];
 
@@ -704,9 +775,10 @@ async function cutAdvisor(
     .map(([card, data]) => ({ card, ...data }))
     .sort((a, b) => a.score - b.score);
 
+  const archetypeInfo = await buildArchetypeInfo(db, setCode, candidates);
   return {
     candidates: sorted.slice(0, Math.max(1, cuts)),
-    archetype: primaryArchetype,
+    archetype: archetypeInfo,
   };
 }
 

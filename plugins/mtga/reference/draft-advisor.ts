@@ -1139,6 +1139,11 @@ interface BatchPickResult {
   recommended: string;
   recommended_composite: number;
   classification: "optimal" | "good" | "questionable" | "miss";
+  archetype_snapshot: {
+    primary: string;
+    confidence: number;
+    viability: string;
+  };
 }
 
 async function batchReview(
@@ -1190,7 +1195,14 @@ async function batchReview(
     poolSoFar.push(entry.chosen);
 
     if (pickResult.type !== "structured") continue;
-    const data = pickResult.data as { recommendations: PickRecommendation[] };
+    const data = pickResult.data as {
+      recommendations: PickRecommendation[];
+      archetype: {
+        primary: string;
+        confidence: number;
+        candidates: { viability: string }[];
+      };
+    };
     const recs = data.recommendations;
     if (recs.length === 0) continue;
 
@@ -1215,6 +1227,8 @@ async function batchReview(
       misses++;
     }
 
+    const primaryViability =
+      data.archetype?.candidates?.[0]?.viability ?? "fringe";
     results.push({
       pick_number: pickNumber,
       pack_number: packNumber + 1,
@@ -1226,6 +1240,11 @@ async function batchReview(
       recommended: topRec.card,
       recommended_composite: topRec.composite_score,
       classification,
+      archetype_snapshot: {
+        primary: data.archetype?.primary ?? "_overall",
+        confidence: data.archetype?.confidence ?? 0,
+        viability: primaryViability,
+      },
     });
   }
 
