@@ -39,6 +39,7 @@ export const CLEANUP_TABLES = [
   "mtga_draft_calibration",
   "mtga_draft_deck_stats",
   "mtga_set_metadata",
+  "mtga_pipeline_state",
 ] as const;
 
 /**

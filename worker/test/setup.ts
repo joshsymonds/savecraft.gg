@@ -308,6 +308,15 @@ const statements = [
     total_decks INTEGER NOT NULL,
     PRIMARY KEY (set_code, color_pair)
   )`,
+  // Pipeline state (migration 0027)
+  `CREATE TABLE IF NOT EXISTS mtga_pipeline_state (
+    tool TEXT NOT NULL,
+    set_code TEXT NOT NULL,
+    content_hash TEXT NOT NULL,
+    imported_at TEXT NOT NULL,
+    row_count INTEGER NOT NULL,
+    PRIMARY KEY (tool, set_code)
+  )`,
 ];
 
 for (const sql of statements) {
