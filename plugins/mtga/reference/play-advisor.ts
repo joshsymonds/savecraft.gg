@@ -479,11 +479,28 @@ interface GameSectionAction {
   damage?: { source: string; sourceId: number; target: string; amount: number; isCombat: boolean };
 }
 
+interface GameSectionPermanent {
+  cardName: string;
+  cardId: number;
+  cardTypes: string[];
+  power?: number;
+  toughness?: number;
+  isTapped?: boolean;
+  damage?: number;
+}
+
+interface GameSectionPlayer {
+  seat: number;
+  lifeTotal: number;
+  manaPool?: { color: string; count: number }[];
+  battlefield?: GameSectionPermanent[];
+}
+
 interface GameSectionTurn {
   turnNumber: number;
   activePlayer: number;
   phase: string;
-  players?: { seat: number; lifeTotal: number; manaPool?: { color: string; count: number }[] }[];
+  players?: GameSectionPlayer[];
   actions: GameSectionAction[];
 }
 
@@ -527,6 +544,21 @@ function extractTurnsFromSection(section: GameSectionData, playerSeat: number): 
         existing.creaturesAttacked.push(action.damage.source);
       }
     }
+
+    // Extract creature counts from battlefield snapshots.
+    if (turn.players) {
+      for (const p of turn.players) {
+        const creatures = (p.battlefield ?? []).filter((perm) =>
+          perm.cardTypes?.includes("CardType_Creature"),
+        ).length;
+        if (p.seat === playerSeat) {
+          existing.userCreatures = creatures;
+        } else {
+          existing.oppoCreatures = creatures;
+        }
+      }
+    }
+
     turnMap.set(turn.turnNumber, existing);
   }
 

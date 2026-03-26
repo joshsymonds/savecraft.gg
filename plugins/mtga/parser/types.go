@@ -138,10 +138,23 @@ type TurnLog struct {
 
 // PlayerState captures the game state for a player at a point in time.
 type PlayerState struct {
-	Seat      int         `json:"seat"`
-	LifeTotal int         `json:"lifeTotal"`
-	ManaPool  []ManaEntry `json:"manaPool,omitempty"`
-	HandCards []string    `json:"handCards,omitempty"` // card names in hand (visible ones only)
+	Seat      int           `json:"seat"`
+	LifeTotal int           `json:"lifeTotal"`
+	ManaPool  []ManaEntry   `json:"manaPool,omitempty"`
+	HandCards []string      `json:"handCards,omitempty"` // card names in hand (visible ones only)
+	Battlefield []Permanent `json:"battlefield,omitempty"` // all permanents on the battlefield
+}
+
+// Permanent represents a card or token on the battlefield.
+type Permanent struct {
+	CardName  string `json:"cardName"`
+	CardID    int    `json:"cardId"`              // arena grpId
+	CardTypes []string `json:"cardTypes"`         // e.g. ["CardType_Creature"]
+	SubTypes  []string `json:"subTypes,omitempty"` // e.g. ["SubType_Ninja"]
+	Power     int    `json:"power,omitempty"`
+	Toughness int    `json:"toughness,omitempty"`
+	IsTapped  bool   `json:"isTapped,omitempty"`
+	Damage    int    `json:"damage,omitempty"`     // damage marked on the permanent
 }
 
 // ManaEntry represents available mana of one color.
