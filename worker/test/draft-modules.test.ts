@@ -126,6 +126,18 @@ async function seedContextualData(): Promise<void> {
     env.DB.prepare(
       `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
     ).bind("oracle-2", "Blazing Bolt", "removal", "DSK"),
+
+    // Deck stats: UB is a real archetype (5000 decks), RG has moderate (3000),
+    // WG is marginal (100 decks = ~1% of total).
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind("DSK", "UB", 17, 14, 5, 1, 0.2, 2, 0.52, 0.55, 5000),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind("DSK", "RG", 17, 15, 4, 0.5, 0.1, 1, 0.50, 0.53, 3000),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_deck_stats (set_code, color_pair, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind("DSK", "WG", 17, 15, 4, 0.5, 0.1, 1, 0.48, 0.49, 100),
   ]);
 }
 
@@ -1664,6 +1676,98 @@ describe("draft_advisor native module", () => {
     expect(
       data.summary.optimal + data.summary.good + data.summary.questionable + data.summary.misses,
     ).toBe(2);
+  });
+
+  it("includes deck_count and deck_share in archetype candidates", async () => {
+    await seedContextualData();
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["Gloomlake Verge"],
+        pack: ["Blazing Bolt", "Forest Bear"],
+        pick_number: 8,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      archetype: {
+        candidates: { color_pair: string; weight: number; deck_count: number; deck_share: number }[];
+      };
+    };
+
+    // At least one candidate should have deck_count and deck_share
+    const withStats = data.archetype.candidates.filter((c) => c.deck_count > 0);
+    expect(withStats.length).toBeGreaterThan(0);
+    // deck_share should be between 0 and 1
+    for (const c of withStats) {
+      expect(c.deck_share).toBeGreaterThan(0);
+      expect(c.deck_share).toBeLessThanOrEqual(1);
+    }
+  });
+
+  it("suppresses low-viability color pairs from archetype candidates", async () => {
+    await seedContextualData();
+
+    // Pool with some white and green pips — but WG only has 100 decks (<2%)
+    // Need to add a white card first
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(20, "oracle-wp", "White Pilgrim", "White Pilgrim", "{W}{W}", 2, "Creature", '["W"]', 1),
+      env.DB.prepare(
+        `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("DSK", "White Pilgrim", 3000, 5000, 2000, 0.51, 0.52, 0.50, 0.49, 0.01, 8, 9),
+    ]);
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pool: ["White Pilgrim", "Forest Bear"],
+        pack: ["Blazing Bolt", "Forest Bear"],
+        pick_number: 10,
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      archetype: {
+        candidates: { color_pair: string; deck_count: number; deck_share: number }[];
+      };
+    };
+
+    // WG should be suppressed (100 decks out of 8100 total = 1.2%)
+    const wg = data.archetype.candidates.find((c) => c.color_pair === "WG");
+    expect(wg).toBeUndefined();
+  });
+
+  it("includes display_label in batch review picks", async () => {
+    await seedContextualData();
+
+    const result = await draftAdvisorModule.execute(
+      {
+        set: "DSK",
+        pick_history: [
+          { available: ["Blazing Bolt", "Forest Bear"], chosen: "Blazing Bolt" },
+          { available: ["Forest Bear", "Gloomlake Verge"], chosen: "Forest Bear" },
+        ],
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const data = result.data as {
+      picks: { pick_number: number; pack_number: number; pick_in_pack: number; display_label: string }[];
+    };
+
+    expect(data.picks[0]!.display_label).toBe("P1P1");
+    expect(data.picks[1]!.display_label).toBe("P1P2");
   });
 });
 
