@@ -15,12 +15,15 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
 	"sort"
 	"strings"
@@ -134,10 +137,32 @@ func run() error {
 		wg.Go(func() {
 			fmt.Println("\nPopulating D1 tables...")
 			sql := buildCardImportSQL(cards)
+
+			// Content hash for change detection.
+			h := sha256.Sum256([]byte(sql))
+			contentHash := hex.EncodeToString(h[:])
+
+			existing, err := cfapi.GetPipelineHash(*cfAccountID, *d1DatabaseID, *cfAPIToken, "scryfall", "_global")
+			if err == nil && existing == contentHash {
+				fmt.Println("D1 cards unchanged (hash match), skipping import")
+				return
+			}
+
+			// Write SQL to disk before import.
+			sqlDir := filepath.Join(os.TempDir(), "savecraft", "sql")
+			os.MkdirAll(sqlDir, 0755)
+			sqlPath := filepath.Join(sqlDir, "scryfall_cards.sql")
+			os.WriteFile(sqlPath, []byte(sql), 0644)
+
 			fmt.Printf("Generated %.1f MB of SQL (%d cards)\n", float64(len(sql))/1048576, len(cards))
 			if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
-				errs <- fmt.Errorf("D1 import: %w", err)
+				errs <- fmt.Errorf("D1 import: %w (SQL cached at %s)", err, sqlPath)
 				return
+			}
+			os.Remove(sqlPath)
+
+			if err := cfapi.UpdatePipelineState(*cfAccountID, *d1DatabaseID, *cfAPIToken, "scryfall", "_global", contentHash, len(cards)); err != nil {
+				fmt.Printf("WARN: pipeline state update failed: %v\n", err)
 			}
 			fmt.Println("D1 population complete")
 		})

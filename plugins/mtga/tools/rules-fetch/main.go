@@ -9,16 +9,18 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"sync"
-
 	"time"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
@@ -146,10 +148,33 @@ func run() error {
 			cfWg.Go(func() {
 				fmt.Println("\nPopulating D1 tables...")
 				sql := buildImportSQL(rules, cardRulings, cardNames)
+
+				// Content hash for change detection.
+				h := sha256.Sum256([]byte(sql))
+				contentHash := hex.EncodeToString(h[:])
+
+				existing, err := cfapi.GetPipelineHash(*cfAccountID, *d1DatabaseID, *cfAPIToken, "rules", "_global")
+				if err == nil && existing == contentHash {
+					fmt.Println("D1 rules unchanged (hash match), skipping import")
+					return
+				}
+
+				// Write SQL to disk before import.
+				sqlDir := filepath.Join(os.TempDir(), "savecraft", "sql")
+				os.MkdirAll(sqlDir, 0755)
+				sqlPath := filepath.Join(sqlDir, "rules.sql")
+				os.WriteFile(sqlPath, []byte(sql), 0644)
+
 				fmt.Printf("Generated %.1f MB of SQL (%d rules, %d cards with rulings)\n", float64(len(sql))/1048576, len(rules), len(cardNames))
 				if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
-					errs <- fmt.Errorf("D1 import: %w", err)
+					errs <- fmt.Errorf("D1 import: %w (SQL cached at %s)", err, sqlPath)
 					return
+				}
+				os.Remove(sqlPath)
+
+				rowCount := len(rules) + len(cardNames)
+				if err := cfapi.UpdatePipelineState(*cfAccountID, *d1DatabaseID, *cfAPIToken, "rules", "_global", contentHash, rowCount); err != nil {
+					fmt.Printf("WARN: pipeline state update failed: %v\n", err)
 				}
 				fmt.Println("D1 population complete")
 			})
