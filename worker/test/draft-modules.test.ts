@@ -2571,9 +2571,7 @@ describe("draft_advisor native module", () => {
       expect(["strong", "moderate", "sparse", "fringe"]).toContain(
         pick.archetype_snapshot.viability,
       );
-      expect(["exploration", "emerging", "committed"]).toContain(
-        pick.archetype_snapshot.phase,
-      );
+      expect(["exploration", "emerging", "committed"]).toContain(pick.archetype_snapshot.phase);
     }
 
     // Summary counts should add up
