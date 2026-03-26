@@ -232,9 +232,10 @@
         <span class="method-source">WASPAS</span>
         <span class="method-desc">
           Weighted Aggregated Sum Product Assessment — a multi-criteria decision method that blends
-          8 scoring axes with pick-adaptive weights across all 31 archetype candidates. Early picks
-          favor baseline power; late picks favor synergy and castability. Sigmoid-calibrated from
-          each set's empirical distribution.
+          8 scoring axes with pick-adaptive weights across all 31 archetype candidates,
+          format-adjusted by empirical win rate so the system naturally steers toward stronger
+          archetypes. Early picks favor baseline power; late picks favor synergy and castability.
+          Sigmoid-calibrated from each set's empirical distribution.
         </span>
       </div>
       <div class="method-item">
