@@ -5,7 +5,8 @@
   import "../app.css";
 
   let { children } = $props();
-  let wide = $derived($page.url.pathname === "/");
+  const WIDE_PAGES = new Set(["/", "/games/mtga"]);
+  let wide = $derived(WIDE_PAGES.has($page.url.pathname));
 </script>
 
 <SiteNav {wide} />
