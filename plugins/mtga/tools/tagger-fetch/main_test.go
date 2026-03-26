@@ -5,17 +5,22 @@ import (
 	"testing"
 )
 
-func TestBuildRolesImportSQL(t *testing.T) {
+func TestBuildSetRolesSQL(t *testing.T) {
 	entries := []roleEntry{
 		{OracleID: "abc", FrontFaceName: "Murder", Role: "removal", SetCode: "DSK"},
 		{OracleID: "def", FrontFaceName: "Grizzly Bears", Role: "creature", SetCode: "DSK"},
 		{OracleID: "ghi", FrontFaceName: "Divination", Role: "noncreature_nonremoval", SetCode: "DSK"},
 	}
 
-	sql := buildRolesImportSQL(entries)
+	sql := buildSetRolesSQL("DSK", entries)
 
-	if !strings.HasPrefix(sql, "DELETE FROM mtga_card_roles;") {
-		t.Error("SQL should start with DELETE")
+	// Per-set DELETE with WHERE clause
+	if !strings.Contains(sql, "DELETE FROM mtga_card_roles WHERE set_code = 'DSK';") {
+		t.Error("SQL should contain per-set DELETE")
+	}
+	// Must NOT contain global DELETE
+	if strings.Contains(sql, "DELETE FROM mtga_card_roles;") {
+		t.Error("SQL should NOT contain global DELETE")
 	}
 
 	insertCount := strings.Count(sql, "INSERT INTO mtga_card_roles")
@@ -30,23 +35,23 @@ func TestBuildRolesImportSQL(t *testing.T) {
 	}
 }
 
-func TestBuildRolesImportSQL_EscapesQuotes(t *testing.T) {
+func TestBuildSetRolesSQL_EscapesQuotes(t *testing.T) {
 	entries := []roleEntry{
 		{OracleID: "a", FrontFaceName: "Frodo's Ring", Role: "removal", SetCode: "LTR"},
 	}
 
-	sql := buildRolesImportSQL(entries)
+	sql := buildSetRolesSQL("LTR", entries)
 
 	if !strings.Contains(sql, "Frodo''s Ring") {
 		t.Error("SQL should escape single quotes")
 	}
 }
 
-func TestBuildRolesImportSQL_Empty(t *testing.T) {
-	sql := buildRolesImportSQL(nil)
+func TestBuildSetRolesSQL_Empty(t *testing.T) {
+	sql := buildSetRolesSQL("DSK", nil)
 
-	if !strings.Contains(sql, "DELETE FROM mtga_card_roles;") {
-		t.Error("SQL should contain DELETE even with no entries")
+	if !strings.Contains(sql, "DELETE FROM mtga_card_roles WHERE set_code = 'DSK';") {
+		t.Error("SQL should contain per-set DELETE even with no entries")
 	}
 	if strings.Contains(sql, "INSERT") {
 		t.Error("SQL should not contain INSERT with empty entries")

@@ -25,14 +25,16 @@
       --d1-database-id=${d1Id}
   '';
 
-  refreshScript = pkgs.writeShellScript "savecraft-data-refresh" ''
+  innerScript = pkgs.writeShellScript "savecraft-data-refresh-inner" ''
     set -euo pipefail
 
     echo "=== Savecraft MTGA data refresh started at $(date) ==="
 
-    cd ${lib.escapeShellArg cfg.repoPath}
-    source .envrc.local
-    eval "$(devenv print-dev-env)"
+    # Load Cloudflare credentials.
+    # Sourced here (inside nix develop) because nix develop resets the environment.
+    set -a
+    source .env.local
+    set +a
 
     cd plugins/mtga
 
@@ -43,6 +45,15 @@
     ${runFetchers "Production" productionD1 ""}
 
     echo "=== Savecraft MTGA data refresh completed at $(date) ==="
+  '';
+
+  # Outer script: source secrets, then enter the flake devShell to run fetchers.
+  refreshScript = pkgs.writeShellScript "savecraft-data-refresh" ''
+    set -euo pipefail
+    cd ${lib.escapeShellArg cfg.repoPath}
+
+    exec ${pkgs.nix}/bin/nix develop --no-pure-eval \
+      --command ${pkgs.bash}/bin/bash ${innerScript}
   '';
 in {
   options.services.savecraftDataRefresh = {
@@ -63,7 +74,7 @@ in {
     user = lib.mkOption {
       type = lib.types.str;
       default = "joshsymonds";
-      description = "User to run the refresh as (must have devenv + .envrc.local access).";
+      description = "User to run the refresh as (must have .envrc.local with Cloudflare credentials).";
     };
   };
 
@@ -77,10 +88,10 @@ in {
         Type = "oneshot";
         User = cfg.user;
         ExecStart = "${pkgs.bash}/bin/bash ${refreshScript}";
-        TimeoutStartSec = "30min";
+        TimeoutStartSec = "2h";
         Environment = [
           "HOME=/home/${cfg.user}"
-          "PATH=${lib.makeBinPath [pkgs.bash pkgs.coreutils pkgs.git pkgs.nix pkgs.devenv]}:/home/${cfg.user}/.nix-profile/bin"
+          "PATH=${lib.makeBinPath [pkgs.bash pkgs.coreutils pkgs.git pkgs.nix]}:/home/${cfg.user}/.nix-profile/bin"
         ];
       };
     };
