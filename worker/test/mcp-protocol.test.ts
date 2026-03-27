@@ -520,4 +520,62 @@ describe("MCP Protocol", () => {
 
     clearNativeRegistry();
   });
+
+  it("query_reference returns data (not visualization directive) for modules with presentation hints", async () => {
+    // Register a module that returns structured data WITH a presentation hint.
+    // The multi-query aggregation must return the data, not the directive.
+    const vizModule: NativeReferenceModule = {
+      id: "viz_mod",
+      name: "Viz Module",
+      description: "Returns data with presentation",
+      execute: (query) =>
+        Promise.resolve({
+          type: "structured",
+          data: { score: 42, card: query.card },
+          presentation: "Show as a ranked table with bar indicators.",
+        }),
+    };
+    registerNativeModule("testgame", vizModule);
+
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-11-25",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 20, {
+        name: "query_reference",
+        arguments: {
+          game_id: "testgame",
+          module: "viz_mod",
+          queries: [{ card: "Lightning Bolt" }],
+        },
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: { content: { type: string; text: string }[] };
+    };
+
+    // Should have two content blocks: visualization directive + data
+    expect(body.result.content.length).toBe(2);
+
+    // First block: the visualization directive
+    expect(body.result.content[0]!.text).toContain("Visualize this data:");
+    expect(body.result.content[0]!.text).toContain("ranked table with bar indicators");
+
+    // Last block: the actual data
+    const data = JSON.parse(body.result.content[1]!.text) as {
+      results: { score?: number; card?: string }[];
+    };
+    expect(data.results).toHaveLength(1);
+    expect(data.results[0]!.score).toBe(42);
+    expect(data.results[0]!.card).toBe("Lightning Bolt");
+
+    clearNativeRegistry();
+  });
 });
