@@ -16,7 +16,14 @@ describe("collection_diff native module", () => {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, 1)`,
-      ).bind(87_521, "abc", "Sheoldred, the Apocalypse", "Sheoldred, the Apocalypse", "mythic", "DMU"),
+      ).bind(
+        87_521,
+        "abc",
+        "Sheoldred, the Apocalypse",
+        "Sheoldred, the Apocalypse",
+        "mythic",
+        "DMU",
+      ),
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, 1)`,
       ).bind(1, "def", "Lightning Bolt", "Lightning Bolt", "common", "STA"),

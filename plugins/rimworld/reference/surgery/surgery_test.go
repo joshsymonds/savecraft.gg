@@ -73,7 +73,7 @@ func TestSurgeryCalculation(t *testing.T) {
 				BedFactor:       1.1, // hospital bed
 				Quality:         QualityNormal,
 				Cleanliness:     0,
-				GlowLevel:      1.0,
+				GlowLevel:       1.0,
 				IsOutdoors:      false,
 				MedicinePotency: 1.0, // industrial
 				Difficulty:      1.0, // standard operation
@@ -95,7 +95,7 @@ func TestSurgeryCalculation(t *testing.T) {
 				BedFactor:       0.7, // sleeping spot
 				Quality:         QualityNormal,
 				Cleanliness:     -3,
-				GlowLevel:      1.0,
+				GlowLevel:       1.0,
 				IsOutdoors:      false,
 				MedicinePotency: 0.6, // herbal
 				Difficulty:      1.0,
@@ -117,7 +117,7 @@ func TestSurgeryCalculation(t *testing.T) {
 				BedFactor:       1.1,
 				Quality:         QualityLegendary,
 				Cleanliness:     1,
-				GlowLevel:      1.0,
+				GlowLevel:       1.0,
 				IsOutdoors:      false,
 				MedicinePotency: 1.6, // glitterworld
 				Difficulty:      1.0,
@@ -135,7 +135,7 @@ func TestSurgeryCalculation(t *testing.T) {
 				BedFactor:       0.7,
 				Quality:         QualityNormal,
 				Cleanliness:     0,
-				GlowLevel:      1.0,
+				GlowLevel:       1.0,
 				IsOutdoors:      false,
 				MedicinePotency: 1.0,
 				Difficulty:      1.0,
@@ -154,7 +154,7 @@ func TestSurgeryCalculation(t *testing.T) {
 				BedFactor:       1.0,
 				Quality:         QualityNormal,
 				Cleanliness:     0,
-				GlowLevel:      1.0,
+				GlowLevel:       1.0,
 				IsOutdoors:      false,
 				MedicinePotency: 0,
 				Difficulty:      1.0,
@@ -175,7 +175,7 @@ func TestSurgeryCalculation(t *testing.T) {
 				BedFactor:       1.0,
 				Quality:         QualityNormal,
 				Cleanliness:     0,
-				GlowLevel:      1.0,
+				GlowLevel:       1.0,
 				IsOutdoors:      true,
 				MedicinePotency: 1.0,
 				Difficulty:      1.0,
@@ -195,7 +195,7 @@ func TestSurgeryCalculation(t *testing.T) {
 				BedFactor:       1.0,
 				Quality:         QualityNormal,
 				Cleanliness:     0,
-				GlowLevel:      1.0,
+				GlowLevel:       1.0,
 				IsOutdoors:      false,
 				MedicinePotency: 1.0,
 				Difficulty:      1.0,
@@ -224,7 +224,7 @@ func TestSurgeryResultBreakdown(t *testing.T) {
 		BedFactor:       1.1,
 		Quality:         QualityGood,
 		Cleanliness:     0.6,
-		GlowLevel:      1.0,
+		GlowLevel:       1.0,
 		IsOutdoors:      false,
 		MedicinePotency: 1.0,
 		Difficulty:      1.0,

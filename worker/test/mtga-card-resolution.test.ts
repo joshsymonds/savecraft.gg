@@ -13,9 +13,10 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { manaBaseModule } from "../../plugins/mtga/reference/mana-base";
 import { collectionDiffModule } from "../../plugins/mtga/reference/collection-diff";
+import { manaBaseModule } from "../../plugins/mtga/reference/mana-base";
 import { playAdvisorModule } from "../../plugins/mtga/reference/play-advisor";
+
 import { cleanAll } from "./helpers";
 
 // ── Seed data ────────────────────────────────────────────────
@@ -55,7 +56,7 @@ async function seedCard(overrides: {
   )
     .bind(
       arena_id,
-      `oracle-${arena_id}`,
+      `oracle-${String(arena_id)}`,
       name,
       front_face_name,
       mana_cost,
@@ -236,7 +237,7 @@ describe("mana_base card resolution", () => {
     expect(unresolved).not.toContain("Watery Grave");
 
     // Both Blue and Black should have sources_needed > 0
-    const requirements = data.requirements as Array<{ color: string; sources_needed: number }>;
+    const requirements = data.requirements as { color: string; sources_needed: number }[];
     const blue = requirements.find((r) => r.color === "U");
     const black = requirements.find((r) => r.color === "B");
     expect(blue).toBeDefined();
@@ -279,7 +280,7 @@ describe("collection_diff card resolution", () => {
     expect(unresolved).not.toContain("Kavaero, Mind-Bitten");
 
     // Should know it's mythic
-    const missing = data.missing as Array<{ name: string; rarity: string }>;
+    const missing = data.missing as { name: string; rarity: string }[];
     const kavaero = missing.find((m) => m.name === "Kavaero, Mind-Bitten");
     expect(kavaero).toBeDefined();
     expect(kavaero!.rarity).toBe("mythic");
@@ -308,7 +309,7 @@ describe("collection_diff card resolution", () => {
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
 
     // Player owns 4, needs 1 — should not be missing
-    const missing = data.missing as Array<{ name: string }>;
+    const missing = data.missing as { name: string }[];
     expect(missing.find((m) => m.name === "Kavaero, Mind-Bitten")).toBeUndefined();
   });
 });

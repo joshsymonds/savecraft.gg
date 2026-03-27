@@ -2,16 +2,16 @@ package data
 
 // Medicine represents a medicine item relevant to surgery calculations.
 type Medicine struct {
-	DefName         string
-	Label           string
-	MedicalPotency  float64
+	DefName        string
+	Label          string
+	MedicalPotency float64
 }
 
 // Bed represents a bed or sleeping spot relevant to surgery calculations.
 type Bed struct {
-	DefName                     string
-	Label                       string
-	SurgerySuccessChanceFactor  float64
+	DefName                    string
+	Label                      string
+	SurgerySuccessChanceFactor float64
 }
 
 // Plant represents a cultivated plant with growth and harvest parameters.

@@ -138,7 +138,7 @@ func handleSurgery(enc *json.Encoder, query map[string]any) {
 	}
 
 	writeResult(enc, map[string]any{
-		"formatted":      sb.String(),
+		"formatted":       sb.String(),
 		"success_chance":  result.SuccessChance,
 		"surgeon_factor":  result.SurgeonFactor,
 		"bed_factor":      result.BedEffectiveFactor,
@@ -326,14 +326,14 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 		var mats []map[string]any
 		for _, m := range data.Materials {
 			mats = append(mats, map[string]any{
-				"name":              m.Label,
-				"sharp_armor":       m.SharpArmorFactor,
-				"blunt_armor":       m.BluntArmorFactor,
-				"sharp_damage":      m.SharpDamageFactor,
-				"blunt_damage":      m.BluntDamageFactor,
-				"market_value":      m.MarketValue,
-				"max_hp_factor":     m.MaxHitPointsFactor,
-				"categories":        m.Categories,
+				"name":          m.Label,
+				"sharp_armor":   m.SharpArmorFactor,
+				"blunt_armor":   m.BluntArmorFactor,
+				"sharp_damage":  m.SharpDamageFactor,
+				"blunt_damage":  m.BluntDamageFactor,
+				"market_value":  m.MarketValue,
+				"max_hp_factor": m.MaxHitPointsFactor,
+				"categories":    m.Categories,
 			})
 		}
 		writeResult(enc, map[string]any{"materials": mats})
@@ -400,11 +400,11 @@ func handleDrugs(enc *json.Encoder, query map[string]any) {
 		var drugList []map[string]any
 		for _, d := range data.Drugs {
 			drugList = append(drugList, map[string]any{
-				"name":           d.Label,
-				"market_value":   d.MarketValue,
-				"category":       d.Category,
-				"addictiveness":  d.Addictiveness,
-				"ingredients":    d.Ingredients,
+				"name":          d.Label,
+				"market_value":  d.MarketValue,
+				"category":      d.Category,
+				"addictiveness": d.Addictiveness,
+				"ingredients":   d.Ingredients,
 			})
 		}
 		writeResult(enc, map[string]any{"drugs": drugList})
@@ -463,12 +463,12 @@ func handleDrugs(enc *json.Encoder, query map[string]any) {
 	}
 
 	writeResult(enc, map[string]any{
-		"formatted":      sb.String(),
-		"drug":           d.Label,
-		"category":       d.Category,
-		"market_value":   d.MarketValue,
-		"addictiveness":  d.Addictiveness,
-		"work_amount":    d.WorkAmount,
+		"formatted":     sb.String(),
+		"drug":          d.Label,
+		"category":      d.Category,
+		"market_value":  d.MarketValue,
+		"addictiveness": d.Addictiveness,
+		"work_amount":   d.WorkAmount,
 	})
 }
 
@@ -554,14 +554,14 @@ func handleDrugProductionChain(enc *json.Encoder, query map[string]any, d *data.
 	}
 
 	writeResult(enc, map[string]any{
-		"formatted":          sb.String(),
-		"drug":               d.Label,
-		"crop":               plant.Label,
-		"soil_fertility":     soilFertility,
-		"actual_grow_days":   result.ActualGrowDays,
-		"leaves_per_day":     result.LeavesPerDay,
-		"drugs_per_day":      result.DrugsPerDayPerTile,
-		"silver_per_day":     result.SilverPerDayPerTile,
+		"formatted":        sb.String(),
+		"drug":             d.Label,
+		"crop":             plant.Label,
+		"soil_fertility":   soilFertility,
+		"actual_grow_days": result.ActualGrowDays,
+		"leaves_per_day":   result.LeavesPerDay,
+		"drugs_per_day":    result.DrugsPerDayPerTile,
+		"silver_per_day":   result.SilverPerDayPerTile,
 	})
 }
 
@@ -659,8 +659,8 @@ func handleGenes(enc *json.Encoder, query map[string]any) {
 
 		writeResult(enc, map[string]any{
 			"formatted":        sb.String(),
-			"total_complexity":  result.TotalComplexity,
-			"total_metabolism":  result.TotalMetabolism,
+			"total_complexity": result.TotalComplexity,
+			"total_metabolism": result.TotalMetabolism,
 			"total_archite":    result.TotalArchite,
 			"complexity_ok":    result.ComplexityOK,
 			"metabolism_ok":    result.MetabolismOK,

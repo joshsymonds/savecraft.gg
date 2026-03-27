@@ -113,9 +113,9 @@ func TestComputeCMC(t *testing.T) {
 
 func TestMapColors(t *testing.T) {
 	tests := []struct {
-		name  string
-		csv   string
-		want  []string
+		name string
+		csv  string
+		want []string
 	}{
 		{name: "two colors", csv: "2,3", want: []string{"U", "B"}},
 		{name: "empty string", csv: "", want: nil},
