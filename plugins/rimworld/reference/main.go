@@ -1,0 +1,887 @@
+// RimWorld reference module: serves computed game reference data.
+// Runs server-side in Cloudflare Worker via WASI shim.
+//
+// Contract: JSON query on stdin, ndjson result on stdout.
+// Empty query {} returns the module schema (self-describing).
+//
+// Build: GOOS=wasip1 GOARCH=wasm go build -o reference.wasm ./plugins/rimworld/reference
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"io"
+	"os"
+	"strings"
+
+	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/combat"
+	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/crops"
+	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/data"
+	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/drugs"
+	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/genes"
+	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/materials"
+	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/raids"
+	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/research"
+	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/surgery"
+)
+
+func main() {
+	enc := json.NewEncoder(os.Stdout)
+
+	data, err := io.ReadAll(os.Stdin)
+	if err != nil {
+		writeError(enc, "read_error", "failed to read stdin: "+err.Error())
+		os.Exit(1)
+	}
+
+	var query map[string]any
+	if err := json.Unmarshal(data, &query); err != nil {
+		writeError(enc, "parse_error", "invalid JSON query: "+err.Error())
+		os.Exit(1)
+	}
+
+	if len(query) == 0 {
+		writeResult(enc, schema())
+		return
+	}
+
+	module, _ := query["module"].(string)
+	switch module {
+	case "surgery":
+		handleSurgery(enc, query)
+	case "crops":
+		handleCrops(enc, query)
+	case "combat":
+		handleCombat(enc, query)
+	case "materials":
+		handleMaterials(enc, query)
+	case "drugs":
+		handleDrugs(enc, query)
+	case "raids":
+		handleRaids(enc, query)
+	case "genes":
+		handleGenes(enc, query)
+	case "research":
+		handleResearch(enc, query)
+	default:
+		writeError(enc, "unknown_module", "unknown module: "+module)
+		os.Exit(1)
+	}
+}
+
+func handleSurgery(enc *json.Encoder, query map[string]any) {
+	p := surgery.Params{
+		MedicalSkill:    intParam(query, "skill", 10),
+		Manipulation:    floatParam(query, "manipulation", 1.0),
+		Sight:           floatParam(query, "sight", 1.0),
+		Cleanliness:     floatParam(query, "cleanliness", 0),
+		GlowLevel:       floatParam(query, "glow", 1.0),
+		IsOutdoors:      boolParam(query, "outdoors", false),
+		MedicinePotency: floatParam(query, "medicine_potency", 1.0),
+		Difficulty:      floatParam(query, "difficulty", 1.0),
+		Inspired:        boolParam(query, "inspired", false),
+	}
+
+	// Resolve bed and quality from string parameters
+	p.BedFactor = resolveBedFactor(query)
+	p.Quality = resolveQuality(query)
+
+	// Allow direct medicine_potency or resolve from medicine name
+	if _, has := query["medicine_potency"]; !has {
+		if med, ok := query["medicine"].(string); ok {
+			p.MedicinePotency = resolveMedicinePotency(med)
+		}
+	}
+
+	result := surgery.Calculate(p)
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Surgery Success Chance: %.1f%%\n\n", result.SuccessChance*100)
+	fmt.Fprintf(&sb, "Factor Breakdown:\n")
+	fmt.Fprintf(&sb, "  Surgeon stat:     %.2f (skill %d × manipulation %.0f%% × sight %.0f%%)\n",
+		result.SurgeonFactor, p.MedicalSkill, p.Manipulation*100, p.Sight*100)
+	fmt.Fprintf(&sb, "  Bed effective:    %.2f (base %.2f × quality %.2f × cleanliness %.2f × glow %.2f × outdoors %.2f)\n",
+		result.BedEffectiveFactor, p.BedFactor,
+		surgery.QualityFactor(p.Quality),
+		surgery.CleanlinessFactor(p.Cleanliness),
+		surgery.GlowFactor(p.GlowLevel),
+		outdoorsFactor(p.IsOutdoors))
+	fmt.Fprintf(&sb, "  Medicine:         %.2f (potency %.2f)\n", result.MedicineFactor, p.MedicinePotency)
+	fmt.Fprintf(&sb, "  Difficulty:       %.2f\n", result.DifficultyFactor)
+	if p.Inspired {
+		fmt.Fprintf(&sb, "  Inspired surgery: ×2.00\n")
+	}
+	if result.Capped {
+		fmt.Fprintf(&sb, "\n⚠ Result capped at 98%% (uncapped: %.1f%%)\n", result.Uncapped*100)
+	}
+
+	writeResult(enc, map[string]any{
+		"formatted":      sb.String(),
+		"success_chance":  result.SuccessChance,
+		"surgeon_factor":  result.SurgeonFactor,
+		"bed_factor":      result.BedEffectiveFactor,
+		"medicine_factor": result.MedicineFactor,
+		"difficulty":      result.DifficultyFactor,
+		"inspired":        p.Inspired,
+		"capped":          result.Capped,
+		"uncapped":        result.Uncapped,
+	})
+}
+
+func resolveBedFactor(query map[string]any) float64 {
+	if f, ok := query["bed_factor"].(float64); ok {
+		return f
+	}
+	bed, _ := query["bed"].(string)
+	bed = strings.ToLower(bed)
+	switch {
+	case strings.Contains(bed, "hospital"):
+		return 1.1
+	case strings.Contains(bed, "sleeping spot") || strings.Contains(bed, "sleepingspot"):
+		return 0.7
+	case strings.Contains(bed, "ancient") && !strings.Contains(bed, "rusted"):
+		return 0.65
+	case strings.Contains(bed, "rusted"):
+		return 0.62
+	case strings.Contains(bed, "spot"):
+		return 0.7
+	default:
+		return 1.0 // regular bed
+	}
+}
+
+func resolveQuality(query map[string]any) int {
+	if q, ok := query["quality"].(float64); ok {
+		return int(q)
+	}
+	q, _ := query["quality"].(string)
+	switch strings.ToLower(q) {
+	case "awful":
+		return surgery.QualityAwful
+	case "poor":
+		return surgery.QualityPoor
+	case "normal", "":
+		return surgery.QualityNormal
+	case "good":
+		return surgery.QualityGood
+	case "excellent":
+		return surgery.QualityExcellent
+	case "masterwork":
+		return surgery.QualityMasterwork
+	case "legendary":
+		return surgery.QualityLegendary
+	default:
+		return surgery.QualityNormal
+	}
+}
+
+func resolveMedicinePotency(medicine string) float64 {
+	switch strings.ToLower(medicine) {
+	case "none", "no medicine", "":
+		return 0
+	case "herbal", "herbal medicine":
+		return 0.6
+	case "medicine", "industrial", "industrial medicine":
+		return 1.0
+	case "glitterworld", "glitterworld medicine", "ultratech":
+		return 1.6
+	default:
+		return 1.0
+	}
+}
+
+func handleCrops(enc *json.Encoder, query map[string]any) {
+	crop, _ := query["crop"].(string)
+	soil, _ := query["soil"].(string)
+	temperature := floatParam(query, "temperature", 20)
+	colonists := intParam(query, "colonists", 1)
+
+	// Find the plant (exact → prefix → substring)
+	var plant *data.Plant
+	bestScore := 0
+	for i := range data.Plants {
+		p := &data.Plants[i]
+		if score := matchDef(crop, p.DefName, p.Label); score > bestScore {
+			plant = p
+			bestScore = score
+		}
+	}
+	if plant == nil {
+		// List available crops
+		var names []string
+		for _, p := range data.Plants {
+			if len(p.SowTags) > 0 && containsTag(p.SowTags, "Ground", "Hydroponic") {
+				names = append(names, p.Label)
+			}
+		}
+		writeError(enc, "unknown_crop", fmt.Sprintf("Unknown crop %q. Available: %s", crop, strings.Join(names, ", ")))
+		return
+	}
+
+	// Resolve soil fertility
+	soilFertility := 1.0 // default: normal soil
+	if soil != "" {
+		bestSoilScore := 0
+		for _, s := range data.Soils {
+			if score := matchDef(soil, s.DefName, s.Label); score > bestSoilScore {
+				soilFertility = s.Fertility
+				bestSoilScore = score
+			}
+		}
+		// Also handle "hydroponics" as a special case (fertility 2.0, no soil)
+		if strings.Contains(strings.ToLower(soil), "hydroponic") {
+			soilFertility = 2.0
+		}
+	}
+
+	result := crops.Calculate(crops.CropParams{
+		GrowDays:             plant.GrowDays,
+		HarvestYield:         plant.HarvestYield,
+		NutritionPerUnit:     plant.NutritionPerUnit,
+		MarketValuePerUnit:   plant.MarketValuePerUnit,
+		FertilitySensitivity: plant.FertilitySensitivity,
+		SoilFertility:        soilFertility,
+		Temperature:          temperature,
+	})
+
+	tiles := crops.TilesPerColonist(result.NutritionPerDay, colonists)
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Crop: %s\n", plant.Label)
+	fmt.Fprintf(&sb, "Soil fertility: %.1f | Temperature: %.0f°C\n\n", soilFertility, temperature)
+
+	if result.GrowthRate <= 0 {
+		fmt.Fprintf(&sb, "Cannot grow at this temperature.\n")
+	} else {
+		fmt.Fprintf(&sb, "Growth rate: %.0f%%\n", result.GrowthRate*100)
+		fmt.Fprintf(&sb, "Actual days to harvest: %.1f\n", result.ActualGrowDays)
+		fmt.Fprintf(&sb, "Harvest: %.0f × %s\n\n", plant.HarvestYield, plant.HarvestedItem)
+		if plant.NutritionPerUnit > 0 {
+			fmt.Fprintf(&sb, "Nutrition/day/tile: %.4f\n", result.NutritionPerDay)
+			if colonists > 0 {
+				fmt.Fprintf(&sb, "Tiles to feed %d colonist(s): %.0f\n", colonists, tiles)
+			}
+		}
+		fmt.Fprintf(&sb, "Silver/day/tile: %.3f\n", result.SilverPerDay)
+	}
+
+	canHydro := containsTag(plant.SowTags, "Hydroponic")
+	fmt.Fprintf(&sb, "\nHydroponics eligible: %v\n", canHydro)
+	fmt.Fprintf(&sb, "Sow tags: %s\n", strings.Join(plant.SowTags, ", "))
+
+	writeResult(enc, map[string]any{
+		"formatted":         sb.String(),
+		"crop":              plant.Label,
+		"growth_rate":       result.GrowthRate,
+		"actual_grow_days":  result.ActualGrowDays,
+		"nutrition_per_day": result.NutritionPerDay,
+		"silver_per_day":    result.SilverPerDay,
+		"tiles_needed":      tiles,
+		"hydroponics":       canHydro,
+	})
+}
+
+func handleMaterials(enc *json.Encoder, query map[string]any) {
+	material, _ := query["material"].(string)
+	quality := resolveQualityMat(query)
+
+	if material == "" {
+		// List all materials
+		var mats []map[string]any
+		for _, m := range data.Materials {
+			mats = append(mats, map[string]any{
+				"name":              m.Label,
+				"sharp_armor":       m.SharpArmorFactor,
+				"blunt_armor":       m.BluntArmorFactor,
+				"sharp_damage":      m.SharpDamageFactor,
+				"blunt_damage":      m.BluntDamageFactor,
+				"market_value":      m.MarketValue,
+				"max_hp_factor":     m.MaxHitPointsFactor,
+				"categories":        m.Categories,
+			})
+		}
+		writeResult(enc, map[string]any{"materials": mats})
+		return
+	}
+
+	var mat *data.Material
+	bestMatScore := 0
+	for i := range data.Materials {
+		m := &data.Materials[i]
+		if score := matchDef(material, m.DefName, m.Label); score > bestMatScore {
+			mat = m
+			bestMatScore = score
+		}
+	}
+	if mat == nil {
+		writeError(enc, "unknown_material", fmt.Sprintf("Unknown material %q", material))
+		return
+	}
+
+	armorQ := materials.ArmorQuality(quality)
+	dmgQ := materials.DamageQuality(quality)
+	hpQ := materials.HitPointsQuality(quality)
+	mvQ := materials.MarketValueQuality(quality)
+
+	qualityName := qualityNames[quality]
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "%s (%s quality)\n\n", mat.Label, qualityName)
+	fmt.Fprintf(&sb, "Stat Factors (material × quality):\n")
+	fmt.Fprintf(&sb, "  Sharp armor:  %.2f × %.2f = %.2f\n", mat.SharpArmorFactor, armorQ, mat.SharpArmorFactor*armorQ)
+	fmt.Fprintf(&sb, "  Blunt armor:  %.2f × %.2f = %.2f\n", mat.BluntArmorFactor, armorQ, mat.BluntArmorFactor*armorQ)
+	fmt.Fprintf(&sb, "  Heat armor:   %.2f × %.2f = %.2f\n", mat.HeatArmorFactor, armorQ, mat.HeatArmorFactor*armorQ)
+	fmt.Fprintf(&sb, "  Sharp damage: %.2f × %.2f = %.2f\n", mat.SharpDamageFactor, dmgQ, mat.SharpDamageFactor*dmgQ)
+	fmt.Fprintf(&sb, "  Blunt damage: %.2f × %.2f = %.2f\n", mat.BluntDamageFactor, dmgQ, mat.BluntDamageFactor*dmgQ)
+	fmt.Fprintf(&sb, "  Max HP:       %.2f × %.2f = %.2f\n", mat.MaxHitPointsFactor, hpQ, mat.MaxHitPointsFactor*hpQ)
+	fmt.Fprintf(&sb, "  Market value: %.2f × %.2f = %.2f\n", mat.MarketValue, mvQ, mat.MarketValue*mvQ)
+	if mat.ColdInsulation > 0 || mat.HeatInsulation > 0 {
+		fmt.Fprintf(&sb, "\nInsulation:\n")
+		fmt.Fprintf(&sb, "  Cold: %.1f°C | Heat: %.1f°C\n", mat.ColdInsulation, mat.HeatInsulation)
+	}
+	fmt.Fprintf(&sb, "\nCategories: %s\n", strings.Join(mat.Categories, ", "))
+
+	writeResult(enc, map[string]any{
+		"formatted":    sb.String(),
+		"material":     mat.Label,
+		"quality":      qualityName,
+		"sharp_armor":  mat.SharpArmorFactor * armorQ,
+		"blunt_armor":  mat.BluntArmorFactor * armorQ,
+		"heat_armor":   mat.HeatArmorFactor * armorQ,
+		"sharp_damage": mat.SharpDamageFactor * dmgQ,
+		"blunt_damage": mat.BluntDamageFactor * dmgQ,
+		"max_hp":       mat.MaxHitPointsFactor * hpQ,
+	})
+}
+
+func resolveQualityMat(query map[string]any) int {
+	if q, ok := query["quality"].(float64); ok {
+		return int(q)
+	}
+	q, _ := query["quality"].(string)
+	switch strings.ToLower(q) {
+	case "awful":
+		return materials.QualityAwful
+	case "poor":
+		return materials.QualityPoor
+	case "normal", "":
+		return materials.QualityNormal
+	case "good":
+		return materials.QualityGood
+	case "excellent":
+		return materials.QualityExcellent
+	case "masterwork":
+		return materials.QualityMasterwork
+	case "legendary":
+		return materials.QualityLegendary
+	default:
+		return materials.QualityNormal
+	}
+}
+
+var qualityNames = [7]string{"awful", "poor", "normal", "good", "excellent", "masterwork", "legendary"}
+
+func handleDrugs(enc *json.Encoder, query map[string]any) {
+	drug, _ := query["drug"].(string)
+
+	if drug == "" {
+		// List all drugs
+		var drugList []map[string]any
+		for _, d := range data.Drugs {
+			drugList = append(drugList, map[string]any{
+				"name":           d.Label,
+				"market_value":   d.MarketValue,
+				"category":       d.Category,
+				"addictiveness":  d.Addictiveness,
+				"ingredients":    d.Ingredients,
+			})
+		}
+		writeResult(enc, map[string]any{"drugs": drugList})
+		return
+	}
+
+	var d *data.Drug
+	bestDrugScore := 0
+	for i := range data.Drugs {
+		dd := &data.Drugs[i]
+		if score := matchDef(drug, dd.DefName, dd.Label); score > bestDrugScore {
+			d = dd
+			bestDrugScore = score
+		}
+	}
+	if d == nil {
+		writeError(enc, "unknown_drug", fmt.Sprintf("Unknown drug %q", drug))
+		return
+	}
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "%s (%s)\n\n", d.Label, d.Category)
+	fmt.Fprintf(&sb, "Market value: %.0f silver\n", d.MarketValue)
+	if d.WorkAmount > 0 {
+		fmt.Fprintf(&sb, "Work to make: %.0f\n", d.WorkAmount)
+	}
+	if len(d.Ingredients) > 0 {
+		fmt.Fprintf(&sb, "Ingredients: %s\n", strings.Join(d.Ingredients, ", "))
+		// Compute silver per ingredient
+		for _, ing := range d.Ingredients {
+			parts := strings.SplitN(ing, ":", 2)
+			if len(parts) == 2 {
+				count := 0.0
+				fmt.Sscanf(parts[1], "%f", &count)
+				if count > 0 {
+					fmt.Fprintf(&sb, "  Silver per %s: %.2f\n", parts[0], drugs.SilverPerLeaf(d.MarketValue, count))
+				}
+			}
+		}
+	}
+	fmt.Fprintf(&sb, "\nAddiction Risk:\n")
+	fmt.Fprintf(&sb, "  Base chance: %.1f%%\n", d.Addictiveness*100)
+	if d.MinToleranceToAddict > 0 {
+		fmt.Fprintf(&sb, "  Min tolerance to addict: %.0f%%\n", d.MinToleranceToAddict*100)
+	}
+	if d.OverdoseSeverity > 0 {
+		fmt.Fprintf(&sb, "  Overdose severity: %.2f\n", d.OverdoseSeverity)
+	}
+
+	writeResult(enc, map[string]any{
+		"formatted":      sb.String(),
+		"drug":           d.Label,
+		"category":       d.Category,
+		"market_value":   d.MarketValue,
+		"addictiveness":  d.Addictiveness,
+		"work_amount":    d.WorkAmount,
+	})
+}
+
+func handleRaids(enc *json.Encoder, query map[string]any) {
+	itemWealth := floatParam(query, "item_wealth", 0)
+	buildingWealth := floatParam(query, "building_wealth", 0)
+	// Also accept simple "wealth" as total (items only)
+	if itemWealth == 0 {
+		itemWealth = floatParam(query, "wealth", 0)
+	}
+	colonists := intParam(query, "colonists", 1)
+
+	result := raids.Calculate(raids.RaidParams{
+		ItemWealth:     itemWealth,
+		BuildingWealth: buildingWealth,
+		Colonists:      colonists,
+	})
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Raid Threat Estimate\n\n")
+	fmt.Fprintf(&sb, "Colony Wealth:\n")
+	fmt.Fprintf(&sb, "  Item wealth:     %.0f\n", itemWealth)
+	fmt.Fprintf(&sb, "  Building wealth: %.0f (counted at 50%% = %.0f)\n", buildingWealth, buildingWealth*0.5)
+	fmt.Fprintf(&sb, "  Effective total: %.0f\n\n", result.TotalWealth)
+	fmt.Fprintf(&sb, "Raid Points:\n")
+	fmt.Fprintf(&sb, "  From wealth:     %.0f\n", result.WealthPoints)
+	fmt.Fprintf(&sb, "  From %d colonist(s): %.0f (%.0f each)\n", colonists, result.PawnPoints, result.PawnPoints/max(float64(colonists), 1))
+	fmt.Fprintf(&sb, "  Total:           %.0f\n", result.TotalPoints)
+
+	writeResult(enc, map[string]any{
+		"formatted":     sb.String(),
+		"total_wealth":  result.TotalWealth,
+		"wealth_points": result.WealthPoints,
+		"pawn_points":   result.PawnPoints,
+		"total_points":  result.TotalPoints,
+	})
+}
+
+func handleGenes(enc *json.Encoder, query map[string]any) {
+	maxComplexity := intParam(query, "max_complexity", 6)
+	minMetabolism := intParam(query, "min_metabolism", -5)
+
+	// If gene names provided, validate the build
+	geneNames, _ := query["genes"].([]any)
+	if len(geneNames) > 0 {
+		var entries []genes.GeneEntry
+		for _, gn := range geneNames {
+			name, _ := gn.(string)
+			var bestGene *data.Gene
+			bestGeneScore := 0
+			for i := range data.Genes {
+				g := &data.Genes[i]
+				if score := matchDef(name, g.DefName, g.Label); score > bestGeneScore {
+					bestGene = g
+					bestGeneScore = score
+				}
+			}
+			if bestGene != nil {
+				entries = append(entries, genes.GeneEntry{
+					DefName:          bestGene.DefName,
+					Label:            bestGene.Label,
+					Complexity:       bestGene.Complexity,
+					MetabolismOffset: bestGene.MetabolismOffset,
+					ArchiteCost:      bestGene.ArchiteCost,
+					ExclusionTags:    bestGene.ExclusionTags,
+					Category:         bestGene.Category,
+				})
+			}
+		}
+
+		result := genes.ValidateBuild(entries, maxComplexity, minMetabolism)
+
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "Gene Build Validation (max complexity: %d, min metabolism: %d)\n\n", maxComplexity, minMetabolism)
+		for _, e := range entries {
+			fmt.Fprintf(&sb, "  %s: cpx %d, met %+d\n", e.Label, e.Complexity, e.MetabolismOffset)
+		}
+		fmt.Fprintf(&sb, "\nTotals: complexity %d/%d, metabolism %+d/%+d",
+			result.TotalComplexity, maxComplexity, result.TotalMetabolism, minMetabolism)
+		if !result.ComplexityOK {
+			fmt.Fprintf(&sb, " [OVER COMPLEXITY]")
+		}
+		if !result.MetabolismOK {
+			fmt.Fprintf(&sb, " [OVER METABOLISM]")
+		}
+		if result.TotalArchite > 0 {
+			fmt.Fprintf(&sb, "\nArchite capsules needed: %d", result.TotalArchite)
+		}
+		if len(result.Conflicts) > 0 {
+			fmt.Fprintf(&sb, "\n\nCONFLICTS:")
+			for _, c := range result.Conflicts {
+				fmt.Fprintf(&sb, "\n  %s vs %s (tag: %s)", c.Gene1, c.Gene2, c.Tag)
+			}
+		}
+
+		writeResult(enc, map[string]any{
+			"formatted":        sb.String(),
+			"total_complexity":  result.TotalComplexity,
+			"total_metabolism":  result.TotalMetabolism,
+			"total_archite":    result.TotalArchite,
+			"complexity_ok":    result.ComplexityOK,
+			"metabolism_ok":    result.MetabolismOK,
+			"conflicts":        result.Conflicts,
+		})
+		return
+	}
+
+	// Search/list genes
+	search, _ := query["search"].(string)
+	category, _ := query["category"].(string)
+	var results []map[string]any
+	for _, g := range data.Genes {
+		if g.Label == "" {
+			continue
+		}
+		if search != "" && !strings.Contains(strings.ToLower(g.Label), strings.ToLower(search)) &&
+			!strings.Contains(strings.ToLower(g.Description), strings.ToLower(search)) {
+			continue
+		}
+		if category != "" && !strings.EqualFold(g.Category, category) {
+			continue
+		}
+		results = append(results, map[string]any{
+			"name":       g.Label,
+			"def_name":   g.DefName,
+			"complexity": g.Complexity,
+			"metabolism": g.MetabolismOffset,
+			"archite":    g.ArchiteCost,
+			"category":   g.Category,
+			"conflicts":  g.ExclusionTags,
+		})
+	}
+	writeResult(enc, map[string]any{"genes": results, "count": len(results)})
+}
+
+func handleResearch(enc *json.Encoder, query map[string]any) {
+	target, _ := query["project"].(string)
+	colonyTech, _ := query["colony_tech"].(string)
+	if colonyTech == "" {
+		colonyTech = "Industrial"
+	}
+
+	// Build project map from generated data
+	projectMap := make(map[string]research.ResearchProject)
+	for _, p := range data.ResearchProjects {
+		projectMap[p.DefName] = research.ResearchProject{
+			DefName:       p.DefName,
+			Label:         p.Label,
+			BaseCost:      p.BaseCost,
+			TechLevel:     p.TechLevel,
+			Prerequisites: p.Prerequisites,
+		}
+	}
+
+	if target == "" {
+		// List all projects
+		var projects []map[string]any
+		for _, p := range data.ResearchProjects {
+			projects = append(projects, map[string]any{
+				"name":          p.Label,
+				"def_name":      p.DefName,
+				"cost":          p.BaseCost,
+				"tech_level":    p.TechLevel,
+				"prerequisites": p.Prerequisites,
+			})
+		}
+		writeResult(enc, map[string]any{"projects": projects, "count": len(projects)})
+		return
+	}
+
+	// Find the target project (exact → prefix → substring)
+	var targetDef string
+	bestProjScore := 0
+	for _, p := range data.ResearchProjects {
+		if score := matchDef(target, p.DefName, p.Label); score > bestProjScore {
+			targetDef = p.DefName
+			bestProjScore = score
+		}
+	}
+	if targetDef == "" {
+		writeError(enc, "unknown_project", fmt.Sprintf("Unknown research project %q", target))
+		return
+	}
+
+	chain := research.PrerequisiteChain(projectMap, targetDef)
+	totalCost := research.ChainCost(projectMap, chain, colonyTech)
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "Research Chain: %s (colony tech: %s)\n\n", targetDef, colonyTech)
+	for i, name := range chain {
+		p := projectMap[name]
+		mult := research.TechLevelMultiplier(p.TechLevel, colonyTech)
+		effectiveCost := p.BaseCost * mult
+		fmt.Fprintf(&sb, "  %d. %s [%s] — %.0f", i+1, p.Label, p.TechLevel, p.BaseCost)
+		if mult > 1 {
+			fmt.Fprintf(&sb, " × %.1f = %.0f", mult, effectiveCost)
+		}
+		fmt.Fprintf(&sb, "\n")
+	}
+	fmt.Fprintf(&sb, "\nTotal cost: %.0f\n", totalCost)
+
+	writeResult(enc, map[string]any{
+		"formatted":  sb.String(),
+		"chain":      chain,
+		"total_cost": totalCost,
+		"colony_tech": colonyTech,
+	})
+}
+
+func handleCombat(enc *json.Encoder, query map[string]any) {
+	weapon, _ := query["weapon"].(string)
+	rangeTiles := floatParam(query, "range", 12)
+	armorRating := floatParam(query, "armor", 0)
+
+	// Try ranged weapons (exact → prefix → substring)
+	var bestRanged *data.RangedWeapon
+	bestRangedScore := 0
+	for i := range data.RangedWeapons {
+		w := &data.RangedWeapons[i]
+		if score := matchDef(weapon, w.DefName, w.Label); score > bestRangedScore {
+			bestRanged = w
+			bestRangedScore = score
+		}
+	}
+
+	// Try melee weapons (exact → prefix → substring)
+	var bestMelee *data.MeleeWeapon
+	bestMeleeScore := 0
+	for i := range data.MeleeWeapons {
+		w := &data.MeleeWeapons[i]
+		if score := matchDef(weapon, w.DefName, w.Label); score > bestMeleeScore {
+			bestMelee = w
+			bestMeleeScore = score
+		}
+	}
+
+	// Pick the best overall match (ranged wins ties since it's checked first)
+	if bestRanged != nil && bestRangedScore >= bestMeleeScore {
+		w := bestRanged
+		stats := combat.RangedWeaponStats{
+			DamagePerShot:          w.DamagePerShot,
+			ArmorPenetration:       w.ArmorPenetration,
+			BurstShotCount:         w.BurstShotCount,
+			WarmupTime:             w.WarmupTime,
+			Cooldown:               w.Cooldown,
+			TicksBetweenBurstShots: w.TicksBetweenBurstShots,
+			Range:                  w.Range,
+			AccuracyTouch:          w.AccuracyTouch,
+			AccuracyShort:          w.AccuracyShort,
+			AccuracyMedium:         w.AccuracyMedium,
+			AccuracyLong:           w.AccuracyLong,
+		}
+		rawDPS := combat.RawRangedDPS(stats)
+		acc := combat.AccuracyAtRange(stats, rangeTiles)
+		dpsAtRange := rawDPS * acc
+		expectedDmg := combat.ArmorExpectedDamage(w.DamagePerShot, w.ArmorPenetration, armorRating)
+
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "%s (ranged)\n\n", w.Label)
+		fmt.Fprintf(&sb, "Damage: %.0f | AP: %.2f | Range: %.1f\n", w.DamagePerShot, w.ArmorPenetration, w.Range)
+		fmt.Fprintf(&sb, "Burst: %d shots", w.BurstShotCount)
+		if w.BurstShotCount > 1 {
+			fmt.Fprintf(&sb, " (%.0f ticks between)", float64(w.TicksBetweenBurstShots))
+		}
+		fmt.Fprintf(&sb, "\nWarmup: %.1fs | Cooldown: %.1fs\n\n", w.WarmupTime, w.Cooldown)
+		fmt.Fprintf(&sb, "Raw DPS: %.2f\n", rawDPS)
+		fmt.Fprintf(&sb, "Accuracy at %.0f tiles: %.0f%%\n", rangeTiles, acc*100)
+		fmt.Fprintf(&sb, "DPS at %.0f tiles: %.2f\n", rangeTiles, dpsAtRange)
+		if armorRating > 0 {
+			fmt.Fprintf(&sb, "\nVs %.0f%% armor: %.1f expected damage per shot\n", armorRating*100, expectedDmg)
+		}
+
+		writeResult(enc, map[string]any{
+			"formatted":       sb.String(),
+			"weapon":          w.Label,
+			"type":            "ranged",
+			"raw_dps":         rawDPS,
+			"accuracy":        acc,
+			"dps_at_range":    dpsAtRange,
+			"damage_per_shot": w.DamagePerShot,
+			"expected_damage": expectedDmg,
+		})
+		return
+	}
+
+	if bestMelee != nil {
+		w := bestMelee
+		var tools []combat.MeleeTool
+		for _, t := range w.Tools {
+			tools = append(tools, combat.MeleeTool{
+				Label:    t.Label,
+				Power:    t.Power,
+				Cooldown: t.Cooldown,
+			})
+		}
+		dps := combat.MeleeTrueDPS(tools)
+
+		var sb strings.Builder
+		fmt.Fprintf(&sb, "%s (melee)\n\n", w.Label)
+		fmt.Fprintf(&sb, "True DPS: %.2f\n\n", dps)
+		fmt.Fprintf(&sb, "Attack verbs:\n")
+		for _, t := range w.Tools {
+			weight := t.Power / t.Cooldown
+			fmt.Fprintf(&sb, "  %s: %.0f dmg, %.1fs cd (weight %.1f)\n",
+				t.Label, t.Power, t.Cooldown, weight)
+		}
+
+		writeResult(enc, map[string]any{
+			"formatted": sb.String(),
+			"weapon":    w.Label,
+			"type":      "melee",
+			"true_dps":  dps,
+		})
+		return
+	}
+
+	writeError(enc, "unknown_weapon", fmt.Sprintf("Unknown weapon %q", weapon))
+}
+
+// matchDef matches a query string against a defName and label using
+// three-pass priority: exact match → prefix match → substring match.
+// Returns a score: 3 = exact, 2 = prefix, 1 = substring, 0 = no match.
+func matchDef(query, defName, label string) int {
+	q := strings.ToLower(query)
+	dn := strings.ToLower(defName)
+	lb := strings.ToLower(label)
+
+	// Exact match (highest priority)
+	if q == lb || q == dn {
+		return 3
+	}
+	// Prefix match
+	if strings.HasPrefix(lb, q) || strings.HasPrefix(dn, q) {
+		return 2
+	}
+	// Substring match
+	if strings.Contains(lb, q) || strings.Contains(dn, q) {
+		return 1
+	}
+	return 0
+}
+
+func containsTag(tags []string, targets ...string) bool {
+	for _, t := range tags {
+		for _, target := range targets {
+			if strings.EqualFold(t, target) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func outdoorsFactor(outdoors bool) float64 {
+	if outdoors {
+		return 0.85
+	}
+	return 1.0
+}
+
+func schema() map[string]any {
+	return map[string]any{
+		"modules": map[string]any{
+			"crops": map[string]any{
+				"name":        "Crop Production Optimizer",
+				"description": "Calculate nutrition/day/tile and silver/day/tile for any crop on any soil type, accounting for fertility sensitivity, temperature, and rest periods.",
+				"parameters": map[string]any{
+					"crop":        map[string]any{"type": "string", "description": "Crop name (e.g. rice, potato, corn, strawberry, devilstrand)"},
+					"soil":        map[string]any{"type": "string", "description": "Soil type (e.g. soil, rich soil, gravel, hydroponics)", "default": "soil"},
+					"temperature": map[string]any{"type": "number", "description": "Average temperature in °C", "default": 20},
+					"colonists":   map[string]any{"type": "integer", "description": "Number of colonists to feed (for tiles calculation)", "default": 1},
+				},
+			},
+			"surgery": map[string]any{
+				"name":        "Surgery Success Calculator",
+				"description": "Calculate the true surgery success probability from surgeon skill, bed, medicine, room conditions, and operation difficulty.",
+				"parameters": map[string]any{
+					"skill":            map[string]any{"type": "integer", "description": "Surgeon's Medicine skill level (0-20)", "default": 10},
+					"manipulation":     map[string]any{"type": "number", "description": "Surgeon's Manipulation capacity (0-1+, 1.0 = healthy)", "default": 1.0},
+					"sight":            map[string]any{"type": "number", "description": "Surgeon's Sight capacity (0-1+, 1.0 = healthy)", "default": 1.0},
+					"bed":              map[string]any{"type": "string", "description": "Bed type: sleeping spot, bed, hospital bed, ancient bed, rusted bed"},
+					"bed_factor":       map[string]any{"type": "number", "description": "Direct bed factor override (alternative to bed name)"},
+					"quality":          map[string]any{"type": "string", "description": "Bed quality: awful, poor, normal, good, excellent, masterwork, legendary", "default": "normal"},
+					"cleanliness":      map[string]any{"type": "number", "description": "Room cleanliness stat (-5 to +5, 0 = clean)", "default": 0},
+					"glow":             map[string]any{"type": "number", "description": "Light level (0 = dark, 1 = fully lit)", "default": 1.0},
+					"outdoors":         map[string]any{"type": "boolean", "description": "Whether surgery is performed outdoors", "default": false},
+					"medicine":         map[string]any{"type": "string", "description": "Medicine type: none, herbal, industrial/medicine, glitterworld"},
+					"medicine_potency": map[string]any{"type": "number", "description": "Direct medicine potency override (0=none, 0.6=herbal, 1.0=industrial, 1.6=glitterworld)"},
+					"difficulty":       map[string]any{"type": "number", "description": "Operation's surgerySuccessChanceFactor (1.0 = standard)", "default": 1.0},
+					"inspired":         map[string]any{"type": "boolean", "description": "Whether the surgeon has Inspired Surgery", "default": false},
+				},
+			},
+		},
+	}
+}
+
+func writeResult(enc *json.Encoder, data any) {
+	if err := enc.Encode(map[string]any{
+		"type": "result",
+		"data": data,
+	}); err != nil {
+		os.Exit(1)
+	}
+}
+
+func writeError(enc *json.Encoder, errType, message string) {
+	if err := enc.Encode(map[string]any{
+		"type":      "error",
+		"errorType": errType,
+		"message":   message,
+	}); err != nil {
+		os.Exit(1)
+	}
+}
+
+func intParam(query map[string]any, key string, defaultVal int) int {
+	if v, ok := query[key].(float64); ok {
+		return int(v)
+	}
+	return defaultVal
+}
+
+func floatParam(query map[string]any, key string, defaultVal float64) float64 {
+	if v, ok := query[key].(float64); ok {
+		return v
+	}
+	return defaultVal
+}
+
+func boolParam(query map[string]any, key string, defaultVal bool) bool {
+	if v, ok := query[key].(bool); ok {
+		return v
+	}
+	return defaultVal
+}
