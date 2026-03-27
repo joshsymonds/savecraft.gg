@@ -116,12 +116,12 @@ describe("section-reference resolution", () => {
     );
   });
 
-  it("rejects when inline data conflicts with section reference", async () => {
+  it("query params take precedence over section-extracted values", async () => {
     const saveId = await seedSaveWithData(USER_A, "mtga", "TestDeck");
     await env.DB.prepare(
       "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
     )
-      .bind(saveId, "deck:Test", "Deck", '{"cards":[]}')
+      .bind(saveId, "deck:Test", "Deck", '{"cards":[{"name":"Swamp","count":17}]}')
       .run();
 
     const module = echoModule([
@@ -134,15 +134,61 @@ describe("section-reference resolution", () => {
       },
     ]);
 
+    const inlineDeck = [{ name: "Lightning Bolt", count: 4 }];
     const query: Record<string, unknown> = {
       save_id: saveId,
       deck_section: "deck:Test",
-      deck: [{ name: "Lightning Bolt", count: 4 }], // inline conflict!
+      deck: inlineDeck, // explicit query param wins over section-extracted deck
     };
 
-    await expect(resolveSectionParams(env.DB, USER_A, module, query)).rejects.toThrow(
-      "conflicts with section reference",
-    );
+    const resolved = await resolveSectionParams(env.DB, USER_A, module, query);
+    expect(resolved.deck).toEqual(inlineDeck);
+    expect(resolved.deck_section).toBeUndefined();
+  });
+
+  it("allows orthogonal query params alongside section-extracted params", async () => {
+    // Reproduces production bug: deck_section extracts format from saved deck,
+    // but query also passes mode + format. The conflict check wrongly rejects
+    // because format appears in both extracted data and query params.
+    const saveId = await seedSaveWithData(USER_A, "mtga", "TestDeck");
+    const deckData = {
+      cards: [{ name: "Sheoldred", count: 4 }],
+      format: "Standard",
+    };
+    await env.DB.prepare(
+      "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
+    )
+      .bind(saveId, "deck:Reanimator", "Deck", JSON.stringify(deckData))
+      .run();
+
+    const module = echoModule([
+      {
+        sectionParam: "deck_section",
+        extract: (data: unknown) => {
+          const d = data as Record<string, unknown>;
+          const result: Record<string, unknown> = {};
+          if (Array.isArray(d.cards)) result.deck = d.cards;
+          if (typeof d.format === "string") result.format = d.format.toLowerCase();
+          return result;
+        },
+      },
+    ]);
+
+    const query: Record<string, unknown> = {
+      save_id: saveId,
+      deck_section: "deck:Reanimator",
+      mode: "constructed",
+      format: "standard", // also extracted from section — should not conflict
+    };
+
+    // Query params (mode, format) should coexist with section-extracted deck.
+    // format from query should win over format from section.
+    const resolved = await resolveSectionParams(env.DB, USER_A, module, query);
+    expect(resolved.deck).toEqual(deckData.cards);
+    expect(resolved.mode).toBe("constructed");
+    expect(resolved.format).toBe("standard");
+    expect(resolved.deck_section).toBeUndefined();
+    expect(resolved.save_id).toBeUndefined();
   });
 
   it("passes through inline data unchanged when no section reference", async () => {
