@@ -5,16 +5,15 @@
  *    resolve double-faced cards (e.g., "Kavaero, Mind-Bitten" stored as
  *    "Kavaero, Mind-Bitten // Kavaero, the Burning Sky").
  *
- * 2. Lands in mana_base: Lands have empty mana_cost, so the `!row.mana_cost`
- *    check rejects them. The module also doesn't query `produced_mana`, so it
- *    can't count mana sources from lands.
+ * 2. Lands in deckbuilding mana analysis: Lands have empty mana_cost but
+ *    should still be resolved and counted as colored sources via produced_mana.
  */
 
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { collectionDiffModule } from "../../plugins/mtga/reference/collection-diff";
-import { manaBaseModule } from "../../plugins/mtga/reference/mana-base";
+import { deckbuildingModule } from "../../plugins/mtga/reference/deckbuilding";
 import { playAdvisorModule } from "../../plugins/mtga/reference/play-advisor";
 
 import { cleanAll } from "./helpers";
@@ -70,15 +69,14 @@ async function seedCard(overrides: {
     .run();
 }
 
-// ── mana_base ────────────────────────────────────────────────
+// ── deckbuilding mana analysis ───────────────────────────────
 
-describe("mana_base card resolution", () => {
+describe("deckbuilding mana card resolution", () => {
   beforeEach(async () => {
     await cleanAll();
   });
 
   it("resolves lands (empty mana_cost) instead of marking them unresolved", async () => {
-    // Seed a basic land and a spell
     await seedCard({
       arena_id: 1,
       name: "Swamp",
@@ -95,21 +93,19 @@ describe("mana_base card resolution", () => {
       type_line: "Instant",
     });
 
-    const result = await manaBaseModule.execute(
+    const result = await deckbuildingModule.execute(
       {
+        mode: "constructed",
         deck: [
           { name: "Swamp", count: 10 },
           { name: "Murder", count: 4 },
         ],
-        deck_size: 60,
       },
       env,
     );
 
     expect(result.type).toBe("structured");
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-
-    // Swamp should NOT be in unresolved_cards
     expect(data.unresolved_cards ?? []).not.toContain("Swamp");
   });
 
@@ -130,13 +126,13 @@ describe("mana_base card resolution", () => {
       type_line: "Instant",
     });
 
-    const result = await manaBaseModule.execute(
+    const result = await deckbuildingModule.execute(
       {
+        mode: "constructed",
         deck: [
           { name: "Breeding Pool", count: 4 },
           { name: "Growth Spiral", count: 4 },
         ],
-        deck_size: 60,
       },
       env,
     );
@@ -147,7 +143,6 @@ describe("mana_base card resolution", () => {
   });
 
   it("resolves DFC cards by front_face_name", async () => {
-    // Scryfall stores DFCs with full " // " name, but MTGA uses front face only
     await seedCard({
       arena_id: 100,
       name: "Kavaero, Mind-Bitten // Kavaero, the Burning Sky",
@@ -157,10 +152,10 @@ describe("mana_base card resolution", () => {
       rarity: "mythic",
     });
 
-    const result = await manaBaseModule.execute(
+    const result = await deckbuildingModule.execute(
       {
+        mode: "constructed",
         deck: [{ name: "Kavaero, Mind-Bitten", count: 1 }],
-        deck_size: 60,
       },
       env,
     );
@@ -168,12 +163,12 @@ describe("mana_base card resolution", () => {
     expect(result.type).toBe("structured");
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
     expect(data.unresolved_cards ?? []).not.toContain("Kavaero, Mind-Bitten");
-    // Should have found a spell with colored pips
-    expect(data.spell_count).toBeGreaterThan(0);
+    // Should have mana analysis with colored pips
+    const mana = data.mana as { pip_distribution: Record<string, number> };
+    expect(Object.keys(mana.pip_distribution).length).toBeGreaterThan(0);
   });
 
-  it("calculates sources_needed for Blue and Black when UB lands are in deck", async () => {
-    // Seed lands + a demanding UB spell
+  it("computes needs-vs-has for Blue and Black with UB lands", async () => {
     await seedCard({
       arena_id: 1,
       name: "Island",
@@ -213,8 +208,9 @@ describe("mana_base card resolution", () => {
       type_line: "Instant",
     });
 
-    const result = await manaBaseModule.execute(
+    const result = await deckbuildingModule.execute(
       {
+        mode: "constructed",
         deck: [
           { name: "Island", count: 8 },
           { name: "Swamp", count: 8 },
@@ -222,7 +218,6 @@ describe("mana_base card resolution", () => {
           { name: "Counterspell", count: 4 },
           { name: "Murder", count: 4 },
         ],
-        deck_size: 60,
       },
       env,
     );
@@ -236,14 +231,18 @@ describe("mana_base card resolution", () => {
     expect(unresolved).not.toContain("Swamp");
     expect(unresolved).not.toContain("Watery Grave");
 
-    // Both Blue and Black should have sources_needed > 0
-    const requirements = data.requirements as { color: string; sources_needed: number }[];
-    const blue = requirements.find((r) => r.color === "U");
-    const black = requirements.find((r) => r.color === "B");
+    // Both Blue and Black should have sources_needed > 0 and sources_actual > 0
+    const mana = data.mana as {
+      colors: { color: string; sources_needed: number; sources_actual: number }[];
+    };
+    const blue = mana.colors.find((c) => c.color === "U");
+    const black = mana.colors.find((c) => c.color === "B");
     expect(blue).toBeDefined();
     expect(blue!.sources_needed).toBeGreaterThan(0);
+    expect(blue!.sources_actual).toBe(12); // 8 Islands + 4 Watery Grave
     expect(black).toBeDefined();
     expect(black!.sources_needed).toBeGreaterThan(0);
+    expect(black!.sources_actual).toBe(12); // 8 Swamps + 4 Watery Grave
   });
 });
 
