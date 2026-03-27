@@ -82,33 +82,97 @@ interface CutCandidate {
 
 const KARSTEN_TABLES: Record<number, Record<string, number>> = {
   60: {
-    "C": 14, "1C": 13, "2C": 12, "3C": 10, "4C": 9, "5C": 9,
-    "CC": 21, "1CC": 18, "2CC": 16, "3CC": 15, "4CC": 13, "5CC": 12,
-    "CCC": 23, "1CCC": 21, "2CCC": 19, "3CCC": 17, "4CCC": 16,
-    "CCCC": 24, "1CCCC": 22,
+    C: 14,
+    "1C": 13,
+    "2C": 12,
+    "3C": 10,
+    "4C": 9,
+    "5C": 9,
+    CC: 21,
+    "1CC": 18,
+    "2CC": 16,
+    "3CC": 15,
+    "4CC": 13,
+    "5CC": 12,
+    CCC: 23,
+    "1CCC": 21,
+    "2CCC": 19,
+    "3CCC": 17,
+    "4CCC": 16,
+    CCCC: 24,
+    "1CCCC": 22,
   },
   40: {
-    "C": 9, "1C": 9, "2C": 8, "3C": 7, "4C": 6, "5C": 6,
-    "CC": 14, "1CC": 12, "2CC": 11, "3CC": 10, "4CC": 9, "5CC": 8,
-    "CCC": 16, "1CCC": 14, "2CCC": 13, "3CCC": 11, "4CCC": 10,
-    "CCCC": 17, "1CCCC": 15,
+    C: 9,
+    "1C": 9,
+    "2C": 8,
+    "3C": 7,
+    "4C": 6,
+    "5C": 6,
+    CC: 14,
+    "1CC": 12,
+    "2CC": 11,
+    "3CC": 10,
+    "4CC": 9,
+    "5CC": 8,
+    CCC: 16,
+    "1CCC": 14,
+    "2CCC": 13,
+    "3CCC": 11,
+    "4CCC": 10,
+    CCCC: 17,
+    "1CCCC": 15,
   },
   80: {
-    "C": 19, "1C": 18, "2C": 16, "3C": 15, "4C": 14, "5C": 12,
-    "CC": 28, "1CC": 25, "2CC": 23, "3CC": 20, "4CC": 19, "5CC": 17,
-    "CCC": 32, "1CCC": 29, "2CCC": 26, "3CCC": 24, "4CCC": 22,
-    "CCCC": 34, "1CCCC": 31,
+    C: 19,
+    "1C": 18,
+    "2C": 16,
+    "3C": 15,
+    "4C": 14,
+    "5C": 12,
+    CC: 28,
+    "1CC": 25,
+    "2CC": 23,
+    "3CC": 20,
+    "4CC": 19,
+    "5CC": 17,
+    CCC: 32,
+    "1CCC": 29,
+    "2CCC": 26,
+    "3CCC": 24,
+    "4CCC": 22,
+    CCCC: 34,
+    "1CCCC": 31,
   },
   99: {
-    "C": 19, "1C": 19, "2C": 18, "3C": 16, "4C": 15, "5C": 14,
-    "CC": 30, "1CC": 28, "2CC": 26, "3CC": 23, "4CC": 22, "5CC": 20,
-    "CCC": 36, "1CCC": 33, "2CCC": 30, "3CCC": 28, "4CCC": 26,
-    "CCCC": 39, "1CCCC": 36,
+    C: 19,
+    "1C": 19,
+    "2C": 18,
+    "3C": 16,
+    "4C": 15,
+    "5C": 14,
+    CC: 30,
+    "1CC": 28,
+    "2CC": 26,
+    "3CC": 23,
+    "4CC": 22,
+    "5CC": 20,
+    CCC: 36,
+    "1CCC": 33,
+    "2CCC": 30,
+    "3CCC": 28,
+    "4CCC": 26,
+    CCCC: 39,
+    "1CCCC": 36,
   },
 };
 
 const COLOR_NAMES: Record<string, string> = {
-  W: "White", U: "Blue", B: "Black", R: "Red", G: "Green",
+  W: "White",
+  U: "Blue",
+  B: "Black",
+  R: "Red",
+  G: "Green",
 };
 
 const ALL_COLORS = ["W", "U", "B", "R", "G"];
@@ -127,7 +191,11 @@ function karstenPatternKey(generic: number, pips: number): string {
   return `${generic}${"C".repeat(pips)}`;
 }
 
-function karstenSourceReq(generic: number, pips: number, deckSize: number): number {
+function karstenSourceReq(
+  generic: number,
+  pips: number,
+  deckSize: number,
+): number {
   const key = karstenPatternKey(generic, pips);
   const size = closestDeckSize(deckSize);
   return KARSTEN_TABLES[size]?.[key] ?? 0;
@@ -145,7 +213,12 @@ function parseGeneric(manaCost: string): number {
 }
 
 /** More colored pips = more demanding. At equal pips, lower CMC = cast earlier = more demanding. */
-function isMoreDemanding(pips: number, cmc: number, ePips: number, eCmc: number): boolean {
+function isMoreDemanding(
+  pips: number,
+  cmc: number,
+  ePips: number,
+  eCmc: number,
+): boolean {
   if (pips !== ePips) return pips > ePips;
   return cmc < eCmc;
 }
@@ -186,17 +259,27 @@ function analyzeManaBase(
   // Count pip distribution across all spells
   const pipDist: Record<string, number> = {};
   // Track most demanding spell per color
-  const colorDemands = new Map<string, {
-    pips: number;
-    totalCMC: number;
-    cardName: string;
-    isGold: boolean;
-  }>();
+  const colorDemands = new Map<
+    string,
+    {
+      pips: number;
+      totalCMC: number;
+      cardName: string;
+      isGold: boolean;
+    }
+  >();
   // Track actual sources per color from lands
   const actualSources = new Map<string, number>();
   // Track land composition for swap suggestions
-  const basicCounts = new Map<string, { name: string; count: number; colors: string[] }>();
-  const nonBasicLands: { name: string; count: number; producedColors: string[] }[] = [];
+  const basicCounts = new Map<
+    string,
+    { name: string; count: number; colors: string[] }
+  >();
+  const nonBasicLands: {
+    name: string;
+    count: number;
+    producedColors: string[];
+  }[] = [];
 
   for (const entry of deck) {
     const card = meta.get(entry.name.toLowerCase());
@@ -212,7 +295,10 @@ function analyzeManaBase(
           const produced = JSON.parse(card.produced_mana) as string[];
           producedColors = produced.filter((c) => ALL_COLORS.includes(c));
           for (const color of producedColors) {
-            actualSources.set(color, (actualSources.get(color) ?? 0) + entry.count);
+            actualSources.set(
+              color,
+              (actualSources.get(color) ?? 0) + entry.count,
+            );
           }
         } catch {
           // Malformed produced_mana — skip
@@ -226,10 +312,18 @@ function analyzeManaBase(
         if (existing) {
           existing.count += entry.count;
         } else {
-          basicCounts.set(key, { name: card.name, count: entry.count, colors: producedColors });
+          basicCounts.set(key, {
+            name: card.name,
+            count: entry.count,
+            colors: producedColors,
+          });
         }
       } else if (producedColors.length > 0) {
-        nonBasicLands.push({ name: card.name, count: entry.count, producedColors });
+        nonBasicLands.push({
+          name: card.name,
+          count: entry.count,
+          producedColors,
+        });
       }
     } else {
       // Count pips
@@ -245,8 +339,16 @@ function analyzeManaBase(
 
         // Track most demanding
         const existing = colorDemands.get(color);
-        if (!existing || isMoreDemanding(count, totalCMC, existing.pips, existing.totalCMC)) {
-          colorDemands.set(color, { pips: count, totalCMC, cardName: card.name, isGold });
+        if (
+          !existing ||
+          isMoreDemanding(count, totalCMC, existing.pips, existing.totalCMC)
+        ) {
+          colorDemands.set(color, {
+            pips: count,
+            totalCMC,
+            cardName: card.name,
+            isGold,
+          });
         }
       }
     }
@@ -296,7 +398,11 @@ function analyzeManaBase(
 
   // Map basic land names to their colors
   const colorToBasic: Record<string, string> = {
-    W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest",
+    W: "Plains",
+    U: "Island",
+    B: "Swamp",
+    R: "Mountain",
+    G: "Forest",
   };
 
   if (deficitColors.length > 0) {
@@ -313,7 +419,10 @@ function analyzeManaBase(
         const surpLand = basicCounts.get(surpBasic.toLowerCase());
         if (!surpLand || surpLand.count <= 1) continue; // keep at least 1
 
-        const canSwap = Math.min(needed, Math.min(surp.surplus, surpLand.count - 1));
+        const canSwap = Math.min(
+          needed,
+          Math.min(surp.surplus, surpLand.count - 1),
+        );
         if (canSwap > 0) {
           swapSuggestions.push({
             cut: `${canSwap}x ${surpLand.name}`,
@@ -476,9 +585,7 @@ async function buildArchetypeInfo(
       .map((c) => {
         const count = deckCountByArch.get(c.archetype) ?? 0;
         const share =
-          totalDecks > 0
-            ? Math.round((count / totalDecks) * 1000) / 1000
-            : 0;
+          totalDecks > 0 ? Math.round((count / totalDecks) * 1000) / 1000 : 0;
         const { viability, format_context } = computeViabilityTier(
           share,
           allShares,
@@ -617,12 +724,7 @@ async function healthCheck(
     // Noncreature spells
     sections.push({
       name: "noncreatures",
-      status: statusFromDelta(
-        noncreatureCount,
-        stats.avg_noncreatures,
-        2,
-        4,
-      ),
+      status: statusFromDelta(noncreatureCount, stats.avg_noncreatures, 2, 4),
       actual: noncreatureCount,
       expected: r4(stats.avg_noncreatures),
       note:
@@ -657,7 +759,11 @@ async function healthCheck(
       const splashViable = fixingCount >= stats.splash_avg_sources;
       sections.push({
         name: "splash",
-        status: splashViable ? (splashWrDelta >= -0.02 ? "good" : "warning") : "issue",
+        status: splashViable
+          ? splashWrDelta >= -0.02
+            ? "good"
+            : "warning"
+          : "issue",
         actual: fixingCount,
         expected: r4(stats.splash_avg_sources),
         note: splashViable
@@ -689,7 +795,12 @@ async function healthCheck(
     const allCmcs = new Set([...idealCurve.keys(), ...actualCurve.keys()]);
     let worstCmcDelta = 0;
     let worstCmcSlot = 0;
-    const deviations: Array<{ cmc: number; actual: number; ideal: number; delta: number }> = [];
+    const deviations: Array<{
+      cmc: number;
+      actual: number;
+      ideal: number;
+      delta: number;
+    }> = [];
     for (const cmc of [...allCmcs].sort((a, b) => a - b)) {
       const actual = actualCurve.get(cmc) ?? 0;
       const ideal = idealCurve.get(cmc) ?? 0;
@@ -725,9 +836,10 @@ async function healthCheck(
         status: statusFromDelta(0, Math.abs(worstCmcDelta), 2, 4),
         actual: worstCmcDelta,
         expected: 0,
-        note: worstCmcDelta > 0
-          ? `Surplus at ${cmcLabel} CMC (${r4(worstCmcDelta)} above avg) — consider cutting high-CMC cards`
-          : `Deficit at ${cmcLabel} CMC (${r4(Math.abs(worstCmcDelta))} below avg) — deck may lack plays at this slot`,
+        note:
+          worstCmcDelta > 0
+            ? `Surplus at ${cmcLabel} CMC (${r4(worstCmcDelta)} above avg) — consider cutting high-CMC cards`
+            : `Deficit at ${cmcLabel} CMC (${r4(Math.abs(worstCmcDelta))} below avg) — deck may lack plays at this slot`,
       });
     }
   }
@@ -757,11 +869,7 @@ async function healthCheck(
       sections.push({
         name: "castability",
         status:
-          worstProb >= 0.85
-            ? "good"
-            : worstProb >= 0.7
-              ? "warning"
-              : "issue",
+          worstProb >= 0.85 ? "good" : worstProb >= 0.7 ? "warning" : "issue",
         actual: r4(worstProb),
         expected: 0.85,
         note:
@@ -1110,7 +1218,8 @@ async function cutAdvisor(
     const actualAtCmc = actualCurve.get(cmc) ?? 0;
     const idealAtCmc = idealCurve.get(cmc) ?? actualAtCmc;
     // Positive = surplus (easier to cut), negative = deficit (harder to cut)
-    const curveSurplus = idealAtCmc > 0 ? (actualAtCmc - idealAtCmc) / idealAtCmc : 0;
+    const curveSurplus =
+      idealAtCmc > 0 ? (actualAtCmc - idealAtCmc) / idealAtCmc : 0;
     // Invert: higher score = more valuable = harder to cut
     const curveScore = -curveSurplus;
 
@@ -1157,7 +1266,8 @@ async function cutAdvisor(
     if (gihwr < 0.5) reasons.push(`low win rate (${Math.round(gihwr * 100)}%)`);
     if (synergyScore < -0.01) reasons.push("negative synergy with deck");
     if (curveSurplus > 0.3) reasons.push(`surplus at ${cmc} CMC`);
-    if (castProb < 0.7) reasons.push(`hard to cast (${Math.round(castProb * 100)}%)`);
+    if (castProb < 0.7)
+      reasons.push(`hard to cast (${Math.round(castProb * 100)}%)`);
     if (reasons.length === 0) reasons.push("lowest overall contribution");
 
     uniqueScores.set(cardName, {
@@ -1202,20 +1312,33 @@ async function constructedHealthCheck(
   for (let i = 0; i < allNames.length; i += META_BATCH_SIZE) {
     const chunk = allNames.slice(i, i + META_BATCH_SIZE);
     const ph = placeholders(chunk.length, 1);
+    // Fetch all printings (not just is_default) so we can pick the one with
+    // populated legalities. Some default printings have empty legalities {}
+    // while a non-default printing of the same card has the real data.
     const rows = await db
       .prepare(
         `SELECT front_face_name AS name, legalities, type_line, cmc, mana_cost, colors, produced_mana
-         FROM mtga_cards WHERE front_face_name COLLATE NOCASE IN (${ph}) AND is_default = 1`,
+         FROM mtga_cards WHERE front_face_name COLLATE NOCASE IN (${ph})
+         ORDER BY is_default DESC, length(legalities) DESC`,
       )
       .bind(...chunk)
       .all<LegalityRow>();
     for (const row of rows.results) {
-      cardData.set(row.name.toLowerCase(), row);
+      const key = row.name.toLowerCase();
+      const existing = cardData.get(key);
+      if (!existing) {
+        cardData.set(key, row);
+      } else if (existing.legalities === "{}" && row.legalities !== "{}") {
+        // Prefer the printing with populated legalities
+        cardData.set(key, { ...existing, legalities: row.legalities });
+      }
     }
   }
 
   const totalCards = deck.reduce((sum, e) => sum + e.count, 0);
-  const sideboardCards = sideboard ? sideboard.reduce((sum, e) => sum + e.count, 0) : undefined;
+  const sideboardCards = sideboard
+    ? sideboard.reduce((sum, e) => sum + e.count, 0)
+    : undefined;
 
   let creatures = 0;
   let noncreatures = 0;
@@ -1250,7 +1373,10 @@ async function constructedHealthCheck(
 
     if (format) {
       try {
-        const legalities = JSON.parse(data.legalities) as Record<string, string>;
+        const legalities = JSON.parse(data.legalities) as Record<
+          string,
+          string
+        >;
         const status = legalities[format.toLowerCase()] ?? "not_legal";
         if (status !== "legal") {
           illegalCards.push({ name: data.name, status });
@@ -1292,7 +1418,9 @@ async function constructedHealthCheck(
   if (sideboardCards !== undefined) {
     lines.push(`  Sideboard: ${sideboardCards} cards`);
     if (sideboardCards !== 15 && sideboardCards !== 0) {
-      lines.push(`    Note: Standard sideboard is 15 cards (have ${sideboardCards})`);
+      lines.push(
+        `    Note: Standard sideboard is 15 cards (have ${sideboardCards})`,
+      );
     }
     lines.push("");
   }
@@ -1300,16 +1428,12 @@ async function constructedHealthCheck(
   const maxCmc = Math.max(...cmcCounts.keys(), 0);
   if (maxCmc > 0) {
     lines.push("  Curve (non-land spells):");
-    lines.push(
-      `    ${"CMC".padEnd(6)} ${"Count".padStart(6)}  Bar`,
-    );
+    lines.push(`    ${"CMC".padEnd(6)} ${"Count".padStart(6)}  Bar`);
     for (let cmc = 0; cmc <= Math.min(maxCmc, 7); cmc++) {
       const count = cmcCounts.get(cmc) ?? 0;
       const label = cmc === 7 ? "7+" : String(cmc);
       const bar = "\u2588".repeat(Math.min(count, 30));
-      lines.push(
-        `    ${label.padEnd(6)} ${String(count).padStart(6)}  ${bar}`,
-      );
+      lines.push(`    ${label.padEnd(6)} ${String(count).padStart(6)}  ${bar}`);
     }
     lines.push("");
   }
@@ -1317,7 +1441,9 @@ async function constructedHealthCheck(
   const mana = analyzeManaBase(deck, cardData, totalCards);
 
   if (unresolvedCards.length > 0) {
-    lines.push(`  Unresolved cards (not in database): ${unresolvedCards.join(", ")}`);
+    lines.push(
+      `  Unresolved cards (not in database): ${unresolvedCards.join(", ")}`,
+    );
     lines.push("");
   }
 
@@ -1340,7 +1466,8 @@ async function constructedHealthCheck(
       illegal_cards: illegalCards.length > 0 ? illegalCards : undefined,
       curve,
       mana,
-      unresolved_cards: unresolvedCards.length > 0 ? unresolvedCards : undefined,
+      unresolved_cards:
+        unresolvedCards.length > 0 ? unresolvedCards : undefined,
       formatted_report: lines.join("\n") + "\n",
     },
     presentation:
@@ -1371,7 +1498,10 @@ export const deckbuildingModule: NativeReferenceModule = {
   parameters: {
     deck: {
       type: "array",
-      items: { type: "object", properties: { name: { type: "string" }, count: { type: "integer" } } },
+      items: {
+        type: "object",
+        properties: { name: { type: "string" }, count: { type: "integer" } },
+      },
       description:
         "Deck list: array of {name, count}. Include all cards — lands and spells.",
     },
@@ -1387,7 +1517,10 @@ export const deckbuildingModule: NativeReferenceModule = {
     },
     sideboard: {
       type: "array",
-      items: { type: "object", properties: { name: { type: "string" }, count: { type: "integer" } } },
+      items: {
+        type: "object",
+        properties: { name: { type: "string" }, count: { type: "integer" } },
+      },
       description:
         "Sideboard list for constructed mode: array of {name, count}.",
     },
@@ -1420,8 +1553,10 @@ export const deckbuildingModule: NativeReferenceModule = {
         const data = sectionData as Record<string, unknown>;
         const result: Record<string, unknown> = {};
         if (Array.isArray(data.cards)) result.deck = data.cards;
-        if (Array.isArray(data.sideboard) && data.sideboard.length > 0) result.sideboard = data.sideboard;
-        if (typeof data.format === "string") result.format = data.format.toLowerCase();
+        if (Array.isArray(data.sideboard) && data.sideboard.length > 0)
+          result.sideboard = data.sideboard;
+        if (typeof data.format === "string")
+          result.format = data.format.toLowerCase();
         return result;
       },
     },
@@ -1435,7 +1570,9 @@ export const deckbuildingModule: NativeReferenceModule = {
     if (deck.length === 0) {
       return {
         type: "structured",
-        data: { error: "No deck provided. Pass an array of {name, count} entries." },
+        data: {
+          error: "No deck provided. Pass an array of {name, count} entries.",
+        },
       };
     }
 
@@ -1443,7 +1580,12 @@ export const deckbuildingModule: NativeReferenceModule = {
 
     // Constructed mode — format-aware analysis without draft data
     if (query.mode === "constructed") {
-      return constructedHealthCheck(db, deck, query.sideboard as DeckEntry[] | undefined, query.format as string | undefined);
+      return constructedHealthCheck(
+        db,
+        deck,
+        query.sideboard as DeckEntry[] | undefined,
+        query.format as string | undefined,
+      );
     }
 
     // Resolve card names
