@@ -141,11 +141,7 @@
   </div>
 
   <!-- ═══ HOW IT WORKS ═══ -->
-  <MarketingSection
-    id="how"
-    eyebrow="HOW IT WORKS"
-    title="Instant access. Three steps to unlock everything."
-  >
+  <MarketingSection id="how" eyebrow="HOW IT WORKS" title="Two ways in.">
     <!-- Reference modules — zero install, immediate value -->
     <div class="reference-callout">
       <h3 class="reference-callout-title">Draft stats. Drop tables. Crop planners. No install.</h3>
@@ -158,8 +154,15 @@
       </div>
     </div>
 
+    <!-- Divider between tiers -->
+    <div class="tier-divider">
+      <div class="tier-divider-line"></div>
+      <span class="tier-divider-label">+</span>
+      <div class="tier-divider-line"></div>
+    </div>
+
     <!-- Three-step grid for full save data access -->
-    <h3 class="unlock-label">Want your actual save data too?</h3>
+    <h3 class="unlock-label">Want your actual save data too? Three steps.</h3>
     <div class="steps-grid">
       <div class="step-card">
         <div class="step-num">01</div>
@@ -626,8 +629,35 @@
     justify-content: center;
   }
 
+  .tier-divider {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin: 48px 0 8px;
+  }
+
+  .tier-divider-line {
+    flex: 1;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(90, 190, 138, 0.3) 30%,
+      rgba(200, 168, 78, 0.3) 70%,
+      transparent 100%
+    );
+  }
+
+  .tier-divider-label {
+    font-family: var(--font-pixel);
+    font-size: 14px;
+    color: var(--color-gold);
+    text-shadow: 0 0 12px rgba(200, 168, 78, 0.4);
+    flex-shrink: 0;
+  }
+
   .unlock-label {
-    margin-top: 48px;
+    margin-top: 12px;
     margin-bottom: 8px;
     font-family: var(--font-pixel);
     font-size: clamp(12px, 1.8vw, 16px);
