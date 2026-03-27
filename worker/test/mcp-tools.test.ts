@@ -106,9 +106,8 @@ async function seedSave(options: {
 }
 
 function parseResult(result: ToolResult): unknown {
-  // Presentation directives are in a separate content block before the data.
-  // The last content block contains the JSON data.
-  const dataBlock = result.content.at(-1);
+  // Content blocks: [directive?, data, reminder?]. Data is at index 1 when sandwich exists, 0 otherwise.
+  const dataBlock = result.content.length > 1 ? result.content[1] : result.content[0];
   if (!dataBlock) throw new Error("Expected text content");
   return JSON.parse(dataBlock.text);
 }

@@ -50,9 +50,10 @@ async function parseJsonResponse(resp: Response): Promise<unknown> {
 
 /** Parse JSON data from a tool result content array (data is in the last text block). */
 function parseToolContent(content: { type: string; text: string }[]): unknown {
-  const last = content.at(-1);
-  if (!last) throw new Error("Expected content blocks");
-  return JSON.parse(last.text);
+  // Content blocks: [directive?, data, reminder?]. Data is at index 1 when sandwich exists, 0 otherwise.
+  const dataBlock = content.length > 1 ? content[1] : content[0];
+  if (!dataBlock) throw new Error("Expected content blocks");
+  return JSON.parse(dataBlock.text);
 }
 
 describe("MCP Protocol", () => {
@@ -109,7 +110,7 @@ describe("MCP Protocol", () => {
     expect(body.result.serverInfo).toEqual({ name: "savecraft", version: "dev" });
     expect(body.result.capabilities).toBeDefined();
     expect(body.result.instructions).toContain("gaming companion");
-    expect(body.result.instructions).toContain("Visualize this data:");
+    expect(body.result.instructions).toContain("MUST create an artifact");
   });
 
   it("includes Content-Security-Policy header on all response types", async () => {
@@ -561,20 +562,23 @@ describe("MCP Protocol", () => {
       result: { content: { type: string; text: string }[] };
     };
 
-    // Should have two content blocks: visualization directive + data
-    expect(body.result.content.length).toBe(2);
+    // Should have three content blocks: directive + data + reminder (sandwich)
+    expect(body.result.content.length).toBe(3);
 
-    // First block: the visualization directive
-    expect(body.result.content[0]!.text).toContain("Visualize this data:");
+    // First block: the imperative visualization directive
+    expect(body.result.content[0]!.text).toContain("IMPORTANT: Create an artifact");
     expect(body.result.content[0]!.text).toContain("ranked table with bar indicators");
 
-    // Last block: the actual data
+    // Middle block: the actual data
     const data = JSON.parse(body.result.content[1]!.text) as {
       results: { score?: number; card?: string }[];
     };
     expect(data.results).toHaveLength(1);
     expect(data.results[0]!.score).toBe(42);
     expect(data.results[0]!.card).toBe("Lightning Bolt");
+
+    // Last block: the reminder
+    expect(body.result.content[2]!.text).toContain("REMINDER");
 
     clearNativeRegistry();
   });

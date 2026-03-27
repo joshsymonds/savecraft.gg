@@ -40,12 +40,18 @@ interface SectionRow {
   data: string;
 }
 
+export const VIZ_REMINDER =
+  "REMINDER: You MUST present the data above as an interactive artifact, not prose analysis. Follow the visualization directive.";
+
 function textResult(data: unknown, presentation?: string): ToolResult {
   const content: { type: "text"; text: string }[] = [];
   if (presentation) {
-    content.push({ type: "text", text: `Visualize this data: ${presentation}` });
+    content.push({ type: "text", text: `IMPORTANT: Create an artifact to present this data. ${presentation}` });
   }
   content.push({ type: "text", text: JSON.stringify(data) });
+  if (presentation) {
+    content.push({ type: "text", text: VIZ_REMINDER });
+  }
   return { content };
 }
 
@@ -1014,9 +1020,12 @@ async function executeNativeModule(
     if (result.type === "formatted") {
       const content: { type: "text"; text: string }[] = [];
       if (result.presentation) {
-        content.push({ type: "text", text: `Visualize this data: ${result.presentation}` });
+        content.push({ type: "text", text: `IMPORTANT: Create an artifact to present this data. ${result.presentation}` });
       }
       content.push({ type: "text", text: result.content });
+      if (result.presentation) {
+        content.push({ type: "text", text: VIZ_REMINDER });
+      }
       return { content };
     }
     return textResult(result.data, result.presentation);
@@ -1111,9 +1120,12 @@ function parseWasmResponse(text: string): ToolResult {
         const data = parsed.data as { formatted: string };
         const content: { type: "text"; text: string }[] = [];
         if (presentation) {
-          content.push({ type: "text", text: `Visualize this data: ${presentation}` });
+          content.push({ type: "text", text: `IMPORTANT: Create an artifact to present this data. ${presentation}` });
         }
         content.push({ type: "text", text: data.formatted });
+        if (presentation) {
+          content.push({ type: "text", text: VIZ_REMINDER });
+        }
         return { content };
       }
       return textResult(parsed, presentation);

@@ -188,11 +188,12 @@ describe("queryReference native routing", () => {
     );
 
     expect(result.isError).toBeFalsy();
-    // Presentation directive is in the first content block, data in the second
-    expect(result.content).toHaveLength(2);
-    expect(result.content[0]!.text).toContain("Visualize this data:");
+    // Sandwich: directive + data + reminder
+    expect(result.content).toHaveLength(3);
+    expect(result.content[0]!.text).toContain("IMPORTANT: Create an artifact");
     expect(result.content[0]!.text).toContain("Bar chart comparing win rates");
     expect(result.content[1]!.text).toContain('"win_rate":0.58');
+    expect(result.content[2]!.text).toContain("REMINDER");
   });
 
   it("passes through presentation hint from formatted result", async () => {
@@ -218,9 +219,11 @@ describe("queryReference native routing", () => {
     );
 
     expect(result.isError).toBeFalsy();
-    expect(result.content).toHaveLength(2);
-    expect(result.content[0]!.text).toContain("Visualize this data:");
+    // Sandwich: directive + content + reminder
+    expect(result.content).toHaveLength(3);
+    expect(result.content[0]!.text).toContain("IMPORTANT: Create an artifact");
     expect(result.content[1]!.text).toContain("Rule 702.1: Flying");
+    expect(result.content[2]!.text).toContain("REMINDER");
   });
 
   it("omits presentation block when hint is undefined", async () => {
