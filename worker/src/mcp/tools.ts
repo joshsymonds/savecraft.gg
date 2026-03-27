@@ -46,7 +46,10 @@ export const VIZ_REMINDER =
 function textResult(data: unknown, presentation?: string): ToolResult {
   const content: { type: "text"; text: string }[] = [];
   if (presentation) {
-    content.push({ type: "text", text: `IMPORTANT: Create an artifact to present this data. ${presentation}` });
+    content.push({
+      type: "text",
+      text: `IMPORTANT: Create an artifact to present this data. ${presentation}`,
+    });
   }
   content.push({ type: "text", text: JSON.stringify(data) });
   if (presentation) {
@@ -1020,7 +1023,10 @@ async function executeNativeModule(
     if (result.type === "formatted") {
       const content: { type: "text"; text: string }[] = [];
       if (result.presentation) {
-        content.push({ type: "text", text: `IMPORTANT: Create an artifact to present this data. ${result.presentation}` });
+        content.push({
+          type: "text",
+          text: `IMPORTANT: Create an artifact to present this data. ${result.presentation}`,
+        });
       }
       content.push({ type: "text", text: result.content });
       if (result.presentation) {
@@ -1120,7 +1126,10 @@ function parseWasmResponse(text: string): ToolResult {
         const data = parsed.data as { formatted: string };
         const content: { type: "text"; text: string }[] = [];
         if (presentation) {
-          content.push({ type: "text", text: `IMPORTANT: Create an artifact to present this data. ${presentation}` });
+          content.push({
+            type: "text",
+            text: `IMPORTANT: Create an artifact to present this data. ${presentation}`,
+          });
         }
         content.push({ type: "text", text: data.formatted });
         if (presentation) {
