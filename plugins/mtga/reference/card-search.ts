@@ -225,6 +225,11 @@ export const cardSearchModule: NativeReferenceModule = {
       cards = results.results.map(cardRowToResult);
     }
 
-    return { type: "structured", data: { cards, total: cards.length } };
+    return {
+      type: "structured",
+      data: { cards, total: cards.length },
+      presentation:
+        "Card search results — display as a card gallery with each result as a compact card block showing name, mana cost (with color symbols), type line, and oracle text. Color-code the card frame by color identity. For 10+ results, use a sortable table with name, cost, type, and rarity columns instead.",
+    };
   },
 };

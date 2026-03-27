@@ -112,7 +112,12 @@ async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<Refe
   // Suggested follow-ups based on content
   lines.push(buildFollowUpSuggestions(rows.results, seeAlsoRefs));
 
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "formatted",
+    content: lines.join("\n") + "\n",
+    presentation:
+      "Rules reference — format as a clean legal document: rule numbers as bold headers, rule text as clear paragraphs, examples indented and italicized. Cross-referenced rules in a separate section. Do NOT use charts or visualizations — rules are text that must be read precisely.",
+  };
 }
 
 /** Build suggested follow-up queries based on rule content. */
@@ -239,7 +244,12 @@ async function searchByKeyword(
   lines.push("These rules are ranked by relevance. To get the full text of a specific rule including examples and cross-references, query by rule number (e.g., rule=\"702.2\").");
   lines.push("IMPORTANT: Always cite specific rule numbers when explaining interactions to the player. Do not paraphrase rules from memory — use the text above.");
 
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "formatted",
+    content: lines.join("\n") + "\n",
+    presentation:
+      "Rules search results — list rules with bold rule numbers as section headers. Rank order reflects relevance. Do NOT visualize as charts — present as clean, readable text with clear hierarchy.",
+  };
 }
 
 async function searchCardRulings(
@@ -341,7 +351,12 @@ async function searchCardRulings(
   lines.push("These are official WotC rulings via Scryfall. For the underlying game mechanics (e.g., how deathtouch or trample work in general), query by keyword or rule number.");
   lines.push("IMPORTANT: Card-specific rulings override general rules. Always check both when analyzing an interaction.");
 
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "formatted",
+    content: lines.join("\n") + "\n",
+    presentation:
+      "Card rulings — show each card as a header, then its rulings as a numbered list with dates. Group by card if multiple cards returned. Do NOT use charts — present as clean, authoritative reference text.",
+  };
 }
 
 // ── Module definition ────────────────────────────────────────

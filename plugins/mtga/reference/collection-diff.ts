@@ -117,6 +117,11 @@ export const collectionDiffModule: NativeReferenceModule = {
       wildcardCost.total += need;
     }
 
-    return { type: "structured", data: { missing, wildcardCost, unresolvedCards } };
+    return {
+      type: "structured",
+      data: { missing, wildcardCost, unresolvedCards },
+      presentation:
+        "Collection diff — headline the total wildcard cost prominently. Show a rarity breakdown as colored blocks (mythic orange, rare gold, uncommon silver, common white) with counts. List missing cards grouped by rarity in a compact table. If the deck is nearly complete (few missing), emphasize how close the player is with a progress indicator.",
+    };
   },
 };
