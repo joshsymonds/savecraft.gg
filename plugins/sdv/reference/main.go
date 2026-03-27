@@ -81,7 +81,8 @@ func handleCropPlanner(enc *json.Encoder, query map[string]any) {
 			os.Exit(1)
 		}
 		writeResult(enc, map[string]any{
-			"formatted": formatCropResult(result),
+			"formatted":    formatCropResult(result),
+			"presentation": "Crop detail — structured info card showing crop name, season, growth time, regrow cycle, and category. Show profitability as a comparison: base sell vs Tiller vs artisan goods values. Display speed-gro options as a compact comparison table (growth days, harvests, g/day for each tier). Show processing info (keg vs jar value and throughput) as a side-by-side comparison.",
 		})
 		return
 	}
@@ -92,7 +93,8 @@ func handleCropPlanner(enc *json.Encoder, query map[string]any) {
 		os.Exit(1)
 	}
 	writeResult(enc, map[string]any{
-		"formatted": formatSeasonResult(result),
+		"formatted":    formatSeasonResult(result),
+		"presentation": "Season crop ranking — table of crops sorted by gold/day descending. Show columns for gross g/day, net g/day (after seed cost), sell price, seed cost, growth time, and type. Use bar indicators for g/day to make profitability differences visually obvious. Highlight regrow crops (continuous income) distinctly from single-harvest crops.",
 	})
 }
 
@@ -122,7 +124,8 @@ func handleNPCQuery(enc *json.Encoder, npc string) {
 	formatTasteSection(&b, "Universal Hate", prefs["universalHate"])
 
 	writeResult(enc, map[string]any{
-		"formatted": b.String(),
+		"formatted":    b.String(),
+		"presentation": "Gift preferences — organize by taste tier (Love → Like → Neutral → Dislike → Hate) with each tier as a distinct section. Use heart icons or color intensity to convey tier at a glance (deep red hearts for love, grey for hate). List items as compact tags within each tier. Separate personal preferences from universal ones visually.",
 	})
 }
 
@@ -172,7 +175,8 @@ func handleItemQuery(enc *json.Encoder, item string) {
 	b.WriteString("\n* = personal preference (overrides universal)\n")
 
 	writeResult(enc, map[string]any{
-		"formatted": b.String(),
+		"formatted":    b.String(),
+		"presentation": "Item gift lookup — show which NPCs love/like/dislike/hate this item, grouped by taste tier. Use the same heart/color coding as NPC preferences. Mark personal preferences (overrides) distinctly from universal ones. If many NPCs share a universal taste, summarize rather than listing all.",
 	})
 }
 

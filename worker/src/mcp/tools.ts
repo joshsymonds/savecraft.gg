@@ -1072,13 +1072,24 @@ export async function queryReference(
   if (lines.length === 1) {
     try {
       const parsed = JSON.parse(lines[0] ?? "") as Record<string, unknown>;
+      // Extract presentation hint from WASM result data (mirrors native module contract).
+      const wasmData = parsed.data as Record<string, unknown> | undefined;
+      const presentation =
+        typeof wasmData === "object" && wasmData !== null
+          ? (wasmData.presentation as string | undefined)
+          : undefined;
+
       // If the WASM returned pre-formatted text, pass it through directly
       // instead of JSON.stringify-ing it (which would escape newlines).
       if (parsed.type === "result" && isFormattedResult(parsed.data)) {
         const data = parsed.data as { formatted: string };
-        return { content: [{ type: "text" as const, text: data.formatted }] };
+        let text = data.formatted;
+        if (presentation) {
+          text += `\n\n[Presentation: ${presentation}]`;
+        }
+        return { content: [{ type: "text" as const, text }] };
       }
-      return textResult(parsed);
+      return textResult(parsed, presentation);
     } catch {
       return textResult({ raw: lines[0] });
     }
