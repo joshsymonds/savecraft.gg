@@ -1064,7 +1064,12 @@ async function constructedHealthCheck(
     lines.push("");
   }
 
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "formatted",
+    content: lines.join("\n") + "\n",
+    presentation:
+      "Constructed deck report — structured layout: legality issues as a warning banner at top (if any), composition summary as a stat block, mana curve as a compact bar chart, color pip requirements as colored indicators. Keep it scannable — this is a health dashboard, not a data dump.",
+  };
 }
 
 // ── Module definition ────────────────────────────────────────
@@ -1175,6 +1180,8 @@ export const deckbuildingModule: NativeReferenceModule = {
           cuts_requested: cutsParam,
           candidates: result.candidates,
         },
+        presentation:
+          "Cut advisor — ranked table of cut candidates from weakest to strongest, showing card name and per-axis weakness scores. Use visual danger indicators (red for clear cuts, yellow for borderline). If alternatives were suggested, show them as replacement options next to each cut.",
       };
     }
 
@@ -1190,6 +1197,8 @@ export const deckbuildingModule: NativeReferenceModule = {
         sections: result.sections,
         unresolved_cards: result.unresolved,
       },
+      presentation:
+        "Deck health check — dashboard layout: mana curve as a bar chart comparing deck vs archetype average, creature/spell/land composition as a pie chart, role gaps highlighted in red. Show each section (curve, roles, synergy) as a card with a status indicator (healthy/warning/critical). Suggest alternatives for weak slots.",
     };
   },
 };
