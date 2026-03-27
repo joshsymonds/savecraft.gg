@@ -1455,7 +1455,54 @@ export const draftAdvisorModule: NativeReferenceModule = {
       description:
         "Full draft pick history. Each entry: {available: string[], chosen: string}. For live pick: enables accumulated signal. For batch review: all picks must have 'chosen' set.",
     },
+    draft_section: {
+      type: "string",
+      description:
+        'Section name containing draft history (e.g., "draft_history"). Requires save_id. Auto-detects live pick vs review mode.',
+    },
+    save_id: {
+      type: "string",
+      description:
+        "Save UUID. Required when using draft_section.",
+    },
   },
+
+  sectionMappings: [
+    {
+      sectionParam: "draft_section",
+      extract: (sectionData: unknown) => {
+        const data = sectionData as {
+          picks?: Array<{
+            packNumber: number;
+            pickNumber: number;
+            in_deck: Array<{ name: string }>;
+            available: Array<{ name: string }>;
+            picked: string;
+          }>;
+        };
+        const picks = data.picks ?? [];
+        if (picks.length === 0) return {};
+
+        const lastPick = picks[picks.length - 1]!;
+        const isLive = !lastPick.picked;
+
+        if (isLive) {
+          // Live pick mode: extract pool + pack from the last (incomplete) pick
+          const pool = lastPick.in_deck.map((c) => c.name);
+          const pack = lastPick.available.map((c) => c.name);
+          const pickNumber = lastPick.pickNumber + 1; // 1-based
+          return { pool, pack, pick_number: pickNumber };
+        }
+
+        // Review mode: extract pick_history from all completed picks
+        const pickHistory = picks.map((p) => ({
+          available: p.available.map((c) => c.name),
+          chosen: p.picked,
+        }));
+        return { pick_history: pickHistory };
+      },
+    },
+  ],
 
   async execute(
     query: Record<string, unknown>,

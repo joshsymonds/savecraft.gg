@@ -204,3 +204,115 @@ describe("section-reference resolution", () => {
     ).rejects.toThrow("Section not found");
   });
 });
+
+// ── Module-specific section mapping tests ─────────────────────
+
+describe("draft_advisor section mapping auto-detect", () => {
+  const USER = "draft-user";
+
+  beforeEach(async () => {
+    await cleanAll();
+  });
+
+  it("auto-detects live pick when last pick has no chosen card", async () => {
+    // Import the module to get its sectionMappings
+    const { draftAdvisorModule } = await import("../../plugins/mtga/reference/draft-advisor");
+    const mapping = draftAdvisorModule.sectionMappings?.find((m) => m.sectionParam === "draft_section");
+    expect(mapping).toBeDefined();
+
+    // Simulate draft_history section: 2 completed picks + 1 live (no picked)
+    const draftData = {
+      picks: [
+        {
+          packNumber: 0,
+          pickNumber: 0,
+          in_deck: [],
+          available: [{ name: "Card A" }, { name: "Card B" }, { name: "Card C" }],
+          picked: "Card A",
+        },
+        {
+          packNumber: 0,
+          pickNumber: 1,
+          in_deck: [{ name: "Card A" }],
+          available: [{ name: "Card D" }, { name: "Card E" }],
+          picked: "Card D",
+        },
+        {
+          packNumber: 0,
+          pickNumber: 2,
+          in_deck: [{ name: "Card A" }, { name: "Card D" }],
+          available: [{ name: "Card F" }, { name: "Card G" }, { name: "Card H" }],
+          picked: "", // live — not yet chosen
+        },
+      ],
+    };
+
+    const extracted = mapping!.extract(draftData);
+    // Should extract pool + pack for live mode
+    expect(extracted.pool).toEqual(["Card A", "Card D"]);
+    expect(extracted.pack).toEqual(["Card F", "Card G", "Card H"]);
+    expect(extracted.pick_number).toBe(3); // 1-based: pickNumber 2 + 1
+    // Should NOT have pick_history (that's for review mode)
+    expect(extracted.pick_history).toBeUndefined();
+  });
+
+  it("auto-detects review mode when all picks are complete", async () => {
+    const { draftAdvisorModule } = await import("../../plugins/mtga/reference/draft-advisor");
+    const mapping = draftAdvisorModule.sectionMappings?.find((m) => m.sectionParam === "draft_section");
+
+    const draftData = {
+      picks: [
+        {
+          packNumber: 0,
+          pickNumber: 0,
+          in_deck: [],
+          available: [{ name: "Card A" }, { name: "Card B" }],
+          picked: "Card A",
+        },
+        {
+          packNumber: 0,
+          pickNumber: 1,
+          in_deck: [{ name: "Card A" }],
+          available: [{ name: "Card C" }, { name: "Card D" }],
+          picked: "Card C",
+        },
+      ],
+    };
+
+    const extracted = mapping!.extract(draftData);
+    // Should extract pick_history for review mode
+    expect(extracted.pick_history).toEqual([
+      { available: ["Card A", "Card B"], chosen: "Card A" },
+      { available: ["Card C", "Card D"], chosen: "Card C" },
+    ]);
+    // Should NOT have pool/pack (that's for live mode)
+    expect(extracted.pool).toBeUndefined();
+    expect(extracted.pack).toBeUndefined();
+  });
+});
+
+describe("collection_diff section mapping", () => {
+  beforeEach(async () => {
+    await cleanAll();
+  });
+
+  it("extracts deck cards from deck section", async () => {
+    const { collectionDiffModule } = await import("../../plugins/mtga/reference/collection-diff");
+    const mapping = collectionDiffModule.sectionMappings?.find((m) => m.sectionParam === "deck_section");
+    expect(mapping).toBeDefined();
+
+    const deckData = {
+      id: "deck-uuid",
+      name: "Test Deck",
+      format: "Standard",
+      cards: [
+        { arenaId: 100, name: "Sheoldred", count: 4 },
+        { arenaId: 101, name: "Swamp", count: 20 },
+      ],
+      sideboard: [],
+    };
+
+    const extracted = mapping!.extract(deckData);
+    expect(extracted.deck).toEqual(deckData.cards);
+  });
+});

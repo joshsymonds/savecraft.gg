@@ -35,7 +35,29 @@ export const collectionDiffModule: NativeReferenceModule = {
       type: "array",
       description: "Player's collection: array of {arenaId: number, count: number}.",
     },
+    deck_section: {
+      type: "string",
+      description:
+        'Section name containing the deck (e.g., "deck:Mono Black"). Requires save_id. Alternative to passing deck inline.',
+    },
+    save_id: {
+      type: "string",
+      description:
+        "Save UUID. Required when using deck_section to reference a deck from save data.",
+    },
   },
+
+  sectionMappings: [
+    {
+      sectionParam: "deck_section",
+      extract: (sectionData: unknown) => {
+        const data = sectionData as { cards?: { name: string; count: number }[] };
+        const result: Record<string, unknown> = {};
+        if (data.cards) result.deck = data.cards;
+        return result;
+      },
+    },
+  ],
 
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
     const deck = (query.deck as DeckEntry[]) ?? [];
