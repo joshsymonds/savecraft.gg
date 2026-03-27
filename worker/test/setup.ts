@@ -178,7 +178,9 @@ const statements = [
     keywords TEXT NOT NULL DEFAULT '[]',
     is_default INTEGER NOT NULL DEFAULT 0,
     front_face_name TEXT NOT NULL DEFAULT '',
-    produced_mana TEXT NOT NULL DEFAULT '[]'
+    produced_mana TEXT NOT NULL DEFAULT '[]',
+    power TEXT NOT NULL DEFAULT '',
+    toughness TEXT NOT NULL DEFAULT ''
   )`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_name ON mtga_cards(name)`,
   `CREATE INDEX IF NOT EXISTS idx_mtga_cards_set ON mtga_cards(set_code)`,
