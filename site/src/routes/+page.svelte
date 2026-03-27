@@ -148,20 +148,14 @@
   >
     <!-- Reference modules — zero install, immediate value -->
     <div class="reference-callout">
-      <div class="reference-callout-header">
-        <div class="reference-callout-title">
-          <span class="reference-callout-icon" style="color: var(--color-green);">*</span>
-          <h3 class="step-name">REFERENCE MODULES</h3>
-        </div>
-        <span class="reference-badge">NO INSTALL</span>
-      </div>
-      <p class="step-desc">
-        Expert modules — drop calculators, draft advisors, crop planners — work instantly through
-        Claude or ChatGPT. Connect once, ask anything.
+      <h3 class="reference-callout-title">Draft stats. Drop tables. Crop planners. No install.</h3>
+      <p class="reference-callout-desc">
+        Games ship with expert reference modules your AI can query instantly. Connect and start
+        asking.
       </p>
-      <a href={`${PUBLIC_APP_URL}/connect`} class="btn-gold reference-cta"
-        >CONNECT CLAUDE OR CHATGPT</a
-      >
+      <div class="reference-callout-cta">
+        <a href={`${PUBLIC_APP_URL}/connect`} class="btn-gold">CONNECT CLAUDE OR CHATGPT</a>
+      </div>
     </div>
 
     <!-- Three-step grid for full save data access -->
@@ -603,45 +597,33 @@
   /* ── Reference callout ───────────────────────────────── */
   .reference-callout {
     margin-top: 40px;
-    padding: 28px 24px;
+    padding: 32px 28px;
     background: linear-gradient(135deg, #0a0e2e 0%, #111b47 50%, #0a0e2e 100%);
     border: 1px solid rgba(90, 190, 138, 0.25);
     border-radius: 4px;
-  }
-
-  .reference-callout-header {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    margin-bottom: 12px;
+    text-align: center;
   }
 
   .reference-callout-title {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .reference-callout-icon {
-    font-family: var(--font-heading);
-    font-size: 24px;
-    font-weight: 700;
-  }
-
-  .reference-badge {
     font-family: var(--font-pixel);
-    font-size: 7px;
-    letter-spacing: 1.5px;
+    font-size: clamp(12px, 1.8vw, 16px);
     color: var(--color-green);
-    background: rgba(90, 190, 138, 0.1);
-    border: 1px solid rgba(90, 190, 138, 0.25);
-    padding: 4px 10px;
-    border-radius: 2px;
+    line-height: 1.7;
+    margin-bottom: 12px;
   }
 
-  .reference-cta {
-    display: inline-block;
-    margin-top: 16px;
+  .reference-callout-desc {
+    font-family: var(--font-heading);
+    font-size: 16px;
+    font-weight: 400;
+    color: var(--color-text-dim);
+    line-height: 1.6;
+    margin: 0 0 20px;
+  }
+
+  .reference-callout-cta {
+    display: flex;
+    justify-content: center;
   }
 
   .unlock-label {
@@ -679,7 +661,7 @@
     font-size: 36px;
     font-weight: 700;
     color: var(--color-border);
-    opacity: 0.2;
+    opacity: 0.4;
     margin-bottom: 16px;
   }
 
