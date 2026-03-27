@@ -2831,7 +2831,7 @@ describe("draft_advisor native module", () => {
     // Primary should be WG (most committed pair from W+G pips)
     expect(data.archetype.primary).toBe("WG");
 
-    // BUG TEST: The viability for WG should NOT be "strong".
+    // Regression: viability for WG should NOT be "strong".
     // WG has 100 decks out of 8100 total (1.2%) — that's "sparse" or "fringe",
     // not "strong". If this test sees "strong", the viability is being read
     // from the wrong candidate (e.g. UB at 5000 decks which passed the 2% filter).

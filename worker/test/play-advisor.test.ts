@@ -323,23 +323,37 @@ async function seedBaselines(): Promise<void> {
 async function seedCards(): Promise<void> {
   // Minimal card data needed for mulligan CMC lookup.
   const cards = [
-    { id: 95194, name: "Island", cmc: 0, type: "Basic Land — Island" },
-    { id: 95196, name: "Swamp", cmc: 0, type: "Basic Land — Swamp" },
-    { id: 93965, name: "Gleaming Barrier", cmc: 2, type: "Artifact Creature — Wall" },
-    { id: 93757, name: "Kaito, Cunning Infiltrator", cmc: 3, type: "Legendary Planeswalker — Kaito" },
-    { id: 93885, name: "Eaten Alive", cmc: 1, type: "Sorcery" },
-    { id: 93743, name: "Archmage of Runes", cmc: 5, type: "Creature — Giant Wizard" },
+    { id: 95_194, name: "Island", cmc: 0, type: "Basic Land — Island" },
+    { id: 95_196, name: "Swamp", cmc: 0, type: "Basic Land — Swamp" },
+    { id: 93_965, name: "Gleaming Barrier", cmc: 2, type: "Artifact Creature — Wall" },
+    {
+      id: 93_757,
+      name: "Kaito, Cunning Infiltrator",
+      cmc: 3,
+      type: "Legendary Planeswalker — Kaito",
+    },
+    { id: 93_885, name: "Eaten Alive", cmc: 1, type: "Sorcery" },
+    { id: 93_743, name: "Archmage of Runes", cmc: 5, type: "Creature — Giant Wizard" },
   ];
   for (const c of cards) {
     await env.DB.prepare(
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, cmc, type_line, is_default, front_face_name)
        VALUES (?, ?, ?, ?, ?, 1, ?)`,
-    ).bind(c.id, `oracle-${c.id}`, c.name, c.cmc, c.type, c.name).run();
+    )
+      .bind(c.id, `oracle-${String(c.id)}`, c.name, c.cmc, c.type, c.name)
+      .run();
   }
 }
 
 async function seedAll(): Promise<void> {
-  await Promise.all([seedCards(), seedCardTiming(), seedTempo(), seedCombat(), seedMulligan(), seedBaselines()]);
+  await Promise.all([
+    seedCards(),
+    seedCardTiming(),
+    seedTempo(),
+    seedCombat(),
+    seedMulligan(),
+    seedBaselines(),
+  ]);
 }
 
 // ── Tests ────────────────────────────────────────────────────
@@ -574,42 +588,112 @@ describe("play_advisor reference module", () => {
       matchId: "match-abc-123",
       turns: [
         {
-          turnNumber: 1, activePlayer: 1, phase: "Phase_Main1",
+          turnNumber: 1,
+          activePlayer: 1,
+          phase: "Phase_Main1",
           players: [
             { seat: 1, lifeTotal: 20, battlefield: [] },
             { seat: 2, lifeTotal: 20, battlefield: [] },
           ],
           actions: [
-            { player: 1, type: "move", move: { cardName: "Island", cardId: 95194, moveType: "play_land" } },
+            {
+              player: 1,
+              type: "move",
+              move: { cardName: "Island", cardId: 95_194, moveType: "play_land" },
+            },
           ],
         },
         {
-          turnNumber: 2, activePlayer: 1, phase: "Phase_Main1",
+          turnNumber: 2,
+          activePlayer: 1,
+          phase: "Phase_Main1",
           players: [
-            { seat: 1, lifeTotal: 20, battlefield: [
-              { cardName: "Gleaming Barrier", cardId: 93965, cardTypes: ["CardType_Creature"], power: 0, toughness: 4 },
-            ]},
+            {
+              seat: 1,
+              lifeTotal: 20,
+              battlefield: [
+                {
+                  cardName: "Gleaming Barrier",
+                  cardId: 93_965,
+                  cardTypes: ["CardType_Creature"],
+                  power: 0,
+                  toughness: 4,
+                },
+              ],
+            },
             { seat: 2, lifeTotal: 20, battlefield: [] },
           ],
           actions: [
-            { player: 1, type: "move", move: { cardName: "Island", cardId: 95194, moveType: "play_land" } },
-            { player: 1, type: "cast", cast: { cardName: "Gleaming Barrier", cardId: 93965, manaPaid: [{ color: "Colorless", count: 2 }] } },
+            {
+              player: 1,
+              type: "move",
+              move: { cardName: "Island", cardId: 95_194, moveType: "play_land" },
+            },
+            {
+              player: 1,
+              type: "cast",
+              cast: {
+                cardName: "Gleaming Barrier",
+                cardId: 93_965,
+                manaPaid: [{ color: "Colorless", count: 2 }],
+              },
+            },
           ],
         },
         {
-          turnNumber: 3, activePlayer: 1, phase: "Phase_Main1",
+          turnNumber: 3,
+          activePlayer: 1,
+          phase: "Phase_Main1",
           players: [
-            { seat: 1, lifeTotal: 20, battlefield: [
-              { cardName: "Gleaming Barrier", cardId: 93965, cardTypes: ["CardType_Creature"], power: 0, toughness: 4 },
-            ]},
-            { seat: 2, lifeTotal: 20, battlefield: [
-              { cardName: "Ajani's Pridemate", cardId: 93848, cardTypes: ["CardType_Creature"], power: 2, toughness: 2 },
-              { cardName: "Burnished Hart", cardId: 93963, cardTypes: ["CardType_Creature"], power: 2, toughness: 2 },
-            ]},
+            {
+              seat: 1,
+              lifeTotal: 20,
+              battlefield: [
+                {
+                  cardName: "Gleaming Barrier",
+                  cardId: 93_965,
+                  cardTypes: ["CardType_Creature"],
+                  power: 0,
+                  toughness: 4,
+                },
+              ],
+            },
+            {
+              seat: 2,
+              lifeTotal: 20,
+              battlefield: [
+                {
+                  cardName: "Ajani's Pridemate",
+                  cardId: 93_848,
+                  cardTypes: ["CardType_Creature"],
+                  power: 2,
+                  toughness: 2,
+                },
+                {
+                  cardName: "Burnished Hart",
+                  cardId: 93_963,
+                  cardTypes: ["CardType_Creature"],
+                  power: 2,
+                  toughness: 2,
+                },
+              ],
+            },
           ],
           actions: [
-            { player: 1, type: "move", move: { cardName: "Island", cardId: 95194, moveType: "play_land" } },
-            { player: 1, type: "cast", cast: { cardName: "Kaito, Cunning Infiltrator", cardId: 93757, manaPaid: [{ color: "Blue", count: 3 }] } },
+            {
+              player: 1,
+              type: "move",
+              move: { cardName: "Island", cardId: 95_194, moveType: "play_land" },
+            },
+            {
+              player: 1,
+              type: "cast",
+              cast: {
+                cardName: "Kaito, Cunning Infiltrator",
+                cardId: 93_757,
+                manaPaid: [{ color: "Blue", count: 3 }],
+              },
+            },
           ],
         },
       ],
@@ -617,10 +701,19 @@ describe("play_advisor reference module", () => {
 
     await env.DB.prepare(
       "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
-    ).bind(saveUuid, "game:match-abc-123", "Game log", gameSection).run();
+    )
+      .bind(saveUuid, "game:match-abc-123", "Game log", gameSection)
+      .run();
 
     const result = await playAdvisorModule.execute(
-      { mode: "game_review", set: "FDN", archetype: "UB", on_play: true, match_id: "match-abc-123", user_id: "user-play-test" },
+      {
+        mode: "game_review",
+        set: "FDN",
+        archetype: "UB",
+        on_play: true,
+        match_id: "match-abc-123",
+        user_id: "user-play-test",
+      },
       env,
     );
     expect(result.type).toBe("formatted");
