@@ -152,10 +152,11 @@ func handleMonsterDrops(enc *json.Encoder, calc *dropcalc.Calculator, query map[
 	}
 
 	writeResult(enc, map[string]any{
-		"formatted": b.String(),
-		"total":     total,
-		"offset":    offset,
-		"limit":     pageSize,
+		"formatted":    b.String(),
+		"total":        total,
+		"offset":       offset,
+		"limit":        pageSize,
+		"presentation": "Monster drop table — ranked table with item name, and probability columns for each quality tier (Unique, Set, Rare, Magic, Base). Use color coding for quality tiers (gold=Unique, green=Set, blue=Magic). Highlight items with notably high unique chances. Show MF and player count context prominently.",
 	})
 }
 
@@ -297,10 +298,11 @@ func handleItemSearch(enc *json.Encoder, calc *dropcalc.Calculator, query map[st
 	}
 
 	writeResult(enc, map[string]any{
-		"formatted": b.String(),
-		"total":     total,
-		"offset":    offset,
-		"limit":     pageSize,
+		"formatted":    b.String(),
+		"total":        total,
+		"offset":       offset,
+		"limit":        pageSize,
+		"presentation": "Item search results — display each item as a card block showing name, quality (Unique/Set), base item, set membership, required level, and stats as a bulleted list. Below each item, show top drop sources as a compact table with monster, difficulty, area, and chance. Color-code by item quality.",
 	})
 }
 
@@ -425,10 +427,11 @@ func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[s
 	}
 
 	writeResult(enc, map[string]any{
-		"formatted": b.String(),
-		"total":     total,
-		"offset":    offset,
-		"limit":     pageSize,
+		"formatted":    b.String(),
+		"total":        total,
+		"offset":       offset,
+		"limit":        pageSize,
+		"presentation": "Item drop sources — ranked table of monsters that drop this item, showing monster name, difficulty, type (Regular/Champion/Unique/Quest), area, and drop chance. Highlight the top 3-5 best farming spots. Show MF context. For the best source, call out the effective runs-per-drop (1/chance) as a concrete farming estimate.",
 	})
 }
 
