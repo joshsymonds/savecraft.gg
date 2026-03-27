@@ -30,6 +30,23 @@
     },
   ];
 
+  // ── Before/After demo data ─────────────────────────────────
+  const withoutMessages = [
+    { role: "player" as const, text: "What's the best runeword for my Sorceress?" },
+    {
+      role: "ai" as const,
+      text: 'I\'d recommend the "Frozen Orb" runeword — it gives +3 to Cold Skills and 40% Faster Cast Rate. Insert Ber + Ist + Vex into a Crystal Sword.',
+    },
+  ];
+
+  const withConversation: DemoMessage[] = [
+    { role: "player", text: "What's the best runeword for my Sorceress?" },
+    {
+      role: "ai",
+      text: "You're at 89% FCR on a level 78 Blizzard Sorc — one breakpoint short of 117%. Spirit in a Monarch shield gets you there. You've got the runes already: Tal + Thul + Ort + Amn sitting in your stash. That's your biggest upgrade for zero farming.",
+    },
+  ];
+
   // ── Games data ───────────────────────────────────────────────
   interface HomeGame {
     name: string;
@@ -66,11 +83,18 @@
 </script>
 
 <svelte:head>
-  <title>Savecraft — Your AI already knows your build</title>
+  <title>Savecraft — Real game data for your AI assistant</title>
   <meta
     name="description"
-    content="Savecraft gives AI assistants access to your actual game state - characters, gear, skills, progress. Real data from your save files, updated live."
+    content="Savecraft connects your actual game state to Claude and ChatGPT — characters, gear, skills, progress. Real data from your save files, updated live. Open source."
   />
+  <meta property="og:title" content="Savecraft — Real game data for your AI assistant" />
+  <meta
+    property="og:description"
+    content="Savecraft connects your actual game state to Claude and ChatGPT — characters, gear, skills, progress. Real data from your save files, updated live."
+  />
+  <meta property="og:url" content="https://savecraft.gg" />
+  <meta property="og:type" content="website" />
 </svelte:head>
 
 <div class="page">
@@ -82,16 +106,17 @@
     <section class="hero">
       <div class="hero-grid">
         <div class="hero-text">
-          <div class="hero-eyebrow">REAL-TIME GAME STATE FOR AI</div>
+          <div class="hero-eyebrow">YOUR GAME DATA, FINALLY ACCURATE</div>
           <h1 class="hero-title">
-            Your AI already<br />knows your build.
+            Stop getting advice about<br />items that don't exist.
           </h1>
           <p class="hero-sub">
-            Savecraft connects your AI to your actual game state — gear, skills, quests, progress.
-            Not screenshots. Not memory. Real data, updated live.
+            You ask ChatGPT about your builds. It makes things up. Savecraft connects your actual
+            game state — gear, skills, quests, progress — so every answer is grounded in what you
+            really have. Updated live.
           </p>
           <div class="hero-actions">
-            <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">START YOUR JOURNEY</a>
+            <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT YOUR SAVES</a>
             <a href="#how" class="btn-outline">SEE HOW IT WORKS</a>
           </div>
         </div>
@@ -105,7 +130,7 @@
 
   <!-- ═══ SOCIAL PROOF LINE (divider between hero and content) ═══ -->
   <div class="proof-bar">
-    <span class="proof-item">Works with Claude and ChatGPT</span>
+    <span class="proof-item">Connects to Claude and ChatGPT</span>
     <span class="proof-sep">*</span>
     <span class="proof-item">Open source daemon</span>
     <span class="proof-sep">*</span>
@@ -157,8 +182,46 @@
         <div class="step-icon" style="color: var(--color-gold);">?</div>
         <h3 class="step-name">ASK</h3>
         <p class="step-desc">
-          Connect Claude or ChatGPT. Your AI reads your actual game state and gives answers grounded
-          in real data — not hallucinated guesses.
+          Open Claude or ChatGPT — they can now see your actual game state. Real items, real stats,
+          real progress. No more invented gear or wrong ability descriptions.
+        </p>
+      </div>
+    </div>
+  </MarketingSection>
+
+  <!-- ═══ BEFORE / AFTER ═══ -->
+  <MarketingSection eyebrow="THE DIFFERENCE" title="What changes">
+    <div class="compare-grid">
+      <!-- WITHOUT — distinct generic chat style -->
+      <div class="compare-card compare-without">
+        <div class="compare-header compare-header-without">
+          <span class="compare-dot compare-dot-red"></span>
+          WITHOUT SAVECRAFT
+        </div>
+        <div class="compare-body">
+          {#each withoutMessages as msg}
+            <div class="generic-bubble generic-{msg.role}">
+              <span class="generic-role">{msg.role === "player" ? "You" : "ChatGPT"}</span>
+              <p class="generic-text">{msg.text}</p>
+            </div>
+          {/each}
+        </div>
+        <p class="compare-caption compare-caption-bad">
+          "Frozen Orb" isn't a runeword. Those runes don't combine. Crystal Swords can't hold 3
+          sockets at that level.
+        </p>
+      </div>
+
+      <!-- WITH — uses ConversationDemo -->
+      <div class="compare-card compare-with">
+        <ConversationDemo
+          conversation={withConversation}
+          headerLabel="DIABLO II — BLIZZARD SORCERESS, LEVEL 78"
+          headerDotColor="var(--color-green)"
+          startDelay={800}
+        />
+        <p class="compare-caption compare-caption-good">
+          Real character. Real inventory. Real runes.
         </p>
       </div>
     </div>
@@ -167,8 +230,8 @@
   <!-- ═══ DUAL MODE ═══ -->
   <MarketingSection
     eyebrow="HOW YOU USE IT"
-    title="Companion and optimizer"
-    subtitle="Your AI reads the same game state either way. You decide where it goes."
+    title="Sounding board or second opinion"
+    subtitle="Same data, different energy. Your AI adapts to how you play."
   >
     <div class="modes-grid">
       <ModeCard
@@ -335,10 +398,10 @@
   <!-- ═══ CTA ═══ -->
   <section class="section cta-section">
     <div class="cta-inner">
-      <h2 class="cta-title">Ready for Player 2?</h2>
-      <p class="cta-sub">Install in 30 seconds. Works with Claude and ChatGPT.</p>
+      <h2 class="cta-title">Fix your AI.</h2>
+      <p class="cta-sub">Connect in 30 seconds. Works with Claude and ChatGPT.</p>
       <div class="cta-actions">
-        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">GET STARTED</a>
+        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">CONNECT YOUR SAVES</a>
       </div>
       <div class="cta-install">
         <div class="install-tabs cta-install-tabs">
@@ -629,6 +692,114 @@
     margin-bottom: 10px;
   }
 
+  /* ── Before / After ─────────────────────────────────── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 32px;
+  }
+
+  .compare-card {
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .compare-without {
+    background: rgba(20, 15, 25, 0.6);
+    border: 1px solid rgba(180, 60, 60, 0.25);
+  }
+
+  .compare-with {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .compare-header-without {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: rgba(220, 100, 100, 0.8);
+    background: rgba(180, 60, 60, 0.08);
+    border-bottom: 1px solid rgba(180, 60, 60, 0.15);
+  }
+
+  .compare-dot-red {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(220, 100, 100, 0.7);
+  }
+
+  .compare-body {
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .generic-bubble {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .generic-role {
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .generic-player .generic-role {
+    color: var(--color-text-muted);
+  }
+
+  .generic-ai .generic-role {
+    color: rgba(180, 160, 130, 0.6);
+  }
+
+  .generic-text {
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.6;
+    color: var(--color-text-dim);
+    margin: 0;
+  }
+
+  .generic-ai .generic-text {
+    color: rgba(200, 180, 150, 0.5);
+  }
+
+  .compare-caption {
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.5;
+    padding: 12px 14px;
+    margin: 0;
+  }
+
+  .compare-caption-bad {
+    color: rgba(220, 100, 100, 0.7);
+    background: rgba(180, 60, 60, 0.06);
+    border-top: 1px solid rgba(180, 60, 60, 0.12);
+  }
+
+  .compare-caption-good {
+    color: var(--color-green);
+    background: rgba(90, 190, 138, 0.06);
+    border-top: 1px solid rgba(90, 190, 138, 0.12);
+    margin-top: auto;
+  }
+
   /* ── Modes ───────────────────────────────────────────── */
   .modes-grid {
     display: grid;
@@ -908,6 +1079,10 @@
     }
 
     .steps-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .compare-grid {
       grid-template-columns: 1fr;
     }
 
