@@ -513,6 +513,7 @@
     color: var(--color-text-dim);
     line-height: 1.6;
     max-width: 480px;
+    margin-bottom: 90px;
   }
 
   .hero-actions {
