@@ -141,7 +141,7 @@
   </div>
 
   <!-- ═══ HOW IT WORKS ═══ -->
-  <MarketingSection id="how" eyebrow="HOW IT WORKS" title="Two ways in.">
+  <MarketingSection id="how" eyebrow="HOW IT WORKS" title="Connect in 30 seconds.">
     <!-- Reference modules — zero install, immediate value -->
     <div class="reference-callout">
       <h3 class="reference-callout-title">Draft stats. Drop tables. Crop planners. No install.</h3>
@@ -162,7 +162,7 @@
     </div>
 
     <!-- Three-step grid for full save data access -->
-    <h3 class="unlock-label">Want your actual save data too? Three steps.</h3>
+    <h3 class="unlock-label">Unlock your saves.</h3>
     <div class="steps-grid">
       <div class="step-card">
         <div class="step-num">01</div>
