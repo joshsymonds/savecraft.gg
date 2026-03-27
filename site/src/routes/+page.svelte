@@ -199,7 +199,7 @@
           WITHOUT SAVECRAFT
         </div>
         <div class="compare-body">
-          {#each withoutMessages as msg}
+          {#each withoutMessages as msg (msg.role)}
             <div class="generic-bubble generic-{msg.role}">
               <span class="generic-role">{msg.role === "player" ? "You" : "ChatGPT"}</span>
               <p class="generic-text">{msg.text}</p>

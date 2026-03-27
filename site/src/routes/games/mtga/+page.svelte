@@ -30,12 +30,7 @@
   ];
 
   // Reference modules that work without the daemon (server-side only, no Player.log needed)
-  const INSTANT_MODULE_NAMES = new Set([
-    "Rules Search",
-    "Card Search",
-    "Card Stats",
-    "Mana Base",
-  ]);
+  const INSTANT_MODULE_NAMES = new Set(["Rules Search", "Card Search", "Card Stats", "Mana Base"]);
 
   let referenceModules = $derived(data.game.referenceModules);
   let instantModules = $derived(
@@ -144,7 +139,7 @@
           WITHOUT SAVECRAFT
         </div>
         <div class="compare-body">
-          {#each withoutMessages as msg}
+          {#each withoutMessages as msg (msg.role)}
             <div class="generic-bubble generic-{msg.role}">
               <span class="generic-role">{msg.role === "player" ? "You" : "ChatGPT"}</span>
               <p class="generic-text">{msg.text}</p>
@@ -232,7 +227,8 @@
               <li>{mod.name}</li>
             {/each}
           </ul>
-          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold tier-cta">TRY THE REFERENCE TOOLS</a>
+          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold tier-cta">TRY THE REFERENCE TOOLS</a
+          >
         </div>
       </div>
 
