@@ -5,12 +5,13 @@ import (
 	"testing"
 )
 
-func TestBuildCardImportSQL(t *testing.T) {
+func TestBuildCardEnrichmentSQL(t *testing.T) {
 	cards := []ScryfallCard{
 		{
 			ArenaID:       87521,
 			OracleID:      "abc-123",
 			Name:          "Sheoldred, the Apocalypse",
+			FrontFaceName: "Sheoldred, the Apocalypse",
 			ManaCost:      "{2}{B}{B}",
 			CMC:           4,
 			TypeLine:      "Legendary Creature — Phyrexian Praetor",
@@ -24,166 +25,147 @@ func TestBuildCardImportSQL(t *testing.T) {
 			IsDefault:     true,
 		},
 		{
-			ArenaID:    1,
-			OracleID:   "def-456",
-			Name:       "Lightning Bolt",
-			ManaCost:   "{R}",
-			CMC:        1,
-			TypeLine:   "Instant",
-			OracleText: "Lightning Bolt deals 3 damage to any target.",
-			Colors:     []string{"R"},
-			Rarity:     "common",
-			Set:        "STA",
-			IsDefault:  true,
+			ArenaID:       1,
+			OracleID:      "def-456",
+			Name:          "Lightning Bolt",
+			FrontFaceName: "Lightning Bolt",
+			ManaCost:      "{R}",
+			CMC:           1,
+			TypeLine:      "Instant",
+			OracleText:    "Lightning Bolt deals 3 damage to any target.",
+			Colors:        []string{"R"},
+			Rarity:        "common",
+			Set:           "STA",
+			IsDefault:     true,
 		},
 	}
 
-	sql := buildCardImportSQL(cards)
+	sql := buildCardEnrichmentSQL(cards)
 
-	// Should start with DELETE statements to clear old data
-	if !strings.HasPrefix(sql, "DELETE FROM mtga_cards_fts;") {
-		t.Error("SQL should start with DELETE FROM mtga_cards_fts")
+	// Should delete FTS5 entries per card (not bulk delete).
+	if !strings.Contains(sql, "DELETE FROM mtga_cards_fts WHERE arena_id = 87521;") {
+		t.Error("SQL should delete FTS5 for Sheoldred's arena_id")
 	}
-	if !strings.Contains(sql, "DELETE FROM mtga_cards;") {
-		t.Error("SQL should contain DELETE FROM mtga_cards")
+	if !strings.Contains(sql, "DELETE FROM mtga_cards_fts WHERE arena_id = 1;") {
+		t.Error("SQL should delete FTS5 for Lightning Bolt's arena_id")
 	}
 
-	// Should contain INSERT into mtga_cards for each card
-	if !strings.Contains(sql, "INSERT INTO mtga_cards") {
-		t.Error("SQL should contain INSERT INTO mtga_cards")
+	// Should NOT delete from mtga_cards — mtga-carddb owns that data.
+	if strings.Contains(sql, "DELETE FROM mtga_cards;") {
+		t.Error("SQL should NOT contain DELETE FROM mtga_cards (mtga-carddb owns base data)")
 	}
+
+	// Should contain UPSERT with ON CONFLICT for enrichment.
+	if !strings.Contains(sql, "ON CONFLICT(arena_id) DO UPDATE SET") {
+		t.Error("SQL should contain ON CONFLICT upsert for enrichment")
+	}
+
+	// Should enrich oracle_id, legalities, keywords, oracle_text, produced_mana.
+	if !strings.Contains(sql, "oracle_id =") {
+		t.Error("ON CONFLICT should update oracle_id")
+	}
+	if !strings.Contains(sql, "legalities =") {
+		t.Error("ON CONFLICT should update legalities")
+	}
+	if !strings.Contains(sql, "keywords =") {
+		t.Error("ON CONFLICT should update keywords")
+	}
+
+	// Should contain card names.
 	if !strings.Contains(sql, "Sheoldred, the Apocalypse") {
-		t.Error("SQL should contain card name Sheoldred")
+		t.Error("SQL should contain Sheoldred")
 	}
 	if !strings.Contains(sql, "Lightning Bolt") {
-		t.Error("SQL should contain card name Lightning Bolt")
+		t.Error("SQL should contain Lightning Bolt")
 	}
 
-	// Should contain is_default and produced_mana in INSERT
-	if !strings.Contains(sql, "is_default") {
-		t.Error("SQL should contain is_default column")
-	}
-	if !strings.Contains(sql, "produced_mana") {
-		t.Error("SQL should contain produced_mana column")
+	// Both cards are default, so FTS5 INSERTs for both.
+	ftsCount := strings.Count(sql, "INSERT INTO mtga_cards_fts")
+	if ftsCount != 2 {
+		t.Errorf("expected 2 FTS5 INSERTs, got %d", ftsCount)
 	}
 
-	// Both cards are default, so FTS5 INSERTs for both
-	if !strings.Contains(sql, "INSERT INTO mtga_cards_fts") {
-		t.Error("SQL should contain INSERT INTO mtga_cards_fts")
-	}
-
-	// Count INSERT statements: 2 default cards × 2 tables = 4 INSERTs
-	insertCount := strings.Count(sql, "INSERT INTO")
-	if insertCount != 4 {
-		t.Errorf("expected 4 INSERT statements, got %d", insertCount)
-	}
-
-	// JSON arrays should be present for colors/legalities
+	// JSON arrays for colors.
 	if !strings.Contains(sql, `["B"]`) {
 		t.Error("SQL should contain JSON array for colors")
 	}
-
-	// Cards without produced_mana should default to empty JSON array
-	if strings.Count(sql, "'[]'") < 2 {
-		t.Error("SQL should contain empty JSON arrays for cards without produced_mana")
-	}
 }
 
-func TestBuildCardImportSQL_ProducedMana(t *testing.T) {
+func TestBuildCardEnrichmentSQL_ProducedMana(t *testing.T) {
 	cards := []ScryfallCard{
 		{
-			ArenaID:      1,
-			OracleID:     "land-1",
-			Name:         "Sunpetal Grove",
-			TypeLine:     "Land",
-			Rarity:       "rare",
-			Set:          "DSK",
-			ProducedMana: []string{"G", "W"},
-			IsDefault:    true,
-		},
-		{
-			ArenaID:      2,
-			OracleID:     "land-2",
-			Name:         "Forest",
-			TypeLine:     "Basic Land — Forest",
-			Rarity:       "common",
-			Set:          "DSK",
-			ProducedMana: []string{"G"},
-			IsDefault:    true,
+			ArenaID:       1,
+			OracleID:      "land-1",
+			Name:          "Sunpetal Grove",
+			FrontFaceName: "Sunpetal Grove",
+			TypeLine:      "Land",
+			Rarity:        "rare",
+			Set:           "DSK",
+			ProducedMana:  []string{"G", "W"},
+			IsDefault:     true,
 		},
 	}
 
-	sql := buildCardImportSQL(cards)
+	sql := buildCardEnrichmentSQL(cards)
 
-	// Dual land should have produced_mana with both colors
 	if !strings.Contains(sql, `["G","W"]`) {
 		t.Error("SQL should contain produced_mana JSON for dual land")
 	}
-	// Basic land should have single-color produced_mana
-	if !strings.Contains(sql, `["G"]`) {
-		t.Error("SQL should contain produced_mana JSON for basic land")
+}
+
+func TestBuildCardEnrichmentSQL_NonDefaultSkipsFTS(t *testing.T) {
+	cards := []ScryfallCard{
+		{
+			ArenaID:       100,
+			OracleID:      "oracle-1",
+			Name:          "Go for the Throat",
+			FrontFaceName: "Go for the Throat",
+			Rarity:        "uncommon",
+			Set:           "BRO",
+			IsDefault:     false,
+		},
+		{
+			ArenaID:       200,
+			OracleID:      "oracle-1",
+			Name:          "Go for the Throat",
+			FrontFaceName: "Go for the Throat",
+			Rarity:        "uncommon",
+			Set:           "FDN",
+			IsDefault:     true,
+		},
+	}
+
+	sql := buildCardEnrichmentSQL(cards)
+
+	// Both get mtga_cards UPSERT.
+	upsertCount := strings.Count(sql, "INSERT INTO mtga_cards (")
+	if upsertCount != 2 {
+		t.Errorf("expected 2 mtga_cards UPSERTs, got %d", upsertCount)
+	}
+
+	// Only default card gets FTS5 INSERT.
+	ftsCount := strings.Count(sql, "INSERT INTO mtga_cards_fts")
+	if ftsCount != 1 {
+		t.Errorf("expected 1 FTS5 INSERT, got %d", ftsCount)
 	}
 }
 
-func TestBuildCardImportSQL_NonDefaultSkipsFTS(t *testing.T) {
+func TestBuildCardEnrichmentSQL_EscapesSingleQuotes(t *testing.T) {
 	cards := []ScryfallCard{
 		{
-			ArenaID:   100,
-			OracleID:  "oracle-1",
-			Name:      "Go for the Throat",
-			Rarity:    "uncommon",
-			Set:       "BRO",
-			IsDefault: false,
-		},
-		{
-			ArenaID:   200,
-			OracleID:  "oracle-1",
-			Name:      "Go for the Throat",
-			Rarity:    "uncommon",
-			Set:       "FDN",
-			IsDefault: true,
+			ArenaID:       1,
+			OracleID:      "a",
+			Name:          "Frodo's Ring",
+			FrontFaceName: "Frodo's Ring",
+			OracleText:    "It's dangerous to go alone.",
+			Rarity:        "rare",
+			Set:           "LTR",
+			IsDefault:     true,
 		},
 	}
 
-	sql := buildCardImportSQL(cards)
+	sql := buildCardEnrichmentSQL(cards)
 
-	// Both cards get mtga_cards INSERT
-	mtgaInserts := strings.Count(sql, "INSERT INTO mtga_cards (")
-	if mtgaInserts != 2 {
-		t.Errorf("expected 2 mtga_cards INSERTs, got %d", mtgaInserts)
-	}
-
-	// Only default card gets FTS5 INSERT
-	ftsInserts := strings.Count(sql, "INSERT INTO mtga_cards_fts")
-	if ftsInserts != 1 {
-		t.Errorf("expected 1 mtga_cards_fts INSERT (default only), got %d", ftsInserts)
-	}
-
-	// Non-default has is_default 0, default has is_default 1
-	if !strings.Contains(sql, ", 0, '[]');") {
-		t.Error("SQL should contain is_default = 0 for non-default card")
-	}
-	if !strings.Contains(sql, ", 1, '[]');") {
-		t.Error("SQL should contain is_default = 1 for default card")
-	}
-}
-
-func TestBuildCardImportSQL_EscapesSingleQuotes(t *testing.T) {
-	cards := []ScryfallCard{
-		{
-			ArenaID:    1,
-			OracleID:   "a",
-			Name:       "Frodo's Ring",
-			OracleText: "It's dangerous to go alone.",
-			Rarity:     "rare",
-			Set:        "LTR",
-			IsDefault:  true,
-		},
-	}
-
-	sql := buildCardImportSQL(cards)
-
-	// Single quotes must be doubled for SQL safety
 	if !strings.Contains(sql, "Frodo''s Ring") {
 		t.Error("SQL should escape single quotes in card names")
 	}
@@ -192,18 +174,13 @@ func TestBuildCardImportSQL_EscapesSingleQuotes(t *testing.T) {
 	}
 }
 
-func TestBuildCardImportSQL_EmptyCards(t *testing.T) {
-	sql := buildCardImportSQL(nil)
+func TestBuildCardEnrichmentSQL_EmptyCards(t *testing.T) {
+	sql := buildCardEnrichmentSQL(nil)
 
-	// Should still have DELETE statements even with no cards
-	if !strings.Contains(sql, "DELETE FROM mtga_cards_fts;") {
-		t.Error("SQL should contain DELETE even with no cards")
+	// No DELETE, no INSERT — empty input produces empty SQL.
+	if strings.Contains(sql, "DELETE") {
+		t.Error("SQL should not contain DELETE with empty cards")
 	}
-	if !strings.Contains(sql, "DELETE FROM mtga_cards;") {
-		t.Error("SQL should contain DELETE even with no cards")
-	}
-
-	// Should NOT contain any INSERT statements
 	if strings.Contains(sql, "INSERT") {
 		t.Error("SQL should not contain INSERT with empty cards")
 	}
@@ -219,7 +196,6 @@ func TestComputeDefaults(t *testing.T) {
 
 	computeDefaults(cards)
 
-	// Highest arena_id per oracle_id should be default
 	for _, c := range cards {
 		switch {
 		case c.OracleID == "oracle-1" && c.ArenaID == 300:
