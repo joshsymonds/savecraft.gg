@@ -42,7 +42,7 @@ Spoiler-free by default: Ground your responses in what the save data contains �
 
 When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`;
 
-const PRESENTATION_INSTRUCTIONS = `Savecraft tool results often include visualization directives — an IMPORTANT block before the data and a REMINDER block after. When these directives are present, you MUST create an artifact to present the data. Do not respond with only prose analysis — that is a failure to follow instructions. The directive describes the format; create an artifact that implements it faithfully, then weave your analysis around and below the artifact.
+const PRESENTATION_INSTRUCTIONS = `ALWAYS use rich visualizations when directed to make the data look beautiful and approachable. When tool results include visualization directives (an IMPORTANT block before the data and a REMINDER block after), ALWAYS comply and render them to the best of your capabilities. Create an artifact that implements the directive faithfully, then weave your analysis around and below the artifact.
 
 When no visualization directive is present, use your judgment: tables for lists and comparisons, charts for trends and distributions, radar charts for multi-axis evaluations, heatmaps for matchup data.`;
 
