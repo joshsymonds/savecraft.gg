@@ -1471,16 +1471,14 @@ export const draftAdvisorModule: NativeReferenceModule = {
     {
       sectionParam: "draft_section",
       extract: (sectionData: unknown) => {
-        const data = sectionData as {
-          picks?: Array<{
-            packNumber: number;
-            pickNumber: number;
-            in_deck: Array<{ name: string }>;
-            available: Array<{ name: string }>;
-            picked: string;
-          }>;
-        };
-        const picks = data.picks ?? [];
+        const data = sectionData as Record<string, unknown>;
+        const picks = Array.isArray(data.picks) ? data.picks as Array<{
+          packNumber: number;
+          pickNumber: number;
+          in_deck: Array<{ name: string }>;
+          available: Array<{ name: string }>;
+          picked: string;
+        }> : [];
         if (picks.length === 0) return {};
 
         const lastPick = picks[picks.length - 1]!;

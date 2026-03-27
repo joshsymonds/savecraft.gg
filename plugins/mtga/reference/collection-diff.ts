@@ -51,9 +51,9 @@ export const collectionDiffModule: NativeReferenceModule = {
     {
       sectionParam: "deck_section",
       extract: (sectionData: unknown) => {
-        const data = sectionData as { cards?: { name: string; count: number }[] };
+        const data = sectionData as Record<string, unknown>;
         const result: Record<string, unknown> = {};
-        if (data.cards) result.deck = data.cards;
+        if (Array.isArray(data.cards)) result.deck = data.cards;
         return result;
       },
     },
