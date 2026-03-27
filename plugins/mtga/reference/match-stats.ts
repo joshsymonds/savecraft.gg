@@ -32,25 +32,15 @@ interface WinRateRow {
   wins: number;
 }
 
-// ── Formatting helpers ───────────────────────────────────────
+// ── Helpers ──────────────────────────────────────────────────
 
-function pct(wins: number, total: number): string {
-  if (total === 0) return "0.0%";
-  return `${((wins / total) * 100).toFixed(1)}%`;
-}
-
-function padRight(s: string, len: number): string {
-  return s.length >= len ? s : s + " ".repeat(len - s.length);
-}
-
-function padLeft(s: string, len: number): string {
-  return s.length >= len ? s : " ".repeat(len - s.length) + s;
+function winRate(wins: number, total: number): number {
+  return total === 0 ? 0 : Math.round((wins / total) * 1000) / 1000;
 }
 
 // ── Query implementations ────────────────────────────────────
 
 async function overview(userId: string, env: Env): Promise<ReferenceResult> {
-  // Single query: format breakdown gives us totals for free
   const byFormat = await env.DB.prepare(
     `SELECT format as group_key, COUNT(*) as total,
             SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins
@@ -60,31 +50,27 @@ async function overview(userId: string, env: Env): Promise<ReferenceResult> {
     .bind(userId)
     .all<WinRateRow>();
 
-  if (byFormat.results.length === 0) {
-    return { type: "formatted", content: "No match history found." };
-  }
-
   const totalMatches = byFormat.results.reduce((sum, f) => sum + f.total, 0);
   const totalWins = byFormat.results.reduce((sum, f) => sum + f.wins, 0);
 
-  const lines: string[] = [];
-  lines.push(`Match History — ${totalMatches} matches, ${pct(totalWins, totalMatches)} overall win rate`);
-  lines.push("");
-
-  if (byFormat.results.length > 0) {
-    lines.push("By Format:");
-    lines.push(
-      `  ${padRight("Format", 20)} ${padLeft("W", 4)} ${padLeft("L", 4)} ${padLeft("WR", 8)}`,
-    );
-    for (const f of byFormat.results) {
-      const fmtName = f.group_key || "(unknown)";
-      lines.push(
-        `  ${padRight(fmtName, 20)} ${padLeft(String(f.wins), 4)} ${padLeft(String(f.total - f.wins), 4)} ${padLeft(pct(f.wins, f.total), 8)}`,
-      );
-    }
-  }
-
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "structured",
+    data: {
+      total_matches: totalMatches,
+      total_wins: totalWins,
+      total_losses: totalMatches - totalWins,
+      win_rate: winRate(totalWins, totalMatches),
+      by_format: byFormat.results.map((f) => ({
+        format: f.group_key || "(unknown)",
+        wins: f.wins,
+        losses: f.total - f.wins,
+        total: f.total,
+        win_rate: winRate(f.wins, f.total),
+      })),
+    },
+    presentation:
+      "Match history overview — headline the total matches and overall win rate prominently, then show a bar chart or table comparing win rates across formats. Highlight formats with notably high or low performance.",
+  };
 }
 
 async function byDeck(userId: string, env: Env): Promise<ReferenceResult> {
@@ -98,22 +84,27 @@ async function byDeck(userId: string, env: Env): Promise<ReferenceResult> {
     .all<WinRateRow>();
 
   if (rows.results.length === 0) {
-    return { type: "formatted", content: "No match history found." };
+    return {
+      type: "structured",
+      data: { decks: [] },
+      presentation: "No deck data available.",
+    };
   }
 
-  const lines: string[] = [];
-  lines.push("Win Rate by Deck:");
-  lines.push(
-    `  ${padRight("Deck", 30)} ${padLeft("W", 4)} ${padLeft("L", 4)} ${padLeft("WR", 8)} ${padLeft("Games", 6)}`,
-  );
-  for (const r of rows.results) {
-    const name = r.group_key || "(no deck)";
-    lines.push(
-      `  ${padRight(name.slice(0, 30), 30)} ${padLeft(String(r.wins), 4)} ${padLeft(String(r.total - r.wins), 4)} ${padLeft(pct(r.wins, r.total), 8)} ${padLeft(String(r.total), 6)}`,
-    );
-  }
-
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "structured",
+    data: {
+      decks: rows.results.map((r) => ({
+        deck: r.group_key || "(no deck)",
+        wins: r.wins,
+        losses: r.total - r.wins,
+        total: r.total,
+        win_rate: winRate(r.wins, r.total),
+      })),
+    },
+    presentation:
+      "Deck performance comparison — table with deck name, wins, losses, win rate, and total games. Sort by games played. Highlight decks above 55% win rate as strong performers and below 45% as underperforming.",
+  };
 }
 
 async function byFormat(userId: string, env: Env): Promise<ReferenceResult> {
@@ -127,22 +118,27 @@ async function byFormat(userId: string, env: Env): Promise<ReferenceResult> {
     .all<WinRateRow>();
 
   if (rows.results.length === 0) {
-    return { type: "formatted", content: "No match history found." };
+    return {
+      type: "structured",
+      data: { formats: [] },
+      presentation: "No format data available.",
+    };
   }
 
-  const lines: string[] = [];
-  lines.push("Win Rate by Format:");
-  lines.push(
-    `  ${padRight("Format", 20)} ${padLeft("W", 4)} ${padLeft("L", 4)} ${padLeft("WR", 8)} ${padLeft("Games", 6)}`,
-  );
-  for (const r of rows.results) {
-    const name = r.group_key || "(unknown)";
-    lines.push(
-      `  ${padRight(name, 20)} ${padLeft(String(r.wins), 4)} ${padLeft(String(r.total - r.wins), 4)} ${padLeft(pct(r.wins, r.total), 8)} ${padLeft(String(r.total), 6)}`,
-    );
-  }
-
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "structured",
+    data: {
+      formats: rows.results.map((r) => ({
+        format: r.group_key || "(unknown)",
+        wins: r.wins,
+        losses: r.total - r.wins,
+        total: r.total,
+        win_rate: winRate(r.wins, r.total),
+      })),
+    },
+    presentation:
+      "Format breakdown — bar chart or table comparing win rates across formats. Include game counts to show sample size.",
+  };
 }
 
 const MATCHUP_LIMIT = 500;
@@ -165,17 +161,20 @@ async function byMatchup(
     .all<{ match_id: string; result: string; opponent_cards: string }>();
 
   if (matches.results.length === 0) {
-    return { type: "formatted", content: "No match history found." };
+    return {
+      type: "structured",
+      data: { matchups: [], format: format ?? "all" },
+      presentation: "No matchup data available.",
+    };
   }
 
-  // Collect all arena_ids across all matches for a single batch lookup
   const allParsedCards: { matchIdx: number; cards: { name: string; arena_id: number }[] }[] = [];
   const allArenaIds: number[] = [];
 
   for (let i = 0; i < matches.results.length; i++) {
     let cards: { name: string; arena_id: number }[] = [];
     try {
-      cards = JSON.parse(matches.results[i].opponent_cards);
+      cards = JSON.parse(matches.results[i]!.opponent_cards);
     } catch {
       // skip
     }
@@ -183,14 +182,11 @@ async function byMatchup(
     for (const c of cards) allArenaIds.push(c.arena_id);
   }
 
-  // Single batch D1 query for all card colors
   const colorMap = await buildColorMap(env.DB, allArenaIds);
-
-  // Classify each match in memory
   const archetypeStats = new Map<string, { wins: number; total: number }>();
 
   for (const { matchIdx, cards } of allParsedCards) {
-    const m = matches.results[matchIdx];
+    const m = matches.results[matchIdx]!;
     const archetype = classifyFromColorMap(colorMap, cards);
     const stats = archetypeStats.get(archetype) ?? { wins: 0, total: 0 };
     stats.total++;
@@ -200,19 +196,21 @@ async function byMatchup(
 
   const sorted = [...archetypeStats.entries()].sort((a, b) => b[1].total - a[1].total);
 
-  const lines: string[] = [];
-  const header = format ? `Matchup Breakdown (${format}):` : "Matchup Breakdown (all formats):";
-  lines.push(header);
-  lines.push(
-    `  ${padRight("Opponent Archetype", 25)} ${padLeft("W", 4)} ${padLeft("L", 4)} ${padLeft("WR", 8)} ${padLeft("Games", 6)}`,
-  );
-  for (const [archetype, stats] of sorted) {
-    lines.push(
-      `  ${padRight(archetype.slice(0, 25), 25)} ${padLeft(String(stats.wins), 4)} ${padLeft(String(stats.total - stats.wins), 4)} ${padLeft(pct(stats.wins, stats.total), 8)} ${padLeft(String(stats.total), 6)}`,
-    );
-  }
-
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "structured",
+    data: {
+      format: format ?? "all",
+      matchups: sorted.map(([archetype, stats]) => ({
+        archetype,
+        wins: stats.wins,
+        losses: stats.total - stats.wins,
+        total: stats.total,
+        win_rate: winRate(stats.wins, stats.total),
+      })),
+    },
+    presentation:
+      "Matchup analysis — table or heatmap showing win rate against each opponent archetype. Sort by games played. Highlight favorable matchups (>55%) and unfavorable (<45%) with visual distinction.",
+  };
 }
 
 const MAX_TREND_COUNT = 100;
@@ -232,28 +230,34 @@ async function trend(
     .all<MatchRow>();
 
   if (rows.results.length === 0) {
-    return { type: "formatted", content: "No match history found." };
+    return {
+      type: "structured",
+      data: { total: 0, wins: 0, losses: 0, win_rate: 0, matches: [] },
+      presentation: "No recent matches.",
+    };
   }
 
   const wins = rows.results.filter((r) => r.result === "win").length;
   const total = rows.results.length;
 
-  const lines: string[] = [];
-  lines.push(`Recent ${total} matches — ${pct(wins, total)} win rate`);
-  lines.push("");
-  lines.push(
-    `  ${padRight("Date", 12)} ${padRight("Format", 12)} ${padRight("Deck", 22)} ${padLeft("Result", 6)} ${padRight("Opponent", 16)}`,
-  );
-
-  for (const r of rows.results) {
-    const date = r.played_at.slice(0, 10);
-    const resultLabel = r.result === "win" ? "W" : r.result === "loss" ? "L" : "D";
-    lines.push(
-      `  ${padRight(date, 12)} ${padRight((r.format || "?").slice(0, 12), 12)} ${padRight((r.deck_name || "?").slice(0, 22), 22)} ${padLeft(resultLabel, 6)} ${padRight((r.opponent_name || "?").slice(0, 16), 16)}`,
-    );
-  }
-
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "structured",
+    data: {
+      total,
+      wins,
+      losses: total - wins,
+      win_rate: winRate(wins, total),
+      matches: rows.results.map((r) => ({
+        date: r.played_at,
+        format: r.format || "(unknown)",
+        deck: r.deck_name || "(unknown)",
+        result: r.result,
+        opponent: r.opponent_name || "(unknown)",
+      })),
+    },
+    presentation:
+      "Recent match history — table with most recent first showing date, format, deck, result, and opponent. Color-code wins and losses for quick scanning. If 10+ matches, consider a win-rate trend line over time.",
+  };
 }
 
 // ── Module definition ────────────────────────────────────────

@@ -218,50 +218,49 @@ describe("match_stats reference module", () => {
 
   it("returns overview stats for a user", async () => {
     const result = await matchStatsModule.execute({ mode: "overview", user_id: "user-abc" }, env);
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-
-    // Should show total matches, overall win rate
-    expect(content).toContain("5 matches");
-    expect(content).toContain("60.0%"); // 3 wins / 5 total
-    // Should break down by format
-    expect(content).toContain("Standard");
-    expect(content).toContain("Historic");
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    expect(data.total_matches).toBe(5);
+    expect(data.total_wins).toBe(3);
+    expect(data.win_rate).toBeCloseTo(0.6);
+    const byFormat = data.by_format as { format: string; wins: number }[];
+    expect(byFormat).toHaveLength(2);
+    expect(byFormat.find((f) => f.format === "Standard")?.wins).toBe(3);
+    expect(byFormat.find((f) => f.format === "Historic")?.wins).toBe(0);
+    expect(result).toHaveProperty("presentation");
   });
 
   it("returns stats by deck", async () => {
     const result = await matchStatsModule.execute({ mode: "by_deck", user_id: "user-abc" }, env);
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-
-    expect(content).toContain("Grixis Midrange");
-    expect(content).toContain("75.0%"); // 3W 1L
-    expect(content).toContain("Izzet Phoenix");
-    expect(content).toContain("0.0%"); // 0W 1L
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    const decks = data.decks as { deck: string; wins: number; win_rate: number }[];
+    const grixis = decks.find((d) => d.deck === "Grixis Midrange");
+    expect(grixis?.wins).toBe(3);
+    expect(grixis?.win_rate).toBeCloseTo(0.75);
+    const izzet = decks.find((d) => d.deck === "Izzet Phoenix");
+    expect(izzet?.wins).toBe(0);
+    expect(result).toHaveProperty("presentation");
   });
 
   it("returns stats by format", async () => {
     const result = await matchStatsModule.execute({ mode: "by_format", user_id: "user-abc" }, env);
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-
-    expect(content).toContain("Standard");
-    expect(content).toContain("75.0%"); // 3W 1L in Standard
-    expect(content).toContain("Historic");
-    expect(content).toContain("0.0%"); // 0W 1L in Historic
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    const formats = data.formats as { format: string; wins: number; win_rate: number }[];
+    expect(formats.find((f) => f.format === "Standard")?.wins).toBe(3);
+    expect(formats.find((f) => f.format === "Historic")?.wins).toBe(0);
+    expect(result).toHaveProperty("presentation");
   });
 
   it("classifies opponent archetypes from cards seen", async () => {
     const result = await matchStatsModule.execute({ mode: "by_matchup", user_id: "user-abc" }, env);
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-
-    // Opp1 + Opp2 played red cards → should be classified as Red-based
-    // Opp3 played WU cards → should be classified as WU-based
-    // Opp4 played B cards → should be classified as B-based
-    // Exact labels depend on implementation, but should have distinct archetypes
-    expect(content).toMatch(/[Rr]ed/); // Red archetype from Monastery Swiftspear
-    expect(content).toMatch(/[Ww]hite.*[Bb]lue|Azorius|WU/); // WU archetype from Teferi + Absorb
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    const matchups = data.matchups as { archetype: string }[];
+    expect(matchups.find((m) => /[Rr]ed/.test(m.archetype))).toBeDefined();
+    expect(matchups.find((m) => /[Ww]hite.*[Bb]lue|Azorius|WU/.test(m.archetype))).toBeDefined();
+    expect(result).toHaveProperty("presentation");
   });
 
   it("returns recent trend", async () => {
@@ -269,12 +268,13 @@ describe("match_stats reference module", () => {
       { mode: "trend", user_id: "user-abc", count: 3 },
       env,
     );
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-
-    // Last 3 matches: m5 (loss), m4 (win), m3 (loss) → 33.3%
-    expect(content).toContain("3");
-    expect(content).toMatch(/33\.3%/);
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    expect(data.total).toBe(3);
+    expect(data.wins).toBe(1);
+    const matches = data.matches as { result: string }[];
+    expect(matches).toHaveLength(3);
+    expect(result).toHaveProperty("presentation");
   });
 
   it("returns error for missing user_id", async () => {
@@ -289,8 +289,8 @@ describe("match_stats reference module", () => {
       { mode: "overview", user_id: "user-nonexistent" },
       env,
     );
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-    expect(content).toMatch(/no match/i);
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    expect(data.total_matches).toBe(0);
   });
 });

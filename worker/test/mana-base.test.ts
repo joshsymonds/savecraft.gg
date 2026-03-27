@@ -35,121 +35,80 @@ describe("mana_base native module", () => {
 
   it("computes land recommendations for a mono-color deck", async () => {
     await seedCards();
-
-    const result = await manaBaseModule.execute(
-      {
-        deck: [{ name: "Lightning Bolt", count: 4 }],
-      },
-      env,
-    );
-
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
-
-    expect(result.content).toContain("Mana Base Analysis");
-    expect(result.content).toContain("Red");
-    expect(result.content).toContain("Lightning Bolt");
-    expect(result.content).toContain("Karsten");
+    const result = await manaBaseModule.execute({ deck: [{ name: "Lightning Bolt", count: 4 }] }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.deck_size).toBe(60);
+    const reqs = result.data.requirements as { color: string; color_name: string; sources_needed: number; most_demanding: string }[];
+    expect(reqs).toHaveLength(1);
+    expect(reqs[0]!.color).toBe("R");
+    expect(reqs[0]!.color_name).toBe("Red");
+    expect(reqs[0]!.most_demanding).toBe("Lightning Bolt");
+    expect(reqs[0]!.sources_needed).toBeGreaterThan(0);
+    expect(result).toHaveProperty("presentation");
   });
 
   it("handles multicolor cards with gold adjustment", async () => {
     await seedCards();
-
-    const result = await manaBaseModule.execute(
-      {
-        deck: [{ name: "Baleful Strix", count: 4 }],
-      },
-      env,
-    );
-
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
-
-    // Should have both Blue and Black requirements
-    expect(result.content).toContain("Blue");
-    expect(result.content).toContain("Black");
-    // Gold adjustment
-    expect(result.content).toContain("+1 gold");
+    const result = await manaBaseModule.execute({ deck: [{ name: "Baleful Strix", count: 4 }] }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const reqs = result.data.requirements as { color: string; color_name: string; is_gold_adjusted: boolean }[];
+    const colors = reqs.map((r) => r.color_name);
+    expect(colors).toContain("Blue");
+    expect(colors).toContain("Black");
+    expect(reqs.every((r) => r.is_gold_adjusted)).toBe(true);
   });
 
   it("handles unknown cards gracefully", async () => {
     await seedCards();
-
-    const result = await manaBaseModule.execute(
-      {
-        deck: [{ name: "Nonexistent Card", count: 4 }],
-      },
-      env,
-    );
-
+    const result = await manaBaseModule.execute({ deck: [{ name: "Nonexistent Card", count: 4 }] }, env);
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
-
     expect(result.content).toContain("No spells with mana costs found");
   });
 
   it("respects deck_size parameter", async () => {
     await seedCards();
-
-    const result = await manaBaseModule.execute(
-      {
-        deck: [{ name: "Lightning Bolt", count: 4 }],
-        deck_size: 40,
-      },
-      env,
-    );
-
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
-
-    expect(result.content).toContain("40-card deck");
+    const result = await manaBaseModule.execute({ deck: [{ name: "Lightning Bolt", count: 4 }], deck_size: 40 }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.deck_size).toBe(40);
   });
 
   it("analyzes multiple colors correctly", async () => {
     await seedCards();
-
-    const result = await manaBaseModule.execute(
-      {
-        deck: [
-          { name: "Sheoldred, the Apocalypse", count: 4 },
-          { name: "Lightning Bolt", count: 4 },
-        ],
-      },
-      env,
-    );
-
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
-
-    // Should have both Black and Red requirements
-    expect(result.content).toContain("Black");
-    expect(result.content).toContain("Red");
-    // Sheoldred has BB (2 pips) — most demanding for black
-    expect(result.content).toContain("Sheoldred");
+    const result = await manaBaseModule.execute({
+      deck: [
+        { name: "Sheoldred, the Apocalypse", count: 4 },
+        { name: "Lightning Bolt", count: 4 },
+      ],
+    }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const reqs = result.data.requirements as { color: string; color_name: string; most_demanding: string }[];
+    const colors = reqs.map((r) => r.color_name);
+    expect(colors).toContain("Black");
+    expect(colors).toContain("Red");
+    const black = reqs.find((r) => r.color === "B");
+    expect(black!.most_demanding).toBe("Sheoldred, the Apocalypse");
   });
 
   it("reports unresolved cards in output", async () => {
     await seedCards();
-
-    const result = await manaBaseModule.execute(
-      {
-        deck: [
-          { name: "Lightning Bolt", count: 4 },
-          { name: "Counterspell", count: 4 },
-          { name: "Force of Will", count: 4 },
-        ],
-      },
-      env,
-    );
-
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
-
-    // Should mention the unresolved cards
-    expect(result.content).toContain("Counterspell");
-    expect(result.content).toContain("Force of Will");
-    expect(result.content).toContain("not found");
-    // Should still analyze Lightning Bolt (the only resolved card)
-    expect(result.content).toContain("Red");
+    const result = await manaBaseModule.execute({
+      deck: [
+        { name: "Lightning Bolt", count: 4 },
+        { name: "Counterspell", count: 4 },
+        { name: "Force of Will", count: 4 },
+      ],
+    }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const unresolved = result.data.unresolved_cards as string[];
+    expect(unresolved).toContain("Counterspell");
+    expect(unresolved).toContain("Force of Will");
+    const reqs = result.data.requirements as { color: string }[];
+    expect(reqs.some((r) => r.color === "R")).toBe(true);
   });
 });

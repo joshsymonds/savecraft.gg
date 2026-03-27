@@ -41,55 +41,31 @@ interface SetStatsRow {
   avg_gihwr: number;
 }
 
-// ── Formatting helpers ───────────────────────────────────────
+const VALID_SORT_FIELDS = new Set([
+  "gihwr",
+  "ohwr",
+  "gdwr",
+  "gnswr",
+  "iwd",
+  "alsa",
+  "ata",
+]);
 
-function pct(f: number): string {
-  return `${(f * 100).toFixed(1)}%`;
-}
+// ── Helpers ──────────────────────────────────────────────────
 
-function iwdFmt(f: number): string {
-  const val = (f * 100).toFixed(1);
-  return f >= 0 ? `+${val}%` : `${val}%`;
-}
-
-function fmtInt(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
-  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
-  return String(n);
-}
-
-function truncName(s: string, maxLen: number): string {
-  if (s.length <= maxLen) return s;
-  return s.slice(0, maxLen - 3) + "...";
-}
-
-function padRight(s: string, len: number): string {
-  return s.length >= len ? s : s + " ".repeat(len - s.length);
-}
-
-function padLeft(s: string, len: number): string {
-  return s.length >= len ? s : " ".repeat(len - s.length) + s;
-}
-
-function sortFieldLabel(field: string): string {
-  switch (field) {
-    case "gihwr":
-      return "GIH WR";
-    case "ohwr":
-      return "OHWR";
-    case "gdwr":
-      return "GD WR";
-    case "gnswr":
-      return "GNS WR";
-    case "iwd":
-      return "IWD";
-    case "alsa":
-      return "ALSA (earliest seen)";
-    case "ata":
-      return "ATA (earliest taken)";
-    default:
-      return "GIH WR";
-  }
+function cardRow(r: RatingRow) {
+  return {
+    card_name: r.card_name,
+    gihwr: r.gihwr,
+    ohwr: r.ohwr,
+    gdwr: r.gdwr,
+    gnswr: r.gnswr,
+    iwd: r.iwd,
+    alsa: r.alsa,
+    ata: r.ata,
+    games_in_hand: r.games_in_hand,
+    games_played: r.games_played,
+  };
 }
 
 // ── Query handlers ───────────────────────────────────────────
@@ -103,18 +79,20 @@ async function listAvailableSets(db: D1Database): Promise<ReferenceResult> {
     return { type: "formatted", content: "No draft ratings data available.\n" };
   }
 
-  const lines: string[] = [];
-  lines.push("Available sets with 17Lands draft ratings:\n");
-  for (const r of rows.results) {
-    lines.push(
-      `  ${r.set_code} — ${r.format}, ${fmtInt(r.total_games)} games, ${r.card_count} cards, avg GIH WR ${pct(r.avg_gihwr)}`,
-    );
-  }
-  lines.push(
-    `\nSpecify a set code to see details. Data source: 17Lands (CC BY 4.0).`,
-  );
-
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "structured",
+    data: {
+      sets: rows.results.map((r) => ({
+        set_code: r.set_code,
+        format: r.format,
+        total_games: r.total_games,
+        card_count: r.card_count,
+        avg_gihwr: r.avg_gihwr,
+      })),
+    },
+    presentation:
+      "Available draft sets — table listing each set code, format, game count, card count, and average GIH WR. Data source: 17Lands (CC BY 4.0).",
+  };
 }
 
 async function setOverview(
@@ -130,59 +108,39 @@ async function setOverview(
     .all<RatingRow>();
 
   const cards = allCards.results;
-  const lines: string[] = [];
-
-  lines.push(
-    `${setCode} ${setStats.format} — ${fmtInt(setStats.total_games)} games, ${setStats.card_count} cards`,
-  );
-  lines.push(`Set avg GIH WR: ${pct(setStats.avg_gihwr)}\n`);
-
   const n = Math.min(5, cards.length);
-  lines.push("Top 5 by GIH WR:");
-  for (let i = 0; i < n; i++) {
-    const c = cards[i]!;
-    lines.push(
-      ` ${i + 1}. ${padRight(truncName(c.card_name, 28), 28)} ${pct(c.gihwr)} (IWD ${iwdFmt(c.iwd)}, ${fmtInt(c.games_in_hand)} games)`,
-    );
-  }
 
-  lines.push("\nBottom 5 by GIH WR:");
-  for (let i = Math.max(0, cards.length - n); i < cards.length; i++) {
-    const c = cards[i]!;
-    lines.push(
-      ` ${i + 1}. ${padRight(truncName(c.card_name, 28), 28)} ${pct(c.gihwr)} (IWD ${iwdFmt(c.iwd)}, ${fmtInt(c.games_in_hand)} games)`,
-    );
-  }
-
-  const byIwd = [...cards].sort((a, b) => b.iwd - a.iwd);
-  lines.push("\nTop 5 by IWD (most impactful when drawn):");
-  for (let i = 0; i < Math.min(5, byIwd.length); i++) {
-    const c = byIwd[i]!;
-    lines.push(
-      ` ${i + 1}. ${padRight(truncName(c.card_name, 28), 28)} IWD ${iwdFmt(c.iwd)} (GIH WR ${pct(c.gihwr)}, ${fmtInt(c.games_in_hand)} games)`,
-    );
-  }
+  const topGihwr = cards.slice(0, n).map(cardRow);
+  const bottomGihwr = cards.slice(Math.max(0, cards.length - n)).map(cardRow);
+  const topIwd = [...cards].sort((a, b) => b.iwd - a.iwd).slice(0, n).map(cardRow);
 
   const byUndervalued = [...cards].sort(
     (a, b) => b.gihwr * b.alsa - a.gihwr * a.alsa,
   );
-  lines.push("\nMost undervalued (high GIH WR, late ALSA):");
-  let shown = 0;
+  const undervalued: ReturnType<typeof cardRow>[] = [];
   for (const c of byUndervalued) {
     if (c.alsa >= 4.0 && c.gihwr > setStats.avg_gihwr) {
-      lines.push(
-        ` ${shown + 1}. ${padRight(truncName(c.card_name, 28), 28)} GIH WR ${pct(c.gihwr)}, ALSA ${c.alsa.toFixed(1)}`,
-      );
-      shown++;
-      if (shown >= 5) break;
+      undervalued.push(cardRow(c));
+      if (undervalued.length >= 5) break;
     }
   }
 
-  lines.push(
-    `\n${setStats.card_count} cards available. Query with card, limit, sort, or colors for details.`,
-  );
-
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "structured",
+    data: {
+      set_code: setCode,
+      format: setStats.format,
+      total_games: setStats.total_games,
+      card_count: setStats.card_count,
+      avg_gihwr: setStats.avg_gihwr,
+      top_gihwr: topGihwr,
+      bottom_gihwr: bottomGihwr,
+      top_iwd: topIwd,
+      undervalued,
+    },
+    presentation:
+      "Set overview — headline the set stats, then show ranked tables for top/bottom GIH WR, most impactful (IWD), and undervalued cards. Use bar indicators for win rates relative to the set average. Highlight cards significantly above or below average.",
+  };
 }
 
 async function cardDetail(
@@ -247,51 +205,33 @@ async function cardDetail(
     list.push(r);
   }
 
-  const lines: string[] = [];
-  for (let i = 0; i < Math.min(5, ratings.results.length); i++) {
-    const card = ratings.results[i]!;
-    if (i > 0) lines.push("\n---\n");
+  const cardResults = ratings.results.slice(0, 5).map((card) => {
+    const colors = colorsByCard.get(card.card_name) ?? [];
+    return {
+      ...cardRow(card),
+      set_avg_gihwr: setStats.avg_gihwr,
+      archetypes: colors.map((cs) => ({
+        archetype: cs.archetype,
+        gihwr: cs.gihwr,
+        iwd: cs.iwd,
+        games_in_hand: cs.games_in_hand,
+      })),
+    };
+  });
 
-    lines.push(
-      `${card.card_name} — ${setCode} ${setStats.format} (set avg GIH WR: ${pct(setStats.avg_gihwr)})\n`,
-    );
-
-    lines.push(
-      `Overall:  GIH WR ${pct(card.gihwr)} | IWD ${iwdFmt(card.iwd)} | OHWR ${pct(card.ohwr)} | GD WR ${pct(card.gdwr)} | GNS WR ${pct(card.gnswr)}`,
-    );
-    lines.push(
-      `          ALSA ${card.alsa.toFixed(1)} | ATA ${card.ata.toFixed(1)} | ${fmtInt(card.games_in_hand)} games in hand, ${fmtInt(card.games_played)} games in deck`,
-    );
-
-    const colors = colorsByCard.get(card.card_name);
-    if (colors && colors.length > 0) {
-      lines.push("\nBy archetype:");
-      for (const cs of colors) {
-        lines.push(
-          `  ${padRight(cs.archetype, 5)}  GIH WR ${pct(cs.gihwr)} | IWD ${iwdFmt(cs.iwd)} | ${fmtInt(cs.games_in_hand)} games`,
-        );
-      }
-    }
-  }
-
-  if (ratings.results.length > 5) {
-    lines.push(
-      `\n(${ratings.results.length - 5} more matches, narrow your search)`,
-    );
-  }
-
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "structured",
+    data: {
+      set_code: setCode,
+      format: setStats.format,
+      query: cardQuery,
+      cards: cardResults,
+      more: ratings.results.length > 5 ? ratings.results.length - 5 : 0,
+    },
+    presentation:
+      "Card detail — for each card, show overall stats as a stat block (GIH WR, IWD, OHWR, GD WR, GNS WR, ALSA, ATA, games) with the set average for context. Show archetype breakdowns as a comparison table with GIH WR per color pair. Highlight archetypes where the card over- or under-performs relative to overall.",
+  };
 }
-
-const VALID_SORT_FIELDS = new Set([
-  "gihwr",
-  "ohwr",
-  "gdwr",
-  "gnswr",
-  "iwd",
-  "alsa",
-  "ata",
-]);
 
 async function leaderboard(
   db: D1Database,
@@ -303,7 +243,6 @@ async function leaderboard(
   setStats: SetStatsRow,
 ): Promise<ReferenceResult> {
   const field = VALID_SORT_FIELDS.has(sortField) ? sortField : "gihwr";
-  const sortLabel = sortFieldLabel(field);
   const direction = field === "alsa" || field === "ata" ? "ASC" : "DESC";
 
   let rows: RatingRow[];
@@ -343,32 +282,24 @@ async function leaderboard(
     rows = result.results;
   }
 
-  const lines: string[] = [];
-  let header = `Top cards by ${sortLabel} — ${setCode} ${setStats.format}`;
-  if (archetype) header += ` (${archetype})`;
-  header += ` (set avg GIH WR: ${pct(setStats.avg_gihwr)})`;
-  lines.push(header);
-  lines.push(`Showing ${offset + 1}–${offset + rows.length} of ${total}\n`);
-
-  lines.push(
-    `${padLeft("#", 4)}  ${padRight("Card", 28)} ${padLeft("GIH WR", 8)} ${padLeft("IWD", 7)} ${padLeft("OHWR", 8)} ${padLeft("ALSA", 6)} ${padLeft("ATA", 6)} ${padLeft("Games", 8)}`,
-  );
-
-  for (let i = 0; i < rows.length; i++) {
-    const r = rows[i]!;
-    lines.push(
-      `${padLeft(String(offset + i + 1) + ".", 4)}  ${padRight(truncName(r.card_name, 28), 28)} ${padLeft(pct(r.gihwr), 8)} ${padLeft(iwdFmt(r.iwd), 7)} ${padLeft(pct(r.ohwr), 8)} ${padLeft(r.alsa.toFixed(1), 6)} ${padLeft(r.ata.toFixed(1), 6)} ${padLeft(fmtInt(r.games_in_hand), 8)}`,
-    );
-  }
-
-  const remaining = total - offset - rows.length;
-  if (remaining > 0) {
-    lines.push(
-      `\n${remaining} more results. Use offset=${offset + rows.length} for next page.`,
-    );
-  }
-
-  return { type: "formatted", content: lines.join("\n") + "\n" };
+  return {
+    type: "structured",
+    data: {
+      set_code: setCode,
+      format: setStats.format,
+      avg_gihwr: setStats.avg_gihwr,
+      sort_by: field,
+      archetype: archetype || null,
+      offset,
+      total,
+      cards: rows.map((r, i) => ({
+        rank: offset + i + 1,
+        ...cardRow(r),
+      })),
+    },
+    presentation:
+      "Card leaderboard — ranked table with position, card name, and all stats (GIH WR, IWD, OHWR, ALSA, ATA, games). Highlight the sort column. Show pagination info if more results available.",
+  };
 }
 
 // ── Module definition ────────────────────────────────────────
