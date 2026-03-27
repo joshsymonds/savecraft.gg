@@ -42,7 +42,7 @@ describe("Marketing page", () => {
   it("renders the hero title", () => {
     const { container } = render(Page, { props: { data: mockData } });
     expect(container.querySelector(".hero-title")).toBeInTheDocument();
-    expect(container.querySelector(".hero-title")?.textContent).toContain("Your AI already");
+    expect(container.querySelector(".hero-title")?.textContent).toContain("Stop getting advice");
   });
 
   it("renders game cards for available and planned games", () => {
