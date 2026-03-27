@@ -89,27 +89,37 @@ func AccuracyAtRange(w RangedWeaponStats, rangeTiles float64) float64 {
 }
 
 // MeleeTrueDPS computes the true DPS accounting for weighted verb selection.
-// Each tool's selection weight is proportional to its damage/cooldown ratio.
-// Higher-DPS attacks are selected more often, so true DPS exceeds simple average.
+//
+// From VerbProperties.AdjustedMeleeSelectionWeight (v1.6):
+//
+//	selectionWeight = damage² × commonality × chanceFactor
+//
+// The game computes average DPS as:
+//
+//	avgDamage = sum(weight_i × damage_i) / sum(weight_i)
+//	avgCooldown = sum(weight_i × cooldown_i) / sum(weight_i)
+//	trueDPS = avgDamage / avgCooldown
+//
+// Which simplifies to: sum(weight_i × damage_i) / sum(weight_i × cooldown_i)
+// With weight = damage²: sum(damage³) / sum(damage² × cooldown)
 func MeleeTrueDPS(tools []MeleeTool) float64 {
 	if len(tools) == 0 {
 		return 0
 	}
 
-	var totalWeight, weightedDPSSum float64
+	var weightedDamage, weightedCooldown float64
 	for _, t := range tools {
 		if t.Cooldown <= 0 {
 			continue
 		}
-		dps := t.Power / t.Cooldown
-		weight := dps // selection weight proportional to DPS
-		totalWeight += weight
-		weightedDPSSum += weight * dps
+		weight := t.Power * t.Power // selection weight = damage²
+		weightedDamage += weight * t.Power
+		weightedCooldown += weight * t.Cooldown
 	}
-	if totalWeight <= 0 {
+	if weightedCooldown <= 0 {
 		return 0
 	}
-	return weightedDPSSum / totalWeight
+	return weightedDamage / weightedCooldown
 }
 
 // ArmorExpectedDamage computes the expected damage after armor mitigation.
