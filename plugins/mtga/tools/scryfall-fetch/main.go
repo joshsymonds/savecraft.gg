@@ -1,16 +1,16 @@
-// scryfall-fetch downloads Scryfall Default Cards bulk data and populates
-// D1 + Vectorize when --d1-database-id is provided. Stores all Arena printings
-// in D1, with is_default=1 for the most recent printing per oracle_id (highest
-// arena_id). FTS5 and Vectorize only index defaults.
+// scryfall-fetch enriches existing MTGA-sourced card data in D1 with Scryfall
+// metadata (oracle_id, legalities, keywords, oracle_text, produced_mana) and
+// inserts non-Arena cards from Scryfall bulk data.
 //
-// Note: Parser card name resolution (arena_cards_gen.go) is now handled by
-// mtga-carddb, which reads MTGA's own Raw_CardDatabase for 100% coverage.
-// This tool only handles D1/Vectorize population for the card_search MCP tool.
+// Prerequisite: mtga-carddb must run first to populate D1 with base card data
+// from the MTGA client database. This tool only enriches — it never deletes
+// the mtga_cards table.
 //
 // Usage: go run ./plugins/mtga/tools/scryfall-fetch --d1-database-id=UUID [--vectorize-index=NAME]
 //
-// D1 population:
-//   - mtga_cards + mtga_cards_fts tables via Cloudflare D1 bulk import API
+// D1 enrichment:
+//   - UPSERTs into mtga_cards (enriches existing rows, inserts non-Arena cards)
+//   - Rebuilds mtga_cards_fts from enriched default printings
 //   - Vectorize card embeddings (when --vectorize-index also set)
 package main
 
@@ -136,7 +136,7 @@ func run() error {
 	if *d1DatabaseID != "" {
 		wg.Go(func() {
 			fmt.Println("\nPopulating D1 tables...")
-			sql := buildCardImportSQL(cards)
+			sql := buildCardEnrichmentSQL(cards)
 
 			// Content hash for change detection.
 			h := sha256.Sum256([]byte(sql))

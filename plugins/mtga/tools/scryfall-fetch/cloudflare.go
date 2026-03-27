@@ -14,56 +14,55 @@ func cardEmbeddingText(c ScryfallCard) string {
 	return c.Name + " " + c.TypeLine + " " + c.OracleText
 }
 
-// buildCardImportSQL generates the full SQL string for D1 bulk import of card data.
-func buildCardImportSQL(cards []ScryfallCard) string {
+// buildCardEnrichmentSQL generates SQL that enriches existing MTGA-sourced rows
+// with Scryfall data (oracle_id, legalities, keywords, oracle_text, produced_mana)
+// and inserts non-Arena cards that don't already exist in D1.
+//
+// For existing rows (arena_id already in D1 from mtga-carddb): uses INSERT ... ON
+// CONFLICT to update only Scryfall-provided fields, preserving mtga-carddb's data
+// for power, toughness, and other MTGA-sourced columns.
+//
+// For non-Arena cards (no matching arena_id in D1): does a full INSERT.
+//
+// FTS5: clears and rebuilds since default printings may have changed via oracle_id
+// dedup, and Scryfall provides better oracle_text for search.
+func buildCardEnrichmentSQL(cards []ScryfallCard) string {
 	var b strings.Builder
+	q := cfapi.SQLQuote
 
-	// Clear existing data (FTS5 first, then structured table)
-	b.WriteString("DELETE FROM mtga_cards_fts;\n")
-	b.WriteString("DELETE FROM mtga_cards;\n")
+	// Delete FTS5 entries for cards we're about to enrich. This preserves
+	// FTS entries for MTGA-only cards (like Kavaero) that Scryfall doesn't know.
+	for _, c := range cards {
+		fmt.Fprintf(&b, "DELETE FROM mtga_cards_fts WHERE arena_id = %d;\n", c.ArenaID)
+	}
 
 	for _, c := range cards {
-		colorsJSON := "[]"
-		if len(c.Colors) > 0 {
-			j, _ := json.Marshal(c.Colors)
-			colorsJSON = string(j)
-		}
-		colorIdentityJSON := "[]"
-		if len(c.ColorIdentity) > 0 {
-			j, _ := json.Marshal(c.ColorIdentity)
-			colorIdentityJSON = string(j)
-		}
+		colorsJSON := jsonArrayStr(c.Colors)
+		colorIdentityJSON := jsonArrayStr(c.ColorIdentity)
 		legalitiesJSON := "{}"
 		if len(c.Legalities) > 0 {
 			j, _ := json.Marshal(c.Legalities)
 			legalitiesJSON = string(j)
 		}
-		keywordsJSON := "[]"
-		if len(c.Keywords) > 0 {
-			j, _ := json.Marshal(c.Keywords)
-			keywordsJSON = string(j)
-		}
-		producedManaJSON := "[]"
-		if len(c.ProducedMana) > 0 {
-			j, _ := json.Marshal(c.ProducedMana)
-			producedManaJSON = string(j)
-		}
-
-		q := cfapi.SQLQuote
+		keywordsJSON := jsonArrayStr(c.Keywords)
+		producedManaJSON := jsonArrayStr(c.ProducedMana)
 
 		isDefault := 0
 		if c.IsDefault {
 			isDefault = 1
 		}
 
-		// Structured table (all printings)
-		fmt.Fprintf(&b, "INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default, produced_mana) VALUES (%d, %s, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s, %d, %s);\n",
+		// UPSERT: insert if new (non-Arena card), or update Scryfall-specific
+		// fields if the row already exists (MTGA-sourced card).
+		fmt.Fprintf(&b, "INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default, produced_mana) VALUES (%d, %s, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s, %d, %s) ON CONFLICT(arena_id) DO UPDATE SET oracle_id = %s, legalities = %s, keywords = %s, oracle_text = %s, produced_mana = %s, is_default = %d;\n",
 			c.ArenaID, q(c.OracleID), q(c.Name), q(c.FrontFaceName), q(c.ManaCost), c.CMC,
 			q(c.TypeLine), q(c.OracleText), q(colorsJSON), q(colorIdentityJSON),
 			q(legalitiesJSON), q(c.Rarity), q(c.Set), q(keywordsJSON), isDefault, q(producedManaJSON),
+			// ON CONFLICT UPDATE — only Scryfall-enriched fields:
+			q(c.OracleID), q(legalitiesJSON), q(keywordsJSON), q(c.OracleText), q(producedManaJSON), isDefault,
 		)
 
-		// FTS5 table (default printings only — one search result per card name)
+		// FTS5 table (default printings only).
 		if c.IsDefault {
 			fmt.Fprintf(&b, "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (%d, %s, %s, %s);\n",
 				c.ArenaID, q(c.Name), q(c.OracleText), q(c.TypeLine),
@@ -72,6 +71,14 @@ func buildCardImportSQL(cards []ScryfallCard) string {
 	}
 
 	return b.String()
+}
+
+func jsonArrayStr(s []string) string {
+	if len(s) == 0 {
+		return "[]"
+	}
+	j, _ := json.Marshal(s)
+	return string(j)
 }
 
 // populateCardVectorize embeds all cards concurrently and upserts to Vectorize.
