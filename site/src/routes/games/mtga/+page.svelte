@@ -83,9 +83,8 @@
             Your AI stops inventing<br />cards here.
           </h1>
           <p class="hero-sub">
-            Savecraft plugs your Arena data — collection, drafts, decks — into Claude or ChatGPT,
-            backed by ten expert modules: 17Lands stats across 31 archetypes, Frank Karsten's mana
-            math, and the full MTG Comprehensive Rules.
+            Your collection, drafts, and decks — plus ten expert modules backed by 17Lands stats,
+            Frank Karsten's mana math, and the full MTG rules. All in Claude or ChatGPT.
           </p>
           <div class="hero-actions">
             <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT YOUR ARENA DATA</a>

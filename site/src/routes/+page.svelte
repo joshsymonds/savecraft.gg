@@ -108,12 +108,12 @@
         <div class="hero-text">
           <div class="hero-eyebrow">YOUR GAME DATA, FINALLY ACCURATE</div>
           <h1 class="hero-title">
-            Stop getting advice about<br />items that don't exist.
+            Your AI is making<br />things up.
           </h1>
           <p class="hero-sub">
-            You ask ChatGPT about your builds. It makes things up. Savecraft connects your actual
-            game state — gear, skills, quests, progress — so every answer is grounded in what you
-            really have. Updated live.
+            Savecraft connects your saves to Claude and ChatGPT — gear, skills, decks, farms,
+            cats — plus expert reference modules like drop calculators, draft advisors, and crop
+            planners. Real data, updated live.
           </p>
           <div class="hero-actions">
             <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT YOUR SAVES</a>
@@ -138,7 +138,31 @@
   </div>
 
   <!-- ═══ HOW IT WORKS ═══ -->
-  <MarketingSection id="how" eyebrow="HOW IT WORKS" title="Three steps. Zero config.">
+  <MarketingSection
+    id="how"
+    eyebrow="HOW IT WORKS"
+    title="Instant access. Three steps to unlock everything."
+  >
+    <!-- Reference modules — zero install, immediate value -->
+    <div class="reference-callout">
+      <div class="reference-callout-header">
+        <div class="reference-callout-title">
+          <span class="reference-callout-icon" style="color: var(--color-green);">*</span>
+          <h3 class="step-name">REFERENCE MODULES</h3>
+        </div>
+        <span class="reference-badge">NO INSTALL</span>
+      </div>
+      <p class="step-desc">
+        Expert modules — drop calculators, draft advisors, crop planners — work instantly through
+        Claude or ChatGPT. Connect once, ask anything.
+      </p>
+      <a href={`${PUBLIC_APP_URL}/connect`} class="btn-gold reference-cta"
+        >CONNECT CLAUDE OR CHATGPT</a
+      >
+    </div>
+
+    <!-- Three-step grid for full save data access -->
+    <p class="unlock-label">Want your actual save data too?</p>
     <div class="steps-grid">
       <div class="step-card">
         <div class="step-num">01</div>
@@ -568,6 +592,60 @@
     font-size: 12px;
     color: var(--color-text-muted);
     opacity: 0.5;
+  }
+
+  /* ── Reference callout ───────────────────────────────── */
+  .reference-callout {
+    margin-top: 40px;
+    padding: 28px 24px;
+    background: linear-gradient(135deg, #0a0e2e 0%, #111b47 50%, #0a0e2e 100%);
+    border: 1px solid rgba(90, 190, 138, 0.25);
+    border-radius: 4px;
+  }
+
+  .reference-callout-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .reference-callout-title {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .reference-callout-icon {
+    font-family: var(--font-heading);
+    font-size: 24px;
+    font-weight: 700;
+  }
+
+  .reference-badge {
+    font-family: var(--font-pixel);
+    font-size: 7px;
+    letter-spacing: 1.5px;
+    color: var(--color-green);
+    background: rgba(90, 190, 138, 0.1);
+    border: 1px solid rgba(90, 190, 138, 0.25);
+    padding: 4px 10px;
+    border-radius: 2px;
+  }
+
+  .reference-cta {
+    display: inline-block;
+    margin-top: 16px;
+  }
+
+  .unlock-label {
+    margin-top: 40px;
+    margin-bottom: 4px;
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--color-text-muted);
+    letter-spacing: 1px;
   }
 
   /* ── Steps ───────────────────────────────────────────── */
