@@ -134,7 +134,7 @@ describe("deckbuilding Constructed mode", () => {
     await seedConstructedCards();
   });
 
-  it("returns Constructed health check with composition and legality", async () => {
+  it("returns Constructed health check with composition and mana analysis", async () => {
     const deck = [
       { name: "Heartfire Hero", count: 4 },
       { name: "Monastery Swiftspear", count: 4 },
@@ -148,23 +148,19 @@ describe("deckbuilding Constructed mode", () => {
       { deck, mode: "constructed", format: "standard" },
       env,
     );
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
 
-    // Should show total cards
-    expect(content).toContain("40"); // 4+4+4+4+4+20 = 40 cards
-    // Should show creature count
-    expect(content).toMatch(/[Cc]reature/);
-    // Should show land count
-    expect(content).toMatch(/[Ll]and/);
-    // Should show curve info
-    expect(content).toMatch(/[Cc]urve|CMC/);
-    // Should show color pip requirements (all spells are red)
-    expect(content).toContain("Red");
-    expect(content).toContain("pips");
-    // All cards Standard legal — no legality warnings
-    expect(content).not.toContain("banned");
-    expect(content).not.toContain("not legal");
+    expect(data.mode).toBe("constructed");
+    expect(data.total_cards).toBe(40);
+    const comp = data.composition as { creatures: number; noncreatures: number; lands: number };
+    expect(comp.creatures).toBe(12); // 4+4+4
+    expect(comp.lands).toBe(20);
+    // Mana analysis present with Red pips
+    const mana = data.mana as { pip_distribution: Record<string, number> };
+    expect(mana.pip_distribution.R).toBeGreaterThan(0);
+    // All cards Standard legal — no illegal_cards
+    expect(data.illegal_cards).toBeUndefined();
   });
 
   it("flags banned cards in the specified format", async () => {
@@ -178,11 +174,12 @@ describe("deckbuilding Constructed mode", () => {
       { deck, mode: "constructed", format: "standard" },
       env,
     );
-    const content = (result as { type: "formatted"; content: string }).content;
-
-    // Should flag Smuggler's Copter as banned
-    expect(content).toContain("Smuggler's Copter");
-    expect(content).toMatch(/banned|not legal|illegal/i);
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    const illegal = data.illegal_cards as { name: string; status: string }[];
+    expect(illegal).toBeDefined();
+    expect(illegal.find((c) => c.name === "Smuggler's Copter")).toBeDefined();
+    expect(illegal[0]!.status).toBe("banned");
   });
 
   it("does not flag cards legal in Historic", async () => {
@@ -196,13 +193,13 @@ describe("deckbuilding Constructed mode", () => {
       { deck, mode: "constructed", format: "historic" },
       env,
     );
-    const content = (result as { type: "formatted"; content: string }).content;
-
-    // Should NOT flag anything — all legal in Historic
-    expect(content).not.toMatch(/banned|not legal|illegal/i);
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    // All legal in Historic — no illegal_cards
+    expect(data.illegal_cards).toBeUndefined();
   });
 
-  it("shows sideboard size warning when not 15", async () => {
+  it("shows sideboard size", async () => {
     const deck = [
       { name: "Heartfire Hero", count: 4 },
       { name: "Mountain", count: 20 },
@@ -213,11 +210,9 @@ describe("deckbuilding Constructed mode", () => {
       { deck, sideboard, mode: "constructed", format: "standard" },
       env,
     );
-    const content = (result as { type: "formatted"; content: string }).content;
-
-    // Should note sideboard is 3 cards (not 15)
-    expect(content).toMatch(/[Ss]ideboard/);
-    expect(content).toContain("3");
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    expect(data.sideboard_count).toBe(3);
   });
 
   it("works without format parameter (skips legality check)", async () => {
@@ -227,12 +222,12 @@ describe("deckbuilding Constructed mode", () => {
     ];
 
     const result = await deckbuildingModule.execute({ deck, mode: "constructed" }, env);
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-
-    // Should still show composition
-    expect(content).toMatch(/[Cc]reature/);
-    expect(content).toMatch(/[Ll]and/);
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    expect(data.mode).toBe("constructed");
+    const comp = data.composition as { creatures: number; lands: number };
+    expect(comp.creatures).toBe(4);
+    expect(comp.lands).toBe(20);
   });
 
   it("existing draft mode still works", async () => {

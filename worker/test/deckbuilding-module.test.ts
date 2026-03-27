@@ -490,6 +490,189 @@ describe("deckbuilding native module", () => {
     });
   });
 
+  describe("mana section", () => {
+    it("includes mana section with pip distribution and needs-vs-has", async () => {
+      await seedDeckbuildingData();
+
+      const result = await deckbuildingModule.execute(
+        {
+          set: "DSK",
+          deck: [
+            { name: "Vengeful Strangler", count: 2 },    // {1}{B} — 2 black pips
+            { name: "Doomsday Excruciator", count: 1 },  // {4}{B}{B} — 2 black pips
+            { name: "Go for the Throat", count: 1 },      // {1}{B} — 1 black pip
+            { name: "Gloomlake Verge", count: 2 },        // {U}{B} — 2 blue, 2 black
+            { name: "Evolving Wilds", count: 1 },          // produces all
+            { name: "Island", count: 8 },                  // produces U
+            { name: "Swamp", count: 8 },                   // produces B
+          ],
+        },
+        env,
+      );
+
+      expect(result.type).toBe("structured");
+      if (result.type !== "structured") throw new Error("unexpected");
+      const data = result.data as {
+        mana: {
+          pip_distribution: Record<string, number>;
+          colors: {
+            color: string;
+            color_name: string;
+            sources_needed: number;
+            sources_actual: number;
+            surplus: number;
+            status: string;
+            most_demanding: string;
+          }[];
+        };
+      };
+
+      expect(data.mana).toBeDefined();
+      // Pip distribution: B pips = 2*1 + 1*2 + 1*1 + 2*1 = 7, U pips = 2*1 = 2
+      expect(data.mana.pip_distribution.B).toBeGreaterThan(0);
+      expect(data.mana.pip_distribution.U).toBeGreaterThan(0);
+
+      // Each color has needs-vs-has
+      expect(data.mana.colors.length).toBeGreaterThan(0);
+      for (const c of data.mana.colors) {
+        expect(typeof c.sources_needed).toBe("number");
+        expect(typeof c.sources_actual).toBe("number");
+        expect(typeof c.surplus).toBe("number");
+        expect(["good", "warning", "issue"]).toContain(c.status);
+        expect(typeof c.most_demanding).toBe("string");
+      }
+
+      // Black should have actual sources (Swamp + Evolving Wilds)
+      const black = data.mana.colors.find((c) => c.color === "B");
+      expect(black).toBeDefined();
+      expect(black!.sources_actual).toBeGreaterThanOrEqual(9); // 8 Swamps + 1 Evolving Wilds
+    });
+
+    it("suggests swaps when deficit exists", async () => {
+      await seedDeckbuildingData();
+
+      // Heavy black deck with too many Islands and not enough Swamps
+      const result = await deckbuildingModule.execute(
+        {
+          set: "DSK",
+          deck: [
+            { name: "Vengeful Strangler", count: 3 },    // {1}{B}
+            { name: "Doomsday Excruciator", count: 2 },  // {4}{B}{B}
+            { name: "Go for the Throat", count: 2 },      // {1}{B}
+            { name: "Gloomlake Verge", count: 1 },        // {U}{B}
+            { name: "Island", count: 12 },                 // way too many Islands
+            { name: "Swamp", count: 3 },                   // way too few Swamps
+          ],
+        },
+        env,
+      );
+
+      expect(result.type).toBe("structured");
+      if (result.type !== "structured") throw new Error("unexpected");
+      const data = result.data as {
+        mana: {
+          colors: { color: string; surplus: number; status: string }[];
+          swap_suggestions: { cut: string; add: string; reason: string }[];
+        };
+      };
+
+      // Black should be in deficit (3 Swamps << ~16 needed)
+      const black = data.mana.colors.find((c) => c.color === "B");
+      expect(black).toBeDefined();
+      expect(black!.surplus).toBeLessThan(0);
+      expect(black!.status).toBe("issue");
+
+      // Should have swap suggestions
+      expect(data.mana.swap_suggestions.length).toBeGreaterThan(0);
+      // Swap should suggest cutting an Island for a Swamp
+      const swap = data.mana.swap_suggestions[0]!;
+      expect(swap.cut).toBeTruthy();
+      expect(swap.add).toBeTruthy();
+      expect(swap.reason).toBeTruthy();
+    });
+
+    it("shows healthy status when sources meet requirements", async () => {
+      await seedDeckbuildingData();
+
+      // Mono-black with plenty of Swamps
+      const result = await deckbuildingModule.execute(
+        {
+          set: "DSK",
+          deck: [
+            { name: "Vengeful Strangler", count: 2 },
+            { name: "Go for the Throat", count: 1 },
+            { name: "Swamp", count: 17 },
+          ],
+        },
+        env,
+      );
+
+      expect(result.type).toBe("structured");
+      if (result.type !== "structured") throw new Error("unexpected");
+      const data = result.data as {
+        mana: {
+          colors: { color: string; surplus: number; status: string }[];
+          swap_suggestions: { cut: string; add: string; reason: string }[];
+        };
+      };
+
+      const black = data.mana.colors.find((c) => c.color === "B");
+      expect(black).toBeDefined();
+      expect(black!.surplus).toBeGreaterThanOrEqual(0);
+      expect(black!.status).toBe("good");
+
+      // No swaps needed
+      expect(data.mana.swap_suggestions).toHaveLength(0);
+    });
+
+    it("counts dual lands toward multiple colors", async () => {
+      // Add a dual land that produces U and B
+      await seedDeckbuildingData();
+      await env.DB.prepare(
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        300,
+        "o-dual",
+        "Dimir Guildgate",
+        "Dimir Guildgate",
+        "",
+        0,
+        "Land — Gate",
+        "[]",
+        '["U","B"]',
+        1,
+      ).run();
+
+      const result = await deckbuildingModule.execute(
+        {
+          set: "DSK",
+          deck: [
+            { name: "Vengeful Strangler", count: 2 },
+            { name: "Gloomlake Verge", count: 2 },
+            { name: "Dimir Guildgate", count: 4 },   // counts as U and B
+            { name: "Island", count: 5 },
+            { name: "Swamp", count: 5 },
+          ],
+        },
+        env,
+      );
+
+      expect(result.type).toBe("structured");
+      if (result.type !== "structured") throw new Error("unexpected");
+      const data = result.data as {
+        mana: {
+          colors: { color: string; sources_actual: number }[];
+        };
+      };
+
+      const blue = data.mana.colors.find((c) => c.color === "U");
+      const black = data.mana.colors.find((c) => c.color === "B");
+      // Dimir Guildgate counts for both
+      expect(blue!.sources_actual).toBe(9);  // 5 Islands + 4 Guildgates
+      expect(black!.sources_actual).toBe(9); // 5 Swamps + 4 Guildgates
+    });
+  });
+
   describe("archetype alternatives", () => {
     it("suggests alternative archetypes in health check", async () => {
       await seedDeckbuildingData();

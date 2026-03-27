@@ -75,6 +75,285 @@ interface CutCandidate {
   reason: string;
 }
 
+// ── Karsten mana base analysis ───────────────────────────────
+//
+// Frank Karsten, "How Many Sources Do You Need to Consistently
+// Cast Your Spells? A 2022 Update" (ChannelFireball/TCGPlayer).
+
+const KARSTEN_TABLES: Record<number, Record<string, number>> = {
+  60: {
+    "C": 14, "1C": 13, "2C": 12, "3C": 10, "4C": 9, "5C": 9,
+    "CC": 21, "1CC": 18, "2CC": 16, "3CC": 15, "4CC": 13, "5CC": 12,
+    "CCC": 23, "1CCC": 21, "2CCC": 19, "3CCC": 17, "4CCC": 16,
+    "CCCC": 24, "1CCCC": 22,
+  },
+  40: {
+    "C": 9, "1C": 9, "2C": 8, "3C": 7, "4C": 6, "5C": 6,
+    "CC": 14, "1CC": 12, "2CC": 11, "3CC": 10, "4CC": 9, "5CC": 8,
+    "CCC": 16, "1CCC": 14, "2CCC": 13, "3CCC": 11, "4CCC": 10,
+    "CCCC": 17, "1CCCC": 15,
+  },
+  80: {
+    "C": 19, "1C": 18, "2C": 16, "3C": 15, "4C": 14, "5C": 12,
+    "CC": 28, "1CC": 25, "2CC": 23, "3CC": 20, "4CC": 19, "5CC": 17,
+    "CCC": 32, "1CCC": 29, "2CCC": 26, "3CCC": 24, "4CCC": 22,
+    "CCCC": 34, "1CCCC": 31,
+  },
+  99: {
+    "C": 19, "1C": 19, "2C": 18, "3C": 16, "4C": 15, "5C": 14,
+    "CC": 30, "1CC": 28, "2CC": 26, "3CC": 23, "4CC": 22, "5CC": 20,
+    "CCC": 36, "1CCC": 33, "2CCC": 30, "3CCC": 28, "4CCC": 26,
+    "CCCC": 39, "1CCCC": 36,
+  },
+};
+
+const COLOR_NAMES: Record<string, string> = {
+  W: "White", U: "Blue", B: "Black", R: "Red", G: "Green",
+};
+
+const ALL_COLORS = ["W", "U", "B", "R", "G"];
+
+function closestDeckSize(n: number): number {
+  const sizes = [40, 60, 80, 99];
+  let best = sizes[0]!;
+  for (const s of sizes) {
+    if (Math.abs(s - n) < Math.abs(best - n)) best = s;
+  }
+  return best;
+}
+
+function karstenPatternKey(generic: number, pips: number): string {
+  if (generic === 0) return "C".repeat(pips);
+  return `${generic}${"C".repeat(pips)}`;
+}
+
+function karstenSourceReq(generic: number, pips: number, deckSize: number): number {
+  const key = karstenPatternKey(generic, pips);
+  const size = closestDeckSize(deckSize);
+  return KARSTEN_TABLES[size]?.[key] ?? 0;
+}
+
+/** Parse generic mana from Scryfall mana cost. e.g., "{2}{B}{B}" → 2 */
+function parseGeneric(manaCost: string): number {
+  let total = 0;
+  for (const part of manaCost.split("{")) {
+    const sym = part.replace("}", "");
+    const n = parseInt(sym, 10);
+    if (!isNaN(n)) total += n;
+  }
+  return total;
+}
+
+/** More colored pips = more demanding. At equal pips, lower CMC = cast earlier = more demanding. */
+function isMoreDemanding(pips: number, cmc: number, ePips: number, eCmc: number): boolean {
+  if (pips !== ePips) return pips > ePips;
+  return cmc < eCmc;
+}
+
+interface ManaColorAnalysis {
+  color: string;
+  color_name: string;
+  sources_needed: number;
+  sources_actual: number;
+  surplus: number;
+  status: SectionStatus;
+  most_demanding: string;
+  cost_pattern: string;
+  is_gold_adjusted: boolean;
+}
+
+interface ManaSwapSuggestion {
+  cut: string;
+  add: string;
+  reason: string;
+}
+
+interface ManaAnalysis {
+  pip_distribution: Record<string, number>;
+  colors: ManaColorAnalysis[];
+  swap_suggestions: ManaSwapSuggestion[];
+}
+
+/**
+ * Analyze the mana base of a deck: pip distribution, Karsten requirements,
+ * actual sources from lands, surplus/deficit, and swap suggestions.
+ */
+function analyzeManaBase(
+  deck: DeckEntry[],
+  meta: Map<string, CardMetaRow>,
+  deckSize: number,
+): ManaAnalysis {
+  // Count pip distribution across all spells
+  const pipDist: Record<string, number> = {};
+  // Track most demanding spell per color
+  const colorDemands = new Map<string, {
+    pips: number;
+    totalCMC: number;
+    cardName: string;
+    isGold: boolean;
+  }>();
+  // Track actual sources per color from lands
+  const actualSources = new Map<string, number>();
+  // Track land composition for swap suggestions
+  const basicCounts = new Map<string, { name: string; count: number; colors: string[] }>();
+  const nonBasicLands: { name: string; count: number; producedColors: string[] }[] = [];
+
+  for (const entry of deck) {
+    const card = meta.get(entry.name.toLowerCase());
+    if (!card) continue;
+
+    const isLand = card.type_line.includes("Land");
+
+    if (isLand) {
+      // Count actual colored sources
+      let producedColors: string[] = [];
+      if (card.produced_mana && card.produced_mana !== "[]") {
+        try {
+          const produced = JSON.parse(card.produced_mana) as string[];
+          producedColors = produced.filter((c) => ALL_COLORS.includes(c));
+          for (const color of producedColors) {
+            actualSources.set(color, (actualSources.get(color) ?? 0) + entry.count);
+          }
+        } catch {
+          // Malformed produced_mana — skip
+        }
+      }
+
+      // Track basics vs non-basics for swap suggestions
+      if (card.type_line.includes("Basic")) {
+        const key = card.name.toLowerCase();
+        const existing = basicCounts.get(key);
+        if (existing) {
+          existing.count += entry.count;
+        } else {
+          basicCounts.set(key, { name: card.name, count: entry.count, colors: producedColors });
+        }
+      } else if (producedColors.length > 0) {
+        nonBasicLands.push({ name: card.name, count: entry.count, producedColors });
+      }
+    } else {
+      // Count pips
+      const pips = countPips(card.mana_cost);
+      const colors = JSON.parse(card.colors || "[]") as string[];
+      const isGold = colors.length > 1;
+      const generic = parseGeneric(card.mana_cost);
+      let totalCMC = generic;
+      for (const [, count] of pips) totalCMC += count;
+
+      for (const [color, count] of pips) {
+        pipDist[color] = (pipDist[color] ?? 0) + count * entry.count;
+
+        // Track most demanding
+        const existing = colorDemands.get(color);
+        if (!existing || isMoreDemanding(count, totalCMC, existing.pips, existing.totalCMC)) {
+          colorDemands.set(color, { pips: count, totalCMC, cardName: card.name, isGold });
+        }
+      }
+    }
+  }
+
+  // Compute Karsten requirements per color
+  const colors: ManaColorAnalysis[] = [];
+  for (const color of ALL_COLORS) {
+    const demand = colorDemands.get(color);
+    if (!demand) continue;
+
+    const generic = demand.totalCMC - demand.pips;
+    let sourcesNeeded = karstenSourceReq(generic, demand.pips, deckSize);
+
+    // Gold card adjustment: +1 per color
+    let adjusted = false;
+    if (demand.isGold && sourcesNeeded > 0) {
+      sourcesNeeded++;
+      adjusted = true;
+    }
+
+    const sourcesActual = actualSources.get(color) ?? 0;
+    const surplus = sourcesActual - sourcesNeeded;
+    const status: SectionStatus =
+      surplus >= 0 ? "good" : surplus >= -3 ? "warning" : "issue";
+
+    colors.push({
+      color,
+      color_name: COLOR_NAMES[color] ?? color,
+      sources_needed: sourcesNeeded,
+      sources_actual: sourcesActual,
+      surplus,
+      status,
+      most_demanding: demand.cardName,
+      cost_pattern: karstenPatternKey(generic, demand.pips),
+      is_gold_adjusted: adjusted,
+    });
+  }
+
+  // Sort by deficit first (worst surplus first)
+  colors.sort((a, b) => a.surplus - b.surplus);
+
+  // Generate swap suggestions
+  const swapSuggestions: ManaSwapSuggestion[] = [];
+  const deficitColors = colors.filter((c) => c.surplus < 0);
+  const surplusColors = colors.filter((c) => c.surplus > 0);
+
+  // Map basic land names to their colors
+  const colorToBasic: Record<string, string> = {
+    W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest",
+  };
+
+  if (deficitColors.length > 0) {
+    // First: suggest swapping surplus basics for deficit basics
+    for (const deficit of deficitColors) {
+      const needed = Math.abs(deficit.surplus);
+      const targetBasic = colorToBasic[deficit.color];
+      if (!targetBasic) continue;
+
+      // Find surplus basics to cut
+      for (const surp of surplusColors) {
+        const surpBasic = colorToBasic[surp.color];
+        if (!surpBasic) continue;
+        const surpLand = basicCounts.get(surpBasic.toLowerCase());
+        if (!surpLand || surpLand.count <= 1) continue; // keep at least 1
+
+        const canSwap = Math.min(needed, Math.min(surp.surplus, surpLand.count - 1));
+        if (canSwap > 0) {
+          swapSuggestions.push({
+            cut: `${canSwap}x ${surpLand.name}`,
+            add: `${canSwap}x ${targetBasic}`,
+            reason: `${deficit.color_name} is ${Math.abs(deficit.surplus)} sources short (need ${deficit.sources_needed}, have ${deficit.sources_actual}). ${surp.color_name} has ${surp.surplus} surplus.`,
+          });
+        }
+      }
+
+      // Second: suggest dual/tri-lands from outside the deck that would help
+      // Epic anti-pattern says no format-aware pools, so only suggest if
+      // existing non-basic lands in the deck produce the deficit color and
+      // could replace a surplus basic (dual already in deck but could add more)
+      for (const nb of nonBasicLands) {
+        if (nb.producedColors.includes(deficit.color)) {
+          // This dual already helps — check if any of its other colors are surplus
+          for (const otherColor of nb.producedColors) {
+            if (otherColor === deficit.color) continue;
+            const surpEntry = surplusColors.find((s) => s.color === otherColor);
+            if (surpEntry) {
+              swapSuggestions.push({
+                cut: `1x ${colorToBasic[otherColor] ?? "basic"}`,
+                add: `1x ${nb.name}`,
+                reason: `${nb.name} produces both ${COLOR_NAMES[deficit.color] ?? deficit.color} and ${COLOR_NAMES[otherColor] ?? otherColor}. Replacing a ${COLOR_NAMES[otherColor] ?? otherColor} basic adds a ${deficit.color_name} source without losing ${COLOR_NAMES[otherColor] ?? otherColor}.`,
+              });
+              break; // one suggestion per dual
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return {
+    pip_distribution: pipDist,
+    colors,
+    swap_suggestions: swapSuggestions,
+  };
+}
+
 // ── Card resolution ──────────────────────────────────────────
 
 async function resolveCards(
@@ -923,6 +1202,7 @@ interface LegalityRow {
   cmc: number;
   mana_cost: string;
   colors: string;
+  produced_mana: string;
 }
 
 async function constructedHealthCheck(
@@ -935,7 +1215,7 @@ async function constructedHealthCheck(
   const ph = placeholders(allNames.length, 1);
   const rows = await db
     .prepare(
-      `SELECT front_face_name AS name, legalities, type_line, cmc, mana_cost, colors
+      `SELECT front_face_name AS name, legalities, type_line, cmc, mana_cost, colors, produced_mana
        FROM mtga_cards WHERE front_face_name COLLATE NOCASE IN (${ph}) AND is_default = 1`,
     )
     .bind(...allNames)
@@ -1046,29 +1326,50 @@ async function constructedHealthCheck(
     lines.push("");
   }
 
-  if (colorPips.size > 0) {
-    const cNames: Record<string, string> = {
-      W: "White", U: "Blue", B: "Black", R: "Red", G: "Green",
-    };
-    lines.push("  Color Requirements (total pips across spells):");
-    const sorted = [...colorPips.entries()].sort((a, b) => b[1] - a[1]);
-    for (const [color, total] of sorted) {
-      lines.push(`    ${cNames[color] ?? color}: ${total} pips`);
-    }
-    lines.push("  Use mana_base module for detailed Karsten source requirements.");
-    lines.push("");
+  // Build a CardMetaRow-compatible map for mana analysis
+  const metaForMana = new Map<string, CardMetaRow>();
+  for (const [key, row] of cardData) {
+    metaForMana.set(key, {
+      name: row.name,
+      cmc: row.cmc,
+      mana_cost: row.mana_cost,
+      colors: row.colors,
+      type_line: row.type_line,
+      produced_mana: row.produced_mana,
+    });
   }
+
+  const mana = analyzeManaBase(deck, metaForMana, totalCards);
 
   if (unresolvedCards.length > 0) {
     lines.push(`  Unresolved cards (not in database): ${unresolvedCards.join(", ")}`);
     lines.push("");
   }
 
+  // Build curve data for structured output
+  const curve: { cmc: number; count: number }[] = [];
+  const maxCmcVal = Math.max(...cmcCounts.keys(), 0);
+  for (let cmc = 0; cmc <= Math.min(maxCmcVal, 7); cmc++) {
+    const count = cmcCounts.get(cmc) ?? 0;
+    if (count > 0) curve.push({ cmc, count });
+  }
+
   return {
-    type: "formatted",
-    content: lines.join("\n") + "\n",
+    type: "structured",
+    data: {
+      mode: "constructed",
+      format: format ?? null,
+      total_cards: totalCards,
+      composition: { creatures, noncreatures, lands },
+      sideboard_count: sideboardCards ?? null,
+      illegal_cards: illegalCards.length > 0 ? illegalCards : undefined,
+      curve,
+      mana,
+      unresolved_cards: unresolvedCards.length > 0 ? unresolvedCards : undefined,
+      formatted_report: lines.join("\n") + "\n",
+    },
     presentation:
-      "Constructed deck report — structured layout: legality issues as a warning banner at top (if any), composition summary as a stat block, mana curve as a compact bar chart, color pip requirements as colored indicators. Keep it scannable — this is a health dashboard, not a data dump.",
+      "Constructed deck report — structured layout: legality issues as a warning banner at top (if any), composition summary as a stat block, mana curve as a compact bar chart, mana base as a color-coded table (sources needed vs actual, surplus/deficit). Show swap suggestions prominently if any exist.",
   };
 }
 
@@ -1088,7 +1389,7 @@ export const deckbuildingModule: NativeReferenceModule = {
     "",
     "REQUIRES: A deck list (card names + counts). For Constructed mode, also pass format (e.g., 'standard') and optionally sideboard.",
     "",
-    "FOR MANA SOURCE MATH (Karsten colored source requirements), use mana_base instead.",
+    "Includes mana base analysis (Frank Karsten methodology): colored source requirements, actual sources from lands, surplus/deficit per color, and land swap suggestions when deficits exist.",
     "",
     "Data source: 17Lands (17lands.com) for draft modes, Scryfall card data for constructed mode.",
   ].join("\n"),
@@ -1211,6 +1512,8 @@ export const deckbuildingModule: NativeReferenceModule = {
 
     // Health check mode
     const result = await healthCheck(db, deck, meta, setCode);
+    const totalCards = deck.reduce((sum, e) => sum + e.count, 0);
+    const mana = analyzeManaBase(deck, meta, totalCards);
     return {
       type: "structured",
       data: {
@@ -1219,10 +1522,11 @@ export const deckbuildingModule: NativeReferenceModule = {
         archetype: result.archetype,
         alternatives: result.alternatives,
         sections: result.sections,
+        mana,
         unresolved_cards: result.unresolved,
       },
       presentation:
-        "Deck health check — dashboard layout: mana curve as a bar chart comparing deck vs archetype average, creature/spell/land composition as a pie chart, role gaps highlighted in red. Show each section (curve, roles, synergy) as a card with a status indicator (healthy/warning/critical). Suggest alternatives for weak slots.",
+        "Deck health check — dashboard layout: mana curve as a bar chart comparing deck vs archetype average, creature/spell/land composition as a pie chart, mana base as a color-coded table (sources needed vs actual, surplus/deficit). Show each section as a card with a status indicator (healthy/warning/critical). If mana swap suggestions exist, present them prominently.",
     };
   },
 };
