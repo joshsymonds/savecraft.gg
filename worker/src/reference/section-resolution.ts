@@ -59,17 +59,17 @@ async function resolveOneSection(
   const sectionData = JSON.parse(row.data) as unknown;
   const extracted = mapping.extract(sectionData);
 
-  // Check for conflicts: extracted keys must not already be in the query
-  for (const key of Object.keys(extracted)) {
-    if (query[key] !== undefined && query[key] !== null) {
-      throw new Error(
-        `Parameter "${key}" conflicts with section reference "${mapping.sectionParam}". ` +
-          `Provide either inline data or a section reference, not both.`,
-      );
+  // Explicit query params take precedence over section-extracted values.
+  // This lets callers pass mode/format alongside a section reference —
+  // the section provides primary data (deck, pool), query provides intent.
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(extracted)) {
+    if (query[key] === undefined || query[key] === null) {
+      result[key] = value;
     }
   }
 
-  return extracted;
+  return result;
 }
 
 /**
