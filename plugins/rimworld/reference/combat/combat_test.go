@@ -114,16 +114,16 @@ func TestMeleeDPS(t *testing.T) {
 	}
 
 	dps := MeleeTrueDPS(tools)
-	// handle: weight = 9/2.0 = 4.5, dps = 4.5
-	// point: weight = 23/2.6 = 8.846, dps = 8.846
-	// edge: weight = 23/2.6 = 8.846, dps = 8.846
-	// totalWeight = 4.5 + 8.846 + 8.846 = 22.192
-	// trueDPS = (4.5*4.5 + 8.846*8.846 + 8.846*8.846) / 22.192
-	// = (20.25 + 78.25 + 78.25) / 22.192 = 176.75 / 22.192 ≈ 7.965
-	approx(t, "longsword true DPS", dps, 7.965)
+	// v1.6 formula: weight = damage², trueDPS = sum(damage³) / sum(damage² × cooldown)
+	// handle: weight = 81, damage³ = 729, weight×cd = 162
+	// point:  weight = 529, damage³ = 12167, weight×cd = 1375.4
+	// edge:   weight = 529, damage³ = 12167, weight×cd = 1375.4
+	// trueDPS = (729 + 12167 + 12167) / (162 + 1375.4 + 1375.4)
+	//         = 25063 / 2912.8 ≈ 8.604
+	approx(t, "longsword true DPS", dps, 8.604)
 
 	// DPS should be higher than simple average because heavier attacks are selected more often
-	simpleAvg := (9.0/2.0 + 23.0/2.6 + 27.0/2.6) / 3.0
+	simpleAvg := (9.0/2.0 + 23.0/2.6 + 23.0/2.6) / 3.0
 	if dps <= simpleAvg {
 		t.Errorf("true DPS (%.2f) should exceed simple average (%.2f)", dps, simpleAvg)
 	}
