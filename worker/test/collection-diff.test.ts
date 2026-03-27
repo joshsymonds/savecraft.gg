@@ -15,14 +15,14 @@ describe("collection_diff native module", () => {
   async function seedCards(): Promise<void> {
     await env.DB.batch([
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, rarity, set_code) VALUES (?, ?, ?, ?, ?)`,
-      ).bind(87_521, "abc", "Sheoldred, the Apocalypse", "mythic", "DMU"),
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(87_521, "abc", "Sheoldred, the Apocalypse", "Sheoldred, the Apocalypse", "mythic", "DMU"),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, rarity, set_code) VALUES (?, ?, ?, ?, ?)`,
-      ).bind(1, "def", "Lightning Bolt", "common", "STA"),
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(1, "def", "Lightning Bolt", "Lightning Bolt", "common", "STA"),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, rarity, set_code) VALUES (?, ?, ?, ?, ?)`,
-      ).bind(2, "ghi", "Thoughtseize", "rare", "AKR"),
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(2, "ghi", "Thoughtseize", "Thoughtseize", "rare", "AKR"),
     ]);
   }
 
