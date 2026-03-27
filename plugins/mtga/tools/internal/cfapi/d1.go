@@ -157,11 +157,16 @@ func importD1SQLOnce(accountID, databaseID, apiToken, sql string) error {
 
 	var ingestResult struct {
 		Result struct {
+			Success    bool   `json:"success"`
+			Error      string `json:"error"`
 			AtBookmark string `json:"at_bookmark"`
 		} `json:"result"`
 	}
 	if err := json.Unmarshal(ingestRespBody, &ingestResult); err != nil {
 		return fmt.Errorf("ingest: decode: %w", err)
+	}
+	if !ingestResult.Result.Success {
+		return fmt.Errorf("ingest: %s", ingestResult.Result.Error)
 	}
 
 	// Step 4: Poll until complete.
