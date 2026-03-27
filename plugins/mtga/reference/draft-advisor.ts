@@ -53,7 +53,7 @@ import {
 // Based on Saxe's λ_t research and PVDDR's value-above-replacement principle.
 
 /** baselineNorm above this threshold triggers bomb dampening. */
-const BOMB_BASELINE_THRESHOLD = 0.80;
+const BOMB_BASELINE_THRESHOLD = 0.8;
 /** Dampening reaches zero at this fraction of totalPicks. */
 const BOMB_EARLY_DRAFT_FRACTION = 0.6;
 /** Controls how aggressively dampening scales with bomb excess. */
@@ -201,12 +201,19 @@ async function preloadSetData(
         `SELECT archetype, total_decks, splash_rate, splash_winrate, nonsplash_winrate FROM mtga_draft_deck_stats WHERE set_code = ?1`,
       )
       .bind(setCode)
-      .all<{ archetype: string; total_decks: number; splash_rate: number; splash_winrate: number; nonsplash_winrate: number }>(),
+      .all<{
+        archetype: string;
+        total_decks: number;
+        splash_rate: number;
+        splash_winrate: number;
+        nonsplash_winrate: number;
+      }>(),
     ...metaChunks,
   ]);
 
   // Build sigmoid params from D1 calibration table (no hardcoded defaults).
-  const sigmoidParams: Record<string, { center: number; steepness: number }> = {};
+  const sigmoidParams: Record<string, { center: number; steepness: number }> =
+    {};
   for (const cal of calibrationResult.results) {
     sigmoidParams[cal.axis] = { center: cal.center, steepness: cal.steepness };
   }
@@ -246,7 +253,10 @@ async function preloadSetData(
     const wr =
       row.splash_rate * row.splash_winrate +
       (1 - row.splash_rate) * row.nonsplash_winrate;
-    deckStatsByPair.set(row.archetype, { total_decks: row.total_decks, winrate: wr });
+    deckStatsByPair.set(row.archetype, {
+      total_decks: row.total_decks,
+      winrate: wr,
+    });
   }
 
   const setMeta = setMetaResult.results[0];
@@ -549,13 +559,15 @@ async function contextualPick(
   const DEFAULT_ARCHETYPE_PRIOR = 750;
   const DEFAULT_SYNERGY_PRIOR = 75;
   const archetypePrior = preloaded
-    ? (preloaded.sigmoidParams["archetype_prior"]?.center ?? DEFAULT_ARCHETYPE_PRIOR)
-    : (calibrationResult.results.find((c) => c.axis === "archetype_prior")?.center ??
-        DEFAULT_ARCHETYPE_PRIOR);
+    ? (preloaded.sigmoidParams["archetype_prior"]?.center ??
+      DEFAULT_ARCHETYPE_PRIOR)
+    : (calibrationResult.results.find((c) => c.axis === "archetype_prior")
+        ?.center ?? DEFAULT_ARCHETYPE_PRIOR);
   const synergyPrior = preloaded
-    ? (preloaded.sigmoidParams["synergy_prior"]?.center ?? DEFAULT_SYNERGY_PRIOR)
-    : (calibrationResult.results.find((c) => c.axis === "synergy_prior")?.center ??
-        DEFAULT_SYNERGY_PRIOR);
+    ? (preloaded.sigmoidParams["synergy_prior"]?.center ??
+      DEFAULT_SYNERGY_PRIOR)
+    : (calibrationResult.results.find((c) => c.axis === "synergy_prior")
+        ?.center ?? DEFAULT_SYNERGY_PRIOR);
 
   // Build deck stats for archetype viability filtering and format-adjusted weighting.
   const deckCountByPair = new Map<string, number>();
@@ -606,9 +618,7 @@ async function contextualPick(
     // Bayesian shrinkage: sparse synergy pairs shrink toward zero delta.
     const n = row.games_together;
     const effectiveDelta =
-      n + synergyPrior > 0
-        ? (n * row.synergy_delta) / (n + synergyPrior)
-        : 0;
+      n + synergyPrior > 0 ? (n * row.synergy_delta) / (n + synergyPrior) : 0;
     list.push({ card: row.card_b, delta: effectiveDelta });
   }
 
@@ -768,7 +778,11 @@ async function contextualPick(
         }
       }
 
-      const cardOpenness = computeSignalFromHistory(pickHistory, ataByCard, packSize);
+      const cardOpenness = computeSignalFromHistory(
+        pickHistory,
+        ataByCard,
+        packSize,
+      );
       archetypeOpenness = aggregateArchetypeOpenness(cardOpenness, metaByName);
     }
   }
@@ -900,7 +914,11 @@ async function contextualPick(
       let worstCastability = 1.0;
       for (const [color, pips] of cardPips) {
         const currentSrc = estimatedSources.get(color) ?? 0;
-        const potentialSrc = estimatePotentialSources(remainingPicks, pips, asfan);
+        const potentialSrc = estimatePotentialSources(
+          remainingPicks,
+          pips,
+          asfan,
+        );
         const effectiveSrc = Math.max(currentSrc, potentialSrc);
         const prob = castabilityLookup(effectiveSrc, pips, castTurn);
         if (prob < worstCastability) {
@@ -908,11 +926,12 @@ async function contextualPick(
           worstCurrentSources = currentSrc;
           worstPotentialSources = potentialSrc;
           worstEffectiveSources = effectiveSrc;
-          worstSourceModel = currentSrc >= potentialSrc
-            ? "current"
-            : pips <= 1
-              ? "splash"
-              : "pivot";
+          worstSourceModel =
+            currentSrc >= potentialSrc
+              ? "current"
+              : pips <= 1
+                ? "splash"
+                : "pivot";
         }
       }
       castabilityScore = worstCastability;
@@ -921,7 +940,9 @@ async function contextualPick(
     // Color commitment: how well this card fits the current draft direction.
     let colorFit = 1.0; // Colorless cards always fit
     if (packCardPips.size > 0) {
-      colorFit = Math.max(...[...packCardPips.keys()].map((c) => colorCommitments.get(c) ?? 0));
+      colorFit = Math.max(
+        ...[...packCardPips.keys()].map((c) => colorCommitments.get(c) ?? 0),
+      );
     }
 
     // Opportunity cost: what pool value do we strand by taking this card?
@@ -942,7 +963,8 @@ async function contextualPick(
       const overlappingPairs = candidates.filter(
         (c) =>
           c.archetype !== "_overall" &&
-          (cardColorSet.has(c.archetype[0]!) || cardColorSet.has(c.archetype[1]!)),
+          (cardColorSet.has(c.archetype[0]!) ||
+            cardColorSet.has(c.archetype[1]!)),
       );
       // Also consider the primary pair as fallback.
       const pairsToTry =
@@ -954,7 +976,10 @@ async function contextualPick(
       let found = false;
 
       for (const candidate of pairsToTry) {
-        const pairColors = new Set([candidate.archetype[0]!, candidate.archetype[1]!]);
+        const pairColors = new Set([
+          candidate.archetype[0]!,
+          candidate.archetype[1]!,
+        ]);
         let strandedValue = 0;
 
         for (let idx = 0; idx < poolMeta.length; idx++) {
@@ -967,7 +992,9 @@ async function contextualPick(
           if (poolCardColors.size === 0) continue;
 
           // Card is stranded if none of its colors are in the implied pair.
-          const onColor = [...poolCardColors.keys()].some((c) => pairColors.has(c));
+          const onColor = [...poolCardColors.keys()].some((c) =>
+            pairColors.has(c),
+          );
           if (!onColor) {
             strandedValue += poolBaseline * ((idx + 1) / pickNumber);
           }
@@ -980,7 +1007,10 @@ async function contextualPick(
       }
 
       if (found && totalPoolValue > 0) {
-        opportunityScore = Math.max(0, Math.min(1, 1 - bestStrandedValue / totalPoolValue));
+        opportunityScore = Math.max(
+          0,
+          Math.min(1, 1 - bestStrandedValue / totalPoolValue),
+        );
       }
     }
 
@@ -1000,7 +1030,11 @@ async function contextualPick(
     const signalNorm = sigmoid(signalScore, sigsp.center, sigsp.steepness);
     const roleNorm = sigmoid(roleScore, rsp.center, rsp.steepness);
     const colorCommitmentNorm = sigmoid(colorFit, ccsp.center, ccsp.steepness);
-    const opportunityCostNorm = sigmoid(opportunityScore, ocsp.center, ocsp.steepness);
+    const opportunityCostNorm = sigmoid(
+      opportunityScore,
+      ocsp.center,
+      ocsp.steepness,
+    );
     // Power-aware castability dampening for elite cards early in draft.
     const bombExcess = Math.max(0, baselineNorm - BOMB_BASELINE_THRESHOLD);
     const earlyFactor = Math.max(
@@ -1361,11 +1395,7 @@ async function batchReview(
     );
   }
   // Flag if archetype changed between commitment point and final
-  if (
-    settledArchetype &&
-    finalSnap &&
-    finalSnap.primary !== settledArchetype
-  ) {
+  if (settledArchetype && finalSnap && finalSnap.primary !== settledArchetype) {
     archetypeWarnings.push(
       `Archetype shifted from ${settledArchetype} (pick ${DRIFT_START_PICK}) to ${finalSnap.primary} (final) — late commitment changes cost card quality`,
     );
@@ -1426,7 +1456,11 @@ export const draftAdvisorModule: NativeReferenceModule = {
     "Data source: 17Lands (17lands.com), licensed CC BY 4.0.",
   ].join("\n"),
   parameters: {
-    set: { type: "string", description: "Set code — auto-detected from card names when omitted. Only pass to override auto-detection." },
+    set: {
+      type: "string",
+      description:
+        "Set code — auto-detected from card names when omitted. Only pass to override auto-detection.",
+    },
     pool: {
       type: "array",
       items: { type: "string" },
@@ -1462,8 +1496,7 @@ export const draftAdvisorModule: NativeReferenceModule = {
     },
     save_id: {
       type: "string",
-      description:
-        "Save UUID. Required when using draft_section.",
+      description: "Save UUID. Required when using draft_section.",
     },
   },
 
@@ -1471,14 +1504,22 @@ export const draftAdvisorModule: NativeReferenceModule = {
     {
       sectionParam: "draft_section",
       extract: (sectionData: unknown) => {
+        // Section shape: {drafts: [{eventName, draftType, picks: [...]}]}
+        // Use the last (most recent) draft.
         const data = sectionData as Record<string, unknown>;
-        const picks = Array.isArray(data.picks) ? data.picks as Array<{
-          packNumber: number;
-          pickNumber: number;
-          in_deck: Array<{ name: string }>;
-          available: Array<{ name: string }>;
-          picked: string;
-        }> : [];
+        const drafts = Array.isArray(data.drafts)
+          ? (data.drafts as Array<{ picks?: unknown[] }>)
+          : [];
+        const lastDraft = drafts[drafts.length - 1];
+        const picks = Array.isArray(lastDraft?.picks)
+          ? (lastDraft.picks as Array<{
+              packNumber: number;
+              pickNumber: number;
+              in_deck: Array<{ name: string }>;
+              available: Array<{ name: string }>;
+              picked: string;
+            }>)
+          : [];
         if (picks.length === 0) return {};
 
         const lastPick = picks[picks.length - 1]!;

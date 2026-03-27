@@ -263,29 +263,36 @@ describe("draft_advisor section mapping auto-detect", () => {
     );
     expect(mapping).toBeDefined();
 
-    // Simulate draft_history section: 2 completed picks + 1 live (no picked)
+    // Simulate draft_history section: {drafts: [{picks: [...]}]}
+    // Real section shape wraps picks inside a drafts array.
     const draftData = {
-      picks: [
+      drafts: [
         {
-          packNumber: 0,
-          pickNumber: 0,
-          in_deck: [],
-          available: [{ name: "Card A" }, { name: "Card B" }, { name: "Card C" }],
-          picked: "Card A",
-        },
-        {
-          packNumber: 0,
-          pickNumber: 1,
-          in_deck: [{ name: "Card A" }],
-          available: [{ name: "Card D" }, { name: "Card E" }],
-          picked: "Card D",
-        },
-        {
-          packNumber: 0,
-          pickNumber: 2,
-          in_deck: [{ name: "Card A" }, { name: "Card D" }],
-          available: [{ name: "Card F" }, { name: "Card G" }, { name: "Card H" }],
-          picked: "", // live — not yet chosen
+          eventName: "QuickDraft_TEST",
+          draftType: "quick",
+          picks: [
+            {
+              packNumber: 0,
+              pickNumber: 0,
+              in_deck: [],
+              available: [{ name: "Card A" }, { name: "Card B" }, { name: "Card C" }],
+              picked: "Card A",
+            },
+            {
+              packNumber: 0,
+              pickNumber: 1,
+              in_deck: [{ name: "Card A" }],
+              available: [{ name: "Card D" }, { name: "Card E" }],
+              picked: "Card D",
+            },
+            {
+              packNumber: 0,
+              pickNumber: 2,
+              in_deck: [{ name: "Card A" }, { name: "Card D" }],
+              available: [{ name: "Card F" }, { name: "Card G" }, { name: "Card H" }],
+              picked: "", // live — not yet chosen
+            },
+          ],
         },
       ],
     };
@@ -306,20 +313,26 @@ describe("draft_advisor section mapping auto-detect", () => {
     );
 
     const draftData = {
-      picks: [
+      drafts: [
         {
-          packNumber: 0,
-          pickNumber: 0,
-          in_deck: [],
-          available: [{ name: "Card A" }, { name: "Card B" }],
-          picked: "Card A",
-        },
-        {
-          packNumber: 0,
-          pickNumber: 1,
-          in_deck: [{ name: "Card A" }],
-          available: [{ name: "Card C" }, { name: "Card D" }],
-          picked: "Card C",
+          eventName: "QuickDraft_TEST",
+          draftType: "quick",
+          picks: [
+            {
+              packNumber: 0,
+              pickNumber: 0,
+              in_deck: [],
+              available: [{ name: "Card A" }, { name: "Card B" }],
+              picked: "Card A",
+            },
+            {
+              packNumber: 0,
+              pickNumber: 1,
+              in_deck: [{ name: "Card A" }],
+              available: [{ name: "Card C" }, { name: "Card D" }],
+              picked: "Card C",
+            },
+          ],
         },
       ],
     };
