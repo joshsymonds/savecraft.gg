@@ -41,6 +41,17 @@ Spoiler-free by default: Ground your responses in what the save data contains �
 
 When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`;
 
+const PRESENTATION_INSTRUCTIONS = `When tool results include a [Presentation: ...] block, use it to choose the best visual format for the data. Prefer rich visuals over plain text for dense or numerical data:
+
+- Comparisons and rankings → table with visual indicators (bars, color coding, highlights)
+- Trends over time → line or area chart
+- Proportions and breakdowns → bar chart or stacked bar
+- Multi-axis evaluation → radar/spider chart
+- Win rates and matchups → heatmap or matrix
+- Distributions → histogram or box plot
+
+Use markdown tables as a universal baseline. When the platform supports it, generate interactive visualizations (charts, graphs, diagrams) for quantitative data — these help players understand patterns that raw numbers obscure. When no [Presentation: ...] hint is provided, use your judgment: tables for lists, charts for trends, visual comparisons for ranked data.`;
+
 interface JsonRpcRequest {
   jsonrpc: string;
   id?: number | string;
@@ -564,7 +575,7 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
           protocolVersion: PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "savecraft", version: env.VERSION ?? "dev" },
-          instructions: SERVER_INSTRUCTIONS,
+          instructions: SERVER_INSTRUCTIONS + "\n\n" + PRESENTATION_INSTRUCTIONS,
         }),
       );
     }

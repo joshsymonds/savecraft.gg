@@ -165,6 +165,71 @@ describe("queryReference native routing", () => {
     expect(result.content[0]!.text).toMatch(/reference module/i);
   });
 
+  it("passes through presentation hint from structured result", async () => {
+    const nativeModule: NativeReferenceModule = {
+      id: "viz_structured",
+      name: "Viz Structured",
+      description: "Returns structured data with presentation",
+      execute: () =>
+        Promise.resolve({
+          type: "structured",
+          data: { win_rate: 0.58, matches: 42 },
+          presentation: "Bar chart comparing win rates across formats.",
+        }),
+    };
+    registerNativeModule("testgame", nativeModule);
+
+    const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "viz_structured", {}, env);
+
+    expect(result.isError).toBeFalsy();
+    const text = result.content[0]!.text;
+    expect(text).toContain('"win_rate":0.58');
+    expect(text).toContain("[Presentation: Bar chart comparing win rates across formats.]");
+  });
+
+  it("passes through presentation hint from formatted result", async () => {
+    const nativeModule: NativeReferenceModule = {
+      id: "viz_formatted",
+      name: "Viz Formatted",
+      description: "Returns formatted content with presentation",
+      execute: () =>
+        Promise.resolve({
+          type: "formatted",
+          content: "Rule 702.1: Flying",
+          presentation: "Display rules in a structured reference format.",
+        }),
+    };
+    registerNativeModule("testgame", nativeModule);
+
+    const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "viz_formatted", {}, env);
+
+    expect(result.isError).toBeFalsy();
+    const text = result.content[0]!.text;
+    expect(text).toContain("Rule 702.1: Flying");
+    expect(text).toContain("[Presentation: Display rules in a structured reference format.]");
+  });
+
+  it("omits presentation block when hint is undefined", async () => {
+    const nativeModule: NativeReferenceModule = {
+      id: "no_viz",
+      name: "No Viz",
+      description: "Returns data without presentation",
+      execute: () =>
+        Promise.resolve({
+          type: "structured",
+          data: { cards: ["Bolt"] },
+        }),
+    };
+    registerNativeModule("testgame", nativeModule);
+
+    const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "no_viz", {}, env);
+
+    expect(result.isError).toBeFalsy();
+    const text = result.content[0]!.text;
+    expect(text).not.toContain("[Presentation:");
+    expect(JSON.parse(text)).toEqual({ cards: ["Bolt"] });
+  });
+
   it("falls through when game has native modules but not the requested one", async () => {
     const nativeModule: NativeReferenceModule = {
       id: "module_a",
