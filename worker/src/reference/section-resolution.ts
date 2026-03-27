@@ -16,11 +16,19 @@ import type { NativeReferenceModule } from "./types";
  * Throws on: missing save_id, authorization failure, section not found,
  * or conflicting inline data.
  */
+/**
+ * Optional cache of save_ids already verified for the current user.
+ * Avoids redundant ownership checks when a batch of queries references
+ * the same save_id.
+ */
+export type VerifiedSaveCache = Set<string>;
+
 export async function resolveSectionParams(
   db: D1Database,
   userUuid: string,
   module: NativeReferenceModule,
   query: Record<string, unknown>,
+  verifiedSaves?: VerifiedSaveCache,
 ): Promise<Record<string, unknown>> {
   const mappings = module.sectionMappings;
   if (!mappings || mappings.length === 0) return query;
@@ -37,14 +45,17 @@ export async function resolveSectionParams(
     );
   }
 
-  // Verify user owns this save
-  const save = await db
-    .prepare("SELECT uuid FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NULL")
-    .bind(saveId, userUuid)
-    .first<{ uuid: string }>();
+  // Verify user owns this save (skip if already verified in this batch)
+  if (!verifiedSaves?.has(saveId)) {
+    const save = await db
+      .prepare("SELECT uuid FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NULL")
+      .bind(saveId, userUuid)
+      .first<{ uuid: string }>();
 
-  if (!save) {
-    throw new Error("Save not found. Check that the save_id is correct and belongs to you.");
+    if (!save) {
+      throw new Error("Save not found. Check that the save_id is correct and belongs to you.");
+    }
+    verifiedSaves?.add(saveId);
   }
 
   // Resolve each active section param

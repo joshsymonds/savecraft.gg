@@ -1187,22 +1187,8 @@ async function cutAdvisor(
 
 // ── Constructed health check ─────────────────────────────────
 
-function padRightFmt(s: string, len: number): string {
-  return s.length >= len ? s : s + " ".repeat(len - s.length);
-}
-
-function padLeftFmt(s: string, len: number): string {
-  return s.length >= len ? s : " ".repeat(len - s.length) + s;
-}
-
-interface LegalityRow {
-  name: string;
+interface LegalityRow extends CardMetaRow {
   legalities: string;
-  type_line: string;
-  cmc: number;
-  mana_cost: string;
-  colors: string;
-  produced_mana: string;
 }
 
 async function constructedHealthCheck(
@@ -1212,18 +1198,20 @@ async function constructedHealthCheck(
   format: string | undefined,
 ): Promise<ReferenceResult> {
   const allNames = [...new Set(deck.map((e) => e.name))];
-  const ph = placeholders(allNames.length, 1);
-  const rows = await db
-    .prepare(
-      `SELECT front_face_name AS name, legalities, type_line, cmc, mana_cost, colors, produced_mana
-       FROM mtga_cards WHERE front_face_name COLLATE NOCASE IN (${ph}) AND is_default = 1`,
-    )
-    .bind(...allNames)
-    .all<LegalityRow>();
-
   const cardData = new Map<string, LegalityRow>();
-  for (const row of rows.results) {
-    cardData.set(row.name.toLowerCase(), row);
+  for (let i = 0; i < allNames.length; i += META_BATCH_SIZE) {
+    const chunk = allNames.slice(i, i + META_BATCH_SIZE);
+    const ph = placeholders(chunk.length, 1);
+    const rows = await db
+      .prepare(
+        `SELECT front_face_name AS name, legalities, type_line, cmc, mana_cost, colors, produced_mana
+         FROM mtga_cards WHERE front_face_name COLLATE NOCASE IN (${ph}) AND is_default = 1`,
+      )
+      .bind(...chunk)
+      .all<LegalityRow>();
+    for (const row of rows.results) {
+      cardData.set(row.name.toLowerCase(), row);
+    }
   }
 
   const totalCards = deck.reduce((sum, e) => sum + e.count, 0);
@@ -1313,33 +1301,20 @@ async function constructedHealthCheck(
   if (maxCmc > 0) {
     lines.push("  Curve (non-land spells):");
     lines.push(
-      `    ${padRightFmt("CMC", 6)} ${padLeftFmt("Count", 6)}  Bar`,
+      `    ${"CMC".padEnd(6)} ${"Count".padStart(6)}  Bar`,
     );
     for (let cmc = 0; cmc <= Math.min(maxCmc, 7); cmc++) {
       const count = cmcCounts.get(cmc) ?? 0;
       const label = cmc === 7 ? "7+" : String(cmc);
       const bar = "\u2588".repeat(Math.min(count, 30));
       lines.push(
-        `    ${padRightFmt(label, 6)} ${padLeftFmt(String(count), 6)}  ${bar}`,
+        `    ${label.padEnd(6)} ${String(count).padStart(6)}  ${bar}`,
       );
     }
     lines.push("");
   }
 
-  // Build a CardMetaRow-compatible map for mana analysis
-  const metaForMana = new Map<string, CardMetaRow>();
-  for (const [key, row] of cardData) {
-    metaForMana.set(key, {
-      name: row.name,
-      cmc: row.cmc,
-      mana_cost: row.mana_cost,
-      colors: row.colors,
-      type_line: row.type_line,
-      produced_mana: row.produced_mana,
-    });
-  }
-
-  const mana = analyzeManaBase(deck, metaForMana, totalCards);
+  const mana = analyzeManaBase(deck, cardData, totalCards);
 
   if (unresolvedCards.length > 0) {
     lines.push(`  Unresolved cards (not in database): ${unresolvedCards.join(", ")}`);
@@ -1442,11 +1417,11 @@ export const deckbuildingModule: NativeReferenceModule = {
     {
       sectionParam: "deck_section",
       extract: (sectionData: unknown) => {
-        const data = sectionData as { cards?: { name: string; count: number }[]; sideboard?: { name: string; count: number }[]; format?: string };
+        const data = sectionData as Record<string, unknown>;
         const result: Record<string, unknown> = {};
-        if (data.cards) result.deck = data.cards;
-        if (data.sideboard && data.sideboard.length > 0) result.sideboard = data.sideboard;
-        if (data.format) result.format = data.format.toLowerCase();
+        if (Array.isArray(data.cards)) result.deck = data.cards;
+        if (Array.isArray(data.sideboard) && data.sideboard.length > 0) result.sideboard = data.sideboard;
+        if (typeof data.format === "string") result.format = data.format.toLowerCase();
         return result;
       },
     },

@@ -9,7 +9,7 @@
 import type { Env } from "../types";
 
 import { getNativeModule } from "../reference/registry";
-import { resolveSectionParams } from "../reference/section-resolution";
+import { resolveSectionParams, type VerifiedSaveCache } from "../reference/section-resolution";
 import {
   createNote,
   deleteNote,
@@ -531,6 +531,10 @@ async function handleQueryReference(
   // WASM modules don't support section references (no sectionMappings).
   const nativeModule = getNativeModule(gameId, moduleId);
 
+  // Cache verified save ownership across queries in this batch to avoid
+  // redundant D1 lookups when multiple queries reference the same save_id.
+  const verifiedSaves: VerifiedSaveCache = new Set();
+
   const responses = await Promise.allSettled(
     queries.map(async (q) => {
       let enrichedQuery = { ...(q as Record<string, unknown>), user_id: userUuid };
@@ -542,6 +546,7 @@ async function handleQueryReference(
           userUuid,
           nativeModule,
           enrichedQuery,
+          verifiedSaves,
         );
       }
 
