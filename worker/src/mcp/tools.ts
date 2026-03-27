@@ -324,7 +324,10 @@ export async function listGames(
       `No games matching "${filter}". Try without a filter to see all available games.`,
     );
   }
-  return textResult({ games });
+  return textResult(
+    { games },
+    "Game library — display as character cards or tiles grouped by game, each showing character name, summary line, and last updated. If one game with multiple characters, show as a roster. Keep it scannable and inviting.",
+  );
 }
 
 const OVERVIEW_SECTION_NAMES = ["character_overview", "player_summary", "overview", "summary"];
@@ -419,7 +422,10 @@ export async function getSave(
     }
   }
 
-  return textResult(result);
+  return textResult(
+    result,
+    "Character overview — show the save name and summary prominently as a header. List available sections as a clean directory the player can explore. Show notes as compact cards. This is navigation — keep it scannable, not visualized.",
+  );
 }
 
 export async function getSection(
@@ -464,11 +470,16 @@ export async function getSection(
         `Section '${row.name}' is too large (${sizeKb}KB, limit is ${limitKb}KB). This section contains too much data for a single response.`,
       );
     }
-    return textResult({
-      save_id: saveId,
-      section: row.name,
-      data: JSON.parse(row.data) as Record<string, unknown>,
-    });
+    const sectionPresentation =
+      "Game state data — study the data shape (fields, nesting, quantities, relationships) and choose the most visually compelling presentation. Equipment and inventories become rich comparison tables. Skill trees become tiered visual hierarchies. Stats become radar charts or stat blocks with bar indicators. Match histories become timelines. Quest logs become progress checklists. Draft pools become card grids. The player should feel like they're looking at a polished game UI, not raw data.";
+    return textResult(
+      {
+        save_id: saveId,
+        section: row.name,
+        data: JSON.parse(row.data) as Record<string, unknown>,
+      },
+      sectionPresentation,
+    );
   }
 
   // Multiple sections
@@ -489,7 +500,10 @@ export async function getSection(
   const response: Record<string, unknown> = { save_id: saveId, sections: result };
   if (missing.length > 0) response.missing = missing;
   if (oversized.length > 0) response.oversized = oversized;
-  return textResult(response);
+  return textResult(
+    response,
+    "Game state data — study the data shape (fields, nesting, quantities, relationships) and choose the most visually compelling presentation for each section. Equipment becomes comparison tables, skills become tiered hierarchies, stats become radar charts, match histories become timelines. The player should feel like they're looking at a polished game UI, not raw data.",
+  );
 }
 
 /** If any requested section starts with "deck:", suggest close matches. */
@@ -970,17 +984,20 @@ export async function searchSaves(
     .bind(query, ...params)
     .all<SearchRow & { snippet: string }>();
 
-  return textResult({
-    query,
-    results: rows.results.map((row) => ({
-      type: row.type,
-      save_id: row.save_id,
-      save_name: row.save_name,
-      ref_id: row.ref_id,
-      ref_title: row.ref_title,
-      snippet: row.snippet,
-    })),
-  });
+  return textResult(
+    {
+      query,
+      results: rows.results.map((row) => ({
+        type: row.type,
+        save_id: row.save_id,
+        save_name: row.save_name,
+        ref_id: row.ref_id,
+        ref_title: row.ref_title,
+        snippet: row.snippet,
+      })),
+    },
+    "Search results — display as a results list with clear visual distinction between save data results (actual game state) and note results (player-written context). Show save name, section/note title, and matching snippet. Highlight search terms in the snippets.",
+  );
 }
 
 // ── Reference Data ───────────────────────────────────────────
