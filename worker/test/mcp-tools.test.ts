@@ -108,7 +108,9 @@ async function seedSave(options: {
 function parseResult(result: ToolResult): unknown {
   const first = result.content[0];
   if (first?.type !== "text") throw new Error("Expected text content");
-  return JSON.parse(first.text);
+  // Strip [Presentation: ...] block appended by textResult() before parsing JSON.
+  const jsonText = first.text.replace(/\n\n\[Presentation: [^\]]*\]$/, "");
+  return JSON.parse(jsonText);
 }
 
 // ── MCP Tools ─────────────────────────────────────────────────

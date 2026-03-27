@@ -48,6 +48,11 @@ async function parseJsonResponse(resp: Response): Promise<unknown> {
   throw new Error(`Unexpected content type: ${contentType}`);
 }
 
+/** Strip [Presentation: ...] block appended by textResult() before parsing JSON. */
+function parseToolText(text: string): unknown {
+  return JSON.parse(text.replace(/\n\n\[Presentation: [^\]]*\]$/, ""));
+}
+
 describe("MCP Protocol", () => {
   beforeEach(async () => {
     await cleanAll();
@@ -193,7 +198,7 @@ describe("MCP Protocol", () => {
     const body = (await parseJsonResponse(resp)) as {
       result: { content: { type: string; text: string }[] };
     };
-    const data = JSON.parse(body.result.content[0]!.text) as {
+    const data = parseToolText(body.result.content[0]!.text) as {
       games: {
         game_id: string;
         game_name: string;
@@ -235,7 +240,7 @@ describe("MCP Protocol", () => {
     };
     expect(body.result.isError).toBeUndefined();
 
-    const data = JSON.parse(body.result.content[0]!.text) as {
+    const data = parseToolText(body.result.content[0]!.text) as {
       data: { helmet: { name: string } };
     };
     expect(data.data.helmet.name).toBe("Harlequin Crest");
@@ -298,7 +303,7 @@ describe("MCP Protocol", () => {
     };
     expect(body.result.isError).toBeUndefined();
 
-    const data = JSON.parse(body.result.content[0]!.text) as {
+    const data = parseToolText(body.result.content[0]!.text) as {
       games: {
         game_id: string;
         references?: { id: string; name: string }[];
@@ -346,7 +351,7 @@ describe("MCP Protocol", () => {
     const body = (await parseJsonResponse(resp)) as {
       result: { content: { type: string; text: string }[] };
     };
-    const data = JSON.parse(body.result.content[0]!.text) as {
+    const data = parseToolText(body.result.content[0]!.text) as {
       games: { game_id: string }[];
     };
     expect(data.games).toHaveLength(1);
@@ -375,7 +380,7 @@ describe("MCP Protocol", () => {
     };
     // Batch always succeeds at the top level — errors are per-query
     expect(body.result.isError).toBeFalsy();
-    const data = JSON.parse(body.result.content[0]!.text) as {
+    const data = parseToolText(body.result.content[0]!.text) as {
       results: { error?: string }[];
     };
     expect(data.results).toHaveLength(1);
@@ -467,7 +472,7 @@ describe("MCP Protocol", () => {
     };
     // Batch succeeds at top level
     expect(body.result.isError).toBeFalsy();
-    const data = JSON.parse(body.result.content[0]!.text) as {
+    const data = parseToolText(body.result.content[0]!.text) as {
       results: ({ echo?: { greeting: string } } | { error?: string })[];
     };
     expect(data.results).toHaveLength(2);
