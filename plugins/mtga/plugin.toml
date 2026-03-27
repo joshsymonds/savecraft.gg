@@ -52,16 +52,6 @@ description = "Calculate the wildcard cost to complete a target decklist given a
 [reference.modules.collection_diff.attribution]
 author = "Josh Symonds"
 
-[reference.modules.draft_ratings]
-name = "Draft Ratings"
-description = "Per-card draft performance statistics from millions of real games across all available sets. Provides GIH WR, OHWR, IWD, ALSA, ATA with game counts, overall and by archetype (mono through five-color)."
-
-[reference.modules.draft_ratings.attribution]
-author = "Josh Symonds"
-data_sources = [
-  { name = "17Lands Public Datasets", origin = "17lands.com, licensed CC BY 4.0" },
-]
-
 [reference.modules.card_stats]
 name = "Card Stats"
 description = "Browse 17Lands draft statistics for MTG Arena. List available sets, view set overviews with top and bottom performers, get single card detail with breakdowns across all 31 color archetypes, or sort leaderboards by any stat."

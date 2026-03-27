@@ -31,7 +31,7 @@
   <title>Supported Games - Savecraft</title>
   <meta
     name="description"
-    content="Games supported by Savecraft — local plugins, in-game mods, and API integrations for AI-powered game state parsing."
+    content="Games supported by Savecraft — local plugins, in-game mods, and API integrations that connect your game state to Claude and ChatGPT."
   />
 </svelte:head>
 

@@ -1,6 +1,6 @@
 <!--
   @component
-  MTGA game landing page — showcases AI coaching capabilities for Magic: The Gathering Arena.
+  MTGA game landing page — showcases real data and expert reference modules for Magic: The Gathering Arena.
   Targets Arena drafters (r/MagicArena, r/lrcast) with data-backed credibility.
 -->
 <script lang="ts">
@@ -17,15 +17,15 @@
   let { data } = $props<{ data: { game: GameInfo } }>();
 
   const conversation: DemoMessage[] = [
-    { role: "player", text: "Just went 2-3 in Tarkir again. Can you review my draft?" },
+    { role: "player", text: "2-3 again. Can you batch review this draft?" },
     {
       role: "ai",
-      text: "Looking at your picks: P1P3 you took Abzan Kin-Guard over Pacifism. In Selesnya, Pacifism's GIH WR is 60.2% vs Kin-Guard's 57.1%. That's a significant gap — premium removal rarely wheels.",
+      text: "14 optimal, 12 good, 3 questionable, 12 misses. Your first picks and late-pack reads were solid. The recurring pattern in the misses: you undervalued lands and fixing across all three packs. Six picks where the advisor wanted a land or fixing over what you took — biggest gap was P2P7, Make Your Move over Mutant Town (.63 vs .36).",
     },
-    { role: "player", text: "I thought I needed creatures. Was the rest of the draft OK?" },
+    { role: "player", text: "I didn't think lands mattered that much in limited." },
     {
       role: "ai",
-      text: "Mostly solid. Your bigger issue is the mana base — you're running a GG spell on 7 green sources. Karsten says you need 10 for 89% on-curve consistency. You also splashed black with zero fixing, which dropped your expected win rate by ~4%.",
+      text: "In a multicolor set like TMT, the mana infrastructure is doing heavy lifting you can't see on the card. WR wants to be aggressive — stumbling on mana turn 3 is a death sentence. The creature quality in TMT is deep enough that playables come late, but the fixing doesn't wheel. Prioritize it picks 5-10.",
     },
   ];
 
@@ -34,7 +34,6 @@
     "Rules Search",
     "Card Search",
     "Card Stats",
-    "Draft Ratings",
     "Mana Base",
   ]);
 
@@ -42,18 +41,35 @@
   let instantModules = $derived(
     referenceModules.filter((m: { name: string }) => INSTANT_MODULE_NAMES.has(m.name)),
   );
+
+  // ── Before/After demo data ─────────────────────────────────
+  const withoutMessages = [
+    { role: "player" as const, text: "Should I craft Sheoldred for my mono-black deck?" },
+    {
+      role: "ai" as const,
+      text: "Sheoldred, the Apocalypse is a strong card in Standard. At 2BB, she provides card draw and life drain. Definitely worth crafting for mono-black.",
+    },
+  ];
+
+  const withConversation: DemoMessage[] = [
+    { role: "player", text: "Should I craft Sheoldred for my mono-black deck?" },
+    {
+      role: "ai",
+      text: "Can't — Sheoldred rotated with Dominaria United, she's not Standard-legal. But Archfiend of the Dross does the same job in your list at 58.2% GIH WR. You're missing 2 copies, that's 2 rare wildcards. You have 4 in the bank.",
+    },
+  ];
 </script>
 
 <svelte:head>
-  <title>Magic: The Gathering Arena — AI Coaching | Savecraft</title>
+  <title>Magic: The Gathering Arena — Real Data for Your AI | Savecraft</title>
   <meta
     name="description"
-    content="Your AI assistant coaches your Magic drafts and decks using real data from 17Lands, Frank Karsten's mana base methodology, and the MTG Comprehensive Rules."
+    content="Savecraft gives Claude and ChatGPT your actual Arena data plus ten expert reference modules — 17Lands stats, Frank Karsten's mana math, and the full MTG Comprehensive Rules."
   />
-  <meta property="og:title" content="Savecraft — AI Coaching for MTG Arena" />
+  <meta property="og:title" content="Savecraft — Real MTG Data for Claude and ChatGPT" />
   <meta
     property="og:description"
-    content="Draft analysis across 31 color archetypes, deck health checks, mana base math, and rules lookup — powered by Bayesian-calibrated 17Lands data."
+    content="Draft analysis across 31 color archetypes, deck health checks, mana base math, and rules lookup — grounded in Bayesian-calibrated 17Lands data and your actual collection."
   />
   <meta property="og:url" content="https://savecraft.gg/games/mtga" />
   <meta property="og:type" content="website" />
@@ -67,24 +83,24 @@
     <section class="hero">
       <div class="hero-grid">
         <div class="hero-text">
-          <div class="hero-eyebrow">AI COACHING FOR MAGIC: THE GATHERING</div>
+          <div class="hero-eyebrow">REAL DATA FOR MAGIC: THE GATHERING</div>
           <h1 class="hero-title">
-            Your AI knows<br />the format.
+            Your AI stops inventing<br />cards here.
           </h1>
           <p class="hero-sub">
-            Savecraft gives your AI access to your Arena data — collection, drafts, decks — plus
-            deep reference tools backed by 17Lands stats, Frank Karsten's mana math, and the full
-            MTG rules. Real coaching, not guesswork.
+            Savecraft plugs your Arena data — collection, drafts, decks — into Claude or ChatGPT,
+            backed by ten expert modules: 17Lands stats across 31 archetypes, Frank Karsten's mana
+            math, and the full MTG Comprehensive Rules.
           </p>
           <div class="hero-actions">
-            <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">GET STARTED</a>
-            <a href="#tools" class="btn-outline">SEE THE TOOLS</a>
+            <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT YOUR ARENA DATA</a>
+            <a href="#tools" class="btn-outline">SEE THE REFERENCE TOOLS</a>
           </div>
         </div>
 
         <ConversationDemo
           {conversation}
-          headerLabel="MTG ARENA — TARKIR DRAFT REVIEW"
+          headerLabel="MTG ARENA — TMT DRAFT REVIEW"
           headerDotColor="var(--color-gold)"
           startDelay={1000}
         />
@@ -105,8 +121,8 @@
   <MarketingSection
     id="tools"
     eyebrow="REFERENCE TOOLS"
-    title="Eight modules. Real data."
-    subtitle="Your AI doesn't guess — it queries. Every answer is grounded in actual game data and published methodology."
+    title="Ten modules. Real data."
+    subtitle="Every answer is grounded in real card data, real match statistics, and published methodology. No hallucinated cards. No invented abilities."
   >
     <div class="modules-grid">
       {#each referenceModules as mod (mod.name)}
@@ -118,11 +134,48 @@
     </div>
   </MarketingSection>
 
+  <!-- ═══ BEFORE / AFTER ═══ -->
+  <MarketingSection eyebrow="THE DIFFERENCE" title="What changes">
+    <div class="compare-grid">
+      <!-- WITHOUT — distinct generic chat style -->
+      <div class="compare-card compare-without">
+        <div class="compare-header compare-header-without">
+          <span class="compare-dot compare-dot-red"></span>
+          WITHOUT SAVECRAFT
+        </div>
+        <div class="compare-body">
+          {#each withoutMessages as msg}
+            <div class="generic-bubble generic-{msg.role}">
+              <span class="generic-role">{msg.role === "player" ? "You" : "ChatGPT"}</span>
+              <p class="generic-text">{msg.text}</p>
+            </div>
+          {/each}
+        </div>
+        <p class="compare-caption compare-caption-bad">
+          Sheoldred rotated out of Standard 6 months ago.
+        </p>
+      </div>
+
+      <!-- WITH — uses ConversationDemo -->
+      <div class="compare-card compare-with">
+        <ConversationDemo
+          conversation={withConversation}
+          headerLabel="MTG ARENA — MONO-BLACK STANDARD"
+          headerDotColor="var(--color-green)"
+          startDelay={800}
+        />
+        <p class="compare-caption compare-caption-good">
+          Current format. Real win rates. Your actual wildcards.
+        </p>
+      </div>
+    </div>
+  </MarketingSection>
+
   <!-- ═══ COACHING MODES ═══ -->
   <MarketingSection
     eyebrow="HOW YOU USE IT"
     title="Draft coach and deck doctor"
-    subtitle="Same AI, same game data. Whether you want a sounding board or a second opinion on cuts."
+    subtitle="Same data, two modes. Whether you want a sounding board mid-draft or a second opinion on your 23."
   >
     <div class="modes-grid">
       <ModeCard
@@ -132,11 +185,11 @@
         examples={[
           {
             role: "player",
-            text: "P1P5 — should I stay in GW or pivot?",
+            text: "P2P1 — Liliana or Elenda? Liliana's the bomb but I'm UW with one black source.",
           },
           {
             role: "ai",
-            text: "GW is sparse in this format (1.9% of decks). Your pool leans Abzan — taking the Siege Rhino here locks you into a strong archetype (12% of decks, 56.6% avg GIH WR). The opportunity cost of pivoting is low at pick 5.",
+            text: "Liliana. 63.6% GIH WR vs Elenda's 60.3% — that gap is too large to leave on the table at pick 15. Your archetype confidence is only 0.16, so pivoting to UB or Esper is wide open. The pivot model estimates ~5.4 acquirable black sources over 28 remaining picks. Prioritize black fixing next 3-4 picks.",
           },
         ]}
       />
@@ -147,11 +200,11 @@
         examples={[
           {
             role: "player",
-            text: "I have 24 playables in GW. What do I cut?",
+            text: "I have 24 playables in WR. Need to cut 1.",
           },
           {
             role: "ai",
-            text: "GW is a sparse archetype here (1.9% of decks). Your pool actually supports Abzan (WBG) better — 12% of decks, +1.8% avg win rate. For cuts: Tusked Rager (low synergy, 52.3% GIH WR) and Summit Prowler (only 5 red sources, need 8 for RR). That brings you to 40.",
+            text: "Cut Raphael, Tough Turtle. I know, he looks cool — but 52.3% GIH WR and your pool only has 5 red sources for his RR cost. Karsten says you need 8 for on-curve. You're also short on removal (2 pieces vs the 4.6 winning decks average). Everything Pizza does more for this deck.",
           },
         ]}
       />
@@ -160,9 +213,9 @@
 
   <!-- ═══ TWO-TIER CTA ═══ -->
   <MarketingSection
-    eyebrow="GET STARTED"
+    eyebrow="CONNECT"
     title="Two ways in"
-    subtitle="Reference tools work immediately. Install the daemon to unlock coaching with your actual collection and draft data."
+    subtitle="Reference tools work immediately. Install the daemon to unlock your actual collection and draft data."
   >
     <div class="tiers-grid">
       <div class="tier-card">
@@ -179,7 +232,7 @@
               <li>{mod.name}</li>
             {/each}
           </ul>
-          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold tier-cta">CONNECT YOUR AI</a>
+          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold tier-cta">TRY THE REFERENCE TOOLS</a>
         </div>
       </div>
 
@@ -199,7 +252,7 @@
             <li>Calculate wildcard cost for any decklist</li>
             <li>Track your collection, rank, and inventory</li>
           </ul>
-          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-outline tier-cta">GET STARTED</a>
+          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-outline tier-cta">INSTALL THE DAEMON</a>
         </div>
       </div>
     </div>
@@ -251,10 +304,10 @@
   <!-- ═══ CTA ═══ -->
   <section class="section cta-section">
     <div class="cta-inner">
-      <h2 class="cta-title">Draft smarter.</h2>
-      <p class="cta-sub">Connect your AI in 30 seconds. Works with Claude and ChatGPT.</p>
+      <h2 class="cta-title">Give your AI the real data.</h2>
+      <p class="cta-sub">Connect in 30 seconds. Works with Claude and ChatGPT.</p>
       <div class="cta-actions">
-        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">GET STARTED</a>
+        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">CONNECT YOUR ARENA DATA</a>
       </div>
     </div>
   </section>
@@ -438,6 +491,114 @@
     font-weight: 400;
     color: var(--color-text-dim);
     line-height: 1.6;
+  }
+
+  /* ── Before / After ─────────────────────────────────── */
+  .compare-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+    margin-top: 32px;
+  }
+
+  .compare-card {
+    border-radius: 4px;
+    overflow: hidden;
+  }
+
+  .compare-without {
+    background: rgba(20, 15, 25, 0.6);
+    border: 1px solid rgba(180, 60, 60, 0.25);
+  }
+
+  .compare-with {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .compare-header-without {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 2px;
+    color: rgba(220, 100, 100, 0.8);
+    background: rgba(180, 60, 60, 0.08);
+    border-bottom: 1px solid rgba(180, 60, 60, 0.15);
+  }
+
+  .compare-dot-red {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(220, 100, 100, 0.7);
+  }
+
+  .compare-body {
+    padding: 16px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .generic-bubble {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .generic-role {
+    font-family: var(--font-heading);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+
+  .generic-player .generic-role {
+    color: var(--color-text-muted);
+  }
+
+  .generic-ai .generic-role {
+    color: rgba(180, 160, 130, 0.6);
+  }
+
+  .generic-text {
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 400;
+    line-height: 1.6;
+    color: var(--color-text-dim);
+    margin: 0;
+  }
+
+  .generic-ai .generic-text {
+    color: rgba(200, 180, 150, 0.5);
+  }
+
+  .compare-caption {
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 500;
+    line-height: 1.5;
+    padding: 12px 14px;
+    margin: 0;
+  }
+
+  .compare-caption-bad {
+    color: rgba(220, 100, 100, 0.7);
+    background: rgba(180, 60, 60, 0.06);
+    border-top: 1px solid rgba(180, 60, 60, 0.12);
+  }
+
+  .compare-caption-good {
+    color: var(--color-green);
+    background: rgba(90, 190, 138, 0.06);
+    border-top: 1px solid rgba(90, 190, 138, 0.12);
+    margin-top: auto;
   }
 
   /* ── Modes ───────────────────────────────────────────── */
@@ -633,6 +794,10 @@
     }
 
     .modules-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .compare-grid {
       grid-template-columns: 1fr;
     }
 
