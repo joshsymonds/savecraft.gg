@@ -11,7 +11,7 @@ package surgery
 
 import "github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/calc"
 
-// Quality aliases for backward compatibility with existing callers.
+// Quality aliases re-exported from calc for convenience.
 const (
 	QualityAwful      = calc.QualityAwful
 	QualityPoor       = calc.QualityPoor
@@ -43,7 +43,7 @@ type Params struct {
 type Result struct {
 	SuccessChance      float64 // Final clamped success probability (0 to 0.98)
 	SurgeonFactor      float64 // Surgeon's MedicalSurgerySuccessChance stat
-	BedEffectiveFactor float64 // Bed factor × quality × cleanliness × glow × outdoors
+	BedEffectiveFactor float64 // Bed factor x quality x cleanliness x glow x outdoors
 	MedicineFactor     float64 // Medicine potency curve factor
 	DifficultyFactor   float64 // Operation difficulty multiplier
 	InspiredFactor     float64 // 2.0 if inspired, 1.0 otherwise
@@ -54,7 +54,7 @@ type Result struct {
 // Calculate computes the surgery success chance from the given parameters.
 func Calculate(p Params) Result {
 	surgeonFactor := surgeonStat(p.MedicalSkill, p.Manipulation, p.Sight)
-	bedEffective := p.BedFactor * QualityFactor(p.Quality) * CleanlinessFactor(p.Cleanliness) * GlowFactor(p.GlowLevel) * outdoorsFactor(p.IsOutdoors)
+	bedEffective := p.BedFactor * QualityFactor(p.Quality) * CleanlinessFactor(p.Cleanliness) * GlowFactor(p.GlowLevel) * calc.OutdoorsFactor(p.IsOutdoors)
 	medicineFactor := MedicinePotencyFactor(p.MedicinePotency)
 	inspiredFactor := 1.0
 	if p.Inspired {
@@ -136,7 +136,7 @@ func MedicinePotencyFactor(potency float64) float64 {
 	})
 }
 
-// CleanlinessFactor evaluates the room cleanliness → surgery success curve.
+// CleanlinessFactor evaluates the room cleanliness -> surgery success curve.
 // SimpleCurve points: (-5, 0.6), (0, 1.0), (1, 1.10), (5, 1.15)
 func CleanlinessFactor(cleanliness float64) float64 {
 	return calc.EvaluateCurve(cleanliness, [][2]float64{
@@ -147,7 +147,7 @@ func CleanlinessFactor(cleanliness float64) float64 {
 	})
 }
 
-// GlowFactor evaluates the light level → surgery success curve.
+// GlowFactor evaluates the light level -> surgery success curve.
 // SimpleCurve points: (0, 0.75), (0.5, 1.0)
 func GlowFactor(glow float64) float64 {
 	return calc.EvaluateCurve(glow, [][2]float64{
@@ -168,11 +168,3 @@ func QualityFactor(quality int) float64 {
 	}
 	return factors[quality]
 }
-
-func outdoorsFactor(outdoors bool) float64 {
-	if outdoors {
-		return 0.85
-	}
-	return 1.0
-}
-

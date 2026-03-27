@@ -43,8 +43,28 @@ func TestFertilityFactor(t *testing.T) {
 	approx(t, "potato gravel", FertilityFactor(0.7, 0.4), 0.88)
 }
 
-func TestRestFactor(t *testing.T) {
-	approx(t, "rest factor", RestFraction, 7.0/12.0)
+func TestRestFractionAppliedToGrowth(t *testing.T) {
+	// Verify that the rest fraction correctly lengthens actual grow days.
+	// A crop with growDays=3 at optimal conditions (growthRate=1.0) should take
+	// 3.0 / (1.0 * 7/12) = 36/7 ~ 5.143 actual calendar days.
+	result := Calculate(CropParams{
+		GrowDays:             3,
+		HarvestYield:         6,
+		NutritionPerUnit:     0.05,
+		MarketValuePerUnit:   1.1,
+		FertilitySensitivity: 1.0,
+		SoilFertility:        1.0,
+		Temperature:          20, // optimal
+	})
+
+	// Without rest fraction, actual days would equal grow days (3.0).
+	// With rest fraction, actual days = 3.0 / (7/12) ~ 5.143.
+	wantActualDays := 3.0 / calc.RestFraction
+	approx(t, "actual grow days with rest fraction", result.ActualGrowDays, wantActualDays)
+
+	// The rest fraction should make actual days ~1.714x longer than base grow days
+	ratio := result.ActualGrowDays / 3.0
+	approx(t, "rest elongation ratio", ratio, 12.0/7.0)
 }
 
 func TestCalculateRice(t *testing.T) {

@@ -29,8 +29,8 @@ var techLevelOrder = map[string]int{
 //
 // From the game's CostFactor method on ResearchProjectDef:
 //   - Only tribal (Neolithic) colonies get penalties
-//   - Medieval projects: 1.5× for tribal
-//   - Industrial+ projects: 2.0× for tribal
+//   - Medieval projects: 1.5x for tribal
+//   - Industrial+ projects: 2.0x for tribal
 //   - Medieval and higher colony tech levels: no penalty
 func TechLevelMultiplier(projectTechLevel, colonyTechLevel string) float64 {
 	colOrder := techLevelOrder[colonyTechLevel]
@@ -91,21 +91,26 @@ func ChainCost(projects map[string]ResearchProject, chain []string, colonyTechLe
 	return total
 }
 
-// ResearchSpeed returns a relative research speed factor for a given
-// Intellectual skill level. This is a simplified estimate — the actual
-// speed depends on bench type, room conditions, and facilities.
+// ResearchSpeed returns the Intellectual skill-based speed factor for research.
+// This is the skill component only -- the caller multiplies by the base rate
+// (0.00825 per tick from ResearchManager.cs) and any bench/room/facility modifiers.
 //
-// Base research per tick: 0.00825 (from ResearchManager.cs)
-// Skill factor uses the Research Speed stat curve from XML.
+// Values from the ResearchSpeed StatDef's skillNeedFactors valuesPerLevel.
 func ResearchSpeed(intellectualSkill int) float64 {
-	// Simplified: skill-based factor from ResearchSpeed stat
-	// valuesPerLevel for Research Speed (similar pattern to other skill stats)
+	// From ResearchSpeed StatDef, skillNeedFactors valuesPerLevel
+	// Index 0 = skill level 0, index 20 = skill level 20
+	values := [21]float64{
+		0.10, 0.20, 0.30, 0.40, 0.50, // 0-4
+		0.60, 0.70, 0.75, 0.80, 0.85, // 5-9
+		0.90, 0.92, 0.94, 0.96, 0.98, // 10-14
+		1.00, 1.02, 1.04, 1.06, 1.08, // 15-19
+		1.10, // 20
+	}
 	if intellectualSkill < 0 {
-		intellectualSkill = 0
+		return values[0]
 	}
 	if intellectualSkill > 20 {
-		intellectualSkill = 20
+		return values[20]
 	}
-	// Approximate: base speed scales roughly linearly with skill
-	return 0.00825 * (0.5 + float64(intellectualSkill)*0.05)
+	return values[intellectualSkill]
 }

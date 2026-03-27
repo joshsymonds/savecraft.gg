@@ -13,7 +13,6 @@ import (
 	"io"
 	"os"
 	"strings"
-	"sync"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/calc"
 	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/combat"
@@ -27,38 +26,38 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/surgery"
 )
 
-var (
-	projectMapOnce sync.Once
-	projectMap     map[string]research.ResearchProject
-)
+// projectMap is lazily initialized on first use. WASI is single-threaded,
+// so a simple nil check suffices.
+var projectMap map[string]research.ResearchProject
 
 func buildProjectMap() map[string]research.ResearchProject {
-	projectMapOnce.Do(func() {
-		projectMap = make(map[string]research.ResearchProject, len(data.ResearchProjects))
-		for _, p := range data.ResearchProjects {
-			projectMap[p.DefName] = research.ResearchProject{
-				DefName:       p.DefName,
-				Label:         p.Label,
-				BaseCost:      p.BaseCost,
-				TechLevel:     p.TechLevel,
-				Prerequisites: p.Prerequisites,
-			}
+	if projectMap != nil {
+		return projectMap
+	}
+	projectMap = make(map[string]research.ResearchProject, len(data.ResearchProjects))
+	for _, p := range data.ResearchProjects {
+		projectMap[p.DefName] = research.ResearchProject{
+			DefName:       p.DefName,
+			Label:         p.Label,
+			BaseCost:      p.BaseCost,
+			TechLevel:     p.TechLevel,
+			Prerequisites: p.Prerequisites,
 		}
-	})
+	}
 	return projectMap
 }
 
 func main() {
 	enc := json.NewEncoder(os.Stdout)
 
-	data, err := io.ReadAll(os.Stdin)
+	inputData, err := io.ReadAll(os.Stdin)
 	if err != nil {
 		writeError(enc, "read_error", "failed to read stdin: "+err.Error())
 		os.Exit(1)
 	}
 
 	var query map[string]any
-	if err := json.Unmarshal(data, &query); err != nil {
+	if err := json.Unmarshal(inputData, &query); err != nil {
 		writeError(enc, "parse_error", "invalid JSON query: "+err.Error())
 		os.Exit(1)
 	}
@@ -156,21 +155,22 @@ func resolveBedFactor(query map[string]any) float64 {
 		return f
 	}
 	bed, _ := query["bed"].(string)
-	bed = strings.ToLower(bed)
-	switch {
-	case strings.Contains(bed, "hospital"):
-		return 1.1
-	case strings.Contains(bed, "sleeping spot") || strings.Contains(bed, "sleepingspot"):
-		return 0.7
-	case strings.Contains(bed, "ancient") && !strings.Contains(bed, "rusted"):
-		return 0.65
-	case strings.Contains(bed, "rusted"):
-		return 0.62
-	case strings.Contains(bed, "spot"):
-		return 0.7
-	default:
-		return 1.0 // regular bed
+	if bed != "" {
+		// Try data-driven lookup first
+		bestScore := 0
+		bestFactor := 0.0
+		for _, b := range data.Beds {
+			if score := matchDef(bed, b.DefName, b.Label); score > bestScore {
+				bestScore = score
+				bestFactor = b.SurgerySuccessChanceFactor
+			}
+		}
+		if bestScore > 0 {
+			return bestFactor
+		}
 	}
+	// Default: regular bed
+	return 1.0
 }
 
 func resolveQuality(query map[string]any) int {
@@ -199,6 +199,19 @@ func resolveQuality(query map[string]any) int {
 }
 
 func resolveMedicinePotency(medicine string) float64 {
+	// Try data-driven lookup first
+	bestScore := 0
+	bestPotency := 0.0
+	for _, m := range data.Medicines {
+		if score := matchDef(medicine, m.DefName, m.Label); score > bestScore {
+			bestScore = score
+			bestPotency = m.MedicalPotency
+		}
+	}
+	if bestScore > 0 {
+		return bestPotency
+	}
+	// Fallback for common aliases not in the data
 	switch strings.ToLower(medicine) {
 	case "none", "no medicine", "":
 		return 0
@@ -412,6 +425,14 @@ func handleDrugs(enc *json.Encoder, query map[string]any) {
 		return
 	}
 
+	// Check if production chain query (soil or temperature parameter present)
+	_, hasSoil := query["soil"]
+	_, hasTemp := query["temperature"]
+	if hasSoil || hasTemp {
+		handleDrugProductionChain(enc, query, d)
+		return
+	}
+
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "%s (%s)\n\n", d.Label, d.Category)
 	fmt.Fprintf(&sb, "Market value: %.0f silver\n", d.MarketValue)
@@ -448,6 +469,99 @@ func handleDrugs(enc *json.Encoder, query map[string]any) {
 		"market_value":   d.MarketValue,
 		"addictiveness":  d.Addictiveness,
 		"work_amount":    d.WorkAmount,
+	})
+}
+
+// handleDrugProductionChain computes silver/day/tile for a drug's crop-to-drug pipeline.
+// It looks up the drug's first ingredient plant in data.Plants and runs the production
+// chain calculation with the given soil/temperature conditions.
+func handleDrugProductionChain(enc *json.Encoder, query map[string]any, d *data.Drug) {
+	soil, _ := query["soil"].(string)
+	temperature := floatParam(query, "temperature", 20)
+
+	// Find the first ingredient that corresponds to a plant's harvest
+	var plant *data.Plant
+	var leavesPerDrug float64
+	for _, ing := range d.Ingredients {
+		parts := strings.SplitN(ing, ":", 2)
+		if len(parts) != 2 {
+			continue
+		}
+		itemDef := parts[0]
+		count := 0.0
+		fmt.Sscanf(parts[1], "%f", &count)
+		if count <= 0 {
+			continue
+		}
+		// Search for a plant that harvests this item
+		for i := range data.Plants {
+			p := &data.Plants[i]
+			if strings.EqualFold(p.HarvestedItem, itemDef) {
+				plant = p
+				leavesPerDrug = count
+				break
+			}
+		}
+		if plant != nil {
+			break
+		}
+	}
+
+	if plant == nil {
+		writeError(enc, "no_plant_ingredient",
+			fmt.Sprintf("Drug %q has no plant-based ingredient for production chain calculation", d.Label))
+		return
+	}
+
+	// Resolve soil fertility
+	soilFertility := 1.0
+	if soil != "" {
+		bestSoilScore := 0
+		for _, s := range data.Soils {
+			if score := matchDef(soil, s.DefName, s.Label); score > bestSoilScore {
+				soilFertility = s.Fertility
+				bestSoilScore = score
+			}
+		}
+		if strings.Contains(strings.ToLower(soil), "hydroponic") {
+			soilFertility = 2.0
+		}
+	}
+
+	result := drugs.ProductionChain(drugs.ProductionParams{
+		CropGrowDays:         plant.GrowDays,
+		CropYield:            plant.HarvestYield,
+		FertilitySensitivity: plant.FertilitySensitivity,
+		SoilFertility:        soilFertility,
+		Temperature:          temperature,
+		LeavesPerDrug:        leavesPerDrug,
+		DrugMarketValue:      d.MarketValue,
+		DrugWorkAmount:       d.WorkAmount,
+	})
+
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "%s Production Chain\n\n", d.Label)
+	fmt.Fprintf(&sb, "Crop: %s (%.1f grow days)\n", plant.Label, plant.GrowDays)
+	fmt.Fprintf(&sb, "Soil fertility: %.1f | Temperature: %.0f C\n\n", soilFertility, temperature)
+
+	if result.ActualGrowDays <= 0 {
+		fmt.Fprintf(&sb, "Cannot grow at this temperature.\n")
+	} else {
+		fmt.Fprintf(&sb, "Actual grow days: %.1f\n", result.ActualGrowDays)
+		fmt.Fprintf(&sb, "Leaves/day/tile: %.3f\n", result.LeavesPerDay)
+		fmt.Fprintf(&sb, "Drugs/day/tile: %.4f (%.0f leaves per drug)\n", result.DrugsPerDayPerTile, leavesPerDrug)
+		fmt.Fprintf(&sb, "Silver/day/tile: %.3f\n", result.SilverPerDayPerTile)
+	}
+
+	writeResult(enc, map[string]any{
+		"formatted":          sb.String(),
+		"drug":               d.Label,
+		"crop":               plant.Label,
+		"soil_fertility":     soilFertility,
+		"actual_grow_days":   result.ActualGrowDays,
+		"leaves_per_day":     result.LeavesPerDay,
+		"drugs_per_day":      result.DrugsPerDayPerTile,
+		"silver_per_day":     result.SilverPerDayPerTile,
 	})
 }
 
@@ -649,6 +763,20 @@ func handleResearch(enc *json.Encoder, query map[string]any) {
 
 func handleCombat(enc *json.Encoder, query map[string]any) {
 	weapon, _ := query["weapon"].(string)
+
+	if weapon == "" {
+		var names []string
+		for _, w := range data.RangedWeapons {
+			names = append(names, w.Label)
+		}
+		for _, w := range data.MeleeWeapons {
+			names = append(names, w.Label)
+		}
+		writeError(enc, "missing_weapon",
+			fmt.Sprintf("No weapon specified. Available: %s", strings.Join(names, ", ")))
+		return
+	}
+
 	rangeTiles := floatParam(query, "range", 12)
 	armorRating := floatParam(query, "armor", 0)
 
@@ -842,9 +970,11 @@ func schema() map[string]any {
 			},
 			"drugs": map[string]any{
 				"name":        "Drug Economy & Addiction Analyzer",
-				"description": "Look up drug production value, work efficiency, addiction risk, and ingredient breakdown.",
+				"description": "Look up drug production value, work efficiency, addiction risk, and ingredient breakdown. Add soil/temperature parameters for production chain silver/day/tile analysis.",
 				"parameters": map[string]any{
-					"drug": map[string]any{"type": "string", "description": "Drug name (e.g. flake, yayo, beer, smokeleaf joint). Omit to list all."},
+					"drug":        map[string]any{"type": "string", "description": "Drug name (e.g. flake, yayo, beer, smokeleaf joint). Omit to list all."},
+					"soil":        map[string]any{"type": "string", "description": "Soil type for production chain (e.g. soil, rich soil, gravel)"},
+					"temperature": map[string]any{"type": "number", "description": "Average temperature for production chain calculation"},
 				},
 			},
 			"raids": map[string]any{
