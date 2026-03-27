@@ -101,10 +101,11 @@ func run() error {
 	}
 
 	fmt.Printf("Downloading Default Cards from %s...\n", downloadURL)
-	cards, err := downloadAndFilter(downloadURL)
+	result, err := downloadAndFilter(downloadURL)
 	if err != nil {
 		return fmt.Errorf("downloading cards: %w", err)
 	}
+	cards := result.cards
 	// Deduplicate by arena_id. default_cards can list multiple printings of the
 	// same card sharing one arena_id (e.g., a set printing + a Historic Anthology
 	// reprint). Keep only one entry per arena_id.
@@ -119,6 +120,14 @@ func run() error {
 	}
 	cards = deduped
 	fmt.Printf("Found %d unique arena_ids (%d unique cards)\n", len(cards), countUniqueOracleIDs(cards))
+
+	// Backfill: MTGA client cards not matched by arena_id can still get
+	// legalities via exact name match against the full Scryfall bulk data.
+	backfilled := backfillFromNameIndex(cards, result.nameIndex)
+	if len(backfilled) > 0 {
+		cards = append(cards, backfilled...)
+		fmt.Printf("Backfilled %d MTGA-only cards with Scryfall data via exact name match\n", len(backfilled))
+	}
 
 	// Mark the most recent Arena printing (highest arena_id) per oracle_id as default.
 	computeDefaults(cards)
@@ -221,10 +230,17 @@ func getDefaultCardsURL() (string, error) {
 	return "", fmt.Errorf("default_cards not found in bulk data response")
 }
 
-func downloadAndFilter(url string) ([]ScryfallCard, error) {
+// downloadResult holds Arena-matched cards and a name-based index of all
+// Scryfall cards for backfilling MTGA-only cards that weren't matched.
+type downloadResult struct {
+	cards     []ScryfallCard
+	nameIndex map[string]ScryfallCard // lowercase front_face_name → best card (most legalities)
+}
+
+func downloadAndFilter(url string) (downloadResult, error) {
 	resp, err := httpGet(url)
 	if err != nil {
-		return nil, err
+		return downloadResult{}, err
 	}
 	defer resp.Body.Close()
 
@@ -233,10 +249,10 @@ func downloadAndFilter(url string) ([]ScryfallCard, error) {
 	// Expect opening '['.
 	tok, err := dec.Token()
 	if err != nil {
-		return nil, fmt.Errorf("reading opening token: %w", err)
+		return downloadResult{}, fmt.Errorf("reading opening token: %w", err)
 	}
 	if delim, ok := tok.(json.Delim); !ok || delim != '[' {
-		return nil, fmt.Errorf("expected '[', got %v", tok)
+		return downloadResult{}, fmt.Errorf("expected '[', got %v", tok)
 	}
 
 	// Build reverse lookup from MTGA client data: (name, set) → arena_id.
@@ -244,23 +260,36 @@ func downloadAndFilter(url string) ([]ScryfallCard, error) {
 	// even when the cards are on Arena. The MTGA client database has 100% coverage.
 	arenaLookup := buildArenaLookup()
 
+	// Name-based index: for every card in the bulk data (not just Arena),
+	// keep the entry with the most populated legalities. Used to backfill
+	// MTGA client cards that Scryfall doesn't have an arena_id for.
+	nameIndex := make(map[string]ScryfallCard)
+
 	var cards []ScryfallCard
 	var resolved int
 	var unresolved []string
 	for dec.More() {
 		var card ScryfallCard
 		if err := dec.Decode(&card); err != nil {
-			return nil, fmt.Errorf("decoding card: %w", err)
-		}
-		// Card must be available on Arena.
-		if !slices.Contains(card.Games, "arena") {
-			continue
+			return downloadResult{}, fmt.Errorf("decoding card: %w", err)
 		}
 		// Split/adventure/DFC cards: extract front face name.
 		if before, _, ok := strings.Cut(card.Name, " // "); ok {
 			card.FrontFaceName = before
 		} else {
 			card.FrontFaceName = card.Name
+		}
+
+		// Index every card by front face name for backfill lookups.
+		// Prefer the entry with more legality data.
+		nameKey := strings.ToLower(card.FrontFaceName)
+		if existing, ok := nameIndex[nameKey]; !ok || len(card.Legalities) > len(existing.Legalities) {
+			nameIndex[nameKey] = card
+		}
+
+		// Only collect Arena cards for the main enrichment pass.
+		if !slices.Contains(card.Games, "arena") {
+			continue
 		}
 		// Fall back to MTGA client data for arena_id when Scryfall doesn't have it.
 		if card.ArenaID == 0 {
@@ -285,7 +314,52 @@ func downloadAndFilter(url string) ([]ScryfallCard, error) {
 			fmt.Fprintf(os.Stderr, "  %s\n", name)
 		}
 	}
-	return cards, nil
+	return downloadResult{cards: cards, nameIndex: nameIndex}, nil
+}
+
+// backfillFromNameIndex finds MTGA client cards that weren't matched to
+// Scryfall by arena_id and enriches them via exact front_face_name match
+// against the full Scryfall bulk data. Only exact matches are used —
+// ambiguous or missing names are skipped.
+func backfillFromNameIndex(matched []ScryfallCard, nameIndex map[string]ScryfallCard) []ScryfallCard {
+	// Build set of arena_ids already matched.
+	matchedIDs := make(map[int]struct{}, len(matched))
+	for _, c := range matched {
+		matchedIDs[c.ArenaID] = struct{}{}
+	}
+
+	var backfilled []ScryfallCard
+	for arenaID, card := range data.ArenaCards {
+		if _, ok := matchedIDs[arenaID]; ok {
+			continue // already matched
+		}
+		name := strings.ToLower(card.Name)
+		if before, _, ok := strings.Cut(name, " // "); ok {
+			name = before
+		}
+		scryfall, ok := nameIndex[name]
+		if !ok || len(scryfall.Legalities) == 0 {
+			continue // no match or no legality data
+		}
+		backfilled = append(backfilled, ScryfallCard{
+			ArenaID:       arenaID,
+			OracleID:      scryfall.OracleID,
+			Name:          scryfall.Name,
+			FrontFaceName: scryfall.FrontFaceName,
+			ManaCost:      scryfall.ManaCost,
+			CMC:           scryfall.CMC,
+			TypeLine:      scryfall.TypeLine,
+			OracleText:    scryfall.OracleText,
+			Colors:        scryfall.Colors,
+			ColorIdentity: scryfall.ColorIdentity,
+			Legalities:    scryfall.Legalities,
+			Rarity:        scryfall.Rarity,
+			Set:           scryfall.Set,
+			Keywords:      scryfall.Keywords,
+			ProducedMana:  scryfall.ProducedMana,
+		})
+	}
+	return backfilled
 }
 
 type arenaKey struct {
