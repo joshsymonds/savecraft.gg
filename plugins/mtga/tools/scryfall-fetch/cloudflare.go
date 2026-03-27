@@ -37,15 +37,15 @@ func buildCardEnrichmentSQL(cards []ScryfallCard) string {
 	}
 
 	for _, c := range cards {
-		colorsJSON := jsonArrayStr(c.Colors)
-		colorIdentityJSON := jsonArrayStr(c.ColorIdentity)
+		colorsJSON := cfapi.JSONArray(c.Colors)
+		colorIdentityJSON := cfapi.JSONArray(c.ColorIdentity)
 		legalitiesJSON := "{}"
 		if len(c.Legalities) > 0 {
 			j, _ := json.Marshal(c.Legalities)
 			legalitiesJSON = string(j)
 		}
-		keywordsJSON := jsonArrayStr(c.Keywords)
-		producedManaJSON := jsonArrayStr(c.ProducedMana)
+		keywordsJSON := cfapi.JSONArray(c.Keywords)
+		producedManaJSON := cfapi.JSONArray(c.ProducedMana)
 
 		isDefault := 0
 		if c.IsDefault {
@@ -71,14 +71,6 @@ func buildCardEnrichmentSQL(cards []ScryfallCard) string {
 	}
 
 	return b.String()
-}
-
-func jsonArrayStr(s []string) string {
-	if len(s) == 0 {
-		return "[]"
-	}
-	j, _ := json.Marshal(s)
-	return string(j)
 }
 
 // populateCardVectorize embeds all cards concurrently and upserts to Vectorize.

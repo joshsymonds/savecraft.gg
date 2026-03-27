@@ -6,10 +6,11 @@ build-parser:
 test:
     go test -v ./...
 
-# Generate parser card data from local MTGA game database.
+# Import card data from local MTGA game database to D1 + regenerate arena_cards_gen.go.
 # Requires: Raw_CardDatabase at .reference/mtga-carddb/Raw_CardDatabase.mtga
 # Copy from MTGA install: MTGA_Data/Downloads/Raw/Raw_CardDatabase_*.mtga
-fetch-carddb:
+# Requires: CLOUDFLARE_API_TOKEN env var (loaded by direnv from .envrc.local)
+fetch-carddb d1_id cf_account="cc0a94bb7aff760efd48b49ce983fe97":
     #!/usr/bin/env bash
     set -euo pipefail
     db="../../.reference/mtga-carddb/Raw_CardDatabase.mtga"
@@ -20,7 +21,9 @@ fetch-carddb:
         echo "To: .reference/mtga-carddb/Raw_CardDatabase.mtga" >&2
         exit 1
     fi
-    go run ./tools/mtga-carddb --card-db "$db"
+    go run ./tools/mtga-carddb --card-db "$db" \
+        --d1-database-id="{{d1_id}}" --cf-account-id="{{cf_account}}" \
+        --cf-api-token="$CLOUDFLARE_API_TOKEN"
 
 # Download Scryfall Oracle Cards for D1 card search population
 fetch-scryfall:

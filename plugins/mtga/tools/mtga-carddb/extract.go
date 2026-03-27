@@ -60,7 +60,7 @@ func extractFullCards(cardDBPath string) ([]FullCard, error) {
 		       c.OldSchoolManaText, c.Colors, c.ColorIdentity,
 		       c.Supertypes, c.Types, c.Subtypes,
 		       c.Power, c.Toughness, c.AbilityIds,
-		       c.LinkedFaceGrpIds, c.IsPrimaryCard, c.IsToken
+		       c.IsPrimaryCard, c.IsToken
 		FROM Cards c
 		JOIN Localizations_enUS l ON l.LocId = c.TitleId AND l.Formatted = 1
 		WHERE l.Loc IS NOT NULL AND l.Loc != ''
@@ -84,14 +84,13 @@ func extractFullCards(cardDBPath string) ([]FullCard, error) {
 			subtypesCSV      string
 			power, toughness string
 			abilityIDs       string
-			linkedFaceIDs    string
 		)
 		if err := rows.Scan(
 			&grpID, &name, &set, &rarity,
 			&manaCostRaw, &colorsCSV, &colorIdentCSV,
 			&supertypesCSV, &typesCSV, &subtypesCSV,
 			&power, &toughness, &abilityIDs,
-			&linkedFaceIDs, &isPrimary, &isToken,
+			&isPrimary, &isToken,
 		); err != nil {
 			return nil, fmt.Errorf("scanning row: %w", err)
 		}
@@ -262,32 +261,10 @@ func resolveAbilityTexts(abilityIDs string, abilityTexts map[int]string, locText
 	return result
 }
 
-// postProcess sets FrontFaceName for DFC/split/adventure cards and determines
-// is_default (highest arena_id per front_face_name).
+// postProcess determines is_default (highest arena_id per front_face_name).
+// Each face of a DFC is a separate row with its own front_face_name.
+// Scryfall enrichment later refines is_default using oracle_id grouping.
 func postProcess(cards []FullCard) []FullCard {
-	// Build a name lookup by arena_id for DFC front-face resolution.
-	nameByID := make(map[int]string, len(cards))
-	for i := range cards {
-		nameByID[cards[i].ArenaID] = cards[i].Name
-	}
-
-	// For non-primary cards that are linked to a primary card, use the primary
-	// card's name as the front_face_name. For primary cards or cards without
-	// links, front_face_name = name (already set).
-	// We don't need to do anything special here — front_face_name is already
-	// set to the card's own name. The MTGA DB stores each face as a separate
-	// card with its own name. front_face_name should be the card's own name
-	// for the primary face, and the primary face's name for back faces.
-	// But actually, for our D1 schema, we only want to import primary faces
-	// (or single-faced cards). Back faces are not separate rows in the
-	// Scryfall model — they're part of the front face's data.
-	//
-	// For now, every card gets front_face_name = its own name. Back faces
-	// won't be marked is_default since they have lower arena_ids than the
-	// front face for the same card name... except they have different names.
-	// This is fine — back faces like "Agadeem, the Undercrypt" will just be
-	// separate rows with is_default based on their own front_face_name.
-
 	// Determine is_default: highest arena_id per front_face_name.
 	highestID := make(map[string]int) // front_face_name → highest arena_id
 	for i := range cards {

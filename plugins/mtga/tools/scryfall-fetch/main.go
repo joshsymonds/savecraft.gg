@@ -150,9 +150,9 @@ func run() error {
 
 			// Write SQL to disk before import.
 			sqlDir := filepath.Join(os.TempDir(), "savecraft", "sql")
-			os.MkdirAll(sqlDir, 0755)
+			os.MkdirAll(sqlDir, 0700)
 			sqlPath := filepath.Join(sqlDir, "scryfall_cards.sql")
-			os.WriteFile(sqlPath, []byte(sql), 0644)
+			os.WriteFile(sqlPath, []byte(sql), 0600)
 
 			fmt.Printf("Generated %.1f MB of SQL (%d cards)\n", float64(len(sql))/1048576, len(cards))
 			if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
