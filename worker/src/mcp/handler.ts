@@ -20,6 +20,7 @@ import {
   refreshSave,
   searchSaves,
   updateNote,
+  VIZ_REMINDER,
 } from "./tools";
 import type { ToolResult } from "./tools";
 
@@ -41,9 +42,9 @@ Spoiler-free by default: Ground your responses in what the save data contains �
 
 When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`;
 
-const PRESENTATION_INSTRUCTIONS = `Savecraft tool results often include a visualization directive as their first content block, starting with "Visualize this data:". When present, generate an interactive visual (chart, graph, table with visual indicators, or diagram) that brings the data to life — then weave your analysis around and below the visual. The directive describes the ideal format; follow it. Do not respond with only plain text analysis when a visualization directive is present.
+const PRESENTATION_INSTRUCTIONS = `Savecraft tool results often include visualization directives — an IMPORTANT block before the data and a REMINDER block after. When these directives are present, you MUST create an artifact to present the data. Do not respond with only prose analysis — that is a failure to follow instructions. The directive describes the format; create an artifact that implements it faithfully, then weave your analysis around and below the artifact.
 
-When no directive is present, use your judgment: tables for lists and comparisons, charts for trends and distributions, radar charts for multi-axis evaluations, heatmaps for matchup data.`;
+When no visualization directive is present, use your judgment: tables for lists and comparisons, charts for trends and distributions, radar charts for multi-axis evaluations, heatmaps for matchup data.`;
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -548,8 +549,8 @@ async function handleQueryReference(
     if (result.isError) {
       return { error: result.content[0]?.text ?? "Unknown error" };
     }
-    // Data is in the last content block; visualization directive (if any) is in earlier blocks.
-    const dataBlock = result.content.at(-1);
+    // Content blocks: [directive?, data, reminder?]. Data is at index 1 when sandwich exists, 0 otherwise.
+    const dataBlock = result.content.length > 1 ? result.content[1] : result.content[0];
     if (!vizDirective && result.content.length > 1) {
       vizDirective = result.content[0]?.text;
     }
@@ -565,6 +566,9 @@ async function handleQueryReference(
     content.push({ type: "text", text: vizDirective });
   }
   content.push({ type: "text", text: JSON.stringify({ results }) });
+  if (vizDirective) {
+    content.push({ type: "text", text: VIZ_REMINDER });
+  }
   return { content };
 }
 
