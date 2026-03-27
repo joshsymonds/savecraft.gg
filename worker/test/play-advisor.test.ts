@@ -375,17 +375,19 @@ describe("play_advisor reference module", () => {
       },
       env,
     );
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-    // Gleaming Barrier: best on turn 2 (55.0% WR from seeded data: 110/200)
-    expect(content).toContain("Gleaming Barrier");
-    expect(content).toContain("best on turn 2");
-    expect(content).toContain("55.0%");
-    // Kaito: best on turn 3 (60.0% WR from seeded data: 90/150)
-    expect(content).toContain("Kaito");
-    expect(content).toContain("best on turn 3");
-    expect(content).toContain("60.0%");
-    expect(content).toContain("Coverage: 2/2");
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const cards = result.data.cards as { card_name: string; best_turn: number; best_win_rate: number; turns: unknown[] }[];
+    const barrier = cards.find((c) => c.card_name === "Gleaming Barrier");
+    expect(barrier).toBeDefined();
+    expect(barrier!.best_turn).toBe(2);
+    expect(barrier!.best_win_rate).toBeCloseTo(0.55, 2);
+    const kaito = cards.find((c) => c.card_name === "Kaito, Cunning Infiltrator");
+    expect(kaito).toBeDefined();
+    expect(kaito!.best_turn).toBe(3);
+    expect(kaito!.best_win_rate).toBeCloseTo(0.60, 2);
+    expect(result.data.coverage).toEqual({ found: 2, total: 2 });
+    expect(result).toHaveProperty("presentation");
   });
 
   it("reports coverage for missing cards", async () => {
@@ -398,8 +400,8 @@ describe("play_advisor reference module", () => {
       },
       env,
     );
-    const content = (result as { type: "formatted"; content: string }).content;
-    expect(content).toContain("Coverage: 1/2");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.coverage).toEqual({ found: 1, total: 2 });
   });
 
   it("returns mana efficiency with ratings", async () => {
@@ -417,19 +419,19 @@ describe("play_advisor reference module", () => {
       },
       env,
     );
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-    expect(content).toContain("Mana Efficiency");
-    // Turn 3: avg mana = 200/50 = 4.0, player spent 3 → 3 >= 4*0.5 → "Low"
-    expect(content).toContain("T3");
-    expect(content).toContain("Low");
-    // Turn 3 bucket 3 WR: 60/100 = 60.0%
-    expect(content).toContain("60.0%");
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const turns = result.data.turns as { turn: number; rating: string; bucket_win_rate: number }[];
+    const t3 = turns.find((t) => t.turn === 3);
+    expect(t3).toBeDefined();
+    // Turn 3: avg mana = 200/50 = 4.0, player spent 3 → Low
+    expect(t3!.rating).toBe("Low");
+    // Turn 3 bucket 3 WR: 60/100 = 0.6
+    expect(t3!.bucket_win_rate).toBeCloseTo(0.6, 2);
+    expect(result).toHaveProperty("presentation");
   });
 
   it("returns attack analysis with hold recommendation", async () => {
-    // Seeded data: Gleaming Barrier turn 3, 2v2 creatures:
-    //   attack WR: 30/80 = 37.5%, hold WR: 50/80 = 62.5% → data says hold
     const result = await playAdvisorModule.execute(
       {
         mode: "attack_analysis",
@@ -446,20 +448,22 @@ describe("play_advisor reference module", () => {
       },
       env,
     );
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-    expect(content).toContain("Gleaming Barrier");
-    // Player attacked but data says hold → should show ✗ marker
-    expect(content).toContain("✗");
-    expect(content).toContain("data says hold");
-    expect(content).toContain("37.5%"); // attack WR
-    expect(content).toContain("62.5%"); // hold WR
-    expect(content).toContain("Coverage: 1/1");
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const turns = result.data.turns as { turn: number; creatures: { creature: string; action: string; correct: boolean; best_action: string; attack_win_rate: number; hold_win_rate: number }[] }[];
+    const t3 = turns.find((t) => t.turn === 3);
+    expect(t3).toBeDefined();
+    const barrier = t3!.creatures.find((c) => c.creature === "Gleaming Barrier");
+    expect(barrier).toBeDefined();
+    expect(barrier!.correct).toBe(false);
+    expect(barrier!.best_action).toBe("hold");
+    expect(barrier!.attack_win_rate).toBeCloseTo(0.375, 2);
+    expect(barrier!.hold_win_rate).toBeCloseTo(0.625, 2);
+    expect(result.data.coverage).toEqual({ found: 1, total: 1 });
+    expect(result).toHaveProperty("presentation");
   });
 
   it("returns mulligan analysis with keep recommendation", async () => {
-    // Seeded data: UB on_play, 2 lands, mid CMC, 0 mulls → 70/120 = 58.3% WR (keep)
-    // Mulligan to 6: 40/100 = 40.0% WR → keep wins by 18.3pp
     const result = await playAdvisorModule.execute(
       {
         mode: "mulligan",
@@ -478,14 +482,10 @@ describe("play_advisor reference module", () => {
       },
       env,
     );
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-    expect(content).toContain("Mulligan Analysis");
-    // Note: mulligan now looks up CMC from mtga_cards. Without seeded cards,
-    // it falls back to 2.5 default CMC → "mid" bucket. With 3 basic lands
-    // (Island, Island, Swamp) → landCount=3.
-    // Seeded data has 3-land mid at 65/120 = 54.2%
-    expect(content).toContain("KEEP");
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.recommendation).toBe("KEEP");
+    expect(result).toHaveProperty("presentation");
   });
 
   it("returns game review analysis", async () => {
@@ -524,9 +524,11 @@ describe("play_advisor reference module", () => {
       },
       env,
     );
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-    expect(content).toContain("Game Review");
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data).toHaveProperty("findings");
+    expect(result.data).toHaveProperty("coverage");
+    expect(result).toHaveProperty("presentation");
   });
 
   it("includes disclaimer for non-draft format", async () => {
@@ -540,8 +542,8 @@ describe("play_advisor reference module", () => {
       },
       env,
     );
-    const content = (result as { type: "formatted"; content: string }).content;
-    expect(content).toContain("Premier Draft");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.disclaimer).toContain("Premier Draft");
   });
 
   it("does not include disclaimer for PremierDraft format", async () => {
@@ -555,8 +557,8 @@ describe("play_advisor reference module", () => {
       },
       env,
     );
-    const content = (result as { type: "formatted"; content: string }).content;
-    expect(content).not.toContain("Baselines from Premier Draft");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.disclaimer).toBeUndefined();
   });
 
   it("falls back to ALL archetype when specific archetype has no data", async () => {
@@ -569,10 +571,10 @@ describe("play_advisor reference module", () => {
       },
       env,
     );
-    const content = (result as { type: "formatted"; content: string }).content;
-    // Should still return data using ALL fallback
-    expect(content).toContain("Gleaming Barrier");
-    expect(content).toContain("Coverage: 1/1");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const cards = result.data.cards as { card_name: string }[];
+    expect(cards.some((c) => c.card_name === "Gleaming Barrier")).toBe(true);
+    expect(result.data.coverage).toEqual({ found: 1, total: 1 });
   });
 
   it("game_review works via match_id lookup with battlefield data", async () => {
@@ -716,12 +718,11 @@ describe("play_advisor reference module", () => {
       },
       env,
     );
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
-    expect(content).toContain("Game Review");
-    expect(content).toContain("Coverage:");
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data).toHaveProperty("findings");
+    expect(result.data).toHaveProperty("coverage");
     // Turn 3 has 1 user creature, 2 opponent creatures (extracted from battlefield)
-    // The game_review should be able to run combat analysis with these counts
   });
 
   it("game_review returns error when match_id not found", async () => {

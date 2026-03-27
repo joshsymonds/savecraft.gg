@@ -77,35 +77,17 @@ const MAX_TURNS = 30;
 const MAX_HAND = 7;
 const MAX_CREATURES_PER_TURN = 20;
 
-// ── Formatting helpers ───────────────────────────────────────
-
-function pct(wins: number, total: number): string {
-  if (total === 0) return "N/A";
-  return `${((wins / total) * 100).toFixed(1)}%`;
-}
+// ── Helpers ──────────────────────────────────────────────────
 
 function wr(wins: number, total: number): number {
   if (total === 0) return 0;
-  return wins / total;
+  return Math.round((wins / total) * 1000) / 1000;
 }
 
-function padR(s: string, len: number): string {
-  return s.length >= len ? s : s + " ".repeat(len - s.length);
-}
-
-function padL(s: string, len: number): string {
-  return s.length >= len ? s : " ".repeat(len - s.length) + s;
-}
-
-function coverageLine(found: number, total: number): string {
-  const pctVal = total === 0 ? 0 : Math.round((found / total) * 100);
-  return `Coverage: ${found}/${total} cards have replay data (${pctVal}%)`;
-}
-
-function disclaimer(format: string | undefined): string {
-  if (!format || format === "PremierDraft") return "";
+function disclaimerText(format: string | undefined): string | undefined {
+  if (!format || format === "PremierDraft") return undefined;
   const safeFormat = String(format).slice(0, 50);
-  return `Note: Baselines from Premier Draft data — advice may not reflect ${safeFormat} meta.\n\n`;
+  return `Baselines from Premier Draft replay data — advice may not reflect ${safeFormat} meta.`;
 }
 
 // ── Archetype resolution ─────────────────────────────────────
@@ -143,7 +125,6 @@ async function cardTiming(
 
   const arch = await resolveArchetype(env, "mtga_play_card_timing", set, archetype);
 
-  // Batch: fetch all card timing rows for these cards in one query.
   const placeholders = rawCards.map(() => "?").join(", ");
   const rows = await env.DB.prepare(
     `SELECT card_name, turn_number, times_deployed, games_won, total_games
@@ -154,7 +135,6 @@ async function cardTiming(
     .bind(set, arch, ...rawCards)
     .all<CardTimingRow>();
 
-  // Group by card name.
   const byCard = new Map<string, CardTimingRow[]>();
   for (const r of rows.results) {
     const existing = byCard.get(r.card_name) ?? [];
@@ -162,13 +142,9 @@ async function cardTiming(
     byCard.set(r.card_name, existing);
   }
 
-  const lines: string[] = [];
-  lines.push(disclaimer(format));
-  lines.push("Card Timing Analysis");
-  lines.push("═".repeat(50));
-  lines.push("");
-
   const cardsWithData = new Set<string>();
+  const cards = [];
+
   for (const card of rawCards) {
     const cardRows = byCard.get(card);
     if (!cardRows || cardRows.length === 0) continue;
@@ -184,16 +160,29 @@ async function cardTiming(
       }
     }
 
-    lines.push(`${card} (best on turn ${bestTurn}, ${(bestWR * 100).toFixed(1)}% WR)`);
-    lines.push(`  ${padR("Turn", 6)} ${padL("Played", 8)} ${padL("Win Rate", 10)} ${padL("Games", 8)}`);
-    for (const r of cardRows) {
-      lines.push(`  ${padR(`T${r.turn_number}`, 6)} ${padL(String(r.times_deployed), 8)} ${padL(pct(r.games_won, r.total_games), 10)} ${padL(String(r.total_games), 8)}`);
-    }
-    lines.push("");
+    cards.push({
+      card_name: card,
+      best_turn: bestTurn,
+      best_win_rate: bestWR,
+      turns: cardRows.map((r) => ({
+        turn: r.turn_number,
+        times_deployed: r.times_deployed,
+        win_rate: wr(r.games_won, r.total_games),
+        total_games: r.total_games,
+      })),
+    });
   }
 
-  lines.push(coverageLine(cardsWithData.size, rawCards.length));
-  return { type: "formatted", content: lines.join("\n") };
+  return {
+    type: "structured",
+    data: {
+      disclaimer: disclaimerText(format),
+      cards,
+      coverage: { found: cardsWithData.size, total: rawCards.length },
+    },
+    presentation:
+      "Card timing analysis — for each card, show a table of win rate by deployment turn. Highlight the best turn. If multiple cards, use a grouped bar chart or heatmap comparing win rates across turns.",
+  };
 }
 
 // ── Query: mana_efficiency ───────────────────────────────────
@@ -216,7 +205,6 @@ async function manaEfficiency(
   const turnNums = turns.map((t) => t.turn);
   const turnPlaceholders = turnNums.map(() => "?").join(", ");
 
-  // Batch: fetch all tempo rows for these turns.
   const tempoRows = await env.DB.prepare(
     `SELECT turn_number, mana_spent_bucket, games_won, total_games
      FROM mtga_play_tempo
@@ -225,7 +213,6 @@ async function manaEfficiency(
     .bind(set, arch, onPlay, ...turnNums)
     .all<TempoRow>();
 
-  // Batch: fetch all baselines for these turns.
   const baselineRows = await env.DB.prepare(
     `SELECT turn_number, total_mana_spent, games_won, total_games
      FROM mtga_play_turn_baselines
@@ -234,7 +221,6 @@ async function manaEfficiency(
     .bind(set, arch, onPlay, ...turnNums)
     .all<BaselineRow>();
 
-  // Index by turn.
   const tempoByTurnBucket = new Map<string, TempoRow>();
   for (const r of tempoRows.results) {
     tempoByTurnBucket.set(`${r.turn_number}:${r.mana_spent_bucket}`, r);
@@ -244,35 +230,45 @@ async function manaEfficiency(
     baselineByTurn.set(r.turn_number, r);
   }
 
-  const lines: string[] = [];
-  lines.push(disclaimer(format));
-  lines.push("Mana Efficiency Analysis");
-  lines.push("═".repeat(50));
-  lines.push("");
-  lines.push(`  ${padR("Turn", 6)} ${padL("You", 6)} ${padL("Bucket", 8)} ${padL("Bucket WR", 10)} ${padL("Avg WR", 10)} ${padL("Rating", 8)}`);
+  const turnResults = [];
 
   for (const t of turns) {
     const bucket = Math.min(5, Math.max(0, Math.round(t.mana_spent)));
     const row = tempoByTurnBucket.get(`${t.turn}:${bucket}`);
     const baseline = baselineByTurn.get(t.turn);
 
-    const bucketWR = row ? pct(row.games_won, row.total_games) : "N/A";
-    const avgWR = baseline ? pct(baseline.games_won, baseline.total_games) : "N/A";
+    const bucketWR = row ? wr(row.games_won, row.total_games) : null;
+    const avgWR = baseline ? wr(baseline.games_won, baseline.total_games) : null;
 
     let rating = "—";
+    let avgMana: number | null = null;
     if (baseline && baseline.total_games > 0) {
-      const avg = baseline.total_mana_spent / baseline.total_games;
-      if (t.mana_spent >= avg * 0.9) rating = "Good";
-      else if (t.mana_spent >= avg * 0.5) rating = "Low";
+      avgMana = Math.round((baseline.total_mana_spent / baseline.total_games) * 100) / 100;
+      if (t.mana_spent >= avgMana * 0.9) rating = "Good";
+      else if (t.mana_spent >= avgMana * 0.5) rating = "Low";
       else rating = "Wasted";
     }
 
-    lines.push(`  ${padR(`T${t.turn}`, 6)} ${padL(String(t.mana_spent), 6)} ${padL(String(bucket), 8)} ${padL(bucketWR, 10)} ${padL(avgWR, 10)} ${padL(rating, 8)}`);
+    turnResults.push({
+      turn: t.turn,
+      mana_spent: t.mana_spent,
+      bucket,
+      bucket_win_rate: bucketWR,
+      avg_win_rate: avgWR,
+      avg_mana: avgMana,
+      rating,
+    });
   }
 
-  lines.push("");
-  lines.push("Avg mana column shows baseline win rate at the average mana expenditure for this archetype.");
-  return { type: "formatted", content: lines.join("\n") };
+  return {
+    type: "structured",
+    data: {
+      disclaimer: disclaimerText(format),
+      turns: turnResults,
+    },
+    presentation:
+      "Mana efficiency analysis — table showing each turn with mana spent, rating (Good/Low/Wasted), and baseline comparison. Use color coding for ratings. If 5+ turns, consider a line chart of mana spent vs average baseline over time.",
+  };
 }
 
 // ── Query: attack_analysis ───────────────────────────────────
@@ -297,7 +293,6 @@ async function attackAnalysis(
     return { type: "formatted", content: "Error: attack_analysis requires set and turns parameters." };
   }
 
-  // Collect all unique creature names across all turns for batch query.
   const allCreatureNames = new Set<string>();
   for (const t of turns) {
     for (const c of (t.creatures ?? []).slice(0, MAX_CREATURES_PER_TURN)) {
@@ -305,7 +300,6 @@ async function attackAnalysis(
     }
   }
 
-  // Batch: fetch all combat rows for all creatures in one query.
   const creatureList = [...allCreatureNames];
   let combatData: CombatRow[] = [];
   if (creatureList.length > 0) {
@@ -320,26 +314,20 @@ async function attackAnalysis(
     combatData = result.results;
   }
 
-  // Index: creature+turn+userC+oppoC+attacked → row
   const combatIndex = new Map<string, CombatRow>();
   for (const r of combatData) {
     combatIndex.set(`${r.attacker_name}:${r.turn_number}:${r.user_creatures_count}:${r.oppo_creatures_count}:${r.attacked}`, r);
   }
 
-  const lines: string[] = [];
-  lines.push(disclaimer(format));
-  lines.push("Attack Analysis");
-  lines.push("═".repeat(50));
-  lines.push("");
-
   const creaturesWithData = new Set<string>();
+  const turnResults = [];
 
   for (const t of turns) {
     const userC = Math.min(4, Math.max(0, t.user_creatures));
     const oppoC = Math.min(4, Math.max(0, t.oppo_creatures));
     const attackedSet = new Set(t.attacked);
 
-    lines.push(`Turn ${t.turn} (${t.user_creatures} vs ${t.oppo_creatures} creatures):`);
+    const creatureResults = [];
 
     for (const creature of (t.creatures ?? []).slice(0, MAX_CREATURES_PER_TURN)) {
       const didAttack = attackedSet.has(creature);
@@ -347,7 +335,15 @@ async function attackAnalysis(
       const holdRow = combatIndex.get(`${creature}:${t.turn}:${userC}:${oppoC}:0`);
 
       if (!attackRow && !holdRow) {
-        lines.push(`  ${creature}: ${didAttack ? "attacked" : "held"} — no data`);
+        creatureResults.push({
+          creature,
+          action: didAttack ? "attacked" : "held",
+          has_data: false,
+          correct: null as boolean | null,
+          best_action: null as string | null,
+          attack_win_rate: null as number | null,
+          hold_win_rate: null as number | null,
+        });
         continue;
       }
       creaturesWithData.add(creature);
@@ -357,16 +353,36 @@ async function attackAnalysis(
       const bestAction = attackWR > holdWR ? "attack" : "hold";
       const playerAction = didAttack ? "attacked" : "held";
       const correctAction = bestAction === "attack" ? "attacked" : "held";
-      const correct = playerAction === correctAction;
-      const marker = correct ? "✓" : "✗";
 
-      lines.push(`  ${marker} ${creature}: ${playerAction} (attack WR: ${(attackWR * 100).toFixed(1)}%, hold WR: ${(holdWR * 100).toFixed(1)}%) — data says ${bestAction}`);
+      creatureResults.push({
+        creature,
+        action: playerAction,
+        has_data: true,
+        correct: playerAction === correctAction,
+        best_action: bestAction,
+        attack_win_rate: attackWR,
+        hold_win_rate: holdWR,
+      });
     }
-    lines.push("");
+
+    turnResults.push({
+      turn: t.turn,
+      user_creatures: t.user_creatures,
+      oppo_creatures: t.oppo_creatures,
+      creatures: creatureResults,
+    });
   }
 
-  lines.push(coverageLine(creaturesWithData.size, allCreatureNames.size));
-  return { type: "formatted", content: lines.join("\n") };
+  return {
+    type: "structured",
+    data: {
+      disclaimer: disclaimerText(format),
+      turns: turnResults,
+      coverage: { found: creaturesWithData.size, total: allCreatureNames.size },
+    },
+    presentation:
+      "Attack analysis — for each turn, show a table of creatures with their action (attacked/held), whether it was correct, and the win rates for attack vs hold. Use checkmarks and X marks for correct/incorrect decisions. Highlight the biggest misplays.",
+  };
 }
 
 // ── Query: mulligan ──────────────────────────────────────────
@@ -387,7 +403,6 @@ async function mulligan(
 
   const arch = await resolveArchetype(env, "mtga_play_mulligan", set, archetype);
 
-  // Look up CMC from mtga_cards for accurate land detection + CMC bucketing.
   const placeholders = hand.map(() => "?").join(", ");
   const cardRows = await env.DB.prepare(
     `SELECT name, cmc, type_line FROM mtga_cards
@@ -419,16 +434,6 @@ async function mulligan(
     nonlandCMCs.length > 0 ? nonlandCMCs.reduce((a, b) => a + b, 0) / nonlandCMCs.length : 0;
   const cmcBucket = avgCMC < 2.0 ? "low" : avgCMC <= 3.0 ? "mid" : "high";
 
-  const lines: string[] = [];
-  lines.push(disclaimer(format));
-  lines.push("Mulligan Analysis");
-  lines.push("═".repeat(50));
-  lines.push("");
-  lines.push(`Hand: ${hand.length} cards, ${landCount} lands, nonland CMC: ${cmcBucket}`);
-  lines.push(`On play: ${onPlay === 1 ? "yes" : "no"}`);
-  lines.push("");
-
-  // Batch: fetch keep and mull rows together.
   const keepRow = await env.DB.prepare(
     `SELECT games_won, total_games FROM mtga_play_mulligan
      WHERE set_code = ? AND archetype = ? AND on_play = ? AND land_count = ? AND nonland_cmc_bucket = ? AND num_mulligans = 0`,
@@ -443,30 +448,39 @@ async function mulligan(
     .bind(set, arch, onPlay)
     .first<MulliganRow>();
 
-  if (keepRow) {
-    lines.push(
-      `Keep (${landCount} lands, ${cmcBucket} curve): ${pct(keepRow.games_won, keepRow.total_games)} WR (${keepRow.total_games} games)`,
-    );
-  } else {
-    lines.push(`Keep: No data for ${landCount}-land ${cmcBucket}-CMC hands.`);
-  }
+  const keepWR = keepRow ? wr(keepRow.games_won, keepRow.total_games) : null;
+  const mullWR = mullRow ? wr(mullRow.games_won, mullRow.total_games) : null;
 
-  if (mullRow) {
-    lines.push(`Mulligan to 6: ${pct(mullRow.games_won, mullRow.total_games)} WR (${mullRow.total_games} games)`);
-  }
-
-  if (keepRow && mullRow) {
-    const keepWR = wr(keepRow.games_won, keepRow.total_games);
-    const mullWR = wr(mullRow.games_won, mullRow.total_games);
-    lines.push("");
+  let recommendation: string | null = null;
+  let margin: number | null = null;
+  if (keepWR !== null && mullWR !== null) {
     if (keepWR > mullWR) {
-      lines.push(`Recommendation: KEEP — this hand shape wins ${((keepWR - mullWR) * 100).toFixed(1)}pp more than mulliganing.`);
+      recommendation = "KEEP";
+      margin = Math.round((keepWR - mullWR) * 1000) / 10;
     } else {
-      lines.push(`Recommendation: MULLIGAN — mulliganing wins ${((mullWR - keepWR) * 100).toFixed(1)}pp more than keeping this hand shape.`);
+      recommendation = "MULLIGAN";
+      margin = Math.round((mullWR - keepWR) * 1000) / 10;
     }
   }
 
-  return { type: "formatted", content: lines.join("\n") };
+  return {
+    type: "structured",
+    data: {
+      disclaimer: disclaimerText(format),
+      hand_size: hand.length,
+      land_count: landCount,
+      cmc_bucket: cmcBucket,
+      on_play: onPlay === 1,
+      keep_win_rate: keepWR,
+      keep_games: keepRow?.total_games ?? null,
+      mulligan_win_rate: mullWR,
+      mulligan_games: mullRow?.total_games ?? null,
+      recommendation,
+      margin_pp: margin,
+    },
+    presentation:
+      "Mulligan analysis — show the hand composition (lands, CMC bucket), then a clear KEEP or MULLIGAN recommendation with the win rate comparison. Use a simple visual comparison (two bars or a gauge) showing keep WR vs mulligan WR.",
+  };
 }
 
 // ── Section lookup: convert game section to TurnInput[] ──────
@@ -545,7 +559,6 @@ function extractTurnsFromSection(section: GameSectionData, playerSeat: number): 
       }
     }
 
-    // Extract creature counts from battlefield snapshots.
     if (turn.players) {
       for (const p of turn.players) {
         const creatures = (p.battlefield ?? []).filter((perm) =>
@@ -579,7 +592,6 @@ async function loadTurnsFromMatchId(
   userId: string,
   env: Env,
 ): Promise<TurnInput[] | string> {
-  // Single JOIN query instead of N saves loop.
   const sectionName = `game:${matchId}`;
   const row = await env.DB.prepare(
     `SELECT sec.data FROM sections sec
@@ -607,7 +619,7 @@ interface ReviewFinding {
   turn: number;
   category: string;
   description: string;
-  impact: number; // higher = bigger deviation from optimal
+  impact: number;
 }
 
 async function gameReview(
@@ -646,11 +658,9 @@ async function gameReview(
   turns = turns.slice(0, MAX_TURNS);
   const arch = await resolveArchetype(env, "mtga_play_turn_baselines", set, archetype);
 
-  // ── Pre-fetch all data in bulk ──
   const turnNums = turns.map((t) => t.turn);
   const turnPlaceholders = turnNums.map(() => "?").join(", ");
 
-  // Baselines for all turns.
   const baselines = await env.DB.prepare(
     `SELECT turn_number, total_mana_spent, total_creatures_attacked, total_attacks_possible, games_won, total_games
      FROM mtga_play_turn_baselines
@@ -662,7 +672,6 @@ async function gameReview(
   const baselineByTurn = new Map<number, BaselineRow>();
   for (const r of baselines.results) baselineByTurn.set(r.turn_number, r);
 
-  // Card timing for all played cards.
   const allPlayedCards = new Set<string>();
   for (const t of turns) {
     for (const c of t.cards_played ?? []) allPlayedCards.add(c);
@@ -688,12 +697,10 @@ async function gameReview(
     }
   }
 
-  // ── Analysis ──
   const findings: ReviewFinding[] = [];
   const cardsWithData = new Set<string>();
 
   for (const t of turns) {
-    // Mana efficiency check.
     const baseline = baselineByTurn.get(t.turn);
     if (baseline && baseline.total_games > 0 && t.mana_spent !== undefined) {
       const avgMana = baseline.total_mana_spent / baseline.total_games;
@@ -708,7 +715,6 @@ async function gameReview(
       }
     }
 
-    // Card timing check.
     for (const card of t.cards_played ?? []) {
       allPlayedCards.add(card);
       const cardRows = cardTimingMap.get(card);
@@ -738,7 +744,6 @@ async function gameReview(
       }
     }
 
-    // Attack check.
     if (
       t.creatures_attacked !== undefined &&
       t.user_creatures !== undefined &&
@@ -764,25 +769,22 @@ async function gameReview(
 
   findings.sort((a, b) => b.impact - a.impact);
 
-  const lines: string[] = [];
-  lines.push(disclaimer(format));
-  lines.push("Game Review");
-  lines.push("═".repeat(50));
-  lines.push("");
-
-  if (findings.length === 0) {
-    lines.push("No significant deviations from winning patterns detected.");
-  } else {
-    lines.push(`Found ${findings.length} potential improvement${findings.length > 1 ? "s" : ""}:`);
-    lines.push("");
-    for (const f of findings.slice(0, 5)) {
-      lines.push(`Turn ${f.turn} [${f.category}]: ${f.description}`);
-    }
-  }
-
-  lines.push("");
-  lines.push(coverageLine(cardsWithData.size, allPlayedCards.size));
-  return { type: "formatted", content: lines.join("\n") };
+  return {
+    type: "structured",
+    data: {
+      disclaimer: disclaimerText(format),
+      findings: findings.slice(0, 5).map((f) => ({
+        turn: f.turn,
+        category: f.category,
+        description: f.description,
+        impact: Math.round(f.impact * 100) / 100,
+      })),
+      total_findings: findings.length,
+      coverage: { found: cardsWithData.size, total: allPlayedCards.size },
+    },
+    presentation:
+      "Game review — list findings sorted by impact. Use visual severity indicators (color or icons) for each finding category (Tempo, Timing, Combat). If no findings, congratulate the player. Show coverage at the end.",
+  };
 }
 
 // ── Module definition ────────────────────────────────────────
