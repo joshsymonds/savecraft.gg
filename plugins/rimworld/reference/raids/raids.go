@@ -79,4 +79,3 @@ func PawnPoints(wealth float64) float64 {
 		{1000000, 200},
 	})
 }
-

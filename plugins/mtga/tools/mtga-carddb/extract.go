@@ -73,17 +73,17 @@ func extractFullCards(cardDBPath string) ([]FullCard, error) {
 	var cards []FullCard
 	for rows.Next() {
 		var (
-			grpID, rarity    int
+			grpID, rarity      int
 			isPrimary, isToken bool
-			name, set        string
-			manaCostRaw      string
-			colorsCSV        string
-			colorIdentCSV    string
-			supertypesCSV    string
-			typesCSV         string
-			subtypesCSV      string
-			power, toughness string
-			abilityIDs       string
+			name, set          string
+			manaCostRaw        string
+			colorsCSV          string
+			colorIdentCSV      string
+			supertypesCSV      string
+			typesCSV           string
+			subtypesCSV        string
+			power, toughness   string
+			abilityIDs         string
 		)
 		if err := rows.Scan(
 			&grpID, &name, &set, &rarity,

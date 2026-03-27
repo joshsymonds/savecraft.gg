@@ -17,7 +17,17 @@ describe("mana_base native module", () => {
       // Mono-black: {2}{B}{B} = 2 generic + 2 black pips
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-      ).bind(87_521, "abc", "Sheoldred, the Apocalypse", "Sheoldred, the Apocalypse", "{2}{B}{B}", 4, '["B"]', "mythic", "DMU"),
+      ).bind(
+        87_521,
+        "abc",
+        "Sheoldred, the Apocalypse",
+        "Sheoldred, the Apocalypse",
+        "{2}{B}{B}",
+        4,
+        '["B"]',
+        "mythic",
+        "DMU",
+      ),
       // Mono-red: {R}
       env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,

@@ -24,12 +24,12 @@ type Conflict struct {
 
 // BuildResult contains the validation outcome for a gene build.
 type BuildResult struct {
-	TotalComplexity  int
-	TotalMetabolism  int
-	TotalArchite     int
-	ComplexityOK     bool
-	MetabolismOK     bool
-	Conflicts        []Conflict
+	TotalComplexity int
+	TotalMetabolism int
+	TotalArchite    int
+	ComplexityOK    bool
+	MetabolismOK    bool
+	Conflicts       []Conflict
 }
 
 // ValidateBuild checks whether a set of genes fits within the given

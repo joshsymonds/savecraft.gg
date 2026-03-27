@@ -87,10 +87,10 @@ func TestProductionChainZeroGrowDays(t *testing.T) {
 
 func TestSilverPerWorkEdgeCases(t *testing.T) {
 	tests := []struct {
-		name      string
-		value     float64
-		work      float64
-		want      float64
+		name  string
+		value float64
+		work  float64
+		want  float64
 	}{
 		{"zero work", 14, 0, 0},
 		{"normal flake", 14, 250, 0.056},
