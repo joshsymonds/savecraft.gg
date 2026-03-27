@@ -32,18 +32,21 @@
 
   // ── Before/After demo data ─────────────────────────────────
   const withoutMessages = [
-    { role: "player" as const, text: "What's the best runeword for my Sorceress?" },
+    {
+      role: "player" as const,
+      text: "How do I optimize my Echoing Strike Warlock?",
+    },
     {
       role: "ai" as const,
-      text: 'I\'d recommend the "Frozen Orb" runeword — it gives +3 to Cold Skills and 40% Faster Cast Rate. Insert Ber + Ist + Vex into a Crystal Sword.',
+      text: "There is no Warlock class in Diablo II: Resurrected. D2R has seven classes: Barbarian, Sorceress, Necromancer, Druid, Assassin, Paladin, and Amazon.",
     },
   ];
 
   const withConversation: DemoMessage[] = [
-    { role: "player", text: "What's the best runeword for my Sorceress?" },
+    { role: "player", text: "How do I optimize my Echoing Strike Warlock?" },
     {
       role: "ai",
-      text: "You're at 89% FCR on a level 78 Blizzard Sorc — one breakpoint short of 117%. Spirit in a Monarch shield gets you there. You've got the runes already: Tal + Thul + Ort + Amn sitting in your stash. That's your biggest upgrade for zero farming.",
+      text: "Atmus is at 75 — time to push for the 125% FCR breakpoint. Fortitude Thunder Maul gets you there with massive Enhanced Damage and Deadly Strike. Next priority: bind Hephasto The Armorer with Cursed + Fanaticism from River of Flame. He shreds Physical Immunes.",
     },
   ];
 
@@ -224,15 +227,18 @@
         </div>
         <div class="compare-body">
           {#each withoutMessages as msg (msg.role)}
-            <div class="generic-bubble generic-{msg.role}">
-              <span class="generic-role">{msg.role === "player" ? "You" : "ChatGPT"}</span>
-              <p class="generic-text">{msg.text}</p>
+            <div
+              class="without-msg"
+              class:without-player={msg.role === "player"}
+              class:without-ai={msg.role === "ai"}
+            >
+              <span class="without-role">{msg.role === "player" ? "YOU" : "AI"}</span>
+              <span class="without-text">{msg.text}</span>
             </div>
           {/each}
         </div>
         <p class="compare-caption compare-caption-bad">
-          "Frozen Orb" isn't a runeword. Those runes don't combine. Crystal Swords can't hold 3
-          sockets at that level.
+          The Warlock class has been in D2R since the expansion. Stale training data.
         </p>
       </div>
 
@@ -240,12 +246,12 @@
       <div class="compare-card compare-with">
         <ConversationDemo
           conversation={withConversation}
-          headerLabel="DIABLO II — BLIZZARD SORCERESS, LEVEL 78"
+          headerLabel="DIABLO II — ATMUS, LEVEL 75 WARLOCK"
           headerDotColor="var(--color-green)"
           startDelay={800}
         />
         <p class="compare-caption compare-caption-good">
-          Real character. Real inventory. Real runes.
+          Your character. Your build notes. Your next upgrade.
         </p>
       </div>
     </div>
@@ -815,44 +821,45 @@
   }
 
   .compare-body {
-    padding: 16px 14px;
+    padding: 20px 18px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
   }
 
-  .generic-bubble {
+  .without-msg {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    gap: 10px;
+    align-items: baseline;
   }
 
-  .generic-role {
+  .without-role {
     font-family: var(--font-heading);
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 32px;
+    text-align: right;
+    flex-shrink: 0;
     letter-spacing: 1px;
     text-transform: uppercase;
   }
 
-  .generic-player .generic-role {
+  .without-player .without-role {
     color: var(--color-text-muted);
   }
 
-  .generic-ai .generic-role {
-    color: rgba(180, 160, 130, 0.6);
+  .without-ai .without-role {
+    color: rgba(180, 100, 100, 0.6);
   }
 
-  .generic-text {
-    font-family: var(--font-heading);
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.6;
+  .without-text {
+    font-family: var(--font-body);
+    font-size: 20px;
+    line-height: 1.35;
     color: var(--color-text-dim);
-    margin: 0;
   }
 
-  .generic-ai .generic-text {
+  .without-ai .without-text {
     color: rgba(200, 180, 150, 0.5);
   }
 

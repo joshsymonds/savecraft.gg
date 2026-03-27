@@ -139,9 +139,13 @@
         </div>
         <div class="compare-body">
           {#each withoutMessages as msg (msg.role)}
-            <div class="generic-bubble generic-{msg.role}">
-              <span class="generic-role">{msg.role === "player" ? "You" : "ChatGPT"}</span>
-              <p class="generic-text">{msg.text}</p>
+            <div
+              class="without-msg"
+              class:without-player={msg.role === "player"}
+              class:without-ai={msg.role === "ai"}
+            >
+              <span class="without-role">{msg.role === "player" ? "YOU" : "AI"}</span>
+              <span class="without-text">{msg.text}</span>
             </div>
           {/each}
         </div>
@@ -533,44 +537,45 @@
   }
 
   .compare-body {
-    padding: 16px 14px;
+    padding: 20px 18px;
     display: flex;
     flex-direction: column;
-    gap: 14px;
+    gap: 16px;
   }
 
-  .generic-bubble {
+  .without-msg {
     display: flex;
-    flex-direction: column;
-    gap: 4px;
+    gap: 10px;
+    align-items: baseline;
   }
 
-  .generic-role {
+  .without-role {
     font-family: var(--font-heading);
-    font-size: 11px;
-    font-weight: 600;
+    font-size: 12px;
+    font-weight: 700;
+    min-width: 32px;
+    text-align: right;
+    flex-shrink: 0;
     letter-spacing: 1px;
     text-transform: uppercase;
   }
 
-  .generic-player .generic-role {
+  .without-player .without-role {
     color: var(--color-text-muted);
   }
 
-  .generic-ai .generic-role {
-    color: rgba(180, 160, 130, 0.6);
+  .without-ai .without-role {
+    color: rgba(180, 100, 100, 0.6);
   }
 
-  .generic-text {
-    font-family: var(--font-heading);
-    font-size: 14px;
-    font-weight: 400;
-    line-height: 1.6;
+  .without-text {
+    font-family: var(--font-body);
+    font-size: 20px;
+    line-height: 1.35;
     color: var(--color-text-dim);
-    margin: 0;
   }
 
-  .generic-ai .generic-text {
+  .without-ai .without-text {
     color: rgba(200, 180, 150, 0.5);
   }
 
