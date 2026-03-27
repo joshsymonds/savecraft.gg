@@ -2,17 +2,19 @@
 //
 // Growth rate formula from Plant.cs:
 //
-//	GrowthRate = FertilityFactor × TemperatureFactor × LightFactor
-//	GrowthPerTick = 1 / (60000 × growDays) × GrowthRate
+//	GrowthRate = FertilityFactor x TemperatureFactor x LightFactor
+//	GrowthPerTick = 1 / (60000 x growDays) x GrowthRate
 //
 // Plants rest when Resting (hour 19-05, 10 hours). Active 14 hours = 35000 ticks.
-// Effective growth per day = GrowthPerTick × 35000 = GrowthRate × 7/12 / growDays
-// Actual calendar days to maturity = growDays / (GrowthRate × 7/12)
+// Effective growth per day = GrowthPerTick x 35000 = GrowthRate x 7/12 / growDays
+// Actual calendar days to maturity = growDays / (GrowthRate x 7/12)
 package crops
+
+import "github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/calc"
 
 // RestFraction is the fraction of a day that plants actively grow.
 // Plants rest from hour 19 to hour 5 (10 hours rest, 14 hours active).
-// 14/24 = 7/12 ≈ 0.5833
+// 14/24 = 7/12 ~ 0.5833
 const RestFraction = 7.0 / 12.0
 
 // NutritionPerColonistPerDay is the standard daily nutrition need for a colonist.
@@ -26,7 +28,7 @@ type CropParams struct {
 	MarketValuePerUnit   float64 // Silver value per harvested unit
 	FertilitySensitivity float64 // Plant's fertility sensitivity (0-1)
 	SoilFertility        float64 // Soil fertility value (0.7 gravel, 1.0 soil, 1.4 rich)
-	Temperature          float64 // Average temperature in °C
+	Temperature          float64 // Average temperature in C
 }
 
 // CropResult contains computed production metrics for a crop.
@@ -40,7 +42,7 @@ type CropResult struct {
 // Calculate computes crop production metrics.
 func Calculate(p CropParams) CropResult {
 	fertFactor := FertilityFactor(p.SoilFertility, p.FertilitySensitivity)
-	tempFactor := TemperatureFactor(p.Temperature)
+	tempFactor := calc.TemperatureFactor(p.Temperature)
 	growthRate := fertFactor * tempFactor
 
 	if growthRate <= 0 || p.GrowDays <= 0 {
@@ -68,34 +70,10 @@ func TilesPerColonist(nutritionPerDayPerTile float64, colonists int) float64 {
 	return float64(colonists) * NutritionPerColonistPerDay / nutritionPerDayPerTile
 }
 
-// TemperatureFactor computes the temperature growth rate multiplier.
-// From Plant.cs GrowthRateFactor_Temperature:
-//
-//	temp < 0  → 0 (no growth)
-//	0 to 10   → linear 0 to 1
-//	10 to 42  → 1 (optimal)
-//	42 to 58  → linear 1 to 0
-//	temp > 58 → 0 (no growth)
-func TemperatureFactor(temp float64) float64 {
-	if temp < 0 {
-		return 0
-	}
-	if temp < 10 {
-		return temp / 10.0
-	}
-	if temp <= 42 {
-		return 1.0
-	}
-	if temp < 58 {
-		return (58.0 - temp) / 16.0
-	}
-	return 0
-}
-
 // FertilityFactor computes the fertility growth rate multiplier.
 // From Plant.cs GrowthRateFactor_Fertility:
 //
-//	soilFertility × sensitivity + (1 - sensitivity)
+//	soilFertility x sensitivity + (1 - sensitivity)
 func FertilityFactor(soilFertility, sensitivity float64) float64 {
 	return soilFertility*sensitivity + (1 - sensitivity)
 }

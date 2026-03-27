@@ -1,20 +1,13 @@
 // Package drugs implements the RimWorld drug economy and addiction analyzer.
 //
-// Computes silver/day for drug production chains (crop → processed drug),
+// Computes silver/day for drug production chains (crop -> processed drug),
 // addiction probability per dose, and safe use intervals.
 package drugs
 
+import "github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/calc"
+
 // RestFraction is the plant growth active fraction (14/24 hours).
 const RestFraction = 7.0 / 12.0
-
-// DrugRisk contains addiction and tolerance data for a drug.
-type DrugRisk struct {
-	Addictiveness       float64 // Base addiction chance per dose
-	MinToleranceToAddict float64 // Tolerance must exceed this to become addicted (0 = always possible)
-	TolerancePerDose    float64 // Tolerance severity gained per dose
-	ToleranceDecayPerDay float64 // Tolerance severity lost per day
-	SafeDoseIntervalDays float64 // Recommended days between doses to stay below tolerance threshold
-}
 
 // ProductionParams contains inputs for drug production chain calculation.
 type ProductionParams struct {
@@ -39,7 +32,7 @@ type ProductionResult struct {
 // ProductionChain computes the silver/day/tile for a drug production chain.
 func ProductionChain(p ProductionParams) ProductionResult {
 	fertFactor := p.SoilFertility*p.FertilitySensitivity + (1 - p.FertilitySensitivity)
-	tempFactor := temperatureFactor(p.Temperature)
+	tempFactor := calc.TemperatureFactor(p.Temperature)
 	growthRate := fertFactor * tempFactor
 
 	if growthRate <= 0 || p.CropGrowDays <= 0 {
@@ -76,20 +69,4 @@ func SilverPerWork(drugValue, workAmount float64) float64 {
 		return 0
 	}
 	return drugValue / workAmount
-}
-
-func temperatureFactor(temp float64) float64 {
-	if temp < 0 {
-		return 0
-	}
-	if temp < 10 {
-		return temp / 10.0
-	}
-	if temp <= 42 {
-		return 1.0
-	}
-	if temp < 58 {
-		return (58.0 - temp) / 16.0
-	}
-	return 0
 }

@@ -13,7 +13,9 @@ import (
 	"io"
 	"os"
 	"strings"
+	"sync"
 
+	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/calc"
 	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/combat"
 	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/crops"
 	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/data"
@@ -24,6 +26,27 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/research"
 	"github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/surgery"
 )
+
+var (
+	projectMapOnce sync.Once
+	projectMap     map[string]research.ResearchProject
+)
+
+func buildProjectMap() map[string]research.ResearchProject {
+	projectMapOnce.Do(func() {
+		projectMap = make(map[string]research.ResearchProject, len(data.ResearchProjects))
+		for _, p := range data.ResearchProjects {
+			projectMap[p.DefName] = research.ResearchProject{
+				DefName:       p.DefName,
+				Label:         p.Label,
+				BaseCost:      p.BaseCost,
+				TechLevel:     p.TechLevel,
+				Prerequisites: p.Prerequisites,
+			}
+		}
+	})
+	return projectMap
+}
 
 func main() {
 	enc := json.NewEncoder(os.Stdout)
@@ -98,21 +121,21 @@ func handleSurgery(enc *json.Encoder, query map[string]any) {
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Surgery Success Chance: %.1f%%\n\n", result.SuccessChance*100)
 	fmt.Fprintf(&sb, "Factor Breakdown:\n")
-	fmt.Fprintf(&sb, "  Surgeon stat:     %.2f (skill %d × manipulation %.0f%% × sight %.0f%%)\n",
+	fmt.Fprintf(&sb, "  Surgeon stat:     %.2f (skill %d x manipulation %.0f%% x sight %.0f%%)\n",
 		result.SurgeonFactor, p.MedicalSkill, p.Manipulation*100, p.Sight*100)
-	fmt.Fprintf(&sb, "  Bed effective:    %.2f (base %.2f × quality %.2f × cleanliness %.2f × glow %.2f × outdoors %.2f)\n",
+	fmt.Fprintf(&sb, "  Bed effective:    %.2f (base %.2f x quality %.2f x cleanliness %.2f x glow %.2f x outdoors %.2f)\n",
 		result.BedEffectiveFactor, p.BedFactor,
 		surgery.QualityFactor(p.Quality),
 		surgery.CleanlinessFactor(p.Cleanliness),
 		surgery.GlowFactor(p.GlowLevel),
-		outdoorsFactor(p.IsOutdoors))
+		calc.OutdoorsFactor(p.IsOutdoors))
 	fmt.Fprintf(&sb, "  Medicine:         %.2f (potency %.2f)\n", result.MedicineFactor, p.MedicinePotency)
 	fmt.Fprintf(&sb, "  Difficulty:       %.2f\n", result.DifficultyFactor)
 	if p.Inspired {
-		fmt.Fprintf(&sb, "  Inspired surgery: ×2.00\n")
+		fmt.Fprintf(&sb, "  Inspired surgery: x2.00\n")
 	}
 	if result.Capped {
-		fmt.Fprintf(&sb, "\n⚠ Result capped at 98%% (uncapped: %.1f%%)\n", result.Uncapped*100)
+		fmt.Fprintf(&sb, "\n! Result capped at 98%% (uncapped: %.1f%%)\n", result.Uncapped*100)
 	}
 
 	writeResult(enc, map[string]any{
@@ -157,21 +180,21 @@ func resolveQuality(query map[string]any) int {
 	q, _ := query["quality"].(string)
 	switch strings.ToLower(q) {
 	case "awful":
-		return surgery.QualityAwful
+		return calc.QualityAwful
 	case "poor":
-		return surgery.QualityPoor
+		return calc.QualityPoor
 	case "normal", "":
-		return surgery.QualityNormal
+		return calc.QualityNormal
 	case "good":
-		return surgery.QualityGood
+		return calc.QualityGood
 	case "excellent":
-		return surgery.QualityExcellent
+		return calc.QualityExcellent
 	case "masterwork":
-		return surgery.QualityMasterwork
+		return calc.QualityMasterwork
 	case "legendary":
-		return surgery.QualityLegendary
+		return calc.QualityLegendary
 	default:
-		return surgery.QualityNormal
+		return calc.QualityNormal
 	}
 }
 
@@ -196,7 +219,7 @@ func handleCrops(enc *json.Encoder, query map[string]any) {
 	temperature := floatParam(query, "temperature", 20)
 	colonists := intParam(query, "colonists", 1)
 
-	// Find the plant (exact → prefix → substring)
+	// Find the plant (exact -> prefix -> substring)
 	var plant *data.Plant
 	bestScore := 0
 	for i := range data.Plants {
@@ -248,14 +271,14 @@ func handleCrops(enc *json.Encoder, query map[string]any) {
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Crop: %s\n", plant.Label)
-	fmt.Fprintf(&sb, "Soil fertility: %.1f | Temperature: %.0f°C\n\n", soilFertility, temperature)
+	fmt.Fprintf(&sb, "Soil fertility: %.1f | Temperature: %.0f C\n\n", soilFertility, temperature)
 
 	if result.GrowthRate <= 0 {
 		fmt.Fprintf(&sb, "Cannot grow at this temperature.\n")
 	} else {
 		fmt.Fprintf(&sb, "Growth rate: %.0f%%\n", result.GrowthRate*100)
 		fmt.Fprintf(&sb, "Actual days to harvest: %.1f\n", result.ActualGrowDays)
-		fmt.Fprintf(&sb, "Harvest: %.0f × %s\n\n", plant.HarvestYield, plant.HarvestedItem)
+		fmt.Fprintf(&sb, "Harvest: %.0f x %s\n\n", plant.HarvestYield, plant.HarvestedItem)
 		if plant.NutritionPerUnit > 0 {
 			fmt.Fprintf(&sb, "Nutrition/day/tile: %.4f\n", result.NutritionPerDay)
 			if colonists > 0 {
@@ -283,7 +306,7 @@ func handleCrops(enc *json.Encoder, query map[string]any) {
 
 func handleMaterials(enc *json.Encoder, query map[string]any) {
 	material, _ := query["material"].(string)
-	quality := resolveQualityMat(query)
+	quality := resolveQuality(query)
 
 	if material == "" {
 		// List all materials
@@ -327,17 +350,17 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "%s (%s quality)\n\n", mat.Label, qualityName)
-	fmt.Fprintf(&sb, "Stat Factors (material × quality):\n")
-	fmt.Fprintf(&sb, "  Sharp armor:  %.2f × %.2f = %.2f\n", mat.SharpArmorFactor, armorQ, mat.SharpArmorFactor*armorQ)
-	fmt.Fprintf(&sb, "  Blunt armor:  %.2f × %.2f = %.2f\n", mat.BluntArmorFactor, armorQ, mat.BluntArmorFactor*armorQ)
-	fmt.Fprintf(&sb, "  Heat armor:   %.2f × %.2f = %.2f\n", mat.HeatArmorFactor, armorQ, mat.HeatArmorFactor*armorQ)
-	fmt.Fprintf(&sb, "  Sharp damage: %.2f × %.2f = %.2f\n", mat.SharpDamageFactor, dmgQ, mat.SharpDamageFactor*dmgQ)
-	fmt.Fprintf(&sb, "  Blunt damage: %.2f × %.2f = %.2f\n", mat.BluntDamageFactor, dmgQ, mat.BluntDamageFactor*dmgQ)
-	fmt.Fprintf(&sb, "  Max HP:       %.2f × %.2f = %.2f\n", mat.MaxHitPointsFactor, hpQ, mat.MaxHitPointsFactor*hpQ)
-	fmt.Fprintf(&sb, "  Market value: %.2f × %.2f = %.2f\n", mat.MarketValue, mvQ, mat.MarketValue*mvQ)
+	fmt.Fprintf(&sb, "Stat Factors (material x quality):\n")
+	fmt.Fprintf(&sb, "  Sharp armor:  %.2f x %.2f = %.2f\n", mat.SharpArmorFactor, armorQ, mat.SharpArmorFactor*armorQ)
+	fmt.Fprintf(&sb, "  Blunt armor:  %.2f x %.2f = %.2f\n", mat.BluntArmorFactor, armorQ, mat.BluntArmorFactor*armorQ)
+	fmt.Fprintf(&sb, "  Heat armor:   %.2f x %.2f = %.2f\n", mat.HeatArmorFactor, armorQ, mat.HeatArmorFactor*armorQ)
+	fmt.Fprintf(&sb, "  Sharp damage: %.2f x %.2f = %.2f\n", mat.SharpDamageFactor, dmgQ, mat.SharpDamageFactor*dmgQ)
+	fmt.Fprintf(&sb, "  Blunt damage: %.2f x %.2f = %.2f\n", mat.BluntDamageFactor, dmgQ, mat.BluntDamageFactor*dmgQ)
+	fmt.Fprintf(&sb, "  Max HP:       %.2f x %.2f = %.2f\n", mat.MaxHitPointsFactor, hpQ, mat.MaxHitPointsFactor*hpQ)
+	fmt.Fprintf(&sb, "  Market value: %.2f x %.2f = %.2f\n", mat.MarketValue, mvQ, mat.MarketValue*mvQ)
 	if mat.ColdInsulation > 0 || mat.HeatInsulation > 0 {
 		fmt.Fprintf(&sb, "\nInsulation:\n")
-		fmt.Fprintf(&sb, "  Cold: %.1f°C | Heat: %.1f°C\n", mat.ColdInsulation, mat.HeatInsulation)
+		fmt.Fprintf(&sb, "  Cold: %.1f C | Heat: %.1f C\n", mat.ColdInsulation, mat.HeatInsulation)
 	}
 	fmt.Fprintf(&sb, "\nCategories: %s\n", strings.Join(mat.Categories, ", "))
 
@@ -352,31 +375,6 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 		"blunt_damage": mat.BluntDamageFactor * dmgQ,
 		"max_hp":       mat.MaxHitPointsFactor * hpQ,
 	})
-}
-
-func resolveQualityMat(query map[string]any) int {
-	if q, ok := query["quality"].(float64); ok {
-		return int(q)
-	}
-	q, _ := query["quality"].(string)
-	switch strings.ToLower(q) {
-	case "awful":
-		return materials.QualityAwful
-	case "poor":
-		return materials.QualityPoor
-	case "normal", "":
-		return materials.QualityNormal
-	case "good":
-		return materials.QualityGood
-	case "excellent":
-		return materials.QualityExcellent
-	case "masterwork":
-		return materials.QualityMasterwork
-	case "legendary":
-		return materials.QualityLegendary
-	default:
-		return materials.QualityNormal
-	}
 }
 
 var qualityNames = [7]string{"awful", "poor", "normal", "good", "excellent", "masterwork", "legendary"}
@@ -592,17 +590,7 @@ func handleResearch(enc *json.Encoder, query map[string]any) {
 		colonyTech = "Industrial"
 	}
 
-	// Build project map from generated data
-	projectMap := make(map[string]research.ResearchProject)
-	for _, p := range data.ResearchProjects {
-		projectMap[p.DefName] = research.ResearchProject{
-			DefName:       p.DefName,
-			Label:         p.Label,
-			BaseCost:      p.BaseCost,
-			TechLevel:     p.TechLevel,
-			Prerequisites: p.Prerequisites,
-		}
-	}
+	pm := buildProjectMap()
 
 	if target == "" {
 		// List all projects
@@ -620,7 +608,7 @@ func handleResearch(enc *json.Encoder, query map[string]any) {
 		return
 	}
 
-	// Find the target project (exact → prefix → substring)
+	// Find the target project (exact -> prefix -> substring)
 	var targetDef string
 	bestProjScore := 0
 	for _, p := range data.ResearchProjects {
@@ -634,27 +622,27 @@ func handleResearch(enc *json.Encoder, query map[string]any) {
 		return
 	}
 
-	chain := research.PrerequisiteChain(projectMap, targetDef)
-	totalCost := research.ChainCost(projectMap, chain, colonyTech)
+	chain := research.PrerequisiteChain(pm, targetDef)
+	totalCost := research.ChainCost(pm, chain, colonyTech)
 
 	var sb strings.Builder
 	fmt.Fprintf(&sb, "Research Chain: %s (colony tech: %s)\n\n", targetDef, colonyTech)
 	for i, name := range chain {
-		p := projectMap[name]
+		p := pm[name]
 		mult := research.TechLevelMultiplier(p.TechLevel, colonyTech)
 		effectiveCost := p.BaseCost * mult
-		fmt.Fprintf(&sb, "  %d. %s [%s] — %.0f", i+1, p.Label, p.TechLevel, p.BaseCost)
+		fmt.Fprintf(&sb, "  %d. %s [%s] -- %.0f", i+1, p.Label, p.TechLevel, p.BaseCost)
 		if mult > 1 {
-			fmt.Fprintf(&sb, " × %.1f = %.0f", mult, effectiveCost)
+			fmt.Fprintf(&sb, " x %.1f = %.0f", mult, effectiveCost)
 		}
 		fmt.Fprintf(&sb, "\n")
 	}
 	fmt.Fprintf(&sb, "\nTotal cost: %.0f\n", totalCost)
 
 	writeResult(enc, map[string]any{
-		"formatted":  sb.String(),
-		"chain":      chain,
-		"total_cost": totalCost,
+		"formatted":   sb.String(),
+		"chain":       chain,
+		"total_cost":  totalCost,
 		"colony_tech": colonyTech,
 	})
 }
@@ -664,7 +652,7 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 	rangeTiles := floatParam(query, "range", 12)
 	armorRating := floatParam(query, "armor", 0)
 
-	// Try ranged weapons (exact → prefix → substring)
+	// Try ranged weapons (exact -> prefix -> substring)
 	var bestRanged *data.RangedWeapon
 	bestRangedScore := 0
 	for i := range data.RangedWeapons {
@@ -675,7 +663,7 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 		}
 	}
 
-	// Try melee weapons (exact → prefix → substring)
+	// Try melee weapons (exact -> prefix -> substring)
 	var bestMelee *data.MeleeWeapon
 	bestMeleeScore := 0
 	for i := range data.MeleeWeapons {
@@ -752,8 +740,8 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 		fmt.Fprintf(&sb, "True DPS: %.2f\n\n", dps)
 		fmt.Fprintf(&sb, "Attack verbs:\n")
 		for _, t := range w.Tools {
-			weight := t.Power / t.Cooldown
-			fmt.Fprintf(&sb, "  %s: %.0f dmg, %.1fs cd (weight %.1f)\n",
+			weight := t.Power * t.Power
+			fmt.Fprintf(&sb, "  %s: %.0f dmg, %.1fs cd (sel. weight %.1f)\n",
 				t.Label, t.Power, t.Cooldown, weight)
 		}
 
@@ -770,7 +758,7 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 }
 
 // matchDef matches a query string against a defName and label using
-// three-pass priority: exact match → prefix match → substring match.
+// three-pass priority: exact match -> prefix match -> substring match.
 // Returns a score: 3 = exact, 2 = prefix, 1 = substring, 0 = no match.
 func matchDef(query, defName, label string) int {
 	q := strings.ToLower(query)
@@ -803,13 +791,6 @@ func containsTag(tags []string, targets ...string) bool {
 	return false
 }
 
-func outdoorsFactor(outdoors bool) float64 {
-	if outdoors {
-		return 0.85
-	}
-	return 1.0
-}
-
 func schema() map[string]any {
 	return map[string]any{
 		"modules": map[string]any{
@@ -819,7 +800,7 @@ func schema() map[string]any {
 				"parameters": map[string]any{
 					"crop":        map[string]any{"type": "string", "description": "Crop name (e.g. rice, potato, corn, strawberry, devilstrand)"},
 					"soil":        map[string]any{"type": "string", "description": "Soil type (e.g. soil, rich soil, gravel, hydroponics)", "default": "soil"},
-					"temperature": map[string]any{"type": "number", "description": "Average temperature in °C", "default": 20},
+					"temperature": map[string]any{"type": "number", "description": "Average temperature in C", "default": 20},
 					"colonists":   map[string]any{"type": "integer", "description": "Number of colonists to feed (for tiles calculation)", "default": 1},
 				},
 			},
@@ -840,6 +821,58 @@ func schema() map[string]any {
 					"medicine_potency": map[string]any{"type": "number", "description": "Direct medicine potency override (0=none, 0.6=herbal, 1.0=industrial, 1.6=glitterworld)"},
 					"difficulty":       map[string]any{"type": "number", "description": "Operation's surgerySuccessChanceFactor (1.0 = standard)", "default": 1.0},
 					"inspired":         map[string]any{"type": "boolean", "description": "Whether the surgeon has Inspired Surgery", "default": false},
+				},
+			},
+			"combat": map[string]any{
+				"name":        "Weapon DPS & Armor Calculator",
+				"description": "Compute ranged DPS at distance with accuracy interpolation, or melee true DPS with weighted verb selection. Supports armor penetration vs armor rating.",
+				"parameters": map[string]any{
+					"weapon": map[string]any{"type": "string", "description": "Weapon name (ranged or melee)"},
+					"range":  map[string]any{"type": "number", "description": "Distance in tiles for ranged DPS", "default": 12},
+					"armor":  map[string]any{"type": "number", "description": "Target armor rating (0-2, e.g. 1.0 = flak vest)", "default": 0},
+				},
+			},
+			"materials": map[string]any{
+				"name":        "Material & Quality Stat Calculator",
+				"description": "Look up material stat factors (armor, damage, HP, insulation) and apply quality multipliers.",
+				"parameters": map[string]any{
+					"material": map[string]any{"type": "string", "description": "Material name (e.g. steel, plasteel, hyperweave). Omit to list all."},
+					"quality":  map[string]any{"type": "string", "description": "Quality level: awful, poor, normal, good, excellent, masterwork, legendary", "default": "normal"},
+				},
+			},
+			"drugs": map[string]any{
+				"name":        "Drug Economy & Addiction Analyzer",
+				"description": "Look up drug production value, work efficiency, addiction risk, and ingredient breakdown.",
+				"parameters": map[string]any{
+					"drug": map[string]any{"type": "string", "description": "Drug name (e.g. flake, yayo, beer, smokeleaf joint). Omit to list all."},
+				},
+			},
+			"raids": map[string]any{
+				"name":        "Raid Threat Estimator",
+				"description": "Estimate raid points from colony wealth and colonist count using the wealth-to-points curve.",
+				"parameters": map[string]any{
+					"item_wealth":     map[string]any{"type": "number", "description": "Total item/silver wealth"},
+					"building_wealth": map[string]any{"type": "number", "description": "Total building wealth (counted at 50%)", "default": 0},
+					"colonists":       map[string]any{"type": "integer", "description": "Number of colonists", "default": 1},
+				},
+			},
+			"genes": map[string]any{
+				"name":        "Gene Build Validator & Browser",
+				"description": "Validate xenotype gene builds for complexity/metabolism limits and exclusion conflicts, or search/browse available genes.",
+				"parameters": map[string]any{
+					"genes":          map[string]any{"type": "array", "description": "Array of gene names to validate as a build"},
+					"max_complexity": map[string]any{"type": "integer", "description": "Maximum allowed complexity", "default": 6},
+					"min_metabolism": map[string]any{"type": "integer", "description": "Minimum allowed metabolism", "default": -5},
+					"search":         map[string]any{"type": "string", "description": "Search genes by name or description substring"},
+					"category":       map[string]any{"type": "string", "description": "Filter genes by category"},
+				},
+			},
+			"research": map[string]any{
+				"name":        "Research Chain Calculator",
+				"description": "Compute prerequisite chains and total research cost adjusted for colony tech level.",
+				"parameters": map[string]any{
+					"project":     map[string]any{"type": "string", "description": "Research project name. Omit to list all."},
+					"colony_tech": map[string]any{"type": "string", "description": "Colony tech level for cost multipliers", "default": "Industrial"},
 				},
 			},
 		},

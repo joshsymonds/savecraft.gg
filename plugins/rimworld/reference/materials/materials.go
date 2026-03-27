@@ -1,22 +1,24 @@
-// Package materials implements the RimWorld item × material × quality stat calculator.
+// Package materials implements the RimWorld item x material x quality stat calculator.
 //
 // RimWorld's stat system uses a three-layer multiplication:
 //
-//	finalStat = baseStat × materialFactor × qualityFactor
+//	finalStat = baseStat x materialFactor x qualityFactor
 //
 // Material factors come from StuffPower_* and *DamageMultiplier stats on the
 // material ThingDef. Quality multipliers vary by stat category.
 package materials
 
-// Quality levels.
+import "github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/calc"
+
+// Quality level aliases from calc package.
 const (
-	QualityAwful      = iota // 0
-	QualityPoor              // 1
-	QualityNormal            // 2
-	QualityGood              // 3
-	QualityExcellent         // 4
-	QualityMasterwork        // 5
-	QualityLegendary         // 6
+	QualityAwful      = calc.QualityAwful
+	QualityPoor       = calc.QualityPoor
+	QualityNormal     = calc.QualityNormal
+	QualityGood       = calc.QualityGood
+	QualityExcellent  = calc.QualityExcellent
+	QualityMasterwork = calc.QualityMasterwork
+	QualityLegendary  = calc.QualityLegendary
 )
 
 // MaterialStats contains the stat factors for a material (stuff).
@@ -36,7 +38,7 @@ type MaterialStats struct {
 	BeautyOffset       float64 // from stuffProps.statOffsets.Beauty
 }
 
-// ComputeStat applies the three-layer multiplication: base × material × quality.
+// ComputeStat applies the three-layer multiplication: base x material x quality.
 func ComputeStat(base, materialFactor, qualityFactor float64) float64 {
 	return base * materialFactor * qualityFactor
 }

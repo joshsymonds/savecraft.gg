@@ -9,15 +9,17 @@
 // where bedEffectiveFactor = bedBaseFactor * qualityFactor * cleanlinessFactor * glowFactor * outdoorsFactor
 package surgery
 
-// Quality levels match RimWorld's QualityCategory enum.
+import "github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/calc"
+
+// Quality aliases for backward compatibility with existing callers.
 const (
-	QualityAwful      = iota // 0
-	QualityPoor              // 1
-	QualityNormal            // 2
-	QualityGood              // 3
-	QualityExcellent         // 4
-	QualityMasterwork        // 5
-	QualityLegendary         // 6
+	QualityAwful      = calc.QualityAwful
+	QualityPoor       = calc.QualityPoor
+	QualityNormal     = calc.QualityNormal
+	QualityGood       = calc.QualityGood
+	QualityExcellent  = calc.QualityExcellent
+	QualityMasterwork = calc.QualityMasterwork
+	QualityLegendary  = calc.QualityLegendary
 )
 
 const maxSuccessChance = 0.98
@@ -127,7 +129,7 @@ func MedicalSkillFactor(skill int) float64 {
 // MedicinePotencyFactor evaluates the MedicineMedicalPotencyToSurgeryChanceFactor curve.
 // SimpleCurve points: (0, 0.7), (1, 1.0), (2, 1.3)
 func MedicinePotencyFactor(potency float64) float64 {
-	return evaluateCurve(potency, [][2]float64{
+	return calc.EvaluateCurve(potency, [][2]float64{
 		{0, 0.7},
 		{1, 1.0},
 		{2, 1.3},
@@ -137,7 +139,7 @@ func MedicinePotencyFactor(potency float64) float64 {
 // CleanlinessFactor evaluates the room cleanliness → surgery success curve.
 // SimpleCurve points: (-5, 0.6), (0, 1.0), (1, 1.10), (5, 1.15)
 func CleanlinessFactor(cleanliness float64) float64 {
-	return evaluateCurve(cleanliness, [][2]float64{
+	return calc.EvaluateCurve(cleanliness, [][2]float64{
 		{-5, 0.6},
 		{0, 1.0},
 		{1, 1.10},
@@ -148,7 +150,7 @@ func CleanlinessFactor(cleanliness float64) float64 {
 // GlowFactor evaluates the light level → surgery success curve.
 // SimpleCurve points: (0, 0.75), (0.5, 1.0)
 func GlowFactor(glow float64) float64 {
-	return evaluateCurve(glow, [][2]float64{
+	return calc.EvaluateCurve(glow, [][2]float64{
 		{0, 0.75},
 		{0.5, 1.0},
 	})
@@ -174,27 +176,3 @@ func outdoorsFactor(outdoors bool) float64 {
 	return 1.0
 }
 
-// evaluateCurve does linear interpolation on a SimpleCurve.
-// Points must be sorted by x. Values outside the range are clamped to the
-// nearest endpoint (matching RimWorld's SimpleCurve.Evaluate behavior).
-func evaluateCurve(x float64, points [][2]float64) float64 {
-	if len(points) == 0 {
-		return 0
-	}
-	if x <= points[0][0] {
-		return points[0][1]
-	}
-	last := len(points) - 1
-	if x >= points[last][0] {
-		return points[last][1]
-	}
-	for i := 1; i < len(points); i++ {
-		if x <= points[i][0] {
-			x0, y0 := points[i-1][0], points[i-1][1]
-			x1, y1 := points[i][0], points[i][1]
-			t := (x - x0) / (x1 - x0)
-			return y0 + t*(y1-y0)
-		}
-	}
-	return points[last][1]
-}
