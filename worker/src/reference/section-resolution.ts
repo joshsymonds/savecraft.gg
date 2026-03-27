@@ -7,7 +7,70 @@
  * The module itself never sees the section reference — only the extracted data.
  */
 
-import type { NativeReferenceModule } from "./types";
+import type { NativeReferenceModule, SectionMapping } from "./types";
+
+/**
+ * Optional cache of save_ids already verified for the current user.
+ * Avoids redundant ownership checks when a batch of queries references
+ * the same save_id.
+ */
+export type VerifiedSaveCache = Set<string>;
+
+/** Verify the user owns the save, using cache to skip redundant checks. */
+async function verifySaveOwnership(
+  db: D1Database,
+  saveId: string,
+  userUuid: string,
+  cache?: VerifiedSaveCache,
+): Promise<void> {
+  if (cache?.has(saveId)) return;
+
+  const save = await db
+    .prepare("SELECT uuid FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NULL")
+    .bind(saveId, userUuid)
+    .first<{ uuid: string }>();
+
+  if (!save) {
+    throw new Error("Save not found. Check that the save_id is correct and belongs to you.");
+  }
+  cache?.add(saveId);
+}
+
+/** Fetch a section from D1 and extract params via the mapping. */
+async function resolveOneSection(
+  db: D1Database,
+  saveId: string,
+  mapping: SectionMapping,
+  query: Record<string, unknown>,
+): Promise<Record<string, unknown>> {
+  const sectionName = query[mapping.sectionParam] as string;
+
+  const row = await db
+    .prepare("SELECT data FROM sections WHERE save_uuid = ? AND name = ?")
+    .bind(saveId, sectionName)
+    .first<{ data: string }>();
+
+  if (!row) {
+    throw new Error(
+      `Section not found: "${sectionName}" in save ${saveId}. Call get_save to see available sections.`,
+    );
+  }
+
+  const sectionData = JSON.parse(row.data) as unknown;
+  const extracted = mapping.extract(sectionData);
+
+  // Check for conflicts: extracted keys must not already be in the query
+  for (const key of Object.keys(extracted)) {
+    if (query[key] !== undefined && query[key] !== null) {
+      throw new Error(
+        `Parameter "${key}" conflicts with section reference "${mapping.sectionParam}". ` +
+          `Provide either inline data or a section reference, not both.`,
+      );
+    }
+  }
+
+  return extracted;
+}
 
 /**
  * Resolve section references in a query, returning the enriched query.
@@ -16,13 +79,6 @@ import type { NativeReferenceModule } from "./types";
  * Throws on: missing save_id, authorization failure, section not found,
  * or conflicting inline data.
  */
-/**
- * Optional cache of save_ids already verified for the current user.
- * Avoids redundant ownership checks when a batch of queries references
- * the same save_id.
- */
-export type VerifiedSaveCache = Set<string>;
-
 export async function resolveSectionParams(
   db: D1Database,
   userUuid: string,
@@ -34,7 +90,9 @@ export async function resolveSectionParams(
   if (!mappings || mappings.length === 0) return query;
 
   // Find which section params are present in the query
-  const active = mappings.filter((m) => query[m.sectionParam] != null);
+  const active = mappings.filter(
+    (m) => query[m.sectionParam] !== undefined && query[m.sectionParam] !== null,
+  );
   if (active.length === 0) return query;
 
   // Require save_id when any section param is present
@@ -45,54 +103,18 @@ export async function resolveSectionParams(
     );
   }
 
-  // Verify user owns this save (skip if already verified in this batch)
-  if (!verifiedSaves?.has(saveId)) {
-    const save = await db
-      .prepare("SELECT uuid FROM saves WHERE uuid = ? AND user_uuid = ? AND removed_at IS NULL")
-      .bind(saveId, userUuid)
-      .first<{ uuid: string }>();
+  await verifySaveOwnership(db, saveId, userUuid, verifiedSaves);
 
-    if (!save) {
-      throw new Error("Save not found. Check that the save_id is correct and belongs to you.");
-    }
-    verifiedSaves?.add(saveId);
+  // Build enriched query: original minus dispatch keys, plus extracted section data
+  const stripKeys = new Set<string>(["save_id", ...active.map((m) => m.sectionParam)]);
+  const enriched: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(query)) {
+    if (!stripKeys.has(key)) enriched[key] = value;
   }
 
-  // Resolve each active section param
-  const enriched = { ...query };
-  delete enriched.save_id;
-
   for (const mapping of active) {
-    const sectionName = query[mapping.sectionParam] as string;
-
-    // Fetch section from D1
-    const row = await db
-      .prepare("SELECT data FROM sections WHERE save_uuid = ? AND name = ?")
-      .bind(saveId, sectionName)
-      .first<{ data: string }>();
-
-    if (!row) {
-      throw new Error(
-        `Section not found: "${sectionName}" in save ${saveId}. Call get_save to see available sections.`,
-      );
-    }
-
-    const sectionData = JSON.parse(row.data) as unknown;
-    const extracted = mapping.extract(sectionData);
-
-    // Check for conflicts: extracted keys must not already be in the query
-    for (const key of Object.keys(extracted)) {
-      if (query[key] != null) {
-        throw new Error(
-          `Parameter "${key}" conflicts with section reference "${mapping.sectionParam}". ` +
-            `Provide either inline data or a section reference, not both.`,
-        );
-      }
-    }
-
-    // Merge extracted params and remove the section param
+    const extracted = await resolveOneSection(db, saveId, mapping, query);
     Object.assign(enriched, extracted);
-    delete enriched[mapping.sectionParam];
   }
 
   return enriched;

@@ -498,13 +498,13 @@ describe("deckbuilding native module", () => {
         {
           set: "DSK",
           deck: [
-            { name: "Vengeful Strangler", count: 2 },    // {1}{B} — 2 black pips
-            { name: "Doomsday Excruciator", count: 1 },  // {4}{B}{B} — 2 black pips
-            { name: "Go for the Throat", count: 1 },      // {1}{B} — 1 black pip
-            { name: "Gloomlake Verge", count: 2 },        // {U}{B} — 2 blue, 2 black
-            { name: "Evolving Wilds", count: 1 },          // produces all
-            { name: "Island", count: 8 },                  // produces U
-            { name: "Swamp", count: 8 },                   // produces B
+            { name: "Vengeful Strangler", count: 2 },
+            { name: "Doomsday Excruciator", count: 1 },
+            { name: "Go for the Throat", count: 1 },
+            { name: "Gloomlake Verge", count: 2 },
+            { name: "Evolving Wilds", count: 1 },
+            { name: "Island", count: 8 },
+            { name: "Swamp", count: 8 },
           ],
         },
         env,
@@ -556,12 +556,12 @@ describe("deckbuilding native module", () => {
         {
           set: "DSK",
           deck: [
-            { name: "Vengeful Strangler", count: 3 },    // {1}{B}
-            { name: "Doomsday Excruciator", count: 2 },  // {4}{B}{B}
-            { name: "Go for the Throat", count: 2 },      // {1}{B}
-            { name: "Gloomlake Verge", count: 1 },        // {U}{B}
-            { name: "Island", count: 12 },                 // way too many Islands
-            { name: "Swamp", count: 3 },                   // way too few Swamps
+            { name: "Vengeful Strangler", count: 3 },
+            { name: "Doomsday Excruciator", count: 2 },
+            { name: "Go for the Throat", count: 2 },
+            { name: "Gloomlake Verge", count: 1 },
+            { name: "Island", count: 12 },
+            { name: "Swamp", count: 3 },
           ],
         },
         env,
@@ -630,18 +630,20 @@ describe("deckbuilding native module", () => {
       await seedDeckbuildingData();
       await env.DB.prepare(
         `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(
-        300,
-        "o-dual",
-        "Dimir Guildgate",
-        "Dimir Guildgate",
-        "",
-        0,
-        "Land — Gate",
-        "[]",
-        '["U","B"]',
-        1,
-      ).run();
+      )
+        .bind(
+          300,
+          "o-dual",
+          "Dimir Guildgate",
+          "Dimir Guildgate",
+          "",
+          0,
+          "Land — Gate",
+          "[]",
+          '["U","B"]',
+          1,
+        )
+        .run();
 
       const result = await deckbuildingModule.execute(
         {
@@ -649,7 +651,7 @@ describe("deckbuilding native module", () => {
           deck: [
             { name: "Vengeful Strangler", count: 2 },
             { name: "Gloomlake Verge", count: 2 },
-            { name: "Dimir Guildgate", count: 4 },   // counts as U and B
+            { name: "Dimir Guildgate", count: 4 }, // counts as U and B
             { name: "Island", count: 5 },
             { name: "Swamp", count: 5 },
           ],
@@ -668,7 +670,7 @@ describe("deckbuilding native module", () => {
       const blue = data.mana.colors.find((c) => c.color === "U");
       const black = data.mana.colors.find((c) => c.color === "B");
       // Dimir Guildgate counts for both
-      expect(blue!.sources_actual).toBe(9);  // 5 Islands + 4 Guildgates
+      expect(blue!.sources_actual).toBe(9); // 5 Islands + 4 Guildgates
       expect(black!.sources_actual).toBe(9); // 5 Swamps + 4 Guildgates
     });
   });

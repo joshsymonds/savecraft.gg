@@ -1,9 +1,8 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { NativeReferenceModule, ReferenceResult } from "../src/reference/types";
-import { registerNativeModule } from "../src/reference/registry";
 import { resolveSectionParams } from "../src/reference/section-resolution";
+import type { NativeReferenceModule, ReferenceResult } from "../src/reference/types";
 
 import { cleanAll, seedSaveWithData } from "./helpers";
 
@@ -16,8 +15,8 @@ function echoModule(
     name: "Echo",
     description: "Echoes query params for testing",
     sectionMappings,
-    async execute(query): Promise<ReferenceResult> {
-      return { type: "structured", data: { ...query } };
+    execute(query): Promise<ReferenceResult> {
+      return Promise.resolve({ type: "structured", data: { ...query } });
     },
   };
 }
@@ -37,9 +36,7 @@ describe("section-reference resolution", () => {
       id: "deck-uuid",
       name: "Mono Black",
       format: "Standard",
-      cards: [
-        { arenaId: 87521, name: "Sheoldred, the Apocalypse", count: 4 },
-      ],
+      cards: [{ arenaId: 87_521, name: "Sheoldred, the Apocalypse", count: 4 }],
       sideboard: [],
     };
     await env.DB.prepare(
@@ -85,9 +82,9 @@ describe("section-reference resolution", () => {
       deck_section: "deck:Mono Black",
     };
 
-    await expect(
-      resolveSectionParams(env.DB, USER_A, module, query),
-    ).rejects.toThrow("save_id is required");
+    await expect(resolveSectionParams(env.DB, USER_A, module, query)).rejects.toThrow(
+      "save_id is required",
+    );
   });
 
   it("rejects cross-user section access", async () => {
@@ -114,9 +111,9 @@ describe("section-reference resolution", () => {
     };
 
     // USER_B tries to access USER_A's save
-    await expect(
-      resolveSectionParams(env.DB, USER_B, module, query),
-    ).rejects.toThrow("Save not found");
+    await expect(resolveSectionParams(env.DB, USER_B, module, query)).rejects.toThrow(
+      "Save not found",
+    );
   });
 
   it("rejects when inline data conflicts with section reference", async () => {
@@ -143,9 +140,9 @@ describe("section-reference resolution", () => {
       deck: [{ name: "Lightning Bolt", count: 4 }], // inline conflict!
     };
 
-    await expect(
-      resolveSectionParams(env.DB, USER_A, module, query),
-    ).rejects.toThrow("conflicts with section reference");
+    await expect(resolveSectionParams(env.DB, USER_A, module, query)).rejects.toThrow(
+      "conflicts with section reference",
+    );
   });
 
   it("passes through inline data unchanged when no section reference", async () => {
@@ -199,17 +196,15 @@ describe("section-reference resolution", () => {
       deck_section: "deck:Nonexistent",
     };
 
-    await expect(
-      resolveSectionParams(env.DB, USER_A, module, query),
-    ).rejects.toThrow("Section not found");
+    await expect(resolveSectionParams(env.DB, USER_A, module, query)).rejects.toThrow(
+      "Section not found",
+    );
   });
 });
 
 // ── Module-specific section mapping tests ─────────────────────
 
 describe("draft_advisor section mapping auto-detect", () => {
-  const USER = "draft-user";
-
   beforeEach(async () => {
     await cleanAll();
   });
@@ -217,7 +212,9 @@ describe("draft_advisor section mapping auto-detect", () => {
   it("auto-detects live pick when last pick has no chosen card", async () => {
     // Import the module to get its sectionMappings
     const { draftAdvisorModule } = await import("../../plugins/mtga/reference/draft-advisor");
-    const mapping = draftAdvisorModule.sectionMappings?.find((m) => m.sectionParam === "draft_section");
+    const mapping = draftAdvisorModule.sectionMappings?.find(
+      (m) => m.sectionParam === "draft_section",
+    );
     expect(mapping).toBeDefined();
 
     // Simulate draft_history section: 2 completed picks + 1 live (no picked)
@@ -258,7 +255,9 @@ describe("draft_advisor section mapping auto-detect", () => {
 
   it("auto-detects review mode when all picks are complete", async () => {
     const { draftAdvisorModule } = await import("../../plugins/mtga/reference/draft-advisor");
-    const mapping = draftAdvisorModule.sectionMappings?.find((m) => m.sectionParam === "draft_section");
+    const mapping = draftAdvisorModule.sectionMappings?.find(
+      (m) => m.sectionParam === "draft_section",
+    );
 
     const draftData = {
       picks: [
@@ -298,7 +297,9 @@ describe("collection_diff section mapping", () => {
 
   it("extracts deck cards from deck section", async () => {
     const { collectionDiffModule } = await import("../../plugins/mtga/reference/collection-diff");
-    const mapping = collectionDiffModule.sectionMappings?.find((m) => m.sectionParam === "deck_section");
+    const mapping = collectionDiffModule.sectionMappings?.find(
+      (m) => m.sectionParam === "deck_section",
+    );
     expect(mapping).toBeDefined();
 
     const deckData = {
