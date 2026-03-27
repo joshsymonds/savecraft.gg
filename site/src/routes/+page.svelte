@@ -159,7 +159,7 @@
     </div>
 
     <!-- Three-step grid for full save data access -->
-    <p class="unlock-label">Want your actual save data too?</p>
+    <h3 class="unlock-label">Want your actual save data too?</h3>
     <div class="steps-grid">
       <div class="step-card">
         <div class="step-num">01</div>
@@ -627,13 +627,12 @@
   }
 
   .unlock-label {
-    margin-top: 40px;
-    margin-bottom: 4px;
-    font-family: var(--font-heading);
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--color-text-muted);
-    letter-spacing: 1px;
+    margin-top: 48px;
+    margin-bottom: 8px;
+    font-family: var(--font-pixel);
+    font-size: clamp(12px, 1.8vw, 16px);
+    color: var(--color-text-dim);
+    line-height: 1.7;
   }
 
   /* ── Steps ───────────────────────────────────────────── */
