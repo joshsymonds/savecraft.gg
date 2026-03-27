@@ -12,6 +12,11 @@ const (
 	QualityLegendary         // 6
 )
 
+// RestFraction is the fraction of a day that plants actively grow.
+// Plants rest from hour 19 to hour 5 (10 hours rest, 14 hours active).
+// 14/24 = 7/12 ~ 0.5833
+const RestFraction = 7.0 / 12.0
+
 // EvaluateCurve does linear interpolation on a SimpleCurve.
 // Points must be sorted by x. Values outside the range are clamped to the
 // nearest endpoint (matching RimWorld's SimpleCurve.Evaluate behavior).
@@ -40,7 +45,7 @@ func EvaluateCurve(x float64, points [][2]float64) float64 {
 // TemperatureFactor computes the temperature growth rate multiplier.
 // From Plant.cs GrowthRateFactor_Temperature:
 //
-//	temp < 0  → 0, 0-10 → linear, 10-42 → 1.0, 42-58 → linear, >58 → 0
+//	temp < 0  -> 0, 0-10 -> linear, 10-42 -> 1.0, 42-58 -> linear, >58 -> 0
 func TemperatureFactor(temp float64) float64 {
 	if temp < 0 {
 		return 0

@@ -133,7 +133,7 @@ func (r *Resolver) ResolveTyped(defType, defName string) (*Element, error) {
 	if defType != "" {
 		rd = r.byDefName[key]
 	} else {
-		// Legacy: search all types for this defName
+		// Untyped convenience API used by tests — searches all def types
 		for _, candidate := range r.all {
 			if candidate.defName == defName && !candidate.isAbstract {
 				rd = candidate

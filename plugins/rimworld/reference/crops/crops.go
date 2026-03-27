@@ -12,11 +12,6 @@ package crops
 
 import "github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/calc"
 
-// RestFraction is the fraction of a day that plants actively grow.
-// Plants rest from hour 19 to hour 5 (10 hours rest, 14 hours active).
-// 14/24 = 7/12 ~ 0.5833
-const RestFraction = 7.0 / 12.0
-
 // NutritionPerColonistPerDay is the standard daily nutrition need for a colonist.
 const NutritionPerColonistPerDay = 1.6
 
@@ -49,7 +44,7 @@ func Calculate(p CropParams) CropResult {
 		return CropResult{}
 	}
 
-	actualDays := p.GrowDays / (growthRate * RestFraction)
+	actualDays := p.GrowDays / (growthRate * calc.RestFraction)
 	totalNutrition := p.HarvestYield * p.NutritionPerUnit
 	totalSilver := p.HarvestYield * p.MarketValuePerUnit
 

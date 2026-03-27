@@ -6,9 +6,6 @@ package drugs
 
 import "github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/calc"
 
-// RestFraction is the plant growth active fraction (14/24 hours).
-const RestFraction = 7.0 / 12.0
-
 // ProductionParams contains inputs for drug production chain calculation.
 type ProductionParams struct {
 	CropGrowDays         float64 // Plant grow days
@@ -39,7 +36,7 @@ func ProductionChain(p ProductionParams) ProductionResult {
 		return ProductionResult{}
 	}
 
-	actualDays := p.CropGrowDays / (growthRate * RestFraction)
+	actualDays := p.CropGrowDays / (growthRate * calc.RestFraction)
 	leavesPerDay := p.CropYield / actualDays
 
 	drugsPerDay := 0.0

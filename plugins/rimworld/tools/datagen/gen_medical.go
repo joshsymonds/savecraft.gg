@@ -20,8 +20,8 @@ func genMedical(r *Resolver, outputDir string) error {
 		if statBases == nil {
 			return
 		}
-		potency := findChildElement(statBases, "MedicalPotency")
-		if potency == nil {
+		potencyVal := floatOf(statBases, "MedicalPotency", 0)
+		if potencyVal == 0 {
 			return
 		}
 		label := ""
@@ -29,7 +29,7 @@ func genMedical(r *Resolver, outputDir string) error {
 			label = strings.TrimSpace(l.Text)
 		}
 		fmt.Fprintf(&buf, "\t{DefName: %q, Label: %q, MedicalPotency: %s},\n",
-			defName, label, strings.TrimSpace(potency.Text))
+			defName, label, fmtFloat(potencyVal))
 	})
 	buf.WriteString("}\n\n")
 
@@ -41,8 +41,8 @@ func genMedical(r *Resolver, outputDir string) error {
 		if statBases == nil {
 			return
 		}
-		factor := findChildElement(statBases, "SurgerySuccessChanceFactor")
-		if factor == nil {
+		factorVal := floatOf(statBases, "SurgerySuccessChanceFactor", 0)
+		if factorVal == 0 {
 			return
 		}
 		label := ""
@@ -50,7 +50,7 @@ func genMedical(r *Resolver, outputDir string) error {
 			label = strings.TrimSpace(l.Text)
 		}
 		fmt.Fprintf(&buf, "\t{DefName: %q, Label: %q, SurgerySuccessChanceFactor: %s},\n",
-			defName, label, strings.TrimSpace(factor.Text))
+			defName, label, fmtFloat(factorVal))
 	})
 	buf.WriteString("}\n")
 

@@ -10,7 +10,7 @@ package materials
 
 import "github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/calc"
 
-// Quality level aliases from calc package.
+// Quality level aliases re-exported from calc for convenience.
 const (
 	QualityAwful      = calc.QualityAwful
 	QualityPoor       = calc.QualityPoor

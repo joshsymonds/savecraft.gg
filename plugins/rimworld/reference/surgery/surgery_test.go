@@ -15,7 +15,7 @@ func approx(t *testing.T, name string, got, want float64) {
 }
 
 func TestMedicalSkillFactor(t *testing.T) {
-	// valuesPerLevel from StatDef XML (0-indexed: skill 0 → 0.10, skill 15 → 1.00)
+	// valuesPerLevel from StatDef XML (0-indexed: skill 0 -> 0.10, skill 15 -> 1.00)
 	approx(t, "skill 0", MedicalSkillFactor(0), 0.10)
 	approx(t, "skill 5", MedicalSkillFactor(5), 0.60)
 	approx(t, "skill 10", MedicalSkillFactor(10), 0.90)
@@ -24,7 +24,7 @@ func TestMedicalSkillFactor(t *testing.T) {
 }
 
 func TestMedicinePotencyCurve(t *testing.T) {
-	// SimpleCurve: (0, 0.7), (1, 1.0), (2, 1.3) — linear interpolation
+	// SimpleCurve: (0, 0.7), (1, 1.0), (2, 1.3) -- linear interpolation
 	approx(t, "no medicine", MedicinePotencyFactor(0), 0.70)
 	approx(t, "herbal (0.6)", MedicinePotencyFactor(0.6), 0.88)
 	approx(t, "industrial (1.0)", MedicinePotencyFactor(1.0), 1.00)
@@ -51,7 +51,7 @@ func TestQualityFactor(t *testing.T) {
 }
 
 func TestGlowFactor(t *testing.T) {
-	// SimpleCurve: (0, 0.75), (0.5, 1.0) — clamped at 1.0 above 0.5
+	// SimpleCurve: (0, 0.75), (0.5, 1.0) -- clamped at 1.0 above 0.5
 	approx(t, "darkness (0)", GlowFactor(0), 0.75)
 	approx(t, "dim (0.25)", GlowFactor(0.25), 0.875)
 	approx(t, "normal (0.5+)", GlowFactor(0.5), 1.00)
@@ -83,7 +83,7 @@ func TestSurgeryCalculation(t *testing.T) {
 			// bedFactor = 1.1 * 1.0 (normal quality) * 1.0 (cleanliness) * 1.0 (glow) * 1.0 (indoors) = 1.1
 			// medicineFactor = 1.0
 			// difficulty = 1.0
-			// total = 0.98 * 1.1 * 1.0 * 1.0 = 1.078 → capped at 0.98
+			// total = 0.98 * 1.1 * 1.0 * 1.0 = 1.078 -> capped at 0.98
 			want: 0.98,
 		},
 		{
@@ -102,9 +102,9 @@ func TestSurgeryCalculation(t *testing.T) {
 				Inspired:        false,
 			},
 			// surgeonStat = 0.50 * 1.0 * 1.0 = 0.50
-			// cleanlinessFactor at -3: interpolate (-5,0.6)→(0,1.0): 0.6 + (2/5)*0.4 = 0.76
+			// cleanlinessFactor at -3: interpolate (-5,0.6)->(0,1.0): 0.6 + (2/5)*0.4 = 0.76
 			// bedFactor = 0.7 * 1.0 (quality) * 0.76 (cleanliness) * 1.0 (glow) * 1.0 (indoors) = 0.532
-			// medicineFactor at 0.6: interpolate (0,0.7)→(1,1.0): 0.7 + 0.6*0.3 = 0.88
+			// medicineFactor at 0.6: interpolate (0,0.7)->(1,1.0): 0.7 + 0.6*0.3 = 0.88
 			// total = 0.50 * 0.532 * 0.88 * 1.0 = 0.2341
 			want: 0.2341,
 		},
@@ -231,17 +231,28 @@ func TestSurgeryResultBreakdown(t *testing.T) {
 		Inspired:        false,
 	})
 
-	// Verify breakdown fields are populated
-	if result.SurgeonFactor == 0 {
-		t.Error("SurgeonFactor should be nonzero")
+	// Surgeon factor: skill 10 = 0.90 * manipulation 1.0 * sight 1.0 = 0.90
+	approx(t, "surgeon factor", result.SurgeonFactor, 0.90)
+
+	// Bed effective: 1.1 (hospital) * 1.05 (good quality) * cleanliness(0.6) * 1.0 (glow) * 1.0 (indoors)
+	// cleanliness(0.6): interpolate (0,1.0)->(1,1.10): 1.0 + 0.6*0.10 = 1.06
+	// = 1.1 * 1.05 * 1.06 * 1.0 * 1.0 = 1.22430
+	approx(t, "bed effective factor", result.BedEffectiveFactor, 1.1*1.05*1.06)
+
+	// Medicine factor at potency 1.0 = 1.0
+	approx(t, "medicine factor", result.MedicineFactor, 1.0)
+
+	// Difficulty = 1.0
+	approx(t, "difficulty factor", result.DifficultyFactor, 1.0)
+
+	// Inspired factor = 1.0 (not inspired)
+	approx(t, "inspired factor", result.InspiredFactor, 1.0)
+
+	// Uncapped = 0.90 * 1.22430 * 1.0 * 1.0 * 1.0 = 1.10187
+	approx(t, "uncapped", result.Uncapped, 0.90*1.1*1.05*1.06)
+
+	if !result.Capped {
+		t.Error("expected result to be capped at 98%")
 	}
-	if result.BedEffectiveFactor == 0 {
-		t.Error("BedEffectiveFactor should be nonzero")
-	}
-	if result.MedicineFactor == 0 {
-		t.Error("MedicineFactor should be nonzero")
-	}
-	if result.Capped && result.SuccessChance != 0.98 {
-		t.Errorf("Capped but SuccessChance = %.4f, want 0.98", result.SuccessChance)
-	}
+	approx(t, "success chance capped", result.SuccessChance, 0.98)
 }
