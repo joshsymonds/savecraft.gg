@@ -536,6 +536,10 @@ async function handleQueryReference(
     ),
   );
 
+  // Collect visualization directive from the first query result (if present).
+  // The directive is in a separate content block before the data block.
+  let vizDirective: string | undefined;
+
   const results = responses.map((outcome) => {
     if (outcome.status === "rejected") {
       return { error: String(outcome.reason) };
@@ -544,14 +548,24 @@ async function handleQueryReference(
     if (result.isError) {
       return { error: result.content[0]?.text ?? "Unknown error" };
     }
+    // Data is in the last content block; visualization directive (if any) is in earlier blocks.
+    const dataBlock = result.content.at(-1);
+    if (!vizDirective && result.content.length > 1) {
+      vizDirective = result.content[0]?.text;
+    }
     try {
-      return JSON.parse(result.content[0]?.text ?? "null") as unknown;
+      return JSON.parse(dataBlock?.text ?? "null") as unknown;
     } catch {
-      return result.content[0]?.text ?? null;
+      return dataBlock?.text ?? null;
     }
   });
 
-  return { content: [{ type: "text", text: JSON.stringify({ results }) }] };
+  const content: { type: "text"; text: string }[] = [];
+  if (vizDirective) {
+    content.push({ type: "text", text: vizDirective });
+  }
+  content.push({ type: "text", text: JSON.stringify({ results }) });
+  return { content };
 }
 
 function parseRpc(request: Request): Promise<JsonRpcRequest> {
