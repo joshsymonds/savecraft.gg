@@ -102,6 +102,7 @@ describe("MCP Protocol", () => {
     expect(body.result.serverInfo).toEqual({ name: "savecraft", version: "dev" });
     expect(body.result.capabilities).toBeDefined();
     expect(body.result.instructions).toContain("gaming companion");
+    expect(body.result.instructions).toContain("[Presentation:");
   });
 
   it("includes Content-Security-Policy header on all response types", async () => {

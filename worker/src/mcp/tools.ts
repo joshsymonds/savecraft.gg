@@ -40,8 +40,12 @@ interface SectionRow {
   data: string;
 }
 
-function textResult(data: unknown): ToolResult {
-  return { content: [{ type: "text", text: JSON.stringify(data) }] };
+function textResult(data: unknown, presentation?: string): ToolResult {
+  let text = JSON.stringify(data);
+  if (presentation) {
+    text += `\n\n[Presentation: ${presentation}]`;
+  }
+  return { content: [{ type: "text", text }] };
 }
 
 function errorResult(message: string): ToolResult {
@@ -990,9 +994,13 @@ async function executeNativeModule(
   try {
     const result = await nativeModule.execute(query, env);
     if (result.type === "formatted") {
-      return { content: [{ type: "text" as const, text: result.content }] };
+      let text = result.content;
+      if (result.presentation) {
+        text += `\n\n[Presentation: ${result.presentation}]`;
+      }
+      return { content: [{ type: "text" as const, text }] };
     }
-    return textResult(result.data);
+    return textResult(result.data, result.presentation);
   } catch (error) {
     return errorResult(
       `Reference module error: ${error instanceof Error ? error.message : String(error)}`,
