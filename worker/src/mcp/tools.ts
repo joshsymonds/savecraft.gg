@@ -41,11 +41,12 @@ interface SectionRow {
 }
 
 function textResult(data: unknown, presentation?: string): ToolResult {
-  let text = JSON.stringify(data);
+  const content: { type: "text"; text: string }[] = [];
   if (presentation) {
-    text += `\n\n[Presentation: ${presentation}]`;
+    content.push({ type: "text", text: `Visualize this data: ${presentation}` });
   }
-  return { content: [{ type: "text", text }] };
+  content.push({ type: "text", text: JSON.stringify(data) });
+  return { content };
 }
 
 function errorResult(message: string): ToolResult {
@@ -1011,11 +1012,12 @@ async function executeNativeModule(
   try {
     const result = await nativeModule.execute(query, env);
     if (result.type === "formatted") {
-      let text = result.content;
+      const content: { type: "text"; text: string }[] = [];
       if (result.presentation) {
-        text += `\n\n[Presentation: ${result.presentation}]`;
+        content.push({ type: "text", text: `Visualize this data: ${result.presentation}` });
       }
-      return { content: [{ type: "text" as const, text }] };
+      content.push({ type: "text", text: result.content });
+      return { content };
     }
     return textResult(result.data, result.presentation);
   } catch (error) {
@@ -1107,11 +1109,12 @@ function parseWasmResponse(text: string): ToolResult {
       // instead of JSON.stringify-ing it (which would escape newlines).
       if (parsed.type === "result" && isFormattedResult(parsed.data)) {
         const data = parsed.data as { formatted: string };
-        let formatted = data.formatted;
+        const content: { type: "text"; text: string }[] = [];
         if (presentation) {
-          formatted += `\n\n[Presentation: ${presentation}]`;
+          content.push({ type: "text", text: `Visualize this data: ${presentation}` });
         }
-        return { content: [{ type: "text" as const, text: formatted }] };
+        content.push({ type: "text", text: data.formatted });
+        return { content };
       }
       return textResult(parsed, presentation);
     } catch {

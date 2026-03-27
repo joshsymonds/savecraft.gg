@@ -188,9 +188,11 @@ describe("queryReference native routing", () => {
     );
 
     expect(result.isError).toBeFalsy();
-    const text = result.content[0]!.text;
-    expect(text).toContain('"win_rate":0.58');
-    expect(text).toContain("[Presentation: Bar chart comparing win rates across formats.]");
+    // Presentation directive is in the first content block, data in the second
+    expect(result.content).toHaveLength(2);
+    expect(result.content[0]!.text).toContain("Visualize this data:");
+    expect(result.content[0]!.text).toContain("Bar chart comparing win rates");
+    expect(result.content[1]!.text).toContain('"win_rate":0.58');
   });
 
   it("passes through presentation hint from formatted result", async () => {
@@ -216,9 +218,9 @@ describe("queryReference native routing", () => {
     );
 
     expect(result.isError).toBeFalsy();
-    const text = result.content[0]!.text;
-    expect(text).toContain("Rule 702.1: Flying");
-    expect(text).toContain("[Presentation: Display rules in a structured reference format.]");
+    expect(result.content).toHaveLength(2);
+    expect(result.content[0]!.text).toContain("Visualize this data:");
+    expect(result.content[1]!.text).toContain("Rule 702.1: Flying");
   });
 
   it("omits presentation block when hint is undefined", async () => {
@@ -237,9 +239,9 @@ describe("queryReference native routing", () => {
     const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "no_viz", {}, env);
 
     expect(result.isError).toBeFalsy();
-    const text = result.content[0]!.text;
-    expect(text).not.toContain("[Presentation:");
-    expect(JSON.parse(text)).toEqual({ cards: ["Bolt"] });
+    // No presentation → single content block with just the data
+    expect(result.content).toHaveLength(1);
+    expect(JSON.parse(result.content[0]!.text)).toEqual({ cards: ["Bolt"] });
   });
 
   it("falls through when game has native modules but not the requested one", async () => {

@@ -106,11 +106,11 @@ async function seedSave(options: {
 }
 
 function parseResult(result: ToolResult): unknown {
-  const first = result.content[0];
-  if (first?.type !== "text") throw new Error("Expected text content");
-  // Strip [Presentation: ...] block appended by textResult() before parsing JSON.
-  const jsonText = first.text.replace(/\n\n\[Presentation: [^\]]*\]$/, "");
-  return JSON.parse(jsonText);
+  // Presentation directives are in a separate content block before the data.
+  // The last content block contains the JSON data.
+  const dataBlock = result.content.at(-1);
+  if (!dataBlock) throw new Error("Expected text content");
+  return JSON.parse(dataBlock.text);
 }
 
 // ── MCP Tools ─────────────────────────────────────────────────
