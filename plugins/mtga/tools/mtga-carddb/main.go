@@ -1,7 +1,9 @@
-// mtga-carddb generates the parser's arena_cards_gen.go from MTGA's own
-// Raw_CardDatabase SQLite file.
+// mtga-carddb extracts card data from MTGA's Raw_CardDatabase SQLite file,
+// imports it to D1, and regenerates arena_cards_gen.go for the parser.
 //
-// Usage: go run ./plugins/mtga/tools/mtga-carddb --card-db path/to/Raw_CardDatabase.mtga
+// Usage:
+//
+//	go run ./plugins/mtga/tools/mtga-carddb --card-db path/to/Raw_CardDatabase.mtga --d1-database-id X --cf-account-id Y --cf-api-token Z
 //
 // The MTGA client stores this file in MTGA_Data/Downloads/Raw/ after first launch.
 // This gives 100% arena_id coverage — every card in Arena, including recent sets
@@ -12,7 +14,6 @@
 package main
 
 import (
-	"database/sql"
 	"flag"
 	"fmt"
 	"os"
@@ -20,14 +21,13 @@ import (
 	"regexp"
 	"runtime"
 	"sort"
-	"strings"
 	"text/template"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
 )
 
-// ArenaCard holds card data extracted from the MTGA database.
+// ArenaCard holds the minimal card info needed for arena_cards_gen.go codegen.
 type ArenaCard struct {
 	GrpID  int
 	Name   string
@@ -44,74 +44,59 @@ func main() {
 
 func run() error {
 	cardDBPath := flag.String("card-db", "", "Path to Raw_CardDatabase .mtga SQLite file (required)")
+	d1DatabaseID := flag.String("d1-database-id", "", "Cloudflare D1 database ID (required)")
+	cfAccountID := flag.String("cf-account-id", "", "Cloudflare account ID (required)")
+	cfAPIToken := flag.String("cf-api-token", "", "Cloudflare API token (required)")
 	flag.Parse()
 
-	if *cardDBPath == "" {
-		return fmt.Errorf("--card-db is required")
+	if *cardDBPath == "" || *d1DatabaseID == "" || *cfAccountID == "" || *cfAPIToken == "" {
+		return fmt.Errorf("all flags required: --card-db, --d1-database-id, --cf-account-id, --cf-api-token")
 	}
 
 	_, thisFile, _, _ := runtime.Caller(0)
 	pluginDir := filepath.Join(filepath.Dir(thisFile), "..", "..")
 
-	cards, err := extractCards(*cardDBPath)
+	// Extract full card data from the MTGA client database.
+	cards, err := extractFullCards(*cardDBPath)
 	if err != nil {
 		return fmt.Errorf("extracting cards: %w", err)
 	}
+	fmt.Printf("Extracted %d cards from MTGA client database\n", len(cards))
 
+	// Sort by arena_id for deterministic output.
 	sort.Slice(cards, func(i, j int) bool {
-		return cards[i].GrpID < cards[j].GrpID
+		return cards[i].ArenaID < cards[j].ArenaID
 	})
 
+	// Import to D1.
+	if err := importToD1(*cfAccountID, *d1DatabaseID, *cfAPIToken, cards); err != nil {
+		return fmt.Errorf("D1 import: %w", err)
+	}
+	fmt.Printf("Imported %d cards to D1\n", len(cards))
+
+	// Regenerate arena_cards_gen.go for the parser.
+	arenaCards := fullToArenaCards(cards)
 	outPath := filepath.Join(pluginDir, "parser", "data", "arena_cards_gen.go")
-	if err := generateParserData(outPath, cards); err != nil {
+	if err := generateParserData(outPath, arenaCards); err != nil {
 		return fmt.Errorf("generating parser data: %w", err)
 	}
-	fmt.Printf("Generated %s (%d cards)\n", outPath, len(cards))
+	fmt.Printf("Generated %s (%d cards)\n", outPath, len(arenaCards))
+
 	return nil
 }
 
-func extractCards(cardDBPath string) ([]ArenaCard, error) {
-	db, err := sql.Open("sqlite3", cardDBPath+"?mode=ro")
-	if err != nil {
-		return nil, fmt.Errorf("opening card database: %w", err)
-	}
-	defer db.Close()
-
-	// The card database has Localizations_enUS built in — no need for a
-	// separate localization file. Join Cards → Localizations_enUS via TitleId.
-	// Formatted=1 gives us the display-ready name with any markup.
-	rows, err := db.Query(`
-		SELECT c.GrpId, l.Loc, c.ExpansionCode, c.Rarity
-		FROM Cards c
-		JOIN Localizations_enUS l ON l.LocId = c.TitleId AND l.Formatted = 1
-		WHERE l.Loc IS NOT NULL AND l.Loc != ''
-	`)
-	if err != nil {
-		return nil, fmt.Errorf("querying cards: %w", err)
-	}
-	defer rows.Close()
-
-	var cards []ArenaCard
-	for rows.Next() {
-		var grpID, rarity int
-		var name, set string
-		if err := rows.Scan(&grpID, &name, &set, &rarity); err != nil {
-			return nil, fmt.Errorf("scanning row: %w", err)
+// fullToArenaCards converts FullCard slice to ArenaCard slice for codegen.
+func fullToArenaCards(cards []FullCard) []ArenaCard {
+	result := make([]ArenaCard, len(cards))
+	for i, c := range cards {
+		result[i] = ArenaCard{
+			GrpID:  c.ArenaID,
+			Name:   c.Name,
+			Set:    c.Set,
+			Rarity: c.Rarity,
 		}
-
-		name = stripMarkup(name)
-		if name == "" {
-			continue
-		}
-
-		cards = append(cards, ArenaCard{
-			GrpID:  grpID,
-			Name:   name,
-			Set:    strings.ToLower(set),
-			Rarity: mapRarity(rarity),
-		})
 	}
-	return cards, rows.Err()
+	return result
 }
 
 var (
