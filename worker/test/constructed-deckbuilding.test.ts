@@ -230,6 +230,67 @@ describe("deckbuilding Constructed mode", () => {
     expect(comp.lands).toBe(20);
   });
 
+  it("resolves legality from non-default printing when default has empty legalities", async () => {
+    // Reproduces production bug: Breeding Pool has two printings.
+    // The default (is_default=1) has empty legalities {}, but a non-default
+    // printing has real legalities. The module should use the non-empty one.
+    await env.DB.batch([
+      // Default printing — empty legalities (the bug trigger)
+      env.DB.prepare(INSERT_CARD).bind(
+        3001,
+        "o-breed",
+        "Breeding Pool",
+        "Breeding Pool",
+        "",
+        0,
+        "Land — Forest Island",
+        "[]",
+        '["G","U"]',
+        "{}",
+        "rare",
+        "RVR",
+        "[]",
+        '["G","U"]',
+      ),
+      // Non-default printing — has real legalities
+      env.DB.prepare(
+        `INSERT INTO mtga_cards
+          (arena_id, oracle_id, name, front_face_name, is_default, mana_cost, cmc, type_line, colors, color_identity, legalities, rarity, set_code, keywords, produced_mana)
+          VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        3002,
+        "o-breed",
+        "Breeding Pool",
+        "Breeding Pool",
+        "",
+        0,
+        "Land — Forest Island",
+        "[]",
+        '["G","U"]',
+        '{"standard":"legal","historic":"legal"}',
+        "rare",
+        "EOE",
+        "[]",
+        '["G","U"]',
+      ),
+    ]);
+
+    const deck = [
+      { name: "Breeding Pool", count: 4 },
+      { name: "Mountain", count: 20 },
+    ];
+
+    const result = await deckbuildingModule.execute(
+      { deck, mode: "constructed", format: "standard" },
+      env,
+    );
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+
+    // Breeding Pool IS legal in standard — should NOT be flagged
+    expect(data.illegal_cards).toBeUndefined();
+  });
+
   it("existing draft mode still works", async () => {
     // Seed minimal draft data so the existing mode doesn't break
     await env.DB.prepare(
