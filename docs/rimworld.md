@@ -242,6 +242,60 @@ Sections-only delivers ~90% of the advisory value. Live queries add significant 
 
 **Signal to revisit:** If real users frequently ask questions that sections can't answer (especially "where is X" and trader-related queries), that's the trigger to build the query channel.
 
+## Reference Modules
+
+Eight server-side reference modules provide computed game data where LLMs reliably hallucinate specific numbers. All modules compile into a single `reference.wasm` (~4.8 MB) following the D2R pattern: generated Go struct literals from XML Defs, computation logic from decompiled C#, queries via JSON stdin → ndjson stdout.
+
+### Modules
+
+| Module | Query Examples |
+|--------|---------------|
+| **Surgery Calculator** | "What's my actual success chance with skill 14, hospital bed, industrial medicine?" |
+| **Crop Optimizer** | "Best crop for rich soil with a 40-day growing season?" |
+| **Combat Calculator** | "Charge rifle DPS at medium range?" "Longsword vs mace true DPS?" |
+| **Material Lookup** | "Plasteel longsword stats at masterwork quality?" |
+| **Drug Analyzer** | "Flake vs yayo — silver per psychoid leaf?" |
+| **Raid Estimator** | "How many raid points at 250k wealth with 8 colonists?" |
+| **Gene Builder** | "Does Robust conflict with Delicate? What fits in 12 complexity?" |
+| **Research Navigator** | "Full chain and cost to unlock fabrication from tribal start?" |
+
+### Data Pipeline
+
+```
+.reference/RimWorldDefs/ (XML, SCP'd from game install)
+    ↓
+plugins/rimworld/tools/datagen (Go XML parser + inheritance resolver)
+    ↓
+plugins/rimworld/reference/data/*_gen.go (generated Go struct literals)
+    ↓
+plugins/rimworld/reference/main.go (WASM entry point, query router)
+plugins/rimworld/reference/{surgery,crops,combat,materials,drugs,raids,genes,research}/
+    ↓
+reference.wasm (GOOS=wasip1 GOARCH=wasm)
+```
+
+### Build
+
+```bash
+# Extract XML Defs from game install (one-time, or after patches)
+scp -r deck@steamdeck:~/.steam/.../RimWorld/Data/*/Defs .reference/RimWorldDefs/
+
+# Generate Go data from XML Defs
+go run ./plugins/rimworld/tools/datagen
+
+# Run tests
+go test ./plugins/rimworld/...
+
+# Build WASM
+GOOS=wasip1 GOARCH=wasm go build -o plugins/rimworld/reference.wasm ./plugins/rimworld/reference
+```
+
+### Data Sources
+
+- **XML Defs** (`.reference/RimWorldDefs/`): Core + Royalty + Ideology + Biotech + Anomaly + Odyssey — 1,558 files, ~18 MB. Contains all game data (ThingDefs, GeneDefs, ResearchProjectDefs, etc.).
+- **Decompiled C#** (`.reference/RimWorldDecompiled/`): Formulas for surgery success, plant growth, raid scaling, stat calculation. Clean-room reference only.
+- **Datagen inheritance resolver**: Resolves RimWorld's `ParentName` XML inheritance chains (multi-level, cross-file, type-namespaced to prevent cross-type defName collisions).
+
 ## Open Questions
 
 - **Mod settings UI:** Should the mod have in-game settings (server URL, connection status, link code display)? Or keep it minimal (link code shown once, status in log)?
