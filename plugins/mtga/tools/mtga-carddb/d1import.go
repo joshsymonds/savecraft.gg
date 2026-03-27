@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -20,10 +19,10 @@ func buildFullCardImportSQL(cards []FullCard) string {
 	b.WriteString("DELETE FROM mtga_cards;\n")
 
 	for _, c := range cards {
-		colorsJSON := jsonArray(c.Colors)
-		colorIdentityJSON := jsonArray(c.ColorIdentity)
-		keywordsJSON := jsonArray(c.Keywords)
-		producedManaJSON := jsonArray(c.ProducedMana)
+		colorsJSON := cfapi.JSONArray(c.Colors)
+		colorIdentityJSON := cfapi.JSONArray(c.ColorIdentity)
+		keywordsJSON := cfapi.JSONArray(c.Keywords)
+		producedManaJSON := cfapi.JSONArray(c.ProducedMana)
 
 		// Synthetic oracle_id for MTGA-sourced cards. Scryfall enrichment
 		// will overwrite this with the real oracle_id later.
@@ -51,15 +50,6 @@ func buildFullCardImportSQL(cards []FullCard) string {
 	}
 
 	return b.String()
-}
-
-// jsonArray marshals a string slice to JSON, returning "[]" for nil/empty.
-func jsonArray(s []string) string {
-	if len(s) == 0 {
-		return "[]"
-	}
-	j, _ := json.Marshal(s)
-	return string(j)
 }
 
 // importToD1 runs the full D1 import for the given cards.

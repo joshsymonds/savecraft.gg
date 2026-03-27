@@ -62,6 +62,15 @@ func SQLQuote(s string) string {
 	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
 }
 
+// JSONArray marshals a string slice to a JSON array string, returning "[]" for nil/empty.
+func JSONArray(s []string) string {
+	if len(s) == 0 {
+		return "[]"
+	}
+	j, _ := json.Marshal(s)
+	return string(j)
+}
+
 // ImportD1SQL uses the D1 bulk import API to execute a large SQL string.
 // If another import is active on the same database, waits with jittered
 // exponential backoff (up to ~5 minutes total) before retrying.
