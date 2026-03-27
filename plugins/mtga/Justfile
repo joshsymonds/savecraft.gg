@@ -33,5 +33,4 @@ fetch-scryfall:
 fetch-17lands:
     go run ./tools/17lands-fetch
 
-# Fetch all data (local game data + remote downloads)
-fetch-all: fetch-carddb fetch-scryfall fetch-17lands
+# Full pipeline is now in the root Justfile: just update-mtga staging|production
