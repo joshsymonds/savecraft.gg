@@ -48,9 +48,11 @@ async function parseJsonResponse(resp: Response): Promise<unknown> {
   throw new Error(`Unexpected content type: ${contentType}`);
 }
 
-/** Strip [Presentation: ...] block appended by textResult() before parsing JSON. */
-function parseToolText(text: string): unknown {
-  return JSON.parse(text.replace(/\n\n\[Presentation: [^\]]*\]$/, ""));
+/** Parse JSON data from a tool result content array (data is in the last text block). */
+function parseToolContent(content: { type: string; text: string }[]): unknown {
+  const last = content.at(-1);
+  if (!last) throw new Error("Expected content blocks");
+  return JSON.parse(last.text);
 }
 
 describe("MCP Protocol", () => {
@@ -107,7 +109,7 @@ describe("MCP Protocol", () => {
     expect(body.result.serverInfo).toEqual({ name: "savecraft", version: "dev" });
     expect(body.result.capabilities).toBeDefined();
     expect(body.result.instructions).toContain("gaming companion");
-    expect(body.result.instructions).toContain("[Presentation:");
+    expect(body.result.instructions).toContain("Visualize this data:");
   });
 
   it("includes Content-Security-Policy header on all response types", async () => {
@@ -198,7 +200,7 @@ describe("MCP Protocol", () => {
     const body = (await parseJsonResponse(resp)) as {
       result: { content: { type: string; text: string }[] };
     };
-    const data = parseToolText(body.result.content[0]!.text) as {
+    const data = parseToolContent(body.result.content) as {
       games: {
         game_id: string;
         game_name: string;
@@ -240,7 +242,7 @@ describe("MCP Protocol", () => {
     };
     expect(body.result.isError).toBeUndefined();
 
-    const data = parseToolText(body.result.content[0]!.text) as {
+    const data = parseToolContent(body.result.content) as {
       data: { helmet: { name: string } };
     };
     expect(data.data.helmet.name).toBe("Harlequin Crest");
@@ -303,7 +305,7 @@ describe("MCP Protocol", () => {
     };
     expect(body.result.isError).toBeUndefined();
 
-    const data = parseToolText(body.result.content[0]!.text) as {
+    const data = parseToolContent(body.result.content) as {
       games: {
         game_id: string;
         references?: { id: string; name: string }[];
@@ -351,7 +353,7 @@ describe("MCP Protocol", () => {
     const body = (await parseJsonResponse(resp)) as {
       result: { content: { type: string; text: string }[] };
     };
-    const data = parseToolText(body.result.content[0]!.text) as {
+    const data = parseToolContent(body.result.content) as {
       games: { game_id: string }[];
     };
     expect(data.games).toHaveLength(1);
@@ -380,7 +382,7 @@ describe("MCP Protocol", () => {
     };
     // Batch always succeeds at the top level — errors are per-query
     expect(body.result.isError).toBeFalsy();
-    const data = parseToolText(body.result.content[0]!.text) as {
+    const data = parseToolContent(body.result.content) as {
       results: { error?: string }[];
     };
     expect(data.results).toHaveLength(1);
@@ -472,7 +474,7 @@ describe("MCP Protocol", () => {
     };
     // Batch succeeds at top level
     expect(body.result.isError).toBeFalsy();
-    const data = parseToolText(body.result.content[0]!.text) as {
+    const data = parseToolContent(body.result.content) as {
       results: ({ echo?: { greeting: string } } | { error?: string })[];
     };
     expect(data.results).toHaveLength(2);

@@ -41,16 +41,9 @@ Spoiler-free by default: Ground your responses in what the save data contains �
 
 When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`;
 
-const PRESENTATION_INSTRUCTIONS = `When tool results include a [Presentation: ...] block, use it to choose the best visual format for the data. Prefer rich visuals over plain text for dense or numerical data:
+const PRESENTATION_INSTRUCTIONS = `Savecraft tool results often include a visualization directive as their first content block, starting with "Visualize this data:". When present, generate an interactive visual (chart, graph, table with visual indicators, or diagram) that brings the data to life — then weave your analysis around and below the visual. The directive describes the ideal format; follow it. Do not respond with only plain text analysis when a visualization directive is present.
 
-- Comparisons and rankings → table with visual indicators (bars, color coding, highlights)
-- Trends over time → line or area chart
-- Proportions and breakdowns → bar chart or stacked bar
-- Multi-axis evaluation → radar/spider chart
-- Win rates and matchups → heatmap or matrix
-- Distributions → histogram or box plot
-
-Use markdown tables as a universal baseline. When the platform supports it, generate interactive visualizations (charts, graphs, diagrams) for quantitative data — these help players understand patterns that raw numbers obscure. When no [Presentation: ...] hint is provided, use your judgment: tables for lists, charts for trends, visual comparisons for ranked data.`;
+When no directive is present, use your judgment: tables for lists and comparisons, charts for trends and distributions, radar charts for multi-axis evaluations, heatmaps for matchup data.`;
 
 interface JsonRpcRequest {
   jsonrpc: string;
