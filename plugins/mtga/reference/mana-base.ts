@@ -232,44 +232,35 @@ export const manaBaseModule: NativeReferenceModule = {
     // Sort by sources needed descending
     requirements.sort((a, b) => b.sourcesNeeded - a.sourcesNeeded);
 
-    // Format output
     let spellCount = 0;
     for (const c of resolved) spellCount += c.count;
 
     const size = closestDeckSize(deckSize);
     const landCount = assumedLandCounts[size] ?? 25;
+    const totalSources = requirements.reduce((sum, r) => sum + r.sourcesNeeded, 0);
 
-    const lines: string[] = [];
-    lines.push(`Mana Base Analysis — ${deckSize}-card deck (${spellCount} spells, ~${landCount} lands assumed)`);
-    lines.push(`Based on Frank Karsten's mana source requirements (~89%+ consistency on curve)\n`);
-
-    if (requirements.length === 0) {
-      lines.push("No colored mana requirements found.");
-      return { type: "formatted", content: lines.join("\n") + "\n" };
-    }
-
-    lines.push(`${"Color".padEnd(14)} ${"Sources".padStart(3)}  ${"Pattern".padEnd(8)}  Most Demanding Spell`);
-    for (const r of requirements) {
-      const colorLabel = `${colorNames[r.color]} (${r.color})`;
-      const adj = r.isGoldAdjusted ? " (+1 gold)" : "";
-      lines.push(`${colorLabel.padEnd(14)} ${String(r.sourcesNeeded).padStart(3)}  ${r.costPattern.padEnd(8)}  ${r.mostDemanding}${adj}`);
-    }
-
-    if (requirements.length > 1) {
-      const totalSources = requirements.reduce((sum, r) => sum + r.sourcesNeeded, 0);
-      lines.push(`\nTotal colored sources needed: ${totalSources} (dual/tri lands count toward multiple colors)`);
-    }
-
-    lines.push(`\nKarsten guidelines assume ${landCount} lands in a ${deckSize}-card deck.`);
-    if (requirements.length > 1) {
-      lines.push("For multicolor decks, dual lands and fetch lands satisfy multiple color requirements simultaneously.");
-    }
-
-    if (unresolvedCards.length > 0) {
-      lines.push(`\nNote: ${unresolvedCards.length} card(s) not found in Arena card database and excluded from analysis: ${unresolvedCards.join(", ")}`);
-    }
-
-    return { type: "formatted", content: lines.join("\n") + "\n" };
+    return {
+      type: "structured",
+      data: {
+        deck_size: deckSize,
+        effective_deck_size: size,
+        spell_count: spellCount,
+        assumed_lands: landCount,
+        requirements: requirements.map((r) => ({
+          color: r.color,
+          color_name: colorNames[r.color] ?? r.color,
+          sources_needed: r.sourcesNeeded,
+          most_demanding: r.mostDemanding,
+          cost_pattern: r.costPattern,
+          pips_required: r.pipsRequired,
+          is_gold_adjusted: r.isGoldAdjusted,
+        })),
+        total_sources_needed: totalSources,
+        unresolved_cards: unresolvedCards.length > 0 ? unresolvedCards : undefined,
+      },
+      presentation:
+        "Mana base analysis — show a table of color requirements with color name, sources needed, cost pattern, and the most demanding spell. For multicolor decks, use a pie chart or bar chart showing the color distribution of sources needed. Highlight colors needing the most sources. Note that dual/tri lands count toward multiple colors.",
+    };
   },
 };
 

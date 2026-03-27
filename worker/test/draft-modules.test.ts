@@ -209,93 +209,88 @@ describe("card_stats native module", () => {
 
   it("returns available sets when no set specified", async () => {
     await seedDraftData();
-
     const result = await cardStatsModule.execute({}, env);
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
-
-    expect(result.content).toContain("DSK");
-    expect(result.content).toContain("BLB");
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const sets = result.data.sets as { set_code: string }[];
+    expect(sets.map((s) => s.set_code)).toContain("DSK");
+    expect(sets.map((s) => s.set_code)).toContain("BLB");
+    expect(result).toHaveProperty("presentation");
   });
 
   it("returns set overview when only set specified", async () => {
     await seedDraftData();
-
     const result = await cardStatsModule.execute({ set: "DSK" }, env);
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
-
-    expect(result.content).toContain("DSK");
-    expect(result.content).toContain("PremierDraft");
-    expect(result.content).toContain("Blazing Bolt");
-    expect(result.content).toContain("GIH WR");
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.set_code).toBe("DSK");
+    expect(result.data.format).toBe("PremierDraft");
+    const topGihwr = result.data.top_gihwr as { card_name: string }[];
+    expect(topGihwr.some((c) => c.card_name === "Blazing Bolt")).toBe(true);
+    expect(result).toHaveProperty("presentation");
   });
 
   it("returns single card detail with color breakdowns", async () => {
     await seedDraftData();
-
     const result = await cardStatsModule.execute({ set: "DSK", card: "gloomlake" }, env);
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
-
-    expect(result.content).toContain("Gloomlake Verge");
-    expect(result.content).toContain("56.4%");
-    expect(result.content).toContain("UB");
-    expect(result.content).toContain("BG");
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const cards = result.data.cards as { card_name: string; gihwr: number; archetypes?: { archetype: string }[] }[];
+    const gloom = cards.find((c) => c.card_name === "Gloomlake Verge");
+    expect(gloom).toBeDefined();
+    expect(gloom!.gihwr).toBeCloseTo(0.564, 2);
+    const archetypes = gloom!.archetypes!.map((a) => a.archetype);
+    expect(archetypes).toContain("UB");
+    expect(archetypes).toContain("BG");
+    expect(result).toHaveProperty("presentation");
   });
 
   it("returns leaderboard sorted by gihwr", async () => {
     await seedDraftData();
-
     const result = await cardStatsModule.execute({ set: "DSK", sort: "gihwr", limit: 3 }, env);
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
-
-    expect(result.content).toContain("Top cards by GIH WR");
-    const blazingIndex = result.content.indexOf("Blazing Bolt");
-    const gloomlakeIndex = result.content.indexOf("Gloomlake Verge");
-    expect(blazingIndex).toBeLessThan(gloomlakeIndex);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const cards = result.data.cards as { card_name: string }[];
+    const blazingIdx = cards.findIndex((c) => c.card_name === "Blazing Bolt");
+    const gloomIdx = cards.findIndex((c) => c.card_name === "Gloomlake Verge");
+    expect(blazingIdx).toBeLessThan(gloomIdx);
+    expect(result).toHaveProperty("presentation");
   });
 
   it("returns not found for nonexistent card", async () => {
     await seedDraftData();
-
     const result = await cardStatsModule.execute({ set: "DSK", card: "nonexistent" }, env);
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
-
     expect(result.content).toContain("No cards matching");
   });
 
   it("returns error for nonexistent set", async () => {
     await seedDraftData();
-
     const result = await cardStatsModule.execute({ set: "ZZZ" }, env);
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
-
     expect(result.content).toContain("not found");
   });
 
   it("handles FTS5 fuzzy card name search", async () => {
     await seedDraftData();
-
     const result = await cardStatsModule.execute({ set: "DSK", card: "blazing" }, env);
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
-
-    expect(result.content).toContain("Blazing Bolt");
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const cards = result.data.cards as { card_name: string }[];
+    expect(cards.some((c) => c.card_name === "Blazing Bolt")).toBe(true);
   });
 
   it("filters leaderboard by color pair", async () => {
     await seedDraftData();
-
     const result = await cardStatsModule.execute({ set: "DSK", sort: "gihwr", colors: "UB" }, env);
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
-
-    expect(result.content).toContain("UB");
-    expect(result.content).toContain("Gloomlake Verge");
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.archetype).toBe("UB");
+    const cards = result.data.cards as { card_name: string }[];
+    expect(cards.some((c) => c.card_name === "Gloomlake Verge")).toBe(true);
+    expect(result).toHaveProperty("presentation");
   });
 });
 
