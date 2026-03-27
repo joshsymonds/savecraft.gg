@@ -2,19 +2,19 @@
 //
 // Ranged DPS formula:
 //
-//	rawDPS = damage × burstCount / cycleTime
-//	cycleTime = warmup + cooldown + (burstCount-1) × ticksBetweenBurst / 60
-//	dpsAtRange = rawDPS × accuracyAtRange
+//	rawDPS = damage x burstCount / cycleTime
+//	cycleTime = warmup + cooldown + (burstCount-1) x ticksBetweenBurst / 60
+//	dpsAtRange = rawDPS x accuracyAtRange
 //
 // Melee true DPS uses weighted verb selection:
 //
-//	weight_i = power_i / cooldown_i
-//	trueDPS = sum(weight_i²) / sum(weight_i)
+//	weight_i = damage_i^2
+//	trueDPS = sum(weight_i * damage_i) / sum(weight_i * cooldown_i)
 //
 // Armor expected damage:
 //
 //	effectiveArmor = max(armorRating - armorPenetration, 0)
-//	expectedDamage = damage × (1 - 3 × effectiveArmor / 4)
+//	expectedDamage = damage x (1 - 3 x effectiveArmor / 4)
 package combat
 
 // Range breakpoints for accuracy interpolation (in tiles).
@@ -42,11 +42,10 @@ type RangedWeaponStats struct {
 
 // MeleeTool represents a single melee attack verb.
 type MeleeTool struct {
-	Label          string
-	Power          float64 // damage per hit
-	Cooldown       float64 // seconds between attacks
-	ArmorPenetration float64
-	Capacities     []string // damage types (Cut, Blunt, Stab, etc.)
+	Label      string
+	Power      float64  // damage per hit
+	Cooldown   float64  // seconds between attacks
+	Capacities []string // damage types (Cut, Blunt, Stab, etc.)
 }
 
 // RawRangedDPS computes the theoretical maximum DPS ignoring accuracy.
@@ -92,16 +91,16 @@ func AccuracyAtRange(w RangedWeaponStats, rangeTiles float64) float64 {
 //
 // From VerbProperties.AdjustedMeleeSelectionWeight (v1.6):
 //
-//	selectionWeight = damage² × commonality × chanceFactor
+//	selectionWeight = damage^2 x commonality x chanceFactor
 //
 // The game computes average DPS as:
 //
-//	avgDamage = sum(weight_i × damage_i) / sum(weight_i)
-//	avgCooldown = sum(weight_i × cooldown_i) / sum(weight_i)
+//	avgDamage = sum(weight_i x damage_i) / sum(weight_i)
+//	avgCooldown = sum(weight_i x cooldown_i) / sum(weight_i)
 //	trueDPS = avgDamage / avgCooldown
 //
-// Which simplifies to: sum(weight_i × damage_i) / sum(weight_i × cooldown_i)
-// With weight = damage²: sum(damage³) / sum(damage² × cooldown)
+// Which simplifies to: sum(weight_i x damage_i) / sum(weight_i x cooldown_i)
+// With weight = damage^2: sum(damage^3) / sum(damage^2 x cooldown)
 func MeleeTrueDPS(tools []MeleeTool) float64 {
 	if len(tools) == 0 {
 		return 0
@@ -112,7 +111,7 @@ func MeleeTrueDPS(tools []MeleeTool) float64 {
 		if t.Cooldown <= 0 {
 			continue
 		}
-		weight := t.Power * t.Power // selection weight = damage²
+		weight := t.Power * t.Power // selection weight = damage^2
 		weightedDamage += weight * t.Power
 		weightedCooldown += weight * t.Cooldown
 	}
@@ -131,7 +130,7 @@ func MeleeTrueDPS(tools []MeleeTool) float64 {
 //	  roll < ea/2: fully deflected (0 damage)
 //	  roll < ea: half damage
 //	  roll >= ea: full damage
-//	Expected = damage × (1 - 3×ea/4)
+//	Expected = damage x (1 - 3xea/4)
 func ArmorExpectedDamage(damage, armorPenetration, armorRating float64) float64 {
 	ea := armorRating - armorPenetration
 	if ea < 0 {

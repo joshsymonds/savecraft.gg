@@ -24,9 +24,17 @@ func main() {
 	for i := 1; i < len(os.Args); i++ {
 		switch os.Args[i] {
 		case "-input":
+			if i+1 >= len(os.Args) {
+				fmt.Fprintf(os.Stderr, "Error: -input requires an argument\n")
+				os.Exit(1)
+			}
 			i++
 			inputDir = os.Args[i]
 		case "-output":
+			if i+1 >= len(os.Args) {
+				fmt.Fprintf(os.Stderr, "Error: -output requires an argument\n")
+				os.Exit(1)
+			}
 			i++
 			outputDir = os.Args[i]
 		}

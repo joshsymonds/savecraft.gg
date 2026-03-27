@@ -8,6 +8,8 @@
 //	totalPoints = clamp(wealthPoints + pawnPoints, 35, 10000)
 package raids
 
+import "github.com/joshsymonds/savecraft.gg/plugins/rimworld/reference/calc"
+
 const (
 	buildingWealthFactor = 0.5
 	globalPointsMin      = 35.0
@@ -58,7 +60,7 @@ func TotalWealth(itemWealth, buildingWealth float64) float64 {
 // WealthToRaidPoints evaluates the PointsPerWealthCurve.
 // Curve: (0,0), (14000,0), (400000,2400), (700000,3600), (1000000,4200)
 func WealthToRaidPoints(wealth float64) float64 {
-	return evaluateCurve(wealth, [][2]float64{
+	return calc.EvaluateCurve(wealth, [][2]float64{
 		{0, 0},
 		{14000, 0},
 		{400000, 2400},
@@ -70,7 +72,7 @@ func WealthToRaidPoints(wealth float64) float64 {
 // PawnPoints evaluates the PointsPerColonistByWealthCurve for a single colonist.
 // Curve: (0,15), (10000,15), (400000,140), (1000000,200)
 func PawnPoints(wealth float64) float64 {
-	return evaluateCurve(wealth, [][2]float64{
+	return calc.EvaluateCurve(wealth, [][2]float64{
 		{0, 15},
 		{10000, 15},
 		{400000, 140},
@@ -78,24 +80,3 @@ func PawnPoints(wealth float64) float64 {
 	})
 }
 
-func evaluateCurve(x float64, points [][2]float64) float64 {
-	if len(points) == 0 {
-		return 0
-	}
-	if x <= points[0][0] {
-		return points[0][1]
-	}
-	last := len(points) - 1
-	if x >= points[last][0] {
-		return points[last][1]
-	}
-	for i := 1; i < len(points); i++ {
-		if x <= points[i][0] {
-			x0, y0 := points[i-1][0], points[i-1][1]
-			x1, y1 := points[i][0], points[i][1]
-			t := (x - x0) / (x1 - x0)
-			return y0 + t*(y1-y0)
-		}
-	}
-	return points[last][1]
-}

@@ -34,7 +34,7 @@ func TestRangedDPS(t *testing.T) {
 	// Raw DPS (no accuracy): damage * burstCount / cycleTime
 	// cycleTime = warmup + cooldown + (burstCount-1) * ticksBetweenBurst/60
 	// = 1.0 + 2.0 + 2 * 12/60 = 3.0 + 0.4 = 3.4 seconds
-	// rawDPS = 16 * 3 / 3.4 = 48 / 3.4 ≈ 14.12
+	// rawDPS = 16 * 3 / 3.4 = 48 / 3.4 ~ 14.12
 	rawDPS := RawRangedDPS(chargeRifle)
 	approx(t, "charge rifle raw DPS", rawDPS, 14.12)
 
@@ -52,19 +52,19 @@ func TestRangedDPS(t *testing.T) {
 func TestRangedDPSRevolver(t *testing.T) {
 	// Revolver: damage 12, burst 1, warmup 0.3, cooldown 1.6
 	revolver := RangedWeaponStats{
-		DamagePerShot:    12,
-		BurstShotCount:   1,
-		WarmupTime:       0.3,
-		Cooldown:         1.6,
-		Range:            25.9,
-		AccuracyTouch:    0.80,
-		AccuracyShort:    0.75,
-		AccuracyMedium:   0.55,
-		AccuracyLong:     0.40,
+		DamagePerShot:  12,
+		BurstShotCount: 1,
+		WarmupTime:     0.3,
+		Cooldown:       1.6,
+		Range:          25.9,
+		AccuracyTouch:  0.80,
+		AccuracyShort:  0.75,
+		AccuracyMedium: 0.55,
+		AccuracyLong:   0.40,
 	}
 
 	// cycleTime = 0.3 + 1.6 = 1.9s
-	// rawDPS = 12 / 1.9 ≈ 6.316
+	// rawDPS = 12 / 1.9 ~ 6.316
 	rawDPS := RawRangedDPS(revolver)
 	approx(t, "revolver raw DPS", rawDPS, 6.316)
 }
@@ -89,23 +89,9 @@ func TestAccuracyInterpolation(t *testing.T) {
 }
 
 func TestMeleeDPS(t *testing.T) {
-	// Longsword: handle (blunt 9, cd 2.0), point (stab 23, cd 2.6), edge (cut 27, cd 2.6)
-	// Need to check if there's an edge tool — let me get it from the XML search above
-	// Actually the longsword grep only showed 2 tools. Let me use what we have.
-	// The true DPS uses weighted selection:
-	// weight_i = power_i / cooldown_i
-	// totalWeight = sum of all weights
-	// trueDPS = sum(weight_i / totalWeight * power_i / cooldown_i) ... actually
-	// trueDPS = (sum(power_i * weight_i)) / (sum(cooldown_i * weight_i))
-	// where weight_i = power_i / cooldown_i (simplified)
-	//
-	// Actually the correct formula is:
-	// Each tool has selectionWeight = power / cooldown (proportional to DPS contribution)
-	// Expected DPS = sum_i(prob_i * power_i / cooldown_i)
-	// where prob_i = weight_i / totalWeight
-	// So DPS = sum_i((weight_i/totalWeight) * power_i/cooldown_i)
-	// = sum_i(weight_i * power_i/cooldown_i) / totalWeight
-	// = sum_i((power_i/cooldown_i)^2) / sum_i(power_i/cooldown_i)
+	// Longsword: handle (blunt 9, cd 2.0), point (stab 23, cd 2.6), edge (cut 23, cd 2.6)
+	// v1.6 formula: selectionWeight = damage^2
+	// trueDPS = sum(damage^3) / sum(damage^2 * cooldown)
 
 	tools := []MeleeTool{
 		{Label: "handle", Power: 9, Cooldown: 2.0},
@@ -114,12 +100,11 @@ func TestMeleeDPS(t *testing.T) {
 	}
 
 	dps := MeleeTrueDPS(tools)
-	// v1.6 formula: weight = damage², trueDPS = sum(damage³) / sum(damage² × cooldown)
-	// handle: weight = 81, damage³ = 729, weight×cd = 162
-	// point:  weight = 529, damage³ = 12167, weight×cd = 1375.4
-	// edge:   weight = 529, damage³ = 12167, weight×cd = 1375.4
+	// handle: weight = 81, damage^3 = 729, weight*cd = 162
+	// point:  weight = 529, damage^3 = 12167, weight*cd = 1375.4
+	// edge:   weight = 529, damage^3 = 12167, weight*cd = 1375.4
 	// trueDPS = (729 + 12167 + 12167) / (162 + 1375.4 + 1375.4)
-	//         = 25063 / 2912.8 ≈ 8.604
+	//         = 25063 / 2912.8 ~ 8.604
 	approx(t, "longsword true DPS", dps, 8.604)
 
 	// DPS should be higher than simple average because heavier attacks are selected more often
