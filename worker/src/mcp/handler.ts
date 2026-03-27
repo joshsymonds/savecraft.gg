@@ -6,10 +6,10 @@
  * Supports: initialize, notifications/initialized, tools/list, tools/call.
  * Transport: Streamable HTTP (POST with JSON responses, no SSE needed for sync tools).
  */
-import type { Env } from "../types";
-
 import { getNativeModule } from "../reference/registry";
 import { resolveSectionParams, type VerifiedSaveCache } from "../reference/section-resolution";
+import type { Env } from "../types";
+
 import {
   createNote,
   deleteNote,
@@ -550,13 +550,7 @@ async function handleQueryReference(
         );
       }
 
-      return queryReference(
-        env.REFERENCE_PLUGINS,
-        gameId,
-        moduleId,
-        enrichedQuery,
-        env,
-      );
+      return queryReference(env.REFERENCE_PLUGINS, gameId, moduleId, enrichedQuery, env);
     }),
   );
 
