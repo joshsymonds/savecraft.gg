@@ -52,9 +52,9 @@
 
 <style>
   .game-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 10px;
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 12px;
     padding: 16px;
   }
 
@@ -67,7 +67,6 @@
     border-radius: 4px;
     background: transparent;
     border: 1px dashed rgba(74, 90, 173, 0.2);
-    min-width: 110px;
     cursor: pointer;
     transition:
       background 0.1s,

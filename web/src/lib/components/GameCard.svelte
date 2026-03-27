@@ -80,10 +80,16 @@
     <span class="game-status">{game.statusLine}</span>
   {/if}
   {#if !adapterError && game.saves.length > 0}
+    {@const visibleSaves = game.saves.slice(0, 3)}
+    {@const overflow = game.saves.length - 3}
+    <div class="save-separator"></div>
     <div class="save-list">
-      {#each game.saves as save (save.saveUuid)}
+      {#each visibleSaves as save (save.saveUuid)}
         <span class="save-name">{save.saveName}</span>
       {/each}
+      {#if overflow > 0}
+        <span class="save-overflow">+{overflow} more</span>
+      {/if}
     </div>
   {/if}
 </div>
@@ -98,7 +104,6 @@
     border-radius: 4px;
     background: rgba(74, 90, 173, 0.03);
     border: 1px solid rgba(74, 90, 173, 0.06);
-    min-width: 110px;
   }
 
   .game-card.clickable {
@@ -127,13 +132,18 @@
     font-size: 12px;
     color: var(--color-text-dim);
     letter-spacing: 0.5px;
-    margin-bottom: 4px;
+    margin-top: 4px;
+    margin-bottom: 1px;
+    text-align: center;
+    width: 100%;
   }
 
   .game-status {
     font-family: var(--font-body);
     font-size: 15px;
     color: var(--color-text-dim);
+    text-align: center;
+    width: 100%;
   }
 
   .game-status.needs-config {
@@ -205,16 +215,51 @@
     background: rgba(220, 80, 80, 0.2);
   }
 
+  .save-separator {
+    width: 100%;
+    height: 1px;
+    margin-top: 8px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(74, 90, 173, 0.35) 50%,
+      transparent 100%
+    );
+  }
+
   .save-list {
     display: flex;
-    flex-wrap: wrap;
-    gap: 2px 6px;
-    margin-top: 4px;
+    flex-direction: column;
+    gap: 3px;
+    padding-top: 8px;
+    width: 100%;
   }
 
   .save-name {
     font-family: var(--font-body);
-    font-size: 15px;
+    font-size: 14px;
     color: var(--color-text-dim);
+    text-align: left;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .save-name::before {
+    content: "·";
+    color: var(--color-border-light, #7a8aed);
+    margin-right: 6px;
+    font-weight: bold;
+    font-size: 16px;
+  }
+
+  .save-overflow {
+    font-family: var(--font-pixel);
+    font-size: 9px;
+    color: var(--color-text-muted);
+    letter-spacing: 0.5px;
+    text-align: left;
+    padding-left: 14px;
+    margin-top: 2px;
   }
 </style>
