@@ -1125,7 +1125,31 @@ export const deckbuildingModule: NativeReferenceModule = {
       description:
         "Number of cut candidates to suggest. For draft mode only. When present, switches to cut advisor mode.",
     },
+    deck_section: {
+      type: "string",
+      description:
+        'Section name containing the deck (e.g., "deck:Mono Black"). Requires save_id. Alternative to passing deck inline.',
+    },
+    save_id: {
+      type: "string",
+      description:
+        "Save UUID. Required when using deck_section to reference a deck from save data.",
+    },
   },
+
+  sectionMappings: [
+    {
+      sectionParam: "deck_section",
+      extract: (sectionData: unknown) => {
+        const data = sectionData as { cards?: { name: string; count: number }[]; sideboard?: { name: string; count: number }[]; format?: string };
+        const result: Record<string, unknown> = {};
+        if (data.cards) result.deck = data.cards;
+        if (data.sideboard && data.sideboard.length > 0) result.sideboard = data.sideboard;
+        if (data.format) result.format = data.format.toLowerCase();
+        return result;
+      },
+    },
+  ],
 
   async execute(
     query: Record<string, unknown>,

@@ -8,6 +8,8 @@
  */
 import type { Env } from "../types";
 
+import { getNativeModule } from "../reference/registry";
+import { resolveSectionParams } from "../reference/section-resolution";
 import {
   createNote,
   deleteNote,
@@ -320,7 +322,7 @@ const TOOLS: ToolDefinition[] = [
     name: "query_reference",
     title: "Query Game Reference Data",
     description:
-      "Authoritative game calculations — drop rates, stat thresholds, build comparisons, draft ratings, mana curves, or any quantitative query where estimation would be unreliable. Batch multiple queries in a single call to avoid round-trips. Max 50 queries per call.",
+      "Authoritative game calculations — drop rates, stat thresholds, build comparisons, draft ratings, mana curves, or any quantitative query where estimation would be unreliable. Batch multiple queries in a single call to avoid round-trips. Max 50 queries per call. Modules that accept card/deck lists can also accept a section reference (e.g., deck_section + save_id) to pull data directly from the player's save instead of passing cards inline.",
     inputSchema: {
       type: "object",
       properties: {
@@ -523,18 +525,34 @@ async function handleQueryReference(
   }
 
   const gameId = args.game_id as string;
-  const module = args.module as string;
+  const moduleId = args.module as string;
+
+  // Look up the native module for section-reference resolution.
+  // WASM modules don't support section references (no sectionMappings).
+  const nativeModule = getNativeModule(gameId, moduleId);
 
   const responses = await Promise.allSettled(
-    queries.map((q) =>
-      queryReference(
+    queries.map(async (q) => {
+      let enrichedQuery = { ...(q as Record<string, unknown>), user_id: userUuid };
+
+      // Resolve section references before dispatching to the module
+      if (nativeModule) {
+        enrichedQuery = await resolveSectionParams(
+          env.DB,
+          userUuid,
+          nativeModule,
+          enrichedQuery,
+        );
+      }
+
+      return queryReference(
         env.REFERENCE_PLUGINS,
         gameId,
-        module,
-        { ...(q as Record<string, unknown>), user_id: userUuid },
+        moduleId,
+        enrichedQuery,
         env,
-      ),
-    ),
+      );
+    }),
   );
 
   // Collect visualization directive from the first query result (if present).
