@@ -16,20 +16,20 @@ describe("mana_base native module", () => {
     await env.DB.batch([
       // Mono-black: {2}{B}{B} = 2 generic + 2 black pips
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-      ).bind(87_521, "abc", "Sheoldred, the Apocalypse", "{2}{B}{B}", 4, '["B"]', "mythic", "DMU"),
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(87_521, "abc", "Sheoldred, the Apocalypse", "Sheoldred, the Apocalypse", "{2}{B}{B}", 4, '["B"]', "mythic", "DMU"),
       // Mono-red: {R}
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-      ).bind(1, "def", "Lightning Bolt", "{R}", 1, '["R"]', "common", "STA"),
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(1, "def", "Lightning Bolt", "Lightning Bolt", "{R}", 1, '["R"]', "common", "STA"),
       // Multicolor gold card (blue-black)
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-      ).bind(3, "jkl", "Baleful Strix", "{U}{B}", 2, '["U","B"]', "rare", "STA"),
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(3, "jkl", "Baleful Strix", "Baleful Strix", "{U}{B}", 2, '["U","B"]', "rare", "STA"),
       // Green: {G}
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)`,
-      ).bind(2, "ghi", "Llanowar Elves", "{G}", 1, '["G"]', "common", "DAR"),
+        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(2, "ghi", "Llanowar Elves", "Llanowar Elves", "{G}", 1, '["G"]', "common", "DAR"),
     ]);
   }
 

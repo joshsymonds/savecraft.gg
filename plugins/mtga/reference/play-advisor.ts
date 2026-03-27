@@ -405,8 +405,8 @@ async function mulligan(
 
   const placeholders = hand.map(() => "?").join(", ");
   const cardRows = await env.DB.prepare(
-    `SELECT name, cmc, type_line FROM mtga_cards
-     WHERE is_default = 1 AND name IN (${placeholders})`,
+    `SELECT front_face_name AS name, cmc, type_line FROM mtga_cards
+     WHERE is_default = 1 AND front_face_name COLLATE NOCASE IN (${placeholders})`,
   )
     .bind(...hand)
     .all<{ name: string; cmc: number; type_line: string }>();

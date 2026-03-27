@@ -145,7 +145,7 @@ export const manaBaseModule: NativeReferenceModule = {
       const chunk = names.slice(i, i + 50);
       const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
       const rows = await env.DB
-        .prepare(`SELECT name, mana_cost, colors FROM mtga_cards WHERE is_default = 1 AND name COLLATE NOCASE IN (${placeholders})`)
+        .prepare(`SELECT front_face_name AS name, mana_cost, colors FROM mtga_cards WHERE is_default = 1 AND front_face_name COLLATE NOCASE IN (${placeholders})`)
         .bind(...chunk)
         .all<{ name: string; mana_cost: string; colors: string }>();
       for (const row of rows.results) {
@@ -157,11 +157,12 @@ export const manaBaseModule: NativeReferenceModule = {
     const unresolvedCards: string[] = [];
     for (const entry of deck) {
       const row = cardsByName.get(entry.name.toLowerCase());
-      if (!row || !row.mana_cost) {
+      if (!row) {
         unresolvedCards.push(entry.name);
         continue;
       }
 
+      // Lands have empty mana_cost — still resolved, just no colored pips
       resolved.push({
         name: row.name,
         manaCost: row.mana_cost,

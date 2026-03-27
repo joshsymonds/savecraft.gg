@@ -54,7 +54,7 @@ export const collectionDiffModule: NativeReferenceModule = {
         const chunk = arenaIds.slice(i, i + 50);
         const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
         const rows = await env.DB
-          .prepare(`SELECT arena_id, name, rarity FROM mtga_cards WHERE arena_id IN (${placeholders})`)
+          .prepare(`SELECT arena_id, front_face_name AS name, rarity FROM mtga_cards WHERE arena_id IN (${placeholders})`)
           .bind(...chunk)
           .all<{ arena_id: number; name: string; rarity: string }>();
 
@@ -79,7 +79,7 @@ export const collectionDiffModule: NativeReferenceModule = {
       const chunk = missingNames.slice(i, i + 50);
       const placeholders = chunk.map((_, j) => `?${j + 1}`).join(",");
       const rows = await env.DB
-        .prepare(`SELECT name, rarity FROM mtga_cards WHERE name COLLATE NOCASE IN (${placeholders})`)
+        .prepare(`SELECT front_face_name AS name, rarity FROM mtga_cards WHERE is_default = 1 AND front_face_name COLLATE NOCASE IN (${placeholders})`)
         .bind(...chunk)
         .all<{ name: string; rarity: string }>();
       for (const row of rows.results) {
