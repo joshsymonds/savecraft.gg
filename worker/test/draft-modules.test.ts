@@ -235,7 +235,11 @@ describe("card_stats native module", () => {
     const result = await cardStatsModule.execute({ set: "DSK", card: "gloomlake" }, env);
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
-    const cards = result.data.cards as { card_name: string; gihwr: number; archetypes?: { archetype: string }[] }[];
+    const cards = result.data.cards as {
+      card_name: string;
+      gihwr: number;
+      archetypes?: { archetype: string }[];
+    }[];
     const gloom = cards.find((c) => c.card_name === "Gloomlake Verge");
     expect(gloom).toBeDefined();
     expect(gloom!.gihwr).toBeCloseTo(0.564, 2);
@@ -251,9 +255,9 @@ describe("card_stats native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
     const cards = result.data.cards as { card_name: string }[];
-    const blazingIdx = cards.findIndex((c) => c.card_name === "Blazing Bolt");
-    const gloomIdx = cards.findIndex((c) => c.card_name === "Gloomlake Verge");
-    expect(blazingIdx).toBeLessThan(gloomIdx);
+    const blazingIndex = cards.findIndex((c) => c.card_name === "Blazing Bolt");
+    const gloomIndex = cards.findIndex((c) => c.card_name === "Gloomlake Verge");
+    expect(blazingIndex).toBeLessThan(gloomIndex);
     expect(result).toHaveProperty("presentation");
   });
 

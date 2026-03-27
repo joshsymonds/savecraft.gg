@@ -35,11 +35,19 @@ describe("mana_base native module", () => {
 
   it("computes land recommendations for a mono-color deck", async () => {
     await seedCards();
-    const result = await manaBaseModule.execute({ deck: [{ name: "Lightning Bolt", count: 4 }] }, env);
+    const result = await manaBaseModule.execute(
+      { deck: [{ name: "Lightning Bolt", count: 4 }] },
+      env,
+    );
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
     expect(result.data.deck_size).toBe(60);
-    const reqs = result.data.requirements as { color: string; color_name: string; sources_needed: number; most_demanding: string }[];
+    const reqs = result.data.requirements as {
+      color: string;
+      color_name: string;
+      sources_needed: number;
+      most_demanding: string;
+    }[];
     expect(reqs).toHaveLength(1);
     expect(reqs[0]!.color).toBe("R");
     expect(reqs[0]!.color_name).toBe("Red");
@@ -50,10 +58,17 @@ describe("mana_base native module", () => {
 
   it("handles multicolor cards with gold adjustment", async () => {
     await seedCards();
-    const result = await manaBaseModule.execute({ deck: [{ name: "Baleful Strix", count: 4 }] }, env);
+    const result = await manaBaseModule.execute(
+      { deck: [{ name: "Baleful Strix", count: 4 }] },
+      env,
+    );
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
-    const reqs = result.data.requirements as { color: string; color_name: string; is_gold_adjusted: boolean }[];
+    const reqs = result.data.requirements as {
+      color: string;
+      color_name: string;
+      is_gold_adjusted: boolean;
+    }[];
     const colors = reqs.map((r) => r.color_name);
     expect(colors).toContain("Blue");
     expect(colors).toContain("Black");
@@ -62,7 +77,10 @@ describe("mana_base native module", () => {
 
   it("handles unknown cards gracefully", async () => {
     await seedCards();
-    const result = await manaBaseModule.execute({ deck: [{ name: "Nonexistent Card", count: 4 }] }, env);
+    const result = await manaBaseModule.execute(
+      { deck: [{ name: "Nonexistent Card", count: 4 }] },
+      env,
+    );
     expect(result.type).toBe("formatted");
     if (result.type !== "formatted") throw new Error("unexpected type");
     expect(result.content).toContain("No spells with mana costs found");
@@ -70,7 +88,10 @@ describe("mana_base native module", () => {
 
   it("respects deck_size parameter", async () => {
     await seedCards();
-    const result = await manaBaseModule.execute({ deck: [{ name: "Lightning Bolt", count: 4 }], deck_size: 40 }, env);
+    const result = await manaBaseModule.execute(
+      { deck: [{ name: "Lightning Bolt", count: 4 }], deck_size: 40 },
+      env,
+    );
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
     expect(result.data.deck_size).toBe(40);
@@ -78,15 +99,22 @@ describe("mana_base native module", () => {
 
   it("analyzes multiple colors correctly", async () => {
     await seedCards();
-    const result = await manaBaseModule.execute({
-      deck: [
-        { name: "Sheoldred, the Apocalypse", count: 4 },
-        { name: "Lightning Bolt", count: 4 },
-      ],
-    }, env);
+    const result = await manaBaseModule.execute(
+      {
+        deck: [
+          { name: "Sheoldred, the Apocalypse", count: 4 },
+          { name: "Lightning Bolt", count: 4 },
+        ],
+      },
+      env,
+    );
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
-    const reqs = result.data.requirements as { color: string; color_name: string; most_demanding: string }[];
+    const reqs = result.data.requirements as {
+      color: string;
+      color_name: string;
+      most_demanding: string;
+    }[];
     const colors = reqs.map((r) => r.color_name);
     expect(colors).toContain("Black");
     expect(colors).toContain("Red");
@@ -96,13 +124,16 @@ describe("mana_base native module", () => {
 
   it("reports unresolved cards in output", async () => {
     await seedCards();
-    const result = await manaBaseModule.execute({
-      deck: [
-        { name: "Lightning Bolt", count: 4 },
-        { name: "Counterspell", count: 4 },
-        { name: "Force of Will", count: 4 },
-      ],
-    }, env);
+    const result = await manaBaseModule.execute(
+      {
+        deck: [
+          { name: "Lightning Bolt", count: 4 },
+          { name: "Counterspell", count: 4 },
+          { name: "Force of Will", count: 4 },
+        ],
+      },
+      env,
+    );
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
     const unresolved = result.data.unresolved_cards as string[];

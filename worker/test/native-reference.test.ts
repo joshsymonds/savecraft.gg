@@ -179,7 +179,13 @@ describe("queryReference native routing", () => {
     };
     registerNativeModule("testgame", nativeModule);
 
-    const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "viz_structured", {}, env);
+    const result = await queryReference(
+      env.REFERENCE_PLUGINS,
+      "testgame",
+      "viz_structured",
+      {},
+      env,
+    );
 
     expect(result.isError).toBeFalsy();
     const text = result.content[0]!.text;
@@ -201,7 +207,13 @@ describe("queryReference native routing", () => {
     };
     registerNativeModule("testgame", nativeModule);
 
-    const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "viz_formatted", {}, env);
+    const result = await queryReference(
+      env.REFERENCE_PLUGINS,
+      "testgame",
+      "viz_formatted",
+      {},
+      env,
+    );
 
     expect(result.isError).toBeFalsy();
     const text = result.content[0]!.text;

@@ -1081,30 +1081,37 @@ export async function queryReference(
     return errorResult(`Reference module returned an error: ${text.trim()}`);
   }
 
-  // Parse the ndjson response — could be multiple lines
+  return parseWasmResponse(text);
+}
+
+/** Extract presentation hint from WASM result data (mirrors native module contract). */
+function extractWasmPresentation(data: unknown): string | undefined {
+  if (typeof data !== "object" || data === null) return undefined;
+  const presentation = (data as Record<string, unknown>).presentation;
+  return typeof presentation === "string" ? presentation : undefined;
+}
+
+/** Parse WASM ndjson response into a ToolResult. */
+function parseWasmResponse(text: string): ToolResult {
   const lines = text
     .trim()
     .split("\n")
     .filter((l: string) => l.length > 0);
+
   if (lines.length === 1) {
     try {
       const parsed = JSON.parse(lines[0] ?? "") as Record<string, unknown>;
-      // Extract presentation hint from WASM result data (mirrors native module contract).
-      const wasmData = parsed.data as Record<string, unknown> | undefined;
-      const presentation =
-        typeof wasmData === "object" && wasmData !== null
-          ? (wasmData.presentation as string | undefined)
-          : undefined;
+      const presentation = extractWasmPresentation(parsed.data);
 
       // If the WASM returned pre-formatted text, pass it through directly
       // instead of JSON.stringify-ing it (which would escape newlines).
       if (parsed.type === "result" && isFormattedResult(parsed.data)) {
         const data = parsed.data as { formatted: string };
-        let text = data.formatted;
+        let formatted = data.formatted;
         if (presentation) {
-          text += `\n\n[Presentation: ${presentation}]`;
+          formatted += `\n\n[Presentation: ${presentation}]`;
         }
-        return { content: [{ type: "text" as const, text }] };
+        return { content: [{ type: "text" as const, text: formatted }] };
       }
       return textResult(parsed, presentation);
     } catch {

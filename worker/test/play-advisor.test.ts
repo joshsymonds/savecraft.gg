@@ -377,7 +377,12 @@ describe("play_advisor reference module", () => {
     );
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
-    const cards = result.data.cards as { card_name: string; best_turn: number; best_win_rate: number; turns: unknown[] }[];
+    const cards = result.data.cards as {
+      card_name: string;
+      best_turn: number;
+      best_win_rate: number;
+      turns: unknown[];
+    }[];
     const barrier = cards.find((c) => c.card_name === "Gleaming Barrier");
     expect(barrier).toBeDefined();
     expect(barrier!.best_turn).toBe(2);
@@ -385,7 +390,7 @@ describe("play_advisor reference module", () => {
     const kaito = cards.find((c) => c.card_name === "Kaito, Cunning Infiltrator");
     expect(kaito).toBeDefined();
     expect(kaito!.best_turn).toBe(3);
-    expect(kaito!.best_win_rate).toBeCloseTo(0.60, 2);
+    expect(kaito!.best_win_rate).toBeCloseTo(0.6, 2);
     expect(result.data.coverage).toEqual({ found: 2, total: 2 });
     expect(result).toHaveProperty("presentation");
   });
@@ -450,7 +455,17 @@ describe("play_advisor reference module", () => {
     );
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
-    const turns = result.data.turns as { turn: number; creatures: { creature: string; action: string; correct: boolean; best_action: string; attack_win_rate: number; hold_win_rate: number }[] }[];
+    const turns = result.data.turns as {
+      turn: number;
+      creatures: {
+        creature: string;
+        action: string;
+        correct: boolean;
+        best_action: string;
+        attack_win_rate: number;
+        hold_win_rate: number;
+      }[];
+    }[];
     const t3 = turns.find((t) => t.turn === 3);
     expect(t3).toBeDefined();
     const barrier = t3!.creatures.find((c) => c.creature === "Gleaming Barrier");

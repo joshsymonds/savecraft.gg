@@ -575,7 +575,7 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
           protocolVersion: PROTOCOL_VERSION,
           capabilities: { tools: { listChanged: false } },
           serverInfo: { name: "savecraft", version: env.VERSION ?? "dev" },
-          instructions: SERVER_INSTRUCTIONS + "\n\n" + PRESENTATION_INSTRUCTIONS,
+          instructions: `${SERVER_INSTRUCTIONS}\n\n${PRESENTATION_INSTRUCTIONS}`,
         }),
       );
     }
