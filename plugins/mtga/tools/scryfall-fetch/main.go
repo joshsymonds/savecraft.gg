@@ -39,6 +39,7 @@ type ScryfallCard struct {
 	ArenaID       int               `json:"arena_id"`
 	OracleID      string            `json:"oracle_id"`
 	Name          string            `json:"name"`
+	PrintedName   string            `json:"printed_name"` // Arena alternate name for UB cards (e.g., "Kavaero, Mind-Bitten")
 	ManaCost      string            `json:"mana_cost"`
 	CMC           float64           `json:"cmc"`
 	TypeLine      string            `json:"type_line"`
@@ -285,6 +286,17 @@ func downloadAndFilter(url string) (downloadResult, error) {
 		nameKey := strings.ToLower(card.FrontFaceName)
 		if existing, ok := nameIndex[nameKey]; !ok || len(card.Legalities) > len(existing.Legalities) {
 			nameIndex[nameKey] = card
+		}
+		// Also index by printed_name (Arena alternate name for UB cards).
+		// e.g., "Kavaero, Mind-Bitten" is the printed_name for "Superior Spider-Man".
+		if card.PrintedName != "" {
+			printedKey := strings.ToLower(card.PrintedName)
+			if before, _, ok := strings.Cut(printedKey, " // "); ok {
+				printedKey = before
+			}
+			if existing, ok := nameIndex[printedKey]; !ok || len(card.Legalities) > len(existing.Legalities) {
+				nameIndex[printedKey] = card
+			}
 		}
 
 		// Only collect Arena cards for the main enrichment pass.

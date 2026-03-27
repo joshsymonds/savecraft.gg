@@ -3,6 +3,8 @@ package main
 import (
 	"strings"
 	"testing"
+
+	"github.com/joshsymonds/savecraft.gg/plugins/mtga/parser/data"
 )
 
 func TestBuildArenaLookup(t *testing.T) {
@@ -77,6 +79,55 @@ func TestBackfillFromNameIndex(t *testing.T) {
 		}
 		if c.OracleID == "" {
 			t.Errorf("backfilled card %d (%s) has empty oracle_id", c.ArenaID, c.Name)
+		}
+	}
+}
+
+func TestBackfillMatchesByPrintedName(t *testing.T) {
+	// UB cards have printed_name in Scryfall (Arena alternate name).
+	// The name index should contain both the canonical name AND the printed name.
+	matched := []ScryfallCard{}
+	nameIndex := map[string]ScryfallCard{
+		// Canonical name
+		"superior spider-man": {
+			OracleID:   "spider-oracle",
+			Name:       "Superior Spider-Man",
+			Legalities: map[string]string{"standard": "legal"},
+		},
+		// Printed name (Arena alternate) — should also be in the index
+		"kavaero, mind-bitten": {
+			OracleID:   "spider-oracle",
+			Name:       "Superior Spider-Man",
+			Legalities: map[string]string{"standard": "legal"},
+		},
+	}
+
+	backfilled := backfillFromNameIndex(matched, nameIndex)
+
+	// Any MTGA client card named "Kavaero, Mind-Bitten" should match
+	// via the printed_name index entry.
+	found := false
+	for _, c := range backfilled {
+		if c.OracleID == "spider-oracle" {
+			found = true
+			if len(c.Legalities) == 0 {
+				t.Error("backfilled UB card should have legalities")
+			}
+		}
+	}
+	// We can only verify this if data.ArenaCards actually has a card named
+	// "Kavaero, Mind-Bitten" — which it does (arena_id 97973).
+	if !found {
+		// Check if the card exists in MTGA client data
+		for _, card := range data.ArenaCards {
+			name := strings.ToLower(card.Name)
+			if before, _, ok := strings.Cut(name, " // "); ok {
+				name = before
+			}
+			if name == "kavaero, mind-bitten" {
+				t.Error("Kavaero exists in ArenaCards but wasn't backfilled — printed_name index missing")
+				break
+			}
 		}
 	}
 }
