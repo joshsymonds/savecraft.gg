@@ -111,9 +111,9 @@
             Your AI is making<br />things up.
           </h1>
           <p class="hero-sub">
-            Savecraft connects your saves to Claude and ChatGPT — gear, skills, decks, farms,
-            cats — plus expert reference modules like drop calculators, draft advisors, and crop
-            planners. Real data, updated live.
+            Savecraft connects your saves to Claude and ChatGPT — gear, skills, decks, farms, cats —
+            plus expert reference modules like drop calculators, draft advisors, and crop planners.
+            Real data, updated live.
           </p>
           <div class="hero-actions">
             <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT YOUR SAVES</a>
