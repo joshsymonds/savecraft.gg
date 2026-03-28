@@ -49,7 +49,12 @@ const RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 
 /** Build resource list from discovered views. */
 const VIEW_CSP = {
-  resourceDomains: ["https://fonts.googleapis.com", "https://fonts.gstatic.com"],
+  resourceDomains: [
+    "https://fonts.googleapis.com",
+    "https://fonts.gstatic.com",
+    "https://api.savecraft.gg",
+    "https://staging-api.savecraft.gg",
+  ],
 };
 
 function buildResourceList(): {
@@ -457,7 +462,7 @@ async function handleToolCall(
 
   switch (toolName) {
     case "list_games": {
-      return listGames(env.DB, env.PLUGINS, userUuid, args.filter as string | undefined);
+      return listGames(env.DB, env.PLUGINS, userUuid, args.filter as string | undefined, env.SERVER_URL);
     }
     case "get_save": {
       return getSave(env.DB, userUuid, saveId);
