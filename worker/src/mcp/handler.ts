@@ -52,7 +52,7 @@ const VIEW_CSP = {
   resourceDomains: ["https://fonts.googleapis.com", "https://fonts.gstatic.com"],
 };
 
-function buildResourceList() {
+function buildResourceList(): { uri: string; name: string; mimeType: string; _meta: { ui: { csp: typeof VIEW_CSP } } }[] {
   return Object.keys(VIEWS).map((slug) => ({
     uri: `ui://savecraft/${slug}.html`,
     name: slug,
