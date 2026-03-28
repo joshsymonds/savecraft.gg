@@ -610,7 +610,9 @@ async function handleQueryReference(
   // Look up compiled view script for this module
   const viewScript = getViewScript(moduleId);
 
-  const meta = viewScript ? { viewScript } : undefined;
+  // DEBUG: test with trivial script to isolate inline injection issues
+  const testScript = `document.getElementById("root").textContent = "Hello from viewScript! Module: ${moduleId}";`;
+  const meta = viewScript ? { viewScript: testScript } : undefined;
 
   // Single-query shortcut: unwrap the array
   if (results.length === 1) {
