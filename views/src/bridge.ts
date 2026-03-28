@@ -31,10 +31,12 @@ function applyHostContext(ctx: Partial<McpUiHostContext>): void {
  * Sets up theme detection from host context before connecting.
  * The callback receives the full CallToolResult when the tool finishes.
  * Mount your Svelte component using result.structuredContent as props.
+ *
+ * Returns the App instance for use by view components (e.g. updateModelContext).
  */
 export function initBridge(
   onResult: (result: CallToolResult) => void,
-): void {
+): App {
   const app = new App({ name: "savecraft-view", version: "1.0.0" });
 
   // Register callbacks before connecting (per docs: avoid missing initial data push)
@@ -51,4 +53,6 @@ export function initBridge(
       applyHostContext(ctx);
     }
   });
+
+  return app;
 }
