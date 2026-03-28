@@ -143,6 +143,43 @@ async function seedDraftData(): Promise<void> {
       "Forest",
     ),
 
+    // Snow-covered basic land
+    env.DB.prepare(
+      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      10_004,
+      "oracle-7",
+      "Snow-Covered Forest",
+      "Snow-Covered Forest",
+      "",
+      0,
+      "Basic Snow Land — Forest",
+      "[]",
+      "common",
+      "DSK",
+      1,
+    ),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      "DSK",
+      "Snow-Covered Forest",
+      40_000,
+      50_000,
+      10_000,
+      0.61,
+      0.6,
+      0.62,
+      0.5,
+      0.11,
+      12,
+      13,
+    ),
+    env.DB.prepare("INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (?, ?)").bind(
+      "DSK",
+      "Snow-Covered Forest",
+    ),
+
     // FTS5 rows for card name search
     env.DB.prepare("INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (?, ?)").bind(
       "DSK",
@@ -320,7 +357,7 @@ describe("card_stats native module", () => {
 
   it("returns leaderboard sorted by gihwr", async () => {
     await seedDraftData();
-    const result = await cardStatsModule.execute({ set: "DSK", sort: "gihwr", limit: 3 }, env);
+    const result = await cardStatsModule.execute({ set: "DSK", sort: "gihwr", limit: 5 }, env);
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
     const cards = result.data.cards as { card_name: string }[];
@@ -380,8 +417,9 @@ describe("card_stats native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
     const cards = result.data.cards as { card_name: string }[];
-    // Forest (Basic Land) has highest GIH WR but should be excluded
+    // Basic lands and snow-covered basic lands should be excluded
     expect(cards.every((c) => c.card_name !== "Forest")).toBe(true);
+    expect(cards.every((c) => c.card_name !== "Snow-Covered Forest")).toBe(true);
     expect(cards.some((c) => c.card_name === "Blazing Bolt")).toBe(true);
     expect(result.data.total).toBe(2);
   });
