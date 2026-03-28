@@ -55,23 +55,15 @@ function deduplicateAttribution(attributions: Attribution[]): Attribution[] {
 
 function readAllPluginAttributions(): Attribution[] {
   const pluginsDir = resolve(ROOT, "plugins");
-  const seen = new Set<string>();
-  const result: Attribution[] = [];
+  const allAttrs: Attribution[] = [];
   for (const plugin of readdirSync(pluginsDir)) {
-    const tomlPath = resolve(pluginsDir, plugin, "plugin.toml");
     try {
-      fs.accessSync(tomlPath);
+      allAttrs.push(...readPluginAttribution(resolve(pluginsDir, plugin)));
     } catch {
       continue;
     }
-    for (const attr of readPluginAttribution(resolve(pluginsDir, plugin))) {
-      if (!seen.has(attr.name)) {
-        seen.add(attr.name);
-        result.push(attr);
-      }
-    }
   }
-  return result;
+  return deduplicateAttribution(allAttrs);
 }
 
 // ── Discovery ──────────────────────────────────────────────
