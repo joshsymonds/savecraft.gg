@@ -55,18 +55,26 @@ The bridge at `views/src/bridge.ts` uses `@modelcontextprotocol/ext-apps`'s `App
 
 **Never use raw `window.addEventListener("message", ...)`** — the host will not send tool results without the initialization handshake. The App class handles this.
 
-## MCP Apps Capabilities
+## View Philosophy
 
-Views are NOT static displays. The App class enables rich interaction:
+**Views render the AI's synthesis. The conversation drives interaction.** See `docs/view-design.md`.
 
-- **`app.callServerTool()`** — Call Savecraft MCP tools from the view. Use for drill-down (click a save → fetch sections), pagination, filtering without LLM round-trips.
-- **`app.updateModelContext()`** — Tell the model what the user did in the view ("User selected Atmus's equipment tab"). Deferred to next user message.
-- **`app.sendMessage()`** — Send a message to the chat from the view.
-- **`app.requestDisplayMode("fullscreen")`** — Switch to fullscreen for complex visualizations. Also `"pip"` and `"inline"`.
-- **`app.openLink()`** / **`app.downloadFile()`** — Browser interactions.
-- **`ontoolinputpartial`** — Streaming partial tool arguments for preview rendering while the LLM is still generating.
+Views are passive renderers of data the LLM assembled. If the player wants to go deeper, they type another message. The view presents; the LLM decides what to show next.
+
+### Used Capabilities
+
+- **`app.updateModelContext()`** — The primary view interaction. When the player clicks or focuses on something, silently tell the model what they're looking at. Makes the next conversational turn contextually aware.
+- **`app.requestDisplayMode("fullscreen")`** — User-initiated escalation for complex data. Also `"pip"` and `"inline"`.
+- **`app.openLink()`** — External links to authoritative sources ("View on Scryfall").
+- **`ontoolinputpartial`** — Streaming preview while the LLM generates large arguments. Rendering optimization, not interactivity.
 - **`onhostcontextchanged`** — Theme, locale, container dimension updates from host.
-- **`localStorage`** — Works in the iframe. Use for state persistence across refreshes.
+
+### Not Used (intentionally)
+
+- **`app.callServerTool()`** — Bypasses the conversation. Views that call tools build web apps in iframes, competing with established gaming tools. If the player wants more data, they ask the AI.
+- **`app.sendMessage()`** — Hijacks the conversation. The player types when they want to talk.
+- **`app.downloadFile()`** — If data needs exporting, the model provides it in text or the player uses the website.
+- **`localStorage`** — Blocked in sandboxed iframes (unique origin). Views are stateless — everything arrives in `structuredContent`.
 
 ## Styling
 
