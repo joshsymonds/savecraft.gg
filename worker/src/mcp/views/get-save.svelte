@@ -2,6 +2,7 @@
   import type { App } from "@modelcontextprotocol/ext-apps";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
+  import CardGrid from "../../../../views/src/components/layout/CardGrid.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
 
@@ -45,11 +46,11 @@
     return key.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
 
-  let overviewEntries = $derived(
+  let overviewItems = $derived(
     data.overview
       ? Object.entries(data.overview)
           .filter(([, v]) => v !== null && v !== undefined && typeof v !== "object")
-          .map(([k, v]) => ({ label: formatOverviewLabel(k), value: formatOverviewValue(v) }))
+          .map(([k, v]) => ({ key: formatOverviewLabel(k), value: formatOverviewValue(v) }))
       : [],
   );
 
@@ -115,36 +116,38 @@
   </Panel>
 
   <!-- Overview -->
-  {#if overviewEntries.length > 0}
+  {#if overviewItems.length > 0}
     <Panel>
-      <Section title="Overview" count={overviewEntries.length}>
-        <KeyValue entries={overviewEntries} columns={2} />
+      <Section title="Overview">
+        <KeyValue items={overviewItems} columns={2} />
       </Section>
     </Panel>
   {/if}
 
   <!-- Sections -->
   <Panel>
-    <Section title="Sections" count={data.sections.length} subtitle="Ask about any section to explore its data">
-      <div class="section-grid">
+    <Section title="Sections" subtitle="Ask about any section to explore its data">
+      <CardGrid minWidth={200} gap="var(--space-sm)">
         {#each data.sections as section (section.name)}
           <button
             class="section-card"
             onclick={() => onSectionClick(section)}
             type="button"
           >
-            <span class="section-name">{section.name.replace(/_/g, " ")}</span>
-            <span class="section-desc">{section.description}</span>
+            <Panel nested padding="var(--space-sm) var(--space-md)">
+              <span class="section-name">{section.name.replace(/_/g, " ")}</span>
+              <span class="section-desc">{section.description}</span>
+            </Panel>
           </button>
         {/each}
-      </div>
+      </CardGrid>
     </Section>
   </Panel>
 
   <!-- Notes -->
   {#if data.notes.length > 0}
     <Panel>
-      <Section title="Notes" count={data.notes.length}>
+      <Section title="Notes">
         <div class="note-list">
           {#each data.notes as note (note.note_id)}
             <button
@@ -243,30 +246,19 @@
     color: var(--color-text-dim);
   }
 
-  /* ── Sections grid ── */
-  .section-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-    gap: var(--space-sm);
-  }
-
+  /* ── Section cards ── */
   .section-card {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: var(--space-sm) var(--space-md);
-    background: var(--color-surface);
-    border: 1px solid color-mix(in srgb, var(--color-border) 60%, transparent);
-    border-radius: var(--radius-sm);
     cursor: pointer;
     text-align: left;
-    transition: border-color 0.15s, background 0.15s;
+    border: none;
+    background: transparent;
+    padding: 0;
     width: 100%;
+    transition: filter 0.15s;
   }
 
   .section-card:hover {
-    border-color: color-mix(in srgb, var(--color-gold) 40%, var(--color-border));
-    background: color-mix(in srgb, var(--color-gold) 4%, var(--color-surface));
+    filter: brightness(1.15);
   }
 
   .section-name {

@@ -2,6 +2,8 @@
   import type { App } from "@modelcontextprotocol/ext-apps";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import EmptyState from "../../../../views/src/components/feedback/EmptyState.svelte";
+  import Panel from "../../../../views/src/components/layout/Panel.svelte";
+  import Section from "../../../../views/src/components/layout/Section.svelte";
 
   interface SearchResult {
     type: string;
@@ -60,102 +62,61 @@
   }
 </script>
 
-{#if data.results.length === 0}
-  <div class="container">
-    <EmptyState
-      message="No results found"
-      detail='No saves or notes matched "{data.query}". Try different keywords or a broader search.'
-    />
-  </div>
-{:else}
-  <div class="search-results">
-    <div class="query-header">
-      <span class="query-label">Search</span>
-      <span class="query-text">{data.query}</span>
-      <span class="result-count">{data.results.length} {data.results.length === 1 ? "result" : "results"}</span>
-    </div>
-
-    <div class="result-list">
-      {#each data.results as result, i (result.ref_id + "-" + String(i))}
-        <button
-          class="result-row"
-          onclick={() => onResultClick(result)}
-          type="button"
-        >
-          <div class="result-header">
-            <Badge
-              label={result.type === "note" ? "Note" : "Save Data"}
-              variant={result.type === "note" ? "highlight" : "positive"}
-            />
-            <span class="result-save">{result.save_name}</span>
-            <span class="result-sep">&rsaquo;</span>
-            <span class="result-title">{result.ref_title}</span>
-          </div>
-          <p class="result-snippet">
-            {#each parseSnippet(result.snippet) as segment}
-              {#if segment.bold}
-                <mark class="highlight">{segment.text}</mark>
-              {:else}
-                {segment.text}
-              {/if}
-            {/each}
-          </p>
-        </button>
-      {/each}
-    </div>
-  </div>
-{/if}
+<div class="search-view">
+  {#if data.results.length === 0}
+    <Panel>
+      <EmptyState
+        message="No results found"
+        detail='No saves or notes matched "{data.query}". Try different keywords or a broader search.'
+      />
+    </Panel>
+  {:else}
+    <Panel>
+      <Section title="Search" subtitle={data.query}>
+        <div class="result-list">
+          {#each data.results as result, i (result.ref_id + "-" + String(i))}
+            <button
+              class="result-row"
+              onclick={() => onResultClick(result)}
+              type="button"
+            >
+              <div class="result-header">
+                <Badge
+                  label={result.type === "note" ? "Note" : "Save Data"}
+                  variant={result.type === "note" ? "highlight" : "positive"}
+                />
+                <span class="result-save">{result.save_name}</span>
+                <span class="result-sep">&rsaquo;</span>
+                <span class="result-title">{result.ref_title}</span>
+              </div>
+              <p class="result-snippet">
+                {#each parseSnippet(result.snippet) as segment}
+                  {#if segment.bold}
+                    <mark class="highlight">{segment.text}</mark>
+                  {:else}
+                    {segment.text}
+                  {/if}
+                {/each}
+              </p>
+            </button>
+          {/each}
+        </div>
+      </Section>
+    </Panel>
+  {/if}
+</div>
 
 <style>
-  .container {
-    padding: var(--space-lg);
-  }
-
-  .search-results {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-md);
+  .search-view {
     padding: var(--space-lg);
     animation: fade-slide-in 0.3s ease-out;
-  }
-
-  /* ── Query header ── */
-  .query-header {
-    display: flex;
-    align-items: baseline;
-    gap: var(--space-sm);
-    padding-bottom: var(--space-sm);
-    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
-  }
-
-  .query-label {
-    font-family: var(--font-pixel);
-    font-size: 9px;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-
-  .query-text {
-    font-family: var(--font-heading);
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--color-gold);
-    flex: 1;
-  }
-
-  .result-count {
-    font-family: var(--font-body);
-    font-size: 13px;
-    color: var(--color-text-muted);
-    flex-shrink: 0;
   }
 
   /* ── Result list ── */
   .result-list {
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: var(--space-xs);
   }
 
   .result-row {
