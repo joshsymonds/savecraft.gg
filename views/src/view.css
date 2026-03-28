@@ -1,4 +1,7 @@
-/* Design tokens for MCP App widgets — mirrors shared/styles/base.css */
+/* ── Design tokens for MCP App views ─────────────────────────
+ * Mirrors shared/styles/base.css for dark theme.
+ * Light theme triggered by host context via data-theme attribute.
+ * ──────────────────────────────────────────────────────────── */
 
 *,
 *::before,
@@ -8,30 +11,136 @@
   padding: 0;
 }
 
+/* ── Dark theme (default, matches savecraft.gg) ──────────── */
+
 :root {
+  /* Core palette */
   --color-bg: #05071a;
   --color-panel-bg: linear-gradient(135deg, #0a0e2e 0%, #111b47 50%, #0a0e2e 100%);
+  --color-surface: #0a0e2e;
+  --color-surface-raised: #111b47;
   --color-border: #4a5aad;
   --color-border-light: #7a8aed;
+
+  /* Accent colors */
   --color-gold: #c8a84e;
   --color-gold-light: #e8c86e;
   --color-green: #5abe8a;
   --color-red: #e85a5a;
   --color-yellow: #e8c44e;
   --color-blue: #4a9aea;
+
+  /* Text */
   --color-text: #e8e0d0;
   --color-text-dim: #d0d4e8;
   --color-text-muted: #a0a8cc;
 
+  /* Semantic aliases */
+  --color-positive: var(--color-green);
+  --color-negative: var(--color-red);
+  --color-highlight: var(--color-gold);
+  --color-info: var(--color-blue);
+  --color-warning: var(--color-yellow);
+
+  /* Chart categorical palette (6 distinct hues for multi-series) */
+  --color-chart-1: #4a9aea;
+  --color-chart-2: #c8a84e;
+  --color-chart-3: #5abe8a;
+  --color-chart-4: #e85a5a;
+  --color-chart-5: #b47aee;
+  --color-chart-6: #e8c44e;
+
+  /* Sequential scale (low → mid → high intensity) */
+  --color-scale-low: #1a2a5a;
+  --color-scale-mid: #4a5aad;
+  --color-scale-high: #7a8aed;
+
+  /* Rarity / quality tiers — universal game idiom.
+     Games map their tiers to these slots:
+       MTG:      mythic→legendary, rare→epic, uncommon→rare, common→common
+       D2R:      unique→legendary, set→epic, rare→rare, magic→uncommon, normal→common
+       RimWorld: legendary→legendary, masterwork→epic, excellent→rare, good→uncommon, normal→common
+       Generic:  legendary, epic, rare, uncommon, common */
+  --color-rarity-legendary: #e8a430;
+  --color-rarity-epic: #b47aee;
+  --color-rarity-rare: #4a9aea;
+  --color-rarity-uncommon: #5abe8a;
+  --color-rarity-common: #a0a8cc;
+  --color-rarity-poor: #6a6a7a;
+
+  /* Fonts */
   --font-pixel: "Press Start 2P", monospace;
   --font-heading: "Chakra Petch", sans-serif;
   --font-body: "Rajdhani", sans-serif;
+
+  /* Spacing scale */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+
+  /* Border radius */
+  --radius-sm: 2px;
+  --radius-md: 4px;
+  --radius-lg: 8px;
 }
+
+/* ── Light theme (host-triggered) ────────────────────────── */
+
+:root[data-theme="light"] {
+  /* Core palette — warm parchment base */
+  --color-bg: #f5f0e8;
+  --color-panel-bg: linear-gradient(135deg, #ede8dc 0%, #f8f4ea 50%, #ede8dc 100%);
+  --color-surface: #ede8dc;
+  --color-surface-raised: #f8f4ea;
+  --color-border: #c0b8a0;
+  --color-border-light: #a89878;
+
+  /* Accent colors — same hue family, adjusted for light-bg contrast */
+  --color-gold: #a07830;
+  --color-gold-light: #c89840;
+  --color-green: #2a8a5a;
+  --color-red: #c83a3a;
+  --color-yellow: #b8962a;
+  --color-blue: #3070c0;
+
+  /* Text — dark on parchment */
+  --color-text: #1a1a2e;
+  --color-text-dim: #3a3a5e;
+  --color-text-muted: #6a6a8e;
+
+  /* Chart categorical palette (adjusted for light bg contrast) */
+  --color-chart-1: #2060b0;
+  --color-chart-2: #a07830;
+  --color-chart-3: #1a7a4a;
+  --color-chart-4: #c03030;
+  --color-chart-5: #8050c0;
+  --color-chart-6: #a08020;
+
+  /* Sequential scale (light-bg version) */
+  --color-scale-low: #e0d8c8;
+  --color-scale-mid: #c0b090;
+  --color-scale-high: #806830;
+
+  /* Rarity / quality tiers (adjusted for light bg contrast) */
+  --color-rarity-legendary: #b87a10;
+  --color-rarity-epic: #7a40b0;
+  --color-rarity-rare: #2060b0;
+  --color-rarity-uncommon: #1a7a4a;
+  --color-rarity-common: #6a6a8e;
+  --color-rarity-poor: #8a8a98;
+}
+
+/* ── Global styles ───────────────────────────────────────── */
 
 html,
 body {
   height: 100%;
-  background: var(--color-bg);
+  /* Transparent so the host's native background (Claude/ChatGPT) shows through.
+     Savecraft identity comes from Panel/card components, not the page background.
+     Falls back to host's bg variable if provided, otherwise fully transparent. */
+  background: var(--color-background-primary, transparent);
   color: var(--color-text);
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
@@ -40,8 +149,15 @@ body {
 
 ::selection {
   background: #c8a84e33;
-  color: #e8c86e;
+  color: var(--color-gold-light);
 }
+
+:root[data-theme="light"] ::selection {
+  background: #a0783040;
+  color: #806020;
+}
+
+/* ── Scrollbar ───────────────────────────────────────────── */
 
 ::-webkit-scrollbar {
   width: 6px;
@@ -55,6 +171,12 @@ body {
   background: rgba(74, 90, 173, 0.3);
   border-radius: 3px;
 }
+
+:root[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(120, 110, 90, 0.3);
+}
+
+/* ── Animations ──────────────────────────────────────────── */
 
 @keyframes fade-in {
   from { opacity: 0; }

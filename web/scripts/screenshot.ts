@@ -8,7 +8,9 @@
  *   npx tsx scripts/screenshot.ts --all                   # every story
  *
  * Options:
- *   --port <number>   Storybook port (default: 6006)
+ *   --port <number>       Storybook port (default: 6006)
+ *   --globals <key:val>   Storybook globals to set (e.g., theme:light)
+ *   --suffix <string>     Append to screenshot filename (e.g., -light)
  *
  * Examples:
  *   npx tsx scripts/screenshot.ts components-panel--default
@@ -54,9 +56,11 @@ function findChromium(): string | undefined {
   return undefined;
 }
 
-function parseArgs(): { mode: "all" | "grep" | "ids"; port: number; pattern?: string; ids?: string[] } {
+function parseArgs(): { mode: "all" | "grep" | "ids"; port: number; globals?: string; suffix?: string; pattern?: string; ids?: string[] } {
   const args = process.argv.slice(2);
   let port = 6006;
+  let globals: string | undefined;
+  let suffix: string | undefined;
   const ids: string[] = [];
   let mode: "all" | "grep" | "ids" = "ids";
   let pattern: string | undefined;
@@ -65,6 +69,10 @@ function parseArgs(): { mode: "all" | "grep" | "ids"; port: number; pattern?: st
     const arg = args[index];
     if (arg === "--port") {
       port = Number(args[++index]);
+    } else if (arg === "--globals") {
+      globals = args[++index];
+    } else if (arg === "--suffix") {
+      suffix = args[++index];
     } else if (arg === "--all") {
       mode = "all";
     } else if (arg === "--grep") {
@@ -81,11 +89,13 @@ function parseArgs(): { mode: "all" | "grep" | "ids"; port: number; pattern?: st
     console.log("  npx tsx scripts/screenshot.ts <id1> <id2> ...     # multiple stories");
     console.log("  npx tsx scripts/screenshot.ts --grep <pattern>    # filter by substring/regex");
     console.log("  npx tsx scripts/screenshot.ts --all               # every story");
-    console.log("  --port <number>  Storybook port (default: 6006)");
+    console.log("  --port <number>       Storybook port (default: 6006)");
+    console.log("  --globals <key:val>   Storybook globals (e.g., theme:light)");
+    console.log("  --suffix <string>     Append to filename (e.g., -light)");
     process.exit(1);
   }
 
-  return { mode, port, pattern, ids: ids.length > 0 ? ids : undefined };
+  return { mode, port, globals, suffix, pattern, ids: ids.length > 0 ? ids : undefined };
 }
 
 async function getAllStoryIds(port: number): Promise<string[]> {
@@ -98,7 +108,7 @@ async function getAllStoryIds(port: number): Promise<string[]> {
     .map((entry) => entry.id);
 }
 
-async function captureStories(storyIds: string[], port: number): Promise<void> {
+async function captureStories(storyIds: string[], port: number, globals?: string, suffix?: string): Promise<void> {
   await mkdir(screenshotsDir, { recursive: true });
 
   const executablePath = findChromium();
@@ -110,17 +120,20 @@ async function captureStories(storyIds: string[], port: number): Promise<void> {
     viewport: { width: 1200, height: 900 },
   });
 
-  console.log(`Capturing ${String(storyIds.length)} ${storyIds.length === 1 ? "story" : "stories"}\n`);
+  const globalsParam = globals ? `&globals=${encodeURIComponent(globals)}` : "";
+  const filenameSuffix = suffix ?? "";
+
+  console.log(`Capturing ${String(storyIds.length)} ${storyIds.length === 1 ? "story" : "stories"}${globals ? ` (globals: ${globals})` : ""}\n`);
 
   for (const storyId of storyIds) {
-    const url = `http://localhost:${String(port)}/iframe.html?id=${storyId}&viewMode=story`;
-    console.log(`Capturing: ${storyId}`);
+    const url = `http://localhost:${String(port)}/iframe.html?id=${storyId}&viewMode=story${globalsParam}`;
+    console.log(`Capturing: ${storyId}${filenameSuffix}`);
 
     try {
       await page.goto(url, { waitUntil: "networkidle" });
       await page.waitForTimeout(500);
 
-      const outputPath = join(screenshotsDir, `${storyId}.png`);
+      const outputPath = join(screenshotsDir, `${storyId}${filenameSuffix}.png`);
       await page.screenshot({ path: outputPath, fullPage: true });
     } catch (error) {
       console.error(`  Failed: ${String(error)}`);
@@ -132,7 +145,7 @@ async function captureStories(storyIds: string[], port: number): Promise<void> {
 }
 
 async function main(): Promise<void> {
-  const { mode, port, pattern, ids } = parseArgs();
+  const { mode, port, globals, suffix, pattern, ids } = parseArgs();
 
   let storyIds: string[];
 
@@ -150,7 +163,7 @@ async function main(): Promise<void> {
     storyIds = ids!;
   }
 
-  await captureStories(storyIds, port);
+  await captureStories(storyIds, port, globals, suffix);
 }
 
 void main();
