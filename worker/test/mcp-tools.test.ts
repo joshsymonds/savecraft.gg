@@ -9,7 +9,6 @@ import {
   getNote,
   getSave,
   getSection,
-  getViewScript,
   indexSaveSections,
   listGames,
   refreshSave,
@@ -336,20 +335,6 @@ describe("MCP Tools", () => {
     it("omits _meta key entirely when not provided", () => {
       const result = viewResult({ foo: "bar" }, "Narrative.");
       expect("_meta" in result).toBe(false);
-    });
-  });
-
-  describe("getViewScript", () => {
-    it("returns undefined for unknown module", () => {
-      expect(getViewScript("nonexistent_module")).toBeUndefined();
-    });
-
-    it("returns a string for a known module", () => {
-      const script = getViewScript("card_search");
-      // card_search view exists in plugins/mtga/reference/views/
-      expect(script).toBeDefined();
-      expect(typeof script).toBe("string");
-      expect(script!.length).toBeGreaterThan(0);
     });
   });
 

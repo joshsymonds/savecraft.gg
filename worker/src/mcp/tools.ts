@@ -12,8 +12,6 @@ import type { NativeReferenceModule } from "../reference/types";
 import { storePush } from "../store";
 import type { Env } from "../types";
 
-import { VIEW_SCRIPTS } from "./views.gen.js";
-
 /** MCP tool result — matches the MCP spec's ToolResult shape. */
 export interface ToolResult {
   content: { type: "text"; text: string }[];
@@ -66,11 +64,6 @@ function textResult(data: unknown, presentation?: string): ToolResult {
     content.push({ type: "text", text: VIZ_REMINDER });
   }
   return { content };
-}
-
-/** Get a compiled view script for a reference module, if one exists. */
-export function getViewScript(moduleId: string): string | undefined {
-  return VIEW_SCRIPTS[moduleId];
 }
 
 export function viewResult(

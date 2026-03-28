@@ -1,13 +1,14 @@
+import { resolve } from "node:path";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
 import { defineConfig } from "vite";
 
 /**
- * Vite config for building MCP App view components.
- * Used by scripts/build.ts programmatically — not invoked directly.
+ * Vite config for MCP App views.
  *
- * Key settings:
- * - emitCss: false → CSS is injected by JS at runtime (self-contained bundles)
- * - IIFE format → works in sandboxed iframes without module support
+ * Used by Storybook (stories live in worker/ and plugins/, outside this package).
+ * Build script (scripts/build.ts) uses its own inline config with configFile: false.
+ *
+ * resolve.dedupe ensures imports from stories outside views/ resolve from views/node_modules.
  */
 export default defineConfig({
   plugins: [
@@ -15,4 +16,13 @@ export default defineConfig({
       emitCss: false,
     }),
   ],
+  resolve: {
+    dedupe: ["svelte", "@storybook/addon-svelte-csf", "@storybook/svelte"],
+  },
+  server: {
+    fs: {
+      // Allow serving files from the repo root (stories in worker/ and plugins/)
+      allow: [resolve(__dirname, "..")],
+    },
+  },
 });

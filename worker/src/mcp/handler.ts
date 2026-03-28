@@ -17,7 +17,6 @@ import {
   getNote,
   getSave,
   getSection,
-  getViewScript,
   listGames,
   queryReference,
   refreshSave,
@@ -26,7 +25,7 @@ import {
   viewResult,
 } from "./tools";
 import type { ToolResult, ViewToolResult } from "./tools";
-import { VIEW_HTML, VIEW_SCRIPTS, VIEW_SHELL } from "./views.gen.js";
+import { VIEWS } from "./views.gen.js";
 
 const PROTOCOL_VERSION = "2025-06-18";
 
@@ -48,34 +47,21 @@ When working with tool results, write down any important information you might n
 
 const RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 
-/** Build resource list from discovered widgets + reference shell. */
+/** Build resource list from discovered views. */
 function buildResourceList(): { uri: string; name: string; mimeType: string }[] {
-  const resources: { uri: string; name: string; mimeType: string }[] = [];
-  for (const key of Object.keys(VIEW_HTML)) {
-    resources.push({
-      uri: `ui://savecraft/${key}.html`,
-      name: key,
-      mimeType: RESOURCE_MIME_TYPE,
-    });
-  }
-  if (Object.keys(VIEW_SCRIPTS).length > 0) {
-    resources.push({
-      uri: "ui://savecraft/reference.html",
-      name: "reference",
-      mimeType: RESOURCE_MIME_TYPE,
-    });
-  }
-  return resources;
+  return Object.keys(VIEWS).map((slug) => ({
+    uri: `ui://savecraft/${slug}.html`,
+    name: slug,
+    mimeType: RESOURCE_MIME_TYPE,
+  }));
 }
 
-/** Look up resource HTML by URI. */
+/** Look up view HTML by resource URI. */
 function readResource(uri: string): string | undefined {
   const prefix = "ui://savecraft/";
   const suffix = ".html";
   if (!uri.startsWith(prefix) || !uri.endsWith(suffix)) return undefined;
-  const key = uri.slice(prefix.length, -suffix.length);
-  if (key === "reference") return VIEW_SHELL;
-  return VIEW_HTML[key];
+  return VIEWS[uri.slice(prefix.length, -suffix.length)];
 }
 
 interface JsonRpcRequest {
@@ -607,11 +593,6 @@ async function handleQueryReference(
       : extractResultData(outcome.value),
   );
 
-  // Look up compiled view script for this module
-  const viewScript = getViewScript(moduleId);
-
-  const meta = viewScript ? { viewScript } : undefined;
-
   // Single-query shortcut: unwrap the array
   if (results.length === 1) {
     const data = results[0] as Record<string, unknown>;
@@ -623,14 +604,14 @@ async function handleQueryReference(
       first?.status === "fulfilled" && "content" in first.value
         ? (first.value.content[0]?.text ?? `Reference data for ${moduleId}.`)
         : `Reference data for ${moduleId}.`;
-    return viewResult(data, narrative, meta);
+    // Include module ID so the bundled reference view knows which component to mount
+    return viewResult({ module: moduleId, ...data }, narrative);
   }
 
   // Multi-query: wrap in { results } array
   return viewResult(
-    { results },
+    { module: moduleId, results },
     `${String(results.length)} reference query results for ${moduleId}.`,
-    meta,
   );
 }
 
@@ -665,20 +646,13 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
 
     case "tools/list": {
       const toolsWithUi = TOOLS.map((tool) => {
-        const key = tool.name.replaceAll("_", "-");
-        if (VIEW_HTML[key]) {
-          return {
-            ...tool,
-            _meta: { ...tool._meta, ui: { resourceUri: `ui://savecraft/${key}.html` } },
-          };
-        }
-        if (tool.name === "query_reference" && Object.keys(VIEW_SCRIPTS).length > 0) {
-          return {
-            ...tool,
-            _meta: { ...tool._meta, ui: { resourceUri: "ui://savecraft/reference.html" } },
-          };
-        }
-        return tool;
+        // Map tool name to view slug: list_games -> list-games, query_reference -> reference
+        const slug = tool.name === "query_reference" ? "reference" : tool.name.replaceAll("_", "-");
+        if (!VIEWS[slug]) return tool;
+        return {
+          ...tool,
+          _meta: { ...tool._meta, ui: { resourceUri: `ui://savecraft/${slug}.html` } },
+        };
       });
       return Promise.resolve(jsonRpcResponse(id, { tools: toolsWithUi }));
     }
