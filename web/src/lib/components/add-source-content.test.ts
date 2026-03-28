@@ -55,11 +55,10 @@ describe("AddSourceContent", () => {
   });
 
   describe("pairing code input", () => {
-    it("renders pairing code input with PAIR button", () => {
+    it("renders segmented pairing code cells with PAIR button", () => {
       const { container } = render(AddSourceContent);
-      const input = container.querySelector<HTMLInputElement>(".code-input")!;
-      expect(input).not.toBeNull();
-      expect(input.maxLength).toBe(6);
+      const cells = container.querySelectorAll(".cell");
+      expect(cells).toHaveLength(6);
       expect(screen.getByText("PAIR")).toBeInTheDocument();
     });
 
@@ -68,48 +67,39 @@ describe("AddSourceContent", () => {
       const pairButton = screen.getByText("PAIR");
       expect(pairButton).toBeDisabled();
 
-      const input = container.querySelector<HTMLInputElement>(".code-input")!;
+      const input = container.querySelector<HTMLInputElement>(".hidden-input")!;
       await userEvent.type(input, "482913");
       expect(pairButton).not.toBeDisabled();
+    });
+
+    it("auto-submits when 6 characters typed", async () => {
+      const onsubmit = vi.fn();
+      const { container } = render(AddSourceContent, { props: { onsubmit } });
+
+      const input = container.querySelector<HTMLInputElement>(".hidden-input")!;
+      await userEvent.type(input, "482913");
+
+      expect(onsubmit).toHaveBeenCalledWith("482913");
     });
 
     it("calls onsubmit when PAIR clicked with valid code", async () => {
       const onsubmit = vi.fn();
       const { container } = render(AddSourceContent, { props: { onsubmit } });
 
-      const input = container.querySelector<HTMLInputElement>(".code-input")!;
+      const input = container.querySelector<HTMLInputElement>(".hidden-input")!;
       await userEvent.type(input, "482913");
+      onsubmit.mockClear();
       await userEvent.click(screen.getByText("PAIR"));
 
       expect(onsubmit).toHaveBeenCalledWith("482913");
-    });
-
-    it("calls onsubmit when Enter pressed with valid code", async () => {
-      const onsubmit = vi.fn();
-      const { container } = render(AddSourceContent, { props: { onsubmit } });
-
-      const input = container.querySelector<HTMLInputElement>(".code-input")!;
-      await userEvent.type(input, "482913{Enter}");
-
-      expect(onsubmit).toHaveBeenCalledWith("482913");
-    });
-
-    it("clears input after successful submit", async () => {
-      const onsubmit = vi.fn();
-      const { container } = render(AddSourceContent, { props: { onsubmit } });
-
-      const input = container.querySelector<HTMLInputElement>(".code-input")!;
-      await userEvent.type(input, "482913{Enter}");
-
-      expect(input.value).toBe("");
     });
 
     it("does not call onsubmit with fewer than 6 characters", async () => {
       const onsubmit = vi.fn();
       const { container } = render(AddSourceContent, { props: { onsubmit } });
 
-      const input = container.querySelector<HTMLInputElement>(".code-input")!;
-      await userEvent.type(input, "482{Enter}");
+      const input = container.querySelector<HTMLInputElement>(".hidden-input")!;
+      await userEvent.type(input, "482");
 
       expect(onsubmit).not.toHaveBeenCalled();
     });

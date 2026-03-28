@@ -16,8 +16,8 @@
     name: string;
     /** Icon container size in pixels. */
     size?: number;
-    /** Color variant: "default" (gold) or "api" (blue). */
-    variant?: "default" | "api";
+    /** Color variant: "default" (gold), "api" (blue), or "workshop" (steam). */
+    variant?: "default" | "api" | "workshop";
   } = $props();
 
   let imgFailed = $state(false);
@@ -33,6 +33,7 @@
 <span
   class="game-icon"
   class:api={variant === "api"}
+  class:workshop={variant === "workshop"}
   style:width="{size}px"
   style:height="{size}px"
   style:font-size="{Math.round(size * 0.45)}px"
@@ -62,6 +63,12 @@
     color: var(--color-blue, #6b8aed);
     background: rgba(107, 138, 237, 0.08);
     border-color: rgba(107, 138, 237, 0.25);
+  }
+
+  .game-icon.workshop {
+    color: var(--color-steam, #c6d4df);
+    background: rgba(198, 212, 223, 0.06);
+    border-color: rgba(198, 212, 223, 0.2);
   }
 
   .game-icon img {

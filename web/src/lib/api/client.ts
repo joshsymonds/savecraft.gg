@@ -78,6 +78,7 @@ export interface PluginManifest {
   coverage: string;
   source?: string;
   icon_url?: string;
+  workshop_url?: string;
   adapter?: { authProvider: string; regions: string[] };
 }
 

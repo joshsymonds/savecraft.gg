@@ -11,6 +11,7 @@
   import ConfigSuccess from "./ConfigSuccess.svelte";
   import GamePickerCard from "./GamePickerCard.svelte";
   import Modal from "./Modal.svelte";
+  import PairingCodeInput from "./PairingCodeInput.svelte";
 
   export interface ConfigurableSource {
     id: string;
@@ -25,6 +26,7 @@
     onselect,
     onconfigure,
     onoauthconnect,
+    onpair,
     onclose,
   }: {
     games: PickerGame[];
@@ -32,10 +34,12 @@
     onselect?: (game: PickerGame) => void;
     onconfigure?: (gameId: string, savePath: string, sourceId: string) => Promise<void>;
     onoauthconnect?: (gameId: string, region: string) => void;
+    onpair?: (code: string) => void;
     onclose: () => void;
   } = $props();
 
-  type ModalStep = "browsing" | "selectSource" | "selectRegion" | "configuring";
+
+  type ModalStep = "browsing" | "selectSource" | "selectRegion" | "configuring" | "workshopInstall";
 
   let step: ModalStep = $state("browsing");
   let search = $state("");
@@ -73,6 +77,9 @@
     } else if (game.isApiGame) {
       configGame = game;
       step = "selectRegion";
+    } else if (game.workshopUrl) {
+      configGame = game;
+      step = "workshopInstall";
     } else if (configurableSources.length > 1) {
       configGame = game;
       noSourcesError = false;
@@ -155,6 +162,9 @@
     {:else if step === "selectSource"}
       <button class="modal-back" onclick={handleBack}>&#x2190;</button>
       <span class="modal-title">SELECT SOURCE</span>
+    {:else if step === "workshopInstall"}
+      <button class="modal-back" onclick={handleBack}>&#x2190;</button>
+      <span class="modal-title">INSTALL MOD</span>
     {:else}
       <button class="modal-back" onclick={handleBack} disabled={configState === "connecting"}
         >&#x2190;</button
@@ -172,6 +182,51 @@
           <span class="source-name">{REGION_LABELS[region] ?? region.toUpperCase()}</span>
         </button>
       {/each}
+    </div>
+  {:else if step === "workshopInstall"}
+    <div class="workshop-panel">
+      <div class="workshop-step">
+        <span class="workshop-step-number">1</span>
+        <div class="workshop-step-content">
+          <span class="workshop-step-title">Subscribe</span>
+          <p class="workshop-step-desc">
+            Subscribe to the Savecraft mod on Steam Workshop. It will download automatically.
+          </p>
+          <a
+            class="workshop-button"
+            href={configGame?.workshopUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+          >
+            Open Steam Workshop
+          </a>
+        </div>
+      </div>
+
+      <div class="workshop-step">
+        <span class="workshop-step-number">2</span>
+        <div class="workshop-step-content">
+          <span class="workshop-step-title">Enable & play</span>
+          <p class="workshop-step-desc">
+            Enable the mod in {configGame?.name}'s mod list and start or load a game.
+            The mod registers automatically on first load.
+          </p>
+        </div>
+      </div>
+
+      <div class="workshop-step">
+        <span class="workshop-step-number">3</span>
+        <div class="workshop-step-content">
+          <span class="workshop-step-title">Pair</span>
+          <p class="workshop-step-desc">
+            A link code appears as an in-game letter. Enter it here:
+          </p>
+          <PairingCodeInput onsubmit={onpair} />
+          <p class="workshop-step-hint">
+            You can also find the code in Options &rarr; Mod Settings &rarr; Savecraft.
+          </p>
+        </div>
+      </div>
     </div>
   {:else if step === "selectSource"}
     <div class="source-list">
@@ -405,6 +460,93 @@
     font-size: 14px;
     color: var(--color-red, #e55);
   }
+
+  /* Workshop install */
+
+  .workshop-panel {
+    padding: 18px;
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .workshop-step {
+    display: flex;
+    gap: 12px;
+    padding: 14px 0;
+    border-bottom: 1px solid rgba(74, 90, 173, 0.08);
+  }
+
+  .workshop-step:last-child {
+    border-bottom: none;
+  }
+
+  .workshop-step-number {
+    font-family: var(--font-pixel);
+    font-size: 13px;
+    color: var(--color-gold);
+    width: 26px;
+    height: 26px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--color-gold);
+    border-radius: 3px;
+    flex-shrink: 0;
+  }
+
+  .workshop-step-content {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .workshop-step-title {
+    font-family: var(--font-pixel);
+    font-size: 12px;
+    color: var(--color-text);
+    letter-spacing: 0.5px;
+    display: block;
+    margin-bottom: 4px;
+  }
+
+  .workshop-step-desc {
+    font-family: var(--font-body);
+    font-size: 15px;
+    color: var(--color-text-dim);
+    line-height: 1.4;
+    margin: 0 0 8px;
+  }
+
+  .workshop-step-hint {
+    font-family: var(--font-body);
+    font-size: 13px;
+    color: var(--color-text-muted);
+    margin: 8px 0 0;
+    line-height: 1.4;
+  }
+
+  .workshop-button {
+    display: inline-block;
+    font-family: var(--font-pixel);
+    font-size: 10px;
+    letter-spacing: 1.5px;
+    padding: 8px 14px;
+    color: var(--color-text);
+    background: rgba(198, 212, 223, 0.12);
+    border: 1px solid rgba(198, 212, 223, 0.25);
+    border-radius: 3px;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background 0.15s,
+      border-color 0.15s;
+  }
+
+  .workshop-button:hover {
+    background: rgba(198, 212, 223, 0.22);
+    border-color: rgba(198, 212, 223, 0.4);
+  }
+
 
   /* Region selection */
 

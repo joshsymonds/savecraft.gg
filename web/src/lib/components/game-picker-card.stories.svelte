@@ -42,6 +42,22 @@
   </div>
 </Story>
 
+<Story name="WorkshopMod">
+  <div style="width: 480px;">
+    <GamePickerCard
+      game={{
+        gameId: "rimworld",
+        name: "RimWorld",
+        description: "In-game mod pushes full colony state on save",
+        watched: false,
+        saveCount: 0,
+        workshopUrl: "https://steamcommunity.com/sharedfiles/filedetails/?id=3693580596",
+      }}
+      onclick={() => alert("Workshop install")}
+    />
+  </div>
+</Story>
+
 <Story name="Hover">
   <div style="width: 480px;">
     <GamePickerCard

@@ -13,6 +13,7 @@
   import { plugins } from "$lib/stores/plugins";
 
   import GameIcon from "./GameIcon.svelte";
+  import PairingCodeInput from "./PairingCodeInput.svelte";
   import TinyButton from "./TinyButton.svelte";
 
   let {
@@ -24,23 +25,6 @@
     /** Called when user wants to skip daemon install and connect an API game. */
     onapiskip?: () => void;
   } = $props();
-
-  // -- Pairing code state -----------------------------------
-  let codeValue = $state("");
-
-  function handleCodeSubmit(): void {
-    const trimmed = codeValue.trim();
-    if (trimmed.length >= 6) {
-      onsubmit?.(trimmed);
-      codeValue = "";
-    }
-  }
-
-  function handleCodeKeydown(event: KeyboardEvent): void {
-    if (event.key === "Enter") {
-      handleCodeSubmit();
-    }
-  }
 
   // -- Games from plugin manifest ----------------------------
   let daemonGames = $derived([...$plugins.values()].filter((p) => !p.adapter));
@@ -129,23 +113,7 @@
           <span class="step-title">Pair</span>
         </div>
         <p class="step-desc">Enter the 6-digit code from the daemon:</p>
-        <div class="pairing-row">
-          <input
-            type="text"
-            class="code-input"
-            placeholder="000000"
-            maxlength={6}
-            bind:value={codeValue}
-            onkeydown={handleCodeKeydown}
-          />
-          <button
-            class="pair-btn"
-            onclick={handleCodeSubmit}
-            disabled={codeValue.trim().length < 6}
-          >
-            PAIR
-          </button>
-        </div>
+        <PairingCodeInput {onsubmit} />
       </div>
     </div>
 
@@ -217,19 +185,7 @@
       <span class="step-title">Enter Pairing Code</span>
     </div>
     <p class="step-desc">After install, enter the 6-digit code shown by the daemon:</p>
-    <div class="pairing-row">
-      <input
-        type="text"
-        class="code-input"
-        placeholder="000000"
-        maxlength={6}
-        bind:value={codeValue}
-        onkeydown={handleCodeKeydown}
-      />
-      <button class="pair-btn" onclick={handleCodeSubmit} disabled={codeValue.trim().length < 6}>
-        PAIR
-      </button>
-    </div>
+    <PairingCodeInput {onsubmit} />
   </div>
 {/if}
 
@@ -457,62 +413,6 @@
     font-size: 14px;
   }
 
-  /* -- Pairing code input ----------------------------------- */
-
-  .pairing-row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-
-  .code-input {
-    font-family: var(--font-pixel);
-    font-size: 16px;
-    letter-spacing: 6px;
-    color: var(--color-text);
-    background: rgba(5, 7, 26, 0.6);
-    border: 1px solid rgba(74, 90, 173, 0.3);
-    border-radius: 3px;
-    padding: 10px 14px;
-    width: 150px;
-    text-align: center;
-    outline: none;
-    transition: border-color 0.15s;
-  }
-
-  .code-input::placeholder {
-    color: var(--color-text-muted);
-    opacity: 0.4;
-    letter-spacing: 6px;
-  }
-
-  .code-input:focus {
-    border-color: var(--color-gold);
-  }
-
-  .pair-btn {
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    color: var(--color-gold);
-    letter-spacing: 2px;
-    background: rgba(200, 168, 78, 0.1);
-    border: 1px solid rgba(200, 168, 78, 0.3);
-    border-radius: 3px;
-    padding: 10px 18px;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-
-  .pair-btn:hover:not(:disabled) {
-    background: rgba(200, 168, 78, 0.2);
-    border-color: var(--color-gold);
-  }
-
-  .pair-btn:disabled {
-    opacity: 0.3;
-    cursor: default;
-  }
 
   /* -- Command block ---------------------------------------- */
 
