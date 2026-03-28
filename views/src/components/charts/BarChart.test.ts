@@ -40,4 +40,11 @@ describe("BarChart", () => {
     const { container } = render(BarChart, { props: { items: [] } });
     expect(container.querySelectorAll(".bar-row")).toHaveLength(0);
   });
+
+  it("applies variant color to bar fill", () => {
+    const coloredItems = [{ label: "Test", value: 50, variant: "positive" as const }];
+    const { container } = render(BarChart, { props: { items: coloredItems } });
+    const fill = container.querySelector(".bar-fill") as HTMLElement;
+    expect(fill.style.background).toBe("var(--color-positive)");
+  });
 });

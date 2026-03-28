@@ -36,4 +36,15 @@ describe("StackedBar", () => {
     });
     expect(container.querySelectorAll(".segment")).toHaveLength(1);
   });
+
+  it("applies proportional widths to segments", () => {
+    const evenSegments = [
+      { label: "A", value: 25, color: "red" },
+      { label: "B", value: 75, color: "blue" },
+    ];
+    const { container } = render(StackedBar, { props: { segments: evenSegments } });
+    const segs = container.querySelectorAll(".segment") as NodeListOf<HTMLElement>;
+    expect(segs[0].style.width).toBe("25%");
+    expect(segs[1].style.width).toBe("75%");
+  });
 });

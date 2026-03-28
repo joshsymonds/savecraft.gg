@@ -15,7 +15,7 @@
     sublabel?: string;
     value: string | number;
     variant?: Variant;
-    badge?: { label: string; variant: string };
+    badge?: { label: string; variant: "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor" | "positive" | "negative" | "info" | "warning" | "highlight" | "muted" };
   }
 
   interface Props {

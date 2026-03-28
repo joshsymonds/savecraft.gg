@@ -33,4 +33,14 @@ describe("ProgressRing", () => {
     const svg = container.querySelector("svg") as SVGElement;
     expect(svg.getAttribute("width")).toBe("120");
   });
+
+  it("stroke-dashoffset differs between 0% and 100%", () => {
+    const { container: c0 } = render(ProgressRing, { props: { value: 0 } });
+    const { container: c100 } = render(ProgressRing, { props: { value: 100 } });
+    const offset0 = c0.querySelectorAll("circle")[1].getAttribute("stroke-dashoffset");
+    const offset100 = c100.querySelectorAll("circle")[1].getAttribute("stroke-dashoffset");
+    expect(offset0).not.toBe(offset100);
+    // 100% should have offset of 0 (full circle)
+    expect(Number(offset100)).toBeCloseTo(0, 1);
+  });
 });

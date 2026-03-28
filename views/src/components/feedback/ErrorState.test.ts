@@ -34,6 +34,6 @@ describe("ErrorState", () => {
   it("uses negative color for icon", () => {
     const { container } = render(ErrorState);
     const icon = container.querySelector(".icon") as HTMLElement;
-    expect(icon.style.color || getComputedStyle(icon).color).toBeTruthy();
+    expect(icon.style.color).toBe("var(--color-negative)");
   });
 });

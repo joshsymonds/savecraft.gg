@@ -34,4 +34,11 @@ describe("Sparkline", () => {
     const { container } = render(Sparkline, { props: { values: [42] } });
     expect(container.querySelector("polyline")).toBeTruthy();
   });
+
+  it("handles empty values array", () => {
+    const { container } = render(Sparkline, { props: { values: [] } });
+    const polyline = container.querySelector("polyline");
+    expect(polyline).toBeTruthy();
+    expect(polyline!.getAttribute("points")).toBe("");
+  });
 });
