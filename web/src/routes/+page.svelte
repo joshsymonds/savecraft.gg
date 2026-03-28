@@ -194,8 +194,11 @@
         gameId,
         name: manifest.name,
         iconUrl: manifest.icon_url,
-        description:
-          isApi || isModule ? manifest.name : `Parses ${manifest.file_extensions.join(", ")} files`,
+        description: isApi
+          ? manifest.name
+          : isModule
+            ? manifest.description
+            : `Parses ${manifest.file_extensions.join(", ")} files`,
         watched: watchedIds.has(gameId),
         saveCount: merged?.saves.length ?? 0,
         defaultPaths: manifest.default_paths,
@@ -503,6 +506,7 @@
       const url = await fetchOAuthAuthorizeUrl(region);
       globalThis.location.href = url;
     }}
+    onpair={handleManualLink}
     onclose={() => {
       pickerOpen = false;
     }}

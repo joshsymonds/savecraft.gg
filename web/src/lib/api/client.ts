@@ -72,6 +72,7 @@ export interface ApiSaveDetail extends ApiSave {
 export interface PluginManifest {
   game_id: string;
   name: string;
+  description: string;
   version: string;
   file_extensions: string[];
   default_paths: { windows?: string; linux?: string; darwin?: string };
