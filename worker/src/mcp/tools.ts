@@ -115,6 +115,7 @@ interface ReferenceModule {
 interface ManifestData {
   game_id?: string;
   name?: string;
+  icon?: string;
   source?: string;
   description?: string;
   channel?: string;
@@ -134,6 +135,7 @@ function matchesGameFilter(gameId: string, gameName: string, filter: string): bo
 interface GameEntry {
   game_id: string;
   game_name: string;
+  icon_url?: string;
   saves: {
     save_id: string;
     name: string;
@@ -290,13 +292,14 @@ async function attachReferenceModules(
   plugins: R2Bucket,
   gameMap: Map<string, GameEntry>,
   filter?: string,
+  serverUrl?: string,
 ): Promise<void> {
   const manifestKeys = await getManifestKeys(plugins);
 
   const manifests = await Promise.all(manifestKeys.map((key) => getCachedManifest(plugins, key)));
 
   for (const data of manifests) {
-    if (!data?.game_id || !data.reference?.modules) continue;
+    if (!data?.game_id) continue;
 
     const manifestGameName = data.name ?? data.game_id;
     if (filter && !matchesGameFilter(data.game_id, manifestGameName, filter)) continue;
@@ -307,12 +310,19 @@ async function attachReferenceModules(
       gameMap.set(data.game_id, game);
     }
 
-    game.references = Object.entries(data.reference.modules).map(([id, entry]) => ({
-      id,
-      name: entry.name,
-      description: entry.description,
-      parameters: entry.parameters,
-    }));
+    // Inject icon URL from manifest (same logic as public manifest endpoint)
+    if (serverUrl && (data.icon === "icon.png" || data.icon === "icon.svg")) {
+      game.icon_url = `${serverUrl}/plugins/${data.game_id}/${data.icon}`;
+    }
+
+    if (data.reference?.modules) {
+      game.references = Object.entries(data.reference.modules).map(([id, entry]) => ({
+        id,
+        name: entry.name,
+        description: entry.description,
+        parameters: entry.parameters,
+      }));
+    }
   }
 
   mergeNativeModules(gameMap, filter);
@@ -323,6 +333,7 @@ export async function listGames(
   plugins: R2Bucket,
   userUuid: string,
   filter?: string,
+  serverUrl?: string,
 ): Promise<ToolResult> {
   const [saveRows, notesBySave, removedRows] = await Promise.all([
     db
@@ -351,7 +362,7 @@ export async function listGames(
     }
   }
 
-  await attachReferenceModules(plugins, gameMap, filter);
+  await attachReferenceModules(plugins, gameMap, filter, serverUrl);
 
   const games = [...gameMap.values()];
   if (filter && games.length === 0) {

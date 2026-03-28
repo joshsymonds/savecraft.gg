@@ -128,6 +128,7 @@ describe("MCP Tools", () => {
   interface GameEntry {
     game_id: string;
     game_name: string;
+    icon_url?: string;
     saves: {
       save_id: string;
       name: string;
@@ -314,6 +315,48 @@ describe("MCP Tools", () => {
       const data = parseResult(result) as { games: GameEntry[] };
       const stardew = data.games.find((g) => g.game_id === "stardew")!;
       expect(stardew.references).toBeUndefined();
+    });
+
+    it("includes icon_url when manifest has icon field", async () => {
+      await seedSave({
+        saveUuid: "save-icon",
+        userUuid: USER_A,
+        gameId: "d2r",
+        gameName: "Diablo II: Resurrected",
+        saveName: "Hammerdin",
+        summary: "Level 89",
+      });
+
+      const manifest = {
+        game_id: "d2r",
+        name: "Diablo II: Resurrected",
+        icon: "icon.png",
+        reference: { modules: {} },
+      };
+      await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(manifest));
+
+      const result = await listGames(env.DB, env.PLUGINS, USER_A, undefined, "https://api.savecraft.gg");
+      const data = parseResult(result) as { games: GameEntry[] };
+      const d2r = data.games.find((g) => g.game_id === "d2r")!;
+      expect(d2r.icon_url).toBe("https://api.savecraft.gg/plugins/d2r/icon.png");
+    });
+
+    it("omits icon_url when manifest has no icon field", async () => {
+      await seedSave({
+        saveUuid: "save-no-icon",
+        userUuid: USER_A,
+        gameId: "stardew",
+        saveName: "Farm",
+        summary: "Year 1",
+      });
+
+      const manifest = { game_id: "stardew", name: "Stardew Valley" };
+      await env.PLUGINS.put("plugins/stardew/manifest.json", JSON.stringify(manifest));
+
+      const result = await listGames(env.DB, env.PLUGINS, USER_A, undefined, "https://api.savecraft.gg");
+      const data = parseResult(result) as { games: GameEntry[] };
+      const stardew = data.games.find((g) => g.game_id === "stardew")!;
+      expect(stardew.icon_url).toBeUndefined();
     });
   });
 
