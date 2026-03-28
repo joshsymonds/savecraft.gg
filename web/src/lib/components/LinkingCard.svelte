@@ -8,6 +8,7 @@
   - error: error message + dismiss button
 -->
 <script lang="ts">
+  import PairingCodeInput from "./PairingCodeInput.svelte";
   import Panel from "./Panel.svelte";
   import WindowTitleBar from "./WindowTitleBar.svelte";
 
@@ -27,26 +28,12 @@
     onsubmit?: (code: string) => void;
   } = $props();
 
-  let codeValue = $state("");
-
   const ACCENT: Record<CardState, string> = {
     input: "#e8c44e40",
     linking: "#e8c44e40",
     error: "#e85a5a40",
   };
 
-  function handleSubmit(): void {
-    const trimmed = codeValue.trim();
-    if (trimmed.length >= 6) {
-      onsubmit?.(trimmed);
-    }
-  }
-
-  function handleKeydown(event: KeyboardEvent): void {
-    if (event.key === "Enter") {
-      handleSubmit();
-    }
-  }
 </script>
 
 <div class="linking-card">
@@ -59,19 +46,7 @@
       </WindowTitleBar>
       <div class="input-content">
         <span class="input-label">Enter the 6-digit pairing code</span>
-        <div class="input-row">
-          <input
-            type="text"
-            class="code-input"
-            placeholder="000000"
-            maxlength={6}
-            bind:value={codeValue}
-            onkeydown={handleKeydown}
-          />
-          <button class="link-btn" onclick={handleSubmit} disabled={codeValue.trim().length < 6}>
-            LINK
-          </button>
-        </div>
+        <PairingCodeInput onsubmit={onsubmit} buttonLabel="LINK" />
       </div>
     {:else if cardState === "linking"}
       <WindowTitleBar activeIcon="🔗" activeLabel="PAIRING" activeSublabel="Code {displayCode}">
@@ -122,60 +97,6 @@
     color: var(--color-text-muted);
   }
 
-  .input-row {
-    display: flex;
-    gap: 10px;
-    align-items: center;
-  }
-
-  .code-input {
-    font-family: var(--font-pixel);
-    font-size: 18px;
-    letter-spacing: 6px;
-    color: var(--color-text);
-    background: rgba(5, 7, 26, 0.6);
-    border: 1px solid rgba(74, 90, 173, 0.3);
-    border-radius: 3px;
-    padding: 10px 14px;
-    width: 160px;
-    text-align: center;
-    outline: none;
-    transition: border-color 0.15s;
-  }
-
-  .code-input::placeholder {
-    color: var(--color-text-muted);
-    opacity: 0.4;
-    letter-spacing: 6px;
-  }
-
-  .code-input:focus {
-    border-color: var(--color-gold);
-  }
-
-  .link-btn {
-    font-family: var(--font-pixel);
-    font-size: 12px;
-    color: var(--color-gold);
-    letter-spacing: 1px;
-    background: rgba(200, 168, 78, 0.1);
-    border: 1px solid rgba(200, 168, 78, 0.3);
-    border-radius: 3px;
-    padding: 10px 20px;
-    cursor: pointer;
-    transition: all 0.15s;
-    white-space: nowrap;
-  }
-
-  .link-btn:hover:not(:disabled) {
-    background: rgba(200, 168, 78, 0.2);
-    border-color: var(--color-gold);
-  }
-
-  .link-btn:disabled {
-    opacity: 0.3;
-    cursor: default;
-  }
 
   /* -- Linking content ---------------------------------------- */
 

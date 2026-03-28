@@ -51,6 +51,14 @@
       },
     },
     {
+      gameId: "rimworld",
+      name: "RimWorld",
+      description: "In-game mod pushes full colony state on save",
+      watched: false,
+      saveCount: 0,
+      workshopUrl: "https://steamcommunity.com/sharedfiles/filedetails/?id=3693580596",
+    },
+    {
       gameId: "wow",
       name: "World of Warcraft",
       description: "Character profiles via Battle.net API",
@@ -201,6 +209,18 @@
       games={catalog}
       configurableSources={singleSource}
       onoauthconnect={(gameId: string, region: string) => alert(`OAuth: ${gameId} (${region})`)}
+      onclose={noop}
+    />
+  </div>
+</Story>
+
+<!-- Workshop mod game: shows "Steam Workshop" badge, click RimWorld → workshop install panel -->
+<Story name="WorkshopMod">
+  <div style="width: 560px; position: relative; height: 500px;">
+    <GamePickerModal
+      games={catalog}
+      configurableSources={singleSource}
+      onpair={(code: string) => alert(`Pair: ${code}`)}
       onclose={noop}
     />
   </div>

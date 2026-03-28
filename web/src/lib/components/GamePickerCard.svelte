@@ -22,7 +22,7 @@
     <GameIcon
       iconUrl={game.iconUrl}
       name={game.name}
-      variant={game.isApiGame ? "api" : "default"}
+      variant={game.isApiGame ? "api" : (game.workshopUrl ? "workshop" : "default")}
     />
     <div class="picker-info">
       <span class="picker-name">{game.name}</span>
@@ -38,6 +38,8 @@
       </span>
     {:else if game.isApiGame}
       <span class="picker-badge api-badge">Connect account</span>
+    {:else if game.workshopUrl}
+      <span class="picker-badge workshop-badge">Steam Workshop</span>
     {:else}
       <span class="picker-badge unconfigured-badge">Not configured</span>
     {/if}
@@ -135,5 +137,11 @@
     color: var(--color-blue, #6ea8fe);
     background: rgba(110, 168, 254, 0.1);
     border: 1px solid rgba(110, 168, 254, 0.2);
+  }
+
+  .workshop-badge {
+    color: var(--color-steam, #c6d4df);
+    background: rgba(198, 212, 223, 0.08);
+    border: 1px solid rgba(198, 212, 223, 0.2);
   }
 </style>

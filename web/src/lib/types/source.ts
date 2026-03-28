@@ -117,5 +117,6 @@ export interface PickerGame {
   saveCount: number;
   defaultPaths?: { windows?: string; linux?: string; darwin?: string };
   isApiGame?: boolean;
+  workshopUrl?: string;
   adapter?: { authProvider: string; regions: string[] };
 }
