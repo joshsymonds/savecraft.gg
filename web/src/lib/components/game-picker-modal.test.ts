@@ -274,7 +274,7 @@ describe("GamePickerModal", () => {
       props: { games: makeCatalog(), onclose: vi.fn() },
     });
     await userEvent.click(screen.getByText("RimWorld"));
-    const link = screen.getByText("Open Steam Workshop") as HTMLAnchorElement;
+    const link = screen.getByText("Open Steam Workshop").closest("a")!;
     expect(link.href).toBe("https://steamcommunity.com/sharedfiles/filedetails/?id=3693580596");
     expect(link.target).toBe("_blank");
   });
