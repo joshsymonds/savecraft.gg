@@ -1044,19 +1044,21 @@ export async function searchSaves(
     .bind(query, ...params)
     .all<SearchRow & { snippet: string }>();
 
-  return textResult(
-    {
-      query,
-      results: rows.results.map((row) => ({
-        type: row.type,
-        save_id: row.save_id,
-        save_name: row.save_name,
-        ref_id: row.ref_id,
-        ref_title: row.ref_title,
-        snippet: row.snippet,
-      })),
-    },
-    "Search results — display as a results list with clear visual distinction between save data results (actual game state) and note results (player-written context). Show save name, section/note title, and matching snippet. Highlight search terms in the snippets.",
+  const data = {
+    query,
+    results: rows.results.map((row) => ({
+      type: row.type,
+      save_id: row.save_id,
+      save_name: row.save_name,
+      ref_id: row.ref_id,
+      ref_title: row.ref_title,
+      snippet: row.snippet,
+    })),
+  };
+
+  return viewResult(
+    data,
+    `Found ${String(data.results.length)} result${data.results.length === 1 ? "" : "s"} for "${query}".`,
   );
 }
 
