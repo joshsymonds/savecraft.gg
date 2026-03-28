@@ -21,7 +21,7 @@ describe("FilterBar", () => {
   it("renders chip labels", () => {
     const { container } = render(FilterBar, { props: { filters, active: [], onchange: () => {} } });
     const chips = container.querySelectorAll(".filter-chip");
-    expect(chips[0].textContent).toBe("Good");
+    expect(chips[0].textContent?.trim()).toBe("Good");
   });
 
   it("renders filter label", () => {
