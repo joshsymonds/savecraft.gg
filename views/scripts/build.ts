@@ -11,6 +11,8 @@ import * as fs from "fs";
 import * as path from "path";
 import { build } from "vite";
 import { svelte } from "@sveltejs/vite-plugin-svelte";
+import { parse as parseTOML } from "smol-toml";
+import { resolveAttribution, type Attribution } from "../src/attributions.js";
 
 const { readFileSync, readdirSync, writeFileSync, unlinkSync, rmSync } = fs;
 const { resolve } = path;
@@ -22,6 +24,55 @@ const OUTPUT_FILE = resolve(ROOT, "worker/src/mcp/views.gen.ts");
 
 const viewCss = readFileSync(resolve(VIEWS_DIR, "src/view.css"), "utf-8");
 const bridgePath = resolve(VIEWS_DIR, "src/bridge.ts").split("\\").join("/");
+const attributionPath = resolve(VIEWS_DIR, "src/Attribution.svelte").split("\\").join("/");
+
+// ── Attribution ────────────────────────────────────────────
+
+interface PluginAttribution {
+  sources: string[];
+}
+
+function readPluginAttribution(pluginDir: string): Attribution[] {
+  const tomlPath = resolve(pluginDir, "plugin.toml");
+  const raw = readFileSync(tomlPath, "utf-8");
+  const parsed = parseTOML(raw) as { attribution?: PluginAttribution };
+  if (!parsed.attribution?.sources?.length) {
+    throw new Error(
+      `${tomlPath}: missing [attribution] with sources. Every plugin must declare attribution.`,
+    );
+  }
+  return resolveAttribution(parsed.attribution.sources);
+}
+
+function deduplicateAttribution(attributions: Attribution[]): Attribution[] {
+  const seen = new Set<string>();
+  return attributions.filter((a) => {
+    if (seen.has(a.name)) return false;
+    seen.add(a.name);
+    return true;
+  });
+}
+
+function readAllPluginAttributions(): Attribution[] {
+  const pluginsDir = resolve(ROOT, "plugins");
+  const seen = new Set<string>();
+  const result: Attribution[] = [];
+  for (const plugin of readdirSync(pluginsDir)) {
+    const tomlPath = resolve(pluginsDir, plugin, "plugin.toml");
+    try {
+      fs.accessSync(tomlPath);
+    } catch {
+      continue;
+    }
+    for (const attr of readPluginAttribution(resolve(pluginsDir, plugin))) {
+      if (!seen.has(attr.name)) {
+        seen.add(attr.name);
+        result.push(attr);
+      }
+    }
+  }
+  return result;
+}
 
 // ── Discovery ──────────────────────────────────────────────
 
@@ -33,6 +84,7 @@ interface GameStateView {
 interface ReferenceView {
   moduleId: string;
   componentPath: string;
+  pluginDir: string;
 }
 
 function discoverGameStateViews(): GameStateView[] {
@@ -64,6 +116,7 @@ function discoverReferenceViews(): ReferenceView[] {
             views.push({
               moduleId: file.replace(".svelte", "").split("-").join("_"),
               componentPath: resolve(viewsDir, file),
+              pluginDir: resolve(pluginsDir, plugin),
             });
           }
         }
@@ -85,12 +138,15 @@ function gameStateEntry(view: GameStateView): string {
 import { mount } from "svelte";
 import { initBridge } from "${bridgePath}";
 import Component from "${componentPath}";
+import Attribution from "${attributionPath}";
 
 initBridge((result) => {
   const target = document.getElementById("root");
   if (!target) return;
   target.replaceChildren();
   mount(Component, { target, props: { data: result.structuredContent } });
+  const attrTarget = document.getElementById("attribution");
+  if (attrTarget) mount(Attribution, { target: attrTarget });
 });
 `;
 }
@@ -107,6 +163,7 @@ function referenceEntry(views: ReferenceView[]): string {
   return `
 import { mount } from "svelte";
 import { initBridge } from "${bridgePath}";
+import Attribution from "${attributionPath}";
 ${imports}
 
 const VIEWS = {
@@ -127,13 +184,15 @@ initBridge((result) => {
       ? "No view for module: " + moduleId
       : "Missing module identifier in response";
   }
+  const attrTarget = document.getElementById("attribution");
+  if (attrTarget) mount(Attribution, { target: attrTarget });
 });
 `;
 }
 
 // ── Build ──────────────────────────────────────────────────
 
-async function buildToHtml(name: string, entrySource: string): Promise<string> {
+async function buildToHtml(name: string, entrySource: string, attribution: Attribution[]): Promise<string> {
   const tmpEntry = resolve(VIEWS_DIR, `.tmp-entry-${name}.ts`);
   writeFileSync(tmpEntry, entrySource);
 
@@ -166,14 +225,17 @@ async function buildToHtml(name: string, entrySource: string): Promise<string> {
     if (!jsFile) throw new Error(`No JS output for ${name}`);
     const js = readFileSync(resolve(outDir, jsFile), "utf-8");
 
-    return wrapHtml(js);
+    return wrapHtml(js, attribution);
   } finally {
     try { unlinkSync(tmpEntry); } catch { /* */ }
     try { rmSync(outDir, { recursive: true, force: true }); } catch { /* */ }
   }
 }
 
-function wrapHtml(js: string): string {
+function wrapHtml(js: string, attribution: Attribution[]): string {
+  const attrScript = attribution.length > 0
+    ? `<script>window.__ATTRIBUTION__=${JSON.stringify(attribution)};<\/script>\n`
+    : "";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -183,7 +245,8 @@ function wrapHtml(js: string): string {
 </head>
 <body>
 <div id="root"></div>
-<script>${js}<\/script>
+<div id="attribution"></div>
+${attrScript}<script>${js}<\/script>
 </body>
 </html>`;
 }
@@ -201,18 +264,27 @@ async function main() {
     `Found ${String(referenceViews.length)} reference view(s): ${referenceViews.map((v) => v.moduleId).join(", ") || "(none)"}`,
   );
 
+  // Resolve attribution for all views
+  const allPluginAttribution = readAllPluginAttributions();
+
+  // Reference views: deduplicate attribution across all plugins that contribute views
+  const refPluginDirs = [...new Set(referenceViews.map((v) => v.pluginDir))];
+  const refAttribution = deduplicateAttribution(
+    refPluginDirs.flatMap((dir) => readPluginAttribution(dir)),
+  );
+
   const views: Record<string, string> = {};
 
-  // Build each game state view as its own HTML page
+  // Build each game state view as its own HTML page (aggregates all plugin attributions)
   for (const view of gameStateViews) {
     console.log(`Building game state view: ${view.slug}`);
-    views[view.slug] = await buildToHtml(view.slug, gameStateEntry(view));
+    views[view.slug] = await buildToHtml(view.slug, gameStateEntry(view), allPluginAttribution);
   }
 
   // Build all reference views into one bundled HTML page
   if (referenceViews.length > 0) {
     console.log(`Building reference view bundle (${String(referenceViews.length)} modules)`);
-    views["reference"] = await buildToHtml("reference", referenceEntry(referenceViews));
+    views["reference"] = await buildToHtml("reference", referenceEntry(referenceViews), refAttribution);
   }
 
   // Write output

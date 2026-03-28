@@ -72,20 +72,9 @@ type defaultPaths struct {
 }
 
 type referenceModule struct {
-	Name        string               `toml:"name"        json:"name"`
-	Description string               `toml:"description" json:"description"`
-	Attribution referenceAttribution `toml:"attribution" json:"attribution,omitempty"`
-	Parameters  map[string]any       `toml:"-"           json:"parameters,omitempty"`
-}
-
-type referenceAttribution struct {
-	Author      string            `toml:"author"       json:"author,omitempty"`
-	DataSources []referenceSource `toml:"data_sources" json:"dataSources,omitempty"`
-}
-
-type referenceSource struct {
-	Name   string `toml:"name"   json:"name"`
-	Origin string `toml:"origin" json:"origin"`
+	Name        string         `toml:"name"        json:"name"`
+	Description string         `toml:"description" json:"description"`
+	Parameters  map[string]any `toml:"-"           json:"parameters,omitempty"`
 }
 
 type referenceTOML struct {

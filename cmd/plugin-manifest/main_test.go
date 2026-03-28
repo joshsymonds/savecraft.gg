@@ -71,12 +71,6 @@ darwin = "/test"
 [reference.modules.drop_calc]
 name = "Drop Calculator"
 description = "Compute drop probabilities."
-
-[reference.modules.drop_calc.attribution]
-author = "Test Author"
-data_sources = [
-  { name = "TreasureClassEx.txt", origin = "Game data" },
-]
 `)
 	writeFile(t, filepath.Join(dir, "parser.wasm"), "fake parser wasm")
 	writeFile(t, filepath.Join(dir, "reference.wasm"), "fake reference wasm")
@@ -105,15 +99,6 @@ data_sources = [
 	}
 	if mod.Description != "Compute drop probabilities." {
 		t.Errorf("module description = %q", mod.Description)
-	}
-	if mod.Attribution.Author != "Test Author" {
-		t.Errorf("attribution author = %q, want Test Author", mod.Attribution.Author)
-	}
-	if len(mod.Attribution.DataSources) != 1 {
-		t.Fatalf("data_sources = %d, want 1", len(mod.Attribution.DataSources))
-	}
-	if mod.Attribution.DataSources[0].Name != "TreasureClassEx.txt" {
-		t.Errorf("data_source name = %q", mod.Attribution.DataSources[0].Name)
 	}
 }
 

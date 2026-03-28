@@ -109,7 +109,6 @@ interface NotePreviewRow {
 interface ReferenceModule {
   name: string;
   description: string;
-  attribution?: unknown;
   parameters?: Record<string, unknown>;
 }
 

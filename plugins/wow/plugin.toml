@@ -14,6 +14,9 @@ limitations = [
   "Combat performance data not included (see Warcraft Logs integration roadmap)",
 ]
 
+[attribution]
+sources = ["blizzard", "raiderio"]
+
 [author]
 name = "Josh Symonds"
 github = "joshsymonds"

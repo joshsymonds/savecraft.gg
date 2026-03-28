@@ -13,6 +13,7 @@
     "@storybook/sveltekit": "^10.2.13",
     "@sveltejs/vite-plugin-svelte": "^5.0.0",
     "@types/node": "^25.5.0",
+    "smol-toml": "^1.6.1",
     "storybook": "^10.2.13",
     "svelte": "^5.33.0",
     "tsx": "^4.21.0",
