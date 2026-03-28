@@ -320,10 +320,13 @@ describe("MCP Tools", () => {
   // ── viewResult format ──────────────────────────────────────
 
   describe("viewResult", () => {
-    it("returns structuredContent alongside content", () => {
+    it("returns structuredContent alongside content with data", () => {
       const result = viewResult({ foo: "bar" }, "Some narrative.");
       expect(result.structuredContent).toEqual({ foo: "bar" });
-      expect(result.content).toEqual([{ type: "text", text: "Some narrative." }]);
+      // content carries narrative + JSON data so the model can reason about the data
+      expect(result.content).toHaveLength(2);
+      expect(result.content[0]!.text).toBe("Some narrative.");
+      expect(JSON.parse(result.content[1]!.text)).toEqual({ foo: "bar" });
       expect(result._meta).toBeUndefined();
     });
 
@@ -354,8 +357,10 @@ describe("MCP Tools", () => {
 
       const viewResult = result as ViewToolResult;
       expect(viewResult.structuredContent).toHaveProperty("games");
-      expect(viewResult.content).toHaveLength(1);
+      expect(viewResult.content).toHaveLength(2);
       expect(viewResult.content[0]!.text).toMatch(/Player has 1 game/);
+      // Second content block carries JSON data for model reasoning
+      expect(JSON.parse(viewResult.content[1]!.text)).toHaveProperty("games");
     });
   });
 

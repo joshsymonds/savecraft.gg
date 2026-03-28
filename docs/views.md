@@ -24,11 +24,17 @@ Tools with views use `viewResult()` instead of `textResult()`:
 
 ```
 viewResult(structuredContent, narrative)
-→ { structuredContent: { ... }, content: [{ type: "text", text: "..." }] }
+→ {
+    structuredContent: { ... },
+    content: [
+      { type: "text", text: "Found 5 cards." },
+      { type: "text", text: "{\"cards\":[...]}" }
+    ]
+  }
 ```
 
-- **`structuredContent`** — first-class JSON object sent to both the model and the view widget. The model uses it for reasoning; the view renders it as UI.
-- **`content`** — concise narrative text for the model's conversational response. Not a presentation hint.
+- **`structuredContent`** — first-class JSON object for the view widget. The view renders it as UI.
+- **`content`** — carries BOTH a concise narrative AND the same data as JSON text. This is critical: some MCP hosts (including Claude) hide `structuredContent` from the model when a widget renders, so the model only sees `content`. Without the data in `content`, the model cannot reason about, compare, or discuss what the view is showing.
 
 For `query_reference`, `structuredContent` includes a `module` field so the bundled reference view knows which component to mount:
 

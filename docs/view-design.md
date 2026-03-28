@@ -26,13 +26,13 @@ The Savecraft web dashboard already shows saves, sources, and status. Views shou
 
 ### Complement the conversation, don't compete with it
 
-The model's narrative text and the view's visual display work together. The model explains reasoning and gives advice; the view shows the data that supports it. Neither should repeat the other.
+The model's narrative text and the view's visual display work together. The model explains reasoning and gives advice; the view shows the data visually.
 
-**Good:** Model says "Your draft had 14 optimal picks but 3 questionable ones in pack 2." View shows a scorecard with picks color-coded by quality, clickable for details.
+**Good:** Model says "Your draft had 14 optimal picks but 3 questionable ones in pack 2 — here's why" and gives specific advice. View shows a scorecard with picks color-coded by quality, clickable for details.
 
-**Bad:** Model says "Here are the search results" and the view shows the same card list the model is about to describe. Now the player reads the same information twice.
+**Bad:** Model says "Here are the search results" with no analysis. The view shows cards but the model can't discuss them because it has nothing to add.
 
-The `content` field in `viewResult()` is the model's narrative. Keep it concise — a sentence or two about what the data shows. The view handles presentation.
+**Critical: the model needs the data too.** `viewResult()` puts the data in BOTH `structuredContent` (for the view) and `content` (as JSON text, for the model). Some MCP hosts — including Claude — hide `structuredContent` from the model when a widget renders. Without the data in `content`, the model is blind to what the view is showing and cannot reason about, compare, or discuss it. The narrative in `content` should be a concise summary; the JSON gives the model the full picture.
 
 ### Start inline, escalate intentionally
 

@@ -47,7 +47,7 @@ viewResult({ cards, total: cards.length }, "Found 5 cards.");
 // → { module: "card_search", cards: [...], total: 5 }
 ```
 
-`viewResult()` returns `{ structuredContent, content }`. Both the model and the view receive `structuredContent`. The view renders it as UI; the model uses it for reasoning.
+`viewResult()` returns `{ structuredContent, content }`. The view renders `structuredContent` as UI. `content` carries BOTH the narrative AND the same data as JSON text — this is critical because Claude hides `structuredContent` from the model when a widget renders. Without data in `content`, the model is blind to what the view shows and cannot reason about it.
 
 ## Bridge — Do Not Reimplement
 

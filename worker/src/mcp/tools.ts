@@ -73,7 +73,13 @@ export function viewResult(
 ): ViewToolResult {
   return {
     structuredContent,
-    content: [{ type: "text", text: narrative }],
+    // content carries the SAME data as structuredContent so the model can reason
+    // about it. Claude's MCP Apps implementation hides structuredContent from the
+    // model when a widget renders — without the data in content, the model is blind.
+    content: [
+      { type: "text", text: narrative },
+      { type: "text", text: JSON.stringify(structuredContent) },
+    ],
     ...(meta ? { _meta: meta } : {}),
   };
 }

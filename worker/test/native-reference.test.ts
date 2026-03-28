@@ -198,7 +198,8 @@ describe("queryReference native routing", () => {
     };
     expect(viewRes.structuredContent).toEqual({ win_rate: 0.58, matches: 42 });
     // Content is a concise narrative, not a presentation hint
-    expect(viewRes.content).toHaveLength(1);
+    // content carries narrative + JSON data for model reasoning
+    expect(viewRes.content).toHaveLength(2);
   });
 
   it("passes through presentation hint from formatted result", async () => {

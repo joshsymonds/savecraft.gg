@@ -608,7 +608,8 @@ describe("MCP Protocol", () => {
     expect(data.card).toBe("Lightning Bolt");
 
     // Content is a concise narrative, not a presentation hint
-    expect(body.result.content).toHaveLength(1);
+    // content carries narrative + JSON data for model reasoning
+    expect(body.result.content).toHaveLength(2);
 
     clearNativeRegistry();
   });
