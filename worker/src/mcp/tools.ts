@@ -396,7 +396,9 @@ export async function getSave(
   db: D1Database,
   userUuid: string,
   saveId: string,
-): Promise<ToolResult> {
+  plugins?: R2Bucket,
+  serverUrl?: string,
+): Promise<ToolResult | ViewToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save) {
     const removedName = await checkRemovedSave(db, userUuid, saveId);
@@ -445,9 +447,19 @@ export async function getSave(
     .bind(saveId, userUuid)
     .all<{ note_id: string; title: string; source: string; size_bytes: number }>();
 
+  // Look up icon URL from manifest (uses per-isolate cache, typically warm from listGames)
+  let iconUrl: string | undefined;
+  if (plugins && serverUrl) {
+    const manifest = await getCachedManifest(plugins, `plugins/${save.game_id}/manifest.json`);
+    if (manifest && (manifest.icon === "icon.png" || manifest.icon === "icon.svg")) {
+      iconUrl = `${serverUrl}/plugins/${save.game_id}/${manifest.icon}`;
+    }
+  }
+
   const result: Record<string, unknown> = {
     save_id: saveId,
     game_id: save.game_id,
+    game_name: save.game_name,
     name: save.save_name,
     summary: save.summary,
     overview,
@@ -460,6 +472,8 @@ export async function getSave(
     })),
   };
 
+  if (iconUrl) result.icon_url = iconUrl;
+
   // Include refresh status for adapter saves (null for daemon saves)
   if (save.refresh_status) {
     result.refresh_status = save.refresh_status;
@@ -468,9 +482,9 @@ export async function getSave(
     }
   }
 
-  return textResult(
+  return viewResult(
     result,
-    "Character overview — show the save name and summary prominently as a header. List available sections as a clean directory the player can explore. Show notes as compact cards. This is navigation — keep it scannable, not visualized.",
+    `${save.save_name} — ${save.summary}. ${String(sections.length)} sections available.`,
   );
 }
 

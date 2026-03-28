@@ -465,7 +465,7 @@ async function handleToolCall(
       return listGames(env.DB, env.PLUGINS, userUuid, args.filter as string | undefined, env.SERVER_URL);
     }
     case "get_save": {
-      return getSave(env.DB, userUuid, saveId);
+      return getSave(env.DB, userUuid, saveId, env.PLUGINS, env.SERVER_URL);
     }
     case "get_section": {
       const sections = parseSectionsArgument(args.sections) ?? [];
