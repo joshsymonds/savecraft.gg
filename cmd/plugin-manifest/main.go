@@ -37,6 +37,7 @@ type pluginTOML struct {
 	FilePatterns   []string `toml:"file_patterns"   json:"file_patterns,omitempty"`
 	ExcludeDirs    []string `toml:"exclude_dirs"    json:"exclude_dirs,omitempty"`
 	Homepage       string   `toml:"homepage"        json:"homepage"`
+	WorkshopURL    string   `toml:"workshop_url"    json:"workshop_url,omitempty"`
 	Limitations    []string `toml:"limitations"     json:"limitations"`
 
 	Author       authorInfo    `toml:"author"        json:"author"`
