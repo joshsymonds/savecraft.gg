@@ -190,15 +190,14 @@
       const merged = mergedGames.find((g) => g.gameId === gameId);
       const isApi = manifest.source === "api";
       const isModule = manifest.source === "mod";
+      let description = `Parses ${manifest.file_extensions.join(", ")} files`;
+      if (isApi) description = manifest.name;
+      else if (isModule) description = manifest.description;
       result.push({
         gameId,
         name: manifest.name,
         iconUrl: manifest.icon_url,
-        description: isApi
-          ? manifest.name
-          : isModule
-            ? manifest.description
-            : `Parses ${manifest.file_extensions.join(", ")} files`,
+        description,
         watched: watchedIds.has(gameId),
         saveCount: merged?.saves.length ?? 0,
         defaultPaths: manifest.default_paths,
