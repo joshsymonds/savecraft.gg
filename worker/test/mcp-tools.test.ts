@@ -622,6 +622,62 @@ describe("MCP Tools", () => {
       expect(data.refresh_status).toBeUndefined();
       expect(data.refresh_error).toBeUndefined();
     });
+
+    it("returns ViewToolResult with structuredContent", async () => {
+      await seedSave({
+        saveUuid: "save-view-result",
+        userUuid: USER_A,
+        gameId: "d2r",
+        gameName: "Diablo II: Resurrected",
+        saveName: "ViewTest",
+        summary: "Test view result shape",
+      });
+
+      const result = await getSave(env.DB, USER_A, "save-view-result");
+      expect("structuredContent" in result).toBe(true);
+      const viewResult = result as ViewToolResult;
+      expect(viewResult.structuredContent).toBeDefined();
+      expect(viewResult.structuredContent.save_id).toBe("save-view-result");
+      expect(viewResult.structuredContent.game_name).toBe("Diablo II: Resurrected");
+      expect(viewResult.structuredContent.name).toBe("ViewTest");
+      expect(viewResult.structuredContent.sections).toBeDefined();
+      expect(viewResult.structuredContent.notes).toBeDefined();
+      // content carries narrative + JSON data for model reasoning
+      expect(viewResult.content).toHaveLength(2);
+      expect(viewResult.content[0]!.text).toContain("ViewTest");
+    });
+
+    it("includes icon_url when plugins and serverUrl are provided", async () => {
+      await seedSave({
+        saveUuid: "save-icon-get",
+        userUuid: USER_A,
+        gameId: "d2r",
+        gameName: "Diablo II: Resurrected",
+        saveName: "IconTest",
+        summary: "Test icon URL",
+      });
+
+      const manifest = { game_id: "d2r", name: "Diablo II: Resurrected", icon: "icon.png" };
+      await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(manifest));
+
+      const result = await getSave(env.DB, USER_A, "save-icon-get", env.PLUGINS, "https://api.savecraft.gg");
+      const data = parseResult(result) as { icon_url?: string };
+      expect(data.icon_url).toBe("https://api.savecraft.gg/plugins/d2r/icon.png");
+    });
+
+    it("omits icon_url when plugins param is not provided", async () => {
+      await seedSave({
+        saveUuid: "save-no-icon-get",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "NoIconTest",
+        summary: "No icon without plugins",
+      });
+
+      const result = await getSave(env.DB, USER_A, "save-no-icon-get");
+      const data = parseResult(result) as { icon_url?: string };
+      expect(data.icon_url).toBeUndefined();
+    });
   });
 
   // ── search_saves ────────────────────────────────────────────
@@ -694,6 +750,27 @@ describe("MCP Tools", () => {
       const ids = data.results.map((r) => r.save_id);
       expect(ids).toContain("save-fts-mine");
       expect(ids).not.toContain("save-fts-theirs");
+    });
+
+    it("returns ViewToolResult with structuredContent", async () => {
+      await seedSave({
+        saveUuid: "save-fts-view",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "ViewSearchTest",
+        summary: "Test view result",
+      });
+      await indexSaveSections(env.DB, "save-fts-view", "ViewSearchTest", sampleGameState.sections);
+
+      const result = await searchSaves(env.DB, USER_A, "Hammerdin");
+      expect("structuredContent" in result).toBe(true);
+      const viewResult = result as ViewToolResult;
+      expect(viewResult.structuredContent).toBeDefined();
+      expect(viewResult.structuredContent.query).toBe("Hammerdin");
+      expect(Array.isArray(viewResult.structuredContent.results)).toBe(true);
+      // content carries narrative + JSON data for model reasoning
+      expect(viewResult.content).toHaveLength(2);
+      expect(viewResult.content[0]!.text).toContain("Hammerdin");
     });
   });
 
