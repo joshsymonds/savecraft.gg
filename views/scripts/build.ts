@@ -132,11 +132,11 @@ import { initBridge } from "${bridgePath}";
 import Component from "${componentPath}";
 import Attribution from "${attributionPath}";
 
-initBridge((result) => {
+const app = initBridge((result) => {
   const target = document.getElementById("root");
   if (!target) return;
   target.replaceChildren();
-  mount(Component, { target, props: { data: result.structuredContent } });
+  mount(Component, { target, props: { data: result.structuredContent, app } });
   const attrTarget = document.getElementById("attribution");
   if (attrTarget) mount(Attribution, { target: attrTarget });
 });
@@ -162,7 +162,7 @@ const VIEWS = {
 ${mapEntries}
 };
 
-initBridge((result) => {
+const app = initBridge((result) => {
   const data = result.structuredContent;
   const moduleId = data?.module;
   const Component = typeof moduleId === "string" ? VIEWS[moduleId] : undefined;
@@ -170,7 +170,7 @@ initBridge((result) => {
   if (!target) return;
   target.replaceChildren();
   if (Component) {
-    mount(Component, { target, props: { data } });
+    mount(Component, { target, props: { data, app } });
   } else {
     target.textContent = moduleId
       ? "No view for module: " + moduleId
