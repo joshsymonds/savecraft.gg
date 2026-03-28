@@ -2,6 +2,7 @@
   @component
   Retro bordered container with corner decorations.
   Matches the web app Panel — the primary layout primitive for Savecraft views.
+  Use nested=true for inner panels (flat surface, no corners, thinner border).
 -->
 <script lang="ts">
   import type { Snippet } from "svelte";
@@ -11,11 +12,13 @@
     accent?: string;
     /** Optional padding override (defaults to --space-lg) */
     padding?: string;
+    /** Nested/inner panel variant — flat bg, no corners, thinner border */
+    nested?: boolean;
     /** Slot content */
     children?: Snippet;
   }
 
-  let { accent, padding, children }: Props = $props();
+  let { accent, padding, nested = false, children }: Props = $props();
 
   let borderColor = $derived(accent ?? "var(--color-border)");
   let cornerColor = $derived(accent ?? "var(--color-border-light)");
@@ -23,14 +26,17 @@
 
 <div
   class="panel"
+  class:nested
   style:--panel-border={borderColor}
   style:--panel-corner={cornerColor}
   style:--panel-padding={padding ?? "var(--space-lg)"}
 >
-  <div class="corner top-left"></div>
-  <div class="corner top-right"></div>
-  <div class="corner bottom-left"></div>
-  <div class="corner bottom-right"></div>
+  {#if !nested}
+    <div class="corner top-left"></div>
+    <div class="corner top-right"></div>
+    <div class="corner bottom-left"></div>
+    <div class="corner bottom-right"></div>
+  {/if}
   {@render children?.()}
 </div>
 
@@ -46,6 +52,14 @@
       0 0 12px color-mix(in srgb, var(--panel-border) 10%, transparent);
     overflow: hidden;
     animation: panel-enter 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  .panel.nested {
+    background: var(--color-surface);
+    border-width: 1px;
+    border-color: color-mix(in srgb, var(--panel-border) 50%, transparent);
+    box-shadow: inset 0 0 12px rgba(10, 14, 46, 0.3);
+    animation: none;
   }
 
   @keyframes panel-enter {

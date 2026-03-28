@@ -40,4 +40,21 @@ describe("Panel", () => {
     const panel = container.querySelector(".panel") as HTMLElement;
     expect(panel.style.getPropertyValue("--panel-padding")).toBe("var(--space-lg)");
   });
+
+  it("renders as nested variant without corners", () => {
+    const { container } = render(Panel, { props: { nested: true } });
+    expect(container.querySelectorAll(".corner")).toHaveLength(0);
+  });
+
+  it("applies nested class when nested prop is true", () => {
+    const { container } = render(Panel, { props: { nested: true } });
+    const panel = container.querySelector(".panel") as HTMLElement;
+    expect(panel.classList.contains("nested")).toBe(true);
+  });
+
+  it("does not apply nested class by default", () => {
+    const { container } = render(Panel);
+    const panel = container.querySelector(".panel") as HTMLElement;
+    expect(panel.classList.contains("nested")).toBe(false);
+  });
 });
