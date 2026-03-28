@@ -4,6 +4,8 @@
   Used for mana distribution, wildcard cost breakdown, rarity breakdown.
 -->
 <script lang="ts">
+  import Tooltip from "./Tooltip.svelte";
+
   interface Segment {
     label: string;
     value: number;
@@ -18,9 +20,20 @@
   let { segments }: Props = $props();
 
   let total = $derived(segments.reduce((sum, s) => sum + s.value, 0) || 1);
+
+  let tip = $state({ text: "", x: 0, y: 0, visible: false });
+
+  function showTip(e: MouseEvent, seg: Segment) {
+    const parent = (e.currentTarget as HTMLElement).closest(".stacked-bar-chart")!.getBoundingClientRect();
+    const pct = ((seg.value / total) * 100).toFixed(1);
+    tip = { text: `${seg.label}: ${seg.value} (${pct}%)`, x: e.clientX - parent.left, y: 0, visible: true };
+  }
+
+  function hideTip() { tip.visible = false; }
 </script>
 
-<div class="stacked-bar-chart">
+<div class="stacked-bar-chart" style="position: relative;">
+  <Tooltip {...tip} />
   <div class="bar-track">
     {#each segments as seg, i}
       <div
@@ -28,6 +41,8 @@
         style:width="{(seg.value / total) * 100}%"
         style:background={seg.color}
         style:animation-delay="{i * 80}ms"
+        onmouseenter={(e) => showTip(e, seg)}
+        onmouseleave={hideTip}
       ></div>
     {/each}
   </div>

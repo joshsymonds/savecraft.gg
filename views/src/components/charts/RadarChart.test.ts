@@ -55,4 +55,34 @@ describe("RadarChart", () => {
     const { container } = render(RadarChart, { props: { axes: triAxes } });
     expect(container.querySelectorAll(".axis-line")).toHaveLength(3);
   });
+
+  it("renders multiple series as separate polygons", () => {
+    const { container } = render(RadarChart, {
+      props: {
+        labels: ["A", "B", "C"],
+        series: [
+          { label: "S1", values: [5, 7, 3], color: "red" },
+          { label: "S2", values: [3, 5, 8], color: "blue" },
+        ],
+        max: 10,
+      },
+    });
+    const polygons = container.querySelectorAll(".data-polygon");
+    expect(polygons).toHaveLength(2);
+  });
+
+  it("renders dots for each series vertex", () => {
+    const { container } = render(RadarChart, {
+      props: {
+        labels: ["A", "B", "C"],
+        series: [
+          { label: "S1", values: [5, 7, 3], color: "red" },
+          { label: "S2", values: [3, 5, 8], color: "blue" },
+        ],
+        max: 10,
+      },
+    });
+    const dots = container.querySelectorAll(".data-dot");
+    expect(dots).toHaveLength(6); // 3 axes x 2 series
+  });
 });

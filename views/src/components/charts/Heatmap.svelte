@@ -4,6 +4,8 @@
   Used for quality tier distributions, win rates by archetype/set, pick quality over time.
 -->
 <script lang="ts">
+  import Tooltip from "./Tooltip.svelte";
+
   interface Cell {
     value: number;
     label?: string;
@@ -27,6 +29,17 @@
 
   let { rows, columnLabels, minColor, maxColor }: Props = $props();
 
+  let tip = $state({ text: "", x: 0, y: 0, visible: false });
+
+  function showTip(e: MouseEvent, row: Row, cell: Cell, colIdx: number) {
+    const parent = (e.currentTarget as HTMLElement).closest(".heatmap-wrapper")!.getBoundingClientRect();
+    const colLabel = columnLabels?.[colIdx] ?? "";
+    const label = colLabel ? `${row.label} / ${colLabel}` : row.label;
+    tip = { text: `${label}: ${cell.label ?? cell.value}`, x: e.clientX - parent.left, y: e.clientY - parent.top, visible: true };
+  }
+
+  function hideTip() { tip.visible = false; }
+
   let allValues = $derived(rows.flatMap((r) => r.cells.map((c) => c.value)));
   let minVal = $derived(Math.min(...allValues));
   let maxVal = $derived(Math.max(...allValues));
@@ -37,7 +50,8 @@
   }
 </script>
 
-<div class="heatmap-wrapper">
+<div class="heatmap-wrapper" style="position: relative;">
+  <Tooltip {...tip} />
   <table class="heatmap">
     <thead>
       <tr>
@@ -53,9 +67,11 @@
       {#each rows as row, ri}
         <tr style:animation-delay="{ri * 50}ms">
           <th class="row-header">{row.label}</th>
-          {#each row.cells as cell}
+          {#each row.cells as cell, ci}
             <td
               class="cell"
+              onmouseenter={(e) => showTip(e, row, cell, ci)}
+              onmouseleave={hideTip}
               style:--intensity={cellIntensity(cell.value)}
               style:--min-color={minColor ?? "var(--color-scale-low)"}
               style:--max-color={maxColor ?? "var(--color-scale-high)"}

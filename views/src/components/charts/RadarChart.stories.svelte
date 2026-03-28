@@ -4,6 +4,8 @@
   import RadarChart from "./RadarChart.svelte";
   import Section from "../layout/Section.svelte";
   import Panel from "../layout/Panel.svelte";
+  import LegendBar from "../data/LegendBar.svelte";
+  import Divider from "../layout/Divider.svelte";
 
   const { Story } = defineMeta({
     title: "Components/Charts/RadarChart",
@@ -70,6 +72,29 @@
           color="var(--color-highlight)"
           size={220}
         />
+      </Section>
+    </Panel>
+  </div>
+</Story>
+
+<Story name="MultiSeries">
+  <div style="width: 400px;">
+    <Panel>
+      <Section title="Pick Comparison" subtitle="Lightning Bolt vs Demolition Field">
+        <RadarChart
+          labels={["Baseline", "Synergy", "Role", "Curve", "Castability", "Signal", "Color", "Opp. Cost"]}
+          series={[
+            { label: "Lightning Bolt", values: [9.2, 7.8, 8.5, 6.2, 9.5, 7.0, 8.8, 6.5], color: "var(--color-positive)" },
+            { label: "Demolition Field", values: [3.1, 2.5, 5.0, 7.8, 9.0, 4.2, 3.0, 2.1], color: "var(--color-warning)" },
+          ]}
+          max={10}
+          size={280}
+        />
+        <Divider decoration="none" />
+        <LegendBar items={[
+          { label: "Lightning Bolt", color: "var(--color-positive)" },
+          { label: "Demolition Field", color: "var(--color-warning)" },
+        ]} />
       </Section>
     </Panel>
   </div>
