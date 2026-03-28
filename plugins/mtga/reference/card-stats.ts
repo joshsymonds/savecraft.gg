@@ -41,6 +41,8 @@ interface SetStatsRow {
   avg_gihwr: number;
 }
 
+const VALID_RARITIES = new Set(["common", "uncommon", "rare", "mythic"]);
+
 const VALID_SORT_FIELDS = new Set([
   "gihwr",
   "ohwr",
@@ -238,6 +240,7 @@ async function leaderboard(
   setCode: string,
   sortField: string,
   archetype: string,
+  rarity: string,
   limit: number,
   offset: number,
   setStats: SetStatsRow,
@@ -249,19 +252,47 @@ async function leaderboard(
   let total: number;
 
   if (archetype) {
+    const rarityJoin = rarity
+      ? " JOIN mtga_cards c ON c.front_face_name = a.card_name AND c.is_default = 1 AND c.rarity = ?3"
+      : "";
+
+    const countBinds = rarity
+      ? [setCode, archetype.toUpperCase(), rarity]
+      : [setCode, archetype.toUpperCase()];
     const countResult = await db
       .prepare(
-        "SELECT COUNT(*) as cnt FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND archetype = ?2",
+        `SELECT COUNT(*) as cnt FROM mtga_draft_archetype_stats a${rarityJoin} WHERE a.set_code = ?1 AND a.archetype = ?2`,
       )
-      .bind(setCode, archetype.toUpperCase())
+      .bind(...countBinds)
+      .first<{ cnt: number }>();
+    total = countResult?.cnt ?? 0;
+
+    const queryBinds = rarity
+      ? [setCode, archetype.toUpperCase(), rarity, limit, offset]
+      : [setCode, archetype.toUpperCase(), limit, offset];
+    const limitParam = rarity ? "?4" : "?3";
+    const offsetParam = rarity ? "?5" : "?4";
+    const result = await db
+      .prepare(
+        `SELECT a.set_code, a.card_name, a.games_in_hand, a.games_played, a.games_not_seen, a.gihwr, a.ohwr, a.gdwr, a.gnswr, a.iwd, a.alsa, a.ata FROM mtga_draft_archetype_stats a${rarityJoin} WHERE a.set_code = ?1 AND a.archetype = ?2 ORDER BY a.${field} ${direction} LIMIT ${limitParam} OFFSET ${offsetParam}`,
+      )
+      .bind(...queryBinds)
+      .all<RatingRow>();
+    rows = result.results;
+  } else if (rarity) {
+    const countResult = await db
+      .prepare(
+        "SELECT COUNT(*) as cnt FROM mtga_draft_ratings r JOIN mtga_cards c ON c.front_face_name = r.card_name AND c.is_default = 1 AND c.rarity = ?2 WHERE r.set_code = ?1",
+      )
+      .bind(setCode, rarity)
       .first<{ cnt: number }>();
     total = countResult?.cnt ?? 0;
 
     const result = await db
       .prepare(
-        `SELECT set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata FROM mtga_draft_archetype_stats WHERE set_code = ?1 AND archetype = ?2 ORDER BY ${field} ${direction} LIMIT ?3 OFFSET ?4`,
+        `SELECT r.* FROM mtga_draft_ratings r JOIN mtga_cards c ON c.front_face_name = r.card_name AND c.is_default = 1 AND c.rarity = ?2 WHERE r.set_code = ?1 ORDER BY r.${field} ${direction} LIMIT ?3 OFFSET ?4`,
       )
-      .bind(setCode, archetype.toUpperCase(), limit, offset)
+      .bind(setCode, rarity, limit, offset)
       .all<RatingRow>();
     rows = result.results;
   } else {
@@ -336,6 +367,11 @@ export const cardStatsModule: NativeReferenceModule = {
       description:
         "Color pair filter for archetype-specific stats (e.g., 'UB').",
     },
+    rarity: {
+      type: "string",
+      description:
+        "Filter by card rarity: 'common', 'uncommon', 'rare', 'mythic'.",
+    },
     sort: {
       type: "string",
       description:
@@ -358,6 +394,8 @@ export const cardStatsModule: NativeReferenceModule = {
     const setCode = ((query.set as string) ?? "").toUpperCase();
     const card = (query.card as string) ?? "";
     const colors = ((query.colors as string) ?? "").toUpperCase();
+    const rawRarity = ((query.rarity as string) ?? "").toLowerCase();
+    const rarity = VALID_RARITIES.has(rawRarity) ? rawRarity : "";
     const sort = ((query.sort as string) ?? "").toLowerCase();
     const limit = Math.min(
       Math.max(
@@ -395,12 +433,13 @@ export const cardStatsModule: NativeReferenceModule = {
     if (card) {
       return cardDetail(env.DB, setCode, card, setStats);
     }
-    if (sort || limit !== DEFAULT_PAGE_SIZE || offset > 0) {
+    if (sort || rarity || limit !== DEFAULT_PAGE_SIZE || offset > 0) {
       return leaderboard(
         env.DB,
         setCode,
         sort,
         colors,
+        rarity,
         limit,
         offset,
         setStats,

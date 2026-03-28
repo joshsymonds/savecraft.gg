@@ -54,6 +54,71 @@ async function seedDraftData(): Promise<void> {
       `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "Gloomlake Verge", "BG", 2000, 3000, 1000, 0.52, 0.54, 0.5, 0.49, 0.01, 9, 10),
 
+    // Card metadata (rarity for card_stats filtering + mana/type data for draft_advisor)
+    env.DB.prepare(
+      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      1,
+      "oracle-1",
+      "Gloomlake Verge",
+      "Gloomlake Verge",
+      "{U}{B}",
+      2,
+      "Creature — Horror",
+      '["U","B"]',
+      "rare",
+      "DSK",
+      1,
+    ),
+    env.DB.prepare(
+      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      2,
+      "oracle-2",
+      "Blazing Bolt",
+      "Blazing Bolt",
+      "{R}",
+      1,
+      "Instant",
+      '["R"]',
+      "common",
+      "DSK",
+      1,
+    ),
+    env.DB.prepare(
+      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      3,
+      "oracle-3",
+      "Forest Bear",
+      "Forest Bear",
+      "{G}{G}",
+      2,
+      "Creature — Bear",
+      '["G"]',
+      "common",
+      "DSK",
+      1,
+    ),
+    env.DB.prepare(
+      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      10_001,
+      "oracle-4",
+      "Card A",
+      "Card A",
+      "{G}",
+      1,
+      "Creature",
+      '["G"]',
+      "uncommon",
+      "BLB",
+      1,
+    ),
+    env.DB.prepare(
+      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(10_002, "oracle-5", "Card B", "Card B", "{W}", 1, "Creature", '["W"]', "rare", "BLB", 1),
+
     // FTS5 rows for card name search
     env.DB.prepare("INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (?, ?)").bind(
       "DSK",
@@ -81,26 +146,6 @@ async function seedDraftData(): Promise<void> {
 async function seedContextualData(): Promise<void> {
   await seedDraftData();
   await env.DB.batch([
-    env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(
-      1,
-      "oracle-1",
-      "Gloomlake Verge",
-      "Gloomlake Verge",
-      "{U}{B}",
-      2,
-      "Creature — Horror",
-      '["U","B"]',
-      1,
-    ),
-    env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(2, "oracle-2", "Blazing Bolt", "Blazing Bolt", "{R}", 1, "Instant", '["R"]', 1),
-    env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(3, "oracle-3", "Forest Bear", "Forest Bear", "{G}{G}", 2, "Creature — Bear", '["G"]', 1),
-
     env.DB.prepare(
       `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "Blazing Bolt", "Gloomlake Verge", 0.05, 500),
@@ -284,6 +329,52 @@ describe("card_stats native module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
     const cards = result.data.cards as { card_name: string }[];
     expect(cards.some((c) => c.card_name === "Blazing Bolt")).toBe(true);
+  });
+
+  it("filters leaderboard by rarity", async () => {
+    await seedDraftData();
+    const result = await cardStatsModule.execute(
+      { set: "DSK", sort: "gihwr", rarity: "common" },
+      env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const cards = result.data.cards as { card_name: string }[];
+    // Only commons: Blazing Bolt and Forest Bear — not Gloomlake Verge (rare)
+    expect(cards.every((c) => c.card_name !== "Gloomlake Verge")).toBe(true);
+    expect(cards.some((c) => c.card_name === "Blazing Bolt")).toBe(true);
+    expect(cards.some((c) => c.card_name === "Forest Bear")).toBe(true);
+    expect(result.data.total).toBe(2);
+  });
+
+  it("filters leaderboard by rarity=rare excludes commons", async () => {
+    await seedDraftData();
+    const result = await cardStatsModule.execute(
+      { set: "DSK", sort: "gihwr", rarity: "rare" },
+      env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const cards = result.data.cards as { card_name: string }[];
+    expect(cards.some((c) => c.card_name === "Gloomlake Verge")).toBe(true);
+    expect(cards.every((c) => c.card_name !== "Blazing Bolt")).toBe(true);
+    expect(cards.every((c) => c.card_name !== "Forest Bear")).toBe(true);
+    expect(result.data.total).toBe(1);
+  });
+
+  it("filters leaderboard by archetype + rarity combined", async () => {
+    await seedDraftData();
+    const result = await cardStatsModule.execute(
+      { set: "DSK", sort: "gihwr", colors: "UB", rarity: "rare" },
+      env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    expect(result.data.archetype).toBe("UB");
+    const cards = result.data.cards as { card_name: string }[];
+    // Gloomlake Verge is rare and has UB archetype stats
+    expect(cards.some((c) => c.card_name === "Gloomlake Verge")).toBe(true);
+    expect(result.data.total).toBe(1);
   });
 
   it("filters leaderboard by color pair", async () => {
