@@ -13,6 +13,7 @@ Read the doc relevant to your current task. Start with `overview.md` for orienta
 - `docs/worker.md` — Cloudflare Worker: SourceHub + UserHub DOs, WebSocket protocol, D1 schemas (`worker/`)
 - `docs/mcp.md` — OAuth architecture, MCP tools, notes, search, AI interaction patterns (`worker/src/mcp/`)
 - `docs/views.md` — MCP Apps views: interactive UIs in host iframes, Svelte components, build pipeline (`views/`, `worker/src/mcp/views/`)
+- `docs/view-design.md` — View design guide: when to build a view vs website, interaction patterns, visual principles
 - `docs/plugins.md` — WASM plugin system, ndjson contract, signing, distribution (`plugins/`)
 - `docs/plugin-development.md` — Local plugin dev workflow: build, auto-reload, staging, troubleshooting
 - `docs/adapters.md` — API game adapters: server-side TypeScript modules for API-backed games (`worker/src/adapters/`)

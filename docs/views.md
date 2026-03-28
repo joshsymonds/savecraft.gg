@@ -2,6 +2,8 @@
 
 Interactive UIs rendered inside MCP host iframes (Claude, ChatGPT) alongside tool results, via the MCP Apps extension (SEP-1865). Views replace LLM-interpreted presentation hints with deterministic Svelte component rendering.
 
+For design guidance — when to build a view, interaction patterns, and visual principles — see `docs/view-design.md`.
+
 ## Why Views Exist
 
 Without views, tools return structured JSON and a text hint telling the LLM how to present it ("display as a card gallery..."). This is unreliable — the LLM may ignore the hint, render it inconsistently, or lose formatting across turns. Views render data deterministically in a sandboxed iframe controlled by the MCP host, using the same Svelte components every time.

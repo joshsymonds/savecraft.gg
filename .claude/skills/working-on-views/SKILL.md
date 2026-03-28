@@ -5,7 +5,8 @@ description: MCP Apps view development for Savecraft. Use when creating or modif
 
 # Working on Views
 
-Read `docs/views.md` for full architecture, response format, and constraints.
+Read `docs/views.md` for architecture, response format, and constraints.
+Read `docs/view-design.md` for when to build a view, interaction patterns, and visual principles.
 
 ## Verification
 
