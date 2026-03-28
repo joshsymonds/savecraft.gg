@@ -651,7 +651,15 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
         if (!VIEWS[slug]) return tool;
         return {
           ...tool,
-          _meta: { ...tool._meta, ui: { resourceUri: `ui://savecraft/${slug}.html` } },
+          _meta: {
+            ...tool._meta,
+            ui: {
+              resourceUri: `ui://savecraft/${slug}.html`,
+              csp: {
+                resourceDomains: ["fonts.googleapis.com", "fonts.gstatic.com"],
+              },
+            },
+          },
         };
       });
       return Promise.resolve(jsonRpcResponse(id, { tools: toolsWithUi }));

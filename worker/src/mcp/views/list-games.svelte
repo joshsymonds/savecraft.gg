@@ -1,4 +1,7 @@
 <script lang="ts">
+  import Panel from "../../../../views/src/components/layout/Panel.svelte";
+  import Section from "../../../../views/src/components/layout/Section.svelte";
+
   interface Game {
     game_id: string;
     game_name: string;
@@ -10,17 +13,18 @@
 
 <div class="game-library">
   {#each data.games as game}
-    <div class="game-card">
-      <h2 class="game-name">{game.game_name}</h2>
-      <ul class="save-list">
-        {#each game.saves as save}
-          <li class="save-item">
-            <span class="save-name">{save.save_name}</span>
-            <span class="save-summary">{save.summary}</span>
-          </li>
-        {/each}
-      </ul>
-    </div>
+    <Panel>
+      <Section title={game.game_name} count={game.saves.length}>
+        <ul class="save-list">
+          {#each game.saves as save}
+            <li class="save-item">
+              <span class="save-name">{save.save_name}</span>
+              <span class="save-summary">{save.summary}</span>
+            </li>
+          {/each}
+        </ul>
+      </Section>
+    </Panel>
   {/each}
 </div>
 
@@ -28,45 +32,41 @@
   .game-library {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 16px;
+    gap: var(--space-md);
+    padding: var(--space-lg);
     animation: fade-slide-in 0.3s ease-out;
-  }
-
-  .game-card {
-    background: var(--color-panel-bg);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 16px;
-  }
-
-  .game-name {
-    font-family: var(--font-heading);
-    font-size: 18px;
-    font-weight: 600;
-    color: var(--color-gold);
-    margin-bottom: 8px;
   }
 
   .save-list {
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 6px;
   }
 
   .save-item {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    padding: 4px 8px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.03);
+    padding: var(--space-xs);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 30%, transparent);
+  }
+
+  .save-item:last-child {
+    border-bottom: none;
+  }
+
+  .save-item:nth-child(even) {
+    background: color-mix(in srgb, var(--color-border) 8%, transparent);
+  }
+
+  .save-item:hover {
+    background: color-mix(in srgb, var(--color-border) 14%, transparent);
   }
 
   .save-name {
     font-family: var(--font-heading);
-    font-weight: 500;
+    font-size: 15px;
+    font-weight: 600;
     color: var(--color-text);
   }
 

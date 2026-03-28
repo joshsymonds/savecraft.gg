@@ -1,4 +1,9 @@
 <script lang="ts">
+  import Section from "../../../../views/src/components/layout/Section.svelte";
+  import CardGrid from "../../../../views/src/components/layout/CardGrid.svelte";
+  import Panel from "../../../../views/src/components/layout/Panel.svelte";
+  import Badge from "../../../../views/src/components/data/Badge.svelte";
+
   interface Card {
     name: string;
     manaCost: string;
@@ -8,77 +13,62 @@
   }
 
   let { data }: { data: { cards: Card[]; total: number } } = $props();
+
+  const rarityVariant: Record<string, string> = {
+    mythic: "legendary",
+    rare: "rare",
+    uncommon: "uncommon",
+    common: "common",
+  };
+
+  const rarityAccent: Record<string, string> = {
+    mythic: "var(--color-rarity-legendary)",
+    rare: "var(--color-rarity-rare)",
+    uncommon: "var(--color-rarity-uncommon)",
+    common: "var(--color-rarity-common)",
+  };
 </script>
 
 <div class="card-gallery">
-  <div class="header">
-    <span class="count">{data.total} card{data.total !== 1 ? "s" : ""} found</span>
-  </div>
-  <div class="grid">
-    {#each data.cards as card}
-      <div class="card" data-rarity={card.rarity}>
-        <div class="card-header">
-          <span class="card-name">{card.name}</span>
-          <span class="mana-cost">{card.manaCost}</span>
-        </div>
-        <div class="type-line">{card.typeLine}</div>
-        {#if card.oracleText}
-          <div class="oracle-text">{card.oracleText}</div>
-        {/if}
-      </div>
-    {/each}
-  </div>
+  <Panel>
+    <Section title="Card Search" count={data.total}>
+      <CardGrid>
+        {#each data.cards as card}
+          <Panel nested accent={rarityAccent[card.rarity]} padding="var(--space-md)">
+            <div class="card-header">
+              <span class="card-name">{card.name}</span>
+              <span class="mana-cost">{card.manaCost}</span>
+            </div>
+            <div class="card-meta">
+              <span class="type-line">{card.typeLine}</span>
+              <Badge label={card.rarity} variant={rarityVariant[card.rarity] ?? "muted"} />
+            </div>
+            {#if card.oracleText}
+              <div class="oracle-text">{card.oracleText}</div>
+            {/if}
+          </Panel>
+        {/each}
+      </CardGrid>
+    </Section>
+  </Panel>
 </div>
 
 <style>
   .card-gallery {
-    padding: 16px;
+    padding: var(--space-lg);
     animation: fade-slide-in 0.3s ease-out;
   }
-
-  .header {
-    margin-bottom: 12px;
-  }
-
-  .count {
-    font-family: var(--font-pixel);
-    font-size: 10px;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-  }
-
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 10px;
-  }
-
-  .card {
-    background: var(--color-panel-bg);
-    border: 1px solid var(--color-border);
-    border-radius: 8px;
-    padding: 12px;
-    transition: border-color 0.15s;
-  }
-
-  .card:hover {
-    border-color: var(--color-border-light);
-  }
-
-  .card[data-rarity="mythic"] { border-left: 3px solid var(--color-red); }
-  .card[data-rarity="rare"] { border-left: 3px solid var(--color-gold); }
-  .card[data-rarity="uncommon"] { border-left: 3px solid #c0c0c0; }
 
   .card-header {
     display: flex;
     justify-content: space-between;
     align-items: baseline;
-    margin-bottom: 4px;
+    margin-bottom: var(--space-xs);
   }
 
   .card-name {
     font-family: var(--font-heading);
+    font-size: 15px;
     font-weight: 600;
     color: var(--color-text);
   }
@@ -89,11 +79,17 @@
     color: var(--color-text-dim);
   }
 
+  .card-meta {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    margin-bottom: var(--space-sm);
+  }
+
   .type-line {
     font-family: var(--font-body);
     font-size: 13px;
     color: var(--color-text-muted);
-    margin-bottom: 6px;
   }
 
   .oracle-text {
