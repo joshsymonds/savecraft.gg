@@ -166,6 +166,12 @@ savecraft/
 │   │   └── savecraft.wxs
 │   └── worker/                  # Cloudflare Worker (UA-based install router)
 │       └── src/index.ts
+├── views/                       # MCP Apps view build infra + Storybook (port 6007)
+│   ├── .storybook/              # Storybook config (globs worker/ + plugins/)
+│   ├── scripts/build.ts         # Build script → worker/src/mcp/views.gen.ts
+│   └── src/
+│       ├── bridge.ts            # @modelcontextprotocol/ext-apps App class bridge
+│       └── view.css             # Design system tokens
 ├── web/                         # SvelteKit frontend: source status, settings, notes
 ├── go.mod
 └── go.sum

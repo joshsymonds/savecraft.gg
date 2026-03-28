@@ -18,9 +18,13 @@ just test-worker   # MCP tests are part of the Worker test suite
 
 **No SDK.** The MCP server is hand-rolled JSON-RPC 2.0 in `src/mcp/handler.ts`. The official `@modelcontextprotocol/sdk` depends on ajv/express/hono (CJS, incompatible with workerd). The Cloudflare `agents` SDK's `createMcpHandler` ignores the `env` parameter so tools can't access D1/R2 bindings.
 
-**Tool functions are pure.** Every tool in `src/mcp/tools.ts` takes `(db, snapshots, userUuid)` and returns a `ToolResult`. No side effects, no request objects, testable without the MCP protocol layer.
+**Tool functions are pure.** Every tool in `src/mcp/tools.ts` takes `(db, snapshots, userUuid)` and returns a `ToolResult` or `ViewToolResult`. No side effects, no request objects, testable without the MCP protocol layer.
 
-**Protocol version:** `2025-11-25`. Transport: Streamable HTTP (POST + JSON responses, not SSE).
+**Two response formats.** `textResult(data, presentation?)` for tools without views (legacy, being migrated). `viewResult(structuredContent, narrative)` for tools with MCP Apps views — returns `{ structuredContent, content }` where the view widget renders `structuredContent` and the model uses `content` for its response. See `docs/views.md` and the `working-on-views` skill.
+
+**MCP Apps extension.** Server declares `extensions: { "io.modelcontextprotocol/ui": {} }` in the initialize response. Handler auto-wires `_meta.ui.resourceUri` on tool definitions from `views.gen.ts`.
+
+**Protocol version:** `2025-06-18`. Transport: Streamable HTTP (POST + JSON responses, not SSE).
 
 ## OAuth Architecture
 
