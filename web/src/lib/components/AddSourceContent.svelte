@@ -413,7 +413,6 @@
     font-size: 14px;
   }
 
-
   /* -- Command block ---------------------------------------- */
 
   .command-block {
