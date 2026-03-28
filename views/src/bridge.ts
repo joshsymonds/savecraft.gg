@@ -1,74 +1,65 @@
-/**
- * MCP Apps postMessage bridge.
- *
- * Listens for ui/notifications/tool-result messages from the MCP host,
- * extracts structuredContent and _meta, then either:
- * - Loads _meta.viewScript as a blob URL script (reference views)
- * - Calls the provided render callback (self-contained game state views)
- */
+// MCP Apps bridge — wraps @modelcontextprotocol/ext-apps App class.
+//
+// Handles the ui/initialize handshake, receives tool results, and either:
+// - Calls a render callback (self-contained game state views)
+// - Loads _meta.viewScript as an inline script (reference shell)
 
-export interface WidgetData {
+import { App } from "@modelcontextprotocol/ext-apps";
+import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
+
+export interface ViewData {
   structuredContent: Record<string, unknown>;
   _meta?: Record<string, unknown>;
 }
 
-type RenderCallback = (data: WidgetData) => void;
+type RenderCallback = (data: ViewData) => void;
 
 /**
- * Initialize the bridge. Call once from the widget entry point.
+ * Initialize the MCP Apps bridge. Call once from the view entry point.
  *
- * For self-contained widgets (game state views), pass a render callback.
- * The callback receives the structured data and can mount the appropriate component.
- *
- * For the reference shell, call with no arguments — the bridge will look for
- * _meta.viewScript and load it via blob URL. The loaded script reads
- * window.__VIEW_DATA__ to get the structured content.
+ * For self-contained views (game state), pass a render callback.
+ * For the reference shell, call with no arguments — the bridge loads
+ * _meta.viewScript via inline script injection.
  */
 export function initBridge(onRender?: RenderCallback): void {
-  window.addEventListener(
-    "message",
-    (event: MessageEvent) => {
-      if (event.source !== window.parent) return;
+  const app = new App({ name: "savecraft-view", version: "1.0.0" });
 
-      const message = event.data;
-      if (!message || message.jsonrpc !== "2.0") return;
-      if (message.method !== "ui/notifications/tool-result") return;
+  app.ontoolresult = (result: CallToolResult) => {
+    const structuredContent = (result.structuredContent ?? {}) as Record<string, unknown>;
+    const _meta = (result._meta ?? undefined) as Record<string, unknown> | undefined;
 
-      const { structuredContent, _meta } = message.params ?? {};
-      if (!structuredContent) return;
+    // Reference shell mode: load viewScript via inline script injection
+    const viewScript = _meta?.viewScript;
+    if (typeof viewScript === "string" && viewScript.length > 0) {
+      loadViewScript(structuredContent, viewScript);
+      return;
+    }
 
-      const data: WidgetData = { structuredContent, _meta };
+    // Self-contained view mode: call render callback
+    if (onRender) {
+      onRender({ structuredContent, _meta });
+    }
+  };
 
-      // Reference shell mode: load viewScript via blob URL
-      const viewScript = _meta?.viewScript;
-      if (typeof viewScript === "string" && viewScript.length > 0) {
-        loadViewScript(structuredContent, viewScript);
-        return;
-      }
+  app.onerror = (error) => {
+    console.error("[savecraft-view]", error);
+  };
 
-      // Self-contained widget mode: call render callback
-      if (onRender) {
-        onRender(data);
-      }
-    },
-    { passive: true },
-  );
+  app.connect();
 }
 
 /**
  * Load a view's compiled JS as an inline script.
  * Sets window.__VIEW_DATA__ so the view script can read it synchronously.
  *
- * Uses inline script injection (allowed by MCP Apps default CSP: script-src 'unsafe-inline')
+ * Uses inline script injection (allowed by MCP Apps CSP: script-src 'unsafe-inline')
  * rather than blob URLs (which are NOT in the default CSP script-src).
  */
 function loadViewScript(
   structuredContent: Record<string, unknown>,
   scriptSource: string,
 ): void {
-  // Make data available to the view script before it executes
-  (window as unknown as Record<string, unknown>).__VIEW_DATA__ =
-    structuredContent;
+  (window as unknown as Record<string, unknown>).__VIEW_DATA__ = structuredContent;
 
   const script = document.createElement("script");
   script.textContent = scriptSource;
