@@ -15,15 +15,19 @@
     game: PickerGame;
     onclick?: () => void;
   } = $props();
+
+  function getIconVariant(g: PickerGame): "api" | "workshop" | "default" {
+    if (g.isApiGame) return "api";
+    if (g.workshopUrl) return "workshop";
+    return "default";
+  }
+
+  const iconVariant = $derived(getIconVariant(game));
 </script>
 
 <button class="picker-card" class:watched={game.watched} {onclick}>
   <div class="picker-left">
-    <GameIcon
-      iconUrl={game.iconUrl}
-      name={game.name}
-      variant={game.isApiGame ? "api" : (game.workshopUrl ? "workshop" : "default")}
-    />
+    <GameIcon iconUrl={game.iconUrl} name={game.name} variant={iconVariant} />
     <div class="picker-info">
       <span class="picker-name">{game.name}</span>
       <span class="picker-desc">{game.description}</span>

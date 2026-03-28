@@ -38,7 +38,6 @@
     onclose: () => void;
   } = $props();
 
-
   type ModalStep = "browsing" | "selectSource" | "selectRegion" | "configuring" | "workshopInstall";
 
   let step: ModalStep = $state("browsing");
@@ -192,6 +191,7 @@
           <p class="workshop-step-desc">
             Subscribe to the Savecraft mod on Steam Workshop. It will download automatically.
           </p>
+          <!-- eslint-disable svelte/no-navigation-without-resolve -- external link to Steam Workshop -->
           <a
             class="workshop-button"
             href={configGame?.workshopUrl}
@@ -200,6 +200,7 @@
           >
             Open Steam Workshop
           </a>
+          <!-- eslint-enable svelte/no-navigation-without-resolve -->
         </div>
       </div>
 
@@ -208,8 +209,8 @@
         <div class="workshop-step-content">
           <span class="workshop-step-title">Enable & play</span>
           <p class="workshop-step-desc">
-            Enable the mod in {configGame?.name}'s mod list and start or load a game.
-            The mod registers automatically on first load.
+            Enable the mod in {configGame?.name}'s mod list and start or load a game. The mod
+            registers automatically on first load.
           </p>
         </div>
       </div>
@@ -218,9 +219,7 @@
         <span class="workshop-step-number">3</span>
         <div class="workshop-step-content">
           <span class="workshop-step-title">Pair</span>
-          <p class="workshop-step-desc">
-            A link code appears as an in-game letter. Enter it here:
-          </p>
+          <p class="workshop-step-desc">A link code appears as an in-game letter. Enter it here:</p>
           <PairingCodeInput onsubmit={onpair} />
           <p class="workshop-step-hint">
             You can also find the code in Options &rarr; Mod Settings &rarr; Savecraft.
@@ -546,7 +545,6 @@
     background: rgba(198, 212, 223, 0.22);
     border-color: rgba(198, 212, 223, 0.4);
   }
-
 
   /* Region selection */
 

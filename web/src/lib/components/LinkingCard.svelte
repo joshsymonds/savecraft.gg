@@ -33,7 +33,6 @@
     linking: "#e8c44e40",
     error: "#e85a5a40",
   };
-
 </script>
 
 <div class="linking-card">
@@ -46,7 +45,7 @@
       </WindowTitleBar>
       <div class="input-content">
         <span class="input-label">Enter the 6-digit pairing code</span>
-        <PairingCodeInput onsubmit={onsubmit} buttonLabel="LINK" />
+        <PairingCodeInput {onsubmit} buttonLabel="LINK" />
       </div>
     {:else if cardState === "linking"}
       <WindowTitleBar activeIcon="🔗" activeLabel="PAIRING" activeSublabel="Code {displayCode}">
@@ -96,7 +95,6 @@
     font-size: 18px;
     color: var(--color-text-muted);
   }
-
 
   /* -- Linking content ---------------------------------------- */
 
