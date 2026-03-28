@@ -48,11 +48,16 @@ When working with tool results, write down any important information you might n
 const RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 
 /** Build resource list from discovered views. */
-function buildResourceList(): { uri: string; name: string; mimeType: string }[] {
+const VIEW_CSP = {
+  resourceDomains: ["https://fonts.googleapis.com", "https://fonts.gstatic.com"],
+};
+
+function buildResourceList() {
   return Object.keys(VIEWS).map((slug) => ({
     uri: `ui://savecraft/${slug}.html`,
     name: slug,
     mimeType: RESOURCE_MIME_TYPE,
+    _meta: { ui: { csp: VIEW_CSP } },
   }));
 }
 
@@ -655,9 +660,7 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
             ...tool._meta,
             ui: {
               resourceUri: `ui://savecraft/${slug}.html`,
-              csp: {
-                resourceDomains: ["https://fonts.googleapis.com", "https://fonts.gstatic.com"],
-              },
+              csp: VIEW_CSP,
             },
           },
         };
@@ -680,7 +683,14 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
       }
       return Promise.resolve(
         jsonRpcResponse(id, {
-          contents: [{ uri, mimeType: RESOURCE_MIME_TYPE, text: html }],
+          contents: [
+            {
+              uri,
+              mimeType: RESOURCE_MIME_TYPE,
+              text: html,
+              _meta: { ui: { csp: VIEW_CSP } },
+            },
+          ],
         }),
       );
     }
