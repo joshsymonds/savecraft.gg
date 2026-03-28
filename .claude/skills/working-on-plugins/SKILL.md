@@ -113,6 +113,19 @@ Section descriptions are the AI's guide for when to fetch a section. Write them 
 | WoW | `character_overview` | None (API data is bounded) | `worker/src/adapters/wow/` |
 | SDV | `player_summary` | None (data is naturally bounded) | `plugins/sdv/parser/main.go` |
 
+## Attribution (Required)
+
+Every plugin must declare an `[attribution]` section in `plugin.toml` listing the third-party IP sources whose data it uses. The build pipeline reads this to embed legal disclaimers in views.
+
+```toml
+[attribution]
+sources = ["wotc", "scryfall", "17lands"]
+```
+
+Valid source keys are defined in `views/src/attributions.ts`: `wotc`, `scryfall`, `17lands`, `blizzard`, `raiderio`, `ludeon`, `concernedape`, `kepler`. To add a new source, add it to the `SOURCES` record in that file first.
+
+The build fails if `[attribution]` is missing or uses an unknown key.
+
 ## Checklist for New Plugins
 
 - [ ] Overview section name matches `OVERVIEW_SECTION_NAMES`
@@ -121,4 +134,5 @@ Section descriptions are the AI's guide for when to fetch a section. Write them 
 - [ ] Large collections use per-item sections with index in overview
 - [ ] Section descriptions are AI-directive (when/why to fetch)
 - [ ] Section data is always a JSON object (not array, string, or scalar)
+- [ ] `[attribution]` declared in `plugin.toml` with valid source keys
 - [ ] Tested with a real save file — measure actual section sizes

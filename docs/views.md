@@ -124,6 +124,16 @@ Run `just build-views` after:
 
 The generated file (`views.gen.ts`) is committed to the repo. CI does not rebuild it — you must rebuild locally before pushing.
 
+### Attribution Injection
+
+The build pipeline reads `[attribution].sources` from each plugin's `plugin.toml` and resolves them against shared presets in `views/src/attributions.ts`. The resolved attribution array is embedded as `window.__ATTRIBUTION__` in each compiled view's HTML.
+
+- **Game state views** (like `list-games`) aggregate attribution from all plugins
+- **Reference views** get attribution from their parent plugin only
+- **Build fails** if any plugin lacks `[attribution]` or references an unknown source key
+
+The `Attribution.svelte` component reads `window.__ATTRIBUTION__` and renders a collapsed legal footer at the bottom of every view. Collapsed state shows source names; clicking expands to full disclaimer text with policy links.
+
 ## Handler Wiring
 
 The handler auto-discovers views from `views.gen.ts`:
@@ -265,6 +275,8 @@ views/                              # Build infra + Storybook
   scripts/build.ts                  # Build script → views.gen.ts
   src/bridge.ts                     # App class bridge (ontoolresult)
   src/view.css                      # Design system tokens
+  src/attributions.ts               # Attribution presets registry
+  src/Attribution.svelte            # Collapsed legal footer component
   package.json                      # Svelte, Vite, ext-apps, Storybook deps
   vite.config.ts                    # Vite config (used by Storybook)
 

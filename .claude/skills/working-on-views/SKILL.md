@@ -127,6 +127,18 @@ _meta: {
 
 The handler imports `VIEWS` from `views.gen.ts` and auto-wires `resources/list`, `resources/read`, and `_meta.ui.resourceUri` on `tools/list`.
 
+## Attribution
+
+Every view includes a collapsed legal footer rendered by `views/src/Attribution.svelte`. This is **automatic** — view authors don't need to do anything.
+
+**How it works:** The build pipeline reads `[attribution].sources` from each plugin's `plugin.toml`, resolves source keys against shared presets in `views/src/attributions.ts`, and embeds the result as `window.__ATTRIBUTION__` in the compiled HTML. The Attribution component reads this global and renders a collapsed `▸ Legal · Source1 · Source2` footer that expands to show full disclaimers on click.
+
+- **Game state views** aggregate attribution from ALL plugins (they span multiple games)
+- **Reference views** get attribution from their parent plugin only
+- **Build fails** if any plugin is missing `[attribution]` or uses an unknown source key
+
+To add a new attribution source: add it to `SOURCES` in `views/src/attributions.ts`, then reference it from plugin.toml.
+
 ## Svelte 5 Component Pattern
 
 ```svelte
@@ -180,6 +192,8 @@ The handler imports `VIEWS` from `views.gen.ts` and auto-wires `resources/list`,
 ```
 views/src/bridge.ts                    # App class bridge (do not reimplement)
 views/src/view.css                     # Design system tokens
+views/src/attributions.ts              # Attribution presets registry
+views/src/Attribution.svelte           # Collapsed legal footer component
 views/scripts/build.ts                 # Build → views.gen.ts
 views/.storybook/                      # Storybook config (port 6007)
 worker/src/mcp/views.gen.ts            # GENERATED — VIEWS record (commit this)

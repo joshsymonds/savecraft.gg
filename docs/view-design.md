@@ -211,6 +211,8 @@ These constraints come from the MCP Apps iframe sandbox, not from Savecraft. The
 
 **All assets must be inlined into a single HTML file.** The host injects the full HTML into the sandbox iframe — it doesn't load a URL. External font loading requires declaring CDN domains in `resourceDomains` — for v1, use system font fallbacks via CSS custom properties until font CSP is validated per-host.
 
+**Attribution is automatic.** Every view includes a collapsed legal footer showing required disclaimers from game publishers and data providers. This is handled by the build pipeline and `Attribution.svelte` — view authors do not need to add attribution manually. The build reads `[attribution].sources` from each plugin's `plugin.toml` and embeds resolved legal text in the compiled HTML.
+
 **Resources are cached at connection time.** Claude and ChatGPT cache all resources when the MCP server is first connected. Changing view HTML requires disconnecting and reconnecting. Claude Code supports `list_changed` notifications for dynamic updates. This is expected — views are static templates, all dynamic data flows through `structuredContent`.
 
 **Claude and ChatGPT are the only hosts with full MCP Apps support.** VS Code Copilot supports views in the chat panel but is limited to code-centric workflows. Gemini does not support views at all — tool results are text-only. Always design the text fallback path.
