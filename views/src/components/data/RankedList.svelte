@@ -4,6 +4,7 @@
   Used for draft picks, top cards, cut candidates, drop tables.
 -->
 <script lang="ts">
+  import { slide } from "svelte/transition";
   import Badge from "./Badge.svelte";
 
   type Variant = "positive" | "negative" | "highlight" | "info" | "warning" | "muted";
@@ -35,8 +36,8 @@
 </script>
 
 <div class="ranked-list">
-  {#each items as item, i}
-    <div class="ranked-item" style:animation-delay="{i * 60}ms">
+  {#each items as item, i (item.label)}
+    <div class="ranked-item" transition:slide={{ duration: 200 }} style:animation-delay="{i * 60}ms">
       <span class="rank">{item.rank}</span>
       <div class="info">
         <span class="label">{item.label}</span>
