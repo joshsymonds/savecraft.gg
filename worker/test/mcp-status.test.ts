@@ -38,7 +38,7 @@ describe("MCP Status", () => {
   it("returns connected: true after initialize", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test", version: "1.0" },
       }),

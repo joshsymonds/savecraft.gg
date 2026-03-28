@@ -104,7 +104,7 @@ describe("MCP Auth", () => {
         id: 1,
         method: "initialize",
         params: {
-          protocolVersion: "2025-11-25",
+          protocolVersion: "2025-06-18",
           capabilities: {},
           clientInfo: { name: "test", version: "1.0" },
         },
@@ -133,7 +133,7 @@ describe("MCP Auth", () => {
         id: 1,
         method: "initialize",
         params: {
-          protocolVersion: "2025-11-25",
+          protocolVersion: "2025-06-18",
           capabilities: {},
           clientInfo: { name: "test", version: "1.0" },
         },
@@ -154,7 +154,7 @@ describe("MCP Auth", () => {
         id: 1,
         method: "initialize",
         params: {
-          protocolVersion: "2025-11-25",
+          protocolVersion: "2025-06-18",
           capabilities: {},
           clientInfo: { name: "test", version: "1.0" },
         },
@@ -184,7 +184,7 @@ describe("MCP Subdomain Routing", () => {
           id: 1,
           method: "initialize",
           params: {
-            protocolVersion: "2025-11-25",
+            protocolVersion: "2025-06-18",
             capabilities: {},
             clientInfo: { name: "test", version: "1.0" },
           },
@@ -234,7 +234,7 @@ describe("MCP Subdomain Routing", () => {
           id: 1,
           method: "initialize",
           params: {
-            protocolVersion: "2025-11-25",
+            protocolVersion: "2025-06-18",
             capabilities: {},
             clientInfo: { name: "test", version: "1.0" },
           },

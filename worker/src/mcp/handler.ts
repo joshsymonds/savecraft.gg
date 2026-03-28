@@ -28,7 +28,7 @@ import {
 import type { ToolResult, ViewToolResult } from "./tools";
 import { VIEW_HTML, VIEW_SCRIPTS, VIEW_SHELL } from "./views.gen.js";
 
-const PROTOCOL_VERSION = "2025-11-25";
+const PROTOCOL_VERSION = "2025-06-18";
 
 const SERVER_INSTRUCTIONS = `Savecraft gives you access to the player's actual game state — characters, gear, progress, and goals — parsed from real save files. You are their gaming companion.
 
@@ -649,6 +649,9 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
           capabilities: {
             tools: { listChanged: false },
             resources: { listChanged: false },
+            extensions: {
+              "io.modelcontextprotocol/ui": {},
+            },
           },
           serverInfo: { name: "savecraft", version: env.VERSION ?? "dev" },
           instructions: SERVER_INSTRUCTIONS,

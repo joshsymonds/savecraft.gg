@@ -91,7 +91,7 @@ describe("MCP Protocol", () => {
   it("handles initialize handshake", async () => {
     const resp = await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -120,7 +120,7 @@ describe("MCP Protocol", () => {
     // JSON-RPC success (initialize)
     const initResp = await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -140,7 +140,7 @@ describe("MCP Protocol", () => {
     // Initialize first
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -155,7 +155,7 @@ describe("MCP Protocol", () => {
     // Initialize first
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -187,7 +187,7 @@ describe("MCP Protocol", () => {
     // Initialize
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -228,7 +228,7 @@ describe("MCP Protocol", () => {
     // Initialize
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -270,7 +270,7 @@ describe("MCP Protocol", () => {
           id: 1,
           method: "initialize",
           params: {
-            protocolVersion: "2025-11-25",
+            protocolVersion: "2025-06-18",
             capabilities: {},
             clientInfo: { name: "test", version: "1.0" },
           },
@@ -298,7 +298,7 @@ describe("MCP Protocol", () => {
 
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -352,7 +352,7 @@ describe("MCP Protocol", () => {
 
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -383,7 +383,7 @@ describe("MCP Protocol", () => {
   it("query_reference returns per-query errors for unknown game", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -412,7 +412,7 @@ describe("MCP Protocol", () => {
   it("query_reference rejects empty queries array", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -440,7 +440,7 @@ describe("MCP Protocol", () => {
   it("query_reference rejects too many queries", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -478,7 +478,7 @@ describe("MCP Protocol", () => {
 
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
@@ -575,7 +575,7 @@ describe("MCP Protocol", () => {
 
     await SELF.fetch(
       mcpRequest("initialize", 1, {
-        protocolVersion: "2025-11-25",
+        protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: { name: "test-client", version: "1.0.0" },
       }),
