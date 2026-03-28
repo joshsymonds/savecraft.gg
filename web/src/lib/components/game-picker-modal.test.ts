@@ -29,6 +29,14 @@ function makeCatalog(): PickerGame[] {
       saveCount: 0,
     },
     {
+      gameId: "rimworld",
+      name: "RimWorld",
+      description: "In-game mod pushes full colony state on save",
+      watched: false,
+      saveCount: 0,
+      workshopUrl: "https://steamcommunity.com/sharedfiles/filedetails/?id=3693580596",
+    },
+    {
       gameId: "wow",
       name: "World of Warcraft",
       description: "Character profiles via Battle.net API",
@@ -244,6 +252,67 @@ describe("GamePickerModal", () => {
     });
     await userEvent.click(screen.getByText("World of Warcraft"));
     expect(screen.getByText("SELECT REGION")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("←"));
+    expect(screen.getByText("ADD A GAME")).toBeInTheDocument();
+  });
+
+  // -- Workshop mod flow --
+
+  it("shows workshop install step when clicking unwatched workshop game", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("RimWorld"));
+    expect(screen.getByText("INSTALL MOD")).toBeInTheDocument();
+    expect(screen.getByText("Subscribe")).toBeInTheDocument();
+    expect(screen.getByText("Enable & play")).toBeInTheDocument();
+    expect(screen.getByText("Pair")).toBeInTheDocument();
+  });
+
+  it("workshop panel links to Steam Workshop URL", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("RimWorld"));
+    const link = screen.getByText("Open Steam Workshop") as HTMLAnchorElement;
+    expect(link.href).toBe("https://steamcommunity.com/sharedfiles/filedetails/?id=3693580596");
+    expect(link.target).toBe("_blank");
+  });
+
+  it("workshop panel shows mod settings hint", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("RimWorld"));
+    expect(screen.getByText(/Mod Settings/)).toBeInTheDocument();
+  });
+
+  it("calls onpair when pairing code submitted in workshop flow", async () => {
+    const onpair = vi.fn();
+    const { container } = render(GamePickerModal, {
+      props: { games: makeCatalog(), onpair, onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("RimWorld"));
+    const input = container.querySelector<HTMLInputElement>(".hidden-input")!;
+    await userEvent.type(input, "ABC123");
+    expect(onpair).toHaveBeenCalledWith("ABC123");
+  });
+
+  it("does not require configurable sources for workshop games", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), configurableSources: [], onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("RimWorld"));
+    expect(screen.queryByText(/No configurable source/)).not.toBeInTheDocument();
+    expect(screen.getByText("INSTALL MOD")).toBeInTheDocument();
+  });
+
+  it("back from workshop install returns to game list", async () => {
+    render(GamePickerModal, {
+      props: { games: makeCatalog(), onclose: vi.fn() },
+    });
+    await userEvent.click(screen.getByText("RimWorld"));
+    expect(screen.getByText("INSTALL MOD")).toBeInTheDocument();
     await userEvent.click(screen.getByText("←"));
     expect(screen.getByText("ADD A GAME")).toBeInTheDocument();
   });

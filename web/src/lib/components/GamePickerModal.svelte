@@ -466,7 +466,6 @@
     padding: 18px;
     display: flex;
     flex-direction: column;
-    gap: 0;
   }
 
   .workshop-step {
