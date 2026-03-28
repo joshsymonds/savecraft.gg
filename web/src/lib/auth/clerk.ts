@@ -55,6 +55,11 @@ const SAVECRAFT_APPEARANCE = {
     userButtonPopoverFooter: {
       display: "none",
     },
+    alternativeMethodsBlockButton: {
+      color: "#e8e0d0",
+      background: "rgba(74, 90, 173, 0.25)",
+      border: "1px solid rgba(74, 90, 173, 0.4)",
+    },
     otpCodeFieldInput: {
       color: "#e8e0d0",
       background: "#05071a",
