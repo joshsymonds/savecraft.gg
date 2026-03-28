@@ -214,8 +214,8 @@ MCP Apps iframes run in a **fully isolated sandbox** with all external resources
     "ui": {
       "resourceUri": "ui://savecraft/list-games.html",
       "csp": {
-        "connectDomains": ["api.savecraft.gg"],
-        "resourceDomains": ["fonts.googleapis.com", "fonts.gstatic.com"],
+        "connectDomains": ["https://api.savecraft.gg"],
+        "resourceDomains": ["https://fonts.googleapis.com", "https://fonts.gstatic.com"],
         "frameDomains": [],
         "baseUriDomains": []
       }

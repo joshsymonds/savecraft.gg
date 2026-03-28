@@ -656,7 +656,7 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
             ui: {
               resourceUri: `ui://savecraft/${slug}.html`,
               csp: {
-                resourceDomains: ["fonts.googleapis.com", "fonts.gstatic.com"],
+                resourceDomains: ["https://fonts.googleapis.com", "https://fonts.gstatic.com"],
               },
             },
           },
