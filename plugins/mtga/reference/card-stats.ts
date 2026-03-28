@@ -253,7 +253,7 @@ async function leaderboard(
 
   if (archetype) {
     const rarityJoin = rarity
-      ? " JOIN mtga_cards c ON c.front_face_name = a.card_name AND c.is_default = 1 AND c.rarity = ?3"
+      ? " JOIN mtga_cards c ON c.front_face_name = a.card_name AND c.is_default = 1 AND c.rarity = ?3 AND c.type_line NOT LIKE 'Basic Land%'"
       : "";
 
     const countBinds = rarity
@@ -282,7 +282,7 @@ async function leaderboard(
   } else if (rarity) {
     const countResult = await db
       .prepare(
-        "SELECT COUNT(*) as cnt FROM mtga_draft_ratings r JOIN mtga_cards c ON c.front_face_name = r.card_name AND c.is_default = 1 AND c.rarity = ?2 WHERE r.set_code = ?1",
+        "SELECT COUNT(*) as cnt FROM mtga_draft_ratings r JOIN mtga_cards c ON c.front_face_name = r.card_name AND c.is_default = 1 AND c.rarity = ?2 AND c.type_line NOT LIKE 'Basic Land%' WHERE r.set_code = ?1",
       )
       .bind(setCode, rarity)
       .first<{ cnt: number }>();
@@ -290,7 +290,7 @@ async function leaderboard(
 
     const result = await db
       .prepare(
-        `SELECT r.* FROM mtga_draft_ratings r JOIN mtga_cards c ON c.front_face_name = r.card_name AND c.is_default = 1 AND c.rarity = ?2 WHERE r.set_code = ?1 ORDER BY r.${field} ${direction} LIMIT ?3 OFFSET ?4`,
+        `SELECT r.* FROM mtga_draft_ratings r JOIN mtga_cards c ON c.front_face_name = r.card_name AND c.is_default = 1 AND c.rarity = ?2 AND c.type_line NOT LIKE 'Basic Land%' WHERE r.set_code = ?1 ORDER BY r.${field} ${direction} LIMIT ?3 OFFSET ?4`,
       )
       .bind(setCode, rarity, limit, offset)
       .all<RatingRow>();
