@@ -119,6 +119,30 @@ async function seedDraftData(): Promise<void> {
       `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(10_002, "oracle-5", "Card B", "Card B", "{W}", 1, "Creature", '["W"]', "rare", "BLB", 1),
 
+    // Basic land (common rarity, high GIH WR — should be excluded from rarity-filtered leaderboards)
+    env.DB.prepare(
+      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(
+      10_003,
+      "oracle-6",
+      "Forest",
+      "Forest",
+      "",
+      0,
+      "Basic Land — Forest",
+      "[]",
+      "common",
+      "DSK",
+      1,
+    ),
+    env.DB.prepare(
+      `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind("DSK", "Forest", 50_000, 60_000, 10_000, 0.62, 0.61, 0.63, 0.5, 0.12, 12, 13),
+    env.DB.prepare("INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (?, ?)").bind(
+      "DSK",
+      "Forest",
+    ),
+
     // FTS5 rows for card name search
     env.DB.prepare("INSERT INTO mtga_draft_ratings_fts (set_code, card_name) VALUES (?, ?)").bind(
       "DSK",
@@ -344,6 +368,21 @@ describe("card_stats native module", () => {
     expect(cards.every((c) => c.card_name !== "Gloomlake Verge")).toBe(true);
     expect(cards.some((c) => c.card_name === "Blazing Bolt")).toBe(true);
     expect(cards.some((c) => c.card_name === "Forest Bear")).toBe(true);
+    expect(result.data.total).toBe(2);
+  });
+
+  it("excludes basic lands from rarity-filtered leaderboard", async () => {
+    await seedDraftData();
+    const result = await cardStatsModule.execute(
+      { set: "DSK", sort: "gihwr", rarity: "common" },
+      env,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    const cards = result.data.cards as { card_name: string }[];
+    // Forest (Basic Land) has highest GIH WR but should be excluded
+    expect(cards.every((c) => c.card_name !== "Forest")).toBe(true);
+    expect(cards.some((c) => c.card_name === "Blazing Bolt")).toBe(true);
     expect(result.data.total).toBe(2);
   });
 
