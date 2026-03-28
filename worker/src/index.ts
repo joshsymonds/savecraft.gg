@@ -171,6 +171,13 @@ export default {
       });
     }
 
+    // OpenAI domain verification challenge
+    if (url.pathname === "/.well-known/openai-apps-challenge") {
+      return new Response("G_PFERZevsKtNT-Sv17lo9kaFYrc2LfpuD4gRUinW-Y", {
+        headers: { "Content-Type": "text/plain" },
+      });
+    }
+
     // Rewrite MCP subdomain root to /mcp so the library's apiRoute matches
     if (mcpHost && url.pathname === "/") {
       const rewritten = new URL(request.url);
