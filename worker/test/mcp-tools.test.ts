@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import type { ToolResult } from "../src/mcp/tools";
+import type { ToolResult, ViewToolResult } from "../src/mcp/tools";
 import {
   createNote,
   deleteNote,
@@ -9,11 +9,13 @@ import {
   getNote,
   getSave,
   getSection,
+  getViewScript,
   indexSaveSections,
   listGames,
   refreshSave,
   searchSaves,
   updateNote,
+  viewResult,
 } from "../src/mcp/tools";
 
 import { cleanAll } from "./helpers";
@@ -105,7 +107,12 @@ async function seedSave(options: {
   }
 }
 
-function parseResult(result: ToolResult): unknown {
+function parseResult(result: ToolResult | ViewToolResult): unknown {
+  // ViewToolResult: structuredContent is the data directly
+  if ("structuredContent" in result) {
+    return result.structuredContent;
+  }
+  // ToolResult: data is JSON-stringified in content blocks
   // Content blocks: [directive?, data, reminder?]. Data is at index 1 when sandwich exists, 0 otherwise.
   const dataBlock = result.content.length > 1 ? result.content[1] : result.content[0];
   if (!dataBlock) throw new Error("Expected text content");
@@ -308,6 +315,62 @@ describe("MCP Tools", () => {
       const data = parseResult(result) as { games: GameEntry[] };
       const stardew = data.games.find((g) => g.game_id === "stardew")!;
       expect(stardew.references).toBeUndefined();
+    });
+  });
+
+  // ── viewResult format ──────────────────────────────────────
+
+  describe("viewResult", () => {
+    it("returns structuredContent alongside content", () => {
+      const result = viewResult({ foo: "bar" }, "Some narrative.");
+      expect(result.structuredContent).toEqual({ foo: "bar" });
+      expect(result.content).toEqual([{ type: "text", text: "Some narrative." }]);
+      expect(result._meta).toBeUndefined();
+    });
+
+    it("includes _meta when provided", () => {
+      const result = viewResult({ foo: "bar" }, "Narrative.", { viewScript: "console.log(1)" });
+      expect(result._meta).toEqual({ viewScript: "console.log(1)" });
+    });
+
+    it("omits _meta key entirely when not provided", () => {
+      const result = viewResult({ foo: "bar" }, "Narrative.");
+      expect("_meta" in result).toBe(false);
+    });
+  });
+
+  describe("getViewScript", () => {
+    it("returns undefined for unknown module", () => {
+      expect(getViewScript("nonexistent_module")).toBeUndefined();
+    });
+
+    it("returns a string for a known module", () => {
+      const script = getViewScript("card_search");
+      // card_search view exists in plugins/mtga/reference/views/
+      expect(script).toBeDefined();
+      expect(typeof script).toBe("string");
+      expect(script!.length).toBeGreaterThan(0);
+    });
+  });
+
+  describe("listGames returns ViewToolResult", () => {
+    it("returns structuredContent with games array", async () => {
+      await seedSave({
+        saveUuid: "save-view",
+        userUuid: USER_A,
+        gameId: "d2r",
+        gameName: "Diablo II: Resurrected",
+        saveName: "Hammerdin",
+        summary: "Level 89 Paladin",
+      });
+
+      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      expect("structuredContent" in result).toBe(true);
+
+      const viewResult = result as ViewToolResult;
+      expect(viewResult.structuredContent).toHaveProperty("games");
+      expect(viewResult.content).toHaveLength(1);
+      expect(viewResult.content[0]!.text).toMatch(/Player has 1 game/);
     });
   });
 

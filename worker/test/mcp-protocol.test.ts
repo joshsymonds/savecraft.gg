@@ -48,8 +48,12 @@ async function parseJsonResponse(resp: Response): Promise<unknown> {
   throw new Error(`Unexpected content type: ${contentType}`);
 }
 
-/** Parse JSON data from a tool result content array (data is in the last text block). */
-function parseToolContent(content: { type: string; text: string }[]): unknown {
+/** Parse data from a tool result — handles both ToolResult (JSON in text) and ViewToolResult (structuredContent). */
+function parseToolResult(result: Record<string, unknown>): unknown {
+  if ("structuredContent" in result) {
+    return result.structuredContent;
+  }
+  const content = result.content as { type: string; text: string }[];
   // Content blocks: [directive?, data, reminder?]. Data is at index 1 when sandwich exists, 0 otherwise.
   const dataBlock = content.length > 1 ? content[1] : content[0];
   if (!dataBlock) throw new Error("Expected content blocks");
@@ -110,7 +114,6 @@ describe("MCP Protocol", () => {
     expect(body.result.serverInfo).toEqual({ name: "savecraft", version: "dev" });
     expect(body.result.capabilities).toBeDefined();
     expect(body.result.instructions).toContain("gaming companion");
-    expect(body.result.instructions).toContain("ALWAYS use rich visualizations");
   });
 
   it("includes Content-Security-Policy header on all response types", async () => {
@@ -199,9 +202,13 @@ describe("MCP Protocol", () => {
     expect(resp.status).toBe(200);
 
     const body = (await parseJsonResponse(resp)) as {
-      result: { content: { type: string; text: string }[] };
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+        structuredContent?: unknown;
+      };
     };
-    const data = parseToolContent(body.result.content) as {
+    const data = parseToolResult(body.result) as {
       games: {
         game_id: string;
         game_name: string;
@@ -239,11 +246,15 @@ describe("MCP Protocol", () => {
     expect(resp.status).toBe(200);
 
     const body = (await parseJsonResponse(resp)) as {
-      result: { content: { type: string; text: string }[]; isError?: boolean };
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+        structuredContent?: unknown;
+      };
     };
     expect(body.result.isError).toBeUndefined();
 
-    const data = parseToolContent(body.result.content) as {
+    const data = parseToolResult(body.result) as {
       data: { helmet: { name: string } };
     };
     expect(data.data.helmet.name).toBe("Harlequin Crest");
@@ -302,11 +313,15 @@ describe("MCP Protocol", () => {
     expect(resp.status).toBe(200);
 
     const body = (await parseJsonResponse(resp)) as {
-      result: { content: { type: string; text: string }[]; isError?: boolean };
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+        structuredContent?: unknown;
+      };
     };
     expect(body.result.isError).toBeUndefined();
 
-    const data = parseToolContent(body.result.content) as {
+    const data = parseToolResult(body.result) as {
       games: {
         game_id: string;
         references?: { id: string; name: string }[];
@@ -352,9 +367,13 @@ describe("MCP Protocol", () => {
     expect(resp.status).toBe(200);
 
     const body = (await parseJsonResponse(resp)) as {
-      result: { content: { type: string; text: string }[] };
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+        structuredContent?: unknown;
+      };
     };
-    const data = parseToolContent(body.result.content) as {
+    const data = parseToolResult(body.result) as {
       games: { game_id: string }[];
     };
     expect(data.games).toHaveLength(1);
@@ -379,15 +398,15 @@ describe("MCP Protocol", () => {
     expect(resp.status).toBe(200);
 
     const body = (await parseJsonResponse(resp)) as {
-      result: { content: { type: string; text: string }[]; isError?: boolean };
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+        structuredContent?: unknown;
+      };
     };
-    // Batch always succeeds at the top level — errors are per-query
-    expect(body.result.isError).toBeFalsy();
-    const data = parseToolContent(body.result.content) as {
-      results: { error?: string }[];
-    };
-    expect(data.results).toHaveLength(1);
-    expect(data.results[0]!.error).toContain("No reference module found");
+    // Single-query errors are surfaced directly
+    expect(body.result.isError).toBe(true);
+    expect(body.result.content![0]!.text).toContain("No reference module found");
   });
 
   it("query_reference rejects empty queries array", async () => {
@@ -408,10 +427,14 @@ describe("MCP Protocol", () => {
     expect(resp.status).toBe(200);
 
     const body = (await parseJsonResponse(resp)) as {
-      result: { content: { type: string; text: string }[]; isError?: boolean };
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+        structuredContent?: unknown;
+      };
     };
     expect(body.result.isError).toBe(true);
-    expect(body.result.content[0]!.text).toContain("non-empty array");
+    expect(body.result.content![0]!.text).toContain("non-empty array");
   });
 
   it("query_reference rejects too many queries", async () => {
@@ -433,10 +456,14 @@ describe("MCP Protocol", () => {
     expect(resp.status).toBe(200);
 
     const body = (await parseJsonResponse(resp)) as {
-      result: { content: { type: string; text: string }[]; isError?: boolean };
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+        structuredContent?: unknown;
+      };
     };
     expect(body.result.isError).toBe(true);
-    expect(body.result.content[0]!.text).toContain("maximum 50");
+    expect(body.result.content![0]!.text).toContain("maximum 50");
   });
 
   it("query_reference returns positional results with mixed success and failure", async () => {
@@ -471,11 +498,15 @@ describe("MCP Protocol", () => {
     expect(resp.status).toBe(200);
 
     const body = (await parseJsonResponse(resp)) as {
-      result: { content: { type: string; text: string }[]; isError?: boolean };
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+        structuredContent?: unknown;
+      };
     };
     // Batch succeeds at top level
     expect(body.result.isError).toBeFalsy();
-    const data = parseToolContent(body.result.content) as {
+    const data = parseToolResult(body.result) as {
       results: ({ echo?: { greeting: string } } | { error?: string })[];
     };
     expect(data.results).toHaveLength(2);
@@ -509,10 +540,14 @@ describe("MCP Protocol", () => {
       }),
     );
     const mixedBody = (await parseJsonResponse(mixedResp)) as {
-      result: { content: { type: string; text: string }[]; isError?: boolean };
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+        structuredContent?: unknown;
+      };
     };
     expect(mixedBody.result.isError).toBeFalsy();
-    const mixedData = JSON.parse(mixedBody.result.content[0]!.text) as {
+    const mixedData = parseToolResult(mixedBody.result) as {
       results: { error?: string }[];
     };
     expect(mixedData.results).toHaveLength(2);
@@ -559,26 +594,21 @@ describe("MCP Protocol", () => {
     expect(resp.status).toBe(200);
 
     const body = (await parseJsonResponse(resp)) as {
-      result: { content: { type: string; text: string }[] };
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+        structuredContent?: unknown;
+      };
     };
 
-    // Should have three content blocks: directive + data + reminder (sandwich)
-    expect(body.result.content.length).toBe(3);
+    // Structured results now use ViewToolResult — data in structuredContent, no sandwich
+    expect(body.result.structuredContent).toBeDefined();
+    const data = body.result.structuredContent as { score?: number; card?: string };
+    expect(data.score).toBe(42);
+    expect(data.card).toBe("Lightning Bolt");
 
-    // First block: the imperative visualization directive
-    expect(body.result.content[0]!.text).toContain("IMPORTANT: Create an artifact");
-    expect(body.result.content[0]!.text).toContain("ranked table with bar indicators");
-
-    // Middle block: the actual data
-    const data = JSON.parse(body.result.content[1]!.text) as {
-      results: { score?: number; card?: string }[];
-    };
-    expect(data.results).toHaveLength(1);
-    expect(data.results[0]!.score).toBe(42);
-    expect(data.results[0]!.card).toBe("Lightning Bolt");
-
-    // Last block: the reminder
-    expect(body.result.content[2]!.text).toContain("REMINDER");
+    // Content is a concise narrative, not a presentation hint
+    expect(body.result.content).toHaveLength(1);
 
     clearNativeRegistry();
   });

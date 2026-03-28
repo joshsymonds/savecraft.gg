@@ -1,0 +1,22 @@
+{
+  "name": "savecraft-views",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "storybook": "storybook dev -p 6007",
+    "storybook:build": "storybook build"
+  },
+  "devDependencies": {
+    "@storybook/addon-svelte-csf": "^5.0.11",
+    "@storybook/svelte": "^10.2.13",
+    "@storybook/sveltekit": "^10.2.13",
+    "@sveltejs/vite-plugin-svelte": "^5.0.0",
+    "@types/node": "^25.5.0",
+    "storybook": "^10.2.13",
+    "svelte": "^5.33.0",
+    "tsx": "^4.21.0",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5"
+  }
+}

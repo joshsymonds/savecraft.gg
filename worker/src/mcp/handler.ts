@@ -17,14 +17,16 @@ import {
   getNote,
   getSave,
   getSection,
+  getViewScript,
   listGames,
   queryReference,
   refreshSave,
   searchSaves,
   updateNote,
-  VIZ_REMINDER,
+  viewResult,
 } from "./tools";
-import type { ToolResult } from "./tools";
+import type { ToolResult, ViewToolResult } from "./tools";
+import { VIEW_HTML, VIEW_SCRIPTS, VIEW_SHELL } from "./views.gen.js";
 
 const PROTOCOL_VERSION = "2025-11-25";
 
@@ -44,9 +46,37 @@ Spoiler-free by default: Ground your responses in what the save data contains â€
 
 When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`;
 
-const PRESENTATION_INSTRUCTIONS = `ALWAYS use rich visualizations when directed to make the data look beautiful and approachable. When tool results include visualization directives (an IMPORTANT block before the data and a REMINDER block after), ALWAYS comply and render them to the best of your capabilities. Create an artifact that implements the directive faithfully, then weave your analysis around and below the artifact.
+const RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 
-When no visualization directive is present, use your judgment: tables for lists and comparisons, charts for trends and distributions, radar charts for multi-axis evaluations, heatmaps for matchup data.`;
+/** Build resource list from discovered widgets + reference shell. */
+function buildResourceList(): { uri: string; name: string; mimeType: string }[] {
+  const resources: { uri: string; name: string; mimeType: string }[] = [];
+  for (const key of Object.keys(VIEW_HTML)) {
+    resources.push({
+      uri: `ui://savecraft/${key}.html`,
+      name: key,
+      mimeType: RESOURCE_MIME_TYPE,
+    });
+  }
+  if (Object.keys(VIEW_SCRIPTS).length > 0) {
+    resources.push({
+      uri: "ui://savecraft/reference.html",
+      name: "reference",
+      mimeType: RESOURCE_MIME_TYPE,
+    });
+  }
+  return resources;
+}
+
+/** Look up resource HTML by URI. */
+function readResource(uri: string): string | undefined {
+  const prefix = "ui://savecraft/";
+  const suffix = ".html";
+  if (!uri.startsWith(prefix) || !uri.endsWith(suffix)) return undefined;
+  const key = uri.slice(prefix.length, -suffix.length);
+  if (key === "reference") return VIEW_SHELL;
+  return VIEW_HTML[key];
+}
 
 interface JsonRpcRequest {
   jsonrpc: string;
@@ -79,6 +109,7 @@ interface ToolDefinition {
     required?: string[];
   };
   annotations: ToolAnnotations;
+  _meta?: Record<string, unknown>;
 }
 
 // Tool descriptions are optimized for two-stage discovery:
@@ -498,11 +529,27 @@ function handleGetInfo(
 
 const MAX_BATCH_QUERIES = 50;
 
+/** Extract data from a tool result, handling both ViewToolResult and ToolResult. */
+function extractResultData(result: ToolResult | ViewToolResult): unknown {
+  if (result.isError) {
+    return { error: result.content[0]?.text ?? "Unknown error" };
+  }
+  if ("structuredContent" in result) {
+    return result.structuredContent;
+  }
+  const dataBlock = result.content.length > 1 ? result.content[1] : result.content[0];
+  try {
+    return JSON.parse(dataBlock?.text ?? "null") as unknown;
+  } catch {
+    return dataBlock?.text ?? null;
+  }
+}
+
 async function handleQueryReference(
   env: Env,
   userUuid: string,
   args: Record<string, unknown>,
-): Promise<ToolResult> {
+): Promise<ToolResult | ViewToolResult> {
   const queries = args.queries;
   if (!Array.isArray(queries) || queries.length === 0) {
     return {
@@ -554,39 +601,37 @@ async function handleQueryReference(
     }),
   );
 
-  // Collect visualization directive from the first query result (if present).
-  // The directive is in a separate content block before the data block.
-  let vizDirective: string | undefined;
+  const results = responses.map((outcome) =>
+    outcome.status === "rejected"
+      ? { error: String(outcome.reason) }
+      : extractResultData(outcome.value),
+  );
 
-  const results = responses.map((outcome) => {
-    if (outcome.status === "rejected") {
-      return { error: String(outcome.reason) };
-    }
-    const result = outcome.value;
-    if (result.isError) {
-      return { error: result.content[0]?.text ?? "Unknown error" };
-    }
-    // Content blocks: [directive?, data, reminder?]. Data is at index 1 when sandwich exists, 0 otherwise.
-    const dataBlock = result.content.length > 1 ? result.content[1] : result.content[0];
-    if (!vizDirective && result.content.length > 1) {
-      vizDirective = result.content[0]?.text;
-    }
-    try {
-      return JSON.parse(dataBlock?.text ?? "null") as unknown;
-    } catch {
-      return dataBlock?.text ?? null;
-    }
-  });
+  // Look up compiled view script for this module
+  const viewScript = getViewScript(moduleId);
 
-  const content: { type: "text"; text: string }[] = [];
-  if (vizDirective) {
-    content.push({ type: "text", text: vizDirective });
+  const meta = viewScript ? { viewScript } : undefined;
+
+  // Single-query shortcut: unwrap the array
+  if (results.length === 1) {
+    const data = results[0] as Record<string, unknown>;
+    if ("error" in data) {
+      return { content: [{ type: "text", text: String(data.error) }], isError: true };
+    }
+    const first = responses[0];
+    const narrative =
+      first?.status === "fulfilled" && "content" in first.value
+        ? (first.value.content[0]?.text ?? `Reference data for ${moduleId}.`)
+        : `Reference data for ${moduleId}.`;
+    return viewResult(data, narrative, meta);
   }
-  content.push({ type: "text", text: JSON.stringify({ results }) });
-  if (vizDirective) {
-    content.push({ type: "text", text: VIZ_REMINDER });
-  }
-  return { content };
+
+  // Multi-query: wrap in { results } array
+  return viewResult(
+    { results },
+    `${String(results.length)} reference query results for ${moduleId}.`,
+    meta,
+  );
 }
 
 function parseRpc(request: Request): Promise<JsonRpcRequest> {
@@ -601,9 +646,12 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
       return Promise.resolve(
         jsonRpcResponse(id, {
           protocolVersion: PROTOCOL_VERSION,
-          capabilities: { tools: { listChanged: false } },
+          capabilities: {
+            tools: { listChanged: false },
+            resources: { listChanged: false },
+          },
           serverInfo: { name: "savecraft", version: env.VERSION ?? "dev" },
-          instructions: `${SERVER_INSTRUCTIONS}\n\n${PRESENTATION_INSTRUCTIONS}`,
+          instructions: SERVER_INSTRUCTIONS,
         }),
       );
     }
@@ -613,7 +661,43 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
     }
 
     case "tools/list": {
-      return Promise.resolve(jsonRpcResponse(id, { tools: TOOLS }));
+      const toolsWithUi = TOOLS.map((tool) => {
+        const key = tool.name.replaceAll("_", "-");
+        if (VIEW_HTML[key]) {
+          return {
+            ...tool,
+            _meta: { ...tool._meta, ui: { resourceUri: `ui://savecraft/${key}.html` } },
+          };
+        }
+        if (tool.name === "query_reference" && Object.keys(VIEW_SCRIPTS).length > 0) {
+          return {
+            ...tool,
+            _meta: { ...tool._meta, ui: { resourceUri: "ui://savecraft/reference.html" } },
+          };
+        }
+        return tool;
+      });
+      return Promise.resolve(jsonRpcResponse(id, { tools: toolsWithUi }));
+    }
+
+    case "resources/list": {
+      return Promise.resolve(jsonRpcResponse(id, { resources: buildResourceList() }));
+    }
+
+    case "resources/read": {
+      const uri = rpc.params?.uri as string | undefined;
+      if (!uri) {
+        return Promise.resolve(jsonRpcError(id, -32_602, "Missing uri parameter"));
+      }
+      const html = readResource(uri);
+      if (!html) {
+        return Promise.resolve(jsonRpcError(id, -32_602, `Resource not found: ${uri}`));
+      }
+      return Promise.resolve(
+        jsonRpcResponse(id, {
+          contents: [{ uri, mimeType: RESOURCE_MIME_TYPE, text: html }],
+        }),
+      );
     }
 
     case "tools/call": {

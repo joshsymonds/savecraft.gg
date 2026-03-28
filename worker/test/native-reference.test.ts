@@ -127,8 +127,10 @@ describe("queryReference native routing", () => {
     );
 
     expect(result.isError).toBeFalsy();
-    const parsed = JSON.parse(result.content[0]!.text) as Record<string, unknown>;
-    expect(parsed).toEqual({ cards: ["Lightning Bolt"], count: 1 });
+    // Structured results return ViewToolResult with structuredContent
+    expect("structuredContent" in result).toBe(true);
+    const viewRes = result as unknown as { structuredContent: Record<string, unknown> };
+    expect(viewRes.structuredContent).toEqual({ cards: ["Lightning Bolt"], count: 1 });
   });
 
   it("returns error when native module throws", async () => {
@@ -188,12 +190,15 @@ describe("queryReference native routing", () => {
     );
 
     expect(result.isError).toBeFalsy();
-    // Sandwich: directive + data + reminder
-    expect(result.content).toHaveLength(3);
-    expect(result.content[0]!.text).toContain("IMPORTANT: Create an artifact");
-    expect(result.content[0]!.text).toContain("Bar chart comparing win rates");
-    expect(result.content[1]!.text).toContain('"win_rate":0.58');
-    expect(result.content[2]!.text).toContain("REMINDER");
+    // Structured results now return ViewToolResult — presentation hints are gone
+    expect("structuredContent" in result).toBe(true);
+    const viewRes = result as unknown as {
+      structuredContent: Record<string, unknown>;
+      content: { text: string }[];
+    };
+    expect(viewRes.structuredContent).toEqual({ win_rate: 0.58, matches: 42 });
+    // Content is a concise narrative, not a presentation hint
+    expect(viewRes.content).toHaveLength(1);
   });
 
   it("passes through presentation hint from formatted result", async () => {
@@ -242,9 +247,10 @@ describe("queryReference native routing", () => {
     const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "no_viz", {}, env);
 
     expect(result.isError).toBeFalsy();
-    // No presentation → single content block with just the data
-    expect(result.content).toHaveLength(1);
-    expect(JSON.parse(result.content[0]!.text)).toEqual({ cards: ["Bolt"] });
+    // Structured results return ViewToolResult with structuredContent
+    expect("structuredContent" in result).toBe(true);
+    const viewRes = result as unknown as { structuredContent: Record<string, unknown> };
+    expect(viewRes.structuredContent).toEqual({ cards: ["Bolt"] });
   });
 
   it("falls through when game has native modules but not the requested one", async () => {

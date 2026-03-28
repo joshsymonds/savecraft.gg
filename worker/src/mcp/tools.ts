@@ -12,9 +12,19 @@ import type { NativeReferenceModule } from "../reference/types";
 import { storePush } from "../store";
 import type { Env } from "../types";
 
+import { VIEW_SCRIPTS } from "./views.gen.js";
+
 /** MCP tool result — matches the MCP spec's ToolResult shape. */
 export interface ToolResult {
   content: { type: "text"; text: string }[];
+  isError?: boolean;
+}
+
+/** MCP Apps tool result — includes structuredContent for view rendering. */
+export interface ViewToolResult {
+  structuredContent: Record<string, unknown>;
+  content: { type: "text"; text: string }[];
+  _meta?: Record<string, unknown>;
   isError?: boolean;
 }
 
@@ -56,6 +66,23 @@ function textResult(data: unknown, presentation?: string): ToolResult {
     content.push({ type: "text", text: VIZ_REMINDER });
   }
   return { content };
+}
+
+/** Get a compiled view script for a reference module, if one exists. */
+export function getViewScript(moduleId: string): string | undefined {
+  return VIEW_SCRIPTS[moduleId];
+}
+
+export function viewResult(
+  structuredContent: Record<string, unknown>,
+  narrative: string,
+  meta?: Record<string, unknown>,
+): ViewToolResult {
+  return {
+    structuredContent,
+    content: [{ type: "text", text: narrative }],
+    ...(meta ? { _meta: meta } : {}),
+  };
 }
 
 function errorResult(message: string): ToolResult {
@@ -334,9 +361,9 @@ export async function listGames(
       `No games matching "${filter}". Try without a filter to see all available games.`,
     );
   }
-  return textResult(
+  return viewResult(
     { games },
-    "Game library — display as character cards or tiles grouped by game, each showing character name, summary line, and last updated. If one game with multiple characters, show as a roster. Keep it scannable and inviting.",
+    `Player has ${String(games.length)} game${games.length === 1 ? "" : "s"} with saves.`,
   );
 }
 
@@ -1017,10 +1044,11 @@ async function executeNativeModule(
   nativeModule: NativeReferenceModule,
   query: Record<string, unknown>,
   env: Env,
-): Promise<ToolResult> {
+): Promise<ToolResult | ViewToolResult> {
   try {
     const result = await nativeModule.execute(query, env);
     if (result.type === "formatted") {
+      // Formatted results are pre-rendered text — keep as ToolResult for now
       const content: { type: "text"; text: string }[] = [];
       if (result.presentation) {
         content.push({
@@ -1034,12 +1062,36 @@ async function executeNativeModule(
       }
       return { content };
     }
-    return textResult(result.data, result.presentation);
+    // Structured results → ViewToolResult (view rendering via _meta.viewScript)
+    return viewResult(result.data, summarizeStructuredResult(nativeModule.id, result.data));
   } catch (error) {
     return errorResult(
       `Reference module error: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
+}
+
+function plural(n: number): string {
+  return n === 1 ? "" : "s";
+}
+
+/** Generate a concise narrative for a structured reference result. */
+function summarizeStructuredResult(moduleId: string, data: Record<string, unknown>): string {
+  const cards = data.cards;
+  if (Array.isArray(cards)) {
+    return `Found ${String(cards.length)} card${plural(cards.length)}.`;
+  }
+  const missing = data.missing;
+  if (Array.isArray(missing)) {
+    const cost = data.wildcardCost as Record<string, number> | undefined;
+    const base = `Missing ${String(missing.length)} card${plural(missing.length)}`;
+    return cost ? `${base} (${String(cost.total ?? 0)} wildcards needed).` : `${base}.`;
+  }
+  const recommendations = data.recommendations;
+  if (Array.isArray(recommendations)) {
+    return `${String(recommendations.length)} pick recommendation${plural(recommendations.length)}.`;
+  }
+  return `Reference data for ${moduleId}.`;
 }
 
 export async function queryReference(
