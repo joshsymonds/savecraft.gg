@@ -37,6 +37,8 @@ func main() {
 	switch module {
 	case "recipe_lookup":
 		handleRecipeLookup(enc, query)
+	case "ratio_calculator":
+		handleRatioCalculator(enc, query)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -79,6 +81,18 @@ func schema() map[string]any {
 					"product": map[string]any{"type": "string", "description": "Find all recipes that produce this item (e.g. 'plastic-bar')"},
 					"machine": map[string]any{"type": "string", "description": "Look up a crafting machine's stats and categories (e.g. 'assembling-machine-3')"},
 					"tech":    map[string]any{"type": "string", "description": "Look up a technology's prerequisites, costs, and unlocked recipes (e.g. 'advanced-oil-processing')"},
+				},
+			},
+			"ratio_calculator": map[string]any{
+				"name":        "Production Ratio Calculator",
+				"description": "Compute the full production dependency tree for a target item and rate, including machine counts, belt requirements, and raw material totals.",
+				"parameters": map[string]any{
+					"target_item":    map[string]any{"type": "string", "description": "Item to produce (e.g. 'electronic-circuit')", "required": true},
+					"target_rate":    map[string]any{"type": "number", "description": "Target production rate in items per minute", "default": 60},
+					"assembler_tier": map[string]any{"type": "string", "description": "Preferred assembler (e.g. 'assembling-machine-3')", "default": "assembling-machine-2"},
+					"modules":        map[string]any{"type": "array", "description": "Module names in machine slots (e.g. ['productivity-module-3', 'productivity-module-3'])"},
+					"beacon_count":   map[string]any{"type": "integer", "description": "Number of beacons affecting each machine", "default": 0},
+					"beacon_modules": map[string]any{"type": "array", "description": "Module names in each beacon (e.g. ['speed-module-3', 'speed-module-3'])"},
 				},
 			},
 		},
