@@ -18,8 +18,8 @@ import (
 )
 
 var (
-	inputPath  = ".reference/factorio-data-raw-dump.json"
-	outputDir  = "plugins/factorio/reference/data"
+	inputPath = ".reference/factorio-data-raw-dump.json"
+	outputDir = "plugins/factorio/reference/data"
 )
 
 func main() {
@@ -205,11 +205,11 @@ func genRecipes(dump map[string]map[string]json.RawMessage) error {
 // ─── Technologies ────────────────────────────────────────────────────────────
 
 type rawTechnology struct {
-	Name          string            `json:"name"`
-	Prerequisites []string          `json:"prerequisites"`
-	Unit          rawTechUnit       `json:"unit"`
-	Effects       []rawTechEffect   `json:"effects"`
-	MaxLevel      any               `json:"max_level"`
+	Name          string          `json:"name"`
+	Prerequisites []string        `json:"prerequisites"`
+	Unit          rawTechUnit     `json:"unit"`
+	Effects       []rawTechEffect `json:"effects"`
+	MaxLevel      any             `json:"max_level"`
 }
 
 type rawTechUnit struct {
@@ -422,7 +422,7 @@ type rawBeacon struct {
 	Name                    string  `json:"name"`
 	DistributionEffectivity float64 `json:"distribution_effectivity"`
 	ModuleSlots             int     `json:"module_slots"`
-	SupplyAreaDistance       float64 `json:"supply_area_distance"`
+	SupplyAreaDistance      float64 `json:"supply_area_distance"`
 	EnergyUsage             string  `json:"energy_usage"`
 }
 
