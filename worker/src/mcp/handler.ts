@@ -680,9 +680,9 @@ async function handleQueryReference(
     );
   }
 
-  // Multi-query: wrap in { results } array
+  // Multi-query: wrap in { results } array with explicit discriminator
   return viewResult(
-    { module: moduleId, ...(iconUrl ? { icon_url: iconUrl } : {}), results },
+    { module: moduleId, _multiQuery: true, ...(iconUrl ? { icon_url: iconUrl } : {}), results },
     `${String(results.length)} reference query results for ${moduleId}.`,
   );
 }

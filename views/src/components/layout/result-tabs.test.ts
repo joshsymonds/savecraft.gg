@@ -1,5 +1,5 @@
 import { cleanup, render, fireEvent } from "@testing-library/svelte";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import ResultTabs from "./ResultTabs.svelte";
 
@@ -47,6 +47,19 @@ describe("ResultTabs", () => {
       props: { tabs: [{ label: "A" }, { label: "B" }] },
     });
     expect(container.querySelector(".tab-bar")).toBeTruthy();
+  });
+
+  it("fires onchange with index when tab is clicked", async () => {
+    const onChange = vi.fn();
+    const { container } = render(ResultTabs, {
+      props: { tabs: [{ label: "A" }, { label: "B" }, { label: "C" }], onchange: onChange },
+    });
+    const buttons = container.querySelectorAll(".tab-button");
+    await fireEvent.click(buttons[2]);
+    expect(onChange).toHaveBeenCalledWith(2);
+    await fireEvent.click(buttons[0]);
+    expect(onChange).toHaveBeenCalledWith(0);
+    expect(onChange).toHaveBeenCalledTimes(2);
   });
 
   it("renders nothing for empty tabs", () => {
