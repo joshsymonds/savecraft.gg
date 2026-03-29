@@ -57,4 +57,17 @@ describe("Panel", () => {
     const panel = container.querySelector(".panel") as HTMLElement;
     expect(panel.classList.contains("nested")).toBe(false);
   });
+
+  it("renders watermark img when watermark prop provided", () => {
+    const { container } = render(Panel, { props: { watermark: "https://example.com/icon.png" } });
+    const img = container.querySelector(".panel-watermark") as HTMLImageElement;
+    expect(img).toBeTruthy();
+    expect(img.src).toBe("https://example.com/icon.png");
+    expect(img.getAttribute("aria-hidden")).toBe("true");
+  });
+
+  it("does not render watermark when prop absent", () => {
+    const { container } = render(Panel);
+    expect(container.querySelector(".panel-watermark")).toBeNull();
+  });
 });

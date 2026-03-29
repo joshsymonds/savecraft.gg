@@ -16,11 +16,13 @@
     nested?: boolean;
     /** Compact variant for grid cards — no corners, lighter shadow, smaller padding */
     compact?: boolean;
+    /** Optional game icon URL rendered as a subtle watermark in the lower-right */
+    watermark?: string;
     /** Slot content */
     children?: Snippet;
   }
 
-  let { accent, padding, nested = false, compact = false, children }: Props = $props();
+  let { accent, padding, nested = false, compact = false, watermark, children }: Props = $props();
 
   let borderColor = $derived(accent ?? "var(--color-border)");
   let cornerColor = $derived(accent ?? "var(--color-border-light)");
@@ -39,6 +41,9 @@
     <div class="corner top-right"></div>
     <div class="corner bottom-left"></div>
     <div class="corner bottom-right"></div>
+  {/if}
+  {#if watermark}
+    <img class="panel-watermark" src={watermark} alt="" aria-hidden="true" />
   {/if}
   {@render children?.()}
 </div>
@@ -113,5 +118,17 @@
     right: -1px;
     border-bottom: 2px solid var(--panel-corner);
     border-right: 2px solid var(--panel-corner);
+  }
+
+  .panel-watermark {
+    position: absolute;
+    bottom: 8px;
+    right: 8px;
+    width: 48px;
+    height: 48px;
+    object-fit: contain;
+    opacity: 0.15;
+    pointer-events: none;
+    z-index: 0;
   }
 </style>
