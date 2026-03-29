@@ -136,7 +136,6 @@
 
 html,
 body {
-  height: 100%;
   /* Transparent so the host's native background (Claude/ChatGPT) shows through.
      Savecraft identity comes from Panel/card components, not the page background.
      Falls back to host's bg variable if provided, otherwise fully transparent. */
