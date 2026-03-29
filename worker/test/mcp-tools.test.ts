@@ -1401,7 +1401,7 @@ describe("MCP Tools", () => {
       await seedAdapterSource({ sourceUuid: "adapter-guide", userUuid: USER_A });
       await env.PLUGINS.put(
         "plugins/wow/manifest.json",
-        JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
+        JSON.stringify({ game_id: "wow", name: "World of Warcraft", sources: ["api"] }),
       );
 
       const result = await getInfo(env, USER_A, "setup");
@@ -1435,7 +1435,7 @@ describe("MCP Tools", () => {
       await seedAdapterSource({ sourceUuid: "adapter-both", userUuid: USER_A });
       await env.PLUGINS.put(
         "plugins/wow/manifest.json",
-        JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
+        JSON.stringify({ game_id: "wow", name: "World of Warcraft", sources: ["api"] }),
       );
 
       const result = await getInfo(env, USER_A, "setup");
@@ -1448,7 +1448,7 @@ describe("MCP Tools", () => {
     it("includes both guides when user has no sources", async () => {
       await env.PLUGINS.put(
         "plugins/wow/manifest.json",
-        JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
+        JSON.stringify({ game_id: "wow", name: "World of Warcraft", sources: ["api"] }),
       );
 
       const result = await getInfo(env, USER_A, "setup");
@@ -1462,7 +1462,7 @@ describe("MCP Tools", () => {
       await seedAdapterSource({ sourceUuid: "adapter-list", userUuid: USER_A });
       await env.PLUGINS.put(
         "plugins/wow/manifest.json",
-        JSON.stringify({ game_id: "wow", name: "World of Warcraft", source: "api" }),
+        JSON.stringify({ game_id: "wow", name: "World of Warcraft", sources: ["api"] }),
       );
 
       const result = await getInfo(env, USER_A, "setup");
@@ -1666,7 +1666,7 @@ describe("MCP Tools", () => {
         JSON.stringify({
           game_id: "d2r",
           name: "Diablo II: Resurrected",
-          source: "wasm",
+          sources: ["wasm"],
           description: "Parses D2R save files",
           channel: "beta",
           coverage: "partial",
@@ -1678,7 +1678,7 @@ describe("MCP Tools", () => {
         JSON.stringify({
           game_id: "wow",
           name: "World of Warcraft",
-          source: "api",
+          sources: ["api"],
           description: "Battle.net API integration",
           channel: "beta",
           coverage: "partial",
@@ -1689,7 +1689,7 @@ describe("MCP Tools", () => {
         JSON.stringify({
           game_id: "rimworld",
           name: "RimWorld",
-          source: "mod",
+          sources: ["mod"],
           description: "In-game Harmony mod",
           channel: "alpha",
           coverage: "full",
@@ -1703,7 +1703,7 @@ describe("MCP Tools", () => {
           game_id: string;
           name: string;
           description: string;
-          source: string;
+          sources: string[];
           channel: string;
           coverage: string;
           limitations: string[];
@@ -1724,20 +1724,20 @@ describe("MCP Tools", () => {
     it("games category includes per-source-type setup instructions", async () => {
       await env.PLUGINS.put(
         "plugins/d2r/manifest.json",
-        JSON.stringify({ game_id: "d2r", name: "D2R", source: "wasm" }),
+        JSON.stringify({ game_id: "d2r", name: "D2R", sources: ["wasm"] }),
       );
       await env.PLUGINS.put(
         "plugins/wow/manifest.json",
-        JSON.stringify({ game_id: "wow", name: "WoW", source: "api" }),
+        JSON.stringify({ game_id: "wow", name: "WoW", sources: ["api"] }),
       );
       await env.PLUGINS.put(
         "plugins/rimworld/manifest.json",
-        JSON.stringify({ game_id: "rimworld", name: "RimWorld", source: "mod" }),
+        JSON.stringify({ game_id: "rimworld", name: "RimWorld", sources: ["mod"] }),
       );
 
       const result = await getInfo(env, USER_A, "games");
       const data = parseResult(result) as {
-        games: { game_id: string; source: string; setup: string }[];
+        games: { game_id: string; sources: string[]; setup: string }[];
       };
       const d2r = data.games.find((g) => g.game_id === "d2r")!;
       const wow = data.games.find((g) => g.game_id === "wow")!;

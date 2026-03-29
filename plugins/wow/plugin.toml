@@ -1,5 +1,5 @@
 game_id = "wow"
-source = "api"
+sources = ["api"]
 icon = "icon.png"
 name = "World of Warcraft"
 description = "Character profiles via Battle.net API with Raider.io ranking enrichment"

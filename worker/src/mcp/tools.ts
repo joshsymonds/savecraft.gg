@@ -102,7 +102,7 @@ interface ManifestData {
   game_id?: string;
   name?: string;
   icon?: string;
-  source?: string;
+  sources?: string[];
   description?: string;
   channel?: string;
   coverage?: string;
@@ -1450,7 +1450,7 @@ interface SupportedGameInfo {
   game_id: string;
   name: string;
   description: string;
-  source: string;
+  sources: string[];
   channel: string;
   coverage: string;
   limitations: string[];
@@ -1465,6 +1465,14 @@ const SOURCE_SETUP_BLURBS: Record<string, string> = {
   api: "No local install needed. Visit savecraft.gg, select this game, choose your region if prompted, and complete OAuth authorization with the game's provider. Savecraft discovers your characters automatically.",
   mod: "Subscribe to the Savecraft mod on Steam Workshop. The mod runs inside the game, connects to Savecraft directly, and pushes game state on every save. No external daemon needed.",
 };
+
+/** Build a setup blurb by joining blurbs for each source type. */
+function buildSetupBlurb(sources: string[]): string {
+  const blurbs = sources
+    .map((s) => SOURCE_SETUP_BLURBS[s])
+    .filter((b): b is string => !!b);
+  return blurbs.length > 0 ? blurbs.join(" Additionally: ") : DEFAULT_SETUP_BLURB;
+}
 
 function buildDaemonGuide(platform?: string): Record<string, PlatformGuide | string> {
   if (platform) {
@@ -1509,7 +1517,7 @@ async function getApiGamesFromManifests(plugins: R2Bucket): Promise<AdapterGameI
   return manifests
     .filter(
       (m): m is ManifestData & { game_id: string } =>
-        m !== null && m.source === "api" && !!m.game_id,
+        m !== null && !!m.sources?.includes("api") && !!m.game_id,
     )
     .map((m) => ({ game_id: m.game_id, name: m.name ?? m.game_id }));
 }
@@ -1523,11 +1531,11 @@ async function getAllGamesFromManifests(plugins: R2Bucket): Promise<SupportedGam
       game_id: m.game_id,
       name: m.name ?? m.game_id,
       description: m.description ?? "",
-      source: m.source ?? "wasm",
+      sources: m.sources ?? ["wasm"],
       channel: m.channel ?? "beta",
       coverage: m.coverage ?? "partial",
       limitations: m.limitations ?? [],
-      setup: SOURCE_SETUP_BLURBS[m.source ?? "wasm"] ?? DEFAULT_SETUP_BLURB,
+      setup: buildSetupBlurb(m.sources ?? ["wasm"]),
     }))
     .toSorted((a, b) => a.name.localeCompare(b.name));
 }
