@@ -16,7 +16,7 @@ describe("WildcardCost", () => {
   it("renders rarity badges for non-zero counts", () => {
     const { container } = render(WildcardCost, { props: { cost } });
     const badges = container.querySelectorAll(".badge");
-    expect(badges.length).toBeGreaterThanOrEqual(4);
+    expect(badges.length).toBe(4);
   });
 
   it("skips zero-count rarities", () => {

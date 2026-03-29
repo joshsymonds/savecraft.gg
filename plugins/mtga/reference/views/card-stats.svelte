@@ -1,5 +1,5 @@
 <!--
-  Card stats view — set overview, card detail, and leaderboard modes.
+  Card stats view — set overview and card detail modes.
   Auto-detects mode from data shape.
 -->
 <script lang="ts">
@@ -7,9 +7,6 @@
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Stat from "../../../../views/src/components/data/Stat.svelte";
   import BarChart from "../../../../views/src/components/charts/BarChart.svelte";
-  import Badge from "../../../../views/src/components/data/Badge.svelte";
-  import DataTable from "../../../../views/src/components/data/DataTable.svelte";
-  import ArchetypeLabel from "../../../../views/src/components/mtg/ArchetypeLabel.svelte";
 
   interface CardStatRow {
     card_name: string;
@@ -51,11 +48,6 @@
       query?: string;
       cards?: CardDetailEntry[];
       more?: number;
-      // Leaderboard
-      sort_by?: string;
-      archetype?: string | null;
-      offset?: number;
-      total?: number;
       // Shared
       icon_url?: string;
     };

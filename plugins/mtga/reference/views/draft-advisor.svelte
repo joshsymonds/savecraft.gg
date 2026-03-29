@@ -6,6 +6,7 @@
   import HoverTip from "../../../../views/src/components/data/HoverTip.svelte";
   import Timeline from "../../../../views/src/components/charts/Timeline.svelte";
   import ArchetypeLabel from "../../../../views/src/components/mtg/ArchetypeLabel.svelte";
+  import { archetypeColors } from "../../../../views/src/components/mtg/colors";
 
   // ── Single pick types ──
   interface AxisScore {
@@ -140,10 +141,6 @@
       .filter((r): r is string => r !== null);
   }
 
-  function archetypeColors(code: string): string[] {
-    if (code === "_overall") return [];
-    return code.split("");
-  }
 
   // ── Single pick derived ──
   let subtitle = $derived.by(() => {
@@ -167,20 +164,6 @@
     questionable: "warning",
     miss: "negative",
   };
-
-  // Group picks by pack for timeline display
-  function groupByPack(picks: Pick[]): Pick[][] {
-    const packs: Pick[][] = [];
-    let currentPack = -1;
-    for (const pick of picks) {
-      if (pick.pack_number !== currentPack) {
-        packs.push([]);
-        currentPack = pick.pack_number;
-      }
-      packs[packs.length - 1].push(pick);
-    }
-    return packs;
-  }
 
   const FILTER_OPTIONS = [
     { label: "Misses", value: "miss", color: "var(--color-negative)" },

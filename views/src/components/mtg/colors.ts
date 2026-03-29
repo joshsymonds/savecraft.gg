@@ -44,3 +44,17 @@ export const WUBRG_ACCENT: Record<string, string> = {
 
 export const COLORLESS_SOLID = "#6a6a78";
 export const COLORLESS_ACCENT = "#b0b0c0";
+
+/** Maps MTG rarity to Badge variant. */
+export const RARITY_VARIANT: Record<string, string> = {
+  mythic: "legendary",
+  rare: "rare",
+  uncommon: "uncommon",
+  common: "common",
+};
+
+/** Splits an archetype code like "WB" into color letters ["W", "B"]. */
+export function archetypeColors(code: string): string[] {
+  if (code === "_overall") return [];
+  return code.split("");
+}

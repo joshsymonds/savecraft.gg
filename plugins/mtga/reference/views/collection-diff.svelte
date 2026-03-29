@@ -5,6 +5,7 @@
   import DataTable from "../../../../views/src/components/data/DataTable.svelte";
   import EmptyState from "../../../../views/src/components/feedback/EmptyState.svelte";
   import WildcardCost from "../../../../views/src/components/mtg/WildcardCost.svelte";
+  import { RARITY_VARIANT } from "../../../../views/src/components/mtg/colors";
 
   interface MissingCard {
     name: string;
@@ -29,13 +30,6 @@
       icon_url?: string;
     };
   } = $props();
-
-  const RARITY_VARIANT: Record<string, string> = {
-    mythic: "legendary",
-    rare: "rare",
-    uncommon: "uncommon",
-    common: "common",
-  };
 
   let columns = [
     { key: "name", label: "Card", align: "left" as const },
