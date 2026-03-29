@@ -139,6 +139,37 @@ Every view includes a collapsed legal footer rendered by `views/src/Attribution.
 
 To add a new attribution source: add it to `SOURCES` in `views/src/attributions.ts`, then reference it from plugin.toml.
 
+## Game Watermarks
+
+Every reference view should display its game's icon as a subtle centered watermark. This is a first-class part of the Savecraft visual language — it gives each game identity without competing with content.
+
+**How it works:**
+- Panel accepts a `watermark?: string` prop — renders a centered, semi-transparent (10% opacity) `<img>` that shows through gaps between content elements
+- The handler injects `icon_url` into `structuredContent` via `resolveIconUrl()` (uses per-isolate manifest cache)
+- Views pass `data.icon_url` to their outer `<Panel watermark={data.icon_url}>`
+- Stories include `icon_url` in fixture data: `const iconUrl = "/plugins/<game>/icon.png"`
+
+**Rules:**
+- Watermark is Panel's responsibility — never add per-component watermark CSS
+- Every reference view's outer Panel should have `watermark={data.icon_url}`
+- Every view's data interface should include `icon_url?: string`
+- Every Storybook story should include `icon_url: iconUrl` in fixture data so the watermark is visible during development
+- `resolveIconUrl(plugins, serverUrl, gameId)` is the single source of truth for icon URL construction — never duplicate the manifest lookup
+
+**For MtgCard specifically:** The `iconUrl` prop passes through to `<Panel watermark={iconUrl}>` internally. Card-search passes `data.icon_url` to each MtgCard's `iconUrl` prop.
+
+## Visual Hierarchy
+
+Views use a two-level hierarchy:
+
+- **Section** — top-level titled container with pixel-font header bar. One per logical grouping.
+- **Nested Panel + `.sub-label`** — sub-groupings within a Section. Use `<Panel nested>` with a `<span class="sub-label">` heading (defined in `view.css` as a global utility class).
+
+**Anti-patterns:**
+- Never nest Section inside Section — title directly below title looks bad and confuses hierarchy
+- Never use Section's `count` prop — the number badge in the upper-right is confusing and visually noisy. If a count matters, show it in the content area.
+- Never add callout/alert components — views render pre-enrichment data from game modules, not AI synthesis. The LLM provides judgment in the conversation text, not the view.
+
 ## Svelte 5 Component Pattern
 
 ```svelte
