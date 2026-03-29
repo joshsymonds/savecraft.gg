@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
@@ -140,7 +142,23 @@ type ratioContext struct {
 	recipeOverrides        map[string]string  // item → recipe name
 }
 
+const maxTreeDepth = 50
+
 func (ctx *ratioContext) buildTree(item string, targetRatePerSec float64) *productionNode {
+	return ctx.buildTreeDepth(item, targetRatePerSec, 0)
+}
+
+func (ctx *ratioContext) buildTreeDepth(item string, targetRatePerSec float64, depth int) *productionNode {
+	if depth > maxTreeDepth {
+		ctx.rawTotals[item] += targetRatePerSec
+		return &productionNode{
+			Item:       item,
+			Recipe:     "(depth limit)",
+			RatePerMin: roundTo(targetRatePerSec*60, 1),
+			BeltTier:   beltTierForRate(targetRatePerSec),
+		}
+	}
+
 	// Base case: raw material
 	if rawMaterials[item] {
 		ctx.rawTotals[item] += targetRatePerSec
@@ -251,7 +269,7 @@ func (ctx *ratioContext) buildTree(item string, targetRatePerSec float64) *produ
 
 	for _, ing := range recipe.Ingredients {
 		ingRatePerSec := craftsPerSecTotal * ing.Amount
-		child := ctx.buildTree(ing.Name, ingRatePerSec)
+		child := ctx.buildTreeDepth(ing.Name, ingRatePerSec, depth+1)
 		if child != nil {
 			node.Children = append(node.Children, child)
 		}
@@ -345,11 +363,12 @@ func resolveRecipe(item, recipeName string, overrides map[string]string) (*data.
 		}
 	}
 
-	// Genuinely ambiguous — return the options
+	// Genuinely ambiguous — return the options sorted for deterministic output
 	options := make([]string, len(candidates))
 	for i, c := range candidates {
 		options[i] = c.recipe.Name
 	}
+	sort.Strings(options)
 	return nil, 0, options
 }
 
@@ -432,19 +451,9 @@ func parsePowerKW(machine *data.CraftingMachine) float64 {
 }
 
 func parseFloatSafe(s string) float64 {
-	var v float64
-	for _, c := range s {
-		if c >= '0' && c <= '9' {
-			v = v*10 + float64(c-'0')
-		} else if c == '.' {
-			// Simple: just parse normally
-			break
-		}
-	}
-	// Use proper parsing for decimal support
-	f := 0.0
-	if err := json.Unmarshal([]byte(s), &f); err != nil {
-		return v
+	f, err := strconv.ParseFloat(s, 64)
+	if err != nil {
+		return 0
 	}
 	return f
 }

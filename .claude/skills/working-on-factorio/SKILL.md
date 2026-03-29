@@ -48,7 +48,7 @@ Full suite: `just test-go` (all Go) + `just test-worker` (all Worker) + `just bu
 
 ### Shared Chart Components
 
-`ProductionDAG` and `FlowSankey` live in `views/src/components/charts/` — shared across games. Only `FactorioIcon` is game-specific (in `views/src/components/factorio/`).
+`ProductionDAG` lives in `views/src/components/charts/` (shared across games). `FlowSankey` is planned for Phase 2 (oil_balancer view) but not yet built. Only `FactorioIcon` is game-specific (in `views/src/components/factorio/`).
 
 ## Data Pipeline
 

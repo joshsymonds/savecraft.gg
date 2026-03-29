@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"sort"
 	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
@@ -70,6 +71,9 @@ func lookupUsage(enc *json.Encoder, itemName string) {
 			}
 		}
 	}
+	sort.Slice(results, func(i, j int) bool {
+		return results[i]["name"].(string) < results[j]["name"].(string)
+	})
 	writeResult(enc, map[string]any{
 		"item":         itemName,
 		"used_in":      results,
@@ -88,6 +92,9 @@ func lookupProduct(enc *json.Encoder, itemName string) {
 			}
 		}
 	}
+	sort.Slice(results, func(i, j int) bool {
+		return results[i]["name"].(string) < results[j]["name"].(string)
+	})
 	writeResult(enc, map[string]any{
 		"item":         itemName,
 		"produced_by":  results,
@@ -125,7 +132,7 @@ func lookupMachine(enc *json.Encoder, name string) {
 
 	writeResult(enc, map[string]any{
 		"machine": map[string]any{
-			"name":                name,
+			"name":                machine.Name,
 			"crafting_speed":      machine.CraftingSpeed,
 			"energy_usage":        machine.EnergyUsage,
 			"module_slots":        machine.ModuleSlots,
@@ -232,5 +239,8 @@ func findMachinesForCategory(category string) []map[string]any {
 			}
 		}
 	}
+	sort.Slice(machines, func(i, j int) bool {
+		return machines[i]["name"].(string) < machines[j]["name"].(string)
+	})
 	return machines
 }
