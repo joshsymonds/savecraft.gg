@@ -395,6 +395,9 @@ func TestValidation_ParsePowerKW(t *testing.T) {
 		{"150kW", 150},
 		{"90kW", 90},
 		{"180kW", 180},
+		{"1MW", 1000},
+		{"40MW", 40000},
+		{"500W", 0.5},
 	}
 	for _, tc := range tests {
 		m := &data.CraftingMachine{EnergyUsage: tc.input}
@@ -402,5 +405,30 @@ func TestValidation_ParsePowerKW(t *testing.T) {
 		if got != tc.expected {
 			t.Errorf("parsePowerKW(%q) = %v, want %v", tc.input, got, tc.expected)
 		}
+	}
+}
+
+func TestValidation_CaseInsensitiveRecipeLookup(t *testing.T) {
+	// recipe_lookup should fall back to case-insensitive match
+	result, code := runReference(t, `{"module":"recipe_lookup","name":"Electronic-Circuit"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0 for case-insensitive lookup, got %d", code)
+	}
+	d := result["data"].(map[string]any)
+	recipe := d["recipe"].(map[string]any)
+	if recipe["name"] != "electronic-circuit" {
+		t.Errorf("name = %v, want electronic-circuit", recipe["name"])
+	}
+}
+
+func TestValidation_CaseInsensitiveMachineLookup(t *testing.T) {
+	result, code := runReference(t, `{"module":"recipe_lookup","machine":"Assembling-Machine-3"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0 for case-insensitive machine lookup, got %d", code)
+	}
+	d := result["data"].(map[string]any)
+	machine := d["machine"].(map[string]any)
+	if machine["name"] != "assembling-machine-3" {
+		t.Errorf("name = %v, want assembling-machine-3", machine["name"])
 	}
 }
