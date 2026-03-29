@@ -58,6 +58,12 @@ export const SOURCES: Record<string, Attribution> = {
       "Clair Obscur: Expedition 33 is a trademark of Sandfall Interactive. Published by Kepler Interactive. Not affiliated with or endorsed by Sandfall Interactive or Kepler Interactive.",
     url: "https://www.keplerinteractive.com",
   },
+  wube: {
+    name: "Wube Software",
+    disclaimer:
+      "Factorio is a trademark of Wube Software Ltd. Not affiliated with or endorsed by Wube Software.",
+    url: "https://www.factorio.com",
+  },
 };
 
 /**
