@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
 	"strings"
@@ -21,12 +22,14 @@ var rawMaterials = map[string]bool{
 }
 
 type ratioQuery struct {
-	TargetItem    string   `json:"target_item"`
-	TargetRate    float64  `json:"target_rate"` // items per minute
-	AssemblerTier string   `json:"assembler_tier"`
-	Modules       []string `json:"modules"`
-	BeaconCount   int      `json:"beacon_count"`
-	BeaconModules []string `json:"beacon_modules"`
+	TargetItem    string            `json:"target_item"`
+	TargetRate    float64           `json:"target_rate"` // items per minute
+	Recipe        string            `json:"recipe"`      // explicit recipe name (required when ambiguous)
+	AssemblerTier string            `json:"assembler_tier"`
+	Modules       []string          `json:"modules"`
+	BeaconCount   int               `json:"beacon_count"`
+	BeaconModules []string          `json:"beacon_modules"`
+	Overrides     map[string]string `json:"recipe_overrides"` // item → recipe for intermediate products
 }
 
 type productionNode struct {
@@ -63,6 +66,15 @@ func handleRatioCalculator(enc *json.Encoder, query map[string]any) {
 	moduleSpeedBonus, moduleProdBonus, moduleConsumptionBonus := resolveModuleEffects(q.Modules)
 	beaconSpeedBonus := resolveBeaconEffects(q.BeaconModules, q.BeaconCount)
 
+	overrides := q.Overrides
+	if overrides == nil {
+		overrides = make(map[string]string)
+	}
+	// The top-level recipe override goes into the overrides map
+	if q.Recipe != "" {
+		overrides[q.TargetItem] = q.Recipe
+	}
+
 	ctx := &ratioContext{
 		assemblerTier:          q.AssemblerTier,
 		moduleSpeedBonus:       moduleSpeedBonus,
@@ -72,11 +84,19 @@ func handleRatioCalculator(enc *json.Encoder, query map[string]any) {
 		rawTotals:              make(map[string]float64),
 		totalPowerKW:           0,
 		visited:                make(map[string]bool),
+		recipeOverrides:        overrides,
 	}
 
 	// Verify the target item has a recipe before building the tree
 	if !rawMaterials[q.TargetItem] {
-		recipe, _ := findRecipeFor(q.TargetItem)
+		recipe, _, ambiguous := resolveRecipe(q.TargetItem, q.Recipe, q.Overrides)
+		if recipe == nil && len(ambiguous) > 0 {
+			writeError(enc, "ambiguous_recipe", fmt.Sprintf(
+				"multiple recipes produce %q — specify one with the 'recipe' parameter: %v",
+				q.TargetItem, ambiguous,
+			))
+			os.Exit(1)
+		}
 		if recipe == nil {
 			writeError(enc, "not_found", "no recipe produces "+q.TargetItem)
 			os.Exit(1)
@@ -116,7 +136,8 @@ type ratioContext struct {
 	beaconSpeedBonus       float64
 	rawTotals              map[string]float64
 	totalPowerKW           float64
-	visited                map[string]bool // cycle detection
+	visited                map[string]bool   // cycle detection
+	recipeOverrides        map[string]string  // item → recipe name
 }
 
 func (ctx *ratioContext) buildTree(item string, targetRatePerSec float64) *productionNode {
@@ -132,7 +153,18 @@ func (ctx *ratioContext) buildTree(item string, targetRatePerSec float64) *produ
 	}
 
 	// Find recipe that produces this item
-	recipe, resultAmount := findRecipeFor(item)
+	recipe, resultAmount, ambiguous := resolveRecipe(item, "", ctx.recipeOverrides)
+	if recipe == nil && len(ambiguous) > 0 {
+		// Ambiguous intermediate — treat as raw so the tree completes,
+		// but mark it so the AI knows to ask
+		ctx.rawTotals[item] += targetRatePerSec
+		return &productionNode{
+			Item:       item,
+			Recipe:     fmt.Sprintf("(ambiguous: %v)", ambiguous),
+			RatePerMin: roundTo(targetRatePerSec*60, 1),
+			BeltTier:   beltTierForRate(targetRatePerSec),
+		}
+	}
 	if recipe == nil {
 		// No recipe found — treat as raw
 		ctx.rawTotals[item] += targetRatePerSec
@@ -249,26 +281,76 @@ func (ctx *ratioContext) findMachine(category string) *data.CraftingMachine {
 	return nil
 }
 
-func findRecipeFor(item string) (*data.Recipe, float64) {
-	// Find the simplest recipe that produces this item.
-	// Prefer recipes where the item is the primary (first) result.
-	var best *data.Recipe
-	var bestAmount float64
-
-	for _, r := range data.Recipes {
-		for i, prod := range r.Results {
-			if prod.Name == item && prod.Amount > 0 {
-				r := r // capture loop var
-				amount := prod.Amount * prod.Probability
-				// Prefer first-result recipes, then by name (deterministic)
-				if best == nil || (i == 0 && bestAmount == 0) || r.Name == item {
-					best = &r
-					bestAmount = amount
+// resolveRecipe finds the recipe for an item. If recipeName is specified, uses that directly.
+// If recipe_overrides has a mapping for the item, uses that. Otherwise, looks for an
+// unambiguous recipe. Returns (recipe, amount, ambiguous_options).
+// If there's exactly one non-recycling recipe, it's unambiguous. If there are multiple,
+// returns nil with the list of options so the caller can error with choices.
+func resolveRecipe(item, recipeName string, overrides map[string]string) (*data.Recipe, float64, []string) {
+	// Explicit recipe name takes priority
+	if recipeName == "" {
+		recipeName = overrides[item]
+	}
+	if recipeName != "" {
+		if r, ok := data.Recipes[recipeName]; ok {
+			for _, prod := range r.Results {
+				if prod.Name == item {
+					return &r, prod.Amount * prod.Probability, nil
 				}
+			}
+			// Recipe exists but doesn't produce this item — use it anyway
+			// (caller specified it explicitly)
+			if len(r.Results) > 0 {
+				return &r, r.Results[0].Amount * r.Results[0].Probability, nil
+			}
+		}
+		return nil, 0, nil
+	}
+
+	// Find all non-recycling recipes that produce this item
+	type candidate struct {
+		recipe *data.Recipe
+		amount float64
+	}
+	var candidates []candidate
+	for _, r := range data.Recipes {
+		// Skip recycling recipes — they're not primary production paths
+		if strings.HasSuffix(r.Name, "-recycling") {
+			continue
+		}
+		// Skip barrel emptying recipes
+		if strings.HasPrefix(r.Name, "empty-") && strings.HasSuffix(r.Name, "-barrel") {
+			continue
+		}
+		for _, prod := range r.Results {
+			if prod.Name == item && prod.Amount > 0 {
+				r := r
+				candidates = append(candidates, candidate{&r, prod.Amount * prod.Probability})
+				break
 			}
 		}
 	}
-	return best, bestAmount
+
+	if len(candidates) == 0 {
+		return nil, 0, nil
+	}
+	if len(candidates) == 1 {
+		return candidates[0].recipe, candidates[0].amount, nil
+	}
+
+	// Multiple candidates — check if one has the same name as the item (the "primary" recipe)
+	for _, c := range candidates {
+		if c.recipe.Name == item {
+			return c.recipe, c.amount, nil
+		}
+	}
+
+	// Genuinely ambiguous — return the options
+	options := make([]string, len(candidates))
+	for i, c := range candidates {
+		options[i] = c.recipe.Name
+	}
+	return nil, 0, options
 }
 
 func resolveModuleEffects(moduleNames []string) (speedBonus, prodBonus, consumptionBonus float64) {
