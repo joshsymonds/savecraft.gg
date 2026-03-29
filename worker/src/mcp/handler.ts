@@ -59,15 +59,18 @@ const VIEW_CSP = {
 };
 
 function viewDomain(env: Env): string {
-  return env.ENVIRONMENT === "production"
-    ? "https://savecraft.gg"
-    : "https://staging.savecraft.gg";
+  return env.ENVIRONMENT === "production" ? "https://savecraft.gg" : "https://staging.savecraft.gg";
 }
 
 /** Cached per-environment results (ENVIRONMENT is constant per Worker instance). */
 let cachedToolsWithUi: ToolDefinition[] | undefined;
 let cachedResourceList:
-  | { uri: string; name: string; mimeType: string; _meta: { ui: { domain: string; csp: typeof VIEW_CSP } } }[]
+  | {
+      uri: string;
+      name: string;
+      mimeType: string;
+      _meta: { ui: { domain: string; csp: typeof VIEW_CSP } };
+    }[]
   | undefined;
 let cachedEnvironment: string | undefined;
 
