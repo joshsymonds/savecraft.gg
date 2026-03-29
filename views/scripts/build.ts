@@ -132,13 +132,14 @@ import { initBridge } from "${bridgePath}";
 import Component from "${componentPath}";
 import Attribution from "${attributionPath}";
 
+const attrTarget = document.getElementById("attribution");
+if (attrTarget) mount(Attribution, { target: attrTarget });
+
 const app = initBridge((result) => {
   const target = document.getElementById("root");
   if (!target) return;
   target.replaceChildren();
   mount(Component, { target, props: { data: result.structuredContent, app } });
-  const attrTarget = document.getElementById("attribution");
-  if (attrTarget) mount(Attribution, { target: attrTarget });
 });
 `;
 }
@@ -162,6 +163,9 @@ const VIEWS = {
 ${mapEntries}
 };
 
+const attrTarget = document.getElementById("attribution");
+if (attrTarget) mount(Attribution, { target: attrTarget });
+
 const app = initBridge((result) => {
   const data = result.structuredContent;
   const moduleId = data?.module;
@@ -176,8 +180,6 @@ const app = initBridge((result) => {
       ? "No view for module: " + moduleId
       : "Missing module identifier in response";
   }
-  const attrTarget = document.getElementById("attribution");
-  if (attrTarget) mount(Attribution, { target: attrTarget });
 });
 `;
 }
