@@ -581,7 +581,13 @@ export function placeholders(count: number, startIdx: number): string {
   return Array.from({ length: count }, (_, i) => `?${startIdx + i}`).join(",");
 }
 
+/** Round to n decimal places for output precision. */
+export function rn(v: number, n: number): number {
+  const shift = 10 ** n;
+  return Math.round(v * shift) / shift;
+}
+
 /** Round to 4 decimal places for output precision. */
 export function r4(v: number): number {
-  return Math.round(v * 10000) / 10000;
+  return rn(v, 4);
 }

@@ -12,6 +12,7 @@ import {
   computeColorCommitment,
   computeViabilityTier,
   deriveArchetypeWeights,
+  rn,
 } from "../../plugins/mtga/reference/scoring";
 import { registerNativeModule } from "../src/reference/registry";
 
@@ -3050,6 +3051,30 @@ function makeCard(name: string, manaCost: string): CardMetaRow {
     produced_mana: "[]",
   };
 }
+
+describe("rn (round to n decimals)", () => {
+  it("rounds to zero decimals", () => {
+    expect(rn(26.284, 0)).toBe(26);
+  });
+  it("rounds to one decimal", () => {
+    expect(rn(70.548, 1)).toBe(70.5);
+  });
+  it("rounds to four decimals", () => {
+    expect(rn(0.567_89, 4)).toBe(0.5679);
+  });
+  it("rounds up at midpoint", () => {
+    expect(rn(0.55, 1)).toBe(0.6);
+  });
+  it("rounds down below midpoint", () => {
+    expect(rn(0.54, 1)).toBe(0.5);
+  });
+  it("handles zero", () => {
+    expect(rn(0, 3)).toBe(0);
+  });
+  it("handles negative values", () => {
+    expect(rn(-3.456, 1)).toBe(-3.5);
+  });
+});
 
 describe("computeColorCommitment", () => {
   it("returns low commitment (~0.1) for colors with 0% of pips", () => {

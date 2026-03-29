@@ -11,6 +11,7 @@ import type {
   NativeReferenceModule,
   ReferenceResult,
 } from "../../../worker/src/reference/types";
+import { rn } from "./scoring";
 
 const DEFAULT_PAGE_SIZE = 25;
 
@@ -54,12 +55,6 @@ const VALID_SORT_FIELDS = new Set([
 ]);
 
 // ── Helpers ──────────────────────────────────────────────────
-
-/** Round to n decimal places. */
-function rn(v: number, n: number): number {
-  const shift = 10 ** n;
-  return Math.round(v * shift) / shift;
-}
 
 function cardRow(r: RatingRow) {
   return {
