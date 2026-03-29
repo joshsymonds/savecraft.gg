@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { App } from "@modelcontextprotocol/ext-apps";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
+  import HoverTip from "../../../../views/src/components/data/HoverTip.svelte";
   import Tag from "../../../../views/src/components/data/Tag.svelte";
   import EmptyState from "../../../../views/src/components/feedback/EmptyState.svelte";
 
@@ -27,12 +28,11 @@
     references?: Reference[];
   }
 
-  let { data, app }: { data: { games: Game[] }; app?: App } = $props();
+  let { data }: { data: { games: Game[] }; app?: App } = $props();
 
   let expandedRefs: Record<string, boolean> = $state({});
   let expandedRemoved: Record<string, boolean> = $state({});
   let iconErrors: Record<string, boolean> = $state({});
-  let hoveredRef: { gameId: string; refId: string } | null = $state(null);
 
   function toggleRefs(gameId: string) {
     expandedRefs[gameId] = !expandedRefs[gameId];
@@ -44,18 +44,6 @@
 
   function handleIconError(gameId: string) {
     iconErrors[gameId] = true;
-  }
-
-  function onSaveClick(game: Game, save: Save) {
-    app?.updateModelContext({
-      context: `Player is looking at "${save.name}" in ${game.game_name}. Save ID: ${save.save_id}`,
-    });
-  }
-
-  function onRefClick(game: Game, ref: Reference) {
-    app?.updateModelContext({
-      context: `Player is looking at reference module: ${ref.name} — ${ref.description}. Game: ${game.game_name}, Module ID: ${ref.id}`,
-    });
   }
 </script>
 
@@ -102,11 +90,7 @@
           <div class="save-separator"></div>
           <div class="save-list">
             {#each game.saves as save (save.save_id)}
-              <button
-                class="save-row"
-                onclick={() => onSaveClick(game, save)}
-                type="button"
-              >
+              <div class="save-row">
                 <div class="save-main">
                   <span class="save-name">{save.name}</span>
                   {#if save.notes.length > 0}
@@ -117,7 +101,7 @@
                   <span class="save-summary">{save.summary}</span>
                   <span class="save-time">{save.last_updated}</span>
                 </div>
-              </button>
+              </div>
             {/each}
           </div>
         {/if}
@@ -136,20 +120,15 @@
             </span>
           </button>
           {#if expandedRefs[game.game_id]}
-            <div class="ref-chips">
+            <div class="ref-list">
               {#each game.references as ref (ref.id)}
-                <button
-                  class="ref-chip"
-                  onclick={() => onRefClick(game, ref)}
-                  onmouseenter={() => (hoveredRef = { gameId: game.game_id, refId: ref.id })}
-                  onmouseleave={() => (hoveredRef = null)}
-                  type="button"
-                >
+                <HoverTip>
+                  {#snippet tip()}
+                    <span class="ref-tooltip-prompt">Ask the AI to use this for</span>
+                    {ref.description}
+                  {/snippet}
                   <Tag label={ref.name} color="var(--color-gold)" />
-                  {#if hoveredRef?.gameId === game.game_id && hoveredRef?.refId === ref.id}
-                    <div class="ref-tooltip">{ref.description}</div>
-                  {/if}
-                </button>
+                </HoverTip>
               {/each}
             </div>
           {/if}
@@ -201,11 +180,6 @@
     border: 1px solid var(--color-border);
     border-radius: var(--radius-md);
     padding: var(--space-md);
-    transition: border-color 0.15s;
-  }
-
-  .game-card:hover {
-    border-color: color-mix(in srgb, var(--color-gold) 40%, var(--color-border));
   }
 
   /* ── Game header ── */
@@ -283,7 +257,6 @@
   .save-list {
     display: flex;
     flex-direction: column;
-    gap: 1px;
   }
 
   .save-row {
@@ -291,17 +264,6 @@
     flex-direction: column;
     gap: 2px;
     padding: var(--space-xs) var(--space-sm);
-    border-radius: var(--radius-sm);
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    text-align: left;
-    transition: background 0.1s;
-    width: 100%;
-  }
-
-  .save-row:hover {
-    background: color-mix(in srgb, var(--color-border) 14%, transparent);
   }
 
   .save-main {
@@ -347,7 +309,7 @@
     margin-left: var(--space-xs);
   }
 
-  /* ── Toggle rows ── */
+  /* ── Toggle rows (ref modules, removed saves) ── */
   .section-separator {
     height: 1px;
     margin: var(--space-xs) 0;
@@ -393,8 +355,8 @@
     color: var(--color-text-muted);
   }
 
-  /* ── Reference chips ── */
-  .ref-chips {
+  /* ── Reference module list ── */
+  .ref-list {
     display: flex;
     flex-wrap: wrap;
     gap: var(--space-xs);
@@ -402,33 +364,14 @@
     animation: fade-in 0.2s ease-out;
   }
 
-  .ref-chip {
-    position: relative;
-    border: none;
-    background: transparent;
-    padding: 0;
-    cursor: pointer;
-  }
-
-  .ref-tooltip {
-    position: absolute;
-    bottom: calc(100% + 6px);
-    left: 50%;
-    transform: translateX(-50%);
-    background: var(--color-surface-raised);
-    border: 1px solid var(--color-border);
-    border-radius: var(--radius-sm);
-    padding: var(--space-xs) var(--space-sm);
-    font-family: var(--font-body);
-    font-size: 12px;
-    color: var(--color-text-dim);
-    white-space: nowrap;
-    max-width: 300px;
-    white-space: normal;
-    z-index: 10;
-    pointer-events: none;
-    animation: fade-in 0.15s ease-out;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+  .ref-tooltip-prompt {
+    display: block;
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    color: var(--color-gold);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    margin-bottom: var(--space-xs);
   }
 
   /* ── Removed saves ── */
