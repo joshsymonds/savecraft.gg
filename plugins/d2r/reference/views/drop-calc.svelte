@@ -190,12 +190,13 @@
     { key: "chance", label: "Chance", align: "right" as const, sortable: true },
   ];
 
-  function miniSourceRows(sources: SearchItem["top_sources"]) {
+  function miniSourceRows(sources: SearchItem["top_sources"], isSet: boolean) {
+    const chanceVariant: Variant = isSet ? "positive" : "legendary";
     return sources.map((src, i) => ({
       rank: i + 1,
       monster: src.monster,
       difficulty: { value: src.difficulty, variant: difficultyVariant(src.difficulty) },
-      chance: chanceCell(src.chance, "legendary"),
+      chance: chanceCell(src.chance, chanceVariant),
     }));
   }
 
@@ -246,7 +247,7 @@
               <CollapseToggle label="{item.top_sources.length} drop sources">
                 <DataTable
                   columns={miniSourceColumns}
-                  rows={miniSourceRows(item.top_sources)}
+                  rows={miniSourceRows(item.top_sources, item.is_set)}
                   sortKey="chance"
                   sortDir="desc"
                 />
