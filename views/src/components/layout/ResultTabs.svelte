@@ -2,7 +2,7 @@
   @component
   Tabbed container for multi-query reference results.
   Renders a tab bar when multiple tabs exist; skips it for single results.
-  Styled to match FilterBar chip pattern — active/inactive states with glow.
+  Retro-styled with underline indicator, gradient hover, and pixel-font numbering.
 -->
 <script lang="ts">
   import type { Snippet } from "svelte";
@@ -24,6 +24,13 @@
 
   let activeIndex = $state(0);
 
+  // Clamp activeIndex when tabs array changes (e.g. new results arrive)
+  $effect(() => {
+    if (activeIndex >= tabs.length && tabs.length > 0) {
+      activeIndex = 0;
+    }
+  });
+
   function select(index: number) {
     activeIndex = index;
     onchange?.(index);
@@ -31,22 +38,28 @@
 </script>
 
 {#if tabs.length > 1}
-  <div class="tab-bar">
+  <div class="tab-bar" role="tablist">
     {#each tabs as tab, i}
       <button
         class="tab-button"
         class:active={i === activeIndex}
+        role="tab"
+        aria-selected={i === activeIndex}
         onclick={() => select(i)}
       >
-        {tab.label}
+        <span class="tab-index">{i + 1}</span>
+        <span class="tab-label">{tab.label}</span>
       </button>
     {/each}
+    <div class="tab-track" aria-hidden="true">
+      <div class="tab-glow"></div>
+    </div>
   </div>
 {/if}
 
 {#if tabs.length > 0}
   {#key activeIndex}
-    <div class="tab-content">
+    <div class="tab-content" role="tabpanel">
       {@render children?.(activeIndex)}
     </div>
   {/key}
@@ -55,43 +68,144 @@
 <style>
   .tab-bar {
     display: flex;
-    flex-wrap: wrap;
     gap: var(--space-xs);
-    padding: var(--space-xs) var(--space-sm);
-    margin-bottom: var(--space-md);
-    background: color-mix(in srgb, var(--color-border) 8%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-border) 20%, transparent);
-    border-radius: var(--radius-md);
+    margin-bottom: var(--space-lg);
+    position: relative;
+    padding-bottom: 2px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .tab-bar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .tab-track {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--color-border) 40%, transparent) 10%,
+      color-mix(in srgb, var(--color-border) 40%, transparent) 90%,
+      transparent 100%
+    );
+  }
+
+  .tab-glow {
+    position: absolute;
+    inset: -2px 0;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--color-gold) 6%, transparent) 25%,
+      color-mix(in srgb, var(--color-gold) 10%, transparent) 50%,
+      color-mix(in srgb, var(--color-gold) 6%, transparent) 75%,
+      transparent 100%
+    );
+    filter: blur(1px);
+    animation: glow-pulse 4s ease-in-out infinite;
   }
 
   .tab-button {
-    font-family: var(--font-heading);
-    font-size: 13px;
-    font-weight: 600;
-    color: color-mix(in srgb, var(--color-gold) 50%, var(--color-text-muted));
-    background: color-mix(in srgb, var(--color-gold) 6%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-gold) 20%, transparent);
-    border-radius: var(--radius-md);
-    padding: 4px 12px;
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding: var(--space-sm) var(--space-md);
+    background: transparent;
+    border: none;
+    border-bottom: 2px solid transparent;
     cursor: pointer;
-    transition: all 0.15s ease;
+    transition: all 0.2s ease;
     user-select: none;
+    position: relative;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .tab-button:focus-visible {
+    outline: 2px solid var(--color-gold);
+    outline-offset: -2px;
+    border-radius: var(--radius-sm);
+  }
+
+  .tab-index {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    letter-spacing: 1px;
+    color: color-mix(in srgb, var(--color-gold) 30%, transparent);
+    transition: all 0.2s ease;
+  }
+
+  .tab-label {
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    transition: all 0.2s ease;
+  }
+
+  .tab-button:hover .tab-label {
+    color: var(--color-text-dim);
+  }
+
+  .tab-button:hover .tab-index {
+    color: color-mix(in srgb, var(--color-gold) 60%, transparent);
   }
 
   .tab-button:hover {
-    color: var(--color-gold);
-    background: color-mix(in srgb, var(--color-gold) 12%, transparent);
-    border-color: color-mix(in srgb, var(--color-gold) 35%, transparent);
+    background: linear-gradient(
+      180deg,
+      transparent 0%,
+      color-mix(in srgb, var(--color-gold) 4%, transparent) 100%
+    );
   }
 
   .tab-button.active {
-    color: var(--color-bg, #05071a);
-    background: color-mix(in srgb, var(--color-gold) 85%, transparent);
-    border-color: var(--color-gold);
-    box-shadow: 0 0 8px color-mix(in srgb, var(--color-gold) 25%, transparent);
+    border-bottom-color: var(--color-gold);
+  }
+
+  .tab-button.active .tab-label {
+    color: var(--color-text);
+  }
+
+  .tab-button.active .tab-index {
+    color: var(--color-gold);
+    text-shadow: 0 0 8px color-mix(in srgb, var(--color-gold) 40%, transparent);
+  }
+
+  .tab-button.active::after {
+    content: "";
+    position: absolute;
+    bottom: -2px;
+    left: 20%;
+    right: 20%;
+    height: 4px;
+    background: var(--color-gold);
+    filter: blur(4px);
+    opacity: 0.4;
   }
 
   .tab-content {
-    animation: fade-slide-in 0.2s ease-out both;
+    animation: tab-enter 0.25s cubic-bezier(0.4, 0, 0.2, 1) both;
+  }
+
+  @keyframes tab-enter {
+    from {
+      opacity: 0;
+      transform: translateY(6px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes glow-pulse {
+    0%, 100% { opacity: 0.4; }
+    50% { opacity: 1; }
   }
 </style>

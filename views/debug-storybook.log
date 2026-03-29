@@ -1,0 +1,34 @@
+[14:46:06.873] [INFO] storybook v10.3.3
+[14:46:07.005] [DEBUG] Getting package.json info for /home/joshsymonds/Personal/savecraft.gg/views/package.json...
+[14:46:07.716] [DEBUG] Serving static files from plugins at /plugins
+[14:46:07.721] [INFO] Starting...
+[14:46:07.962] [DEBUG] Starting preview..
+[14:46:07.989] [WARN] 🚨 Unable to index ./src/components/layout/ResultTabs.stories.svelte:
+  SB_SVELTE_CSF_PARSER_EXTRACT_SVELTE_0009 (IndexerParseError): Storybook stories indexer parser threw an unrecognized error.
+If you see this error, please report it on the issue tracker on GitHub.
+
+More info: https://github.com/storybookjs/addon-svelte-csf/blob/v5.1.2/ERRORS.md#SB_SVELTE_CSF_PARSER_EXTRACT_SVELTE_0009
+
+    at Object.createIndex (file:///home/joshsymonds/Personal/savecraft.gg/views/node_modules/@storybook/addon-svelte-csf/dist/indexer/index.js:44:19)
+    at async _StoryIndexGenerator.extractStories (file:///home/joshsymonds/Personal/savecraft.gg/views/node_modules/storybook/dist/core-server/index.js:6107:23)
+    at async file:///home/joshsymonds/Personal/savecraft.gg/views/node_modules/storybook/dist/core-server/index.js:6028:39
+    at async Promise.all (index 28)
+    at async Promise.all (index 2)
+    at async _StoryIndexGenerator.updateExtracted (file:///home/joshsymonds/Personal/savecraft.gg/views/node_modules/storybook/dist/core-server/index.js:6016:5)
+    at async _StoryIndexGenerator.ensureExtracted (file:///home/joshsymonds/Personal/savecraft.gg/views/node_modules/storybook/dist/core-server/index.js:6051:5)
+    at async _StoryIndexGenerator.initialize (file:///home/joshsymonds/Personal/savecraft.gg/views/node_modules/storybook/dist/core-server/index.js:6012:5)
+    at async file:///home/joshsymonds/Personal/savecraft.gg/views/node_modules/storybook/dist/core-server/presets/common-preset.js:1855:10
+[14:46:07.993] [ERROR] Failed to build the preview
+[14:46:07.995] [ERROR] Error: Unable to index ./src/components/layout/ResultTabs.stories.svelte
+    at _StoryIndexGenerator.getIndexAndStats (file://./node_modules/storybook/dist/core-server/index.js:6282:15)
+    at async _StoryIndexGenerator.getIndex (file://./node_modules/storybook/dist/core-server/index.js:6271:13)
+    at async config (file://./node_modules/@storybook/builder-vite/dist/_node-chunks/chunk-YEI2VLDL.js:184:19)
+    at async runConfigHook (file://./node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:49479:17)
+    at async resolveConfig (file://./node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:48785:12)
+    at async _createServer (file://./node_modules/vite/dist/node/chunks/dep-D4NMHUTW.js:38349:66)
+    at async Module.start (file://./node_modules/@storybook/builder-vite/dist/index.js:1557:17)
+    at async storybookDevServer (file://./node_modules/storybook/dist/core-server/index.js:7502:83)
+    at async buildOrThrow (file://./node_modules/storybook/dist/core-server/index.js:4508:12)
+    at async buildDevStandalone (file://./node_modules/storybook/dist/core-server/index.js:8029:41)
+[14:46:07.997] [WARN] Broken build, fix the error above.
+You may need to refresh the browser.
