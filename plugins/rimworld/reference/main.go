@@ -1039,8 +1039,10 @@ func writeError(enc *json.Encoder, errType, message string) {
 	}
 }
 
+var powersOf10 = [...]float64{1, 10, 100, 1000, 10000}
+
 func roundN(v float64, n int) float64 {
-	shift := math.Pow(10, float64(n))
+	shift := powersOf10[n]
 	return math.Round(v*shift) / shift
 }
 

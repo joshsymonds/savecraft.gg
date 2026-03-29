@@ -17,8 +17,8 @@ func TestRoundN(t *testing.T) {
 		{"two decimals", 0.8765, 2, 0.88},
 		{"three decimals", 0.12345, 3, 0.123},
 		{"four decimals", 0.56789, 4, 0.5679},
-		{"rounds up", 0.555, 1, 0.6},
-		{"rounds down", 0.554, 1, 0.6},      // banker's rounding: .55 -> .6
+		{"rounds up at midpoint", 0.55, 1, 0.6},
+		{"rounds down below midpoint", 0.54, 1, 0.5},
 		{"negative value", -3.456, 1, -3.5},
 		{"zero", 0, 2, 0},
 		{"already rounded", 1.5, 1, 1.5},
