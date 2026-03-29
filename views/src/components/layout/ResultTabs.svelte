@@ -14,16 +14,19 @@
   interface Props {
     /** Tab definitions — one per result */
     tabs: Tab[];
+    /** Callback when active tab changes */
+    onchange?: (index: number) => void;
     /** Content snippet receiving the active tab index */
     children?: Snippet<[number]>;
   }
 
-  let { tabs, children }: Props = $props();
+  let { tabs, onchange, children }: Props = $props();
 
   let activeIndex = $state(0);
 
   function select(index: number) {
     activeIndex = index;
+    onchange?.(index);
   }
 </script>
 

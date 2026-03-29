@@ -25,6 +25,7 @@ const OUTPUT_FILE = resolve(ROOT, "worker/src/mcp/views.gen.ts");
 const viewCss = readFileSync(resolve(VIEWS_DIR, "src/view.css"), "utf-8");
 const bridgePath = resolve(VIEWS_DIR, "src/bridge.ts").split("\\").join("/");
 const attributionPath = resolve(VIEWS_DIR, "src/Attribution.svelte").split("\\").join("/");
+const multiResultViewPath = resolve(VIEWS_DIR, "src/components/layout/MultiResultView.svelte").split("\\").join("/");
 
 // ── Attribution ────────────────────────────────────────────
 
@@ -157,6 +158,7 @@ function referenceEntry(views: ReferenceView[]): string {
 import { mount } from "svelte";
 import { initBridge } from "${bridgePath}";
 import Attribution from "${attributionPath}";
+import MultiResultView from "${multiResultViewPath}";
 ${imports}
 
 const VIEWS = {
@@ -173,13 +175,24 @@ const app = initBridge((result) => {
   const target = document.getElementById("root");
   if (!target) return;
   target.replaceChildren();
-  if (Component) {
-    mount(Component, { target, props: { data, app } });
-  } else {
+  if (!Component) {
     target.textContent = moduleId
       ? "No view for module: " + moduleId
       : "Missing module identifier in response";
+    return;
   }
+
+  // Multi-query: wrap each result in a tabbed view
+  if (Array.isArray(data?.results) && data.results.length > 0) {
+    mount(MultiResultView, {
+      target,
+      props: { component: Component, results: data.results, moduleId, iconUrl: data.icon_url, app },
+    });
+    return;
+  }
+
+  // Single-query: mount directly
+  mount(Component, { target, props: { data, app } });
 });
 `;
 }
