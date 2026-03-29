@@ -619,7 +619,7 @@ async function contextualPick(
     const n = row.games_together;
     const effectiveDelta =
       n + synergyPrior > 0 ? (n * row.synergy_delta) / (n + synergyPrior) : 0;
-    list.push({ card: row.card_b, delta: effectiveDelta });
+    list.push({ card: row.card_b, delta: r4(effectiveDelta) });
   }
 
   let idealCurve: Map<number, number> | null = null;
@@ -1085,7 +1085,7 @@ async function contextualPick(
           normalized: r4(baselineNorm),
           weight: r4(weights.baseline),
           contribution: r4(weights.baseline * baselineNorm),
-          gihwr: baselineGihwr,
+          gihwr: r4(baselineGihwr),
           source: baselineSource,
         },
         synergy: {
@@ -1129,7 +1129,7 @@ async function contextualPick(
           normalized: r4(signalNorm),
           weight: r4(weights.signal),
           contribution: r4(weights.signal * signalNorm),
-          ata,
+          ata: r4(ata),
           current_pick: pickNumber,
         },
         color_commitment: {
