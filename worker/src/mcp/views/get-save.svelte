@@ -2,7 +2,6 @@
   import type { App } from "@modelcontextprotocol/ext-apps";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
-  import CardGrid from "../../../../views/src/components/layout/CardGrid.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
 
@@ -32,7 +31,7 @@
     refresh_error?: string;
   }
 
-  let { data, app }: { data: SaveData; app?: App } = $props();
+  let { data }: { data: SaveData; app?: App } = $props();
 
   let iconError = $state(false);
 
@@ -54,18 +53,6 @@
       : [],
   );
 
-  function onSectionClick(section: SectionInfo) {
-    app?.updateModelContext({
-      context: `Player is looking at the "${section.name}" section of ${data.name}. Description: ${section.description}. Save ID: ${data.save_id}`,
-    });
-  }
-
-  function onNoteClick(note: Note) {
-    app?.updateModelContext({
-      context: `Player clicked note "${note.title}" on ${data.name}. Note ID: ${note.note_id}, Save ID: ${data.save_id}`,
-    });
-  }
-
   function formatBytes(bytes: number): string {
     if (bytes < 1024) return `${String(bytes)}B`;
     return `${(bytes / 1024).toFixed(1)}KB`;
@@ -75,6 +62,10 @@
     if (source === "ai") return "AI";
     if (source === "player") return "Player";
     return source;
+  }
+
+  function formatSectionName(name: string): string {
+    return name.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
   }
 </script>
 
@@ -124,23 +115,17 @@
     </Panel>
   {/if}
 
-  <!-- Sections -->
+  <!-- Available Data -->
   <Panel>
-    <Section title="Sections" subtitle="Ask about any section to explore its data">
-      <CardGrid minWidth={200} gap="var(--space-sm)">
+    <Section title="Available Data" subtitle="Ask the AI about any of these to explore further">
+      <div class="section-list">
         {#each data.sections as section (section.name)}
-          <button
-            class="section-card"
-            onclick={() => onSectionClick(section)}
-            type="button"
-          >
-            <Panel nested padding="var(--space-sm) var(--space-md)">
-              <span class="section-name">{section.name.replace(/_/g, " ")}</span>
-              <span class="section-desc">{section.description}</span>
-            </Panel>
-          </button>
+          <div class="section-item">
+            <span class="section-name">{formatSectionName(section.name)}</span>
+            <span class="section-desc">{section.description}</span>
+          </div>
         {/each}
-      </CardGrid>
+      </div>
     </Section>
   </Panel>
 
@@ -150,17 +135,13 @@
       <Section title="Notes">
         <div class="note-list">
           {#each data.notes as note (note.note_id)}
-            <button
-              class="note-row"
-              onclick={() => onNoteClick(note)}
-              type="button"
-            >
+            <div class="note-item">
               <div class="note-main">
                 <span class="note-title">{note.title}</span>
                 <Badge label={sourceLabel(note.source)} variant={note.source === "ai" ? "info" : "muted"} />
               </div>
               <span class="note-size">{formatBytes(note.size_bytes)}</span>
-            </button>
+            </div>
           {/each}
         </div>
       </Section>
@@ -246,19 +227,27 @@
     color: var(--color-text-dim);
   }
 
-  /* ── Section cards ── */
-  .section-card {
-    cursor: pointer;
-    text-align: left;
-    border: none;
-    background: transparent;
-    padding: 0;
-    width: 100%;
-    transition: filter 0.15s;
+  /* ── Available data list ── */
+  .section-list {
+    display: flex;
+    flex-direction: column;
   }
 
-  .section-card:hover {
-    filter: brightness(1.15);
+  .section-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: var(--space-md);
+    padding: var(--space-xs) var(--space-xs);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 25%, transparent);
+  }
+
+  .section-item:last-child {
+    border-bottom: none;
+  }
+
+  .section-item:nth-child(even) {
+    background: color-mix(in srgb, var(--color-border) 6%, transparent);
   }
 
   .section-name {
@@ -266,39 +255,36 @@
     font-size: 14px;
     font-weight: 600;
     color: var(--color-text);
-    text-transform: capitalize;
+    flex-shrink: 0;
   }
 
   .section-desc {
     font-family: var(--font-body);
-    font-size: 12px;
+    font-size: 13px;
     color: var(--color-text-muted);
-    line-height: 1.3;
+    text-align: right;
   }
 
   /* ── Notes list ── */
   .note-list {
     display: flex;
     flex-direction: column;
-    gap: 1px;
   }
 
-  .note-row {
+  .note-item {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: var(--space-xs) var(--space-sm);
-    border: none;
-    background: transparent;
-    cursor: pointer;
-    text-align: left;
-    border-radius: var(--radius-sm);
-    transition: background 0.1s;
-    width: 100%;
+    padding: var(--space-xs) var(--space-xs);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 25%, transparent);
   }
 
-  .note-row:hover {
-    background: color-mix(in srgb, var(--color-border) 14%, transparent);
+  .note-item:last-child {
+    border-bottom: none;
+  }
+
+  .note-item:nth-child(even) {
+    background: color-mix(in srgb, var(--color-border) 6%, transparent);
   }
 
   .note-main {

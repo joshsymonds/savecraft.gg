@@ -19,19 +19,7 @@
     results: SearchResult[];
   }
 
-  let { data, app }: { data: SearchData; app?: App } = $props();
-
-  function onResultClick(result: SearchResult) {
-    if (result.type === "note") {
-      app?.updateModelContext({
-        context: `Player clicked search result: note "${result.ref_title}" on save "${result.save_name}". Note ID: ${result.ref_id}, Save ID: ${result.save_id}`,
-      });
-    } else {
-      app?.updateModelContext({
-        context: `Player clicked search result: ${result.ref_title} section of save "${result.save_name}". Save ID: ${result.save_id}`,
-      });
-    }
-  }
+  let { data }: { data: SearchData; app?: App } = $props();
 
   /**
    * Parse **bold** markers from SQLite FTS snippet() into segments.
@@ -72,22 +60,20 @@
     </Panel>
   {:else}
     <Panel>
-      <Section title="Search" subtitle={data.query}>
+      <Section title="Search" subtitle='Results for "{data.query}"'>
         <div class="result-list">
           {#each data.results as result, i (result.ref_id + "-" + String(i))}
-            <button
-              class="result-row"
-              onclick={() => onResultClick(result)}
-              type="button"
-            >
+            <div class="result-item">
               <div class="result-header">
                 <Badge
                   label={result.type === "note" ? "Note" : "Save Data"}
                   variant={result.type === "note" ? "highlight" : "positive"}
                 />
-                <span class="result-save">{result.save_name}</span>
-                <span class="result-sep">&rsaquo;</span>
-                <span class="result-title">{result.ref_title}</span>
+                <span class="result-source">
+                  {result.save_name}
+                  <span class="result-sep">&rsaquo;</span>
+                  {result.ref_title}
+                </span>
               </div>
               <p class="result-snippet">
                 {#each parseSnippet(result.snippet) as segment}
@@ -98,7 +84,7 @@
                   {/if}
                 {/each}
               </p>
-            </button>
+            </div>
           {/each}
         </div>
       </Section>
@@ -116,36 +102,32 @@
   .result-list {
     display: flex;
     flex-direction: column;
-    gap: var(--space-xs);
   }
 
-  .result-row {
+  .result-item {
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
-    padding: var(--space-sm) var(--space-md);
-    background: var(--color-surface);
-    border: 1px solid color-mix(in srgb, var(--color-border) 40%, transparent);
-    border-radius: var(--radius-sm);
-    cursor: pointer;
-    text-align: left;
-    width: 100%;
-    transition: border-color 0.15s, background 0.15s;
+    padding: var(--space-sm) var(--space-xs);
+    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 25%, transparent);
   }
 
-  .result-row:hover {
-    border-color: color-mix(in srgb, var(--color-gold) 30%, var(--color-border));
-    background: color-mix(in srgb, var(--color-gold) 3%, var(--color-surface));
+  .result-item:last-child {
+    border-bottom: none;
+  }
+
+  .result-item:nth-child(even) {
+    background: color-mix(in srgb, var(--color-border) 6%, transparent);
   }
 
   .result-header {
     display: flex;
     align-items: center;
-    gap: var(--space-xs);
+    gap: var(--space-sm);
     flex-wrap: wrap;
   }
 
-  .result-save {
+  .result-source {
     font-family: var(--font-heading);
     font-size: 14px;
     font-weight: 600;
@@ -155,12 +137,7 @@
   .result-sep {
     color: var(--color-text-muted);
     font-size: 12px;
-  }
-
-  .result-title {
-    font-family: var(--font-heading);
-    font-size: 14px;
-    color: var(--color-text-dim);
+    margin: 0 2px;
   }
 
   .result-snippet {
@@ -169,6 +146,8 @@
     color: var(--color-text-dim);
     line-height: 1.5;
     margin: 0;
+    padding-left: var(--space-sm);
+    border-left: 2px solid color-mix(in srgb, var(--color-gold) 30%, transparent);
   }
 
   .highlight {
