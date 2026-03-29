@@ -55,6 +55,7 @@ async function overview(userId: string, env: Env): Promise<ReferenceResult> {
 
   return {
     type: "structured",
+    title: "Match History Overview",
     data: {
       total_matches: totalMatches,
       total_wins: totalWins,
@@ -84,12 +85,14 @@ async function byDeck(userId: string, env: Env): Promise<ReferenceResult> {
   if (rows.results.length === 0) {
     return {
       type: "structured",
+      title: "Win Rate by Deck",
       data: { decks: [] },
     };
   }
 
   return {
     type: "structured",
+    title: "Win Rate by Deck",
     data: {
       decks: rows.results.map((r) => ({
         deck: r.group_key || "(no deck)",
@@ -115,12 +118,14 @@ async function byFormat(userId: string, env: Env): Promise<ReferenceResult> {
   if (rows.results.length === 0) {
     return {
       type: "structured",
+      title: "Win Rate by Format",
       data: { formats: [] },
     };
   }
 
   return {
     type: "structured",
+    title: "Win Rate by Format",
     data: {
       formats: rows.results.map((r) => ({
         format: r.group_key || "(unknown)",
@@ -155,6 +160,7 @@ async function byMatchup(
   if (matches.results.length === 0) {
     return {
       type: "structured",
+      title: "Win Rate by Matchup",
       data: { matchups: [], format: format ?? "all" },
     };
   }
@@ -189,6 +195,7 @@ async function byMatchup(
 
   return {
     type: "structured",
+    title: "Win Rate by Matchup",
     data: {
       format: format ?? "all",
       matchups: sorted.map(([archetype, stats]) => ({
@@ -221,6 +228,7 @@ async function trend(
   if (rows.results.length === 0) {
     return {
       type: "structured",
+      title: "Recent Match Trend",
       data: { total: 0, wins: 0, losses: 0, win_rate: 0, matches: [] },
     };
   }
@@ -230,6 +238,7 @@ async function trend(
 
   return {
     type: "structured",
+    title: "Recent Match Trend",
     data: {
       total,
       wins,

@@ -84,6 +84,7 @@ async function listAvailableSets(db: D1Database): Promise<ReferenceResult> {
 
   return {
     type: "structured",
+    title: "Draft Sets",
     data: {
       sets: rows.results.map((r) => ({
         set_code: r.set_code,
@@ -128,6 +129,7 @@ async function setOverview(
 
   return {
     type: "structured",
+    title: `${setCode} Overview`,
     data: {
       set_code: setCode,
       format: setStats.format,
@@ -220,6 +222,7 @@ async function cardDetail(
 
   return {
     type: "structured",
+    title: cardQuery,
     data: {
       set_code: setCode,
       format: setStats.format,
@@ -310,6 +313,7 @@ async function leaderboard(
 
   return {
     type: "structured",
+    title: `${setCode} Leaderboard`,
     data: {
       set_code: setCode,
       format: setStats.format,

@@ -175,6 +175,7 @@ async function cardTiming(
 
   return {
     type: "structured",
+    title: "Card Timing Analysis",
     data: {
       disclaimer: disclaimerText(format),
       cards,
@@ -260,6 +261,7 @@ async function manaEfficiency(
 
   return {
     type: "structured",
+    title: "Mana Efficiency Analysis",
     data: {
       disclaimer: disclaimerText(format),
       turns: turnResults,
@@ -371,6 +373,7 @@ async function attackAnalysis(
 
   return {
     type: "structured",
+    title: "Attack Analysis",
     data: {
       disclaimer: disclaimerText(format),
       turns: turnResults,
@@ -459,6 +462,7 @@ async function mulligan(
 
   return {
     type: "structured",
+    title: "Mulligan Analysis",
     data: {
       disclaimer: disclaimerText(format),
       hand_size: hand.length,
@@ -763,6 +767,7 @@ async function gameReview(
 
   return {
     type: "structured",
+    title: "Game Review",
     data: {
       disclaimer: disclaimerText(format),
       findings: findings.slice(0, 5).map((f) => ({

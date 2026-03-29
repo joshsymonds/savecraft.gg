@@ -146,7 +146,7 @@ export const cardSearchModule: NativeReferenceModule = {
       }
 
       if (ftsArenaIds.length === 0) {
-        return { type: "structured", data: { cards: [], total: 0 } };
+        return { type: "structured", title: "Card Search Results", data: { cards: [], total: 0 } };
       }
     }
 
@@ -227,6 +227,7 @@ export const cardSearchModule: NativeReferenceModule = {
 
     return {
       type: "structured",
+      title: "Card Search Results",
       data: { cards, total: cards.length },
     };
   },
