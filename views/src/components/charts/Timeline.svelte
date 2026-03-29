@@ -12,6 +12,10 @@
     value?: string | number;
     variant?: Variant;
     marker?: string;
+    /** Optional tag rendered as a badge-like element between content and value */
+    tag?: string;
+    /** Variant for the tag (defaults to event variant) */
+    tagVariant?: Variant;
   }
 
   interface Props {
@@ -44,7 +48,15 @@
         >{event.marker ?? ""}</span>
       </div>
       <div class="event-content">
-        <span class="event-label">{event.label}</span>
+        <div class="event-label-row">
+          <span class="event-label">{event.label}</span>
+          {#if event.tag}
+            <span
+              class="event-tag"
+              style:--tag-color={variantColors[event.tagVariant ?? event.variant ?? "muted"]}
+            >{event.tag}</span>
+          {/if}
+        </div>
         {#if event.sublabel}
           <span class="event-sublabel">{event.sublabel}</span>
         {/if}
@@ -121,6 +133,12 @@
     min-width: 0;
   }
 
+  .event-label-row {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+  }
+
   .event-label {
     font-family: var(--font-heading);
     font-size: 15px;
@@ -132,6 +150,20 @@
     font-family: var(--font-body);
     font-size: 13px;
     color: var(--color-text-muted);
+  }
+
+  .event-tag {
+    font-family: var(--font-pixel);
+    font-size: 8px;
+    color: var(--tag-color);
+    background: color-mix(in srgb, var(--tag-color) 12%, transparent);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    flex-shrink: 0;
+    align-self: center;
   }
 
   .event-value {
