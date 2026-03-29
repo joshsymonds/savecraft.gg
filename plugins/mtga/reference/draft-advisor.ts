@@ -1211,6 +1211,187 @@ async function contextualPick(
   };
 }
 
+// ── Archetype warning generation ─────────────────────────────
+
+export interface ArchetypeFrame {
+  pick_number: number;
+  display_label: string;
+  primary: string;
+  primary_weight: number;
+  secondary: string;
+  secondary_weight: number;
+  viability: string;
+  phase: "exploration" | "emerging" | "committed";
+}
+
+const PIVOT_GAP = 0.08;
+const SPLIT_GAP = 0.05;
+const SPLIT_RUN = 3;
+
+/** Pivot/split/weakness warnings from a sequence of archetype frames. */
+export function generateArchetypeWarnings(
+  frames: ArchetypeFrame[],
+): string[] {
+  const warnings: string[] = [];
+
+  // Initialize sustained primary from the last exploration frame, so we
+  // enter the emerging phase with the archetype the drafter established.
+  let sustainedPrimary = "";
+  for (const f of frames) {
+    if (f.phase === "exploration") {
+      sustainedPrimary = f.primary;
+    } else {
+      break;
+    }
+  }
+  let commitmentPointPrimary = ""; // frozen snapshot at first emerging frame
+
+  // Split run tracking
+  let splitRunStart = "";
+  let splitRunLength = 0;
+  let splitArchA = "";
+  let splitArchB = "";
+  let splitStartPhase: "emerging" | "committed" = "emerging";
+
+  function flushSplitRun(endLabel: string): void {
+    if (splitRunLength >= SPLIT_RUN) {
+      const archetypes = [splitArchA, splitArchB].sort().join(" and ");
+      if (splitStartPhase === "committed") {
+        warnings.push(
+          `${splitRunStart}–${endLabel}: split between ${archetypes} — still undecided in committed phase`,
+        );
+      } else {
+        warnings.push(
+          `${splitRunStart}–${endLabel}: split between ${archetypes}`,
+        );
+      }
+    }
+    splitRunLength = 0;
+    splitRunStart = "";
+    splitArchA = "";
+    splitArchB = "";
+  }
+
+  for (const frame of frames) {
+    // Skip exploration phase entirely
+    if (frame.phase === "exploration") continue;
+
+    // Initialize commitment point and sustained (if not set from exploration)
+    if (!commitmentPointPrimary) {
+      if (!sustainedPrimary) {
+        sustainedPrimary = frame.primary;
+      }
+      commitmentPointPrimary = frame.primary;
+
+      // Weak archetype at commitment point
+      if (frame.viability === "sparse" || frame.viability === "fringe") {
+        const pctNote = frame.viability === "fringe" ? "<5%" : "5-25%";
+        warnings.push(
+          `Entering commitment phase in ${frame.primary} (${frame.viability} — only ${pctNote} of winning decks in this format)`,
+        );
+      }
+    }
+
+    // Pivot detection: check if current primary differs from sustained
+    if (frame.primary !== sustainedPrimary) {
+      // Compute weight gap between new primary and sustained primary
+      let sustainedWeight: number;
+      if (frame.secondary === sustainedPrimary) {
+        sustainedWeight = frame.secondary_weight;
+      } else {
+        // Sustained primary isn't even in top 2 — clearly a pivot
+        sustainedWeight = 0;
+      }
+      const gap = frame.primary_weight - sustainedWeight;
+
+      if (gap > PIVOT_GAP) {
+        // Genuine pivot — update sustained and emit warning
+        const verb = frame.phase === "committed" ? "pivot" : "drift";
+        warnings.push(
+          `${frame.display_label}: ${verb} from ${sustainedPrimary} to ${frame.primary}`,
+        );
+        sustainedPrimary = frame.primary;
+      }
+    } else {
+      // Primary matches sustained — if it had been briefly different, sustained stays
+      sustainedPrimary = frame.primary;
+    }
+
+    // Split detection: top-two gap < SPLIT_GAP
+    const topTwoGap = frame.primary_weight - frame.secondary_weight;
+    if (topTwoGap < SPLIT_GAP) {
+      const pairA = frame.primary;
+      const pairB = frame.secondary;
+      if (splitRunLength === 0) {
+        splitRunStart = frame.display_label;
+        splitArchA = pairA;
+        splitArchB = pairB;
+        splitStartPhase = frame.phase === "committed" ? "committed" : "emerging";
+        splitRunLength = 1;
+      } else {
+        // Continue run if it's the same pair of archetypes (in either order)
+        const sameA = splitArchA;
+        const sameB = splitArchB;
+        if (
+          (pairA === sameA && pairB === sameB) ||
+          (pairA === sameB && pairB === sameA)
+        ) {
+          splitRunLength++;
+          // Upgrade to committed if any frame in the run is committed
+          if (frame.phase === "committed") {
+            splitStartPhase = "committed";
+          }
+        } else {
+          // Different pair — flush and start new run
+          flushSplitRun(frame.display_label);
+          splitRunStart = frame.display_label;
+          splitArchA = pairA;
+          splitArchB = pairB;
+          splitStartPhase = frame.phase === "committed" ? "committed" : "emerging";
+          splitRunLength = 1;
+        }
+      }
+    } else {
+      if (splitRunLength > 0) {
+        // Gap widened — flush the run, using the previous frame's label as end
+        // We need the previous label, so track it
+        flushSplitRun(frame.display_label);
+      }
+    }
+  }
+
+  // Flush any trailing split run using last frame's label
+  if (splitRunLength > 0 && frames.length > 0) {
+    flushSplitRun(frames[frames.length - 1]!.display_label);
+  }
+
+  // Final archetype weakness
+  const finalFrame = frames[frames.length - 1];
+  if (
+    finalFrame &&
+    finalFrame.phase !== "exploration" &&
+    (finalFrame.viability === "sparse" || finalFrame.viability === "fringe")
+  ) {
+    warnings.push(
+      `Final archetype ${finalFrame.primary} is ${finalFrame.viability} — consider alternatives in deckbuilding`,
+    );
+  }
+
+  // Commitment-to-final summary: compare frozen snapshot to final primary
+  const finalPrimary = finalFrame?.primary;
+  if (
+    commitmentPointPrimary &&
+    finalPrimary &&
+    commitmentPointPrimary !== finalPrimary
+  ) {
+    warnings.push(
+      `Archetype shift: started as ${commitmentPointPrimary} at the commitment point and ended as ${finalPrimary}`,
+    );
+  }
+
+  return warnings;
+}
+
 // ── Batch review mode ────────────────────────────────────────
 
 interface BatchPickResult {
