@@ -1,15 +1,15 @@
 <!--
   @component
-  Directed acyclic graph rendered left-to-right using Elkjs for layout.
+  Directed acyclic graph rendered left-to-right with a simple layered layout.
   Nodes are rounded rectangles with optional icon + label. Edges are
   smooth cubic bezier SVG paths with optional rate labels.
 
-  Game-agnostic — icon rendering is delegated to the consumer via the
-  `renderIcon` prop (a function returning an HTML string or null).
+  Uses a lightweight custom layout algorithm (zero dependencies) — nodes
+  are positioned by depth (x) and sibling order (y).
+
+  Game-agnostic — icon rendering is delegated to the consumer.
 -->
 <script lang="ts">
-  import { onMount } from "svelte";
-  import ELK from "elkjs/lib/elk.bundled.js";
   import Tooltip from "./Tooltip.svelte";
 
   export interface DAGNode {
@@ -49,12 +49,9 @@
 
   let { nodes, edges, nodeWidth = 160, nodeHeight = 56 }: Props = $props();
 
-  // Layout state
-  let layoutNodes: Array<DAGNode & { x: number; y: number }> = $state([]);
-  let layoutEdges: Array<DAGEdge & { path: string; labelX: number; labelY: number }> = $state([]);
-  let svgWidth = $state(0);
-  let svgHeight = $state(0);
-  let layoutReady = $state(false);
+  const PAD = 16;
+  const NODE_GAP_X = 48;
+  const NODE_GAP_Y = 24;
 
   // Tooltip
   let tip = $state({ text: "", x: 0, y: 0, visible: false });
@@ -75,62 +72,105 @@
     raw: "var(--color-text-muted)",
   };
 
-  onMount(async () => {
-    const elk = new ELK();
+  // ── Simple layered layout (zero dependencies) ──────────────────────
 
-    const graph = {
-      id: "root",
-      layoutOptions: {
-        "elk.algorithm": "layered",
-        "elk.direction": "RIGHT",
-        "elk.spacing.nodeNode": "24",
-        "elk.layered.spacing.nodeNodeBetweenLayers": "48",
-        "elk.padding": "[top=16,left=16,bottom=16,right=16]",
-      },
-      children: nodes.map((n) => ({
-        id: n.id,
-        width: nodeWidth,
-        height: nodeHeight,
-      })),
-      edges: edges.map((e, i) => ({
-        id: `e${i}`,
-        sources: [e.source],
-        targets: [e.target],
-      })),
-    };
+  // Build adjacency: for each node, find its children (nodes it receives edges FROM)
+  // Edge direction: source → target means source feeds into target.
+  // Layout: target is to the RIGHT of source. So children = sources of edges targeting this node.
+  function computeLayout(nodes: DAGNode[], edges: DAGEdge[]) {
+    const nodeMap = new Map(nodes.map((n) => [n.id, n]));
+    // childrenOf[id] = nodes that feed INTO id (sources of edges where target=id)
+    const childrenOf = new Map<string, string[]>();
+    // parentOf[id] = nodes that id feeds into
+    const parentOf = new Map<string, string[]>();
 
-    const layout = await elk.layout(graph);
-
-    svgWidth = (layout.width ?? 400) + 32;
-    svgHeight = (layout.height ?? 200) + 32;
-
-    // Map layout positions back to our nodes
-    const posMap = new Map<string, { x: number; y: number }>();
-    for (const child of layout.children ?? []) {
-      posMap.set(child.id, { x: child.x ?? 0, y: child.y ?? 0 });
+    for (const e of edges) {
+      if (!childrenOf.has(e.target)) childrenOf.set(e.target, []);
+      childrenOf.get(e.target)!.push(e.source);
+      if (!parentOf.has(e.source)) parentOf.set(e.source, []);
+      parentOf.get(e.source)!.push(e.target);
     }
 
-    layoutNodes = nodes.map((n) => ({
-      ...n,
-      x: (posMap.get(n.id)?.x ?? 0) + 16,
-      y: (posMap.get(n.id)?.y ?? 0) + 16,
-    }));
+    // Find root nodes (nodes with no parent = rightmost, the final product)
+    const roots = nodes.filter((n) => !parentOf.has(n.id) || parentOf.get(n.id)!.length === 0);
 
-    // Build edge paths using node center positions
-    layoutEdges = edges.map((e) => {
-      const src = posMap.get(e.source);
-      const tgt = posMap.get(e.target);
-      if (!src || !tgt) {
-        return { ...e, path: "", labelX: 0, labelY: 0 };
+    // Assign depth via BFS from roots (root = depth 0, children = depth 1, etc.)
+    const depth = new Map<string, number>();
+    const queue: string[] = [];
+    for (const r of roots) {
+      depth.set(r.id, 0);
+      queue.push(r.id);
+    }
+    while (queue.length > 0) {
+      const id = queue.shift()!;
+      const d = depth.get(id)!;
+      for (const child of childrenOf.get(id) ?? []) {
+        const existing = depth.get(child);
+        if (existing === undefined || d + 1 > existing) {
+          depth.set(child, d + 1);
+          queue.push(child);
+        }
       }
+    }
 
-      // Source right edge center → target left edge center
-      const x1 = src.x + nodeWidth + 16;
-      const y1 = src.y + nodeHeight / 2 + 16;
-      const x2 = tgt.x + 16;
-      const y2 = tgt.y + nodeHeight / 2 + 16;
+    // Handle disconnected nodes
+    for (const n of nodes) {
+      if (!depth.has(n.id)) depth.set(n.id, 0);
+    }
 
-      // Cubic bezier with control points at 40% of horizontal distance
+    // Find max depth for right-to-left positioning (root at right, leaves at left)
+    const maxDepth = Math.max(...depth.values(), 0);
+
+    // Group by depth layer
+    const layers = new Map<number, string[]>();
+    for (const [id, d] of depth) {
+      if (!layers.has(d)) layers.set(d, []);
+      layers.get(d)!.push(id);
+    }
+
+    // Position nodes: x = (maxDepth - depth) * spacing (root at right), y = index in layer
+    const positions = new Map<string, { x: number; y: number }>();
+    for (const [d, ids] of layers) {
+      const x = PAD + (maxDepth - d) * (nodeWidth + NODE_GAP_X);
+      for (let i = 0; i < ids.length; i++) {
+        const y = PAD + i * (nodeHeight + NODE_GAP_Y);
+        positions.set(ids[i], { x, y });
+      }
+    }
+
+    const totalWidth = PAD * 2 + (maxDepth + 1) * (nodeWidth + NODE_GAP_X) - NODE_GAP_X;
+    let totalHeight = PAD * 2;
+    for (const [, ids] of layers) {
+      const layerHeight = ids.length * (nodeHeight + NODE_GAP_Y) - NODE_GAP_Y;
+      totalHeight = Math.max(totalHeight, PAD * 2 + layerHeight);
+    }
+
+    return { positions, totalWidth, totalHeight };
+  }
+
+  // Compute layout reactively
+  let layout = $derived(computeLayout(nodes, edges));
+
+  let layoutNodes = $derived(
+    nodes.map((n) => ({
+      ...n,
+      x: layout.positions.get(n.id)?.x ?? 0,
+      y: layout.positions.get(n.id)?.y ?? 0,
+    })),
+  );
+
+  let layoutEdges = $derived(
+    edges.map((e) => {
+      const src = layout.positions.get(e.source);
+      const tgt = layout.positions.get(e.target);
+      if (!src || !tgt) return { ...e, path: "", labelX: 0, labelY: 0 };
+
+      // Source right edge → target left edge
+      const x1 = src.x + nodeWidth;
+      const y1 = src.y + nodeHeight / 2;
+      const x2 = tgt.x;
+      const y2 = tgt.y + nodeHeight / 2;
+
       const dx = (x2 - x1) * 0.4;
       const path = `M ${x1} ${y1} C ${x1 + dx} ${y1}, ${x2 - dx} ${y2}, ${x2} ${y2}`;
 
@@ -140,10 +180,8 @@
         labelX: (x1 + x2) / 2,
         labelY: (y1 + y2) / 2 - 8,
       };
-    });
-
-    layoutReady = true;
-  });
+    }),
+  );
 
   function showNodeTip(e: MouseEvent, node: DAGNode) {
     const parts = [node.label];
@@ -153,120 +191,114 @@
   }
 </script>
 
-{#if layoutReady}
-  <div class="dag-container" style="position: relative; overflow-x: auto;">
-    <Tooltip {...tip} />
-    <svg
-      width={svgWidth}
-      height={svgHeight}
-      viewBox="0 0 {svgWidth} {svgHeight}"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <!-- Edges -->
-      {#each layoutEdges as edge}
-        {#if edge.path}
-          <path
-            d={edge.path}
-            fill="none"
-            stroke="var(--color-border)"
-            stroke-width={edgeWidth(edge.rate)}
-            stroke-opacity="0.6"
-          />
-          {#if edge.label}
-            <text
-              x={edge.labelX}
-              y={edge.labelY}
-              text-anchor="middle"
-              class="edge-label"
-            >
-              {edge.label}
-            </text>
-          {/if}
+<div class="dag-container" style="position: relative; overflow-x: auto;">
+  <Tooltip {...tip} />
+  <svg
+    width={layout.totalWidth}
+    height={layout.totalHeight}
+    viewBox="0 0 {layout.totalWidth} {layout.totalHeight}"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <!-- Edges -->
+    {#each layoutEdges as edge}
+      {#if edge.path}
+        <path
+          d={edge.path}
+          fill="none"
+          stroke="var(--color-border)"
+          stroke-width={edgeWidth(edge.rate)}
+          stroke-opacity="0.6"
+        />
+        {#if edge.label}
+          <text
+            x={edge.labelX}
+            y={edge.labelY}
+            text-anchor="middle"
+            class="edge-label"
+          >
+            {edge.label}
+          </text>
         {/if}
-      {/each}
+      {/if}
+    {/each}
 
-      <!-- Nodes -->
-      {#each layoutNodes as node}
-        <!-- svelte-ignore a11y_no_static_element_interactions -->
-        <g
-          transform="translate({node.x}, {node.y})"
-          onmouseenter={(e) => showNodeTip(e, node)}
-          onmouseleave={() => (tip.visible = false)}
-          class="dag-node"
-        >
+    <!-- Nodes -->
+    {#each layoutNodes as node}
+      <!-- svelte-ignore a11y_no_static_element_interactions -->
+      <g
+        transform="translate({node.x}, {node.y})"
+        onmouseenter={(e) => showNodeTip(e, node)}
+        onmouseleave={() => (tip.visible = false)}
+        class="dag-node"
+      >
+        <rect
+          width={nodeWidth}
+          height={nodeHeight}
+          rx="6"
+          ry="6"
+          fill="var(--color-surface)"
+          stroke={variantBorders[node.variant ?? "default"]}
+          stroke-width="1.5"
+        />
+
+        <!-- Icon placeholder (left side) -->
+        {#if node.icon}
           <rect
-            width={nodeWidth}
-            height={nodeHeight}
-            rx="6"
-            ry="6"
-            fill="var(--color-surface)"
-            stroke={variantBorders[node.variant ?? "default"]}
-            stroke-width="1.5"
+            x="4"
+            y={(nodeHeight - 28) / 2}
+            width="28"
+            height="28"
+            rx="3"
+            fill="var(--color-surface-raised)"
+            opacity="0.5"
           />
+          <text
+            x="18"
+            y={nodeHeight / 2 + 1}
+            text-anchor="middle"
+            dominant-baseline="middle"
+            class="icon-placeholder"
+          >
+            {node.icon.slice(0, 2).toUpperCase()}
+          </text>
+        {/if}
 
-          <!-- Icon placeholder (left side) -->
-          {#if node.icon}
-            <rect
-              x="4"
-              y={(nodeHeight - 28) / 2}
-              width="28"
-              height="28"
-              rx="3"
-              fill="var(--color-surface-raised)"
-              opacity="0.5"
-            />
-            <text
-              x="18"
-              y={nodeHeight / 2 + 1}
-              text-anchor="middle"
-              dominant-baseline="middle"
-              class="icon-placeholder"
-            >
-              {node.icon.slice(0, 2).toUpperCase()}
-            </text>
-          {/if}
-
-          <!-- Labels -->
+        <!-- Labels -->
+        <text
+          x={node.icon ? 38 : 10}
+          y={node.sublabel ? nodeHeight / 2 - 6 : nodeHeight / 2}
+          dominant-baseline="middle"
+          class="node-label"
+        >
+          {node.label}
+        </text>
+        {#if node.sublabel}
           <text
             x={node.icon ? 38 : 10}
-            y={node.sublabel ? nodeHeight / 2 - 6 : nodeHeight / 2}
+            y={nodeHeight / 2 + 10}
             dominant-baseline="middle"
-            class="node-label"
+            class="node-sublabel"
           >
-            {node.label}
+            {node.sublabel}
           </text>
-          {#if node.sublabel}
-            <text
-              x={node.icon ? 38 : 10}
-              y={nodeHeight / 2 + 10}
-              dominant-baseline="middle"
-              class="node-sublabel"
-            >
-              {node.sublabel}
-            </text>
-          {/if}
+        {/if}
 
-          <!-- Rate badge (right side) -->
-          {#if node.rate}
-            <text
-              x={nodeWidth - 8}
-              y={nodeHeight / 2}
-              text-anchor="end"
-              dominant-baseline="middle"
-              class="node-rate"
-            >
-              {node.rate}
-            </text>
-          {/if}
-        </g>
-      {/each}
-    </svg>
-  </div>
-{:else}
-  <div class="dag-loading">
-    <span class="loading-text">Computing layout...</span>
-  </div>
-{/if}
+        <!-- Rate badge (right side) -->
+        {#if node.rate}
+          <text
+            x={nodeWidth - 8}
+            y={nodeHeight / 2}
+            text-anchor="end"
+            dominant-baseline="middle"
+            class="node-rate"
+          >
+            {node.rate}
+          </text>
+        {/if}
+      </g>
+    {/each}
+  </svg>
+</div>
 
 <style>
   .dag-container {
@@ -313,19 +345,5 @@
     font-weight: 700;
     fill: var(--color-text-muted, #a0a8cc);
     font-family: var(--font-heading, monospace);
-  }
-
-  .dag-loading {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-height: 100px;
-    color: var(--color-text-dim, #d0d4e8);
-    font-family: var(--font-body, sans-serif);
-    font-size: 13px;
-  }
-
-  .loading-text {
-    opacity: 0.6;
   }
 </style>
