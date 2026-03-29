@@ -10,21 +10,21 @@
   import fluidManifest from "../../../../plugins/factorio/sprites/fluids.json";
 
   const { Story } = defineMeta({
-    title: "Components/Factorio/FactorioIcon",
+    title: "Factorio/Components/FactorioIcon",
     tags: ["autodocs"],
   });
 
   // Sprite configs for Storybook — using local file paths
   // In production, these URLs would point to R2
   const itemConfig = {
-    url: "/factorio-sprites/items.png",
+    url: "/plugins/factorio/sprites/items.png",
     sheetWidth: 2048,
     sheetHeight: 704,
     manifest: itemManifest,
   };
 
   const fluidConfig = {
-    url: "/factorio-sprites/fluids.png",
+    url: "/plugins/factorio/sprites/fluids.png",
     sheetWidth: 2048,
     sheetHeight: 128,
     manifest: fluidManifest,

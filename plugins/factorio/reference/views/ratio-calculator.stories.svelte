@@ -4,7 +4,7 @@
   import RatioCalculator from "./ratio-calculator.svelte";
 
   const { Story } = defineMeta({
-    title: "Factorio/Ratio Calculator",
+    title: "Factorio/Views/RatioCalculator",
     tags: ["autodocs"],
   });
 
