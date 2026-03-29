@@ -3,7 +3,10 @@
   import CollectionDiff from "./collection-diff.svelte";
   const { Story } = defineMeta({ title: "MTG/Views/CollectionDiff", tags: ["autodocs"] });
 
+  const iconUrl = "/plugins/mtga/icon.png";
+
   const fullData = {
+    icon_url: iconUrl,
     missing: [
       { name: "Sheoldred, the Apocalypse", count: 2, rarity: "mythic" },
       { name: "Preacher of the Schism", count: 1, rarity: "rare" },
@@ -21,6 +24,7 @@
   };
 
   const complete = {
+    icon_url: iconUrl,
     missing: [],
     wildcardCost: { common: 0, uncommon: 0, rare: 0, mythic: 0, unknown: 0, total: 0 },
     unresolvedCards: [],
