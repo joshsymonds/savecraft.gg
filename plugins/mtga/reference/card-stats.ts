@@ -92,8 +92,6 @@ async function listAvailableSets(db: D1Database): Promise<ReferenceResult> {
         avg_gihwr: r.avg_gihwr,
       })),
     },
-    presentation:
-      "Available draft sets — table listing each set code, format, game count, card count, and average GIH WR. Data source: 17Lands (CC BY 4.0).",
   };
 }
 
@@ -140,8 +138,6 @@ async function setOverview(
       top_iwd: topIwd,
       undervalued,
     },
-    presentation:
-      "Set overview — headline the set stats, then show ranked tables for top/bottom GIH WR, most impactful (IWD), and undervalued cards. Use bar indicators for win rates relative to the set average. Highlight cards significantly above or below average.",
   };
 }
 
@@ -230,8 +226,6 @@ async function cardDetail(
       cards: cardResults,
       more: ratings.results.length > 5 ? ratings.results.length - 5 : 0,
     },
-    presentation:
-      "Card detail — for each card, show overall stats as a stat block (GIH WR, IWD, OHWR, GD WR, GNS WR, ALSA, ATA, games) with the set average for context. Show archetype breakdowns as a comparison table with GIH WR per color pair. Highlight archetypes where the card over- or under-performs relative to overall.",
   };
 }
 
@@ -328,8 +322,6 @@ async function leaderboard(
         ...cardRow(r),
       })),
     },
-    presentation:
-      "Card leaderboard — ranked table with position, card name, and all stats (GIH WR, IWD, OHWR, ALSA, ATA, games). Highlight the sort column. Show pagination info if more results available.",
   };
 }
 

@@ -321,7 +321,6 @@ describe("card_stats native module", () => {
     const sets = result.data.sets as { set_code: string }[];
     expect(sets.map((s) => s.set_code)).toContain("DSK");
     expect(sets.map((s) => s.set_code)).toContain("BLB");
-    expect(result).toHaveProperty("presentation");
   });
 
   it("returns set overview when only set specified", async () => {
@@ -333,7 +332,6 @@ describe("card_stats native module", () => {
     expect(result.data.format).toBe("PremierDraft");
     const topGihwr = result.data.top_gihwr as { card_name: string }[];
     expect(topGihwr.some((c) => c.card_name === "Blazing Bolt")).toBe(true);
-    expect(result).toHaveProperty("presentation");
   });
 
   it("returns single card detail with color breakdowns", async () => {
@@ -352,7 +350,6 @@ describe("card_stats native module", () => {
     const archetypes = gloom!.archetypes!.map((a) => a.archetype);
     expect(archetypes).toContain("UB");
     expect(archetypes).toContain("BG");
-    expect(result).toHaveProperty("presentation");
   });
 
   it("returns leaderboard sorted by gihwr", async () => {
@@ -364,7 +361,6 @@ describe("card_stats native module", () => {
     const blazingIndex = cards.findIndex((c) => c.card_name === "Blazing Bolt");
     const gloomIndex = cards.findIndex((c) => c.card_name === "Gloomlake Verge");
     expect(blazingIndex).toBeLessThan(gloomIndex);
-    expect(result).toHaveProperty("presentation");
   });
 
   it("returns not found for nonexistent card", async () => {
@@ -462,7 +458,6 @@ describe("card_stats native module", () => {
     expect(result.data.archetype).toBe("UB");
     const cards = result.data.cards as { card_name: string }[];
     expect(cards.some((c) => c.card_name === "Gloomlake Verge")).toBe(true);
-    expect(result).toHaveProperty("presentation");
   });
 });
 

@@ -1470,8 +1470,6 @@ async function constructedHealthCheck(
         unresolvedCards.length > 0 ? unresolvedCards : undefined,
       formatted_report: lines.join("\n") + "\n",
     },
-    presentation:
-      "Constructed deck report — structured layout: legality issues as a warning banner at top (if any), composition summary as a stat block, mana curve as a compact bar chart, mana base as a color-coded table (sources needed vs actual, surplus/deficit). Show swap suggestions prominently if any exist.",
   };
 }
 
@@ -1622,8 +1620,6 @@ export const deckbuildingModule: NativeReferenceModule = {
           cuts_requested: cutsParam,
           candidates: result.candidates,
         },
-        presentation:
-          "Cut advisor — ranked table of cut candidates from weakest to strongest, showing card name and per-axis weakness scores. Use visual danger indicators (red for clear cuts, yellow for borderline). If alternatives were suggested, show them as replacement options next to each cut.",
       };
     }
 
@@ -1642,8 +1638,6 @@ export const deckbuildingModule: NativeReferenceModule = {
         mana,
         unresolved_cards: result.unresolved,
       },
-      presentation:
-        "Deck health check — dashboard layout: mana curve as a bar chart comparing deck vs archetype average, creature/spell/land composition as a pie chart, mana base as a color-coded table (sources needed vs actual, surplus/deficit). Show each section as a card with a status indicator (healthy/warning/critical). If mana swap suggestions exist, present them prominently.",
     };
   },
 };

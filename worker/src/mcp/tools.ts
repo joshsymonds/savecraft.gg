@@ -48,22 +48,8 @@ interface SectionRow {
   data: string;
 }
 
-export const VIZ_REMINDER =
-  "REMINDER: You MUST present the data above as an interactive artifact, not prose analysis. Follow the visualization directive.";
-
-function textResult(data: unknown, presentation?: string): ToolResult {
-  const content: { type: "text"; text: string }[] = [];
-  if (presentation) {
-    content.push({
-      type: "text",
-      text: `IMPORTANT: Create an artifact to present this data. ${presentation}`,
-    });
-  }
-  content.push({ type: "text", text: JSON.stringify(data) });
-  if (presentation) {
-    content.push({ type: "text", text: VIZ_REMINDER });
-  }
-  return { content };
+function textResult(data: unknown): ToolResult {
+  return { content: [{ type: "text", text: JSON.stringify(data) }] };
 }
 
 export function viewResult(
@@ -537,15 +523,12 @@ export async function getSection(
         `Section '${row.name}' is too large (${sizeKb}KB, limit is ${limitKb}KB). This section contains too much data for a single response.`,
       );
     }
-    const sectionPresentation =
-      "Game state data — study the data shape (fields, nesting, quantities, relationships) and choose the most visually compelling presentation. Equipment and inventories become rich comparison tables. Skill trees become tiered visual hierarchies. Stats become radar charts or stat blocks with bar indicators. Match histories become timelines. Quest logs become progress checklists. Draft pools become card grids. The player should feel like they're looking at a polished game UI, not raw data.";
     return textResult(
       {
         save_id: saveId,
         section: row.name,
         data: JSON.parse(row.data) as Record<string, unknown>,
       },
-      sectionPresentation,
     );
   }
 
@@ -569,7 +552,6 @@ export async function getSection(
   if (oversized.length > 0) response.oversized = oversized;
   return textResult(
     response,
-    "Game state data — study the data shape (fields, nesting, quantities, relationships) and choose the most visually compelling presentation for each section. Equipment becomes comparison tables, skills become tiered hierarchies, stats become radar charts, match histories become timelines. The player should feel like they're looking at a polished game UI, not raw data.",
   );
 }
 
@@ -1080,19 +1062,7 @@ async function executeNativeModule(
   try {
     const result = await nativeModule.execute(query, env);
     if (result.type === "formatted") {
-      // Formatted results are pre-rendered text — keep as ToolResult for now
-      const content: { type: "text"; text: string }[] = [];
-      if (result.presentation) {
-        content.push({
-          type: "text",
-          text: `IMPORTANT: Create an artifact to present this data. ${result.presentation}`,
-        });
-      }
-      content.push({ type: "text", text: result.content });
-      if (result.presentation) {
-        content.push({ type: "text", text: VIZ_REMINDER });
-      }
-      return { content };
+      return { content: [{ type: "text", text: result.content }] };
     }
     // Structured results → ViewToolResult (view rendering via _meta.viewScript)
     return viewResult(result.data, summarizeStructuredResult(nativeModule.id, result.data));
@@ -1185,19 +1155,13 @@ export async function queryReference(
   return parseWasmResponse(text);
 }
 
-/** Extract presentation hint from WASM result data (mirrors native module contract). */
-function extractWasmPresentation(data: unknown): string | undefined {
-  if (typeof data !== "object" || data === null) return undefined;
-  const presentation = (data as Record<string, unknown>).presentation;
-  return typeof presentation === "string" ? presentation : undefined;
-}
 
 /** Parse WASM ndjson response into a ToolResult or ViewToolResult.
  *
  * When a WASM result contains structured data fields alongside `formatted`
  * text, returns a ViewToolResult so the handler can wire it into the
- * reference view bundle. The `formatted` and `presentation` meta fields
- * are stripped from structuredContent — only the actual data fields remain.
+ * reference view bundle. The `formatted` meta field is stripped from
+ * structuredContent — only the actual data fields remain.
  */
 export function parseWasmResponse(text: string): ToolResult | ViewToolResult {
   const lines = text
@@ -1208,7 +1172,6 @@ export function parseWasmResponse(text: string): ToolResult | ViewToolResult {
   if (lines.length === 1) {
     try {
       const parsed = JSON.parse(lines[0] ?? "") as Record<string, unknown>;
-      const presentation = extractWasmPresentation(parsed.data);
 
       // If the WASM returned pre-formatted text, pass it through directly
       // instead of JSON.stringify-ing it (which would escape newlines).
@@ -1216,7 +1179,7 @@ export function parseWasmResponse(text: string): ToolResult | ViewToolResult {
         const data = parsed.data as Record<string, unknown>;
         const formatted = data.formatted as string;
 
-        // Check for structured fields beyond formatted/presentation.
+        // Check for structured fields beyond formatted.
         // If present, return a ViewToolResult so the reference view can render them.
         const structuredFields = extractStructuredFields(data);
         if (structuredFields) {
@@ -1224,20 +1187,10 @@ export function parseWasmResponse(text: string): ToolResult | ViewToolResult {
           return viewResult(structuredFields, narrative);
         }
 
-        const content: { type: "text"; text: string }[] = [];
-        if (presentation) {
-          content.push({
-            type: "text",
-            text: `IMPORTANT: Create an artifact to present this data. ${presentation}`,
-          });
-        }
-        content.push({ type: "text", text: formatted });
-        if (presentation) {
-          content.push({ type: "text", text: VIZ_REMINDER });
-        }
+        const content: { type: "text"; text: string }[] = [{ type: "text", text: formatted }];
         return { content };
       }
-      return textResult(parsed, presentation);
+      return textResult(parsed);
     } catch {
       return textResult({ raw: lines[0] });
     }
@@ -1254,10 +1207,10 @@ export function parseWasmResponse(text: string): ToolResult | ViewToolResult {
   return textResult({ results });
 }
 
-/** Extract data fields from WASM result, stripping meta fields (formatted, presentation).
+/** Extract data fields from WASM result, stripping the formatted meta field.
  *  Returns null if no structured fields remain. */
 function extractStructuredFields(data: Record<string, unknown>): Record<string, unknown> | null {
-  const META_KEYS = new Set(["formatted", "presentation"]);
+  const META_KEYS = new Set(["formatted"]);
   const structured: Record<string, unknown> = {};
   let hasFields = false;
   for (const [key, value] of Object.entries(data)) {

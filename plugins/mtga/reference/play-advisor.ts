@@ -180,8 +180,6 @@ async function cardTiming(
       cards,
       coverage: { found: cardsWithData.size, total: rawCards.length },
     },
-    presentation:
-      "Card timing analysis — for each card, show a table of win rate by deployment turn. Highlight the best turn. If multiple cards, use a grouped bar chart or heatmap comparing win rates across turns.",
   };
 }
 
@@ -266,8 +264,6 @@ async function manaEfficiency(
       disclaimer: disclaimerText(format),
       turns: turnResults,
     },
-    presentation:
-      "Mana efficiency analysis — table showing each turn with mana spent, rating (Good/Low/Wasted), and baseline comparison. Use color coding for ratings. If 5+ turns, consider a line chart of mana spent vs average baseline over time.",
   };
 }
 
@@ -380,8 +376,6 @@ async function attackAnalysis(
       turns: turnResults,
       coverage: { found: creaturesWithData.size, total: allCreatureNames.size },
     },
-    presentation:
-      "Attack analysis — for each turn, show a table of creatures with their action (attacked/held), whether it was correct, and the win rates for attack vs hold. Use checkmarks and X marks for correct/incorrect decisions. Highlight the biggest misplays.",
   };
 }
 
@@ -478,8 +472,6 @@ async function mulligan(
       recommendation,
       margin_pp: margin,
     },
-    presentation:
-      "Mulligan analysis — show the hand composition (lands, CMC bucket), then a clear KEEP or MULLIGAN recommendation with the win rate comparison. Use a simple visual comparison (two bars or a gauge) showing keep WR vs mulligan WR.",
   };
 }
 
@@ -782,8 +774,6 @@ async function gameReview(
       total_findings: findings.length,
       coverage: { found: cardsWithData.size, total: allPlayedCards.size },
     },
-    presentation:
-      "Game review — list findings sorted by impact. Use visual severity indicators (color or icons) for each finding category (Tempo, Timing, Combat). If no findings, congratulate the player. Show coverage at the end.",
   };
 }
 

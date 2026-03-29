@@ -16,7 +16,6 @@ describe("parseWasmResponse structured data detection", () => {
       type: "result",
       data: {
         formatted: "Surgery Success: 85.3%\n\nFactor chain: ...",
-        presentation: "Surgery success calculation — show the final probability...",
         success_chance: 0.853,
         surgeon_factor: 0.9,
         bed_factor: 1.1,
@@ -34,40 +33,22 @@ describe("parseWasmResponse structured data detection", () => {
     const viewRes = result as ViewToolResult;
     expect(viewRes.structuredContent.success_chance).toBe(0.853);
     expect(viewRes.structuredContent.surgeon_factor).toBe(0.9);
-    // formatted and presentation are stripped from structuredContent
+    // formatted is stripped from structuredContent
     expect(viewRes.structuredContent).not.toHaveProperty("formatted");
-    expect(viewRes.structuredContent).not.toHaveProperty("presentation");
-  });
-
-  it("returns ToolResult (text) when data has only formatted + presentation", () => {
-    const wasmOutput = JSON.stringify({
-      type: "result",
-      data: {
-        formatted: "Some pre-rendered text output",
-        presentation: "Show as a table...",
-      },
-    });
-
-    const result = parseWasmResponse(wasmOutput);
-
-    expect("structuredContent" in result).toBe(false);
-    // Should return text content with presentation hint
-    expect(result.content[0]!.text).toContain("IMPORTANT");
-    expect(result.content[1]!.text).toBe("Some pre-rendered text output");
   });
 
   it("returns ToolResult (text) when data has only formatted", () => {
     const wasmOutput = JSON.stringify({
       type: "result",
       data: {
-        formatted: "Plain text result with no structured data",
+        formatted: "Some pre-rendered text output",
       },
     });
 
     const result = parseWasmResponse(wasmOutput);
 
     expect("structuredContent" in result).toBe(false);
-    expect(result.content[0]!.text).toBe("Plain text result with no structured data");
+    expect(result.content[0]!.text).toBe("Some pre-rendered text output");
   });
 
   it("uses first line of formatted text as narrative", () => {
@@ -75,7 +56,6 @@ describe("parseWasmResponse structured data detection", () => {
       type: "result",
       data: {
         formatted: "Raid Threat Estimate\n\nColony Wealth:\n  Item wealth: 50000",
-        presentation: "Show raid points...",
         total_wealth: 50000,
         wealth_points: 1200,
         pawn_points: 300,
@@ -120,7 +100,6 @@ describe("parseWasmResponse structured data detection", () => {
           { name: "steel", sharp_armor: 0.5 },
           { name: "plasteel", sharp_armor: 1.2 },
         ],
-        presentation: "Material comparison table...",
       },
     });
 
@@ -133,7 +112,7 @@ describe("parseWasmResponse structured data detection", () => {
     expect("structuredContent" in result).toBe(false);
   });
 
-  it("handles materials list with no formatted field as ViewToolResult", () => {
+  it("handles materials list with no formatted field as textResult", () => {
     // Some WASM modules return lists without formatted text
     const wasmOutput = JSON.stringify({
       type: "result",
@@ -142,7 +121,6 @@ describe("parseWasmResponse structured data detection", () => {
           { name: "steel", sharp_armor: 0.5 },
           { name: "plasteel", sharp_armor: 1.2 },
         ],
-        presentation: "Material comparison table...",
       },
     });
 
@@ -160,7 +138,6 @@ describe("parseWasmResponse structured data detection", () => {
       data: {
         formatted:
           "Gene Build Validation (max complexity: 6, min metabolism: -5)\n\n  tough skin: cpx 1, met -1",
-        presentation: "Gene build validator...",
         total_complexity: 4,
         total_metabolism: -3,
         total_archite: 0,
@@ -183,7 +160,6 @@ describe("parseWasmResponse structured data detection", () => {
       type: "result",
       data: {
         formatted: "rice plant\n\nGrowth Rate: 1.00x\n...",
-        presentation: "Crop production analysis...",
         crop: "rice plant",
         growth_rate: 1.0,
         actual_grow_days: 5.14,
