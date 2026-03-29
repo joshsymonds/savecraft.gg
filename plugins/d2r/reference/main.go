@@ -465,9 +465,8 @@ func tcTypeName(t int) string {
 
 func schema() map[string]any {
 	return map[string]any{
-		"modules": []map[string]any{
-			{
-				"id":          "drop_calc",
+		"modules": map[string]any{
+			"drop_calc": map[string]any{
 				"name":        "Drop Calculator",
 				"description": "Compute drop probabilities and search items. Use 'monster' for forward lookup (what does X drop?), 'item' for reverse lookup (where to farm X?), or 'search' to find items by name, stats, type, or set.",
 				"parameters": map[string]any{
