@@ -1,6 +1,7 @@
 package main
 
 import (
+	"strings"
 	"testing"
 )
 
@@ -139,6 +140,56 @@ func TestRatioCalculatorMissingItem(t *testing.T) {
 	_, code := runReference(t, `{"module":"ratio_calculator","target_item":"nonexistent-item"}`)
 	if code != 1 {
 		t.Fatalf("expected exit 1 for unknown item, got %d", code)
+	}
+}
+
+func TestRatioCalculatorAmbiguousRecipeErrors(t *testing.T) {
+	// solid-fuel has multiple production recipes (from light-oil, petroleum-gas, heavy-oil)
+	// Without specifying which recipe, the calculator should error with options
+	result, code := runReference(t, `{"module":"ratio_calculator","target_item":"solid-fuel","target_rate":60}`)
+	if code != 1 {
+		t.Fatalf("expected exit 1 for ambiguous recipe, got %d", code)
+	}
+	if result["type"] != "error" {
+		t.Fatalf("expected error, got %v", result["type"])
+	}
+	msg := result["message"].(string)
+	if !strings.Contains(msg, "ambiguous") && !strings.Contains(msg, "multiple") {
+		t.Errorf("error message should mention ambiguity: %s", msg)
+	}
+}
+
+func TestRatioCalculatorExplicitRecipe(t *testing.T) {
+	// With explicit recipe, solid-fuel should work
+	result, code := runReference(t, `{"module":"ratio_calculator","target_item":"solid-fuel","target_rate":60,"recipe":"solid-fuel-from-light-oil"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0 with explicit recipe, got %d", code)
+	}
+	tree := result["data"].(map[string]any)["production_tree"].(map[string]any)
+	if tree["item"] != "solid-fuel" {
+		t.Errorf("item = %v, want solid-fuel", tree["item"])
+	}
+	if tree["recipe"] != "solid-fuel-from-light-oil" {
+		t.Errorf("recipe = %v, want solid-fuel-from-light-oil", tree["recipe"])
+	}
+}
+
+func TestRatioCalculatorRecipeOverrides(t *testing.T) {
+	// recipe_overrides lets the AI specify recipes for intermediate products
+	result, code := runReference(t, `{
+		"module":"ratio_calculator",
+		"target_item":"rocket-fuel",
+		"target_rate":60,
+		"recipe":"rocket-fuel",
+		"recipe_overrides":{"solid-fuel":"solid-fuel-from-light-oil"}
+	}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0 with recipe overrides, got %d", code)
+	}
+	data := result["data"].(map[string]any)
+	tree := data["production_tree"].(map[string]any)
+	if tree["item"] != "rocket-fuel" {
+		t.Errorf("item = %v, want rocket-fuel", tree["item"])
 	}
 }
 
