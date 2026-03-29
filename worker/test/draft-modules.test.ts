@@ -3,8 +3,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { cardStatsModule } from "../../plugins/mtga/reference/card-stats";
 import {
-  draftAdvisorModule,
   type ArchetypeFrame,
+  draftAdvisorModule,
   generateArchetypeWarnings,
 } from "../../plugins/mtga/reference/draft-advisor";
 import {
@@ -3594,20 +3594,21 @@ describe("generateArchetypeWarnings", () => {
   ): ArchetypeFrame {
     const packNumber = Math.floor((pickNumber - 1) / PACK_SIZE) + 1;
     const pickInPack = ((pickNumber - 1) % PACK_SIZE) + 1;
+    let phase: "exploration" | "emerging" | "committed" = "committed";
+    if (pickNumber < 12) {
+      phase = "exploration";
+    } else if (pickNumber < 21) {
+      phase = "emerging";
+    }
     return {
       pick_number: pickNumber,
-      display_label: `P${packNumber}P${pickInPack}`,
+      display_label: `P${String(packNumber)}P${String(pickInPack)}`,
       primary,
       primary_weight: primaryWeight,
       secondary,
       secondary_weight: secondaryWeight,
       viability: "strong",
-      phase:
-        pickNumber < 12
-          ? "exploration"
-          : pickNumber < 21
-            ? "emerging"
-            : "committed",
+      phase,
       ...overrides,
     };
   }
@@ -3622,8 +3623,8 @@ describe("generateArchetypeWarnings", () => {
     secondaryWeight: number,
     overrides?: Partial<ArchetypeFrame>,
   ): ArchetypeFrame[] {
-    return Array.from({ length: count }, (_, i) =>
-      frame(startPick + i, primary, primaryWeight, secondary, secondaryWeight, overrides),
+    return Array.from({ length: count }, (_, index) =>
+      frame(startPick + index, primary, primaryWeight, secondary, secondaryWeight, overrides),
     );
   }
 
@@ -3632,9 +3633,9 @@ describe("generateArchetypeWarnings", () => {
   it("emits no warnings for archetype changes during exploration (picks 1-11)", () => {
     const frames = [
       // Wildly changing archetypes in exploration — should be silent
-      ...run(1, 4, "WR", 0.30, "WU", 0.25),
-      ...run(5, 4, "UB", 0.35, "WR", 0.20),
-      ...run(9, 3, "WG", 0.40, "UB", 0.15),
+      ...run(1, 4, "WR", 0.3, "WU", 0.25),
+      ...run(5, 4, "UB", 0.35, "WR", 0.2),
+      ...run(9, 3, "WG", 0.4, "UB", 0.15),
     ];
     const warnings = generateArchetypeWarnings(frames);
     expect(warnings).toEqual([]);
@@ -3645,19 +3646,17 @@ describe("generateArchetypeWarnings", () => {
   it("emits no pivot warnings for single-pick archetype oscillation", () => {
     const frames = [
       // Exploration: establish WR
-      ...run(1, 11, "WR", 0.30, "WU", 0.28),
+      ...run(1, 11, "WR", 0.3, "WU", 0.28),
       // Emerging: primary flips back and forth by tiny margin
-      frame(12, "WR", 0.30, "WU", 0.28),
-      frame(13, "WU", 0.30, "WR", 0.28), // flip
-      frame(14, "WR", 0.30, "WU", 0.28), // flip back
-      frame(15, "WU", 0.30, "WR", 0.28), // flip
-      frame(16, "WR", 0.30, "WU", 0.28), // flip back
+      frame(12, "WR", 0.3, "WU", 0.28),
+      frame(13, "WU", 0.3, "WR", 0.28), // flip
+      frame(14, "WR", 0.3, "WU", 0.28), // flip back
+      frame(15, "WU", 0.3, "WR", 0.28), // flip
+      frame(16, "WR", 0.3, "WU", 0.28), // flip back
     ];
     const warnings = generateArchetypeWarnings(frames);
     // No pivot warnings — gap is only 0.02, well below 0.08 threshold
-    const pivotWarnings = warnings.filter(
-      (w) => w.includes("pivot") || w.includes("drift"),
-    );
+    const pivotWarnings = warnings.filter((w) => w.includes("pivot") || w.includes("drift"));
     expect(pivotWarnings).toEqual([]);
   });
 
@@ -3666,9 +3665,9 @@ describe("generateArchetypeWarnings", () => {
   it("emits a pivot warning when weight gap exceeds threshold in emerging phase", () => {
     const frames = [
       // Exploration + early emerging: firmly WR
-      ...run(1, 14, "WR", 0.35, "WU", 0.20),
+      ...run(1, 14, "WR", 0.35, "WU", 0.2),
       // Pick 15: genuine shift — WU now dominant by >0.08
-      ...run(15, 4, "WU", 0.40, "WR", 0.18),
+      ...run(15, 4, "WU", 0.4, "WR", 0.18),
     ];
     const warnings = generateArchetypeWarnings(frames);
     const pivotWarnings = warnings.filter(
@@ -3681,7 +3680,7 @@ describe("generateArchetypeWarnings", () => {
 
   it("emits an assertive pivot warning in committed phase", () => {
     const frames = [
-      ...run(1, 20, "WR", 0.35, "WU", 0.20),
+      ...run(1, 20, "WR", 0.35, "WU", 0.2),
       // Pick 21+: committed phase, genuine pivot
       ...run(21, 4, "UB", 0.42, "WR", 0.15),
     ];
@@ -3696,7 +3695,7 @@ describe("generateArchetypeWarnings", () => {
     const frames = [
       ...run(1, 11, "WR", 0.35, "WU", 0.28),
       // Emerging: WU briefly tops by small margin — NOT a pivot
-      frame(12, "WU", 0.30, "WR", 0.28),
+      frame(12, "WU", 0.3, "WR", 0.28),
       frame(13, "WR", 0.31, "WU", 0.28),
       // Later: genuine pivot from WR (sustained) to UB
       ...run(14, 5, "UB", 0.42, "WR", 0.18),
@@ -3713,13 +3712,13 @@ describe("generateArchetypeWarnings", () => {
 
   it("emits a split warning for 3+ consecutive close-weight picks in emerging phase", () => {
     const frames = [
-      ...run(1, 11, "WR", 0.30, "WU", 0.28),
+      ...run(1, 11, "WR", 0.3, "WU", 0.28),
       // Picks 12-14: top two within 0.05 for 3 consecutive picks
-      frame(12, "WR", 0.30, "WU", 0.28),
-      frame(13, "WU", 0.30, "WR", 0.28),
+      frame(12, "WR", 0.3, "WU", 0.28),
+      frame(13, "WU", 0.3, "WR", 0.28),
       frame(14, "WR", 0.31, "WU", 0.29),
       // Then diverge
-      ...run(15, 3, "WR", 0.40, "WU", 0.20),
+      ...run(15, 3, "WR", 0.4, "WU", 0.2),
     ];
     const warnings = generateArchetypeWarnings(frames);
     const splitWarnings = warnings.filter((w) => w.includes("split between"));
@@ -3732,11 +3731,11 @@ describe("generateArchetypeWarnings", () => {
 
   it("emits an assertive split warning in committed phase", () => {
     const frames = [
-      ...run(1, 20, "WR", 0.30, "WU", 0.28),
+      ...run(1, 20, "WR", 0.3, "WU", 0.28),
       // Picks 21-24: still split in committed phase — this is a problem
-      frame(21, "WR", 0.30, "WU", 0.28),
-      frame(22, "WU", 0.30, "WR", 0.28),
-      frame(23, "WR", 0.30, "WU", 0.29),
+      frame(21, "WR", 0.3, "WU", 0.28),
+      frame(22, "WU", 0.3, "WR", 0.28),
+      frame(23, "WR", 0.3, "WU", 0.29),
       frame(24, "WR", 0.31, "WU", 0.28),
     ];
     const warnings = generateArchetypeWarnings(frames);
@@ -3749,10 +3748,10 @@ describe("generateArchetypeWarnings", () => {
 
   it("does not emit split warning for fewer than 3 consecutive close picks", () => {
     const frames = [
-      ...run(1, 11, "WR", 0.30, "WU", 0.28),
+      ...run(1, 11, "WR", 0.3, "WU", 0.28),
       // Only 2 close picks, then gap widens — below SPLIT_RUN threshold
-      frame(12, "WR", 0.30, "WU", 0.28),
-      frame(13, "WU", 0.30, "WR", 0.28),
+      frame(12, "WR", 0.3, "WU", 0.28),
+      frame(13, "WU", 0.3, "WR", 0.28),
       ...run(14, 4, "WR", 0.42, "WU", 0.18),
     ];
     const warnings = generateArchetypeWarnings(frames);
@@ -3764,9 +3763,9 @@ describe("generateArchetypeWarnings", () => {
 
   it("warns when entering commitment phase in a weak archetype", () => {
     const frames = [
-      ...run(1, 11, "WG", 0.35, "WR", 0.20, { viability: "moderate" }),
-      frame(12, "WG", 0.35, "WR", 0.20, { viability: "sparse" }),
-      ...run(13, 4, "WG", 0.35, "WR", 0.20, { viability: "sparse" }),
+      ...run(1, 11, "WG", 0.35, "WR", 0.2, { viability: "moderate" }),
+      frame(12, "WG", 0.35, "WR", 0.2, { viability: "sparse" }),
+      ...run(13, 4, "WG", 0.35, "WR", 0.2, { viability: "sparse" }),
     ];
     const warnings = generateArchetypeWarnings(frames);
     expect(warnings.some((w) => w.includes("WG") && w.includes("sparse"))).toBe(true);
@@ -3774,28 +3773,24 @@ describe("generateArchetypeWarnings", () => {
 
   it("warns when final archetype is weak", () => {
     const frames = [
-      ...run(1, 14, "UB", 0.40, "WR", 0.20, { viability: "strong" }),
-      ...run(15, 4, "UB", 0.35, "WR", 0.20, { viability: "fringe" }),
+      ...run(1, 14, "UB", 0.4, "WR", 0.2, { viability: "strong" }),
+      ...run(15, 4, "UB", 0.35, "WR", 0.2, { viability: "fringe" }),
     ];
     const warnings = generateArchetypeWarnings(frames);
-    expect(
-      warnings.some((w) => w.includes("Final") && w.includes("fringe")),
-    ).toBe(true);
+    expect(warnings.some((w) => w.includes("Final") && w.includes("fringe"))).toBe(true);
   });
 
   it("warns when sustained archetype shifts between commitment point and final", () => {
     const frames = [
-      ...run(1, 11, "WR", 0.35, "UB", 0.20),
+      ...run(1, 11, "WR", 0.35, "UB", 0.2),
       // Settled into WR at pick 12
-      ...run(12, 6, "WR", 0.35, "UB", 0.20),
+      ...run(12, 6, "WR", 0.35, "UB", 0.2),
       // Genuine pivot to UB at pick 18 (gap > 0.08)
       ...run(18, 4, "UB", 0.42, "WR", 0.15),
     ];
     const warnings = generateArchetypeWarnings(frames);
-    expect(
-      warnings.some(
-        (w) => w.includes("WR") && w.includes("UB") && w.includes("shift"),
-      ),
-    ).toBe(true);
+    expect(warnings.some((w) => w.includes("WR") && w.includes("UB") && w.includes("shift"))).toBe(
+      true,
+    );
   });
 });

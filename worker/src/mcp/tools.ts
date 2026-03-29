@@ -289,6 +289,33 @@ function mergeNativeModules(gameMap: Map<string, GameEntry>, filter?: string): v
   }
 }
 
+/** Resolve or create a GameEntry, updating stale game names via fire-and-forget D1. */
+function resolveGameEntry(
+  db: D1Database,
+  gameMap: Map<string, GameEntry>,
+  gameId: string,
+  manifestGameName: string,
+  manifestName: string | undefined,
+  userUuid: string,
+): GameEntry {
+  const existing = gameMap.get(gameId);
+  if (existing) {
+    if (manifestName && existing.game_name !== manifestGameName) {
+      existing.game_name = manifestGameName;
+      void db
+        .prepare(
+          "UPDATE saves SET game_name = ? WHERE game_id = ? AND game_name != ? AND user_uuid = ?",
+        )
+        .bind(manifestGameName, gameId, manifestGameName, userUuid)
+        .run();
+    }
+    return existing;
+  }
+  const game: GameEntry = { game_id: gameId, game_name: manifestGameName, saves: [] };
+  gameMap.set(gameId, game);
+  return game;
+}
+
 /** Scan R2 manifests and attach reference modules to game entries. */
 async function attachReferenceModules(
   db: D1Database,
@@ -308,21 +335,7 @@ async function attachReferenceModules(
     const manifestGameName = data.name ?? data.game_id;
     if (filter && !matchesGameFilter(data.game_id, manifestGameName, filter)) continue;
 
-    let game = gameMap.get(data.game_id);
-    if (!game) {
-      game = { game_id: data.game_id, game_name: manifestGameName, saves: [] };
-      gameMap.set(data.game_id, game);
-    } else if (data.name && game.game_name !== manifestGameName) {
-      // Re-resolve stale game name from manifest (fire-and-forget D1 update)
-      game.game_name = manifestGameName;
-      void db
-        .prepare(
-          "UPDATE saves SET game_name = ? WHERE game_id = ? AND game_name != ? AND user_uuid = ?",
-        )
-        .bind(manifestGameName, data.game_id, manifestGameName, userUuid)
-        .run()
-        .catch((e) => console.error("stale game_name update failed:", e));
-    }
+    const game = resolveGameEntry(db, gameMap, data.game_id, manifestGameName, data.name, userUuid);
 
     // Construct icon URL directly from already-loaded manifest data
     if (serverUrl && data.icon && (data.icon === "icon.png" || data.icon === "icon.svg")) {
