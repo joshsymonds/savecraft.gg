@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
 	"os"
 	"strings"
 
@@ -139,14 +140,14 @@ func handleSurgery(enc *json.Encoder, query map[string]any) {
 
 	writeResult(enc, map[string]any{
 		"formatted":       sb.String(),
-		"success_chance":  result.SuccessChance,
-		"surgeon_factor":  result.SurgeonFactor,
-		"bed_factor":      result.BedEffectiveFactor,
-		"medicine_factor": result.MedicineFactor,
-		"difficulty":      result.DifficultyFactor,
+		"success_chance":  roundN(result.SuccessChance, 3),
+		"surgeon_factor":  roundN(result.SurgeonFactor, 2),
+		"bed_factor":      roundN(result.BedEffectiveFactor, 2),
+		"medicine_factor": roundN(result.MedicineFactor, 2),
+		"difficulty":      roundN(result.DifficultyFactor, 2),
 		"inspired":        p.Inspired,
 		"capped":          result.Capped,
-		"uncapped":        result.Uncapped,
+		"uncapped":        roundN(result.Uncapped, 3),
 	})
 }
 
@@ -308,11 +309,11 @@ func handleCrops(enc *json.Encoder, query map[string]any) {
 	writeResult(enc, map[string]any{
 		"formatted":         sb.String(),
 		"crop":              plant.Label,
-		"growth_rate":       result.GrowthRate,
-		"actual_grow_days":  result.ActualGrowDays,
-		"nutrition_per_day": result.NutritionPerDay,
-		"silver_per_day":    result.SilverPerDay,
-		"tiles_needed":      tiles,
+		"growth_rate":       roundN(result.GrowthRate, 2),
+		"actual_grow_days":  roundN(result.ActualGrowDays, 1),
+		"nutrition_per_day": roundN(result.NutritionPerDay, 4),
+		"silver_per_day":    roundN(result.SilverPerDay, 3),
+		"tiles_needed":      roundN(tiles, 0),
 		"hydroponics":       canHydro,
 	})
 }
@@ -327,12 +328,12 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 		for _, m := range data.Materials {
 			mats = append(mats, map[string]any{
 				"name":          m.Label,
-				"sharp_armor":   m.SharpArmorFactor,
-				"blunt_armor":   m.BluntArmorFactor,
-				"sharp_damage":  m.SharpDamageFactor,
-				"blunt_damage":  m.BluntDamageFactor,
-				"market_value":  m.MarketValue,
-				"max_hp_factor": m.MaxHitPointsFactor,
+				"sharp_armor":   roundN(m.SharpArmorFactor, 2),
+				"blunt_armor":   roundN(m.BluntArmorFactor, 2),
+				"sharp_damage":  roundN(m.SharpDamageFactor, 2),
+				"blunt_damage":  roundN(m.BluntDamageFactor, 2),
+				"market_value":  roundN(m.MarketValue, 2),
+				"max_hp_factor": roundN(m.MaxHitPointsFactor, 2),
 				"categories":    m.Categories,
 			})
 		}
@@ -383,12 +384,12 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 		"formatted":    sb.String(),
 		"material":     mat.Label,
 		"quality":      qualityName,
-		"sharp_armor":  mat.SharpArmorFactor * armorQ,
-		"blunt_armor":  mat.BluntArmorFactor * armorQ,
-		"heat_armor":   mat.HeatArmorFactor * armorQ,
-		"sharp_damage": mat.SharpDamageFactor * dmgQ,
-		"blunt_damage": mat.BluntDamageFactor * dmgQ,
-		"max_hp":       mat.MaxHitPointsFactor * hpQ,
+		"sharp_armor":  roundN(mat.SharpArmorFactor*armorQ, 2),
+		"blunt_armor":  roundN(mat.BluntArmorFactor*armorQ, 2),
+		"heat_armor":   roundN(mat.HeatArmorFactor*armorQ, 2),
+		"sharp_damage": roundN(mat.SharpDamageFactor*dmgQ, 2),
+		"blunt_damage": roundN(mat.BluntDamageFactor*dmgQ, 2),
+		"max_hp":       roundN(mat.MaxHitPointsFactor*hpQ, 2),
 	})
 }
 
@@ -403,9 +404,9 @@ func handleDrugs(enc *json.Encoder, query map[string]any) {
 		for _, d := range data.Drugs {
 			drugList = append(drugList, map[string]any{
 				"name":          d.Label,
-				"market_value":  d.MarketValue,
+				"market_value":  roundN(d.MarketValue, 0),
 				"category":      d.Category,
-				"addictiveness": d.Addictiveness,
+				"addictiveness": roundN(d.Addictiveness, 1),
 				"ingredients":   d.Ingredients,
 			})
 		}
@@ -470,9 +471,9 @@ func handleDrugs(enc *json.Encoder, query map[string]any) {
 		"formatted":     sb.String(),
 		"drug":          d.Label,
 		"category":      d.Category,
-		"market_value":  d.MarketValue,
-		"addictiveness": d.Addictiveness,
-		"work_amount":   d.WorkAmount,
+		"market_value":  roundN(d.MarketValue, 0),
+		"addictiveness": roundN(d.Addictiveness, 1),
+		"work_amount":   roundN(d.WorkAmount, 0),
 	})
 }
 
@@ -561,11 +562,11 @@ func handleDrugProductionChain(enc *json.Encoder, query map[string]any, d *data.
 		"formatted":        sb.String(),
 		"drug":             d.Label,
 		"crop":             plant.Label,
-		"soil_fertility":   soilFertility,
-		"actual_grow_days": result.ActualGrowDays,
-		"leaves_per_day":   result.LeavesPerDay,
-		"drugs_per_day":    result.DrugsPerDayPerTile,
-		"silver_per_day":   result.SilverPerDayPerTile,
+		"soil_fertility":   roundN(soilFertility, 1),
+		"actual_grow_days": roundN(result.ActualGrowDays, 1),
+		"leaves_per_day":   roundN(result.LeavesPerDay, 3),
+		"drugs_per_day":    roundN(result.DrugsPerDayPerTile, 4),
+		"silver_per_day":   roundN(result.SilverPerDayPerTile, 3),
 	})
 }
 
@@ -597,10 +598,10 @@ func handleRaids(enc *json.Encoder, query map[string]any) {
 
 	writeResult(enc, map[string]any{
 		"formatted":     sb.String(),
-		"total_wealth":  result.TotalWealth,
-		"wealth_points": result.WealthPoints,
-		"pawn_points":   result.PawnPoints,
-		"total_points":  result.TotalPoints,
+		"total_wealth":  roundN(result.TotalWealth, 0),
+		"wealth_points": roundN(result.WealthPoints, 0),
+		"pawn_points":   roundN(result.PawnPoints, 0),
+		"total_points":  roundN(result.TotalPoints, 0),
 	})
 }
 
@@ -766,7 +767,7 @@ func handleResearch(enc *json.Encoder, query map[string]any) {
 	writeResult(enc, map[string]any{
 		"formatted":   sb.String(),
 		"chain":       chain,
-		"total_cost":  totalCost,
+		"total_cost":  roundN(totalCost, 0),
 		"colony_tech": colonyTech,
 	})
 }
@@ -852,11 +853,11 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 			"formatted":       sb.String(),
 			"weapon":          w.Label,
 			"type":            "ranged",
-			"raw_dps":         rawDPS,
-			"accuracy":        acc,
-			"dps_at_range":    dpsAtRange,
-			"damage_per_shot": w.DamagePerShot,
-			"expected_damage": expectedDmg,
+			"raw_dps":         roundN(rawDPS, 2),
+			"accuracy":        roundN(acc, 2),
+			"dps_at_range":    roundN(dpsAtRange, 2),
+			"damage_per_shot": roundN(w.DamagePerShot, 0),
+			"expected_damage": roundN(expectedDmg, 1),
 		})
 		return
 	}
@@ -887,7 +888,7 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 			"formatted": sb.String(),
 			"weapon":    w.Label,
 			"type":      "melee",
-			"true_dps":  dps,
+			"true_dps":  roundN(dps, 2),
 		})
 		return
 	}
@@ -1036,6 +1037,11 @@ func writeError(enc *json.Encoder, errType, message string) {
 	}); err != nil {
 		os.Exit(1)
 	}
+}
+
+func roundN(v float64, n int) float64 {
+	shift := math.Pow(10, float64(n))
+	return math.Round(v*shift) / shift
 }
 
 func intParam(query map[string]any, key string, defaultVal int) int {
