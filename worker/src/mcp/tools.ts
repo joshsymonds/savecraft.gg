@@ -397,7 +397,7 @@ export async function getSave(
   saveId: string,
   plugins?: R2Bucket,
   serverUrl?: string,
-): Promise<ToolResult | ViewToolResult> {
+): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save) {
     const removedName = await checkRemovedSave(db, userUuid, saveId);
@@ -475,10 +475,7 @@ export async function getSave(
     }
   }
 
-  return viewResult(
-    result,
-    `${save.save_name} — ${save.summary}. ${String(sections.length)} sections available.`,
-  );
+  return textResult(result);
 }
 
 export async function getSection(

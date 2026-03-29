@@ -632,7 +632,7 @@ describe("MCP Tools", () => {
       expect(data.refresh_error).toBeUndefined();
     });
 
-    it("returns ViewToolResult with structuredContent", async () => {
+    it("returns textResult with save data", async () => {
       await seedSave({
         saveUuid: "save-view-result",
         userUuid: USER_A,
@@ -643,17 +643,14 @@ describe("MCP Tools", () => {
       });
 
       const result = await getSave(env.DB, USER_A, "save-view-result");
-      expect("structuredContent" in result).toBe(true);
-      const viewResult = result as ViewToolResult;
-      expect(viewResult.structuredContent).toBeDefined();
-      expect(viewResult.structuredContent.save_id).toBe("save-view-result");
-      expect(viewResult.structuredContent.game_name).toBe("Diablo II: Resurrected");
-      expect(viewResult.structuredContent.name).toBe("ViewTest");
-      expect(viewResult.structuredContent.sections).toBeDefined();
-      expect(viewResult.structuredContent.notes).toBeDefined();
-      // content carries narrative + JSON data for model reasoning
-      expect(viewResult.content).toHaveLength(2);
-      expect(viewResult.content[0]!.text).toContain("ViewTest");
+      expect("structuredContent" in result).toBe(false);
+      expect(result.content).toHaveLength(1);
+      const data = JSON.parse(result.content[0]!.text) as Record<string, unknown>;
+      expect(data.save_id).toBe("save-view-result");
+      expect(data.game_name).toBe("Diablo II: Resurrected");
+      expect(data.name).toBe("ViewTest");
+      expect(data.sections).toBeDefined();
+      expect(data.notes).toBeDefined();
     });
 
     it("includes icon_url when plugins and serverUrl are provided", async () => {

@@ -54,7 +54,7 @@ Inline is the default. Views should be compact and glanceable — fit within a s
 
 Escalate to fullscreen (`app.requestDisplayMode("fullscreen")`) only when the data genuinely needs space: a draft timeline with axis breakdowns, a full equipment comparison grid, a multi-column farming plan. The escalation should be user-initiated — a button or gesture within the view — not automatic on render.
 
-**Inline is for:** Card search results (3–5 cards), drop rate summary, character overview, rules citations, game library roster.
+**Inline is for:** Card search results (3–5 cards), drop rate summary, search results, rules citations, crop/surgery/combat calculations.
 
 **Fullscreen is for:** Draft pick timeline with per-pick scoring, full equipment comparison with stat diffs, complex multi-section data the AI assembled for a broad question.
 
@@ -106,7 +106,7 @@ The common thread: the AI did significant work assembling the data, and the visu
 
 ### Gray area — judgment calls
 
-**Game library (`list_games`):** No view. Removed because it fails the synthesis test — it's a database query grouped by game, not AI-assembled insight. Players already know what games they play. Showing uninstalled games with reference modules confused users ("why is this here?"). The LLM gets full data (all games, saves, references including games without saves) via text; it contextualizes what's available in its response.
+**Game library (`list_games`) and character detail (`get_save`):** No views. Both fail the synthesis test — they're database reads, not AI-assembled insight. Players already know what games they play and what characters they have. The LLM gets full data via text and contextualizes what's available in its response. Showing users what they already know causes view fatigue and adds visual weight without value.
 
 **Section data (`get_section`):** Raw section data (equipment JSON, skill allocations) benefits from structured presentation — a stat table is better than JSON. But game-specific renderers (equipment as item cards, skills as a tree) are expensive to build per-game. Until a game-specific renderer exists, the model's text interpretation may be more useful. Build these when a game has enough users to justify the investment.
 
