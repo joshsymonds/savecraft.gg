@@ -3,6 +3,8 @@
 
   import Genes from "./genes.svelte";
 
+  const iconUrl = "/plugins/rimworld/icon.png";
+
   const { Story } = defineMeta({
     title: "RimWorld/Genes",
     tags: ["autodocs"],
@@ -20,6 +22,7 @@
       { name: "deathless", complexity: 3, metabolism: -3, archite: 3, category: "Healing", conflicts: ["Deathless"] },
     ],
     count: 6,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -31,6 +34,7 @@
     complexity_ok: true,
     metabolism_ok: true,
     conflicts: [],
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -45,5 +49,6 @@
       { Gene1: "tough skin", Gene2: "delicate", Tag: "Toughness" },
       { Gene1: "robust digestion", Gene2: "weak stomach", Tag: "Digestion" },
     ],
+    icon_url: iconUrl,
   }} />
 </Story>

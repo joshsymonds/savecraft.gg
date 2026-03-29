@@ -3,6 +3,8 @@
 
   import Crops from "./crops.svelte";
 
+  const iconUrl = "/plugins/rimworld/icon.png";
+
   const { Story } = defineMeta({
     title: "RimWorld/Crops",
     tags: ["autodocs"],
@@ -18,6 +20,7 @@
     silver_per_day: 1.284,
     tiles_needed: 12,
     hydroponics: true,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -30,6 +33,7 @@
     silver_per_day: 2.105,
     tiles_needed: 7,
     hydroponics: false,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -42,5 +46,6 @@
     silver_per_day: 0.342,
     tiles_needed: 0,
     hydroponics: false,
+    icon_url: iconUrl,
   }} />
 </Story>

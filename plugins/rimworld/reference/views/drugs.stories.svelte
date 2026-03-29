@@ -3,6 +3,8 @@
 
   import Drugs from "./drugs.svelte";
 
+  const iconUrl = "/plugins/rimworld/icon.png";
+
   const { Story } = defineMeta({
     title: "RimWorld/Drugs",
     tags: ["autodocs"],
@@ -19,6 +21,7 @@
       { name: "penoxycyline", market_value: 18, category: "Medical", addictiveness: 0.0, ingredients: ["Neutroamine:2"] },
       { name: "go-juice", market_value: 53, category: "Hard", addictiveness: 0.1, ingredients: ["Neutroamine:2", "Yayo:1"] },
     ],
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -29,6 +32,7 @@
     market_value: 14,
     addictiveness: 0.2,
     work_amount: 250,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -42,6 +46,7 @@
     leaves_per_day: 1.4,
     drugs_per_day: 0.35,
     silver_per_day: 4.9,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -55,5 +60,6 @@
     leaves_per_day: 3.4,
     drugs_per_day: 0.136,
     silver_per_day: 1.63,
+    icon_url: iconUrl,
   }} />
 </Story>

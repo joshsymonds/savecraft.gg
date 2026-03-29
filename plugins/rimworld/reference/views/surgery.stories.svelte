@@ -3,6 +3,8 @@
 
   import Surgery from "./surgery.svelte";
 
+  const iconUrl = "/plugins/rimworld/icon.png";
+
   const { Story } = defineMeta({
     title: "RimWorld/Surgery",
     tags: ["autodocs"],
@@ -19,6 +21,7 @@
     inspired: false,
     capped: true,
     uncapped: 1.05,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -32,6 +35,7 @@
     inspired: false,
     capped: false,
     uncapped: 0.653,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -45,6 +49,7 @@
     inspired: false,
     capped: false,
     uncapped: 0.126,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -58,5 +63,6 @@
     inspired: true,
     capped: true,
     uncapped: 1.65,
+    icon_url: iconUrl,
   }} />
 </Story>

@@ -122,12 +122,13 @@
 
   .panel-watermark {
     position: absolute;
-    bottom: 8px;
-    right: 8px;
-    width: 48px;
-    height: 48px;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 96px;
+    height: 96px;
     object-fit: contain;
-    opacity: 0.15;
+    opacity: 0.1;
     pointer-events: none;
     z-index: 0;
   }
