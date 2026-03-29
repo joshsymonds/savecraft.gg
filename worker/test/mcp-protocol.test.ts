@@ -182,6 +182,46 @@ describe("MCP Protocol", () => {
     ]);
   });
 
+  it("includes domain in tools _meta.ui for view-backed tools", async () => {
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(mcpRequest("tools/list", 2));
+    const body = (await parseJsonResponse(resp)) as {
+      result: { tools: { name: string; _meta?: { ui?: { domain?: string; resourceUri?: string } } }[] };
+    };
+    const toolsWithViews = body.result.tools.filter((t) => t._meta?.ui?.resourceUri);
+    expect(toolsWithViews.length).toBeGreaterThan(0);
+    for (const tool of toolsWithViews) {
+      expect(tool._meta!.ui!.domain).toBe("https://staging.savecraft.gg");
+    }
+  });
+
+  it("includes domain in resources/list", async () => {
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(mcpRequest("resources/list", 2));
+    expect(resp.status).toBe(200);
+    const body = (await parseJsonResponse(resp)) as {
+      result: { resources: { uri: string; _meta?: { ui?: { domain?: string } } }[] };
+    };
+    expect(body.result.resources.length).toBeGreaterThan(0);
+    for (const resource of body.result.resources) {
+      expect(resource._meta!.ui!.domain).toBe("https://staging.savecraft.gg");
+    }
+  });
+
   it("calls list_games and returns seeded data grouped by game", async () => {
     // Initialize
     await SELF.fetch(

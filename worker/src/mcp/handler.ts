@@ -58,18 +58,34 @@ const VIEW_CSP = {
   ],
 };
 
-function buildResourceList(): {
+function viewDomain(env: Env): string {
+  return env.ENVIRONMENT === "production"
+    ? "https://savecraft.gg"
+    : "https://staging.savecraft.gg";
+}
+
+/** Cached per-environment results (ENVIRONMENT is constant per Worker instance). */
+let cachedToolsWithUi: ToolDefinition[] | undefined;
+let cachedResourceList:
+  | { uri: string; name: string; mimeType: string; _meta: { ui: { domain: string; csp: typeof VIEW_CSP } } }[]
+  | undefined;
+let cachedEnvironment: string | undefined;
+
+function buildResourceList(env: Env): {
   uri: string;
   name: string;
   mimeType: string;
-  _meta: { ui: { csp: typeof VIEW_CSP } };
+  _meta: { ui: { domain: string; csp: typeof VIEW_CSP } };
 }[] {
-  return Object.keys(VIEWS).map((slug) => ({
+  if (cachedResourceList && cachedEnvironment === env.ENVIRONMENT) return cachedResourceList;
+  const domain = viewDomain(env);
+  cachedResourceList = Object.keys(VIEWS).map((slug) => ({
     uri: `ui://savecraft/${slug}.html`,
     name: slug,
     mimeType: RESOURCE_MIME_TYPE,
-    _meta: { ui: { csp: VIEW_CSP } },
+    _meta: { ui: { domain, csp: VIEW_CSP } },
   }));
+  return cachedResourceList;
 }
 
 /** Look up view HTML by resource URI. */
@@ -425,21 +441,28 @@ const TOOLS: ToolDefinition[] = [
   },
 ];
 
-/** Pre-computed tools with _meta.ui for views (TOOLS and VIEWS are both static). */
-const TOOLS_WITH_UI = TOOLS.map((tool) => {
-  const slug = tool.name === "query_reference" ? "reference" : tool.name.replaceAll("_", "-");
-  if (!VIEWS[slug]) return tool;
-  return {
-    ...tool,
-    _meta: {
-      ...tool._meta,
-      ui: {
-        resourceUri: `ui://savecraft/${slug}.html`,
-        csp: VIEW_CSP,
+/** Build tools with _meta.ui for views, including env-aware domain. */
+function buildToolsWithUi(env: Env): ToolDefinition[] {
+  if (cachedToolsWithUi && cachedEnvironment === env.ENVIRONMENT) return cachedToolsWithUi;
+  const domain = viewDomain(env);
+  cachedEnvironment = env.ENVIRONMENT;
+  cachedToolsWithUi = TOOLS.map((tool) => {
+    const slug = tool.name === "query_reference" ? "reference" : tool.name.replaceAll("_", "-");
+    if (!VIEWS[slug]) return tool;
+    return {
+      ...tool,
+      _meta: {
+        ...tool._meta,
+        ui: {
+          resourceUri: `ui://savecraft/${slug}.html`,
+          domain,
+          csp: VIEW_CSP,
+        },
       },
-    },
-  };
-});
+    };
+  });
+  return cachedToolsWithUi;
+}
 
 const MCP_HEADERS = { "Content-Security-Policy": "default-src 'none'" };
 
@@ -691,11 +714,11 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
     }
 
     case "tools/list": {
-      return Promise.resolve(jsonRpcResponse(id, { tools: TOOLS_WITH_UI }));
+      return Promise.resolve(jsonRpcResponse(id, { tools: buildToolsWithUi(env) }));
     }
 
     case "resources/list": {
-      return Promise.resolve(jsonRpcResponse(id, { resources: buildResourceList() }));
+      return Promise.resolve(jsonRpcResponse(id, { resources: buildResourceList(env) }));
     }
 
     case "resources/read": {
@@ -714,7 +737,7 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
               uri,
               mimeType: RESOURCE_MIME_TYPE,
               text: html,
-              _meta: { ui: { csp: VIEW_CSP } },
+              _meta: { ui: { domain: viewDomain(env), csp: VIEW_CSP } },
             },
           ],
         }),
