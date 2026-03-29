@@ -183,6 +183,71 @@ func TestTasteResolutionCategoryConflict(t *testing.T) {
 	t.Error("Elliott not found in Apple results")
 }
 
+// Tests for structured output (view-compatible structuredContent).
+
+func TestNPCQueryResultHasStructuredFields(t *testing.T) {
+	result := npcQueryResult("Abigail")
+	if result == nil {
+		t.Fatal("expected result for Abigail")
+	}
+
+	// Must have formatted + presentation (backward compat)
+	if _, ok := result["formatted"].(string); !ok {
+		t.Error("missing formatted field")
+	}
+	if _, ok := result["presentation"].(string); !ok {
+		t.Error("missing presentation field")
+	}
+
+	// Must have structured fields for view rendering
+	if result["npc"] != "Abigail" {
+		t.Errorf("npc = %v, want Abigail", result["npc"])
+	}
+
+	// Taste tier arrays must be present
+	loves := result["love"].([]any)
+	if len(loves) < 8 {
+		t.Errorf("expected at least 8 loved items, got %d", len(loves))
+	}
+
+	// Universal tiers must be present
+	for _, key := range []string{"universalLove", "universalLike", "universalNeutral", "universalDislike", "universalHate"} {
+		if result[key] == nil {
+			t.Errorf("missing %s", key)
+		}
+	}
+}
+
+func TestItemQueryResultHasStructuredFields(t *testing.T) {
+	result := itemQueryResult("Diamond")
+	if result == nil {
+		t.Fatal("expected result for Diamond")
+	}
+
+	// Must have formatted + presentation (backward compat)
+	if _, ok := result["formatted"].(string); !ok {
+		t.Error("missing formatted field")
+	}
+	if _, ok := result["presentation"].(string); !ok {
+		t.Error("missing presentation field")
+	}
+
+	// Must have structured fields for view rendering
+	if result["item"] != "Diamond" {
+		t.Errorf("item = %v, want Diamond", result["item"])
+	}
+
+	npcs := result["npcs"].([]any)
+	if len(npcs) == 0 {
+		t.Error("expected npcs in result")
+	}
+
+	uTaste, ok := result["universalTaste"].(string)
+	if !ok || uTaste != "like" {
+		t.Errorf("universalTaste = %v, want like", uTaste)
+	}
+}
+
 func TestCategoryName(t *testing.T) {
 	tests := []struct {
 		cat  int

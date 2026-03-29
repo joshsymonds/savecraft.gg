@@ -302,6 +302,61 @@ func TestSeasonRankingIncludesNet(t *testing.T) {
 	}
 }
 
+// Tests for structured output (view-compatible structuredContent).
+
+func TestCropQueryResultHasStructuredFields(t *testing.T) {
+	result := cropQueryResult("Pumpkin")
+	if result == nil {
+		t.Fatal("expected result for Pumpkin")
+	}
+
+	// Must have formatted + presentation (backward compat)
+	if _, ok := result["formatted"].(string); !ok {
+		t.Error("missing formatted field")
+	}
+	if _, ok := result["presentation"].(string); !ok {
+		t.Error("missing presentation field")
+	}
+
+	// Must have all structured fields from lookupCrop
+	required := []string{"name", "seed", "seasons", "growthDays", "regrowDays",
+		"sellPrice", "seedCost", "category", "goldPerDay", "netGoldPerDay",
+		"harvests", "tillerGoldPerDay", "artisanGoods",
+		"speedGro", "deluxeSpeedGro", "hyperSpeedGro", "processing"}
+	for _, field := range required {
+		if _, ok := result[field]; !ok {
+			t.Errorf("missing structured field %q", field)
+		}
+	}
+	if result["name"] != "Pumpkin" {
+		t.Errorf("name = %v, want Pumpkin", result["name"])
+	}
+}
+
+func TestSeasonQueryResultHasStructuredFields(t *testing.T) {
+	result := seasonQueryResult("Summer")
+	if result == nil {
+		t.Fatal("expected result for Summer")
+	}
+
+	// Must have formatted + presentation (backward compat)
+	if _, ok := result["formatted"].(string); !ok {
+		t.Error("missing formatted field")
+	}
+	if _, ok := result["presentation"].(string); !ok {
+		t.Error("missing presentation field")
+	}
+
+	// Must have structured fields for view rendering
+	if result["season"] != "Summer" {
+		t.Errorf("season = %v, want Summer", result["season"])
+	}
+	crops := result["crops"].([]any)
+	if len(crops) < 5 {
+		t.Errorf("expected at least 5 crops, got %d", len(crops))
+	}
+}
+
 func TestAllCropsHaveRequiredFields(t *testing.T) {
 	required := []string{"name", "seed", "seasons", "growthDays", "regrowDays",
 		"sellPrice", "seedCost", "category", "goldPerDay", "netGoldPerDay",
