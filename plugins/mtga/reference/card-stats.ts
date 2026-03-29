@@ -55,16 +55,22 @@ const VALID_SORT_FIELDS = new Set([
 
 // ── Helpers ──────────────────────────────────────────────────
 
+/** Round to n decimal places. */
+function rn(v: number, n: number): number {
+  const shift = 10 ** n;
+  return Math.round(v * shift) / shift;
+}
+
 function cardRow(r: RatingRow) {
   return {
     card_name: r.card_name,
-    gihwr: r.gihwr,
-    ohwr: r.ohwr,
-    gdwr: r.gdwr,
-    gnswr: r.gnswr,
-    iwd: r.iwd,
-    alsa: r.alsa,
-    ata: r.ata,
+    gihwr: rn(r.gihwr, 4),
+    ohwr: rn(r.ohwr, 4),
+    gdwr: rn(r.gdwr, 4),
+    gnswr: rn(r.gnswr, 4),
+    iwd: rn(r.iwd, 4),
+    alsa: rn(r.alsa, 2),
+    ata: rn(r.ata, 2),
     games_in_hand: r.games_in_hand,
     games_played: r.games_played,
   };
@@ -89,7 +95,7 @@ async function listAvailableSets(db: D1Database): Promise<ReferenceResult> {
         format: r.format,
         total_games: r.total_games,
         card_count: r.card_count,
-        avg_gihwr: r.avg_gihwr,
+        avg_gihwr: rn(r.avg_gihwr, 4),
       })),
     },
   };
@@ -132,7 +138,7 @@ async function setOverview(
       format: setStats.format,
       total_games: setStats.total_games,
       card_count: setStats.card_count,
-      avg_gihwr: setStats.avg_gihwr,
+      avg_gihwr: rn(setStats.avg_gihwr, 4),
       top_gihwr: topGihwr,
       bottom_gihwr: bottomGihwr,
       top_iwd: topIwd,
@@ -207,11 +213,11 @@ async function cardDetail(
     const colors = colorsByCard.get(card.card_name) ?? [];
     return {
       ...cardRow(card),
-      set_avg_gihwr: setStats.avg_gihwr,
+      set_avg_gihwr: rn(setStats.avg_gihwr, 4),
       archetypes: colors.map((cs) => ({
         archetype: cs.archetype,
-        gihwr: cs.gihwr,
-        iwd: cs.iwd,
+        gihwr: rn(cs.gihwr, 4),
+        iwd: rn(cs.iwd, 4),
         games_in_hand: cs.games_in_hand,
       })),
     };
@@ -312,7 +318,7 @@ async function leaderboard(
     data: {
       set_code: setCode,
       format: setStats.format,
-      avg_gihwr: setStats.avg_gihwr,
+      avg_gihwr: rn(setStats.avg_gihwr, 4),
       sort_by: field,
       archetype: archetype || null,
       offset,
