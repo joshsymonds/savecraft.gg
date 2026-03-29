@@ -1457,6 +1457,7 @@ async function constructedHealthCheck(
 
   return {
     type: "structured",
+    title: "Constructed Deck Evaluation",
     data: {
       mode: "constructed",
       format: format ?? null,
@@ -1568,6 +1569,7 @@ export const deckbuildingModule: NativeReferenceModule = {
     if (deck.length === 0) {
       return {
         type: "structured",
+        title: "Deck Analysis Error",
         data: {
           error: "No deck provided. Pass an array of {name, count} entries.",
         },
@@ -1597,6 +1599,7 @@ export const deckbuildingModule: NativeReferenceModule = {
       if (!inferred) {
         return {
           type: "structured",
+          title: "Deck Analysis Error",
           data: {
             error:
               "Could not determine set. Pass a set code explicitly or ensure deck cards exist in the draft ratings database.",
@@ -1613,6 +1616,7 @@ export const deckbuildingModule: NativeReferenceModule = {
       const result = await cutAdvisor(db, deck, meta, setCode, cutsParam);
       return {
         type: "structured",
+        title: "Cut Advisor",
         data: {
           mode: "cut_advisor",
           set: setCode,
@@ -1629,6 +1633,7 @@ export const deckbuildingModule: NativeReferenceModule = {
     const mana = analyzeManaBase(deck, meta, totalCards);
     return {
       type: "structured",
+      title: "Draft Deck Health Check",
       data: {
         mode: "health_check",
         set: setCode,

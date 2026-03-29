@@ -141,6 +141,7 @@ export const collectionDiffModule: NativeReferenceModule = {
 
     return {
       type: "structured",
+      title: "Wildcard Crafting Cost",
       data: { missing, wildcardCost, unresolvedCards },
     };
   },
