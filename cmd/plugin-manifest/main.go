@@ -18,6 +18,8 @@ import (
 	"path/filepath"
 	"strings"
 
+	"slices"
+
 	"github.com/BurntSushi/toml"
 	"github.com/tetratelabs/wazero"
 	"github.com/tetratelabs/wazero/imports/wasi_snapshot_preview1"
@@ -27,7 +29,7 @@ import (
 //nolint:tagliatelle // manifest JSON uses snake_case to match plugin.toml field names
 type pluginTOML struct {
 	GameID         string   `toml:"game_id"         json:"game_id"`
-	Source         string   `toml:"source"          json:"source"`
+	Sources        []string `toml:"sources"         json:"sources"`
 	Icon           string   `toml:"icon"            json:"icon"`
 	Name           string   `toml:"name"            json:"name"`
 	Description    string   `toml:"description"     json:"description"`
@@ -146,7 +148,7 @@ func buildManifest(pluginDir string) (pluginManifest, error) {
 	}
 
 	// API plugins have no WASM — include adapter config instead.
-	if cfg.Source == "api" {
+	if slices.Contains(cfg.Sources, "api") {
 		manifest.Adapter = &adapterManifest{
 			AuthProvider: cfg.AdapterTOML.AuthProvider,
 			AuthFlow:     cfg.AdapterTOML.AuthFlow,
@@ -156,8 +158,8 @@ func buildManifest(pluginDir string) (pluginManifest, error) {
 		return manifest, nil
 	}
 
-	// Mod plugins have no parser WASM, but may have reference modules.
-	if cfg.Source == "mod" {
+	// Mod-only plugins have no parser WASM, but may have reference modules.
+	if slices.Contains(cfg.Sources, "mod") && !slices.Contains(cfg.Sources, "wasm") {
 		if ref, ok := tryBuildReference(pluginDir, cfg); ok {
 			manifest.Reference = ref
 		}

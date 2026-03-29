@@ -395,7 +395,7 @@ func TestBuildManifest_ModPluginWithReference(t *testing.T) {
 	dir := t.TempDir()
 	writeFile(t, filepath.Join(dir, "plugin.toml"), `
 game_id = "rimworld"
-source = "mod"
+sources = ["mod"]
 name = "RimWorld"
 description = "Mod plugin with reference modules"
 channel = "alpha"
@@ -469,7 +469,7 @@ func TestBuildManifest_ModPluginWithoutReference(t *testing.T) {
 
 	writeFile(t, filepath.Join(dir, "plugin.toml"), `
 game_id = "rimworld"
-source = "mod"
+sources = ["mod"]
 name = "RimWorld"
 description = "Mod plugin without reference modules"
 channel = "alpha"
@@ -500,7 +500,7 @@ func TestBuildManifest_APIPlugin(t *testing.T) {
 
 	writeFile(t, filepath.Join(dir, "plugin.toml"), `
 game_id = "wow"
-source = "api"
+sources = ["api"]
 name = "World of Warcraft"
 description = "Character profiles via Battle.net API"
 channel = "beta"
@@ -530,8 +530,8 @@ regions = ["us", "eu", "kr", "tw"]
 	if m.GameID != "wow" {
 		t.Errorf("game_id = %q, want wow", m.GameID)
 	}
-	if m.Source != "api" {
-		t.Errorf("source = %q, want api", m.Source)
+	if len(m.Sources) != 1 || m.Sources[0] != "api" {
+		t.Errorf("sources = %v, want [api]", m.Sources)
 	}
 	// API plugins should have no WASM-related fields.
 	if m.SHA256 != "" {
