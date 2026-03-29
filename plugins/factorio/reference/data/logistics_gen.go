@@ -4,18 +4,18 @@ package data
 // Belts — speed is tiles/tick, ItemsPerSec = speed * 480 (60 ticks/s * 8 items/tile)
 var Belts = map[string]Belt{
 	"express-transport-belt": {Name: "express-transport-belt", Speed: 0.09375, ItemsPerSec: 45},
-	"fast-transport-belt": {Name: "fast-transport-belt", Speed: 0.0625, ItemsPerSec: 30},
-	"transport-belt": {Name: "transport-belt", Speed: 0.03125, ItemsPerSec: 15},
-	"turbo-transport-belt": {Name: "turbo-transport-belt", Speed: 0.125, ItemsPerSec: 60},
+	"fast-transport-belt":    {Name: "fast-transport-belt", Speed: 0.0625, ItemsPerSec: 30},
+	"transport-belt":         {Name: "transport-belt", Speed: 0.03125, ItemsPerSec: 15},
+	"turbo-transport-belt":   {Name: "turbo-transport-belt", Speed: 0.125, ItemsPerSec: 60},
 }
 
 var Inserters = map[string]Inserter{
-	"bulk-inserter": {Name: "bulk-inserter", RotationSpeed: 0.04, StackSizeBonus: 0},
-	"burner-inserter": {Name: "burner-inserter", RotationSpeed: 0.013000000000000001, StackSizeBonus: 0},
-	"fast-inserter": {Name: "fast-inserter", RotationSpeed: 0.04, StackSizeBonus: 0},
-	"inserter": {Name: "inserter", RotationSpeed: 0.014000000000000002, StackSizeBonus: 0},
+	"bulk-inserter":        {Name: "bulk-inserter", RotationSpeed: 0.04, StackSizeBonus: 0},
+	"burner-inserter":      {Name: "burner-inserter", RotationSpeed: 0.013000000000000001, StackSizeBonus: 0},
+	"fast-inserter":        {Name: "fast-inserter", RotationSpeed: 0.04, StackSizeBonus: 0},
+	"inserter":             {Name: "inserter", RotationSpeed: 0.014000000000000002, StackSizeBonus: 0},
 	"long-handed-inserter": {Name: "long-handed-inserter", RotationSpeed: 0.02, StackSizeBonus: 0},
-	"stack-inserter": {Name: "stack-inserter", RotationSpeed: 0.04, StackSizeBonus: 4},
+	"stack-inserter":       {Name: "stack-inserter", RotationSpeed: 0.04, StackSizeBonus: 4},
 }
 
 var Beacons = map[string]Beacon{

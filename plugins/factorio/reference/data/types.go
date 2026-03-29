@@ -2,14 +2,14 @@ package data
 
 // Ingredient is a recipe input (item or fluid).
 type Ingredient struct {
-	Type   string  // "item" or "fluid"
+	Type   string // "item" or "fluid"
 	Name   string
 	Amount float64
 }
 
 // Product is a recipe output, optionally probabilistic.
 type Product struct {
-	Type        string  // "item" or "fluid"
+	Type        string // "item" or "fluid"
 	Name        string
 	Amount      float64
 	Probability float64 // 1.0 if not specified
@@ -18,7 +18,7 @@ type Product struct {
 // Recipe is a Factorio crafting recipe.
 type Recipe struct {
 	Name           string
-	Category       string // e.g. "crafting", "smelting", "oil-processing", "electronics"
+	Category       string  // e.g. "crafting", "smelting", "oil-processing", "electronics"
 	EnergyRequired float64 // craft time in seconds (default 0.5)
 	Ingredients    []Ingredient
 	Results        []Product
@@ -29,11 +29,11 @@ type Recipe struct {
 type Technology struct {
 	Name          string
 	Prerequisites []string
-	UnitCount     float64 // number of research units (0 for infinite)
-	UnitTime      float64 // seconds per unit
+	UnitCount     float64      // number of research units (0 for infinite)
+	UnitTime      float64      // seconds per unit
 	Ingredients   []Ingredient // science packs needed per unit
-	Effects       []string // recipe names unlocked
-	MaxLevel      float64 // math.Inf for infinite research, 0 for normal
+	Effects       []string     // recipe names unlocked
+	MaxLevel      float64      // math.Inf for infinite research, 0 for normal
 }
 
 // CraftingMachine is an assembler, furnace, chemical plant, refinery, or rocket silo.
@@ -65,8 +65,8 @@ type ModuleEffects struct {
 
 // Belt is a transport belt with throughput data.
 type Belt struct {
-	Name       string
-	Speed      float64 // tiles per tick
+	Name        string
+	Speed       float64 // tiles per tick
 	ItemsPerSec float64 // computed: speed * 480 (60 ticks/sec * 8 items/tile)
 }
 
@@ -82,7 +82,7 @@ type Beacon struct {
 	Name                    string
 	DistributionEffectivity float64
 	ModuleSlots             int
-	SupplyAreaDistance       float64
+	SupplyAreaDistance      float64
 	EnergyUsage             string
 }
 

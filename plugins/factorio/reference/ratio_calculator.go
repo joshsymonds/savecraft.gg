@@ -64,14 +64,14 @@ func handleRatioCalculator(enc *json.Encoder, query map[string]any) {
 	beaconSpeedBonus := resolveBeaconEffects(q.BeaconModules, q.BeaconCount)
 
 	ctx := &ratioContext{
-		assemblerTier:         q.AssemblerTier,
-		moduleSpeedBonus:      moduleSpeedBonus,
-		moduleProdBonus:       moduleProdBonus,
+		assemblerTier:          q.AssemblerTier,
+		moduleSpeedBonus:       moduleSpeedBonus,
+		moduleProdBonus:        moduleProdBonus,
 		moduleConsumptionBonus: moduleConsumptionBonus,
-		beaconSpeedBonus:      beaconSpeedBonus,
-		rawTotals:             make(map[string]float64),
-		totalPowerKW:          0,
-		visited:               make(map[string]bool),
+		beaconSpeedBonus:       beaconSpeedBonus,
+		rawTotals:              make(map[string]float64),
+		totalPowerKW:           0,
+		visited:                make(map[string]bool),
 	}
 
 	// Verify the target item has a recipe before building the tree
