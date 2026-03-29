@@ -11,8 +11,17 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
 	"os"
 	"strings"
+)
+
+// Presentation hints for text-only MCP hosts.
+const (
+	cropPresentation   = "Crop detail — structured info card showing crop name, season, growth time, regrow cycle, and category. Show profitability as a comparison: base sell vs Tiller vs artisan goods values. Display speed-gro options as a compact comparison table (growth days, harvests, g/day for each tier). Show processing info (keg vs jar value and throughput) as a side-by-side comparison."
+	seasonPresentation = "Season crop ranking — table of crops sorted by gold/day descending. Show columns for gross g/day, net g/day (after seed cost), sell price, seed cost, growth time, and type. Use bar indicators for g/day to make profitability differences visually obvious. Highlight regrow crops (continuous income) distinctly from single-harvest crops."
+	npcPresentation    = "Gift preferences — organize by taste tier (Love → Like → Neutral → Dislike → Hate) with each tier as a distinct section. Use heart icons or color intensity to convey tier at a glance (deep red hearts for love, grey for hate). List items as compact tags within each tier. Separate personal preferences from universal ones visually."
+	itemPresentation   = "Item gift lookup — show which NPCs love/like/dislike/hate this item, grouped by taste tier. Use the same heart/color coding as NPC preferences. Mark personal preferences (overrides) distinctly from universal ones. If many NPCs share a universal taste, summarize rather than listing all."
 )
 
 func main() {
@@ -65,6 +74,38 @@ func handleGiftPreferences(enc *json.Encoder, query map[string]any) {
 	handleItemQuery(enc, item)
 }
 
+// cropQueryResult builds the full result map for a crop detail query.
+// Returns nil if the crop is not found. Includes both formatted/presentation
+// (backward compat) and structured fields (for view rendering).
+func cropQueryResult(crop string) map[string]any {
+	data := lookupCrop(crop)
+	if data == nil {
+		return nil
+	}
+	result := map[string]any{
+		"formatted":    formatCropResult(data),
+		"presentation": cropPresentation,
+	}
+	maps.Copy(result, data)
+	return result
+}
+
+// seasonQueryResult builds the full result map for a season ranking query.
+// Returns nil if the season is not recognized. Includes both formatted/presentation
+// (backward compat) and structured fields (for view rendering).
+func seasonQueryResult(season string) map[string]any {
+	data := lookupSeason(season)
+	if data == nil {
+		return nil
+	}
+	result := map[string]any{
+		"formatted":    formatSeasonResult(data),
+		"presentation": seasonPresentation,
+	}
+	maps.Copy(result, data)
+	return result
+}
+
 func handleCropPlanner(enc *json.Encoder, query map[string]any) {
 	crop, _ := query["crop"].(string)
 	season, _ := query["season"].(string)
@@ -75,37 +116,32 @@ func handleCropPlanner(enc *json.Encoder, query map[string]any) {
 	}
 
 	if crop != "" {
-		result := lookupCrop(crop)
+		result := cropQueryResult(crop)
 		if result == nil {
 			writeError(enc, "unknown_crop", "unknown crop: "+crop)
 			os.Exit(1)
 		}
-		writeResult(enc, map[string]any{
-			"formatted":    formatCropResult(result),
-			"presentation": "Crop detail — structured info card showing crop name, season, growth time, regrow cycle, and category. Show profitability as a comparison: base sell vs Tiller vs artisan goods values. Display speed-gro options as a compact comparison table (growth days, harvests, g/day for each tier). Show processing info (keg vs jar value and throughput) as a side-by-side comparison.",
-		})
+		writeResult(enc, result)
 		return
 	}
 
-	result := lookupSeason(season)
+	result := seasonQueryResult(season)
 	if result == nil {
 		writeError(enc, "unknown_season", "unknown season: "+season)
 		os.Exit(1)
 	}
-	writeResult(enc, map[string]any{
-		"formatted":    formatSeasonResult(result),
-		"presentation": "Season crop ranking — table of crops sorted by gold/day descending. Show columns for gross g/day, net g/day (after seed cost), sell price, seed cost, growth time, and type. Use bar indicators for g/day to make profitability differences visually obvious. Highlight regrow crops (continuous income) distinctly from single-harvest crops.",
-	})
+	writeResult(enc, result)
 }
 
-func handleNPCQuery(enc *json.Encoder, npc string) {
+// npcQueryResult builds the full result map for an NPC gift preference query.
+// Returns nil if the NPC is not found. Includes both formatted/presentation
+// (backward compat) and structured fields (for view rendering).
+func npcQueryResult(npc string) map[string]any {
 	prefs := lookupNPC(npc)
 	if prefs == nil {
-		writeError(enc, "unknown_npc", "unknown NPC: "+npc)
-		os.Exit(1)
+		return nil
 	}
 
-	// Format as human-readable text
 	name := prefs["npc"].(string)
 	var b strings.Builder
 	fmt.Fprintf(&b, "Gift preferences for %s\n\n", name)
@@ -123,17 +159,31 @@ func handleNPCQuery(enc *json.Encoder, npc string) {
 	formatTasteSection(&b, "Universal Dislike", prefs["universalDislike"])
 	formatTasteSection(&b, "Universal Hate", prefs["universalHate"])
 
-	writeResult(enc, map[string]any{
+	// Merge structured fields with formatted/presentation.
+	result := map[string]any{
 		"formatted":    b.String(),
-		"presentation": "Gift preferences — organize by taste tier (Love → Like → Neutral → Dislike → Hate) with each tier as a distinct section. Use heart icons or color intensity to convey tier at a glance (deep red hearts for love, grey for hate). List items as compact tags within each tier. Separate personal preferences from universal ones visually.",
-	})
+		"presentation": npcPresentation,
+	}
+	maps.Copy(result, prefs)
+	return result
 }
 
-func handleItemQuery(enc *json.Encoder, item string) {
+func handleNPCQuery(enc *json.Encoder, npc string) {
+	result := npcQueryResult(npc)
+	if result == nil {
+		writeError(enc, "unknown_npc", "unknown NPC: "+npc)
+		os.Exit(1)
+	}
+	writeResult(enc, result)
+}
+
+// itemQueryResult builds the full result map for an item gift preference query.
+// Returns nil if the item is not found. Includes both formatted/presentation
+// (backward compat) and structured fields (for view rendering).
+func itemQueryResult(item string) map[string]any {
 	results := lookupItem(item)
 	if results == nil {
-		writeError(enc, "unknown_item", "unknown item: "+item)
-		os.Exit(1)
+		return nil
 	}
 
 	var b strings.Builder
@@ -174,10 +224,22 @@ func handleItemQuery(enc *json.Encoder, item string) {
 
 	b.WriteString("\n* = personal preference (overrides universal)\n")
 
-	writeResult(enc, map[string]any{
+	// Merge structured fields with formatted/presentation.
+	result := map[string]any{
 		"formatted":    b.String(),
-		"presentation": "Item gift lookup — show which NPCs love/like/dislike/hate this item, grouped by taste tier. Use the same heart/color coding as NPC preferences. Mark personal preferences (overrides) distinctly from universal ones. If many NPCs share a universal taste, summarize rather than listing all.",
-	})
+		"presentation": itemPresentation,
+	}
+	maps.Copy(result, results)
+	return result
+}
+
+func handleItemQuery(enc *json.Encoder, item string) {
+	result := itemQueryResult(item)
+	if result == nil {
+		writeError(enc, "unknown_item", "unknown item: "+item)
+		os.Exit(1)
+	}
+	writeResult(enc, result)
 }
 
 func formatTasteSection(b *strings.Builder, label string, items any) {
