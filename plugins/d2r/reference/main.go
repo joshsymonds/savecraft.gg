@@ -37,7 +37,7 @@ func main() {
 
 	// Empty query returns the schema.
 	if len(query) == 0 {
-		writeResult(enc, schema())
+		writeResult(enc, "Schema", schema())
 		return
 	}
 
@@ -131,7 +131,7 @@ func handleMonsterDrops(enc *json.Encoder, calc *dropcalc.Calculator, query map[
 		}
 	}
 
-	writeResult(enc, map[string]any{
+	writeResult(enc, monster, map[string]any{
 		"mode":         "monster",
 		"monster_name": monster,
 		"difficulty":   difficultyName(difficulty),
@@ -154,7 +154,7 @@ func handleItemSearch(enc *json.Encoder, calc *dropcalc.Calculator, query map[st
 
 	total := len(results)
 	if total == 0 {
-		writeResult(enc, map[string]any{
+		writeResult(enc, search, map[string]any{
 			"mode":  "search",
 			"query": search,
 			"items": []any{},
@@ -245,7 +245,7 @@ func handleItemSearch(enc *json.Encoder, calc *dropcalc.Calculator, query map[st
 		}
 	}
 
-	writeResult(enc, map[string]any{
+	writeResult(enc, search, map[string]any{
 		"mode":  "search",
 		"query": search,
 		"items": items,
@@ -350,7 +350,7 @@ func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[s
 		}
 	}
 
-	writeResult(enc, map[string]any{
+	writeResult(enc, itemName, map[string]any{
 		"mode":      "item",
 		"item_name": itemName,
 		"item_base": calc.ItemName(code),
@@ -528,10 +528,11 @@ func schema() map[string]any {
 	}
 }
 
-func writeResult(enc *json.Encoder, data any) {
+func writeResult(enc *json.Encoder, title string, data any) {
 	if err := enc.Encode(map[string]any{
-		"type": "result",
-		"data": data,
+		"type":  "result",
+		"title": title,
+		"data":  data,
 	}); err != nil {
 		os.Exit(1)
 	}

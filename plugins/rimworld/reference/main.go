@@ -64,7 +64,7 @@ func main() {
 	}
 
 	if len(query) == 0 {
-		writeResult(enc, schema())
+		writeResult(enc, "Schema", schema())
 		return
 	}
 
@@ -138,7 +138,7 @@ func handleSurgery(enc *json.Encoder, query map[string]any) {
 		fmt.Fprintf(&sb, "\n! Result capped at 98%% (uncapped: %.1f%%)\n", result.Uncapped*100)
 	}
 
-	writeResult(enc, map[string]any{
+	writeResult(enc, "Surgery Calculator", map[string]any{
 		"formatted":       sb.String(),
 		"success_chance":  roundN(result.SuccessChance, 3),
 		"surgeon_factor":  roundN(result.SurgeonFactor, 2),
@@ -306,7 +306,7 @@ func handleCrops(enc *json.Encoder, query map[string]any) {
 	fmt.Fprintf(&sb, "\nHydroponics eligible: %v\n", canHydro)
 	fmt.Fprintf(&sb, "Sow tags: %s\n", strings.Join(plant.SowTags, ", "))
 
-	writeResult(enc, map[string]any{
+	writeResult(enc, plant.Label, map[string]any{
 		"formatted":         sb.String(),
 		"crop":              plant.Label,
 		"growth_rate":       roundN(result.GrowthRate, 2),
@@ -337,7 +337,7 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 				"categories":    m.Categories,
 			})
 		}
-		writeResult(enc, map[string]any{
+		writeResult(enc, "Materials", map[string]any{
 			"materials": mats,
 		})
 		return
@@ -380,7 +380,7 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 	}
 	fmt.Fprintf(&sb, "\nCategories: %s\n", strings.Join(mat.Categories, ", "))
 
-	writeResult(enc, map[string]any{
+	writeResult(enc, mat.Label, map[string]any{
 		"formatted":    sb.String(),
 		"material":     mat.Label,
 		"quality":      qualityName,
@@ -410,7 +410,7 @@ func handleDrugs(enc *json.Encoder, query map[string]any) {
 				"ingredients":   d.Ingredients,
 			})
 		}
-		writeResult(enc, map[string]any{
+		writeResult(enc, "Drugs", map[string]any{
 			"drugs": drugList,
 		})
 		return
@@ -467,7 +467,7 @@ func handleDrugs(enc *json.Encoder, query map[string]any) {
 		fmt.Fprintf(&sb, "  Overdose severity: %.2f\n", d.OverdoseSeverity)
 	}
 
-	writeResult(enc, map[string]any{
+	writeResult(enc, d.Label, map[string]any{
 		"formatted":     sb.String(),
 		"drug":          d.Label,
 		"category":      d.Category,
@@ -558,7 +558,7 @@ func handleDrugProductionChain(enc *json.Encoder, query map[string]any, d *data.
 		fmt.Fprintf(&sb, "Silver/day/tile: %.3f\n", result.SilverPerDayPerTile)
 	}
 
-	writeResult(enc, map[string]any{
+	writeResult(enc, d.Label+" Production Chain", map[string]any{
 		"formatted":        sb.String(),
 		"drug":             d.Label,
 		"crop":             plant.Label,
@@ -596,7 +596,7 @@ func handleRaids(enc *json.Encoder, query map[string]any) {
 	fmt.Fprintf(&sb, "  From %d colonist(s): %.0f (%.0f each)\n", colonists, result.PawnPoints, result.PawnPoints/max(float64(colonists), 1))
 	fmt.Fprintf(&sb, "  Total:           %.0f\n", result.TotalPoints)
 
-	writeResult(enc, map[string]any{
+	writeResult(enc, "Raid Threat Estimate", map[string]any{
 		"formatted":     sb.String(),
 		"total_wealth":  roundN(result.TotalWealth, 0),
 		"wealth_points": roundN(result.WealthPoints, 0),
@@ -662,7 +662,7 @@ func handleGenes(enc *json.Encoder, query map[string]any) {
 			}
 		}
 
-		writeResult(enc, map[string]any{
+		writeResult(enc, "Gene Build", map[string]any{
 			"formatted":        sb.String(),
 			"total_complexity": result.TotalComplexity,
 			"total_metabolism": result.TotalMetabolism,
@@ -699,7 +699,7 @@ func handleGenes(enc *json.Encoder, query map[string]any) {
 			"conflicts":  g.ExclusionTags,
 		})
 	}
-	writeResult(enc, map[string]any{
+	writeResult(enc, "Genes", map[string]any{
 		"genes": results,
 		"count": len(results),
 	})
@@ -726,7 +726,7 @@ func handleResearch(enc *json.Encoder, query map[string]any) {
 				"prerequisites": p.Prerequisites,
 			})
 		}
-		writeResult(enc, map[string]any{
+		writeResult(enc, "Research Projects", map[string]any{
 			"projects": projects,
 			"count":    len(projects),
 		})
@@ -764,7 +764,7 @@ func handleResearch(enc *json.Encoder, query map[string]any) {
 	}
 	fmt.Fprintf(&sb, "\nTotal cost: %.0f\n", totalCost)
 
-	writeResult(enc, map[string]any{
+	writeResult(enc, pm[targetDef].Label+" Research", map[string]any{
 		"formatted":   sb.String(),
 		"chain":       chain,
 		"total_cost":  roundN(totalCost, 0),
@@ -849,7 +849,7 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 			fmt.Fprintf(&sb, "\nVs %.0f%% armor: %.1f expected damage per shot\n", armorRating*100, expectedDmg)
 		}
 
-		writeResult(enc, map[string]any{
+		writeResult(enc, w.Label, map[string]any{
 			"formatted":       sb.String(),
 			"weapon":          w.Label,
 			"type":            "ranged",
@@ -884,7 +884,7 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 				t.Label, t.Power, t.Cooldown, weight)
 		}
 
-		writeResult(enc, map[string]any{
+		writeResult(enc, w.Label, map[string]any{
 			"formatted": sb.String(),
 			"weapon":    w.Label,
 			"type":      "melee",
@@ -1020,10 +1020,11 @@ func schema() map[string]any {
 	}
 }
 
-func writeResult(enc *json.Encoder, data any) {
+func writeResult(enc *json.Encoder, title string, data any) {
 	if err := enc.Encode(map[string]any{
-		"type": "result",
-		"data": data,
+		"type":  "result",
+		"title": title,
+		"data":  data,
 	}); err != nil {
 		os.Exit(1)
 	}
