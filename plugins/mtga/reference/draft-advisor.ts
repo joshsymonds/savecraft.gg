@@ -1272,6 +1272,7 @@ export function generateArchetypeWarnings(
     splitArchB = "";
   }
 
+  let prevLabel = "";
   for (const frame of frames) {
     // Skip exploration phase entirely
     if (frame.phase === "exploration") continue;
@@ -1312,10 +1313,8 @@ export function generateArchetypeWarnings(
         );
         sustainedPrimary = frame.primary;
       }
-    } else {
-      // Primary matches sustained — if it had been briefly different, sustained stays
-      sustainedPrimary = frame.primary;
     }
+    // When primary matches sustained, no action needed — sustained stays.
 
     // Split detection: top-two gap < SPLIT_GAP
     const topTwoGap = frame.primary_weight - frame.secondary_weight;
@@ -1353,11 +1352,12 @@ export function generateArchetypeWarnings(
       }
     } else {
       if (splitRunLength > 0) {
-        // Gap widened — flush the run, using the previous frame's label as end
-        // We need the previous label, so track it
-        flushSplitRun(frame.display_label);
+        // Gap widened — flush the run ending at the last split frame
+        flushSplitRun(prevLabel || frame.display_label);
       }
     }
+
+    prevLabel = frame.display_label;
   }
 
   // Flush any trailing split run using last frame's label
