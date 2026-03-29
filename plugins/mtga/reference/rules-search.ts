@@ -115,8 +115,6 @@ async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<Refe
   return {
     type: "formatted",
     content: lines.join("\n") + "\n",
-    presentation:
-      "Rules reference — format as a clean legal document: rule numbers as bold headers, rule text as clear paragraphs, examples indented and italicized. Cross-referenced rules in a separate section. Do NOT use charts or visualizations — rules are text that must be read precisely.",
   };
 }
 
@@ -247,8 +245,6 @@ async function searchByKeyword(
   return {
     type: "formatted",
     content: lines.join("\n") + "\n",
-    presentation:
-      "Rules search results — list rules with bold rule numbers as section headers. Rank order reflects relevance. Do NOT visualize as charts — present as clean, readable text with clear hierarchy.",
   };
 }
 
@@ -354,8 +350,6 @@ async function searchCardRulings(
   return {
     type: "formatted",
     content: lines.join("\n") + "\n",
-    presentation:
-      "Card rulings — show each card as a header, then its rulings as a numbered list with dates. Group by card if multiple cards returned. Do NOT use charts — present as clean, authoritative reference text.",
   };
 }
 

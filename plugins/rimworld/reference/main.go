@@ -139,7 +139,6 @@ func handleSurgery(enc *json.Encoder, query map[string]any) {
 
 	writeResult(enc, map[string]any{
 		"formatted":       sb.String(),
-		"presentation":    "Surgery success calculation — show the final probability as a large, prominent percentage. Below it, display the factor chain as a multiplicative breakdown: surgeon stat × bed effective × medicine × difficulty × inspired = result. Highlight the weakest factor as the primary improvement opportunity. If capped at 98%, note that further investment is wasted. The player is deciding where to improve: better surgeon, better bed, better medicine, or cleaner room.",
 		"success_chance":  result.SuccessChance,
 		"surgeon_factor":  result.SurgeonFactor,
 		"bed_factor":      result.BedEffectiveFactor,
@@ -308,7 +307,6 @@ func handleCrops(enc *json.Encoder, query map[string]any) {
 
 	writeResult(enc, map[string]any{
 		"formatted":         sb.String(),
-		"presentation":      "Crop production analysis — show the crop name and growing conditions (soil, temperature) as a header. Present growth rate, days to harvest, and per-tile yields (nutrition and silver) as a stat block. Make the tiles-to-feed-colonists figure the most prominent number — that's what drives planting decisions. Show hydroponics eligibility as a badge or tag. If the crop cannot grow at this temperature, make that the dominant message with no other metrics.",
 		"crop":              plant.Label,
 		"growth_rate":       result.GrowthRate,
 		"actual_grow_days":  result.ActualGrowDays,
@@ -339,8 +337,7 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 			})
 		}
 		writeResult(enc, map[string]any{
-			"materials":    mats,
-			"presentation": "Material comparison table — show all materials grouped by category (Metallic, Woody, Stony, Fabric, Leathery) with columns for sharp armor, blunt armor, sharp damage, blunt damage, max HP factor, and market value. The player is choosing a material for a specific purpose — make the table scannable so they can compare across the axis that matters to them.",
+			"materials": mats,
 		})
 		return
 	}
@@ -384,7 +381,6 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 
 	writeResult(enc, map[string]any{
 		"formatted":    sb.String(),
-		"presentation": "Material detail at quality — show the material name and quality level as a header. Present each stat as a three-column row: material factor × quality multiplier = final value. Cover armor (sharp, blunt, heat), damage (sharp, blunt), max HP, and market value. If insulation stats are nonzero, show cold and heat insulation separately. The player is evaluating whether this specific material-quality combination meets their crafting needs.",
 		"material":     mat.Label,
 		"quality":      qualityName,
 		"sharp_armor":  mat.SharpArmorFactor * armorQ,
@@ -414,8 +410,7 @@ func handleDrugs(enc *json.Encoder, query map[string]any) {
 			})
 		}
 		writeResult(enc, map[string]any{
-			"drugs":        drugList,
-			"presentation": "Drug economy overview — show all drugs as a comparison table sorted by market value, with columns for name, category (Social/Hard/Medical), market value, addictiveness, and ingredients. The player is surveying which drugs are worth producing.",
+			"drugs": drugList,
 		})
 		return
 	}
@@ -473,7 +468,6 @@ func handleDrugs(enc *json.Encoder, query map[string]any) {
 
 	writeResult(enc, map[string]any{
 		"formatted":     sb.String(),
-		"presentation":  "Drug profile — show the drug name and category as a header. Split into two distinct sections: Economy (market value, work to craft, ingredients with silver-per-ingredient breakdown) and Risk (base addiction chance, tolerance threshold, overdose severity). Use visual severity indicators for addiction risk — the player needs to weigh profit against colony safety at a glance.",
 		"drug":          d.Label,
 		"category":      d.Category,
 		"market_value":  d.MarketValue,
@@ -565,7 +559,6 @@ func handleDrugProductionChain(enc *json.Encoder, query map[string]any, d *data.
 
 	writeResult(enc, map[string]any{
 		"formatted":        sb.String(),
-		"presentation":     "Drug production pipeline — show the crop-to-drug chain as a flow: crop (grow days, yield) → processing (leaves per drug) → drug (market value). Key output metrics are silver/day/tile and drugs/day/tile under the given soil and temperature conditions. The player is optimizing farm layout and wants to compare production chains across different drugs.",
 		"drug":             d.Label,
 		"crop":             plant.Label,
 		"soil_fertility":   soilFertility,
@@ -604,7 +597,6 @@ func handleRaids(enc *json.Encoder, query map[string]any) {
 
 	writeResult(enc, map[string]any{
 		"formatted":     sb.String(),
-		"presentation":  "Raid threat estimate — show total raid points as the headline number. Below, show the contribution breakdown: wealth-derived points vs. colonist-derived points as a two-part bar or proportion, so the player sees which factor dominates their threat level. Show the effective wealth calculation (items full + buildings at 50%). The player is deciding whether to manage wealth (sell items, avoid expensive buildings) or whether colonist count is the bigger lever.",
 		"total_wealth":  result.TotalWealth,
 		"wealth_points": result.WealthPoints,
 		"pawn_points":   result.PawnPoints,
@@ -671,7 +663,6 @@ func handleGenes(enc *json.Encoder, query map[string]any) {
 
 		writeResult(enc, map[string]any{
 			"formatted":        sb.String(),
-			"presentation":     "Gene build validator — show complexity and metabolism as budget bars (used/max) with clear OK or OVER status. List selected genes as a compact table showing each gene's complexity cost and metabolism offset. Highlight any exclusion conflicts prominently as paired warnings with the shared tag. Show archite capsule cost if nonzero. The player is iterating on a xenotype design and needs instant pass/fail feedback with clear guidance on what to cut if over budget.",
 			"total_complexity": result.TotalComplexity,
 			"total_metabolism": result.TotalMetabolism,
 			"total_archite":    result.TotalArchite,
@@ -708,9 +699,8 @@ func handleGenes(enc *json.Encoder, query map[string]any) {
 		})
 	}
 	writeResult(enc, map[string]any{
-		"genes":        results,
-		"count":        len(results),
-		"presentation": "Gene browser — show matching genes as a table with columns for name, complexity, metabolism offset, archite cost, and category. The player is shopping for genes to add to a build — make it easy to scan and compare costs.",
+		"genes": results,
+		"count": len(results),
 	})
 }
 
@@ -736,9 +726,8 @@ func handleResearch(enc *json.Encoder, query map[string]any) {
 			})
 		}
 		writeResult(enc, map[string]any{
-			"projects":     projects,
-			"count":        len(projects),
-			"presentation": "Research tree overview — show all projects grouped by tech level (Neolithic → Medieval → Industrial → Spacer → Ultra → Archotech) with project name, cost, required bench, and prerequisite names. The player is surveying the research landscape to plan their path.",
+			"projects": projects,
+			"count":    len(projects),
 		})
 		return
 	}
@@ -775,11 +764,10 @@ func handleResearch(enc *json.Encoder, query map[string]any) {
 	fmt.Fprintf(&sb, "\nTotal cost: %.0f\n", totalCost)
 
 	writeResult(enc, map[string]any{
-		"formatted":    sb.String(),
-		"presentation": "Research prerequisite chain — show the chain as a numbered sequence with each step showing project name, tech level badge, and research cost. If tribal tech multipliers inflate costs, show base × multiplier = effective cost per step. Show total chain cost prominently at the end. The player is planning research priority and needs to see the full investment required.",
-		"chain":        chain,
-		"total_cost":   totalCost,
-		"colony_tech":  colonyTech,
+		"formatted":   sb.String(),
+		"chain":       chain,
+		"total_cost":  totalCost,
+		"colony_tech": colonyTech,
 	})
 }
 
@@ -862,7 +850,6 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 
 		writeResult(enc, map[string]any{
 			"formatted":       sb.String(),
-			"presentation":    "Ranged weapon profile — show weapon name, damage, armor penetration, and range as a header stat block. Below, show a DPS-at-range table across all four breakpoints (touch 3, short 12, medium 25, long 40 tiles) so the player sees the weapon's effective envelope. Highlight the queried range row. Show raw DPS vs. accuracy-adjusted DPS to reveal how much accuracy costs. If armor is specified, show expected damage per shot alongside raw damage. The player is deciding whether this weapon fits their engagement distance.",
 			"weapon":          w.Label,
 			"type":            "ranged",
 			"raw_dps":         rawDPS,
@@ -897,11 +884,10 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 		}
 
 		writeResult(enc, map[string]any{
-			"formatted":    sb.String(),
-			"presentation": "Melee weapon profile — show the weapon name and true DPS as the headline number. Below, show attack verbs as a compact table: verb name, damage, cooldown, and selection weight (damage²). Highlight the dominant verb — the one the game picks most often. The player needs to understand that true DPS is a weighted average, not the best single hit.",
-			"weapon":       w.Label,
-			"type":         "melee",
-			"true_dps":     dps,
+			"formatted": sb.String(),
+			"weapon":    w.Label,
+			"type":      "melee",
+			"true_dps":  dps,
 		})
 		return
 	}

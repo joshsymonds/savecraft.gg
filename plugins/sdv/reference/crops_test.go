@@ -310,12 +310,9 @@ func TestCropQueryResultHasStructuredFields(t *testing.T) {
 		t.Fatal("expected result for Pumpkin")
 	}
 
-	// Must have formatted + presentation (backward compat)
+	// Must have formatted text
 	if _, ok := result["formatted"].(string); !ok {
 		t.Error("missing formatted field")
-	}
-	if _, ok := result["presentation"].(string); !ok {
-		t.Error("missing presentation field")
 	}
 
 	// Must have all structured fields from lookupCrop
@@ -339,12 +336,9 @@ func TestSeasonQueryResultHasStructuredFields(t *testing.T) {
 		t.Fatal("expected result for Summer")
 	}
 
-	// Must have formatted + presentation (backward compat)
+	// Must have formatted text
 	if _, ok := result["formatted"].(string); !ok {
 		t.Error("missing formatted field")
-	}
-	if _, ok := result["presentation"].(string); !ok {
-		t.Error("missing presentation field")
 	}
 
 	// Must have structured fields for view rendering

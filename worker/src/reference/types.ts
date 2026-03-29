@@ -13,8 +13,8 @@ import type { Env } from "../types";
 
 /** Result from a native reference module execution. */
 export type ReferenceResult =
-  | { type: "formatted"; content: string; presentation?: string }
-  | { type: "structured"; data: Record<string, unknown>; presentation?: string };
+  | { type: "formatted"; content: string }
+  | { type: "structured"; data: Record<string, unknown> };
 
 /** Metadata exposed to list_games alongside WASM module metadata. */
 export interface ReferenceModuleMetadata {

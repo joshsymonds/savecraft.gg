@@ -68,8 +68,6 @@ async function overview(userId: string, env: Env): Promise<ReferenceResult> {
         win_rate: winRate(f.wins, f.total),
       })),
     },
-    presentation:
-      "Match history overview — headline the total matches and overall win rate prominently, then show a bar chart or table comparing win rates across formats. Highlight formats with notably high or low performance.",
   };
 }
 
@@ -87,7 +85,6 @@ async function byDeck(userId: string, env: Env): Promise<ReferenceResult> {
     return {
       type: "structured",
       data: { decks: [] },
-      presentation: "No deck data available.",
     };
   }
 
@@ -102,8 +99,6 @@ async function byDeck(userId: string, env: Env): Promise<ReferenceResult> {
         win_rate: winRate(r.wins, r.total),
       })),
     },
-    presentation:
-      "Deck performance comparison — table with deck name, wins, losses, win rate, and total games. Sort by games played. Highlight decks above 55% win rate as strong performers and below 45% as underperforming.",
   };
 }
 
@@ -121,7 +116,6 @@ async function byFormat(userId: string, env: Env): Promise<ReferenceResult> {
     return {
       type: "structured",
       data: { formats: [] },
-      presentation: "No format data available.",
     };
   }
 
@@ -136,8 +130,6 @@ async function byFormat(userId: string, env: Env): Promise<ReferenceResult> {
         win_rate: winRate(r.wins, r.total),
       })),
     },
-    presentation:
-      "Format breakdown — bar chart or table comparing win rates across formats. Include game counts to show sample size.",
   };
 }
 
@@ -164,7 +156,6 @@ async function byMatchup(
     return {
       type: "structured",
       data: { matchups: [], format: format ?? "all" },
-      presentation: "No matchup data available.",
     };
   }
 
@@ -208,8 +199,6 @@ async function byMatchup(
         win_rate: winRate(stats.wins, stats.total),
       })),
     },
-    presentation:
-      "Matchup analysis — table or heatmap showing win rate against each opponent archetype. Sort by games played. Highlight favorable matchups (>55%) and unfavorable (<45%) with visual distinction.",
   };
 }
 
@@ -233,7 +222,6 @@ async function trend(
     return {
       type: "structured",
       data: { total: 0, wins: 0, losses: 0, win_rate: 0, matches: [] },
-      presentation: "No recent matches.",
     };
   }
 
@@ -255,8 +243,6 @@ async function trend(
         opponent: r.opponent_name || "(unknown)",
       })),
     },
-    presentation:
-      "Recent match history — table with most recent first showing date, format, deck, result, and opponent. Color-code wins and losses for quick scanning. If 10+ matches, consider a win-rate trend line over time.",
   };
 }
 

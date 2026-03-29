@@ -54,10 +54,9 @@ function parseToolResult(result: Record<string, unknown>): unknown {
     return result.structuredContent;
   }
   const content = result.content as { type: string; text: string }[];
-  // Content blocks: [directive?, data, reminder?]. Data is at index 1 when sandwich exists, 0 otherwise.
-  const dataBlock = content.length > 1 ? content[1] : content[0];
-  if (!dataBlock) throw new Error("Expected content blocks");
-  return JSON.parse(dataBlock.text);
+  // ToolResult always has a single content block with JSON data.
+  if (!content[0]) throw new Error("Expected content block");
+  return JSON.parse(content[0].text);
 }
 
 describe("MCP Protocol", () => {
@@ -557,18 +556,15 @@ describe("MCP Protocol", () => {
     clearNativeRegistry();
   });
 
-  it("query_reference returns data (not visualization directive) for modules with presentation hints", async () => {
-    // Register a module that returns structured data WITH a presentation hint.
-    // The multi-query aggregation must return the data, not the directive.
+  it("query_reference returns ViewToolResult for structured modules", async () => {
     const vizModule: NativeReferenceModule = {
       id: "viz_mod",
       name: "Viz Module",
-      description: "Returns data with presentation",
+      description: "Returns structured data",
       execute: (query) =>
         Promise.resolve({
           type: "structured",
           data: { score: 42, card: query.card },
-          presentation: "Show as a ranked table with bar indicators.",
         }),
     };
     registerNativeModule("testgame", vizModule);
@@ -607,7 +603,6 @@ describe("MCP Protocol", () => {
     expect(data.score).toBe(42);
     expect(data.card).toBe("Lightning Bolt");
 
-    // Content is a concise narrative, not a presentation hint
     // content carries narrative + JSON data for model reasoning
     expect(body.result.content).toHaveLength(2);
 

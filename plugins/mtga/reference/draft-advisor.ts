@@ -1208,8 +1208,6 @@ async function contextualPick(
       },
       recommendations,
     },
-    presentation:
-      "Draft pick recommendation — ranked comparison table of pack cards by composite score, showing rank, card name, score, and top contributing axes. For the top 2-3 picks, overlay a radar chart of their 8-axis profiles (baseline, synergy, curve, signal, role, castability, color commitment, opportunity cost) so divergences are visible at a glance. Show archetype candidates as a weighted horizontal bar. Flag castability below 80% with a warning indicator.",
   };
 }
 
@@ -1418,8 +1416,6 @@ async function batchReview(
       },
       picks: results,
     },
-    presentation:
-      "Draft batch review — show the summary as a scorecard or donut chart (optimal/good/questionable/miss distribution). Below, show a pick timeline: each pick as a color-coded dot (green=optimal, yellow=good, orange=questionable, red=miss) over pick number. Expand misses and questionable picks inline with chosen vs recommended card and archetype snapshot. Flag archetype warnings prominently.",
   };
 }
 

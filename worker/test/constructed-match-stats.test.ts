@@ -227,7 +227,6 @@ describe("match_stats reference module", () => {
     expect(byFormat).toHaveLength(2);
     expect(byFormat.find((f) => f.format === "Standard")?.wins).toBe(3);
     expect(byFormat.find((f) => f.format === "Historic")?.wins).toBe(0);
-    expect(result).toHaveProperty("presentation");
   });
 
   it("returns stats by deck", async () => {
@@ -240,7 +239,6 @@ describe("match_stats reference module", () => {
     expect(grixis?.win_rate).toBeCloseTo(0.75);
     const izzet = decks.find((d) => d.deck === "Izzet Phoenix");
     expect(izzet?.wins).toBe(0);
-    expect(result).toHaveProperty("presentation");
   });
 
   it("returns stats by format", async () => {
@@ -250,7 +248,6 @@ describe("match_stats reference module", () => {
     const formats = data.formats as { format: string; wins: number; win_rate: number }[];
     expect(formats.find((f) => f.format === "Standard")?.wins).toBe(3);
     expect(formats.find((f) => f.format === "Historic")?.wins).toBe(0);
-    expect(result).toHaveProperty("presentation");
   });
 
   it("classifies opponent archetypes from cards seen", async () => {
@@ -260,7 +257,6 @@ describe("match_stats reference module", () => {
     const matchups = data.matchups as { archetype: string }[];
     expect(matchups.find((m) => /[Rr]ed/.test(m.archetype))).toBeDefined();
     expect(matchups.find((m) => /[Ww]hite.*[Bb]lue|Azorius|WU/.test(m.archetype))).toBeDefined();
-    expect(result).toHaveProperty("presentation");
   });
 
   it("returns recent trend", async () => {
@@ -274,7 +270,6 @@ describe("match_stats reference module", () => {
     expect(data.wins).toBe(1);
     const matches = data.matches as { result: string }[];
     expect(matches).toHaveLength(3);
-    expect(result).toHaveProperty("presentation");
   });
 
   it("returns error for missing user_id", async () => {

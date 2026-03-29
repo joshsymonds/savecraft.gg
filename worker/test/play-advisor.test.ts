@@ -392,7 +392,6 @@ describe("play_advisor reference module", () => {
     expect(kaito!.best_turn).toBe(3);
     expect(kaito!.best_win_rate).toBeCloseTo(0.6, 2);
     expect(result.data.coverage).toEqual({ found: 2, total: 2 });
-    expect(result).toHaveProperty("presentation");
   });
 
   it("reports coverage for missing cards", async () => {
@@ -433,7 +432,6 @@ describe("play_advisor reference module", () => {
     expect(t3!.rating).toBe("Low");
     // Turn 3 bucket 3 WR: 60/100 = 0.6
     expect(t3!.bucket_win_rate).toBeCloseTo(0.6, 2);
-    expect(result).toHaveProperty("presentation");
   });
 
   it("returns attack analysis with hold recommendation", async () => {
@@ -475,7 +473,6 @@ describe("play_advisor reference module", () => {
     expect(barrier!.attack_win_rate).toBeCloseTo(0.375, 2);
     expect(barrier!.hold_win_rate).toBeCloseTo(0.625, 2);
     expect(result.data.coverage).toEqual({ found: 1, total: 1 });
-    expect(result).toHaveProperty("presentation");
   });
 
   it("returns mulligan analysis with keep recommendation", async () => {
@@ -500,7 +497,6 @@ describe("play_advisor reference module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
     expect(result.data.recommendation).toBe("KEEP");
-    expect(result).toHaveProperty("presentation");
   });
 
   it("returns game review analysis", async () => {
@@ -543,7 +539,6 @@ describe("play_advisor reference module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
     expect(result.data).toHaveProperty("findings");
     expect(result.data).toHaveProperty("coverage");
-    expect(result).toHaveProperty("presentation");
   });
 
   it("includes disclaimer for non-draft format", async () => {

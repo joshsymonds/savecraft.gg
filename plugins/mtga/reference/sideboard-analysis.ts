@@ -143,8 +143,6 @@ async function bo3Overview(userId: string, env: Env): Promise<ReferenceResult> {
   return {
     type: "formatted",
     content: lines.join("\n") + "\n",
-    presentation:
-      "Sideboard overview — two-bar comparison showing Game 1 win rate vs Games 2/3 win rate, with the delta as a prominent improvement or decline arrow. If sideboarding improves WR, frame it positively. If it hurts, flag it as a warning.",
   };
 }
 
@@ -247,8 +245,6 @@ async function byMatchup(
   return {
     type: "formatted",
     content: lines.join("\n") + "\n",
-    presentation:
-      "Sideboard matchup breakdown — table with opponent archetype, BO3 count, Game 1 WR, Games 2/3 WR, and delta. Color-code the delta column: green for improvement, red for decline. Sort by match count so high-sample matchups are prominent.",
   };
 }
 

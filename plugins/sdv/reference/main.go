@@ -16,14 +16,6 @@ import (
 	"strings"
 )
 
-// Presentation hints for text-only MCP hosts.
-const (
-	cropPresentation   = "Crop detail — structured info card showing crop name, season, growth time, regrow cycle, and category. Show profitability as a comparison: base sell vs Tiller vs artisan goods values. Display speed-gro options as a compact comparison table (growth days, harvests, g/day for each tier). Show processing info (keg vs jar value and throughput) as a side-by-side comparison."
-	seasonPresentation = "Season crop ranking — table of crops sorted by gold/day descending. Show columns for gross g/day, net g/day (after seed cost), sell price, seed cost, growth time, and type. Use bar indicators for g/day to make profitability differences visually obvious. Highlight regrow crops (continuous income) distinctly from single-harvest crops."
-	npcPresentation    = "Gift preferences — organize by taste tier (Love → Like → Neutral → Dislike → Hate) with each tier as a distinct section. Use heart icons or color intensity to convey tier at a glance (deep red hearts for love, grey for hate). List items as compact tags within each tier. Separate personal preferences from universal ones visually."
-	itemPresentation   = "Item gift lookup — show which NPCs love/like/dislike/hate this item, grouped by taste tier. Use the same heart/color coding as NPC preferences. Mark personal preferences (overrides) distinctly from universal ones. If many NPCs share a universal taste, summarize rather than listing all."
-)
-
 func main() {
 	enc := json.NewEncoder(os.Stdout)
 
@@ -75,32 +67,30 @@ func handleGiftPreferences(enc *json.Encoder, query map[string]any) {
 }
 
 // cropQueryResult builds the full result map for a crop detail query.
-// Returns nil if the crop is not found. Includes both formatted/presentation
-// (backward compat) and structured fields (for view rendering).
+// Returns nil if the crop is not found. Includes both formatted
+// and structured fields (for view rendering).
 func cropQueryResult(crop string) map[string]any {
 	data := lookupCrop(crop)
 	if data == nil {
 		return nil
 	}
 	result := map[string]any{
-		"formatted":    formatCropResult(data),
-		"presentation": cropPresentation,
+		"formatted": formatCropResult(data),
 	}
 	maps.Copy(result, data)
 	return result
 }
 
 // seasonQueryResult builds the full result map for a season ranking query.
-// Returns nil if the season is not recognized. Includes both formatted/presentation
-// (backward compat) and structured fields (for view rendering).
+// Returns nil if the season is not recognized. Includes both formatted
+// and structured fields (for view rendering).
 func seasonQueryResult(season string) map[string]any {
 	data := lookupSeason(season)
 	if data == nil {
 		return nil
 	}
 	result := map[string]any{
-		"formatted":    formatSeasonResult(data),
-		"presentation": seasonPresentation,
+		"formatted": formatSeasonResult(data),
 	}
 	maps.Copy(result, data)
 	return result
@@ -134,8 +124,8 @@ func handleCropPlanner(enc *json.Encoder, query map[string]any) {
 }
 
 // npcQueryResult builds the full result map for an NPC gift preference query.
-// Returns nil if the NPC is not found. Includes both formatted/presentation
-// (backward compat) and structured fields (for view rendering).
+// Returns nil if the NPC is not found. Includes both formatted
+// and structured fields (for view rendering).
 func npcQueryResult(npc string) map[string]any {
 	prefs := lookupNPC(npc)
 	if prefs == nil {
@@ -159,10 +149,9 @@ func npcQueryResult(npc string) map[string]any {
 	formatTasteSection(&b, "Universal Dislike", prefs["universalDislike"])
 	formatTasteSection(&b, "Universal Hate", prefs["universalHate"])
 
-	// Merge structured fields with formatted/presentation.
+	// Merge structured fields with formatted output.
 	result := map[string]any{
-		"formatted":    b.String(),
-		"presentation": npcPresentation,
+		"formatted": b.String(),
 	}
 	maps.Copy(result, prefs)
 	return result
@@ -178,8 +167,8 @@ func handleNPCQuery(enc *json.Encoder, npc string) {
 }
 
 // itemQueryResult builds the full result map for an item gift preference query.
-// Returns nil if the item is not found. Includes both formatted/presentation
-// (backward compat) and structured fields (for view rendering).
+// Returns nil if the item is not found. Includes both formatted
+// and structured fields (for view rendering).
 func itemQueryResult(item string) map[string]any {
 	results := lookupItem(item)
 	if results == nil {
@@ -224,10 +213,9 @@ func itemQueryResult(item string) map[string]any {
 
 	b.WriteString("\n* = personal preference (overrides universal)\n")
 
-	// Merge structured fields with formatted/presentation.
+	// Merge structured fields with formatted output.
 	result := map[string]any{
-		"formatted":    b.String(),
-		"presentation": itemPresentation,
+		"formatted": b.String(),
 	}
 	maps.Copy(result, results)
 	return result
