@@ -251,9 +251,8 @@ func formatTasteSection(b *strings.Builder, label string, items any) {
 
 func schema() map[string]any {
 	return map[string]any{
-		"modules": []map[string]any{
-			{
-				"id":          "gift_preferences",
+		"modules": map[string]any{
+			"gift_preferences": map[string]any{
 				"name":        "Gift Preferences",
 				"description": "Look up NPC gift preferences. Use 'npc' to see what a villager loves/likes/hates, or 'item' to see which NPCs prefer a specific item.",
 				"parameters": map[string]any{
@@ -267,8 +266,7 @@ func schema() map[string]any {
 					},
 				},
 			},
-			{
-				"id":          "crop_planner",
+			"crop_planner": map[string]any{
 				"name":        "Crop Planner",
 				"description": "Look up crop growth data and profitability. Use 'crop' to see a specific crop's stats, or 'season' to see all crops ranked by gold/day.",
 				"parameters": map[string]any{

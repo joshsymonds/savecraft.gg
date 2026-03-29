@@ -317,6 +317,35 @@ describe("MCP Tools", () => {
       expect(stardew.references).toBeUndefined();
     });
 
+    it("re-resolves stale game names from manifest", async () => {
+      // Seed a save with a stale game_name (raw game_id instead of display name)
+      await seedSave({
+        saveUuid: "save-stale-name",
+        userUuid: USER_A,
+        gameId: "wow",
+        gameName: "wow",
+        saveName: "Rhinoplasty",
+        summary: "Level 90 Warrior",
+      });
+
+      // Put a manifest with the correct display name
+      await env.PLUGINS.put(
+        "plugins/wow/manifest.json",
+        JSON.stringify({ game_id: "wow", name: "World of Warcraft" }),
+      );
+
+      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const data = parseResult(result) as { games: GameEntry[] };
+      const wow = data.games.find((g) => g.game_id === "wow")!;
+      expect(wow.game_name).toBe("World of Warcraft");
+
+      // Verify D1 was updated so future calls don't need re-resolution
+      const row = await env.DB.prepare("SELECT game_name FROM saves WHERE uuid = ?")
+        .bind("save-stale-name")
+        .first<{ game_name: string }>();
+      expect(row!.game_name).toBe("World of Warcraft");
+    });
+
     it("includes icon_url when manifest has icon field", async () => {
       await seedSave({
         saveUuid: "save-icon",

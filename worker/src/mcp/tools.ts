@@ -291,8 +291,10 @@ function mergeNativeModules(gameMap: Map<string, GameEntry>, filter?: string): v
 
 /** Scan R2 manifests and attach reference modules to game entries. */
 async function attachReferenceModules(
+  db: D1Database,
   plugins: R2Bucket,
   gameMap: Map<string, GameEntry>,
+  userUuid: string,
   filter?: string,
   serverUrl?: string,
 ): Promise<void> {
@@ -310,6 +312,16 @@ async function attachReferenceModules(
     if (!game) {
       game = { game_id: data.game_id, game_name: manifestGameName, saves: [] };
       gameMap.set(data.game_id, game);
+    } else if (data.name && game.game_name !== manifestGameName) {
+      // Re-resolve stale game name from manifest (fire-and-forget D1 update)
+      game.game_name = manifestGameName;
+      void db
+        .prepare(
+          "UPDATE saves SET game_name = ? WHERE game_id = ? AND game_name != ? AND user_uuid = ?",
+        )
+        .bind(manifestGameName, data.game_id, manifestGameName, userUuid)
+        .run()
+        .catch((e) => console.error("stale game_name update failed:", e));
     }
 
     // Construct icon URL directly from already-loaded manifest data
@@ -364,7 +376,7 @@ export async function listGames(
     }
   }
 
-  await attachReferenceModules(plugins, gameMap, filter, serverUrl);
+  await attachReferenceModules(db, plugins, gameMap, userUuid, filter, serverUrl);
 
   const games = [...gameMap.values()];
   if (filter && games.length === 0) {

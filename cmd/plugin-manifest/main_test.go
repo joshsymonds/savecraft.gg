@@ -218,9 +218,8 @@ func main() {
 	_ = enc.Encode(map[string]any{
 		"type": "result",
 		"data": map[string]any{
-			"modules": []map[string]any{
-				{
-					"id":          "test_mod",
+			"modules": map[string]any{
+				"test_mod": map[string]any{
 					"name":        "Test Module",
 					"description": "A test module",
 					"parameters": map[string]any{
@@ -387,6 +386,112 @@ func TestExtractReferenceSchema_InvalidWASM(t *testing.T) {
 	}
 	if schemas != nil {
 		t.Error("expected nil schemas for invalid WASM")
+	}
+}
+
+func TestBuildManifest_ModPluginWithReference(t *testing.T) {
+	wasmPath := buildTestWASM(t)
+
+	dir := t.TempDir()
+	writeFile(t, filepath.Join(dir, "plugin.toml"), `
+game_id = "rimworld"
+source = "mod"
+name = "RimWorld"
+description = "Mod plugin with reference modules"
+channel = "alpha"
+coverage = "full"
+homepage = "https://example.com"
+[author]
+name = "Test"
+github = "test"
+[default_paths]
+
+[reference.modules.test_mod]
+name = "Test Module"
+description = "A test module"
+`)
+	// No parser.wasm — mod plugins have no parser.
+	// But reference.wasm exists with schema.
+	wasmBytes, err := os.ReadFile(wasmPath)
+	if err != nil {
+		t.Fatalf("read test wasm: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "reference.wasm"), wasmBytes, 0o644); err != nil {
+		t.Fatalf("write reference.wasm: %v", err)
+	}
+
+	m, err := buildManifest(dir)
+	if err != nil {
+		t.Fatalf("buildManifest: %v", err)
+	}
+
+	// Mod plugin should have no parser WASM fields.
+	if m.SHA256 != "" {
+		t.Errorf("sha256 should be empty for mod plugin, got %q", m.SHA256)
+	}
+	if m.URL != "" {
+		t.Errorf("url should be empty for mod plugin, got %q", m.URL)
+	}
+
+	// But reference modules MUST be present.
+	if m.Reference == nil {
+		t.Fatal("reference is nil — mod plugin with reference.wasm should include reference modules")
+	}
+	if m.Reference.SHA256 == "" {
+		t.Error("reference sha256 is empty")
+	}
+	if m.Reference.URL != "plugins/rimworld/reference.wasm" {
+		t.Errorf("reference url = %q, want plugins/rimworld/reference.wasm", m.Reference.URL)
+	}
+	if len(m.Reference.Modules) != 1 {
+		t.Fatalf("reference modules = %d, want 1", len(m.Reference.Modules))
+	}
+
+	mod := m.Reference.Modules["test_mod"]
+	if mod.Name != "Test Module" {
+		t.Errorf("module name = %q, want Test Module", mod.Name)
+	}
+	if mod.Parameters == nil {
+		t.Fatal("module parameters is nil — schema extraction didn't work for mod plugin")
+	}
+
+	query, ok := mod.Parameters["query"].(map[string]any)
+	if !ok {
+		t.Fatal("parameter 'query' not in manifest")
+	}
+	if query["type"] != "string" {
+		t.Errorf("query.type = %v, want string", query["type"])
+	}
+}
+
+func TestBuildManifest_ModPluginWithoutReference(t *testing.T) {
+	dir := t.TempDir()
+
+	writeFile(t, filepath.Join(dir, "plugin.toml"), `
+game_id = "rimworld"
+source = "mod"
+name = "RimWorld"
+description = "Mod plugin without reference modules"
+channel = "alpha"
+coverage = "full"
+homepage = "https://example.com"
+[author]
+name = "Test"
+github = "test"
+[default_paths]
+`)
+	// No parser.wasm, no reference.wasm — pure metadata.
+
+	m, err := buildManifest(dir)
+	if err != nil {
+		t.Fatalf("buildManifest: %v", err)
+	}
+
+	if m.SHA256 != "" {
+		t.Errorf("sha256 should be empty for mod plugin, got %q", m.SHA256)
+	}
+	if m.Reference != nil {
+		t.Error("reference should be nil for mod plugin without reference.wasm")
 	}
 }
 

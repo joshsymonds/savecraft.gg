@@ -156,8 +156,11 @@ func buildManifest(pluginDir string) (pluginManifest, error) {
 		return manifest, nil
 	}
 
-	// Mod plugins have no WASM — metadata only.
+	// Mod plugins have no parser WASM, but may have reference modules.
 	if cfg.Source == "mod" {
+		if ref, ok := tryBuildReference(pluginDir, cfg); ok {
+			manifest.Reference = ref
+		}
 		return manifest, nil
 	}
 
@@ -171,17 +174,33 @@ func buildManifest(pluginDir string) (pluginManifest, error) {
 	manifest.SHA256 = hash
 	manifest.URL = fmt.Sprintf("plugins/%s/parser.wasm", cfg.GameID)
 
-	// If reference.wasm exists and plugin.toml declares reference modules, include reference metadata.
-	refWasmPath := filepath.Join(pluginDir, "reference.wasm")
-	if _, statErr := os.Stat(refWasmPath); statErr == nil && len(cfg.Reference.Modules) > 0 {
-		ref, refErr := buildReferenceManifest(refWasmPath, cfg.GameID, cfg.Reference.Modules)
-		if refErr != nil {
-			return pluginManifest{}, refErr
-		}
+	if ref, ok := tryBuildReference(pluginDir, cfg); ok {
 		manifest.Reference = ref
 	}
 
 	return manifest, nil
+}
+
+// tryBuildReference checks for reference.wasm and declared modules, returning the
+// manifest if both are present. Warns if reference.wasm exists without modules.
+func tryBuildReference(pluginDir string, cfg pluginTOML) (*referenceManifest, bool) {
+	refWasmPath := filepath.Join(pluginDir, "reference.wasm")
+	if _, err := os.Stat(refWasmPath); err != nil {
+		return nil, false
+	}
+	if len(cfg.Reference.Modules) == 0 {
+		fmt.Fprintf(os.Stderr,
+			"warning: %s has reference.wasm but no [reference.modules] in plugin.toml\n",
+			pluginDir,
+		)
+		return nil, false
+	}
+	ref, err := buildReferenceManifest(refWasmPath, cfg.GameID, cfg.Reference.Modules)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not build reference manifest: %v\n", err)
+		return nil, false
+	}
+	return ref, true
 }
 
 func buildReferenceManifest(wasmPath, gameID string, modules map[string]referenceModule) (*referenceManifest, error) {
@@ -254,10 +273,7 @@ func extractReferenceSchema(wasmPath string) (map[string]map[string]any, error) 
 	var line struct {
 		Type string `json:"type"`
 		Data struct {
-			Modules []struct {
-				ID         string         `json:"id"`
-				Parameters map[string]any `json:"parameters"`
-			} `json:"modules"`
+			Modules json.RawMessage `json:"modules"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(bytes.TrimSpace(stdout.Bytes()), &line); err != nil {
@@ -267,10 +283,21 @@ func extractReferenceSchema(wasmPath string) (map[string]map[string]any, error) 
 		return nil, fmt.Errorf("unexpected response type: %q", line.Type)
 	}
 
-	schemas := make(map[string]map[string]any, len(line.Data.Modules))
-	for _, mod := range line.Data.Modules {
-		if mod.ID != "" && mod.Parameters != nil {
-			schemas[mod.ID] = mod.Parameters
+	return parseModuleSchemas(line.Data.Modules)
+}
+
+// parseModuleSchemas parses modules as a map of id → {parameters}.
+func parseModuleSchemas(raw json.RawMessage) (map[string]map[string]any, error) {
+	var modMap map[string]struct {
+		Parameters map[string]any `json:"parameters"`
+	}
+	if err := json.Unmarshal(raw, &modMap); err != nil {
+		return nil, fmt.Errorf("parse modules (expected map of id → module): %w", err)
+	}
+	schemas := make(map[string]map[string]any, len(modMap))
+	for id, mod := range modMap {
+		if mod.Parameters != nil {
+			schemas[id] = mod.Parameters
 		}
 	}
 	return schemas, nil
