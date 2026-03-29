@@ -335,7 +335,13 @@ describe("MCP Tools", () => {
       };
       await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(manifest));
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A, undefined, "https://api.savecraft.gg");
+      const result = await listGames(
+        env.DB,
+        env.PLUGINS,
+        USER_A,
+        undefined,
+        "https://api.savecraft.gg",
+      );
       const data = parseResult(result) as { games: GameEntry[] };
       const d2r = data.games.find((g) => g.game_id === "d2r")!;
       expect(d2r.icon_url).toBe("https://api.savecraft.gg/plugins/d2r/icon.png");
@@ -353,7 +359,13 @@ describe("MCP Tools", () => {
       const manifest = { game_id: "stardew", name: "Stardew Valley" };
       await env.PLUGINS.put("plugins/stardew/manifest.json", JSON.stringify(manifest));
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A, undefined, "https://api.savecraft.gg");
+      const result = await listGames(
+        env.DB,
+        env.PLUGINS,
+        USER_A,
+        undefined,
+        "https://api.savecraft.gg",
+      );
       const data = parseResult(result) as { games: GameEntry[] };
       const stardew = data.games.find((g) => g.game_id === "stardew")!;
       expect(stardew.icon_url).toBeUndefined();
@@ -660,7 +672,13 @@ describe("MCP Tools", () => {
       const manifest = { game_id: "d2r", name: "Diablo II: Resurrected", icon: "icon.png" };
       await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(manifest));
 
-      const result = await getSave(env.DB, USER_A, "save-icon-get", env.PLUGINS, "https://api.savecraft.gg");
+      const result = await getSave(
+        env.DB,
+        USER_A,
+        "save-icon-get",
+        env.PLUGINS,
+        "https://api.savecraft.gg",
+      );
       const data = parseResult(result) as { icon_url?: string };
       expect(data.icon_url).toBe("https://api.savecraft.gg/plugins/d2r/icon.png");
     });

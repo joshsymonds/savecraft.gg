@@ -19,8 +19,8 @@ describe("parseWasmResponse structured data detection", () => {
         success_chance: 0.853,
         surgeon_factor: 0.9,
         bed_factor: 1.1,
-        medicine_factor: 1.0,
-        difficulty: 1.0,
+        medicine_factor: 1,
+        difficulty: 1,
         inspired: false,
         capped: false,
         uncapped: 0.853,
@@ -56,7 +56,7 @@ describe("parseWasmResponse structured data detection", () => {
       type: "result",
       data: {
         formatted: "Raid Threat Estimate\n\nColony Wealth:\n  Item wealth: 50000",
-        total_wealth: 50000,
+        total_wealth: 50_000,
         wealth_points: 1200,
         pawn_points: 300,
         total_points: 1500,
@@ -161,7 +161,7 @@ describe("parseWasmResponse structured data detection", () => {
       data: {
         formatted: "rice plant\n\nGrowth Rate: 1.00x\n...",
         crop: "rice plant",
-        growth_rate: 1.0,
+        growth_rate: 1,
         actual_grow_days: 5.14,
         nutrition_per_day: 0.058,
         silver_per_day: 1.284,
@@ -174,7 +174,7 @@ describe("parseWasmResponse structured data detection", () => {
 
     expect("structuredContent" in result).toBe(true);
     expect(viewRes(result).crop).toBe("rice plant");
-    expect(viewRes(result).growth_rate).toBe(1.0);
+    expect(viewRes(result).growth_rate).toBe(1);
     expect(viewRes(result).hydroponics).toBe(true);
   });
 

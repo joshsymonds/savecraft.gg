@@ -192,7 +192,10 @@ const manifestCache = new Map<string, { data: ManifestData; fetchedAt: number }>
 const MANIFEST_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
 
 /** Fetch a manifest from R2, using a per-isolate cache with 5-minute TTL. */
-export async function getCachedManifest(plugins: R2Bucket, key: string): Promise<ManifestData | null> {
+export async function getCachedManifest(
+  plugins: R2Bucket,
+  key: string,
+): Promise<ManifestData | null> {
   const cached = manifestCache.get(key);
   if (cached && Date.now() - cached.fetchedAt < MANIFEST_CACHE_TTL_MS) {
     return cached.data;
@@ -523,13 +526,11 @@ export async function getSection(
         `Section '${row.name}' is too large (${sizeKb}KB, limit is ${limitKb}KB). This section contains too much data for a single response.`,
       );
     }
-    return textResult(
-      {
-        save_id: saveId,
-        section: row.name,
-        data: JSON.parse(row.data) as Record<string, unknown>,
-      },
-    );
+    return textResult({
+      save_id: saveId,
+      section: row.name,
+      data: JSON.parse(row.data) as Record<string, unknown>,
+    });
   }
 
   // Multiple sections
@@ -550,9 +551,7 @@ export async function getSection(
   const response: Record<string, unknown> = { save_id: saveId, sections: result };
   if (missing.length > 0) response.missing = missing;
   if (oversized.length > 0) response.oversized = oversized;
-  return textResult(
-    response,
-  );
+  return textResult(response);
 }
 
 /** If any requested section starts with "deck:", suggest close matches. */
@@ -1154,7 +1153,6 @@ export async function queryReference(
 
   return parseWasmResponse(text);
 }
-
 
 /** Parse WASM ndjson response into a ToolResult or ViewToolResult.
  *
