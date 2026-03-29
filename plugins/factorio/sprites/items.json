@@ -1,0 +1,2382 @@
+{
+  "accumulator": {
+    "x": 0,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Accumulator"
+  },
+  "active-provider-chest": {
+    "x": 64,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Active provider chest"
+  },
+  "advanced-circuit": {
+    "x": 128,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Advanced circuit"
+  },
+  "agricultural-science-pack": {
+    "x": 192,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Agricultural science pack"
+  },
+  "agricultural-tower": {
+    "x": 256,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Agricultural tower"
+  },
+  "arithmetic-combinator": {
+    "x": 320,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Arithmetic combinator"
+  },
+  "artificial-jellynut-soil": {
+    "x": 384,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Artificial jellynut soil"
+  },
+  "artificial-yumako-soil": {
+    "x": 448,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Artificial yumako soil"
+  },
+  "artillery-shell": {
+    "x": 512,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Artillery shell"
+  },
+  "artillery-targeting-remote": {
+    "x": 576,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Artillery targeting remote"
+  },
+  "artillery-turret": {
+    "x": 640,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Artillery turret"
+  },
+  "artillery-wagon": {
+    "x": 704,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Artillery wagon"
+  },
+  "artillery-wagon-cannon": {
+    "x": 768,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Artillery cannon"
+  },
+  "assembling-machine-1": {
+    "x": 832,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Assembling machine 1"
+  },
+  "assembling-machine-2": {
+    "x": 896,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Assembling machine 2"
+  },
+  "assembling-machine-3": {
+    "x": 960,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Assembling machine 3"
+  },
+  "asteroid-collector": {
+    "x": 1024,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Asteroid collector"
+  },
+  "atomic-bomb": {
+    "x": 1088,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Atomic bomb"
+  },
+  "automation-science-pack": {
+    "x": 1152,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Automation science pack"
+  },
+  "barrel": {
+    "x": 1216,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Barrel"
+  },
+  "battery": {
+    "x": 1280,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Battery"
+  },
+  "battery-equipment": {
+    "x": 1344,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Personal battery"
+  },
+  "battery-mk2-equipment": {
+    "x": 1408,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Personal battery MK2"
+  },
+  "battery-mk3-equipment": {
+    "x": 1472,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Personal battery MK3"
+  },
+  "beacon": {
+    "x": 1536,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Beacon"
+  },
+  "belt-immunity-equipment": {
+    "x": 1600,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Belt immunity equipment"
+  },
+  "big-electric-pole": {
+    "x": 1664,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Big electric pole"
+  },
+  "big-mining-drill": {
+    "x": 1728,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Big mining drill"
+  },
+  "biochamber": {
+    "x": 1792,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Biochamber"
+  },
+  "bioflux": {
+    "x": 1856,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Bioflux"
+  },
+  "biolab": {
+    "x": 1920,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Biolab"
+  },
+  "biter-egg": {
+    "x": 1984,
+    "y": 0,
+    "w": 64,
+    "h": 64,
+    "label": "Biter egg"
+  },
+  "blueprint": {
+    "x": 0,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Blueprint"
+  },
+  "blueprint-book": {
+    "x": 64,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Blueprint book"
+  },
+  "boiler": {
+    "x": 128,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Boiler"
+  },
+  "bottomless-chest": {
+    "x": 192,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Bottomless chest"
+  },
+  "buffer-chest": {
+    "x": 256,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Buffer chest"
+  },
+  "bulk-inserter": {
+    "x": 320,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Bulk inserter"
+  },
+  "burner-generator": {
+    "x": 384,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Burner generator"
+  },
+  "burner-inserter": {
+    "x": 448,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Burner inserter"
+  },
+  "burner-mining-drill": {
+    "x": 512,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Burner mining drill"
+  },
+  "calcite": {
+    "x": 576,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Calcite"
+  },
+  "cannon-shell": {
+    "x": 640,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Cannon shell"
+  },
+  "captive-biter-spawner": {
+    "x": 704,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Captive biter spawner"
+  },
+  "capture-robot-rocket": {
+    "x": 768,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Capture bot rocket"
+  },
+  "car": {
+    "x": 832,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Car"
+  },
+  "carbon": {
+    "x": 896,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Carbon"
+  },
+  "carbon-fiber": {
+    "x": 960,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Carbon fiber"
+  },
+  "carbonic-asteroid-chunk": {
+    "x": 1024,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Carbonic asteroid chunk"
+  },
+  "cargo-bay": {
+    "x": 1088,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Cargo bay"
+  },
+  "cargo-landing-pad": {
+    "x": 1152,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Cargo landing pad"
+  },
+  "cargo-wagon": {
+    "x": 1216,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Cargo wagon"
+  },
+  "centrifuge": {
+    "x": 1280,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Centrifuge"
+  },
+  "chemical-plant": {
+    "x": 1344,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Chemical plant"
+  },
+  "chemical-science-pack": {
+    "x": 1408,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Chemical science pack"
+  },
+  "cliff-explosives": {
+    "x": 1472,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Cliff explosives"
+  },
+  "cluster-grenade": {
+    "x": 1536,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Cluster grenade"
+  },
+  "coal": {
+    "x": 1600,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Coal"
+  },
+  "coin": {
+    "x": 1664,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Coin"
+  },
+  "combat-shotgun": {
+    "x": 1728,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Combat shotgun"
+  },
+  "concrete": {
+    "x": 1792,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Concrete"
+  },
+  "constant-combinator": {
+    "x": 1856,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Constant combinator"
+  },
+  "construction-robot": {
+    "x": 1920,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Construction robot"
+  },
+  "copper-bacteria": {
+    "x": 1984,
+    "y": 64,
+    "w": 64,
+    "h": 64,
+    "label": "Copper bacteria"
+  },
+  "copper-cable": {
+    "x": 0,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Copper cable"
+  },
+  "copper-ore": {
+    "x": 64,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Copper ore"
+  },
+  "copper-plate": {
+    "x": 128,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Copper plate"
+  },
+  "copper-wire": {
+    "x": 192,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Copper wire"
+  },
+  "copy-paste-tool": {
+    "x": 256,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Copy paste tool"
+  },
+  "crude-oil-barrel": {
+    "x": 320,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Crude oil barrel"
+  },
+  "crusher": {
+    "x": 384,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Crusher"
+  },
+  "cryogenic-plant": {
+    "x": 448,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Cryogenic plant"
+  },
+  "cryogenic-science-pack": {
+    "x": 512,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Cryogenic science pack"
+  },
+  "cut-paste-tool": {
+    "x": 576,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Cut paste tool"
+  },
+  "decider-combinator": {
+    "x": 640,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Decider combinator"
+  },
+  "deconstruction-planner": {
+    "x": 704,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Deconstruction planner"
+  },
+  "defender-capsule": {
+    "x": 768,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Defender capsule"
+  },
+  "depleted-uranium-fuel-cell": {
+    "x": 832,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Depleted uranium fuel cell"
+  },
+  "destroyer-capsule": {
+    "x": 896,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Destroyer capsule"
+  },
+  "discharge-defense-equipment": {
+    "x": 960,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Discharge defense"
+  },
+  "discharge-defense-remote": {
+    "x": 1024,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Discharge defense remote"
+  },
+  "display-panel": {
+    "x": 1088,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Display panel"
+  },
+  "distractor-capsule": {
+    "x": 1152,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Distractor capsule"
+  },
+  "efficiency-module": {
+    "x": 1216,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Efficiency module"
+  },
+  "efficiency-module-2": {
+    "x": 1280,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Efficiency module 2"
+  },
+  "efficiency-module-3": {
+    "x": 1344,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Efficiency module 3"
+  },
+  "electric-energy-interface": {
+    "x": 1408,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Electric energy interface"
+  },
+  "electric-engine-unit": {
+    "x": 1472,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Electric engine unit"
+  },
+  "electric-furnace": {
+    "x": 1536,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Electric furnace"
+  },
+  "electric-mining-drill": {
+    "x": 1600,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Electric mining drill"
+  },
+  "electromagnetic-plant": {
+    "x": 1664,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Electromagnetic plant"
+  },
+  "electromagnetic-science-pack": {
+    "x": 1728,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Electromagnetic science pack"
+  },
+  "electronic-circuit": {
+    "x": 1792,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Electronic circuit"
+  },
+  "empty-module-slot": {
+    "x": 1856,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Empty module slot"
+  },
+  "energy-shield-equipment": {
+    "x": 1920,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Energy shield"
+  },
+  "energy-shield-mk2-equipment": {
+    "x": 1984,
+    "y": 128,
+    "w": 64,
+    "h": 64,
+    "label": "Energy shield MK2"
+  },
+  "engine-unit": {
+    "x": 0,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Engine unit"
+  },
+  "exoskeleton-equipment": {
+    "x": 64,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Exoskeleton"
+  },
+  "explosive-cannon-shell": {
+    "x": 128,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Explosive cannon shell"
+  },
+  "explosive-rocket": {
+    "x": 192,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Explosive rocket"
+  },
+  "explosive-uranium-cannon-shell": {
+    "x": 256,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Explosive uranium cannon shell"
+  },
+  "explosives": {
+    "x": 320,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Explosives"
+  },
+  "express-loader": {
+    "x": 384,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Express loader"
+  },
+  "express-splitter": {
+    "x": 448,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Express splitter"
+  },
+  "express-transport-belt": {
+    "x": 512,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Express transport belt"
+  },
+  "express-underground-belt": {
+    "x": 576,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Express underground belt"
+  },
+  "fast-inserter": {
+    "x": 640,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Fast inserter"
+  },
+  "fast-loader": {
+    "x": 704,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Fast loader"
+  },
+  "fast-splitter": {
+    "x": 768,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Fast splitter"
+  },
+  "fast-transport-belt": {
+    "x": 832,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Fast transport belt"
+  },
+  "fast-underground-belt": {
+    "x": 896,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Fast underground belt"
+  },
+  "firearm-magazine": {
+    "x": 960,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Firearm magazine"
+  },
+  "fission-reactor-equipment": {
+    "x": 1024,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Portable fission reactor"
+  },
+  "flamethrower": {
+    "x": 1088,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Flamethrower"
+  },
+  "flamethrower-ammo": {
+    "x": 1152,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Flamethrower ammo"
+  },
+  "flamethrower-turret": {
+    "x": 1216,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Flamethrower turret"
+  },
+  "fluid-wagon": {
+    "x": 1280,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Fluid wagon"
+  },
+  "fluoroketone-cold-barrel": {
+    "x": 1344,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Fluoroketone (Cold) barrel"
+  },
+  "fluoroketone-hot-barrel": {
+    "x": 1408,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Fluoroketone (Hot) barrel"
+  },
+  "flying-robot-frame": {
+    "x": 1472,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Flying robot frame"
+  },
+  "foundation": {
+    "x": 1536,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Foundation"
+  },
+  "foundry": {
+    "x": 1600,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Foundry"
+  },
+  "fusion-generator": {
+    "x": 1664,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Fusion generator"
+  },
+  "fusion-power-cell": {
+    "x": 1728,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Fusion power cell"
+  },
+  "fusion-reactor": {
+    "x": 1792,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Fusion reactor"
+  },
+  "fusion-reactor-equipment": {
+    "x": 1856,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Portable fusion reactor"
+  },
+  "gate": {
+    "x": 1920,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Gate"
+  },
+  "green-wire": {
+    "x": 1984,
+    "y": 192,
+    "w": 64,
+    "h": 64,
+    "label": "Green wire"
+  },
+  "grenade": {
+    "x": 0,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Grenade"
+  },
+  "gun-turret": {
+    "x": 64,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Gun turret"
+  },
+  "hazard-concrete": {
+    "x": 128,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Hazard concrete"
+  },
+  "heat-exchanger": {
+    "x": 192,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Heat exchanger"
+  },
+  "heat-interface": {
+    "x": 256,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Heat interface"
+  },
+  "heat-pipe": {
+    "x": 320,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Heat pipe"
+  },
+  "heating-tower": {
+    "x": 384,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Heating tower"
+  },
+  "heavy-armor": {
+    "x": 448,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Heavy armor"
+  },
+  "heavy-oil-barrel": {
+    "x": 512,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Heavy oil barrel"
+  },
+  "holmium-ore": {
+    "x": 576,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Holmium ore"
+  },
+  "holmium-plate": {
+    "x": 640,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Holmium plate"
+  },
+  "ice": {
+    "x": 704,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Ice"
+  },
+  "ice-platform": {
+    "x": 768,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Ice platform"
+  },
+  "infinity-cargo-wagon": {
+    "x": 832,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Infinity cargo wagon"
+  },
+  "infinity-chest": {
+    "x": 896,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Infinity chest"
+  },
+  "infinity-pipe": {
+    "x": 960,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Infinity pipe"
+  },
+  "inserter": {
+    "x": 1024,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Inserter"
+  },
+  "iron-bacteria": {
+    "x": 1088,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Iron bacteria"
+  },
+  "iron-chest": {
+    "x": 1152,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Iron chest"
+  },
+  "iron-gear-wheel": {
+    "x": 1216,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Iron gear wheel"
+  },
+  "iron-ore": {
+    "x": 1280,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Iron ore"
+  },
+  "iron-plate": {
+    "x": 1344,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Iron plate"
+  },
+  "iron-stick": {
+    "x": 1408,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Iron stick"
+  },
+  "item-unknown": {
+    "x": 1472,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Unknown item"
+  },
+  "jelly": {
+    "x": 1536,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Jelly"
+  },
+  "jellynut": {
+    "x": 1600,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Jellynut"
+  },
+  "jellynut-seed": {
+    "x": 1664,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Jellynut seed"
+  },
+  "lab": {
+    "x": 1728,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Lab"
+  },
+  "land-mine": {
+    "x": 1792,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Land mine"
+  },
+  "landfill": {
+    "x": 1856,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Landfill"
+  },
+  "lane-splitter": {
+    "x": 1920,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Lane splitter"
+  },
+  "laser-turret": {
+    "x": 1984,
+    "y": 256,
+    "w": 64,
+    "h": 64,
+    "label": "Laser turret"
+  },
+  "light-armor": {
+    "x": 0,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Light armor"
+  },
+  "light-oil-barrel": {
+    "x": 64,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Light oil barrel"
+  },
+  "lightning-collector": {
+    "x": 128,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Lightning collector"
+  },
+  "lightning-rod": {
+    "x": 192,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Lightning rod"
+  },
+  "linked-belt": {
+    "x": 256,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Linked belt"
+  },
+  "linked-chest": {
+    "x": 320,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Linked chest"
+  },
+  "lithium": {
+    "x": 384,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Lithium"
+  },
+  "lithium-plate": {
+    "x": 448,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Lithium plate"
+  },
+  "loader": {
+    "x": 512,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Loader"
+  },
+  "locomotive": {
+    "x": 576,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Locomotive"
+  },
+  "logistic-robot": {
+    "x": 640,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Logistic robot"
+  },
+  "logistic-science-pack": {
+    "x": 704,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Logistic science pack"
+  },
+  "long-handed-inserter": {
+    "x": 768,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Long-handed inserter"
+  },
+  "low-density-structure": {
+    "x": 832,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Low density structure"
+  },
+  "lubricant-barrel": {
+    "x": 896,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Lubricant barrel"
+  },
+  "mech-armor": {
+    "x": 960,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Mech armor"
+  },
+  "medium-electric-pole": {
+    "x": 1024,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Medium electric pole"
+  },
+  "metallic-asteroid-chunk": {
+    "x": 1088,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Metallic asteroid chunk"
+  },
+  "metallurgic-science-pack": {
+    "x": 1152,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Metallurgic science pack"
+  },
+  "military-science-pack": {
+    "x": 1216,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Military science pack"
+  },
+  "modular-armor": {
+    "x": 1280,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Modular armor"
+  },
+  "night-vision-equipment": {
+    "x": 1344,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Nightvision"
+  },
+  "no-item": {
+    "x": 1408,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "No item"
+  },
+  "nuclear-fuel": {
+    "x": 1472,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Nuclear fuel"
+  },
+  "nuclear-reactor": {
+    "x": 1536,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Nuclear reactor"
+  },
+  "nutrients": {
+    "x": 1600,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Nutrients"
+  },
+  "offshore-pump": {
+    "x": 1664,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Offshore pump"
+  },
+  "oil-refinery": {
+    "x": 1728,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Oil refinery"
+  },
+  "one-way-valve": {
+    "x": 1792,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "One-way valve"
+  },
+  "overflow-valve": {
+    "x": 1856,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Overflow valve"
+  },
+  "overgrowth-jellynut-soil": {
+    "x": 1920,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Overgrowth jellynut soil"
+  },
+  "overgrowth-yumako-soil": {
+    "x": 1984,
+    "y": 320,
+    "w": 64,
+    "h": 64,
+    "label": "Overgrowth yumako soil"
+  },
+  "oxide-asteroid-chunk": {
+    "x": 0,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Oxide asteroid chunk"
+  },
+  "parameter-0": {
+    "x": 64,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Parameter 0"
+  },
+  "parameter-1": {
+    "x": 128,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Parameter 1"
+  },
+  "parameter-2": {
+    "x": 192,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Parameter 2"
+  },
+  "parameter-3": {
+    "x": 256,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Parameter 3"
+  },
+  "parameter-4": {
+    "x": 320,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Parameter 4"
+  },
+  "parameter-5": {
+    "x": 384,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Parameter 5"
+  },
+  "parameter-6": {
+    "x": 448,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Parameter 6"
+  },
+  "parameter-7": {
+    "x": 512,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Parameter 7"
+  },
+  "parameter-8": {
+    "x": 576,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Parameter 8"
+  },
+  "parameter-9": {
+    "x": 640,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Parameter 9"
+  },
+  "passive-provider-chest": {
+    "x": 704,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Passive provider chest"
+  },
+  "pentapod-egg": {
+    "x": 768,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Pentapod egg"
+  },
+  "personal-laser-defense-equipment": {
+    "x": 832,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Personal laser defense"
+  },
+  "personal-roboport-equipment": {
+    "x": 896,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Personal roboport"
+  },
+  "personal-roboport-mk2-equipment": {
+    "x": 960,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Personal roboport MK2"
+  },
+  "petroleum-gas-barrel": {
+    "x": 1024,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Petroleum gas barrel"
+  },
+  "piercing-rounds-magazine": {
+    "x": 1088,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Piercing rounds magazine"
+  },
+  "piercing-shotgun-shell": {
+    "x": 1152,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Piercing shotgun shells"
+  },
+  "pipe": {
+    "x": 1216,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Pipe"
+  },
+  "pipe-to-ground": {
+    "x": 1280,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Pipe to ground"
+  },
+  "pistol": {
+    "x": 1344,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Pistol"
+  },
+  "plastic-bar": {
+    "x": 1408,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Plastic bar"
+  },
+  "poison-capsule": {
+    "x": 1472,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Poison capsule"
+  },
+  "power-armor": {
+    "x": 1536,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Power armor"
+  },
+  "power-armor-mk2": {
+    "x": 1600,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Power armor MK2"
+  },
+  "power-switch": {
+    "x": 1664,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Power switch"
+  },
+  "processing-unit": {
+    "x": 1728,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Processing unit"
+  },
+  "production-science-pack": {
+    "x": 1792,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Production science pack"
+  },
+  "productivity-module": {
+    "x": 1856,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Productivity module"
+  },
+  "productivity-module-2": {
+    "x": 1920,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Productivity module 2"
+  },
+  "productivity-module-3": {
+    "x": 1984,
+    "y": 384,
+    "w": 64,
+    "h": 64,
+    "label": "Productivity module 3"
+  },
+  "programmable-speaker": {
+    "x": 0,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Programmable speaker"
+  },
+  "promethium-asteroid-chunk": {
+    "x": 64,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Promethium asteroid chunk"
+  },
+  "promethium-science-pack": {
+    "x": 128,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Promethium science pack"
+  },
+  "proxy-container": {
+    "x": 192,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Proxy container"
+  },
+  "pump": {
+    "x": 256,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Pump"
+  },
+  "pumpjack": {
+    "x": 320,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Pumpjack"
+  },
+  "quality-module": {
+    "x": 384,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Quality module"
+  },
+  "quality-module-2": {
+    "x": 448,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Quality module 2"
+  },
+  "quality-module-3": {
+    "x": 512,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Quality module 3"
+  },
+  "quantum-processor": {
+    "x": 576,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Quantum processor"
+  },
+  "radar": {
+    "x": 640,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Radar"
+  },
+  "rail": {
+    "x": 704,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Rail"
+  },
+  "rail-chain-signal": {
+    "x": 768,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Rail chain signal"
+  },
+  "rail-ramp": {
+    "x": 832,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Rail ramp"
+  },
+  "rail-signal": {
+    "x": 896,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Rail signal"
+  },
+  "rail-support": {
+    "x": 960,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Rail support"
+  },
+  "railgun": {
+    "x": 1024,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Railgun"
+  },
+  "railgun-ammo": {
+    "x": 1088,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Railgun ammo"
+  },
+  "railgun-turret": {
+    "x": 1152,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Railgun turret"
+  },
+  "raw-fish": {
+    "x": 1216,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Raw fish"
+  },
+  "recycler": {
+    "x": 1280,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Recycler"
+  },
+  "red-wire": {
+    "x": 1344,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Red wire"
+  },
+  "refined-concrete": {
+    "x": 1408,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Refined concrete"
+  },
+  "refined-hazard-concrete": {
+    "x": 1472,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Refined hazard concrete"
+  },
+  "repair-pack": {
+    "x": 1536,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Repair pack"
+  },
+  "requester-chest": {
+    "x": 1600,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Requester chest"
+  },
+  "roboport": {
+    "x": 1664,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Roboport"
+  },
+  "rocket": {
+    "x": 1728,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Rocket"
+  },
+  "rocket-fuel": {
+    "x": 1792,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Rocket fuel"
+  },
+  "rocket-launcher": {
+    "x": 1856,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Rocket launcher"
+  },
+  "rocket-part": {
+    "x": 1920,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Rocket part"
+  },
+  "rocket-silo": {
+    "x": 1984,
+    "y": 448,
+    "w": 64,
+    "h": 64,
+    "label": "Rocket silo"
+  },
+  "rocket-turret": {
+    "x": 0,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Rocket turret"
+  },
+  "science": {
+    "x": 64,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Science"
+  },
+  "scrap": {
+    "x": 128,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Scrap"
+  },
+  "selection-tool": {
+    "x": 192,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Selection tool"
+  },
+  "selector-combinator": {
+    "x": 256,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Selector combinator"
+  },
+  "shotgun": {
+    "x": 320,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Shotgun"
+  },
+  "shotgun-shell": {
+    "x": 384,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Shotgun shells"
+  },
+  "simple-entity-with-force": {
+    "x": 448,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Simple entity with force"
+  },
+  "simple-entity-with-owner": {
+    "x": 512,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Simple entity with owner"
+  },
+  "slowdown-capsule": {
+    "x": 576,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Slowdown capsule"
+  },
+  "small-electric-pole": {
+    "x": 640,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Small electric pole"
+  },
+  "small-lamp": {
+    "x": 704,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Lamp"
+  },
+  "solar-panel": {
+    "x": 768,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Solar panel"
+  },
+  "solar-panel-equipment": {
+    "x": 832,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Portable solar panel"
+  },
+  "solid-fuel": {
+    "x": 896,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Solid fuel"
+  },
+  "space-platform-foundation": {
+    "x": 960,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Space platform foundation"
+  },
+  "space-platform-hub": {
+    "x": 1024,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Space platform hub"
+  },
+  "space-platform-starter-pack": {
+    "x": 1088,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Space platform starter pack"
+  },
+  "space-science-pack": {
+    "x": 1152,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Space science pack"
+  },
+  "speed-module": {
+    "x": 1216,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Speed module"
+  },
+  "speed-module-2": {
+    "x": 1280,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Speed module 2"
+  },
+  "speed-module-3": {
+    "x": 1344,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Speed module 3"
+  },
+  "spidertron": {
+    "x": 1408,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Spidertron"
+  },
+  "spidertron-remote": {
+    "x": 1472,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Spidertron remote"
+  },
+  "spidertron-rocket-launcher-1": {
+    "x": 1536,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Spidertron rocket launcher"
+  },
+  "spidertron-rocket-launcher-2": {
+    "x": 1600,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Spidertron rocket launcher"
+  },
+  "spidertron-rocket-launcher-3": {
+    "x": 1664,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Spidertron rocket launcher"
+  },
+  "spidertron-rocket-launcher-4": {
+    "x": 1728,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Spidertron rocket launcher"
+  },
+  "splitter": {
+    "x": 1792,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Splitter"
+  },
+  "spoilage": {
+    "x": 1856,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Spoilage"
+  },
+  "stack-inserter": {
+    "x": 1920,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Stack inserter"
+  },
+  "steam-engine": {
+    "x": 1984,
+    "y": 512,
+    "w": 64,
+    "h": 64,
+    "label": "Steam engine"
+  },
+  "steam-turbine": {
+    "x": 0,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Steam turbine"
+  },
+  "steel-chest": {
+    "x": 64,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Steel chest"
+  },
+  "steel-furnace": {
+    "x": 128,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Steel furnace"
+  },
+  "steel-plate": {
+    "x": 192,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Steel plate"
+  },
+  "stone": {
+    "x": 256,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Stone"
+  },
+  "stone-brick": {
+    "x": 320,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Stone brick"
+  },
+  "stone-furnace": {
+    "x": 384,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Stone furnace"
+  },
+  "stone-wall": {
+    "x": 448,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Wall"
+  },
+  "storage-chest": {
+    "x": 512,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Storage chest"
+  },
+  "storage-tank": {
+    "x": 576,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Storage tank"
+  },
+  "submachine-gun": {
+    "x": 640,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Submachine gun"
+  },
+  "substation": {
+    "x": 704,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Substation"
+  },
+  "sulfur": {
+    "x": 768,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Sulfur"
+  },
+  "sulfuric-acid-barrel": {
+    "x": 832,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Sulfuric acid barrel"
+  },
+  "supercapacitor": {
+    "x": 896,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Supercapacitor"
+  },
+  "superconductor": {
+    "x": 960,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Superconductor"
+  },
+  "tank": {
+    "x": 1024,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Tank"
+  },
+  "tank-cannon": {
+    "x": 1088,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Tank cannon"
+  },
+  "tank-flamethrower": {
+    "x": 1152,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Vehicle flamethrower"
+  },
+  "tank-machine-gun": {
+    "x": 1216,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Vehicle machine gun"
+  },
+  "tesla-ammo": {
+    "x": 1280,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Tesla ammo"
+  },
+  "tesla-turret": {
+    "x": 1344,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Tesla turret"
+  },
+  "teslagun": {
+    "x": 1408,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Tesla gun"
+  },
+  "thruster": {
+    "x": 1472,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Thruster"
+  },
+  "toolbelt-equipment": {
+    "x": 1536,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Toolbelt equipment"
+  },
+  "top-up-valve": {
+    "x": 1600,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Top-up valve"
+  },
+  "train-stop": {
+    "x": 1664,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Train stop"
+  },
+  "transport-belt": {
+    "x": 1728,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Transport belt"
+  },
+  "tree-seed": {
+    "x": 1792,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Tree seed"
+  },
+  "tungsten-carbide": {
+    "x": 1856,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Tungsten carbide"
+  },
+  "tungsten-ore": {
+    "x": 1920,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Tungsten ore"
+  },
+  "tungsten-plate": {
+    "x": 1984,
+    "y": 576,
+    "w": 64,
+    "h": 64,
+    "label": "Tungsten plate"
+  },
+  "turbo-loader": {
+    "x": 0,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Turbo loader"
+  },
+  "turbo-splitter": {
+    "x": 64,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Turbo splitter"
+  },
+  "turbo-transport-belt": {
+    "x": 128,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Turbo transport belt"
+  },
+  "turbo-underground-belt": {
+    "x": 192,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Turbo underground belt"
+  },
+  "underground-belt": {
+    "x": 256,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Underground belt"
+  },
+  "upgrade-planner": {
+    "x": 320,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Upgrade planner"
+  },
+  "uranium-235": {
+    "x": 384,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Uranium-235"
+  },
+  "uranium-238": {
+    "x": 448,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Uranium-238"
+  },
+  "uranium-cannon-shell": {
+    "x": 512,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Uranium cannon shell"
+  },
+  "uranium-fuel-cell": {
+    "x": 576,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Uranium fuel cell"
+  },
+  "uranium-ore": {
+    "x": 640,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Uranium ore"
+  },
+  "uranium-rounds-magazine": {
+    "x": 704,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Uranium rounds magazine"
+  },
+  "utility-science-pack": {
+    "x": 768,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Utility science pack"
+  },
+  "vehicle-machine-gun": {
+    "x": 832,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Vehicle machine gun"
+  },
+  "water-barrel": {
+    "x": 896,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Water barrel"
+  },
+  "wood": {
+    "x": 960,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Wood"
+  },
+  "wooden-chest": {
+    "x": 1024,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Wooden chest"
+  },
+  "yumako": {
+    "x": 1088,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Yumako"
+  },
+  "yumako-mash": {
+    "x": 1152,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Yumako mash"
+  },
+  "yumako-seed": {
+    "x": 1216,
+    "y": 640,
+    "w": 64,
+    "h": 64,
+    "label": "Yumako seed"
+  }
+}
