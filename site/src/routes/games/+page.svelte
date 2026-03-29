@@ -73,9 +73,9 @@
               <h2 class="card-name">{game.name}</h2>
               <div class="card-badges">
                 <span class="badge badge-channel">{game.channel.toUpperCase()}</span>
-                <span class="badge badge-source"
-                  >{SOURCE_LABELS[game.source] ?? game.source.toUpperCase()}</span
-                >
+                {#each game.sources as src (src)}
+                  <span class="badge badge-source">{SOURCE_LABELS[src] ?? src.toUpperCase()}</span>
+                {/each}
                 {#if game.coverage !== "full"}
                   <span class="badge badge-coverage">{game.coverage.toUpperCase()}</span>
                 {/if}

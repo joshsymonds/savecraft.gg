@@ -9,7 +9,7 @@ export interface ReferenceModule {
 
 export interface GameInfo {
   gameId: string;
-  source: string;
+  sources: string[];
   name: string;
   description: string;
   channel: string;
@@ -21,7 +21,7 @@ export interface GameInfo {
 
 interface PluginToml {
   game_id: string;
-  source: string;
+  sources: string[];
   icon: string;
   name: string;
   description: string;
@@ -62,7 +62,7 @@ export function loadPlugin(gameDir: string): GameInfo {
 
   return {
     gameId: cfg.game_id,
-    source: cfg.source,
+    sources: cfg.sources,
     name: cfg.name,
     description: cfg.description,
     channel: cfg.channel,
