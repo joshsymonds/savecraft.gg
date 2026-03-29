@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { App } from "@modelcontextprotocol/ext-apps";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
+  import GameIcon from "../../../../views/src/components/data/GameIcon.svelte";
   import HoverTip from "../../../../views/src/components/data/HoverTip.svelte";
   import Tag from "../../../../views/src/components/data/Tag.svelte";
   import EmptyState from "../../../../views/src/components/feedback/EmptyState.svelte";
@@ -32,7 +33,6 @@
 
   let expandedRefs: Record<string, boolean> = $state({});
   let expandedRemoved: Record<string, boolean> = $state({});
-  let iconErrors: Record<string, boolean> = $state({});
 
   function toggleRefs(gameId: string) {
     expandedRefs[gameId] = !expandedRefs[gameId];
@@ -42,9 +42,6 @@
     expandedRemoved[gameId] = !expandedRemoved[gameId];
   }
 
-  function handleIconError(gameId: string) {
-    iconErrors[gameId] = true;
-  }
 </script>
 
 {#if data.games.length === 0}
@@ -60,19 +57,7 @@
       <div class="game-card">
         <!-- Game header -->
         <div class="game-header">
-          <span class="game-icon" class:fallback={!game.icon_url || iconErrors[game.game_id]}>
-            {#if game.icon_url && !iconErrors[game.game_id]}
-              <img
-                src={game.icon_url}
-                alt={game.game_name}
-                width="36"
-                height="36"
-                onerror={() => handleIconError(game.game_id)}
-              />
-            {:else}
-              {game.game_name.charAt(0).toUpperCase()}
-            {/if}
-          </span>
+          <GameIcon iconUrl={game.icon_url} name={game.game_name} size={36} />
           <div class="game-info">
             <span class="game-name">{game.game_name}</span>
             <span class="game-meta">
@@ -187,32 +172,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-  }
-
-  .game-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 36px;
-    height: 36px;
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--color-gold) 8%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-gold) 25%, transparent);
-    flex-shrink: 0;
-    overflow: hidden;
-  }
-
-  .game-icon.fallback {
-    font-family: var(--font-pixel);
-    font-size: 16px;
-    color: var(--color-gold);
-  }
-
-  .game-icon img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
   }
 
   .game-info {

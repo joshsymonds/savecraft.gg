@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { App } from "@modelcontextprotocol/ext-apps";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
+  import GameIcon from "../../../../views/src/components/data/GameIcon.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
@@ -32,8 +33,6 @@
   }
 
   let { data }: { data: SaveData; app?: App } = $props();
-
-  let iconError = $state(false);
 
   function formatOverviewValue(value: unknown): string {
     if (value === null || value === undefined) return "—";
@@ -73,19 +72,7 @@
   <Panel>
     <!-- Header -->
     <div class="header">
-      <span class="game-icon" class:fallback={!data.icon_url || iconError}>
-        {#if data.icon_url && !iconError}
-          <img
-            src={data.icon_url}
-            alt={data.game_name ?? data.game_id}
-            width="32"
-            height="32"
-            onerror={() => (iconError = true)}
-          />
-        {:else}
-          {(data.game_name ?? data.game_id).charAt(0).toUpperCase()}
-        {/if}
-      </span>
+      <GameIcon iconUrl={data.icon_url} name={data.game_name ?? data.game_id} size={32} />
       <div class="header-text">
         <h1 class="save-name">{data.name}</h1>
         <p class="save-summary">{data.summary}</p>
@@ -163,32 +150,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-md);
-  }
-
-  .game-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 32px;
-    height: 32px;
-    border-radius: var(--radius-sm);
-    background: color-mix(in srgb, var(--color-gold) 8%, transparent);
-    border: 1px solid color-mix(in srgb, var(--color-gold) 25%, transparent);
-    flex-shrink: 0;
-    overflow: hidden;
-  }
-
-  .game-icon.fallback {
-    font-family: var(--font-pixel);
-    font-size: 14px;
-    color: var(--color-gold);
-  }
-
-  .game-icon img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
   }
 
   .header-text {

@@ -334,7 +334,7 @@ export async function listGames(
   userUuid: string,
   filter?: string,
   serverUrl?: string,
-): Promise<ToolResult> {
+): Promise<ToolResult | ViewToolResult> {
   const [saveRows, notesBySave, removedRows] = await Promise.all([
     db
       .prepare(
@@ -439,22 +439,23 @@ export async function getSave(
     overview = JSON.parse(sectionRows.results[0].data) as Record<string, unknown>;
   }
 
-  // Include note metadata so the AI sees notes without a separate call
-  const noteRows = await db
-    .prepare(
-      "SELECT note_id, title, source, LENGTH(content) as size_bytes FROM notes WHERE save_id = ? AND user_uuid = ? ORDER BY created_at DESC",
-    )
-    .bind(saveId, userUuid)
-    .all<{ note_id: string; title: string; source: string; size_bytes: number }>();
-
-  // Look up icon URL from manifest (uses per-isolate cache, typically warm from listGames)
-  let iconUrl: string | undefined;
-  if (plugins && serverUrl) {
-    const manifest = await getCachedManifest(plugins, `plugins/${save.game_id}/manifest.json`);
-    if (manifest && (manifest.icon === "icon.png" || manifest.icon === "icon.svg")) {
-      iconUrl = `${serverUrl}/plugins/${save.game_id}/${manifest.icon}`;
-    }
-  }
+  // Fetch notes + icon URL in parallel (manifest uses per-isolate cache, typically warm from listGames)
+  const [noteRows, iconUrl] = await Promise.all([
+    db
+      .prepare(
+        "SELECT note_id, title, source, LENGTH(content) as size_bytes FROM notes WHERE save_id = ? AND user_uuid = ? ORDER BY created_at DESC",
+      )
+      .bind(saveId, userUuid)
+      .all<{ note_id: string; title: string; source: string; size_bytes: number }>(),
+    (async (): Promise<string | undefined> => {
+      if (!plugins || !serverUrl) return undefined;
+      const manifest = await getCachedManifest(plugins, `plugins/${save.game_id}/manifest.json`);
+      if (manifest && (manifest.icon === "icon.png" || manifest.icon === "icon.svg")) {
+        return `${serverUrl}/plugins/${save.game_id}/${manifest.icon}`;
+      }
+      return undefined;
+    })(),
+  ]);
 
   const result: Record<string, unknown> = {
     save_id: saveId,
@@ -1011,7 +1012,7 @@ export async function searchSaves(
   userUuid: string,
   query: string,
   saveId?: string,
-): Promise<ToolResult> {
+): Promise<ToolResult | ViewToolResult> {
   if (!query.trim()) {
     return errorResult(
       "A search query is required. Provide keywords to search across saves and notes.",

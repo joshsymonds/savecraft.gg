@@ -424,6 +424,22 @@ const TOOLS: ToolDefinition[] = [
   },
 ];
 
+/** Pre-computed tools with _meta.ui for views (TOOLS and VIEWS are both static). */
+const TOOLS_WITH_UI = TOOLS.map((tool) => {
+  const slug = tool.name === "query_reference" ? "reference" : tool.name.replaceAll("_", "-");
+  if (!VIEWS[slug]) return tool;
+  return {
+    ...tool,
+    _meta: {
+      ...tool._meta,
+      ui: {
+        resourceUri: `ui://savecraft/${slug}.html`,
+        csp: VIEW_CSP,
+      },
+    },
+  };
+});
+
 const MCP_HEADERS = { "Content-Security-Policy": "default-src 'none'" };
 
 function jsonRpcResponse(id: number | string, result: unknown): Response {
@@ -660,22 +676,7 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
     }
 
     case "tools/list": {
-      const toolsWithUi = TOOLS.map((tool) => {
-        // Map tool name to view slug: list_games -> list-games, query_reference -> reference
-        const slug = tool.name === "query_reference" ? "reference" : tool.name.replaceAll("_", "-");
-        if (!VIEWS[slug]) return tool;
-        return {
-          ...tool,
-          _meta: {
-            ...tool._meta,
-            ui: {
-              resourceUri: `ui://savecraft/${slug}.html`,
-              csp: VIEW_CSP,
-            },
-          },
-        };
-      });
-      return Promise.resolve(jsonRpcResponse(id, { tools: toolsWithUi }));
+      return Promise.resolve(jsonRpcResponse(id, { tools: TOOLS_WITH_UI }));
     }
 
     case "resources/list": {
