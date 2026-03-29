@@ -2,17 +2,23 @@
   @component
   Factorio ratio calculator reference view.
   Renders the production dependency tree as a ProductionDAG with
-  raw materials summary and configuration details.
+  FactorioIcon sprites, raw materials summary, and configuration details.
 
   @attribution wube
 -->
 <script lang="ts">
   import ProductionDAG from "../../../../views/src/components/charts/ProductionDAG.svelte";
+  import FactorioIcon from "../../../../views/src/components/factorio/FactorioIcon.svelte";
   import DataTable from "../../../../views/src/components/data/DataTable.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import type { DAGNode, DAGEdge } from "../../../../views/src/components/charts/ProductionDAG.svelte";
+  import type { SpriteConfig } from "../../../../views/src/components/factorio/factorio-icons";
+
+  // Import manifests at build time
+  import itemManifest from "../../../../plugins/factorio/sprites/items.json";
+  import fluidManifest from "../../../../plugins/factorio/sprites/fluids.json";
 
   interface TreeNode {
     item: string;
@@ -43,9 +49,31 @@
         beacon_modules: string[] | null;
       };
     };
+    /** Base URL for sprite sheets (e.g., R2 URL or Storybook static path) */
+    spriteBaseUrl?: string;
   }
 
-  let { data }: Props = $props();
+  let { data, spriteBaseUrl = "/plugins/factorio/sprites" }: Props = $props();
+
+  // Sprite configs
+  let itemSpriteConfig: SpriteConfig = $derived({
+    url: `${spriteBaseUrl}/items.png`,
+    sheetWidth: 2048,
+    sheetHeight: 704,
+    manifest: itemManifest,
+  });
+
+  let fluidSpriteConfig: SpriteConfig = $derived({
+    url: `${spriteBaseUrl}/fluids.png`,
+    sheetWidth: 2048,
+    sheetHeight: 128,
+    manifest: fluidManifest,
+  });
+
+  function getSpriteConfig(iconName: string): SpriteConfig {
+    if (fluidManifest[iconName as keyof typeof fluidManifest]) return fluidSpriteConfig;
+    return itemSpriteConfig;
+  }
 
   // Flatten the nested tree into DAG nodes + edges
   function flattenTree(tree: TreeNode): { nodes: DAGNode[]; edges: DAGEdge[] } {
@@ -60,7 +88,7 @@
 
       let sublabel = "";
       if (node.machines && node.machine_type) {
-        sublabel = `×${node.machines} ${formatMachineName(node.machine_type)}`;
+        sublabel = `\u00d7${node.machines} ${formatMachineName(node.machine_type)}`;
       } else if (isRaw) {
         sublabel = "Raw resource";
       } else if (isAmbiguous) {
@@ -72,7 +100,7 @@
         label: formatItemName(node.item),
         sublabel,
         icon: node.item,
-        rate: node.rate_per_min ? `${node.rate_per_min}/min` : undefined,
+        rate: node.rate_per_min ? `${node.rate_per_min}/m` : undefined,
         variant: isRaw ? "raw" : isAmbiguous ? "bottleneck" : "default",
       });
 
@@ -80,7 +108,6 @@
         edges.push({
           source: id,
           target: parentId,
-          label: node.rate_per_min ? `${node.rate_per_min}/min` : undefined,
           rate: node.rate_per_min,
         });
       }
@@ -103,16 +130,15 @@
   }
 
   function formatMachineName(name: string): string {
-    // Shorten common machine names
     const short: Record<string, string> = {
       "assembling-machine-1": "AM1",
       "assembling-machine-2": "AM2",
       "assembling-machine-3": "AM3",
-      "chemical-plant": "Chem plant",
+      "chemical-plant": "Chem Plant",
       "oil-refinery": "Refinery",
       "stone-furnace": "Furnace",
-      "steel-furnace": "Steel furnace",
-      "electric-furnace": "E-furnace",
+      "steel-furnace": "Steel Furnace",
+      "electric-furnace": "E-Furnace",
     };
     return short[name] ?? formatItemName(name);
   }
@@ -134,7 +160,7 @@
     (data.raw_materials ?? []).map((r) => ({
       item: formatItemName(r.item),
       rate: `${r.rate_per_min}/min`,
-      belt: r.belt_tier ? `${r.belt_tier.charAt(0).toUpperCase()}${r.belt_tier.slice(1)}` : "—",
+      belt: r.belt_tier ? `${r.belt_tier.charAt(0).toUpperCase()}${r.belt_tier.slice(1)}` : "\u2014",
     }))
   );
 
@@ -146,30 +172,56 @@
       items.push({ label: "Modules", value: data.config.modules.map(formatItemName).join(", ") });
     }
     if (data.config.beacon_count > 0) {
-      items.push({ label: "Beacons", value: `${data.config.beacon_count}×` });
+      items.push({ label: "Beacons", value: `${data.config.beacon_count}\u00d7` });
       if (data.config.beacon_modules?.length) {
-        items.push({ label: "Beacon modules", value: data.config.beacon_modules.map(formatItemName).join(", ") });
+        items.push({ label: "Beacon Modules", value: data.config.beacon_modules.map(formatItemName).join(", ") });
       }
     }
-    items.push({ label: "Total power", value: formatPower(data.total_power_kw) });
+    items.push({ label: "Total Power", value: formatPower(data.total_power_kw) });
     return items;
   });
 </script>
 
-<Panel>
-  <Section title="Production Chain">
-    <ProductionDAG nodes={dagData.nodes} edges={dagData.edges} />
-  </Section>
-
-  {#if rawTableRows.length > 0}
-    <Section title="Raw Materials">
-      <DataTable columns={rawTableColumns} rows={rawTableRows} />
+<div class="factorio-view">
+  <Panel>
+    <Section title="Production Chain">
+      <div class="dag-wrapper">
+        <ProductionDAG nodes={dagData.nodes} edges={dagData.edges}>
+          {#snippet nodeIcon(iconName: string)}
+            <FactorioIcon name={iconName} size={32} spriteConfig={getSpriteConfig(iconName)} />
+          {/snippet}
+        </ProductionDAG>
+      </div>
     </Section>
-  {/if}
 
-  <Section title="Configuration">
-    {#each configItems as item}
-      <KeyValue label={item.label} value={item.value} />
-    {/each}
-  </Section>
-</Panel>
+    {#if rawTableRows.length > 0}
+      <Section title="Raw Materials">
+        <DataTable columns={rawTableColumns} rows={rawTableRows} />
+      </Section>
+    {/if}
+
+    <Section title="Configuration">
+      {#each configItems as item}
+        <KeyValue label={item.label} value={item.value} />
+      {/each}
+    </Section>
+  </Panel>
+</div>
+
+<style>
+  .factorio-view {
+    /* Factorio aesthetic: warm gray-brown background, amber accents */
+    --dag-node-bg: #1a1a1a;
+    --dag-node-border: #8a6a2a;
+    --dag-node-bg-bottleneck: rgba(232, 90, 90, 0.12);
+    --dag-node-bg-surplus: rgba(90, 190, 138, 0.08);
+    --dag-edge-color: #c8a84e;
+    --dag-rate-color: #e8b830;
+    --dag-sublabel-color: #c0b898;
+  }
+
+  .dag-wrapper {
+    overflow-x: auto;
+    padding: 8px 0;
+  }
+</style>
