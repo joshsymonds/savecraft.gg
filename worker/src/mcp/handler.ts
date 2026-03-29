@@ -479,7 +479,13 @@ async function handleToolCall(
 
   switch (toolName) {
     case "list_games": {
-      return listGames(env.DB, env.PLUGINS, userUuid, args.filter as string | undefined, env.SERVER_URL);
+      return listGames(
+        env.DB,
+        env.PLUGINS,
+        userUuid,
+        args.filter as string | undefined,
+        env.SERVER_URL,
+      );
     }
     case "get_save": {
       return getSave(env.DB, userUuid, saveId, env.PLUGINS, env.SERVER_URL);
@@ -626,7 +632,7 @@ async function handleQueryReference(
   );
 
   // Resolve game icon URL for view rendering (uses per-isolate manifest cache, typically warm)
-  const iconUrl = env.PLUGINS && env.SERVER_URL
+  const iconUrl = env.SERVER_URL
     ? await resolveIconUrl(env.PLUGINS, env.SERVER_URL, gameId)
     : undefined;
 
@@ -642,7 +648,10 @@ async function handleQueryReference(
         ? (first.value.content[0]?.text ?? `Reference data for ${moduleId}.`)
         : `Reference data for ${moduleId}.`;
     // Include module ID so the bundled reference view knows which component to mount
-    return viewResult({ module: moduleId, ...(iconUrl ? { icon_url: iconUrl } : {}), ...data }, narrative);
+    return viewResult(
+      { module: moduleId, ...(iconUrl ? { icon_url: iconUrl } : {}), ...data },
+      narrative,
+    );
   }
 
   // Multi-query: wrap in { results } array
