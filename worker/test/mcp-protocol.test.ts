@@ -193,7 +193,9 @@ describe("MCP Protocol", () => {
 
     const resp = await SELF.fetch(mcpRequest("tools/list", 2));
     const body = (await parseJsonResponse(resp)) as {
-      result: { tools: { name: string; _meta?: { ui?: { domain?: string; resourceUri?: string } } }[] };
+      result: {
+        tools: { name: string; _meta?: { ui?: { domain?: string; resourceUri?: string } } }[];
+      };
     };
     const toolsWithViews = body.result.tools.filter((t) => t._meta?.ui?.resourceUri);
     expect(toolsWithViews.length).toBeGreaterThan(0);
