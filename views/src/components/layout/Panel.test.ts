@@ -70,4 +70,33 @@ describe("Panel", () => {
     const { container } = render(Panel);
     expect(container.querySelector(".panel-watermark")).toBeNull();
   });
+
+  it("applies compact class when compact prop is true", () => {
+    const { container } = render(Panel, { props: { compact: true } });
+    const panel = container.querySelector(".panel") as HTMLElement;
+    expect(panel.classList.contains("compact")).toBe(true);
+  });
+
+  it("does not apply compact class by default", () => {
+    const { container } = render(Panel);
+    const panel = container.querySelector(".panel") as HTMLElement;
+    expect(panel.classList.contains("compact")).toBe(false);
+  });
+
+  it("renders compact variant without corners", () => {
+    const { container } = render(Panel, { props: { compact: true } });
+    expect(container.querySelectorAll(".corner")).toHaveLength(0);
+  });
+
+  it("uses space-md default padding when compact", () => {
+    const { container } = render(Panel, { props: { compact: true } });
+    const panel = container.querySelector(".panel") as HTMLElement;
+    expect(panel.style.getPropertyValue("--panel-padding")).toBe("var(--space-md)");
+  });
+
+  it("allows padding override on compact variant", () => {
+    const { container } = render(Panel, { props: { compact: true, padding: "var(--space-xl)" } });
+    const panel = container.querySelector(".panel") as HTMLElement;
+    expect(panel.style.getPropertyValue("--panel-padding")).toBe("var(--space-xl)");
+  });
 });

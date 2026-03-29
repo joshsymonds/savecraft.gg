@@ -34,8 +34,6 @@
   }
 
   let { data }: { data: { games: Game[] }; app?: App } = $props();
-
-
 </script>
 
 {#if data.games.length === 0}
