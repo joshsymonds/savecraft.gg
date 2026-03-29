@@ -1,5 +1,4 @@
 <script lang="ts">
-  import Section from "../../../../views/src/components/layout/Section.svelte";
   import CardGrid from "../../../../views/src/components/layout/CardGrid.svelte";
   import EmptyState from "../../../../views/src/components/feedback/EmptyState.svelte";
   import MtgCard from "../../../../views/src/components/mtg/MtgCard.svelte";
@@ -18,23 +17,27 @@
   let { data }: { data: { cards: Card[]; total: number; icon_url?: string } } = $props();
 </script>
 
-<div class="card-search">
-  {#if data.cards.length === 0}
+{#if data.cards.length === 0}
+  <div class="empty-container">
     <EmptyState message="No cards found" guidance="Try broadening your search criteria." />
-  {:else}
-    <Section title="Card Search" count={data.total}>
-      <CardGrid>
-        {#each data.cards as card}
-          <MtgCard {card} iconUrl={data.icon_url} />
-        {/each}
-      </CardGrid>
-    </Section>
-  {/if}
-</div>
+  </div>
+{:else}
+  <div class="card-search">
+    <CardGrid>
+      {#each data.cards as card}
+        <MtgCard {card} iconUrl={data.icon_url} />
+      {/each}
+    </CardGrid>
+  </div>
+{/if}
 
 <style>
   .card-search {
     padding: var(--space-lg);
     animation: fade-slide-in 0.3s ease-out;
+  }
+
+  .empty-container {
+    padding: var(--space-lg);
   }
 </style>

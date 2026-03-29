@@ -34,15 +34,6 @@ describe("CardSearch view", () => {
     expect(container.textContent).toContain("Sheoldred");
   });
 
-  it("renders result count in section header", () => {
-    const { container } = render(CardSearch, {
-      props: { data: { cards: [bolt], total: 1 } },
-    });
-    const count = container.querySelector(".count");
-    expect(count).not.toBeNull();
-    expect(count!.textContent).toBe("1");
-  });
-
   it("renders mana pips for cards", () => {
     const { container } = render(CardSearch, {
       props: { data: { cards: [bolt], total: 1 } },
