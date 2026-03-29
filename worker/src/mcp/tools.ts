@@ -336,7 +336,7 @@ export async function listGames(
   userUuid: string,
   filter?: string,
   serverUrl?: string,
-): Promise<ToolResult | ViewToolResult> {
+): Promise<ToolResult> {
   const [saveRows, notesBySave, removedRows] = await Promise.all([
     db
       .prepare(
@@ -372,10 +372,7 @@ export async function listGames(
       `No games matching "${filter}". Try without a filter to see all available games.`,
     );
   }
-  return viewResult(
-    { games },
-    `Player has ${String(games.length)} game${games.length === 1 ? "" : "s"} with saves.`,
-  );
+  return textResult({ games });
 }
 
 const OVERVIEW_SECTION_NAMES = ["character_overview", "player_summary", "overview", "summary"];
