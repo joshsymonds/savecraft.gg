@@ -106,7 +106,7 @@ The common thread: the AI did significant work assembling the data, and the visu
 
 ### Gray area — judgment calls
 
-**Game library (`list_games`):** Currently a view. Defensible as a glanceable roster — game icons, save counts, note badges, reference module availability — when the player says "what do I have?" The view is valuable if it communicates status at a glance better than text. `updateModelContext` on clicking a save tells the model what the player is interested in, so the next message ("tell me about this character") has context. Not valuable if it's just a bulleted list with borders.
+**Game library (`list_games`):** No view. Removed because it fails the synthesis test — it's a database query grouped by game, not AI-assembled insight. Players already know what games they play. Showing uninstalled games with reference modules confused users ("why is this here?"). The LLM gets full data (all games, saves, references including games without saves) via text; it contextualizes what's available in its response.
 
 **Section data (`get_section`):** Raw section data (equipment JSON, skill allocations) benefits from structured presentation — a stat table is better than JSON. But game-specific renderers (equipment as item cards, skills as a tree) are expensive to build per-game. Until a game-specific renderer exists, the model's text interpretation may be more useful. Build these when a game has enough users to justify the investment.
 

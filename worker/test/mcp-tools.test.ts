@@ -396,8 +396,8 @@ describe("MCP Tools", () => {
     });
   });
 
-  describe("listGames returns ViewToolResult", () => {
-    it("returns structuredContent with games array", async () => {
+  describe("listGames returns textResult", () => {
+    it("returns plain text JSON with games array", async () => {
       await seedSave({
         saveUuid: "save-view",
         userUuid: USER_A,
@@ -408,14 +408,11 @@ describe("MCP Tools", () => {
       });
 
       const result = await listGames(env.DB, env.PLUGINS, USER_A);
-      expect("structuredContent" in result).toBe(true);
-
-      const viewResult = result as ViewToolResult;
-      expect(viewResult.structuredContent).toHaveProperty("games");
-      expect(viewResult.content).toHaveLength(2);
-      expect(viewResult.content[0]!.text).toMatch(/Player has 1 game/);
-      // Second content block carries JSON data for model reasoning
-      expect(JSON.parse(viewResult.content[1]!.text)).toHaveProperty("games");
+      expect("structuredContent" in result).toBe(false);
+      expect(result.content).toHaveLength(1);
+      const data = JSON.parse(result.content[0]!.text) as { games: GameEntry[] };
+      expect(data.games).toHaveLength(1);
+      expect(data.games[0]!.game_id).toBe("d2r");
     });
   });
 

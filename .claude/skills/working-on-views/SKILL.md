@@ -20,7 +20,7 @@ just storybook-views  # Visual verification on port 6007
 
 **Game state views** — one self-contained HTML per tool. Component + bridge bundled together.
 - Location: `worker/src/mcp/views/<slug>.svelte`
-- Slug maps to tool name: `list-games.svelte` → tool `list_games`
+- Slug maps to tool name: `get-save.svelte` → tool `get_save`
 
 **Reference views** — one bundled HTML for `query_reference` containing ALL reference module components. Routes on `structuredContent.module`.
 - Location: `plugins/<game>/reference/views/<module-id>.svelte`
