@@ -19,15 +19,18 @@ describe("Reference Worker Infrastructure", () => {
     const text = await response.text();
     const parsed = JSON.parse(text.trim()) as {
       type: string;
-      data: { modules: Array<{ id: string; name: string; parameters: Record<string, unknown> }> };
+      data: {
+        modules: Record<string, { name: string; parameters: Record<string, unknown> }>;
+      };
     };
     expect(parsed.type).toBe("result");
-    expect(parsed.data.modules).toBeInstanceOf(Array);
-    expect(parsed.data.modules.length).toBeGreaterThan(0);
+    expect(typeof parsed.data.modules).toBe("object");
+    const moduleEntries = Object.entries(parsed.data.modules);
+    expect(moduleEntries.length).toBeGreaterThan(0);
 
-    // Every module must have id, name, and parameters
-    for (const mod of parsed.data.modules) {
-      expect(mod.id).toBeTruthy();
+    // Every module must have name and parameters
+    for (const [id, mod] of moduleEntries) {
+      expect(id).toBeTruthy();
       expect(mod.name).toBeTruthy();
       expect(mod.parameters).toBeTruthy();
     }
@@ -84,12 +87,14 @@ describe("Reference Worker Infrastructure", () => {
     const schemaResp = await query("{}");
     const schemaText = await schemaResp.text();
     const schema = JSON.parse(schemaText.trim()) as {
-      data: { modules: Array<{ id: string; parameters: Record<string, { type: string }> }> };
+      data: {
+        modules: Record<string, { parameters: Record<string, { type: string }> }>;
+      };
     };
-    const mod = schema.data.modules[0]!;
+    const [modId, mod] = Object.entries(schema.data.modules)[0]!;
 
     // Build a minimal query using the first string parameter
-    const queryObj: Record<string, string> = { module: mod.id };
+    const queryObj: Record<string, string> = { module: modId };
     for (const [key, param] of Object.entries(mod.parameters)) {
       if (param.type === "string") {
         queryObj[key] = "test_value";
