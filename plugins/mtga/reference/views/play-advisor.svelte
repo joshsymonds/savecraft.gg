@@ -80,10 +80,12 @@
 
 <div class="play-advisor">
   {#if data.disclaimer}
-    <div class="disclaimer">
-      <Badge label="statistical estimates" variant="warning" />
-      <span class="disclaimer-text">{data.disclaimer}</span>
-    </div>
+    <Panel watermark={data.icon_url}>
+      <div class="disclaimer">
+        <Badge label="note" variant="warning" />
+        <span class="disclaimer-text">{data.disclaimer}</span>
+      </div>
+    </Panel>
   {/if}
 
   {#if isGameReview}
@@ -162,7 +164,6 @@
     display: flex;
     align-items: center;
     gap: var(--space-sm);
-    padding: var(--space-sm);
   }
 
   .disclaimer-text {
