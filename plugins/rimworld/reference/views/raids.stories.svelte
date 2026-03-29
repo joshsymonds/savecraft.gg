@@ -3,6 +3,7 @@
 
   import Raids from "./raids.svelte";
 
+  const iconUrl = "/plugins/rimworld/icon.png";
   const { Story } = defineMeta({
     title: "RimWorld/Raids",
     tags: ["autodocs"],
@@ -15,6 +16,7 @@
     wealth_points: 180,
     pawn_points: 120,
     total_points: 300,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -24,6 +26,7 @@
     wealth_points: 1200,
     pawn_points: 560,
     total_points: 1760,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -33,5 +36,6 @@
     wealth_points: 3800,
     pawn_points: 2400,
     total_points: 6200,
+    icon_url: iconUrl,
   }} />
 </Story>

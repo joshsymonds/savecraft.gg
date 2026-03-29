@@ -3,6 +3,8 @@
 
   import Research from "./research.svelte";
 
+  const iconUrl = "/plugins/rimworld/icon.png";
+
   const { Story } = defineMeta({
     title: "RimWorld/Research",
     tags: ["autodocs"],
@@ -20,6 +22,7 @@
       { name: "Ship Basics", def_name: "ShipBasics", cost: 4000, tech_level: "Ultra", prerequisites: ["AdvancedFabrication"] },
     ],
     count: 6,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -28,6 +31,7 @@
     chain: ["Smithing", "Machining"],
     total_cost: 1500,
     colony_tech: "Industrial",
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -36,5 +40,6 @@
     chain: ["Smithing", "Machining", "Microelectronics", "Fabrication", "Advanced Fabrication"],
     total_cost: 12500,
     colony_tech: "Neolithic",
+    icon_url: iconUrl,
   }} />
 </Story>

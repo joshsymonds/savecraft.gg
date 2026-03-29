@@ -3,6 +3,8 @@
 
   import Combat from "./combat.svelte";
 
+  const iconUrl = "/plugins/rimworld/icon.png";
+
   const { Story } = defineMeta({
     title: "RimWorld/Combat",
     tags: ["autodocs"],
@@ -18,6 +20,7 @@
     dps_at_range: 6.42,
     damage_per_shot: 11,
     expected_damage: 11,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -30,6 +33,7 @@
     dps_at_range: 4.68,
     damage_per_shot: 18,
     expected_damage: 12.3,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -38,5 +42,6 @@
     weapon: "longsword",
     type: "melee",
     true_dps: 12.5,
+    icon_url: iconUrl,
   }} />
 </Story>

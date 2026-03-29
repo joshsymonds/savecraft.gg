@@ -3,6 +3,8 @@
 
   import Materials from "./materials.svelte";
 
+  const iconUrl = "/plugins/rimworld/icon.png";
+
   const { Story } = defineMeta({
     title: "RimWorld/Materials",
     tags: ["autodocs"],
@@ -19,6 +21,7 @@
       { name: "wood", sharp_armor: 0.40, blunt_armor: 0.40, sharp_damage: 0.50, blunt_damage: 0.50, market_value: 1.2, max_hp_factor: 0.65, categories: ["Woody"] },
       { name: "gold", sharp_armor: 0.30, blunt_armor: 0.30, sharp_damage: 0.50, blunt_damage: 0.50, market_value: 10.0, max_hp_factor: 0.60, categories: ["Metallic"] },
     ],
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -32,6 +35,7 @@
     sharp_damage: 1.15,
     blunt_damage: 1.15,
     max_hp: 1.95,
+    icon_url: iconUrl,
   }} />
 </Story>
 
@@ -45,5 +49,6 @@
     sharp_damage: 1.00,
     blunt_damage: 1.00,
     max_hp: 1.00,
+    icon_url: iconUrl,
   }} />
 </Story>
