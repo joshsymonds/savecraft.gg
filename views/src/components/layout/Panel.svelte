@@ -14,11 +14,13 @@
     padding?: string;
     /** Nested/inner panel variant — flat bg, no corners, thinner border */
     nested?: boolean;
+    /** Compact variant for grid cards — no corners, lighter shadow, smaller padding */
+    compact?: boolean;
     /** Slot content */
     children?: Snippet;
   }
 
-  let { accent, padding, nested = false, children }: Props = $props();
+  let { accent, padding, nested = false, compact = false, children }: Props = $props();
 
   let borderColor = $derived(accent ?? "var(--color-border)");
   let cornerColor = $derived(accent ?? "var(--color-border-light)");
@@ -27,11 +29,12 @@
 <div
   class="panel"
   class:nested
+  class:compact
   style:--panel-border={borderColor}
   style:--panel-corner={cornerColor}
-  style:--panel-padding={padding ?? "var(--space-lg)"}
+  style:--panel-padding={padding ?? (compact ? "var(--space-md)" : "var(--space-lg)")}
 >
-  {#if !nested}
+  {#if !nested && !compact}
     <div class="corner top-left"></div>
     <div class="corner top-right"></div>
     <div class="corner bottom-left"></div>
@@ -59,6 +62,11 @@
     border-width: 1px;
     border-color: color-mix(in srgb, var(--panel-border) 50%, transparent);
     box-shadow: inset 0 0 12px rgba(10, 14, 46, 0.3);
+    animation: none;
+  }
+
+  .panel.compact {
+    box-shadow: 0 0 8px color-mix(in srgb, var(--panel-border) 6%, transparent);
     animation: none;
   }
 

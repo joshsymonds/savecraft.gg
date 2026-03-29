@@ -46,6 +46,58 @@
   </div>
 </Story>
 
+<Story name="Compact">
+  <div style="width: 320px;">
+    <Panel compact>
+      <p style="font-family: var(--font-pixel); font-size: 11px; color: var(--color-text); letter-spacing: 0.5px;">
+        Diablo II: Resurrected
+      </p>
+      <p style="font-family: var(--font-body); font-size: 13px; color: var(--color-text-muted); margin-top: 2px;">
+        3 saves &middot; 1 module
+      </p>
+    </Panel>
+  </div>
+</Story>
+
+<Story name="CompactGrid">
+  <div style="width: 700px;">
+    <CardGrid minWidth={280}>
+      <Panel compact>
+        <p style="font-family: var(--font-pixel); font-size: 11px; color: var(--color-text); letter-spacing: 0.5px;">
+          Diablo II: Resurrected
+        </p>
+        <p style="font-family: var(--font-body); font-size: 13px; color: var(--color-text-muted); margin-top: 2px;">
+          3 saves &middot; 1 module
+        </p>
+      </Panel>
+      <Panel compact>
+        <p style="font-family: var(--font-pixel); font-size: 11px; color: var(--color-text); letter-spacing: 0.5px;">
+          Magic: The Gathering Arena
+        </p>
+        <p style="font-family: var(--font-body); font-size: 13px; color: var(--color-text-muted); margin-top: 2px;">
+          1 save &middot; 9 modules
+        </p>
+      </Panel>
+      <Panel compact>
+        <p style="font-family: var(--font-pixel); font-size: 11px; color: var(--color-text); letter-spacing: 0.5px;">
+          RimWorld
+        </p>
+        <p style="font-family: var(--font-body); font-size: 13px; color: var(--color-text-muted); margin-top: 2px;">
+          1 save &middot; 8 modules
+        </p>
+      </Panel>
+      <Panel compact>
+        <p style="font-family: var(--font-pixel); font-size: 11px; color: var(--color-text); letter-spacing: 0.5px;">
+          Stardew Valley
+        </p>
+        <p style="font-family: var(--font-body); font-size: 13px; color: var(--color-text-muted); margin-top: 2px;">
+          2 saves &middot; 2 modules
+        </p>
+      </Panel>
+    </CardGrid>
+  </div>
+</Story>
+
 <Story name="NestedColonists">
   <div style="width: 550px;">
     <Panel>
