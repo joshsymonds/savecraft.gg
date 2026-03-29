@@ -92,4 +92,42 @@ describe("DataTable", () => {
     const { container } = render(DataTable, { props: { columns, rows: [] } });
     expect(container.querySelectorAll("tbody tr")).toHaveLength(0);
   });
+
+  it("renders cell variant colors", () => {
+    const variantRows = [
+      { name: "Plasteel", wr: { value: 1.2, variant: "positive" as const }, games: 500 },
+    ];
+    const { container } = render(DataTable, { props: { columns, rows: variantRows } });
+    const cells = container.querySelectorAll("tbody td");
+    expect(cells[1].textContent).toBe("1.2");
+    expect(cells[1].classList.contains("positive")).toBe(true);
+    expect(cells[1].classList.contains("has-variant")).toBe(true);
+  });
+
+  it("sorts by raw value when cells have variant objects", async () => {
+    const variantRows = [
+      { name: "A", wr: { value: 30, variant: "negative" as const }, games: 1 },
+      { name: "B", wr: { value: 90, variant: "positive" as const }, games: 2 },
+      { name: "C", wr: { value: 60 }, games: 3 },
+    ];
+    const { container } = render(DataTable, {
+      props: { columns, rows: variantRows, sortKey: "wr", sortDir: "asc" },
+    });
+    const firstCell = container.querySelectorAll("tbody td")[0];
+    expect(firstCell.textContent).toBe("A");
+  });
+
+  it("applies column format function", () => {
+    const fmtColumns = [
+      { key: "name", label: "Name" },
+      { key: "val", label: "Value", format: (v: string | number | { value: string | number }) => {
+        const raw = typeof v === "object" && v !== null && "value" in v ? v.value : v;
+        return `${raw}%`;
+      }},
+    ];
+    const fmtRows = [{ name: "Test", val: 85.3 }];
+    const { container } = render(DataTable, { props: { columns: fmtColumns, rows: fmtRows } });
+    const cells = container.querySelectorAll("tbody td");
+    expect(cells[1].textContent).toBe("85.3%");
+  });
 });

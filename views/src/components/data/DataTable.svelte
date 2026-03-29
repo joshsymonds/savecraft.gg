@@ -1,22 +1,30 @@
 <!--
   @component
-  Sortable data table with typed columns.
-  Used for card stats, drop tables, match history, crop comparisons.
+  Sortable data table with typed columns and optional cell formatting.
+  Used for card stats, drop tables, match history, crop comparisons, material grids.
 -->
 <script lang="ts">
+  type Variant = "positive" | "negative" | "highlight" | "info" | "warning" | "muted"
+    | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor";
+
+  /** A cell value can be a plain string/number or a rich object with variant coloring. */
+  type CellValue = string | number | { value: string | number; variant?: Variant };
+
   interface Column {
     key: string;
     label: string;
     align?: "left" | "right" | "center";
     sortable?: boolean;
     width?: string;
+    /** Format the raw cell value for display */
+    format?: (value: CellValue) => string;
   }
 
   interface Props {
     /** Column definitions */
     columns: Column[];
-    /** Row data — each row is a Record keyed by column.key */
-    rows: Record<string, string | number>[];
+    /** Row data — each row is a Record keyed by column.key. Values can be plain or { value, variant }. */
+    rows: Record<string, CellValue>[];
     /** Initial sort column key */
     sortKey?: string;
     /** Initial sort direction */
@@ -24,6 +32,18 @@
   }
 
   let { columns, rows, sortKey, sortDir = "asc" }: Props = $props();
+
+  /** Extract the raw sortable/displayable value from a CellValue. */
+  function rawValue(cell: CellValue): string | number {
+    if (typeof cell === "object" && cell !== null && "value" in cell) return cell.value;
+    return cell;
+  }
+
+  /** Extract the variant from a CellValue, if any. */
+  function cellVariant(cell: CellValue): Variant | undefined {
+    if (typeof cell === "object" && cell !== null && "variant" in cell) return cell.variant;
+    return undefined;
+  }
 
   // eslint-disable-next-line -- initial values from props, intentionally captured once
   let activeSortKey = $state(sortKey); // svelte-ignore state_referenced_locally
@@ -44,8 +64,8 @@
     const key = activeSortKey;
     const dir = activeSortDir === "asc" ? 1 : -1;
     return [...rows].sort((a, b) => {
-      const va = a[key];
-      const vb = b[key];
+      const va = rawValue(a[key] as CellValue);
+      const vb = rawValue(b[key] as CellValue);
       if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
       return String(va).localeCompare(String(vb)) * dir;
     });
@@ -76,8 +96,10 @@
       {#each sortedRows as row}
         <tr>
           {#each columns as col}
-            <td style:text-align={col.align ?? "left"}>
-              {row[col.key]}
+            {@const cell = row[col.key] as CellValue}
+            {@const variant = cellVariant(cell)}
+            <td style:text-align={col.align ?? "left"} class:has-variant={!!variant} class={variant ?? ""}>
+              {col.format ? col.format(cell) : rawValue(cell)}
             </td>
           {/each}
         </tr>
@@ -145,5 +167,23 @@
 
   tbody tr:hover td {
     background: color-mix(in srgb, var(--color-border) 14%, transparent);
+  }
+
+  /* Cell variant colors */
+  td.positive { color: var(--color-positive); }
+  td.negative { color: var(--color-negative); }
+  td.highlight { color: var(--color-highlight); }
+  td.info { color: var(--color-info); }
+  td.warning { color: var(--color-warning); }
+  td.muted { color: var(--color-text-muted); }
+  td.legendary { color: var(--color-rarity-legendary); }
+  td.epic { color: var(--color-rarity-epic); }
+  td.rare { color: var(--color-rarity-rare); }
+  td.uncommon { color: var(--color-rarity-uncommon); }
+  td.common { color: var(--color-rarity-common); }
+  td.poor { color: var(--color-rarity-poor); }
+
+  td.has-variant {
+    font-weight: 700;
   }
 </style>

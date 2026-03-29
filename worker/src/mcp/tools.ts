@@ -1186,8 +1186,14 @@ function extractWasmPresentation(data: unknown): string | undefined {
   return typeof presentation === "string" ? presentation : undefined;
 }
 
-/** Parse WASM ndjson response into a ToolResult. */
-function parseWasmResponse(text: string): ToolResult {
+/** Parse WASM ndjson response into a ToolResult or ViewToolResult.
+ *
+ * When a WASM result contains structured data fields alongside `formatted`
+ * text, returns a ViewToolResult so the handler can wire it into the
+ * reference view bundle. The `formatted` and `presentation` meta fields
+ * are stripped from structuredContent — only the actual data fields remain.
+ */
+export function parseWasmResponse(text: string): ToolResult | ViewToolResult {
   const lines = text
     .trim()
     .split("\n")
@@ -1201,7 +1207,17 @@ function parseWasmResponse(text: string): ToolResult {
       // If the WASM returned pre-formatted text, pass it through directly
       // instead of JSON.stringify-ing it (which would escape newlines).
       if (parsed.type === "result" && isFormattedResult(parsed.data)) {
-        const data = parsed.data as { formatted: string };
+        const data = parsed.data as Record<string, unknown>;
+        const formatted = data.formatted as string;
+
+        // Check for structured fields beyond formatted/presentation.
+        // If present, return a ViewToolResult so the reference view can render them.
+        const structuredFields = extractStructuredFields(data);
+        if (structuredFields) {
+          const narrative = formatted.split("\n")[0] ?? `Reference data.`;
+          return viewResult(structuredFields, narrative);
+        }
+
         const content: { type: "text"; text: string }[] = [];
         if (presentation) {
           content.push({
@@ -1209,7 +1225,7 @@ function parseWasmResponse(text: string): ToolResult {
             text: `IMPORTANT: Create an artifact to present this data. ${presentation}`,
           });
         }
-        content.push({ type: "text", text: data.formatted });
+        content.push({ type: "text", text: formatted });
         if (presentation) {
           content.push({ type: "text", text: VIZ_REMINDER });
         }
@@ -1230,6 +1246,21 @@ function parseWasmResponse(text: string): ToolResult {
     }
   });
   return textResult({ results });
+}
+
+/** Extract data fields from WASM result, stripping meta fields (formatted, presentation).
+ *  Returns null if no structured fields remain. */
+function extractStructuredFields(data: Record<string, unknown>): Record<string, unknown> | null {
+  const META_KEYS = new Set(["formatted", "presentation"]);
+  const structured: Record<string, unknown> = {};
+  let hasFields = false;
+  for (const [key, value] of Object.entries(data)) {
+    if (!META_KEYS.has(key)) {
+      structured[key] = value;
+      hasFields = true;
+    }
+  }
+  return hasFields ? structured : null;
 }
 
 function isFormattedResult(data: unknown): boolean {
