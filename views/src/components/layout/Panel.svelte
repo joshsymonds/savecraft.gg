@@ -16,7 +16,7 @@
     nested?: boolean;
     /** Compact variant for grid cards — no corners, lighter shadow, smaller padding */
     compact?: boolean;
-    /** Optional game icon URL rendered as a subtle watermark in the lower-right */
+    /** Optional game icon URL rendered as a subtle centered watermark */
     watermark?: string;
     /** Slot content */
     children?: Snippet;

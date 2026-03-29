@@ -26,6 +26,7 @@
       missing: MissingCard[];
       wildcardCost: WildcardCostData;
       unresolvedCards: string[];
+      icon_url?: string;
     };
   } = $props();
 
@@ -57,13 +58,13 @@
   </div>
 {:else}
   <div class="collection-diff">
-    <Panel>
+    <Panel watermark={data.icon_url}>
       <Section title="Wildcards Needed">
         <WildcardCost cost={data.wildcardCost} />
       </Section>
     </Panel>
 
-    <Panel>
+    <Panel watermark={data.icon_url}>
       <Section title="Missing Cards">
         <DataTable {columns} {rows} />
       </Section>

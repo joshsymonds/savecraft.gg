@@ -28,6 +28,7 @@
       };
       pick_number: number;
       recommendations: Recommendation[];
+      icon_url?: string;
     };
   } = $props();
 
@@ -113,7 +114,7 @@
 </script>
 
 <div class="draft-advisor">
-  <Panel>
+  <Panel watermark={data.icon_url}>
     <Section title="Draft Picks" subtitle={subtitle}>
       {#snippet icons()}
         <ArchetypeLabel colors={archetypeColors(data.archetype.primary)} />
