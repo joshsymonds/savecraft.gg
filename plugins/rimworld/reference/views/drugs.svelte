@@ -149,14 +149,4 @@
     gap: var(--space-md);
   }
 
-  .sub-label {
-    font-family: var(--font-heading);
-    font-size: 13px;
-    font-weight: 700;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    display: block;
-    margin-bottom: var(--space-sm);
-  }
 </style>

@@ -20,6 +20,7 @@ import {
   listGames,
   queryReference,
   refreshSave,
+  resolveIconUrl,
   searchSaves,
   updateNote,
   viewResult,
@@ -624,6 +625,11 @@ async function handleQueryReference(
       : extractResultData(outcome.value),
   );
 
+  // Resolve game icon URL for view rendering (uses per-isolate manifest cache, typically warm)
+  const iconUrl = env.PLUGINS && env.SERVER_URL
+    ? await resolveIconUrl(env.PLUGINS, env.SERVER_URL, gameId)
+    : undefined;
+
   // Single-query shortcut: unwrap the array
   if (results.length === 1) {
     const data = results[0] as Record<string, unknown>;
@@ -636,12 +642,12 @@ async function handleQueryReference(
         ? (first.value.content[0]?.text ?? `Reference data for ${moduleId}.`)
         : `Reference data for ${moduleId}.`;
     // Include module ID so the bundled reference view knows which component to mount
-    return viewResult({ module: moduleId, ...data }, narrative);
+    return viewResult({ module: moduleId, ...(iconUrl ? { icon_url: iconUrl } : {}), ...data }, narrative);
   }
 
   // Multi-query: wrap in { results } array
   return viewResult(
-    { module: moduleId, results },
+    { module: moduleId, ...(iconUrl ? { icon_url: iconUrl } : {}), results },
     `${String(results.length)} reference query results for ${moduleId}.`,
   );
 }

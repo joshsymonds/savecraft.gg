@@ -206,7 +206,7 @@ const manifestCache = new Map<string, { data: ManifestData; fetchedAt: number }>
 const MANIFEST_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
 
 /** Fetch a manifest from R2, using a per-isolate cache with 5-minute TTL. */
-async function getCachedManifest(plugins: R2Bucket, key: string): Promise<ManifestData | null> {
+export async function getCachedManifest(plugins: R2Bucket, key: string): Promise<ManifestData | null> {
   const cached = manifestCache.get(key);
   if (cached && Date.now() - cached.fetchedAt < MANIFEST_CACHE_TTL_MS) {
     return cached.data;
@@ -216,6 +216,19 @@ async function getCachedManifest(plugins: R2Bucket, key: string): Promise<Manife
   const data = await manifest.json<ManifestData>();
   manifestCache.set(key, { data, fetchedAt: Date.now() });
   return data;
+}
+
+/** Resolve a game's icon URL from its manifest. Uses per-isolate cache. */
+export async function resolveIconUrl(
+  plugins: R2Bucket,
+  serverUrl: string,
+  gameId: string,
+): Promise<string | undefined> {
+  const manifest = await getCachedManifest(plugins, `plugins/${gameId}/manifest.json`);
+  if (manifest && (manifest.icon === "icon.png" || manifest.icon === "icon.svg")) {
+    return `${serverUrl}/plugins/${gameId}/${manifest.icon}`;
+  }
+  return undefined;
 }
 
 /** Per-isolate cache for R2 manifest key list — avoids R2 list on every list_games call. */
@@ -310,9 +323,10 @@ async function attachReferenceModules(
       gameMap.set(data.game_id, game);
     }
 
-    // Inject icon URL from manifest (same logic as public manifest endpoint)
-    if (serverUrl && (data.icon === "icon.png" || data.icon === "icon.svg")) {
-      game.icon_url = `${serverUrl}/plugins/${data.game_id}/${data.icon}`;
+    // Inject icon URL from manifest — manifest is already loaded above, so
+    // resolveIconUrl hits the per-isolate cache and adds no latency.
+    if (serverUrl) {
+      game.icon_url = await resolveIconUrl(plugins, serverUrl, data.game_id);
     }
 
     if (data.reference?.modules) {
@@ -447,14 +461,7 @@ export async function getSave(
       )
       .bind(saveId, userUuid)
       .all<{ note_id: string; title: string; source: string; size_bytes: number }>(),
-    (async (): Promise<string | undefined> => {
-      if (!plugins || !serverUrl) return undefined;
-      const manifest = await getCachedManifest(plugins, `plugins/${save.game_id}/manifest.json`);
-      if (manifest && (manifest.icon === "icon.png" || manifest.icon === "icon.svg")) {
-        return `${serverUrl}/plugins/${save.game_id}/${manifest.icon}`;
-      }
-      return undefined;
-    })(),
+    plugins && serverUrl ? resolveIconUrl(plugins, serverUrl, save.game_id) : undefined,
   ]);
 
   const result: Record<string, unknown> = {
@@ -1126,7 +1133,7 @@ export async function queryReference(
   module: string,
   query: Record<string, unknown>,
   env?: Env,
-): Promise<ToolResult> {
+): Promise<ToolResult | ViewToolResult> {
   // Check native module registry first — native modules run in-process
   // with full platform bindings (D1, Vectorize, Workers AI).
   const nativeModule = getNativeModule(gameId, module);
