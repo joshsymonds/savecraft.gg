@@ -1,7 +1,7 @@
 <script module>
   import { defineMeta } from "@storybook/addon-svelte-csf";
   import MtgCard from "./MtgCard.svelte";
-  const { Story } = defineMeta({ title: "MTG/MtgCard", tags: ["autodocs"] });
+  const { Story } = defineMeta({ title: "MTG/Components/MtgCard", tags: ["autodocs"] });
 
   const bolt = {
     name: "Lightning Bolt",

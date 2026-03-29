@@ -1,7 +1,7 @@
 <script module>
   import { defineMeta } from "@storybook/addon-svelte-csf";
   import ColorBar from "./ColorBar.svelte";
-  const { Story } = defineMeta({ title: "MTG/ColorBar", tags: ["autodocs"] });
+  const { Story } = defineMeta({ title: "MTG/Components/ColorBar", tags: ["autodocs"] });
 </script>
 
 <Story name="SingleColor">

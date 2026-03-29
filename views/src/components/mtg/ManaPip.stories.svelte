@@ -1,7 +1,7 @@
 <script module>
   import { defineMeta } from "@storybook/addon-svelte-csf";
   import ManaPip from "./ManaPip.svelte";
-  const { Story } = defineMeta({ title: "MTG/ManaPip", tags: ["autodocs"] });
+  const { Story } = defineMeta({ title: "MTG/Components/ManaPip", tags: ["autodocs"] });
 </script>
 
 <!-- All five colors + colorless -->

@@ -1,7 +1,7 @@
 <script module>
   import { defineMeta } from "@storybook/addon-svelte-csf";
   import ManaCost from "./ManaCost.svelte";
-  const { Story } = defineMeta({ title: "MTG/ManaCost", tags: ["autodocs"] });
+  const { Story } = defineMeta({ title: "MTG/Components/ManaCost", tags: ["autodocs"] });
 
   const costs = {
     simple: "{R}",

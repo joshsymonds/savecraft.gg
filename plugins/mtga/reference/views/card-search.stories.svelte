@@ -1,7 +1,7 @@
 <script module>
   import { defineMeta } from "@storybook/addon-svelte-csf";
   import CardSearch from "./card-search.svelte";
-  const { Story } = defineMeta({ title: "Reference/CardSearch", tags: ["autodocs"] });
+  const { Story } = defineMeta({ title: "MTG/Views/CardSearch", tags: ["autodocs"] });
 
   const iconUrl = "/plugins/mtga/icon.png";
 
