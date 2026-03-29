@@ -14,7 +14,7 @@ describe("ColorBar", () => {
   it("renders single-color bar with solid background", () => {
     const { container } = render(ColorBar, { props: { colors: ["R"] } });
     const bar = container.querySelector(".color-bar") as HTMLElement;
-    expect(bar.style.getPropertyValue("--bar-bg")).toContain("#");
+    expect(bar.style.getPropertyValue("--bar-bg")).toBe("#c83020");
   });
 
   it("renders multi-color bar with gradient", () => {
@@ -33,7 +33,7 @@ describe("ColorBar", () => {
   it("renders grey bar for empty colors", () => {
     const { container } = render(ColorBar, { props: { colors: [] } });
     const bar = container.querySelector(".color-bar") as HTMLElement;
-    expect(bar.style.getPropertyValue("--bar-bg")).toContain("#");
+    expect(bar.style.getPropertyValue("--bar-bg")).toBe("#6a6a78");
   });
 
   it("applies custom height", () => {

@@ -9,7 +9,7 @@
     /** Mana cost string, e.g. "{2}{W}{B}", "{X}{R}{R}", "{2}{W/U}{W/U}" */
     cost: string;
     /** Pip size */
-    size?: "sm" | "md" | "lg";
+    size?: "sm" | "md" | "lg" | "xl";
   }
 
   let { cost, size = "md" }: Props = $props();

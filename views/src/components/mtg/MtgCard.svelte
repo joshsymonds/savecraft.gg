@@ -10,7 +10,7 @@
   import ManaCost from "./ManaCost.svelte";
   import ColorBar from "./ColorBar.svelte";
   import OracleText from "./OracleText.svelte";
-  import { WUBRG_SOLID, WUBRG_ACCENT, COLORLESS_SOLID, COLORLESS_ACCENT } from "./colors";
+  import { WUBRG_SOLID, WUBRG_ACCENT, COLORLESS_SOLID, COLORLESS_ACCENT, RARITY_VARIANT } from "./colors";
 
   interface MtgCardData {
     name: string;
@@ -30,13 +30,6 @@
   }
 
   let { card, iconUrl }: Props = $props();
-
-  const RARITY_VARIANT: Record<string, string> = {
-    mythic: "legendary",
-    rare: "rare",
-    uncommon: "uncommon",
-    common: "common",
-  };
 
   let colorIdentity = $derived(card.colorIdentity ?? card.colors ?? []);
 

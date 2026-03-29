@@ -7,6 +7,7 @@
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import ArchetypeLabel from "../../../../views/src/components/mtg/ArchetypeLabel.svelte";
+  import { archetypeColors } from "../../../../views/src/components/mtg/colors";
 
   interface HealthSection {
     name: string;
@@ -52,9 +53,7 @@
   let isCutAdvisor = $derived(data.mode === "cut_advisor");
   let isConstructed = $derived(data.mode === "constructed");
 
-  function archetypeColors(code: string): string[] {
-    return code.split("");
-  }
+
 </script>
 
 <div class="deckbuilding">
