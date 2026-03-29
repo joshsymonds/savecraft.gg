@@ -184,27 +184,29 @@
 
 <div class="factorio-view">
   <Panel>
-    <Section title="Production Chain">
-      <div class="dag-wrapper">
-        <ProductionDAG nodes={dagData.nodes} edges={dagData.edges}>
-          {#snippet nodeIcon(iconName: string)}
-            <FactorioIcon name={iconName} size={32} spriteConfig={getSpriteConfig(iconName)} />
-          {/snippet}
-        </ProductionDAG>
-      </div>
-    </Section>
-
-    {#if rawTableRows.length > 0}
-      <Section title="Raw Materials">
-        <DataTable columns={rawTableColumns} rows={rawTableRows} />
+    <div class="sections">
+      <Section title="Production Chain">
+        <div class="dag-wrapper">
+          <ProductionDAG nodes={dagData.nodes} edges={dagData.edges}>
+            {#snippet nodeIcon(iconName: string)}
+              <FactorioIcon name={iconName} size={32} spriteConfig={getSpriteConfig(iconName)} />
+            {/snippet}
+          </ProductionDAG>
+        </div>
       </Section>
-    {/if}
 
-    <Section title="Configuration">
-      {#each configItems as item}
-        <KeyValue label={item.label} value={item.value} />
-      {/each}
-    </Section>
+      {#if rawTableRows.length > 0}
+        <Section title="Raw Materials">
+          <DataTable columns={rawTableColumns} rows={rawTableRows} />
+        </Section>
+      {/if}
+
+      <Section title="Configuration">
+        {#each configItems as item}
+          <KeyValue label={item.label} value={item.value} />
+        {/each}
+      </Section>
+    </div>
   </Panel>
 </div>
 
@@ -218,6 +220,12 @@
     --dag-edge-color: #c8a84e;
     --dag-rate-color: #e8b830;
     --dag-sublabel-color: #c0b898;
+  }
+
+  .sections {
+    display: flex;
+    flex-direction: column;
+    gap: 24px;
   }
 
   .dag-wrapper {
