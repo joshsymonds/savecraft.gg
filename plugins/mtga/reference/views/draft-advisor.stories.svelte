@@ -25,7 +25,10 @@
     waspas: { wsm: score - 0.02, wpm: score - 0.05, lambda: 0.5 },
   });
 
+  const iconUrl = "/plugins/mtga/icon.png";
+
   const data = {
+    icon_url: iconUrl,
     archetype: {
       primary: "WB",
       candidates: [
