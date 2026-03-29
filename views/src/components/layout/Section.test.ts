@@ -41,4 +41,16 @@ describe("Section", () => {
     const { container } = render(Section, { props: { title: "Test" } });
     expect(container.querySelector(".content")).toBeTruthy();
   });
+
+  it("applies custom accent color to header", () => {
+    const { container } = render(Section, { props: { title: "Test", accent: "#c83020" } });
+    const header = container.querySelector(".header") as HTMLElement;
+    expect(header.style.getPropertyValue("--section-accent")).toBe("#c83020");
+  });
+
+  it("does not set inline accent when not provided (CSS default handles it)", () => {
+    const { container } = render(Section, { props: { title: "Test" } });
+    const header = container.querySelector(".header") as HTMLElement;
+    expect(header.style.getPropertyValue("--section-accent")).toBe("");
+  });
 });
