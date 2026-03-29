@@ -323,10 +323,9 @@ async function attachReferenceModules(
       gameMap.set(data.game_id, game);
     }
 
-    // Inject icon URL from manifest — manifest is already loaded above, so
-    // resolveIconUrl hits the per-isolate cache and adds no latency.
-    if (serverUrl) {
-      game.icon_url = await resolveIconUrl(plugins, serverUrl, data.game_id);
+    // Construct icon URL directly from already-loaded manifest data
+    if (serverUrl && data.icon && (data.icon === "icon.png" || data.icon === "icon.svg")) {
+      game.icon_url = `${serverUrl}/plugins/${data.game_id}/${data.icon}`;
     }
 
     if (data.reference?.modules) {

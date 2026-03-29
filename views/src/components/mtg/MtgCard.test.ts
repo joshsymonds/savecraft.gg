@@ -89,4 +89,18 @@ describe("MtgCard", () => {
     const pips = container.querySelectorAll(".pip");
     expect(pips.length).toBe(0);
   });
+
+  it("passes iconUrl to Panel as watermark", () => {
+    const { container } = render(MtgCard, {
+      props: { card: bolt, iconUrl: "https://example.com/icon.png" },
+    });
+    const watermark = container.querySelector(".panel-watermark") as HTMLImageElement;
+    expect(watermark).toBeTruthy();
+    expect(watermark.src).toBe("https://example.com/icon.png");
+  });
+
+  it("does not render watermark when iconUrl absent", () => {
+    const { container } = render(MtgCard, { props: { card: bolt } });
+    expect(container.querySelector(".panel-watermark")).toBeNull();
+  });
 });
