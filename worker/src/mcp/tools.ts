@@ -1468,9 +1468,7 @@ const SOURCE_SETUP_BLURBS: Record<string, string> = {
 
 /** Build a setup blurb by joining blurbs for each source type. */
 function buildSetupBlurb(sources: string[]): string {
-  const blurbs = sources
-    .map((s) => SOURCE_SETUP_BLURBS[s])
-    .filter((b): b is string => !!b);
+  const blurbs = sources.map((s) => SOURCE_SETUP_BLURBS[s]).filter((b): b is string => !!b);
   return blurbs.length > 0 ? blurbs.join(" Additionally: ") : DEFAULT_SETUP_BLURB;
 }
 
