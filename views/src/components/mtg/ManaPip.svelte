@@ -4,29 +4,16 @@
   Handles WUBRG, colorless, generic numbers, X, hybrid (W/U), and phyrexian (W/P).
 -->
 <script lang="ts">
+  import { WUBRG_COLORS, GENERIC_MANA } from "./colors";
+
   interface Props {
     /** Mana symbol: W, U, B, R, G, C, X, a number, hybrid "W/U", or phyrexian "W/P" */
     symbol: string;
     /** Circle size */
-    size?: "sm" | "md" | "lg";
+    size?: "sm" | "md" | "lg" | "xl";
   }
 
   let { symbol, size = "md" }: Props = $props();
-
-  const COLOR_GRADIENTS: Record<string, { bg: string; glow: string; text: string }> = {
-    W: { bg: "linear-gradient(135deg, #f9f5e0 0%, #e8d9a0 50%, #c8b878 100%)", glow: "#e8d9a0", text: "#3a3020" },
-    U: { bg: "linear-gradient(135deg, #1a5a9e 0%, #0e3f7a 50%, #0a2a5a 100%)", glow: "#4a8ad0", text: "#d0e8ff" },
-    B: { bg: "linear-gradient(135deg, #4a3a5a 0%, #2a1a3a 50%, #1a0a2a 100%)", glow: "#8a6aaa", text: "#d8cce8" },
-    R: { bg: "linear-gradient(135deg, #c83020 0%, #a01a10 50%, #701008 100%)", glow: "#e85a4a", text: "#ffe8e0" },
-    G: { bg: "linear-gradient(135deg, #2a7a3a 0%, #1a5a28 50%, #0a3a18 100%)", glow: "#5abe6a", text: "#d0f0d8" },
-    C: { bg: "linear-gradient(135deg, #8a8a98 0%, #6a6a78 50%, #4a4a58 100%)", glow: "#9a9aaa", text: "#e0e0e8" },
-  };
-
-  const GENERIC_STYLE = {
-    bg: "linear-gradient(135deg, #7a7a88 0%, #5a5a68 50%, #3a3a48 100%)",
-    glow: "#8a8a98",
-    text: "#e0e0e8",
-  };
 
   type PipInfo =
     | { type: "single"; label: string; bg: string; glow: string; text: string }
@@ -47,8 +34,8 @@
     // Hybrid: "W/U", "B/G", etc. — but NOT phyrexian "W/P"
     if (s.includes("/") && !s.endsWith("/P")) {
       const [a, b] = s.split("/");
-      const ca = COLOR_GRADIENTS[a] ?? GENERIC_STYLE;
-      const cb = COLOR_GRADIENTS[b] ?? GENERIC_STYLE;
+      const ca = WUBRG_COLORS[a] ?? GENERIC_MANA;
+      const cb = WUBRG_COLORS[b] ?? GENERIC_MANA;
       return {
         type: "hybrid",
         topColor: ca.glow,
@@ -63,22 +50,22 @@
     // Phyrexian: "W/P", "U/P", "P"
     if (s === "P" || s.endsWith("/P")) {
       const color = s === "P" ? "C" : s.split("/")[0];
-      const c = COLOR_GRADIENTS[color] ?? GENERIC_STYLE;
+      const c = WUBRG_COLORS[color] ?? GENERIC_MANA;
       return { type: "phyrexian", label: "\u03C6", bg: c.bg, glow: c.glow, text: c.text };
     }
 
     // Named color
-    if (COLOR_GRADIENTS[s]) {
-      const c = COLOR_GRADIENTS[s];
+    if (WUBRG_COLORS[s]) {
+      const c = WUBRG_COLORS[s];
       return { type: "single", label: s, bg: c.bg, glow: c.glow, text: c.text };
     }
 
     // Generic number or X
-    return { type: "single", label: s, ...GENERIC_STYLE };
+    return { type: "single", label: s, ...GENERIC_MANA };
   });
 
-  const SIZES = { sm: 18, md: 24, lg: 34 };
-  const FONT_SIZES = { sm: 8, md: 11, lg: 15 };
+  const SIZES = { sm: 18, md: 24, lg: 34, xl: 64 };
+  const FONT_SIZES = { sm: 8, md: 11, lg: 15, xl: 28 };
   let px = $derived(SIZES[size]);
   let fontSize = $derived(FONT_SIZES[size]);
 
