@@ -33,6 +33,7 @@
   {#snippet children(index)}
     {@const resultData = results[index] ?? {}}
     {@const data = { module: moduleId, ...(iconUrl ? { icon_url: iconUrl } : {}), ...resultData }}
-    <svelte:component this={component} {data} {app} />
+    {@const ViewComponent = component}
+    <ViewComponent {data} {app} />
   {/snippet}
 </ResultTabs>

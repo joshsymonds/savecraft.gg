@@ -183,7 +183,7 @@ const app = initBridge((result) => {
   }
 
   // Multi-query: wrap each result in a tabbed view
-  if (Array.isArray(data?.results) && data.results.length > 0) {
+  if (data?._multiQuery && Array.isArray(data.results) && data.results.length > 0) {
     mount(MultiResultView, {
       target,
       props: { component: Component, results: data.results, moduleId, iconUrl: data.icon_url, app },
