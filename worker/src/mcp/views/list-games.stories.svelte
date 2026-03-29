@@ -6,6 +6,7 @@
   const { Story } = defineMeta({
     title: "Game State/ListGames",
     tags: ["autodocs"],
+    parameters: { layout: "fullscreen" },
   });
 </script>
 
