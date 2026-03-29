@@ -15,7 +15,7 @@ const mockData = {
   availableGames: [
     {
       gameId: "d2r",
-      source: "wasm",
+      sources: ["wasm"],
       name: "Diablo II: Resurrected",
       description: "D2R parser",
       channel: "beta",
@@ -26,7 +26,7 @@ const mockData = {
     },
     {
       gameId: "rimworld",
-      source: "mod",
+      sources: ["mod"],
       name: "RimWorld",
       description: "RimWorld mod",
       channel: "alpha",
