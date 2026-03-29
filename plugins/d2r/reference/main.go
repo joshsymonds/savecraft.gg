@@ -106,57 +106,41 @@ func handleMonsterDrops(enc *json.Encoder, calc *dropcalc.Calculator, query map[
 	total := len(drops)
 	drops = paginate(drops, offset)
 
-	// Format header.
-	diffName := difficultyName(difficulty)
-	var b strings.Builder
-	fmt.Fprintf(&b, "Drops for %s (%s) — %d MF, %d player",
-		monster, diffName, mf, players)
-	if players > 1 {
-		b.WriteString("s")
-	}
-	b.WriteString("\n")
-
-	sortDesc := "unique chance, best first"
-	if sortOrder == "asc" {
-		sortDesc = "unique chance, worst first"
+	type jsonDrop struct {
+		Name     string  `json:"name"`
+		BaseName string  `json:"base_name"`
+		Code     string  `json:"code"`
+		Unique   float64 `json:"unique"`
+		Set      float64 `json:"set"`
+		Rare     float64 `json:"rare"`
+		Magic    float64 `json:"magic"`
+		BaseProb float64 `json:"base_prob"`
 	}
 
-	if total == 0 {
-		b.WriteString("No results found.\n")
-	} else {
-		fmt.Fprintf(&b, "Showing %d-%d of %d (sorted by %s)\n\n",
-			offset+1, offset+len(drops), total, sortDesc)
-
-		fmt.Fprintf(&b, "%4s  %-24s %9s %9s %9s %9s %9s\n",
-			"#", "Item", "Unique", "Set", "Rare", "Magic", "Base")
-
-		for i, d := range drops {
-			name := d.Name
-			if len(name) > 24 {
-				name = name[:21] + "..."
-			}
-			fmt.Fprintf(&b, "%4d. %-24s %9s %9s %9s %9s %9s\n",
-				offset+i+1, name,
-				fmtChance(d.Quality.Unique),
-				fmtChance(d.Quality.Set),
-				fmtChance(d.Quality.Rare),
-				fmtChance(d.Quality.Magic),
-				fmtChance(d.BaseProb))
-		}
-
-		remaining := total - offset - len(drops)
-		if remaining > 0 {
-			fmt.Fprintf(&b, "\n%d more results. Use offset=%d for next page.",
-				remaining, offset+pageSize)
+	jsonDrops := make([]jsonDrop, len(drops))
+	for i, d := range drops {
+		jsonDrops[i] = jsonDrop{
+			Name:     d.Name,
+			BaseName: calc.ItemName(d.Code),
+			Code:     d.Code,
+			Unique:   d.Quality.Unique,
+			Set:      d.Quality.Set,
+			Rare:     d.Quality.Rare,
+			Magic:    d.Quality.Magic,
+			BaseProb: d.BaseProb,
 		}
 	}
 
 	writeResult(enc, map[string]any{
-		"formatted":    b.String(),
+		"mode":         "monster",
+		"monster_name": monster,
+		"difficulty":   difficultyName(difficulty),
+		"mf":           mf,
+		"players":      players,
+		"drops":        jsonDrops,
 		"total":        total,
 		"offset":       offset,
 		"limit":        pageSize,
-		"presentation": "Monster drop table — ranked table with item name, and probability columns for each quality tier (Unique, Set, Rare, Magic, Base). Use color coding for quality tiers (gold=Unique, green=Set, blue=Magic). Highlight items with notably high unique chances. Show MF and player count context prominently.",
 	})
 }
 
@@ -170,76 +154,58 @@ func handleItemSearch(enc *json.Encoder, calc *dropcalc.Calculator, query map[st
 
 	total := len(results)
 	if total == 0 {
-		var b strings.Builder
-		fmt.Fprintf(&b, "No items found matching '%s'.\n\n", search)
-		b.WriteString("Tip: Try searching by stat name (e.g. 'cold resist ring', 'Cannot Be Frozen'),\n")
-		b.WriteString("by item name (e.g. 'Shako', 'Raven'), or by set name (e.g. 'Tal Rasha').")
 		writeResult(enc, map[string]any{
-			"formatted": b.String(),
-			"total":     0,
-			"offset":    0,
-			"limit":     pageSize,
+			"mode":  "search",
+			"query": search,
+			"items": []any{},
+			"total": 0,
 		})
 		return
 	}
 
 	pageResults := paginate(results, offset)
 
-	var b strings.Builder
-	fmt.Fprintf(&b, "Items matching '%s' — %d result", search, total)
-	if total != 1 {
-		b.WriteString("s")
+	type jsonTopSource struct {
+		Monster    string  `json:"monster"`
+		Difficulty string  `json:"difficulty"`
+		Chance     float64 `json:"chance"`
 	}
-	end := offset + len(pageResults)
-	if total > pageSize {
-		fmt.Fprintf(&b, " (showing %d-%d)", offset+1, end)
-	}
-	b.WriteString("\n")
 
+	type jsonSearchItem struct {
+		Name       string          `json:"name"`
+		BaseName   string          `json:"base_name"`
+		IsSet      bool            `json:"is_set"`
+		SetName    string          `json:"set_name,omitempty"`
+		LevelReq   int             `json:"level_req"`
+		QLevel     int             `json:"qlevel"`
+		Stats      []string        `json:"stats"`
+		TopSources []jsonTopSource `json:"top_sources"`
+	}
+
+	items := make([]jsonSearchItem, len(pageResults))
 	for idx, r := range pageResults {
-		if idx > 0 {
-			b.WriteString("\n")
-		}
-		b.WriteString("─────────────────────────────────────────\n")
-
-		// Item header.
-		quality := "Unique"
-		if r.IsSet {
-			quality = "Set"
-		}
-		fmt.Fprintf(&b, "%s [%s] — %s (%s)\n", r.Name, quality, r.BaseName, r.BaseCode)
-		if r.IsSet && r.SetName != "" {
-			fmt.Fprintf(&b, "Set: %s\n", r.SetName)
-		}
-		if r.LevelReq > 0 {
-			fmt.Fprintf(&b, "Required Level: %d\n", r.LevelReq)
-		}
-
-		// Stats.
-		if len(r.Stats) > 0 {
-			b.WriteString("Stats:\n")
-			for _, s := range r.Stats {
-				b.WriteString("  • ")
-				b.WriteString(s.Property)
-				if s.Param != "" {
-					fmt.Fprintf(&b, " (%s)", s.Param)
-				}
-				if s.Min == s.Max {
-					fmt.Fprintf(&b, ": %d", s.Min)
-				} else {
-					fmt.Fprintf(&b, ": %d-%d", s.Min, s.Max)
-				}
-				b.WriteString("\n")
+		// Format stats as human-readable strings.
+		stats := make([]string, len(r.Stats))
+		for i, s := range r.Stats {
+			stat := s.Property
+			if s.Param != "" {
+				stat += " (" + s.Param + ")"
 			}
+			if s.Min == s.Max {
+				stat += fmt.Sprintf(": %d", s.Min)
+			} else {
+				stat += fmt.Sprintf(": %d-%d", s.Min, s.Max)
+			}
+			stats[i] = stat
 		}
 
-		// Top 20 drop sources.
+		// Top 10 drop sources.
 		resolveType := dropcalc.ResolveUnique
 		if r.IsSet {
 			resolveType = dropcalc.ResolveSet
 		}
 		sources := calc.FindItemSources(r.BaseCode, dropcalc.FindOptions{
-			Difficulty: -1, // all difficulties
+			Difficulty: -1,
 			TCType:     -1,
 			Players:    players,
 			PartySize:  partySize,
@@ -253,56 +219,37 @@ func handleItemSearch(enc *json.Encoder, calc *dropcalc.Calculator, query map[st
 			return s.Quality.Unique
 		}
 
-		// Sort by best chance.
 		sort.Slice(sources, func(i, j int) bool {
 			return chanceOf(sources[i]) > chanceOf(sources[j])
 		})
 
-		dropLimit := 20
-		if len(sources) < dropLimit {
-			dropLimit = len(sources)
-		}
-		if dropLimit > 0 {
-			fmt.Fprintf(&b, "Top %d drop sources", dropLimit)
-			if mf > 0 {
-				fmt.Fprintf(&b, " (%d MF)", mf)
-			}
-			b.WriteString(":\n")
-			fmt.Fprintf(&b, "  %-20s %-5s %-8s %-23s %9s\n",
-				"Monster", "Diff", "Type", "Area", "Chance")
-			for _, s := range sources[:dropLimit] {
-				name := s.MonsterName
-				if len(name) > 20 {
-					name = name[:17] + "..."
-				}
-				area := s.Area
-				if area == "" {
-					area = "—"
-				}
-				if len(area) > 23 {
-					area = area[:20] + "..."
-				}
-				fmt.Fprintf(&b, "  %-20s %-5s %-8s %-23s %9s\n",
-					name, shortDiff(s.Difficulty),
-					tcTypeName(s.TCType), area,
-					fmtChance(chanceOf(s)))
-			}
-			if len(sources) > dropLimit {
-				fmt.Fprintf(&b, "  ... and %d more sources\n", len(sources)-dropLimit)
+		dropLimit := min(10, len(sources))
+		topSources := make([]jsonTopSource, dropLimit)
+		for i, s := range sources[:dropLimit] {
+			topSources[i] = jsonTopSource{
+				Monster:    s.MonsterName,
+				Difficulty: difficultyName(s.Difficulty),
+				Chance:     chanceOf(s),
 			}
 		}
-	}
 
-	if total > end {
-		fmt.Fprintf(&b, "\n%d more items. Use offset=%d for next page.", total-end, end)
+		items[idx] = jsonSearchItem{
+			Name:       r.Name,
+			BaseName:   r.BaseName,
+			IsSet:      r.IsSet,
+			SetName:    r.SetName,
+			LevelReq:   r.LevelReq,
+			QLevel:     r.QLevel,
+			Stats:      stats,
+			TopSources: topSources,
+		}
 	}
 
 	writeResult(enc, map[string]any{
-		"formatted":    b.String(),
-		"total":        total,
-		"offset":       offset,
-		"limit":        pageSize,
-		"presentation": "Item search results — display each item as a card block showing name, quality (Unique/Set), base item, set membership, required level, and stats as a bulleted list. Below each item, show top drop sources as a compact table with monster, difficulty, area, and chance. Color-code by item quality.",
+		"mode":  "search",
+		"query": search,
+		"items": items,
+		"total": total,
 	})
 }
 
@@ -363,75 +310,57 @@ func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[s
 	total := len(sources)
 	sources = paginate(sources, offset)
 
-	// Format header: show the searched name if it differs from the base item.
-	baseName := calc.ItemName(code)
-	headerName := baseName
-	if resolveType != dropcalc.ResolveBase {
-		headerName = item + " (" + baseName + ")"
-	}
-	diffLabel := "all difficulties"
-	if diffVal >= 0 {
-		diffLabel = difficultyName(diffVal)
-	}
-
-	var b strings.Builder
+	// Determine item name and quality for the view.
+	itemName := item
 	if result.Corrected != "" {
-		fmt.Fprintf(&b, "You searched for '%s'. Showing results for '%s'.\n\n", item, result.Corrected)
+		itemName = result.Corrected
 	}
-	fmt.Fprintf(&b, "Drop sources for %s — %s, %d MF, %d player",
-		headerName, diffLabel, mf, players)
-	if players > 1 {
-		b.WriteString("s")
-	}
-	b.WriteString("\n")
-
-	sortDesc := "best first"
-	if sortOrder == "asc" {
-		sortDesc = "worst first"
+	quality := "base"
+	switch resolveType {
+	case dropcalc.ResolveUnique:
+		quality = "unique"
+	case dropcalc.ResolveSet:
+		quality = "set"
 	}
 
-	if total == 0 {
-		b.WriteString("No results found.\n")
-	} else {
-		fmt.Fprintf(&b, "Showing %d-%d of %d (sorted by chance, %s)\n\n",
-			offset+1, offset+len(sources), total, sortDesc)
+	type jsonSource struct {
+		Monster    string  `json:"monster"`
+		IsBoss     bool    `json:"is_boss"`
+		Difficulty string  `json:"difficulty"`
+		TCType     string  `json:"tc_type"`
+		Area       string  `json:"area"`
+		MLVL       int     `json:"mlvl"`
+		Chance     float64 `json:"chance"`
+	}
 
-		fmt.Fprintf(&b, "%4s  %-20s %-5s %-8s %-23s %9s\n",
-			"#", "Monster", "Diff", "Type", "Area", "Chance")
-
-		for i, s := range sources {
-			name := s.MonsterName
-			if len(name) > 20 {
-				name = name[:17] + "..."
-			}
-			area := s.Area
-			if area == "" {
-				area = "—"
-			}
-			if len(area) > 23 {
-				area = area[:20] + "..."
-			}
-			fmt.Fprintf(&b, "%4d. %-20s %-5s %-8s %-23s %9s\n",
-				offset+i+1, name,
-				shortDiff(s.Difficulty),
-				tcTypeName(s.TCType),
-				area,
-				fmtChance(chanceOf(s)))
+	jsonSources := make([]jsonSource, len(sources))
+	for i, s := range sources {
+		area := s.Area
+		if area == "" {
+			area = "\u2014"
 		}
-
-		remaining := total - offset - len(sources)
-		if remaining > 0 {
-			fmt.Fprintf(&b, "\n%d more results. Use offset=%d for next page.",
-				remaining, offset+pageSize)
+		jsonSources[i] = jsonSource{
+			Monster:    s.MonsterName,
+			IsBoss:     s.IsBoss,
+			Difficulty: difficultyName(s.Difficulty),
+			TCType:     tcTypeName(s.TCType),
+			Area:       area,
+			MLVL:       s.MLVL,
+			Chance:     chanceOf(s),
 		}
 	}
 
 	writeResult(enc, map[string]any{
-		"formatted":    b.String(),
-		"total":        total,
-		"offset":       offset,
-		"limit":        pageSize,
-		"presentation": "Item drop sources — ranked table of monsters that drop this item, showing monster name, difficulty, type (Regular/Champion/Unique/Quest), area, and drop chance. Highlight the top 3-5 best farming spots. Show MF context. For the best source, call out the effective runs-per-drop (1/chance) as a concrete farming estimate.",
+		"mode":      "item",
+		"item_name": itemName,
+		"item_base": calc.ItemName(code),
+		"quality":   quality,
+		"mf":        mf,
+		"players":   players,
+		"sources":   jsonSources,
+		"total":     total,
+		"offset":    offset,
+		"limit":     pageSize,
 	})
 }
 
@@ -519,17 +448,6 @@ func difficultyName(d int) string {
 	}
 }
 
-func shortDiff(d int) string {
-	switch d {
-	case 0:
-		return "Norm"
-	case 1:
-		return "NM"
-	default:
-		return "Hell"
-	}
-}
-
 func tcTypeName(t int) string {
 	switch t {
 	case 0:
@@ -543,18 +461,6 @@ func tcTypeName(t int) string {
 	default:
 		return "Unknown"
 	}
-}
-
-// fmtChance formats a probability as "1:N" or "—" if zero.
-func fmtChance(p float64) string {
-	if p <= 0 {
-		return "—"
-	}
-	n := 1.0 / p
-	if n < 10 {
-		return fmt.Sprintf("1:%.1f", n)
-	}
-	return fmt.Sprintf("1:%.0f", n)
 }
 
 func schema() map[string]any {
