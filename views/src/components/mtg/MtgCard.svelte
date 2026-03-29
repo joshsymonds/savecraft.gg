@@ -25,7 +25,7 @@
 
   interface Props {
     card: MtgCardData;
-    /** Game icon URL for background watermark */
+    /** Game icon URL rendered as Panel watermark */
     iconUrl?: string;
   }
 
@@ -58,10 +58,7 @@
 </script>
 
 <div class="mtg-card" class:mythic={isMythic}>
-  <Panel accent={borderColor}>
-    {#if iconUrl}
-      <img class="card-watermark" src={iconUrl} alt="" aria-hidden="true" />
-    {/if}
+  <Panel accent={borderColor} watermark={iconUrl}>
     <Section
       title={card.name}
       subtitle={card.typeLine}
@@ -102,15 +99,4 @@
     min-height: 48px;
   }
 
-  .card-watermark {
-    position: absolute;
-    bottom: 8px;
-    right: 8px;
-    width: 48px;
-    height: 48px;
-    object-fit: contain;
-    opacity: 0.2;
-    pointer-events: none;
-    z-index: 0;
-  }
 </style>

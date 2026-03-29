@@ -20,6 +20,7 @@
       silver_per_day: number;
       tiles_needed: number;
       hydroponics: boolean;
+      icon_url?: string;
     };
   }
 
@@ -30,7 +31,7 @@
   );
 </script>
 
-<Panel>
+<Panel watermark={data.icon_url}>
   <Section title={data.crop}>
     {#snippet badge()}
       {#if data.hydroponics}

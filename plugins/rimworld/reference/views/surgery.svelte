@@ -20,6 +20,7 @@
       inspired: boolean;
       capped: boolean;
       uncapped: number;
+      icon_url?: string;
     };
   }
 
@@ -46,7 +47,7 @@
   ]);
 </script>
 
-<Panel>
+<Panel watermark={data.icon_url}>
   <Section title="Surgery Success" accent="var(--color-positive)">
     <div class="surgery-layout">
       <div class="hero">

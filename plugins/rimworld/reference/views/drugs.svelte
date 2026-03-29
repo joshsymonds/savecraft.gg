@@ -38,6 +38,7 @@
       leaves_per_day?: number;
       drugs_per_day?: number;
       silver_per_day?: number;
+      icon_url?: string;
     };
   }
 
@@ -75,7 +76,7 @@
   );
 </script>
 
-<Panel>
+<Panel watermark={data.icon_url}>
   {#if isListMode}
     <Section title="Drug Economy">
       <DataTable columns={listColumns} rows={listRows} sortKey="market_value" sortDir="desc" />

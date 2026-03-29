@@ -29,6 +29,7 @@
       chain?: string[];
       total_cost?: number;
       colony_tech?: string;
+      icon_url?: string;
     };
   }
 
@@ -72,7 +73,7 @@
   );
 </script>
 
-<Panel>
+<Panel watermark={data.icon_url}>
   {#if isListMode}
     <Section title="Research Projects">
       <DataTable columns={listColumns} rows={listRows} sortKey="cost" sortDir="desc" />
