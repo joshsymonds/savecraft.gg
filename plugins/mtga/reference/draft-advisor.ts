@@ -1407,7 +1407,10 @@ interface BatchPickResult {
   classification: "optimal" | "good" | "questionable" | "miss";
   archetype_snapshot: {
     primary: string;
+    primary_weight: number;
     confidence: number;
+    secondary: string;
+    secondary_weight: number;
     viability: string;
     phase: "exploration" | "emerging" | "committed";
   };
@@ -1467,7 +1470,7 @@ async function batchReview(
       archetype: {
         primary: string;
         confidence: number;
-        candidates: { viability: string }[];
+        candidates: { archetype: string; weight: number; viability: string }[];
       };
     };
     const recs = data.recommendations;
@@ -1494,12 +1497,17 @@ async function batchReview(
       misses++;
     }
 
-    const primaryCand = (
-      data.archetype?.candidates as
-        | { archetype: string; viability: string }[]
-        | undefined
-    )?.find((c) => c.archetype === data.archetype?.primary);
+    const candidates = data.archetype?.candidates ?? [];
+    const primaryCand = candidates.find(
+      (c) => c.archetype === data.archetype?.primary,
+    );
     const primaryViability = primaryCand?.viability ?? "fringe";
+    const primaryWeight = primaryCand?.weight ?? 0;
+    // Secondary: first candidate that isn't the primary and isn't _overall
+    const secondaryCand = candidates.find(
+      (c) =>
+        c.archetype !== data.archetype?.primary && c.archetype !== "_overall",
+    );
     results.push({
       pick_number: pickNumber,
       pack_number: packNumber + 1,
@@ -1513,72 +1521,33 @@ async function batchReview(
       classification,
       archetype_snapshot: {
         primary: data.archetype?.primary ?? "_overall",
+        primary_weight: primaryWeight,
         confidence: data.archetype?.confidence ?? 0,
+        secondary: secondaryCand?.archetype ?? "_overall",
+        secondary_weight: secondaryCand?.weight ?? 0,
         viability: primaryViability,
         phase:
           pickNumber < 12
             ? "exploration"
-            : pickNumber < 15
+            : pickNumber < 21
               ? "emerging"
               : "committed",
       },
     });
   }
 
-  // Generate archetype warnings based on draft phase research:
-  //   Picks 1-11: Exploration phase. Archetype detection is informational only.
-  //   Pick 12+: Archetype should be emerging. Drift becomes meaningful.
-  //   Pick 15+ (P2P1): Last accepted pivot point. Drift flagged assertively.
-  // We warn about: (1) settling into a weak archetype by pick 12,
-  // (2) drift after pick 12, (3) final archetype being weak.
-  const DRIFT_START_PICK = 12;
-  const archetypeWarnings: string[] = [];
-  let prevPrimary = "";
-  let settledArchetype = ""; // archetype at pick 12 (when commitment should emerge)
-  for (const pick of results) {
-    const snap = pick.archetype_snapshot;
-
-    // Track archetype at the commitment threshold
-    if (pick.pick_number === DRIFT_START_PICK && !settledArchetype) {
-      settledArchetype = snap.primary;
-      if (snap.viability === "sparse" || snap.viability === "fringe") {
-        archetypeWarnings.push(
-          `Entering commitment phase in ${snap.primary} (${snap.viability} — only ${snap.viability === "fringe" ? "<5%" : "5-25%"} of winning decks in this format)`,
-        );
-      }
-    }
-
-    if (snap.primary !== prevPrimary && prevPrimary !== "") {
-      if (pick.pick_number >= DRIFT_START_PICK) {
-        const tierNote =
-          snap.viability === "sparse" || snap.viability === "fringe"
-            ? ` (${snap.viability} archetype)`
-            : "";
-        const urgency = pick.pick_number >= 15 ? "late pivot" : "drift";
-        archetypeWarnings.push(
-          `${pick.display_label}: ${urgency} from ${prevPrimary} to ${snap.primary}${tierNote}`,
-        );
-      }
-    }
-
-    prevPrimary = snap.primary;
-  }
-  // Flag if the final archetype is weak
-  const finalSnap = results[results.length - 1]?.archetype_snapshot;
-  if (
-    finalSnap &&
-    (finalSnap.viability === "sparse" || finalSnap.viability === "fringe")
-  ) {
-    archetypeWarnings.push(
-      `Final archetype ${finalSnap.primary} is ${finalSnap.viability} — consider alternatives in deckbuilding`,
-    );
-  }
-  // Flag if archetype changed between commitment point and final
-  if (settledArchetype && finalSnap && finalSnap.primary !== settledArchetype) {
-    archetypeWarnings.push(
-      `Archetype shifted from ${settledArchetype} (pick ${DRIFT_START_PICK}) to ${finalSnap.primary} (final) — late commitment changes cost card quality`,
-    );
-  }
+  // Build archetype frames and generate warnings via pure function
+  const archetypeFrames: ArchetypeFrame[] = results.map((pick) => ({
+    pick_number: pick.pick_number,
+    display_label: pick.display_label,
+    primary: pick.archetype_snapshot.primary,
+    primary_weight: pick.archetype_snapshot.primary_weight,
+    secondary: pick.archetype_snapshot.secondary,
+    secondary_weight: pick.archetype_snapshot.secondary_weight,
+    viability: pick.archetype_snapshot.viability,
+    phase: pick.archetype_snapshot.phase,
+  }));
+  const archetypeWarnings = generateArchetypeWarnings(archetypeFrames);
 
   return {
     type: "structured",
