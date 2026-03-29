@@ -58,7 +58,7 @@
     box-shadow:
       inset 0 0 20px rgba(30, 40, 100, 0.2),
       0 0 12px color-mix(in srgb, var(--panel-border) 10%, transparent);
-    overflow: hidden;
+    overflow: visible;
     animation: panel-enter 0.5s cubic-bezier(0.4, 0, 0.2, 1) both;
   }
 

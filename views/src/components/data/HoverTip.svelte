@@ -60,7 +60,7 @@
     width: max-content;
     max-width: min(400px, 90vw);
     line-height: 1.4;
-    z-index: 10;
+    z-index: 1000;
     pointer-events: none;
     box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
     animation: hover-tip-in 0.15s ease-out;
