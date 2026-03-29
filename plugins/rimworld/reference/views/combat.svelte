@@ -22,6 +22,7 @@
       expected_damage?: number;
       // Melee fields
       true_dps?: number;
+      icon_url?: string;
     };
   }
 
@@ -33,7 +34,7 @@
   );
 </script>
 
-<Panel>
+<Panel watermark={data.icon_url}>
   <Section title={data.weapon}>
     {#snippet badge()}
       <Badge label={data.type === "ranged" ? "RANGED" : "MELEE"} variant={data.type === "ranged" ? "info" : "warning"} />

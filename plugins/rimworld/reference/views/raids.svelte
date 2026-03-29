@@ -16,6 +16,7 @@
       wealth_points: number;
       pawn_points: number;
       total_points: number;
+      icon_url?: string;
     };
   }
 
@@ -26,7 +27,7 @@
   );
 </script>
 
-<Panel>
+<Panel watermark={data.icon_url}>
   <Section title="Raid Threat Estimate" accent="var(--color-negative)">
     <div class="raid-layout">
       <div class="hero">

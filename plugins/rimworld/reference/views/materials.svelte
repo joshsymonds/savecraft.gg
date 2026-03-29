@@ -35,6 +35,7 @@
       sharp_damage?: number;
       blunt_damage?: number;
       max_hp?: number;
+      icon_url?: string;
     };
   }
 
@@ -79,7 +80,7 @@
   }[data.quality ?? "normal"]);
 </script>
 
-<Panel>
+<Panel watermark={data.icon_url}>
   {#if isListMode}
     <Section title="Materials">
       <DataTable {columns} rows={tableRows} sortKey="sharp_armor" sortDir="desc" />

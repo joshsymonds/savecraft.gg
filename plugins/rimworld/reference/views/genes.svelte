@@ -38,6 +38,7 @@
       complexity_ok?: boolean;
       metabolism_ok?: boolean;
       conflicts?: Conflict[];
+      icon_url?: string;
     };
   }
 
@@ -64,7 +65,7 @@
   );
 </script>
 
-<Panel>
+<Panel watermark={data.icon_url}>
   {#if isBrowseMode}
     <Section title="Genes">
       <DataTable columns={browseColumns} rows={browseRows} sortKey="complexity" sortDir="desc" />
