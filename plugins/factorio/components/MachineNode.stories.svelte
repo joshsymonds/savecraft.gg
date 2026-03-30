@@ -20,7 +20,7 @@
 
 <Story name="BasicFurnace">
   <Panel>
-    <div style="padding: 16px; display: flex; gap: 16px;">
+    <div style="padding: 8px; display: flex; gap: 12px;">
       <div style="width: 280px;">
         <MachineNode
           name="iron-plate"
@@ -36,7 +36,7 @@
 
 <Story name="WithSpeedModules">
   <Panel>
-    <div style="padding: 16px; display: flex; gap: 16px;">
+    <div style="padding: 8px; display: flex; gap: 12px;">
       <div style="width: 280px;">
         <MachineNode
           name="iron-gear-wheel"
@@ -53,7 +53,7 @@
 
 <Story name="MixedModules">
   <Panel>
-    <div style="padding: 16px; display: flex; gap: 16px;">
+    <div style="padding: 8px; display: flex; gap: 12px;">
       <div style="width: 280px;">
         <MachineNode
           name="electronic-circuit"
@@ -70,7 +70,7 @@
 
 <Story name="RawResource">
   <Panel>
-    <div style="padding: 16px; display: flex; gap: 16px;">
+    <div style="padding: 8px; display: flex; gap: 12px;">
       <div style="width: 280px;">
         <MachineNode
           name="iron-ore"
@@ -85,7 +85,7 @@
 
 <Story name="Bottleneck">
   <Panel>
-    <div style="padding: 16px; display: flex; gap: 16px;">
+    <div style="padding: 8px; display: flex; gap: 12px;">
       <div style="width: 280px;">
         <MachineNode
           name="copper-plate"
