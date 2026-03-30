@@ -1,0 +1,315 @@
+<!--
+  @component
+  Factorio oil processing flow visualization. Wraps FlowChart with
+  MachineNode content and fluid-colored flow bands.
+
+  Accepts the oil_balancer output (stages + flows DAG) directly and
+  handles conversion to FlowNode/FlowEdge internally.
+
+  @attribution wube
+-->
+<script lang="ts">
+  import FlowChart from "../../../views/src/components/charts/FlowChart.svelte";
+  import type { FlowNode, FlowEdge } from "../../../views/src/components/charts/FlowChart.svelte";
+  import MachineNode from "./MachineNode.svelte";
+  import { getItemColor } from "./factorio-colors";
+  import type { SpriteConfig } from "../../../views/src/components/factorio/factorio-icons";
+  import type { OilBalancerResult } from "./oil-fixtures";
+
+  import itemManifest from "../sprites/items.json";
+  import fluidManifest from "../sprites/fluids.json";
+
+  interface Props {
+    /** Oil balancer result from oil_balancer.go */
+    data: OilBalancerResult;
+    /** Base URL for sprite sheets */
+    spriteBaseUrl?: string;
+  }
+
+  let { data, spriteBaseUrl = "/plugins/factorio/sprites" }: Props = $props();
+
+  // Sprite configs
+  let itemSpriteConfig: SpriteConfig = $derived({
+    url: `${spriteBaseUrl}/items.png`,
+    sheetWidth: 2048,
+    sheetHeight: 704,
+    manifest: itemManifest,
+  });
+
+  let fluidSpriteConfig: SpriteConfig = $derived({
+    url: `${spriteBaseUrl}/fluids.png`,
+    sheetWidth: 2048,
+    sheetHeight: 128,
+    manifest: fluidManifest,
+  });
+
+  function getSpriteConfig(iconName: string): SpriteConfig {
+    if (fluidManifest[iconName as keyof typeof fluidManifest]) return fluidSpriteConfig;
+    return itemSpriteConfig;
+  }
+
+  /** Convert oil_balancer DAG into FlowChart nodes + edges. */
+  function buildGraph(result: OilBalancerResult): { nodes: FlowNode[]; edges: FlowEdge[] } {
+    const nodes: FlowNode[] = [];
+    const edges: FlowEdge[] = [];
+
+    // Collect which fluids flow into/out of the graph for input/output pseudo-nodes
+    const inputFluids = new Set<string>();
+    const outputFluids = new Set<string>();
+    for (const flow of result.flows) {
+      if (flow.source === "input") inputFluids.add(flow.fluid);
+      if (flow.target === "output") outputFluids.add(flow.fluid);
+    }
+
+    // Input pseudo-node (raw materials)
+    if (inputFluids.size > 0) {
+      const inputNames = [...inputFluids].sort();
+      nodes.push({
+        id: "input",
+        label: "Raw Inputs",
+        data: {
+          name: inputNames[0], // primary fluid for icon
+          isInputNode: true,
+          fluids: inputNames,
+          rates: result.raw_inputs,
+        },
+        variant: "raw",
+      });
+    }
+
+    // Processing stages
+    for (const stage of result.stages) {
+      // Determine the primary product for the icon — first output fluid of the recipe
+      const primaryFluid = getPrimaryFluid(stage.recipe);
+
+      nodes.push({
+        id: stage.id,
+        label: stage.recipe,
+        data: {
+          name: primaryFluid,
+          machineName: stage.machine_type,
+          machineCount: stage.machine_count,
+          modules: (result.config.modules as string[]) ?? [],
+          ratePerMin: undefined, // oil stages show fluid rates on edges, not per-node rates
+        },
+        variant: "default",
+      });
+    }
+
+    // Output pseudo-node (target products)
+    if (outputFluids.size > 0) {
+      const outputNames = [...outputFluids].sort();
+      nodes.push({
+        id: "output",
+        label: "Products",
+        data: {
+          name: outputNames[0],
+          isOutputNode: true,
+          fluids: outputNames,
+        },
+        variant: "surplus",
+      });
+    }
+
+    // Flows → edges with fluid colors
+    for (const flow of result.flows) {
+      edges.push({
+        source: flow.source,
+        target: flow.target,
+        rate: flow.rate,
+        label: flow.fluid,
+        color: getItemColor(flow.fluid),
+      });
+    }
+
+    return { nodes, edges };
+  }
+
+  /** Get the primary output fluid for a recipe (for the node icon). */
+  function getPrimaryFluid(recipe: string): string {
+    const recipeProducts: Record<string, string> = {
+      "advanced-oil-processing": "petroleum-gas",
+      "basic-oil-processing": "petroleum-gas",
+      "coal-liquefaction": "heavy-oil",
+      "simple-coal-liquefaction": "heavy-oil",
+      "heavy-oil-cracking": "light-oil",
+      "light-oil-cracking": "petroleum-gas",
+      "lubricant": "lubricant",
+      "sulfur": "sulfur",
+      "plastic-bar": "plastic-bar",
+      "sulfuric-acid": "sulfuric-acid",
+    };
+    return recipeProducts[recipe] ?? recipe;
+  }
+
+  let chartData = $derived(buildGraph(data));
+</script>
+
+<div class="oil-chain">
+  <div class="chart-wrapper">
+    <FlowChart
+      nodes={chartData.nodes}
+      edges={chartData.edges}
+      nodeWidth={280}
+      minNodeHeight={70}
+    >
+      {#snippet nodeContent(node: FlowNode, _dims: { width: number; height: number })}
+        {@const d = (node.data ?? {}) as Record<string, unknown>}
+        {#if d.isInputNode}
+          <div class="pseudo-node input-node">
+            <div class="pseudo-label">Raw Inputs</div>
+            {@const rates = d.rates as Record<string, number>}
+            {#each (d.fluids as string[]) as fluid}
+              <div class="pseudo-fluid">
+                <span class="fluid-dot" style:background={getItemColor(fluid)}></span>
+                <span class="fluid-name">{formatName(fluid)}</span>
+                <span class="fluid-rate">{rates[fluid]}/s</span>
+              </div>
+            {/each}
+          </div>
+        {:else if d.isOutputNode}
+          <div class="pseudo-node output-node">
+            <div class="pseudo-label">Products</div>
+            {#each (d.fluids as string[]) as fluid}
+              <div class="pseudo-fluid">
+                <span class="fluid-dot" style:background={getItemColor(fluid)}></span>
+                <span class="fluid-name">{formatName(fluid)}</span>
+              </div>
+            {/each}
+          </div>
+        {:else}
+          <MachineNode
+            name={d.name as string}
+            machineName={d.machineName as string | undefined}
+            machineCount={d.machineCount as number | undefined}
+            modules={(d.modules as string[]) ?? []}
+            ratePerMin={d.ratePerMin as number | undefined}
+            variant={node.variant}
+            spriteConfig={getSpriteConfig(d.name as string)}
+          />
+        {/if}
+      {/snippet}
+    </FlowChart>
+  </div>
+
+  {#if Object.keys(data.surplus).length > 0}
+    <div class="surplus-bar">
+      <span class="surplus-label">Surplus:</span>
+      {#each Object.entries(data.surplus) as [fluid, rate]}
+        <span class="surplus-item">
+          <span class="fluid-dot" style:background={getItemColor(fluid)}></span>
+          {formatName(fluid)} +{rate}/s
+        </span>
+      {/each}
+    </div>
+  {/if}
+
+  <div class="power-bar">
+    Total power: {(data.total_power_kw / 1000).toFixed(1)} MW
+  </div>
+</div>
+
+<script lang="ts" module>
+  function formatName(name: string): string {
+    return name.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+</script>
+
+<style>
+  .oil-chain {
+    --flow-node-bg: #1a1a1a;
+    --flow-node-border: #8a6a2a;
+  }
+
+  .chart-wrapper {
+    padding: 4px 0;
+    position: relative;
+  }
+
+  .chart-wrapper::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: url("/plugins/factorio/icon.png") center / 120px no-repeat;
+    opacity: 0.06;
+    pointer-events: none;
+  }
+
+  /* Pseudo-nodes for input/output */
+  .pseudo-node {
+    padding: 8px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .pseudo-label {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-muted, #a0a8cc);
+    font-family: var(--font-heading, sans-serif);
+    margin-bottom: 2px;
+  }
+
+  .pseudo-fluid {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 13px;
+    color: var(--color-text, #e8e0d0);
+    font-family: var(--font-heading, sans-serif);
+  }
+
+  .fluid-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    flex-shrink: 0;
+  }
+
+  .fluid-name {
+    flex: 1;
+  }
+
+  .fluid-rate {
+    font-weight: 700;
+    color: var(--color-gold, #c8a84e);
+    font-family: var(--font-heading, monospace);
+  }
+
+  /* Surplus + power bars */
+  .surplus-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--color-text, #e8e0d0);
+    font-family: var(--font-heading, sans-serif);
+    background: color-mix(in srgb, #e8c84e 8%, transparent);
+    border-top: 1px solid color-mix(in srgb, #e8c84e 20%, transparent);
+  }
+
+  .surplus-label {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-text-muted, #a0a8cc);
+  }
+
+  .surplus-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .power-bar {
+    padding: 4px 12px;
+    font-size: 12px;
+    color: var(--color-text-muted, #a0a8cc);
+    font-family: var(--font-heading, sans-serif);
+    text-align: right;
+  }
+</style>
