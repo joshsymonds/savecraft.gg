@@ -512,30 +512,64 @@
     })),
   );
 
+  const LABEL_OFFSET = 6;
+  const CHAR_WIDTH = 6; // approximate character width at 10px font
+
+  /** Check if source and target labels would overlap, return resolved label positions.
+   *  If they'd collide, replace both with a single centered label on the band midpoint. */
+  function resolveLabels(
+    e: FlowEdge,
+    srcX: number, srcY: number,
+    tgtX: number, tgtY: number,
+    midX: number, midY: number,
+  ) {
+    const srcText = bandLabel?.(e, "source") ?? null;
+    const tgtText = bandLabel?.(e, "target") ?? null;
+
+    if (!srcText && !tgtText) {
+      return { srcLabel: null, tgtLabel: null, midLabel: null, srcLabelX: 0, srcLabelY: 0, tgtLabelX: 0, tgtLabelY: 0, midLabelX: 0, midLabelY: 0 };
+    }
+
+    const srcWidth = (srcText?.length ?? 0) * CHAR_WIDTH;
+    const tgtWidth = (tgtText?.length ?? 0) * CHAR_WIDTH;
+    const gap = tgtX - srcX;
+    const wouldOverlap = srcText && tgtText && (srcWidth + tgtWidth + LABEL_OFFSET * 2) > gap;
+
+    if (wouldOverlap) {
+      // Collapse to single centered label (use source text — it's the same content)
+      return {
+        srcLabel: null, tgtLabel: null,
+        midLabel: srcText,
+        srcLabelX: 0, srcLabelY: 0,
+        tgtLabelX: 0, tgtLabelY: 0,
+        midLabelX: midX, midLabelY: midY,
+      };
+    }
+
+    return {
+      srcLabel: srcText, tgtLabel: tgtText, midLabel: null,
+      srcLabelX: srcX + LABEL_OFFSET, srcLabelY: srcY,
+      tgtLabelX: tgtX - LABEL_OFFSET, tgtLabelY: tgtY,
+      midLabelX: 0, midLabelY: 0,
+    };
+  }
+
   let layoutBands = $derived(
     edges.map((e) => {
       const origKey = e.source + EDGE_KEY_SEP + e.target;
       const waypoints = layout.edgeRoutes.get(origKey);
 
       if (waypoints && waypoints.length >= 2) {
-        // Long edge: multi-segment ribbon through waypoints
         const path = buildWaypointRibbon(waypoints);
         const color = e.color ?? bandColor?.(e) ?? "var(--flow-band-color, #c8a84e)";
         const gradId = `band-grad-${origKey.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
-        const LABEL_OFFSET = 6;
         const first = waypoints[0];
         const last = waypoints[waypoints.length - 1];
+        const mid = waypoints[Math.floor(waypoints.length / 2)];
 
-        return {
-          ...e, path, color, gradId,
-          srcLabelX: first.x + LABEL_OFFSET,
-          srcLabelY: first.y,
-          srcLabel: bandLabel?.(e, "source") ?? null,
-          tgtLabelX: last.x - LABEL_OFFSET,
-          tgtLabelY: last.y,
-          tgtLabel: bandLabel?.(e, "target") ?? null,
-        };
+        const labels = resolveLabels(e, first.x, first.y, last.x, last.y, mid.x, mid.y);
+        return { ...e, path, color, gradId, ...labels };
       }
 
       // Short edge: direct bezier ribbon
@@ -546,8 +580,8 @@
 
       if (!src || !tgt || !srcPos || !tgtPos) return {
         ...e, path: "", color: "", gradId: "",
-        srcLabelX: 0, srcLabelY: 0, srcLabel: null as string | null,
-        tgtLabelX: 0, tgtLabelY: 0, tgtLabel: null as string | null,
+        srcLabel: null as string | null, tgtLabel: null as string | null, midLabel: null as string | null,
+        srcLabelX: 0, srcLabelY: 0, tgtLabelX: 0, tgtLabelY: 0, midLabelX: 0, midLabelY: 0,
       };
 
       const x1 = srcPos.x + nodeWidth + BAND_GAP;
@@ -565,16 +599,10 @@
       const color = e.color ?? bandColor?.(e) ?? "var(--flow-band-color, #c8a84e)";
       const gradId = `band-grad-${origKey.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
-      const LABEL_OFFSET = 6;
-      return {
-        ...e, path, color, gradId,
-        srcLabelX: x1 + LABEL_OFFSET,
-        srcLabelY: (src.yTop + src.yBottom) / 2,
-        srcLabel: bandLabel?.(e, "source") ?? null,
-        tgtLabelX: x2 - LABEL_OFFSET,
-        tgtLabelY: (tgt.yTop + tgt.yBottom) / 2,
-        tgtLabel: bandLabel?.(e, "target") ?? null,
-      };
+      const srcMidY = (src.yTop + src.yBottom) / 2;
+      const tgtMidY = (tgt.yTop + tgt.yBottom) / 2;
+      const labels = resolveLabels(e, x1, srcMidY, x2, tgtMidY, (x1 + x2) / 2, (srcMidY + tgtMidY) / 2);
+      return { ...e, path, color, gradId, ...labels };
     }),
   );
 
@@ -680,25 +708,37 @@
 
     <!-- Band endpoint labels (opt-in via bandLabel callback) -->
     {#each layoutBands as band}
-      {#if band.path && band.srcLabel}
+      {#if band.path && band.midLabel}
+        <!-- Collapsed: single centered label when endpoints would overlap -->
         <text
-          x={band.srcLabelX}
-          y={band.srcLabelY}
+          x={band.midLabelX}
+          y={band.midLabelY}
           class="band-label"
-          text-anchor="start"
+          text-anchor="middle"
           dominant-baseline="central"
           fill={band.color}
-        >{band.srcLabel}</text>
-      {/if}
-      {#if band.path && band.tgtLabel}
-        <text
-          x={band.tgtLabelX}
-          y={band.tgtLabelY}
-          class="band-label"
-          text-anchor="end"
-          dominant-baseline="central"
-          fill={band.color}
-        >{band.tgtLabel}</text>
+        >{band.midLabel}</text>
+      {:else}
+        {#if band.path && band.srcLabel}
+          <text
+            x={band.srcLabelX}
+            y={band.srcLabelY}
+            class="band-label"
+            text-anchor="start"
+            dominant-baseline="central"
+            fill={band.color}
+          >{band.srcLabel}</text>
+        {/if}
+        {#if band.path && band.tgtLabel}
+          <text
+            x={band.tgtLabelX}
+            y={band.tgtLabelY}
+            class="band-label"
+            text-anchor="end"
+            dominant-baseline="central"
+            fill={band.color}
+          >{band.tgtLabel}</text>
+        {/if}
       {/if}
     {/each}
   </svg>
