@@ -10,6 +10,7 @@
     advancedWithLubricant,
     basicOil,
     coalLiquefaction,
+    simpleCoalLiquefaction,
     withProductivityModules,
   } from "./oil-fixtures";
 
@@ -47,6 +48,14 @@
   <Panel>
     <Section title="Coal Liquefaction">
       <OilChain data={coalLiquefaction} />
+    </Section>
+  </Panel>
+</Story>
+
+<Story name="SimpleCoalLiquefaction">
+  <Panel>
+    <Section title="Simple Coal Liquefaction (Space Age)">
+      <OilChain data={simpleCoalLiquefaction} />
     </Section>
   </Panel>
 </Story>

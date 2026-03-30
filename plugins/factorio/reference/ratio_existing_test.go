@@ -55,7 +55,7 @@ func TestExisting_MissingMachines(t *testing.T) {
 
 func TestExisting_SufficientMachines(t *testing.T) {
 	// iron-gear-wheel at 60/min with AM2: needs ceil(1/s / 1.5/s/machine) = 1 machine
-	// Give player 2 AM2s — should be sufficient
+	// Give player exactly 1 AM2 — should be sufficient (not surplus)
 	data := runRatio(t, `{
 		"module":"ratio_calculator",
 		"target_item":"iron-gear-wheel",
@@ -63,9 +63,9 @@ func TestExisting_SufficientMachines(t *testing.T) {
 		"assembler_tier":"assembling-machine-2",
 		"existing_machines":{
 			"by_recipe":{
-				"iron-gear-wheel":{"machine_type":"assembling-machine-2","count":2,"modules":{}}
+				"iron-gear-wheel":{"machine_type":"assembling-machine-2","count":1,"modules":{}}
 			},
-			"by_type":{"assembling-machine":2},
+			"by_type":{"assembling-machine":1},
 			"beacon_count":0
 		}
 	}`)
@@ -181,10 +181,18 @@ func TestExisting_ModuleMismatch_SpeedVsProd(t *testing.T) {
 		t.Fatal("missing existing info")
 	}
 	// Speed modules give faster crafting but no prod bonus
-	// Prod modules give slower crafting but bonus output
+	// The effective rate with speed modules should differ from the ideal rate
+	// (which uses prod modules). This verifies module config actually affects the computation.
 	effectiveRate, _ := existing["effective_rate"].(float64)
 	if effectiveRate <= 0 {
 		t.Fatal("effective_rate should be > 0")
+	}
+	// The ideal rate uses prod3 modules (slower crafting, bonus output).
+	// The existing rate uses speed3 modules (faster crafting, no bonus output).
+	// These must differ to prove module effects are computed from real config.
+	idealRate := gearStage["rate_per_min"].(float64)
+	if effectiveRate == idealRate {
+		t.Errorf("effective_rate (%v) equals ideal rate (%v) — module config should cause a difference", effectiveRate, idealRate)
 	}
 }
 
@@ -427,4 +435,100 @@ func TestExisting_FullFactorySnapshot(t *testing.T) {
 	if status != "missing" {
 		t.Errorf("iron-plate status = %q, want 'missing' (no smelting machines provided)", status)
 	}
+}
+
+// ─── Surplus Status ──────────────────────────────────────────────────────────
+
+func TestExisting_SurplusMachines(t *testing.T) {
+	// iron-gear-wheel at 60/min with AM2: needs 1 machine
+	// Give player 5 AM2s — clearly surplus
+	data := runRatio(t, `{
+		"module":"ratio_calculator",
+		"target_item":"iron-gear-wheel",
+		"target_rate":60,
+		"assembler_tier":"assembling-machine-2",
+		"existing_machines":{
+			"by_recipe":{
+				"iron-gear-wheel":{"machine_type":"assembling-machine-2","count":5,"modules":{}}
+			},
+			"by_type":{"assembling-machine":5},
+			"beacon_count":0
+		}
+	}`)
+	stages := ratioGetStages(t, data)
+
+	gearStage := ratioFindStage(stages, "iron-gear-wheel")
+	if gearStage == nil {
+		t.Fatal("missing iron-gear-wheel stage")
+	}
+	status, _ := gearStage["status"].(string)
+	if status != "surplus" {
+		t.Errorf("status = %q, want 'surplus'", status)
+	}
+}
+
+func TestExisting_SurplusNotInBottlenecks(t *testing.T) {
+	// Surplus stages should NOT appear in bottlenecks
+	data := runRatio(t, `{
+		"module":"ratio_calculator",
+		"target_item":"iron-gear-wheel",
+		"target_rate":60,
+		"assembler_tier":"assembling-machine-2",
+		"existing_machines":{
+			"by_recipe":{
+				"iron-gear-wheel":{"machine_type":"assembling-machine-2","count":5,"modules":{}}
+			},
+			"by_type":{"assembling-machine":5},
+			"beacon_count":0
+		}
+	}`)
+	bottlenecks, ok := data["bottlenecks"].([]any)
+	if ok {
+		for _, b := range bottlenecks {
+			bn := b.(map[string]any)
+			if bn["item"] == "iron-gear-wheel" {
+				t.Error("surplus item iron-gear-wheel should not appear in bottlenecks")
+			}
+		}
+	}
+}
+
+// ─── Wrong Modules Diagnosis ─────────────────────────────────────────────────
+
+func TestExisting_DiagnosisWrongModules(t *testing.T) {
+	// Query assumes AM3 (no modules), player has AM2 (no modules)
+	// AM3 crafting speed=1.25, AM2 speed=0.75
+	// iron-gear-wheel: 0.5s craft time
+	// AM3: 1.25/0.5 = 2.5 items/s/machine = 150/min/machine
+	// AM2: 0.75/0.5 = 1.5 items/s/machine = 90/min/machine
+	// At 120/min: AM3 needs ceil(2/2.5)=1, AM2 at 1 machine gives 90 → deficit
+	// But 1 machine at AM3 config gives 150 >= 120 → same count would work → wrong_modules
+	data := runRatio(t, `{
+		"module":"ratio_calculator",
+		"target_item":"iron-gear-wheel",
+		"target_rate":120,
+		"assembler_tier":"assembling-machine-3",
+		"existing_machines":{
+			"by_recipe":{
+				"iron-gear-wheel":{"machine_type":"assembling-machine-2","count":1,"modules":{}}
+			},
+			"by_type":{"assembling-machine":1},
+			"beacon_count":0
+		}
+	}`)
+	bottlenecks, ok := data["bottlenecks"].([]any)
+	if !ok || len(bottlenecks) == 0 {
+		t.Fatal("expected bottlenecks")
+	}
+	for _, b := range bottlenecks {
+		bn := b.(map[string]any)
+		if bn["item"] == "iron-gear-wheel" {
+			diagnosis, _ := bn["diagnosis"].(string)
+			if diagnosis != "wrong_modules" {
+				t.Errorf("diagnosis = %q, want 'wrong_modules'", diagnosis)
+			}
+			return
+		}
+	}
+	t.Error("iron-gear-wheel not found in bottlenecks")
 }

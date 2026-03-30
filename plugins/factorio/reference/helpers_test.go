@@ -84,6 +84,79 @@ func TestResolveBeaconEffects_NoModules(t *testing.T) {
 	}
 }
 
+// ─── effectiveSpeed ─────────────────────────────────────────────────────────
+
+func TestEffectiveSpeed_NoModules(t *testing.T) {
+	m := &data.CraftingMachine{CraftingSpeed: 1.25}
+	got := effectiveSpeed(m, 0, 0)
+	approx(t, "no modules", got, 1.25, 0.001)
+}
+
+func TestEffectiveSpeed_WithModules(t *testing.T) {
+	m := &data.CraftingMachine{CraftingSpeed: 1.0}
+	// +0.5 speed from modules, +1.0 from beacons
+	got := effectiveSpeed(m, 0.5, 1.0)
+	approx(t, "with modules+beacons", got, 2.5, 0.001)
+}
+
+func TestEffectiveSpeed_FloorAt001(t *testing.T) {
+	m := &data.CraftingMachine{CraftingSpeed: 1.0}
+	// Huge penalty: -0.99 from modules
+	got := effectiveSpeed(m, -0.999, 0)
+	approx(t, "floor", got, 0.01, 0.001)
+}
+
+func TestEffectiveSpeed_NilMachine(t *testing.T) {
+	got := effectiveSpeed(nil, 0, 0)
+	approx(t, "nil machine", got, 1.0, 0.001)
+}
+
+// ─── computeMachinePower ────────────────────────────────────────────────────
+
+func TestComputeMachinePower_NoBonus(t *testing.T) {
+	m := &data.CraftingMachine{EnergyUsage: "210kW"}
+	got := computeMachinePower(m, 0)
+	approx(t, "no bonus", got, 210, 0.1)
+}
+
+func TestComputeMachinePower_WithConsumptionBonus(t *testing.T) {
+	m := &data.CraftingMachine{EnergyUsage: "210kW"}
+	// +0.8 consumption bonus → 210 * 1.8 = 378
+	got := computeMachinePower(m, 0.8)
+	approx(t, "with bonus", got, 378, 0.1)
+}
+
+func TestComputeMachinePower_MinDrain(t *testing.T) {
+	m := &data.CraftingMachine{EnergyUsage: "210kW"}
+	// -0.9 consumption bonus → 210 * 0.1 = 21, but floor is 210 * 0.2 = 42
+	got := computeMachinePower(m, -0.9)
+	approx(t, "min drain", got, 42, 0.1)
+}
+
+// ─── findIngredientAmount ───────────────────────────────────────────────────
+
+func TestFindIngredientAmount_Found(t *testing.T) {
+	ings := []data.Ingredient{
+		{Name: "water", Amount: 30},
+		{Name: "heavy-oil", Amount: 40},
+	}
+	got := findIngredientAmount(ings, "heavy-oil")
+	approx(t, "found", got, 40, 0)
+}
+
+func TestFindIngredientAmount_NotFound(t *testing.T) {
+	ings := []data.Ingredient{
+		{Name: "water", Amount: 30},
+	}
+	got := findIngredientAmount(ings, "crude-oil")
+	approx(t, "not found", got, 0, 0)
+}
+
+func TestFindIngredientAmount_Empty(t *testing.T) {
+	got := findIngredientAmount(nil, "anything")
+	approx(t, "empty", got, 0, 0)
+}
+
 // ─── parsePowerKW ───────────────────────────────────────────────────────────
 
 func TestParsePowerKW(t *testing.T) {
