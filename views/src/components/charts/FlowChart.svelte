@@ -428,6 +428,11 @@
     }
 
     // ── 7. Compute edge routes for long edges ────────────────
+    const expandedEdgeMap = new Map<string, FlowEdge>();
+    for (const ee of expandedEdges) {
+      expandedEdgeMap.set(ee.source + EDGE_KEY_SEP + ee.target, ee);
+    }
+
     const edgeRoutes = new Map<string, Waypoint[]>();
     for (const [origKey, chain] of originalChains) {
       const waypoints: Waypoint[] = [];
@@ -451,12 +456,11 @@
         const dH = nodeHeights.get(dummyId) ?? minH;
         if (dPos) {
           // Pass-through at the center of the dummy node
+          const segKey = chain[i - 1] + EDGE_KEY_SEP + dummyId;
           waypoints.push({
             x: dPos.x + nw / 2, // center x of dummy
             y: dPos.y + dH / 2, // center y of dummy
-            bh: bandHeight(expandedEdges.find(
-              (ee) => ee.source === chain[i - 1] && ee.target === dummyId,
-            )?.rate ?? 1),
+            bh: bandHeight(expandedEdgeMap.get(segKey)?.rate ?? 1),
           });
         }
       }

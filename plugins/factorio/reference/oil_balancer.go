@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math"
 	"os"
+	"sort"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
 )
@@ -69,6 +70,13 @@ func handleOilBalancer(enc *json.Encoder, query map[string]any) {
 
 	result := computeOilBalance(q.ProcessingType, q.Targets, moduleSpeedBonus, moduleProdBonus, moduleConsumptionBonus, beaconSpeedBonus)
 
+	result.Config = map[string]any{
+		"processing_type": q.ProcessingType,
+		"modules":         q.Modules,
+		"beacon_count":    q.BeaconCount,
+		"beacon_modules":  q.BeaconModules,
+	}
+
 	writeResult(enc, result)
 }
 
@@ -127,12 +135,12 @@ func computeOilBalance(
 	heavyCrackRecipe := data.Recipes["heavy-oil-cracking"]
 	lightCrackRecipe := data.Recipes["light-oil-cracking"]
 
-	heavyCrackConsume := heavyCrackRecipe.Ingredients[1].Amount * crackerSpeed / heavyCrackRecipe.EnergyRequired                                                        // heavy oil consumed per cracker/s
-	heavyCrackWater := heavyCrackRecipe.Ingredients[0].Amount * crackerSpeed / heavyCrackRecipe.EnergyRequired                                                          // water consumed per cracker/s
+	heavyCrackConsume := findIngredientAmount(heavyCrackRecipe.Ingredients, "heavy-oil") * crackerSpeed / heavyCrackRecipe.EnergyRequired  // heavy oil consumed per cracker/s
+	heavyCrackWater := findIngredientAmount(heavyCrackRecipe.Ingredients, "water") * crackerSpeed / heavyCrackRecipe.EnergyRequired      // water consumed per cracker/s
 	heavyCrackProduce := heavyCrackRecipe.Results[0].Amount * heavyCrackRecipe.Results[0].Probability * prodMultiplier * crackerSpeed / heavyCrackRecipe.EnergyRequired // light oil produced
 
-	lightCrackConsume := lightCrackRecipe.Ingredients[1].Amount * crackerSpeed / lightCrackRecipe.EnergyRequired                                                        // light oil consumed per cracker/s
-	lightCrackWater := lightCrackRecipe.Ingredients[0].Amount * crackerSpeed / lightCrackRecipe.EnergyRequired                                                          // water consumed per cracker/s
+	lightCrackConsume := findIngredientAmount(lightCrackRecipe.Ingredients, "light-oil") * crackerSpeed / lightCrackRecipe.EnergyRequired // light oil consumed per cracker/s
+	lightCrackWater := findIngredientAmount(lightCrackRecipe.Ingredients, "water") * crackerSpeed / lightCrackRecipe.EnergyRequired       // water consumed per cracker/s
 	lightCrackProduce := lightCrackRecipe.Results[0].Amount * lightCrackRecipe.Results[0].Probability * prodMultiplier * crackerSpeed / lightCrackRecipe.EnergyRequired // petroleum produced
 
 	// Check for downstream product recipes (lubricant, solid fuel, etc.)
@@ -332,7 +340,8 @@ func computeOilBalance(
 	}
 
 	// Compute cracking with integer refinery count
-	heavyCrackerCount, lightCrackerCount, totalPetroleum := computeCrackingForR(
+	var heavyCrackerCount, lightCrackerCount float64
+	heavyCrackerCount, lightCrackerCount, _ = computeCrackingForR(
 		refineryCount, heavyPerRefinery, lightPerRefinery, petroPerRefinery,
 		targetHeavy+downstreamFluidDemand["heavy-oil"],
 		targetLight+downstreamFluidDemand["light-oil"],
@@ -474,9 +483,7 @@ func computeOilBalance(
 		surplus["light-oil"] = roundTo(lightSurplus, 1)
 	}
 
-	petroSurplus := actualPetro + totalPetroleum - targets["petroleum-gas"]
-	// Avoid double-counting: totalPetroleum already includes refinery direct
-	petroSurplus = actualPetro - targets["petroleum-gas"]
+	petroSurplus := actualPetro - targets["petroleum-gas"]
 	if lightCrackerCount > 0 {
 		petroSurplus += lightCrackerCount * lightCrackProduce
 	}
@@ -495,12 +502,6 @@ func computeOilBalance(
 		RawInputs:  rawInputs,
 		TotalPower: roundTo(totalPowerKW, 1),
 		Surplus:    surplus,
-		Config: map[string]any{
-			"processing_type": processingType,
-			"modules":         nil,
-			"beacon_count":    0,
-			"beacon_modules":  nil,
-		},
 	}
 }
 
@@ -622,41 +623,25 @@ func buildBasicResult(
 		RawInputs:  rawInputs,
 		TotalPower: roundTo(powerKW, 1),
 		Surplus:    surplus,
-		Config: map[string]any{
-			"processing_type": processingType,
-		},
 	}
-}
-
-func effectiveSpeed(machine *data.CraftingMachine, moduleSpeedBonus, beaconSpeedBonus float64) float64 {
-	base := 1.0
-	if machine != nil {
-		base = machine.CraftingSpeed
-	}
-	speed := base * (1 + moduleSpeedBonus + beaconSpeedBonus)
-	if speed < 0.01 {
-		speed = 0.01
-	}
-	return speed
 }
 
 func findMachineForCategory(category string) *data.CraftingMachine {
+	var candidates []data.CraftingMachine
 	for _, m := range data.Machines {
 		for _, cat := range m.CraftingCategories {
 			if cat == category {
-				m := m
-				return &m
+				candidates = append(candidates, m)
+				break
 			}
 		}
 	}
-	return nil
+	if len(candidates) == 0 {
+		return nil
+	}
+	sort.Slice(candidates, func(i, j int) bool {
+		return candidates[i].CraftingSpeed < candidates[j].CraftingSpeed
+	})
+	return &candidates[0]
 }
 
-func computeMachinePower(machine *data.CraftingMachine, consumptionBonus float64) float64 {
-	powerKW := parsePowerKW(machine)
-	adjusted := powerKW * (1 + consumptionBonus)
-	if adjusted < powerKW*0.2 {
-		adjusted = powerKW * 0.2
-	}
-	return adjusted
-}

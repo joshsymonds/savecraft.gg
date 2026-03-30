@@ -280,6 +280,11 @@ func TestOilBalancer_WithProductivityModules(t *testing.T) {
 	if baseCount < 1 || modCount < 1 {
 		t.Errorf("both should need at least 1 refinery: base=%v, modded=%v", baseCount, modCount)
 	}
+
+	// Productivity modules change the math — counts must differ
+	if baseCount == modCount {
+		t.Errorf("productivity modules should change refinery count: base=%v, modded=%v", baseCount, modCount)
+	}
 }
 
 func TestOilBalancer_WithBeacons(t *testing.T) {

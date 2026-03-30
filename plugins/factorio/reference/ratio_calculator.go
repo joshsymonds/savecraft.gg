@@ -11,6 +11,36 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
 )
 
+// itemRecipes maps item names to the non-recycling, non-barrel recipes that produce them.
+// Built once at init from the static data.Recipes map.
+var itemRecipes map[string][]itemRecipeEntry
+
+type itemRecipeEntry struct {
+	recipe *data.Recipe
+	amount float64 // product amount * probability
+}
+
+func init() {
+	itemRecipes = make(map[string][]itemRecipeEntry)
+	for _, r := range data.Recipes {
+		if strings.HasSuffix(r.Name, "-recycling") {
+			continue
+		}
+		if strings.HasPrefix(r.Name, "empty-") && strings.HasSuffix(r.Name, "-barrel") {
+			continue
+		}
+		for _, prod := range r.Results {
+			if prod.Amount > 0 {
+				r := r
+				itemRecipes[prod.Name] = append(itemRecipes[prod.Name], itemRecipeEntry{
+					recipe: &r,
+					amount: prod.Amount * prod.Probability,
+				})
+			}
+		}
+	}
+}
+
 // Raw materials that have no recipe — the recursion base case.
 var rawMaterials = map[string]bool{
 	"iron-ore": true, "copper-ore": true, "coal": true, "stone": true,
@@ -222,7 +252,7 @@ func handleRatioCalculator(enc *json.Encoder, query map[string]any) {
 	// Phase 3+4: Compare against existing factory (only when save data provided)
 	var bottlenecks []bottleneck
 	if q.ExistingMachines != nil {
-		bottlenecks = compareExisting(stages, b, q.ExistingMachines, q.ActualFlow)
+		bottlenecks = compareExisting(stages, b, q.ExistingMachines, q.ActualFlow, q.Modules)
 	}
 
 	result := map[string]any{
@@ -497,30 +527,8 @@ func resolveRecipe(item, recipeName string, overrides map[string]string) (*data.
 		return nil, 0, nil
 	}
 
-	// Find all non-recycling recipes that produce this item
-	type candidate struct {
-		recipe *data.Recipe
-		amount float64
-	}
-	var candidates []candidate
-	for _, r := range data.Recipes {
-		// Skip recycling recipes — they're not primary production paths
-		if strings.HasSuffix(r.Name, "-recycling") {
-			continue
-		}
-		// Skip barrel emptying recipes
-		if strings.HasPrefix(r.Name, "empty-") && strings.HasSuffix(r.Name, "-barrel") {
-			continue
-		}
-		for _, prod := range r.Results {
-			if prod.Name == item && prod.Amount > 0 {
-				r := r
-				candidates = append(candidates, candidate{&r, prod.Amount * prod.Probability})
-				break
-			}
-		}
-	}
-
+	// Look up pre-indexed non-recycling recipes that produce this item
+	candidates := itemRecipes[item]
 	if len(candidates) == 0 {
 		return nil, 0, nil
 	}
@@ -556,6 +564,7 @@ func compareExisting(
 	b *dagBuilder,
 	existing *existingMachines,
 	flow *actualFlow,
+	queryModules []string,
 ) []bottleneck {
 	var bns []bottleneck
 
@@ -623,6 +632,8 @@ func compareExisting(
 					ActualRate:   roundTo(actualRate, 1),
 					Diagnosis:    "underthroughput",
 				})
+			} else if setup.Count > stage.MachineCount {
+				stage.Status = "surplus"
 			} else {
 				stage.Status = "sufficient"
 			}
@@ -632,7 +643,7 @@ func compareExisting(
 			stage.DeficitRate = roundTo(neededRate-effectiveRate, 1)
 
 			// Diagnose: wrong_modules if count would suffice at the query's assumed config
-			diagnosis := diagnoseDeficit(stage, b, setup, recipe)
+			diagnosis := diagnoseDeficit(stage, b, setup, recipe, queryModules)
 			bns = append(bns, bottleneck{
 				Item:         stage.Item,
 				Recipe:       stage.Recipe,
@@ -686,10 +697,10 @@ func computeEffectiveRate(
 		effectiveSpeed = 0.01
 	}
 
-	// Find result amount for this item in the recipe
+	// Find result amount for the target item in the recipe
 	resultAmt := 1.0
 	for _, prod := range recipe.Results {
-		if prod.Name != "" {
+		if prod.Amount > 0 {
 			resultAmt = prod.Amount * prod.Probability
 			break
 		}
@@ -706,24 +717,29 @@ func computeEffectiveRate(
 }
 
 // diagnoseDeficit determines why existing machines fall short.
+// Compares the existing setup against a hypothetical setup with
+// the same count but at the query's assumed tier and modules.
 func diagnoseDeficit(
 	stage *productionStage,
 	b *dagBuilder,
 	setup existingSetup,
 	recipe *data.Recipe,
+	queryModules []string,
 ) string {
-	// Check if the same COUNT of machines at the query's assumed config would suffice
+	// Build the hypothetical: same count, query's tier + modules
+	queryModuleCounts := make(map[string]int)
+	for _, m := range queryModules {
+		queryModuleCounts[m]++
+	}
 	querySetup := existingSetup{
 		MachineType: b.assemblerTier,
 		Count:       setup.Count,
-		Modules:     make(map[string]int),
+		Modules:     queryModuleCounts,
 	}
-	// Simulate the query's module config for the existing count
-	// No modules to set — just use the assembler tier speed
 	queryRate := computeEffectiveRate(querySetup, recipe, 0)
 
 	if queryRate >= stage.RatePerMin {
-		// Same count at query config would work — it's the modules/tier that's wrong
+		// Same count at query config would work — it's the tier/modules that's wrong
 		return "wrong_modules"
 	}
 	return "underbuilt"

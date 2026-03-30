@@ -128,6 +128,27 @@ export const coalLiquefaction: OilBalancerResult = {
 };
 
 /**
+ * Simple coal liquefaction (Space Age) — refinery only, no cracking.
+ * 10 coal + 2 calcite + 25 sulfuric-acid → 50 heavy oil (5s).
+ * Per refinery/s: 50/5 = 10 heavy/s. 1 refinery for 10 heavy/s.
+ */
+export const simpleCoalLiquefaction: OilBalancerResult = {
+  stages: [
+    { id: "refinery", recipe: "simple-coal-liquefaction", machine_type: "oil-refinery", machine_count: 1, power_kw: 420 },
+  ],
+  flows: [
+    { source: "input", target: "refinery", fluid: "coal", rate: 2 },
+    { source: "input", target: "refinery", fluid: "calcite", rate: 0.4 },
+    { source: "input", target: "refinery", fluid: "sulfuric-acid", rate: 5 },
+    { source: "refinery", target: "output", fluid: "heavy-oil", rate: 10 },
+  ],
+  raw_inputs: { coal: 2, calcite: 0.4, "sulfuric-acid": 5 },
+  total_power_kw: 420,
+  surplus: {},
+  config: { processing_type: "simple-coal-liquefaction" },
+};
+
+/**
  * Advanced oil processing with 3x productivity-module-3.
  * Fewer machines due to productivity bonus, despite speed penalty.
  */
