@@ -86,25 +86,3 @@ export function getModuleColor(name: string): string {
   return MODULE_COLORS[name] ?? "#a0a8cc";
 }
 
-/** Get module short label (e.g., "P3", "S2"). */
-export function getModuleLabel(name: string): string {
-  const match = name.match(/^(productivity|speed|efficiency|quality)-module(?:-(\d))?$/);
-  if (!match) return name.slice(0, 2).toUpperCase();
-  const prefix = match[1][0].toUpperCase(); // P, S, E, Q
-  const tier = match[2] ?? "1";
-  return `${prefix}${tier}`;
-}
-
-/** Belt tier → color. */
-const BELT_COLORS: Record<string, string> = {
-  yellow: "#e8c84e",
-  red: "#e85a5a",
-  blue: "#4a9aea",
-  green: "#5abe8a",
-  turbo: "#5abe8a",
-};
-
-/** Get belt tier dot color. */
-export function getBeltTierColor(tier: string): string {
-  return BELT_COLORS[tier] ?? "#a0a8cc";
-}

@@ -116,7 +116,7 @@
       nodeWidth={280}
       minNodeHeight={70}
     >
-      {#snippet nodeContent(node: FlowNode)}
+      {#snippet nodeContent(node: FlowNode, _dims: { width: number; height: number })}
         {@const d = (node.data ?? {}) as Record<string, unknown>}
         <MachineNode
           name={d.name as string}
@@ -137,8 +137,6 @@
     /* Factorio aesthetic: warm amber on dark */
     --flow-node-bg: #1a1a1a;
     --flow-node-border: #8a6a2a;
-    --flow-node-bg-bottleneck: rgba(232, 90, 90, 0.12);
-    --flow-node-bg-surplus: rgba(90, 190, 138, 0.08);
   }
 
   .chart-wrapper {

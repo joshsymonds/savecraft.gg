@@ -108,7 +108,9 @@
       depth.set(s.id, 0);
       queue.push(s.id);
     }
-    while (queue.length > 0) {
+    const maxIter = nodes.length * edges.length + nodes.length;
+    let iter = 0;
+    while (queue.length > 0 && iter++ < maxIter) {
       const id = queue.shift()!;
       const d = depth.get(id)!;
       for (const target of downstream.get(id) ?? []) {
@@ -329,7 +331,7 @@
       ].join(" ");
 
       const color = e.color ?? bandColor?.(e) ?? "var(--flow-band-color, #c8a84e)";
-      const gradId = `band-grad-${key.replace(EDGE_KEY_SEP, "-")}`;
+      const gradId = `band-grad-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
       return { ...e, path, color, gradId };
     }),
@@ -392,7 +394,7 @@
           onmousemove={(ev) => {
             if (band.label) tip = { text: band.label, x: ev.clientX, y: ev.clientY, visible: true };
           }}
-          onmouseleave={() => (tip.visible = false)}
+          onmouseleave={() => tip = { ...tip, visible: false }}
         />
       {/if}
     {/each}
