@@ -142,7 +142,6 @@
   }
 
   .chart-wrapper {
-    overflow-x: auto;
     padding: 4px 0;
   }
 </style>

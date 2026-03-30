@@ -424,6 +424,7 @@
 <style>
   .flow-outer {
     position: relative;
+    overflow: hidden;
   }
 
   .flow-scroll {
