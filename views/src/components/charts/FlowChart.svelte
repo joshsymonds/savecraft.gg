@@ -43,51 +43,60 @@
     nodes,
     edges,
     nodeWidth = 240,
-    minNodeHeight = 80,
+    minNodeHeight = 56,
     bandColor,
     nodeContent,
   }: Props = $props();
 
   const PAD = 24;
-  const GAP_X = 80;
+  const GAP_X = 120;
   const GAP_Y = 24;
-  const BAND_GAP = 2; // gap between band endpoints and node border
-  const PORT_PAD = 12; // vertical padding inside node for port area
+  const BAND_GAP = 3; // gap between band endpoints and node border
+  const PORT_PAD = 8; // vertical padding inside node for port area
   const MIN_BAND_WIDTH = 3; // minimum band thickness in px
-  const BAND_SCALE = 60; // max band thickness for the largest flow
+  const BAND_SCALE = 48; // max band thickness for the largest flow
+  const EDGE_KEY_SEP = "\x00"; // separator for edge map keys (cannot appear in node IDs)
 
   let tip = $state({ text: "", x: 0, y: 0, visible: false });
 
   // ── Layout computation ──────────────────────────────────────
 
-  function computeLayout(nodes: FlowNode[], edges: FlowEdge[]) {
-    // Build adjacency
-    const childrenOf = new Map<string, string[]>();
-    const parentOf = new Map<string, string[]>();
+  function computeLayout(
+    nodes: FlowNode[],
+    edges: FlowEdge[],
+    nw: number,
+    minH: number,
+  ) {
+    // Build adjacency: "upstream" maps a node to its input sources,
+    // "downstream" maps a node to its output targets.
+    const upstream = new Map<string, string[]>();
+    const downstream = new Map<string, string[]>();
 
     for (const e of edges) {
-      if (!childrenOf.has(e.target)) childrenOf.set(e.target, []);
-      childrenOf.get(e.target)!.push(e.source);
-      if (!parentOf.has(e.source)) parentOf.set(e.source, []);
-      parentOf.get(e.source)!.push(e.target);
+      if (!upstream.has(e.target)) upstream.set(e.target, []);
+      upstream.get(e.target)!.push(e.source);
+      if (!downstream.has(e.source)) downstream.set(e.source, []);
+      downstream.get(e.source)!.push(e.target);
     }
 
-    // BFS depth computation (same as ProductionDAG)
-    const roots = nodes.filter((n) => !parentOf.has(n.id) || parentOf.get(n.id)!.length === 0);
+    // BFS depth computation — sources (no upstream) get depth 0
+    const sources = nodes.filter(
+      (n) => !upstream.has(n.id) || upstream.get(n.id)!.length === 0,
+    );
     const depth = new Map<string, number>();
     const queue: string[] = [];
-    for (const r of roots) {
-      depth.set(r.id, 0);
-      queue.push(r.id);
+    for (const s of sources) {
+      depth.set(s.id, 0);
+      queue.push(s.id);
     }
     while (queue.length > 0) {
       const id = queue.shift()!;
       const d = depth.get(id)!;
-      for (const child of childrenOf.get(id) ?? []) {
-        const existing = depth.get(child);
+      for (const target of downstream.get(id) ?? []) {
+        const existing = depth.get(target);
         if (existing === undefined || d + 1 > existing) {
-          depth.set(child, d + 1);
-          queue.push(child);
+          depth.set(target, d + 1);
+          queue.push(target);
         }
       }
     }
@@ -105,16 +114,13 @@
     }
 
     // ── Port allocation ───────────────────────────────────────
-    // For each node, compute how tall its input/output ports are.
-    // Band width = (rate / maxRate) * BAND_SCALE, clamped to MIN_BAND_WIDTH.
-
     const maxRate = Math.max(...edges.map((e) => e.rate), 1);
 
     function bandHeight(rate: number): number {
       return Math.max(MIN_BAND_WIDTH, (rate / maxRate) * BAND_SCALE);
     }
 
-    // Compute input and output port totals per node
+    // Group edges by node for port allocation
     const inputEdges = new Map<string, FlowEdge[]>();
     const outputEdges = new Map<string, FlowEdge[]>();
     for (const e of edges) {
@@ -124,49 +130,86 @@
       inputEdges.get(e.target)!.push(e);
     }
 
-    // Compute node heights
+    // Compute node heights based on port totals
     const nodeHeights = new Map<string, number>();
     for (const n of nodes) {
-      const inTotal = (inputEdges.get(n.id) ?? []).reduce((sum, e) => sum + bandHeight(e.rate), 0);
-      const outTotal = (outputEdges.get(n.id) ?? []).reduce((sum, e) => sum + bandHeight(e.rate), 0);
+      const inTotal = (inputEdges.get(n.id) ?? []).reduce(
+        (sum, e) => sum + bandHeight(e.rate),
+        0,
+      );
+      const outTotal = (outputEdges.get(n.id) ?? []).reduce(
+        (sum, e) => sum + bandHeight(e.rate),
+        0,
+      );
       const portTotal = Math.max(inTotal, outTotal);
-      nodeHeights.set(n.id, Math.max(minNodeHeight, portTotal + PORT_PAD * 2));
+      nodeHeights.set(n.id, Math.max(minH, portTotal + PORT_PAD * 2));
     }
 
     // ── Position nodes ────────────────────────────────────────
+    // Two-pass layout to minimize edge crossings:
+    //   1. Place all layers left-to-right in initial order
+    //   2. Re-sort and re-center right-to-left by upstream source positions
     const positions = new Map<string, { x: number; y: number }>();
+
+    // Pass 1: initial placement left-to-right
     for (const [d, ids] of layers) {
-      const x = PAD + (maxDepth - d) * (nodeWidth + GAP_X);
+      const x = PAD + d * (nw + GAP_X);
       let y = PAD;
       for (const id of ids) {
-        const h = nodeHeights.get(id)!;
         positions.set(id, { x, y });
-        y += h + GAP_Y;
+        y += nodeHeights.get(id)! + GAP_Y;
       }
     }
 
-    // Center parents relative to children
-    for (let d = maxDepth - 1; d >= 0; d--) {
+    // Pass 2: re-sort each layer by average upstream source y-center,
+    // then center each node on its downstream targets.
+    // Work left-to-right so upstream positions are finalized before use.
+    for (let d = 0; d <= maxDepth; d++) {
       const ids = layers.get(d) ?? [];
-      for (const id of ids) {
-        const children = childrenOf.get(id);
-        if (children && children.length > 0) {
-          const childCenters = children.map((c) => {
-            const pos = positions.get(c)!;
-            const h = nodeHeights.get(c)!;
-            return pos.y + h / 2;
+
+      // Sort by average y-center of upstream sources (minimizes crossings)
+      const sorted = [...ids].sort((a, b) => {
+        const aSources = upstream.get(a) ?? [];
+        const bSources = upstream.get(b) ?? [];
+        const avgY = (sources: string[]) =>
+          sources.length > 0
+            ? sources.reduce((sum, s) => {
+                const pos = positions.get(s)!;
+                return sum + pos.y + nodeHeights.get(s)! / 2;
+              }, 0) / sources.length
+            : 0;
+        return avgY(aSources) - avgY(bSources);
+      });
+
+      layers.set(d, sorted);
+
+      const x = PAD + d * (nw + GAP_X);
+      // Center on upstream sources (if any), otherwise keep initial position
+      for (const id of sorted) {
+        const sources = upstream.get(id) ?? [];
+        if (sources.length > 0) {
+          const sourceCenters = sources.map((s) => {
+            const pos = positions.get(s)!;
+            return pos.y + nodeHeights.get(s)! / 2;
           });
-          const minC = Math.min(...childCenters);
-          const maxC = Math.max(...childCenters);
+          const minC = Math.min(...sourceCenters);
+          const maxC = Math.max(...sourceCenters);
           const myH = nodeHeights.get(id)!;
-          positions.get(id)!.y = (minC + maxC) / 2 - myH / 2;
+          positions.set(id, { x, y: (minC + maxC) / 2 - myH / 2 });
         }
       }
     }
 
+    // Clamp all positions to y >= PAD (centering can push nodes above)
+    for (const pos of positions.values()) {
+      if (pos.y < PAD) pos.y = PAD;
+    }
+
     // Resolve overlaps within each layer
     for (const [, ids] of layers) {
-      const sorted = [...ids].sort((a, b) => positions.get(a)!.y - positions.get(b)!.y);
+      const sorted = [...ids].sort(
+        (a, b) => positions.get(a)!.y - positions.get(b)!.y,
+      );
       for (let i = 1; i < sorted.length; i++) {
         const prev = positions.get(sorted[i - 1])!;
         const prevH = nodeHeights.get(sorted[i - 1])!;
@@ -180,20 +223,17 @@
     let totalWidth = PAD * 2;
     let totalHeight = PAD * 2;
     for (const [id, pos] of positions) {
-      totalWidth = Math.max(totalWidth, pos.x + nodeWidth + PAD);
+      totalWidth = Math.max(totalWidth, pos.x + nw + PAD);
       totalHeight = Math.max(totalHeight, pos.y + nodeHeights.get(id)! + PAD);
     }
 
     // ── Port positions ────────────────────────────────────────
-    // Allocate vertical slices on left (input) and right (output) edges.
-    // Returns y_top and y_bottom for each edge's port on each side.
-
     interface PortSlice {
       yTop: number;
       yBottom: number;
     }
 
-    const sourcePort = new Map<string, PortSlice>(); // keyed by "source-target"
+    const sourcePort = new Map<string, PortSlice>();
     const targetPort = new Map<string, PortSlice>();
 
     // Allocate output ports (right side of source nodes)
@@ -204,7 +244,10 @@
       let yOffset = pos.y + (h - totalBand) / 2;
       for (const e of outs) {
         const bh = bandHeight(e.rate);
-        sourcePort.set(`${e.source}-${e.target}`, { yTop: yOffset, yBottom: yOffset + bh });
+        sourcePort.set(e.source + EDGE_KEY_SEP + e.target, {
+          yTop: yOffset,
+          yBottom: yOffset + bh,
+        });
         yOffset += bh;
       }
     }
@@ -217,7 +260,10 @@
       let yOffset = pos.y + (h - totalBand) / 2;
       for (const e of ins) {
         const bh = bandHeight(e.rate);
-        targetPort.set(`${e.source}-${e.target}`, { yTop: yOffset, yBottom: yOffset + bh });
+        targetPort.set(e.source + EDGE_KEY_SEP + e.target, {
+          yTop: yOffset,
+          yBottom: yOffset + bh,
+        });
         yOffset += bh;
       }
     }
@@ -225,7 +271,8 @@
     return { positions, nodeHeights, totalWidth, totalHeight, sourcePort, targetPort };
   }
 
-  let layout = $derived(computeLayout(nodes, edges));
+  // Pass props as arguments so Svelte tracks them for reactivity
+  let layout = $derived(computeLayout(nodes, edges, nodeWidth, minNodeHeight));
 
   let layoutNodes = $derived(
     nodes.map((n) => ({
@@ -236,9 +283,25 @@
     })),
   );
 
+  // Find the total rate entering each node (for fallback display)
+  let nodeRates = $derived(() => {
+    const rates = new Map<string, number>();
+    for (const e of edges) {
+      // Use the output rate for source nodes, input rate for target nodes
+      rates.set(e.source, (rates.get(e.source) ?? 0) + e.rate);
+    }
+    // For nodes with only inputs (sinks), sum input rates
+    for (const e of edges) {
+      if (!rates.has(e.target)) {
+        rates.set(e.target, e.rate);
+      }
+    }
+    return rates;
+  });
+
   let layoutBands = $derived(
     edges.map((e) => {
-      const key = `${e.source}-${e.target}`;
+      const key = e.source + EDGE_KEY_SEP + e.target;
       const src = layout.sourcePort.get(key);
       const tgt = layout.targetPort.get(key);
       const srcPos = layout.positions.get(e.source);
@@ -250,8 +313,8 @@
       const x1 = srcPos.x + nodeWidth + BAND_GAP;
       const x2 = tgtPos.x - BAND_GAP;
 
-      // Control point offset — enough curve to look smooth
-      const dx = Math.max((x2 - x1) * 0.4, 30);
+      // Control point offset — 50% of gap for pronounced curves
+      const dx = Math.max((x2 - x1) * 0.5, 40);
 
       // Build a closed ribbon shape: top curve forward, bottom curve back
       const path = [
@@ -293,10 +356,12 @@
         <path
           d={band.path}
           fill={band.color}
-          fill-opacity="0.5"
+          fill-opacity="0.35"
           class="flow-band"
           onmouseenter={(ev) => showBandTip(ev, band)}
-          onmousemove={(ev) => { if (band.label) tip = { text: band.label, x: ev.clientX, y: ev.clientY, visible: true }; }}
+          onmousemove={(ev) => {
+            if (band.label) tip = { text: band.label, x: ev.clientX, y: ev.clientY, visible: true };
+          }}
           onmouseleave={() => (tip.visible = false)}
         />
       {/if}
@@ -345,7 +410,7 @@
   }
 
   .flow-band:hover {
-    fill-opacity: 0.8;
+    fill-opacity: 0.7;
   }
 
   /* ── Nodes ── */
@@ -370,12 +435,12 @@
   .node-bottleneck {
     border-color: var(--color-negative, #e85a5a);
     border-width: 2.5px;
-    background: var(--flow-node-bg-bottleneck, rgba(232, 90, 90, 0.08));
+    background: color-mix(in srgb, var(--color-negative, #e85a5a) 8%, transparent);
   }
 
   .node-surplus {
     border-color: var(--color-positive, #5abe8a);
-    background: var(--flow-node-bg-surplus, rgba(90, 190, 138, 0.06));
+    background: color-mix(in srgb, var(--color-positive, #5abe8a) 6%, transparent);
   }
 
   .node-raw {
