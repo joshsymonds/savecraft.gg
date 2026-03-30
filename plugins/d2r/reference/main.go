@@ -131,7 +131,22 @@ func handleMonsterDrops(enc *json.Encoder, calc *dropcalc.Calculator, query map[
 		}
 	}
 
+	var sb strings.Builder
+	fmt.Fprintf(&sb, "%s (%s) — Drop Table\n", monster, difficultyName(difficulty))
+	fmt.Fprintf(&sb, "MF: %d%% | Players: %d | Showing %d of %d items\n\n", mf, players, len(jsonDrops), total)
+	for _, d := range jsonDrops {
+		line := d.Name
+		if d.Unique > 0 {
+			line += fmt.Sprintf(" — Unique %s", fmtChance(d.Unique))
+		}
+		if d.Set > 0 {
+			line += fmt.Sprintf(", Set %s", fmtChance(d.Set))
+		}
+		fmt.Fprintf(&sb, "  %s\n", line)
+	}
+
 	writeResult(enc, monster, map[string]any{
+		"formatted":    sb.String(),
 		"mode":         "monster",
 		"monster_name": monster,
 		"difficulty":   difficultyName(difficulty),
@@ -155,10 +170,11 @@ func handleItemSearch(enc *json.Encoder, calc *dropcalc.Calculator, query map[st
 	total := len(results)
 	if total == 0 {
 		writeResult(enc, search, map[string]any{
-			"mode":  "search",
-			"query": search,
-			"items": []any{},
-			"total": 0,
+			"formatted": fmt.Sprintf("No items found matching %q.\n", search),
+			"mode":      "search",
+			"query":     search,
+			"items":     []any{},
+			"total":     0,
 		})
 		return
 	}
@@ -245,11 +261,26 @@ func handleItemSearch(enc *json.Encoder, calc *dropcalc.Calculator, query map[st
 		}
 	}
 
+	var sb2 strings.Builder
+	fmt.Fprintf(&sb2, "Item Search: %q — %d result(s)\n\n", search, total)
+	for _, it := range items {
+		quality := "Unique"
+		if it.IsSet {
+			quality = "Set"
+		}
+		fmt.Fprintf(&sb2, "  %s (%s, %s)", it.Name, quality, it.BaseName)
+		if len(it.TopSources) > 0 {
+			fmt.Fprintf(&sb2, " — best: %s %s %s", it.TopSources[0].Monster, it.TopSources[0].Difficulty, fmtChance(it.TopSources[0].Chance))
+		}
+		fmt.Fprintf(&sb2, "\n")
+	}
+
 	writeResult(enc, search, map[string]any{
-		"mode":  "search",
-		"query": search,
-		"items": items,
-		"total": total,
+		"formatted": sb2.String(),
+		"mode":      "search",
+		"query":     search,
+		"items":     items,
+		"total":     total,
 	})
 }
 
@@ -350,7 +381,19 @@ func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[s
 		}
 	}
 
+	var sb3 strings.Builder
+	fmt.Fprintf(&sb3, "%s (%s %s) — Drop Sources\n", itemName, strings.ToUpper(quality[:1])+quality[1:], calc.ItemName(code))
+	fmt.Fprintf(&sb3, "MF: %d%% | Players: %d | Showing %d of %d sources\n\n", mf, players, len(jsonSources), total)
+	for i, s := range jsonSources {
+		if i >= 10 {
+			fmt.Fprintf(&sb3, "  ... and %d more\n", len(jsonSources)-10)
+			break
+		}
+		fmt.Fprintf(&sb3, "  %s (%s) — %s\n", s.Monster, s.Difficulty, fmtChance(s.Chance))
+	}
+
 	writeResult(enc, itemName, map[string]any{
+		"formatted": sb3.String(),
 		"mode":      "item",
 		"item_name": itemName,
 		"item_base": calc.ItemName(code),
@@ -526,6 +569,17 @@ func schema() map[string]any {
 			},
 		},
 	}
+}
+
+func fmtChance(p float64) string {
+	if p <= 0 {
+		return "\u2014"
+	}
+	n := 1 / p
+	if n < 10 {
+		return fmt.Sprintf("1:%.1f", n)
+	}
+	return fmt.Sprintf("1:%d", int(n+0.5))
 }
 
 func writeResult(enc *json.Encoder, title string, data any) {
