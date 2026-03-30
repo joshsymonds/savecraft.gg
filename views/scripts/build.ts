@@ -26,6 +26,7 @@ const viewCss = readFileSync(resolve(VIEWS_DIR, "src/view.css"), "utf-8");
 const bridgePath = resolve(VIEWS_DIR, "src/bridge.ts").split("\\").join("/");
 const attributionPath = resolve(VIEWS_DIR, "src/Attribution.svelte").split("\\").join("/");
 const multiResultViewPath = resolve(VIEWS_DIR, "src/components/layout/MultiResultView.svelte").split("\\").join("/");
+const loadingStatePath = resolve(VIEWS_DIR, "src/components/feedback/LoadingState.svelte").split("\\").join("/");
 
 // ── Attribution ────────────────────────────────────────────
 
@@ -128,19 +129,21 @@ function discoverReferenceViews(): ReferenceView[] {
 function gameStateEntry(view: GameStateView): string {
   const componentPath = view.componentPath.split("\\").join("/");
   return `
-import { mount } from "svelte";
+import { mount, unmount } from "svelte";
 import { initBridge } from "${bridgePath}";
 import Component from "${componentPath}";
 import Attribution from "${attributionPath}";
+import LoadingState from "${loadingStatePath}";
+
+const root = document.getElementById("root");
+const loadingInstance = root ? mount(LoadingState, { target: root }) : null;
 
 const app = initBridge((result) => {
   if (!result.structuredContent) return;
-  const loading = document.getElementById("loading");
-  if (loading) loading.remove();
-  const target = document.getElementById("root");
-  if (!target) return;
-  target.replaceChildren();
-  mount(Component, { target, props: { data: result.structuredContent, app } });
+  if (loadingInstance) unmount(loadingInstance);
+  if (!root) return;
+  root.replaceChildren();
+  mount(Component, { target: root, props: { data: result.structuredContent, app } });
 
   const attrTarget = document.getElementById("attribution");
   if (attrTarget) mount(Attribution, { target: attrTarget });
@@ -158,34 +161,34 @@ function referenceEntry(views: ReferenceView[]): string {
     .join("\n");
 
   return `
-import { mount } from "svelte";
+import { mount, unmount } from "svelte";
 import { initBridge } from "${bridgePath}";
 import Attribution from "${attributionPath}";
 import MultiResultView from "${multiResultViewPath}";
+import LoadingState from "${loadingStatePath}";
 ${imports}
 
 const VIEWS = {
 ${mapEntries}
 };
 
+const root = document.getElementById("root");
+const loadingInstance = root ? mount(LoadingState, { target: root }) : null;
+
 const app = initBridge((result) => {
   const data = result.structuredContent;
   const moduleId = typeof data?.module === "string" ? data.module : undefined;
   const Component = moduleId ? VIEWS[moduleId] : undefined;
-  const target = document.getElementById("root");
-  if (!target) return;
+  if (!root) return;
 
-  // Remove loading state
-  const loading = document.getElementById("loading");
-  if (loading) loading.remove();
+  if (loadingInstance) unmount(loadingInstance);
 
   if (!data || !Component) {
-    // No view for this module — hide everything
-    target.replaceChildren();
+    root.replaceChildren();
     document.body.style.display = "none";
     return;
   }
-  target.replaceChildren();
+  root.replaceChildren();
 
   // Multi-query: wrap each result in a tabbed view
   if (data?._multiQuery && Array.isArray(data.results) && data.results.length > 0) {
@@ -246,16 +249,6 @@ async function buildToHtml(name: string, entrySource: string, attribution: Attri
   }
 }
 
-/** Static HTML loading state — visible immediately before JS executes, replaced by ontoolresult.
- *  Uses design system CSS variables from viewCss (already in <head>). */
-const LOADING_HTML = `<div id="loading" style="display:flex;align-items:center;justify-content:center;padding:var(--space-xl) var(--space-lg);min-height:120px">
-<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-sm)">
-<div style="width:24px;height:24px;border:2px solid var(--color-border);border-top-color:var(--color-gold);border-radius:50%;animation:spin-loading 0.8s linear infinite"></div>
-<p style="font-family:var(--font-heading);font-size:14px;font-weight:600;color:var(--color-text-muted);letter-spacing:0.5px;animation:pulse-loading 2s ease-in-out infinite">Loading&hellip;</p>
-</div>
-<style>@keyframes spin-loading{to{transform:rotate(360deg)}}@keyframes pulse-loading{0%,100%{opacity:.4}50%{opacity:1}}</style>
-</div>`;
-
 function wrapHtml(js: string, attribution: Attribution[]): string {
   const attrScript = attribution.length > 0
     ? `<script>window.__ATTRIBUTION__=${JSON.stringify(attribution)};<\/script>\n`
@@ -269,7 +262,7 @@ function wrapHtml(js: string, attribution: Attribution[]): string {
 <style>${viewCss}</style>
 </head>
 <body>
-${LOADING_HTML}<div id="root"></div>
+<div id="root"></div>
 <div id="attribution"></div>
 ${attrScript}<script>${js}<\/script>
 </body>
