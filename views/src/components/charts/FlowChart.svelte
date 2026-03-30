@@ -3,6 +3,10 @@
   Game-agnostic Sankey-style flow chart. Renders a left-to-right layered graph
   with filled flow bands whose width is proportional to throughput rate.
 
+  Long edges (spanning multiple layers) are handled via invisible dummy nodes
+  that participate in crossing minimization, ensuring bands route around
+  intermediate nodes instead of through them (Sugiyama framework).
+
   Nodes are absolutely positioned HTML divs; flow bands are filled SVG paths.
   Node height scales with total input/output port volume.
 
@@ -62,6 +66,8 @@
   const BAND_SCALE = 48; // max band thickness for the largest flow
   const BAND_SEP = 2; // minimum gap between adjacent bands at a port
   const EDGE_KEY_SEP = "\x00"; // separator for edge map keys (cannot appear in node IDs)
+  const DUMMY_PREFIX = "__d_"; // prefix for dummy node IDs
+  const BARYCENTER_SWEEPS = 8; // forward+backward sweep iterations
 
   let tip = $state({ text: "", x: 0, y: 0, visible: false });
   let scrollEl: HTMLDivElement | undefined = $state();
@@ -77,7 +83,6 @@
 
   $effect(() => {
     if (!scrollEl) return;
-    // Check on mount and whenever layout changes
     updateScrollIndicators();
     const observer = new ResizeObserver(() => updateScrollIndicators());
     observer.observe(scrollEl);
@@ -86,17 +91,38 @@
 
   // ── Layout computation ──────────────────────────────────────
 
+  interface PortSlice {
+    yTop: number;
+    yBottom: number;
+  }
+
+  interface Waypoint {
+    x: number;
+    y: number;
+    bh: number; // band height at this point
+  }
+
+  interface LayoutResult {
+    positions: Map<string, { x: number; y: number }>;
+    nodeHeights: Map<string, number>;
+    totalWidth: number;
+    totalHeight: number;
+    sourcePort: Map<string, PortSlice>;
+    targetPort: Map<string, PortSlice>;
+    dummyNodes: Set<string>;
+    /** For long edges: waypoints from source exit through dummy centers to target entry */
+    edgeRoutes: Map<string, Waypoint[]>;
+  }
+
   function computeLayout(
     nodes: FlowNode[],
     edges: FlowEdge[],
     nw: number,
     minH: number,
-  ) {
-    // Build adjacency: "upstream" maps a node to its input sources,
-    // "downstream" maps a node to its output targets.
+  ): LayoutResult {
+    // ── 1. BFS depth assignment ──────────────────────────────
     const upstream = new Map<string, string[]>();
     const downstream = new Map<string, string[]>();
-
     for (const e of edges) {
       if (!upstream.has(e.target)) upstream.set(e.target, []);
       upstream.get(e.target)!.push(e.source);
@@ -104,7 +130,6 @@
       downstream.get(e.source)!.push(e.target);
     }
 
-    // BFS depth computation — sources (no upstream) get depth 0
     const sources = nodes.filter(
       (n) => !upstream.has(n.id) || upstream.get(n.id)!.length === 0,
     );
@@ -131,119 +156,194 @@
       if (!depth.has(n.id)) depth.set(n.id, 0);
     }
 
-    const maxDepth = Math.max(...depth.values(), 0);
-
-    // Organize into layers
     const layers = new Map<number, string[]>();
     for (const [id, d] of depth) {
       if (!layers.has(d)) layers.set(d, []);
       layers.get(d)!.push(id);
     }
 
-    // ── Port allocation ───────────────────────────────────────
-    const maxRate = Math.max(...edges.map((e) => e.rate), 1);
+    // ── 2. Insert dummy nodes for long edges ─────────────────
+    const dummyNodes = new Set<string>();
+    const expandedEdges: FlowEdge[] = [];
+    // For each original long edge: chain of node IDs [source, d1, d2, ..., target]
+    const originalChains = new Map<string, string[]>();
+
+    for (const e of edges) {
+      const sd = depth.get(e.source) ?? 0;
+      const td = depth.get(e.target) ?? 0;
+      const gap = td - sd;
+
+      if (gap <= 1) {
+        expandedEdges.push(e);
+        continue;
+      }
+
+      const origKey = e.source + EDGE_KEY_SEP + e.target;
+      const chain: string[] = [e.source];
+      let prev = e.source;
+
+      for (let d = sd + 1; d < td; d++) {
+        const dummyId = `${DUMMY_PREFIX}${origKey}_${d}`;
+        chain.push(dummyId);
+        dummyNodes.add(dummyId);
+        depth.set(dummyId, d);
+        if (!layers.has(d)) layers.set(d, []);
+        layers.get(d)!.push(dummyId);
+
+        expandedEdges.push({
+          source: prev,
+          target: dummyId,
+          rate: e.rate,
+          label: e.label,
+          color: e.color,
+        });
+        prev = dummyId;
+      }
+
+      // Final segment to target
+      expandedEdges.push({
+        source: prev,
+        target: e.target,
+        rate: e.rate,
+        label: e.label,
+        color: e.color,
+      });
+      chain.push(e.target);
+      originalChains.set(origKey, chain);
+    }
+
+    // ── 3. Rebuild adjacency for expanded graph ──────────────
+    const upExp = new Map<string, string[]>();
+    const downExp = new Map<string, string[]>();
+    for (const e of expandedEdges) {
+      if (!upExp.has(e.target)) upExp.set(e.target, []);
+      upExp.get(e.target)!.push(e.source);
+      if (!downExp.has(e.source)) downExp.set(e.source, []);
+      downExp.get(e.source)!.push(e.target);
+    }
+
+    // ── 4. Port allocation (on expanded edges) ───────────────
+    const maxRate = Math.max(...expandedEdges.map((e) => e.rate), 1);
 
     function bandHeight(rate: number): number {
-      // Sqrt scale compresses the range so small flows remain visible
-      // (100 vs 2000 → ~22% width instead of 5% with linear)
       return Math.max(MIN_BAND_WIDTH, Math.sqrt(rate / maxRate) * BAND_SCALE);
     }
 
-    // Group edges by node for port allocation
     const inputEdges = new Map<string, FlowEdge[]>();
     const outputEdges = new Map<string, FlowEdge[]>();
-    for (const e of edges) {
+    for (const e of expandedEdges) {
       if (!outputEdges.has(e.source)) outputEdges.set(e.source, []);
       outputEdges.get(e.source)!.push(e);
       if (!inputEdges.has(e.target)) inputEdges.set(e.target, []);
       inputEdges.get(e.target)!.push(e);
     }
 
-    // Compute node heights based on port totals (including BAND_SEP gaps)
+    // Compute node heights — dummy nodes get height = band height (compact)
     const nodeHeights = new Map<string, number>();
-    for (const n of nodes) {
-      const inEdges = inputEdges.get(n.id) ?? [];
-      const outEdges = outputEdges.get(n.id) ?? [];
-      const inTotal = inEdges.reduce((sum, e) => sum + bandHeight(e.rate), 0)
-        + Math.max(0, inEdges.length - 1) * BAND_SEP;
-      const outTotal = outEdges.reduce((sum, e) => sum + bandHeight(e.rate), 0)
-        + Math.max(0, outEdges.length - 1) * BAND_SEP;
+    const allNodeIds = new Set([...nodes.map((n) => n.id), ...dummyNodes]);
+    for (const id of allNodeIds) {
+      if (dummyNodes.has(id)) {
+        // Dummy: height = band height of its single edge + minimal padding
+        const inE = inputEdges.get(id) ?? [];
+        const bh = inE.length > 0 ? bandHeight(inE[0].rate) : MIN_BAND_WIDTH;
+        nodeHeights.set(id, bh + PORT_PAD);
+        continue;
+      }
+      const inE = inputEdges.get(id) ?? [];
+      const outE = outputEdges.get(id) ?? [];
+      const inTotal = inE.reduce((sum, e) => sum + bandHeight(e.rate), 0)
+        + Math.max(0, inE.length - 1) * BAND_SEP;
+      const outTotal = outE.reduce((sum, e) => sum + bandHeight(e.rate), 0)
+        + Math.max(0, outE.length - 1) * BAND_SEP;
       const portTotal = Math.max(inTotal, outTotal);
-      nodeHeights.set(n.id, Math.max(minH, portTotal + PORT_PAD * 2));
+      nodeHeights.set(id, Math.max(minH, portTotal + PORT_PAD * 2));
     }
 
-    // ── Position nodes ────────────────────────────────────────
-    // Two-pass layout to minimize edge crossings:
-    //   1. Place all layers left-to-right in initial order
-    //   2. Re-sort and re-center right-to-left by upstream source positions
+    // ── 5. Position nodes with barycenter crossing minimization ──
     const positions = new Map<string, { x: number; y: number }>();
+    const maxDepth = Math.max(...depth.values(), 0);
 
-    // Pass 1: initial placement left-to-right
+    // Initial placement: stack top-to-bottom per layer
     for (const [d, ids] of layers) {
       const x = PAD + d * (nw + GAP_X);
       let y = PAD;
       for (const id of ids) {
         positions.set(id, { x, y });
-        y += nodeHeights.get(id)! + GAP_Y;
+        y += (nodeHeights.get(id) ?? minH) + GAP_Y;
       }
     }
 
-    // Pass 2: re-sort each layer by average upstream source y-center,
-    // then center each node on its downstream targets.
-    // Work left-to-right so upstream positions are finalized before use.
-    for (let d = 0; d <= maxDepth; d++) {
-      const ids = layers.get(d) ?? [];
+    // Barycenter function: average y-center of connected nodes in adjacent layer
+    function barycenter(nodeId: string, neighbors: string[]): number | null {
+      if (neighbors.length === 0) return null;
+      let sum = 0;
+      for (const n of neighbors) {
+        const pos = positions.get(n);
+        if (!pos) continue;
+        sum += pos.y + (nodeHeights.get(n) ?? minH) / 2;
+      }
+      return sum / neighbors.length;
+    }
 
-      // Sort by average y-center of upstream sources (minimizes crossings)
-      const sorted = [...ids].sort((a, b) => {
-        const aSources = upstream.get(a) ?? [];
-        const bSources = upstream.get(b) ?? [];
-        const avgY = (sources: string[]) =>
-          sources.length > 0
-            ? sources.reduce((sum, s) => {
-                const pos = positions.get(s)!;
-                return sum + pos.y + nodeHeights.get(s)! / 2;
-              }, 0) / sources.length
-            : 0;
-        return avgY(aSources) - avgY(bSources);
-      });
+    // Forward+backward sweeps to minimize crossings
+    for (let sweep = 0; sweep < BARYCENTER_SWEEPS; sweep++) {
+      // Forward sweep: fix layer d, sort layer d+1 by barycenter of upstream
+      for (let d = 1; d <= maxDepth; d++) {
+        const ids = layers.get(d) ?? [];
+        const withBary = ids.map((id) => ({
+          id,
+          bary: barycenter(id, upExp.get(id) ?? []),
+        }));
+        withBary.sort((a, b) => {
+          if (a.bary === null && b.bary === null) return 0;
+          if (a.bary === null) return 1;
+          if (b.bary === null) return -1;
+          return a.bary - b.bary;
+        });
+        const sorted = withBary.map((w) => w.id);
+        layers.set(d, sorted);
 
-      layers.set(d, sorted);
-
-      const x = PAD + d * (nw + GAP_X);
-      // Center on upstream sources (if any), otherwise keep initial position
-      for (const id of sorted) {
-        const sources = upstream.get(id) ?? [];
-        if (sources.length > 0) {
-          const sourceCenters = sources.map((s) => {
-            const pos = positions.get(s)!;
-            return pos.y + nodeHeights.get(s)! / 2;
-          });
-          const minC = Math.min(...sourceCenters);
-          const maxC = Math.max(...sourceCenters);
-          const myH = nodeHeights.get(id)!;
-          positions.set(id, { x, y: (minC + maxC) / 2 - myH / 2 });
+        // Reposition: center on barycenter, then resolve overlaps
+        const x = PAD + d * (nw + GAP_X);
+        for (const w of withBary) {
+          if (w.bary !== null) {
+            const h = nodeHeights.get(w.id) ?? minH;
+            positions.set(w.id, { x, y: w.bary - h / 2 });
+          }
         }
+        resolveOverlaps(sorted, positions, nodeHeights, minH);
+      }
+
+      // Backward sweep: fix layer d, sort layer d-1 by barycenter of downstream
+      for (let d = maxDepth - 1; d >= 0; d--) {
+        const ids = layers.get(d) ?? [];
+        const withBary = ids.map((id) => ({
+          id,
+          bary: barycenter(id, downExp.get(id) ?? []),
+        }));
+        withBary.sort((a, b) => {
+          if (a.bary === null && b.bary === null) return 0;
+          if (a.bary === null) return 1;
+          if (b.bary === null) return -1;
+          return a.bary - b.bary;
+        });
+        const sorted = withBary.map((w) => w.id);
+        layers.set(d, sorted);
+
+        const x = PAD + d * (nw + GAP_X);
+        for (const w of withBary) {
+          if (w.bary !== null) {
+            const h = nodeHeights.get(w.id) ?? minH;
+            positions.set(w.id, { x, y: w.bary - h / 2 });
+          }
+        }
+        resolveOverlaps(sorted, positions, nodeHeights, minH);
       }
     }
 
-    // Clamp all positions to y >= PAD (centering can push nodes above)
-    for (const pos of positions.values()) {
-      if (pos.y < PAD) pos.y = PAD;
-    }
-
-    // Resolve overlaps within each layer
+    // Final overlap resolution pass
     for (const [, ids] of layers) {
-      const sorted = [...ids].sort(
-        (a, b) => positions.get(a)!.y - positions.get(b)!.y,
-      );
-      for (let i = 1; i < sorted.length; i++) {
-        const prev = positions.get(sorted[i - 1])!;
-        const prevH = nodeHeights.get(sorted[i - 1])!;
-        const curr = positions.get(sorted[i])!;
-        const minY = prev.y + prevH + GAP_Y;
-        if (curr.y < minY) curr.y = minY;
-      }
+      resolveOverlaps(ids, positions, nodeHeights, minH);
     }
 
     // Compute total dimensions
@@ -251,20 +351,13 @@
     let totalHeight = PAD * 2;
     for (const [id, pos] of positions) {
       totalWidth = Math.max(totalWidth, pos.x + nw + PAD);
-      totalHeight = Math.max(totalHeight, pos.y + nodeHeights.get(id)! + PAD);
+      totalHeight = Math.max(totalHeight, pos.y + (nodeHeights.get(id) ?? minH) + PAD);
     }
 
-    // ── Port positions ────────────────────────────────────────
-    interface PortSlice {
-      yTop: number;
-      yBottom: number;
-    }
-
+    // ── 6. Allocate ports on expanded edges ──────────────────
     const sourcePort = new Map<string, PortSlice>();
     const targetPort = new Map<string, PortSlice>();
 
-    // Allocate output ports (right side of source nodes)
-    // Sort by target y-center so bands flow top-to-bottom matching target order
     for (const [nodeId, outs] of outputEdges) {
       const pos = positions.get(nodeId)!;
       const h = nodeHeights.get(nodeId)!;
@@ -280,8 +373,7 @@
       const totalBand = sorted.reduce((sum, e) => sum + bandHeight(e.rate), 0)
         + Math.max(0, sorted.length - 1) * BAND_SEP;
       let yOffset = pos.y + (h - totalBand) / 2;
-      for (let i = 0; i < sorted.length; i++) {
-        const e = sorted[i];
+      for (const e of sorted) {
         const bh = bandHeight(e.rate);
         sourcePort.set(e.source + EDGE_KEY_SEP + e.target, {
           yTop: yOffset,
@@ -291,8 +383,6 @@
       }
     }
 
-    // Allocate input ports (left side of target nodes)
-    // Sort by source y-center so bands arrive top-to-bottom matching source order
     for (const [nodeId, ins] of inputEdges) {
       const pos = positions.get(nodeId)!;
       const h = nodeHeights.get(nodeId)!;
@@ -308,8 +398,7 @@
       const totalBand = sorted.reduce((sum, e) => sum + bandHeight(e.rate), 0)
         + Math.max(0, sorted.length - 1) * BAND_SEP;
       let yOffset = pos.y + (h - totalBand) / 2;
-      for (let i = 0; i < sorted.length; i++) {
-        const e = sorted[i];
+      for (const e of sorted) {
         const bh = bandHeight(e.rate);
         targetPort.set(e.source + EDGE_KEY_SEP + e.target, {
           yTop: yOffset,
@@ -319,12 +408,86 @@
       }
     }
 
-    return { positions, nodeHeights, totalWidth, totalHeight, sourcePort, targetPort, depth, layers };
+    // ── 7. Compute edge routes for long edges ────────────────
+    const edgeRoutes = new Map<string, Waypoint[]>();
+    for (const [origKey, chain] of originalChains) {
+      const waypoints: Waypoint[] = [];
+
+      // Source exit port
+      const firstSegKey = chain[0] + EDGE_KEY_SEP + chain[1];
+      const firstSrc = sourcePort.get(firstSegKey);
+      const firstPos = positions.get(chain[0]);
+      if (firstSrc && firstPos) {
+        waypoints.push({
+          x: firstPos.x + nw + BAND_GAP,
+          y: (firstSrc.yTop + firstSrc.yBottom) / 2,
+          bh: firstSrc.yBottom - firstSrc.yTop,
+        });
+      }
+
+      // Dummy node pass-through points (center of each dummy)
+      for (let i = 1; i < chain.length - 1; i++) {
+        const dummyId = chain[i];
+        const dPos = positions.get(dummyId);
+        const dH = nodeHeights.get(dummyId) ?? minH;
+        if (dPos) {
+          // Pass-through at the center of the dummy node
+          waypoints.push({
+            x: dPos.x + nw / 2, // center x of dummy
+            y: dPos.y + dH / 2, // center y of dummy
+            bh: bandHeight(expandedEdges.find(
+              (ee) => ee.source === chain[i - 1] && ee.target === dummyId,
+            )?.rate ?? 1),
+          });
+        }
+      }
+
+      // Target entry port
+      const lastSegKey = chain[chain.length - 2] + EDGE_KEY_SEP + chain[chain.length - 1];
+      const lastTgt = targetPort.get(lastSegKey);
+      const lastPos = positions.get(chain[chain.length - 1]);
+      if (lastTgt && lastPos) {
+        waypoints.push({
+          x: lastPos.x - BAND_GAP,
+          y: (lastTgt.yTop + lastTgt.yBottom) / 2,
+          bh: lastTgt.yBottom - lastTgt.yTop,
+        });
+      }
+
+      edgeRoutes.set(origKey, waypoints);
+    }
+
+    return { positions, nodeHeights, totalWidth, totalHeight, sourcePort, targetPort, dummyNodes, edgeRoutes };
+  }
+
+  function resolveOverlaps(
+    sortedIds: string[],
+    positions: Map<string, { x: number; y: number }>,
+    nodeHeights: Map<string, number>,
+    minH: number,
+  ) {
+    // Clamp to y >= PAD
+    for (const id of sortedIds) {
+      const pos = positions.get(id);
+      if (pos && pos.y < PAD) pos.y = PAD;
+    }
+    // Push overlapping nodes down
+    const byY = [...sortedIds].sort(
+      (a, b) => (positions.get(a)?.y ?? 0) - (positions.get(b)?.y ?? 0),
+    );
+    for (let i = 1; i < byY.length; i++) {
+      const prev = positions.get(byY[i - 1])!;
+      const prevH = nodeHeights.get(byY[i - 1]) ?? minH;
+      const curr = positions.get(byY[i])!;
+      const minY = prev.y + prevH + GAP_Y;
+      if (curr.y < minY) curr.y = minY;
+    }
   }
 
   // Pass props as arguments so Svelte tracks them for reactivity
   let layout = $derived(computeLayout(nodes, edges, nodeWidth, minNodeHeight));
 
+  // Filter out dummy nodes from rendered HTML layer
   let layoutNodes = $derived(
     nodes.map((n) => ({
       ...n,
@@ -334,106 +497,35 @@
     })),
   );
 
-  // ── Channel routing for skip-layer edges ─────────────────
-  // Assign vertical tracks in inter-layer gaps so skip-layer bands
-  // route around intermediate nodes instead of through them.
-
-  function computeChannelTracks(
-    edges: FlowEdge[],
-    depth: Map<string, number>,
-    positions: Map<string, { x: number; y: number }>,
-    nodeHeights: Map<string, number>,
-    layers: Map<number, string[]>,
-  ) {
-    // For each inter-layer gap, track assigned y-positions for routed bands
-    // Key: layer index (the gap AFTER this layer), Value: assigned track y-values
-    const channelTracks = new Map<number, number[]>();
-    const edgeTrackY = new Map<string, number>(); // edgeKey → assigned track y
-
-    // Only skip-layer edges need channel routing
-    const skipEdges = edges.filter((e) => {
-      const sd = depth.get(e.source);
-      const td = depth.get(e.target);
-      return sd !== undefined && td !== undefined && td - sd > 1;
-    });
-
-    if (skipEdges.length === 0) return edgeTrackY;
-
-    // Find the vertical extent of nodes in each layer to know where free space is
-    const layerExtent = new Map<number, { top: number; bottom: number }>();
-    for (const [d, ids] of layers) {
-      let top = Infinity;
-      let bottom = -Infinity;
-      for (const id of ids) {
-        const pos = positions.get(id);
-        const h = nodeHeights.get(id) ?? 0;
-        if (pos) {
-          top = Math.min(top, pos.y);
-          bottom = Math.max(bottom, pos.y + h);
-        }
-      }
-      if (top !== Infinity) layerExtent.set(d, { top, bottom });
-    }
-
-    // Sort skip edges by vertical midpoint for consistent track assignment
-    const sorted = [...skipEdges].sort((a, b) => {
-      const aMid = ((positions.get(a.source)?.y ?? 0) + (positions.get(a.target)?.y ?? 0)) / 2;
-      const bMid = ((positions.get(b.source)?.y ?? 0) + (positions.get(b.target)?.y ?? 0)) / 2;
-      return aMid - bMid;
-    });
-
-    const TRACK_GAP = 16; // vertical space between parallel routed bands
-
-    for (const e of sorted) {
-      const sd = depth.get(e.source)!;
-      const td = depth.get(e.target)!;
-
-      // Find the lowest bottom of any node in intermediate layers
-      let maxBottom = 0;
-      for (let d = sd; d < td; d++) {
-        const ext = layerExtent.get(d);
-        if (ext) maxBottom = Math.max(maxBottom, ext.bottom);
-      }
-      // Also check the target layer
-      const tgtExt = layerExtent.get(td);
-      if (tgtExt) maxBottom = Math.max(maxBottom, tgtExt.bottom);
-
-      // Assign a track below all nodes in the intermediate layers
-      const existingTracks = channelTracks.get(sd) ?? [];
-      const trackY = maxBottom + TRACK_GAP + existingTracks.length * TRACK_GAP;
-
-      // Store the track for all intermediate gaps this edge passes through
-      for (let d = sd; d < td; d++) {
-        if (!channelTracks.has(d)) channelTracks.set(d, []);
-        channelTracks.get(d)!.push(trackY);
-      }
-
-      const key = e.source + EDGE_KEY_SEP + e.target;
-      edgeTrackY.set(key, trackY);
-    }
-
-    return edgeTrackY;
-  }
-
-  let channelTracks = $derived(
-    computeChannelTracks(edges, layout.depth, layout.positions, layout.nodeHeights, layout.layers),
-  );
-
-  // Effective height including channel routing space below nodes
-  let effectiveHeight = $derived(() => {
-    let maxTrackY = layout.totalHeight;
-    for (const trackY of channelTracks.values()) {
-      // Track Y + band half-height + padding
-      maxTrackY = Math.max(maxTrackY, trackY + BAND_SCALE / 2 + PAD);
-    }
-    return maxTrackY;
-  });
-
   let layoutBands = $derived(
     edges.map((e) => {
-      const key = e.source + EDGE_KEY_SEP + e.target;
-      const src = layout.sourcePort.get(key);
-      const tgt = layout.targetPort.get(key);
+      const origKey = e.source + EDGE_KEY_SEP + e.target;
+      const waypoints = layout.edgeRoutes.get(origKey);
+
+      if (waypoints && waypoints.length >= 2) {
+        // Long edge: multi-segment ribbon through waypoints
+        const path = buildWaypointRibbon(waypoints);
+        const color = e.color ?? bandColor?.(e) ?? "var(--flow-band-color, #c8a84e)";
+        const gradId = `band-grad-${origKey.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+
+        const LABEL_OFFSET = 6;
+        const first = waypoints[0];
+        const last = waypoints[waypoints.length - 1];
+
+        return {
+          ...e, path, color, gradId,
+          srcLabelX: first.x + LABEL_OFFSET,
+          srcLabelY: first.y,
+          srcLabel: bandLabel?.(e, "source") ?? null,
+          tgtLabelX: last.x - LABEL_OFFSET,
+          tgtLabelY: last.y,
+          tgtLabel: bandLabel?.(e, "target") ?? null,
+        };
+      }
+
+      // Short edge: direct bezier ribbon
+      const src = layout.sourcePort.get(origKey);
+      const tgt = layout.targetPort.get(origKey);
       const srcPos = layout.positions.get(e.source);
       const tgtPos = layout.positions.get(e.target);
 
@@ -445,56 +537,69 @@
 
       const x1 = srcPos.x + nodeWidth + BAND_GAP;
       const x2 = tgtPos.x - BAND_GAP;
-      const bh = (src.yBottom - src.yTop); // band height at source
-      const trackY = channelTracks.get(key);
+      const dx = Math.max((x2 - x1) * 0.5, 40);
 
-      let path: string;
-
-      if (trackY !== undefined) {
-        // Skip-layer edge: bezier ribbon that arcs below intermediate nodes.
-        // Control points are pushed down to trackY so the curve goes around obstacles.
-        const halfBand = bh / 2;
-        const dx = Math.max((x2 - x1) * 0.35, 40);
-
-        // Top edge curves down to trackY then back up to target
-        // Bottom edge follows the same arc but offset by band height
-        path = [
-          `M ${x1} ${src.yTop}`,
-          `C ${x1 + dx} ${src.yTop}, ${(x1 + x2) / 2 - dx} ${trackY - halfBand}, ${(x1 + x2) / 2} ${trackY - halfBand}`,
-          `C ${(x1 + x2) / 2 + dx} ${trackY - halfBand}, ${x2 - dx} ${tgt.yTop}, ${x2} ${tgt.yTop}`,
-          `L ${x2} ${tgt.yBottom}`,
-          `C ${x2 - dx} ${tgt.yBottom}, ${(x1 + x2) / 2 + dx} ${trackY + halfBand}, ${(x1 + x2) / 2} ${trackY + halfBand}`,
-          `C ${(x1 + x2) / 2 - dx} ${trackY + halfBand}, ${x1 + dx} ${src.yBottom}, ${x1} ${src.yBottom}`,
-          `Z`,
-        ].join(" ");
-      } else {
-        // Adjacent-layer edge: standard bezier ribbon
-        const dx = Math.max((x2 - x1) * 0.5, 40);
-        path = [
-          `M ${x1} ${src.yTop}`,
-          `C ${x1 + dx} ${src.yTop}, ${x2 - dx} ${tgt.yTop}, ${x2} ${tgt.yTop}`,
-          `L ${x2} ${tgt.yBottom}`,
-          `C ${x2 - dx} ${tgt.yBottom}, ${x1 + dx} ${src.yBottom}, ${x1} ${src.yBottom}`,
-          `Z`,
-        ].join(" ");
-      }
+      const path = [
+        `M ${x1} ${src.yTop}`,
+        `C ${x1 + dx} ${src.yTop}, ${x2 - dx} ${tgt.yTop}, ${x2} ${tgt.yTop}`,
+        `L ${x2} ${tgt.yBottom}`,
+        `C ${x2 - dx} ${tgt.yBottom}, ${x1 + dx} ${src.yBottom}, ${x1} ${src.yBottom}`,
+        `Z`,
+      ].join(" ");
 
       const color = e.color ?? bandColor?.(e) ?? "var(--flow-band-color, #c8a84e)";
-      const gradId = `band-grad-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
+      const gradId = `band-grad-${origKey.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
-      // Label positions at band endpoints (vertically centered on band)
       const LABEL_OFFSET = 6;
-      const srcLabelX = x1 + LABEL_OFFSET;
-      const srcLabelY = (src.yTop + src.yBottom) / 2;
-      const tgtLabelX = x2 - LABEL_OFFSET;
-      const tgtLabelY = (tgt.yTop + tgt.yBottom) / 2;
-
-      const srcLabel = bandLabel?.(e, "source") ?? null;
-      const tgtLabel = bandLabel?.(e, "target") ?? null;
-
-      return { ...e, path, color, gradId, srcLabelX, srcLabelY, srcLabel, tgtLabelX, tgtLabelY, tgtLabel };
+      return {
+        ...e, path, color, gradId,
+        srcLabelX: x1 + LABEL_OFFSET,
+        srcLabelY: (src.yTop + src.yBottom) / 2,
+        srcLabel: bandLabel?.(e, "source") ?? null,
+        tgtLabelX: x2 - LABEL_OFFSET,
+        tgtLabelY: (tgt.yTop + tgt.yBottom) / 2,
+        tgtLabel: bandLabel?.(e, "target") ?? null,
+      };
     }),
   );
+
+  /** Build a continuous ribbon SVG path through a sequence of waypoints.
+   *  Each waypoint has (x, y, bh) — center position and band height.
+   *  Uses cubic bezier segments with horizontal tangents at each waypoint. */
+  function buildWaypointRibbon(waypoints: Waypoint[]): string {
+    if (waypoints.length < 2) return "";
+
+    // Top edge: forward through waypoints at y - bh/2
+    const topParts: string[] = [];
+    const w0 = waypoints[0];
+    topParts.push(`M ${w0.x} ${w0.y - w0.bh / 2}`);
+
+    for (let i = 1; i < waypoints.length; i++) {
+      const prev = waypoints[i - 1];
+      const curr = waypoints[i];
+      const dx = Math.max((curr.x - prev.x) * 0.5, 20);
+      topParts.push(
+        `C ${prev.x + dx} ${prev.y - prev.bh / 2}, ${curr.x - dx} ${curr.y - curr.bh / 2}, ${curr.x} ${curr.y - curr.bh / 2}`,
+      );
+    }
+
+    // Connect to bottom edge at last waypoint
+    const wLast = waypoints[waypoints.length - 1];
+    topParts.push(`L ${wLast.x} ${wLast.y + wLast.bh / 2}`);
+
+    // Bottom edge: backward through waypoints at y + bh/2
+    for (let i = waypoints.length - 2; i >= 0; i--) {
+      const prev = waypoints[i + 1];
+      const curr = waypoints[i];
+      const dx = Math.max((prev.x - curr.x) * 0.5, 20);
+      topParts.push(
+        `C ${prev.x - dx} ${prev.y + prev.bh / 2}, ${curr.x + dx} ${curr.y + curr.bh / 2}, ${curr.x} ${curr.y + curr.bh / 2}`,
+      );
+    }
+
+    topParts.push("Z");
+    return topParts.join(" ");
+  }
 
   function showBandTip(ev: MouseEvent, band: FlowEdge & { path: string }) {
     if (!band.label) return;
@@ -518,7 +623,7 @@
 <div
   class="flow-container"
   style:width="{layout.totalWidth}px"
-  style:height="{effectiveHeight()}px"
+  style:height="{layout.totalHeight}px"
 >
   <Tooltip {...tip} />
 
@@ -526,8 +631,8 @@
   <svg
     class="band-layer"
     width={layout.totalWidth}
-    height={effectiveHeight()}
-    viewBox="0 0 {layout.totalWidth} {effectiveHeight()}"
+    height={layout.totalHeight}
+    viewBox="0 0 {layout.totalWidth} {layout.totalHeight}"
   >
     <!-- Gradient definitions for flow bands -->
     <defs>
@@ -583,7 +688,7 @@
     {/each}
   </svg>
 
-  <!-- HTML node layer -->
+  <!-- HTML node layer (dummy nodes filtered out) -->
   {#each layoutNodes as node}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
