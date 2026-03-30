@@ -164,20 +164,20 @@
     }))
   );
 
-  let configItems = $derived.by(() => {
-    const items: Array<{ label: string; value: string }> = [
-      { label: "Assembler", value: formatMachineName(data.config.assembler_tier) },
+  let configKV = $derived.by(() => {
+    const items: Array<{ key: string; value: string }> = [
+      { key: "Assembler", value: formatMachineName(data.config.assembler_tier) },
     ];
     if (data.config.modules?.length) {
-      items.push({ label: "Modules", value: data.config.modules.map(formatItemName).join(", ") });
+      items.push({ key: "Modules", value: data.config.modules.map(formatItemName).join(", ") });
     }
     if (data.config.beacon_count > 0) {
-      items.push({ label: "Beacons", value: `${data.config.beacon_count}\u00d7` });
+      items.push({ key: "Beacons", value: `${data.config.beacon_count}\u00d7` });
       if (data.config.beacon_modules?.length) {
-        items.push({ label: "Beacon Modules", value: data.config.beacon_modules.map(formatItemName).join(", ") });
+        items.push({ key: "Beacon Modules", value: data.config.beacon_modules.map(formatItemName).join(", ") });
       }
     }
-    items.push({ label: "Total Power", value: formatPower(data.total_power_kw) });
+    items.push({ key: "Total Power", value: formatPower(data.total_power_kw) });
     return items;
   });
 </script>
@@ -202,9 +202,7 @@
       {/if}
 
       <Section title="Configuration">
-        {#each configItems as item}
-          <KeyValue label={item.label} value={item.value} />
-        {/each}
+        <KeyValue items={configKV} />
       </Section>
     </div>
   </Panel>
