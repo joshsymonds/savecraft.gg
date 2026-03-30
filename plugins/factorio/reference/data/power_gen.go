@@ -39,8 +39,8 @@ const SolarAccumulatorRatio = 25.0 / 21.0
 
 // Steam chain fixed ratios.
 const (
-	BoilersPerPump  = 20 // 1 offshore pump feeds 20 boilers
-	EnginesPerBoiler = 2 // 1 boiler feeds 2 steam engines
+	BoilersPerPump   = 20 // 1 offshore pump feeds 20 boilers
+	EnginesPerBoiler = 2  // 1 boiler feeds 2 steam engines
 )
 
 // NuclearFuelCellDuration is the burn time of one uranium fuel cell in seconds.

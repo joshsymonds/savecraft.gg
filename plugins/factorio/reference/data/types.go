@@ -151,6 +151,6 @@ type ReactorLayout struct {
 
 // FuelItem is a burnable fuel with its energy value.
 type FuelItem struct {
-	Name    string
+	Name     string
 	EnergyMJ float64 // total energy in megajoules
 }
