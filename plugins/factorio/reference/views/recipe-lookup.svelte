@@ -173,7 +173,7 @@
     }))
   );
 
-  let productRows2 = $derived(
+  let producedByRows = $derived(
     (data.produced_by ?? []).map((r) => ({
       name: formatItemName(r.name),
       category: formatItemName(r.category),
@@ -278,7 +278,7 @@
       {:else if shape === "product"}
         <Section title="Produced By" count={data.recipe_count}>
           <p class="item-label">{formatItemName(data.item ?? "")} is produced by:</p>
-          <DataTable columns={recipeListColumns} rows={productRows2} />
+          <DataTable columns={recipeListColumns} rows={producedByRows} />
         </Section>
 
       {:else if shape === "machine" && data.machine}

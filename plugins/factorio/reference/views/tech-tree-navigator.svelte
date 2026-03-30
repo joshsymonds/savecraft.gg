@@ -63,7 +63,7 @@
 
   // ── Summary KeyValue ─────────────────────────────────────────
   let summaryKV = $derived.by(() => {
-    const items: Array<{ key: string; value: string; variant?: string }> = [
+    const items: Array<{ key: string; value: string; variant?: "positive" | "negative" | "highlight" | "info" | "warning" | "muted" }> = [
       { key: "Target", value: formatItemName(data.target) },
       { key: "Technologies", value: String(data.chain_length) },
       { key: "Total Research Time", value: formatTime(data.total_time_seconds) },
