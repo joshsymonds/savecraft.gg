@@ -171,8 +171,10 @@ export async function resolveSectionParams(
     if (!stripKeys.has(key)) enriched[key] = value;
   }
 
-  for (const mapping of active) {
-    const extracted = await resolveOneSection(db, saveId, mapping, query);
+  const results = await Promise.all(
+    active.map((mapping) => resolveOneSection(db, saveId, mapping, query)),
+  );
+  for (const extracted of results) {
     Object.assign(enriched, extracted);
   }
 

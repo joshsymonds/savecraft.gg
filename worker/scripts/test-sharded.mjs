@@ -38,6 +38,39 @@ function runShard(index, total) {
   });
 }
 
+/** Parse test counts from vitest output. */
+function parseCounts(stdout) {
+  const plain = stripAnsi(stdout);
+  const filesMatch = plain.match(/Test Files\s+(\d+) passed \((\d+)\)/);
+  const testsMatch = plain.match(/Tests\s+(?:\d+ failed \| )?(\d+) passed \((\d+)\)/);
+  return {
+    files: filesMatch ? parseInt(filesMatch[2], 10) : 0,
+    tests: testsMatch ? parseInt(testsMatch[2], 10) : 0,
+  };
+}
+
+/** Extract failed test names and assertion errors from vitest output. */
+function extractFailures(stdout) {
+  const plain = stripAnsi(stdout);
+  const lines = plain.split("\n");
+  const failures = [];
+  for (let i = 0; i < lines.length; i++) {
+    // Match "FAIL  test/foo.test.ts > describe > test name"
+    const failMatch = lines[i].match(/FAIL\s+(test\/\S+)\s+>\s+(.+)/);
+    if (failMatch) {
+      const entry = { file: failMatch[1], test: failMatch[2], details: [] };
+      // Collect indented lines after the FAIL as error details (up to 8 lines)
+      for (let j = i + 1; j < lines.length && j < i + 9; j++) {
+        const line = lines[j];
+        if (line.match(/^\s*$/) || line.match(/^[─⎯]/)) break;
+        entry.details.push(line);
+      }
+      failures.push(entry);
+    }
+  }
+  return failures;
+}
+
 const start = Date.now();
 const results = await Promise.all(
   Array.from({ length: SHARD_COUNT }, (_, i) => runShard(i + 1, SHARD_COUNT)),
@@ -49,23 +82,31 @@ let totalTests = 0;
 let failed = false;
 
 for (const { index, code, stdout, stderr } of results) {
-  const plain = stripAnsi(stdout);
-  const filesMatch = plain.match(/Test Files\s+(\d+) passed \((\d+)\)/);
-  const testsMatch = plain.match(/Tests\s+(?:\d+ failed \| )?(\d+) passed \((\d+)\)/);
+  const { files, tests } = parseCounts(stdout);
 
   if (code !== 0) {
     failed = true;
-    console.error(`\n--- Shard ${index}/${SHARD_COUNT} FAILED (exit ${code}) ---`);
-    console.error(stdout);
-    if (stderr.trim()) console.error(stderr);
+    const failures = extractFailures(stdout);
+    if (failures.length > 0) {
+      console.error(`\n  shard ${index}/${SHARD_COUNT}: FAILED — ${failures.length} test(s):`);
+      for (const f of failures) {
+        console.error(`    ✘ ${f.file} > ${f.test}`);
+        for (const line of f.details) {
+          console.error(`      ${line.trim()}`);
+        }
+      }
+    } else {
+      // No parseable failures — dump raw output
+      console.error(`\n--- Shard ${index}/${SHARD_COUNT} FAILED (exit ${code}) ---`);
+      console.error(stdout);
+      if (stderr.trim()) console.error(stderr);
+    }
   } else {
-    const files = filesMatch ? filesMatch[2] : "?";
-    const tests = testsMatch ? testsMatch[2] : "?";
     console.log(`  shard ${index}/${SHARD_COUNT}: ${files} files, ${tests} tests ✓`);
   }
 
-  if (filesMatch) totalFiles += parseInt(filesMatch[2], 10);
-  if (testsMatch) totalTests += parseInt(testsMatch[2], 10);
+  totalFiles += files;
+  totalTests += tests;
 }
 
 console.log(`\n  ${totalFiles} files, ${totalTests} tests in ${elapsed}s (${SHARD_COUNT} shards)`);
