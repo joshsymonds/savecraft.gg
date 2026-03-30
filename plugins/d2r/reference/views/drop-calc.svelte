@@ -101,10 +101,10 @@
     return n < 10 ? `1:${n.toFixed(1)}` : `1:${Math.round(n)}`;
   }
 
-  // --- Chance cell with quality coloring ---
-  function chanceCell(p: number, variant: Variant): { value: string; variant?: Variant } {
-    if (p <= 0) return { value: "\u2014", variant: "muted" };
-    return { value: fmtChance(p), variant };
+  // --- Chance cell with quality coloring + numeric sortValue ---
+  function chanceCell(p: number, variant: Variant): { value: string; variant?: Variant; sortValue: number } {
+    if (p <= 0) return { value: "\u2014", variant: "muted", sortValue: 0 };
+    return { value: fmtChance(p), variant, sortValue: p };
   }
 
   // --- Monster mode table ---

@@ -8,7 +8,7 @@
     | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor";
 
   /** A cell value can be a plain string/number or a rich object with variant coloring. */
-  type CellValue = string | number | { value: string | number; variant?: Variant };
+  type CellValue = string | number | { value: string | number; variant?: Variant; sortValue?: number };
 
   interface Column {
     key: string;
@@ -33,9 +33,18 @@
 
   let { columns, rows, sortKey, sortDir = "asc" }: Props = $props();
 
-  /** Extract the raw sortable/displayable value from a CellValue. */
+  /** Extract the display value from a CellValue. */
   function rawValue(cell: CellValue): string | number {
     if (typeof cell === "object" && cell !== null && "value" in cell) return cell.value;
+    return cell;
+  }
+
+  /** Extract the sort key from a CellValue — prefers sortValue over display value. */
+  function sortableValue(cell: CellValue): string | number {
+    if (typeof cell === "object" && cell !== null) {
+      if ("sortValue" in cell && typeof cell.sortValue === "number") return cell.sortValue;
+      if ("value" in cell) return cell.value;
+    }
     return cell;
   }
 
@@ -64,8 +73,8 @@
     const key = activeSortKey;
     const dir = activeSortDir === "asc" ? 1 : -1;
     return [...rows].sort((a, b) => {
-      const va = rawValue(a[key] as CellValue);
-      const vb = rawValue(b[key] as CellValue);
+      const va = sortableValue(a[key] as CellValue);
+      const vb = sortableValue(b[key] as CellValue);
       if (typeof va === "number" && typeof vb === "number") return (va - vb) * dir;
       return String(va).localeCompare(String(vb)) * dir;
     });
