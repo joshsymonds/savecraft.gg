@@ -702,50 +702,50 @@
     return { x: ev.clientX - rect.left + containerEl.parentElement!.scrollLeft, y: ev.clientY - rect.top };
   }
 
-  /** Hit-test all band paths at the cursor position.
-   *  Checks thinnest bands first so they win over wider overlapping ones. */
-  function handleSvgPointerMove(ev: PointerEvent) {
-    if (!svgEl) return;
-
-    // Convert client coords to SVG coords
-    const pt = svgEl.createSVGPoint();
-    pt.x = ev.clientX;
-    pt.y = ev.clientY;
-    const svgPt = pt.matrixTransform(svgEl.getScreenCTM()!.inverse());
-
-    // Find all band paths and test point-in-fill, thinnest first
-    const paths = svgEl.querySelectorAll<SVGPathElement>(".flow-band");
-    const indexed = [...paths].map((p, i) => ({ path: p, band: layoutBands[i], rate: layoutBands[i]?.rate ?? 0 }));
-    // Sort thinnest first — thin bands should win over fat overlapping ones
-    indexed.sort((a, b) => a.rate - b.rate);
-
-    let hitBand: (typeof layoutBands)[number] | null = null;
-    for (const { path, band } of indexed) {
-      if (!band?.path) continue;
-      if (path.isPointInFill(pt)) {
-        hitBand = band;
-        break;
-      }
-    }
-
-    if (hitBand) {
-      hoveredEdgeKey = hitBand.origKey;
+  /** Handle band hover via mouseenter on individual paths.
+   *  When overlapping bands exist, the topmost path fires mouseenter.
+   *  We do isPointInFill on all paths to find the thinnest band under
+   *  the cursor, which gives priority to smaller bands overlapped by larger ones. */
+  function handleBandEnter(ev: MouseEvent, band: (typeof layoutBands)[number]) {
+    if (!svgEl) {
+      // Fallback: trust the native event target
+      hoveredEdgeKey = band.origKey;
       hoveredNodeId = null;
-      const text = bandTipText(hitBand);
-      if (text) {
-        const pos = containerRelative(ev);
-        tip = { text, x: pos.x, y: pos.y, visible: true };
-      }
-    } else {
-      // No band under cursor — clear band hover (node hover handles itself)
-      if (hoveredEdgeKey) {
-        hoveredEdgeKey = null;
-        tip = { ...tip, visible: false };
+      const text = bandTipText(band);
+      if (text) { const pos = containerRelative(ev); tip = { text, x: pos.x, y: pos.y, visible: true }; }
+      return;
+    }
+
+    // Convert mouse position to SVG coordinates for isPointInFill
+    const svgPt = new DOMPoint(ev.clientX, ev.clientY).matrixTransform(svgEl.getScreenCTM()!.inverse());
+
+    // Check all band paths, thinnest first — thin bands win over fat overlapping ones
+    const paths = svgEl.querySelectorAll<SVGPathElement>(".flow-band");
+    let bestBand = band; // default to native target
+    let bestRate = Infinity;
+
+    for (let i = 0; i < paths.length; i++) {
+      const b = layoutBands[i];
+      if (!b?.path) continue;
+      if (b.rate < bestRate && paths[i].isPointInFill(svgPt)) {
+        bestBand = b;
+        bestRate = b.rate;
       }
     }
+
+    hoveredEdgeKey = bestBand.origKey;
+    hoveredNodeId = null;
+    const text = bandTipText(bestBand);
+    if (text) { const pos = containerRelative(ev); tip = { text, x: pos.x, y: pos.y, visible: true }; }
   }
 
-  function handleSvgPointerLeave() {
+  function handleBandMove(ev: MouseEvent, band: (typeof layoutBands)[number]) {
+    // On move, just update tooltip position (don't re-do expensive hit testing)
+    const text = bandTipText(band);
+    if (text) { const pos = containerRelative(ev); tip = { text, x: pos.x, y: pos.y, visible: true }; }
+  }
+
+  function handleBandLeave() {
     hoveredEdgeKey = null;
     tip = { ...tip, visible: false };
   }
@@ -773,15 +773,12 @@
   <Tooltip {...tip} />
 
   <!-- SVG band layer -->
-  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <svg
     class="band-layer"
     bind:this={svgEl}
     width={layout.totalWidth}
     height={layout.totalHeight}
     viewBox="0 0 {layout.totalWidth} {layout.totalHeight}"
-    onpointermove={handleSvgPointerMove}
-    onpointerleave={handleSvgPointerLeave}
   >
     <!-- Gradient definitions for flow bands -->
     <defs>
@@ -803,6 +800,9 @@
           d={band.path}
           fill="url(#{band.gradId})"
           class="flow-band {hoverState.bandClass.get(band.origKey) ?? ''}"
+          onmouseenter={(ev) => handleBandEnter(ev, band)}
+          onmousemove={(ev) => handleBandMove(ev, band)}
+          onmouseleave={handleBandLeave}
         />
       {/if}
     {/each}
@@ -916,11 +916,11 @@
     position: absolute;
     top: 0;
     left: 0;
-    pointer-events: auto;
+    pointer-events: none;
   }
 
   .flow-band {
-    pointer-events: none; /* Hit testing done at SVG level via isPointInFill */
+    pointer-events: auto;
     cursor: default;
     transition: filter 0.15s, opacity 0.15s;
   }
