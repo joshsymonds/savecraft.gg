@@ -3,12 +3,33 @@
  * All numbers match verified game math (see oil_balancer_test.go).
  */
 
+export interface OilExistingInfo {
+  machine_type: string;
+  count: number;
+  modules: Record<string, number>;
+  effective_rate: number;
+  actual_rate: number;
+}
+
+export interface OilBottleneck {
+  item: string;
+  recipe: string;
+  needed_rate: number;
+  existing_rate: number;
+  actual_rate: number;
+  diagnosis: string;
+}
+
 export interface OilStage {
   id: string;
   recipe: string;
   machine_type: string;
   machine_count: number;
   power_kw: number;
+  // Comparison fields — only present when existing_setup was provided
+  existing?: OilExistingInfo;
+  deficit_rate?: number;
+  status?: "missing" | "deficit" | "surplus" | "sufficient";
 }
 
 export interface OilFlow {
@@ -25,6 +46,7 @@ export interface OilBalancerResult {
   total_power_kw: number;
   surplus: Record<string, number>;
   config: Record<string, unknown>;
+  bottlenecks?: OilBottleneck[];
 }
 
 /**
@@ -175,4 +197,91 @@ export const withProductivityModules: OilBalancerResult = {
     processing_type: "advanced-oil-processing",
     modules: ["productivity-module-3", "productivity-module-3", "productivity-module-3"],
   },
+};
+
+/**
+ * Advanced oil processing with save data comparison.
+ * Player has 10/20 refineries (deficit), 5/5 heavy crackers (sufficient),
+ * 25/17 light crackers (surplus). Demonstrates all status variants.
+ */
+export const withComparison: OilBalancerResult = {
+  stages: [
+    {
+      id: "refinery", recipe: "advanced-oil-processing", machine_type: "oil-refinery",
+      machine_count: 20, power_kw: 8400,
+      existing: { machine_type: "oil-refinery", count: 10, modules: {}, effective_rate: 55, actual_rate: 50 },
+      deficit_rate: 55, status: "deficit",
+    },
+    {
+      id: "heavy-cracker", recipe: "heavy-oil-cracking", machine_type: "chemical-plant",
+      machine_count: 5, power_kw: 1050,
+      existing: { machine_type: "chemical-plant", count: 5, modules: {}, effective_rate: 37.5, actual_rate: 35 },
+      status: "sufficient",
+    },
+    {
+      id: "light-cracker", recipe: "light-oil-cracking", machine_type: "chemical-plant",
+      machine_count: 17, power_kw: 3570,
+      existing: { machine_type: "chemical-plant", count: 25, modules: {}, effective_rate: 125, actual_rate: 120 },
+      status: "surplus",
+    },
+  ],
+  flows: [
+    { source: "input", target: "refinery", fluid: "crude-oil", rate: 2000 },
+    { source: "input", target: "refinery", fluid: "water", rate: 1000 },
+    { source: "refinery", target: "heavy-cracker", fluid: "heavy-oil", rate: 100 },
+    { source: "refinery", target: "light-cracker", fluid: "light-oil", rate: 255 },
+    { source: "input", target: "heavy-cracker", fluid: "water", rate: 150 },
+    { source: "input", target: "light-cracker", fluid: "water", rate: 510 },
+    { source: "heavy-cracker", target: "light-cracker", fluid: "light-oil", rate: 75 },
+    { source: "light-cracker", target: "output", fluid: "petroleum-gas", rate: 390 },
+  ],
+  raw_inputs: { "crude-oil": 2000, water: 1660 },
+  total_power_kw: 13020,
+  surplus: {},
+  config: { processing_type: "advanced-oil-processing" },
+  bottlenecks: [
+    {
+      item: "advanced-oil-processing", recipe: "advanced-oil-processing",
+      needed_rate: 110, existing_rate: 55, actual_rate: 50, diagnosis: "underbuilt",
+    },
+  ],
+};
+
+/**
+ * Comparison with all stages missing (player has no oil setup).
+ */
+export const withComparisonAllMissing: OilBalancerResult = {
+  stages: [
+    {
+      id: "refinery", recipe: "advanced-oil-processing", machine_type: "oil-refinery",
+      machine_count: 20, power_kw: 8400, status: "missing",
+    },
+    {
+      id: "heavy-cracker", recipe: "heavy-oil-cracking", machine_type: "chemical-plant",
+      machine_count: 5, power_kw: 1050, status: "missing",
+    },
+    {
+      id: "light-cracker", recipe: "light-oil-cracking", machine_type: "chemical-plant",
+      machine_count: 17, power_kw: 3570, status: "missing",
+    },
+  ],
+  flows: [
+    { source: "input", target: "refinery", fluid: "crude-oil", rate: 2000 },
+    { source: "input", target: "refinery", fluid: "water", rate: 1000 },
+    { source: "refinery", target: "heavy-cracker", fluid: "heavy-oil", rate: 100 },
+    { source: "refinery", target: "light-cracker", fluid: "light-oil", rate: 255 },
+    { source: "input", target: "heavy-cracker", fluid: "water", rate: 150 },
+    { source: "input", target: "light-cracker", fluid: "water", rate: 510 },
+    { source: "heavy-cracker", target: "light-cracker", fluid: "light-oil", rate: 75 },
+    { source: "light-cracker", target: "output", fluid: "petroleum-gas", rate: 390 },
+  ],
+  raw_inputs: { "crude-oil": 2000, water: 1660 },
+  total_power_kw: 13020,
+  surplus: {},
+  config: { processing_type: "advanced-oil-processing" },
+  bottlenecks: [
+    { item: "advanced-oil-processing", recipe: "advanced-oil-processing", needed_rate: 20, existing_rate: 0, actual_rate: 0, diagnosis: "missing" },
+    { item: "heavy-oil-cracking", recipe: "heavy-oil-cracking", needed_rate: 5, existing_rate: 0, actual_rate: 0, diagnosis: "missing" },
+    { item: "light-oil-cracking", recipe: "light-oil-cracking", needed_rate: 17, existing_rate: 0, actual_rate: 0, diagnosis: "missing" },
+  ],
 };
