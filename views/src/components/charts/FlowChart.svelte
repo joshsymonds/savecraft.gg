@@ -55,6 +55,7 @@
   const PORT_PAD = 8; // vertical padding inside node for port area
   const MIN_BAND_WIDTH = 3; // minimum band thickness in px
   const BAND_SCALE = 48; // max band thickness for the largest flow
+  const BAND_SEP = 2; // minimum gap between adjacent bands at a port
   const EDGE_KEY_SEP = "\x00"; // separator for edge map keys (cannot appear in node IDs)
 
   let tip = $state({ text: "", x: 0, y: 0, visible: false });
@@ -151,17 +152,15 @@
       inputEdges.get(e.target)!.push(e);
     }
 
-    // Compute node heights based on port totals
+    // Compute node heights based on port totals (including BAND_SEP gaps)
     const nodeHeights = new Map<string, number>();
     for (const n of nodes) {
-      const inTotal = (inputEdges.get(n.id) ?? []).reduce(
-        (sum, e) => sum + bandHeight(e.rate),
-        0,
-      );
-      const outTotal = (outputEdges.get(n.id) ?? []).reduce(
-        (sum, e) => sum + bandHeight(e.rate),
-        0,
-      );
+      const inEdges = inputEdges.get(n.id) ?? [];
+      const outEdges = outputEdges.get(n.id) ?? [];
+      const inTotal = inEdges.reduce((sum, e) => sum + bandHeight(e.rate), 0)
+        + Math.max(0, inEdges.length - 1) * BAND_SEP;
+      const outTotal = outEdges.reduce((sum, e) => sum + bandHeight(e.rate), 0)
+        + Math.max(0, outEdges.length - 1) * BAND_SEP;
       const portTotal = Math.max(inTotal, outTotal);
       nodeHeights.set(n.id, Math.max(minH, portTotal + PORT_PAD * 2));
     }
@@ -258,34 +257,58 @@
     const targetPort = new Map<string, PortSlice>();
 
     // Allocate output ports (right side of source nodes)
+    // Sort by target y-center so bands flow top-to-bottom matching target order
     for (const [nodeId, outs] of outputEdges) {
       const pos = positions.get(nodeId)!;
       const h = nodeHeights.get(nodeId)!;
-      const totalBand = outs.reduce((sum, e) => sum + bandHeight(e.rate), 0);
+
+      const sorted = [...outs].sort((a, b) => {
+        const aPos = positions.get(a.target);
+        const bPos = positions.get(b.target);
+        const aCenter = aPos ? aPos.y + (nodeHeights.get(a.target) ?? minH) / 2 : 0;
+        const bCenter = bPos ? bPos.y + (nodeHeights.get(b.target) ?? minH) / 2 : 0;
+        return aCenter - bCenter;
+      });
+
+      const totalBand = sorted.reduce((sum, e) => sum + bandHeight(e.rate), 0)
+        + Math.max(0, sorted.length - 1) * BAND_SEP;
       let yOffset = pos.y + (h - totalBand) / 2;
-      for (const e of outs) {
+      for (let i = 0; i < sorted.length; i++) {
+        const e = sorted[i];
         const bh = bandHeight(e.rate);
         sourcePort.set(e.source + EDGE_KEY_SEP + e.target, {
           yTop: yOffset,
           yBottom: yOffset + bh,
         });
-        yOffset += bh;
+        yOffset += bh + BAND_SEP;
       }
     }
 
     // Allocate input ports (left side of target nodes)
+    // Sort by source y-center so bands arrive top-to-bottom matching source order
     for (const [nodeId, ins] of inputEdges) {
       const pos = positions.get(nodeId)!;
       const h = nodeHeights.get(nodeId)!;
-      const totalBand = ins.reduce((sum, e) => sum + bandHeight(e.rate), 0);
+
+      const sorted = [...ins].sort((a, b) => {
+        const aPos = positions.get(a.source);
+        const bPos = positions.get(b.source);
+        const aCenter = aPos ? aPos.y + (nodeHeights.get(a.source) ?? minH) / 2 : 0;
+        const bCenter = bPos ? bPos.y + (nodeHeights.get(b.source) ?? minH) / 2 : 0;
+        return aCenter - bCenter;
+      });
+
+      const totalBand = sorted.reduce((sum, e) => sum + bandHeight(e.rate), 0)
+        + Math.max(0, sorted.length - 1) * BAND_SEP;
       let yOffset = pos.y + (h - totalBand) / 2;
-      for (const e of ins) {
+      for (let i = 0; i < sorted.length; i++) {
+        const e = sorted[i];
         const bh = bandHeight(e.rate);
         targetPort.set(e.source + EDGE_KEY_SEP + e.target, {
           yTop: yOffset,
           yBottom: yOffset + bh,
         });
-        yOffset += bh;
+        yOffset += bh + BAND_SEP;
       }
     }
 
