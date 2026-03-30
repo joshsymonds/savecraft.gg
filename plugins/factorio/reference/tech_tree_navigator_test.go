@@ -119,8 +119,14 @@ func TestTechTree_ResearchOrder_Valid(t *testing.T) {
 	data := result["data"].(map[string]any)
 
 	order := toStringSlice(t, data["research_order"])
+	chain := toStringSlice(t, data["chain"])
 	if len(order) == 0 {
 		t.Fatal("expected non-empty research_order")
+	}
+
+	// Completeness: topoSort must include all chain members
+	if len(order) != len(chain) {
+		t.Errorf("research_order length (%d) != chain length (%d) — topoSort dropped nodes", len(order), len(chain))
 	}
 
 	// Every tech must appear after ALL its prerequisites in the order
