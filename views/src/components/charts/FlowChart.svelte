@@ -451,42 +451,22 @@
       let path: string;
 
       if (trackY !== undefined) {
-        // Skip-layer edge: route through channel below intermediate nodes
-        // Path: exit source → bend down to track → horizontal through gaps → bend up to target
-        const r = 8; // corner radius for bends
-        const srcMidY = (src.yTop + src.yBottom) / 2;
-        const tgtMidY = (tgt.yTop + tgt.yBottom) / 2;
+        // Skip-layer edge: bezier ribbon that arcs below intermediate nodes.
+        // Control points are pushed down to trackY so the curve goes around obstacles.
         const halfBand = bh / 2;
+        const dx = Math.max((x2 - x1) * 0.35, 40);
 
-        // Top edge of ribbon
-        const topPath = [
+        // Top edge curves down to trackY then back up to target
+        // Bottom edge follows the same arc but offset by band height
+        path = [
           `M ${x1} ${src.yTop}`,
-          `L ${x1 + r} ${src.yTop}`,
-          `Q ${x1 + r * 2} ${src.yTop}, ${x1 + r * 2} ${Math.min(src.yTop + r, trackY - halfBand)}`,
-          `L ${x1 + r * 2} ${trackY - halfBand}`,
-          `Q ${x1 + r * 2} ${trackY - halfBand + r}, ${x1 + r * 3} ${trackY - halfBand}`,
-          `L ${x2 - r * 3} ${trackY - halfBand}`,
-          `Q ${x2 - r * 2} ${trackY - halfBand}, ${x2 - r * 2} ${trackY - halfBand - r}`,
-          `L ${x2 - r * 2} ${tgt.yTop}`,
-          `Q ${x2 - r * 2} ${tgt.yTop - r}, ${x2 - r} ${tgt.yTop}`,
-          `L ${x2} ${tgt.yTop}`,
-        ].join(" ");
-
-        // Bottom edge of ribbon (reverse direction)
-        const bottomPath = [
-          `L ${x2 - r} ${tgt.yBottom}`,
-          `Q ${x2 - r * 2} ${tgt.yBottom}, ${x2 - r * 2} ${tgt.yBottom + r}`,
-          `L ${x2 - r * 2} ${trackY + halfBand}`,
-          `Q ${x2 - r * 2} ${trackY + halfBand + r}, ${x2 - r * 3} ${trackY + halfBand}`,
-          `L ${x1 + r * 3} ${trackY + halfBand}`,
-          `Q ${x1 + r * 2} ${trackY + halfBand}, ${x1 + r * 2} ${trackY + halfBand - r}`,
-          `L ${x1 + r * 2} ${src.yBottom}`,
-          `Q ${x1 + r * 2} ${src.yBottom - r}, ${x1 + r} ${src.yBottom}`,
-          `L ${x1} ${src.yBottom}`,
+          `C ${x1 + dx} ${src.yTop}, ${(x1 + x2) / 2 - dx} ${trackY - halfBand}, ${(x1 + x2) / 2} ${trackY - halfBand}`,
+          `C ${(x1 + x2) / 2 + dx} ${trackY - halfBand}, ${x2 - dx} ${tgt.yTop}, ${x2} ${tgt.yTop}`,
+          `L ${x2} ${tgt.yBottom}`,
+          `C ${x2 - dx} ${tgt.yBottom}, ${(x1 + x2) / 2 + dx} ${trackY + halfBand}, ${(x1 + x2) / 2} ${trackY + halfBand}`,
+          `C ${(x1 + x2) / 2 - dx} ${trackY + halfBand}, ${x1 + dx} ${src.yBottom}, ${x1} ${src.yBottom}`,
           `Z`,
         ].join(" ");
-
-        path = topPath + " " + bottomPath;
       } else {
         // Adjacent-layer edge: standard bezier ribbon
         const dx = Math.max((x2 - x1) * 0.5, 40);
