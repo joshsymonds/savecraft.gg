@@ -141,5 +141,15 @@
 
   .chart-wrapper {
     padding: 4px 0;
+    position: relative;
+  }
+
+  .chart-wrapper::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: url("/plugins/factorio/icon.png") center / 120px no-repeat;
+    opacity: 0.06;
+    pointer-events: none;
   }
 </style>

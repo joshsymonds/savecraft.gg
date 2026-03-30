@@ -44,10 +44,10 @@
     font-weight: 600;
     color: var(--color-text-muted);
     text-align: center;
-    animation: pulse 2s ease-in-out infinite;
+    animation: pulse-loading 2s ease-in-out infinite;
   }
 
-  @keyframes pulse {
+  @keyframes pulse-loading {
     0%,
     100% {
       opacity: 0.4;
