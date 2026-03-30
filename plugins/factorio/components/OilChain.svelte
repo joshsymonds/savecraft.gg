@@ -53,32 +53,36 @@
     const nodes: FlowNode[] = [];
     const edges: FlowEdge[] = [];
 
-    // Collect which fluids flow into/out of the graph for input/output pseudo-nodes
-    const inputFluids = new Set<string>();
+    // Collect output flows for pseudo-nodes
     const outputFluids = new Set<string>();
     for (const flow of result.flows) {
-      if (flow.source === "input") inputFluids.add(flow.fluid);
       if (flow.target === "output") outputFluids.add(flow.fluid);
     }
 
-    // Input pseudo-node (raw materials)
-    if (inputFluids.size > 0) {
-      const inputNames = [...inputFluids].sort();
+    // One input node per fluid — bands split from it to all consumers
+    const inputByFluid = new Map<string, { id: string; totalRate: number }>();
+    for (const flow of result.flows) {
+      if (flow.source !== "input") continue;
+      if (!inputByFluid.has(flow.fluid)) {
+        const nodeId = `input-${flow.fluid}`;
+        inputByFluid.set(flow.fluid, { id: nodeId, totalRate: 0 });
+      }
+      inputByFluid.get(flow.fluid)!.totalRate += flow.rate;
+    }
+    for (const [fluid, { id, totalRate }] of inputByFluid) {
       nodes.push({
-        id: "input",
-        label: "Raw Inputs",
+        id,
+        label: fluid,
         data: {
-          name: inputNames[0], // primary fluid for icon
+          name: fluid,
           isInputNode: true,
-          fluids: inputNames,
-          rates: result.raw_inputs,
+          rate: totalRate,
         },
         variant: "raw",
       });
     }
 
     // Processing stages — show the machine as the primary identity
-    // (players think "20 oil refineries", not "20 petroleum gas machines")
     for (const stage of result.stages) {
       nodes.push({
         id: stage.id,
@@ -88,7 +92,7 @@
           machineName: stage.machine_type,
           machineCount: stage.machine_count,
           modules: (result.config.modules as string[]) ?? [],
-          ratePerMin: undefined, // oil stages show fluid rates on edges, not per-node rates
+          ratePerMin: undefined,
         },
         variant: "default",
       });
@@ -111,8 +115,11 @@
 
     // Flows → edges with fluid colors
     for (const flow of result.flows) {
+      const source = flow.source === "input"
+        ? inputByFluid.get(flow.fluid)?.id ?? flow.source
+        : flow.source;
       edges.push({
-        source: flow.source,
+        source,
         target: flow.target,
         rate: flow.rate,
         label: flow.fluid,
@@ -149,15 +156,13 @@
         {@const d = (node.data ?? {}) as Record<string, unknown>}
         {#if d.isInputNode}
           <div class="pseudo-node input-node">
-            <div class="pseudo-label">Raw Inputs</div>
-            {#each (d.fluids as string[]) as fluid}
-              {@const rates = d.rates as Record<string, number>}
-              <div class="pseudo-fluid">
-                <span class="fluid-dot" style:background={getItemColor(fluid)}></span>
-                <span class="fluid-name">{formatName(fluid)}</span>
-                <span class="fluid-rate">{rates[fluid]}/s</span>
-              </div>
-            {/each}
+            <div class="pseudo-fluid">
+              <span class="fluid-dot" style:background={getItemColor(d.name as string)}></span>
+              <span class="fluid-name">{formatName(d.name as string)}</span>
+              {#if d.rate}
+                <span class="fluid-rate">{d.rate}/s</span>
+              {/if}
+            </div>
           </div>
         {:else if d.isOutputNode}
           <div class="pseudo-node output-node">

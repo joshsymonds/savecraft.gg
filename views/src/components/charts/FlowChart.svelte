@@ -144,7 +144,9 @@
     const maxRate = Math.max(...edges.map((e) => e.rate), 1);
 
     function bandHeight(rate: number): number {
-      return Math.max(MIN_BAND_WIDTH, (rate / maxRate) * BAND_SCALE);
+      // Sqrt scale compresses the range so small flows remain visible
+      // (100 vs 2000 → ~22% width instead of 5% with linear)
+      return Math.max(MIN_BAND_WIDTH, Math.sqrt(rate / maxRate) * BAND_SCALE);
     }
 
     // Group edges by node for port allocation
@@ -317,7 +319,7 @@
       }
     }
 
-    return { positions, nodeHeights, totalWidth, totalHeight, sourcePort, targetPort };
+    return { positions, nodeHeights, totalWidth, totalHeight, sourcePort, targetPort, depth, layers };
   }
 
   // Pass props as arguments so Svelte tracks them for reactivity
@@ -332,6 +334,101 @@
     })),
   );
 
+  // ── Channel routing for skip-layer edges ─────────────────
+  // Assign vertical tracks in inter-layer gaps so skip-layer bands
+  // route around intermediate nodes instead of through them.
+
+  function computeChannelTracks(
+    edges: FlowEdge[],
+    depth: Map<string, number>,
+    positions: Map<string, { x: number; y: number }>,
+    nodeHeights: Map<string, number>,
+    layers: Map<number, string[]>,
+  ) {
+    // For each inter-layer gap, track assigned y-positions for routed bands
+    // Key: layer index (the gap AFTER this layer), Value: assigned track y-values
+    const channelTracks = new Map<number, number[]>();
+    const edgeTrackY = new Map<string, number>(); // edgeKey → assigned track y
+
+    // Only skip-layer edges need channel routing
+    const skipEdges = edges.filter((e) => {
+      const sd = depth.get(e.source);
+      const td = depth.get(e.target);
+      return sd !== undefined && td !== undefined && td - sd > 1;
+    });
+
+    if (skipEdges.length === 0) return edgeTrackY;
+
+    // Find the vertical extent of nodes in each layer to know where free space is
+    const layerExtent = new Map<number, { top: number; bottom: number }>();
+    for (const [d, ids] of layers) {
+      let top = Infinity;
+      let bottom = -Infinity;
+      for (const id of ids) {
+        const pos = positions.get(id);
+        const h = nodeHeights.get(id) ?? 0;
+        if (pos) {
+          top = Math.min(top, pos.y);
+          bottom = Math.max(bottom, pos.y + h);
+        }
+      }
+      if (top !== Infinity) layerExtent.set(d, { top, bottom });
+    }
+
+    // Sort skip edges by vertical midpoint for consistent track assignment
+    const sorted = [...skipEdges].sort((a, b) => {
+      const aMid = ((positions.get(a.source)?.y ?? 0) + (positions.get(a.target)?.y ?? 0)) / 2;
+      const bMid = ((positions.get(b.source)?.y ?? 0) + (positions.get(b.target)?.y ?? 0)) / 2;
+      return aMid - bMid;
+    });
+
+    const TRACK_GAP = 16; // vertical space between parallel routed bands
+
+    for (const e of sorted) {
+      const sd = depth.get(e.source)!;
+      const td = depth.get(e.target)!;
+
+      // Find the lowest bottom of any node in intermediate layers
+      let maxBottom = 0;
+      for (let d = sd; d < td; d++) {
+        const ext = layerExtent.get(d);
+        if (ext) maxBottom = Math.max(maxBottom, ext.bottom);
+      }
+      // Also check the target layer
+      const tgtExt = layerExtent.get(td);
+      if (tgtExt) maxBottom = Math.max(maxBottom, tgtExt.bottom);
+
+      // Assign a track below all nodes in the intermediate layers
+      const existingTracks = channelTracks.get(sd) ?? [];
+      const trackY = maxBottom + TRACK_GAP + existingTracks.length * TRACK_GAP;
+
+      // Store the track for all intermediate gaps this edge passes through
+      for (let d = sd; d < td; d++) {
+        if (!channelTracks.has(d)) channelTracks.set(d, []);
+        channelTracks.get(d)!.push(trackY);
+      }
+
+      const key = e.source + EDGE_KEY_SEP + e.target;
+      edgeTrackY.set(key, trackY);
+    }
+
+    return edgeTrackY;
+  }
+
+  let channelTracks = $derived(
+    computeChannelTracks(edges, layout.depth, layout.positions, layout.nodeHeights, layout.layers),
+  );
+
+  // Effective height including channel routing space below nodes
+  let effectiveHeight = $derived(() => {
+    let maxTrackY = layout.totalHeight;
+    for (const trackY of channelTracks.values()) {
+      // Track Y + band half-height + padding
+      maxTrackY = Math.max(maxTrackY, trackY + BAND_SCALE / 2 + PAD);
+    }
+    return maxTrackY;
+  });
+
   let layoutBands = $derived(
     edges.map((e) => {
       const key = e.source + EDGE_KEY_SEP + e.target;
@@ -340,23 +437,67 @@
       const srcPos = layout.positions.get(e.source);
       const tgtPos = layout.positions.get(e.target);
 
-      if (!src || !tgt || !srcPos || !tgtPos) return { ...e, path: "" };
+      if (!src || !tgt || !srcPos || !tgtPos) return {
+        ...e, path: "", color: "", gradId: "",
+        srcLabelX: 0, srcLabelY: 0, srcLabel: null as string | null,
+        tgtLabelX: 0, tgtLabelY: 0, tgtLabel: null as string | null,
+      };
 
-      // Source right edge x, target left edge x (with gap to avoid overlapping borders)
       const x1 = srcPos.x + nodeWidth + BAND_GAP;
       const x2 = tgtPos.x - BAND_GAP;
+      const bh = (src.yBottom - src.yTop); // band height at source
+      const trackY = channelTracks.get(key);
 
-      // Control point offset — 50% of gap for pronounced curves
-      const dx = Math.max((x2 - x1) * 0.5, 40);
+      let path: string;
 
-      // Build a closed ribbon shape: top curve forward, bottom curve back
-      const path = [
-        `M ${x1} ${src.yTop}`,
-        `C ${x1 + dx} ${src.yTop}, ${x2 - dx} ${tgt.yTop}, ${x2} ${tgt.yTop}`,
-        `L ${x2} ${tgt.yBottom}`,
-        `C ${x2 - dx} ${tgt.yBottom}, ${x1 + dx} ${src.yBottom}, ${x1} ${src.yBottom}`,
-        `Z`,
-      ].join(" ");
+      if (trackY !== undefined) {
+        // Skip-layer edge: route through channel below intermediate nodes
+        // Path: exit source → bend down to track → horizontal through gaps → bend up to target
+        const r = 8; // corner radius for bends
+        const srcMidY = (src.yTop + src.yBottom) / 2;
+        const tgtMidY = (tgt.yTop + tgt.yBottom) / 2;
+        const halfBand = bh / 2;
+
+        // Top edge of ribbon
+        const topPath = [
+          `M ${x1} ${src.yTop}`,
+          `L ${x1 + r} ${src.yTop}`,
+          `Q ${x1 + r * 2} ${src.yTop}, ${x1 + r * 2} ${Math.min(src.yTop + r, trackY - halfBand)}`,
+          `L ${x1 + r * 2} ${trackY - halfBand}`,
+          `Q ${x1 + r * 2} ${trackY - halfBand + r}, ${x1 + r * 3} ${trackY - halfBand}`,
+          `L ${x2 - r * 3} ${trackY - halfBand}`,
+          `Q ${x2 - r * 2} ${trackY - halfBand}, ${x2 - r * 2} ${trackY - halfBand - r}`,
+          `L ${x2 - r * 2} ${tgt.yTop}`,
+          `Q ${x2 - r * 2} ${tgt.yTop - r}, ${x2 - r} ${tgt.yTop}`,
+          `L ${x2} ${tgt.yTop}`,
+        ].join(" ");
+
+        // Bottom edge of ribbon (reverse direction)
+        const bottomPath = [
+          `L ${x2 - r} ${tgt.yBottom}`,
+          `Q ${x2 - r * 2} ${tgt.yBottom}, ${x2 - r * 2} ${tgt.yBottom + r}`,
+          `L ${x2 - r * 2} ${trackY + halfBand}`,
+          `Q ${x2 - r * 2} ${trackY + halfBand + r}, ${x2 - r * 3} ${trackY + halfBand}`,
+          `L ${x1 + r * 3} ${trackY + halfBand}`,
+          `Q ${x1 + r * 2} ${trackY + halfBand}, ${x1 + r * 2} ${trackY + halfBand - r}`,
+          `L ${x1 + r * 2} ${src.yBottom}`,
+          `Q ${x1 + r * 2} ${src.yBottom - r}, ${x1 + r} ${src.yBottom}`,
+          `L ${x1} ${src.yBottom}`,
+          `Z`,
+        ].join(" ");
+
+        path = topPath + " " + bottomPath;
+      } else {
+        // Adjacent-layer edge: standard bezier ribbon
+        const dx = Math.max((x2 - x1) * 0.5, 40);
+        path = [
+          `M ${x1} ${src.yTop}`,
+          `C ${x1 + dx} ${src.yTop}, ${x2 - dx} ${tgt.yTop}, ${x2} ${tgt.yTop}`,
+          `L ${x2} ${tgt.yBottom}`,
+          `C ${x2 - dx} ${tgt.yBottom}, ${x1 + dx} ${src.yBottom}, ${x1} ${src.yBottom}`,
+          `Z`,
+        ].join(" ");
+      }
 
       const color = e.color ?? bandColor?.(e) ?? "var(--flow-band-color, #c8a84e)";
       const gradId = `band-grad-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
@@ -397,7 +538,7 @@
 <div
   class="flow-container"
   style:width="{layout.totalWidth}px"
-  style:height="{layout.totalHeight}px"
+  style:height="{effectiveHeight()}px"
 >
   <Tooltip {...tip} />
 
@@ -405,8 +546,8 @@
   <svg
     class="band-layer"
     width={layout.totalWidth}
-    height={layout.totalHeight}
-    viewBox="0 0 {layout.totalWidth} {layout.totalHeight}"
+    height={effectiveHeight()}
+    viewBox="0 0 {layout.totalWidth} {effectiveHeight()}"
   >
     <!-- Gradient definitions for flow bands -->
     <defs>
