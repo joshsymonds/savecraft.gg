@@ -7,7 +7,11 @@
  * Transport: Streamable HTTP (POST with JSON responses, no SSE needed for sync tools).
  */
 import { getNativeModule } from "../reference/registry";
-import { resolveSectionParams, type VerifiedSaveCache } from "../reference/section-resolution";
+import {
+  resolveSectionParams,
+  resolveWasmSectionParams,
+  type VerifiedSaveCache,
+} from "../reference/section-resolution";
 import type { Env } from "../types";
 
 import {
@@ -17,6 +21,8 @@ import {
   getNote,
   getSave,
   getSection,
+  getWasmSectionMappings,
+  getWasmViewDefault,
   listGames,
   queryReference,
   refreshSave,
@@ -24,8 +30,9 @@ import {
   searchSaves,
   updateNote,
   viewResult,
+  type ToolResult,
+  type ViewToolResult,
 } from "./tools";
-import type { ToolResult, ViewToolResult } from "./tools";
 import { VIEWS } from "./views.gen.js";
 
 const PROTOCOL_VERSION = "2025-06-18";
@@ -158,6 +165,11 @@ const TOOLS: ToolDefinition[] = [
           description:
             "Filter by game name or ID (case-insensitive substring). Pass this when the player asks about a specific game to avoid loading unrelated data. Omit to see all games.",
         },
+        visible_to_user: {
+          type: "boolean",
+          description:
+            "Controls whether the result renders a visual widget for the user. Defaults to hidden — set true when the user would benefit from seeing their game library visually.",
+        },
       },
     },
     annotations: {
@@ -176,6 +188,11 @@ const TOOLS: ToolDefinition[] = [
       type: "object",
       properties: {
         save_id: { type: "string", description: "Save UUID from the game listing" },
+        visible_to_user: {
+          type: "boolean",
+          description:
+            "Controls whether the result renders a visual widget for the user. Defaults to hidden — set true when the user would benefit from seeing character details visually.",
+        },
       },
       required: ["save_id"],
     },
@@ -350,6 +367,11 @@ const TOOLS: ToolDefinition[] = [
           description:
             "Save UUID to scope search to a single save. Omit to search across all saves.",
         },
+        visible_to_user: {
+          type: "boolean",
+          description:
+            "Controls whether the result renders a visual widget for the user. Defaults to hidden — set true when the user would benefit from seeing search results visually rather than as text.",
+        },
       },
       required: ["query"],
     },
@@ -396,6 +418,11 @@ const TOOLS: ToolDefinition[] = [
             },
             required: ["label"],
           },
+        },
+        visible_to_user: {
+          type: "boolean",
+          description:
+            "Controls whether the result renders a visual widget for the user. Omit to use the module's default (shown in the game listing as view_default). Set false when you only need the data for your own reasoning (e.g., grounding a fact, multi-step computation). Set true when the user would benefit from seeing the result visually.",
         },
       },
       required: ["game_id", "module", "queries"],
@@ -497,6 +524,50 @@ function parseSectionsArgument(raw: unknown): string[] | undefined {
   return undefined;
 }
 
+/**
+ * View defaults for game state tools. Reference modules declare their own
+ * view_default in module metadata; game state tools declare it here.
+ */
+const TOOL_VIEW_DEFAULTS: Record<string, "visible" | "hidden"> = {
+  list_games: "hidden",
+  get_save: "hidden",
+  search_saves: "hidden",
+};
+
+/**
+ * Centralized view visibility resolution. Called once after every tool handler
+ * returns. If the result has structuredContent (a view), checks whether the
+ * LLM wants it visible. If not, strips structuredContent so the host renders
+ * text only — same data, no widget.
+ *
+ * Resolution: visible_to_user (explicit) > view_default (module/tool) > visible.
+ *
+ * @param moduleViewDefault - For query_reference, the module's view_default
+ *   (from native registry or WASM manifest). Avoids a redundant registry lookup.
+ */
+function resolveViewVisibility(
+  toolName: string,
+  args: Record<string, unknown>,
+  result: ToolResult | ViewToolResult,
+  moduleViewDefault?: "visible" | "hidden",
+): ToolResult | ViewToolResult {
+  if (!("structuredContent" in result)) return result;
+
+  const visibleToUser = args.visible_to_user as boolean | undefined;
+
+  // Look up the default: caller supplies it for query_reference, game state tools use the map.
+  const viewDefault = moduleViewDefault ?? TOOL_VIEW_DEFAULTS[toolName];
+
+  const showView = visibleToUser !== undefined ? visibleToUser : viewDefault !== "hidden";
+
+  if (!showView) {
+    // Strip structuredContent — host won't render a widget, LLM still gets the data in content.
+    return { content: result.content, ...(result.isError ? { isError: result.isError } : {}) };
+  }
+
+  return result;
+}
+
 async function handleToolCall(
   params: Record<string, unknown>,
   env: Env,
@@ -506,18 +577,23 @@ async function handleToolCall(
   const args = (params.arguments ?? {}) as Record<string, unknown>;
   const saveId = args.save_id as string;
 
+  let result: ToolResult | ViewToolResult;
+  let moduleViewDefault: "visible" | "hidden" | undefined;
+
   switch (toolName) {
     case "list_games": {
-      return listGames(
+      result = await listGames(
         env.DB,
         env.PLUGINS,
         userUuid,
         args.filter as string | undefined,
         env.SERVER_URL,
       );
+      break;
     }
     case "get_save": {
-      return getSave(env.DB, userUuid, saveId, env.PLUGINS, env.SERVER_URL);
+      result = await getSave(env.DB, userUuid, saveId, env.PLUGINS, env.SERVER_URL);
+      break;
     }
     case "get_section": {
       const sections = parseSectionsArgument(args.sections) ?? [];
@@ -546,15 +622,23 @@ async function handleToolCall(
       return refreshSave(env, userUuid, saveId);
     }
     case "search_saves": {
-      return searchSaves(
+      result = await searchSaves(
         env.DB,
         userUuid,
         args.query as string,
         args.save_id as string | undefined,
       );
+      break;
     }
     case "query_reference": {
-      return handleQueryReference(env, userUuid, args);
+      // Resolve the module's view_default (native or WASM) for visibility resolution.
+      const gameId = args.game_id as string;
+      const moduleId = args.module as string;
+      const nativeMod = getNativeModule(gameId, moduleId);
+      moduleViewDefault =
+        nativeMod?.view_default ?? (await getWasmViewDefault(env.PLUGINS, gameId, moduleId));
+      result = await handleQueryReference(env, userUuid, args);
+      break;
     }
     case "setup_help": {
       return handleGetInfo(env, userUuid, args);
@@ -563,6 +647,8 @@ async function handleToolCall(
       return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
     }
   }
+
+  return resolveViewVisibility(toolName, args, result, moduleViewDefault);
 }
 
 function handleGetInfo(
@@ -628,8 +714,12 @@ async function handleQueryReference(
   const moduleId = args.module as string;
 
   // Look up the native module for section-reference resolution.
-  // WASM modules don't support section references (no sectionMappings).
   const nativeModule = getNativeModule(gameId, moduleId);
+
+  // For WASM modules, check the manifest for section_mappings.
+  // Loaded once per batch (manifest is per-isolate cached).
+  const wasmMappings =
+    nativeModule ? undefined : await getWasmSectionMappings(env.PLUGINS, gameId, moduleId);
 
   // Cache verified save ownership across queries in this batch to avoid
   // redundant D1 lookups when multiple queries reference the same save_id.
@@ -648,6 +738,14 @@ async function handleQueryReference(
           env.DB,
           userUuid,
           nativeModule,
+          enrichedQuery,
+          verifiedSaves,
+        );
+      } else if (wasmMappings) {
+        enrichedQuery = await resolveWasmSectionParams(
+          env.DB,
+          userUuid,
+          wasmMappings,
           enrichedQuery,
           verifiedSaves,
         );

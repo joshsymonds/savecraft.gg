@@ -424,7 +424,7 @@ describe("MCP Tools", () => {
     });
   });
 
-  describe("listGames returns textResult", () => {
+  describe("listGames returns viewResult", () => {
     it("returns plain text JSON with games array", async () => {
       await seedSave({
         saveUuid: "save-view",
@@ -436,9 +436,8 @@ describe("MCP Tools", () => {
       });
 
       const result = await listGames(env.DB, env.PLUGINS, USER_A);
-      expect("structuredContent" in result).toBe(false);
-      expect(result.content).toHaveLength(1);
-      const data = JSON.parse(result.content[0]!.text) as { games: GameEntry[] };
+      expect("structuredContent" in result).toBe(true);
+      const data = (result as unknown as { structuredContent: { games: GameEntry[] } }).structuredContent;
       expect(data.games).toHaveLength(1);
       expect(data.games[0]!.game_id).toBe("d2r");
     });
@@ -660,7 +659,7 @@ describe("MCP Tools", () => {
       expect(data.refresh_error).toBeUndefined();
     });
 
-    it("returns textResult with save data", async () => {
+    it("returns viewResult with save data", async () => {
       await seedSave({
         saveUuid: "save-view-result",
         userUuid: USER_A,
@@ -671,9 +670,8 @@ describe("MCP Tools", () => {
       });
 
       const result = await getSave(env.DB, USER_A, "save-view-result");
-      expect("structuredContent" in result).toBe(false);
-      expect(result.content).toHaveLength(1);
-      const data = JSON.parse(result.content[0]!.text) as Record<string, unknown>;
+      expect("structuredContent" in result).toBe(true);
+      const data = (result as unknown as { structuredContent: Record<string, unknown> }).structuredContent;
       expect(data.save_id).toBe("save-view-result");
       expect(data.game_name).toBe("Diablo II: Resurrected");
       expect(data.name).toBe("ViewTest");

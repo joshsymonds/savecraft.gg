@@ -33,11 +33,12 @@ export function getNativeModule(
 export function getNativeModules(gameId: string): ReferenceModuleMetadata[] {
   const gameModules = registry.get(gameId);
   if (!gameModules) return [];
-  return [...gameModules.values()].map(({ id, name, description, parameters }) => ({
+  return [...gameModules.values()].map(({ id, name, description, parameters, view_default }) => ({
     id,
     name,
     description,
     parameters,
+    ...(view_default ? { view_default } : {}),
   }));
 }
 
