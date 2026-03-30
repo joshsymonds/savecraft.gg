@@ -26,6 +26,7 @@ const viewCss = readFileSync(resolve(VIEWS_DIR, "src/view.css"), "utf-8");
 const bridgePath = resolve(VIEWS_DIR, "src/bridge.ts").split("\\").join("/");
 const attributionPath = resolve(VIEWS_DIR, "src/Attribution.svelte").split("\\").join("/");
 const multiResultViewPath = resolve(VIEWS_DIR, "src/components/layout/MultiResultView.svelte").split("\\").join("/");
+const loadingStatePath = resolve(VIEWS_DIR, "src/components/feedback/LoadingState.svelte").split("\\").join("/");
 
 // ── Attribution ────────────────────────────────────────────
 
@@ -132,9 +133,13 @@ import { mount } from "svelte";
 import { initBridge } from "${bridgePath}";
 import Component from "${componentPath}";
 import Attribution from "${attributionPath}";
+import LoadingState from "${loadingStatePath}";
 
 const attrTarget = document.getElementById("attribution");
 if (attrTarget) mount(Attribution, { target: attrTarget });
+
+const rootTarget = document.getElementById("root");
+if (rootTarget) mount(LoadingState, { target: rootTarget });
 
 const app = initBridge((result) => {
   const target = document.getElementById("root");
@@ -158,6 +163,7 @@ function referenceEntry(views: ReferenceView[]): string {
 import { mount } from "svelte";
 import { initBridge } from "${bridgePath}";
 import Attribution from "${attributionPath}";
+import LoadingState from "${loadingStatePath}";
 import MultiResultView from "${multiResultViewPath}";
 ${imports}
 
@@ -167,6 +173,9 @@ ${mapEntries}
 
 const attrTarget = document.getElementById("attribution");
 if (attrTarget) mount(Attribution, { target: attrTarget });
+
+const rootTarget = document.getElementById("root");
+if (rootTarget) mount(LoadingState, { target: rootTarget });
 
 const app = initBridge((result) => {
   const data = result.structuredContent;
