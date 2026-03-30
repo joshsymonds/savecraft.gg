@@ -73,6 +73,7 @@
   let hoveredEdgeKey = $state<string | null>(null);
   let hoveredNodeId = $state<string | null>(null);
   let containerEl: HTMLDivElement | undefined = $state();
+  let svgEl: SVGSVGElement | undefined = $state();
   let scrollEl: HTMLDivElement | undefined = $state();
   let canScrollLeft = $state(false);
   let canScrollRight = $state(false);
@@ -605,7 +606,7 @@
       const srcMidY = (src.yTop + src.yBottom) / 2;
       const tgtMidY = (tgt.yTop + tgt.yBottom) / 2;
       const labels = resolveLabels(e, x1, srcMidY, x2, tgtMidY, (x1 + x2) / 2, (srcMidY + tgtMidY) / 2);
-      return { ...e, path, color, gradId, ...labels };
+      return { ...e, path, color, gradId, origKey, ...labels };
     }),
   );
 
@@ -647,43 +648,46 @@
     return topParts.join(" ");
   }
 
-  /** Determine if anything is hovered (band or node) */
-  function isHoverActive(): boolean {
-    return hoveredEdgeKey !== null || hoveredNodeId !== null;
-  }
+  // Pre-compute hover state for all bands and nodes as a $derived.
+  // This creates an explicit dependency on hoveredEdgeKey + hoveredNodeId,
+  // forcing Svelte to re-render when hover state changes.
+  let hoverState = $derived.by(() => {
+    const ek = hoveredEdgeKey;
+    const nk = hoveredNodeId;
+    const active = ek !== null || nk !== null;
 
-  /** CSS class for a band based on hover state */
-  function bandHoverClass(band: { origKey: string; source: string; target: string }): string {
-    if (!isHoverActive()) return "";
-    if (hoveredEdgeKey) {
-      return hoveredEdgeKey === band.origKey ? "band-active" : "band-dimmed";
-    }
-    // Node hover: band is active if it connects to the hovered node
-    if (hoveredNodeId) {
-      return (band.source === hoveredNodeId || band.target === hoveredNodeId) ? "band-active" : "band-dimmed";
-    }
-    return "";
-  }
+    const bandClass = new Map<string, string>();
+    const nodeClass = new Map<string, string>();
 
-  /** CSS class for a node based on hover state */
-  function nodeHoverClass(nodeId: string): string {
-    if (!isHoverActive()) return "";
-    if (hoveredEdgeKey) {
-      const edge = edges.find((e) => (e.source + EDGE_KEY_SEP + e.target) === hoveredEdgeKey);
-      if (!edge) return "node-dimmed";
-      return (edge.source === nodeId || edge.target === nodeId) ? "node-highlight" : "node-dimmed";
+    if (!active) return { bandClass, nodeClass };
+
+    // Compute band hover classes
+    for (const e of edges) {
+      const key = e.source + EDGE_KEY_SEP + e.target;
+      if (ek) {
+        bandClass.set(key, ek === key ? "band-active" : "band-dimmed");
+      } else if (nk) {
+        bandClass.set(key, (e.source === nk || e.target === nk) ? "band-active" : "band-dimmed");
+      }
     }
-    if (hoveredNodeId) {
-      if (nodeId === hoveredNodeId) return "node-highlight";
-      // Highlight nodes connected to the hovered node via any edge
-      const connected = edges.some((e) =>
-        (e.source === hoveredNodeId && e.target === nodeId) ||
-        (e.target === hoveredNodeId && e.source === nodeId),
-      );
-      return connected ? "node-highlight" : "node-dimmed";
+
+    // Compute node hover classes
+    for (const n of nodes) {
+      if (ek) {
+        const edge = edges.find((e) => (e.source + EDGE_KEY_SEP + e.target) === ek);
+        if (!edge) { nodeClass.set(n.id, "node-dimmed"); continue; }
+        nodeClass.set(n.id, (edge.source === n.id || edge.target === n.id) ? "node-highlight" : "node-dimmed");
+      } else if (nk) {
+        if (n.id === nk) { nodeClass.set(n.id, "node-highlight"); continue; }
+        const connected = edges.some((e) =>
+          (e.source === nk && e.target === n.id) || (e.target === nk && e.source === n.id),
+        );
+        nodeClass.set(n.id, connected ? "node-highlight" : "node-dimmed");
+      }
     }
-    return "";
-  }
+
+    return { bandClass, nodeClass };
+  });
 
   function bandTipText(band: { midLabel?: string | null; srcLabel?: string | null; label?: string }): string {
     // Use the same formatted label as the band labels
@@ -698,11 +702,52 @@
     return { x: ev.clientX - rect.left + containerEl.parentElement!.scrollLeft, y: ev.clientY - rect.top };
   }
 
-  function showBandTip(ev: MouseEvent, band: FlowEdge & { path: string; midLabel?: string | null; srcLabel?: string | null }) {
-    const text = bandTipText(band);
-    if (!text) return;
-    const pos = containerRelative(ev);
-    tip = { text, x: pos.x, y: pos.y, visible: true };
+  /** Hit-test all band paths at the cursor position.
+   *  Checks thinnest bands first so they win over wider overlapping ones. */
+  function handleSvgPointerMove(ev: PointerEvent) {
+    if (!svgEl) return;
+
+    // Convert client coords to SVG coords
+    const pt = svgEl.createSVGPoint();
+    pt.x = ev.clientX;
+    pt.y = ev.clientY;
+    const svgPt = pt.matrixTransform(svgEl.getScreenCTM()!.inverse());
+
+    // Find all band paths and test point-in-fill, thinnest first
+    const paths = svgEl.querySelectorAll<SVGPathElement>(".flow-band");
+    const indexed = [...paths].map((p, i) => ({ path: p, band: layoutBands[i], rate: layoutBands[i]?.rate ?? 0 }));
+    // Sort thinnest first — thin bands should win over fat overlapping ones
+    indexed.sort((a, b) => a.rate - b.rate);
+
+    let hitBand: (typeof layoutBands)[number] | null = null;
+    for (const { path, band } of indexed) {
+      if (!band?.path) continue;
+      if (path.isPointInFill(pt)) {
+        hitBand = band;
+        break;
+      }
+    }
+
+    if (hitBand) {
+      hoveredEdgeKey = hitBand.origKey;
+      hoveredNodeId = null;
+      const text = bandTipText(hitBand);
+      if (text) {
+        const pos = containerRelative(ev);
+        tip = { text, x: pos.x, y: pos.y, visible: true };
+      }
+    } else {
+      // No band under cursor — clear band hover (node hover handles itself)
+      if (hoveredEdgeKey) {
+        hoveredEdgeKey = null;
+        tip = { ...tip, visible: false };
+      }
+    }
+  }
+
+  function handleSvgPointerLeave() {
+    hoveredEdgeKey = null;
+    tip = { ...tip, visible: false };
   }
 </script>
 
@@ -728,11 +773,15 @@
   <Tooltip {...tip} />
 
   <!-- SVG band layer -->
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
   <svg
     class="band-layer"
+    bind:this={svgEl}
     width={layout.totalWidth}
     height={layout.totalHeight}
     viewBox="0 0 {layout.totalWidth} {layout.totalHeight}"
+    onpointermove={handleSvgPointerMove}
+    onpointerleave={handleSvgPointerLeave}
   >
     <!-- Gradient definitions for flow bands -->
     <defs>
@@ -753,20 +802,14 @@
         <path
           d={band.path}
           fill="url(#{band.gradId})"
-          class="flow-band {bandHoverClass(band)}"
-          onmouseenter={(ev) => { hoveredEdgeKey = band.origKey; hoveredNodeId = null; showBandTip(ev, band); }}
-          onmousemove={(ev) => {
-            const text = bandTipText(band);
-            if (text) { const pos = containerRelative(ev); tip = { text, x: pos.x, y: pos.y, visible: true }; }
-          }}
-          onmouseleave={() => { hoveredEdgeKey = null; tip = { ...tip, visible: false }; }}
+          class="flow-band {hoverState.bandClass.get(band.origKey) ?? ''}"
         />
       {/if}
     {/each}
 
     <!-- Band endpoint labels (opt-in via bandLabel callback) -->
     {#each layoutBands as band}
-      {@const labelClass = `band-label ${bandHoverClass(band).replace('band-', 'label-')}`}
+      {@const labelClass = `band-label ${(hoverState.bandClass.get(band.origKey) ?? '').replace('band-', 'label-')}`}
       {#if band.path && band.midLabel}
         <text
           x={band.midLabelX}
@@ -803,7 +846,7 @@
 
   <!-- HTML node layer (dummy nodes filtered out) -->
   {#each layoutNodes as node}
-    {@const nodeClass = nodeHoverClass(node.id)}
+    {@const nodeClass = hoverState.nodeClass.get(node.id) ?? ''}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
       class="flow-node node-{node.variant ?? 'default'} {nodeClass}"
@@ -873,13 +916,13 @@
     position: absolute;
     top: 0;
     left: 0;
-    pointer-events: none;
+    pointer-events: auto;
   }
 
   .flow-band {
-    pointer-events: auto;
+    pointer-events: none; /* Hit testing done at SVG level via isPointInFill */
     cursor: default;
-    transition: filter 0.15s;
+    transition: filter 0.15s, opacity 0.15s;
   }
 
   .flow-band:hover {
@@ -887,37 +930,38 @@
   }
 
   /* ── Hover focus: dim/highlight ── */
+  /* :global() bypasses Svelte CSS scoping for dynamically-applied classes */
 
-  .band-active {
-    opacity: 1;
-    filter: brightness(1.5) saturate(1.4);
+  :global(.band-active) {
+    opacity: 1 !important;
+    filter: brightness(1.5) saturate(1.4) !important;
   }
 
-  .band-dimmed {
-    opacity: 0.08;
+  :global(.band-dimmed) {
+    opacity: 0.08 !important;
     transition: opacity 0.15s;
   }
 
-  .label-active {
-    opacity: 1;
-    filter: brightness(1.8) saturate(0.8);
+  :global(.label-active) {
+    opacity: 1 !important;
+    filter: brightness(1.8) saturate(0.8) !important;
   }
 
-  .label-dimmed {
-    opacity: 0.08;
-    transition: opacity 0.2s;
+  :global(.label-dimmed) {
+    opacity: 0.08 !important;
+    transition: opacity 0.15s;
   }
 
-  .node-highlight {
+  :global(.node-highlight) {
     border-color: var(--color-gold, #c8a84e) !important;
-    box-shadow: 0 0 8px color-mix(in srgb, var(--color-gold, #c8a84e) 40%, transparent);
-    filter: brightness(1.15);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--color-gold, #c8a84e) 40%, transparent) !important;
+    filter: brightness(1.15) !important;
     z-index: 2;
   }
 
-  .node-dimmed {
-    opacity: 0.4;
-    transition: opacity 0.2s;
+  :global(.node-dimmed) {
+    opacity: 0.4 !important;
+    transition: opacity 0.15s;
   }
 
   /* ── Band labels ── */
