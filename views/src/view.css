@@ -144,8 +144,11 @@ body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Host iframe auto-resize can round down by a pixel, causing scrollbars.
-     Our content should never scroll — the iframe grows to fit. */
+  /* The ext-apps SDK uses ResizeObserver + requestAnimationFrame to measure
+     and report height via sendSizeChanged. Between render frames (e.g. when
+     tab bar renders before content, or animations shift layout), content can
+     briefly exceed the iframe size. Our content never needs to scroll — the
+     iframe grows to fit — so overflow: hidden prevents the flash scrollbar. */
   overflow: hidden;
 }
 
