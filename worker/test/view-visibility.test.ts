@@ -54,7 +54,11 @@ async function listTools(): Promise<Record<string, unknown>[]> {
 
 describe("query_reference and show_reference tools", () => {
   // Pick a real visual module ID from the built view bundle so show_reference accepts it.
-  const visualModuleId = [...VISUAL_MODULES][0]!; // e.g. "card_search"
+  // If VISUAL_MODULES is empty (build not run), tests will fail with a clear message.
+  if (VISUAL_MODULES.size === 0) {
+    throw new Error("VISUAL_MODULES is empty — run `just build-views` before running tests");
+  }
+  const visualModuleId = [...VISUAL_MODULES][0]!;
 
   const testModule: NativeReferenceModule = {
     id: visualModuleId,

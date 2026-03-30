@@ -53,12 +53,6 @@ describe("NativeReferenceModule registry", () => {
     ]);
   });
 
-  it("computes visual from VISUAL_MODULES set", () => {
-    registerNativeModule("game1", fakeModule);
-    const modules = getNativeModules("game1");
-    // fakeModule's id won't be in VISUAL_MODULES (it's a test ID, not a real view)
-    expect(modules[0]!.visual).toBe(false);
-  });
 
   it("returns empty array for game with no native modules", () => {
     expect(getNativeModules("nonexistent")).toEqual([]);

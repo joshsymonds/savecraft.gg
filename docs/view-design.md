@@ -28,13 +28,13 @@ The moment a view starts doing its own work — calling tools, adjusting paramet
 
 Build a view whenever visual representation adds value over text — comparison tables, score breakdowns, flow diagrams, factor chains, color-coded badges. The bar is "would a visual format help the user understand this?" not "did the AI do synthesis?"
 
-Views split into two categories based on how they should appear by default:
+The LLM controls visibility through tool choice — two tools, one dispatch:
 
-**Visible by default (`view_default: "visible"`):** Synthesis views where the visual *is* the value. Draft scorecards, production flow charts, surgery probability breakdowns, combat DPS comparisons. These always render unless the LLM explicitly suppresses them (e.g., during multi-step reasoning where it just needs a number).
+**`query_reference`** (no UI): The LLM calls this for data it needs to reason over. Returns text-only JSON — no iframe, no view. All modules are available. Use for anti-hallucination lookups, intermediate calculations, data the LLM will synthesize into its response.
 
-**Hidden by default (`view_default: "hidden"`):** Lookup views where the LLM just needs the data. Card search results, stat tables, save search results. No view renders — the LLM gets the data as text and incorporates it into its response. Hidden-default tools don't declare `_meta.ui`, so no iframe loads at all.
+**`show_reference`** (has UI): The LLM calls this when the player should SEE the result. Returns `structuredContent` which the host renders in an iframe. Only available for modules with compiled Svelte view components (the `visual: true` flag in `list_games` output, derived automatically from view file existence).
 
-**Test for building a view:** Would a visual format communicate this data better than text? If yes, build the view and set `view_default` based on whether users typically benefit from seeing it or the LLM typically just needs the data.
+**Test for building a view:** Would a visual format communicate this data better than text? If yes, build the view — it becomes available via `show_reference` automatically. The LLM decides per-call whether to show the visual or just use the data for reasoning.
 
 ### Complement the conversation, don't compete with it
 

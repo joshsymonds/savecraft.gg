@@ -295,13 +295,15 @@ async function main() {
 
   const views: Record<string, string> = {};
 
-  // Build each game state view as its own HTML page (aggregates all plugin attributions)
+  // Build each game state view as its own HTML page (aggregates all plugin attributions).
+  // No loading HTML — game state views are fast (no WASM dispatch).
   for (const view of gameStateViews) {
     console.log(`Building game state view: ${view.slug}`);
     views[view.slug] = await buildToHtml(view.slug, gameStateEntry(view), allPluginAttribution);
   }
 
-  // Build all reference views into one bundled HTML page
+  // Build all reference views into one bundled HTML page.
+  // Loading HTML enabled — reference queries can be slow (WASM dispatch, section resolution).
   if (referenceViews.length > 0) {
     console.log(`Building reference view bundle (${String(referenceViews.length)} modules)`);
     views["reference"] = await buildToHtml("reference", referenceEntry(referenceViews), refAttribution, { loading: true });
