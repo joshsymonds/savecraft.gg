@@ -2,8 +2,6 @@
   import { defineMeta } from "@storybook/addon-svelte-csf";
 
   import MachineNode from "./MachineNode.svelte";
-  import Panel from "../../../views/src/components/layout/Panel.svelte";
-  import Section from "../../../views/src/components/layout/Section.svelte";
   import itemManifest from "../sprites/items.json";
 
   const { Story } = defineMeta({
