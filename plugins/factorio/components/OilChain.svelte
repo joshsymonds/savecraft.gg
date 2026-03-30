@@ -84,6 +84,11 @@
 
     // Processing stages — show the machine as the primary identity
     for (const stage of result.stages) {
+      // Map comparison status to FlowChart variant
+      let variant: "default" | "bottleneck" | "surplus" | "raw" = "default";
+      if (stage.status === "deficit" || stage.status === "missing") variant = "bottleneck";
+      else if (stage.status === "surplus") variant = "surplus";
+
       nodes.push({
         id: stage.id,
         label: stage.recipe,
@@ -93,8 +98,12 @@
           machineCount: stage.machine_count,
           modules: (result.config.modules as string[]) ?? [],
           ratePerMin: undefined,
+          // Comparison data (optional)
+          existing: stage.existing,
+          status: stage.status,
+          deficitRate: stage.deficit_rate,
         },
-        variant: "default",
+        variant,
       });
     }
 
@@ -184,10 +193,42 @@
             variant={node.variant}
             spriteConfig={getSpriteConfig(d.name as string)}
           />
+          {#if d.status}
+            {@const existing = d.existing as { count: number; machine_type: string } | undefined}
+            <div class="comparison-bar">
+              {#if d.status === "missing"}
+                <span class="status-badge status-missing">Not built</span>
+              {:else if d.status === "deficit"}
+                <span class="status-badge status-deficit">
+                  {existing?.count ?? 0} / {Math.ceil(d.machineCount as number)} needed
+                </span>
+              {:else if d.status === "surplus"}
+                <span class="status-badge status-surplus">
+                  {existing?.count ?? 0} / {Math.ceil(d.machineCount as number)} needed
+                </span>
+              {:else}
+                <span class="status-badge status-ok">
+                  {existing?.count ?? 0} / {Math.ceil(d.machineCount as number)} needed
+                </span>
+              {/if}
+            </div>
+          {/if}
         {/if}
       {/snippet}
     </FlowChart>
   </div>
+
+  {#if data.bottlenecks && data.bottlenecks.length > 0}
+    <div class="bottleneck-bar">
+      <span class="bottleneck-label">Bottlenecks:</span>
+      {#each data.bottlenecks as bn}
+        <span class="bottleneck-item">
+          {formatName(bn.recipe)}
+          <span class="bottleneck-diagnosis">({bn.diagnosis})</span>
+        </span>
+      {/each}
+    </div>
+  {/if}
 
   {#if Object.keys(data.surplus).length > 0}
     <div class="surplus-bar">
@@ -302,5 +343,71 @@
     color: var(--color-text-muted, #a0a8cc);
     font-family: var(--font-heading, sans-serif);
     text-align: right;
+  }
+
+  /* Comparison bar inside machine nodes */
+  .comparison-bar {
+    padding: 2px 12px 4px;
+    font-size: 12px;
+    font-family: var(--font-heading, sans-serif);
+  }
+
+  .status-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-weight: 600;
+    letter-spacing: 0.3px;
+  }
+
+  .status-missing {
+    color: var(--color-negative, #e85a5a);
+    background: color-mix(in srgb, #e85a5a 12%, transparent);
+  }
+
+  .status-deficit {
+    color: var(--color-negative, #e85a5a);
+    background: color-mix(in srgb, #e85a5a 12%, transparent);
+  }
+
+  .status-surplus {
+    color: var(--color-positive, #5abe8a);
+    background: color-mix(in srgb, #5abe8a 12%, transparent);
+  }
+
+  .status-ok {
+    color: var(--color-text-muted, #a0a8cc);
+    background: color-mix(in srgb, #a0a8cc 10%, transparent);
+  }
+
+  /* Bottleneck summary bar */
+  .bottleneck-bar {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 6px 12px;
+    font-size: 13px;
+    color: var(--color-text, #e8e0d0);
+    font-family: var(--font-heading, sans-serif);
+    background: color-mix(in srgb, #e85a5a 8%, transparent);
+    border-top: 1px solid color-mix(in srgb, #e85a5a 20%, transparent);
+  }
+
+  .bottleneck-label {
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--color-negative, #e85a5a);
+  }
+
+  .bottleneck-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .bottleneck-diagnosis {
+    color: var(--color-text-muted, #a0a8cc);
+    font-size: 12px;
   }
 </style>

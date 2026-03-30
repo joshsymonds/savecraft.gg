@@ -12,6 +12,8 @@
     coalLiquefaction,
     simpleCoalLiquefaction,
     withProductivityModules,
+    withComparison,
+    withComparisonAllMissing,
   } from "./oil-fixtures";
 
   const { Story } = defineMeta({
@@ -64,6 +66,22 @@
   <Panel>
     <Section title="Advanced Oil + Productivity Modules">
       <OilChain data={withProductivityModules} />
+    </Section>
+  </Panel>
+</Story>
+
+<Story name="WithComparison">
+  <Panel>
+    <Section title="Save Comparison — Mixed Status">
+      <OilChain data={withComparison} />
+    </Section>
+  </Panel>
+</Story>
+
+<Story name="WithComparisonAllMissing">
+  <Panel>
+    <Section title="Save Comparison — All Missing">
+      <OilChain data={withComparisonAllMissing} />
     </Section>
   </Panel>
 </Story>
