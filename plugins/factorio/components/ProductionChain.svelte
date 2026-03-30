@@ -179,15 +179,15 @@
               <span class="status-badge status-missing">Not built</span>
             {:else if d.status === "deficit"}
               <span class="status-badge status-deficit">
-                {existing?.count ?? 0} / {d.machineCount as number} needed
+                {existing?.count ?? 0} / {Math.ceil(d.machineCount as number)} needed
               </span>
             {:else if d.status === "surplus"}
               <span class="status-badge status-surplus">
-                {existing?.count ?? 0} / {d.machineCount as number} needed
+                {existing?.count ?? 0} / {Math.ceil(d.machineCount as number)} needed
               </span>
             {:else}
               <span class="status-badge status-ok">
-                {existing?.count ?? 0} / {d.machineCount as number} needed
+                {existing?.count ?? 0} / {Math.ceil(d.machineCount as number)} needed
               </span>
             {/if}
           </div>
