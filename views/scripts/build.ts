@@ -168,18 +168,17 @@ ${mapEntries}
 
 const app = initBridge((result) => {
   const data = result.structuredContent;
-  if (!data) return;
-  const moduleId = data?.module;
-  const Component = typeof moduleId === "string" ? VIEWS[moduleId] : undefined;
+  const moduleId = typeof data?.module === "string" ? data.module : undefined;
+  const Component = moduleId ? VIEWS[moduleId] : undefined;
   const target = document.getElementById("root");
   if (!target) return;
-  target.replaceChildren();
-  if (!Component) {
-    target.textContent = moduleId
-      ? "No view for module: " + moduleId
-      : "Missing module identifier in response";
+  if (!data || !Component) {
+    // No view for this module — collapse to zero height so the host iframe disappears.
+    target.replaceChildren();
+    document.body.style.display = "none";
     return;
   }
+  target.replaceChildren();
 
   // Multi-query: wrap each result in a tabbed view
   if (data?._multiQuery && Array.isArray(data.results) && data.results.length > 0) {
