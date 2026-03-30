@@ -237,7 +237,7 @@ describe("MCP Tools", () => {
       const save = game.saves.find((s) => s.save_id === "save-meta")!;
       expect(save.name).toBe("Hammerdin");
       expect(save.summary).toBe("Hammerdin, Level 89 Paladin");
-      expect(save.last_updated).toBe("2026-02-25T21:30:00Z");
+      expect(save.last_updated).toMatch(/\d+[dhmy]o? ago|just now/);
     });
 
     it("filters games by name (case-insensitive substring)", async () => {

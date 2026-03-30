@@ -50,6 +50,22 @@ interface SectionRow {
   data: string;
 }
 
+/** Format an ISO timestamp as a human-readable relative string ("2 hours ago"). */
+function relativeTime(iso: string): string {
+  const seconds = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (seconds < 60) return "just now";
+  const minutes = Math.floor(seconds / 60);
+  if (minutes < 60) return `${String(minutes)}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${String(hours)}h ago`;
+  const days = Math.floor(hours / 24);
+  if (days < 30) return `${String(days)}d ago`;
+  const months = Math.floor(days / 30);
+  if (months < 12) return `${String(months)}mo ago`;
+  const years = Math.floor(days / 365);
+  return `${String(years)}y ago`;
+}
+
 export function textResult(data: unknown): ToolResult {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
 }
@@ -181,7 +197,7 @@ function groupSavesByGame(
       save_id: row.uuid,
       name: row.save_name,
       summary: row.summary,
-      last_updated: row.last_updated,
+      last_updated: relativeTime(row.last_updated),
       notes: notesBySave.get(row.uuid) ?? [],
     });
   }
