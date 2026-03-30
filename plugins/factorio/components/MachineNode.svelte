@@ -73,7 +73,7 @@
 
 <div class="machine-node">
   <div class="node-icon">
-    <FactorioIcon {name} size={36} {spriteConfig} />
+    <FactorioIcon {name} size={40} {spriteConfig} />
   </div>
 
   <div class="node-body">
@@ -87,7 +87,7 @@
     {#if modules.length > 0}
       <div class="module-icons">
         {#each modules as mod}
-          <FactorioIcon name={mod} size={20} {spriteConfig} />
+          <FactorioIcon name={mod} size={22} {spriteConfig} />
         {/each}
       </div>
     {/if}
@@ -103,9 +103,8 @@
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 8px 12px;
+    padding: 4px 10px;
     width: 100%;
-    height: 100%;
     box-sizing: border-box;
   }
 
@@ -129,7 +128,7 @@
   }
 
   .item-name {
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     color: var(--color-text, #e8e0d0);
     font-family: var(--font-heading, sans-serif);
@@ -140,7 +139,7 @@
   }
 
   .machine-info {
-    font-size: 11px;
+    font-size: 12px;
     font-weight: 500;
     color: var(--color-text-muted, #a0a8cc);
     font-family: var(--font-body, sans-serif);
@@ -167,7 +166,7 @@
 
   .rate-value {
     flex-shrink: 0;
-    font-size: 12px;
+    font-size: 13px;
     font-weight: 700;
     color: var(--color-gold, #c8a84e);
     font-family: var(--font-heading, monospace);
