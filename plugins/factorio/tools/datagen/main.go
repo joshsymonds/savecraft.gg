@@ -56,6 +56,7 @@ func main() {
 		{"modules", genModules},
 		{"logistics", genLogistics},
 		{"fluids", genFluids},
+		{"evolution", genEvolution},
 	}
 
 	for _, g := range generators {
@@ -505,6 +506,207 @@ func genFluids(dump map[string]map[string]json.RawMessage) error {
 	}
 
 	return writeGenFile("fluids_gen.go", "Fluids", "map[string]Fluid", lines)
+}
+
+// ─── Evolution ──────────────────────────────────────────────────────────────
+
+type rawMapSettings struct {
+	EnemyEvolution struct {
+		Enabled         bool    `json:"enabled"`
+		TimeFactor      float64 `json:"time_factor"`
+		DestroyFactor   float64 `json:"destroy_factor"`
+		PollutionFactor float64 `json:"pollution_factor"`
+	} `json:"enemy_evolution"`
+}
+
+type rawPresetEntry struct {
+	AdvancedSettings *struct {
+		EnemyEvolution *struct {
+			TimeFactor      *float64 `json:"time_factor"`
+			DestroyFactor   *float64 `json:"destroy_factor"`
+			PollutionFactor *float64 `json:"pollution_factor"`
+		} `json:"enemy_evolution"`
+	} `json:"advanced_settings"`
+}
+
+type rawTurret struct {
+	Name                          string  `json:"name"`
+	BuildBaseEvolutionRequirement float64 `json:"build_base_evolution_requirement"`
+}
+
+func genEvolution(dump map[string]map[string]json.RawMessage) error {
+	// 1. Base evolution settings from map-settings
+	msRaw, ok := dump["map-settings"]["map-settings"]
+	if !ok {
+		return fmt.Errorf("map-settings not found in dump")
+	}
+	var ms rawMapSettings
+	if err := json.Unmarshal(msRaw, &ms); err != nil {
+		return fmt.Errorf("parse map-settings: %w", err)
+	}
+
+	// 2. Difficulty presets from map-gen-presets
+	presetsRaw, ok := dump["map-gen-presets"]["default"]
+	if !ok {
+		return fmt.Errorf("map-gen-presets.default not found in dump")
+	}
+	var allPresets map[string]json.RawMessage
+	if err := json.Unmarshal(presetsRaw, &allPresets); err != nil {
+		return fmt.Errorf("parse map-gen-presets: %w", err)
+	}
+
+	type presetData struct {
+		name            string
+		timeFactor      float64
+		destroyFactor   float64
+		pollutionFactor float64
+	}
+	var presets []presetData
+	presetNames := sortedKeys(allPresets)
+	for _, name := range presetNames {
+		var entry rawPresetEntry
+		if err := json.Unmarshal(allPresets[name], &entry); err != nil {
+			continue // skip non-object entries like "type", "name"
+		}
+		if entry.AdvancedSettings == nil || entry.AdvancedSettings.EnemyEvolution == nil {
+			continue
+		}
+		evo := entry.AdvancedSettings.EnemyEvolution
+		p := presetData{name: name}
+		if evo.TimeFactor != nil {
+			p.timeFactor = *evo.TimeFactor
+		}
+		if evo.DestroyFactor != nil {
+			p.destroyFactor = *evo.DestroyFactor
+		}
+		if evo.PollutionFactor != nil {
+			p.pollutionFactor = *evo.PollutionFactor
+		}
+		presets = append(presets, p)
+	}
+
+	// 3. Spawner tables from unit-spawner
+	spawnerEntities := dump["unit-spawner"]
+	type spawnerData struct {
+		name  string
+		units []struct {
+			name    string
+			weights [][2]float64
+		}
+	}
+	var spawners []spawnerData
+	spawnerNames := sortedKeys(spawnerEntities)
+	for _, name := range spawnerNames {
+		var raw map[string]json.RawMessage
+		if err := json.Unmarshal(spawnerEntities[name], &raw); err != nil {
+			return fmt.Errorf("parse spawner %s: %w", name, err)
+		}
+		ruRaw, ok := raw["result_units"]
+		if !ok {
+			continue
+		}
+		// result_units is [[unitName, [[evo, weight], ...]], ...]
+		var resultUnits []json.RawMessage
+		if err := json.Unmarshal(ruRaw, &resultUnits); err != nil {
+			return fmt.Errorf("parse result_units for %s: %w", name, err)
+		}
+
+		s := spawnerData{name: name}
+		for _, unitRaw := range resultUnits {
+			var pair [2]json.RawMessage
+			if err := json.Unmarshal(unitRaw, &pair); err != nil {
+				return fmt.Errorf("parse unit entry in %s: %w", name, err)
+			}
+			var unitName string
+			if err := json.Unmarshal(pair[0], &unitName); err != nil {
+				return fmt.Errorf("parse unit name in %s: %w", name, err)
+			}
+			var weightPairs [][2]float64
+			if err := json.Unmarshal(pair[1], &weightPairs); err != nil {
+				return fmt.Errorf("parse weight pairs for %s in %s: %w", unitName, name, err)
+			}
+			s.units = append(s.units, struct {
+				name    string
+				weights [][2]float64
+			}{name: unitName, weights: weightPairs})
+		}
+		spawners = append(spawners, s)
+	}
+
+	// 4. Enemy tiers from turret build_base_evolution_requirement
+	turrets := dump["turret"]
+	type tierData struct {
+		name      string
+		threshold float64
+	}
+	var tiers []tierData
+	turretNames := sortedKeys(turrets)
+	for _, name := range turretNames {
+		var t rawTurret
+		if err := json.Unmarshal(turrets[name], &t); err != nil {
+			continue
+		}
+		if t.BuildBaseEvolutionRequirement > 0 {
+			tiers = append(tiers, tierData{name: name, threshold: t.BuildBaseEvolutionRequirement})
+		}
+	}
+	sort.Slice(tiers, func(i, j int) bool { return tiers[i].threshold < tiers[j].threshold })
+
+	// Write evolution_gen.go
+	f, err := os.Create(outputDir + "/evolution_gen.go")
+	if err != nil {
+		return err
+	}
+	defer f.Close()
+
+	fmt.Fprintln(f, "// Code generated by plugins/factorio/tools/datagen. DO NOT EDIT.")
+	fmt.Fprintln(f, "package data")
+	fmt.Fprintln(f)
+
+	// BaseEvolution
+	fmt.Fprintf(f, "var BaseEvolution = EvolutionSettings{\n")
+	fmt.Fprintf(f, "\tTimeFactor:      %s,\n", formatFloat(ms.EnemyEvolution.TimeFactor))
+	fmt.Fprintf(f, "\tDestroyFactor:   %s,\n", formatFloat(ms.EnemyEvolution.DestroyFactor))
+	fmt.Fprintf(f, "\tPollutionFactor: %s,\n", formatFloat(ms.EnemyEvolution.PollutionFactor))
+	fmt.Fprintln(f, "}")
+	fmt.Fprintln(f)
+
+	// DifficultyPresets
+	fmt.Fprintln(f, "var DifficultyPresets = map[string]DifficultyPreset{")
+	for _, p := range presets {
+		fmt.Fprintf(f, "\t%q: {Name: %q, TimeFactor: %s, DestroyFactor: %s, PollutionFactor: %s},\n",
+			p.name, p.name, formatFloat(p.timeFactor), formatFloat(p.destroyFactor), formatFloat(p.pollutionFactor))
+	}
+	fmt.Fprintln(f, "}")
+	fmt.Fprintln(f)
+
+	// Spawners
+	fmt.Fprintln(f, "var Spawners = map[string]Spawner{")
+	for _, s := range spawners {
+		fmt.Fprintf(f, "\t%q: {Name: %q, Units: []SpawnerUnit{\n", s.name, s.name)
+		for _, u := range s.units {
+			fmt.Fprintf(f, "\t\t{Name: %q, Weights: []SpawnWeight{", u.name)
+			for i, w := range u.weights {
+				if i > 0 {
+					fmt.Fprint(f, ", ")
+				}
+				fmt.Fprintf(f, "{Evolution: %s, Weight: %s}", formatFloat(w[0]), formatFloat(w[1]))
+			}
+			fmt.Fprintln(f, "}},")
+		}
+		fmt.Fprintln(f, "\t}},")
+	}
+	fmt.Fprintln(f, "}")
+	fmt.Fprintln(f)
+
+	// EnemyTiers
+	fmt.Fprintln(f, "var EnemyTiers = []EnemyTier{")
+	for _, t := range tiers {
+		fmt.Fprintf(f, "\t{Name: %q, Threshold: %s},\n", t.name, formatFloat(t.threshold))
+	}
+	fmt.Fprintln(f, "}")
+
+	return nil
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────

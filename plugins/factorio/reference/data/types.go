@@ -90,3 +90,44 @@ type Beacon struct {
 type Fluid struct {
 	Name string
 }
+
+// EvolutionSettings holds base evolution rates per tick.
+type EvolutionSettings struct {
+	TimeFactor      float64 // evolution per tick from passage of time
+	DestroyFactor   float64 // evolution gained per spawner destroyed
+	PollutionFactor float64 // evolution per unit of pollution absorbed
+}
+
+// DifficultyPreset holds evolution rate overrides for a difficulty preset.
+// Only overridden fields are non-zero; zero means "use base EvolutionSettings value".
+type DifficultyPreset struct {
+	Name            string
+	TimeFactor      float64 // 0 = use base
+	DestroyFactor   float64 // 0 = use base
+	PollutionFactor float64 // 0 = use base
+}
+
+// SpawnWeight is a point on an evolution-weight curve: at Evolution, the unit
+// has this Weight in the spawner's probability distribution.
+type SpawnWeight struct {
+	Evolution float64
+	Weight    float64
+}
+
+// SpawnerUnit is a unit type spawned by a spawner with evolution-gated weights.
+type SpawnerUnit struct {
+	Name    string
+	Weights []SpawnWeight // piecewise-linear curve
+}
+
+// Spawner is an enemy spawner with an evolution-gated unit roster.
+type Spawner struct {
+	Name  string
+	Units []SpawnerUnit
+}
+
+// EnemyTier is an evolution threshold at which a new enemy type appears.
+type EnemyTier struct {
+	Name      string  // e.g. "medium-worm-turret"
+	Threshold float64 // build_base_evolution_requirement
+}

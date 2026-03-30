@@ -3,2607 +3,2607 @@ package data
 
 var Recipes = map[string]Recipe{
 	"accumulator": {Name: "accumulator", Category: "electronics", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 2},
-		{Type: "item", Name: "battery", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "accumulator", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 2},
+			{Type: "item", Name: "battery", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "accumulator", Amount: 1, Probability: 1},
+		}},
 	"accumulator-recycling": {Name: "accumulator-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "accumulator", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "battery", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "accumulator", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "battery", Amount: 1.25, Probability: 1},
+		}},
 	"acid-neutralisation": {Name: "acid-neutralisation", Category: "chemistry-or-cryogenics", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "calcite", Amount: 1},
-		{Type: "fluid", Name: "sulfuric-acid", Amount: 1000},
-	}, Results: []Product{
-		{Type: "fluid", Name: "steam", Amount: 10000, Probability: 1},
-	}},
+			{Type: "item", Name: "calcite", Amount: 1},
+			{Type: "fluid", Name: "sulfuric-acid", Amount: 1000},
+		}, Results: []Product{
+			{Type: "fluid", Name: "steam", Amount: 10000, Probability: 1},
+		}},
 	"active-provider-chest": {Name: "active-provider-chest", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-chest", Amount: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-		{Type: "item", Name: "advanced-circuit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "active-provider-chest", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-chest", Amount: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+			{Type: "item", Name: "advanced-circuit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "active-provider-chest", Amount: 1, Probability: 1},
+		}},
 	"active-provider-chest-recycling": {Name: "active-provider-chest-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "active-provider-chest", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "active-provider-chest", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
+		}},
 	"advanced-carbonic-asteroid-crushing": {Name: "advanced-carbonic-asteroid-crushing", Category: "crushing", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "carbon", Amount: 5, Probability: 1},
-		{Type: "item", Name: "sulfur", Amount: 2, Probability: 1},
-		{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.05},
-	}},
+			{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "carbon", Amount: 5, Probability: 1},
+			{Type: "item", Name: "sulfur", Amount: 2, Probability: 1},
+			{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.05},
+		}},
 	"advanced-circuit": {Name: "advanced-circuit", Category: "electronics", EnergyRequired: 6, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 2},
-		{Type: "item", Name: "plastic-bar", Amount: 2},
-		{Type: "item", Name: "copper-cable", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "advanced-circuit", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 2},
+			{Type: "item", Name: "plastic-bar", Amount: 2},
+			{Type: "item", Name: "copper-cable", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "advanced-circuit", Amount: 1, Probability: 1},
+		}},
 	"advanced-circuit-recycling": {Name: "advanced-circuit-recycling", Category: "recycling", EnergyRequired: 0.375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "advanced-circuit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "plastic-bar", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "advanced-circuit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "plastic-bar", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 1, Probability: 1},
+		}},
 	"advanced-metallic-asteroid-crushing": {Name: "advanced-metallic-asteroid-crushing", Category: "crushing", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-ore", Amount: 10, Probability: 1},
-		{Type: "item", Name: "copper-ore", Amount: 4, Probability: 1},
-		{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.05},
-	}},
+			{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-ore", Amount: 10, Probability: 1},
+			{Type: "item", Name: "copper-ore", Amount: 4, Probability: 1},
+			{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.05},
+		}},
 	"advanced-oil-processing": {Name: "advanced-oil-processing", Category: "oil-processing", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "water", Amount: 50},
-		{Type: "fluid", Name: "crude-oil", Amount: 100},
-	}, Results: []Product{
-		{Type: "fluid", Name: "heavy-oil", Amount: 25, Probability: 1},
-		{Type: "fluid", Name: "light-oil", Amount: 45, Probability: 1},
-		{Type: "fluid", Name: "petroleum-gas", Amount: 55, Probability: 1},
-	}},
+			{Type: "fluid", Name: "water", Amount: 50},
+			{Type: "fluid", Name: "crude-oil", Amount: 100},
+		}, Results: []Product{
+			{Type: "fluid", Name: "heavy-oil", Amount: 25, Probability: 1},
+			{Type: "fluid", Name: "light-oil", Amount: 45, Probability: 1},
+			{Type: "fluid", Name: "petroleum-gas", Amount: 55, Probability: 1},
+		}},
 	"advanced-oxide-asteroid-crushing": {Name: "advanced-oxide-asteroid-crushing", Category: "crushing", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "ice", Amount: 3, Probability: 1},
-		{Type: "item", Name: "calcite", Amount: 2, Probability: 1},
-		{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.05},
-	}},
+			{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "ice", Amount: 3, Probability: 1},
+			{Type: "item", Name: "calcite", Amount: 2, Probability: 1},
+			{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.05},
+		}},
 	"advanced-thruster-fuel": {Name: "advanced-thruster-fuel", Category: "chemistry", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "carbon", Amount: 2},
-		{Type: "item", Name: "calcite", Amount: 1},
-		{Type: "fluid", Name: "water", Amount: 100},
-	}, Results: []Product{
-		{Type: "fluid", Name: "thruster-fuel", Amount: 1500, Probability: 1},
-	}},
+			{Type: "item", Name: "carbon", Amount: 2},
+			{Type: "item", Name: "calcite", Amount: 1},
+			{Type: "fluid", Name: "water", Amount: 100},
+		}, Results: []Product{
+			{Type: "fluid", Name: "thruster-fuel", Amount: 1500, Probability: 1},
+		}},
 	"advanced-thruster-oxidizer": {Name: "advanced-thruster-oxidizer", Category: "chemistry", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-ore", Amount: 2},
-		{Type: "item", Name: "calcite", Amount: 1},
-		{Type: "fluid", Name: "water", Amount: 100},
-	}, Results: []Product{
-		{Type: "fluid", Name: "thruster-oxidizer", Amount: 1500, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-ore", Amount: 2},
+			{Type: "item", Name: "calcite", Amount: 1},
+			{Type: "fluid", Name: "water", Amount: 100},
+		}, Results: []Product{
+			{Type: "fluid", Name: "thruster-oxidizer", Amount: 1500, Probability: 1},
+		}},
 	"agricultural-science-pack": {Name: "agricultural-science-pack", Category: "organic", EnergyRequired: 4, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "bioflux", Amount: 1},
-		{Type: "item", Name: "pentapod-egg", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "agricultural-science-pack", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "bioflux", Amount: 1},
+			{Type: "item", Name: "pentapod-egg", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "agricultural-science-pack", Amount: 1, Probability: 1},
+		}},
 	"agricultural-science-pack-recycling": {Name: "agricultural-science-pack-recycling", Category: "recycling", EnergyRequired: 0.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "agricultural-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "agricultural-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "agricultural-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "agricultural-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"agricultural-tower": {Name: "agricultural-tower", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 10},
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-		{Type: "item", Name: "spoilage", Amount: 20},
-		{Type: "item", Name: "landfill", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "agricultural-tower", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+			{Type: "item", Name: "spoilage", Amount: 20},
+			{Type: "item", Name: "landfill", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "agricultural-tower", Amount: 1, Probability: 1},
+		}},
 	"agricultural-tower-recycling": {Name: "agricultural-tower-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "agricultural-tower", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "spoilage", Amount: 5, Probability: 1},
-		{Type: "item", Name: "landfill", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "agricultural-tower", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "spoilage", Amount: 5, Probability: 1},
+			{Type: "item", Name: "landfill", Amount: 0.25, Probability: 1},
+		}},
 	"ammonia-rocket-fuel": {Name: "ammonia-rocket-fuel", Category: "chemistry-or-cryogenics", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "solid-fuel", Amount: 10},
-		{Type: "fluid", Name: "water", Amount: 50},
-		{Type: "fluid", Name: "ammonia", Amount: 500},
-	}, Results: []Product{
-		{Type: "item", Name: "rocket-fuel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "solid-fuel", Amount: 10},
+			{Type: "fluid", Name: "water", Amount: 50},
+			{Type: "fluid", Name: "ammonia", Amount: 500},
+		}, Results: []Product{
+			{Type: "item", Name: "rocket-fuel", Amount: 1, Probability: 1},
+		}},
 	"ammoniacal-solution-separation": {Name: "ammoniacal-solution-separation", Category: "chemistry-or-cryogenics", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "ammoniacal-solution", Amount: 50},
-	}, Results: []Product{
-		{Type: "item", Name: "ice", Amount: 5, Probability: 1},
-		{Type: "fluid", Name: "ammonia", Amount: 50, Probability: 1},
-	}},
+			{Type: "fluid", Name: "ammoniacal-solution", Amount: 50},
+		}, Results: []Product{
+			{Type: "item", Name: "ice", Amount: 5, Probability: 1},
+			{Type: "fluid", Name: "ammonia", Amount: 50, Probability: 1},
+		}},
 	"arithmetic-combinator": {Name: "arithmetic-combinator", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-cable", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "arithmetic-combinator", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-cable", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "arithmetic-combinator", Amount: 1, Probability: 1},
+		}},
 	"arithmetic-combinator-recycling": {Name: "arithmetic-combinator-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "arithmetic-combinator", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-cable", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "arithmetic-combinator", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-cable", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+		}},
 	"artificial-jellynut-soil": {Name: "artificial-jellynut-soil", Category: "crafting", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "jellynut-seed", Amount: 2},
-		{Type: "item", Name: "nutrients", Amount: 50},
-		{Type: "item", Name: "landfill", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "artificial-jellynut-soil", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "jellynut-seed", Amount: 2},
+			{Type: "item", Name: "nutrients", Amount: 50},
+			{Type: "item", Name: "landfill", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "artificial-jellynut-soil", Amount: 10, Probability: 1},
+		}},
 	"artificial-jellynut-soil-recycling": {Name: "artificial-jellynut-soil-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "artificial-jellynut-soil", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "jellynut-seed", Amount: 0.05, Probability: 1},
-		{Type: "item", Name: "nutrients", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "landfill", Amount: 0.125, Probability: 1},
-	}},
+			{Type: "item", Name: "artificial-jellynut-soil", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "jellynut-seed", Amount: 0.05, Probability: 1},
+			{Type: "item", Name: "nutrients", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "landfill", Amount: 0.125, Probability: 1},
+		}},
 	"artificial-yumako-soil": {Name: "artificial-yumako-soil", Category: "crafting", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "yumako-seed", Amount: 2},
-		{Type: "item", Name: "nutrients", Amount: 50},
-		{Type: "item", Name: "landfill", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "artificial-yumako-soil", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "yumako-seed", Amount: 2},
+			{Type: "item", Name: "nutrients", Amount: 50},
+			{Type: "item", Name: "landfill", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "artificial-yumako-soil", Amount: 10, Probability: 1},
+		}},
 	"artificial-yumako-soil-recycling": {Name: "artificial-yumako-soil-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "artificial-yumako-soil", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "yumako-seed", Amount: 0.05, Probability: 1},
-		{Type: "item", Name: "nutrients", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "landfill", Amount: 0.125, Probability: 1},
-	}},
+			{Type: "item", Name: "artificial-yumako-soil", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "yumako-seed", Amount: 0.05, Probability: 1},
+			{Type: "item", Name: "nutrients", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "landfill", Amount: 0.125, Probability: 1},
+		}},
 	"artillery-shell": {Name: "artillery-shell", Category: "crafting", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "radar", Amount: 1},
-		{Type: "item", Name: "calcite", Amount: 1},
-		{Type: "item", Name: "tungsten-plate", Amount: 4},
-		{Type: "item", Name: "explosives", Amount: 8},
-	}, Results: []Product{
-		{Type: "item", Name: "artillery-shell", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "radar", Amount: 1},
+			{Type: "item", Name: "calcite", Amount: 1},
+			{Type: "item", Name: "tungsten-plate", Amount: 4},
+			{Type: "item", Name: "explosives", Amount: 8},
+		}, Results: []Product{
+			{Type: "item", Name: "artillery-shell", Amount: 1, Probability: 1},
+		}},
 	"artillery-shell-recycling": {Name: "artillery-shell-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "artillery-shell", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "radar", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "calcite", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "tungsten-plate", Amount: 1, Probability: 1},
-		{Type: "item", Name: "explosives", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "artillery-shell", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "radar", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "calcite", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "tungsten-plate", Amount: 1, Probability: 1},
+			{Type: "item", Name: "explosives", Amount: 2, Probability: 1},
+		}},
 	"artillery-turret": {Name: "artillery-turret", Category: "crafting", EnergyRequired: 40, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-plate", Amount: 60},
-		{Type: "item", Name: "refined-concrete", Amount: 60},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 40},
-		{Type: "item", Name: "processing-unit", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "artillery-turret", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-plate", Amount: 60},
+			{Type: "item", Name: "refined-concrete", Amount: 60},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 40},
+			{Type: "item", Name: "processing-unit", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "artillery-turret", Amount: 1, Probability: 1},
+		}},
 	"artillery-turret-recycling": {Name: "artillery-turret-recycling", Category: "recycling", EnergyRequired: 2.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "artillery-turret", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-plate", Amount: 15, Probability: 1},
-		{Type: "item", Name: "refined-concrete", Amount: 15, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "artillery-turret", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-plate", Amount: 15, Probability: 1},
+			{Type: "item", Name: "refined-concrete", Amount: 15, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
+		}},
 	"artillery-wagon": {Name: "artillery-wagon", Category: "crafting", EnergyRequired: 4, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "engine-unit", Amount: 60},
-		{Type: "item", Name: "tungsten-plate", Amount: 60},
-		{Type: "item", Name: "refined-concrete", Amount: 60},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 40},
-		{Type: "item", Name: "processing-unit", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "artillery-wagon", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "engine-unit", Amount: 60},
+			{Type: "item", Name: "tungsten-plate", Amount: 60},
+			{Type: "item", Name: "refined-concrete", Amount: 60},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 40},
+			{Type: "item", Name: "processing-unit", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "artillery-wagon", Amount: 1, Probability: 1},
+		}},
 	"artillery-wagon-recycling": {Name: "artillery-wagon-recycling", Category: "recycling", EnergyRequired: 0.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "artillery-wagon", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "engine-unit", Amount: 15, Probability: 1},
-		{Type: "item", Name: "tungsten-plate", Amount: 15, Probability: 1},
-		{Type: "item", Name: "refined-concrete", Amount: 15, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "artillery-wagon", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "engine-unit", Amount: 15, Probability: 1},
+			{Type: "item", Name: "tungsten-plate", Amount: 15, Probability: 1},
+			{Type: "item", Name: "refined-concrete", Amount: 15, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
+		}},
 	"assembling-machine-1": {Name: "assembling-machine-1", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5},
-		{Type: "item", Name: "iron-plate", Amount: 9},
-	}, Results: []Product{
-		{Type: "item", Name: "assembling-machine-1", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5},
+			{Type: "item", Name: "iron-plate", Amount: 9},
+		}, Results: []Product{
+			{Type: "item", Name: "assembling-machine-1", Amount: 1, Probability: 1},
+		}},
 	"assembling-machine-1-recycling": {Name: "assembling-machine-1-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "assembling-machine-1", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 2.25, Probability: 1},
-	}},
+			{Type: "item", Name: "assembling-machine-1", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 2.25, Probability: 1},
+		}},
 	"assembling-machine-2": {Name: "assembling-machine-2", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 2},
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5},
-		{Type: "item", Name: "assembling-machine-1", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "assembling-machine-2", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 2},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5},
+			{Type: "item", Name: "assembling-machine-1", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "assembling-machine-2", Amount: 1, Probability: 1},
+		}},
 	"assembling-machine-2-recycling": {Name: "assembling-machine-2-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "assembling-machine-2", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "assembling-machine-1", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "assembling-machine-2", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "assembling-machine-1", Amount: 0.25, Probability: 1},
+		}},
 	"assembling-machine-3": {Name: "assembling-machine-3", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "assembling-machine-2", Amount: 2},
-		{Type: "item", Name: "speed-module", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "assembling-machine-3", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "assembling-machine-2", Amount: 2},
+			{Type: "item", Name: "speed-module", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "assembling-machine-3", Amount: 1, Probability: 1},
+		}},
 	"assembling-machine-3-recycling": {Name: "assembling-machine-3-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "assembling-machine-3", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "assembling-machine-2", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "speed-module", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "assembling-machine-3", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "assembling-machine-2", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "speed-module", Amount: 1, Probability: 1},
+		}},
 	"asteroid-collector": {Name: "asteroid-collector", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "low-density-structure", Amount: 20},
-		{Type: "item", Name: "electric-engine-unit", Amount: 8},
-		{Type: "item", Name: "processing-unit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "asteroid-collector", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "low-density-structure", Amount: 20},
+			{Type: "item", Name: "electric-engine-unit", Amount: 8},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "asteroid-collector", Amount: 1, Probability: 1},
+		}},
 	"asteroid-collector-recycling": {Name: "asteroid-collector-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "asteroid-collector", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "low-density-structure", Amount: 5, Probability: 1},
-		{Type: "item", Name: "electric-engine-unit", Amount: 2, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "asteroid-collector", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "low-density-structure", Amount: 5, Probability: 1},
+			{Type: "item", Name: "electric-engine-unit", Amount: 2, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+		}},
 	"atomic-bomb": {Name: "atomic-bomb", Category: "crafting", EnergyRequired: 50, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "processing-unit", Amount: 10},
-		{Type: "item", Name: "explosives", Amount: 10},
-		{Type: "item", Name: "uranium-235", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "atomic-bomb", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "processing-unit", Amount: 10},
+			{Type: "item", Name: "explosives", Amount: 10},
+			{Type: "item", Name: "uranium-235", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "atomic-bomb", Amount: 1, Probability: 1},
+		}},
 	"atomic-bomb-recycling": {Name: "atomic-bomb-recycling", Category: "recycling", EnergyRequired: 3.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "atomic-bomb", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "explosives", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "uranium-235", Amount: 25, Probability: 1},
-	}},
+			{Type: "item", Name: "atomic-bomb", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "explosives", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "uranium-235", Amount: 25, Probability: 1},
+		}},
 	"automation-science-pack": {Name: "automation-science-pack", Category: "crafting", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-plate", Amount: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "automation-science-pack", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-plate", Amount: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "automation-science-pack", Amount: 1, Probability: 1},
+		}},
 	"automation-science-pack-recycling": {Name: "automation-science-pack-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "automation-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "automation-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "automation-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "automation-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"barrel": {Name: "barrel", Category: "crafting", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
+		}},
 	"barrel-recycling": {Name: "barrel-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 0.25, Probability: 1},
+		}},
 	"basic-oil-processing": {Name: "basic-oil-processing", Category: "oil-processing", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "crude-oil", Amount: 100},
-	}, Results: []Product{
-		{Type: "fluid", Name: "petroleum-gas", Amount: 45, Probability: 1},
-	}},
+			{Type: "fluid", Name: "crude-oil", Amount: 100},
+		}, Results: []Product{
+			{Type: "fluid", Name: "petroleum-gas", Amount: 45, Probability: 1},
+		}},
 	"battery": {Name: "battery", Category: "chemistry-or-cryogenics", EnergyRequired: 4, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "sulfuric-acid", Amount: 20},
-		{Type: "item", Name: "iron-plate", Amount: 1},
-		{Type: "item", Name: "copper-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "battery", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "sulfuric-acid", Amount: 20},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+			{Type: "item", Name: "copper-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "battery", Amount: 1, Probability: 1},
+		}},
 	"battery-equipment": {Name: "battery-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "battery", Amount: 5},
-		{Type: "item", Name: "steel-plate", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "battery-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "battery", Amount: 5},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "battery-equipment", Amount: 1, Probability: 1},
+		}},
 	"battery-equipment-recycling": {Name: "battery-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "battery-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "battery", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "battery-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "battery", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+		}},
 	"battery-mk2-equipment": {Name: "battery-mk2-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "battery-equipment", Amount: 10},
-		{Type: "item", Name: "processing-unit", Amount: 15},
-		{Type: "item", Name: "low-density-structure", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "battery-mk2-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "battery-equipment", Amount: 10},
+			{Type: "item", Name: "processing-unit", Amount: 15},
+			{Type: "item", Name: "low-density-structure", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "battery-mk2-equipment", Amount: 1, Probability: 1},
+		}},
 	"battery-mk2-equipment-recycling": {Name: "battery-mk2-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "battery-mk2-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "battery-equipment", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 3.75, Probability: 1},
-		{Type: "item", Name: "low-density-structure", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "battery-mk2-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "battery-equipment", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 3.75, Probability: 1},
+			{Type: "item", Name: "low-density-structure", Amount: 1.25, Probability: 1},
+		}},
 	"battery-mk3-equipment": {Name: "battery-mk3-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "battery-mk2-equipment", Amount: 5},
-		{Type: "item", Name: "supercapacitor", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "battery-mk3-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "battery-mk2-equipment", Amount: 5},
+			{Type: "item", Name: "supercapacitor", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "battery-mk3-equipment", Amount: 1, Probability: 1},
+		}},
 	"battery-mk3-equipment-recycling": {Name: "battery-mk3-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "battery-mk3-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "battery-mk2-equipment", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "supercapacitor", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "battery-mk3-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "battery-mk2-equipment", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "supercapacitor", Amount: 2.5, Probability: 1},
+		}},
 	"battery-recycling": {Name: "battery-recycling", Category: "recycling", EnergyRequired: 0.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "battery", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "battery", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 0.25, Probability: 1},
+		}},
 	"beacon": {Name: "beacon", Category: "electronics", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 20},
-		{Type: "item", Name: "advanced-circuit", Amount: 20},
-		{Type: "item", Name: "steel-plate", Amount: 10},
-		{Type: "item", Name: "copper-cable", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "beacon", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 20},
+			{Type: "item", Name: "advanced-circuit", Amount: 20},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+			{Type: "item", Name: "copper-cable", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "beacon", Amount: 1, Probability: 1},
+		}},
 	"beacon-recycling": {Name: "beacon-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "beacon", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 5, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "beacon", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 5, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 2.5, Probability: 1},
+		}},
 	"belt-immunity-equipment": {Name: "belt-immunity-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "steel-plate", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "belt-immunity-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "belt-immunity-equipment", Amount: 1, Probability: 1},
+		}},
 	"belt-immunity-equipment-recycling": {Name: "belt-immunity-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "belt-immunity-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "belt-immunity-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+		}},
 	"big-electric-pole": {Name: "big-electric-pole", Category: "electronics", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-stick", Amount: 8},
-		{Type: "item", Name: "steel-plate", Amount: 5},
-		{Type: "item", Name: "copper-cable", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "big-electric-pole", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-stick", Amount: 8},
+			{Type: "item", Name: "steel-plate", Amount: 5},
+			{Type: "item", Name: "copper-cable", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "big-electric-pole", Amount: 1, Probability: 1},
+		}},
 	"big-electric-pole-recycling": {Name: "big-electric-pole-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "big-electric-pole", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-stick", Amount: 2, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "big-electric-pole", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-stick", Amount: 2, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 1, Probability: 1},
+		}},
 	"big-mining-drill": {Name: "big-mining-drill", Category: "metallurgy", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electric-mining-drill", Amount: 1},
-		{Type: "fluid", Name: "molten-iron", Amount: 200},
-		{Type: "item", Name: "tungsten-carbide", Amount: 20},
-		{Type: "item", Name: "electric-engine-unit", Amount: 10},
-		{Type: "item", Name: "advanced-circuit", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "big-mining-drill", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electric-mining-drill", Amount: 1},
+			{Type: "fluid", Name: "molten-iron", Amount: 200},
+			{Type: "item", Name: "tungsten-carbide", Amount: 20},
+			{Type: "item", Name: "electric-engine-unit", Amount: 10},
+			{Type: "item", Name: "advanced-circuit", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "big-mining-drill", Amount: 1, Probability: 1},
+		}},
 	"big-mining-drill-recycling": {Name: "big-mining-drill-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "big-mining-drill", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electric-mining-drill", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "tungsten-carbide", Amount: 5, Probability: 1},
-		{Type: "item", Name: "electric-engine-unit", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "big-mining-drill", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electric-mining-drill", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "tungsten-carbide", Amount: 5, Probability: 1},
+			{Type: "item", Name: "electric-engine-unit", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 2.5, Probability: 1},
+		}},
 	"biochamber": {Name: "biochamber", Category: "organic-or-assembling", EnergyRequired: 20, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "nutrients", Amount: 5},
-		{Type: "item", Name: "pentapod-egg", Amount: 1},
-		{Type: "item", Name: "iron-plate", Amount: 20},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-		{Type: "item", Name: "landfill", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "biochamber", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "nutrients", Amount: 5},
+			{Type: "item", Name: "pentapod-egg", Amount: 1},
+			{Type: "item", Name: "iron-plate", Amount: 20},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+			{Type: "item", Name: "landfill", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "biochamber", Amount: 1, Probability: 1},
+		}},
 	"biochamber-recycling": {Name: "biochamber-recycling", Category: "recycling", EnergyRequired: 1.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "biochamber", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "nutrients", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "pentapod-egg", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "landfill", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "biochamber", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "nutrients", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "pentapod-egg", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "landfill", Amount: 0.25, Probability: 1},
+		}},
 	"bioflux": {Name: "bioflux", Category: "organic", EnergyRequired: 6, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "yumako-mash", Amount: 15},
-		{Type: "item", Name: "jelly", Amount: 12},
-	}, Results: []Product{
-		{Type: "item", Name: "bioflux", Amount: 4, Probability: 1},
-	}},
+			{Type: "item", Name: "yumako-mash", Amount: 15},
+			{Type: "item", Name: "jelly", Amount: 12},
+		}, Results: []Product{
+			{Type: "item", Name: "bioflux", Amount: 4, Probability: 1},
+		}},
 	"bioflux-recycling": {Name: "bioflux-recycling", Category: "recycling", EnergyRequired: 0.375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "bioflux", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "bioflux", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "bioflux", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "bioflux", Amount: 1, Probability: 0.25},
+		}},
 	"biolab": {Name: "biolab", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "lab", Amount: 1},
-		{Type: "item", Name: "biter-egg", Amount: 10},
-		{Type: "item", Name: "refined-concrete", Amount: 25},
-		{Type: "item", Name: "capture-robot-rocket", Amount: 2},
-		{Type: "item", Name: "uranium-235", Amount: 3},
-	}, Results: []Product{
-		{Type: "item", Name: "biolab", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "lab", Amount: 1},
+			{Type: "item", Name: "biter-egg", Amount: 10},
+			{Type: "item", Name: "refined-concrete", Amount: 25},
+			{Type: "item", Name: "capture-robot-rocket", Amount: 2},
+			{Type: "item", Name: "uranium-235", Amount: 3},
+		}, Results: []Product{
+			{Type: "item", Name: "biolab", Amount: 1, Probability: 1},
+		}},
 	"biolab-recycling": {Name: "biolab-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "biolab", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "biolab", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "biolab", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "biolab", Amount: 1, Probability: 0.25},
+		}},
 	"biolubricant": {Name: "biolubricant", Category: "organic", EnergyRequired: 3, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "jelly", Amount: 60},
-	}, Results: []Product{
-		{Type: "fluid", Name: "lubricant", Amount: 20, Probability: 1},
-	}},
+			{Type: "item", Name: "jelly", Amount: 60},
+		}, Results: []Product{
+			{Type: "fluid", Name: "lubricant", Amount: 20, Probability: 1},
+		}},
 	"bioplastic": {Name: "bioplastic", Category: "organic", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "bioflux", Amount: 1},
-		{Type: "item", Name: "yumako-mash", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "plastic-bar", Amount: 3, Probability: 1},
-	}},
+			{Type: "item", Name: "bioflux", Amount: 1},
+			{Type: "item", Name: "yumako-mash", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "plastic-bar", Amount: 3, Probability: 1},
+		}},
 	"biosulfur": {Name: "biosulfur", Category: "organic", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "spoilage", Amount: 5},
-		{Type: "item", Name: "bioflux", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "sulfur", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "spoilage", Amount: 5},
+			{Type: "item", Name: "bioflux", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "sulfur", Amount: 2, Probability: 1},
+		}},
 	"biter-egg": {Name: "biter-egg", Category: "captive-spawner-process", EnergyRequired: 10, Enabled: false, Ingredients: nil, Results: []Product{
-		{Type: "item", Name: "biter-egg", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "biter-egg", Amount: 5, Probability: 1},
+		}},
 	"biter-egg-recycling": {Name: "biter-egg-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "biter-egg", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "biter-egg", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "biter-egg", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "biter-egg", Amount: 1, Probability: 0.25},
+		}},
 	"blueprint-book-recycling": {Name: "blueprint-book-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "blueprint-book", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "blueprint-book", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "blueprint-book", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "blueprint-book", Amount: 1, Probability: 0.25},
+		}},
 	"blueprint-recycling": {Name: "blueprint-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "blueprint", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "blueprint", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "blueprint", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "blueprint", Amount: 1, Probability: 0.25},
+		}},
 	"boiler": {Name: "boiler", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone-furnace", Amount: 1},
-		{Type: "item", Name: "pipe", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "boiler", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "stone-furnace", Amount: 1},
+			{Type: "item", Name: "pipe", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "boiler", Amount: 1, Probability: 1},
+		}},
 	"boiler-recycling": {Name: "boiler-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "boiler", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "stone-furnace", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "boiler", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "stone-furnace", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 1, Probability: 1},
+		}},
 	"bottomless-chest-recycling": {Name: "bottomless-chest-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "bottomless-chest", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "bottomless-chest", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "bottomless-chest", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "bottomless-chest", Amount: 1, Probability: 0.25},
+		}},
 	"buffer-chest": {Name: "buffer-chest", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-chest", Amount: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-		{Type: "item", Name: "advanced-circuit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "buffer-chest", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-chest", Amount: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+			{Type: "item", Name: "advanced-circuit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "buffer-chest", Amount: 1, Probability: 1},
+		}},
 	"buffer-chest-recycling": {Name: "buffer-chest-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "buffer-chest", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "buffer-chest", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
+		}},
 	"bulk-inserter": {Name: "bulk-inserter", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 15},
-		{Type: "item", Name: "electronic-circuit", Amount: 15},
-		{Type: "item", Name: "advanced-circuit", Amount: 1},
-		{Type: "item", Name: "fast-inserter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "bulk-inserter", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 15},
+			{Type: "item", Name: "electronic-circuit", Amount: 15},
+			{Type: "item", Name: "advanced-circuit", Amount: 1},
+			{Type: "item", Name: "fast-inserter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "bulk-inserter", Amount: 1, Probability: 1},
+		}},
 	"bulk-inserter-recycling": {Name: "bulk-inserter-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "bulk-inserter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 3.75, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 3.75, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "fast-inserter", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "bulk-inserter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 3.75, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 3.75, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "fast-inserter", Amount: 0.25, Probability: 1},
+		}},
 	"burner-generator-recycling": {Name: "burner-generator-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "burner-generator", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "burner-generator", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "burner-generator", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "burner-generator", Amount: 1, Probability: 0.25},
+		}},
 	"burner-inserter": {Name: "burner-inserter", Category: "crafting", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "burner-inserter", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "burner-inserter", Amount: 1, Probability: 1},
+		}},
 	"burner-inserter-recycling": {Name: "burner-inserter-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "burner-inserter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "burner-inserter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 0.25, Probability: 1},
+		}},
 	"burner-mining-drill": {Name: "burner-mining-drill", Category: "crafting", EnergyRequired: 2, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 3},
-		{Type: "item", Name: "stone-furnace", Amount: 1},
-		{Type: "item", Name: "iron-plate", Amount: 3},
-	}, Results: []Product{
-		{Type: "item", Name: "burner-mining-drill", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 3},
+			{Type: "item", Name: "stone-furnace", Amount: 1},
+			{Type: "item", Name: "iron-plate", Amount: 3},
+		}, Results: []Product{
+			{Type: "item", Name: "burner-mining-drill", Amount: 1, Probability: 1},
+		}},
 	"burner-mining-drill-recycling": {Name: "burner-mining-drill-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "burner-mining-drill", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "stone-furnace", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 0.75, Probability: 1},
-	}},
+			{Type: "item", Name: "burner-mining-drill", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "stone-furnace", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 0.75, Probability: 1},
+		}},
 	"burnt-spoilage": {Name: "burnt-spoilage", Category: "organic", EnergyRequired: 12, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "spoilage", Amount: 6},
-	}, Results: []Product{
-		{Type: "item", Name: "carbon", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "spoilage", Amount: 6},
+		}, Results: []Product{
+			{Type: "item", Name: "carbon", Amount: 1, Probability: 1},
+		}},
 	"calcite-recycling": {Name: "calcite-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "calcite", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "calcite", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "calcite", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "calcite", Amount: 1, Probability: 0.25},
+		}},
 	"cannon-shell": {Name: "cannon-shell", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 2},
-		{Type: "item", Name: "plastic-bar", Amount: 2},
-		{Type: "item", Name: "explosives", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "cannon-shell", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 2},
+			{Type: "item", Name: "plastic-bar", Amount: 2},
+			{Type: "item", Name: "explosives", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "cannon-shell", Amount: 1, Probability: 1},
+		}},
 	"cannon-shell-recycling": {Name: "cannon-shell-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "cannon-shell", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "plastic-bar", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "explosives", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "cannon-shell", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "plastic-bar", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "explosives", Amount: 0.25, Probability: 1},
+		}},
 	"captive-biter-spawner": {Name: "captive-biter-spawner", Category: "cryogenics", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "biter-egg", Amount: 10},
-		{Type: "item", Name: "capture-robot-rocket", Amount: 1},
-		{Type: "item", Name: "uranium-235", Amount: 15},
-		{Type: "fluid", Name: "fluoroketone-cold", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "captive-biter-spawner", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "biter-egg", Amount: 10},
+			{Type: "item", Name: "capture-robot-rocket", Amount: 1},
+			{Type: "item", Name: "uranium-235", Amount: 15},
+			{Type: "fluid", Name: "fluoroketone-cold", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "captive-biter-spawner", Amount: 1, Probability: 1},
+		}},
 	"captive-biter-spawner-recycling": {Name: "captive-biter-spawner-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "captive-biter-spawner", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "captive-biter-spawner", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "captive-biter-spawner", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "captive-biter-spawner", Amount: 1, Probability: 0.25},
+		}},
 	"capture-robot-rocket": {Name: "capture-robot-rocket", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "flying-robot-frame", Amount: 1},
-		{Type: "item", Name: "steel-plate", Amount: 2},
-		{Type: "item", Name: "bioflux", Amount: 20},
-		{Type: "item", Name: "processing-unit", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "capture-robot-rocket", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "flying-robot-frame", Amount: 1},
+			{Type: "item", Name: "steel-plate", Amount: 2},
+			{Type: "item", Name: "bioflux", Amount: 20},
+			{Type: "item", Name: "processing-unit", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "capture-robot-rocket", Amount: 1, Probability: 1},
+		}},
 	"capture-robot-rocket-recycling": {Name: "capture-robot-rocket-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "capture-robot-rocket", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "flying-robot-frame", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "bioflux", Amount: 5, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "capture-robot-rocket", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "flying-robot-frame", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "bioflux", Amount: 5, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 0.5, Probability: 1},
+		}},
 	"car": {Name: "car", Category: "crafting", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "engine-unit", Amount: 8},
-		{Type: "item", Name: "iron-plate", Amount: 20},
-		{Type: "item", Name: "steel-plate", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "car", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "engine-unit", Amount: 8},
+			{Type: "item", Name: "iron-plate", Amount: 20},
+			{Type: "item", Name: "steel-plate", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "car", Amount: 1, Probability: 1},
+		}},
 	"car-recycling": {Name: "car-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "car", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "engine-unit", Amount: 2, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "car", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "engine-unit", Amount: 2, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
+		}},
 	"carbon": {Name: "carbon", Category: "chemistry-or-cryogenics", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "coal", Amount: 2},
-		{Type: "fluid", Name: "sulfuric-acid", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "carbon", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "coal", Amount: 2},
+			{Type: "fluid", Name: "sulfuric-acid", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "carbon", Amount: 1, Probability: 1},
+		}},
 	"carbon-fiber": {Name: "carbon-fiber", Category: "organic", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "yumako-mash", Amount: 10},
-		{Type: "item", Name: "carbon", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "carbon-fiber", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "yumako-mash", Amount: 10},
+			{Type: "item", Name: "carbon", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "carbon-fiber", Amount: 1, Probability: 1},
+		}},
 	"carbon-fiber-recycling": {Name: "carbon-fiber-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "carbon-fiber", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "carbon-fiber", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "carbon-fiber", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "carbon-fiber", Amount: 1, Probability: 0.25},
+		}},
 	"carbon-recycling": {Name: "carbon-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "carbon", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "carbon", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "carbon", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "carbon", Amount: 1, Probability: 0.25},
+		}},
 	"carbonic-asteroid-chunk-recycling": {Name: "carbonic-asteroid-chunk-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.25},
+		}},
 	"carbonic-asteroid-crushing": {Name: "carbonic-asteroid-crushing", Category: "crushing", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "carbon", Amount: 10, Probability: 1},
-		{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.2},
-	}},
+			{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "carbon", Amount: 10, Probability: 1},
+			{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.2},
+		}},
 	"carbonic-asteroid-reprocessing": {Name: "carbonic-asteroid-reprocessing", Category: "crushing", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.4},
-		{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.2},
-		{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.2},
-	}},
+			{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.4},
+			{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.2},
+			{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.2},
+		}},
 	"cargo-bay": {Name: "cargo-bay", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 20},
-		{Type: "item", Name: "low-density-structure", Amount: 20},
-		{Type: "item", Name: "processing-unit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "cargo-bay", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 20},
+			{Type: "item", Name: "low-density-structure", Amount: 20},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "cargo-bay", Amount: 1, Probability: 1},
+		}},
 	"cargo-bay-recycling": {Name: "cargo-bay-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "cargo-bay", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "low-density-structure", Amount: 5, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "cargo-bay", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "low-density-structure", Amount: 5, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+		}},
 	"cargo-landing-pad": {Name: "cargo-landing-pad", Category: "crafting", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "concrete", Amount: 200},
-		{Type: "item", Name: "steel-plate", Amount: 25},
-		{Type: "item", Name: "processing-unit", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "cargo-landing-pad", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "concrete", Amount: 200},
+			{Type: "item", Name: "steel-plate", Amount: 25},
+			{Type: "item", Name: "processing-unit", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "cargo-landing-pad", Amount: 1, Probability: 1},
+		}},
 	"cargo-landing-pad-recycling": {Name: "cargo-landing-pad-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "cargo-landing-pad", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "concrete", Amount: 50, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 6.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "cargo-landing-pad", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "concrete", Amount: 50, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 6.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
+		}},
 	"cargo-wagon": {Name: "cargo-wagon", Category: "crafting", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10},
-		{Type: "item", Name: "iron-plate", Amount: 20},
-		{Type: "item", Name: "steel-plate", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "cargo-wagon", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10},
+			{Type: "item", Name: "iron-plate", Amount: 20},
+			{Type: "item", Name: "steel-plate", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "cargo-wagon", Amount: 1, Probability: 1},
+		}},
 	"cargo-wagon-recycling": {Name: "cargo-wagon-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "cargo-wagon", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "cargo-wagon", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
+		}},
 	"casting-copper": {Name: "casting-copper", Category: "metallurgy", EnergyRequired: 3.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "molten-copper", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-plate", Amount: 2, Probability: 1},
-	}},
+			{Type: "fluid", Name: "molten-copper", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-plate", Amount: 2, Probability: 1},
+		}},
 	"casting-copper-cable": {Name: "casting-copper-cable", Category: "metallurgy", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "molten-copper", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-cable", Amount: 2, Probability: 1},
-	}},
+			{Type: "fluid", Name: "molten-copper", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-cable", Amount: 2, Probability: 1},
+		}},
 	"casting-iron": {Name: "casting-iron", Category: "metallurgy", EnergyRequired: 3.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "molten-iron", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 2, Probability: 1},
-	}},
+			{Type: "fluid", Name: "molten-iron", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 2, Probability: 1},
+		}},
 	"casting-iron-gear-wheel": {Name: "casting-iron-gear-wheel", Category: "metallurgy", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "molten-iron", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "molten-iron", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1, Probability: 1},
+		}},
 	"casting-iron-stick": {Name: "casting-iron-stick", Category: "metallurgy", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "molten-iron", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-stick", Amount: 4, Probability: 1},
-	}},
+			{Type: "fluid", Name: "molten-iron", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-stick", Amount: 4, Probability: 1},
+		}},
 	"casting-low-density-structure": {Name: "casting-low-density-structure", Category: "metallurgy", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "molten-iron", Amount: 80},
-		{Type: "fluid", Name: "molten-copper", Amount: 250},
-		{Type: "item", Name: "plastic-bar", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "low-density-structure", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "molten-iron", Amount: 80},
+			{Type: "fluid", Name: "molten-copper", Amount: 250},
+			{Type: "item", Name: "plastic-bar", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "low-density-structure", Amount: 1, Probability: 1},
+		}},
 	"casting-pipe": {Name: "casting-pipe", Category: "metallurgy", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "molten-iron", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "pipe", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "molten-iron", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "pipe", Amount: 1, Probability: 1},
+		}},
 	"casting-pipe-to-ground": {Name: "casting-pipe-to-ground", Category: "metallurgy", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "molten-iron", Amount: 50},
-		{Type: "item", Name: "pipe", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "pipe-to-ground", Amount: 2, Probability: 1},
-	}},
+			{Type: "fluid", Name: "molten-iron", Amount: 50},
+			{Type: "item", Name: "pipe", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "pipe-to-ground", Amount: 2, Probability: 1},
+		}},
 	"casting-steel": {Name: "casting-steel", Category: "metallurgy", EnergyRequired: 3.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "molten-iron", Amount: 30},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "molten-iron", Amount: 30},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 1, Probability: 1},
+		}},
 	"centrifuge": {Name: "centrifuge", Category: "crafting", EnergyRequired: 4, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "concrete", Amount: 100},
-		{Type: "item", Name: "steel-plate", Amount: 50},
-		{Type: "item", Name: "advanced-circuit", Amount: 100},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "centrifuge", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "concrete", Amount: 100},
+			{Type: "item", Name: "steel-plate", Amount: 50},
+			{Type: "item", Name: "advanced-circuit", Amount: 100},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "centrifuge", Amount: 1, Probability: 1},
+		}},
 	"centrifuge-recycling": {Name: "centrifuge-recycling", Category: "recycling", EnergyRequired: 0.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "centrifuge", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "concrete", Amount: 25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 25, Probability: 1},
-	}},
+			{Type: "item", Name: "centrifuge", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "concrete", Amount: 25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 25, Probability: 1},
+		}},
 	"chemical-plant": {Name: "chemical-plant", Category: "crafting", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 5},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-		{Type: "item", Name: "pipe", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "chemical-plant", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 5},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+			{Type: "item", Name: "pipe", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "chemical-plant", Amount: 1, Probability: 1},
+		}},
 	"chemical-plant-recycling": {Name: "chemical-plant-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "chemical-plant", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "chemical-plant", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 1.25, Probability: 1},
+		}},
 	"chemical-science-pack": {Name: "chemical-science-pack", Category: "crafting", EnergyRequired: 24, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "engine-unit", Amount: 2},
-		{Type: "item", Name: "advanced-circuit", Amount: 3},
-		{Type: "item", Name: "sulfur", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "chemical-science-pack", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "engine-unit", Amount: 2},
+			{Type: "item", Name: "advanced-circuit", Amount: 3},
+			{Type: "item", Name: "sulfur", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "chemical-science-pack", Amount: 2, Probability: 1},
+		}},
 	"chemical-science-pack-recycling": {Name: "chemical-science-pack-recycling", Category: "recycling", EnergyRequired: 1.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "chemical-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "chemical-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "chemical-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "chemical-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"cliff-explosives": {Name: "cliff-explosives", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "explosives", Amount: 10},
-		{Type: "item", Name: "calcite", Amount: 10},
-		{Type: "item", Name: "grenade", Amount: 1},
-		{Type: "item", Name: "barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "cliff-explosives", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "explosives", Amount: 10},
+			{Type: "item", Name: "calcite", Amount: 10},
+			{Type: "item", Name: "grenade", Amount: 1},
+			{Type: "item", Name: "barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "cliff-explosives", Amount: 1, Probability: 1},
+		}},
 	"cliff-explosives-recycling": {Name: "cliff-explosives-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "cliff-explosives", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "explosives", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "calcite", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "grenade", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "cliff-explosives", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "explosives", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "calcite", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "grenade", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
+		}},
 	"cluster-grenade": {Name: "cluster-grenade", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "grenade", Amount: 7},
-		{Type: "item", Name: "explosives", Amount: 5},
-		{Type: "item", Name: "steel-plate", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "cluster-grenade", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "grenade", Amount: 7},
+			{Type: "item", Name: "explosives", Amount: 5},
+			{Type: "item", Name: "steel-plate", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "cluster-grenade", Amount: 1, Probability: 1},
+		}},
 	"cluster-grenade-recycling": {Name: "cluster-grenade-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "cluster-grenade", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "grenade", Amount: 1.75, Probability: 1},
-		{Type: "item", Name: "explosives", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "cluster-grenade", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "grenade", Amount: 1.75, Probability: 1},
+			{Type: "item", Name: "explosives", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
+		}},
 	"coal-liquefaction": {Name: "coal-liquefaction", Category: "oil-processing", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "coal", Amount: 10},
-		{Type: "fluid", Name: "heavy-oil", Amount: 25},
-		{Type: "fluid", Name: "steam", Amount: 50},
-	}, Results: []Product{
-		{Type: "fluid", Name: "heavy-oil", Amount: 90, Probability: 1},
-		{Type: "fluid", Name: "light-oil", Amount: 20, Probability: 1},
-		{Type: "fluid", Name: "petroleum-gas", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "coal", Amount: 10},
+			{Type: "fluid", Name: "heavy-oil", Amount: 25},
+			{Type: "fluid", Name: "steam", Amount: 50},
+		}, Results: []Product{
+			{Type: "fluid", Name: "heavy-oil", Amount: 90, Probability: 1},
+			{Type: "fluid", Name: "light-oil", Amount: 20, Probability: 1},
+			{Type: "fluid", Name: "petroleum-gas", Amount: 10, Probability: 1},
+		}},
 	"coal-recycling": {Name: "coal-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "coal", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "coal", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "coal", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "coal", Amount: 1, Probability: 0.25},
+		}},
 	"coal-synthesis": {Name: "coal-synthesis", Category: "chemistry", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "carbon", Amount: 5},
-		{Type: "item", Name: "sulfur", Amount: 1},
-		{Type: "fluid", Name: "water", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "coal", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "carbon", Amount: 5},
+			{Type: "item", Name: "sulfur", Amount: 1},
+			{Type: "fluid", Name: "water", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "coal", Amount: 1, Probability: 1},
+		}},
 	"coin-recycling": {Name: "coin-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "coin", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "coin", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "coin", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "coin", Amount: 1, Probability: 0.25},
+		}},
 	"combat-shotgun": {Name: "combat-shotgun", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 15},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5},
-		{Type: "item", Name: "copper-plate", Amount: 10},
-		{Type: "item", Name: "wood", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "combat-shotgun", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 15},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5},
+			{Type: "item", Name: "copper-plate", Amount: 10},
+			{Type: "item", Name: "wood", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "combat-shotgun", Amount: 1, Probability: 1},
+		}},
 	"combat-shotgun-recycling": {Name: "combat-shotgun-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "combat-shotgun", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 3.75, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "wood", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "combat-shotgun", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 3.75, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "wood", Amount: 2.5, Probability: 1},
+		}},
 	"concrete": {Name: "concrete", Category: "crafting-with-fluid", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone-brick", Amount: 5},
-		{Type: "item", Name: "iron-ore", Amount: 1},
-		{Type: "fluid", Name: "water", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "concrete", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "stone-brick", Amount: 5},
+			{Type: "item", Name: "iron-ore", Amount: 1},
+			{Type: "fluid", Name: "water", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "concrete", Amount: 10, Probability: 1},
+		}},
 	"concrete-from-molten-iron": {Name: "concrete-from-molten-iron", Category: "metallurgy", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "molten-iron", Amount: 20},
-		{Type: "fluid", Name: "water", Amount: 100},
-		{Type: "item", Name: "stone-brick", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "concrete", Amount: 10, Probability: 1},
-	}},
+			{Type: "fluid", Name: "molten-iron", Amount: 20},
+			{Type: "fluid", Name: "water", Amount: 100},
+			{Type: "item", Name: "stone-brick", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "concrete", Amount: 10, Probability: 1},
+		}},
 	"concrete-recycling": {Name: "concrete-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "concrete", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "stone-brick", Amount: 0.125, Probability: 1},
-		{Type: "item", Name: "iron-ore", Amount: 0.025, Probability: 1},
-	}},
+			{Type: "item", Name: "concrete", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "stone-brick", Amount: 0.125, Probability: 1},
+			{Type: "item", Name: "iron-ore", Amount: 0.025, Probability: 1},
+		}},
 	"constant-combinator": {Name: "constant-combinator", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-cable", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "constant-combinator", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-cable", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "constant-combinator", Amount: 1, Probability: 1},
+		}},
 	"constant-combinator-recycling": {Name: "constant-combinator-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "constant-combinator", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-cable", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "constant-combinator", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-cable", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
+		}},
 	"construction-robot": {Name: "construction-robot", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "flying-robot-frame", Amount: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "construction-robot", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "flying-robot-frame", Amount: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "construction-robot", Amount: 1, Probability: 1},
+		}},
 	"construction-robot-recycling": {Name: "construction-robot-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "construction-robot", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "flying-robot-frame", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "construction-robot", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "flying-robot-frame", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
+		}},
 	"copper-bacteria": {Name: "copper-bacteria", Category: "organic-or-hand-crafting", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "yumako-mash", Amount: 3},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-bacteria", Amount: 1, Probability: 0.1},
-		{Type: "item", Name: "spoilage", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "yumako-mash", Amount: 3},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-bacteria", Amount: 1, Probability: 0.1},
+			{Type: "item", Name: "spoilage", Amount: 1, Probability: 1},
+		}},
 	"copper-bacteria-cultivation": {Name: "copper-bacteria-cultivation", Category: "organic", EnergyRequired: 4, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-bacteria", Amount: 1},
-		{Type: "item", Name: "bioflux", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-bacteria", Amount: 4, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-bacteria", Amount: 1},
+			{Type: "item", Name: "bioflux", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-bacteria", Amount: 4, Probability: 1},
+		}},
 	"copper-bacteria-recycling": {Name: "copper-bacteria-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-bacteria", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-bacteria", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "copper-bacteria", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-bacteria", Amount: 1, Probability: 0.25},
+		}},
 	"copper-cable": {Name: "copper-cable", Category: "electronics", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-cable", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-cable", Amount: 2, Probability: 1},
+		}},
 	"copper-cable-recycling": {Name: "copper-cable-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-cable", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-plate", Amount: 0.125, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-cable", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-plate", Amount: 0.125, Probability: 1},
+		}},
 	"copper-ore-recycling": {Name: "copper-ore-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-ore", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-ore", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "copper-ore", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-ore", Amount: 1, Probability: 0.25},
+		}},
 	"copper-plate": {Name: "copper-plate", Category: "smelting", EnergyRequired: 3.2, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-ore", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-plate", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-ore", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-plate", Amount: 1, Probability: 1},
+		}},
 	"copper-plate-recycling": {Name: "copper-plate-recycling", Category: "recycling", EnergyRequired: 0.2, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-plate", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "copper-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-plate", Amount: 1, Probability: 0.25},
+		}},
 	"crude-oil-barrel": {Name: "crude-oil-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "crude-oil", Amount: 50},
-		{Type: "item", Name: "barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "crude-oil-barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "crude-oil", Amount: 50},
+			{Type: "item", Name: "barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "crude-oil-barrel", Amount: 1, Probability: 1},
+		}},
 	"crude-oil-barrel-recycling": {Name: "crude-oil-barrel-recycling", Category: "recycling", EnergyRequired: 0.0125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "crude-oil-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "crude-oil-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
+		}},
 	"crusher": {Name: "crusher", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "low-density-structure", Amount: 20},
-		{Type: "item", Name: "steel-plate", Amount: 10},
-		{Type: "item", Name: "electric-engine-unit", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "crusher", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "low-density-structure", Amount: 20},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+			{Type: "item", Name: "electric-engine-unit", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "crusher", Amount: 1, Probability: 1},
+		}},
 	"crusher-recycling": {Name: "crusher-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "crusher", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "low-density-structure", Amount: 5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "electric-engine-unit", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "crusher", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "low-density-structure", Amount: 5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "electric-engine-unit", Amount: 2.5, Probability: 1},
+		}},
 	"cryogenic-plant": {Name: "cryogenic-plant", Category: "cryogenics-or-assembling", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "refined-concrete", Amount: 40},
-		{Type: "item", Name: "superconductor", Amount: 20},
-		{Type: "item", Name: "processing-unit", Amount: 20},
-		{Type: "item", Name: "lithium-plate", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "cryogenic-plant", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "refined-concrete", Amount: 40},
+			{Type: "item", Name: "superconductor", Amount: 20},
+			{Type: "item", Name: "processing-unit", Amount: 20},
+			{Type: "item", Name: "lithium-plate", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "cryogenic-plant", Amount: 1, Probability: 1},
+		}},
 	"cryogenic-plant-recycling": {Name: "cryogenic-plant-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "cryogenic-plant", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "refined-concrete", Amount: 10, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 5, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 5, Probability: 1},
-		{Type: "item", Name: "lithium-plate", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "cryogenic-plant", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "refined-concrete", Amount: 10, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 5, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 5, Probability: 1},
+			{Type: "item", Name: "lithium-plate", Amount: 5, Probability: 1},
+		}},
 	"cryogenic-science-pack": {Name: "cryogenic-science-pack", Category: "cryogenics", EnergyRequired: 20, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "ice", Amount: 3},
-		{Type: "item", Name: "lithium-plate", Amount: 1},
-		{Type: "fluid", Name: "fluoroketone-cold", Amount: 6},
-	}, Results: []Product{
-		{Type: "item", Name: "cryogenic-science-pack", Amount: 1, Probability: 1},
-		{Type: "fluid", Name: "fluoroketone-hot", Amount: 3, Probability: 1},
-	}},
+			{Type: "item", Name: "ice", Amount: 3},
+			{Type: "item", Name: "lithium-plate", Amount: 1},
+			{Type: "fluid", Name: "fluoroketone-cold", Amount: 6},
+		}, Results: []Product{
+			{Type: "item", Name: "cryogenic-science-pack", Amount: 1, Probability: 1},
+			{Type: "fluid", Name: "fluoroketone-hot", Amount: 3, Probability: 1},
+		}},
 	"cryogenic-science-pack-recycling": {Name: "cryogenic-science-pack-recycling", Category: "recycling", EnergyRequired: 1.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "cryogenic-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "cryogenic-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "cryogenic-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "cryogenic-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"decider-combinator": {Name: "decider-combinator", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-cable", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "decider-combinator", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-cable", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "decider-combinator", Amount: 1, Probability: 1},
+		}},
 	"decider-combinator-recycling": {Name: "decider-combinator-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "decider-combinator", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-cable", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "decider-combinator", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-cable", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+		}},
 	"deconstruction-planner-recycling": {Name: "deconstruction-planner-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "deconstruction-planner", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "deconstruction-planner", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "deconstruction-planner", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "deconstruction-planner", Amount: 1, Probability: 0.25},
+		}},
 	"defender-capsule": {Name: "defender-capsule", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "piercing-rounds-magazine", Amount: 3},
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 3},
-	}, Results: []Product{
-		{Type: "item", Name: "defender-capsule", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "piercing-rounds-magazine", Amount: 3},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 3},
+		}, Results: []Product{
+			{Type: "item", Name: "defender-capsule", Amount: 1, Probability: 1},
+		}},
 	"defender-capsule-recycling": {Name: "defender-capsule-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "defender-capsule", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "piercing-rounds-magazine", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 0.75, Probability: 1},
-	}},
+			{Type: "item", Name: "defender-capsule", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "piercing-rounds-magazine", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 0.75, Probability: 1},
+		}},
 	"depleted-uranium-fuel-cell-recycling": {Name: "depleted-uranium-fuel-cell-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "depleted-uranium-fuel-cell", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "depleted-uranium-fuel-cell", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "depleted-uranium-fuel-cell", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "depleted-uranium-fuel-cell", Amount: 1, Probability: 0.25},
+		}},
 	"destroyer-capsule": {Name: "destroyer-capsule", Category: "crafting", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "distractor-capsule", Amount: 4},
-		{Type: "item", Name: "steel-plate", Amount: 4},
-		{Type: "item", Name: "processing-unit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "destroyer-capsule", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "distractor-capsule", Amount: 4},
+			{Type: "item", Name: "steel-plate", Amount: 4},
+			{Type: "item", Name: "processing-unit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "destroyer-capsule", Amount: 1, Probability: 1},
+		}},
 	"destroyer-capsule-recycling": {Name: "destroyer-capsule-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "destroyer-capsule", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "distractor-capsule", Amount: 1, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 1, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "destroyer-capsule", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "distractor-capsule", Amount: 1, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 1, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 0.25, Probability: 1},
+		}},
 	"discharge-defense-equipment": {Name: "discharge-defense-equipment", Category: "electronics", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "processing-unit", Amount: 5},
-		{Type: "item", Name: "steel-plate", Amount: 20},
-		{Type: "item", Name: "laser-turret", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "discharge-defense-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+			{Type: "item", Name: "steel-plate", Amount: 20},
+			{Type: "item", Name: "laser-turret", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "discharge-defense-equipment", Amount: 1, Probability: 1},
+		}},
 	"discharge-defense-equipment-recycling": {Name: "discharge-defense-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "discharge-defense-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "laser-turret", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "discharge-defense-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "laser-turret", Amount: 2.5, Probability: 1},
+		}},
 	"display-panel": {Name: "display-panel", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "display-panel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "display-panel", Amount: 1, Probability: 1},
+		}},
 	"display-panel-recycling": {Name: "display-panel-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "display-panel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "display-panel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.25, Probability: 1},
+		}},
 	"distractor-capsule": {Name: "distractor-capsule", Category: "crafting", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "defender-capsule", Amount: 4},
-		{Type: "item", Name: "advanced-circuit", Amount: 3},
-	}, Results: []Product{
-		{Type: "item", Name: "distractor-capsule", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "defender-capsule", Amount: 4},
+			{Type: "item", Name: "advanced-circuit", Amount: 3},
+		}, Results: []Product{
+			{Type: "item", Name: "distractor-capsule", Amount: 1, Probability: 1},
+		}},
 	"distractor-capsule-recycling": {Name: "distractor-capsule-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "distractor-capsule", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "defender-capsule", Amount: 1, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 0.75, Probability: 1},
-	}},
+			{Type: "item", Name: "distractor-capsule", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "defender-capsule", Amount: 1, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 0.75, Probability: 1},
+		}},
 	"efficiency-module": {Name: "efficiency-module", Category: "electronics", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "efficiency-module", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "efficiency-module", Amount: 1, Probability: 1},
+		}},
 	"efficiency-module-2": {Name: "efficiency-module-2", Category: "electronics", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "efficiency-module", Amount: 4},
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "processing-unit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "efficiency-module-2", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "efficiency-module", Amount: 4},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "efficiency-module-2", Amount: 1, Probability: 1},
+		}},
 	"efficiency-module-2-recycling": {Name: "efficiency-module-2-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "efficiency-module-2", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "efficiency-module", Amount: 1, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "efficiency-module-2", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "efficiency-module", Amount: 1, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+		}},
 	"efficiency-module-3": {Name: "efficiency-module-3", Category: "electronics", EnergyRequired: 60, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "efficiency-module-2", Amount: 4},
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "processing-unit", Amount: 5},
-		{Type: "item", Name: "spoilage", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "efficiency-module-3", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "efficiency-module-2", Amount: 4},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+			{Type: "item", Name: "spoilage", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "efficiency-module-3", Amount: 1, Probability: 1},
+		}},
 	"efficiency-module-3-recycling": {Name: "efficiency-module-3-recycling", Category: "recycling", EnergyRequired: 3.75, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "efficiency-module-3", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "efficiency-module-2", Amount: 1, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "spoilage", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "efficiency-module-3", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "efficiency-module-2", Amount: 1, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "spoilage", Amount: 1.25, Probability: 1},
+		}},
 	"efficiency-module-recycling": {Name: "efficiency-module-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "efficiency-module", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "efficiency-module", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+		}},
 	"electric-energy-interface-recycling": {Name: "electric-energy-interface-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "electric-energy-interface", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electric-energy-interface", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "electric-energy-interface", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electric-energy-interface", Amount: 1, Probability: 0.25},
+		}},
 	"electric-engine-unit": {Name: "electric-engine-unit", Category: "crafting-with-fluid", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "engine-unit", Amount: 1},
-		{Type: "fluid", Name: "lubricant", Amount: 15},
-		{Type: "item", Name: "electronic-circuit", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "electric-engine-unit", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "engine-unit", Amount: 1},
+			{Type: "fluid", Name: "lubricant", Amount: 15},
+			{Type: "item", Name: "electronic-circuit", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "electric-engine-unit", Amount: 1, Probability: 1},
+		}},
 	"electric-engine-unit-recycling": {Name: "electric-engine-unit-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "electric-engine-unit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "engine-unit", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "electric-engine-unit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "engine-unit", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
+		}},
 	"electric-furnace": {Name: "electric-furnace", Category: "crafting", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 10},
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "stone-brick", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "electric-furnace", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "stone-brick", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "electric-furnace", Amount: 1, Probability: 1},
+		}},
 	"electric-furnace-recycling": {Name: "electric-furnace-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "electric-furnace", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "stone-brick", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "electric-furnace", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "stone-brick", Amount: 2.5, Probability: 1},
+		}},
 	"electric-mining-drill": {Name: "electric-mining-drill", Category: "crafting", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5},
-		{Type: "item", Name: "iron-plate", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "electric-mining-drill", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5},
+			{Type: "item", Name: "iron-plate", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "electric-mining-drill", Amount: 1, Probability: 1},
+		}},
 	"electric-mining-drill-recycling": {Name: "electric-mining-drill-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "electric-mining-drill", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "electric-mining-drill", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 2.5, Probability: 1},
+		}},
 	"electrolyte": {Name: "electrolyte", Category: "electromagnetics", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone", Amount: 1},
-		{Type: "fluid", Name: "heavy-oil", Amount: 10},
-		{Type: "fluid", Name: "holmium-solution", Amount: 10},
-	}, Results: []Product{
-		{Type: "fluid", Name: "electrolyte", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "stone", Amount: 1},
+			{Type: "fluid", Name: "heavy-oil", Amount: 10},
+			{Type: "fluid", Name: "holmium-solution", Amount: 10},
+		}, Results: []Product{
+			{Type: "fluid", Name: "electrolyte", Amount: 10, Probability: 1},
+		}},
 	"electromagnetic-plant": {Name: "electromagnetic-plant", Category: "electronics-or-assembling", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "holmium-plate", Amount: 150},
-		{Type: "item", Name: "steel-plate", Amount: 50},
-		{Type: "item", Name: "processing-unit", Amount: 50},
-		{Type: "item", Name: "refined-concrete", Amount: 50},
-	}, Results: []Product{
-		{Type: "item", Name: "electromagnetic-plant", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "holmium-plate", Amount: 150},
+			{Type: "item", Name: "steel-plate", Amount: 50},
+			{Type: "item", Name: "processing-unit", Amount: 50},
+			{Type: "item", Name: "refined-concrete", Amount: 50},
+		}, Results: []Product{
+			{Type: "item", Name: "electromagnetic-plant", Amount: 1, Probability: 1},
+		}},
 	"electromagnetic-plant-recycling": {Name: "electromagnetic-plant-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "electromagnetic-plant", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "holmium-plate", Amount: 37.5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "refined-concrete", Amount: 12.5, Probability: 1},
-	}},
+			{Type: "item", Name: "electromagnetic-plant", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "holmium-plate", Amount: 37.5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "refined-concrete", Amount: 12.5, Probability: 1},
+		}},
 	"electromagnetic-science-pack": {Name: "electromagnetic-science-pack", Category: "electromagnetics", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "supercapacitor", Amount: 1},
-		{Type: "item", Name: "accumulator", Amount: 1},
-		{Type: "fluid", Name: "electrolyte", Amount: 25},
-		{Type: "fluid", Name: "holmium-solution", Amount: 25},
-	}, Results: []Product{
-		{Type: "item", Name: "electromagnetic-science-pack", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "supercapacitor", Amount: 1},
+			{Type: "item", Name: "accumulator", Amount: 1},
+			{Type: "fluid", Name: "electrolyte", Amount: 25},
+			{Type: "fluid", Name: "holmium-solution", Amount: 25},
+		}, Results: []Product{
+			{Type: "item", Name: "electromagnetic-science-pack", Amount: 1, Probability: 1},
+		}},
 	"electromagnetic-science-pack-recycling": {Name: "electromagnetic-science-pack-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "electromagnetic-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electromagnetic-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "electromagnetic-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electromagnetic-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"electronic-circuit": {Name: "electronic-circuit", Category: "electronics", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 1},
-		{Type: "item", Name: "copper-cable", Amount: 3},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+			{Type: "item", Name: "copper-cable", Amount: 3},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 1, Probability: 1},
+		}},
 	"electronic-circuit-recycling": {Name: "electronic-circuit-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 0.75, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 0.75, Probability: 1},
+		}},
 	"empty-crude-oil-barrel": {Name: "empty-crude-oil-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "crude-oil-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "crude-oil", Amount: 50, Probability: 1},
-		{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "crude-oil-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "crude-oil", Amount: 50, Probability: 1},
+			{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
+		}},
 	"empty-fluoroketone-cold-barrel": {Name: "empty-fluoroketone-cold-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "fluoroketone-cold-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "fluoroketone-cold", Amount: 50, Probability: 1},
-		{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "fluoroketone-cold-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "fluoroketone-cold", Amount: 50, Probability: 1},
+			{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
+		}},
 	"empty-fluoroketone-hot-barrel": {Name: "empty-fluoroketone-hot-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "fluoroketone-hot-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "fluoroketone-hot", Amount: 50, Probability: 1},
-		{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "fluoroketone-hot-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "fluoroketone-hot", Amount: 50, Probability: 1},
+			{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
+		}},
 	"empty-heavy-oil-barrel": {Name: "empty-heavy-oil-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "heavy-oil-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "heavy-oil", Amount: 50, Probability: 1},
-		{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "heavy-oil-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "heavy-oil", Amount: 50, Probability: 1},
+			{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
+		}},
 	"empty-light-oil-barrel": {Name: "empty-light-oil-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "light-oil-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "light-oil", Amount: 50, Probability: 1},
-		{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "light-oil-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "light-oil", Amount: 50, Probability: 1},
+			{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
+		}},
 	"empty-lubricant-barrel": {Name: "empty-lubricant-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "lubricant-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "lubricant", Amount: 50, Probability: 1},
-		{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "lubricant-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "lubricant", Amount: 50, Probability: 1},
+			{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
+		}},
 	"empty-module-slot-recycling": {Name: "empty-module-slot-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "empty-module-slot", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "empty-module-slot", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "empty-module-slot", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "empty-module-slot", Amount: 1, Probability: 0.25},
+		}},
 	"empty-petroleum-gas-barrel": {Name: "empty-petroleum-gas-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "petroleum-gas-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "petroleum-gas", Amount: 50, Probability: 1},
-		{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "petroleum-gas-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "petroleum-gas", Amount: 50, Probability: 1},
+			{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
+		}},
 	"empty-sulfuric-acid-barrel": {Name: "empty-sulfuric-acid-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "sulfuric-acid-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "sulfuric-acid", Amount: 50, Probability: 1},
-		{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "sulfuric-acid-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "sulfuric-acid", Amount: 50, Probability: 1},
+			{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
+		}},
 	"empty-water-barrel": {Name: "empty-water-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "water-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "water", Amount: 50, Probability: 1},
-		{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "water-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "water", Amount: 50, Probability: 1},
+			{Type: "item", Name: "barrel", Amount: 1, Probability: 1},
+		}},
 	"energy-shield-equipment": {Name: "energy-shield-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "steel-plate", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "energy-shield-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "energy-shield-equipment", Amount: 1, Probability: 1},
+		}},
 	"energy-shield-equipment-recycling": {Name: "energy-shield-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "energy-shield-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "energy-shield-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+		}},
 	"energy-shield-mk2-equipment": {Name: "energy-shield-mk2-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "energy-shield-equipment", Amount: 10},
-		{Type: "item", Name: "processing-unit", Amount: 5},
-		{Type: "item", Name: "low-density-structure", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "energy-shield-mk2-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "energy-shield-equipment", Amount: 10},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+			{Type: "item", Name: "low-density-structure", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "energy-shield-mk2-equipment", Amount: 1, Probability: 1},
+		}},
 	"energy-shield-mk2-equipment-recycling": {Name: "energy-shield-mk2-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "energy-shield-mk2-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "energy-shield-equipment", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "low-density-structure", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "energy-shield-mk2-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "energy-shield-equipment", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "low-density-structure", Amount: 1.25, Probability: 1},
+		}},
 	"engine-unit": {Name: "engine-unit", Category: "advanced-crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1},
-		{Type: "item", Name: "pipe", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "engine-unit", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1},
+			{Type: "item", Name: "pipe", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "engine-unit", Amount: 1, Probability: 1},
+		}},
 	"engine-unit-recycling": {Name: "engine-unit-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "engine-unit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "engine-unit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 0.5, Probability: 1},
+		}},
 	"exoskeleton-equipment": {Name: "exoskeleton-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "processing-unit", Amount: 10},
-		{Type: "item", Name: "electric-engine-unit", Amount: 30},
-		{Type: "item", Name: "steel-plate", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "exoskeleton-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "processing-unit", Amount: 10},
+			{Type: "item", Name: "electric-engine-unit", Amount: 30},
+			{Type: "item", Name: "steel-plate", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "exoskeleton-equipment", Amount: 1, Probability: 1},
+		}},
 	"exoskeleton-equipment-recycling": {Name: "exoskeleton-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "exoskeleton-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "electric-engine-unit", Amount: 7.5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "exoskeleton-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "electric-engine-unit", Amount: 7.5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
+		}},
 	"explosive-cannon-shell": {Name: "explosive-cannon-shell", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 2},
-		{Type: "item", Name: "plastic-bar", Amount: 2},
-		{Type: "item", Name: "explosives", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "explosive-cannon-shell", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 2},
+			{Type: "item", Name: "plastic-bar", Amount: 2},
+			{Type: "item", Name: "explosives", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "explosive-cannon-shell", Amount: 1, Probability: 1},
+		}},
 	"explosive-cannon-shell-recycling": {Name: "explosive-cannon-shell-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "explosive-cannon-shell", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "plastic-bar", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "explosives", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "explosive-cannon-shell", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "plastic-bar", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "explosives", Amount: 0.5, Probability: 1},
+		}},
 	"explosive-rocket": {Name: "explosive-rocket", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "rocket", Amount: 1},
-		{Type: "item", Name: "explosives", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "explosive-rocket", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "rocket", Amount: 1},
+			{Type: "item", Name: "explosives", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "explosive-rocket", Amount: 1, Probability: 1},
+		}},
 	"explosive-rocket-recycling": {Name: "explosive-rocket-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "explosive-rocket", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "rocket", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "explosives", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "explosive-rocket", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "rocket", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "explosives", Amount: 0.5, Probability: 1},
+		}},
 	"explosive-uranium-cannon-shell": {Name: "explosive-uranium-cannon-shell", Category: "crafting", EnergyRequired: 12, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "explosive-cannon-shell", Amount: 1},
-		{Type: "item", Name: "uranium-238", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "explosive-uranium-cannon-shell", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "explosive-cannon-shell", Amount: 1},
+			{Type: "item", Name: "uranium-238", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "explosive-uranium-cannon-shell", Amount: 1, Probability: 1},
+		}},
 	"explosive-uranium-cannon-shell-recycling": {Name: "explosive-uranium-cannon-shell-recycling", Category: "recycling", EnergyRequired: 0.75, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "explosive-uranium-cannon-shell", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "explosive-cannon-shell", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "uranium-238", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "explosive-uranium-cannon-shell", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "explosive-cannon-shell", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "uranium-238", Amount: 0.25, Probability: 1},
+		}},
 	"explosives": {Name: "explosives", Category: "chemistry-or-cryogenics", EnergyRequired: 4, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "sulfur", Amount: 1},
-		{Type: "item", Name: "coal", Amount: 1},
-		{Type: "fluid", Name: "water", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "explosives", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "sulfur", Amount: 1},
+			{Type: "item", Name: "coal", Amount: 1},
+			{Type: "fluid", Name: "water", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "explosives", Amount: 2, Probability: 1},
+		}},
 	"explosives-recycling": {Name: "explosives-recycling", Category: "recycling", EnergyRequired: 0.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "explosives", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "explosives", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "explosives", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "explosives", Amount: 1, Probability: 0.25},
+		}},
 	"express-loader": {Name: "express-loader", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "express-transport-belt", Amount: 5},
-		{Type: "item", Name: "fast-loader", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "express-loader", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "express-transport-belt", Amount: 5},
+			{Type: "item", Name: "fast-loader", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "express-loader", Amount: 1, Probability: 1},
+		}},
 	"express-loader-recycling": {Name: "express-loader-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "express-loader", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "express-transport-belt", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "fast-loader", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "express-loader", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "express-transport-belt", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "fast-loader", Amount: 0.25, Probability: 1},
+		}},
 	"express-splitter": {Name: "express-splitter", Category: "crafting-with-fluid-or-metallurgy", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "fast-splitter", Amount: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10},
-		{Type: "item", Name: "advanced-circuit", Amount: 10},
-		{Type: "fluid", Name: "lubricant", Amount: 80},
-	}, Results: []Product{
-		{Type: "item", Name: "express-splitter", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "fast-splitter", Amount: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10},
+			{Type: "item", Name: "advanced-circuit", Amount: 10},
+			{Type: "fluid", Name: "lubricant", Amount: 80},
+		}, Results: []Product{
+			{Type: "item", Name: "express-splitter", Amount: 1, Probability: 1},
+		}},
 	"express-splitter-recycling": {Name: "express-splitter-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "express-splitter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "fast-splitter", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "express-splitter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "fast-splitter", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 2.5, Probability: 1},
+		}},
 	"express-transport-belt": {Name: "express-transport-belt", Category: "crafting-with-fluid-or-metallurgy", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10},
-		{Type: "item", Name: "fast-transport-belt", Amount: 1},
-		{Type: "fluid", Name: "lubricant", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "express-transport-belt", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10},
+			{Type: "item", Name: "fast-transport-belt", Amount: 1},
+			{Type: "fluid", Name: "lubricant", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "express-transport-belt", Amount: 1, Probability: 1},
+		}},
 	"express-transport-belt-recycling": {Name: "express-transport-belt-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "express-transport-belt", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "fast-transport-belt", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "express-transport-belt", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "fast-transport-belt", Amount: 0.25, Probability: 1},
+		}},
 	"express-underground-belt": {Name: "express-underground-belt", Category: "crafting-with-fluid-or-metallurgy", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 80},
-		{Type: "item", Name: "fast-underground-belt", Amount: 2},
-		{Type: "fluid", Name: "lubricant", Amount: 40},
-	}, Results: []Product{
-		{Type: "item", Name: "express-underground-belt", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 80},
+			{Type: "item", Name: "fast-underground-belt", Amount: 2},
+			{Type: "fluid", Name: "lubricant", Amount: 40},
+		}, Results: []Product{
+			{Type: "item", Name: "express-underground-belt", Amount: 2, Probability: 1},
+		}},
 	"express-underground-belt-recycling": {Name: "express-underground-belt-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "express-underground-belt", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10, Probability: 1},
-		{Type: "item", Name: "fast-underground-belt", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "express-underground-belt", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10, Probability: 1},
+			{Type: "item", Name: "fast-underground-belt", Amount: 0.25, Probability: 1},
+		}},
 	"fast-inserter": {Name: "fast-inserter", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 2},
-		{Type: "item", Name: "iron-plate", Amount: 2},
-		{Type: "item", Name: "inserter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "fast-inserter", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 2},
+			{Type: "item", Name: "iron-plate", Amount: 2},
+			{Type: "item", Name: "inserter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "fast-inserter", Amount: 1, Probability: 1},
+		}},
 	"fast-inserter-recycling": {Name: "fast-inserter-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fast-inserter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "inserter", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "fast-inserter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "inserter", Amount: 0.25, Probability: 1},
+		}},
 	"fast-loader": {Name: "fast-loader", Category: "crafting", EnergyRequired: 3, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "fast-transport-belt", Amount: 5},
-		{Type: "item", Name: "loader", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "fast-loader", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "fast-transport-belt", Amount: 5},
+			{Type: "item", Name: "loader", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "fast-loader", Amount: 1, Probability: 1},
+		}},
 	"fast-loader-recycling": {Name: "fast-loader-recycling", Category: "recycling", EnergyRequired: 0.1875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fast-loader", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "fast-transport-belt", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "loader", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "fast-loader", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "fast-transport-belt", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "loader", Amount: 0.25, Probability: 1},
+		}},
 	"fast-splitter": {Name: "fast-splitter", Category: "pressing", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "splitter", Amount: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10},
-		{Type: "item", Name: "electronic-circuit", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "fast-splitter", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "splitter", Amount: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10},
+			{Type: "item", Name: "electronic-circuit", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "fast-splitter", Amount: 1, Probability: 1},
+		}},
 	"fast-splitter-recycling": {Name: "fast-splitter-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fast-splitter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "splitter", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "fast-splitter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "splitter", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 2.5, Probability: 1},
+		}},
 	"fast-transport-belt": {Name: "fast-transport-belt", Category: "pressing", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5},
-		{Type: "item", Name: "transport-belt", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "fast-transport-belt", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5},
+			{Type: "item", Name: "transport-belt", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "fast-transport-belt", Amount: 1, Probability: 1},
+		}},
 	"fast-transport-belt-recycling": {Name: "fast-transport-belt-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fast-transport-belt", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "transport-belt", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "fast-transport-belt", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "transport-belt", Amount: 0.25, Probability: 1},
+		}},
 	"fast-underground-belt": {Name: "fast-underground-belt", Category: "pressing", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 40},
-		{Type: "item", Name: "underground-belt", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "fast-underground-belt", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 40},
+			{Type: "item", Name: "underground-belt", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "fast-underground-belt", Amount: 2, Probability: 1},
+		}},
 	"fast-underground-belt-recycling": {Name: "fast-underground-belt-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fast-underground-belt", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5, Probability: 1},
-		{Type: "item", Name: "underground-belt", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "fast-underground-belt", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5, Probability: 1},
+			{Type: "item", Name: "underground-belt", Amount: 0.25, Probability: 1},
+		}},
 	"firearm-magazine": {Name: "firearm-magazine", Category: "crafting", EnergyRequired: 1, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "firearm-magazine", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "firearm-magazine", Amount: 1, Probability: 1},
+		}},
 	"firearm-magazine-recycling": {Name: "firearm-magazine-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "firearm-magazine", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "firearm-magazine", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 1, Probability: 1},
+		}},
 	"fish-breeding": {Name: "fish-breeding", Category: "organic-or-chemistry", EnergyRequired: 6, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "raw-fish", Amount: 2},
-		{Type: "item", Name: "nutrients", Amount: 100},
-		{Type: "fluid", Name: "water", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "raw-fish", Amount: 3, Probability: 1},
-	}},
+			{Type: "item", Name: "raw-fish", Amount: 2},
+			{Type: "item", Name: "nutrients", Amount: 100},
+			{Type: "fluid", Name: "water", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "raw-fish", Amount: 3, Probability: 1},
+		}},
 	"fission-reactor-equipment": {Name: "fission-reactor-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "processing-unit", Amount: 200},
-		{Type: "item", Name: "low-density-structure", Amount: 50},
-		{Type: "item", Name: "uranium-fuel-cell", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "fission-reactor-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "processing-unit", Amount: 200},
+			{Type: "item", Name: "low-density-structure", Amount: 50},
+			{Type: "item", Name: "uranium-fuel-cell", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "fission-reactor-equipment", Amount: 1, Probability: 1},
+		}},
 	"fission-reactor-equipment-recycling": {Name: "fission-reactor-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fission-reactor-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "processing-unit", Amount: 50, Probability: 1},
-		{Type: "item", Name: "low-density-structure", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "uranium-fuel-cell", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "fission-reactor-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "processing-unit", Amount: 50, Probability: 1},
+			{Type: "item", Name: "low-density-structure", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "uranium-fuel-cell", Amount: 1, Probability: 1},
+		}},
 	"flamethrower": {Name: "flamethrower", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 5},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "flamethrower", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 5},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "flamethrower", Amount: 1, Probability: 1},
+		}},
 	"flamethrower-ammo": {Name: "flamethrower-ammo", Category: "chemistry", EnergyRequired: 6, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 5},
-		{Type: "fluid", Name: "crude-oil", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "flamethrower-ammo", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 5},
+			{Type: "fluid", Name: "crude-oil", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "flamethrower-ammo", Amount: 1, Probability: 1},
+		}},
 	"flamethrower-ammo-recycling": {Name: "flamethrower-ammo-recycling", Category: "recycling", EnergyRequired: 0.375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "flamethrower-ammo", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "flamethrower-ammo", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "flamethrower-ammo", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "flamethrower-ammo", Amount: 1, Probability: 0.25},
+		}},
 	"flamethrower-recycling": {Name: "flamethrower-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "flamethrower", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "flamethrower", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
+		}},
 	"flamethrower-turret": {Name: "flamethrower-turret", Category: "crafting", EnergyRequired: 20, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 30},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 15},
-		{Type: "item", Name: "pipe", Amount: 10},
-		{Type: "item", Name: "engine-unit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "flamethrower-turret", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 30},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 15},
+			{Type: "item", Name: "pipe", Amount: 10},
+			{Type: "item", Name: "engine-unit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "flamethrower-turret", Amount: 1, Probability: 1},
+		}},
 	"flamethrower-turret-recycling": {Name: "flamethrower-turret-recycling", Category: "recycling", EnergyRequired: 1.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "flamethrower-turret", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 7.5, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 3.75, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "engine-unit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "flamethrower-turret", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 7.5, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 3.75, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "engine-unit", Amount: 1.25, Probability: 1},
+		}},
 	"fluid-wagon": {Name: "fluid-wagon", Category: "crafting", EnergyRequired: 1.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10},
-		{Type: "item", Name: "steel-plate", Amount: 16},
-		{Type: "item", Name: "pipe", Amount: 8},
-		{Type: "item", Name: "storage-tank", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "fluid-wagon", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10},
+			{Type: "item", Name: "steel-plate", Amount: 16},
+			{Type: "item", Name: "pipe", Amount: 8},
+			{Type: "item", Name: "storage-tank", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "fluid-wagon", Amount: 1, Probability: 1},
+		}},
 	"fluid-wagon-recycling": {Name: "fluid-wagon-recycling", Category: "recycling", EnergyRequired: 0.09375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fluid-wagon", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 4, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 2, Probability: 1},
-		{Type: "item", Name: "storage-tank", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "fluid-wagon", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 4, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 2, Probability: 1},
+			{Type: "item", Name: "storage-tank", Amount: 0.25, Probability: 1},
+		}},
 	"fluoroketone": {Name: "fluoroketone", Category: "cryogenics", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "fluorine", Amount: 50},
-		{Type: "fluid", Name: "ammonia", Amount: 50},
-		{Type: "item", Name: "solid-fuel", Amount: 1},
-		{Type: "item", Name: "lithium", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "fluoroketone-hot", Amount: 50, Probability: 1},
-	}},
+			{Type: "fluid", Name: "fluorine", Amount: 50},
+			{Type: "fluid", Name: "ammonia", Amount: 50},
+			{Type: "item", Name: "solid-fuel", Amount: 1},
+			{Type: "item", Name: "lithium", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "fluoroketone-hot", Amount: 50, Probability: 1},
+		}},
 	"fluoroketone-cold-barrel": {Name: "fluoroketone-cold-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "fluoroketone-cold", Amount: 50},
-		{Type: "item", Name: "barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "fluoroketone-cold-barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "fluoroketone-cold", Amount: 50},
+			{Type: "item", Name: "barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "fluoroketone-cold-barrel", Amount: 1, Probability: 1},
+		}},
 	"fluoroketone-cold-barrel-recycling": {Name: "fluoroketone-cold-barrel-recycling", Category: "recycling", EnergyRequired: 0.0125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fluoroketone-cold-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "fluoroketone-cold-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
+		}},
 	"fluoroketone-cooling": {Name: "fluoroketone-cooling", Category: "cryogenics", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "fluoroketone-hot", Amount: 10},
-	}, Results: []Product{
-		{Type: "fluid", Name: "fluoroketone-cold", Amount: 10, Probability: 1},
-	}},
+			{Type: "fluid", Name: "fluoroketone-hot", Amount: 10},
+		}, Results: []Product{
+			{Type: "fluid", Name: "fluoroketone-cold", Amount: 10, Probability: 1},
+		}},
 	"fluoroketone-hot-barrel": {Name: "fluoroketone-hot-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "fluoroketone-hot", Amount: 50},
-		{Type: "item", Name: "barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "fluoroketone-hot-barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "fluoroketone-hot", Amount: 50},
+			{Type: "item", Name: "barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "fluoroketone-hot-barrel", Amount: 1, Probability: 1},
+		}},
 	"fluoroketone-hot-barrel-recycling": {Name: "fluoroketone-hot-barrel-recycling", Category: "recycling", EnergyRequired: 0.0125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fluoroketone-hot-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "fluoroketone-hot-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
+		}},
 	"flying-robot-frame": {Name: "flying-robot-frame", Category: "crafting", EnergyRequired: 20, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electric-engine-unit", Amount: 1},
-		{Type: "item", Name: "battery", Amount: 2},
-		{Type: "item", Name: "steel-plate", Amount: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-	}, Results: []Product{
-		{Type: "item", Name: "flying-robot-frame", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electric-engine-unit", Amount: 1},
+			{Type: "item", Name: "battery", Amount: 2},
+			{Type: "item", Name: "steel-plate", Amount: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+		}, Results: []Product{
+			{Type: "item", Name: "flying-robot-frame", Amount: 1, Probability: 1},
+		}},
 	"flying-robot-frame-recycling": {Name: "flying-robot-frame-recycling", Category: "recycling", EnergyRequired: 1.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "flying-robot-frame", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electric-engine-unit", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "battery", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-	}},
+			{Type: "item", Name: "flying-robot-frame", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electric-engine-unit", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "battery", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+		}},
 	"foundation": {Name: "foundation", Category: "crafting-with-fluid", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-plate", Amount: 4},
-		{Type: "item", Name: "lithium-plate", Amount: 4},
-		{Type: "item", Name: "carbon-fiber", Amount: 4},
-		{Type: "item", Name: "stone", Amount: 20},
-		{Type: "fluid", Name: "fluoroketone-cold", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "foundation", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-plate", Amount: 4},
+			{Type: "item", Name: "lithium-plate", Amount: 4},
+			{Type: "item", Name: "carbon-fiber", Amount: 4},
+			{Type: "item", Name: "stone", Amount: 20},
+			{Type: "fluid", Name: "fluoroketone-cold", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "foundation", Amount: 1, Probability: 1},
+		}},
 	"foundation-recycling": {Name: "foundation-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "foundation", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-plate", Amount: 1, Probability: 1},
-		{Type: "item", Name: "lithium-plate", Amount: 1, Probability: 1},
-		{Type: "item", Name: "carbon-fiber", Amount: 1, Probability: 1},
-		{Type: "item", Name: "stone", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "foundation", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-plate", Amount: 1, Probability: 1},
+			{Type: "item", Name: "lithium-plate", Amount: 1, Probability: 1},
+			{Type: "item", Name: "carbon-fiber", Amount: 1, Probability: 1},
+			{Type: "item", Name: "stone", Amount: 5, Probability: 1},
+		}},
 	"foundry": {Name: "foundry", Category: "metallurgy-or-assembling", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-carbide", Amount: 50},
-		{Type: "item", Name: "steel-plate", Amount: 50},
-		{Type: "item", Name: "electronic-circuit", Amount: 30},
-		{Type: "item", Name: "refined-concrete", Amount: 20},
-		{Type: "fluid", Name: "lubricant", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "foundry", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-carbide", Amount: 50},
+			{Type: "item", Name: "steel-plate", Amount: 50},
+			{Type: "item", Name: "electronic-circuit", Amount: 30},
+			{Type: "item", Name: "refined-concrete", Amount: 20},
+			{Type: "fluid", Name: "lubricant", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "foundry", Amount: 1, Probability: 1},
+		}},
 	"foundry-recycling": {Name: "foundry-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "foundry", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-carbide", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 7.5, Probability: 1},
-		{Type: "item", Name: "refined-concrete", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "foundry", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-carbide", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 7.5, Probability: 1},
+			{Type: "item", Name: "refined-concrete", Amount: 5, Probability: 1},
+		}},
 	"fusion-generator": {Name: "fusion-generator", Category: "cryogenics", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-plate", Amount: 100},
-		{Type: "item", Name: "superconductor", Amount: 100},
-		{Type: "item", Name: "quantum-processor", Amount: 50},
-	}, Results: []Product{
-		{Type: "item", Name: "fusion-generator", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-plate", Amount: 100},
+			{Type: "item", Name: "superconductor", Amount: 100},
+			{Type: "item", Name: "quantum-processor", Amount: 50},
+		}, Results: []Product{
+			{Type: "item", Name: "fusion-generator", Amount: 1, Probability: 1},
+		}},
 	"fusion-generator-recycling": {Name: "fusion-generator-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fusion-generator", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-plate", Amount: 25, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 25, Probability: 1},
-		{Type: "item", Name: "quantum-processor", Amount: 12.5, Probability: 1},
-	}},
+			{Type: "item", Name: "fusion-generator", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-plate", Amount: 25, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 25, Probability: 1},
+			{Type: "item", Name: "quantum-processor", Amount: 12.5, Probability: 1},
+		}},
 	"fusion-power-cell": {Name: "fusion-power-cell", Category: "cryogenics", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "lithium-plate", Amount: 5},
-		{Type: "item", Name: "holmium-plate", Amount: 1},
-		{Type: "fluid", Name: "ammonia", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "fusion-power-cell", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "lithium-plate", Amount: 5},
+			{Type: "item", Name: "holmium-plate", Amount: 1},
+			{Type: "fluid", Name: "ammonia", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "fusion-power-cell", Amount: 1, Probability: 1},
+		}},
 	"fusion-power-cell-recycling": {Name: "fusion-power-cell-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fusion-power-cell", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "fusion-power-cell", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "fusion-power-cell", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "fusion-power-cell", Amount: 1, Probability: 0.25},
+		}},
 	"fusion-reactor": {Name: "fusion-reactor", Category: "cryogenics", EnergyRequired: 60, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-plate", Amount: 200},
-		{Type: "item", Name: "superconductor", Amount: 200},
-		{Type: "item", Name: "quantum-processor", Amount: 250},
-	}, Results: []Product{
-		{Type: "item", Name: "fusion-reactor", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-plate", Amount: 200},
+			{Type: "item", Name: "superconductor", Amount: 200},
+			{Type: "item", Name: "quantum-processor", Amount: 250},
+		}, Results: []Product{
+			{Type: "item", Name: "fusion-reactor", Amount: 1, Probability: 1},
+		}},
 	"fusion-reactor-equipment": {Name: "fusion-reactor-equipment", Category: "crafting", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "fission-reactor-equipment", Amount: 1},
-		{Type: "item", Name: "fusion-power-cell", Amount: 10},
-		{Type: "item", Name: "tungsten-plate", Amount: 250},
-		{Type: "item", Name: "carbon-fiber", Amount: 100},
-		{Type: "item", Name: "supercapacitor", Amount: 25},
-		{Type: "item", Name: "quantum-processor", Amount: 250},
-	}, Results: []Product{
-		{Type: "item", Name: "fusion-reactor-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "fission-reactor-equipment", Amount: 1},
+			{Type: "item", Name: "fusion-power-cell", Amount: 10},
+			{Type: "item", Name: "tungsten-plate", Amount: 250},
+			{Type: "item", Name: "carbon-fiber", Amount: 100},
+			{Type: "item", Name: "supercapacitor", Amount: 25},
+			{Type: "item", Name: "quantum-processor", Amount: 250},
+		}, Results: []Product{
+			{Type: "item", Name: "fusion-reactor-equipment", Amount: 1, Probability: 1},
+		}},
 	"fusion-reactor-equipment-recycling": {Name: "fusion-reactor-equipment-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fusion-reactor-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "fission-reactor-equipment", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "fusion-power-cell", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "tungsten-plate", Amount: 62.5, Probability: 1},
-		{Type: "item", Name: "carbon-fiber", Amount: 25, Probability: 1},
-		{Type: "item", Name: "supercapacitor", Amount: 6.25, Probability: 1},
-		{Type: "item", Name: "quantum-processor", Amount: 62.5, Probability: 1},
-	}},
+			{Type: "item", Name: "fusion-reactor-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "fission-reactor-equipment", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "fusion-power-cell", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "tungsten-plate", Amount: 62.5, Probability: 1},
+			{Type: "item", Name: "carbon-fiber", Amount: 25, Probability: 1},
+			{Type: "item", Name: "supercapacitor", Amount: 6.25, Probability: 1},
+			{Type: "item", Name: "quantum-processor", Amount: 62.5, Probability: 1},
+		}},
 	"fusion-reactor-recycling": {Name: "fusion-reactor-recycling", Category: "recycling", EnergyRequired: 3.75, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "fusion-reactor", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-plate", Amount: 50, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 50, Probability: 1},
-		{Type: "item", Name: "quantum-processor", Amount: 62.5, Probability: 1},
-	}},
+			{Type: "item", Name: "fusion-reactor", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-plate", Amount: 50, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 50, Probability: 1},
+			{Type: "item", Name: "quantum-processor", Amount: 62.5, Probability: 1},
+		}},
 	"gate": {Name: "gate", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone-wall", Amount: 1},
-		{Type: "item", Name: "steel-plate", Amount: 2},
-		{Type: "item", Name: "electronic-circuit", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "gate", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "stone-wall", Amount: 1},
+			{Type: "item", Name: "steel-plate", Amount: 2},
+			{Type: "item", Name: "electronic-circuit", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "gate", Amount: 1, Probability: 1},
+		}},
 	"gate-recycling": {Name: "gate-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "gate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "stone-wall", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "gate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "stone-wall", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
+		}},
 	"grenade": {Name: "grenade", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 5},
-		{Type: "item", Name: "coal", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "grenade", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 5},
+			{Type: "item", Name: "coal", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "grenade", Amount: 1, Probability: 1},
+		}},
 	"grenade-recycling": {Name: "grenade-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "grenade", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "coal", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "grenade", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "coal", Amount: 2.5, Probability: 1},
+		}},
 	"gun-turret": {Name: "gun-turret", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10},
-		{Type: "item", Name: "copper-plate", Amount: 10},
-		{Type: "item", Name: "iron-plate", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "gun-turret", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10},
+			{Type: "item", Name: "copper-plate", Amount: 10},
+			{Type: "item", Name: "iron-plate", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "gun-turret", Amount: 1, Probability: 1},
+		}},
 	"gun-turret-recycling": {Name: "gun-turret-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "gun-turret", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "gun-turret", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 5, Probability: 1},
+		}},
 	"hazard-concrete": {Name: "hazard-concrete", Category: "crafting", EnergyRequired: 0.25, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "concrete", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "hazard-concrete", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "concrete", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "hazard-concrete", Amount: 10, Probability: 1},
+		}},
 	"hazard-concrete-recycling": {Name: "hazard-concrete-recycling", Category: "recycling", EnergyRequired: 0.015625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "hazard-concrete", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "concrete", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "hazard-concrete", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "concrete", Amount: 0.25, Probability: 1},
+		}},
 	"heat-exchanger": {Name: "heat-exchanger", Category: "crafting", EnergyRequired: 3, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 10},
-		{Type: "item", Name: "copper-plate", Amount: 100},
-		{Type: "item", Name: "pipe", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "heat-exchanger", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+			{Type: "item", Name: "copper-plate", Amount: 100},
+			{Type: "item", Name: "pipe", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "heat-exchanger", Amount: 1, Probability: 1},
+		}},
 	"heat-exchanger-recycling": {Name: "heat-exchanger-recycling", Category: "recycling", EnergyRequired: 0.1875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "heat-exchanger", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 25, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "heat-exchanger", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 25, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 2.5, Probability: 1},
+		}},
 	"heat-interface": {Name: "heat-interface", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "heat-pipe", Amount: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "heat-interface", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "heat-pipe", Amount: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "heat-interface", Amount: 1, Probability: 1},
+		}},
 	"heat-interface-recycling": {Name: "heat-interface-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "heat-interface", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "heat-pipe", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "heat-interface", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "heat-pipe", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+		}},
 	"heat-pipe": {Name: "heat-pipe", Category: "crafting", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 10},
-		{Type: "item", Name: "copper-plate", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "heat-pipe", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+			{Type: "item", Name: "copper-plate", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "heat-pipe", Amount: 1, Probability: 1},
+		}},
 	"heat-pipe-recycling": {Name: "heat-pipe-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "heat-pipe", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "heat-pipe", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 5, Probability: 1},
+		}},
 	"heating-tower": {Name: "heating-tower", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "boiler", Amount: 2},
-		{Type: "item", Name: "heat-pipe", Amount: 5},
-		{Type: "item", Name: "concrete", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "heating-tower", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "boiler", Amount: 2},
+			{Type: "item", Name: "heat-pipe", Amount: 5},
+			{Type: "item", Name: "concrete", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "heating-tower", Amount: 1, Probability: 1},
+		}},
 	"heating-tower-recycling": {Name: "heating-tower-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "heating-tower", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "boiler", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "heat-pipe", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "concrete", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "heating-tower", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "boiler", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "heat-pipe", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "concrete", Amount: 5, Probability: 1},
+		}},
 	"heavy-armor": {Name: "heavy-armor", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-plate", Amount: 100},
-		{Type: "item", Name: "steel-plate", Amount: 50},
-	}, Results: []Product{
-		{Type: "item", Name: "heavy-armor", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-plate", Amount: 100},
+			{Type: "item", Name: "steel-plate", Amount: 50},
+		}, Results: []Product{
+			{Type: "item", Name: "heavy-armor", Amount: 1, Probability: 1},
+		}},
 	"heavy-armor-recycling": {Name: "heavy-armor-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "heavy-armor", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-plate", Amount: 25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
-	}},
+			{Type: "item", Name: "heavy-armor", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-plate", Amount: 25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
+		}},
 	"heavy-oil-barrel": {Name: "heavy-oil-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "heavy-oil", Amount: 50},
-		{Type: "item", Name: "barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "heavy-oil-barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "heavy-oil", Amount: 50},
+			{Type: "item", Name: "barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "heavy-oil-barrel", Amount: 1, Probability: 1},
+		}},
 	"heavy-oil-barrel-recycling": {Name: "heavy-oil-barrel-recycling", Category: "recycling", EnergyRequired: 0.0125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "heavy-oil-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "heavy-oil-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
+		}},
 	"heavy-oil-cracking": {Name: "heavy-oil-cracking", Category: "organic-or-chemistry", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "water", Amount: 30},
-		{Type: "fluid", Name: "heavy-oil", Amount: 40},
-	}, Results: []Product{
-		{Type: "fluid", Name: "light-oil", Amount: 30, Probability: 1},
-	}},
+			{Type: "fluid", Name: "water", Amount: 30},
+			{Type: "fluid", Name: "heavy-oil", Amount: 40},
+		}, Results: []Product{
+			{Type: "fluid", Name: "light-oil", Amount: 30, Probability: 1},
+		}},
 	"holmium-ore-recycling": {Name: "holmium-ore-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "holmium-ore", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "holmium-ore", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "holmium-ore", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "holmium-ore", Amount: 1, Probability: 0.25},
+		}},
 	"holmium-plate": {Name: "holmium-plate", Category: "crafting-with-fluid-or-metallurgy", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "holmium-solution", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "holmium-plate", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "holmium-solution", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "holmium-plate", Amount: 1, Probability: 1},
+		}},
 	"holmium-plate-recycling": {Name: "holmium-plate-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "holmium-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "holmium-plate", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "holmium-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "holmium-plate", Amount: 1, Probability: 0.25},
+		}},
 	"holmium-solution": {Name: "holmium-solution", Category: "chemistry", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "holmium-ore", Amount: 2},
-		{Type: "item", Name: "stone", Amount: 1},
-		{Type: "fluid", Name: "water", Amount: 10},
-	}, Results: []Product{
-		{Type: "fluid", Name: "holmium-solution", Amount: 100, Probability: 1},
-	}},
+			{Type: "item", Name: "holmium-ore", Amount: 2},
+			{Type: "item", Name: "stone", Amount: 1},
+			{Type: "fluid", Name: "water", Amount: 10},
+		}, Results: []Product{
+			{Type: "fluid", Name: "holmium-solution", Amount: 100, Probability: 1},
+		}},
 	"ice-melting": {Name: "ice-melting", Category: "chemistry", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "ice", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "water", Amount: 20, Probability: 1},
-	}},
+			{Type: "item", Name: "ice", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "water", Amount: 20, Probability: 1},
+		}},
 	"ice-platform": {Name: "ice-platform", Category: "crafting-with-fluid", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "ammonia", Amount: 400},
-		{Type: "item", Name: "ice", Amount: 50},
-	}, Results: []Product{
-		{Type: "item", Name: "ice-platform", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "ammonia", Amount: 400},
+			{Type: "item", Name: "ice", Amount: 50},
+		}, Results: []Product{
+			{Type: "item", Name: "ice-platform", Amount: 1, Probability: 1},
+		}},
 	"ice-platform-recycling": {Name: "ice-platform-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "ice-platform", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "ice", Amount: 12.5, Probability: 1},
-	}},
+			{Type: "item", Name: "ice-platform", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "ice", Amount: 12.5, Probability: 1},
+		}},
 	"ice-recycling": {Name: "ice-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "ice", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "ice", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "ice", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "ice", Amount: 1, Probability: 0.25},
+		}},
 	"infinity-cargo-wagon-recycling": {Name: "infinity-cargo-wagon-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "infinity-cargo-wagon", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "infinity-cargo-wagon", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "infinity-cargo-wagon", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "infinity-cargo-wagon", Amount: 1, Probability: 0.25},
+		}},
 	"infinity-chest": {Name: "infinity-chest", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-chest", Amount: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "infinity-chest", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-chest", Amount: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "infinity-chest", Amount: 1, Probability: 1},
+		}},
 	"infinity-chest-recycling": {Name: "infinity-chest-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "infinity-chest", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "infinity-chest", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+		}},
 	"infinity-pipe": {Name: "infinity-pipe", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "pipe", Amount: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "infinity-pipe", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "pipe", Amount: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "infinity-pipe", Amount: 1, Probability: 1},
+		}},
 	"infinity-pipe-recycling": {Name: "infinity-pipe-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "infinity-pipe", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "pipe", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "infinity-pipe", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "pipe", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+		}},
 	"inserter": {Name: "inserter", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1},
-		{Type: "item", Name: "iron-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "inserter", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "inserter", Amount: 1, Probability: 1},
+		}},
 	"inserter-recycling": {Name: "inserter-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "inserter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "inserter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
+		}},
 	"iron-bacteria": {Name: "iron-bacteria", Category: "organic-or-hand-crafting", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "jelly", Amount: 6},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-bacteria", Amount: 1, Probability: 0.1},
-		{Type: "item", Name: "spoilage", Amount: 4, Probability: 1},
-	}},
+			{Type: "item", Name: "jelly", Amount: 6},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-bacteria", Amount: 1, Probability: 0.1},
+			{Type: "item", Name: "spoilage", Amount: 4, Probability: 1},
+		}},
 	"iron-bacteria-cultivation": {Name: "iron-bacteria-cultivation", Category: "organic", EnergyRequired: 4, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-bacteria", Amount: 1},
-		{Type: "item", Name: "bioflux", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-bacteria", Amount: 4, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-bacteria", Amount: 1},
+			{Type: "item", Name: "bioflux", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-bacteria", Amount: 4, Probability: 1},
+		}},
 	"iron-bacteria-recycling": {Name: "iron-bacteria-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-bacteria", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-bacteria", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "iron-bacteria", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-bacteria", Amount: 1, Probability: 0.25},
+		}},
 	"iron-chest": {Name: "iron-chest", Category: "crafting", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 8},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-chest", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 8},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-chest", Amount: 1, Probability: 1},
+		}},
 	"iron-chest-recycling": {Name: "iron-chest-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-chest", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-chest", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 2, Probability: 1},
+		}},
 	"iron-gear-wheel": {Name: "iron-gear-wheel", Category: "crafting", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1, Probability: 1},
+		}},
 	"iron-gear-wheel-recycling": {Name: "iron-gear-wheel-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 0.5, Probability: 1},
+		}},
 	"iron-ore-recycling": {Name: "iron-ore-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-ore", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-ore", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "iron-ore", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-ore", Amount: 1, Probability: 0.25},
+		}},
 	"iron-plate": {Name: "iron-plate", Category: "smelting", EnergyRequired: 3.2, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-ore", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-ore", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 1, Probability: 1},
+		}},
 	"iron-plate-recycling": {Name: "iron-plate-recycling", Category: "recycling", EnergyRequired: 0.2, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 1, Probability: 0.25},
+		}},
 	"iron-stick": {Name: "iron-stick", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-stick", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-stick", Amount: 2, Probability: 1},
+		}},
 	"iron-stick-recycling": {Name: "iron-stick-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-stick", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 0.125, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-stick", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 0.125, Probability: 1},
+		}},
 	"item-unknown-recycling": {Name: "item-unknown-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "item-unknown", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "item-unknown", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "item-unknown", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "item-unknown", Amount: 1, Probability: 0.25},
+		}},
 	"jelly-recycling": {Name: "jelly-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "jelly", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "jelly", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "jelly", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "jelly", Amount: 1, Probability: 0.25},
+		}},
 	"jellynut-processing": {Name: "jellynut-processing", Category: "organic-or-hand-crafting", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "jellynut", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "jellynut-seed", Amount: 1, Probability: 0.02},
-		{Type: "item", Name: "jelly", Amount: 4, Probability: 1},
-	}},
+			{Type: "item", Name: "jellynut", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "jellynut-seed", Amount: 1, Probability: 0.02},
+			{Type: "item", Name: "jelly", Amount: 4, Probability: 1},
+		}},
 	"jellynut-recycling": {Name: "jellynut-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "jellynut", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "jellynut", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "jellynut", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "jellynut", Amount: 1, Probability: 0.25},
+		}},
 	"jellynut-seed-recycling": {Name: "jellynut-seed-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "jellynut-seed", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "jellynut-seed", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "jellynut-seed", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "jellynut-seed", Amount: 1, Probability: 0.25},
+		}},
 	"kovarex-enrichment-process": {Name: "kovarex-enrichment-process", Category: "centrifuging", EnergyRequired: 60, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "uranium-235", Amount: 40},
-		{Type: "item", Name: "uranium-238", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "uranium-235", Amount: 41, Probability: 1},
-		{Type: "item", Name: "uranium-238", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "uranium-235", Amount: 40},
+			{Type: "item", Name: "uranium-238", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "uranium-235", Amount: 41, Probability: 1},
+			{Type: "item", Name: "uranium-238", Amount: 2, Probability: 1},
+		}},
 	"lab": {Name: "lab", Category: "crafting", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 10},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10},
-		{Type: "item", Name: "transport-belt", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "lab", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 10},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10},
+			{Type: "item", Name: "transport-belt", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "lab", Amount: 1, Probability: 1},
+		}},
 	"lab-recycling": {Name: "lab-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "lab", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "transport-belt", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "lab", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "transport-belt", Amount: 1, Probability: 1},
+		}},
 	"land-mine": {Name: "land-mine", Category: "crafting", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 1},
-		{Type: "item", Name: "explosives", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "land-mine", Amount: 4, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 1},
+			{Type: "item", Name: "explosives", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "land-mine", Amount: 4, Probability: 1},
+		}},
 	"land-mine-recycling": {Name: "land-mine-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "land-mine", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 0.0625, Probability: 1},
-		{Type: "item", Name: "explosives", Amount: 0.125, Probability: 1},
-	}},
+			{Type: "item", Name: "land-mine", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 0.0625, Probability: 1},
+			{Type: "item", Name: "explosives", Amount: 0.125, Probability: 1},
+		}},
 	"landfill": {Name: "landfill", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone", Amount: 50},
-	}, Results: []Product{
-		{Type: "item", Name: "landfill", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "stone", Amount: 50},
+		}, Results: []Product{
+			{Type: "item", Name: "landfill", Amount: 1, Probability: 1},
+		}},
 	"landfill-recycling": {Name: "landfill-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "landfill", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "landfill", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "landfill", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "landfill", Amount: 1, Probability: 0.25},
+		}},
 	"lane-splitter-recycling": {Name: "lane-splitter-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "lane-splitter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "lane-splitter", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "lane-splitter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "lane-splitter", Amount: 1, Probability: 0.25},
+		}},
 	"laser-turret": {Name: "laser-turret", Category: "crafting", EnergyRequired: 20, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 20},
-		{Type: "item", Name: "electronic-circuit", Amount: 20},
-		{Type: "item", Name: "battery", Amount: 12},
-	}, Results: []Product{
-		{Type: "item", Name: "laser-turret", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 20},
+			{Type: "item", Name: "electronic-circuit", Amount: 20},
+			{Type: "item", Name: "battery", Amount: 12},
+		}, Results: []Product{
+			{Type: "item", Name: "laser-turret", Amount: 1, Probability: 1},
+		}},
 	"laser-turret-recycling": {Name: "laser-turret-recycling", Category: "recycling", EnergyRequired: 1.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "laser-turret", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 5, Probability: 1},
-		{Type: "item", Name: "battery", Amount: 3, Probability: 1},
-	}},
+			{Type: "item", Name: "laser-turret", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 5, Probability: 1},
+			{Type: "item", Name: "battery", Amount: 3, Probability: 1},
+		}},
 	"light-armor": {Name: "light-armor", Category: "crafting", EnergyRequired: 3, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 40},
-	}, Results: []Product{
-		{Type: "item", Name: "light-armor", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 40},
+		}, Results: []Product{
+			{Type: "item", Name: "light-armor", Amount: 1, Probability: 1},
+		}},
 	"light-armor-recycling": {Name: "light-armor-recycling", Category: "recycling", EnergyRequired: 0.1875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "light-armor", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "light-armor", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 10, Probability: 1},
+		}},
 	"light-oil-barrel": {Name: "light-oil-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "light-oil", Amount: 50},
-		{Type: "item", Name: "barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "light-oil-barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "light-oil", Amount: 50},
+			{Type: "item", Name: "barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "light-oil-barrel", Amount: 1, Probability: 1},
+		}},
 	"light-oil-barrel-recycling": {Name: "light-oil-barrel-recycling", Category: "recycling", EnergyRequired: 0.0125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "light-oil-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "light-oil-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
+		}},
 	"light-oil-cracking": {Name: "light-oil-cracking", Category: "organic-or-chemistry", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "water", Amount: 30},
-		{Type: "fluid", Name: "light-oil", Amount: 30},
-	}, Results: []Product{
-		{Type: "fluid", Name: "petroleum-gas", Amount: 20, Probability: 1},
-	}},
+			{Type: "fluid", Name: "water", Amount: 30},
+			{Type: "fluid", Name: "light-oil", Amount: 30},
+		}, Results: []Product{
+			{Type: "fluid", Name: "petroleum-gas", Amount: 20, Probability: 1},
+		}},
 	"lightning-collector": {Name: "lightning-collector", Category: "electromagnetics", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "lightning-rod", Amount: 1},
-		{Type: "item", Name: "supercapacitor", Amount: 8},
-		{Type: "item", Name: "accumulator", Amount: 1},
-		{Type: "fluid", Name: "electrolyte", Amount: 80},
-	}, Results: []Product{
-		{Type: "item", Name: "lightning-collector", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "lightning-rod", Amount: 1},
+			{Type: "item", Name: "supercapacitor", Amount: 8},
+			{Type: "item", Name: "accumulator", Amount: 1},
+			{Type: "fluid", Name: "electrolyte", Amount: 80},
+		}, Results: []Product{
+			{Type: "item", Name: "lightning-collector", Amount: 1, Probability: 1},
+		}},
 	"lightning-collector-recycling": {Name: "lightning-collector-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "lightning-collector", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "lightning-rod", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "supercapacitor", Amount: 2, Probability: 1},
-		{Type: "item", Name: "accumulator", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "lightning-collector", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "lightning-rod", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "supercapacitor", Amount: 2, Probability: 1},
+			{Type: "item", Name: "accumulator", Amount: 0.25, Probability: 1},
+		}},
 	"lightning-rod": {Name: "lightning-rod", Category: "electronics", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-cable", Amount: 12},
-		{Type: "item", Name: "steel-plate", Amount: 8},
-		{Type: "item", Name: "stone-brick", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "lightning-rod", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-cable", Amount: 12},
+			{Type: "item", Name: "steel-plate", Amount: 8},
+			{Type: "item", Name: "stone-brick", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "lightning-rod", Amount: 1, Probability: 1},
+		}},
 	"lightning-rod-recycling": {Name: "lightning-rod-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "lightning-rod", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-cable", Amount: 3, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 2, Probability: 1},
-		{Type: "item", Name: "stone-brick", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "lightning-rod", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-cable", Amount: 3, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 2, Probability: 1},
+			{Type: "item", Name: "stone-brick", Amount: 1, Probability: 1},
+		}},
 	"linked-belt-recycling": {Name: "linked-belt-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "linked-belt", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "linked-belt", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "linked-belt", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "linked-belt", Amount: 1, Probability: 0.25},
+		}},
 	"linked-chest-recycling": {Name: "linked-chest-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "linked-chest", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "linked-chest", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "linked-chest", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "linked-chest", Amount: 1, Probability: 0.25},
+		}},
 	"lithium": {Name: "lithium", Category: "chemistry-or-cryogenics", EnergyRequired: 20, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "holmium-plate", Amount: 1},
-		{Type: "fluid", Name: "lithium-brine", Amount: 50},
-		{Type: "fluid", Name: "ammonia", Amount: 50},
-	}, Results: []Product{
-		{Type: "item", Name: "lithium", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "holmium-plate", Amount: 1},
+			{Type: "fluid", Name: "lithium-brine", Amount: 50},
+			{Type: "fluid", Name: "ammonia", Amount: 50},
+		}, Results: []Product{
+			{Type: "item", Name: "lithium", Amount: 5, Probability: 1},
+		}},
 	"lithium-plate": {Name: "lithium-plate", Category: "smelting", EnergyRequired: 6.4, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "lithium", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "lithium-plate", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "lithium", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "lithium-plate", Amount: 1, Probability: 1},
+		}},
 	"lithium-plate-recycling": {Name: "lithium-plate-recycling", Category: "recycling", EnergyRequired: 0.4, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "lithium-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "lithium-plate", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "lithium-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "lithium-plate", Amount: 1, Probability: 0.25},
+		}},
 	"lithium-recycling": {Name: "lithium-recycling", Category: "recycling", EnergyRequired: 1.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "lithium", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "lithium", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "lithium", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "lithium", Amount: 1, Probability: 0.25},
+		}},
 	"loader": {Name: "loader", Category: "crafting", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "inserter", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5},
-		{Type: "item", Name: "iron-plate", Amount: 5},
-		{Type: "item", Name: "transport-belt", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "loader", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "inserter", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5},
+			{Type: "item", Name: "iron-plate", Amount: 5},
+			{Type: "item", Name: "transport-belt", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "loader", Amount: 1, Probability: 1},
+		}},
 	"loader-recycling": {Name: "loader-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "loader", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "inserter", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "transport-belt", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "loader", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "inserter", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "transport-belt", Amount: 1.25, Probability: 1},
+		}},
 	"locomotive": {Name: "locomotive", Category: "crafting", EnergyRequired: 4, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "engine-unit", Amount: 20},
-		{Type: "item", Name: "electronic-circuit", Amount: 10},
-		{Type: "item", Name: "steel-plate", Amount: 30},
-	}, Results: []Product{
-		{Type: "item", Name: "locomotive", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "engine-unit", Amount: 20},
+			{Type: "item", Name: "electronic-circuit", Amount: 10},
+			{Type: "item", Name: "steel-plate", Amount: 30},
+		}, Results: []Product{
+			{Type: "item", Name: "locomotive", Amount: 1, Probability: 1},
+		}},
 	"locomotive-recycling": {Name: "locomotive-recycling", Category: "recycling", EnergyRequired: 0.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "locomotive", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "engine-unit", Amount: 5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 7.5, Probability: 1},
-	}},
+			{Type: "item", Name: "locomotive", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "engine-unit", Amount: 5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 7.5, Probability: 1},
+		}},
 	"logistic-robot": {Name: "logistic-robot", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "flying-robot-frame", Amount: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "logistic-robot", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "flying-robot-frame", Amount: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "logistic-robot", Amount: 1, Probability: 1},
+		}},
 	"logistic-robot-recycling": {Name: "logistic-robot-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "logistic-robot", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "flying-robot-frame", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "logistic-robot", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "flying-robot-frame", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 0.5, Probability: 1},
+		}},
 	"logistic-science-pack": {Name: "logistic-science-pack", Category: "crafting", EnergyRequired: 6, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "inserter", Amount: 1},
-		{Type: "item", Name: "transport-belt", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "logistic-science-pack", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "inserter", Amount: 1},
+			{Type: "item", Name: "transport-belt", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "logistic-science-pack", Amount: 1, Probability: 1},
+		}},
 	"logistic-science-pack-recycling": {Name: "logistic-science-pack-recycling", Category: "recycling", EnergyRequired: 0.375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "logistic-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "logistic-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "logistic-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "logistic-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"long-handed-inserter": {Name: "long-handed-inserter", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1},
-		{Type: "item", Name: "iron-plate", Amount: 1},
-		{Type: "item", Name: "inserter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "long-handed-inserter", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+			{Type: "item", Name: "inserter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "long-handed-inserter", Amount: 1, Probability: 1},
+		}},
 	"long-handed-inserter-recycling": {Name: "long-handed-inserter-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "long-handed-inserter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "inserter", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "long-handed-inserter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "inserter", Amount: 0.25, Probability: 1},
+		}},
 	"low-density-structure": {Name: "low-density-structure", Category: "crafting", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 2},
-		{Type: "item", Name: "copper-plate", Amount: 20},
-		{Type: "item", Name: "plastic-bar", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "low-density-structure", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 2},
+			{Type: "item", Name: "copper-plate", Amount: 20},
+			{Type: "item", Name: "plastic-bar", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "low-density-structure", Amount: 1, Probability: 1},
+		}},
 	"low-density-structure-recycling": {Name: "low-density-structure-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "low-density-structure", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "plastic-bar", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "low-density-structure", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "plastic-bar", Amount: 1.25, Probability: 1},
+		}},
 	"lubricant": {Name: "lubricant", Category: "chemistry", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "heavy-oil", Amount: 10},
-	}, Results: []Product{
-		{Type: "fluid", Name: "lubricant", Amount: 10, Probability: 1},
-	}},
+			{Type: "fluid", Name: "heavy-oil", Amount: 10},
+		}, Results: []Product{
+			{Type: "fluid", Name: "lubricant", Amount: 10, Probability: 1},
+		}},
 	"lubricant-barrel": {Name: "lubricant-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "lubricant", Amount: 50},
-		{Type: "item", Name: "barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "lubricant-barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "lubricant", Amount: 50},
+			{Type: "item", Name: "barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "lubricant-barrel", Amount: 1, Probability: 1},
+		}},
 	"lubricant-barrel-recycling": {Name: "lubricant-barrel-recycling", Category: "recycling", EnergyRequired: 0.0125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "lubricant-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "lubricant-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
+		}},
 	"mech-armor": {Name: "mech-armor", Category: "crafting", EnergyRequired: 60, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "power-armor-mk2", Amount: 1},
-		{Type: "item", Name: "holmium-plate", Amount: 200},
-		{Type: "item", Name: "processing-unit", Amount: 100},
-		{Type: "item", Name: "superconductor", Amount: 50},
-		{Type: "item", Name: "supercapacitor", Amount: 50},
-	}, Results: []Product{
-		{Type: "item", Name: "mech-armor", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "power-armor-mk2", Amount: 1},
+			{Type: "item", Name: "holmium-plate", Amount: 200},
+			{Type: "item", Name: "processing-unit", Amount: 100},
+			{Type: "item", Name: "superconductor", Amount: 50},
+			{Type: "item", Name: "supercapacitor", Amount: 50},
+		}, Results: []Product{
+			{Type: "item", Name: "mech-armor", Amount: 1, Probability: 1},
+		}},
 	"mech-armor-recycling": {Name: "mech-armor-recycling", Category: "recycling", EnergyRequired: 3.75, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "mech-armor", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "power-armor-mk2", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "holmium-plate", Amount: 50, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 25, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "supercapacitor", Amount: 12.5, Probability: 1},
-	}},
+			{Type: "item", Name: "mech-armor", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "power-armor-mk2", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "holmium-plate", Amount: 50, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 25, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "supercapacitor", Amount: 12.5, Probability: 1},
+		}},
 	"medium-electric-pole": {Name: "medium-electric-pole", Category: "electronics", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-stick", Amount: 4},
-		{Type: "item", Name: "steel-plate", Amount: 2},
-		{Type: "item", Name: "copper-cable", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "medium-electric-pole", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-stick", Amount: 4},
+			{Type: "item", Name: "steel-plate", Amount: 2},
+			{Type: "item", Name: "copper-cable", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "medium-electric-pole", Amount: 1, Probability: 1},
+		}},
 	"medium-electric-pole-recycling": {Name: "medium-electric-pole-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "medium-electric-pole", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-stick", Amount: 1, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "medium-electric-pole", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-stick", Amount: 1, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 0.5, Probability: 1},
+		}},
 	"metallic-asteroid-chunk-recycling": {Name: "metallic-asteroid-chunk-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.25},
+		}},
 	"metallic-asteroid-crushing": {Name: "metallic-asteroid-crushing", Category: "crushing", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-ore", Amount: 20, Probability: 1},
-		{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.2},
-	}},
+			{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-ore", Amount: 20, Probability: 1},
+			{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.2},
+		}},
 	"metallic-asteroid-reprocessing": {Name: "metallic-asteroid-reprocessing", Category: "crushing", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.4},
-		{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.2},
-		{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.2},
-	}},
+			{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.4},
+			{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.2},
+			{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.2},
+		}},
 	"metallurgic-science-pack": {Name: "metallurgic-science-pack", Category: "metallurgy", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-carbide", Amount: 3},
-		{Type: "item", Name: "tungsten-plate", Amount: 2},
-		{Type: "fluid", Name: "molten-copper", Amount: 200},
-	}, Results: []Product{
-		{Type: "item", Name: "metallurgic-science-pack", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-carbide", Amount: 3},
+			{Type: "item", Name: "tungsten-plate", Amount: 2},
+			{Type: "fluid", Name: "molten-copper", Amount: 200},
+		}, Results: []Product{
+			{Type: "item", Name: "metallurgic-science-pack", Amount: 1, Probability: 1},
+		}},
 	"metallurgic-science-pack-recycling": {Name: "metallurgic-science-pack-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "metallurgic-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "metallurgic-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "metallurgic-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "metallurgic-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"military-science-pack": {Name: "military-science-pack", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "piercing-rounds-magazine", Amount: 1},
-		{Type: "item", Name: "grenade", Amount: 1},
-		{Type: "item", Name: "stone-wall", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "military-science-pack", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "piercing-rounds-magazine", Amount: 1},
+			{Type: "item", Name: "grenade", Amount: 1},
+			{Type: "item", Name: "stone-wall", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "military-science-pack", Amount: 2, Probability: 1},
+		}},
 	"military-science-pack-recycling": {Name: "military-science-pack-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "military-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "military-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "military-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "military-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"modular-armor": {Name: "modular-armor", Category: "crafting", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "advanced-circuit", Amount: 30},
-		{Type: "item", Name: "steel-plate", Amount: 50},
-	}, Results: []Product{
-		{Type: "item", Name: "modular-armor", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "advanced-circuit", Amount: 30},
+			{Type: "item", Name: "steel-plate", Amount: 50},
+		}, Results: []Product{
+			{Type: "item", Name: "modular-armor", Amount: 1, Probability: 1},
+		}},
 	"modular-armor-recycling": {Name: "modular-armor-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "modular-armor", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "advanced-circuit", Amount: 7.5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
-	}},
+			{Type: "item", Name: "modular-armor", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "advanced-circuit", Amount: 7.5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
+		}},
 	"molten-copper": {Name: "molten-copper", Category: "metallurgy", EnergyRequired: 32, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-ore", Amount: 50},
-		{Type: "item", Name: "calcite", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "molten-copper", Amount: 500, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-ore", Amount: 50},
+			{Type: "item", Name: "calcite", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "molten-copper", Amount: 500, Probability: 1},
+		}},
 	"molten-copper-from-lava": {Name: "molten-copper-from-lava", Category: "metallurgy", EnergyRequired: 16, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "lava", Amount: 500},
-		{Type: "item", Name: "calcite", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "molten-copper", Amount: 250, Probability: 1},
-		{Type: "item", Name: "stone", Amount: 15, Probability: 1},
-	}},
+			{Type: "fluid", Name: "lava", Amount: 500},
+			{Type: "item", Name: "calcite", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "molten-copper", Amount: 250, Probability: 1},
+			{Type: "item", Name: "stone", Amount: 15, Probability: 1},
+		}},
 	"molten-iron": {Name: "molten-iron", Category: "metallurgy", EnergyRequired: 32, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-ore", Amount: 50},
-		{Type: "item", Name: "calcite", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "molten-iron", Amount: 500, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-ore", Amount: 50},
+			{Type: "item", Name: "calcite", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "molten-iron", Amount: 500, Probability: 1},
+		}},
 	"molten-iron-from-lava": {Name: "molten-iron-from-lava", Category: "metallurgy", EnergyRequired: 16, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "lava", Amount: 500},
-		{Type: "item", Name: "calcite", Amount: 1},
-	}, Results: []Product{
-		{Type: "fluid", Name: "molten-iron", Amount: 250, Probability: 1},
-		{Type: "item", Name: "stone", Amount: 10, Probability: 1},
-	}},
+			{Type: "fluid", Name: "lava", Amount: 500},
+			{Type: "item", Name: "calcite", Amount: 1},
+		}, Results: []Product{
+			{Type: "fluid", Name: "molten-iron", Amount: 250, Probability: 1},
+			{Type: "item", Name: "stone", Amount: 10, Probability: 1},
+		}},
 	"night-vision-equipment": {Name: "night-vision-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "steel-plate", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "night-vision-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "night-vision-equipment", Amount: 1, Probability: 1},
+		}},
 	"night-vision-equipment-recycling": {Name: "night-vision-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "night-vision-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "night-vision-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+		}},
 	"nuclear-fuel": {Name: "nuclear-fuel", Category: "centrifuging", EnergyRequired: 90, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "uranium-235", Amount: 1},
-		{Type: "item", Name: "rocket-fuel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "nuclear-fuel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "uranium-235", Amount: 1},
+			{Type: "item", Name: "rocket-fuel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "nuclear-fuel", Amount: 1, Probability: 1},
+		}},
 	"nuclear-fuel-recycling": {Name: "nuclear-fuel-recycling", Category: "recycling", EnergyRequired: 5.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "nuclear-fuel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "uranium-235", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "rocket-fuel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "nuclear-fuel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "uranium-235", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "rocket-fuel", Amount: 0.25, Probability: 1},
+		}},
 	"nuclear-fuel-reprocessing": {Name: "nuclear-fuel-reprocessing", Category: "centrifuging", EnergyRequired: 60, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "depleted-uranium-fuel-cell", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "uranium-238", Amount: 3, Probability: 1},
-	}},
+			{Type: "item", Name: "depleted-uranium-fuel-cell", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "uranium-238", Amount: 3, Probability: 1},
+		}},
 	"nuclear-reactor": {Name: "nuclear-reactor", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "concrete", Amount: 500},
-		{Type: "item", Name: "steel-plate", Amount: 500},
-		{Type: "item", Name: "advanced-circuit", Amount: 500},
-		{Type: "item", Name: "copper-plate", Amount: 500},
-	}, Results: []Product{
-		{Type: "item", Name: "nuclear-reactor", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "concrete", Amount: 500},
+			{Type: "item", Name: "steel-plate", Amount: 500},
+			{Type: "item", Name: "advanced-circuit", Amount: 500},
+			{Type: "item", Name: "copper-plate", Amount: 500},
+		}, Results: []Product{
+			{Type: "item", Name: "nuclear-reactor", Amount: 1, Probability: 1},
+		}},
 	"nuclear-reactor-recycling": {Name: "nuclear-reactor-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "nuclear-reactor", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "concrete", Amount: 125, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 125, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 125, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 125, Probability: 1},
-	}},
+			{Type: "item", Name: "nuclear-reactor", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "concrete", Amount: 125, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 125, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 125, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 125, Probability: 1},
+		}},
 	"nutrients-from-bioflux": {Name: "nutrients-from-bioflux", Category: "organic", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "bioflux", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "nutrients", Amount: 40, Probability: 1},
-	}},
+			{Type: "item", Name: "bioflux", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "nutrients", Amount: 40, Probability: 1},
+		}},
 	"nutrients-from-biter-egg": {Name: "nutrients-from-biter-egg", Category: "organic-or-assembling", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "biter-egg", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "nutrients", Amount: 20, Probability: 1},
-	}},
+			{Type: "item", Name: "biter-egg", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "nutrients", Amount: 20, Probability: 1},
+		}},
 	"nutrients-from-fish": {Name: "nutrients-from-fish", Category: "organic-or-assembling", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "raw-fish", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "nutrients", Amount: 20, Probability: 1},
-	}},
+			{Type: "item", Name: "raw-fish", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "nutrients", Amount: 20, Probability: 1},
+		}},
 	"nutrients-from-spoilage": {Name: "nutrients-from-spoilage", Category: "organic-or-assembling", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "spoilage", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "nutrients", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "spoilage", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "nutrients", Amount: 1, Probability: 1},
+		}},
 	"nutrients-from-yumako-mash": {Name: "nutrients-from-yumako-mash", Category: "organic", EnergyRequired: 4, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "yumako-mash", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "nutrients", Amount: 6, Probability: 1},
-	}},
+			{Type: "item", Name: "yumako-mash", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "nutrients", Amount: 6, Probability: 1},
+		}},
 	"nutrients-recycling": {Name: "nutrients-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "nutrients", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "spoilage", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "nutrients", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "spoilage", Amount: 2.5, Probability: 1},
+		}},
 	"offshore-pump": {Name: "offshore-pump", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "pipe", Amount: 3},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "offshore-pump", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "pipe", Amount: 3},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "offshore-pump", Amount: 1, Probability: 1},
+		}},
 	"offshore-pump-recycling": {Name: "offshore-pump-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "offshore-pump", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "pipe", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "offshore-pump", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "pipe", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 0.5, Probability: 1},
+		}},
 	"oil-refinery": {Name: "oil-refinery", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 15},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10},
-		{Type: "item", Name: "stone-brick", Amount: 10},
-		{Type: "item", Name: "electronic-circuit", Amount: 10},
-		{Type: "item", Name: "pipe", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "oil-refinery", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 15},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10},
+			{Type: "item", Name: "stone-brick", Amount: 10},
+			{Type: "item", Name: "electronic-circuit", Amount: 10},
+			{Type: "item", Name: "pipe", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "oil-refinery", Amount: 1, Probability: 1},
+		}},
 	"oil-refinery-recycling": {Name: "oil-refinery-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "oil-refinery", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 3.75, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "stone-brick", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "oil-refinery", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 3.75, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "stone-brick", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 2.5, Probability: 1},
+		}},
 	"one-way-valve-recycling": {Name: "one-way-valve-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "one-way-valve", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "one-way-valve", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "one-way-valve", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "one-way-valve", Amount: 1, Probability: 0.25},
+		}},
 	"overflow-valve-recycling": {Name: "overflow-valve-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "overflow-valve", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "overflow-valve", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "overflow-valve", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "overflow-valve", Amount: 1, Probability: 0.25},
+		}},
 	"overgrowth-jellynut-soil": {Name: "overgrowth-jellynut-soil", Category: "crafting-with-fluid", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "artificial-jellynut-soil", Amount: 2},
-		{Type: "item", Name: "jellynut-seed", Amount: 5},
-		{Type: "item", Name: "biter-egg", Amount: 10},
-		{Type: "item", Name: "spoilage", Amount: 50},
-		{Type: "fluid", Name: "water", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "overgrowth-jellynut-soil", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "artificial-jellynut-soil", Amount: 2},
+			{Type: "item", Name: "jellynut-seed", Amount: 5},
+			{Type: "item", Name: "biter-egg", Amount: 10},
+			{Type: "item", Name: "spoilage", Amount: 50},
+			{Type: "fluid", Name: "water", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "overgrowth-jellynut-soil", Amount: 1, Probability: 1},
+		}},
 	"overgrowth-jellynut-soil-recycling": {Name: "overgrowth-jellynut-soil-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "overgrowth-jellynut-soil", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "artificial-jellynut-soil", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "jellynut-seed", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "biter-egg", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "spoilage", Amount: 12.5, Probability: 1},
-	}},
+			{Type: "item", Name: "overgrowth-jellynut-soil", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "artificial-jellynut-soil", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "jellynut-seed", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "biter-egg", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "spoilage", Amount: 12.5, Probability: 1},
+		}},
 	"overgrowth-yumako-soil": {Name: "overgrowth-yumako-soil", Category: "crafting-with-fluid", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "artificial-yumako-soil", Amount: 2},
-		{Type: "item", Name: "yumako-seed", Amount: 5},
-		{Type: "item", Name: "biter-egg", Amount: 10},
-		{Type: "item", Name: "spoilage", Amount: 50},
-		{Type: "fluid", Name: "water", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "overgrowth-yumako-soil", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "artificial-yumako-soil", Amount: 2},
+			{Type: "item", Name: "yumako-seed", Amount: 5},
+			{Type: "item", Name: "biter-egg", Amount: 10},
+			{Type: "item", Name: "spoilage", Amount: 50},
+			{Type: "fluid", Name: "water", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "overgrowth-yumako-soil", Amount: 1, Probability: 1},
+		}},
 	"overgrowth-yumako-soil-recycling": {Name: "overgrowth-yumako-soil-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "overgrowth-yumako-soil", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "artificial-yumako-soil", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "yumako-seed", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "biter-egg", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "spoilage", Amount: 12.5, Probability: 1},
-	}},
+			{Type: "item", Name: "overgrowth-yumako-soil", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "artificial-yumako-soil", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "yumako-seed", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "biter-egg", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "spoilage", Amount: 12.5, Probability: 1},
+		}},
 	"oxide-asteroid-chunk-recycling": {Name: "oxide-asteroid-chunk-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.25},
+		}},
 	"oxide-asteroid-crushing": {Name: "oxide-asteroid-crushing", Category: "crushing", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "ice", Amount: 5, Probability: 1},
-		{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.2},
-	}},
+			{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "ice", Amount: 5, Probability: 1},
+			{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.2},
+		}},
 	"oxide-asteroid-reprocessing": {Name: "oxide-asteroid-reprocessing", Category: "crushing", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.4},
-		{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.2},
-		{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.2},
-	}},
+			{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "oxide-asteroid-chunk", Amount: 1, Probability: 0.4},
+			{Type: "item", Name: "metallic-asteroid-chunk", Amount: 1, Probability: 0.2},
+			{Type: "item", Name: "carbonic-asteroid-chunk", Amount: 1, Probability: 0.2},
+		}},
 	"parameter-0": {Name: "parameter-0", Category: "parameters", EnergyRequired: 0.5, Enabled: true, Ingredients: nil, Results: nil},
 	"parameter-1": {Name: "parameter-1", Category: "parameters", EnergyRequired: 0.5, Enabled: true, Ingredients: nil, Results: nil},
 	"parameter-2": {Name: "parameter-2", Category: "parameters", EnergyRequired: 0.5, Enabled: true, Ingredients: nil, Results: nil},
@@ -2615,1596 +2615,1596 @@ var Recipes = map[string]Recipe{
 	"parameter-8": {Name: "parameter-8", Category: "parameters", EnergyRequired: 0.5, Enabled: true, Ingredients: nil, Results: nil},
 	"parameter-9": {Name: "parameter-9", Category: "parameters", EnergyRequired: 0.5, Enabled: true, Ingredients: nil, Results: nil},
 	"passive-provider-chest": {Name: "passive-provider-chest", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-chest", Amount: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-		{Type: "item", Name: "advanced-circuit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "passive-provider-chest", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-chest", Amount: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+			{Type: "item", Name: "advanced-circuit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "passive-provider-chest", Amount: 1, Probability: 1},
+		}},
 	"passive-provider-chest-recycling": {Name: "passive-provider-chest-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "passive-provider-chest", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "passive-provider-chest", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
+		}},
 	"pentapod-egg": {Name: "pentapod-egg", Category: "organic", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "pentapod-egg", Amount: 1},
-		{Type: "item", Name: "nutrients", Amount: 30},
-		{Type: "fluid", Name: "water", Amount: 60},
-	}, Results: []Product{
-		{Type: "item", Name: "pentapod-egg", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "pentapod-egg", Amount: 1},
+			{Type: "item", Name: "nutrients", Amount: 30},
+			{Type: "fluid", Name: "water", Amount: 60},
+		}, Results: []Product{
+			{Type: "item", Name: "pentapod-egg", Amount: 2, Probability: 1},
+		}},
 	"pentapod-egg-recycling": {Name: "pentapod-egg-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "pentapod-egg", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "pentapod-egg", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "pentapod-egg", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "pentapod-egg", Amount: 1, Probability: 0.25},
+		}},
 	"personal-laser-defense-equipment": {Name: "personal-laser-defense-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "processing-unit", Amount: 20},
-		{Type: "item", Name: "low-density-structure", Amount: 5},
-		{Type: "item", Name: "laser-turret", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "personal-laser-defense-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "processing-unit", Amount: 20},
+			{Type: "item", Name: "low-density-structure", Amount: 5},
+			{Type: "item", Name: "laser-turret", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "personal-laser-defense-equipment", Amount: 1, Probability: 1},
+		}},
 	"personal-laser-defense-equipment-recycling": {Name: "personal-laser-defense-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "personal-laser-defense-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "processing-unit", Amount: 5, Probability: 1},
-		{Type: "item", Name: "low-density-structure", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "laser-turret", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "personal-laser-defense-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "processing-unit", Amount: 5, Probability: 1},
+			{Type: "item", Name: "low-density-structure", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "laser-turret", Amount: 1.25, Probability: 1},
+		}},
 	"personal-roboport-equipment": {Name: "personal-roboport-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "advanced-circuit", Amount: 10},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 40},
-		{Type: "item", Name: "steel-plate", Amount: 20},
-		{Type: "item", Name: "battery", Amount: 45},
-	}, Results: []Product{
-		{Type: "item", Name: "personal-roboport-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "advanced-circuit", Amount: 10},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 40},
+			{Type: "item", Name: "steel-plate", Amount: 20},
+			{Type: "item", Name: "battery", Amount: 45},
+		}, Results: []Product{
+			{Type: "item", Name: "personal-roboport-equipment", Amount: 1, Probability: 1},
+		}},
 	"personal-roboport-equipment-recycling": {Name: "personal-roboport-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "personal-roboport-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "advanced-circuit", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "battery", Amount: 11.25, Probability: 1},
-	}},
+			{Type: "item", Name: "personal-roboport-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "advanced-circuit", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "battery", Amount: 11.25, Probability: 1},
+		}},
 	"personal-roboport-mk2-equipment": {Name: "personal-roboport-mk2-equipment", Category: "crafting", EnergyRequired: 20, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "personal-roboport-equipment", Amount: 5},
-		{Type: "item", Name: "processing-unit", Amount: 50},
-		{Type: "item", Name: "superconductor", Amount: 50},
-	}, Results: []Product{
-		{Type: "item", Name: "personal-roboport-mk2-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "personal-roboport-equipment", Amount: 5},
+			{Type: "item", Name: "processing-unit", Amount: 50},
+			{Type: "item", Name: "superconductor", Amount: 50},
+		}, Results: []Product{
+			{Type: "item", Name: "personal-roboport-mk2-equipment", Amount: 1, Probability: 1},
+		}},
 	"personal-roboport-mk2-equipment-recycling": {Name: "personal-roboport-mk2-equipment-recycling", Category: "recycling", EnergyRequired: 1.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "personal-roboport-mk2-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "personal-roboport-equipment", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 12.5, Probability: 1},
-	}},
+			{Type: "item", Name: "personal-roboport-mk2-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "personal-roboport-equipment", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 12.5, Probability: 1},
+		}},
 	"petroleum-gas-barrel": {Name: "petroleum-gas-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "petroleum-gas", Amount: 50},
-		{Type: "item", Name: "barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "petroleum-gas-barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "petroleum-gas", Amount: 50},
+			{Type: "item", Name: "barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "petroleum-gas-barrel", Amount: 1, Probability: 1},
+		}},
 	"petroleum-gas-barrel-recycling": {Name: "petroleum-gas-barrel-recycling", Category: "recycling", EnergyRequired: 0.0125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "petroleum-gas-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "petroleum-gas-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
+		}},
 	"piercing-rounds-magazine": {Name: "piercing-rounds-magazine", Category: "crafting", EnergyRequired: 6, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "firearm-magazine", Amount: 2},
-		{Type: "item", Name: "steel-plate", Amount: 1},
-		{Type: "item", Name: "copper-plate", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "piercing-rounds-magazine", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "firearm-magazine", Amount: 2},
+			{Type: "item", Name: "steel-plate", Amount: 1},
+			{Type: "item", Name: "copper-plate", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "piercing-rounds-magazine", Amount: 2, Probability: 1},
+		}},
 	"piercing-rounds-magazine-recycling": {Name: "piercing-rounds-magazine-recycling", Category: "recycling", EnergyRequired: 0.375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "piercing-rounds-magazine", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "firearm-magazine", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 0.125, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "piercing-rounds-magazine", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "firearm-magazine", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 0.125, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 0.25, Probability: 1},
+		}},
 	"piercing-shotgun-shell": {Name: "piercing-shotgun-shell", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "shotgun-shell", Amount: 2},
-		{Type: "item", Name: "copper-plate", Amount: 5},
-		{Type: "item", Name: "steel-plate", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "piercing-shotgun-shell", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "shotgun-shell", Amount: 2},
+			{Type: "item", Name: "copper-plate", Amount: 5},
+			{Type: "item", Name: "steel-plate", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "piercing-shotgun-shell", Amount: 1, Probability: 1},
+		}},
 	"piercing-shotgun-shell-recycling": {Name: "piercing-shotgun-shell-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "piercing-shotgun-shell", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "shotgun-shell", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "piercing-shotgun-shell", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "shotgun-shell", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
+		}},
 	"pipe": {Name: "pipe", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "pipe", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "pipe", Amount: 1, Probability: 1},
+		}},
 	"pipe-recycling": {Name: "pipe-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "pipe", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "pipe", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
+		}},
 	"pipe-to-ground": {Name: "pipe-to-ground", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "pipe", Amount: 10},
-		{Type: "item", Name: "iron-plate", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "pipe-to-ground", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "pipe", Amount: 10},
+			{Type: "item", Name: "iron-plate", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "pipe-to-ground", Amount: 2, Probability: 1},
+		}},
 	"pipe-to-ground-recycling": {Name: "pipe-to-ground-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "pipe-to-ground", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "pipe", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 0.625, Probability: 1},
-	}},
+			{Type: "item", Name: "pipe-to-ground", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "pipe", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 0.625, Probability: 1},
+		}},
 	"pistol": {Name: "pistol", Category: "crafting", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-plate", Amount: 5},
-		{Type: "item", Name: "iron-plate", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "pistol", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-plate", Amount: 5},
+			{Type: "item", Name: "iron-plate", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "pistol", Amount: 1, Probability: 1},
+		}},
 	"pistol-recycling": {Name: "pistol-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "pistol", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "pistol", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
+		}},
 	"plastic-bar": {Name: "plastic-bar", Category: "chemistry-or-cryogenics", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "petroleum-gas", Amount: 20},
-		{Type: "item", Name: "coal", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "plastic-bar", Amount: 2, Probability: 1},
-	}},
+			{Type: "fluid", Name: "petroleum-gas", Amount: 20},
+			{Type: "item", Name: "coal", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "plastic-bar", Amount: 2, Probability: 1},
+		}},
 	"plastic-bar-recycling": {Name: "plastic-bar-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "plastic-bar", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "plastic-bar", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "plastic-bar", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "plastic-bar", Amount: 1, Probability: 0.25},
+		}},
 	"poison-capsule": {Name: "poison-capsule", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 3},
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-		{Type: "item", Name: "coal", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "poison-capsule", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 3},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+			{Type: "item", Name: "coal", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "poison-capsule", Amount: 1, Probability: 1},
+		}},
 	"poison-capsule-recycling": {Name: "poison-capsule-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "poison-capsule", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "coal", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "poison-capsule", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "coal", Amount: 2.5, Probability: 1},
+		}},
 	"power-armor": {Name: "power-armor", Category: "crafting", EnergyRequired: 20, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "processing-unit", Amount: 40},
-		{Type: "item", Name: "electric-engine-unit", Amount: 20},
-		{Type: "item", Name: "steel-plate", Amount: 40},
-	}, Results: []Product{
-		{Type: "item", Name: "power-armor", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "processing-unit", Amount: 40},
+			{Type: "item", Name: "electric-engine-unit", Amount: 20},
+			{Type: "item", Name: "steel-plate", Amount: 40},
+		}, Results: []Product{
+			{Type: "item", Name: "power-armor", Amount: 1, Probability: 1},
+		}},
 	"power-armor-mk2": {Name: "power-armor-mk2", Category: "crafting", EnergyRequired: 25, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "efficiency-module", Amount: 100},
-		{Type: "item", Name: "speed-module", Amount: 100},
-		{Type: "item", Name: "processing-unit", Amount: 60},
-		{Type: "item", Name: "electric-engine-unit", Amount: 40},
-		{Type: "item", Name: "low-density-structure", Amount: 30},
-	}, Results: []Product{
-		{Type: "item", Name: "power-armor-mk2", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "efficiency-module", Amount: 100},
+			{Type: "item", Name: "speed-module", Amount: 100},
+			{Type: "item", Name: "processing-unit", Amount: 60},
+			{Type: "item", Name: "electric-engine-unit", Amount: 40},
+			{Type: "item", Name: "low-density-structure", Amount: 30},
+		}, Results: []Product{
+			{Type: "item", Name: "power-armor-mk2", Amount: 1, Probability: 1},
+		}},
 	"power-armor-mk2-recycling": {Name: "power-armor-mk2-recycling", Category: "recycling", EnergyRequired: 1.5625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "power-armor-mk2", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "efficiency-module", Amount: 25, Probability: 1},
-		{Type: "item", Name: "speed-module", Amount: 25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 15, Probability: 1},
-		{Type: "item", Name: "electric-engine-unit", Amount: 10, Probability: 1},
-		{Type: "item", Name: "low-density-structure", Amount: 7.5, Probability: 1},
-	}},
+			{Type: "item", Name: "power-armor-mk2", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "efficiency-module", Amount: 25, Probability: 1},
+			{Type: "item", Name: "speed-module", Amount: 25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 15, Probability: 1},
+			{Type: "item", Name: "electric-engine-unit", Amount: 10, Probability: 1},
+			{Type: "item", Name: "low-density-structure", Amount: 7.5, Probability: 1},
+		}},
 	"power-armor-recycling": {Name: "power-armor-recycling", Category: "recycling", EnergyRequired: 1.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "power-armor", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "processing-unit", Amount: 10, Probability: 1},
-		{Type: "item", Name: "electric-engine-unit", Amount: 5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "power-armor", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "processing-unit", Amount: 10, Probability: 1},
+			{Type: "item", Name: "electric-engine-unit", Amount: 5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 10, Probability: 1},
+		}},
 	"power-switch": {Name: "power-switch", Category: "crafting", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 5},
-		{Type: "item", Name: "copper-cable", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "power-switch", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 5},
+			{Type: "item", Name: "copper-cable", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "power-switch", Amount: 1, Probability: 1},
+		}},
 	"power-switch-recycling": {Name: "power-switch-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "power-switch", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "power-switch", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
+		}},
 	"processing-unit": {Name: "processing-unit", Category: "electronics-with-fluid", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 20},
-		{Type: "item", Name: "advanced-circuit", Amount: 2},
-		{Type: "fluid", Name: "sulfuric-acid", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "processing-unit", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 20},
+			{Type: "item", Name: "advanced-circuit", Amount: 2},
+			{Type: "fluid", Name: "sulfuric-acid", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "processing-unit", Amount: 1, Probability: 1},
+		}},
 	"processing-unit-recycling": {Name: "processing-unit-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "processing-unit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 5, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "processing-unit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 5, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 0.5, Probability: 1},
+		}},
 	"production-science-pack": {Name: "production-science-pack", Category: "crafting", EnergyRequired: 21, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electric-furnace", Amount: 1},
-		{Type: "item", Name: "productivity-module", Amount: 1},
-		{Type: "item", Name: "rail", Amount: 30},
-	}, Results: []Product{
-		{Type: "item", Name: "production-science-pack", Amount: 3, Probability: 1},
-	}},
+			{Type: "item", Name: "electric-furnace", Amount: 1},
+			{Type: "item", Name: "productivity-module", Amount: 1},
+			{Type: "item", Name: "rail", Amount: 30},
+		}, Results: []Product{
+			{Type: "item", Name: "production-science-pack", Amount: 3, Probability: 1},
+		}},
 	"production-science-pack-recycling": {Name: "production-science-pack-recycling", Category: "recycling", EnergyRequired: 1.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "production-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "production-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "production-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "production-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"productivity-module": {Name: "productivity-module", Category: "electronics", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "productivity-module", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "productivity-module", Amount: 1, Probability: 1},
+		}},
 	"productivity-module-2": {Name: "productivity-module-2", Category: "electronics", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "productivity-module", Amount: 4},
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "processing-unit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "productivity-module-2", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "productivity-module", Amount: 4},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "productivity-module-2", Amount: 1, Probability: 1},
+		}},
 	"productivity-module-2-recycling": {Name: "productivity-module-2-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "productivity-module-2", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "productivity-module", Amount: 1, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "productivity-module-2", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "productivity-module", Amount: 1, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+		}},
 	"productivity-module-3": {Name: "productivity-module-3", Category: "electronics", EnergyRequired: 60, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "productivity-module-2", Amount: 4},
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "processing-unit", Amount: 5},
-		{Type: "item", Name: "biter-egg", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "productivity-module-3", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "productivity-module-2", Amount: 4},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+			{Type: "item", Name: "biter-egg", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "productivity-module-3", Amount: 1, Probability: 1},
+		}},
 	"productivity-module-3-recycling": {Name: "productivity-module-3-recycling", Category: "recycling", EnergyRequired: 3.75, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "productivity-module-3", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "productivity-module-2", Amount: 1, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "biter-egg", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "productivity-module-3", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "productivity-module-2", Amount: 1, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "biter-egg", Amount: 0.25, Probability: 1},
+		}},
 	"productivity-module-recycling": {Name: "productivity-module-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "productivity-module", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "productivity-module", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+		}},
 	"programmable-speaker": {Name: "programmable-speaker", Category: "crafting", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 3},
-		{Type: "item", Name: "iron-stick", Amount: 4},
-		{Type: "item", Name: "copper-cable", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "programmable-speaker", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 3},
+			{Type: "item", Name: "iron-stick", Amount: 4},
+			{Type: "item", Name: "copper-cable", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "programmable-speaker", Amount: 1, Probability: 1},
+		}},
 	"programmable-speaker-recycling": {Name: "programmable-speaker-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "programmable-speaker", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "iron-stick", Amount: 1, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "programmable-speaker", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "iron-stick", Amount: 1, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1, Probability: 1},
+		}},
 	"promethium-asteroid-chunk-recycling": {Name: "promethium-asteroid-chunk-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "promethium-asteroid-chunk", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "promethium-asteroid-chunk", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "promethium-asteroid-chunk", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "promethium-asteroid-chunk", Amount: 1, Probability: 0.25},
+		}},
 	"promethium-science-pack": {Name: "promethium-science-pack", Category: "cryogenics", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "promethium-asteroid-chunk", Amount: 25},
-		{Type: "item", Name: "quantum-processor", Amount: 1},
-		{Type: "item", Name: "biter-egg", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "promethium-science-pack", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "promethium-asteroid-chunk", Amount: 25},
+			{Type: "item", Name: "quantum-processor", Amount: 1},
+			{Type: "item", Name: "biter-egg", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "promethium-science-pack", Amount: 10, Probability: 1},
+		}},
 	"promethium-science-pack-recycling": {Name: "promethium-science-pack-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "promethium-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "promethium-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "promethium-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "promethium-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"proxy-container-recycling": {Name: "proxy-container-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "proxy-container", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "proxy-container", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "proxy-container", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "proxy-container", Amount: 1, Probability: 0.25},
+		}},
 	"pump": {Name: "pump", Category: "crafting", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "engine-unit", Amount: 1},
-		{Type: "item", Name: "steel-plate", Amount: 1},
-		{Type: "item", Name: "pipe", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "pump", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "engine-unit", Amount: 1},
+			{Type: "item", Name: "steel-plate", Amount: 1},
+			{Type: "item", Name: "pipe", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "pump", Amount: 1, Probability: 1},
+		}},
 	"pump-recycling": {Name: "pump-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "pump", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "engine-unit", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "pump", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "engine-unit", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 0.25, Probability: 1},
+		}},
 	"pumpjack": {Name: "pumpjack", Category: "crafting", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 5},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-		{Type: "item", Name: "pipe", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "pumpjack", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 5},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+			{Type: "item", Name: "pipe", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "pumpjack", Amount: 1, Probability: 1},
+		}},
 	"pumpjack-recycling": {Name: "pumpjack-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "pumpjack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "pumpjack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 2.5, Probability: 1},
+		}},
 	"quality-module": {Name: "quality-module", Category: "electronics", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "quality-module", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "quality-module", Amount: 1, Probability: 1},
+		}},
 	"quality-module-2": {Name: "quality-module-2", Category: "electronics", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "quality-module", Amount: 4},
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "processing-unit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "quality-module-2", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "quality-module", Amount: 4},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "quality-module-2", Amount: 1, Probability: 1},
+		}},
 	"quality-module-2-recycling": {Name: "quality-module-2-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "quality-module-2", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "quality-module", Amount: 1, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "quality-module-2", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "quality-module", Amount: 1, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+		}},
 	"quality-module-3": {Name: "quality-module-3", Category: "electronics", EnergyRequired: 60, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "quality-module-2", Amount: 4},
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "processing-unit", Amount: 5},
-		{Type: "item", Name: "superconductor", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "quality-module-3", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "quality-module-2", Amount: 4},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+			{Type: "item", Name: "superconductor", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "quality-module-3", Amount: 1, Probability: 1},
+		}},
 	"quality-module-3-recycling": {Name: "quality-module-3-recycling", Category: "recycling", EnergyRequired: 3.75, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "quality-module-3", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "quality-module-2", Amount: 1, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "quality-module-3", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "quality-module-2", Amount: 1, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 0.25, Probability: 1},
+		}},
 	"quality-module-recycling": {Name: "quality-module-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "quality-module", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "quality-module", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+		}},
 	"quantum-processor": {Name: "quantum-processor", Category: "electromagnetics", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-carbide", Amount: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1},
-		{Type: "item", Name: "superconductor", Amount: 1},
-		{Type: "item", Name: "carbon-fiber", Amount: 1},
-		{Type: "item", Name: "lithium-plate", Amount: 2},
-		{Type: "fluid", Name: "fluoroketone-cold", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "quantum-processor", Amount: 1, Probability: 1},
-		{Type: "fluid", Name: "fluoroketone-hot", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-carbide", Amount: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1},
+			{Type: "item", Name: "superconductor", Amount: 1},
+			{Type: "item", Name: "carbon-fiber", Amount: 1},
+			{Type: "item", Name: "lithium-plate", Amount: 2},
+			{Type: "fluid", Name: "fluoroketone-cold", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "quantum-processor", Amount: 1, Probability: 1},
+			{Type: "fluid", Name: "fluoroketone-hot", Amount: 5, Probability: 1},
+		}},
 	"quantum-processor-recycling": {Name: "quantum-processor-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "quantum-processor", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-carbide", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "carbon-fiber", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "lithium-plate", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "quantum-processor", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-carbide", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "carbon-fiber", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "lithium-plate", Amount: 0.5, Probability: 1},
+		}},
 	"radar": {Name: "radar", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5},
-		{Type: "item", Name: "iron-plate", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "radar", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5},
+			{Type: "item", Name: "iron-plate", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "radar", Amount: 1, Probability: 1},
+		}},
 	"radar-recycling": {Name: "radar-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "radar", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "radar", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 2.5, Probability: 1},
+		}},
 	"rail": {Name: "rail", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone", Amount: 1},
-		{Type: "item", Name: "iron-stick", Amount: 1},
-		{Type: "item", Name: "steel-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "rail", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "stone", Amount: 1},
+			{Type: "item", Name: "iron-stick", Amount: 1},
+			{Type: "item", Name: "steel-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "rail", Amount: 2, Probability: 1},
+		}},
 	"rail-chain-signal": {Name: "rail-chain-signal", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 1},
-		{Type: "item", Name: "iron-plate", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "rail-chain-signal", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 1},
+			{Type: "item", Name: "iron-plate", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "rail-chain-signal", Amount: 1, Probability: 1},
+		}},
 	"rail-chain-signal-recycling": {Name: "rail-chain-signal-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "rail-chain-signal", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "rail-chain-signal", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
+		}},
 	"rail-ramp": {Name: "rail-ramp", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "refined-concrete", Amount: 100},
-		{Type: "item", Name: "rail", Amount: 8},
-		{Type: "item", Name: "steel-plate", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "rail-ramp", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "refined-concrete", Amount: 100},
+			{Type: "item", Name: "rail", Amount: 8},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "rail-ramp", Amount: 1, Probability: 1},
+		}},
 	"rail-ramp-recycling": {Name: "rail-ramp-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "rail-ramp", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "refined-concrete", Amount: 25, Probability: 1},
-		{Type: "item", Name: "rail", Amount: 2, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "rail-ramp", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "refined-concrete", Amount: 25, Probability: 1},
+			{Type: "item", Name: "rail", Amount: 2, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+		}},
 	"rail-recycling": {Name: "rail-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "rail", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "stone", Amount: 0.125, Probability: 1},
-		{Type: "item", Name: "iron-stick", Amount: 0.125, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 0.125, Probability: 1},
-	}},
+			{Type: "item", Name: "rail", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "stone", Amount: 0.125, Probability: 1},
+			{Type: "item", Name: "iron-stick", Amount: 0.125, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 0.125, Probability: 1},
+		}},
 	"rail-signal": {Name: "rail-signal", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 1},
-		{Type: "item", Name: "iron-plate", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "rail-signal", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 1},
+			{Type: "item", Name: "iron-plate", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "rail-signal", Amount: 1, Probability: 1},
+		}},
 	"rail-signal-recycling": {Name: "rail-signal-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "rail-signal", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "rail-signal", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
+		}},
 	"rail-support": {Name: "rail-support", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "refined-concrete", Amount: 20},
-		{Type: "item", Name: "steel-plate", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "rail-support", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "refined-concrete", Amount: 20},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "rail-support", Amount: 1, Probability: 1},
+		}},
 	"rail-support-recycling": {Name: "rail-support-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "rail-support", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "refined-concrete", Amount: 5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "rail-support", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "refined-concrete", Amount: 5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+		}},
 	"railgun": {Name: "railgun", Category: "cryogenics", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-plate", Amount: 10},
-		{Type: "item", Name: "superconductor", Amount: 10},
-		{Type: "item", Name: "quantum-processor", Amount: 20},
-		{Type: "fluid", Name: "fluoroketone-cold", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "railgun", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-plate", Amount: 10},
+			{Type: "item", Name: "superconductor", Amount: 10},
+			{Type: "item", Name: "quantum-processor", Amount: 20},
+			{Type: "fluid", Name: "fluoroketone-cold", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "railgun", Amount: 1, Probability: 1},
+		}},
 	"railgun-ammo": {Name: "railgun-ammo", Category: "crafting", EnergyRequired: 25, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 5},
-		{Type: "item", Name: "copper-cable", Amount: 10},
-		{Type: "item", Name: "explosives", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "railgun-ammo", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 5},
+			{Type: "item", Name: "copper-cable", Amount: 10},
+			{Type: "item", Name: "explosives", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "railgun-ammo", Amount: 1, Probability: 1},
+		}},
 	"railgun-ammo-recycling": {Name: "railgun-ammo-recycling", Category: "recycling", EnergyRequired: 1.5625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "railgun-ammo", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "explosives", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "railgun-ammo", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "explosives", Amount: 0.5, Probability: 1},
+		}},
 	"railgun-recycling": {Name: "railgun-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "railgun", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "quantum-processor", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "railgun", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "quantum-processor", Amount: 5, Probability: 1},
+		}},
 	"railgun-turret": {Name: "railgun-turret", Category: "cryogenics", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "quantum-processor", Amount: 100},
-		{Type: "item", Name: "tungsten-plate", Amount: 30},
-		{Type: "item", Name: "superconductor", Amount: 50},
-		{Type: "item", Name: "carbon-fiber", Amount: 20},
-		{Type: "fluid", Name: "fluoroketone-cold", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "railgun-turret", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "quantum-processor", Amount: 100},
+			{Type: "item", Name: "tungsten-plate", Amount: 30},
+			{Type: "item", Name: "superconductor", Amount: 50},
+			{Type: "item", Name: "carbon-fiber", Amount: 20},
+			{Type: "fluid", Name: "fluoroketone-cold", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "railgun-turret", Amount: 1, Probability: 1},
+		}},
 	"railgun-turret-recycling": {Name: "railgun-turret-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "railgun-turret", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "quantum-processor", Amount: 25, Probability: 1},
-		{Type: "item", Name: "tungsten-plate", Amount: 7.5, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "carbon-fiber", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "railgun-turret", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "quantum-processor", Amount: 25, Probability: 1},
+			{Type: "item", Name: "tungsten-plate", Amount: 7.5, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "carbon-fiber", Amount: 5, Probability: 1},
+		}},
 	"raw-fish-recycling": {Name: "raw-fish-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "raw-fish", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "raw-fish", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "raw-fish", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "raw-fish", Amount: 1, Probability: 0.25},
+		}},
 	"recipe-unknown": {Name: "recipe-unknown", Category: "crafting", EnergyRequired: 0.5, Enabled: true, Ingredients: nil, Results: nil},
 	"recycler": {Name: "recycler", Category: "crafting", EnergyRequired: 3, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "processing-unit", Amount: 6},
-		{Type: "item", Name: "steel-plate", Amount: 20},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 40},
-		{Type: "item", Name: "concrete", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "recycler", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "processing-unit", Amount: 6},
+			{Type: "item", Name: "steel-plate", Amount: 20},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 40},
+			{Type: "item", Name: "concrete", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "recycler", Amount: 1, Probability: 1},
+		}},
 	"recycler-recycling": {Name: "recycler-recycling", Category: "recycling", EnergyRequired: 0.1875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "recycler", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "processing-unit", Amount: 1.5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10, Probability: 1},
-		{Type: "item", Name: "concrete", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "recycler", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "processing-unit", Amount: 1.5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10, Probability: 1},
+			{Type: "item", Name: "concrete", Amount: 5, Probability: 1},
+		}},
 	"refined-concrete": {Name: "refined-concrete", Category: "crafting-with-fluid", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "concrete", Amount: 20},
-		{Type: "item", Name: "iron-stick", Amount: 8},
-		{Type: "item", Name: "steel-plate", Amount: 1},
-		{Type: "fluid", Name: "water", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "refined-concrete", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "concrete", Amount: 20},
+			{Type: "item", Name: "iron-stick", Amount: 8},
+			{Type: "item", Name: "steel-plate", Amount: 1},
+			{Type: "fluid", Name: "water", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "refined-concrete", Amount: 10, Probability: 1},
+		}},
 	"refined-concrete-recycling": {Name: "refined-concrete-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "refined-concrete", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "concrete", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "iron-stick", Amount: 0.2, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 0.025, Probability: 1},
-	}},
+			{Type: "item", Name: "refined-concrete", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "concrete", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "iron-stick", Amount: 0.2, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 0.025, Probability: 1},
+		}},
 	"refined-hazard-concrete": {Name: "refined-hazard-concrete", Category: "crafting", EnergyRequired: 0.25, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "refined-concrete", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "refined-hazard-concrete", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "refined-concrete", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "refined-hazard-concrete", Amount: 10, Probability: 1},
+		}},
 	"refined-hazard-concrete-recycling": {Name: "refined-hazard-concrete-recycling", Category: "recycling", EnergyRequired: 0.015625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "refined-hazard-concrete", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "refined-concrete", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "refined-hazard-concrete", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "refined-concrete", Amount: 0.25, Probability: 1},
+		}},
 	"repair-pack": {Name: "repair-pack", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 2},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "repair-pack", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 2},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "repair-pack", Amount: 1, Probability: 1},
+		}},
 	"repair-pack-recycling": {Name: "repair-pack-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "repair-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "repair-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 0.5, Probability: 1},
+		}},
 	"requester-chest": {Name: "requester-chest", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-chest", Amount: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-		{Type: "item", Name: "advanced-circuit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "requester-chest", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-chest", Amount: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+			{Type: "item", Name: "advanced-circuit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "requester-chest", Amount: 1, Probability: 1},
+		}},
 	"requester-chest-recycling": {Name: "requester-chest-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "requester-chest", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "requester-chest", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
+		}},
 	"roboport": {Name: "roboport", Category: "crafting", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 45},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 45},
-		{Type: "item", Name: "advanced-circuit", Amount: 45},
-	}, Results: []Product{
-		{Type: "item", Name: "roboport", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 45},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 45},
+			{Type: "item", Name: "advanced-circuit", Amount: 45},
+		}, Results: []Product{
+			{Type: "item", Name: "roboport", Amount: 1, Probability: 1},
+		}},
 	"roboport-recycling": {Name: "roboport-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "roboport", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 11.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 11.25, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 11.25, Probability: 1},
-	}},
+			{Type: "item", Name: "roboport", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 11.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 11.25, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 11.25, Probability: 1},
+		}},
 	"rocket": {Name: "rocket", Category: "crafting", EnergyRequired: 4, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "explosives", Amount: 1},
-		{Type: "item", Name: "iron-plate", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "rocket", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "explosives", Amount: 1},
+			{Type: "item", Name: "iron-plate", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "rocket", Amount: 1, Probability: 1},
+		}},
 	"rocket-fuel": {Name: "rocket-fuel", Category: "organic-or-assembling", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "solid-fuel", Amount: 10},
-		{Type: "fluid", Name: "light-oil", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "rocket-fuel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "solid-fuel", Amount: 10},
+			{Type: "fluid", Name: "light-oil", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "rocket-fuel", Amount: 1, Probability: 1},
+		}},
 	"rocket-fuel-from-jelly": {Name: "rocket-fuel-from-jelly", Category: "organic", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "water", Amount: 30},
-		{Type: "item", Name: "jelly", Amount: 30},
-		{Type: "item", Name: "bioflux", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "rocket-fuel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "water", Amount: 30},
+			{Type: "item", Name: "jelly", Amount: 30},
+			{Type: "item", Name: "bioflux", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "rocket-fuel", Amount: 1, Probability: 1},
+		}},
 	"rocket-fuel-recycling": {Name: "rocket-fuel-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "rocket-fuel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "solid-fuel", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "rocket-fuel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "solid-fuel", Amount: 2.5, Probability: 1},
+		}},
 	"rocket-launcher": {Name: "rocket-launcher", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 5},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "rocket-launcher", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 5},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "rocket-launcher", Amount: 1, Probability: 1},
+		}},
 	"rocket-launcher-recycling": {Name: "rocket-launcher-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "rocket-launcher", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "rocket-launcher", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+		}},
 	"rocket-part": {Name: "rocket-part", Category: "rocket-building", EnergyRequired: 3, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "processing-unit", Amount: 1},
-		{Type: "item", Name: "low-density-structure", Amount: 1},
-		{Type: "item", Name: "rocket-fuel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "rocket-part", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "processing-unit", Amount: 1},
+			{Type: "item", Name: "low-density-structure", Amount: 1},
+			{Type: "item", Name: "rocket-fuel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "rocket-part", Amount: 1, Probability: 1},
+		}},
 	"rocket-recycling": {Name: "rocket-recycling", Category: "recycling", EnergyRequired: 0.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "rocket", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "explosives", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "rocket", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "explosives", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 0.5, Probability: 1},
+		}},
 	"rocket-silo": {Name: "rocket-silo", Category: "crafting", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 1000},
-		{Type: "item", Name: "concrete", Amount: 1000},
-		{Type: "item", Name: "pipe", Amount: 100},
-		{Type: "item", Name: "processing-unit", Amount: 200},
-		{Type: "item", Name: "electric-engine-unit", Amount: 200},
-	}, Results: []Product{
-		{Type: "item", Name: "rocket-silo", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 1000},
+			{Type: "item", Name: "concrete", Amount: 1000},
+			{Type: "item", Name: "pipe", Amount: 100},
+			{Type: "item", Name: "processing-unit", Amount: 200},
+			{Type: "item", Name: "electric-engine-unit", Amount: 200},
+		}, Results: []Product{
+			{Type: "item", Name: "rocket-silo", Amount: 1, Probability: 1},
+		}},
 	"rocket-silo-recycling": {Name: "rocket-silo-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "rocket-silo", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 250, Probability: 1},
-		{Type: "item", Name: "concrete", Amount: 250, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 50, Probability: 1},
-		{Type: "item", Name: "electric-engine-unit", Amount: 50, Probability: 1},
-	}},
+			{Type: "item", Name: "rocket-silo", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 250, Probability: 1},
+			{Type: "item", Name: "concrete", Amount: 250, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 50, Probability: 1},
+			{Type: "item", Name: "electric-engine-unit", Amount: 50, Probability: 1},
+		}},
 	"rocket-turret": {Name: "rocket-turret", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "rocket-launcher", Amount: 4},
-		{Type: "item", Name: "processing-unit", Amount: 4},
-		{Type: "item", Name: "carbon-fiber", Amount: 20},
-		{Type: "item", Name: "steel-plate", Amount: 20},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "rocket-turret", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "rocket-launcher", Amount: 4},
+			{Type: "item", Name: "processing-unit", Amount: 4},
+			{Type: "item", Name: "carbon-fiber", Amount: 20},
+			{Type: "item", Name: "steel-plate", Amount: 20},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "rocket-turret", Amount: 1, Probability: 1},
+		}},
 	"rocket-turret-recycling": {Name: "rocket-turret-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "rocket-turret", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "rocket-launcher", Amount: 1, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1, Probability: 1},
-		{Type: "item", Name: "carbon-fiber", Amount: 5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "rocket-turret", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "rocket-launcher", Amount: 1, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1, Probability: 1},
+			{Type: "item", Name: "carbon-fiber", Amount: 5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5, Probability: 1},
+		}},
 	"science-recycling": {Name: "science-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "science", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "science", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "science", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "science", Amount: 1, Probability: 0.25},
+		}},
 	"scrap-recycling": {Name: "scrap-recycling", Category: "recycling-or-hand-crafting", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "scrap", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1, Probability: 0.2},
-		{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 0.07},
-		{Type: "item", Name: "concrete", Amount: 1, Probability: 0.06},
-		{Type: "item", Name: "ice", Amount: 1, Probability: 0.05},
-		{Type: "item", Name: "steel-plate", Amount: 1, Probability: 0.04},
-		{Type: "item", Name: "battery", Amount: 1, Probability: 0.04},
-		{Type: "item", Name: "stone", Amount: 1, Probability: 0.04},
-		{Type: "item", Name: "advanced-circuit", Amount: 1, Probability: 0.03},
-		{Type: "item", Name: "copper-cable", Amount: 1, Probability: 0.03},
-		{Type: "item", Name: "processing-unit", Amount: 1, Probability: 0.02},
-		{Type: "item", Name: "low-density-structure", Amount: 1, Probability: 0.01},
-		{Type: "item", Name: "holmium-ore", Amount: 1, Probability: 0.01},
-	}},
+			{Type: "item", Name: "scrap", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1, Probability: 0.2},
+			{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 0.07},
+			{Type: "item", Name: "concrete", Amount: 1, Probability: 0.06},
+			{Type: "item", Name: "ice", Amount: 1, Probability: 0.05},
+			{Type: "item", Name: "steel-plate", Amount: 1, Probability: 0.04},
+			{Type: "item", Name: "battery", Amount: 1, Probability: 0.04},
+			{Type: "item", Name: "stone", Amount: 1, Probability: 0.04},
+			{Type: "item", Name: "advanced-circuit", Amount: 1, Probability: 0.03},
+			{Type: "item", Name: "copper-cable", Amount: 1, Probability: 0.03},
+			{Type: "item", Name: "processing-unit", Amount: 1, Probability: 0.02},
+			{Type: "item", Name: "low-density-structure", Amount: 1, Probability: 0.01},
+			{Type: "item", Name: "holmium-ore", Amount: 1, Probability: 0.01},
+		}},
 	"selection-tool-recycling": {Name: "selection-tool-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "selection-tool", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "selection-tool", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "selection-tool", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "selection-tool", Amount: 1, Probability: 0.25},
+		}},
 	"selector-combinator": {Name: "selector-combinator", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "advanced-circuit", Amount: 2},
-		{Type: "item", Name: "decider-combinator", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "selector-combinator", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "advanced-circuit", Amount: 2},
+			{Type: "item", Name: "decider-combinator", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "selector-combinator", Amount: 1, Probability: 1},
+		}},
 	"selector-combinator-recycling": {Name: "selector-combinator-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "selector-combinator", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "advanced-circuit", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "decider-combinator", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "selector-combinator", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "advanced-circuit", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "decider-combinator", Amount: 1.25, Probability: 1},
+		}},
 	"shotgun": {Name: "shotgun", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 15},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 5},
-		{Type: "item", Name: "copper-plate", Amount: 10},
-		{Type: "item", Name: "wood", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "shotgun", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 15},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 5},
+			{Type: "item", Name: "copper-plate", Amount: 10},
+			{Type: "item", Name: "wood", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "shotgun", Amount: 1, Probability: 1},
+		}},
 	"shotgun-recycling": {Name: "shotgun-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "shotgun", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 3.75, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "wood", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "shotgun", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 3.75, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "wood", Amount: 1.25, Probability: 1},
+		}},
 	"shotgun-shell": {Name: "shotgun-shell", Category: "crafting", EnergyRequired: 3, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "copper-plate", Amount: 2},
-		{Type: "item", Name: "iron-plate", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "shotgun-shell", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "copper-plate", Amount: 2},
+			{Type: "item", Name: "iron-plate", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "shotgun-shell", Amount: 1, Probability: 1},
+		}},
 	"shotgun-shell-recycling": {Name: "shotgun-shell-recycling", Category: "recycling", EnergyRequired: 0.1875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "shotgun-shell", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "copper-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "shotgun-shell", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "copper-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 0.5, Probability: 1},
+		}},
 	"simple-coal-liquefaction": {Name: "simple-coal-liquefaction", Category: "oil-processing", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "coal", Amount: 10},
-		{Type: "item", Name: "calcite", Amount: 2},
-		{Type: "fluid", Name: "sulfuric-acid", Amount: 25},
-	}, Results: []Product{
-		{Type: "fluid", Name: "heavy-oil", Amount: 50, Probability: 1},
-	}},
+			{Type: "item", Name: "coal", Amount: 10},
+			{Type: "item", Name: "calcite", Amount: 2},
+			{Type: "fluid", Name: "sulfuric-acid", Amount: 25},
+		}, Results: []Product{
+			{Type: "fluid", Name: "heavy-oil", Amount: 50, Probability: 1},
+		}},
 	"simple-entity-with-force-recycling": {Name: "simple-entity-with-force-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "simple-entity-with-force", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "simple-entity-with-force", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "simple-entity-with-force", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "simple-entity-with-force", Amount: 1, Probability: 0.25},
+		}},
 	"simple-entity-with-owner-recycling": {Name: "simple-entity-with-owner-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "simple-entity-with-owner", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "simple-entity-with-owner", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "simple-entity-with-owner", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "simple-entity-with-owner", Amount: 1, Probability: 0.25},
+		}},
 	"slowdown-capsule": {Name: "slowdown-capsule", Category: "crafting", EnergyRequired: 8, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 2},
-		{Type: "item", Name: "electronic-circuit", Amount: 2},
-		{Type: "item", Name: "coal", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "slowdown-capsule", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 2},
+			{Type: "item", Name: "electronic-circuit", Amount: 2},
+			{Type: "item", Name: "coal", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "slowdown-capsule", Amount: 1, Probability: 1},
+		}},
 	"slowdown-capsule-recycling": {Name: "slowdown-capsule-recycling", Category: "recycling", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "slowdown-capsule", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "coal", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "slowdown-capsule", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "coal", Amount: 1.25, Probability: 1},
+		}},
 	"small-electric-pole": {Name: "small-electric-pole", Category: "electronics", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "wood", Amount: 1},
-		{Type: "item", Name: "copper-cable", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "small-electric-pole", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "wood", Amount: 1},
+			{Type: "item", Name: "copper-cable", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "small-electric-pole", Amount: 2, Probability: 1},
+		}},
 	"small-electric-pole-recycling": {Name: "small-electric-pole-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "small-electric-pole", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "wood", Amount: 0.125, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "small-electric-pole", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "wood", Amount: 0.125, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 0.25, Probability: 1},
+		}},
 	"small-lamp": {Name: "small-lamp", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 1},
-		{Type: "item", Name: "copper-cable", Amount: 3},
-		{Type: "item", Name: "iron-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "small-lamp", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 1},
+			{Type: "item", Name: "copper-cable", Amount: 3},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "small-lamp", Amount: 1, Probability: 1},
+		}},
 	"small-lamp-recycling": {Name: "small-lamp-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "small-lamp", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "small-lamp", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 0.25, Probability: 1},
+		}},
 	"solar-panel": {Name: "solar-panel", Category: "electronics", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 15},
-		{Type: "item", Name: "copper-plate", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "solar-panel", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 15},
+			{Type: "item", Name: "copper-plate", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "solar-panel", Amount: 1, Probability: 1},
+		}},
 	"solar-panel-equipment": {Name: "solar-panel-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "solar-panel", Amount: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 2},
-		{Type: "item", Name: "steel-plate", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "solar-panel-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "solar-panel", Amount: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 2},
+			{Type: "item", Name: "steel-plate", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "solar-panel-equipment", Amount: 1, Probability: 1},
+		}},
 	"solar-panel-equipment-recycling": {Name: "solar-panel-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "solar-panel-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "solar-panel", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "solar-panel-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "solar-panel", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
+		}},
 	"solar-panel-recycling": {Name: "solar-panel-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "solar-panel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 3.75, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "solar-panel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 3.75, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 1.25, Probability: 1},
+		}},
 	"solid-fuel-from-ammonia": {Name: "solid-fuel-from-ammonia", Category: "chemistry-or-cryogenics", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "ammonia", Amount: 15},
-		{Type: "fluid", Name: "crude-oil", Amount: 6},
-	}, Results: []Product{
-		{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "ammonia", Amount: 15},
+			{Type: "fluid", Name: "crude-oil", Amount: 6},
+		}, Results: []Product{
+			{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 1},
+		}},
 	"solid-fuel-from-heavy-oil": {Name: "solid-fuel-from-heavy-oil", Category: "chemistry", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "heavy-oil", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "heavy-oil", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 1},
+		}},
 	"solid-fuel-from-light-oil": {Name: "solid-fuel-from-light-oil", Category: "chemistry", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "light-oil", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "light-oil", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 1},
+		}},
 	"solid-fuel-from-petroleum-gas": {Name: "solid-fuel-from-petroleum-gas", Category: "chemistry", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "petroleum-gas", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "petroleum-gas", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 1},
+		}},
 	"solid-fuel-recycling": {Name: "solid-fuel-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "solid-fuel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "solid-fuel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "solid-fuel", Amount: 1, Probability: 0.25},
+		}},
 	"space-platform-foundation": {Name: "space-platform-foundation", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 20},
-		{Type: "item", Name: "copper-cable", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "space-platform-foundation", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 20},
+			{Type: "item", Name: "copper-cable", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "space-platform-foundation", Amount: 1, Probability: 1},
+		}},
 	"space-platform-foundation-recycling": {Name: "space-platform-foundation-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "space-platform-foundation", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "space-platform-foundation", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 5, Probability: 1},
+		}},
 	"space-platform-hub-recycling": {Name: "space-platform-hub-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "space-platform-hub", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "space-platform-hub", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "space-platform-hub", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "space-platform-hub", Amount: 1, Probability: 0.25},
+		}},
 	"space-platform-starter-pack": {Name: "space-platform-starter-pack", Category: "crafting", EnergyRequired: 60, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "space-platform-foundation", Amount: 60},
-		{Type: "item", Name: "steel-plate", Amount: 20},
-		{Type: "item", Name: "processing-unit", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "space-platform-starter-pack", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "space-platform-foundation", Amount: 60},
+			{Type: "item", Name: "steel-plate", Amount: 20},
+			{Type: "item", Name: "processing-unit", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "space-platform-starter-pack", Amount: 1, Probability: 1},
+		}},
 	"space-platform-starter-pack-recycling": {Name: "space-platform-starter-pack-recycling", Category: "recycling", EnergyRequired: 3.75, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "space-platform-starter-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "space-platform-foundation", Amount: 15, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "space-platform-starter-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "space-platform-foundation", Amount: 15, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 5, Probability: 1},
+		}},
 	"space-science-pack": {Name: "space-science-pack", Category: "crafting", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 2},
-		{Type: "item", Name: "carbon", Amount: 1},
-		{Type: "item", Name: "ice", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "space-science-pack", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 2},
+			{Type: "item", Name: "carbon", Amount: 1},
+			{Type: "item", Name: "ice", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "space-science-pack", Amount: 5, Probability: 1},
+		}},
 	"space-science-pack-recycling": {Name: "space-science-pack-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "space-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "space-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "space-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "space-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"speed-module": {Name: "speed-module", Category: "electronics", EnergyRequired: 15, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "speed-module", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "speed-module", Amount: 1, Probability: 1},
+		}},
 	"speed-module-2": {Name: "speed-module-2", Category: "electronics", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "speed-module", Amount: 4},
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "processing-unit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "speed-module-2", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "speed-module", Amount: 4},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "speed-module-2", Amount: 1, Probability: 1},
+		}},
 	"speed-module-2-recycling": {Name: "speed-module-2-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "speed-module-2", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "speed-module", Amount: 1, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "speed-module-2", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "speed-module", Amount: 1, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+		}},
 	"speed-module-3": {Name: "speed-module-3", Category: "electronics", EnergyRequired: 60, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "speed-module-2", Amount: 4},
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "processing-unit", Amount: 5},
-		{Type: "item", Name: "tungsten-carbide", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "speed-module-3", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "speed-module-2", Amount: 4},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "processing-unit", Amount: 5},
+			{Type: "item", Name: "tungsten-carbide", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "speed-module-3", Amount: 1, Probability: 1},
+		}},
 	"speed-module-3-recycling": {Name: "speed-module-3-recycling", Category: "recycling", EnergyRequired: 3.75, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "speed-module-3", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "speed-module-2", Amount: 1, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "tungsten-carbide", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "speed-module-3", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "speed-module-2", Amount: 1, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "tungsten-carbide", Amount: 0.25, Probability: 1},
+		}},
 	"speed-module-recycling": {Name: "speed-module-recycling", Category: "recycling", EnergyRequired: 0.9375, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "speed-module", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "speed-module", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+		}},
 	"spidertron": {Name: "spidertron", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "exoskeleton-equipment", Amount: 4},
-		{Type: "item", Name: "fission-reactor-equipment", Amount: 2},
-		{Type: "item", Name: "rocket-turret", Amount: 1},
-		{Type: "item", Name: "radar", Amount: 2},
-		{Type: "item", Name: "raw-fish", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "spidertron", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "exoskeleton-equipment", Amount: 4},
+			{Type: "item", Name: "fission-reactor-equipment", Amount: 2},
+			{Type: "item", Name: "rocket-turret", Amount: 1},
+			{Type: "item", Name: "radar", Amount: 2},
+			{Type: "item", Name: "raw-fish", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "spidertron", Amount: 1, Probability: 1},
+		}},
 	"spidertron-recycling": {Name: "spidertron-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "spidertron", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "exoskeleton-equipment", Amount: 1, Probability: 1},
-		{Type: "item", Name: "fission-reactor-equipment", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "rocket-turret", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "radar", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "raw-fish", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "spidertron", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "exoskeleton-equipment", Amount: 1, Probability: 1},
+			{Type: "item", Name: "fission-reactor-equipment", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "rocket-turret", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "radar", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "raw-fish", Amount: 0.25, Probability: 1},
+		}},
 	"splitter": {Name: "splitter", Category: "pressing", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-		{Type: "item", Name: "iron-plate", Amount: 5},
-		{Type: "item", Name: "transport-belt", Amount: 4},
-	}, Results: []Product{
-		{Type: "item", Name: "splitter", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+			{Type: "item", Name: "iron-plate", Amount: 5},
+			{Type: "item", Name: "transport-belt", Amount: 4},
+		}, Results: []Product{
+			{Type: "item", Name: "splitter", Amount: 1, Probability: 1},
+		}},
 	"splitter-recycling": {Name: "splitter-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "splitter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "transport-belt", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "splitter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "transport-belt", Amount: 1, Probability: 1},
+		}},
 	"spoilage-recycling": {Name: "spoilage-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "spoilage", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "spoilage", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "spoilage", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "spoilage", Amount: 1, Probability: 0.25},
+		}},
 	"stack-inserter": {Name: "stack-inserter", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "bulk-inserter", Amount: 1},
-		{Type: "item", Name: "processing-unit", Amount: 1},
-		{Type: "item", Name: "carbon-fiber", Amount: 2},
-		{Type: "item", Name: "jelly", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "stack-inserter", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "bulk-inserter", Amount: 1},
+			{Type: "item", Name: "processing-unit", Amount: 1},
+			{Type: "item", Name: "carbon-fiber", Amount: 2},
+			{Type: "item", Name: "jelly", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "stack-inserter", Amount: 1, Probability: 1},
+		}},
 	"stack-inserter-recycling": {Name: "stack-inserter-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "stack-inserter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "bulk-inserter", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "carbon-fiber", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "jelly", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "stack-inserter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "bulk-inserter", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "carbon-fiber", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "jelly", Amount: 2.5, Probability: 1},
+		}},
 	"steam-condensation": {Name: "steam-condensation", Category: "chemistry-or-cryogenics", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "steam", Amount: 1000},
-	}, Results: []Product{
-		{Type: "fluid", Name: "water", Amount: 90, Probability: 1},
-	}},
+			{Type: "fluid", Name: "steam", Amount: 1000},
+		}, Results: []Product{
+			{Type: "fluid", Name: "water", Amount: 90, Probability: 1},
+		}},
 	"steam-engine": {Name: "steam-engine", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 8},
-		{Type: "item", Name: "pipe", Amount: 5},
-		{Type: "item", Name: "iron-plate", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "steam-engine", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 8},
+			{Type: "item", Name: "pipe", Amount: 5},
+			{Type: "item", Name: "iron-plate", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "steam-engine", Amount: 1, Probability: 1},
+		}},
 	"steam-engine-recycling": {Name: "steam-engine-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "steam-engine", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "steam-engine", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 2.5, Probability: 1},
+		}},
 	"steam-turbine": {Name: "steam-turbine", Category: "crafting", EnergyRequired: 3, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 50},
-		{Type: "item", Name: "copper-plate", Amount: 50},
-		{Type: "item", Name: "pipe", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "steam-turbine", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 50},
+			{Type: "item", Name: "copper-plate", Amount: 50},
+			{Type: "item", Name: "pipe", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "steam-turbine", Amount: 1, Probability: 1},
+		}},
 	"steam-turbine-recycling": {Name: "steam-turbine-recycling", Category: "recycling", EnergyRequired: 0.1875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "steam-turbine", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "pipe", Amount: 5, Probability: 1},
-	}},
+			{Type: "item", Name: "steam-turbine", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "pipe", Amount: 5, Probability: 1},
+		}},
 	"steel-chest": {Name: "steel-chest", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 8},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-chest", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 8},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-chest", Amount: 1, Probability: 1},
+		}},
 	"steel-chest-recycling": {Name: "steel-chest-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-chest", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-chest", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 2, Probability: 1},
+		}},
 	"steel-furnace": {Name: "steel-furnace", Category: "crafting", EnergyRequired: 3, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 6},
-		{Type: "item", Name: "stone-brick", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-furnace", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 6},
+			{Type: "item", Name: "stone-brick", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-furnace", Amount: 1, Probability: 1},
+		}},
 	"steel-furnace-recycling": {Name: "steel-furnace-recycling", Category: "recycling", EnergyRequired: 0.1875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-furnace", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 1.5, Probability: 1},
-		{Type: "item", Name: "stone-brick", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-furnace", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 1.5, Probability: 1},
+			{Type: "item", Name: "stone-brick", Amount: 2.5, Probability: 1},
+		}},
 	"steel-plate": {Name: "steel-plate", Category: "smelting", EnergyRequired: 16, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 1, Probability: 1},
+		}},
 	"steel-plate-recycling": {Name: "steel-plate-recycling", Category: "recycling", EnergyRequired: 1, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 1, Probability: 0.25},
+		}},
 	"stone-brick": {Name: "stone-brick", Category: "smelting", EnergyRequired: 3.2, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "stone-brick", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "stone", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "stone-brick", Amount: 1, Probability: 1},
+		}},
 	"stone-brick-recycling": {Name: "stone-brick-recycling", Category: "recycling", EnergyRequired: 0.2, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone-brick", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "stone-brick", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "stone-brick", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "stone-brick", Amount: 1, Probability: 0.25},
+		}},
 	"stone-furnace": {Name: "stone-furnace", Category: "crafting", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "stone-furnace", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "stone", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "stone-furnace", Amount: 1, Probability: 1},
+		}},
 	"stone-furnace-recycling": {Name: "stone-furnace-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone-furnace", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "stone", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "stone-furnace", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "stone", Amount: 1.25, Probability: 1},
+		}},
 	"stone-recycling": {Name: "stone-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "stone", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "stone", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "stone", Amount: 1, Probability: 0.25},
+		}},
 	"stone-wall": {Name: "stone-wall", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone-brick", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "stone-wall", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "stone-brick", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "stone-wall", Amount: 1, Probability: 1},
+		}},
 	"stone-wall-recycling": {Name: "stone-wall-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "stone-wall", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "stone-brick", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "stone-wall", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "stone-brick", Amount: 1.25, Probability: 1},
+		}},
 	"storage-chest": {Name: "storage-chest", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-chest", Amount: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 3},
-		{Type: "item", Name: "advanced-circuit", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "storage-chest", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-chest", Amount: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 3},
+			{Type: "item", Name: "advanced-circuit", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "storage-chest", Amount: 1, Probability: 1},
+		}},
 	"storage-chest-recycling": {Name: "storage-chest-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "storage-chest", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "storage-chest", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-chest", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 0.25, Probability: 1},
+		}},
 	"storage-tank": {Name: "storage-tank", Category: "crafting", EnergyRequired: 3, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 20},
-		{Type: "item", Name: "steel-plate", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "storage-tank", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 20},
+			{Type: "item", Name: "steel-plate", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "storage-tank", Amount: 1, Probability: 1},
+		}},
 	"storage-tank-recycling": {Name: "storage-tank-recycling", Category: "recycling", EnergyRequired: 0.1875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "storage-tank", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "storage-tank", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 1.25, Probability: 1},
+		}},
 	"submachine-gun": {Name: "submachine-gun", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 10},
-		{Type: "item", Name: "copper-plate", Amount: 5},
-		{Type: "item", Name: "iron-plate", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "submachine-gun", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 10},
+			{Type: "item", Name: "copper-plate", Amount: 5},
+			{Type: "item", Name: "iron-plate", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "submachine-gun", Amount: 1, Probability: 1},
+		}},
 	"submachine-gun-recycling": {Name: "submachine-gun-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "submachine-gun", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "copper-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "submachine-gun", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-gear-wheel", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "copper-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 2.5, Probability: 1},
+		}},
 	"substation": {Name: "substation", Category: "electronics", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 10},
-		{Type: "item", Name: "advanced-circuit", Amount: 5},
-		{Type: "item", Name: "copper-cable", Amount: 6},
-	}, Results: []Product{
-		{Type: "item", Name: "substation", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+			{Type: "item", Name: "advanced-circuit", Amount: 5},
+			{Type: "item", Name: "copper-cable", Amount: 6},
+		}, Results: []Product{
+			{Type: "item", Name: "substation", Amount: 1, Probability: 1},
+		}},
 	"substation-recycling": {Name: "substation-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "substation", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "copper-cable", Amount: 1.5, Probability: 1},
-	}},
+			{Type: "item", Name: "substation", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "copper-cable", Amount: 1.5, Probability: 1},
+		}},
 	"sulfur": {Name: "sulfur", Category: "chemistry-or-cryogenics", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "water", Amount: 30},
-		{Type: "fluid", Name: "petroleum-gas", Amount: 30},
-	}, Results: []Product{
-		{Type: "item", Name: "sulfur", Amount: 2, Probability: 1},
-	}},
+			{Type: "fluid", Name: "water", Amount: 30},
+			{Type: "fluid", Name: "petroleum-gas", Amount: 30},
+		}, Results: []Product{
+			{Type: "item", Name: "sulfur", Amount: 2, Probability: 1},
+		}},
 	"sulfur-recycling": {Name: "sulfur-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "sulfur", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "sulfur", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "sulfur", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "sulfur", Amount: 1, Probability: 0.25},
+		}},
 	"sulfuric-acid": {Name: "sulfuric-acid", Category: "chemistry-or-cryogenics", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "sulfur", Amount: 5},
-		{Type: "item", Name: "iron-plate", Amount: 1},
-		{Type: "fluid", Name: "water", Amount: 100},
-	}, Results: []Product{
-		{Type: "fluid", Name: "sulfuric-acid", Amount: 50, Probability: 1},
-	}},
+			{Type: "item", Name: "sulfur", Amount: 5},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+			{Type: "fluid", Name: "water", Amount: 100},
+		}, Results: []Product{
+			{Type: "fluid", Name: "sulfuric-acid", Amount: 50, Probability: 1},
+		}},
 	"sulfuric-acid-barrel": {Name: "sulfuric-acid-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "sulfuric-acid", Amount: 50},
-		{Type: "item", Name: "barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "sulfuric-acid-barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "sulfuric-acid", Amount: 50},
+			{Type: "item", Name: "barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "sulfuric-acid-barrel", Amount: 1, Probability: 1},
+		}},
 	"sulfuric-acid-barrel-recycling": {Name: "sulfuric-acid-barrel-recycling", Category: "recycling", EnergyRequired: 0.0125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "sulfuric-acid-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "sulfuric-acid-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
+		}},
 	"supercapacitor": {Name: "supercapacitor", Category: "electromagnetics", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "holmium-plate", Amount: 2},
-		{Type: "item", Name: "superconductor", Amount: 2},
-		{Type: "item", Name: "electronic-circuit", Amount: 4},
-		{Type: "item", Name: "battery", Amount: 1},
-		{Type: "fluid", Name: "electrolyte", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "supercapacitor", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "holmium-plate", Amount: 2},
+			{Type: "item", Name: "superconductor", Amount: 2},
+			{Type: "item", Name: "electronic-circuit", Amount: 4},
+			{Type: "item", Name: "battery", Amount: 1},
+			{Type: "fluid", Name: "electrolyte", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "supercapacitor", Amount: 1, Probability: 1},
+		}},
 	"supercapacitor-recycling": {Name: "supercapacitor-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "supercapacitor", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "holmium-plate", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 0.5, Probability: 1},
-		{Type: "item", Name: "electronic-circuit", Amount: 1, Probability: 1},
-		{Type: "item", Name: "battery", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "supercapacitor", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "holmium-plate", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 0.5, Probability: 1},
+			{Type: "item", Name: "electronic-circuit", Amount: 1, Probability: 1},
+			{Type: "item", Name: "battery", Amount: 0.25, Probability: 1},
+		}},
 	"superconductor": {Name: "superconductor", Category: "electromagnetics", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "holmium-plate", Amount: 1},
-		{Type: "item", Name: "copper-plate", Amount: 1},
-		{Type: "item", Name: "plastic-bar", Amount: 1},
-		{Type: "fluid", Name: "light-oil", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "superconductor", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "holmium-plate", Amount: 1},
+			{Type: "item", Name: "copper-plate", Amount: 1},
+			{Type: "item", Name: "plastic-bar", Amount: 1},
+			{Type: "fluid", Name: "light-oil", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "superconductor", Amount: 2, Probability: 1},
+		}},
 	"superconductor-recycling": {Name: "superconductor-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "superconductor", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "superconductor", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "superconductor", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "superconductor", Amount: 1, Probability: 0.25},
+		}},
 	"tank": {Name: "tank", Category: "crafting", EnergyRequired: 5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "engine-unit", Amount: 32},
-		{Type: "item", Name: "steel-plate", Amount: 50},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 15},
-		{Type: "item", Name: "advanced-circuit", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "tank", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "engine-unit", Amount: 32},
+			{Type: "item", Name: "steel-plate", Amount: 50},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 15},
+			{Type: "item", Name: "advanced-circuit", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "tank", Amount: 1, Probability: 1},
+		}},
 	"tank-recycling": {Name: "tank-recycling", Category: "recycling", EnergyRequired: 0.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "tank", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "engine-unit", Amount: 8, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 3.75, Probability: 1},
-		{Type: "item", Name: "advanced-circuit", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "tank", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "engine-unit", Amount: 8, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 12.5, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 3.75, Probability: 1},
+			{Type: "item", Name: "advanced-circuit", Amount: 2.5, Probability: 1},
+		}},
 	"tesla-ammo": {Name: "tesla-ammo", Category: "electromagnetics", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "supercapacitor", Amount: 1},
-		{Type: "item", Name: "plastic-bar", Amount: 1},
-		{Type: "fluid", Name: "electrolyte", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "tesla-ammo", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "supercapacitor", Amount: 1},
+			{Type: "item", Name: "plastic-bar", Amount: 1},
+			{Type: "fluid", Name: "electrolyte", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "tesla-ammo", Amount: 1, Probability: 1},
+		}},
 	"tesla-ammo-recycling": {Name: "tesla-ammo-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "tesla-ammo", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "supercapacitor", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "plastic-bar", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "tesla-ammo", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "supercapacitor", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "plastic-bar", Amount: 0.25, Probability: 1},
+		}},
 	"tesla-turret": {Name: "tesla-turret", Category: "electromagnetics", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "teslagun", Amount: 1},
-		{Type: "item", Name: "supercapacitor", Amount: 10},
-		{Type: "item", Name: "processing-unit", Amount: 10},
-		{Type: "item", Name: "superconductor", Amount: 50},
-		{Type: "fluid", Name: "electrolyte", Amount: 500},
-	}, Results: []Product{
-		{Type: "item", Name: "tesla-turret", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "teslagun", Amount: 1},
+			{Type: "item", Name: "supercapacitor", Amount: 10},
+			{Type: "item", Name: "processing-unit", Amount: 10},
+			{Type: "item", Name: "superconductor", Amount: 50},
+			{Type: "fluid", Name: "electrolyte", Amount: 500},
+		}, Results: []Product{
+			{Type: "item", Name: "tesla-turret", Amount: 1, Probability: 1},
+		}},
 	"tesla-turret-recycling": {Name: "tesla-turret-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "tesla-turret", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "teslagun", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "supercapacitor", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 12.5, Probability: 1},
-	}},
+			{Type: "item", Name: "tesla-turret", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "teslagun", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "supercapacitor", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 12.5, Probability: 1},
+		}},
 	"teslagun": {Name: "teslagun", Category: "electromagnetics", EnergyRequired: 30, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "holmium-plate", Amount: 10},
-		{Type: "item", Name: "superconductor", Amount: 10},
-		{Type: "item", Name: "plastic-bar", Amount: 30},
-		{Type: "fluid", Name: "electrolyte", Amount: 100},
-	}, Results: []Product{
-		{Type: "item", Name: "teslagun", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "holmium-plate", Amount: 10},
+			{Type: "item", Name: "superconductor", Amount: 10},
+			{Type: "item", Name: "plastic-bar", Amount: 30},
+			{Type: "fluid", Name: "electrolyte", Amount: 100},
+		}, Results: []Product{
+			{Type: "item", Name: "teslagun", Amount: 1, Probability: 1},
+		}},
 	"teslagun-recycling": {Name: "teslagun-recycling", Category: "recycling", EnergyRequired: 1.875, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "teslagun", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "holmium-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "superconductor", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "plastic-bar", Amount: 7.5, Probability: 1},
-	}},
+			{Type: "item", Name: "teslagun", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "holmium-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "superconductor", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "plastic-bar", Amount: 7.5, Probability: 1},
+		}},
 	"thruster": {Name: "thruster", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "steel-plate", Amount: 10},
-		{Type: "item", Name: "processing-unit", Amount: 10},
-		{Type: "item", Name: "electric-engine-unit", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "thruster", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "steel-plate", Amount: 10},
+			{Type: "item", Name: "processing-unit", Amount: 10},
+			{Type: "item", Name: "electric-engine-unit", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "thruster", Amount: 1, Probability: 1},
+		}},
 	"thruster-fuel": {Name: "thruster-fuel", Category: "chemistry", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "carbon", Amount: 2},
-		{Type: "fluid", Name: "water", Amount: 10},
-	}, Results: []Product{
-		{Type: "fluid", Name: "thruster-fuel", Amount: 75, Probability: 1},
-	}},
+			{Type: "item", Name: "carbon", Amount: 2},
+			{Type: "fluid", Name: "water", Amount: 10},
+		}, Results: []Product{
+			{Type: "fluid", Name: "thruster-fuel", Amount: 75, Probability: 1},
+		}},
 	"thruster-oxidizer": {Name: "thruster-oxidizer", Category: "chemistry", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-ore", Amount: 2},
-		{Type: "fluid", Name: "water", Amount: 10},
-	}, Results: []Product{
-		{Type: "fluid", Name: "thruster-oxidizer", Amount: 75, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-ore", Amount: 2},
+			{Type: "fluid", Name: "water", Amount: 10},
+		}, Results: []Product{
+			{Type: "fluid", Name: "thruster-oxidizer", Amount: 75, Probability: 1},
+		}},
 	"thruster-recycling": {Name: "thruster-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "thruster", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
-		{Type: "item", Name: "electric-engine-unit", Amount: 1.25, Probability: 1},
-	}},
+			{Type: "item", Name: "thruster", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "steel-plate", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 2.5, Probability: 1},
+			{Type: "item", Name: "electric-engine-unit", Amount: 1.25, Probability: 1},
+		}},
 	"toolbelt-equipment": {Name: "toolbelt-equipment", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "advanced-circuit", Amount: 3},
-		{Type: "item", Name: "carbon-fiber", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "toolbelt-equipment", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "advanced-circuit", Amount: 3},
+			{Type: "item", Name: "carbon-fiber", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "toolbelt-equipment", Amount: 1, Probability: 1},
+		}},
 	"toolbelt-equipment-recycling": {Name: "toolbelt-equipment-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "toolbelt-equipment", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "advanced-circuit", Amount: 0.75, Probability: 1},
-		{Type: "item", Name: "carbon-fiber", Amount: 2.5, Probability: 1},
-	}},
+			{Type: "item", Name: "toolbelt-equipment", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "advanced-circuit", Amount: 0.75, Probability: 1},
+			{Type: "item", Name: "carbon-fiber", Amount: 2.5, Probability: 1},
+		}},
 	"top-up-valve-recycling": {Name: "top-up-valve-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "top-up-valve", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "top-up-valve", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "top-up-valve", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "top-up-valve", Amount: 1, Probability: 0.25},
+		}},
 	"train-stop": {Name: "train-stop", Category: "crafting", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "electronic-circuit", Amount: 5},
-		{Type: "item", Name: "iron-plate", Amount: 6},
-		{Type: "item", Name: "iron-stick", Amount: 6},
-		{Type: "item", Name: "steel-plate", Amount: 3},
-	}, Results: []Product{
-		{Type: "item", Name: "train-stop", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "electronic-circuit", Amount: 5},
+			{Type: "item", Name: "iron-plate", Amount: 6},
+			{Type: "item", Name: "iron-stick", Amount: 6},
+			{Type: "item", Name: "steel-plate", Amount: 3},
+		}, Results: []Product{
+			{Type: "item", Name: "train-stop", Amount: 1, Probability: 1},
+		}},
 	"train-stop-recycling": {Name: "train-stop-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "train-stop", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "iron-plate", Amount: 1.5, Probability: 1},
-		{Type: "item", Name: "iron-stick", Amount: 1.5, Probability: 1},
-		{Type: "item", Name: "steel-plate", Amount: 0.75, Probability: 1},
-	}},
+			{Type: "item", Name: "train-stop", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "electronic-circuit", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "iron-plate", Amount: 1.5, Probability: 1},
+			{Type: "item", Name: "iron-stick", Amount: 1.5, Probability: 1},
+			{Type: "item", Name: "steel-plate", Amount: 0.75, Probability: 1},
+		}},
 	"transport-belt": {Name: "transport-belt", Category: "pressing", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "transport-belt", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "transport-belt", Amount: 2, Probability: 1},
+		}},
 	"transport-belt-recycling": {Name: "transport-belt-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "transport-belt", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 0.125, Probability: 1},
-		{Type: "item", Name: "iron-gear-wheel", Amount: 0.125, Probability: 1},
-	}},
+			{Type: "item", Name: "transport-belt", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 0.125, Probability: 1},
+			{Type: "item", Name: "iron-gear-wheel", Amount: 0.125, Probability: 1},
+		}},
 	"tree-seed-recycling": {Name: "tree-seed-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "tree-seed", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tree-seed", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "tree-seed", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tree-seed", Amount: 1, Probability: 0.25},
+		}},
 	"tungsten-carbide": {Name: "tungsten-carbide", Category: "crafting-with-fluid", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-ore", Amount: 2},
-		{Type: "fluid", Name: "sulfuric-acid", Amount: 10},
-		{Type: "item", Name: "carbon", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-carbide", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-ore", Amount: 2},
+			{Type: "fluid", Name: "sulfuric-acid", Amount: 10},
+			{Type: "item", Name: "carbon", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-carbide", Amount: 1, Probability: 1},
+		}},
 	"tungsten-carbide-recycling": {Name: "tungsten-carbide-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-carbide", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-carbide", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "tungsten-carbide", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-carbide", Amount: 1, Probability: 0.25},
+		}},
 	"tungsten-ore-recycling": {Name: "tungsten-ore-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-ore", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-ore", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "tungsten-ore", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-ore", Amount: 1, Probability: 0.25},
+		}},
 	"tungsten-plate": {Name: "tungsten-plate", Category: "metallurgy", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-ore", Amount: 4},
-		{Type: "fluid", Name: "molten-iron", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-plate", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-ore", Amount: 4},
+			{Type: "fluid", Name: "molten-iron", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-plate", Amount: 1, Probability: 1},
+		}},
 	"tungsten-plate-recycling": {Name: "tungsten-plate-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-plate", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-plate", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "tungsten-plate", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-plate", Amount: 1, Probability: 0.25},
+		}},
 	"turbo-loader": {Name: "turbo-loader", Category: "crafting", EnergyRequired: 20, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "turbo-transport-belt", Amount: 5},
-		{Type: "item", Name: "express-loader", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "turbo-loader", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "turbo-transport-belt", Amount: 5},
+			{Type: "item", Name: "express-loader", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "turbo-loader", Amount: 1, Probability: 1},
+		}},
 	"turbo-loader-recycling": {Name: "turbo-loader-recycling", Category: "recycling", EnergyRequired: 1.25, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "turbo-loader", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "turbo-transport-belt", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "express-loader", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "turbo-loader", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "turbo-transport-belt", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "express-loader", Amount: 0.25, Probability: 1},
+		}},
 	"turbo-splitter": {Name: "turbo-splitter", Category: "metallurgy", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "express-splitter", Amount: 1},
-		{Type: "item", Name: "tungsten-plate", Amount: 15},
-		{Type: "item", Name: "processing-unit", Amount: 2},
-		{Type: "fluid", Name: "lubricant", Amount: 80},
-	}, Results: []Product{
-		{Type: "item", Name: "turbo-splitter", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "express-splitter", Amount: 1},
+			{Type: "item", Name: "tungsten-plate", Amount: 15},
+			{Type: "item", Name: "processing-unit", Amount: 2},
+			{Type: "fluid", Name: "lubricant", Amount: 80},
+		}, Results: []Product{
+			{Type: "item", Name: "turbo-splitter", Amount: 1, Probability: 1},
+		}},
 	"turbo-splitter-recycling": {Name: "turbo-splitter-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "turbo-splitter", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "express-splitter", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "tungsten-plate", Amount: 3.75, Probability: 1},
-		{Type: "item", Name: "processing-unit", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "turbo-splitter", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "express-splitter", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "tungsten-plate", Amount: 3.75, Probability: 1},
+			{Type: "item", Name: "processing-unit", Amount: 0.5, Probability: 1},
+		}},
 	"turbo-transport-belt": {Name: "turbo-transport-belt", Category: "metallurgy", EnergyRequired: 0.5, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-plate", Amount: 5},
-		{Type: "item", Name: "express-transport-belt", Amount: 1},
-		{Type: "fluid", Name: "lubricant", Amount: 20},
-	}, Results: []Product{
-		{Type: "item", Name: "turbo-transport-belt", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-plate", Amount: 5},
+			{Type: "item", Name: "express-transport-belt", Amount: 1},
+			{Type: "fluid", Name: "lubricant", Amount: 20},
+		}, Results: []Product{
+			{Type: "item", Name: "turbo-transport-belt", Amount: 1, Probability: 1},
+		}},
 	"turbo-transport-belt-recycling": {Name: "turbo-transport-belt-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "turbo-transport-belt", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "express-transport-belt", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "turbo-transport-belt", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "express-transport-belt", Amount: 0.25, Probability: 1},
+		}},
 	"turbo-underground-belt": {Name: "turbo-underground-belt", Category: "metallurgy", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "tungsten-plate", Amount: 40},
-		{Type: "item", Name: "express-underground-belt", Amount: 2},
-		{Type: "fluid", Name: "lubricant", Amount: 40},
-	}, Results: []Product{
-		{Type: "item", Name: "turbo-underground-belt", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "tungsten-plate", Amount: 40},
+			{Type: "item", Name: "express-underground-belt", Amount: 2},
+			{Type: "fluid", Name: "lubricant", Amount: 40},
+		}, Results: []Product{
+			{Type: "item", Name: "turbo-underground-belt", Amount: 2, Probability: 1},
+		}},
 	"turbo-underground-belt-recycling": {Name: "turbo-underground-belt-recycling", Category: "recycling", EnergyRequired: 0.125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "turbo-underground-belt", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "tungsten-plate", Amount: 5, Probability: 1},
-		{Type: "item", Name: "express-underground-belt", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "turbo-underground-belt", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "tungsten-plate", Amount: 5, Probability: 1},
+			{Type: "item", Name: "express-underground-belt", Amount: 0.25, Probability: 1},
+		}},
 	"underground-belt": {Name: "underground-belt", Category: "pressing", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 10},
-		{Type: "item", Name: "transport-belt", Amount: 5},
-	}, Results: []Product{
-		{Type: "item", Name: "underground-belt", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 10},
+			{Type: "item", Name: "transport-belt", Amount: 5},
+		}, Results: []Product{
+			{Type: "item", Name: "underground-belt", Amount: 2, Probability: 1},
+		}},
 	"underground-belt-recycling": {Name: "underground-belt-recycling", Category: "recycling", EnergyRequired: 0.0625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "underground-belt", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
-		{Type: "item", Name: "transport-belt", Amount: 0.625, Probability: 1},
-	}},
+			{Type: "item", Name: "underground-belt", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "iron-plate", Amount: 1.25, Probability: 1},
+			{Type: "item", Name: "transport-belt", Amount: 0.625, Probability: 1},
+		}},
 	"upgrade-planner-recycling": {Name: "upgrade-planner-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "upgrade-planner", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "upgrade-planner", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "upgrade-planner", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "upgrade-planner", Amount: 1, Probability: 0.25},
+		}},
 	"uranium-235-recycling": {Name: "uranium-235-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "uranium-235", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "uranium-235", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "uranium-235", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "uranium-235", Amount: 1, Probability: 0.25},
+		}},
 	"uranium-238-recycling": {Name: "uranium-238-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "uranium-238", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "uranium-238", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "uranium-238", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "uranium-238", Amount: 1, Probability: 0.25},
+		}},
 	"uranium-cannon-shell": {Name: "uranium-cannon-shell", Category: "crafting", EnergyRequired: 12, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "cannon-shell", Amount: 1},
-		{Type: "item", Name: "uranium-238", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "uranium-cannon-shell", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "cannon-shell", Amount: 1},
+			{Type: "item", Name: "uranium-238", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "uranium-cannon-shell", Amount: 1, Probability: 1},
+		}},
 	"uranium-cannon-shell-recycling": {Name: "uranium-cannon-shell-recycling", Category: "recycling", EnergyRequired: 0.75, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "uranium-cannon-shell", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "cannon-shell", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "uranium-238", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "uranium-cannon-shell", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "cannon-shell", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "uranium-238", Amount: 0.25, Probability: 1},
+		}},
 	"uranium-fuel-cell": {Name: "uranium-fuel-cell", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "iron-plate", Amount: 10},
-		{Type: "item", Name: "uranium-235", Amount: 1},
-		{Type: "item", Name: "uranium-238", Amount: 19},
-	}, Results: []Product{
-		{Type: "item", Name: "uranium-fuel-cell", Amount: 10, Probability: 1},
-	}},
+			{Type: "item", Name: "iron-plate", Amount: 10},
+			{Type: "item", Name: "uranium-235", Amount: 1},
+			{Type: "item", Name: "uranium-238", Amount: 19},
+		}, Results: []Product{
+			{Type: "item", Name: "uranium-fuel-cell", Amount: 10, Probability: 1},
+		}},
 	"uranium-fuel-cell-recycling": {Name: "uranium-fuel-cell-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "uranium-fuel-cell", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "uranium-fuel-cell", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "uranium-fuel-cell", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "uranium-fuel-cell", Amount: 1, Probability: 0.25},
+		}},
 	"uranium-ore-recycling": {Name: "uranium-ore-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "uranium-ore", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "uranium-ore", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "uranium-ore", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "uranium-ore", Amount: 1, Probability: 0.25},
+		}},
 	"uranium-processing": {Name: "uranium-processing", Category: "centrifuging", EnergyRequired: 12, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "uranium-ore", Amount: 10},
-	}, Results: []Product{
-		{Type: "item", Name: "uranium-235", Amount: 1, Probability: 0.007000000000000001},
-		{Type: "item", Name: "uranium-238", Amount: 1, Probability: 0.993},
-	}},
+			{Type: "item", Name: "uranium-ore", Amount: 10},
+		}, Results: []Product{
+			{Type: "item", Name: "uranium-235", Amount: 1, Probability: 0.007000000000000001},
+			{Type: "item", Name: "uranium-238", Amount: 1, Probability: 0.993},
+		}},
 	"uranium-rounds-magazine": {Name: "uranium-rounds-magazine", Category: "crafting", EnergyRequired: 10, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "piercing-rounds-magazine", Amount: 1},
-		{Type: "item", Name: "uranium-238", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "uranium-rounds-magazine", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "piercing-rounds-magazine", Amount: 1},
+			{Type: "item", Name: "uranium-238", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "uranium-rounds-magazine", Amount: 1, Probability: 1},
+		}},
 	"uranium-rounds-magazine-recycling": {Name: "uranium-rounds-magazine-recycling", Category: "recycling", EnergyRequired: 0.625, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "uranium-rounds-magazine", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "piercing-rounds-magazine", Amount: 0.25, Probability: 1},
-		{Type: "item", Name: "uranium-238", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "uranium-rounds-magazine", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "piercing-rounds-magazine", Amount: 0.25, Probability: 1},
+			{Type: "item", Name: "uranium-238", Amount: 0.25, Probability: 1},
+		}},
 	"utility-science-pack": {Name: "utility-science-pack", Category: "crafting", EnergyRequired: 21, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "low-density-structure", Amount: 3},
-		{Type: "item", Name: "processing-unit", Amount: 2},
-		{Type: "item", Name: "flying-robot-frame", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "utility-science-pack", Amount: 3, Probability: 1},
-	}},
+			{Type: "item", Name: "low-density-structure", Amount: 3},
+			{Type: "item", Name: "processing-unit", Amount: 2},
+			{Type: "item", Name: "flying-robot-frame", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "utility-science-pack", Amount: 3, Probability: 1},
+		}},
 	"utility-science-pack-recycling": {Name: "utility-science-pack-recycling", Category: "recycling", EnergyRequired: 1.3125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "utility-science-pack", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "utility-science-pack", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "utility-science-pack", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "utility-science-pack", Amount: 1, Probability: 0.25},
+		}},
 	"water-barrel": {Name: "water-barrel", Category: "crafting-with-fluid", EnergyRequired: 0.2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "fluid", Name: "water", Amount: 50},
-		{Type: "item", Name: "barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "water-barrel", Amount: 1, Probability: 1},
-	}},
+			{Type: "fluid", Name: "water", Amount: 50},
+			{Type: "item", Name: "barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "water-barrel", Amount: 1, Probability: 1},
+		}},
 	"water-barrel-recycling": {Name: "water-barrel-recycling", Category: "recycling", EnergyRequired: 0.0125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "water-barrel", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
-	}},
+			{Type: "item", Name: "water-barrel", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "barrel", Amount: 0.25, Probability: 1},
+		}},
 	"wood-processing": {Name: "wood-processing", Category: "organic-or-assembling", EnergyRequired: 2, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "wood", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "tree-seed", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "wood", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "tree-seed", Amount: 1, Probability: 1},
+		}},
 	"wood-recycling": {Name: "wood-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "wood", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "wood", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "wood", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "wood", Amount: 1, Probability: 0.25},
+		}},
 	"wooden-chest": {Name: "wooden-chest", Category: "crafting", EnergyRequired: 0.5, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "wood", Amount: 2},
-	}, Results: []Product{
-		{Type: "item", Name: "wooden-chest", Amount: 1, Probability: 1},
-	}},
+			{Type: "item", Name: "wood", Amount: 2},
+		}, Results: []Product{
+			{Type: "item", Name: "wooden-chest", Amount: 1, Probability: 1},
+		}},
 	"wooden-chest-recycling": {Name: "wooden-chest-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "wooden-chest", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "wood", Amount: 0.5, Probability: 1},
-	}},
+			{Type: "item", Name: "wooden-chest", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "wood", Amount: 0.5, Probability: 1},
+		}},
 	"yumako-mash-recycling": {Name: "yumako-mash-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "yumako-mash", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "yumako-mash", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "yumako-mash", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "yumako-mash", Amount: 1, Probability: 0.25},
+		}},
 	"yumako-processing": {Name: "yumako-processing", Category: "organic-or-hand-crafting", EnergyRequired: 1, Enabled: false, Ingredients: []Ingredient{
-		{Type: "item", Name: "yumako", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "yumako-seed", Amount: 1, Probability: 0.02},
-		{Type: "item", Name: "yumako-mash", Amount: 2, Probability: 1},
-	}},
+			{Type: "item", Name: "yumako", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "yumako-seed", Amount: 1, Probability: 0.02},
+			{Type: "item", Name: "yumako-mash", Amount: 2, Probability: 1},
+		}},
 	"yumako-recycling": {Name: "yumako-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "yumako", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "yumako", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "yumako", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "yumako", Amount: 1, Probability: 0.25},
+		}},
 	"yumako-seed-recycling": {Name: "yumako-seed-recycling", Category: "recycling", EnergyRequired: 0.03125, Enabled: true, Ingredients: []Ingredient{
-		{Type: "item", Name: "yumako-seed", Amount: 1},
-	}, Results: []Product{
-		{Type: "item", Name: "yumako-seed", Amount: 1, Probability: 0.25},
-	}},
+			{Type: "item", Name: "yumako-seed", Amount: 1},
+		}, Results: []Product{
+			{Type: "item", Name: "yumako-seed", Amount: 1, Probability: 0.25},
+		}},
 }
