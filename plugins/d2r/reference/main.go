@@ -37,7 +37,7 @@ func main() {
 
 	// Empty query returns the schema.
 	if len(query) == 0 {
-		writeResult(enc, "Schema", schema())
+		writeResult(enc, schema())
 		return
 	}
 
@@ -145,7 +145,7 @@ func handleMonsterDrops(enc *json.Encoder, calc *dropcalc.Calculator, query map[
 		fmt.Fprintf(&sb, "  %s\n", line)
 	}
 
-	writeResult(enc, monster, map[string]any{
+	writeResult(enc, map[string]any{
 		"formatted":    sb.String(),
 		"mode":         "monster",
 		"monster_name": monster,
@@ -169,7 +169,7 @@ func handleItemSearch(enc *json.Encoder, calc *dropcalc.Calculator, query map[st
 
 	total := len(results)
 	if total == 0 {
-		writeResult(enc, search, map[string]any{
+		writeResult(enc, map[string]any{
 			"formatted": fmt.Sprintf("No items found matching %q.\n", search),
 			"mode":      "search",
 			"query":     search,
@@ -275,7 +275,7 @@ func handleItemSearch(enc *json.Encoder, calc *dropcalc.Calculator, query map[st
 		fmt.Fprintf(&sb2, "\n")
 	}
 
-	writeResult(enc, search, map[string]any{
+	writeResult(enc, map[string]any{
 		"formatted": sb2.String(),
 		"mode":      "search",
 		"query":     search,
@@ -392,7 +392,7 @@ func handleItemSources(enc *json.Encoder, calc *dropcalc.Calculator, query map[s
 		fmt.Fprintf(&sb3, "  %s (%s) — %s\n", s.Monster, s.Difficulty, fmtChance(s.Chance))
 	}
 
-	writeResult(enc, itemName, map[string]any{
+	writeResult(enc, map[string]any{
 		"formatted": sb3.String(),
 		"mode":      "item",
 		"item_name": itemName,
@@ -582,11 +582,10 @@ func fmtChance(p float64) string {
 	return fmt.Sprintf("1:%d", int(n+0.5))
 }
 
-func writeResult(enc *json.Encoder, title string, data any) {
+func writeResult(enc *json.Encoder, data any) {
 	if err := enc.Encode(map[string]any{
-		"type":  "result",
-		"title": title,
-		"data":  data,
+		"type": "result",
+		"data": data,
 	}); err != nil {
 		os.Exit(1)
 	}

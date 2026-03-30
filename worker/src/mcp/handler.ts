@@ -116,7 +116,7 @@ interface ToolAnnotations {
 interface SchemaProperty {
   type: string;
   description: string;
-  items?: { type: string };
+  items?: { type: string; properties?: Record<string, SchemaProperty>; required?: string[] };
   enum?: string[];
 }
 
@@ -389,8 +389,18 @@ const TOOLS: ToolDefinition[] = [
         queries: {
           type: "array",
           description:
-            "Array of query objects with module-specific parameters. Each object's structure is defined by the module's parameter schema in the game listing — build from that schema, do not guess field names. Results are returned in the same positional order.",
-          items: { type: "object" },
+            "Array of query objects with module-specific parameters. Each object's structure is defined by the module's parameter schema in the game listing — build from that schema, do not guess field names. Results are returned in the same positional order. Every query MUST include a `label` — a short, human-readable tab name that distinguishes this query from others in the batch (e.g., 'Spring Year 1', 'Summer Year 2' for crop comparisons, 'Aggressive' vs 'Control' for deck evaluations, 'Steel Longsword' vs 'Uranium Mace' for weapon comparisons).",
+          items: {
+            type: "object",
+            properties: {
+              label: {
+                type: "string",
+                description:
+                  "Short tab name for this query result. Must differentiate it from other queries in the batch — include the key varying parameter (e.g., 'Spring' vs 'Summer' not 'Crop Planner' when comparing seasons, or 'Boros Aggro' vs 'Dimir Control' not 'Draft Advisor' when comparing builds).",
+              },
+            },
+            required: ["label"],
+          },
         },
       },
       required: ["game_id", "module", "queries"],
@@ -634,7 +644,10 @@ async function handleQueryReference(
 
   const responses = await Promise.allSettled(
     queries.map(async (q) => {
-      let enrichedQuery = { ...(q as Record<string, unknown>), user_id: userUuid };
+      let enrichedQuery: Record<string, unknown> = {
+        ...(q as Record<string, unknown>),
+        user_id: userUuid,
+      };
 
       // Resolve section references before dispatching to the module
       if (nativeModule) {
@@ -651,11 +664,14 @@ async function handleQueryReference(
     }),
   );
 
-  const results = responses.map((outcome) =>
-    outcome.status === "rejected"
-      ? { error: String(outcome.reason) }
-      : extractResultData(outcome.value),
-  );
+  const results = responses.map((outcome, index) => {
+    const label = (queries[index] as Record<string, unknown>).label as string | undefined;
+    const data =
+      outcome.status === "rejected"
+        ? { error: String(outcome.reason) }
+        : extractResultData(outcome.value);
+    return label && typeof data === "object" && data !== null ? { ...data, label } : data;
+  });
 
   // Resolve game icon URL for view rendering (uses per-isolate manifest cache, typically warm)
   const iconUrl = env.SERVER_URL

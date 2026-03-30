@@ -94,21 +94,21 @@ describe("MTGA Constructed match ingest", () => {
     expect(rows.results).toHaveLength(3);
 
     // Match 1: Standard from event ID
-    expect(rows.results[0].match_id).toBe("match-001");
-    expect(rows.results[0].format).toBe("Standard");
-    expect(rows.results[0].result).toBe("win");
-    expect(rows.results[0].opponent_name).toBe("Opponent123");
-    expect(rows.results[0].opponent_rank).toBe("Platinum");
-    const cards = JSON.parse(rows.results[0].opponent_cards);
+    expect(rows.results[0]!.match_id).toBe("match-001");
+    expect(rows.results[0]!.format).toBe("Standard");
+    expect(rows.results[0]!.result).toBe("win");
+    expect(rows.results[0]!.opponent_name).toBe("Opponent123");
+    expect(rows.results[0]!.opponent_rank).toBe("Platinum");
+    const cards = JSON.parse(rows.results[0]!.opponent_cards);
     expect(cards).toHaveLength(2);
     expect(cards[0].name).toBe("Sheoldred, the Apocalypse");
 
     // Match 2: Historic
-    expect(rows.results[1].format).toBe("Historic");
-    expect(rows.results[1].result).toBe("loss");
+    expect(rows.results[1]!.format).toBe("Historic");
+    expect(rows.results[1]!.result).toBe("loss");
 
     // Match 3: Explorer
-    expect(rows.results[2].format).toBe("Explorer");
+    expect(rows.results[2]!.format).toBe("Explorer");
   });
 
   it("is idempotent — duplicate matches are ignored", async () => {
