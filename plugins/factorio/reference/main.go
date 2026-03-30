@@ -91,13 +91,15 @@ func schema() map[string]any {
 			},
 			"oil_balancer": map[string]any{
 				"name":        "Oil Processing Balancer",
-				"description": "Compute optimal refinery and cracking plant counts for target fluid production rates. Supports all processing types including advanced oil, basic oil, coal liquefaction, and simple coal liquefaction.",
+				"description": "Compute optimal refinery and cracking plant counts for target fluid production rates. Supports all processing types including advanced oil, basic oil, coal liquefaction, and simple coal liquefaction. Pass save_id to compare against actual factory.",
 				"parameters": map[string]any{
 					"processing_type": map[string]any{"type": "string", "description": "Oil processing recipe: 'advanced-oil-processing', 'basic-oil-processing', 'coal-liquefaction', or 'simple-coal-liquefaction'", "required": true},
 					"targets":         map[string]any{"type": "object", "description": "Map of fluid name to target rate in units per second (e.g. {\"petroleum-gas\": 100, \"lubricant\": 10})", "required": true},
 					"modules":         map[string]any{"type": "array", "description": "Module names in each machine slot (e.g. ['productivity-module-3', 'productivity-module-3', 'productivity-module-3'])"},
 					"beacon_count":    map[string]any{"type": "integer", "description": "Number of beacons affecting each machine", "default": 0},
 					"beacon_modules":  map[string]any{"type": "array", "description": "Module names in each beacon (e.g. ['speed-module-3', 'speed-module-3'])"},
+					"existing_setup":  map[string]any{"type": "object", "description": "Player's existing machines by recipe (injected from save data when save_id is present). Contains by_recipe, by_type, beacon_count."},
+					"actual_flow":     map[string]any{"type": "object", "description": "Player's actual fluid production/consumption rates (injected from save data when save_id is present). Contains items, fluids maps."},
 				},
 			},
 			"evolution_tracker": map[string]any{
