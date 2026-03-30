@@ -850,14 +850,13 @@
   /* ── Hover focus: dim/highlight ── */
 
   .band-active {
-    opacity: 0.85;
-    stroke-width: 1px;
-    filter: brightness(1.3) saturate(1.2);
+    opacity: 1;
+    filter: brightness(1.5) saturate(1.4);
   }
 
   .band-dimmed {
-    opacity: 0.1;
-    transition: opacity 0.2s;
+    opacity: 0.08;
+    transition: opacity 0.15s;
   }
 
   .label-active {
