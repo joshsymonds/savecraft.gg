@@ -6,8 +6,9 @@
  * Workers for Platforms dispatch.
  */
 
-import type { NativeReferenceModule, ReferenceModuleMetadata } from "./types";
 import { VISUAL_MODULES } from "../mcp/views.gen.js";
+
+import type { NativeReferenceModule, ReferenceModuleMetadata } from "./types";
 
 /** gameId → moduleId → module */
 const registry = new Map<string, Map<string, NativeReferenceModule>>();

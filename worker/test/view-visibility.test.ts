@@ -1,9 +1,9 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { VISUAL_MODULES } from "../src/mcp/views.gen.js";
 import { registerNativeModule } from "../src/reference/registry";
 import type { NativeReferenceModule } from "../src/reference/types";
-import { VISUAL_MODULES } from "../src/mcp/views.gen.js";
 
 import { cleanAll, getOAuthToken, seedPush, seedSource } from "./helpers";
 

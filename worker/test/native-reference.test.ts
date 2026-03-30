@@ -53,7 +53,6 @@ describe("NativeReferenceModule registry", () => {
     ]);
   });
 
-
   it("returns empty array for game with no native modules", () => {
     expect(getNativeModules("nonexistent")).toEqual([]);
   });

@@ -11,6 +11,7 @@ import { getNativeGameIds, getNativeModule, getNativeModules } from "../referenc
 import type { NativeReferenceModule } from "../reference/types";
 import { storePush } from "../store";
 import type { Env } from "../types";
+
 import { VISUAL_MODULES } from "./views.gen.js";
 
 /** MCP tool result — matches the MCP spec's ToolResult shape. */
@@ -229,7 +230,6 @@ export async function getWasmSectionMappings(
   const manifest = await getCachedManifest(plugins, `plugins/${gameId}/manifest.json`);
   return manifest?.reference?.modules?.[moduleId]?.section_mappings;
 }
-
 
 /** Per-isolate cache for R2 manifest key list — avoids R2 list on every list_games call. */
 let manifestKeysCache: { keys: string[]; fetchedAt: number } | null = null;

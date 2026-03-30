@@ -555,6 +555,43 @@ function parseSectionsArgument(raw: unknown): string[] | undefined {
   return undefined;
 }
 
+/** Text-only reference query: strip structuredContent so no iframe loads. */
+async function dispatchQueryReference(
+  env: Env,
+  userUuid: string,
+  args: Record<string, unknown>,
+): Promise<ToolResult | ViewToolResult> {
+  const qrResult = await handleQueryReference(env, userUuid, args);
+  if ("structuredContent" in qrResult) {
+    return {
+      content: qrResult.content,
+      ...(qrResult.isError ? { isError: qrResult.isError } : {}),
+    };
+  }
+  return qrResult;
+}
+
+/** Visual reference query: validate module has a view, then return full ViewToolResult. */
+async function dispatchShowReference(
+  env: Env,
+  userUuid: string,
+  args: Record<string, unknown>,
+): Promise<ToolResult | ViewToolResult> {
+  const moduleId = args.module as string;
+  if (!VISUAL_MODULES.has(moduleId)) {
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Module '${moduleId}' does not support visual display. Use query_reference instead.`,
+        },
+      ],
+      isError: true,
+    };
+  }
+  return handleQueryReference(env, userUuid, args);
+}
+
 async function handleToolCall(
   params: Record<string, unknown>,
   env: Env,
@@ -582,8 +619,7 @@ async function handleToolCall(
       break;
     }
     case "get_section": {
-      const sections = parseSectionsArgument(args.sections) ?? [];
-      return getSection(env.DB, userUuid, saveId, sections);
+      return getSection(env.DB, userUuid, saveId, parseSectionsArgument(args.sections) ?? []);
     }
     case "get_note": {
       return getNote(env.DB, userUuid, saveId, args.note_id as string);
@@ -617,32 +653,10 @@ async function handleToolCall(
       break;
     }
     case "query_reference": {
-      // Text-only: always strip structuredContent so no iframe loads
-      const qrResult = await handleQueryReference(env, userUuid, args);
-      if ("structuredContent" in qrResult) {
-        return {
-          content: qrResult.content,
-          ...(qrResult.isError ? { isError: qrResult.isError } : {}),
-        };
-      }
-      return qrResult;
+      return dispatchQueryReference(env, userUuid, args);
     }
     case "show_reference": {
-      // Visual: validate module has a compiled view component.
-      // VISUAL_MODULES is the single source of truth, built from discovered .svelte files.
-      const moduleId = args.module as string;
-      if (!VISUAL_MODULES.has(moduleId)) {
-        return {
-          content: [
-            {
-              type: "text",
-              text: `Module '${moduleId}' does not support visual display. Use query_reference instead.`,
-            },
-          ],
-          isError: true,
-        };
-      }
-      return handleQueryReference(env, userUuid, args);
+      return dispatchShowReference(env, userUuid, args);
     }
     case "setup_help": {
       return handleGetInfo(env, userUuid, args);
