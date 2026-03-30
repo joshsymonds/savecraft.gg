@@ -317,6 +317,7 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 	armorQ := materials.ArmorQuality(quality)
 	dmgQ := materials.DamageQuality(quality)
 	hpQ := materials.HitPointsQuality(quality)
+	mvQ := materials.MarketValueQuality(quality)
 
 	qualityName := qualityNames[quality]
 
@@ -329,6 +330,7 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 		"sharp_damage": roundN(mat.SharpDamageFactor*dmgQ, 2),
 		"blunt_damage": roundN(mat.BluntDamageFactor*dmgQ, 2),
 		"max_hp":       roundN(mat.MaxHitPointsFactor*hpQ, 2),
+		"market_value": roundN(mat.MarketValue*mvQ, 2),
 	})
 }
 
@@ -702,9 +704,9 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 		dps := combat.MeleeTrueDPS(tools)
 
 		writeResult(enc, map[string]any{
-			"weapon":    w.Label,
-			"type":      "melee",
-			"true_dps":  roundN(dps, 2),
+			"weapon":   w.Label,
+			"type":     "melee",
+			"true_dps": roundN(dps, 2),
 		})
 		return
 	}

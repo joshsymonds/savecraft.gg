@@ -28,15 +28,15 @@ func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
 		if preset == "peaceful" {
 			// Peaceful mode disables evolution entirely
 			writeResult(enc, map[string]any{
-				"evolution_factor":         0,
-				"sources":                  map[string]any{"time": 0, "pollution": 0, "kills": 0},
-				"dominant_source":          "none",
-				"current_tier":             "none",
-				"previous_tier_threshold":  0,
-				"next_tier":                nil,
-				"spawn_weights":            computeSpawnWeights(0, "biter-spawner"),
-				"preset":                   "peaceful",
-				"note":                     "Peaceful mode disables enemy evolution entirely.",
+				"evolution_factor":        0,
+				"sources":                 map[string]any{"time": 0, "pollution": 0, "kills": 0},
+				"dominant_source":         "none",
+				"current_tier":            "none",
+				"previous_tier_threshold": 0,
+				"next_tier":               nil,
+				"spawn_weights":           computeSpawnWeights(0, "biter-spawner"),
+				"preset":                  "peaceful",
+				"note":                    "Peaceful mode disables enemy evolution entirely.",
 			})
 			return
 		}
@@ -110,11 +110,11 @@ func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
 			"pollution": roundTo(evoPollution, 6),
 			"kills":     roundTo(evoKills, 6),
 		},
-		"dominant_source": dominant,
-		"current_tier":             currentTier,
-		"previous_tier_threshold":  previousTierThreshold,
-		"next_tier":                nextTier,
-		"spawn_weights":   spawnWeights,
+		"dominant_source":         dominant,
+		"current_tier":            currentTier,
+		"previous_tier_threshold": previousTierThreshold,
+		"next_tier":               nextTier,
+		"spawn_weights":           spawnWeights,
 	}
 
 	writeResult(enc, result)

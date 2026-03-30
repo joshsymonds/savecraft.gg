@@ -10,9 +10,9 @@ import (
 )
 
 type oilQuery struct {
-	ProcessingType string            `json:"processing_type"`
-	Targets        map[string]float64 `json:"targets"`        // fluid name → rate per second
-	Modules        []string           `json:"modules"`         // modules in each machine
+	ProcessingType string             `json:"processing_type"`
+	Targets        map[string]float64 `json:"targets"` // fluid name → rate per second
+	Modules        []string           `json:"modules"` // modules in each machine
 	BeaconCount    int                `json:"beacon_count"`
 	BeaconModules  []string           `json:"beacon_modules"`
 }
@@ -36,10 +36,10 @@ type oilFlow struct {
 
 // Supported processing types — maps to recipe names in data.Recipes.
 var oilProcessingTypes = map[string]bool{
-	"basic-oil-processing":       true,
-	"advanced-oil-processing":    true,
-	"coal-liquefaction":          true,
-	"simple-coal-liquefaction":   true,
+	"basic-oil-processing":     true,
+	"advanced-oil-processing":  true,
+	"coal-liquefaction":        true,
+	"simple-coal-liquefaction": true,
 }
 
 func handleOilBalancer(enc *json.Encoder, query map[string]any) {
@@ -102,8 +102,8 @@ func computeOilBalance(
 	prodMultiplier := 1.0 + moduleProdBonus
 
 	// Compute per-refinery output rates (per second)
-	refineryOutputs := make(map[string]float64)  // fluid → rate/s per refinery
-	refineryInputs := make(map[string]float64)    // fluid → rate/s per refinery (positive = consumed)
+	refineryOutputs := make(map[string]float64) // fluid → rate/s per refinery
+	refineryInputs := make(map[string]float64)  // fluid → rate/s per refinery (positive = consumed)
 
 	for _, result := range primaryRecipe.Results {
 		refineryOutputs[result.Name] = result.Amount * result.Probability * prodMultiplier * refinerySpeed / primaryRecipe.EnergyRequired
@@ -127,31 +127,31 @@ func computeOilBalance(
 	heavyCrackRecipe := data.Recipes["heavy-oil-cracking"]
 	lightCrackRecipe := data.Recipes["light-oil-cracking"]
 
-	heavyCrackConsume := heavyCrackRecipe.Ingredients[1].Amount * crackerSpeed / heavyCrackRecipe.EnergyRequired // heavy oil consumed per cracker/s
-	heavyCrackWater := heavyCrackRecipe.Ingredients[0].Amount * crackerSpeed / heavyCrackRecipe.EnergyRequired   // water consumed per cracker/s
+	heavyCrackConsume := heavyCrackRecipe.Ingredients[1].Amount * crackerSpeed / heavyCrackRecipe.EnergyRequired                                                        // heavy oil consumed per cracker/s
+	heavyCrackWater := heavyCrackRecipe.Ingredients[0].Amount * crackerSpeed / heavyCrackRecipe.EnergyRequired                                                          // water consumed per cracker/s
 	heavyCrackProduce := heavyCrackRecipe.Results[0].Amount * heavyCrackRecipe.Results[0].Probability * prodMultiplier * crackerSpeed / heavyCrackRecipe.EnergyRequired // light oil produced
 
-	lightCrackConsume := lightCrackRecipe.Ingredients[1].Amount * crackerSpeed / lightCrackRecipe.EnergyRequired // light oil consumed per cracker/s
-	lightCrackWater := lightCrackRecipe.Ingredients[0].Amount * crackerSpeed / lightCrackRecipe.EnergyRequired   // water consumed per cracker/s
+	lightCrackConsume := lightCrackRecipe.Ingredients[1].Amount * crackerSpeed / lightCrackRecipe.EnergyRequired                                                        // light oil consumed per cracker/s
+	lightCrackWater := lightCrackRecipe.Ingredients[0].Amount * crackerSpeed / lightCrackRecipe.EnergyRequired                                                          // water consumed per cracker/s
 	lightCrackProduce := lightCrackRecipe.Results[0].Amount * lightCrackRecipe.Results[0].Probability * prodMultiplier * crackerSpeed / lightCrackRecipe.EnergyRequired // petroleum produced
 
 	// Check for downstream product recipes (lubricant, solid fuel, etc.)
 	// These consume fluids that would otherwise be cracked
 	type downstreamDemand struct {
-		recipe    string
-		fluid     string // fluid consumed
-		machines  float64
-		rateUsed  float64 // fluid consumed per second total
+		recipe   string
+		fluid    string // fluid consumed
+		machines float64
+		rateUsed float64 // fluid consumed per second total
 	}
 	var downstreams []downstreamDemand
 
 	// Check if any targets are downstream products (not direct refinery outputs)
 	downstreamRecipes := map[string]string{
-		"lubricant":    "lubricant",
-		"solid-fuel":   "", // ambiguous — skip for now
+		"lubricant":     "lubricant",
+		"solid-fuel":    "", // ambiguous — skip for now
 		"sulfuric-acid": "sulfuric-acid",
-		"sulfur":       "sulfur",
-		"plastic-bar":  "plastic-bar",
+		"sulfur":        "sulfur",
+		"plastic-bar":   "plastic-bar",
 	}
 
 	for targetFluid, targetRate := range targets {

@@ -305,7 +305,7 @@ func TestSeasonRankingIncludesNet(t *testing.T) {
 // Tests for structured output (view-compatible structuredContent).
 
 func TestCropQueryResultHasStructuredFields(t *testing.T) {
-	result := cropQueryResult("Pumpkin")
+	result := lookupCrop("Pumpkin")
 	if result == nil {
 		t.Fatal("expected result for Pumpkin")
 	}
@@ -326,7 +326,7 @@ func TestCropQueryResultHasStructuredFields(t *testing.T) {
 }
 
 func TestSeasonQueryResultHasStructuredFields(t *testing.T) {
-	result := seasonQueryResult("Summer")
+	result := lookupSeason("Summer")
 	if result == nil {
 		t.Fatal("expected result for Summer")
 	}

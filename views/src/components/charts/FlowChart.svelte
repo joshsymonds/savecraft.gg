@@ -35,6 +35,10 @@
     minNodeHeight?: number;
     /** Callback to determine band fill color. Falls back to edge.color, then default amber. */
     bandColor?: (edge: FlowEdge) => string;
+    /** Callback to generate band endpoint labels. Return null to suppress a label.
+     *  Called for each band at "source" (exit) and "target" (entry) positions.
+     *  Only called when provided — no labels render by default. */
+    bandLabel?: (edge: FlowEdge, position: "source" | "target") => string | null;
     /** Custom node content renderer. Receives the node and computed dimensions. */
     nodeContent?: Snippet<[FlowNode, { width: number; height: number }]>;
   }
@@ -45,6 +49,7 @@
     nodeWidth = 240,
     minNodeHeight = 56,
     bandColor,
+    bandLabel,
     nodeContent,
   }: Props = $props();
 
@@ -356,7 +361,17 @@
       const color = e.color ?? bandColor?.(e) ?? "var(--flow-band-color, #c8a84e)";
       const gradId = `band-grad-${key.replace(/[^a-zA-Z0-9_-]/g, "_")}`;
 
-      return { ...e, path, color, gradId };
+      // Label positions at band endpoints (vertically centered on band)
+      const LABEL_OFFSET = 6;
+      const srcLabelX = x1 + LABEL_OFFSET;
+      const srcLabelY = (src.yTop + src.yBottom) / 2;
+      const tgtLabelX = x2 - LABEL_OFFSET;
+      const tgtLabelY = (tgt.yTop + tgt.yBottom) / 2;
+
+      const srcLabel = bandLabel?.(e, "source") ?? null;
+      const tgtLabel = bandLabel?.(e, "target") ?? null;
+
+      return { ...e, path, color, gradId, srcLabelX, srcLabelY, srcLabel, tgtLabelX, tgtLabelY, tgtLabel };
     }),
   );
 
@@ -419,6 +434,28 @@
           }}
           onmouseleave={() => tip = { ...tip, visible: false }}
         />
+      {/if}
+    {/each}
+
+    <!-- Band endpoint labels (opt-in via bandLabel callback) -->
+    {#each layoutBands as band}
+      {#if band.path && band.srcLabel}
+        <text
+          x={band.srcLabelX}
+          y={band.srcLabelY}
+          class="band-label band-label-source"
+          text-anchor="start"
+          dominant-baseline="central"
+        >{band.srcLabel}</text>
+      {/if}
+      {#if band.path && band.tgtLabel}
+        <text
+          x={band.tgtLabelX}
+          y={band.tgtLabelY}
+          class="band-label band-label-target"
+          text-anchor="end"
+          dominant-baseline="central"
+        >{band.tgtLabel}</text>
       {/if}
     {/each}
   </svg>
@@ -503,6 +540,18 @@
 
   .flow-band:hover {
     filter: brightness(1.4) saturate(1.3);
+  }
+
+  /* ── Band labels ── */
+
+  .band-label {
+    font-family: var(--font-heading, sans-serif);
+    font-size: 10px;
+    font-weight: 600;
+    fill: var(--color-text-muted, #a0a8cc);
+    pointer-events: none;
+    user-select: none;
+    opacity: 0.8;
   }
 
   /* ── Nodes ── */

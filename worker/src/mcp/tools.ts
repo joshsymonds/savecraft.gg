@@ -1144,10 +1144,9 @@ export async function queryReference(
 
 /** Parse WASM ndjson response into a ToolResult or ViewToolResult.
  *
- * When a WASM result contains structured data fields alongside `formatted`
- * text, returns a ViewToolResult so the handler can wire it into the
- * reference view bundle. The `formatted` meta field is stripped from
- * structuredContent — only the actual data fields remain.
+ * When a WASM result contains `{type: "result", data: {...}}` with a
+ * non-null object data field, returns a ViewToolResult with data as
+ * structuredContent. Otherwise returns a plain text ToolResult.
  */
 export function parseWasmResponse(text: string): ToolResult | ViewToolResult {
   const lines = text
