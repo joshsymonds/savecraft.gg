@@ -2,6 +2,7 @@
   @component
   Wraps a reference view component in ResultTabs for multi-query responses.
   Renders the same component for each result tab with its own data.
+  The tab bar has its own background; the view component renders its own Panel.
 -->
 <script lang="ts">
   import type { Component } from "svelte";
