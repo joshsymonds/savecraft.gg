@@ -26,7 +26,7 @@
 
 <style>
   .tooltip {
-    position: fixed;
+    position: absolute;
     font-family: var(--font-heading);
     font-size: 12px;
     font-weight: 600;
