@@ -47,7 +47,7 @@ export const collectionDiffModule: NativeReferenceModule = {
     },
   },
 
-  view_default: "visible",
+
   sectionMappings: [
     {
       sectionParam: "deck_section",

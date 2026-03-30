@@ -7,6 +7,7 @@
  */
 
 import type { NativeReferenceModule, ReferenceModuleMetadata } from "./types";
+import { VISUAL_MODULES } from "../mcp/views.gen.js";
 
 /** gameId → moduleId → module */
 const registry = new Map<string, Map<string, NativeReferenceModule>>();
@@ -33,15 +34,13 @@ export function getNativeModule(
 export function getNativeModules(gameId: string): ReferenceModuleMetadata[] {
   const gameModules = registry.get(gameId);
   if (!gameModules) return [];
-  return [...gameModules.values()].map(
-    ({ id, name, description, parameters, view_default: viewDefault }) => ({
-      id,
-      name,
-      description,
-      parameters,
-      ...(viewDefault ? { view_default: viewDefault } : {}),
-    }),
-  );
+  return [...gameModules.values()].map(({ id, name, description, parameters }) => ({
+    id,
+    name,
+    description,
+    parameters,
+    visual: VISUAL_MODULES.has(id),
+  }));
 }
 
 /** Get all game IDs that have native modules registered. */

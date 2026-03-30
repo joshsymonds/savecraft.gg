@@ -1646,7 +1646,7 @@ export const draftAdvisorModule: NativeReferenceModule = {
     },
   },
 
-  view_default: "visible",
+
   sectionMappings: [
     {
       sectionParam: "draft_section",

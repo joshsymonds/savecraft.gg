@@ -11,6 +11,7 @@ import { getNativeGameIds, getNativeModule, getNativeModules } from "../referenc
 import type { NativeReferenceModule } from "../reference/types";
 import { storePush } from "../store";
 import type { Env } from "../types";
+import { VISUAL_MODULES } from "./views.gen.js";
 
 /** MCP tool result — matches the MCP spec's ToolResult shape. */
 export interface ToolResult {
@@ -92,7 +93,6 @@ interface ReferenceModule {
   name: string;
   description: string;
   parameters?: Record<string, unknown>;
-  view_default?: "visible" | "hidden";
   /** WASM section mappings: {queryKey: sectionName}. When save_id is in the query, each section is fetched and injected under queryKey. */
   section_mappings?: Record<string, string>;
 }
@@ -134,7 +134,7 @@ interface GameEntry {
     name: string;
     description: string;
     parameters?: Record<string, unknown>;
-    view_default?: "visible" | "hidden";
+    visual?: boolean;
   }[];
 }
 
@@ -230,15 +230,6 @@ export async function getWasmSectionMappings(
   return manifest?.reference?.modules?.[moduleId]?.section_mappings;
 }
 
-/** Read a WASM module's view_default from its cached manifest. */
-export async function getWasmViewDefault(
-  plugins: R2Bucket,
-  gameId: string,
-  moduleId: string,
-): Promise<"visible" | "hidden" | undefined> {
-  const manifest = await getCachedManifest(plugins, `plugins/${gameId}/manifest.json`);
-  return manifest?.reference?.modules?.[moduleId]?.view_default;
-}
 
 /** Per-isolate cache for R2 manifest key list — avoids R2 list on every list_games call. */
 let manifestKeysCache: { keys: string[]; fetchedAt: number } | null = null;
@@ -368,7 +359,7 @@ async function attachReferenceModules(
         name: entry.name,
         description: entry.description,
         parameters: entry.parameters,
-        ...(entry.view_default ? { view_default: entry.view_default } : {}),
+        visual: VISUAL_MODULES.has(id),
       }));
     }
   }

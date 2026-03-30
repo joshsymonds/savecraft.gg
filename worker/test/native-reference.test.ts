@@ -48,36 +48,16 @@ describe("NativeReferenceModule registry", () => {
         name: "Test Module",
         description: "A test module",
         parameters: { type: "object", properties: { q: { type: "string" } } },
+        visual: false,
       },
     ]);
   });
 
-  it("exposes view_default in metadata when set", () => {
-    const moduleWithView: NativeReferenceModule = {
-      ...fakeModule,
-      id: "visible_mod",
-      view_default: "visible",
-    };
-    registerNativeModule("game1", moduleWithView);
-    const modules = getNativeModules("game1");
-    expect(modules[0]!.view_default).toBe("visible");
-  });
-
-  it("exposes view_default: hidden in metadata", () => {
-    const moduleHidden: NativeReferenceModule = {
-      ...fakeModule,
-      id: "hidden_mod",
-      view_default: "hidden",
-    };
-    registerNativeModule("game1", moduleHidden);
-    const modules = getNativeModules("game1");
-    expect(modules[0]!.view_default).toBe("hidden");
-  });
-
-  it("omits view_default from metadata when not set", () => {
+  it("computes visual from VISUAL_MODULES set", () => {
     registerNativeModule("game1", fakeModule);
     const modules = getNativeModules("game1");
-    expect(modules[0]).not.toHaveProperty("view_default");
+    // fakeModule's id won't be in VISUAL_MODULES (it's a test ID, not a real view)
+    expect(modules[0]!.visual).toBe(false);
   });
 
   it("returns empty array for game with no native modules", () => {

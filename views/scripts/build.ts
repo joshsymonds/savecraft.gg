@@ -172,8 +172,13 @@ const app = initBridge((result) => {
   const Component = moduleId ? VIEWS[moduleId] : undefined;
   const target = document.getElementById("root");
   if (!target) return;
+
+  // Remove loading state
+  const loading = document.getElementById("loading");
+  if (loading) loading.remove();
+
   if (!data || !Component) {
-    // No view for this module — collapse to zero height so the host iframe disappears.
+    // No view for this module — hide everything
     target.replaceChildren();
     document.body.style.display = "none";
     return;
@@ -199,7 +204,7 @@ const app = initBridge((result) => {
 
 // ── Build ──────────────────────────────────────────────────
 
-async function buildToHtml(name: string, entrySource: string, attribution: Attribution[]): Promise<string> {
+async function buildToHtml(name: string, entrySource: string, attribution: Attribution[], opts?: { loading?: boolean }): Promise<string> {
   const tmpEntry = resolve(VIEWS_DIR, `.tmp-entry-${name}.ts`);
   writeFileSync(tmpEntry, entrySource);
 
@@ -232,17 +237,24 @@ async function buildToHtml(name: string, entrySource: string, attribution: Attri
     if (!jsFile) throw new Error(`No JS output for ${name}`);
     const js = readFileSync(resolve(outDir, jsFile), "utf-8");
 
-    return wrapHtml(js, attribution);
+    return wrapHtml(js, attribution, opts);
   } finally {
     try { unlinkSync(tmpEntry); } catch { /* */ }
     try { rmSync(outDir, { recursive: true, force: true }); } catch { /* */ }
   }
 }
 
-function wrapHtml(js: string, attribution: Attribution[]): string {
+/** Static HTML loading state — visible immediately before JS executes, replaced by ontoolresult. */
+const LOADING_HTML = `<div id="loading" style="display:flex;flex-direction:column;align-items:center;padding:24px 16px">
+<p style="font-family:'Chakra Petch',sans-serif;font-size:16px;font-weight:600;color:#a0a8cc;animation:pulse-loading 2s ease-in-out infinite">Loading&hellip;</p>
+<style>@keyframes pulse-loading{0%,100%{opacity:.4}50%{opacity:1}}</style>
+</div>`;
+
+function wrapHtml(js: string, attribution: Attribution[], opts?: { loading?: boolean }): string {
   const attrScript = attribution.length > 0
     ? `<script>window.__ATTRIBUTION__=${JSON.stringify(attribution)};<\/script>\n`
     : "";
+  const loadingMarkup = opts?.loading ? LOADING_HTML : "";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -252,7 +264,7 @@ function wrapHtml(js: string, attribution: Attribution[]): string {
 <style>${viewCss}</style>
 </head>
 <body>
-<div id="root"></div>
+${loadingMarkup}<div id="root"></div>
 <div id="attribution"></div>
 ${attrScript}<script>${js}<\/script>
 </body>
@@ -292,7 +304,7 @@ async function main() {
   // Build all reference views into one bundled HTML page
   if (referenceViews.length > 0) {
     console.log(`Building reference view bundle (${String(referenceViews.length)} modules)`);
-    views["reference"] = await buildToHtml("reference", referenceEntry(referenceViews), refAttribution);
+    views["reference"] = await buildToHtml("reference", referenceEntry(referenceViews), refAttribution, { loading: true });
   }
 
   // Collect visual module IDs from reference views

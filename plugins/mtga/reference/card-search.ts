@@ -75,7 +75,7 @@ export const cardSearchModule: NativeReferenceModule = {
     limit: { type: "integer", description: "Max results (default 20)." },
   },
 
-  view_default: "hidden",
+
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
     const name = (query.name as string) ?? "";
     const text = (query.text as string) ?? "";

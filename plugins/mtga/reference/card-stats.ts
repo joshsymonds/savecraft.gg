@@ -380,7 +380,7 @@ export const cardStatsModule: NativeReferenceModule = {
     },
   },
 
-  view_default: "hidden",
+
   async execute(
     query: Record<string, unknown>,
     env: Env,

@@ -840,7 +840,7 @@ export const playAdvisorModule: NativeReferenceModule = {
     },
   },
 
-  view_default: "visible",
+
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
     const mode = String(query.mode ?? "").slice(0, 50);
 

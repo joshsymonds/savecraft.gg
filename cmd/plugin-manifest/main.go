@@ -78,7 +78,6 @@ type referenceModule struct {
 	Name            string            `toml:"name"             json:"name"`
 	Description     string            `toml:"description"      json:"description"`
 	Parameters      map[string]any    `toml:"-"                json:"parameters,omitempty"`
-	ViewDefault     string            `toml:"view_default"     json:"view_default,omitempty"`
 	SectionMappings map[string]string `toml:"section_mappings" json:"section_mappings,omitempty"`
 }
 
