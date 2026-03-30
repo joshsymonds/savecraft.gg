@@ -1018,7 +1018,10 @@ async function logSourceEvent(
 // -- Plugin Registry -----------------------------------------------
 
 async function handlePluginManifest(env: Env): Promise<Response> {
-  const serverUrl = env.SERVER_URL ?? "https://api.savecraft.gg";
+  const serverUrl = env.SERVER_URL;
+  if (!serverUrl) {
+    return Response.json({ error: "SERVER_URL not configured" }, { status: 500 });
+  }
   const plugins: Record<string, Record<string, unknown>> = {};
 
   const listed = await env.PLUGINS.list({ prefix: "plugins/" });
