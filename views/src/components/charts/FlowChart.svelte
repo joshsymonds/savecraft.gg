@@ -70,6 +70,7 @@
   const BARYCENTER_SWEEPS = 8; // forward+backward sweep iterations
 
   let tip = $state({ text: "", x: 0, y: 0, visible: false });
+  let hoveredEdgeKey = $state<string | null>(null);
   let containerEl: HTMLDivElement | undefined = $state();
   let scrollEl: HTMLDivElement | undefined = $state();
   let canScrollLeft = $state(false);
@@ -570,7 +571,7 @@
         const mid = waypoints[Math.floor(waypoints.length / 2)];
 
         const labels = resolveLabels(e, first.x, first.y, last.x, last.y, mid.x, mid.y);
-        return { ...e, path, color, gradId, ...labels };
+        return { ...e, path, color, gradId, origKey, ...labels };
       }
 
       // Short edge: direct bezier ribbon
@@ -580,7 +581,7 @@
       const tgtPos = layout.positions.get(e.target);
 
       if (!src || !tgt || !srcPos || !tgtPos) return {
-        ...e, path: "", color: "", gradId: "",
+        ...e, path: "", color: "", gradId: "", origKey,
         srcLabel: null as string | null, tgtLabel: null as string | null, midLabel: null as string | null,
         srcLabelX: 0, srcLabelY: 0, tgtLabelX: 0, tgtLabelY: 0, midLabelX: 0, midLabelY: 0,
       };
@@ -713,25 +714,25 @@
         <path
           d={band.path}
           fill="url(#{band.gradId})"
-          class="flow-band"
-          onmouseenter={(ev) => showBandTip(ev, band)}
+          class="flow-band {hoveredEdgeKey ? (hoveredEdgeKey === band.origKey ? 'band-active' : 'band-dimmed') : ''}"
+          onmouseenter={(ev) => { hoveredEdgeKey = band.origKey; showBandTip(ev, band); }}
           onmousemove={(ev) => {
             const text = bandTipText(band);
             if (text) { const pos = containerRelative(ev); tip = { text, x: pos.x, y: pos.y, visible: true }; }
           }}
-          onmouseleave={() => tip = { ...tip, visible: false }}
+          onmouseleave={() => { hoveredEdgeKey = null; tip = { ...tip, visible: false }; }}
         />
       {/if}
     {/each}
 
     <!-- Band endpoint labels (opt-in via bandLabel callback) -->
     {#each layoutBands as band}
+      {@const labelClass = `band-label ${hoveredEdgeKey ? (hoveredEdgeKey === band.origKey ? 'label-active' : 'label-dimmed') : ''}`}
       {#if band.path && band.midLabel}
-        <!-- Collapsed: single centered label when endpoints would overlap -->
         <text
           x={band.midLabelX}
           y={band.midLabelY}
-          class="band-label"
+          class={labelClass}
           text-anchor="middle"
           dominant-baseline="central"
           fill={band.color}
@@ -741,7 +742,7 @@
           <text
             x={band.srcLabelX}
             y={band.srcLabelY}
-            class="band-label"
+            class={labelClass}
             text-anchor="start"
             dominant-baseline="central"
             fill={band.color}
@@ -751,7 +752,7 @@
           <text
             x={band.tgtLabelX}
             y={band.tgtLabelY}
-            class="band-label"
+            class={labelClass}
             text-anchor="end"
             dominant-baseline="central"
             fill={band.color}
@@ -763,9 +764,12 @@
 
   <!-- HTML node layer (dummy nodes filtered out) -->
   {#each layoutNodes as node}
+    {@const hoveredEdge = hoveredEdgeKey ? edges.find((e) => (e.source + EDGE_KEY_SEP + e.target) === hoveredEdgeKey) : null}
+    {@const isConnected = hoveredEdge ? (hoveredEdge.source === node.id || hoveredEdge.target === node.id) : false}
+    {@const nodeHoverClass = hoveredEdgeKey ? (isConnected ? 'node-highlight' : 'node-dimmed') : ''}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="flow-node node-{node.variant ?? 'default'}"
+      class="flow-node node-{node.variant ?? 'default'} {nodeHoverClass}"
       style:left="{node.x}px"
       style:top="{node.y}px"
       style:width="{nodeWidth}px"
@@ -841,6 +845,41 @@
 
   .flow-band:hover {
     filter: brightness(1.4) saturate(1.3);
+  }
+
+  /* ── Hover focus: dim/highlight ── */
+
+  .band-active {
+    opacity: 0.85;
+    stroke-width: 1px;
+    filter: brightness(1.3) saturate(1.2);
+  }
+
+  .band-dimmed {
+    opacity: 0.1;
+    transition: opacity 0.2s;
+  }
+
+  .label-active {
+    opacity: 1;
+    filter: brightness(1.8) saturate(0.8);
+  }
+
+  .label-dimmed {
+    opacity: 0.08;
+    transition: opacity 0.2s;
+  }
+
+  .node-highlight {
+    border-color: var(--color-gold, #c8a84e) !important;
+    box-shadow: 0 0 8px color-mix(in srgb, var(--color-gold, #c8a84e) 40%, transparent);
+    filter: brightness(1.15);
+    z-index: 2;
+  }
+
+  .node-dimmed {
+    opacity: 0.4;
+    transition: opacity 0.2s;
   }
 
   /* ── Band labels ── */
