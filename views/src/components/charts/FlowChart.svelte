@@ -443,18 +443,20 @@
         <text
           x={band.srcLabelX}
           y={band.srcLabelY}
-          class="band-label band-label-source"
+          class="band-label"
           text-anchor="start"
           dominant-baseline="central"
+          fill={band.color}
         >{band.srcLabel}</text>
       {/if}
       {#if band.path && band.tgtLabel}
         <text
           x={band.tgtLabelX}
           y={band.tgtLabelY}
-          class="band-label band-label-target"
+          class="band-label"
           text-anchor="end"
           dominant-baseline="central"
+          fill={band.color}
         >{band.tgtLabel}</text>
       {/if}
     {/each}
@@ -547,11 +549,10 @@
   .band-label {
     font-family: var(--font-heading, sans-serif);
     font-size: 10px;
-    font-weight: 600;
-    fill: var(--color-text-muted, #a0a8cc);
+    font-weight: 700;
     pointer-events: none;
     user-select: none;
-    opacity: 0.8;
+    filter: brightness(1.5) saturate(0.8);
   }
 
   /* ── Nodes ── */
