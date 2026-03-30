@@ -246,10 +246,14 @@ async function buildToHtml(name: string, entrySource: string, attribution: Attri
   }
 }
 
-/** Static HTML loading state — visible immediately before JS executes, replaced by ontoolresult. */
-const LOADING_HTML = `<div id="loading" style="display:flex;flex-direction:column;align-items:center;padding:24px 16px">
-<p style="font-family:'Chakra Petch',sans-serif;font-size:16px;font-weight:600;color:#a0a8cc;animation:pulse-loading 2s ease-in-out infinite">Loading&hellip;</p>
-<style>@keyframes pulse-loading{0%,100%{opacity:.4}50%{opacity:1}}</style>
+/** Static HTML loading state — visible immediately before JS executes, replaced by ontoolresult.
+ *  Uses design system CSS variables from viewCss (already in <head>). */
+const LOADING_HTML = `<div id="loading" style="display:flex;align-items:center;justify-content:center;padding:var(--space-xl) var(--space-lg);min-height:120px">
+<div style="display:flex;flex-direction:column;align-items:center;gap:var(--space-sm)">
+<div style="width:24px;height:24px;border:2px solid var(--color-border);border-top-color:var(--color-gold);border-radius:50%;animation:spin-loading 0.8s linear infinite"></div>
+<p style="font-family:var(--font-heading);font-size:14px;font-weight:600;color:var(--color-text-muted);letter-spacing:0.5px;animation:pulse-loading 2s ease-in-out infinite">Loading&hellip;</p>
+</div>
+<style>@keyframes spin-loading{to{transform:rotate(360deg)}}@keyframes pulse-loading{0%,100%{opacity:.4}50%{opacity:1}}</style>
 </div>`;
 
 function wrapHtml(js: string, attribution: Attribution[]): string {
