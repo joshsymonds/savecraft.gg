@@ -16,6 +16,11 @@ type oilQuery struct {
 	Modules        []string           `json:"modules"` // modules in each machine
 	BeaconCount    int                `json:"beacon_count"`
 	BeaconModules  []string           `json:"beacon_modules"`
+
+	// Optional save data — injected by worker when save_id is present,
+	// or passed inline by the LLM.
+	ExistingSetup *existingMachines `json:"existing_setup"`
+	ActualFlow    *actualFlow       `json:"actual_flow"`
 }
 
 // oilStage represents a processing stage in the oil flow graph.
@@ -25,6 +30,11 @@ type oilStage struct {
 	MachineType  string  `json:"machine_type"`
 	MachineCount float64 `json:"machine_count"`
 	PowerKW      float64 `json:"power_kw"`
+
+	// Only present when existing_setup is provided.
+	Existing    *existingInfo `json:"existing,omitempty"`
+	DeficitRate float64       `json:"deficit_rate,omitempty"`
+	Status      string        `json:"status,omitempty"`
 }
 
 // oilFlow represents a fluid flow between stages.
@@ -77,16 +87,21 @@ func handleOilBalancer(enc *json.Encoder, query map[string]any) {
 		"beacon_modules":  q.BeaconModules,
 	}
 
+	if q.ExistingSetup != nil {
+		compareExistingOil(result, q.ExistingSetup, q.ActualFlow, q.Modules)
+	}
+
 	writeResult(enc, result)
 }
 
 type oilResult struct {
-	Stages     []oilStage         `json:"stages"`
-	Flows      []oilFlow          `json:"flows"`
-	RawInputs  map[string]float64 `json:"raw_inputs"`
-	TotalPower float64            `json:"total_power_kw"`
-	Surplus    map[string]float64 `json:"surplus"`
-	Config     map[string]any     `json:"config"`
+	Stages      []oilStage         `json:"stages"`
+	Flows       []oilFlow          `json:"flows"`
+	RawInputs   map[string]float64 `json:"raw_inputs"`
+	TotalPower  float64            `json:"total_power_kw"`
+	Surplus     map[string]float64 `json:"surplus"`
+	Config      map[string]any     `json:"config"`
+	Bottlenecks []bottleneck       `json:"bottlenecks,omitempty"`
 }
 
 func computeOilBalance(
