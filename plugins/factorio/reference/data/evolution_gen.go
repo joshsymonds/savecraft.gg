@@ -8,9 +8,9 @@ var BaseEvolution = EvolutionSettings{
 }
 
 var DifficultyPresets = map[string]DifficultyPreset{
-	"death-world": {Name: "death-world", TimeFactor: 0.00002, DestroyFactor: 0, PollutionFactor: 0.0000012},
+	"death-world":          {Name: "death-world", TimeFactor: 0.00002, DestroyFactor: 0, PollutionFactor: 0.0000012},
 	"death-world-marathon": {Name: "death-world-marathon", TimeFactor: 0.000015, DestroyFactor: 0, PollutionFactor: 0.000001},
-	"rail-world": {Name: "rail-world", TimeFactor: 0.000002, DestroyFactor: 0, PollutionFactor: 0},
+	"rail-world":           {Name: "rail-world", TimeFactor: 0.000002, DestroyFactor: 0, PollutionFactor: 0},
 }
 
 var Spawners = map[string]Spawner{

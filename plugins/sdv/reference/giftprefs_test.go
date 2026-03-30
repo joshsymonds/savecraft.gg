@@ -186,7 +186,7 @@ func TestTasteResolutionCategoryConflict(t *testing.T) {
 // Tests for structured output (view-compatible structuredContent).
 
 func TestNPCQueryResultHasStructuredFields(t *testing.T) {
-	result := npcQueryResult("Abigail")
+	result := lookupNPC("Abigail")
 	if result == nil {
 		t.Fatal("expected result for Abigail")
 	}
@@ -211,7 +211,7 @@ func TestNPCQueryResultHasStructuredFields(t *testing.T) {
 }
 
 func TestItemQueryResultHasStructuredFields(t *testing.T) {
-	result := itemQueryResult("Diamond")
+	result := lookupItem("Diamond")
 	if result == nil {
 		t.Fatal("expected result for Diamond")
 	}

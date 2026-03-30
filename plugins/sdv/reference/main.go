@@ -64,18 +64,6 @@ func handleGiftPreferences(enc *json.Encoder, query map[string]any) {
 	handleItemQuery(enc, item)
 }
 
-// cropQueryResult builds the result map for a crop detail query.
-// Returns nil if the crop is not found.
-func cropQueryResult(crop string) map[string]any {
-	return lookupCrop(crop)
-}
-
-// seasonQueryResult builds the result map for a season ranking query.
-// Returns nil if the season is not recognized.
-func seasonQueryResult(season string) map[string]any {
-	return lookupSeason(season)
-}
-
 func handleCropPlanner(enc *json.Encoder, query map[string]any) {
 	crop, _ := query["crop"].(string)
 	season, _ := query["season"].(string)
@@ -86,7 +74,7 @@ func handleCropPlanner(enc *json.Encoder, query map[string]any) {
 	}
 
 	if crop != "" {
-		result := cropQueryResult(crop)
+		result := lookupCrop(crop)
 		if result == nil {
 			writeError(enc, "unknown_crop", "unknown crop: "+crop)
 			os.Exit(1)
@@ -95,7 +83,7 @@ func handleCropPlanner(enc *json.Encoder, query map[string]any) {
 		return
 	}
 
-	result := seasonQueryResult(season)
+	result := lookupSeason(season)
 	if result == nil {
 		writeError(enc, "unknown_season", "unknown season: "+season)
 		os.Exit(1)
@@ -103,14 +91,8 @@ func handleCropPlanner(enc *json.Encoder, query map[string]any) {
 	writeResult(enc, result)
 }
 
-// npcQueryResult builds the result map for an NPC gift preference query.
-// Returns nil if the NPC is not found.
-func npcQueryResult(npc string) map[string]any {
-	return lookupNPC(npc)
-}
-
 func handleNPCQuery(enc *json.Encoder, npc string) {
-	result := npcQueryResult(npc)
+	result := lookupNPC(npc)
 	if result == nil {
 		writeError(enc, "unknown_npc", "unknown NPC: "+npc)
 		os.Exit(1)
@@ -118,14 +100,8 @@ func handleNPCQuery(enc *json.Encoder, npc string) {
 	writeResult(enc, result)
 }
 
-// itemQueryResult builds the result map for an item gift preference query.
-// Returns nil if the item is not found.
-func itemQueryResult(item string) map[string]any {
-	return lookupItem(item)
-}
-
 func handleItemQuery(enc *json.Encoder, item string) {
-	result := itemQueryResult(item)
+	result := lookupItem(item)
 	if result == nil {
 		writeError(enc, "unknown_item", "unknown item: "+item)
 		os.Exit(1)

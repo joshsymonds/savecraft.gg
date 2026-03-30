@@ -82,8 +82,8 @@ func TestSpawnerTables(t *testing.T) {
 
 func TestEnemyTiers(t *testing.T) {
 	expected := map[string]float64{
-		"medium-worm-turret":  0.3,
-		"big-worm-turret":     0.5,
+		"medium-worm-turret":   0.3,
+		"big-worm-turret":      0.5,
 		"behemoth-worm-turret": 0.9,
 	}
 

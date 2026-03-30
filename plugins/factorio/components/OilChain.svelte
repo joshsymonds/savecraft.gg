@@ -127,6 +127,12 @@
     return name.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
   }
 
+  function oilBandLabel(edge: FlowEdge, _position: "source" | "target"): string | null {
+    if (!edge.label) return null;
+    const name = formatName(edge.label);
+    return `${Math.round(edge.rate)} ${name}`;
+  }
+
   let chartData = $derived(buildGraph(data));
 </script>
 
@@ -137,6 +143,7 @@
       edges={chartData.edges}
       nodeWidth={280}
       minNodeHeight={70}
+      bandLabel={oilBandLabel}
     >
       {#snippet nodeContent(node: FlowNode, _dims: { width: number; height: number })}
         {@const d = (node.data ?? {}) as Record<string, unknown>}

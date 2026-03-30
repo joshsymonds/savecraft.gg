@@ -28,7 +28,7 @@ func TestTechTree_FullChain_Simple(t *testing.T) {
 		"automation":              true,
 		"steel-processing":        true,
 		"logistic-science-pack":   true,
-		"automation-science-pack":  true,
+		"automation-science-pack": true,
 	}
 	got := make(map[string]bool)
 	for _, name := range chain {
