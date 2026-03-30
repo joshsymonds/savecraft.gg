@@ -6,7 +6,6 @@ import (
 	"math"
 	"os"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
@@ -372,93 +371,5 @@ func resolveRecipe(item, recipeName string, overrides map[string]string) (*data.
 	return nil, 0, options
 }
 
-func resolveModuleEffects(moduleNames []string) (speedBonus, prodBonus, consumptionBonus float64) {
-	for _, name := range moduleNames {
-		if mod, ok := data.Modules[name]; ok {
-			speedBonus += mod.Effects.Speed
-			prodBonus += mod.Effects.Productivity
-			consumptionBonus += mod.Effects.Consumption
-		}
-	}
-	return
-}
-
-func resolveBeaconEffects(beaconModuleNames []string, beaconCount int) float64 {
-	if beaconCount <= 0 || len(beaconModuleNames) == 0 {
-		return 0
-	}
-
-	// Get beacon parameters (there's typically just one beacon type)
-	var distEfficiency float64
-	for _, b := range data.Beacons {
-		distEfficiency = b.DistributionEffectivity
-		break
-	}
-
-	// Sum module speed effects in each beacon
-	var moduleSpeedPerBeacon float64
-	for _, name := range beaconModuleNames {
-		if mod, ok := data.Modules[name]; ok {
-			moduleSpeedPerBeacon += mod.Effects.Speed
-		}
-	}
-
-	// Factorio 2.0: each beacon transmits effect * dist_eff / sqrt(n)
-	// Total = beaconCount * moduleSpeedPerBeacon * distEfficiency / sqrt(beaconCount)
-	return float64(beaconCount) * moduleSpeedPerBeacon * distEfficiency / math.Sqrt(float64(beaconCount))
-}
-
-func beltTierForRate(itemsPerSec float64) string {
-	switch {
-	case itemsPerSec <= 15:
-		return "yellow"
-	case itemsPerSec <= 30:
-		return "red"
-	case itemsPerSec <= 45:
-		return "blue"
-	default:
-		return "turbo"
-	}
-}
-
-func parsePowerKW(machine *data.CraftingMachine) float64 {
-	if machine == nil {
-		return 0
-	}
-	s := machine.EnergyUsage
-	s = strings.TrimSpace(s)
-
-	var val float64
-	var unit string
-	for i, c := range s {
-		if (c < '0' || c > '9') && c != '.' {
-			val = parseFloatSafe(s[:i])
-			unit = strings.ToLower(s[i:])
-			break
-		}
-	}
-
-	switch unit {
-	case "kw":
-		return val
-	case "mw":
-		return val * 1000
-	case "w":
-		return val / 1000
-	default:
-		return val
-	}
-}
-
-func parseFloatSafe(s string) float64 {
-	f, err := strconv.ParseFloat(s, 64)
-	if err != nil {
-		return 0
-	}
-	return f
-}
-
-func roundTo(v float64, decimals int) float64 {
-	shift := math.Pow(10, float64(decimals))
-	return math.Round(v*shift) / shift
-}
+// Shared helpers (resolveModuleEffects, resolveBeaconEffects, parsePowerKW,
+// beltTierForRate, roundTo) are in helpers.go.

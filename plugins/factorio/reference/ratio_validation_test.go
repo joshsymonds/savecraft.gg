@@ -1,10 +1,7 @@
 package main
 
 import (
-	"math"
 	"testing"
-
-	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
 )
 
 // These tests validate the ratio_calculator's FORMULAS against well-known
@@ -12,13 +9,7 @@ import (
 // so ingredients and craft times are correct. These tests verify the math
 // that combines crafting speed, modules, beacons, and productivity.
 
-// approx checks that actual is within tolerance of expected.
-func approx(t *testing.T, label string, actual, expected, tolerance float64) {
-	t.Helper()
-	if math.Abs(actual-expected) > tolerance {
-		t.Errorf("%s: got %.4f, want %.4f (±%.4f)", label, actual, expected, tolerance)
-	}
-}
+// approx is defined in helpers_test.go
 
 // runRatio is a helper that runs a ratio_calculator query and returns the parsed result data.
 func runRatio(t *testing.T, query string) map[string]any {
@@ -358,55 +349,8 @@ func TestValidation_SmeltingUsesFurnace(t *testing.T) {
 	approx(t, "machines", tree["machines"].(float64), 1, 0)
 }
 
-// ─── Unit test for internal helpers ──────────────────────────────────────────
-
-func TestValidation_ResolveBeaconEffects(t *testing.T) {
-	// 8 beacons, 2x speed-module-3 (each +0.5 speed)
-	// Per beacon: 2 * 0.5 = 1.0 speed
-	// Total: 8 * 1.0 * 1.5 / sqrt(8) = 12.0 / 2.8284 = 4.2426
-	bonus := resolveBeaconEffects([]string{"speed-module-3", "speed-module-3"}, 8)
-	approx(t, "beacon speed bonus", bonus, 4.2426, 0.001)
-}
-
-func TestValidation_ResolveBeaconEffects_SingleBeacon(t *testing.T) {
-	// 1 beacon, 2x speed-module-3
-	// Total: 1 * 1.0 * 1.5 / sqrt(1) = 1.5
-	bonus := resolveBeaconEffects([]string{"speed-module-3", "speed-module-3"}, 1)
-	approx(t, "single beacon bonus", bonus, 1.5, 0.001)
-}
-
-func TestValidation_ResolveModuleEffects(t *testing.T) {
-	// 4x productivity-module-3
-	speed, prod, consumption := resolveModuleEffects([]string{
-		"productivity-module-3", "productivity-module-3",
-		"productivity-module-3", "productivity-module-3",
-	})
-	approx(t, "speed", speed, -0.60, 0.001)
-	approx(t, "prod", prod, 0.40, 0.001)
-	approx(t, "consumption", consumption, 3.20, 0.001)
-}
-
-func TestValidation_ParsePowerKW(t *testing.T) {
-	tests := []struct {
-		input    string
-		expected float64
-	}{
-		{"375kW", 375},
-		{"150kW", 150},
-		{"90kW", 90},
-		{"180kW", 180},
-		{"1MW", 1000},
-		{"40MW", 40000},
-		{"500W", 0.5},
-	}
-	for _, tc := range tests {
-		m := &data.CraftingMachine{EnergyUsage: tc.input}
-		got := parsePowerKW(m)
-		if got != tc.expected {
-			t.Errorf("parsePowerKW(%q) = %v, want %v", tc.input, got, tc.expected)
-		}
-	}
-}
+// Unit tests for shared helpers (resolveModuleEffects, resolveBeaconEffects,
+// parsePowerKW, beltTierForRate, roundTo) are in helpers_test.go.
 
 func TestValidation_CaseInsensitiveRecipeLookup(t *testing.T) {
 	// recipe_lookup should fall back to case-insensitive match
