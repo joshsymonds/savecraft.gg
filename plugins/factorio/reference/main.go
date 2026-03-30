@@ -41,6 +41,10 @@ func main() {
 		handleRatioCalculator(enc, query)
 	case "oil_balancer":
 		handleOilBalancer(enc, query)
+	case "tech_tree_navigator":
+		handleTechTreeNavigator(enc, query)
+	case "evolution_tracker":
+		handleEvolutionTracker(enc, query)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -94,6 +98,24 @@ func schema() map[string]any {
 					"modules":         map[string]any{"type": "array", "description": "Module names in each machine slot (e.g. ['productivity-module-3', 'productivity-module-3', 'productivity-module-3'])"},
 					"beacon_count":    map[string]any{"type": "integer", "description": "Number of beacons affecting each machine", "default": 0},
 					"beacon_modules":  map[string]any{"type": "array", "description": "Module names in each beacon (e.g. ['speed-module-3', 'speed-module-3'])"},
+				},
+			},
+			"evolution_tracker": map[string]any{
+				"name":        "Evolution & Threat Tracker",
+				"description": "Compute biter evolution factor from time, pollution, and nest kills. Predict next enemy tier threshold, dominant evolution source, and spawn weight distribution.",
+				"parameters": map[string]any{
+					"game_time_hours":   map[string]any{"type": "number", "description": "Hours of game time played", "required": true},
+					"pollution_absorbed": map[string]any{"type": "number", "description": "Total pollution absorbed by enemy bases", "required": true},
+					"nests_destroyed":   map[string]any{"type": "number", "description": "Total enemy spawner buildings destroyed", "required": true},
+					"preset":            map[string]any{"type": "string", "description": "Difficulty preset: 'death-world', 'death-world-marathon', 'rail-world'. Omit for normal rates."},
+				},
+			},
+			"tech_tree_navigator": map[string]any{
+				"name":        "Tech Tree Navigator",
+				"description": "Traverse technology prerequisite chains with total science pack costs. Given a target technology and optionally completed research, compute the remaining research path and cost.",
+				"parameters": map[string]any{
+					"target":    map[string]any{"type": "string", "description": "Target technology name (e.g. 'nuclear-power', 'spidertron')", "required": true},
+					"completed": map[string]any{"type": "array", "description": "List of already-completed technology names to exclude from the path (from save data's research section)"},
 				},
 			},
 			"ratio_calculator": map[string]any{
