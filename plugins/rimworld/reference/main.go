@@ -118,28 +118,7 @@ func handleSurgery(enc *json.Encoder, query map[string]any) {
 
 	result := surgery.Calculate(p)
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Surgery Success Chance: %.1f%%\n\n", result.SuccessChance*100)
-	fmt.Fprintf(&sb, "Factor Breakdown:\n")
-	fmt.Fprintf(&sb, "  Surgeon stat:     %.2f (skill %d x manipulation %.0f%% x sight %.0f%%)\n",
-		result.SurgeonFactor, p.MedicalSkill, p.Manipulation*100, p.Sight*100)
-	fmt.Fprintf(&sb, "  Bed effective:    %.2f (base %.2f x quality %.2f x cleanliness %.2f x glow %.2f x outdoors %.2f)\n",
-		result.BedEffectiveFactor, p.BedFactor,
-		surgery.QualityFactor(p.Quality),
-		surgery.CleanlinessFactor(p.Cleanliness),
-		surgery.GlowFactor(p.GlowLevel),
-		calc.OutdoorsFactor(p.IsOutdoors))
-	fmt.Fprintf(&sb, "  Medicine:         %.2f (potency %.2f)\n", result.MedicineFactor, p.MedicinePotency)
-	fmt.Fprintf(&sb, "  Difficulty:       %.2f\n", result.DifficultyFactor)
-	if p.Inspired {
-		fmt.Fprintf(&sb, "  Inspired surgery: x2.00\n")
-	}
-	if result.Capped {
-		fmt.Fprintf(&sb, "\n! Result capped at 98%% (uncapped: %.1f%%)\n", result.Uncapped*100)
-	}
-
 	writeResult(enc, map[string]any{
-		"formatted":       sb.String(),
 		"success_chance":  roundN(result.SuccessChance, 3),
 		"surgeon_factor":  roundN(result.SurgeonFactor, 2),
 		"bed_factor":      roundN(result.BedEffectiveFactor, 2),
@@ -283,31 +262,9 @@ func handleCrops(enc *json.Encoder, query map[string]any) {
 
 	tiles := crops.TilesPerColonist(result.NutritionPerDay, colonists)
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Crop: %s\n", plant.Label)
-	fmt.Fprintf(&sb, "Soil fertility: %.1f | Temperature: %.0f C\n\n", soilFertility, temperature)
-
-	if result.GrowthRate <= 0 {
-		fmt.Fprintf(&sb, "Cannot grow at this temperature.\n")
-	} else {
-		fmt.Fprintf(&sb, "Growth rate: %.0f%%\n", result.GrowthRate*100)
-		fmt.Fprintf(&sb, "Actual days to harvest: %.1f\n", result.ActualGrowDays)
-		fmt.Fprintf(&sb, "Harvest: %.0f x %s\n\n", plant.HarvestYield, plant.HarvestedItem)
-		if plant.NutritionPerUnit > 0 {
-			fmt.Fprintf(&sb, "Nutrition/day/tile: %.4f\n", result.NutritionPerDay)
-			if colonists > 0 {
-				fmt.Fprintf(&sb, "Tiles to feed %d colonist(s): %.0f\n", colonists, tiles)
-			}
-		}
-		fmt.Fprintf(&sb, "Silver/day/tile: %.3f\n", result.SilverPerDay)
-	}
-
 	canHydro := containsTag(plant.SowTags, "Hydroponic")
-	fmt.Fprintf(&sb, "\nHydroponics eligible: %v\n", canHydro)
-	fmt.Fprintf(&sb, "Sow tags: %s\n", strings.Join(plant.SowTags, ", "))
 
 	writeResult(enc, map[string]any{
-		"formatted":         sb.String(),
 		"crop":              plant.Label,
 		"growth_rate":       roundN(result.GrowthRate, 2),
 		"actual_grow_days":  roundN(result.ActualGrowDays, 1),
@@ -360,28 +317,10 @@ func handleMaterials(enc *json.Encoder, query map[string]any) {
 	armorQ := materials.ArmorQuality(quality)
 	dmgQ := materials.DamageQuality(quality)
 	hpQ := materials.HitPointsQuality(quality)
-	mvQ := materials.MarketValueQuality(quality)
 
 	qualityName := qualityNames[quality]
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "%s (%s quality)\n\n", mat.Label, qualityName)
-	fmt.Fprintf(&sb, "Stat Factors (material x quality):\n")
-	fmt.Fprintf(&sb, "  Sharp armor:  %.2f x %.2f = %.2f\n", mat.SharpArmorFactor, armorQ, mat.SharpArmorFactor*armorQ)
-	fmt.Fprintf(&sb, "  Blunt armor:  %.2f x %.2f = %.2f\n", mat.BluntArmorFactor, armorQ, mat.BluntArmorFactor*armorQ)
-	fmt.Fprintf(&sb, "  Heat armor:   %.2f x %.2f = %.2f\n", mat.HeatArmorFactor, armorQ, mat.HeatArmorFactor*armorQ)
-	fmt.Fprintf(&sb, "  Sharp damage: %.2f x %.2f = %.2f\n", mat.SharpDamageFactor, dmgQ, mat.SharpDamageFactor*dmgQ)
-	fmt.Fprintf(&sb, "  Blunt damage: %.2f x %.2f = %.2f\n", mat.BluntDamageFactor, dmgQ, mat.BluntDamageFactor*dmgQ)
-	fmt.Fprintf(&sb, "  Max HP:       %.2f x %.2f = %.2f\n", mat.MaxHitPointsFactor, hpQ, mat.MaxHitPointsFactor*hpQ)
-	fmt.Fprintf(&sb, "  Market value: %.2f x %.2f = %.2f\n", mat.MarketValue, mvQ, mat.MarketValue*mvQ)
-	if mat.ColdInsulation > 0 || mat.HeatInsulation > 0 {
-		fmt.Fprintf(&sb, "\nInsulation:\n")
-		fmt.Fprintf(&sb, "  Cold: %.1f C | Heat: %.1f C\n", mat.ColdInsulation, mat.HeatInsulation)
-	}
-	fmt.Fprintf(&sb, "\nCategories: %s\n", strings.Join(mat.Categories, ", "))
-
 	writeResult(enc, map[string]any{
-		"formatted":    sb.String(),
 		"material":     mat.Label,
 		"quality":      qualityName,
 		"sharp_armor":  roundN(mat.SharpArmorFactor*armorQ, 2),
@@ -438,37 +377,7 @@ func handleDrugs(enc *json.Encoder, query map[string]any) {
 		return
 	}
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "%s (%s)\n\n", d.Label, d.Category)
-	fmt.Fprintf(&sb, "Market value: %.0f silver\n", d.MarketValue)
-	if d.WorkAmount > 0 {
-		fmt.Fprintf(&sb, "Work to make: %.0f\n", d.WorkAmount)
-	}
-	if len(d.Ingredients) > 0 {
-		fmt.Fprintf(&sb, "Ingredients: %s\n", strings.Join(d.Ingredients, ", "))
-		// Compute silver per ingredient
-		for _, ing := range d.Ingredients {
-			parts := strings.SplitN(ing, ":", 2)
-			if len(parts) == 2 {
-				count := 0.0
-				fmt.Sscanf(parts[1], "%f", &count)
-				if count > 0 {
-					fmt.Fprintf(&sb, "  Silver per %s: %.2f\n", parts[0], drugs.SilverPerLeaf(d.MarketValue, count))
-				}
-			}
-		}
-	}
-	fmt.Fprintf(&sb, "\nAddiction Risk:\n")
-	fmt.Fprintf(&sb, "  Base chance: %.1f%%\n", d.Addictiveness*100)
-	if d.MinToleranceToAddict > 0 {
-		fmt.Fprintf(&sb, "  Min tolerance to addict: %.0f%%\n", d.MinToleranceToAddict*100)
-	}
-	if d.OverdoseSeverity > 0 {
-		fmt.Fprintf(&sb, "  Overdose severity: %.2f\n", d.OverdoseSeverity)
-	}
-
 	writeResult(enc, map[string]any{
-		"formatted":     sb.String(),
 		"drug":          d.Label,
 		"category":      d.Category,
 		"market_value":  roundN(d.MarketValue, 0),
@@ -544,22 +453,7 @@ func handleDrugProductionChain(enc *json.Encoder, query map[string]any, d *data.
 		DrugWorkAmount:       d.WorkAmount,
 	})
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "%s Production Chain\n\n", d.Label)
-	fmt.Fprintf(&sb, "Crop: %s (%.1f grow days)\n", plant.Label, plant.GrowDays)
-	fmt.Fprintf(&sb, "Soil fertility: %.1f | Temperature: %.0f C\n\n", soilFertility, temperature)
-
-	if result.ActualGrowDays <= 0 {
-		fmt.Fprintf(&sb, "Cannot grow at this temperature.\n")
-	} else {
-		fmt.Fprintf(&sb, "Actual grow days: %.1f\n", result.ActualGrowDays)
-		fmt.Fprintf(&sb, "Leaves/day/tile: %.3f\n", result.LeavesPerDay)
-		fmt.Fprintf(&sb, "Drugs/day/tile: %.4f (%.0f leaves per drug)\n", result.DrugsPerDayPerTile, leavesPerDrug)
-		fmt.Fprintf(&sb, "Silver/day/tile: %.3f\n", result.SilverPerDayPerTile)
-	}
-
 	writeResult(enc, map[string]any{
-		"formatted":        sb.String(),
 		"drug":             d.Label,
 		"crop":             plant.Label,
 		"soil_fertility":   roundN(soilFertility, 1),
@@ -585,19 +479,7 @@ func handleRaids(enc *json.Encoder, query map[string]any) {
 		Colonists:      colonists,
 	})
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Raid Threat Estimate\n\n")
-	fmt.Fprintf(&sb, "Colony Wealth:\n")
-	fmt.Fprintf(&sb, "  Item wealth:     %.0f\n", itemWealth)
-	fmt.Fprintf(&sb, "  Building wealth: %.0f (counted at 50%% = %.0f)\n", buildingWealth, buildingWealth*0.5)
-	fmt.Fprintf(&sb, "  Effective total: %.0f\n\n", result.TotalWealth)
-	fmt.Fprintf(&sb, "Raid Points:\n")
-	fmt.Fprintf(&sb, "  From wealth:     %.0f\n", result.WealthPoints)
-	fmt.Fprintf(&sb, "  From %d colonist(s): %.0f (%.0f each)\n", colonists, result.PawnPoints, result.PawnPoints/max(float64(colonists), 1))
-	fmt.Fprintf(&sb, "  Total:           %.0f\n", result.TotalPoints)
-
 	writeResult(enc, map[string]any{
-		"formatted":     sb.String(),
 		"total_wealth":  roundN(result.TotalWealth, 0),
 		"wealth_points": roundN(result.WealthPoints, 0),
 		"pawn_points":   roundN(result.PawnPoints, 0),
@@ -639,31 +521,7 @@ func handleGenes(enc *json.Encoder, query map[string]any) {
 
 		result := genes.ValidateBuild(entries, maxComplexity, minMetabolism)
 
-		var sb strings.Builder
-		fmt.Fprintf(&sb, "Gene Build Validation (max complexity: %d, min metabolism: %d)\n\n", maxComplexity, minMetabolism)
-		for _, e := range entries {
-			fmt.Fprintf(&sb, "  %s: cpx %d, met %+d\n", e.Label, e.Complexity, e.MetabolismOffset)
-		}
-		fmt.Fprintf(&sb, "\nTotals: complexity %d/%d, metabolism %+d/%+d",
-			result.TotalComplexity, maxComplexity, result.TotalMetabolism, minMetabolism)
-		if !result.ComplexityOK {
-			fmt.Fprintf(&sb, " [OVER COMPLEXITY]")
-		}
-		if !result.MetabolismOK {
-			fmt.Fprintf(&sb, " [OVER METABOLISM]")
-		}
-		if result.TotalArchite > 0 {
-			fmt.Fprintf(&sb, "\nArchite capsules needed: %d", result.TotalArchite)
-		}
-		if len(result.Conflicts) > 0 {
-			fmt.Fprintf(&sb, "\n\nCONFLICTS:")
-			for _, c := range result.Conflicts {
-				fmt.Fprintf(&sb, "\n  %s vs %s (tag: %s)", c.Gene1, c.Gene2, c.Tag)
-			}
-		}
-
 		writeResult(enc, map[string]any{
-			"formatted":        sb.String(),
 			"total_complexity": result.TotalComplexity,
 			"total_metabolism": result.TotalMetabolism,
 			"total_archite":    result.TotalArchite,
@@ -750,22 +608,7 @@ func handleResearch(enc *json.Encoder, query map[string]any) {
 	chain := research.PrerequisiteChain(pm, targetDef)
 	totalCost := research.ChainCost(pm, chain, colonyTech)
 
-	var sb strings.Builder
-	fmt.Fprintf(&sb, "Research Chain: %s (colony tech: %s)\n\n", targetDef, colonyTech)
-	for i, name := range chain {
-		p := pm[name]
-		mult := research.TechLevelMultiplier(p.TechLevel, colonyTech)
-		effectiveCost := p.BaseCost * mult
-		fmt.Fprintf(&sb, "  %d. %s [%s] -- %.0f", i+1, p.Label, p.TechLevel, p.BaseCost)
-		if mult > 1 {
-			fmt.Fprintf(&sb, " x %.1f = %.0f", mult, effectiveCost)
-		}
-		fmt.Fprintf(&sb, "\n")
-	}
-	fmt.Fprintf(&sb, "\nTotal cost: %.0f\n", totalCost)
-
 	writeResult(enc, map[string]any{
-		"formatted":   sb.String(),
 		"chain":       chain,
 		"total_cost":  roundN(totalCost, 0),
 		"colony_tech": colonyTech,
@@ -834,23 +677,7 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 		dpsAtRange := rawDPS * acc
 		expectedDmg := combat.ArmorExpectedDamage(w.DamagePerShot, w.ArmorPenetration, armorRating)
 
-		var sb strings.Builder
-		fmt.Fprintf(&sb, "%s (ranged)\n\n", w.Label)
-		fmt.Fprintf(&sb, "Damage: %.0f | AP: %.2f | Range: %.1f\n", w.DamagePerShot, w.ArmorPenetration, w.Range)
-		fmt.Fprintf(&sb, "Burst: %d shots", w.BurstShotCount)
-		if w.BurstShotCount > 1 {
-			fmt.Fprintf(&sb, " (%.0f ticks between)", float64(w.TicksBetweenBurstShots))
-		}
-		fmt.Fprintf(&sb, "\nWarmup: %.1fs | Cooldown: %.1fs\n\n", w.WarmupTime, w.Cooldown)
-		fmt.Fprintf(&sb, "Raw DPS: %.2f\n", rawDPS)
-		fmt.Fprintf(&sb, "Accuracy at %.0f tiles: %.0f%%\n", rangeTiles, acc*100)
-		fmt.Fprintf(&sb, "DPS at %.0f tiles: %.2f\n", rangeTiles, dpsAtRange)
-		if armorRating > 0 {
-			fmt.Fprintf(&sb, "\nVs %.0f%% armor: %.1f expected damage per shot\n", armorRating*100, expectedDmg)
-		}
-
 		writeResult(enc, map[string]any{
-			"formatted":       sb.String(),
 			"weapon":          w.Label,
 			"type":            "ranged",
 			"raw_dps":         roundN(rawDPS, 2),
@@ -874,18 +701,7 @@ func handleCombat(enc *json.Encoder, query map[string]any) {
 		}
 		dps := combat.MeleeTrueDPS(tools)
 
-		var sb strings.Builder
-		fmt.Fprintf(&sb, "%s (melee)\n\n", w.Label)
-		fmt.Fprintf(&sb, "True DPS: %.2f\n\n", dps)
-		fmt.Fprintf(&sb, "Attack verbs:\n")
-		for _, t := range w.Tools {
-			weight := t.Power * t.Power
-			fmt.Fprintf(&sb, "  %s: %.0f dmg, %.1fs cd (sel. weight %.1f)\n",
-				t.Label, t.Power, t.Cooldown, weight)
-		}
-
 		writeResult(enc, map[string]any{
-			"formatted": sb.String(),
 			"weapon":    w.Label,
 			"type":      "melee",
 			"true_dps":  roundN(dps, 2),

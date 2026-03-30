@@ -310,11 +310,6 @@ func TestCropQueryResultHasStructuredFields(t *testing.T) {
 		t.Fatal("expected result for Pumpkin")
 	}
 
-	// Must have formatted text
-	if _, ok := result["formatted"].(string); !ok {
-		t.Error("missing formatted field")
-	}
-
 	// Must have all structured fields from lookupCrop
 	required := []string{"name", "seed", "seasons", "growthDays", "regrowDays",
 		"sellPrice", "seedCost", "category", "goldPerDay", "netGoldPerDay",
@@ -334,11 +329,6 @@ func TestSeasonQueryResultHasStructuredFields(t *testing.T) {
 	result := seasonQueryResult("Summer")
 	if result == nil {
 		t.Fatal("expected result for Summer")
-	}
-
-	// Must have formatted text
-	if _, ok := result["formatted"].(string); !ok {
-		t.Error("missing formatted field")
 	}
 
 	// Must have structured fields for view rendering

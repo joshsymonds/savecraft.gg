@@ -9,9 +9,7 @@ package main
 
 import (
 	"encoding/json"
-	"fmt"
 	"io"
-	"maps"
 	"os"
 	"strings"
 )
@@ -66,34 +64,16 @@ func handleGiftPreferences(enc *json.Encoder, query map[string]any) {
 	handleItemQuery(enc, item)
 }
 
-// cropQueryResult builds the full result map for a crop detail query.
-// Returns nil if the crop is not found. Includes both formatted
-// and structured fields (for view rendering).
+// cropQueryResult builds the result map for a crop detail query.
+// Returns nil if the crop is not found.
 func cropQueryResult(crop string) map[string]any {
-	data := lookupCrop(crop)
-	if data == nil {
-		return nil
-	}
-	result := map[string]any{
-		"formatted": formatCropResult(data),
-	}
-	maps.Copy(result, data)
-	return result
+	return lookupCrop(crop)
 }
 
-// seasonQueryResult builds the full result map for a season ranking query.
-// Returns nil if the season is not recognized. Includes both formatted
-// and structured fields (for view rendering).
+// seasonQueryResult builds the result map for a season ranking query.
+// Returns nil if the season is not recognized.
 func seasonQueryResult(season string) map[string]any {
-	data := lookupSeason(season)
-	if data == nil {
-		return nil
-	}
-	result := map[string]any{
-		"formatted": formatSeasonResult(data),
-	}
-	maps.Copy(result, data)
-	return result
+	return lookupSeason(season)
 }
 
 func handleCropPlanner(enc *json.Encoder, query map[string]any) {
@@ -123,38 +103,10 @@ func handleCropPlanner(enc *json.Encoder, query map[string]any) {
 	writeResult(enc, result)
 }
 
-// npcQueryResult builds the full result map for an NPC gift preference query.
-// Returns nil if the NPC is not found. Includes both formatted
-// and structured fields (for view rendering).
+// npcQueryResult builds the result map for an NPC gift preference query.
+// Returns nil if the NPC is not found.
 func npcQueryResult(npc string) map[string]any {
-	prefs := lookupNPC(npc)
-	if prefs == nil {
-		return nil
-	}
-
-	name := prefs["npc"].(string)
-	var b strings.Builder
-	fmt.Fprintf(&b, "Gift preferences for %s\n\n", name)
-
-	formatTasteSection(&b, "Loves", prefs["love"])
-	formatTasteSection(&b, "Likes", prefs["like"])
-	formatTasteSection(&b, "Neutral", prefs["neutral"])
-	formatTasteSection(&b, "Dislikes", prefs["dislike"])
-	formatTasteSection(&b, "Hates", prefs["hate"])
-
-	b.WriteString("\n--- Universal (all NPCs unless overridden) ---\n")
-	formatTasteSection(&b, "Universal Love", prefs["universalLove"])
-	formatTasteSection(&b, "Universal Like", prefs["universalLike"])
-	formatTasteSection(&b, "Universal Neutral", prefs["universalNeutral"])
-	formatTasteSection(&b, "Universal Dislike", prefs["universalDislike"])
-	formatTasteSection(&b, "Universal Hate", prefs["universalHate"])
-
-	// Merge structured fields with formatted output.
-	result := map[string]any{
-		"formatted": b.String(),
-	}
-	maps.Copy(result, prefs)
-	return result
+	return lookupNPC(npc)
 }
 
 func handleNPCQuery(enc *json.Encoder, npc string) {
@@ -166,59 +118,10 @@ func handleNPCQuery(enc *json.Encoder, npc string) {
 	writeResult(enc, result)
 }
 
-// itemQueryResult builds the full result map for an item gift preference query.
-// Returns nil if the item is not found. Includes both formatted
-// and structured fields (for view rendering).
+// itemQueryResult builds the result map for an item gift preference query.
+// Returns nil if the item is not found.
 func itemQueryResult(item string) map[string]any {
-	results := lookupItem(item)
-	if results == nil {
-		return nil
-	}
-
-	var b strings.Builder
-	itemName := results["item"].(string)
-	fmt.Fprintf(&b, "Who likes %s?\n", itemName)
-
-	if cat, ok := results["category"].(string); ok {
-		fmt.Fprintf(&b, "Category: %s\n", cat)
-	}
-	if ut, ok := results["universalTaste"].(string); ok {
-		fmt.Fprintf(&b, "Universal taste: %s\n", ut)
-	}
-	b.WriteString("\n")
-
-	npcs := results["npcs"].([]any)
-	if len(npcs) == 0 {
-		b.WriteString("No specific NPC preferences found.\n")
-	} else {
-		currentTaste := ""
-		for _, r := range npcs {
-			m := r.(map[string]any)
-			taste := m["taste"].(string)
-			if taste != currentTaste {
-				if currentTaste != "" {
-					b.WriteString("\n")
-				}
-				fmt.Fprintf(&b, "%s:\n", capitalize(taste))
-				currentTaste = taste
-			}
-			source := m["source"].(string)
-			marker := ""
-			if source == "personal" {
-				marker = " *"
-			}
-			fmt.Fprintf(&b, "  %s%s\n", m["npc"].(string), marker)
-		}
-	}
-
-	b.WriteString("\n* = personal preference (overrides universal)\n")
-
-	// Merge structured fields with formatted output.
-	result := map[string]any{
-		"formatted": b.String(),
-	}
-	maps.Copy(result, results)
-	return result
+	return lookupItem(item)
 }
 
 func handleItemQuery(enc *json.Encoder, item string) {
@@ -228,25 +131,6 @@ func handleItemQuery(enc *json.Encoder, item string) {
 		os.Exit(1)
 	}
 	writeResult(enc, result)
-}
-
-func formatTasteSection(b *strings.Builder, label string, items any) {
-	if items == nil {
-		return
-	}
-	list, ok := items.([]any)
-	if !ok || len(list) == 0 {
-		return
-	}
-	fmt.Fprintf(b, "%s: ", label)
-	for i, item := range list {
-		if i > 0 {
-			b.WriteString(", ")
-		}
-		m := item.(map[string]any)
-		b.WriteString(m["name"].(string))
-	}
-	b.WriteString("\n")
 }
 
 func schema() map[string]any {
