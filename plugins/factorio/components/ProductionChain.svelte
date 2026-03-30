@@ -98,11 +98,21 @@
         source: flow.source,
         target: flow.target,
         rate: flow.rate_per_min,
+        label: flow.item,
         color: getItemColor(flow.item),
       });
     }
 
     return { nodes, edges };
+  }
+
+  function formatName(name: string): string {
+    return name.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+  }
+
+  function productionBandLabel(edge: FlowEdge, _position: "source" | "target"): string | null {
+    if (!edge.label) return null;
+    return `${Math.round(edge.rate)}/m ${formatName(edge.label)}`;
   }
 
   let chartData = $derived(buildGraph(stages, flows));
@@ -115,6 +125,7 @@
       edges={chartData.edges}
       nodeWidth={280}
       minNodeHeight={70}
+      bandLabel={productionBandLabel}
     >
       {#snippet nodeContent(node: FlowNode, _dims: { width: number; height: number })}
         {@const d = (node.data ?? {}) as Record<string, unknown>}
