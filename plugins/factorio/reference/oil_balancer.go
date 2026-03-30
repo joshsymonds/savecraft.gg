@@ -727,9 +727,10 @@ func compareExistingOil(
 			ActualRate:    roundTo(actualRate, 2),
 		}
 
-		// Classify status using ceil comparison for machine counts
-		if setup.Count >= neededCount {
-			// Enough machines — check actual throughput
+		// Classify status: effective rate is the primary comparison (matches ratio_calculator).
+		// Ceil comparison on machine count is used for surplus determination.
+		if effectivePerSec >= neededPerSec {
+			// Effective throughput is sufficient — check actual throughput
 			if actualRate > 0 && actualRate < effectivePerSec*0.7 {
 				stage.Status = "deficit"
 				stage.DeficitRate = roundTo(neededPerSec-actualRate, 2)
@@ -747,7 +748,7 @@ func compareExistingOil(
 				stage.Status = "sufficient"
 			}
 		} else {
-			// Not enough machines
+			// Not enough effective throughput
 			stage.Status = "deficit"
 			stage.DeficitRate = roundTo(neededPerSec-effectivePerSec, 2)
 
