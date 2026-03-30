@@ -29,7 +29,7 @@ MCP hosts render views inside a **double-iframe sandbox**:
 
 Communication between the view and host uses **JSON-RPC 2.0 over `postMessage`**, not raw postMessage payloads. The protocol defines standard MCP messages (reused: `tools/call`, `resources/read`, `ping`) and UI-specific messages (`ui/initialize`, `ui/notifications/tool-result`, `ui/notifications/tool-input`, `ui/message`, `ui/update-model-context`, `ui/open-link`).
 
-Claude renders views on a dedicated sandbox domain (`{sha256-hash}.claudemcpcontent.com`). ChatGPT uses an equivalent isolation mechanism via its Apps SDK renderer.
+Each host renders views on its own sandbox domain (Claude uses `{sha256-hash}.claudemcpcontent.com`, ChatGPT uses `{url-derived}.oaiusercontent.com`). The `domain` field in `_meta.ui` is host-dependent and optional — Savecraft omits it, letting each host use its default sandbox origin. This is correct for passive views that don't need stable origins for OAuth callbacks or CORS.
 
 ## Response Format
 
