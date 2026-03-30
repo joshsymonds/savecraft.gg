@@ -30,6 +30,7 @@
         threshold: number;
       } | null;
       spawn_weights: Record<string, number>;
+      icon_url?: string;
     };
   }
 
@@ -111,7 +112,7 @@
   }
 </script>
 
-<Panel>
+<Panel watermark={data.icon_url}>
   <div class="evo-layout">
     <Section title="Evolution Progress" accent="var(--color-negative)">
       <div class="hero-row">

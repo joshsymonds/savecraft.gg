@@ -131,3 +131,26 @@ type EnemyTier struct {
 	Name      string  // e.g. "medium-worm-turret"
 	Threshold float64 // build_base_evolution_requirement
 }
+
+// PowerEntity is a power generation or storage entity (not a crafting machine).
+type PowerEntity struct {
+	Name          string
+	Type          string  // "boiler", "generator", "reactor", "solar-panel", "accumulator", "offshore-pump"
+	PowerOutputKW float64 // electrical output (generators) or thermal output (reactors, boilers)
+	EnergyUsage   string  // power consumption (e.g. offshore pumps)
+	FluidPerSec   float64 // water/steam throughput rate
+}
+
+// ReactorLayout is a common nuclear reactor arrangement with precomputed adjacency.
+type ReactorLayout struct {
+	Name         string
+	Reactors     int
+	Adjacencies  []int   // neighbor count per reactor position
+	AvgNeighbors float64 // precomputed average
+}
+
+// FuelItem is a burnable fuel with its energy value.
+type FuelItem struct {
+	Name    string
+	EnergyMJ float64 // total energy in megajoules
+}

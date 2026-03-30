@@ -45,6 +45,8 @@ func main() {
 		handleTechTreeNavigator(enc, query)
 	case "evolution_tracker":
 		handleEvolutionTracker(enc, query)
+	case "power_calculator":
+		handlePowerCalculator(enc, query)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -118,6 +120,14 @@ func schema() map[string]any {
 				"parameters": map[string]any{
 					"target":    map[string]any{"type": "string", "description": "Target technology name (e.g. 'nuclear-power', 'spidertron')", "required": true},
 					"completed": map[string]any{"type": "array", "description": "List of already-completed technology names to exclude from the path (from save data's research section)"},
+				},
+			},
+			"power_calculator": map[string]any{
+				"name":        "Power Calculator",
+				"description": "Compute entity counts for power generation setups: steam (boiler chain), solar (panel + accumulator), and nuclear (reactor + heat exchanger + turbine). Supports mixed generation and comparison against existing factory power.",
+				"parameters": map[string]any{
+					"target_mw": map[string]any{"type": "number", "description": "Target power generation in megawatts", "required": true},
+					"sources":   map[string]any{"type": "array", "description": "Array of power sources. Each has 'type' ('steam', 'solar', 'nuclear'). Steam: optional 'fuel' (default 'coal'). Nuclear: optional 'layout' (default '2x2'). At most one source may omit 'mw' to fill the remainder.", "required": true},
 				},
 			},
 			"ratio_calculator": map[string]any{

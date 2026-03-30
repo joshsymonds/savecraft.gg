@@ -32,6 +32,7 @@
         beacon_count: number;
         beacon_modules: string[] | null;
       };
+      icon_url?: string;
     };
     /** Base URL for sprite sheets (e.g., R2 URL or Storybook static path) */
     spriteBaseUrl?: string;
@@ -95,7 +96,7 @@
 </script>
 
 <div class="factorio-view">
-  <Panel>
+  <Panel watermark={data.icon_url}>
     <div class="sections">
       <Section title="Production Chain">
         <ProductionChain stages={data.stages} flows={data.flows} {spriteBaseUrl} />
