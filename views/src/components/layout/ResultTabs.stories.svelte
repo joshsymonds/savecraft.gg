@@ -40,9 +40,9 @@
 
 <Story name="TwoTabs">
   <div style="width: 550px;">
-    <ResultTabs tabs={[{ label: "Harlequin Crest" }, { label: "Shako" }]}>
-      {#snippet children(index)}
-        <Panel>
+    <Panel>
+      <ResultTabs tabs={[{ label: "Harlequin Crest" }, { label: "Shako" }]}>
+        {#snippet children(index)}
           <Section
             title={index === 0 ? "Harlequin Crest" : "Shako"}
             accent={index === 0 ? "var(--color-rarity-legendary)" : "var(--color-text-muted)"}
@@ -70,17 +70,17 @@
                   ]} />
             </Panel>
           </Section>
-        </Panel>
-      {/snippet}
-    </ResultTabs>
+        {/snippet}
+      </ResultTabs>
+    </Panel>
   </div>
 </Story>
 
 <Story name="FourTabs">
   <div style="width: 600px;">
-    <ResultTabs tabs={bosses.map(b => ({ label: b.name }))}>
-      {#snippet children(index)}
-        <Panel>
+    <Panel>
+      <ResultTabs tabs={bosses.map(b => ({ label: b.name }))}>
+        {#snippet children(index)}
           <Section title={bosses[index].name} subtitle={bosses[index].diff} accent="var(--color-rarity-legendary)">
             <div style="display: flex; justify-content: center; padding: var(--space-md) 0;">
               <Stat value={bosses[index].chance} label="Shako Drop Chance" variant="highlight" />
@@ -92,50 +92,50 @@
               { key: "Players", value: "1" },
             ]} />
           </Section>
-        </Panel>
-      {/snippet}
-    </ResultTabs>
+        {/snippet}
+      </ResultTabs>
+    </Panel>
   </div>
 </Story>
 
-<Story name="ManyTabsScrolling">
-  <div style="width: 400px;">
-    <ResultTabs tabs={equipSlots.map(s => ({ label: s.item }))}>
-      {#snippet children(index)}
-        <Panel>
+<Story name="ManyTabsWrapping">
+  <div style="width: 450px;">
+    <Panel>
+      <ResultTabs tabs={equipSlots.map(s => ({ label: s.item }))}>
+        {#snippet children(index)}
           <Section title={equipSlots[index].item} subtitle={equipSlots[index].slot}>
             <KeyValue items={[
               { key: "Slot", value: equipSlots[index].slot },
               { key: "Item", value: equipSlots[index].item, variant: "highlight" },
             ]} />
           </Section>
-        </Panel>
-      {/snippet}
-    </ResultTabs>
+        {/snippet}
+      </ResultTabs>
+    </Panel>
   </div>
 </Story>
 
 <Story name="LongLabels">
-  <div style="width: 500px;">
-    <ResultTabs tabs={longCards.map(c => ({ label: c.name }))}>
-      {#snippet children(index)}
-        <Panel>
+  <div style="width: 550px;">
+    <Panel>
+      <ResultTabs tabs={longCards.map(c => ({ label: c.name }))}>
+        {#snippet children(index)}
           <Section title={longCards[index].name}>
             <KeyValue items={[
               { key: "GIH Win Rate", value: longCards[index].wr, variant: "positive" },
             ]} />
           </Section>
-        </Panel>
-      {/snippet}
-    </ResultTabs>
+        {/snippet}
+      </ResultTabs>
+    </Panel>
   </div>
 </Story>
 
 <Story name="SingleTabHidesBar">
   <div style="width: 550px;">
-    <ResultTabs tabs={[{ label: "Only Result" }]}>
-      {#snippet children(_index)}
-        <Panel>
+    <Panel>
+      <ResultTabs tabs={[{ label: "Only Result" }]}>
+        {#snippet children(_index)}
           <Section title="Surgery Calculator">
             <KeyValue items={[
               { key: "Success chance", value: "97.2%", variant: "positive" },
@@ -143,8 +143,8 @@
               { key: "Bed factor", value: "1.10" },
             ]} />
           </Section>
-        </Panel>
-      {/snippet}
-    </ResultTabs>
+        {/snippet}
+      </ResultTabs>
+    </Panel>
   </div>
 </Story>
