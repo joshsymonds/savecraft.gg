@@ -341,10 +341,10 @@
       {#each layoutBands as band}
         {#if band.path}
           <linearGradient id={band.gradId} x1="0" y1="0" x2="1" y2="0">
-            <stop offset="0%" stop-color={band.color} stop-opacity="0.3" />
-            <stop offset="30%" stop-color={band.color} stop-opacity="0.5" />
-            <stop offset="70%" stop-color={band.color} stop-opacity="0.5" />
-            <stop offset="100%" stop-color={band.color} stop-opacity="0.3" />
+            <stop offset="0%" stop-color={band.color} stop-opacity="0.38" />
+            <stop offset="25%" stop-color={band.color} stop-opacity="0.48" />
+            <stop offset="75%" stop-color={band.color} stop-opacity="0.48" />
+            <stop offset="100%" stop-color={band.color} stop-opacity="0.38" />
           </linearGradient>
         {/if}
       {/each}
