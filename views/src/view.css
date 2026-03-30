@@ -144,7 +144,9 @@ body {
   font-family: var(--font-body);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
+  /* Host iframe auto-resize can round down by a pixel, causing scrollbars.
+     Our content should never scroll — the iframe grows to fit. */
+  overflow: hidden;
 }
 
 ::selection {
