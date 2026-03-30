@@ -29,6 +29,28 @@
     { source: "copper-ore", target: "copper-plate", item: "copper-ore", rate_per_min: 187.5 },
   ];
 
+  // ─── Electronic Circuit with Save Comparison ──────────────────────────────
+  // Player has: 1 assembler (sufficient), 3 furnaces (deficit, needs 5),
+  // 2 assemblers for cable (sufficient), 15 furnaces for copper (surplus, needs 10).
+  // Iron ore and copper ore are raw (no comparison).
+
+  const comparisonStages = [
+    { id: "electronic-circuit", item: "electronic-circuit", recipe: "electronic-circuit", machine_type: "assembling-machine-2", machine_count: 1, rate_per_min: 90, power_kw: 150,
+      existing: { machine_type: "assembling-machine-2", count: 1, modules: {}, effective_rate: 90, actual_rate: 85 }, status: "sufficient" as const },
+    { id: "iron-plate", item: "iron-plate", recipe: "iron-plate", machine_type: "stone-furnace", machine_count: 5, rate_per_min: 93.8, power_kw: 450,
+      existing: { machine_type: "stone-furnace", count: 3, modules: {}, effective_rate: 56.3, actual_rate: 50 }, deficit_rate: 37.5, status: "deficit" as const },
+    { id: "copper-cable", item: "copper-cable", recipe: "copper-cable", machine_type: "assembling-machine-2", machine_count: 2, rate_per_min: 270, power_kw: 300,
+      existing: { machine_type: "assembling-machine-2", count: 2, modules: {}, effective_rate: 270, actual_rate: 260 }, status: "sufficient" as const },
+    { id: "iron-ore", item: "iron-ore", recipe: "(raw)", rate_per_min: 93.8 },
+    { id: "copper-plate", item: "copper-plate", recipe: "copper-plate", machine_type: "stone-furnace", machine_count: 10, rate_per_min: 187.5, power_kw: 900,
+      existing: { machine_type: "stone-furnace", count: 15, modules: {}, effective_rate: 281.3, actual_rate: 275 }, status: "surplus" as const },
+    { id: "copper-ore", item: "copper-ore", recipe: "(raw)", rate_per_min: 187.5 },
+  ];
+
+  const comparisonBottlenecks = [
+    { item: "iron-plate", recipe: "iron-plate", needed_rate: 93.8, existing_rate: 56.3, actual_rate: 50, diagnosis: "underbuilt" },
+  ];
+
   // ─── Iron Gear Wheel with Speed Modules ───────────────────────────────────
 
   const speedModulesStages = [
@@ -121,6 +143,14 @@
   <Panel>
     <Section title="Iron Gear Wheel (Speed Modules)">
       <ProductionChain stages={speedModulesStages} flows={speedModulesFlows} />
+    </Section>
+  </Panel>
+</Story>
+
+<Story name="WithComparison">
+  <Panel>
+    <Section title="Electronic Circuit — Save Comparison">
+      <ProductionChain stages={comparisonStages} flows={electronicCircuitFlows} bottlenecks={comparisonBottlenecks} />
     </Section>
   </Panel>
 </Story>
