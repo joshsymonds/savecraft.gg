@@ -71,6 +71,7 @@
 
   let tip = $state({ text: "", x: 0, y: 0, visible: false });
   let hoveredEdgeKey = $state<string | null>(null);
+  let hoveredNodeId = $state<string | null>(null);
   let containerEl: HTMLDivElement | undefined = $state();
   let scrollEl: HTMLDivElement | undefined = $state();
   let canScrollLeft = $state(false);
@@ -646,6 +647,44 @@
     return topParts.join(" ");
   }
 
+  /** Determine if anything is hovered (band or node) */
+  function isHoverActive(): boolean {
+    return hoveredEdgeKey !== null || hoveredNodeId !== null;
+  }
+
+  /** CSS class for a band based on hover state */
+  function bandHoverClass(band: { origKey: string; source: string; target: string }): string {
+    if (!isHoverActive()) return "";
+    if (hoveredEdgeKey) {
+      return hoveredEdgeKey === band.origKey ? "band-active" : "band-dimmed";
+    }
+    // Node hover: band is active if it connects to the hovered node
+    if (hoveredNodeId) {
+      return (band.source === hoveredNodeId || band.target === hoveredNodeId) ? "band-active" : "band-dimmed";
+    }
+    return "";
+  }
+
+  /** CSS class for a node based on hover state */
+  function nodeHoverClass(nodeId: string): string {
+    if (!isHoverActive()) return "";
+    if (hoveredEdgeKey) {
+      const edge = edges.find((e) => (e.source + EDGE_KEY_SEP + e.target) === hoveredEdgeKey);
+      if (!edge) return "node-dimmed";
+      return (edge.source === nodeId || edge.target === nodeId) ? "node-highlight" : "node-dimmed";
+    }
+    if (hoveredNodeId) {
+      if (nodeId === hoveredNodeId) return "node-highlight";
+      // Highlight nodes connected to the hovered node via any edge
+      const connected = edges.some((e) =>
+        (e.source === hoveredNodeId && e.target === nodeId) ||
+        (e.target === hoveredNodeId && e.source === nodeId),
+      );
+      return connected ? "node-highlight" : "node-dimmed";
+    }
+    return "";
+  }
+
   function bandTipText(band: { midLabel?: string | null; srcLabel?: string | null; label?: string }): string {
     // Use the same formatted label as the band labels
     if (band.midLabel) return band.midLabel;
@@ -714,8 +753,8 @@
         <path
           d={band.path}
           fill="url(#{band.gradId})"
-          class="flow-band {hoveredEdgeKey ? (hoveredEdgeKey === band.origKey ? 'band-active' : 'band-dimmed') : ''}"
-          onmouseenter={(ev) => { hoveredEdgeKey = band.origKey; showBandTip(ev, band); }}
+          class="flow-band {bandHoverClass(band)}"
+          onmouseenter={(ev) => { hoveredEdgeKey = band.origKey; hoveredNodeId = null; showBandTip(ev, band); }}
           onmousemove={(ev) => {
             const text = bandTipText(band);
             if (text) { const pos = containerRelative(ev); tip = { text, x: pos.x, y: pos.y, visible: true }; }
@@ -727,7 +766,7 @@
 
     <!-- Band endpoint labels (opt-in via bandLabel callback) -->
     {#each layoutBands as band}
-      {@const labelClass = `band-label ${hoveredEdgeKey ? (hoveredEdgeKey === band.origKey ? 'label-active' : 'label-dimmed') : ''}`}
+      {@const labelClass = `band-label ${bandHoverClass(band).replace('band-', 'label-')}`}
       {#if band.path && band.midLabel}
         <text
           x={band.midLabelX}
@@ -764,16 +803,16 @@
 
   <!-- HTML node layer (dummy nodes filtered out) -->
   {#each layoutNodes as node}
-    {@const hoveredEdge = hoveredEdgeKey ? edges.find((e) => (e.source + EDGE_KEY_SEP + e.target) === hoveredEdgeKey) : null}
-    {@const isConnected = hoveredEdge ? (hoveredEdge.source === node.id || hoveredEdge.target === node.id) : false}
-    {@const nodeHoverClass = hoveredEdgeKey ? (isConnected ? 'node-highlight' : 'node-dimmed') : ''}
+    {@const nodeClass = nodeHoverClass(node.id)}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
     <div
-      class="flow-node node-{node.variant ?? 'default'} {nodeHoverClass}"
+      class="flow-node node-{node.variant ?? 'default'} {nodeClass}"
       style:left="{node.x}px"
       style:top="{node.y}px"
       style:width="{nodeWidth}px"
       style:height="{node.height}px"
+      onmouseenter={() => { hoveredNodeId = node.id; hoveredEdgeKey = null; }}
+      onmouseleave={() => { hoveredNodeId = null; }}
     >
       {#if nodeContent}
         {@render nodeContent(node, { width: nodeWidth, height: node.height })}
