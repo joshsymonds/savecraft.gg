@@ -382,7 +382,7 @@ export async function listGames(
   userUuid: string,
   filter?: string,
   serverUrl?: string,
-): Promise<ToolResult | ViewToolResult> {
+): Promise<ToolResult> {
   const [saveRows, notesBySave, removedRows] = await Promise.all([
     db
       .prepare(
@@ -418,7 +418,7 @@ export async function listGames(
       `No games matching "${filter}". Try without a filter to see all available games.`,
     );
   }
-  return viewResult({ games });
+  return textResult({ games });
 }
 
 const OVERVIEW_SECTION_NAMES = ["character_overview", "player_summary", "overview", "summary"];
@@ -443,7 +443,7 @@ export async function getSave(
   saveId: string,
   plugins?: R2Bucket,
   serverUrl?: string,
-): Promise<ToolResult | ViewToolResult> {
+): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save) {
     const removedName = await checkRemovedSave(db, userUuid, saveId);
@@ -521,7 +521,7 @@ export async function getSave(
     }
   }
 
-  return viewResult(result);
+  return textResult(result);
 }
 
 export async function getSection(

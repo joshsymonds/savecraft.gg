@@ -165,11 +165,6 @@ const TOOLS: ToolDefinition[] = [
           description:
             "Filter by game name or ID (case-insensitive substring). Pass this when the player asks about a specific game to avoid loading unrelated data. Omit to see all games.",
         },
-        visible_to_user: {
-          type: "boolean",
-          description:
-            "Controls whether the result renders a visual widget for the user. Defaults to hidden — set true when the user would benefit from seeing their game library visually.",
-        },
       },
     },
     annotations: {
@@ -188,11 +183,6 @@ const TOOLS: ToolDefinition[] = [
       type: "object",
       properties: {
         save_id: { type: "string", description: "Save UUID from the game listing" },
-        visible_to_user: {
-          type: "boolean",
-          description:
-            "Controls whether the result renders a visual widget for the user. Defaults to hidden — set true when the user would benefit from seeing character details visually.",
-        },
       },
       required: ["save_id"],
     },
@@ -367,11 +357,6 @@ const TOOLS: ToolDefinition[] = [
           description:
             "Save UUID to scope search to a single save. Omit to search across all saves.",
         },
-        visible_to_user: {
-          type: "boolean",
-          description:
-            "Controls whether the result renders a visual widget for the user. Defaults to hidden — set true when the user would benefit from seeing search results visually rather than as text.",
-        },
       },
       required: ["query"],
     },
@@ -418,11 +403,6 @@ const TOOLS: ToolDefinition[] = [
             },
             required: ["label"],
           },
-        },
-        visible_to_user: {
-          type: "boolean",
-          description:
-            "Controls whether the result renders a visual widget for the user. Omit to use the module's default (shown in the game listing as view_default). Set false when you only need the data for your own reasoning (e.g., grounding a fact, multi-step computation). Set true when the user would benefit from seeing the result visually.",
         },
       },
       required: ["game_id", "module", "queries"],
@@ -483,6 +463,8 @@ function buildToolsWithUi(env: Env): ToolDefinition[] {
   cachedToolsWithUi = TOOLS.map((tool) => {
     const slug = tool.name === "query_reference" ? "reference" : tool.name.replaceAll("_", "-");
     if (!VIEWS[slug]) return tool;
+    // Skip _meta.ui for tools with hidden view_default — prevents iframe loading
+    if (TOOL_VIEW_DEFAULTS[tool.name] === "hidden") return tool;
     return {
       ...tool,
       _meta: {
@@ -537,30 +519,22 @@ const TOOL_VIEW_DEFAULTS: Record<string, "visible" | "hidden"> = {
 /**
  * Centralized view visibility resolution. Called once after every tool handler
  * returns. If the result has structuredContent (a view), checks whether the
- * LLM wants it visible. If not, strips structuredContent so the host renders
- * text only — same data, no widget.
- *
- * Resolution: visible_to_user (explicit) > view_default (module/tool) > visible.
+ * view_default says it should be visible. If not, strips structuredContent so
+ * the host renders text only — same data, no widget.
  *
  * @param moduleViewDefault - For query_reference, the module's view_default
  *   (from native registry or WASM manifest). Avoids a redundant registry lookup.
  */
 function resolveViewVisibility(
   toolName: string,
-  args: Record<string, unknown>,
   result: ToolResult | ViewToolResult,
   moduleViewDefault?: "visible" | "hidden",
 ): ToolResult | ViewToolResult {
   if (!("structuredContent" in result)) return result;
 
-  const visibleToUser = args.visible_to_user as boolean | undefined;
-
-  // Look up the default: caller supplies it for query_reference, game state tools use the map.
   const viewDefault = moduleViewDefault ?? TOOL_VIEW_DEFAULTS[toolName];
 
-  const showView = visibleToUser ?? viewDefault !== "hidden";
-
-  if (!showView) {
+  if (viewDefault === "hidden") {
     // Strip structuredContent — host won't render a widget, LLM still gets the data in content.
     return { content: result.content, ...(result.isError ? { isError: result.isError } : {}) };
   }
@@ -659,7 +633,7 @@ async function handleToolCall(
     }
   }
 
-  return resolveViewVisibility(toolName, args, result, moduleViewDefault);
+  return resolveViewVisibility(toolName, result, moduleViewDefault);
 }
 
 function handleGetInfo(
