@@ -18,6 +18,7 @@
     },
     dominant_source: "time",
     current_tier: "medium-worm-turret",
+    previous_tier_threshold: 0.3,
     next_tier: {
       name: "big-worm-turret",
       threshold: 0.5,
@@ -40,6 +41,7 @@
     },
     dominant_source: "time",
     current_tier: "big-worm-turret",
+    previous_tier_threshold: 0.5,
     next_tier: {
       name: "behemoth-worm-turret",
       threshold: 0.9,
@@ -62,6 +64,7 @@
     },
     dominant_source: "time",
     current_tier: "behemoth-worm-turret",
+    previous_tier_threshold: 0.9,
     next_tier: null,
     spawn_weights: {
       "small-biter": 0,
@@ -81,6 +84,7 @@
     },
     dominant_source: "pollution",
     current_tier: "medium-worm-turret",
+    previous_tier_threshold: 0.3,
     next_tier: {
       name: "big-worm-turret",
       threshold: 0.5,

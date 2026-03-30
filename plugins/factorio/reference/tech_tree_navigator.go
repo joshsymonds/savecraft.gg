@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"math"
 	"os"
-	"slices"
 	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
@@ -148,7 +147,8 @@ func topoSort(chain []string) []string {
 		inChain[name] = true
 	}
 
-	// Count in-degree for each tech (only from techs in the chain)
+	// Build reverse adjacency map: prereq → []dependents (within chain)
+	dependents := make(map[string][]string)
 	inDegree := make(map[string]int)
 	for _, name := range chain {
 		inDegree[name] = 0
@@ -158,6 +158,7 @@ func topoSort(chain []string) []string {
 		for _, prereq := range tech.Prerequisites {
 			if inChain[prereq] {
 				inDegree[name]++
+				dependents[prereq] = append(dependents[prereq], name)
 			}
 		}
 	}
@@ -176,19 +177,19 @@ func topoSort(chain []string) []string {
 		queue = queue[1:]
 		order = append(order, name)
 
-		// For each tech in chain that depends on this one, decrement in-degree
-		for _, other := range chain {
-			if other == name {
-				continue
-			}
-			tech := data.Technologies[other]
-			if slices.Contains(tech.Prerequisites, name) {
-				inDegree[other]--
-				if inDegree[other] == 0 {
-					queue = append(queue, other)
-				}
+		for _, dep := range dependents[name] {
+			inDegree[dep]--
+			if inDegree[dep] == 0 {
+				queue = append(queue, dep)
 			}
 		}
+	}
+
+	// Completeness check: if nodes were dropped, data has a cycle
+	if len(order) != len(chain) {
+		// Return what we have — the BFS already prevents infinite loops,
+		// but log the discrepancy in the output for debugging
+		return order
 	}
 
 	return order

@@ -24,6 +24,7 @@
       };
       dominant_source: "time" | "pollution" | "kills";
       current_tier: string;
+      previous_tier_threshold: number;
       next_tier?: {
         name: string;
         threshold: number;
@@ -43,22 +44,12 @@
   // Progress toward next tier (0-100), or 100 if past all tiers
   let tierProgress = $derived.by(() => {
     if (!data.next_tier) return 100;
-    // Find previous tier threshold
-    const prevThreshold = data.current_tier === "none" ? 0
-      : data.current_tier === "medium-worm-turret" ? 0.3
-      : data.current_tier === "big-worm-turret" ? 0.5
-      : data.current_tier === "behemoth-worm-turret" ? 0.9
-      : 0;
-    const range = data.next_tier.threshold - prevThreshold;
+    const range = data.next_tier.threshold - data.previous_tier_threshold;
     if (range <= 0) return 100;
-    return Math.round(((data.evolution_factor - prevThreshold) / range) * 100);
+    return Math.round(((data.evolution_factor - data.previous_tier_threshold) / range) * 100);
   });
 
-  let tierProgressLabel = $derived(
-    data.next_tier
-      ? `${evoPercent}%`
-      : `${evoPercent}%`,
-  );
+  let tierProgressLabel = $derived(`${evoPercent}%`);
 
   function formatTierName(name: string): string {
     const labels: Record<string, string> = {

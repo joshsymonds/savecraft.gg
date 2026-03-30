@@ -77,18 +77,33 @@ func TestEvolution_DeathWorld(t *testing.T) {
 }
 
 func TestEvolution_UnknownPreset(t *testing.T) {
-	// Unknown preset should still work (falls back to base rates)
-	result := runEvolution(t, `{
+	// Unknown preset should return an error
+	_, code := runReference(t, `{
 		"module": "evolution_tracker",
 		"game_time_hours": 0.5,
 		"pollution_absorbed": 2000,
 		"nests_destroyed": 0,
 		"preset": "nonexistent"
 	}`)
+	if code != 1 {
+		t.Errorf("expected exit 1 for unknown preset, got %d", code)
+	}
+}
+
+func TestEvolution_PeacefulPreset(t *testing.T) {
+	// Peaceful mode should return zero evolution regardless of inputs
+	result := runEvolution(t, `{
+		"module": "evolution_tracker",
+		"game_time_hours": 10,
+		"pollution_absorbed": 100000,
+		"nests_destroyed": 50,
+		"preset": "peaceful"
+	}`)
 
 	evo := result["evolution_factor"].(float64)
-	// Should match base rates
-	assertApprox(t, "evolution_factor", evo, 0.352, 0.01)
+	if evo != 0 {
+		t.Errorf("peaceful mode should have zero evolution, got %v", evo)
+	}
 }
 
 // ─── Tier Prediction ────────────────────────────────────────────────────────

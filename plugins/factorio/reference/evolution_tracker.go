@@ -25,6 +25,21 @@ func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
 	destroyFactor := data.BaseEvolution.DestroyFactor
 
 	if preset := stringParam(query, "preset"); preset != "" {
+		if preset == "peaceful" {
+			// Peaceful mode disables evolution entirely
+			writeResult(enc, map[string]any{
+				"evolution_factor":         0,
+				"sources":                  map[string]any{"time": 0, "pollution": 0, "kills": 0},
+				"dominant_source":          "none",
+				"current_tier":             "none",
+				"previous_tier_threshold":  0,
+				"next_tier":                nil,
+				"spawn_weights":            computeSpawnWeights(0, "biter-spawner"),
+				"preset":                   "peaceful",
+				"note":                     "Peaceful mode disables enemy evolution entirely.",
+			})
+			return
+		}
 		if p, ok := data.DifficultyPresets[preset]; ok {
 			if p.TimeFactor != 0 {
 				timeFactor = p.TimeFactor
@@ -35,8 +50,10 @@ func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
 			if p.DestroyFactor != 0 {
 				destroyFactor = p.DestroyFactor
 			}
+		} else {
+			writeError(enc, "unknown_preset", "unknown difficulty preset: "+preset+". Valid presets: death-world, death-world-marathon, rail-world, peaceful")
+			os.Exit(1)
 		}
-		// Unknown preset silently falls back to base rates
 	}
 
 	// Compute per-source evolution
@@ -65,10 +82,12 @@ func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
 
 	// Determine current and next tier
 	var currentTier string
+	var previousTierThreshold float64
 	var nextTier map[string]any
 	for _, tier := range data.EnemyTiers {
 		if combined >= tier.Threshold {
 			currentTier = tier.Name
+			previousTierThreshold = tier.Threshold
 		} else {
 			nextTier = map[string]any{
 				"name":      tier.Name,
@@ -92,8 +111,9 @@ func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
 			"kills":     roundTo(evoKills, 6),
 		},
 		"dominant_source": dominant,
-		"current_tier":    currentTier,
-		"next_tier":       nextTier,
+		"current_tier":             currentTier,
+		"previous_tier_threshold":  previousTierThreshold,
+		"next_tier":                nextTier,
 		"spawn_weights":   spawnWeights,
 	}
 
