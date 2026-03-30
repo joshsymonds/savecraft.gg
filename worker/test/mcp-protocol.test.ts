@@ -182,7 +182,7 @@ describe("MCP Protocol", () => {
     ]);
   });
 
-  it("includes domain in tools _meta.ui for view-backed tools", async () => {
+  it("omits domain from tools _meta.ui (host-dependent field)", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {
         protocolVersion: "2025-06-18",
@@ -200,11 +200,11 @@ describe("MCP Protocol", () => {
     const toolsWithViews = body.result.tools.filter((t) => t._meta?.ui?.resourceUri);
     expect(toolsWithViews.length).toBeGreaterThan(0);
     for (const tool of toolsWithViews) {
-      expect(tool._meta!.ui!.domain).toBe("https://staging.savecraft.gg");
+      expect(tool._meta!.ui!.domain).toBeUndefined();
     }
   });
 
-  it("includes domain in resources/list", async () => {
+  it("omits domain from resources/list (host-dependent field)", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {
         protocolVersion: "2025-06-18",
@@ -220,7 +220,7 @@ describe("MCP Protocol", () => {
     };
     expect(body.result.resources.length).toBeGreaterThan(0);
     for (const resource of body.result.resources) {
-      expect(resource._meta!.ui!.domain).toBe("https://staging.savecraft.gg");
+      expect(resource._meta!.ui!.domain).toBeUndefined();
     }
   });
 
