@@ -22,7 +22,6 @@ import {
   getSave,
   getSection,
   getWasmSectionMappings,
-  getWasmViewDefault,
   listGames,
   queryReference,
   refreshSave,
@@ -33,7 +32,7 @@ import {
   viewResult,
   type ViewToolResult,
 } from "./tools";
-import { VIEWS } from "./views.gen.js";
+import { VIEWS, VISUAL_MODULES } from "./views.gen.js";
 
 const PROTOCOL_VERSION = "2025-06-18";
 
@@ -454,17 +453,67 @@ const TOOLS: ToolDefinition[] = [
       openWorldHint: false,
     },
   },
+  // ── Show Reference (visual) ──────────────────────────────
+  //
+  // Identical dispatch to query_reference, but always renders a
+  // visual view in the host iframe. Only available for modules
+  // that have compiled Svelte view components.
+  {
+    name: "show_reference",
+    title: "Show Game Reference Visually",
+    description:
+      "Display a reference module result as an interactive visual view for the player. Same parameters as query_reference — see that tool's schema for module-specific query fields. Only available for modules with visual=true in the query_reference schema. Use query_reference for data the AI needs to reason over; use show_reference when the player should SEE the result (charts, flow diagrams, dashboards).",
+    inputSchema: {
+      type: "object",
+      properties: {
+        game_id: {
+          type: "string",
+          description: "Game ID from the game listing.",
+        },
+        module: {
+          type: "string",
+          description: "Reference module ID. Must be a visual module (see query_reference schema).",
+        },
+        queries: {
+          type: "array",
+          description:
+            "Array of query objects — same structure as query_reference queries. Every query MUST include a `label`.",
+          items: {
+            type: "object",
+            properties: {
+              label: {
+                type: "string",
+                description: "Short tab name for this query result.",
+              },
+            },
+            required: ["label"],
+          },
+        },
+      },
+      required: ["game_id", "module", "queries"],
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
 ];
 
-/** Build tools with _meta.ui for views. */
+/** Build tools with _meta.ui for views that should always render. */
 function buildToolsWithUi(env: Env): ToolDefinition[] {
   if (cachedToolsWithUi && cachedEnvironment === env.ENVIRONMENT) return cachedToolsWithUi;
   cachedEnvironment = env.ENVIRONMENT;
   cachedToolsWithUi = TOOLS.map((tool) => {
-    const slug = tool.name === "query_reference" ? "reference" : tool.name.replaceAll("_", "-");
+    // show_reference uses the reference view bundle
+    const slug =
+      tool.name === "query_reference" || tool.name === "show_reference"
+        ? "reference"
+        : tool.name.replaceAll("_", "-");
     if (!VIEWS[slug]) return tool;
-    // Skip _meta.ui for tools with hidden view_default — prevents iframe loading
-    if (TOOL_VIEW_DEFAULTS[tool.name] === "hidden") return tool;
+    // Only show_reference gets _meta.ui — query_reference is text-only, no iframe
+    if (tool.name === "query_reference") return tool;
     return {
       ...tool,
       _meta: {
@@ -506,59 +555,6 @@ function parseSectionsArgument(raw: unknown): string[] | undefined {
   return undefined;
 }
 
-/**
- * View defaults for game state tools. Reference modules declare their own
- * view_default in module metadata; game state tools declare it here.
- */
-const TOOL_VIEW_DEFAULTS: Record<string, "visible" | "hidden"> = {
-  list_games: "hidden",
-  get_save: "hidden",
-  search_saves: "hidden",
-};
-
-/**
- * Centralized view visibility resolution. Called once after every tool handler
- * returns. If the result has structuredContent (a view), checks whether the
- * view_default says it should be visible. If not, strips structuredContent so
- * the host renders text only — same data, no widget.
- *
- * @param moduleViewDefault - For query_reference, the module's view_default
- *   (from native registry or WASM manifest). Avoids a redundant registry lookup.
- */
-function resolveViewVisibility(
-  toolName: string,
-  result: ToolResult | ViewToolResult,
-  moduleViewDefault?: "visible" | "hidden",
-): ToolResult | ViewToolResult {
-  if (!("structuredContent" in result)) return result;
-
-  const viewDefault = moduleViewDefault ?? TOOL_VIEW_DEFAULTS[toolName];
-
-  if (viewDefault === "hidden") {
-    // Strip structuredContent — host won't render a widget, LLM still gets the data in content.
-    return { content: result.content, ...(result.isError ? { isError: result.isError } : {}) };
-  }
-
-  return result;
-}
-
-async function dispatchQueryReference(
-  env: Env,
-  userUuid: string,
-  args: Record<string, unknown>,
-): Promise<{
-  result: ToolResult | ViewToolResult;
-  moduleViewDefault: "visible" | "hidden" | undefined;
-}> {
-  const gameId = args.game_id as string;
-  const moduleId = args.module as string;
-  const nativeModule = getNativeModule(gameId, moduleId);
-  const moduleViewDefault =
-    nativeModule?.view_default ?? (await getWasmViewDefault(env.PLUGINS, gameId, moduleId));
-  const result = await handleQueryReference(env, userUuid, args);
-  return { result, moduleViewDefault };
-}
-
 async function handleToolCall(
   params: Record<string, unknown>,
   env: Env,
@@ -569,7 +565,6 @@ async function handleToolCall(
   const saveId = args.save_id as string;
 
   let result: ToolResult | ViewToolResult;
-  let moduleViewDefault: "visible" | "hidden" | undefined;
 
   switch (toolName) {
     case "list_games": {
@@ -622,8 +617,32 @@ async function handleToolCall(
       break;
     }
     case "query_reference": {
-      ({ result, moduleViewDefault } = await dispatchQueryReference(env, userUuid, args));
-      break;
+      // Text-only: always strip structuredContent so no iframe loads
+      const qrResult = await handleQueryReference(env, userUuid, args);
+      if ("structuredContent" in qrResult) {
+        return {
+          content: qrResult.content,
+          ...(qrResult.isError ? { isError: qrResult.isError } : {}),
+        };
+      }
+      return qrResult;
+    }
+    case "show_reference": {
+      // Visual: validate module has a compiled view component.
+      // VISUAL_MODULES is the single source of truth, built from discovered .svelte files.
+      const moduleId = args.module as string;
+      if (!VISUAL_MODULES.has(moduleId)) {
+        return {
+          content: [
+            {
+              type: "text",
+              text: `Module '${moduleId}' does not support visual display. Use query_reference instead.`,
+            },
+          ],
+          isError: true,
+        };
+      }
+      return handleQueryReference(env, userUuid, args);
     }
     case "setup_help": {
       return handleGetInfo(env, userUuid, args);
@@ -633,7 +652,7 @@ async function handleToolCall(
     }
   }
 
-  return resolveViewVisibility(toolName, result, moduleViewDefault);
+  return result;
 }
 
 function handleGetInfo(

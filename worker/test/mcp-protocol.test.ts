@@ -178,6 +178,7 @@ describe("MCP Protocol", () => {
       "refresh_save",
       "search_saves",
       "setup_help",
+      "show_reference",
       "update_note",
     ]);
   });
@@ -598,7 +599,7 @@ describe("MCP Protocol", () => {
     clearNativeRegistry();
   });
 
-  it("query_reference returns ViewToolResult for structured modules", async () => {
+  it("query_reference returns text-only result (no structuredContent)", async () => {
     const vizModule: NativeReferenceModule = {
       id: "viz_mod",
       name: "Viz Module",
@@ -639,13 +640,10 @@ describe("MCP Protocol", () => {
       };
     };
 
-    // Structured results now use ViewToolResult — data in structuredContent, no sandwich
-    expect(body.result.structuredContent).toBeDefined();
-    const data = body.result.structuredContent as { score?: number; card?: string };
-    expect(data.score).toBe(42);
-    expect(data.card).toBe("Lightning Bolt");
+    // query_reference always strips structuredContent — text only, no iframe
+    expect(body.result.structuredContent).toBeUndefined();
 
-    // content carries JSON data for model reasoning
+    // Data is available as JSON text for model reasoning
     expect(body.result.content).toHaveLength(1);
 
     clearNativeRegistry();

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { registerNativeModule } from "../src/reference/registry";
 import type { NativeReferenceModule } from "../src/reference/types";
+import { VISUAL_MODULES } from "../src/mcp/views.gen.js";
 
 import { cleanAll, getOAuthToken, seedPush, seedSource } from "./helpers";
 
@@ -43,29 +44,36 @@ async function callTool(
   return rpc.result;
 }
 
-// ── query_reference visibility tests ─────────────────────────
+async function listTools(): Promise<Record<string, unknown>[]> {
+  const resp = await SELF.fetch(mcpRequest("tools/list", 2));
+  const rpc = (await parseJsonResponse(resp)) as { result: { tools: Record<string, unknown>[] } };
+  return rpc.result.tools;
+}
 
-describe("query_reference view_default", () => {
-  const visibleModule: NativeReferenceModule = {
-    id: "vis_mod",
-    name: "Visible Module",
-    description: "A module with view_default: visible",
-    view_default: "visible",
+// ── query_reference vs show_reference split ─────────────────
+
+describe("query_reference and show_reference tools", () => {
+  // Pick a real visual module ID from the built view bundle so show_reference accepts it.
+  const visualModuleId = [...VISUAL_MODULES][0]!; // e.g. "card_search"
+
+  const testModule: NativeReferenceModule = {
+    id: visualModuleId,
+    name: "Visual Test Module",
+    description: "A module with a compiled view component",
     execute: () => Promise.resolve({ type: "structured", data: { result: "data", score: 42 } }),
   };
 
-  const hiddenModule: NativeReferenceModule = {
-    id: "hid_mod",
-    name: "Hidden Module",
-    description: "A module with view_default: hidden",
-    view_default: "hidden",
+  const noViewModule: NativeReferenceModule = {
+    id: "noview_mod",
+    name: "No View Module",
+    description: "A module without a view",
     execute: () => Promise.resolve({ type: "structured", data: { result: "lookup", count: 5 } }),
   };
 
   beforeEach(async () => {
     await cleanAll();
-    registerNativeModule("testgame", visibleModule);
-    registerNativeModule("testgame", hiddenModule);
+    registerNativeModule("testgame", testModule);
+    registerNativeModule("testgame", noViewModule);
     const source = await seedSource(TEST_USER);
     await seedPush(
       TEST_USER,
@@ -81,56 +89,86 @@ describe("query_reference view_default", () => {
     TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
   });
 
-  it("returns ViewToolResult when view_default is visible", async () => {
-    const result = await callTool("query_reference", {
-      game_id: "testgame",
-      module: "vis_mod",
-      queries: [{ label: "Test" }],
+  describe("tools/list", () => {
+    it("query_reference has no _meta.ui", async () => {
+      const tools = await listTools();
+      const qr = tools.find((t) => t.name === "query_reference");
+      expect(qr).toBeDefined();
+      const meta = qr!._meta as Record<string, unknown> | undefined;
+      expect(meta?.ui).toBeUndefined();
     });
-    expect(result).toHaveProperty("structuredContent");
-    const sc = result.structuredContent as Record<string, unknown>;
-    expect(sc.module).toBe("vis_mod");
-    expect(sc.score).toBe(42);
+
+    it("show_reference has _meta.ui", async () => {
+      const tools = await listTools();
+      const sr = tools.find((t) => t.name === "show_reference");
+      expect(sr).toBeDefined();
+      const meta = sr!._meta as Record<string, unknown> | undefined;
+      expect(meta?.ui).toBeDefined();
+    });
   });
 
-  it("returns textResult when view_default is hidden", async () => {
-    const result = await callTool("query_reference", {
-      game_id: "testgame",
-      module: "hid_mod",
-      queries: [{ label: "Test" }],
+  describe("query_reference", () => {
+    it("never returns structuredContent", async () => {
+      const result = await callTool("query_reference", {
+        game_id: "testgame",
+        module: visualModuleId,
+        queries: [{ label: "Test" }],
+      });
+      expect(result).not.toHaveProperty("structuredContent");
+      const content = result.content as { type: string; text: string }[];
+      const parsed = JSON.parse(content[0]!.text);
+      expect(parsed.module).toBe(visualModuleId);
+      expect(parsed.score).toBe(42);
     });
-    expect(result).not.toHaveProperty("structuredContent");
-    const content = result.content as { type: string; text: string }[];
-    const parsed = JSON.parse(content[0]!.text);
-    expect(parsed.module).toBe("hid_mod");
-    expect(parsed.count).toBe(5);
+
+    it("works for modules without views", async () => {
+      const result = await callTool("query_reference", {
+        game_id: "testgame",
+        module: "noview_mod",
+        queries: [{ label: "Test" }],
+      });
+      expect(result).not.toHaveProperty("structuredContent");
+      const content = result.content as { type: string; text: string }[];
+      const parsed = JSON.parse(content[0]!.text);
+      expect(parsed.count).toBe(5);
+    });
+
+    it("works with multi-query batches", async () => {
+      const result = await callTool("query_reference", {
+        game_id: "testgame",
+        module: visualModuleId,
+        queries: [{ label: "A" }, { label: "B" }],
+      });
+      expect(result).not.toHaveProperty("structuredContent");
+      const content = result.content as { type: string; text: string }[];
+      const parsed = JSON.parse(content[0]!.text);
+      expect(parsed._multiQuery).toBe(true);
+      expect(parsed.results).toHaveLength(2);
+    });
   });
 
-  it("hidden result preserves all module data in text content", async () => {
-    const result = await callTool("query_reference", {
-      game_id: "testgame",
-      module: "hid_mod",
-      queries: [{ label: "Test" }],
+  describe("show_reference", () => {
+    it("returns structuredContent for visual modules", async () => {
+      const result = await callTool("show_reference", {
+        game_id: "testgame",
+        module: visualModuleId,
+        queries: [{ label: "Test" }],
+      });
+      expect(result).toHaveProperty("structuredContent");
+      const sc = result.structuredContent as Record<string, unknown>;
+      expect(sc.module).toBe(visualModuleId);
+      expect(sc.score).toBe(42);
     });
-    expect(result).not.toHaveProperty("structuredContent");
-    const content = result.content as { type: string; text: string }[];
-    const data = JSON.parse(content[0]!.text);
-    // All fields from the module's execute result are present
-    expect(data.module).toBe("hid_mod");
-    expect(data.result).toBe("lookup");
-    expect(data.count).toBe(5);
-  });
 
-  it("works with multi-query batches and hidden default", async () => {
-    const result = await callTool("query_reference", {
-      game_id: "testgame",
-      module: "hid_mod",
-      queries: [{ label: "A" }, { label: "B" }],
+    it("returns error for non-visual modules", async () => {
+      const result = await callTool("show_reference", {
+        game_id: "testgame",
+        module: "noview_mod",
+        queries: [{ label: "Test" }],
+      });
+      expect(result.isError).toBe(true);
+      const content = result.content as { type: string; text: string }[];
+      expect(content[0]!.text).toContain("does not support visual display");
     });
-    expect(result).not.toHaveProperty("structuredContent");
-    const content = result.content as { type: string; text: string }[];
-    const parsed = JSON.parse(content[0]!.text);
-    expect(parsed._multiQuery).toBe(true);
-    expect(parsed.results).toHaveLength(2);
   });
 });
