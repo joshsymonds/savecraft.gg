@@ -3,8 +3,8 @@
   Factorio production chain visualization. Wraps FlowChart with
   MachineNode content and item-colored flow bands.
 
-  Accepts the production_tree structure from ratio_calculator.go
-  directly and handles tree→FlowNode/FlowEdge conversion internally.
+  Accepts the DAG output (stages + flows) from ratio_calculator.go
+  directly and handles conversion to FlowNode/FlowEdge internally.
 
   @attribution wube
 -->
@@ -18,26 +18,34 @@
   import itemManifest from "../sprites/items.json";
   import fluidManifest from "../sprites/fluids.json";
 
-  export interface TreeNode {
+  export interface ProductionStage {
+    id: string;
     item: string;
     recipe: string;
-    machines?: number;
     machine_type?: string;
-    modules?: string[];
+    machine_count?: number;
     rate_per_min?: number;
     belt_tier?: string;
     power_kw?: number;
-    children?: TreeNode[];
+  }
+
+  export interface ProductionFlow {
+    source: string;
+    target: string;
+    item: string;
+    rate_per_min: number;
   }
 
   interface Props {
-    /** Production tree from ratio_calculator.go */
-    tree: TreeNode;
+    /** Production stages from ratio_calculator.go */
+    stages: ProductionStage[];
+    /** Production flows from ratio_calculator.go */
+    flows: ProductionFlow[];
     /** Base URL for sprite sheets */
     spriteBaseUrl?: string;
   }
 
-  let { tree, spriteBaseUrl = "/plugins/factorio/sprites" }: Props = $props();
+  let { stages, flows, spriteBaseUrl = "/plugins/factorio/sprites" }: Props = $props();
 
   // Sprite configs
   let itemSpriteConfig: SpriteConfig = $derived({
@@ -59,53 +67,45 @@
     return itemSpriteConfig;
   }
 
-  // Flatten tree into FlowChart nodes + edges
-  function flattenTree(root: TreeNode): { nodes: FlowNode[]; edges: FlowEdge[] } {
+  /** Convert ratio_calculator DAG into FlowChart nodes + edges. */
+  function buildGraph(
+    stageList: ProductionStage[],
+    flowList: ProductionFlow[],
+  ): { nodes: FlowNode[]; edges: FlowEdge[] } {
     const nodes: FlowNode[] = [];
     const edges: FlowEdge[] = [];
-    let idCounter = 0;
 
-    function walk(node: TreeNode, parentId: string | null): string {
-      const id = `n${idCounter++}`;
-      const isRaw = node.recipe === "(raw)" || node.recipe === "(no recipe)";
-      const isAmbiguous = node.recipe?.startsWith("(ambiguous");
+    for (const stage of stageList) {
+      const isRaw = stage.recipe === "(raw)" || stage.recipe === "(no recipe)";
+      const isAmbiguous = stage.recipe?.startsWith("(ambiguous");
 
       nodes.push({
-        id,
-        label: node.item,
+        id: stage.id,
+        label: stage.item,
         data: {
-          name: node.item,
-          machineName: node.machine_type,
-          machineCount: node.machines,
-          modules: node.modules ?? [],
-          ratePerMin: node.rate_per_min,
+          name: stage.item,
+          machineName: stage.machine_type,
+          machineCount: stage.machine_count,
+          modules: [],
+          ratePerMin: stage.rate_per_min,
         },
         variant: isRaw ? "raw" : isAmbiguous ? "bottleneck" : "default",
       });
-
-      if (parentId) {
-        edges.push({
-          source: id,
-          target: parentId,
-          rate: node.rate_per_min ?? 0,
-          color: getItemColor(node.item),
-        });
-      }
-
-      if (node.children) {
-        for (const child of node.children) {
-          walk(child, id);
-        }
-      }
-
-      return id;
     }
 
-    walk(root, null);
+    for (const flow of flowList) {
+      edges.push({
+        source: flow.source,
+        target: flow.target,
+        rate: flow.rate_per_min,
+        color: getItemColor(flow.item),
+      });
+    }
+
     return { nodes, edges };
   }
 
-  let chartData = $derived(flattenTree(tree));
+  let chartData = $derived(buildGraph(stages, flows));
 </script>
 
 <div class="production-chain">

@@ -33,15 +33,63 @@ type ratioQuery struct {
 	Overrides     map[string]string `json:"recipe_overrides"` // item → recipe for intermediate products
 }
 
-type productionNode struct {
-	Item        string            `json:"item"`
-	Recipe      string            `json:"recipe"`
-	Machines    int               `json:"machines"`
-	MachineType string            `json:"machine_type"`
-	RatePerMin  float64           `json:"rate_per_min"`
-	BeltTier    string            `json:"belt_tier"`
-	PowerKW     float64           `json:"power_kw"`
-	Children    []*productionNode `json:"children,omitempty"`
+// ─── DAG Output Types ───────────────────────────────────────────────────────
+
+type productionStage struct {
+	ID           string  `json:"id"`
+	Item         string  `json:"item"`
+	Recipe       string  `json:"recipe"`
+	MachineType  string  `json:"machine_type"`
+	MachineCount int     `json:"machine_count"`
+	RatePerMin   float64 `json:"rate_per_min"`
+	BeltTier     string  `json:"belt_tier"`
+	PowerKW      float64 `json:"power_kw"`
+}
+
+type productionFlow struct {
+	Source     string  `json:"source"`
+	Target     string  `json:"target"`
+	Item       string  `json:"item"`
+	RatePerMin float64 `json:"rate_per_min"`
+}
+
+// ─── DAG Builder ────────────────────────────────────────────────────────────
+//
+// Builds a DAG instead of a tree so shared inputs (like iron-plate feeding
+// multiple recipes) appear once with merged machine counts.
+//
+// Phase 1 (resolve): DFS to discover recipe graph structure.
+// Phase 2 (propagate): Topological order rate propagation.
+
+type dagBuilder struct {
+	// Recipe graph (populated by resolve)
+	nodes map[string]*dagNode
+	edges []dagEdge // consumer → ingredient relationships
+
+	// Config
+	assemblerTier          string
+	moduleSpeedBonus       float64
+	moduleProdBonus        float64
+	moduleConsumptionBonus float64
+	beaconSpeedBonus       float64
+	recipeOverrides        map[string]string
+
+	// DFS state for resolve phase
+	resolving map[string]bool
+}
+
+type dagNode struct {
+	item      string
+	recipe    *data.Recipe
+	resultAmt float64
+	isRaw     bool
+	rawLabel  string // "(raw)", "(cycle)", "(ambiguous: ...)", etc.
+}
+
+type dagEdge struct {
+	consumer   string  // item being crafted
+	ingredient string  // item consumed
+	amount     float64 // ingredient amount per craft of consumer
 }
 
 func handleRatioCalculator(enc *json.Encoder, query map[string]any) {
@@ -76,19 +124,7 @@ func handleRatioCalculator(enc *json.Encoder, query map[string]any) {
 		overrides[q.TargetItem] = q.Recipe
 	}
 
-	ctx := &ratioContext{
-		assemblerTier:          q.AssemblerTier,
-		moduleSpeedBonus:       moduleSpeedBonus,
-		moduleProdBonus:        moduleProdBonus,
-		moduleConsumptionBonus: moduleConsumptionBonus,
-		beaconSpeedBonus:       beaconSpeedBonus,
-		rawTotals:              make(map[string]float64),
-		totalPowerKW:           0,
-		visited:                make(map[string]bool),
-		recipeOverrides:        overrides,
-	}
-
-	// Verify the target item has a recipe before building the tree
+	// Verify the target item has a recipe before building the DAG
 	if !rawMaterials[q.TargetItem] {
 		recipe, _, ambiguous := resolveRecipe(q.TargetItem, q.Recipe, q.Overrides)
 		if recipe == nil && len(ambiguous) > 0 {
@@ -104,22 +140,41 @@ func handleRatioCalculator(enc *json.Encoder, query map[string]any) {
 		}
 	}
 
-	root := ctx.buildTree(q.TargetItem, q.TargetRate/60.0) // convert to per-second internally
+	b := &dagBuilder{
+		nodes:                  make(map[string]*dagNode),
+		assemblerTier:          q.AssemblerTier,
+		moduleSpeedBonus:       moduleSpeedBonus,
+		moduleProdBonus:        moduleProdBonus,
+		moduleConsumptionBonus: moduleConsumptionBonus,
+		beaconSpeedBonus:       beaconSpeedBonus,
+		recipeOverrides:        overrides,
+		resolving:              make(map[string]bool),
+	}
 
-	// Build raw materials summary
+	// Phase 1: Resolve recipe graph structure
+	b.resolve(q.TargetItem, 0)
+
+	// Phase 2: Propagate rates in topological order and compute stages/flows
+	stages, flows, rawTotals, totalPowerKW := b.propagate(q.TargetItem, q.TargetRate/60.0)
+
+	// Build raw materials summary (sorted for deterministic output)
 	var rawSummary []map[string]any
-	for item, rate := range ctx.rawTotals {
+	for item, rate := range rawTotals {
 		rawSummary = append(rawSummary, map[string]any{
 			"item":         item,
 			"rate_per_min": roundTo(rate*60, 1),
 			"belt_tier":    beltTierForRate(rate),
 		})
 	}
+	sort.Slice(rawSummary, func(i, j int) bool {
+		return rawSummary[i]["item"].(string) < rawSummary[j]["item"].(string)
+	})
 
 	writeResult(enc, map[string]any{
-		"production_tree": root,
-		"raw_materials":   rawSummary,
-		"total_power_kw":  roundTo(ctx.totalPowerKW, 1),
+		"stages":         stages,
+		"flows":          flows,
+		"raw_materials":  rawSummary,
+		"total_power_kw": roundTo(totalPowerKW, 1),
 		"config": map[string]any{
 			"assembler_tier": q.AssemblerTier,
 			"modules":        q.Modules,
@@ -129,168 +184,227 @@ func handleRatioCalculator(enc *json.Encoder, query map[string]any) {
 	})
 }
 
-type ratioContext struct {
-	assemblerTier          string
-	moduleSpeedBonus       float64
-	moduleProdBonus        float64
-	moduleConsumptionBonus float64
-	beaconSpeedBonus       float64
-	rawTotals              map[string]float64
-	totalPowerKW           float64
-	visited                map[string]bool   // cycle detection
-	recipeOverrides        map[string]string // item → recipe name
-}
+const maxDepth = 50
 
-const maxTreeDepth = 50
-
-func (ctx *ratioContext) buildTree(item string, targetRatePerSec float64) *productionNode {
-	return ctx.buildTreeDepth(item, targetRatePerSec, 0)
-}
-
-func (ctx *ratioContext) buildTreeDepth(item string, targetRatePerSec float64, depth int) *productionNode {
-	if depth > maxTreeDepth {
-		ctx.rawTotals[item] += targetRatePerSec
-		return &productionNode{
-			Item:       item,
-			Recipe:     "(depth limit)",
-			RatePerMin: roundTo(targetRatePerSec*60, 1),
-			BeltTier:   beltTierForRate(targetRatePerSec),
-		}
+// resolve discovers the recipe graph via DFS without computing rates.
+func (b *dagBuilder) resolve(item string, depth int) {
+	if depth > maxDepth {
+		b.nodes[item] = &dagNode{item: item, isRaw: true, rawLabel: "(depth limit)"}
+		return
 	}
 
-	// Base case: raw material
+	// Already resolved — don't recurse
+	if _, ok := b.nodes[item]; ok {
+		return
+	}
+
+	// Cycle detection (item currently in DFS stack)
+	if b.resolving[item] {
+		b.nodes[item] = &dagNode{item: item, isRaw: true, rawLabel: "(cycle)"}
+		return
+	}
+	b.resolving[item] = true
+	defer func() { delete(b.resolving, item) }()
+
+	// Raw material
 	if rawMaterials[item] {
-		ctx.rawTotals[item] += targetRatePerSec
-		return &productionNode{
-			Item:       item,
-			Recipe:     "(raw)",
-			RatePerMin: roundTo(targetRatePerSec*60, 1),
-			BeltTier:   beltTierForRate(targetRatePerSec),
-		}
+		b.nodes[item] = &dagNode{item: item, isRaw: true, rawLabel: "(raw)"}
+		return
 	}
 
-	// Find recipe that produces this item
-	recipe, resultAmount, ambiguous := resolveRecipe(item, "", ctx.recipeOverrides)
+	// Resolve recipe
+	recipe, resultAmount, ambiguous := resolveRecipe(item, "", b.recipeOverrides)
 	if recipe == nil && len(ambiguous) > 0 {
-		// Ambiguous intermediate — treat as raw so the tree completes,
-		// but mark it so the AI knows to ask
-		ctx.rawTotals[item] += targetRatePerSec
-		return &productionNode{
-			Item:       item,
-			Recipe:     fmt.Sprintf("(ambiguous: %v)", ambiguous),
-			RatePerMin: roundTo(targetRatePerSec*60, 1),
-			BeltTier:   beltTierForRate(targetRatePerSec),
-		}
+		b.nodes[item] = &dagNode{item: item, isRaw: true, rawLabel: fmt.Sprintf("(ambiguous: %v)", ambiguous)}
+		return
 	}
 	if recipe == nil {
-		// No recipe found — treat as raw
-		ctx.rawTotals[item] += targetRatePerSec
-		return &productionNode{
-			Item:       item,
-			Recipe:     "(no recipe)",
-			RatePerMin: roundTo(targetRatePerSec*60, 1),
-			BeltTier:   beltTierForRate(targetRatePerSec),
-		}
+		b.nodes[item] = &dagNode{item: item, isRaw: true, rawLabel: "(no recipe)"}
+		return
 	}
 
-	// Cycle detection
-	if ctx.visited[item] {
-		ctx.rawTotals[item] += targetRatePerSec
-		return &productionNode{
-			Item:       item,
-			Recipe:     "(cycle)",
-			RatePerMin: roundTo(targetRatePerSec*60, 1),
-			BeltTier:   beltTierForRate(targetRatePerSec),
-		}
-	}
-	ctx.visited[item] = true
-	defer func() { ctx.visited[item] = false }()
+	b.nodes[item] = &dagNode{item: item, recipe: recipe, resultAmt: resultAmount}
 
-	// Find the right machine for this recipe
-	machine := ctx.findMachine(recipe.Category)
-	machineType := ctx.assemblerTier
-	if machine != nil {
-		machineType = machine.Name
-	}
-
-	craftingSpeed := 1.0
-	if machine != nil {
-		craftingSpeed = machine.CraftingSpeed
-	}
-
-	// Apply module and beacon speed bonuses
-	effectiveSpeed := craftingSpeed * (1 + ctx.moduleSpeedBonus + ctx.beaconSpeedBonus)
-	if effectiveSpeed < 0.01 {
-		effectiveSpeed = 0.01 // floor
-	}
-
-	// Productivity bonus gives free output
-	effectiveOutput := resultAmount * (1 + ctx.moduleProdBonus)
-
-	// Items per second per machine
-	craftTime := recipe.EnergyRequired
-	if craftTime <= 0 {
-		craftTime = 0.5
-	}
-	itemsPerSecPerMachine := (effectiveSpeed / craftTime) * effectiveOutput
-
-	// Machines needed
-	machineCount := int(math.Ceil(targetRatePerSec / itemsPerSecPerMachine))
-	if machineCount < 1 {
-		machineCount = 1
-	}
-
-	// Actual production rate
-	actualRate := float64(machineCount) * itemsPerSecPerMachine
-
-	// Power consumption
-	powerKW := parsePowerKW(machine)
-	machinePowerKW := powerKW * (1 + ctx.moduleConsumptionBonus)
-	if machinePowerKW < powerKW*0.2 {
-		machinePowerKW = powerKW * 0.2 // efficiency module floor: 20%
-	}
-	ctx.totalPowerKW += machinePowerKW * float64(machineCount)
-
-	node := &productionNode{
-		Item:        item,
-		Recipe:      recipe.Name,
-		Machines:    machineCount,
-		MachineType: machineType,
-		RatePerMin:  roundTo(actualRate*60, 1),
-		BeltTier:    beltTierForRate(actualRate),
-		PowerKW:     roundTo(machinePowerKW*float64(machineCount), 1),
-	}
-
-	// Recurse into ingredients
-	// Ingredient consumption rate = machines * (effectiveSpeed / craftTime) * ingredientAmount
-	// Note: productivity does NOT affect ingredient consumption
-	craftsPerSecTotal := float64(machineCount) * effectiveSpeed / craftTime
-
+	// Record edges and resolve ingredients
 	for _, ing := range recipe.Ingredients {
-		ingRatePerSec := craftsPerSecTotal * ing.Amount
-		child := ctx.buildTreeDepth(ing.Name, ingRatePerSec, depth+1)
-		if child != nil {
-			node.Children = append(node.Children, child)
-		}
+		b.edges = append(b.edges, dagEdge{
+			consumer:   item,
+			ingredient: ing.Name,
+			amount:     ing.Amount,
+		})
+		b.resolve(ing.Name, depth+1)
 	}
-
-	return node
 }
 
-func (ctx *ratioContext) findMachine(category string) *data.CraftingMachine {
-	// Try the preferred assembler tier first
-	if m, ok := data.Machines[ctx.assemblerTier]; ok {
+// propagate computes rates in topological order (consumers before producers)
+// and returns stages, flows, raw totals, and total power.
+func (b *dagBuilder) propagate(root string, targetRatePerSec float64) (
+	[]productionStage, []productionFlow, map[string]float64, float64,
+) {
+	order := b.topoSort(root)
+	demand := make(map[string]float64)
+	demand[root] = targetRatePerSec
+
+	rawTotals := make(map[string]float64)
+	var totalPowerKW float64
+	var stages []productionStage
+	var flows []productionFlow
+
+	for _, item := range order {
+		node := b.nodes[item]
+		itemDemand := demand[item]
+
+		if node.isRaw {
+			rawTotals[item] += itemDemand
+			stages = append(stages, productionStage{
+				ID:         item,
+				Item:       item,
+				Recipe:     node.rawLabel,
+				RatePerMin: roundTo(itemDemand*60, 1),
+				BeltTier:   beltTierForRate(itemDemand),
+			})
+			continue
+		}
+
+		recipe := node.recipe
+
+		// Find machine
+		machine := b.findMachine(recipe.Category)
+		machineType := b.assemblerTier
+		if machine != nil {
+			machineType = machine.Name
+		}
+
+		craftingSpeed := 1.0
+		if machine != nil {
+			craftingSpeed = machine.CraftingSpeed
+		}
+
+		// Apply module and beacon speed bonuses
+		effectiveSpeed := craftingSpeed * (1 + b.moduleSpeedBonus + b.beaconSpeedBonus)
+		if effectiveSpeed < 0.01 {
+			effectiveSpeed = 0.01
+		}
+
+		// Productivity bonus gives free output
+		effectiveOutput := node.resultAmt * (1 + b.moduleProdBonus)
+
+		craftTime := recipe.EnergyRequired
+		if craftTime <= 0 {
+			craftTime = 0.5
+		}
+		itemsPerSecPerMachine := (effectiveSpeed / craftTime) * effectiveOutput
+
+		machineCount := int(math.Ceil(itemDemand / itemsPerSecPerMachine))
+		if machineCount < 1 {
+			machineCount = 1
+		}
+
+		actualRate := float64(machineCount) * itemsPerSecPerMachine
+
+		// Power
+		powerKW := parsePowerKW(machine)
+		machinePowerKW := powerKW * (1 + b.moduleConsumptionBonus)
+		if machinePowerKW < powerKW*0.2 {
+			machinePowerKW = powerKW * 0.2 // efficiency module floor: 20%
+		}
+		totalPowerKW += machinePowerKW * float64(machineCount)
+
+		stages = append(stages, productionStage{
+			ID:           item,
+			Item:         item,
+			Recipe:       recipe.Name,
+			MachineType:  machineType,
+			MachineCount: machineCount,
+			RatePerMin:   roundTo(actualRate*60, 1),
+			BeltTier:     beltTierForRate(actualRate),
+			PowerKW:      roundTo(machinePowerKW*float64(machineCount), 1),
+		})
+
+		// Propagate demand to ingredients and record flows.
+		// Productivity does NOT affect ingredient consumption.
+		craftsPerSecTotal := float64(machineCount) * effectiveSpeed / craftTime
+		for _, ing := range recipe.Ingredients {
+			ingDemand := craftsPerSecTotal * ing.Amount
+			demand[ing.Name] += ingDemand
+			flows = append(flows, productionFlow{
+				Source:     ing.Name,
+				Target:     item,
+				Item:       ing.Name,
+				RatePerMin: roundTo(ingDemand*60, 1),
+			})
+		}
+	}
+
+	return stages, flows, rawTotals, totalPowerKW
+}
+
+// topoSort returns items in topological order: consumers before producers.
+// Uses Kahn's algorithm (BFS from nodes with in-degree 0).
+func (b *dagBuilder) topoSort(root string) []string {
+	// Build in-degree: number of unique consumers for each ingredient
+	inDegree := make(map[string]int)
+	children := make(map[string][]string) // consumer → unique ingredients
+	for item := range b.nodes {
+		inDegree[item] = 0
+	}
+
+	// Deduplicate edges: track which consumer→ingredient pairs we've seen
+	consumerSeen := make(map[string]map[string]bool) // ingredient → set of consumers
+	childSeen := make(map[string]map[string]bool)    // consumer → set of ingredients
+	for _, e := range b.edges {
+		if consumerSeen[e.ingredient] == nil {
+			consumerSeen[e.ingredient] = make(map[string]bool)
+		}
+		if !consumerSeen[e.ingredient][e.consumer] {
+			consumerSeen[e.ingredient][e.consumer] = true
+			inDegree[e.ingredient]++
+		}
+		if childSeen[e.consumer] == nil {
+			childSeen[e.consumer] = make(map[string]bool)
+		}
+		if !childSeen[e.consumer][e.ingredient] {
+			childSeen[e.consumer][e.ingredient] = true
+			children[e.consumer] = append(children[e.consumer], e.ingredient)
+		}
+	}
+
+	queue := []string{root}
+	var order []string
+	visited := make(map[string]bool)
+
+	for len(queue) > 0 {
+		item := queue[0]
+		queue = queue[1:]
+		if visited[item] {
+			continue
+		}
+		visited[item] = true
+		order = append(order, item)
+
+		for _, child := range children[item] {
+			inDegree[child]--
+			if inDegree[child] == 0 {
+				queue = append(queue, child)
+			}
+		}
+	}
+
+	return order
+}
+
+func (b *dagBuilder) findMachine(category string) *data.CraftingMachine {
+	if m, ok := data.Machines[b.assemblerTier]; ok {
 		for _, cat := range m.CraftingCategories {
 			if cat == category {
 				return &m
 			}
 		}
 	}
-	// Fallback: find any machine that handles this category
 	for _, m := range data.Machines {
 		for _, cat := range m.CraftingCategories {
 			if cat == category {
-				m := m // capture loop var
+				m := m
 				return &m
 			}
 		}
