@@ -644,9 +644,17 @@
     return topParts.join(" ");
   }
 
-  function showBandTip(ev: MouseEvent, band: FlowEdge & { path: string }) {
-    if (!band.label) return;
-    tip = { text: band.label, x: ev.clientX, y: ev.clientY, visible: true };
+  function bandTipText(band: { midLabel?: string | null; srcLabel?: string | null; label?: string }): string {
+    // Use the same formatted label as the band labels
+    if (band.midLabel) return band.midLabel;
+    if (band.srcLabel) return band.srcLabel;
+    return band.label ?? "";
+  }
+
+  function showBandTip(ev: MouseEvent, band: FlowEdge & { path: string; midLabel?: string | null; srcLabel?: string | null }) {
+    const text = bandTipText(band);
+    if (!text) return;
+    tip = { text, x: ev.clientX, y: ev.clientY, visible: true };
   }
 </script>
 
@@ -699,7 +707,8 @@
           class="flow-band"
           onmouseenter={(ev) => showBandTip(ev, band)}
           onmousemove={(ev) => {
-            if (band.label) tip = { text: band.label, x: ev.clientX, y: ev.clientY, visible: true };
+            const text = bandTipText(band);
+            if (text) tip = { text, x: ev.clientX, y: ev.clientY, visible: true };
           }}
           onmouseleave={() => tip = { ...tip, visible: false }}
         />
