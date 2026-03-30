@@ -77,16 +77,14 @@
       });
     }
 
-    // Processing stages
+    // Processing stages — show the machine as the primary identity
+    // (players think "20 oil refineries", not "20 petroleum gas machines")
     for (const stage of result.stages) {
-      // Determine the primary product for the icon — first output fluid of the recipe
-      const primaryFluid = getPrimaryFluid(stage.recipe);
-
       nodes.push({
         id: stage.id,
         label: stage.recipe,
         data: {
-          name: primaryFluid,
+          name: stage.machine_type,
           machineName: stage.machine_type,
           machineCount: stage.machine_count,
           modules: (result.config.modules as string[]) ?? [],
@@ -125,21 +123,8 @@
     return { nodes, edges };
   }
 
-  /** Get the primary output fluid for a recipe (for the node icon). */
-  function getPrimaryFluid(recipe: string): string {
-    const recipeProducts: Record<string, string> = {
-      "advanced-oil-processing": "petroleum-gas",
-      "basic-oil-processing": "petroleum-gas",
-      "coal-liquefaction": "heavy-oil",
-      "simple-coal-liquefaction": "heavy-oil",
-      "heavy-oil-cracking": "light-oil",
-      "light-oil-cracking": "petroleum-gas",
-      "lubricant": "lubricant",
-      "sulfur": "sulfur",
-      "plastic-bar": "plastic-bar",
-      "sulfuric-acid": "sulfuric-acid",
-    };
-    return recipeProducts[recipe] ?? recipe;
+  function formatName(name: string): string {
+    return name.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
   }
 
   let chartData = $derived(buildGraph(data));
@@ -158,8 +143,8 @@
         {#if d.isInputNode}
           <div class="pseudo-node input-node">
             <div class="pseudo-label">Raw Inputs</div>
-            {@const rates = d.rates as Record<string, number>}
             {#each (d.fluids as string[]) as fluid}
+              {@const rates = d.rates as Record<string, number>}
               <div class="pseudo-fluid">
                 <span class="fluid-dot" style:background={getItemColor(fluid)}></span>
                 <span class="fluid-name">{formatName(fluid)}</span>
@@ -208,12 +193,6 @@
     Total power: {(data.total_power_kw / 1000).toFixed(1)} MW
   </div>
 </div>
-
-<script lang="ts" module>
-  function formatName(name: string): string {
-    return name.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
-  }
-</script>
 
 <style>
   .oil-chain {
