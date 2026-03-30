@@ -70,6 +70,7 @@
   const BARYCENTER_SWEEPS = 8; // forward+backward sweep iterations
 
   let tip = $state({ text: "", x: 0, y: 0, visible: false });
+  let containerEl: HTMLDivElement | undefined = $state();
   let scrollEl: HTMLDivElement | undefined = $state();
   let canScrollLeft = $state(false);
   let canScrollRight = $state(false);
@@ -651,10 +652,17 @@
     return band.label ?? "";
   }
 
+  function containerRelative(ev: MouseEvent): { x: number; y: number } {
+    if (!containerEl) return { x: ev.clientX, y: ev.clientY };
+    const rect = containerEl.getBoundingClientRect();
+    return { x: ev.clientX - rect.left + containerEl.parentElement!.scrollLeft, y: ev.clientY - rect.top };
+  }
+
   function showBandTip(ev: MouseEvent, band: FlowEdge & { path: string; midLabel?: string | null; srcLabel?: string | null }) {
     const text = bandTipText(band);
     if (!text) return;
-    tip = { text, x: ev.clientX, y: ev.clientY, visible: true };
+    const pos = containerRelative(ev);
+    tip = { text, x: pos.x, y: pos.y, visible: true };
   }
 </script>
 
@@ -673,6 +681,7 @@
   >
 <div
   class="flow-container"
+  bind:this={containerEl}
   style:width="{layout.totalWidth}px"
   style:height="{layout.totalHeight}px"
 >
@@ -708,7 +717,7 @@
           onmouseenter={(ev) => showBandTip(ev, band)}
           onmousemove={(ev) => {
             const text = bandTipText(band);
-            if (text) tip = { text, x: ev.clientX, y: ev.clientY, visible: true };
+            if (text) { const pos = containerRelative(ev); tip = { text, x: pos.x, y: pos.y, visible: true }; }
           }}
           onmouseleave={() => tip = { ...tip, visible: false }}
         />
