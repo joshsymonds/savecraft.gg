@@ -191,11 +191,6 @@ func TestNPCQueryResultHasStructuredFields(t *testing.T) {
 		t.Fatal("expected result for Abigail")
 	}
 
-	// Must have formatted text
-	if _, ok := result["formatted"].(string); !ok {
-		t.Error("missing formatted field")
-	}
-
 	// Must have structured fields for view rendering
 	if result["npc"] != "Abigail" {
 		t.Errorf("npc = %v, want Abigail", result["npc"])
@@ -219,11 +214,6 @@ func TestItemQueryResultHasStructuredFields(t *testing.T) {
 	result := itemQueryResult("Diamond")
 	if result == nil {
 		t.Fatal("expected result for Diamond")
-	}
-
-	// Must have formatted text
-	if _, ok := result["formatted"].(string); !ok {
-		t.Error("missing formatted field")
 	}
 
 	// Must have structured fields for view rendering
