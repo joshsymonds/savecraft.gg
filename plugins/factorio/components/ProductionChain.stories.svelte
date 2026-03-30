@@ -36,14 +36,14 @@
 
   const comparisonStages = [
     { id: "electronic-circuit", item: "electronic-circuit", recipe: "electronic-circuit", machine_type: "assembling-machine-2", machine_count: 1, rate_per_min: 90, power_kw: 150,
-      existing: { machine_type: "assembling-machine-2", count: 1, modules: {}, effective_rate: 90, actual_rate: 85 }, status: "sufficient" as const },
+      existing: { machine_type: "assembling-machine-2", count: 1, modules: {}, effective_rate: 90, actual_rate: 85 }, status: "sufficient" },
     { id: "iron-plate", item: "iron-plate", recipe: "iron-plate", machine_type: "stone-furnace", machine_count: 5, rate_per_min: 93.8, power_kw: 450,
-      existing: { machine_type: "stone-furnace", count: 3, modules: {}, effective_rate: 56.3, actual_rate: 50 }, deficit_rate: 37.5, status: "deficit" as const },
+      existing: { machine_type: "stone-furnace", count: 3, modules: {}, effective_rate: 56.3, actual_rate: 50 }, deficit_rate: 37.5, status: "deficit" },
     { id: "copper-cable", item: "copper-cable", recipe: "copper-cable", machine_type: "assembling-machine-2", machine_count: 2, rate_per_min: 270, power_kw: 300,
-      existing: { machine_type: "assembling-machine-2", count: 2, modules: {}, effective_rate: 270, actual_rate: 260 }, status: "sufficient" as const },
+      existing: { machine_type: "assembling-machine-2", count: 2, modules: {}, effective_rate: 270, actual_rate: 260 }, status: "sufficient" },
     { id: "iron-ore", item: "iron-ore", recipe: "(raw)", rate_per_min: 93.8 },
     { id: "copper-plate", item: "copper-plate", recipe: "copper-plate", machine_type: "stone-furnace", machine_count: 10, rate_per_min: 187.5, power_kw: 900,
-      existing: { machine_type: "stone-furnace", count: 15, modules: {}, effective_rate: 281.3, actual_rate: 275 }, status: "surplus" as const },
+      existing: { machine_type: "stone-furnace", count: 15, modules: {}, effective_rate: 281.3, actual_rate: 275 }, status: "surplus" },
     { id: "copper-ore", item: "copper-ore", recipe: "(raw)", rate_per_min: 187.5 },
   ];
 
