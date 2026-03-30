@@ -1083,9 +1083,7 @@ async function executeNativeModule(
       return { content: [{ type: "text", text: result.content }] };
     }
     // Structured results → ViewToolResult (view rendering via _meta.viewScript)
-    // Include title so multi-query tabs can label each result.
-    const data = result.title ? { title: result.title, ...result.data } : result.data;
-    return viewResult(data, summarizeStructuredResult(nativeModule.id, result.data));
+    return viewResult(result.data, summarizeStructuredResult(nativeModule.id, result.data));
   } catch (error) {
     return errorResult(
       `Reference module error: ${error instanceof Error ? error.message : String(error)}`,
@@ -1202,12 +1200,8 @@ export function parseWasmResponse(text: string): ToolResult | ViewToolResult {
         // If present, return a ViewToolResult so the reference view can render them.
         const structuredFields = extractStructuredFields(data);
         if (structuredFields) {
-          // Preserve title from ndjson result for multi-query tab labels.
-          const title = parsed.title;
-          const withTitle =
-            typeof title === "string" ? { title, ...structuredFields } : structuredFields;
           const narrative = formatted.split("\n")[0] ?? `Reference data.`;
-          return viewResult(withTitle, narrative);
+          return viewResult(structuredFields, narrative);
         }
 
         const content: { type: "text"; text: string }[] = [{ type: "text", text: formatted }];

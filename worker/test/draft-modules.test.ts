@@ -3291,7 +3291,7 @@ describe("deriveArchetypeWeights", () => {
 
 describe("Bayesian shrinkage", () => {
   beforeEach(async () => {
-    await cleanAll(env.DB);
+    await cleanAll();
   });
 
   it("blends sparse archetype GIH WR toward overall mean", async () => {
@@ -3500,7 +3500,7 @@ describe("computeViabilityTier", () => {
 
 describe("format-adjusted archetype weighting", () => {
   beforeEach(async () => {
-    await cleanAll(env.DB);
+    await cleanAll();
   });
 
   it("steers toward stronger archetype when commitment is equal", async () => {

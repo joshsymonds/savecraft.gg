@@ -25,7 +25,7 @@
 
   let tabs = $derived(
     results.map((r, i) => ({
-      label: (typeof r?.title === "string" ? r.title : null) ?? `Result ${i + 1}`,
+      label: (typeof r?.label === "string" ? r.label : null) ?? `Result ${i + 1}`,
     })),
   );
 </script>

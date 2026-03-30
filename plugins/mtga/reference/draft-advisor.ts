@@ -347,7 +347,6 @@ async function contextualPick(
   if (packNames.length === 0) {
     return {
       type: "structured",
-      title: "Draft Advisor",
       data: { error: "No pack cards found in card database" },
     };
   }
@@ -1158,7 +1157,6 @@ async function contextualPick(
 
   return {
     type: "structured",
-    title: `Pick ${pickNumber}`,
     data: {
       archetype: (() => {
         const allDeckShares = [...deckCountByPair.values()].map((c) =>
@@ -1553,7 +1551,6 @@ async function batchReview(
 
   return {
     type: "structured",
-    title: "Draft Review",
     data: {
       summary: {
         total_picks: results.length,

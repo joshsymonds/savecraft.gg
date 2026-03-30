@@ -8,25 +8,25 @@ import Panel from "./Panel.svelte";
 afterEach(cleanup);
 
 describe("MultiResultView", () => {
-  it("derives tab labels from result titles", () => {
+  it("derives tab labels from result labels", () => {
     const { container } = render(MultiResultView, {
       props: {
         component: Panel,
         results: [
-          { title: "Harlequin Crest", mode: "item" },
-          { title: "Shako", mode: "item" },
+          { label: "Spring Year 1", mode: "item" },
+          { label: "Summer Year 2", mode: "item" },
         ],
-        moduleId: "drop_calc",
+        moduleId: "crop_planner",
         app: {},
       },
     });
     const buttons = container.querySelectorAll(".tab-button");
     expect(buttons).toHaveLength(2);
-    expect(buttons[0].textContent).toContain("Harlequin Crest");
-    expect(buttons[1].textContent).toContain("Shako");
+    expect(buttons[0].textContent).toContain("Spring Year 1");
+    expect(buttons[1].textContent).toContain("Summer Year 2");
   });
 
-  it("falls back to 'Result N' when title is missing", () => {
+  it("falls back to 'Result N' when label is missing", () => {
     const { container } = render(MultiResultView, {
       props: {
         component: Panel,
@@ -40,11 +40,14 @@ describe("MultiResultView", () => {
     expect(buttons[1].textContent).toContain("Result 2");
   });
 
-  it("falls back to 'Result N' when title is non-string", () => {
+  it("falls back to 'Result N' when label is non-string", () => {
     const { container } = render(MultiResultView, {
       props: {
         component: Panel,
-        results: [{ title: 42, mode: "item" }, { title: null, mode: "item" }],
+        results: [
+          { label: 42, mode: "item" },
+          { label: null, mode: "item" },
+        ],
         moduleId: "drop_calc",
         app: {},
       },
@@ -58,7 +61,7 @@ describe("MultiResultView", () => {
     const { container } = render(MultiResultView, {
       props: {
         component: Panel,
-        results: [{ title: "Only One", mode: "item" }],
+        results: [{ label: "Only One", mode: "item" }],
         moduleId: "drop_calc",
         app: {},
       },

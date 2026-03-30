@@ -155,8 +155,8 @@ describe("MTGA Constructed D1 schema", () => {
       .all<{ archetype_name: string; metagame_share: number; win_rate: number }>();
 
     expect(rows.results).toHaveLength(3);
-    expect(rows.results[0].archetype_name).toBe("Grixis Midrange");
-    expect(rows.results[0].metagame_share).toBeCloseTo(0.15);
+    expect(rows.results[0]!.archetype_name).toBe("Grixis Midrange");
+    expect(rows.results[0]!.metagame_share).toBeCloseTo(0.15);
   });
 
   // ── mtga_meta_decklists ──────────────────────────────────
@@ -194,9 +194,9 @@ describe("MTGA Constructed D1 schema", () => {
       .all<{ player_name: string; placement: number; decklist: string }>();
 
     expect(rows.results).toHaveLength(1);
-    expect(rows.results[0].player_name).toBe("PlayerOne");
-    expect(rows.results[0].placement).toBe(1);
-    expect(JSON.parse(rows.results[0].decklist).main).toHaveLength(2);
+    expect(rows.results[0]!.player_name).toBe("PlayerOne");
+    expect(rows.results[0]!.placement).toBe(1);
+    expect(JSON.parse(rows.results[0]!.decklist).main).toHaveLength(2);
   });
 
   // ── mtga_meta_matchups ───────────────────────────────────
