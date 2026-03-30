@@ -28,9 +28,9 @@ import {
   refreshSave,
   resolveIconUrl,
   searchSaves,
+  type ToolResult,
   updateNote,
   viewResult,
-  type ToolResult,
   type ViewToolResult,
 } from "./tools";
 import { VIEWS } from "./views.gen.js";
@@ -558,7 +558,7 @@ function resolveViewVisibility(
   // Look up the default: caller supplies it for query_reference, game state tools use the map.
   const viewDefault = moduleViewDefault ?? TOOL_VIEW_DEFAULTS[toolName];
 
-  const showView = visibleToUser !== undefined ? visibleToUser : viewDefault !== "hidden";
+  const showView = visibleToUser ?? viewDefault !== "hidden";
 
   if (!showView) {
     // Strip structuredContent — host won't render a widget, LLM still gets the data in content.
@@ -566,6 +566,23 @@ function resolveViewVisibility(
   }
 
   return result;
+}
+
+async function dispatchQueryReference(
+  env: Env,
+  userUuid: string,
+  args: Record<string, unknown>,
+): Promise<{
+  result: ToolResult | ViewToolResult;
+  moduleViewDefault: "visible" | "hidden" | undefined;
+}> {
+  const gameId = args.game_id as string;
+  const moduleId = args.module as string;
+  const nativeModule = getNativeModule(gameId, moduleId);
+  const moduleViewDefault =
+    nativeModule?.view_default ?? (await getWasmViewDefault(env.PLUGINS, gameId, moduleId));
+  const result = await handleQueryReference(env, userUuid, args);
+  return { result, moduleViewDefault };
 }
 
 async function handleToolCall(
@@ -631,13 +648,7 @@ async function handleToolCall(
       break;
     }
     case "query_reference": {
-      // Resolve the module's view_default (native or WASM) for visibility resolution.
-      const gameId = args.game_id as string;
-      const moduleId = args.module as string;
-      const nativeMod = getNativeModule(gameId, moduleId);
-      moduleViewDefault =
-        nativeMod?.view_default ?? (await getWasmViewDefault(env.PLUGINS, gameId, moduleId));
-      result = await handleQueryReference(env, userUuid, args);
+      ({ result, moduleViewDefault } = await dispatchQueryReference(env, userUuid, args));
       break;
     }
     case "setup_help": {
@@ -718,8 +729,9 @@ async function handleQueryReference(
 
   // For WASM modules, check the manifest for section_mappings.
   // Loaded once per batch (manifest is per-isolate cached).
-  const wasmMappings =
-    nativeModule ? undefined : await getWasmSectionMappings(env.PLUGINS, gameId, moduleId);
+  const wasmMappings = nativeModule
+    ? undefined
+    : await getWasmSectionMappings(env.PLUGINS, gameId, moduleId);
 
   // Cache verified save ownership across queries in this batch to avoid
   // redundant D1 lookups when multiple queries reference the same save_id.
@@ -764,10 +776,10 @@ async function handleQueryReference(
     return label && typeof data === "object" && data !== null ? { ...data, label } : data;
   });
 
-  // Resolve game icon URL for view rendering (uses per-isolate manifest cache, typically warm)
   const iconUrl = env.SERVER_URL
     ? await resolveIconUrl(env.PLUGINS, env.SERVER_URL, gameId)
     : undefined;
+  const iconSpread = iconUrl ? { icon_url: iconUrl } : {};
 
   // Single-query shortcut: unwrap the array
   if (results.length === 1) {
@@ -775,17 +787,10 @@ async function handleQueryReference(
     if ("error" in data) {
       return { content: [{ type: "text", text: String(data.error) }], isError: true };
     }
-    // Include module ID so the bundled reference view knows which component to mount
-    return viewResult({ module: moduleId, ...(iconUrl ? { icon_url: iconUrl } : {}), ...data });
+    return viewResult({ module: moduleId, ...iconSpread, ...data });
   }
 
-  // Multi-query: wrap in { results } array with explicit discriminator
-  return viewResult({
-    module: moduleId,
-    _multiQuery: true,
-    ...(iconUrl ? { icon_url: iconUrl } : {}),
-    results,
-  });
+  return viewResult({ module: moduleId, _multiQuery: true, ...iconSpread, results });
 }
 
 function parseRpc(request: Request): Promise<JsonRpcRequest> {

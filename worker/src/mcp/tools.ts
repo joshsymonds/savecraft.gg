@@ -237,10 +237,7 @@ export async function getWasmViewDefault(
   moduleId: string,
 ): Promise<"visible" | "hidden" | undefined> {
   const manifest = await getCachedManifest(plugins, `plugins/${gameId}/manifest.json`);
-  return manifest?.reference?.modules?.[moduleId]?.view_default as
-    | "visible"
-    | "hidden"
-    | undefined;
+  return manifest?.reference?.modules?.[moduleId]?.view_default;
 }
 
 /** Per-isolate cache for R2 manifest key list — avoids R2 list on every list_games call. */
