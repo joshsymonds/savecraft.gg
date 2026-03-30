@@ -39,6 +39,8 @@ func main() {
 		handleRecipeLookup(enc, query)
 	case "ratio_calculator":
 		handleRatioCalculator(enc, query)
+	case "oil_balancer":
+		handleOilBalancer(enc, query)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -81,6 +83,17 @@ func schema() map[string]any {
 					"product": map[string]any{"type": "string", "description": "Find all recipes that produce this item (e.g. 'plastic-bar')"},
 					"machine": map[string]any{"type": "string", "description": "Look up a crafting machine's stats and categories (e.g. 'assembling-machine-3')"},
 					"tech":    map[string]any{"type": "string", "description": "Look up a technology's prerequisites, costs, and unlocked recipes (e.g. 'advanced-oil-processing')"},
+				},
+			},
+			"oil_balancer": map[string]any{
+				"name":        "Oil Processing Balancer",
+				"description": "Compute optimal refinery and cracking plant counts for target fluid production rates. Supports all processing types including advanced oil, basic oil, coal liquefaction, and simple coal liquefaction.",
+				"parameters": map[string]any{
+					"processing_type": map[string]any{"type": "string", "description": "Oil processing recipe: 'advanced-oil-processing', 'basic-oil-processing', 'coal-liquefaction', or 'simple-coal-liquefaction'", "required": true},
+					"targets":         map[string]any{"type": "object", "description": "Map of fluid name to target rate in units per second (e.g. {\"petroleum-gas\": 100, \"lubricant\": 10})", "required": true},
+					"modules":         map[string]any{"type": "array", "description": "Module names in each machine slot (e.g. ['productivity-module-3', 'productivity-module-3', 'productivity-module-3'])"},
+					"beacon_count":    map[string]any{"type": "integer", "description": "Number of beacons affecting each machine", "default": 0},
+					"beacon_modules":  map[string]any{"type": "array", "description": "Module names in each beacon (e.g. ['speed-module-3', 'speed-module-3'])"},
 				},
 			},
 			"ratio_calculator": map[string]any{
