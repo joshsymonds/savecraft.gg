@@ -2,8 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"math"
 	"os"
+	"strconv"
+	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
 )
@@ -230,11 +233,61 @@ func computeSolar(targetMW float64) sourceResult {
 	}
 }
 
+// resolve2xN computes a 2×N reactor layout dynamically.
+// In a 2-wide grid: 4 corners have 2 neighbors, 2*(N-2) interior reactors have 3 neighbors.
+func resolve2xN(n int) (data.ReactorLayout, string) {
+	if n < 1 {
+		return data.ReactorLayout{}, "2xN layout requires N >= 1"
+	}
+	reactors := 2 * n
+	adjacencies := make([]int, reactors)
+	for i := 0; i < reactors; i++ {
+		col := i % n
+		if n == 1 {
+			// 2x1: each reactor has 1 neighbor (the one above/below).
+			adjacencies[i] = 1
+		} else if col == 0 || col == n-1 {
+			// Corner: 2 neighbors.
+			adjacencies[i] = 2
+		} else {
+			// Interior: 3 neighbors.
+			adjacencies[i] = 3
+		}
+	}
+	var sum int
+	for _, a := range adjacencies {
+		sum += a
+	}
+	return data.ReactorLayout{
+		Name:         fmt.Sprintf("2x%d", n),
+		Reactors:     reactors,
+		Adjacencies:  adjacencies,
+		AvgNeighbors: float64(sum) / float64(reactors),
+	}, ""
+}
+
+// resolveLayout looks up a named preset or computes a 2xN layout dynamically.
+func resolveLayout(layoutName string) (data.ReactorLayout, string) {
+	// Check static presets first.
+	if layout, ok := data.ReactorLayouts[layoutName]; ok {
+		return layout, ""
+	}
+	// Try parsing "2xN" format for arbitrary N.
+	if strings.HasPrefix(layoutName, "2x") {
+		nStr := layoutName[2:]
+		n, err := strconv.Atoi(nStr)
+		if err == nil && n >= 1 {
+			return resolve2xN(n)
+		}
+	}
+	return data.ReactorLayout{}, "unknown reactor layout: " + layoutName + ". Valid layouts: 1x1, 2x1, 2x2, 2x3, 2x4, or 2xN (e.g. 2x6)"
+}
+
 // computeNuclear calculates nuclear power entities for a given reactor layout.
 func computeNuclear(layoutName string) (sourceResult, string) {
-	layout, ok := data.ReactorLayouts[layoutName]
-	if !ok {
-		return sourceResult{}, "unknown reactor layout: " + layoutName + ". Valid layouts: 1x1, 2x1, 2x2, 2x3, 2x4"
+	layout, errMsg := resolveLayout(layoutName)
+	if errMsg != "" {
+		return sourceResult{}, errMsg
 	}
 
 	// Compute total thermal output.
@@ -251,15 +304,12 @@ func computeNuclear(layoutName string) (sourceResult, string) {
 	// Steam turbines: each produces 5.82 MW electrical.
 	turbineKW := data.PowerEntities["steam-turbine"].PowerOutputKW // 5820 kW
 	turbineMW := turbineKW / 1000
-	// Total steam from heat exchangers = totalThermalMW (conservation).
-	// Turbines needed = totalThermalMW / turbineMW.
 	turbines := int(math.Ceil(totalThermalMW / turbineMW))
 
 	// Electrical output = turbines * turbineMW (slightly over due to ceiling).
 	genMW := float64(turbines) * turbineMW
 
-	// Offshore pumps for heat exchangers: each exchanger needs ~103 water/sec,
-	// 1 pump provides 1200/sec.
+	// Offshore pumps for heat exchangers.
 	exchangerWater := data.PowerEntities["heat-exchanger"].FluidPerSec
 	totalWater := float64(heatExchangers) * exchangerWater
 	pumps := int(math.Ceil(totalWater / data.PowerEntities["offshore-pump"].FluidPerSec))
@@ -268,9 +318,14 @@ func computeNuclear(layoutName string) (sourceResult, string) {
 	fuelCellsPerSec := float64(layout.Reactors) / data.NuclearFuelCellDuration
 	fuelCellsPerMin := fuelCellsPerSec * 60
 
-	// U-235 per fuel cell: 1 fuel cell = 1 U-235 (simplification of the enrichment recipe).
-	// Uranium ore per U-235: Kovarex enrichment makes this complex; report fuel cells only
-	// and let the AI explain enrichment.
+	// U-235: 1 fuel cell requires 1 U-235 (from the uranium fuel cell recipe).
+	u235PerMin := fuelCellsPerMin
+
+	// Uranium ore: centrifuge yields U-235 at 0.7% (1/143 per ore).
+	// With Kovarex enrichment (unlocked by most nuclear players), effective rate is much
+	// better, but pre-Kovarex rate is the worst case and most useful for planning.
+	// Pre-Kovarex: ~143 ore per U-235.
+	uraniumOrePerMin := u235PerMin * 143
 
 	return sourceResult{
 		Type:         "nuclear",
@@ -283,7 +338,9 @@ func computeNuclear(layoutName string) (sourceResult, string) {
 			"offshore-pump":   pumps,
 		},
 		Fuel: map[string]any{
-			"fuel_cells_per_min": roundTo(fuelCellsPerMin, 2),
+			"fuel_cells_per_min":  roundTo(fuelCellsPerMin, 2),
+			"u235_per_min":        roundTo(u235PerMin, 2),
+			"uranium_ore_per_min": roundTo(uraniumOrePerMin, 1),
 		},
 	}, ""
 }

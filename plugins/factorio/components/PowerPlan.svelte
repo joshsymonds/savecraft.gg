@@ -166,7 +166,7 @@
       <div class="hero-row">
         <Stat value={formatMW(data.target_mw)} label="Target" />
         <Stat value={formatMW(data.total_generation_mw)} label="Planned" variant="highlight" />
-        <Stat value={`+${formatMW(data.surplus_mw)}`} label="Surplus" variant={surplusVariant} />
+        <Stat value={data.surplus_mw >= 0 ? `+${formatMW(data.surplus_mw)}` : `-${formatMW(Math.abs(data.surplus_mw))}`} label="Surplus" variant={surplusVariant} />
         {#if data.existing_mw != null}
           <Stat value={formatMW(data.existing_mw)} label="Existing" variant="info" />
           <Stat
@@ -201,12 +201,13 @@
                   <span class="sub-label">Summary</span>
                   <KeyValue items={nuclearKV(source)} />
                 </Panel>
-                {#if nuclearFuelChain(source)}
+                {@const fuelChain = nuclearFuelChain(source)}
+                {#if fuelChain}
                   <Panel nested>
                     <span class="sub-label">Fuel Consumption</span>
                     <FactorChain
-                      factors={nuclearFuelChain(source)!.factors}
-                      result={nuclearFuelChain(source)!.result}
+                      factors={fuelChain.factors}
+                      result={fuelChain.result}
                       precision={2}
                     />
                   </Panel>

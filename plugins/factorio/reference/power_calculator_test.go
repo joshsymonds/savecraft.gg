@@ -339,6 +339,103 @@ func TestPowerCalculator_ExistingPower(t *testing.T) {
 	}
 }
 
+// ─── 2xN Dynamic Layout ─────────────────────────────────────────────────────
+
+func TestPowerCalculator_Nuclear2x6(t *testing.T) {
+	// 2x6: 12 reactors. Corners (4) have 2 neighbors, interior (8) have 3.
+	// Total thermal: 4*40*(1+2) + 8*40*(1+3) = 480 + 1280 = 1760 MW.
+	data := runPowerCalculator(t, `{
+		"module": "power_calculator",
+		"target_mw": 1760,
+		"sources": [{"type": "nuclear", "layout": "2x6"}]
+	}`)
+
+	sources := data["sources"].([]any)
+	nuclear := findSource(sources, "nuclear")
+	if nuclear == nil {
+		t.Fatal("expected nuclear source")
+	}
+
+	entities := nuclear["entities"].(map[string]any)
+	approx(t, "reactors", entities["nuclear-reactor"].(float64), 12, 0)
+	approx(t, "heat-exchangers", entities["heat-exchanger"].(float64), 176, 0)
+
+	// Should have U-235 and uranium ore in fuel output
+	fuel := nuclear["fuel"].(map[string]any)
+	if _, ok := fuel["u235_per_min"]; !ok {
+		t.Error("expected u235_per_min in fuel output")
+	}
+	if _, ok := fuel["uranium_ore_per_min"]; !ok {
+		t.Error("expected uranium_ore_per_min in fuel output")
+	}
+}
+
+// ─── 2x4 Layout (non-uniform adjacency) ────────────────────────────────────
+
+func TestPowerCalculator_Nuclear2x4(t *testing.T) {
+	// 2x4: 8 reactors. Adjacencies: [2,3,3,2,2,3,3,2]. Avg = 2.5.
+	// Total thermal: 4*40*(1+2) + 4*40*(1+3) = 480 + 640 = 1120 MW.
+	data := runPowerCalculator(t, `{
+		"module": "power_calculator",
+		"target_mw": 1120,
+		"sources": [{"type": "nuclear", "layout": "2x4"}]
+	}`)
+
+	sources := data["sources"].([]any)
+	nuclear := findSource(sources, "nuclear")
+	entities := nuclear["entities"].(map[string]any)
+
+	approx(t, "reactors", entities["nuclear-reactor"].(float64), 8, 0)
+	approx(t, "heat-exchangers", entities["heat-exchanger"].(float64), 112, 0)
+}
+
+// ─── Unknown Fuel Fallback ──────────────────────────────────────────────────
+
+func TestPowerCalculator_UnknownFuelDefaultsToCoal(t *testing.T) {
+	// Unknown fuel should silently default to coal.
+	data := runPowerCalculator(t, `{
+		"module": "power_calculator",
+		"target_mw": 36,
+		"sources": [{"type": "steam", "fuel": "nonexistent-fuel"}]
+	}`)
+
+	sources := data["sources"].([]any)
+	steam := findSource(sources, "steam")
+	fuel := steam["fuel"].(map[string]any)
+
+	// Should have defaulted to coal
+	if fuel["type"] != "coal" {
+		t.Errorf("expected fuel type 'coal', got %v", fuel["type"])
+	}
+	// Coal consumption should be same as explicit coal test: 540/min for 36MW
+	approx(t, "coal/min", fuel["fuel_per_min"].(float64), 540, 1)
+}
+
+// ─── U-235 and Uranium Ore Output ───────────────────────────────────────────
+
+func TestPowerCalculator_NuclearFuelOutput(t *testing.T) {
+	// Verify nuclear includes u235_per_min and uranium_ore_per_min.
+	// 2x2: 4 reactors, 1.2 fuel cells/min, 1.2 u235/min, ~171.6 ore/min.
+	data := runPowerCalculator(t, `{
+		"module": "power_calculator",
+		"target_mw": 480,
+		"sources": [{"type": "nuclear", "layout": "2x2"}]
+	}`)
+
+	sources := data["sources"].([]any)
+	nuclear := findSource(sources, "nuclear")
+	fuel := nuclear["fuel"].(map[string]any)
+
+	fuelCells := fuel["fuel_cells_per_min"].(float64)
+	u235 := fuel["u235_per_min"].(float64)
+	orePerMin := fuel["uranium_ore_per_min"].(float64)
+
+	approx(t, "fuel_cells/min", fuelCells, 1.2, 0.1)
+	approx(t, "u235/min", u235, 1.2, 0.1)
+	// 1.2 * 143 = 171.6
+	approx(t, "uranium_ore/min", orePerMin, 171.6, 1)
+}
+
 // ─── Errors ─────────────────────────────────────────────────────────────────
 
 func TestPowerCalculator_MissingTarget(t *testing.T) {
