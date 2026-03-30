@@ -499,21 +499,67 @@ const TOOLS: ToolDefinition[] = [
       openWorldHint: false,
     },
   },
+  // ── Show Games (visual) ──────────────────────────────────
+  {
+    name: "show_games",
+    title: "Show Connected Games",
+    description:
+      "Display the player's connected games, saves, characters, and available reference modules as a visual card layout. Use during onboarding, when the player asks 'what games do I have?', or to show available analysis tools per game. Same data as list_games but rendered visually.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        filter: {
+          type: "string",
+          description: "Optional game name or ID to filter results.",
+        },
+      },
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
+  // ── Show Save (visual) ───────────────────────────────────
+  {
+    name: "show_save",
+    title: "Show Save Details",
+    description:
+      "Display a save's character card with overview stats, available data sections, and notes. Use when the player asks to see their character or wants a visual summary of a save.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        save_id: {
+          type: "string",
+          description: "Save UUID to display.",
+        },
+      },
+      required: ["save_id"],
+    },
+    annotations: {
+      readOnlyHint: true,
+      destructiveHint: false,
+      idempotentHint: true,
+      openWorldHint: false,
+    },
+  },
 ];
 
-/** Build tools with _meta.ui for views that should always render. */
+/** Map show_* tool names to their view bundle slugs. */
+const SHOW_TOOL_SLUGS: Record<string, string> = {
+  show_reference: "reference",
+  show_games: "show-games",
+  show_save: "show-save",
+};
+
+/** Build tools with _meta.ui for show_* tools that always render a view. */
 function buildToolsWithUi(env: Env): ToolDefinition[] {
   if (cachedToolsWithUi && cachedEnvironment === env.ENVIRONMENT) return cachedToolsWithUi;
   cachedEnvironment = env.ENVIRONMENT;
   cachedToolsWithUi = TOOLS.map((tool) => {
-    // show_reference uses the reference view bundle
-    const slug =
-      tool.name === "query_reference" || tool.name === "show_reference"
-        ? "reference"
-        : tool.name.replaceAll("_", "-");
-    if (!VIEWS[slug]) return tool;
-    // Only show_reference gets _meta.ui — query_reference is text-only, no iframe
-    if (tool.name === "query_reference") return tool;
+    const slug = SHOW_TOOL_SLUGS[tool.name];
+    if (!slug || !VIEWS[slug]) return tool;
     return {
       ...tool,
       _meta: {
@@ -555,6 +601,41 @@ function parseSectionsArgument(raw: unknown): string[] | undefined {
   return undefined;
 }
 
+/** Convert a text-only ToolResult into a ViewToolResult by parsing its JSON content. */
+function asView(result: ToolResult | ViewToolResult): ToolResult | ViewToolResult {
+  if ("structuredContent" in result) return result;
+  if (result.isError) return result;
+  const text = (result.content as { type: string; text: string }[])[0]?.text;
+  if (!text) return result;
+  return viewResult(JSON.parse(text) as Record<string, unknown>);
+}
+
+/** Visual game list: same data as list_games, wrapped for iframe rendering. */
+async function dispatchShowGames(
+  env: Env,
+  userUuid: string,
+  args: Record<string, unknown>,
+): Promise<ToolResult | ViewToolResult> {
+  return asView(
+    await listGames(
+      env.DB,
+      env.PLUGINS,
+      userUuid,
+      args.filter as string | undefined,
+      env.SERVER_URL,
+    ),
+  );
+}
+
+/** Visual save detail: same data as get_save, wrapped for iframe rendering. */
+async function dispatchShowSave(
+  env: Env,
+  userUuid: string,
+  saveId: string,
+): Promise<ToolResult | ViewToolResult> {
+  return asView(await getSave(env.DB, userUuid, saveId, env.PLUGINS, env.SERVER_URL));
+}
+
 /** Text-only reference query: strip structuredContent so no iframe loads. */
 async function dispatchQueryReference(
   env: Env,
@@ -592,6 +673,48 @@ async function dispatchShowReference(
   return handleQueryReference(env, userUuid, args);
 }
 
+type ToolHandler = (
+  env: Env,
+  userUuid: string,
+  args: Record<string, unknown>,
+  saveId: string,
+) => Promise<unknown>;
+
+/* eslint-disable @typescript-eslint/naming-convention -- keys are MCP tool names (snake_case by spec) */
+/** Tool dispatch table — maps tool name to handler. Replaces switch to stay under complexity limit. */
+const TOOL_HANDLERS: Record<string, ToolHandler> = {
+  list_games: (env, userUuid, args) =>
+    listGames(env.DB, env.PLUGINS, userUuid, args.filter as string | undefined, env.SERVER_URL),
+  get_save: (env, userUuid, _args, saveId) =>
+    getSave(env.DB, userUuid, saveId, env.PLUGINS, env.SERVER_URL),
+  get_section: (env, userUuid, args, saveId) =>
+    getSection(env.DB, userUuid, saveId, parseSectionsArgument(args.sections) ?? []),
+  get_note: (env, userUuid, args, saveId) =>
+    getNote(env.DB, userUuid, saveId, args.note_id as string),
+  create_note: (env, userUuid, args, saveId) =>
+    createNote(env.DB, userUuid, saveId, args.title as string, args.content as string),
+  update_note: (env, userUuid, args, saveId) =>
+    updateNote(
+      env.DB,
+      userUuid,
+      saveId,
+      args.note_id as string,
+      args.content as string | undefined,
+      args.title as string | undefined,
+    ),
+  delete_note: (env, userUuid, args, saveId) =>
+    deleteNote(env.DB, userUuid, saveId, args.note_id as string),
+  refresh_save: (env, userUuid, _args, saveId) => refreshSave(env, userUuid, saveId),
+  search_saves: (env, userUuid, args) =>
+    searchSaves(env.DB, userUuid, args.query as string, args.save_id as string | undefined),
+  query_reference: (env, userUuid, args) => dispatchQueryReference(env, userUuid, args),
+  show_reference: (env, userUuid, args) => dispatchShowReference(env, userUuid, args),
+  show_games: (env, userUuid, args) => dispatchShowGames(env, userUuid, args),
+  show_save: (env, userUuid, _args, saveId) => dispatchShowSave(env, userUuid, saveId),
+  setup_help: (env, userUuid, args) => handleGetInfo(env, userUuid, args),
+};
+/* eslint-enable @typescript-eslint/naming-convention */
+
 async function handleToolCall(
   params: Record<string, unknown>,
   env: Env,
@@ -599,74 +722,11 @@ async function handleToolCall(
 ): Promise<unknown> {
   const toolName = params.name as string;
   const args = (params.arguments ?? {}) as Record<string, unknown>;
-  const saveId = args.save_id as string;
-
-  let result: ToolResult | ViewToolResult;
-
-  switch (toolName) {
-    case "list_games": {
-      result = await listGames(
-        env.DB,
-        env.PLUGINS,
-        userUuid,
-        args.filter as string | undefined,
-        env.SERVER_URL,
-      );
-      break;
-    }
-    case "get_save": {
-      result = await getSave(env.DB, userUuid, saveId, env.PLUGINS, env.SERVER_URL);
-      break;
-    }
-    case "get_section": {
-      return getSection(env.DB, userUuid, saveId, parseSectionsArgument(args.sections) ?? []);
-    }
-    case "get_note": {
-      return getNote(env.DB, userUuid, saveId, args.note_id as string);
-    }
-    case "create_note": {
-      return createNote(env.DB, userUuid, saveId, args.title as string, args.content as string);
-    }
-    case "update_note": {
-      return updateNote(
-        env.DB,
-        userUuid,
-        saveId,
-        args.note_id as string,
-        args.content as string | undefined,
-        args.title as string | undefined,
-      );
-    }
-    case "delete_note": {
-      return deleteNote(env.DB, userUuid, saveId, args.note_id as string);
-    }
-    case "refresh_save": {
-      return refreshSave(env, userUuid, saveId);
-    }
-    case "search_saves": {
-      result = await searchSaves(
-        env.DB,
-        userUuid,
-        args.query as string,
-        args.save_id as string | undefined,
-      );
-      break;
-    }
-    case "query_reference": {
-      return dispatchQueryReference(env, userUuid, args);
-    }
-    case "show_reference": {
-      return dispatchShowReference(env, userUuid, args);
-    }
-    case "setup_help": {
-      return handleGetInfo(env, userUuid, args);
-    }
-    default: {
-      return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
-    }
+  const handler = TOOL_HANDLERS[toolName];
+  if (!handler) {
+    return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
   }
-
-  return result;
+  return handler(env, userUuid, args, args.save_id as string);
 }
 
 function handleGetInfo(

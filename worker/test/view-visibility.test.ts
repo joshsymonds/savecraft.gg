@@ -151,6 +151,58 @@ describe("query_reference and show_reference tools", () => {
     });
   });
 
+  describe("tools/list show_games and show_save", () => {
+    it("show_games has _meta.ui", async () => {
+      const tools = await listTools();
+      const sg = tools.find((t) => t.name === "show_games");
+      expect(sg).toBeDefined();
+      const meta = sg!._meta as Record<string, unknown> | undefined;
+      expect(meta?.ui).toBeDefined();
+    });
+
+    it("show_save has _meta.ui", async () => {
+      const tools = await listTools();
+      const ss = tools.find((t) => t.name === "show_save");
+      expect(ss).toBeDefined();
+      const meta = ss!._meta as Record<string, unknown> | undefined;
+      expect(meta?.ui).toBeDefined();
+    });
+  });
+
+  describe("show_games", () => {
+    it("returns structuredContent with games array", async () => {
+      const result = await callTool("show_games", {});
+      expect(result).toHaveProperty("structuredContent");
+      const sc = result.structuredContent as { games: unknown[] };
+      expect(sc.games).toBeDefined();
+      expect(Array.isArray(sc.games)).toBe(true);
+    });
+  });
+
+  describe("show_save", () => {
+    it("returns structuredContent with save details", async () => {
+      // Get save_id from list_games first
+      const listResult = await callTool("list_games", {});
+      const content = listResult.content as { type: string; text: string }[];
+      const listData = JSON.parse(content[0]!.text) as {
+        games: { saves: { save_id: string }[] }[];
+      };
+      const saveId = listData.games[0]!.saves[0]!.save_id;
+
+      const result = await callTool("show_save", { save_id: saveId });
+      expect(result).toHaveProperty("structuredContent");
+      const sc = result.structuredContent as { save_id: string; name: string; sections: unknown[] };
+      expect(sc.save_id).toBe(saveId);
+      expect(sc.name).toBe("TestSave");
+      expect(sc.sections).toBeDefined();
+    });
+
+    it("returns error for missing save_id", async () => {
+      const result = await callTool("show_save", { save_id: "nonexistent" });
+      expect(result.isError).toBe(true);
+    });
+  });
+
   describe("show_reference", () => {
     it("returns structuredContent for visual modules", async () => {
       const result = await callTool("show_reference", {

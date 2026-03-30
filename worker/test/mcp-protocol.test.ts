@@ -178,7 +178,9 @@ describe("MCP Protocol", () => {
       "refresh_save",
       "search_saves",
       "setup_help",
+      "show_games",
       "show_reference",
+      "show_save",
       "update_note",
     ]);
   });
