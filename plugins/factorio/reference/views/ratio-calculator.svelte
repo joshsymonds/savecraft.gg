@@ -1,35 +1,18 @@
 <!--
   @component
   Factorio ratio calculator reference view.
-  Renders the production dependency tree as a ProductionDAG with
-  FactorioIcon sprites, raw materials summary, and configuration details.
+  Renders the production dependency tree as a ProductionChain with
+  Sankey-style flow bands, raw materials summary, and configuration details.
 
   @attribution wube
 -->
 <script lang="ts">
-  import ProductionDAG from "../../../../views/src/components/charts/ProductionDAG.svelte";
-  import FactorioIcon from "../../../../views/src/components/factorio/FactorioIcon.svelte";
+  import ProductionChain from "../../components/ProductionChain.svelte";
+  import type { TreeNode } from "../../components/ProductionChain.svelte";
   import DataTable from "../../../../views/src/components/data/DataTable.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
-  import type { DAGNode, DAGEdge } from "../../../../views/src/components/charts/ProductionDAG.svelte";
-  import type { SpriteConfig } from "../../../../views/src/components/factorio/factorio-icons";
-
-  // Import manifests at build time
-  import itemManifest from "../../../../plugins/factorio/sprites/items.json";
-  import fluidManifest from "../../../../plugins/factorio/sprites/fluids.json";
-
-  interface TreeNode {
-    item: string;
-    recipe: string;
-    machines?: number;
-    machine_type?: string;
-    rate_per_min?: number;
-    belt_tier?: string;
-    power_kw?: number;
-    children?: TreeNode[];
-  }
 
   interface RawMaterial {
     item: string;
@@ -55,76 +38,6 @@
 
   let { data, spriteBaseUrl = "/plugins/factorio/sprites" }: Props = $props();
 
-  // Sprite configs
-  let itemSpriteConfig: SpriteConfig = $derived({
-    url: `${spriteBaseUrl}/items.png`,
-    sheetWidth: 2048,
-    sheetHeight: 704,
-    manifest: itemManifest,
-  });
-
-  let fluidSpriteConfig: SpriteConfig = $derived({
-    url: `${spriteBaseUrl}/fluids.png`,
-    sheetWidth: 2048,
-    sheetHeight: 128,
-    manifest: fluidManifest,
-  });
-
-  function getSpriteConfig(iconName: string): SpriteConfig {
-    if (fluidManifest[iconName as keyof typeof fluidManifest]) return fluidSpriteConfig;
-    return itemSpriteConfig;
-  }
-
-  // Flatten the nested tree into DAG nodes + edges
-  function flattenTree(tree: TreeNode): { nodes: DAGNode[]; edges: DAGEdge[] } {
-    const nodes: DAGNode[] = [];
-    const edges: DAGEdge[] = [];
-    let idCounter = 0;
-
-    function walk(node: TreeNode, parentId: string | null): string {
-      const id = `n${idCounter++}`;
-      const isRaw = node.recipe === "(raw)" || node.recipe === "(no recipe)";
-      const isAmbiguous = node.recipe?.startsWith("(ambiguous");
-
-      let sublabel = "";
-      if (node.machines && node.machine_type) {
-        sublabel = `\u00d7${node.machines} ${formatMachineName(node.machine_type)}`;
-      } else if (isRaw) {
-        sublabel = "Raw resource";
-      } else if (isAmbiguous) {
-        sublabel = "Needs recipe selection";
-      }
-
-      nodes.push({
-        id,
-        label: formatItemName(node.item),
-        sublabel,
-        icon: node.item,
-        rate: node.rate_per_min ? `${node.rate_per_min}/m` : undefined,
-        variant: isRaw ? "raw" : isAmbiguous ? "bottleneck" : "default",
-      });
-
-      if (parentId) {
-        edges.push({
-          source: id,
-          target: parentId,
-          rate: node.rate_per_min,
-        });
-      }
-
-      if (node.children) {
-        for (const child of node.children) {
-          walk(child, id);
-        }
-      }
-
-      return id;
-    }
-
-    walk(tree, null);
-    return { nodes, edges };
-  }
-
   function formatItemName(name: string): string {
     return name.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
   }
@@ -147,8 +60,6 @@
     if (kw >= 1000) return `${(kw / 1000).toFixed(1)} MW`;
     return `${kw.toFixed(0)} kW`;
   }
-
-  let dagData = $derived(flattenTree(data.production_tree));
 
   let rawTableColumns = $derived([
     { key: "item", label: "Resource" },
@@ -186,13 +97,7 @@
   <Panel>
     <div class="sections">
       <Section title="Production Chain">
-        <div class="dag-wrapper">
-          <ProductionDAG nodes={dagData.nodes} edges={dagData.edges}>
-            {#snippet nodeIcon(iconName: string)}
-              <FactorioIcon name={iconName} size={32} spriteConfig={getSpriteConfig(iconName)} />
-            {/snippet}
-          </ProductionDAG>
-        </div>
+        <ProductionChain tree={data.production_tree} {spriteBaseUrl} />
       </Section>
 
       {#if rawTableRows.length > 0}
@@ -209,25 +114,9 @@
 </div>
 
 <style>
-  .factorio-view {
-    /* Factorio aesthetic: warm gray-brown background, amber accents */
-    --dag-node-bg: #1a1a1a;
-    --dag-node-border: #8a6a2a;
-    --dag-node-bg-bottleneck: rgba(232, 90, 90, 0.12);
-    --dag-node-bg-surplus: rgba(90, 190, 138, 0.08);
-    --dag-edge-color: #c8a84e;
-    --dag-rate-color: #e8b830;
-    --dag-sublabel-color: #c0b898;
-  }
-
   .sections {
     display: flex;
     flex-direction: column;
     gap: 24px;
-  }
-
-  .dag-wrapper {
-    overflow-x: auto;
-    padding: 8px 0;
   }
 </style>
