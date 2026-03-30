@@ -58,6 +58,25 @@
   const EDGE_KEY_SEP = "\x00"; // separator for edge map keys (cannot appear in node IDs)
 
   let tip = $state({ text: "", x: 0, y: 0, visible: false });
+  let scrollEl: HTMLDivElement | undefined = $state();
+  let canScrollLeft = $state(false);
+  let canScrollRight = $state(false);
+
+  function updateScrollIndicators() {
+    if (!scrollEl) return;
+    const { scrollLeft, scrollWidth, clientWidth } = scrollEl;
+    canScrollLeft = scrollLeft > 4;
+    canScrollRight = scrollLeft + clientWidth < scrollWidth - 4;
+  }
+
+  $effect(() => {
+    if (!scrollEl) return;
+    // Check on mount and whenever layout changes
+    updateScrollIndicators();
+    const observer = new ResizeObserver(() => updateScrollIndicators());
+    observer.observe(scrollEl);
+    return () => observer.disconnect();
+  });
 
   // ── Layout computation ──────────────────────────────────────
 
@@ -322,6 +341,19 @@
   }
 </script>
 
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="flow-outer">
+  {#if canScrollLeft}
+    <div class="scroll-fade scroll-fade-left"></div>
+  {/if}
+  {#if canScrollRight}
+    <div class="scroll-fade scroll-fade-right"></div>
+  {/if}
+  <div
+    class="flow-scroll"
+    bind:this={scrollEl}
+    onscroll={updateScrollIndicators}
+  >
 <div
   class="flow-container"
   style:width="{layout.totalWidth}px"
@@ -386,11 +418,47 @@
     </div>
   {/each}
 </div>
+</div>
+</div>
 
 <style>
+  .flow-outer {
+    position: relative;
+  }
+
+  .flow-scroll {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
+  /* Scroll fade overlays */
+  .scroll-fade {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    width: 40px;
+    pointer-events: none;
+    z-index: 5;
+    animation: fade-in 0.2s ease-out;
+  }
+
+  .scroll-fade-left {
+    left: 0;
+    background: linear-gradient(to right, var(--flow-node-bg, var(--color-surface, #0a0e2e)) 0%, transparent 100%);
+  }
+
+  .scroll-fade-right {
+    right: 0;
+    background: linear-gradient(to left, var(--flow-node-bg, var(--color-surface, #0a0e2e)) 0%, transparent 100%);
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
   .flow-container {
     position: relative;
-    overflow-x: auto;
     font-family: var(--font-body, sans-serif);
   }
 
