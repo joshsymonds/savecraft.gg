@@ -1204,7 +1204,8 @@ export function parseWasmResponse(text: string): ToolResult | ViewToolResult {
         if (structuredFields) {
           // Preserve title from ndjson result for multi-query tab labels.
           const title = parsed.title;
-          const withTitle = typeof title === "string" ? { title, ...structuredFields } : structuredFields;
+          const withTitle =
+            typeof title === "string" ? { title, ...structuredFields } : structuredFields;
           const narrative = formatted.split("\n")[0] ?? `Reference data.`;
           return viewResult(withTitle, narrative);
         }
