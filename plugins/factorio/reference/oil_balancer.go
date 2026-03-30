@@ -659,3 +659,220 @@ func findMachineForCategory(category string) *data.CraftingMachine {
 	})
 	return &candidates[0]
 }
+
+// primaryOutputFluid returns the main output fluid for an oil recipe.
+// This is what we compare against actual_flow.
+var oilPrimaryOutput = map[string]string{
+	"advanced-oil-processing":  "petroleum-gas",
+	"basic-oil-processing":     "petroleum-gas",
+	"coal-liquefaction":        "heavy-oil",
+	"simple-coal-liquefaction": "heavy-oil",
+	"heavy-oil-cracking":       "light-oil",
+	"light-oil-cracking":       "petroleum-gas",
+	"lubricant":                "lubricant",
+	"sulfuric-acid":            "sulfuric-acid",
+	"sulfur":                   "sulfur",
+	"plastic-bar":              "plastic-bar",
+}
+
+// compareExistingOil annotates oil stages with comparison data from the player's
+// existing setup. Modifies stages in-place and sets result.Bottlenecks.
+func compareExistingOil(
+	result *oilResult,
+	existing *existingMachines,
+	flow *actualFlow,
+	queryModules []string,
+) {
+	var bns []bottleneck
+
+	for i := range result.Stages {
+		stage := &result.Stages[i]
+		recipe := data.Recipes[stage.Recipe]
+
+		setup, found := existing.ByRecipe[stage.Recipe]
+		neededCount := int(math.Ceil(stage.MachineCount))
+
+		if !found {
+			stage.Status = "missing"
+			bns = append(bns, bottleneck{
+				Item:       stage.Recipe,
+				Recipe:     stage.Recipe,
+				NeededRate: stage.MachineCount,
+				Diagnosis:  "missing",
+			})
+			continue
+		}
+
+		// Compute effective rate of existing setup (per second)
+		effectivePerSec := computeOilEffectiveRate(setup, &recipe, existing.BeaconCount)
+
+		// Compute needed rate: what the ideal setup produces per second
+		neededPerSec := computeOilNeededRate(stage, queryModules)
+
+		// Pull actual rate from production flow
+		var actualRate float64
+		if flow != nil {
+			if fluidName, ok := oilPrimaryOutput[stage.Recipe]; ok {
+				if stats, ok := flow.Fluids[fluidName]; ok {
+					actualRate = stats.ProducedPerMin / 60 // convert to per second
+				}
+			}
+		}
+
+		stage.Existing = &existingInfo{
+			MachineType:   setup.MachineType,
+			Count:         setup.Count,
+			Modules:       setup.Modules,
+			EffectiveRate: roundTo(effectivePerSec, 2),
+			ActualRate:    roundTo(actualRate, 2),
+		}
+
+		// Classify status using ceil comparison for machine counts
+		if setup.Count >= neededCount {
+			// Enough machines — check actual throughput
+			if actualRate > 0 && actualRate < effectivePerSec*0.7 {
+				stage.Status = "deficit"
+				stage.DeficitRate = roundTo(neededPerSec-actualRate, 2)
+				bns = append(bns, bottleneck{
+					Item:         stage.Recipe,
+					Recipe:       stage.Recipe,
+					NeededRate:   roundTo(neededPerSec, 2),
+					ExistingRate: roundTo(effectivePerSec, 2),
+					ActualRate:   roundTo(actualRate, 2),
+					Diagnosis:    "underthroughput",
+				})
+			} else if setup.Count > neededCount {
+				stage.Status = "surplus"
+			} else {
+				stage.Status = "sufficient"
+			}
+		} else {
+			// Not enough machines
+			stage.Status = "deficit"
+			stage.DeficitRate = roundTo(neededPerSec-effectivePerSec, 2)
+
+			diagnosis := diagnoseOilDeficit(stage, setup, &recipe, queryModules)
+			bns = append(bns, bottleneck{
+				Item:         stage.Recipe,
+				Recipe:       stage.Recipe,
+				NeededRate:   roundTo(neededPerSec, 2),
+				ExistingRate: roundTo(effectivePerSec, 2),
+				ActualRate:   roundTo(actualRate, 2),
+				Diagnosis:    diagnosis,
+			})
+		}
+	}
+
+	// Sort bottlenecks by deficit magnitude (largest first)
+	sort.Slice(bns, func(i, j int) bool {
+		di := bns[i].NeededRate - bns[i].ExistingRate
+		dj := bns[j].NeededRate - bns[j].ExistingRate
+		return di > dj
+	})
+
+	result.Bottlenecks = bns
+}
+
+// computeOilEffectiveRate computes the total output rate (per second) of the
+// primary fluid from an existing oil setup.
+func computeOilEffectiveRate(
+	setup existingSetup,
+	recipe *data.Recipe,
+	beaconCount int,
+) float64 {
+	machine, ok := data.Machines[setup.MachineType]
+	if !ok {
+		return 0
+	}
+
+	// Expand module map to list
+	var moduleList []string
+	for name, count := range setup.Modules {
+		for range count {
+			moduleList = append(moduleList, name)
+		}
+	}
+
+	speedBonus, prodBonus, _ := resolveModuleEffects(moduleList)
+	_ = beaconCount // TODO: per-recipe beacon data not available from save
+
+	speed := effectiveSpeed(&machine, speedBonus, 0)
+	prodMultiplier := 1.0 + prodBonus
+
+	// Find primary output amount
+	primaryFluid := oilPrimaryOutput[recipe.Name]
+	var outputAmt float64
+	for _, res := range recipe.Results {
+		if res.Name == primaryFluid {
+			outputAmt = res.Amount * res.Probability
+			break
+		}
+	}
+	if outputAmt <= 0 {
+		// Fallback: use first result
+		if len(recipe.Results) > 0 {
+			outputAmt = recipe.Results[0].Amount * recipe.Results[0].Probability
+		}
+	}
+
+	ratePerMachinePerSec := outputAmt * prodMultiplier * speed / recipe.EnergyRequired
+	return float64(setup.Count) * ratePerMachinePerSec
+}
+
+// computeOilNeededRate computes the ideal output rate (per second) of the primary
+// fluid from a stage's machine count and the query's module config.
+func computeOilNeededRate(stage *oilStage, queryModules []string) float64 {
+	recipe := data.Recipes[stage.Recipe]
+	machine, ok := data.Machines[stage.MachineType]
+	if !ok {
+		return 0
+	}
+
+	speedBonus, prodBonus, _ := resolveModuleEffects(queryModules)
+	// Use 0 for beacon speed bonus since we're computing what the ideal stage needs,
+	// and the beacon effect was already factored into MachineCount
+	speed := effectiveSpeed(&machine, speedBonus, 0)
+	prodMultiplier := 1.0 + prodBonus
+
+	primaryFluid := oilPrimaryOutput[stage.Recipe]
+	var outputAmt float64
+	for _, res := range recipe.Results {
+		if res.Name == primaryFluid {
+			outputAmt = res.Amount * res.Probability
+			break
+		}
+	}
+	if outputAmt <= 0 && len(recipe.Results) > 0 {
+		outputAmt = recipe.Results[0].Amount * recipe.Results[0].Probability
+	}
+
+	return stage.MachineCount * outputAmt * prodMultiplier * speed / recipe.EnergyRequired
+}
+
+// diagnoseOilDeficit determines why existing machines fall short.
+func diagnoseOilDeficit(
+	stage *oilStage,
+	setup existingSetup,
+	recipe *data.Recipe,
+	queryModules []string,
+) string {
+	// Build hypothetical: same count at query's modules
+	queryModuleCounts := make(map[string]int)
+	for _, m := range queryModules {
+		queryModuleCounts[m]++
+	}
+	neededCount := int(math.Ceil(stage.MachineCount))
+	querySetup := existingSetup{
+		MachineType: stage.MachineType,
+		Count:       neededCount,
+		Modules:     queryModuleCounts,
+	}
+	// If same count at query config would work, it's the modules
+	hypotheticalRate := computeOilEffectiveRate(querySetup, recipe, 0)
+	neededRate := computeOilNeededRate(stage, queryModules)
+
+	if setup.Count >= neededCount && hypotheticalRate >= neededRate {
+		return "wrong_modules"
+	}
+	return "underbuilt"
+}
