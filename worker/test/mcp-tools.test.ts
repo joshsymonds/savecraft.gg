@@ -437,7 +437,8 @@ describe("MCP Tools", () => {
 
       const result = await listGames(env.DB, env.PLUGINS, USER_A);
       expect("structuredContent" in result).toBe(true);
-      const data = (result as unknown as { structuredContent: { games: GameEntry[] } }).structuredContent;
+      const data = (result as unknown as { structuredContent: { games: GameEntry[] } })
+        .structuredContent;
       expect(data.games).toHaveLength(1);
       expect(data.games[0]!.game_id).toBe("d2r");
     });
@@ -671,7 +672,8 @@ describe("MCP Tools", () => {
 
       const result = await getSave(env.DB, USER_A, "save-view-result");
       expect("structuredContent" in result).toBe(true);
-      const data = (result as unknown as { structuredContent: Record<string, unknown> }).structuredContent;
+      const data = (result as unknown as { structuredContent: Record<string, unknown> })
+        .structuredContent;
       expect(data.save_id).toBe("save-view-result");
       expect(data.game_name).toBe("Diablo II: Resurrected");
       expect(data.name).toBe("ViewTest");

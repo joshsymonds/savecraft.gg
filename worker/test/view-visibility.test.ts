@@ -38,9 +38,7 @@ async function callTool(
   toolName: string,
   args: Record<string, unknown>,
 ): Promise<Record<string, unknown>> {
-  const resp = await SELF.fetch(
-    mcpRequest("tools/call", 1, { name: toolName, arguments: args }),
-  );
+  const resp = await SELF.fetch(mcpRequest("tools/call", 1, { name: toolName, arguments: args }));
   const rpc = (await parseJsonResponse(resp)) as { result: Record<string, unknown> };
   return rpc.result;
 }
@@ -53,8 +51,7 @@ describe("query_reference visible_to_user", () => {
     name: "Visible Module",
     description: "A module with view_default: visible",
     view_default: "visible",
-    execute: () =>
-      Promise.resolve({ type: "structured", data: { result: "data", score: 42 } }),
+    execute: () => Promise.resolve({ type: "structured", data: { result: "data", score: 42 } }),
   };
 
   const hiddenModule: NativeReferenceModule = {
@@ -62,8 +59,7 @@ describe("query_reference visible_to_user", () => {
     name: "Hidden Module",
     description: "A module with view_default: hidden",
     view_default: "hidden",
-    execute: () =>
-      Promise.resolve({ type: "structured", data: { result: "lookup", count: 5 } }),
+    execute: () => Promise.resolve({ type: "structured", data: { result: "lookup", count: 5 } }),
   };
 
   beforeEach(async () => {
@@ -71,9 +67,17 @@ describe("query_reference visible_to_user", () => {
     registerNativeModule("testgame", visibleModule);
     registerNativeModule("testgame", hiddenModule);
     const source = await seedSource(TEST_USER);
-    await seedPush(TEST_USER, source.sourceUuid, "testgame", "TestSave", "Test", "2026-01-01T00:00:00Z", {
-      overview: { description: "Overview", data: {} },
-    });
+    await seedPush(
+      TEST_USER,
+      source.sourceUuid,
+      "testgame",
+      "TestSave",
+      "Test",
+      "2026-01-01T00:00:00Z",
+      {
+        overview: { description: "Overview", data: {} },
+      },
+    );
     TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
   });
 
@@ -166,9 +170,17 @@ describe("search_saves visible_to_user", () => {
   beforeEach(async () => {
     await cleanAll();
     const source = await seedSource(TEST_USER);
-    await seedPush(TEST_USER, source.sourceUuid, "d2r", "TestChar", "Test Character", "2026-01-01T00:00:00Z", {
-      equipment: { description: "Gear", data: { weapon: "Shako" } },
-    });
+    await seedPush(
+      TEST_USER,
+      source.sourceUuid,
+      "d2r",
+      "TestChar",
+      "Test Character",
+      "2026-01-01T00:00:00Z",
+      {
+        equipment: { description: "Gear", data: { weapon: "Shako" } },
+      },
+    );
     TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
   });
 
@@ -192,9 +204,17 @@ describe("list_games visible_to_user", () => {
   beforeEach(async () => {
     await cleanAll();
     const source = await seedSource(TEST_USER);
-    await seedPush(TEST_USER, source.sourceUuid, "d2r", "TestChar", "Test", "2026-01-01T00:00:00Z", {
-      overview: { description: "Overview", data: {} },
-    });
+    await seedPush(
+      TEST_USER,
+      source.sourceUuid,
+      "d2r",
+      "TestChar",
+      "Test",
+      "2026-01-01T00:00:00Z",
+      {
+        overview: { description: "Overview", data: {} },
+      },
+    );
     TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
   });
 
@@ -221,9 +241,17 @@ describe("get_save visible_to_user", () => {
   beforeEach(async () => {
     await cleanAll();
     const source = await seedSource(TEST_USER);
-    saveUuid = await seedPush(TEST_USER, source.sourceUuid, "d2r", "TestChar", "Test", "2026-01-01T00:00:00Z", {
-      overview: { description: "Overview", data: {} },
-    });
+    saveUuid = await seedPush(
+      TEST_USER,
+      source.sourceUuid,
+      "d2r",
+      "TestChar",
+      "Test",
+      "2026-01-01T00:00:00Z",
+      {
+        overview: { description: "Overview", data: {} },
+      },
+    );
     TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
   });
 

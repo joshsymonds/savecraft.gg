@@ -41,12 +41,7 @@ describe("WASM section resolution", () => {
       target_rate: 60,
     };
 
-    const resolved = await resolveWasmSectionParams(
-      env.DB,
-      USER_A,
-      sectionMappings,
-      query,
-    );
+    const resolved = await resolveWasmSectionParams(env.DB, USER_A, sectionMappings, query);
 
     expect(resolved.existing_machines).toEqual(machinesData);
     expect(resolved.target_item).toBe("electronic-circuit");
@@ -79,12 +74,7 @@ describe("WASM section resolution", () => {
       target_item: "iron-plate",
     };
 
-    const resolved = await resolveWasmSectionParams(
-      env.DB,
-      USER_A,
-      sectionMappings,
-      query,
-    );
+    const resolved = await resolveWasmSectionParams(env.DB, USER_A, sectionMappings, query);
 
     expect(resolved.existing_machines).toEqual(machinesData);
     expect(resolved.actual_flow).toEqual(flowData);
@@ -101,12 +91,7 @@ describe("WASM section resolution", () => {
       target_rate: 60,
     };
 
-    const resolved = await resolveWasmSectionParams(
-      env.DB,
-      USER_A,
-      sectionMappings,
-      query,
-    );
+    const resolved = await resolveWasmSectionParams(env.DB, USER_A, sectionMappings, query);
 
     expect(resolved).toEqual(query);
   });
@@ -128,9 +113,9 @@ describe("WASM section resolution", () => {
       target_item: "iron-plate",
     };
 
-    await expect(
-      resolveWasmSectionParams(env.DB, USER_B, sectionMappings, query),
-    ).rejects.toThrow("Save not found");
+    await expect(resolveWasmSectionParams(env.DB, USER_B, sectionMappings, query)).rejects.toThrow(
+      "Save not found",
+    );
   });
 
   it("throws when section not found in save", async () => {
@@ -145,9 +130,9 @@ describe("WASM section resolution", () => {
       target_item: "iron-plate",
     };
 
-    await expect(
-      resolveWasmSectionParams(env.DB, USER_A, sectionMappings, query),
-    ).rejects.toThrow("Section not found");
+    await expect(resolveWasmSectionParams(env.DB, USER_A, sectionMappings, query)).rejects.toThrow(
+      "Section not found",
+    );
   });
 
   it("uses verified save cache across calls", async () => {
@@ -205,12 +190,7 @@ describe("WASM section resolution", () => {
       existing_machines: inlineMachines,
     };
 
-    const resolved = await resolveWasmSectionParams(
-      env.DB,
-      USER_A,
-      sectionMappings,
-      query,
-    );
+    const resolved = await resolveWasmSectionParams(env.DB, USER_A, sectionMappings, query);
 
     expect(resolved.existing_machines).toEqual(inlineMachines);
     expect(resolved.save_id).toBeUndefined();

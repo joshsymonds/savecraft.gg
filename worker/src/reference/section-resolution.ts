@@ -120,12 +120,9 @@ export async function resolveWasmSectionParams(
     }),
   );
 
-  for (let i = 0; i < entries.length; i++) {
-    const queryKey = entries[i]![0];
+  for (const [index, [queryKey]] of entries.entries()) {
     // Explicit query params take precedence over section data
-    if (enriched[queryKey] === undefined || enriched[queryKey] === null) {
-      enriched[queryKey] = results[i];
-    }
+    enriched[queryKey] ??= results[index];
   }
 
   return enriched;

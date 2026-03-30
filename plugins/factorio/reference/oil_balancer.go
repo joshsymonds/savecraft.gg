@@ -135,12 +135,12 @@ func computeOilBalance(
 	heavyCrackRecipe := data.Recipes["heavy-oil-cracking"]
 	lightCrackRecipe := data.Recipes["light-oil-cracking"]
 
-	heavyCrackConsume := findIngredientAmount(heavyCrackRecipe.Ingredients, "heavy-oil") * crackerSpeed / heavyCrackRecipe.EnergyRequired  // heavy oil consumed per cracker/s
-	heavyCrackWater := findIngredientAmount(heavyCrackRecipe.Ingredients, "water") * crackerSpeed / heavyCrackRecipe.EnergyRequired      // water consumed per cracker/s
+	heavyCrackConsume := findIngredientAmount(heavyCrackRecipe.Ingredients, "heavy-oil") * crackerSpeed / heavyCrackRecipe.EnergyRequired                               // heavy oil consumed per cracker/s
+	heavyCrackWater := findIngredientAmount(heavyCrackRecipe.Ingredients, "water") * crackerSpeed / heavyCrackRecipe.EnergyRequired                                     // water consumed per cracker/s
 	heavyCrackProduce := heavyCrackRecipe.Results[0].Amount * heavyCrackRecipe.Results[0].Probability * prodMultiplier * crackerSpeed / heavyCrackRecipe.EnergyRequired // light oil produced
 
-	lightCrackConsume := findIngredientAmount(lightCrackRecipe.Ingredients, "light-oil") * crackerSpeed / lightCrackRecipe.EnergyRequired // light oil consumed per cracker/s
-	lightCrackWater := findIngredientAmount(lightCrackRecipe.Ingredients, "water") * crackerSpeed / lightCrackRecipe.EnergyRequired       // water consumed per cracker/s
+	lightCrackConsume := findIngredientAmount(lightCrackRecipe.Ingredients, "light-oil") * crackerSpeed / lightCrackRecipe.EnergyRequired                               // light oil consumed per cracker/s
+	lightCrackWater := findIngredientAmount(lightCrackRecipe.Ingredients, "water") * crackerSpeed / lightCrackRecipe.EnergyRequired                                     // water consumed per cracker/s
 	lightCrackProduce := lightCrackRecipe.Results[0].Amount * lightCrackRecipe.Results[0].Probability * prodMultiplier * crackerSpeed / lightCrackRecipe.EnergyRequired // petroleum produced
 
 	// Check for downstream product recipes (lubricant, solid fuel, etc.)
@@ -644,4 +644,3 @@ func findMachineForCategory(category string) *data.CraftingMachine {
 	})
 	return &candidates[0]
 }
-
