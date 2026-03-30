@@ -18,7 +18,7 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/d2r/reference/dropcalc"
 )
 
-const pageSize = 50
+const pageSize = 20
 
 func main() {
 	enc := json.NewEncoder(os.Stdout)

@@ -117,6 +117,29 @@ describe("DataTable", () => {
     expect(firstCell.textContent).toBe("A");
   });
 
+  it("sorts by sortValue when present instead of display value", () => {
+    const chanceRows = [
+      { name: "Mephisto", chance: { value: "1:925", sortValue: 1 / 925 } },
+      { name: "Baal NM", chance: { value: "1:710", sortValue: 1 / 710 } },
+      { name: "Nihlathak", chance: { value: "1:7312", sortValue: 1 / 7312 } },
+    ];
+    const chanceColumns = [
+      { key: "name", label: "Monster" },
+      { key: "chance", label: "Chance", align: "right" as const, sortable: true },
+    ];
+    // Descending by sortValue: Baal NM (1/710) > Mephisto (1/925) > Nihlathak (1/7312)
+    const { container } = render(DataTable, {
+      props: { columns: chanceColumns, rows: chanceRows, sortKey: "chance", sortDir: "desc" },
+    });
+    const names = container.querySelectorAll("tbody td:first-child");
+    expect(names[0].textContent).toBe("Baal NM");
+    expect(names[1].textContent).toBe("Mephisto");
+    expect(names[2].textContent).toBe("Nihlathak");
+    // Display should still show the formatted string
+    const chances = container.querySelectorAll("tbody td:nth-child(2)");
+    expect(chances[0].textContent).toBe("1:710");
+  });
+
   it("applies column format function", () => {
     const fmtColumns = [
       { key: "name", label: "Name" },
