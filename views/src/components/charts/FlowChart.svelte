@@ -243,10 +243,10 @@
     const allNodeIds = new Set([...nodes.map((n) => n.id), ...dummyNodes]);
     for (const id of allNodeIds) {
       if (dummyNodes.has(id)) {
-        // Dummy: height = band height of its single edge + minimal padding
+        // Dummy: height = band height only (invisible, just a routing waypoint)
         const inE = inputEdges.get(id) ?? [];
         const bh = inE.length > 0 ? bandHeight(inE[0].rate) : MIN_BAND_WIDTH;
-        nodeHeights.set(id, bh + PORT_PAD);
+        nodeHeights.set(id, bh);
         continue;
       }
       const inE = inputEdges.get(id) ?? [];
@@ -341,9 +341,24 @@
       }
     }
 
-    // Final overlap resolution pass
+    // Final overlap resolution + vertical compaction
+    // After barycenter sweeps, layers may have excessive top margin.
+    // Compact each layer upward: shift all nodes so the topmost starts at PAD,
+    // preserving relative positions within each layer.
     for (const [, ids] of layers) {
       resolveOverlaps(ids, positions, nodeHeights, minH);
+    }
+
+    // Find the minimum y across ALL layers and shift everything up
+    let globalMinY = Infinity;
+    for (const pos of positions.values()) {
+      globalMinY = Math.min(globalMinY, pos.y);
+    }
+    if (globalMinY > PAD) {
+      const shift = globalMinY - PAD;
+      for (const pos of positions.values()) {
+        pos.y -= shift;
+      }
     }
 
     // Compute total dimensions
