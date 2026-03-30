@@ -100,6 +100,17 @@ func beltTierForRate(itemsPerSec float64) string {
 	}
 }
 
+// ceilSnap rounds up to the next integer, but snaps to the nearest integer
+// if within epsilon. This avoids binary search precision issues where
+// an exact answer of 20.0 converges to 20.0005 and ceils to 21.
+func ceilSnap(v float64) float64 {
+	rounded := math.Round(v)
+	if math.Abs(v-rounded) < 0.01 {
+		return rounded
+	}
+	return math.Ceil(v)
+}
+
 // roundTo rounds a float to the given number of decimal places.
 func roundTo(v float64, decimals int) float64 {
 	shift := math.Pow(10, float64(decimals))
