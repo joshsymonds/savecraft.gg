@@ -216,7 +216,7 @@ func TestOilExisting_ProdModulesPlayerNoModules(t *testing.T) {
 	if idealRef == nil {
 		t.Fatal("missing refinery stage in ideal result")
 	}
-	playerCount := int(idealRef["machine_count"].(float64)) + 2
+	playerCount := int(idealRef["machine_count"].(float64)) + 2 // ensure surplus regardless of rounding
 
 	result := runOilBalancer(t, fmt.Sprintf(`{
 		"module": "oil_balancer",
@@ -463,5 +463,52 @@ func TestOilExisting_BottlenecksSortedByDeficit(t *testing.T) {
 	// Verify the refinery bottleneck comes first (larger deficit from 10 missing machines)
 	if bn0["recipe"] != "advanced-oil-processing" {
 		t.Errorf("expected refinery bottleneck first (largest deficit), got %q", bn0["recipe"])
+	}
+}
+
+// ─── Beacon Limitation ───────────────────────────────────────────────────────
+
+func TestOilExisting_BeaconCountIgnoredInComparison(t *testing.T) {
+	// Beacon data from saves is currently a no-op in comparison — the save only
+	// provides a total beacon count, not per-recipe assignments. This test
+	// documents the limitation so it breaks when beacon support is added.
+	//
+	// Basic oil: 90 petrol/s → 10 refineries. Give 10 refineries with beacon_count=8.
+	// Result should be identical to beacon_count=0 (beacons are ignored).
+	resultNoBeacons := runOilBalancer(t, `{
+		"module": "oil_balancer",
+		"processing_type": "basic-oil-processing",
+		"targets": {"petroleum-gas": 90},
+		"existing_setup": {
+			"by_recipe": {
+				"basic-oil-processing": {"machine_type": "oil-refinery", "count": 10, "modules": {}}
+			},
+			"by_type": {"oil-refinery": 10},
+			"beacon_count": 0
+		}
+	}`)
+	resultWithBeacons := runOilBalancer(t, `{
+		"module": "oil_balancer",
+		"processing_type": "basic-oil-processing",
+		"targets": {"petroleum-gas": 90},
+		"existing_setup": {
+			"by_recipe": {
+				"basic-oil-processing": {"machine_type": "oil-refinery", "count": 10, "modules": {}}
+			},
+			"by_type": {"oil-refinery": 10},
+			"beacon_count": 8
+		}
+	}`)
+
+	stagesNo := getStages(t, resultNoBeacons)
+	stagesWith := getStages(t, resultWithBeacons)
+
+	refNo := findStage(stagesNo, "basic-oil-processing")
+	refWith := findStage(stagesWith, "basic-oil-processing")
+
+	// Both should have identical status — beacons are ignored
+	if refNo["status"] != refWith["status"] {
+		t.Errorf("beacon_count should not affect comparison: no_beacons=%v, with_beacons=%v",
+			refNo["status"], refWith["status"])
 	}
 }

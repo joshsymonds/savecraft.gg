@@ -194,6 +194,7 @@
             spriteConfig={getSpriteConfig(d.name as string)}
           />
           {#if d.status}
+            <!-- Oil stages have fractional machine_count (float64), so ceil for display -->
             {@const existing = d.existing as { count: number; machine_type: string } | undefined}
             <div class="comparison-bar">
               {#if d.status === "missing"}
