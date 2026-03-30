@@ -153,8 +153,8 @@ describe("sideboard_analysis reference module", () => {
       { mode: "bo3_overview", user_id: "user-abc" },
       env,
     );
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
+    expect(result.type).toBe("text");
+    const content = (result as { type: "text"; content: string }).content;
 
     // 5 BO3 matches (BO1 excluded)
     expect(content).toContain("5 best-of-three");
@@ -167,8 +167,8 @@ describe("sideboard_analysis reference module", () => {
       { mode: "by_matchup", user_id: "user-abc" },
       env,
     );
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
+    expect(result.type).toBe("text");
+    const content = (result as { type: "text"; content: string }).content;
 
     // Should show Red and Azorius/WU archetypes
     expect(content).toMatch(/[Rr]ed/);
@@ -180,7 +180,7 @@ describe("sideboard_analysis reference module", () => {
       { mode: "bo3_overview", user_id: "user-abc" },
       env,
     );
-    const content = (result as { type: "formatted"; content: string }).content;
+    const content = (result as { type: "text"; content: string }).content;
 
     // Should NOT include Mono Black (the BO1 opponent)
     expect(content).not.toContain("Mono Black");
@@ -188,7 +188,7 @@ describe("sideboard_analysis reference module", () => {
 
   it("returns error for missing user_id", async () => {
     const result = await sideboardAnalysisModule.execute({ mode: "bo3_overview" }, env);
-    const content = (result as { type: "formatted"; content: string }).content;
+    const content = (result as { type: "text"; content: string }).content;
     expect(content).toMatch(/user_id.*required/i);
   });
 
@@ -197,7 +197,7 @@ describe("sideboard_analysis reference module", () => {
       { mode: "bo3_overview", user_id: "user-nobody" },
       env,
     );
-    const content = (result as { type: "formatted"; content: string }).content;
+    const content = (result as { type: "text"; content: string }).content;
     expect(content).toMatch(/no.*match/i);
   });
 });

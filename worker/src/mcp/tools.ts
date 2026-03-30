@@ -54,7 +54,6 @@ function textResult(data: unknown): ToolResult {
 
 export function viewResult(
   structuredContent: Record<string, unknown>,
-  narrative: string,
   meta?: Record<string, unknown>,
 ): ViewToolResult {
   return {
@@ -62,10 +61,7 @@ export function viewResult(
     // content carries the SAME data as structuredContent so the model can reason
     // about it. Claude's MCP Apps implementation hides structuredContent from the
     // model when a widget renders — without the data in content, the model is blind.
-    content: [
-      { type: "text", text: narrative },
-      { type: "text", text: JSON.stringify(structuredContent) },
-    ],
+    content: [{ type: "text", text: JSON.stringify(structuredContent) }],
     ...(meta ? { _meta: meta } : {}),
   };
 }
@@ -1063,10 +1059,7 @@ export async function searchSaves(
     })),
   };
 
-  return viewResult(
-    data,
-    `Found ${String(data.results.length)} result${data.results.length === 1 ? "" : "s"} for "${query}".`,
-  );
+  return viewResult(data);
 }
 
 // ── Reference Data ───────────────────────────────────────────
@@ -1079,39 +1072,15 @@ async function executeNativeModule(
 ): Promise<ToolResult | ViewToolResult> {
   try {
     const result = await nativeModule.execute(query, env);
-    if (result.type === "formatted") {
+    if (result.type === "text") {
       return { content: [{ type: "text", text: result.content }] };
     }
-    // Structured results → ViewToolResult (view rendering via _meta.viewScript)
-    return viewResult(result.data, summarizeStructuredResult(nativeModule.id, result.data));
+    return viewResult(result.data);
   } catch (error) {
     return errorResult(
       `Reference module error: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
-}
-
-function plural(n: number): string {
-  return n === 1 ? "" : "s";
-}
-
-/** Generate a concise narrative for a structured reference result. */
-function summarizeStructuredResult(moduleId: string, data: Record<string, unknown>): string {
-  const cards = data.cards;
-  if (Array.isArray(cards)) {
-    return `Found ${String(cards.length)} card${plural(cards.length)}.`;
-  }
-  const missing = data.missing;
-  if (Array.isArray(missing)) {
-    const cost = data.wildcardCost as Record<string, number> | undefined;
-    const base = `Missing ${String(missing.length)} card${plural(missing.length)}`;
-    return cost ? `${base} (${String(cost.total ?? 0)} wildcards needed).` : `${base}.`;
-  }
-  const recommendations = data.recommendations;
-  if (Array.isArray(recommendations)) {
-    return `${String(recommendations.length)} pick recommendation${plural(recommendations.length)}.`;
-  }
-  return `Reference data for ${moduleId}.`;
 }
 
 export async function queryReference(
@@ -1190,22 +1159,14 @@ export function parseWasmResponse(text: string): ToolResult | ViewToolResult {
     try {
       const parsed = JSON.parse(lines[0] ?? "") as Record<string, unknown>;
 
-      // If the WASM returned pre-formatted text, pass it through directly
-      // instead of JSON.stringify-ing it (which would escape newlines).
-      if (parsed.type === "result" && isFormattedResult(parsed.data)) {
-        const data = parsed.data as Record<string, unknown>;
-        const formatted = data.formatted as string;
-
-        // Check for structured fields beyond formatted.
-        // If present, return a ViewToolResult so the reference view can render them.
-        const structuredFields = extractStructuredFields(data);
-        if (structuredFields) {
-          const narrative = formatted.split("\n")[0] ?? `Reference data.`;
-          return viewResult(structuredFields, narrative);
-        }
-
-        const content: { type: "text"; text: string }[] = [{ type: "text", text: formatted }];
-        return { content };
+      // Unwrap ndjson envelope: {type: "result", data: {...}} → ViewToolResult
+      if (
+        parsed.type === "result" &&
+        typeof parsed.data === "object" &&
+        parsed.data !== null &&
+        !Array.isArray(parsed.data)
+      ) {
+        return viewResult(parsed.data as Record<string, unknown>);
       }
       return textResult(parsed);
     } catch {
@@ -1222,30 +1183,6 @@ export function parseWasmResponse(text: string): ToolResult | ViewToolResult {
     }
   });
   return textResult({ results });
-}
-
-/** Extract data fields from WASM result, stripping the formatted meta field.
- *  Returns null if no structured fields remain. */
-function extractStructuredFields(data: Record<string, unknown>): Record<string, unknown> | null {
-  const META_KEYS = new Set(["formatted"]);
-  const structured: Record<string, unknown> = {};
-  let hasFields = false;
-  for (const [key, value] of Object.entries(data)) {
-    if (!META_KEYS.has(key)) {
-      structured[key] = value;
-      hasFields = true;
-    }
-  }
-  return hasFields ? structured : null;
-}
-
-function isFormattedResult(data: unknown): boolean {
-  return (
-    typeof data === "object" &&
-    data !== null &&
-    "formatted" in data &&
-    typeof (data as { formatted: unknown }).formatted === "string"
-  );
 }
 
 // ── Savecraft Info ───────────────────────────────────────────

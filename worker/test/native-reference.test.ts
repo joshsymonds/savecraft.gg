@@ -22,7 +22,7 @@ describe("NativeReferenceModule registry", () => {
     name: "Test Module",
     description: "A test module",
     parameters: { type: "object", properties: { q: { type: "string" } } },
-    execute: () => Promise.resolve({ type: "formatted", content: "hello from native" }),
+    execute: () => Promise.resolve({ type: "text", content: "hello from native" }),
   };
 
   it("registers and retrieves a module", () => {
@@ -87,7 +87,7 @@ describe("queryReference native routing", () => {
       description: "Test search module",
       execute: (query) =>
         Promise.resolve({
-          type: "formatted",
+          type: "text",
           content: `searched for: ${String(query.keyword)}`,
         }),
     };
@@ -195,8 +195,8 @@ describe("queryReference native routing", () => {
       content: { text: string }[];
     };
     expect(viewRes.structuredContent).toEqual({ win_rate: 0.58, matches: 42 });
-    // content carries narrative + JSON data for model reasoning
-    expect(viewRes.content).toHaveLength(2);
+    // content carries JSON data for model reasoning
+    expect(viewRes.content).toHaveLength(1);
   });
 
   it("returns plain text for formatted result", async () => {
@@ -206,7 +206,7 @@ describe("queryReference native routing", () => {
       description: "Returns formatted content",
       execute: () =>
         Promise.resolve({
-          type: "formatted",
+          type: "text",
           content: "Rule 702.1: Flying",
         }),
     };
@@ -230,7 +230,7 @@ describe("queryReference native routing", () => {
       id: "module_a",
       name: "Module A",
       description: "A module",
-      execute: () => Promise.resolve({ type: "formatted", content: "A" }),
+      execute: () => Promise.resolve({ type: "text", content: "A" }),
     };
     registerNativeModule("testgame", nativeModule);
 

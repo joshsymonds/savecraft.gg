@@ -684,23 +684,17 @@ async function handleQueryReference(
     if ("error" in data) {
       return { content: [{ type: "text", text: String(data.error) }], isError: true };
     }
-    const first = responses[0];
-    const narrative =
-      first?.status === "fulfilled" && "content" in first.value
-        ? (first.value.content[0]?.text ?? `Reference data for ${moduleId}.`)
-        : `Reference data for ${moduleId}.`;
     // Include module ID so the bundled reference view knows which component to mount
-    return viewResult(
-      { module: moduleId, ...(iconUrl ? { icon_url: iconUrl } : {}), ...data },
-      narrative,
-    );
+    return viewResult({ module: moduleId, ...(iconUrl ? { icon_url: iconUrl } : {}), ...data });
   }
 
   // Multi-query: wrap in { results } array with explicit discriminator
-  return viewResult(
-    { module: moduleId, _multiQuery: true, ...(iconUrl ? { icon_url: iconUrl } : {}), results },
-    `${String(results.length)} reference query results for ${moduleId}.`,
-  );
+  return viewResult({
+    module: moduleId,
+    _multiQuery: true,
+    ...(iconUrl ? { icon_url: iconUrl } : {}),
+    results,
+  });
 }
 
 function parseRpc(request: Request): Promise<JsonRpcRequest> {

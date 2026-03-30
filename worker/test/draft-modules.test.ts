@@ -371,16 +371,16 @@ describe("card_stats native module", () => {
   it("returns not found for nonexistent card", async () => {
     await seedDraftData();
     const result = await cardStatsModule.execute({ set: "DSK", card: "nonexistent" }, env);
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
+    expect(result.type).toBe("text");
+    if (result.type !== "text") throw new Error("unexpected type");
     expect(result.content).toContain("No cards matching");
   });
 
   it("returns error for nonexistent set", async () => {
     await seedDraftData();
     const result = await cardStatsModule.execute({ set: "ZZZ" }, env);
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
+    expect(result.type).toBe("text");
+    if (result.type !== "text") throw new Error("unexpected type");
     expect(result.content).toContain("not found");
   });
 
@@ -982,8 +982,8 @@ describe("draft_advisor native module", () => {
     await seedContextualData();
 
     const result = await draftAdvisorModule.execute({ set: "DSK" }, env);
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
+    expect(result.type).toBe("text");
+    if (result.type !== "text") throw new Error("unexpected type");
     expect(result.content).toContain("Draft Advisor requires");
     expect(result.content).toContain("card_stats");
   });
@@ -992,8 +992,8 @@ describe("draft_advisor native module", () => {
     await seedContextualData();
 
     const result = await draftAdvisorModule.execute({ set: "ZZZ" }, env);
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
+    expect(result.type).toBe("text");
+    if (result.type !== "text") throw new Error("unexpected type");
     expect(result.content).toContain("not found");
   });
 
@@ -1043,8 +1043,8 @@ describe("draft_advisor native module", () => {
 
     const result = await draftAdvisorModule.execute({ pack: ["Shared Card"], pick_number: 1 }, env);
 
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
+    expect(result.type).toBe("text");
+    if (result.type !== "text") throw new Error("unexpected type");
     expect(result.content).toContain("Could not determine set");
     expect(result.content).toContain("DSK");
     expect(result.content).toContain("BLB");
@@ -1058,16 +1058,16 @@ describe("draft_advisor native module", () => {
       env,
     );
 
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
+    expect(result.type).toBe("text");
+    if (result.type !== "text") throw new Error("unexpected type");
     expect(result.content).toContain("No draft data found");
     expect(result.content).toContain("Available sets");
   });
 
   it("returns error when no set and no card names provided", async () => {
     const result = await draftAdvisorModule.execute({}, env);
-    expect(result.type).toBe("formatted");
-    if (result.type !== "formatted") throw new Error("unexpected type");
+    expect(result.type).toBe("text");
+    if (result.type !== "text") throw new Error("unexpected type");
     expect(result.content).toContain("Cannot determine set");
   });
 

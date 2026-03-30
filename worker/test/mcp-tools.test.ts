@@ -405,22 +405,21 @@ describe("MCP Tools", () => {
 
   describe("viewResult", () => {
     it("returns structuredContent alongside content with data", () => {
-      const result = viewResult({ foo: "bar" }, "Some narrative.");
+      const result = viewResult({ foo: "bar" });
       expect(result.structuredContent).toEqual({ foo: "bar" });
-      // content carries narrative + JSON data so the model can reason about the data
-      expect(result.content).toHaveLength(2);
-      expect(result.content[0]!.text).toBe("Some narrative.");
-      expect(JSON.parse(result.content[1]!.text)).toEqual({ foo: "bar" });
+      // content carries JSON data so the model can reason about it
+      expect(result.content).toHaveLength(1);
+      expect(JSON.parse(result.content[0]!.text)).toEqual({ foo: "bar" });
       expect(result._meta).toBeUndefined();
     });
 
     it("includes _meta when provided", () => {
-      const result = viewResult({ foo: "bar" }, "Narrative.", { viewScript: "console.log(1)" });
+      const result = viewResult({ foo: "bar" }, { viewScript: "console.log(1)" });
       expect(result._meta).toEqual({ viewScript: "console.log(1)" });
     });
 
     it("omits _meta key entirely when not provided", () => {
-      const result = viewResult({ foo: "bar" }, "Narrative.");
+      const result = viewResult({ foo: "bar" });
       expect("_meta" in result).toBe(false);
     });
   });
@@ -809,8 +808,8 @@ describe("MCP Tools", () => {
       expect(viewResult.structuredContent).toBeDefined();
       expect(viewResult.structuredContent.query).toBe("Hammerdin");
       expect(Array.isArray(viewResult.structuredContent.results)).toBe(true);
-      // content carries narrative + JSON data for model reasoning
-      expect(viewResult.content).toHaveLength(2);
+      // content carries JSON data for model reasoning
+      expect(viewResult.content).toHaveLength(1);
       expect(viewResult.content[0]!.text).toContain("Hammerdin");
     });
   });

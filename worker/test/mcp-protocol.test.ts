@@ -645,8 +645,8 @@ describe("MCP Protocol", () => {
     expect(data.score).toBe(42);
     expect(data.card).toBe("Lightning Bolt");
 
-    // content carries narrative + JSON data for model reasoning
-    expect(body.result.content).toHaveLength(2);
+    // content carries JSON data for model reasoning
+    expect(body.result.content).toHaveLength(1);
 
     clearNativeRegistry();
   });

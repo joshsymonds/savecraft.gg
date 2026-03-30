@@ -106,7 +106,7 @@ async function bo3Overview(userId: string, env: Env): Promise<ReferenceResult> {
   }
 
   if (bo3Matches.length === 0) {
-    return { type: "formatted", content: "No best-of-three match history found." };
+    return { type: "text", content: "No best-of-three match history found." };
   }
 
   let g1Wins = 0;
@@ -141,7 +141,7 @@ async function bo3Overview(userId: string, env: Env): Promise<ReferenceResult> {
   }
 
   return {
-    type: "formatted",
+    type: "text",
     content: lines.join("\n") + "\n",
   };
 }
@@ -182,7 +182,7 @@ async function byMatchup(
   }
 
   if (parsedMatches.length === 0) {
-    return { type: "formatted", content: "No best-of-three match history found." };
+    return { type: "text", content: "No best-of-three match history found." };
   }
 
   // Single batch D1 query for all card colors
@@ -212,7 +212,7 @@ async function byMatchup(
   }
 
   if (archetypeStats.size === 0) {
-    return { type: "formatted", content: "No best-of-three match history found." };
+    return { type: "text", content: "No best-of-three match history found." };
   }
 
   const sorted = [...archetypeStats.entries()].sort((a, b) => b[1].matches - a[1].matches);
@@ -243,7 +243,7 @@ async function byMatchup(
   }
 
   return {
-    type: "formatted",
+    type: "text",
     content: lines.join("\n") + "\n",
   };
 }
@@ -287,7 +287,7 @@ export const sideboardAnalysisModule: NativeReferenceModule = {
     const userId = query.user_id as string | undefined;
     if (!userId) {
       return {
-        type: "formatted",
+        type: "text",
         content: "Error: user_id is required for sideboard_analysis queries.",
       };
     }
@@ -301,7 +301,7 @@ export const sideboardAnalysisModule: NativeReferenceModule = {
         return byMatchup(userId, query.format as string | undefined, env);
       default:
         return {
-          type: "formatted",
+          type: "text",
           content: `Unknown mode "${mode}". Use: bo3_overview, by_matchup.`,
         };
     }

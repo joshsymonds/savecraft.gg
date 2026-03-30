@@ -179,7 +179,7 @@ describe("rules_search native module", () => {
   it("returns error for empty query", async () => {
     const module_ = getNativeModule("mtga", "rules_search")!;
     const result = await module_.execute({}, env);
-    expect(result.type).toBe("formatted");
+    expect(result.type).toBe("text");
     expect((result as { content: string }).content).toContain("Specify one of");
   });
 
@@ -190,7 +190,7 @@ describe("rules_search native module", () => {
     const module_ = getNativeModule("mtga", "rules_search")!;
     const result = await module_.execute({ rule: "702.2" }, env);
 
-    expect(result.type).toBe("formatted");
+    expect(result.type).toBe("text");
     const text = (result as { content: string }).content;
     expect(text).toContain("702.2");
     expect(text).toContain("Deathtouch is a static ability");
@@ -225,7 +225,7 @@ describe("rules_search native module", () => {
     const module_ = getNativeModule("mtga", "rules_search")!;
     const result = await module_.execute({ keyword: "deathtouch" }, env);
 
-    expect(result.type).toBe("formatted");
+    expect(result.type).toBe("text");
     const text = (result as { content: string }).content;
     expect(text).toContain("702.2");
     expect(text).toContain("702.2a");
@@ -238,7 +238,7 @@ describe("rules_search native module", () => {
     const module_ = getNativeModule("mtga", "rules_search")!;
     const result = await module_.execute({ keyword: "trample deathtouch" }, env);
 
-    expect(result.type).toBe("formatted");
+    expect(result.type).toBe("text");
     const text = (result as { content: string }).content;
     // Should find rules about both trample and deathtouch
     expect(text).toContain("702.19b");
@@ -253,7 +253,7 @@ describe("rules_search native module", () => {
     const module_ = getNativeModule("mtga", "rules_search")!;
     const result = await module_.execute({ card: "Sheoldred" }, env);
 
-    expect(result.type).toBe("formatted");
+    expect(result.type).toBe("text");
     const text = (result as { content: string }).content;
     expect(text).toContain("Sheoldred, the Apocalypse");
     expect(text).toContain("triggers when opponent draws");

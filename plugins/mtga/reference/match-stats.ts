@@ -293,7 +293,7 @@ export const matchStatsModule: NativeReferenceModule = {
     const userId = query.user_id as string | undefined;
     if (!userId) {
       return {
-        type: "formatted",
+        type: "text",
         content: "Error: user_id is required for match_stats queries.",
       };
     }
@@ -313,7 +313,7 @@ export const matchStatsModule: NativeReferenceModule = {
         return trend(userId, (query.count as number) ?? 10, env);
       default:
         return {
-          type: "formatted",
+          type: "text",
           content: `Unknown mode "${mode}". Use: overview, by_deck, by_format, by_matchup, trend.`,
         };
     }

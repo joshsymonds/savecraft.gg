@@ -1727,7 +1727,7 @@ export const draftAdvisorModule: NativeReferenceModule = {
 
       if (allNames.size === 0) {
         return {
-          type: "formatted",
+          type: "text",
           content:
             "Cannot determine set: no card names provided. Pass pack, pool, or pick_history with card names, or specify {set: 'TMT'} explicitly.\n",
         };
@@ -1764,7 +1764,7 @@ export const draftAdvisorModule: NativeReferenceModule = {
         ).all<{ set_code: string }>();
         const codes = available.results.map((r) => r.set_code).join(", ");
         return {
-          type: "formatted",
+          type: "text",
           content: `No draft data found for these card names. Available sets: ${codes}\n`,
         };
       }
@@ -1776,7 +1776,7 @@ export const draftAdvisorModule: NativeReferenceModule = {
         setCode = top.set_code;
       } else {
         return {
-          type: "formatted",
+          type: "text",
           content: `Could not determine set: cards match ${top.set_code} (${top.matches} matches) and ${runner.set_code} (${runner.matches} matches). Pass {set: '${top.set_code}'} to specify.\n`,
         };
       }
@@ -1795,7 +1795,7 @@ export const draftAdvisorModule: NativeReferenceModule = {
       ).all<{ set_code: string }>();
       const codes = available.results.map((r) => r.set_code).join(", ");
       return {
-        type: "formatted",
+        type: "text",
         content: `Set "${setCode}" not found. Available sets: ${codes}\n`,
       };
     }
@@ -1822,7 +1822,7 @@ export const draftAdvisorModule: NativeReferenceModule = {
     }
 
     return {
-      type: "formatted",
+      type: "text",
       content:
         [
           "Draft Advisor requires either:",
