@@ -8,7 +8,7 @@
 -->
 <script lang="ts">
   import ProductionChain from "../../components/ProductionChain.svelte";
-  import type { TreeNode } from "../../components/ProductionChain.svelte";
+  import type { ProductionStage, ProductionFlow } from "../../components/ProductionChain.svelte";
   import DataTable from "../../../../views/src/components/data/DataTable.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
@@ -22,7 +22,8 @@
 
   interface Props {
     data: {
-      production_tree: TreeNode;
+      stages: ProductionStage[];
+      flows: ProductionFlow[];
       raw_materials: RawMaterial[];
       total_power_kw: number;
       config: {
@@ -97,7 +98,7 @@
   <Panel>
     <div class="sections">
       <Section title="Production Chain">
-        <ProductionChain tree={data.production_tree} {spriteBaseUrl} />
+        <ProductionChain stages={data.stages} flows={data.flows} {spriteBaseUrl} />
       </Section>
 
       {#if rawTableRows.length > 0}
