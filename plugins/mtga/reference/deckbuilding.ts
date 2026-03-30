@@ -1544,6 +1544,7 @@ export const deckbuildingModule: NativeReferenceModule = {
     },
   },
 
+  view_default: "visible",
   sectionMappings: [
     {
       sectionParam: "deck_section",

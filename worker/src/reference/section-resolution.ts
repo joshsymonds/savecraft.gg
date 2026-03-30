@@ -73,7 +73,66 @@ async function resolveOneSection(
 }
 
 /**
- * Resolve section references in a query, returning the enriched query.
+ * Resolve section references for WASM modules using manifest-declared mappings.
+ *
+ * Unlike native modules (which declare an `extract` function), WASM section
+ * mappings are simple `{queryKey: sectionName}` pairs read from the plugin
+ * manifest. When `save_id` is present in the query, each mapped section is
+ * fetched from D1 and injected whole under its query key.
+ *
+ * If `save_id` is absent, returns the query unchanged (the module may work
+ * without save data). Explicit query params take precedence over section data.
+ */
+export async function resolveWasmSectionParams(
+  db: D1Database,
+  userUuid: string,
+  sectionMappings: Record<string, string>,
+  query: Record<string, unknown>,
+  verifiedSaves?: VerifiedSaveCache,
+): Promise<Record<string, unknown>> {
+  const saveId = query.save_id as string | undefined;
+  if (!saveId) return query;
+
+  await verifySaveOwnership(db, saveId, userUuid, verifiedSaves);
+
+  // Build enriched query: strip save_id, inject section data under mapped keys
+  const enriched: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(query)) {
+    if (key !== "save_id") enriched[key] = value;
+  }
+
+  // Fetch all sections in parallel
+  const entries = Object.entries(sectionMappings);
+  const results = await Promise.all(
+    entries.map(async ([, sectionName]) => {
+      const row = await db
+        .prepare("SELECT data FROM sections WHERE save_uuid = ? AND name = ?")
+        .bind(saveId, sectionName)
+        .first<{ data: string }>();
+
+      if (!row) {
+        throw new Error(
+          `Section not found: "${sectionName}" in save ${saveId}. Call get_save to see available sections.`,
+        );
+      }
+
+      return JSON.parse(row.data) as unknown;
+    }),
+  );
+
+  for (let i = 0; i < entries.length; i++) {
+    const queryKey = entries[i]![0];
+    // Explicit query params take precedence over section data
+    if (enriched[queryKey] === undefined || enriched[queryKey] === null) {
+      enriched[queryKey] = results[i];
+    }
+  }
+
+  return enriched;
+}
+
+/**
+ * Resolve section references in a query for native modules, returning the enriched query.
  *
  * If no section params are present, returns the query unchanged.
  * Throws on: missing save_id, authorization failure, section not found,

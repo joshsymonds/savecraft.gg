@@ -24,13 +24,19 @@ The moment a view starts doing its own work — calling tools, adjusting paramet
 
 ## Design Principles
 
-### Views render synthesis, not data
+### Views render visual value
 
-A view should present the AI's composed answer in a format that text can't match. An 8-axis draft scorecard, a side-by-side gear comparison with stat diffs highlighted, a farming plan with probability breakdowns — these are visual renderings of reasoning the AI already did. The AI selected the data, computed the relationships, and decided what matters. The view makes that legible.
+Build a view whenever visual representation adds value over text — comparison tables, score breakdowns, flow diagrams, factor chains, color-coded badges. The bar is "would a visual format help the user understand this?" not "did the AI do synthesis?"
 
-A view should not present raw data for the player to explore independently. A generic equipment browser, a searchable card database, or a filterable stat table — those are tools, not synthesis. They belong on a website.
+Views split into two categories based on how they should appear by default:
 
-**Test:** Did the AI do intellectual work to assemble what the view shows? If the view is just a prettier rendering of a database query result, it probably shouldn't be a view.
+**Visible by default (`view_default: "visible"`):** Synthesis views where the visual *is* the value. Draft scorecards, production flow charts, surgery probability breakdowns, combat DPS comparisons. These always render unless the LLM explicitly suppresses them (e.g., during multi-step reasoning where it just needs a number).
+
+**Hidden by default (`view_default: "hidden"`):** Lookup views where the LLM usually just needs the data. Card search results, stat tables, save search results. These render only when the LLM decides the user would benefit from seeing them visually — "show me cards with flying" vs "does Lightning Bolt deal 3 damage?"
+
+The `visible_to_user` parameter on tool calls lets the LLM override either default. The LLM knows the conversation context that the module doesn't — whether the user asked to "see" something or just needs an answer.
+
+**Test for building a view:** Would a visual format communicate this data better than text? If yes, build the view and set `view_default` based on whether users typically benefit from seeing it or the LLM typically just needs the data.
 
 ### Complement the conversation, don't compete with it
 

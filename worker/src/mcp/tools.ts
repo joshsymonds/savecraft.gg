@@ -48,7 +48,7 @@ interface SectionRow {
   data: string;
 }
 
-function textResult(data: unknown): ToolResult {
+export function textResult(data: unknown): ToolResult {
   return { content: [{ type: "text", text: JSON.stringify(data) }] };
 }
 
@@ -92,6 +92,9 @@ interface ReferenceModule {
   name: string;
   description: string;
   parameters?: Record<string, unknown>;
+  view_default?: "visible" | "hidden";
+  /** WASM section mappings: {queryKey: sectionName}. When save_id is in the query, each section is fetched and injected under queryKey. */
+  section_mappings?: Record<string, string>;
 }
 
 interface ManifestData {
@@ -131,6 +134,7 @@ interface GameEntry {
     name: string;
     description: string;
     parameters?: Record<string, unknown>;
+    view_default?: "visible" | "hidden";
   }[];
 }
 
@@ -214,6 +218,29 @@ export async function resolveIconUrl(
     return `${serverUrl}/plugins/${gameId}/${manifest.icon}`;
   }
   return undefined;
+}
+
+/** Look up WASM section_mappings for a specific module from its manifest. */
+export async function getWasmSectionMappings(
+  plugins: R2Bucket,
+  gameId: string,
+  moduleId: string,
+): Promise<Record<string, string> | undefined> {
+  const manifest = await getCachedManifest(plugins, `plugins/${gameId}/manifest.json`);
+  return manifest?.reference?.modules?.[moduleId]?.section_mappings;
+}
+
+/** Read a WASM module's view_default from its cached manifest. */
+export async function getWasmViewDefault(
+  plugins: R2Bucket,
+  gameId: string,
+  moduleId: string,
+): Promise<"visible" | "hidden" | undefined> {
+  const manifest = await getCachedManifest(plugins, `plugins/${gameId}/manifest.json`);
+  return manifest?.reference?.modules?.[moduleId]?.view_default as
+    | "visible"
+    | "hidden"
+    | undefined;
 }
 
 /** Per-isolate cache for R2 manifest key list — avoids R2 list on every list_games call. */
@@ -344,6 +371,7 @@ async function attachReferenceModules(
         name: entry.name,
         description: entry.description,
         parameters: entry.parameters,
+        ...(entry.view_default ? { view_default: entry.view_default } : {}),
       }));
     }
   }
@@ -357,7 +385,7 @@ export async function listGames(
   userUuid: string,
   filter?: string,
   serverUrl?: string,
-): Promise<ToolResult> {
+): Promise<ToolResult | ViewToolResult> {
   const [saveRows, notesBySave, removedRows] = await Promise.all([
     db
       .prepare(
@@ -393,7 +421,7 @@ export async function listGames(
       `No games matching "${filter}". Try without a filter to see all available games.`,
     );
   }
-  return textResult({ games });
+  return viewResult({ games });
 }
 
 const OVERVIEW_SECTION_NAMES = ["character_overview", "player_summary", "overview", "summary"];
@@ -418,7 +446,7 @@ export async function getSave(
   saveId: string,
   plugins?: R2Bucket,
   serverUrl?: string,
-): Promise<ToolResult> {
+): Promise<ToolResult | ViewToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
   if (!save) {
     const removedName = await checkRemovedSave(db, userUuid, saveId);
@@ -496,7 +524,7 @@ export async function getSave(
     }
   }
 
-  return textResult(result);
+  return viewResult(result);
 }
 
 export async function getSection(

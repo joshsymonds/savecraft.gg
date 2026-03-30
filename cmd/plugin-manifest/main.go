@@ -73,10 +73,13 @@ type defaultPaths struct {
 	Darwin  string `toml:"darwin"  json:"darwin"`
 }
 
+//nolint:tagliatelle // manifest JSON uses snake_case to match plugin.toml field names
 type referenceModule struct {
-	Name        string         `toml:"name"        json:"name"`
-	Description string         `toml:"description" json:"description"`
-	Parameters  map[string]any `toml:"-"           json:"parameters,omitempty"`
+	Name            string            `toml:"name"             json:"name"`
+	Description     string            `toml:"description"      json:"description"`
+	Parameters      map[string]any    `toml:"-"                json:"parameters,omitempty"`
+	ViewDefault     string            `toml:"view_default"     json:"view_default,omitempty"`
+	SectionMappings map[string]string `toml:"section_mappings" json:"section_mappings,omitempty"`
 }
 
 type referenceTOML struct {
@@ -205,7 +208,10 @@ func tryBuildReference(pluginDir string, cfg pluginTOML) (*referenceManifest, bo
 	return ref, true
 }
 
-func buildReferenceManifest(wasmPath, gameID string, modules map[string]referenceModule) (*referenceManifest, error) {
+func buildReferenceManifest(
+	wasmPath, gameID string,
+	modules map[string]referenceModule,
+) (*referenceManifest, error) {
 	refHash, err := fileSHA256(wasmPath)
 	if err != nil {
 		return nil, fmt.Errorf("hash %s: %w", wasmPath, err)

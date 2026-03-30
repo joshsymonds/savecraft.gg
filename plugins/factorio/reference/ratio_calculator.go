@@ -31,6 +31,33 @@ type ratioQuery struct {
 	BeaconCount   int               `json:"beacon_count"`
 	BeaconModules []string          `json:"beacon_modules"`
 	Overrides     map[string]string `json:"recipe_overrides"` // item → recipe for intermediate products
+
+	// Optional save data — injected by worker when save_id is present,
+	// or passed inline by the LLM.
+	ExistingMachines *existingMachines `json:"existing_machines"`
+	ActualFlow       *actualFlow       `json:"actual_flow"`
+}
+
+type existingMachines struct {
+	ByRecipe    map[string]existingSetup `json:"by_recipe"`
+	ByType      map[string]int           `json:"by_type"`
+	BeaconCount int                      `json:"beacon_count"`
+}
+
+type existingSetup struct {
+	MachineType string         `json:"machine_type"`
+	Count       int            `json:"count"`
+	Modules     map[string]int `json:"modules"` // module_name → count per machine
+}
+
+type actualFlow struct {
+	Items  map[string]flowStats `json:"items"`
+	Fluids map[string]flowStats `json:"fluids"`
+}
+
+type flowStats struct {
+	ProducedPerMin float64 `json:"produced_per_min"`
+	ConsumedPerMin float64 `json:"consumed_per_min"`
 }
 
 // ─── DAG Output Types ───────────────────────────────────────────────────────
@@ -44,6 +71,28 @@ type productionStage struct {
 	RatePerMin   float64 `json:"rate_per_min"`
 	BeltTier     string  `json:"belt_tier"`
 	PowerKW      float64 `json:"power_kw"`
+
+	// Comparison fields — only present when existing_machines is provided.
+	Existing    *existingInfo `json:"existing,omitempty"`
+	DeficitRate float64       `json:"deficit_rate,omitempty"`
+	Status      string        `json:"status,omitempty"`
+}
+
+type existingInfo struct {
+	MachineType   string         `json:"machine_type"`
+	Count         int            `json:"count"`
+	Modules       map[string]int `json:"modules"`
+	EffectiveRate float64        `json:"effective_rate"` // items/min from real tier+modules
+	ActualRate    float64        `json:"actual_rate"`    // from production_flow (0 if unavailable)
+}
+
+type bottleneck struct {
+	Item         string  `json:"item"`
+	Recipe       string  `json:"recipe"`
+	NeededRate   float64 `json:"needed_rate"`
+	ExistingRate float64 `json:"existing_rate"`
+	ActualRate   float64 `json:"actual_rate"`
+	Diagnosis    string  `json:"diagnosis"` // "missing", "underbuilt", "underthroughput", "wrong_modules"
 }
 
 type productionFlow struct {
@@ -170,7 +219,13 @@ func handleRatioCalculator(enc *json.Encoder, query map[string]any) {
 		return rawSummary[i]["item"].(string) < rawSummary[j]["item"].(string)
 	})
 
-	writeResult(enc, map[string]any{
+	// Phase 3+4: Compare against existing factory (only when save data provided)
+	var bottlenecks []bottleneck
+	if q.ExistingMachines != nil {
+		bottlenecks = compareExisting(stages, b, q.ExistingMachines, q.ActualFlow)
+	}
+
+	result := map[string]any{
 		"stages":         stages,
 		"flows":          flows,
 		"raw_materials":  rawSummary,
@@ -181,7 +236,11 @@ func handleRatioCalculator(enc *json.Encoder, query map[string]any) {
 			"beacon_count":   q.BeaconCount,
 			"beacon_modules": q.BeaconModules,
 		},
-	})
+	}
+	if bottlenecks != nil {
+		result["bottlenecks"] = bottlenecks
+	}
+	writeResult(enc, result)
 }
 
 const maxDepth = 50
@@ -483,6 +542,191 @@ func resolveRecipe(item, recipeName string, overrides map[string]string) (*data.
 	}
 	sort.Strings(options)
 	return nil, 0, options
+}
+
+// ─── Phase 3+4: Compare Against Existing Factory ───────────────────────────
+//
+// For each non-raw stage, match against existing machines by recipe name,
+// compute effective throughput using real tier+modules, and classify status.
+
+// compareExisting annotates stages with existing factory data and returns
+// a sorted bottlenecks array. Modifies stages in place.
+func compareExisting(
+	stages []productionStage,
+	b *dagBuilder,
+	existing *existingMachines,
+	flow *actualFlow,
+) []bottleneck {
+	var bns []bottleneck
+
+	for i := range stages {
+		stage := &stages[i]
+
+		// Skip raw materials — they don't have machines
+		node := b.nodes[stage.Item]
+		if node == nil || node.isRaw {
+			continue
+		}
+
+		recipe := node.recipe
+		if recipe == nil {
+			continue
+		}
+
+		setup, found := existing.ByRecipe[recipe.Name]
+		neededRate := stage.RatePerMin
+
+		if !found {
+			stage.Status = "missing"
+			bns = append(bns, bottleneck{
+				Item:       stage.Item,
+				Recipe:     stage.Recipe,
+				NeededRate: neededRate,
+				Diagnosis:  "missing",
+			})
+			continue
+		}
+
+		// Compute effective rate of existing setup
+		effectiveRate := computeEffectiveRate(setup, recipe, existing.BeaconCount)
+
+		// Pull actual rate from production flow
+		var actualRate float64
+		if flow != nil {
+			if stats, ok := flow.Items[stage.Item]; ok {
+				actualRate = stats.ProducedPerMin
+			}
+			if stats, ok := flow.Fluids[stage.Item]; ok {
+				actualRate = stats.ProducedPerMin
+			}
+		}
+
+		stage.Existing = &existingInfo{
+			MachineType:   setup.MachineType,
+			Count:         setup.Count,
+			Modules:       setup.Modules,
+			EffectiveRate: roundTo(effectiveRate, 1),
+			ActualRate:    roundTo(actualRate, 1),
+		}
+
+		// Classify status and diagnosis
+		if effectiveRate >= neededRate {
+			// Machines should be sufficient — check actual throughput
+			if actualRate > 0 && actualRate < effectiveRate*0.7 {
+				stage.Status = "deficit"
+				stage.DeficitRate = roundTo(neededRate-actualRate, 1)
+				bns = append(bns, bottleneck{
+					Item:         stage.Item,
+					Recipe:       stage.Recipe,
+					NeededRate:   neededRate,
+					ExistingRate: roundTo(effectiveRate, 1),
+					ActualRate:   roundTo(actualRate, 1),
+					Diagnosis:    "underthroughput",
+				})
+			} else {
+				stage.Status = "sufficient"
+			}
+		} else {
+			// Not enough effective throughput
+			stage.Status = "deficit"
+			stage.DeficitRate = roundTo(neededRate-effectiveRate, 1)
+
+			// Diagnose: wrong_modules if count would suffice at the query's assumed config
+			diagnosis := diagnoseDeficit(stage, b, setup, recipe)
+			bns = append(bns, bottleneck{
+				Item:         stage.Item,
+				Recipe:       stage.Recipe,
+				NeededRate:   neededRate,
+				ExistingRate: roundTo(effectiveRate, 1),
+				ActualRate:   roundTo(actualRate, 1),
+				Diagnosis:    diagnosis,
+			})
+		}
+	}
+
+	// Sort bottlenecks by deficit magnitude (largest first)
+	sort.Slice(bns, func(i, j int) bool {
+		di := bns[i].NeededRate - bns[i].ExistingRate
+		dj := bns[j].NeededRate - bns[j].ExistingRate
+		return di > dj
+	})
+
+	return bns
+}
+
+// computeEffectiveRate computes items/min from existing machines using their
+// real tier and real modules.
+func computeEffectiveRate(
+	setup existingSetup,
+	recipe *data.Recipe,
+	beaconCount int,
+) float64 {
+	machine, ok := data.Machines[setup.MachineType]
+	if !ok {
+		return 0
+	}
+
+	// Expand module map to list: {"speed-module-3": 2} → ["speed-module-3", "speed-module-3"]
+	var moduleList []string
+	for name, count := range setup.Modules {
+		for range count {
+			moduleList = append(moduleList, name)
+		}
+	}
+
+	speedBonus, prodBonus, _ := resolveModuleEffects(moduleList)
+	// Note: we don't use beacon effects from the save here because the save
+	// only has total beacon count, not per-recipe beacon assignments.
+	// TODO: if we get per-recipe beacon data, use it here.
+	_ = beaconCount
+
+	craftingSpeed := machine.CraftingSpeed
+	effectiveSpeed := craftingSpeed * (1 + speedBonus)
+	if effectiveSpeed < 0.01 {
+		effectiveSpeed = 0.01
+	}
+
+	// Find result amount for this item in the recipe
+	resultAmt := 1.0
+	for _, prod := range recipe.Results {
+		if prod.Name != "" {
+			resultAmt = prod.Amount * prod.Probability
+			break
+		}
+	}
+	effectiveOutput := resultAmt * (1 + prodBonus)
+
+	craftTime := recipe.EnergyRequired
+	if craftTime <= 0 {
+		craftTime = 0.5
+	}
+
+	itemsPerSecPerMachine := (effectiveSpeed / craftTime) * effectiveOutput
+	return float64(setup.Count) * itemsPerSecPerMachine * 60 // convert to items/min
+}
+
+// diagnoseDeficit determines why existing machines fall short.
+func diagnoseDeficit(
+	stage *productionStage,
+	b *dagBuilder,
+	setup existingSetup,
+	recipe *data.Recipe,
+) string {
+	// Check if the same COUNT of machines at the query's assumed config would suffice
+	querySetup := existingSetup{
+		MachineType: b.assemblerTier,
+		Count:       setup.Count,
+		Modules:     make(map[string]int),
+	}
+	// Simulate the query's module config for the existing count
+	// No modules to set — just use the assembler tier speed
+	queryRate := computeEffectiveRate(querySetup, recipe, 0)
+
+	if queryRate >= stage.RatePerMin {
+		// Same count at query config would work — it's the modules/tier that's wrong
+		return "wrong_modules"
+	}
+	return "underbuilt"
 }
 
 // Shared helpers (resolveModuleEffects, resolveBeaconEffects, parsePowerKW,
