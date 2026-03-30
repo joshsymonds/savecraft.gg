@@ -106,27 +106,19 @@ describe("query_reference view_default", () => {
     expect(parsed.count).toBe(5);
   });
 
-  it("hidden result contains same data as visible result", async () => {
-    // visible module returns structuredContent
-    const visibleResult = await callTool("query_reference", {
-      game_id: "testgame",
-      module: "vis_mod",
-      queries: [{ label: "Test" }],
-    });
-    const visibleData = visibleResult.structuredContent;
-
-    // hidden module returns same data shape in content text
-    const hiddenResult = await callTool("query_reference", {
+  it("hidden result preserves all module data in text content", async () => {
+    const result = await callTool("query_reference", {
       game_id: "testgame",
       module: "hid_mod",
       queries: [{ label: "Test" }],
     });
-    const hiddenContent = hiddenResult.content as { type: string; text: string }[];
-    const hiddenData = JSON.parse(hiddenContent[0]!.text);
-
-    // Both contain module ID and result data
-    expect(visibleData).toHaveProperty("module", "vis_mod");
-    expect(hiddenData).toHaveProperty("module", "hid_mod");
+    expect(result).not.toHaveProperty("structuredContent");
+    const content = result.content as { type: string; text: string }[];
+    const data = JSON.parse(content[0]!.text);
+    // All fields from the module's execute result are present
+    expect(data.module).toBe("hid_mod");
+    expect(data.result).toBe("lookup");
+    expect(data.count).toBe(5);
   });
 
   it("works with multi-query batches and hidden default", async () => {

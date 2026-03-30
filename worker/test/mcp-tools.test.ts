@@ -437,7 +437,7 @@ describe("MCP Tools", () => {
 
       const result = await listGames(env.DB, env.PLUGINS, USER_A);
       expect("structuredContent" in result).toBe(false);
-      const data = JSON.parse((result as ToolResult).content[0]!.text) as { games: GameEntry[] };
+      const data = JSON.parse(result.content[0]!.text) as { games: GameEntry[] };
       expect(data.games).toHaveLength(1);
       expect(data.games[0]!.game_id).toBe("d2r");
     });
@@ -671,7 +671,7 @@ describe("MCP Tools", () => {
 
       const result = await getSave(env.DB, USER_A, "save-view-result");
       expect("structuredContent" in result).toBe(false);
-      const data = JSON.parse((result as ToolResult).content[0]!.text) as Record<string, unknown>;
+      const data = JSON.parse(result.content[0]!.text) as Record<string, unknown>;
       expect(data.save_id).toBe("save-view-result");
       expect(data.game_name).toBe("Diablo II: Resurrected");
       expect(data.name).toBe("ViewTest");

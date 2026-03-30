@@ -16,7 +16,7 @@ export type ReferenceResult =
   | { type: "text"; content: string }
   | { type: "structured"; data: Record<string, unknown> };
 
-/** Whether a view renders by default when the LLM omits visible_to_user. */
+/** Whether a module's view renders by default. */
 export type ViewDefault = "visible" | "hidden";
 
 /** Metadata exposed to list_games alongside WASM module metadata. */

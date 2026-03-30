@@ -32,9 +32,7 @@ Views split into two categories based on how they should appear by default:
 
 **Visible by default (`view_default: "visible"`):** Synthesis views where the visual *is* the value. Draft scorecards, production flow charts, surgery probability breakdowns, combat DPS comparisons. These always render unless the LLM explicitly suppresses them (e.g., during multi-step reasoning where it just needs a number).
 
-**Hidden by default (`view_default: "hidden"`):** Lookup views where the LLM usually just needs the data. Card search results, stat tables, save search results. These render only when the LLM decides the user would benefit from seeing them visually — "show me cards with flying" vs "does Lightning Bolt deal 3 damage?"
-
-The `visible_to_user` parameter on tool calls lets the LLM override either default. The LLM knows the conversation context that the module doesn't — whether the user asked to "see" something or just needs an answer.
+**Hidden by default (`view_default: "hidden"`):** Lookup views where the LLM just needs the data. Card search results, stat tables, save search results. No view renders — the LLM gets the data as text and incorporates it into its response. Hidden-default tools don't declare `_meta.ui`, so no iframe loads at all.
 
 **Test for building a view:** Would a visual format communicate this data better than text? If yes, build the view and set `view_default` based on whether users typically benefit from seeing it or the LLM typically just needs the data.
 
