@@ -4,6 +4,7 @@ const config: StorybookConfig = {
   stories: [
     "../../worker/src/mcp/views/*.stories.svelte",
     "../../plugins/*/reference/views/*.stories.svelte",
+    "../../plugins/*/components/*.stories.svelte",
     "../src/components/**/*.stories.svelte",
   ],
   staticDirs: [{ from: "../../plugins", to: "/plugins" }],
