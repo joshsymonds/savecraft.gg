@@ -135,6 +135,8 @@ import Attribution from "${attributionPath}";
 
 const app = initBridge((result) => {
   if (!result.structuredContent) return;
+  const loading = document.getElementById("loading");
+  if (loading) loading.remove();
   const target = document.getElementById("root");
   if (!target) return;
   target.replaceChildren();
@@ -204,7 +206,7 @@ const app = initBridge((result) => {
 
 // ── Build ──────────────────────────────────────────────────
 
-async function buildToHtml(name: string, entrySource: string, attribution: Attribution[], opts?: { loading?: boolean }): Promise<string> {
+async function buildToHtml(name: string, entrySource: string, attribution: Attribution[]): Promise<string> {
   const tmpEntry = resolve(VIEWS_DIR, `.tmp-entry-${name}.ts`);
   writeFileSync(tmpEntry, entrySource);
 
@@ -237,7 +239,7 @@ async function buildToHtml(name: string, entrySource: string, attribution: Attri
     if (!jsFile) throw new Error(`No JS output for ${name}`);
     const js = readFileSync(resolve(outDir, jsFile), "utf-8");
 
-    return wrapHtml(js, attribution, opts);
+    return wrapHtml(js, attribution);
   } finally {
     try { unlinkSync(tmpEntry); } catch { /* */ }
     try { rmSync(outDir, { recursive: true, force: true }); } catch { /* */ }
@@ -250,11 +252,10 @@ const LOADING_HTML = `<div id="loading" style="display:flex;flex-direction:colum
 <style>@keyframes pulse-loading{0%,100%{opacity:.4}50%{opacity:1}}</style>
 </div>`;
 
-function wrapHtml(js: string, attribution: Attribution[], opts?: { loading?: boolean }): string {
+function wrapHtml(js: string, attribution: Attribution[]): string {
   const attrScript = attribution.length > 0
     ? `<script>window.__ATTRIBUTION__=${JSON.stringify(attribution)};<\/script>\n`
     : "";
-  const loadingMarkup = opts?.loading ? LOADING_HTML : "";
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -264,7 +265,7 @@ function wrapHtml(js: string, attribution: Attribution[], opts?: { loading?: boo
 <style>${viewCss}</style>
 </head>
 <body>
-${loadingMarkup}<div id="root"></div>
+${LOADING_HTML}<div id="root"></div>
 <div id="attribution"></div>
 ${attrScript}<script>${js}<\/script>
 </body>
@@ -296,17 +297,15 @@ async function main() {
   const views: Record<string, string> = {};
 
   // Build each game state view as its own HTML page (aggregates all plugin attributions).
-  // No loading HTML — game state views are fast (no WASM dispatch).
   for (const view of gameStateViews) {
     console.log(`Building game state view: ${view.slug}`);
     views[view.slug] = await buildToHtml(view.slug, gameStateEntry(view), allPluginAttribution);
   }
 
   // Build all reference views into one bundled HTML page.
-  // Loading HTML enabled — reference queries can be slow (WASM dispatch, section resolution).
   if (referenceViews.length > 0) {
     console.log(`Building reference view bundle (${String(referenceViews.length)} modules)`);
-    views["reference"] = await buildToHtml("reference", referenceEntry(referenceViews), refAttribution, { loading: true });
+    views["reference"] = await buildToHtml("reference", referenceEntry(referenceViews), refAttribution);
   }
 
   // Collect visual module IDs from reference views
