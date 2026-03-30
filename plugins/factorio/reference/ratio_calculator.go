@@ -139,7 +139,7 @@ type ratioContext struct {
 	rawTotals              map[string]float64
 	totalPowerKW           float64
 	visited                map[string]bool   // cycle detection
-	recipeOverrides        map[string]string  // item → recipe name
+	recipeOverrides        map[string]string // item → recipe name
 }
 
 const maxTreeDepth = 50
