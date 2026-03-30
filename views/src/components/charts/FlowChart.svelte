@@ -283,22 +283,6 @@
     })),
   );
 
-  // Find the total rate entering each node (for fallback display)
-  let nodeRates = $derived(() => {
-    const rates = new Map<string, number>();
-    for (const e of edges) {
-      // Use the output rate for source nodes, input rate for target nodes
-      rates.set(e.source, (rates.get(e.source) ?? 0) + e.rate);
-    }
-    // For nodes with only inputs (sinks), sum input rates
-    for (const e of edges) {
-      if (!rates.has(e.target)) {
-        rates.set(e.target, e.rate);
-      }
-    }
-    return rates;
-  });
-
   let layoutBands = $derived(
     edges.map((e) => {
       const key = e.source + EDGE_KEY_SEP + e.target;
@@ -326,8 +310,9 @@
       ].join(" ");
 
       const color = e.color ?? bandColor?.(e) ?? "var(--flow-band-color, #c8a84e)";
+      const gradId = `band-grad-${key.replace(EDGE_KEY_SEP, "-")}`;
 
-      return { ...e, path, color };
+      return { ...e, path, color, gradId };
     }),
   );
 
@@ -351,12 +336,25 @@
     height={layout.totalHeight}
     viewBox="0 0 {layout.totalWidth} {layout.totalHeight}"
   >
+    <!-- Gradient definitions for flow bands -->
+    <defs>
+      {#each layoutBands as band}
+        {#if band.path}
+          <linearGradient id={band.gradId} x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stop-color={band.color} stop-opacity="0.3" />
+            <stop offset="30%" stop-color={band.color} stop-opacity="0.5" />
+            <stop offset="70%" stop-color={band.color} stop-opacity="0.5" />
+            <stop offset="100%" stop-color={band.color} stop-opacity="0.3" />
+          </linearGradient>
+        {/if}
+      {/each}
+    </defs>
+
     {#each layoutBands as band}
       {#if band.path}
         <path
           d={band.path}
-          fill={band.color}
-          fill-opacity="0.35"
+          fill="url(#{band.gradId})"
           class="flow-band"
           onmouseenter={(ev) => showBandTip(ev, band)}
           onmousemove={(ev) => {
@@ -406,11 +404,11 @@
   .flow-band {
     pointer-events: auto;
     cursor: default;
-    transition: fill-opacity 0.15s;
+    transition: filter 0.15s;
   }
 
   .flow-band:hover {
-    fill-opacity: 0.7;
+    filter: brightness(1.4) saturate(1.3);
   }
 
   /* ── Nodes ── */
