@@ -135,9 +135,6 @@ import Component from "${componentPath}";
 import Attribution from "${attributionPath}";
 import LoadingState from "${loadingStatePath}";
 
-const attrTarget = document.getElementById("attribution");
-if (attrTarget) mount(Attribution, { target: attrTarget });
-
 const rootTarget = document.getElementById("root");
 if (rootTarget) mount(LoadingState, { target: rootTarget });
 
@@ -146,6 +143,9 @@ const app = initBridge((result) => {
   if (!target) return;
   target.replaceChildren();
   mount(Component, { target, props: { data: result.structuredContent, app } });
+
+  const attrTarget = document.getElementById("attribution");
+  if (attrTarget) mount(Attribution, { target: attrTarget });
 });
 `;
 }
@@ -171,9 +171,6 @@ const VIEWS = {
 ${mapEntries}
 };
 
-const attrTarget = document.getElementById("attribution");
-if (attrTarget) mount(Attribution, { target: attrTarget });
-
 const rootTarget = document.getElementById("root");
 if (rootTarget) mount(LoadingState, { target: rootTarget });
 
@@ -197,11 +194,13 @@ const app = initBridge((result) => {
       target,
       props: { component: Component, results: data.results, moduleId, iconUrl: data.icon_url, app },
     });
-    return;
+  } else {
+    // Single-query: mount directly
+    mount(Component, { target, props: { data, app } });
   }
 
-  // Single-query: mount directly
-  mount(Component, { target, props: { data, app } });
+  const attrTarget = document.getElementById("attribution");
+  if (attrTarget) mount(Attribution, { target: attrTarget });
 });
 `;
 }
