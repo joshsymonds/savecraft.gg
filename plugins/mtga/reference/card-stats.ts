@@ -79,7 +79,7 @@ async function listAvailableSets(db: D1Database): Promise<ReferenceResult> {
     .all<SetStatsRow>();
 
   if (rows.results.length === 0) {
-    return { type: "formatted", content: "No draft ratings data available.\n" };
+    return { type: "text", content: "No draft ratings data available.\n" };
   }
 
   return {
@@ -174,7 +174,7 @@ async function cardDetail(
 
   if (matchNames.length === 0) {
     return {
-      type: "formatted",
+      type: "text",
       content: `No cards matching "${cardQuery}" in ${setCode}\n`,
     };
   }
@@ -418,7 +418,7 @@ export const cardStatsModule: NativeReferenceModule = {
       ).all<{ set_code: string }>();
       const codes = available.results.map((r) => r.set_code).join(", ");
       return {
-        type: "formatted",
+        type: "text",
         content: `Set "${setCode}" not found. Available sets: ${codes}\n`,
       };
     }

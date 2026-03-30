@@ -274,8 +274,8 @@ describe("match_stats reference module", () => {
 
   it("returns error for missing user_id", async () => {
     const result = await matchStatsModule.execute({ mode: "overview" }, env);
-    expect(result.type).toBe("formatted");
-    const content = (result as { type: "formatted"; content: string }).content;
+    expect(result.type).toBe("text");
+    const content = (result as { type: "text"; content: string }).content;
     expect(content).toMatch(/user_id.*required/i);
   });
 

@@ -120,7 +120,7 @@ async function cardTiming(
   const format = query.format as string | undefined;
 
   if (!set || rawCards.length === 0) {
-    return { type: "formatted", content: "Error: card_timing requires set and cards parameters." };
+    return { type: "text", content: "Error: card_timing requires set and cards parameters." };
   }
 
   const arch = await resolveArchetype(env, "mtga_play_card_timing", set, archetype);
@@ -196,7 +196,7 @@ async function manaEfficiency(
   const format = query.format as string | undefined;
 
   if (!set || turns.length === 0) {
-    return { type: "formatted", content: "Error: mana_efficiency requires set and turns parameters." };
+    return { type: "text", content: "Error: mana_efficiency requires set and turns parameters." };
   }
 
   const arch = await resolveArchetype(env, "mtga_play_tempo", set, archetype);
@@ -286,7 +286,7 @@ async function attackAnalysis(
   const format = query.format as string | undefined;
 
   if (!set || turns.length === 0) {
-    return { type: "formatted", content: "Error: attack_analysis requires set and turns parameters." };
+    return { type: "text", content: "Error: attack_analysis requires set and turns parameters." };
   }
 
   const allCreatureNames = new Set<string>();
@@ -392,7 +392,7 @@ async function mulligan(
   const format = query.format as string | undefined;
 
   if (!set || hand.length === 0) {
-    return { type: "formatted", content: "Error: mulligan requires set and hand parameters." };
+    return { type: "text", content: "Error: mulligan requires set and hand parameters." };
   }
 
   const arch = await resolveArchetype(env, "mtga_play_mulligan", set, archetype);
@@ -629,20 +629,20 @@ async function gameReview(
   if (matchId) {
     if (!userId) {
       return {
-        type: "formatted",
+        type: "text",
         content: "Error: match_id lookup requires user_id (provided automatically by MCP context).",
       };
     }
     const loaded = await loadTurnsFromMatchId(matchId, userId, env);
     if (typeof loaded === "string") {
-      return { type: "formatted", content: `Error: ${loaded}` };
+      return { type: "text", content: `Error: ${loaded}` };
     }
     turns = loaded;
   }
 
   if (!set || !turns?.length) {
     return {
-      type: "formatted",
+      type: "text",
       content: "Error: game_review requires set and (turns OR match_id) parameters.",
     };
   }
@@ -856,7 +856,7 @@ export const playAdvisorModule: NativeReferenceModule = {
         return gameReview(query, env);
       default:
         return {
-          type: "formatted",
+          type: "text",
           content: `Unknown mode "${mode}". Use: card_timing, mana_efficiency, attack_analysis, mulligan, game_review.`,
         };
     }

@@ -59,7 +59,7 @@ async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<Refe
     .all<RuleRow>();
 
   if (rows.results.length === 0) {
-    return { type: "formatted", content: `No rule found matching "${trimmed}"\n` };
+    return { type: "text", content: `No rule found matching "${trimmed}"\n` };
   }
 
   const lines: string[] = [];
@@ -113,7 +113,7 @@ async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<Refe
   lines.push(buildFollowUpSuggestions(rows.results, seeAlsoRefs));
 
   return {
-    type: "formatted",
+    type: "text",
     content: lines.join("\n") + "\n",
   };
 }
@@ -211,7 +211,7 @@ async function searchByKeyword(
 
   if (topIds.length === 0) {
     return {
-      type: "formatted",
+      type: "text",
       content: `No rules found matching keyword "${queryText}". Try a different keyword, or use the "rule" parameter with a specific rule number.\n`,
     };
   }
@@ -243,7 +243,7 @@ async function searchByKeyword(
   lines.push("IMPORTANT: Always cite specific rule numbers when explaining interactions to the player. Do not paraphrase rules from memory — use the text above.");
 
   return {
-    type: "formatted",
+    type: "text",
     content: lines.join("\n") + "\n",
   };
 }
@@ -283,7 +283,7 @@ async function searchCardRulings(
   }
 
   if (seen.size === 0) {
-    return { type: "formatted", content: `No card rulings found for "${cardName}". Try a partial name or check the card name spelling.\n` };
+    return { type: "text", content: `No card rulings found for "${cardName}". Try a partial name or check the card name spelling.\n` };
   }
 
   // Collect all oracle_ids to fetch rulings in a single query (avoid N+1)
@@ -334,7 +334,7 @@ async function searchCardRulings(
 
   if (lines.length <= 1) {
     return {
-      type: "formatted",
+      type: "text",
       content: `No rulings found for "${cardName}" (card exists but has no official rulings). Check the Comprehensive Rules for the underlying mechanics instead — use the "keyword" parameter.\n`,
     };
   }
@@ -348,7 +348,7 @@ async function searchCardRulings(
   lines.push("IMPORTANT: Card-specific rulings override general rules. Always check both when analyzing an interaction.");
 
   return {
-    type: "formatted",
+    type: "text",
     content: lines.join("\n") + "\n",
   };
 }
@@ -401,6 +401,6 @@ export const rulesSearchModule: NativeReferenceModule = {
       return searchByKeyword(env.DB, env.AI, env.MTGA_RULES_INDEX, keyword, limit);
     }
 
-    return { type: "formatted", content: "Specify one of: rule (number), keyword, or card.\n" };
+    return { type: "text", content: "Specify one of: rule (number), keyword, or card.\n" };
   },
 };

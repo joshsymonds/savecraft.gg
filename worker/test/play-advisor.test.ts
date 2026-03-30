@@ -748,13 +748,13 @@ describe("play_advisor reference module", () => {
       { mode: "game_review", set: "FDN", match_id: "nonexistent-match", user_id: "user-notfound" },
       env,
     );
-    const content = (result as { type: "formatted"; content: string }).content;
+    const content = (result as { type: "text"; content: string }).content;
     expect(content).toContain("not found");
   });
 
   it("returns error for unknown mode", async () => {
     const result = await playAdvisorModule.execute({ mode: "unknown_mode" }, env);
-    const content = (result as { type: "formatted"; content: string }).content;
+    const content = (result as { type: "text"; content: string }).content;
     expect(content).toContain("Unknown mode");
   });
 });
