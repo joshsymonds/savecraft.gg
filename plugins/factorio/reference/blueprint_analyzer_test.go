@@ -335,6 +335,161 @@ func TestDecodeDefenseBlueprint(t *testing.T) {
 	}
 }
 
+// --- Recipe analysis tests ---
+
+func TestRecipeAnalysisGreenCircuits(t *testing.T) {
+	// 3 AM2s making electronic-circuit, no modules
+	// AM2 speed: 0.75, recipe energy: 0.5, output: 1 item
+	// Per machine: 0.75/0.5 * 1 * 60 = 90 items/min
+	// Total: 3 * 90 = 270 items/min
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-2", Position: map[string]any{"x": 1.0, "y": 1.0}, Recipe: "electronic-circuit"},
+		{EntityNumber: 2, Name: "assembling-machine-2", Position: map[string]any{"x": 4.0, "y": 1.0}, Recipe: "electronic-circuit"},
+		{EntityNumber: 3, Name: "assembling-machine-2", Position: map[string]any{"x": 7.0, "y": 1.0}, Recipe: "electronic-circuit"},
+	}
+	bp := makeBlueprint("Green Circuits", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	data := result["data"].(map[string]any)
+	analysis := data["recipe_analysis"].([]any)
+
+	if len(analysis) != 1 {
+		t.Fatalf("expected 1 recipe analysis entry, got %d", len(analysis))
+	}
+
+	entry := analysis[0].(map[string]any)
+	if entry["recipe"] != "electronic-circuit" {
+		t.Errorf("recipe = %v, want electronic-circuit", entry["recipe"])
+	}
+	if entry["machine_count"] != 3.0 {
+		t.Errorf("machine_count = %v, want 3", entry["machine_count"])
+	}
+	if entry["machine_type"] != "assembling-machine-2" {
+		t.Errorf("machine_type = %v, want assembling-machine-2", entry["machine_type"])
+	}
+
+	// 90 items/min per machine * 3 = 270
+	totalRate := entry["items_per_min"].(float64)
+	if totalRate < 269.9 || totalRate > 270.1 {
+		t.Errorf("items_per_min = %v, want ~270", totalRate)
+	}
+}
+
+func TestRecipeAnalysisWithModules(t *testing.T) {
+	// 2 AM3s with 4x prod3 making automation-science-pack
+	// AM3 speed: 1.25, prod3: speed=-0.15, prod=0.1
+	// 4 modules: speedBonus=-0.6, prodBonus=0.4
+	// effective_speed = 1.25 * (1 + (-0.6)) = 0.5
+	// crafts/sec = 0.5 / 5 = 0.1
+	// items/min per machine = 0.1 * 1 * (1+0.4) * 60 = 8.4
+	// Total: 2 * 8.4 = 16.8
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 1.0, "y": 1.0},
+			Recipe: "automation-science-pack", Items: map[string]int{"productivity-module-3": 4}},
+		{EntityNumber: 2, Name: "assembling-machine-3", Position: map[string]any{"x": 4.0, "y": 1.0},
+			Recipe: "automation-science-pack", Items: map[string]int{"productivity-module-3": 4}},
+	}
+	bp := makeBlueprint("Beaconed Science", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	data := result["data"].(map[string]any)
+	analysis := data["recipe_analysis"].([]any)
+
+	if len(analysis) != 1 {
+		t.Fatalf("expected 1 recipe analysis entry, got %d", len(analysis))
+	}
+
+	entry := analysis[0].(map[string]any)
+	totalRate := entry["items_per_min"].(float64)
+	if totalRate < 16.7 || totalRate > 16.9 {
+		t.Errorf("items_per_min = %v, want ~16.8", totalRate)
+	}
+
+	// Should report productivity bonus
+	prodBonus := entry["productivity_bonus"].(float64)
+	if prodBonus < 0.39 || prodBonus > 0.41 {
+		t.Errorf("productivity_bonus = %v, want ~0.4", prodBonus)
+	}
+}
+
+func TestRecipeAnalysisMixedRecipes(t *testing.T) {
+	// Oil setup: 2 refineries (advanced-oil-processing) + 3 chem plants (2 recipes)
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "oil-refinery", Position: map[string]any{"x": 2.0, "y": 2.0}, Recipe: "advanced-oil-processing"},
+		{EntityNumber: 2, Name: "oil-refinery", Position: map[string]any{"x": 7.0, "y": 2.0}, Recipe: "advanced-oil-processing"},
+		{EntityNumber: 3, Name: "chemical-plant", Position: map[string]any{"x": 2.0, "y": 7.0}, Recipe: "heavy-oil-cracking"},
+		{EntityNumber: 4, Name: "chemical-plant", Position: map[string]any{"x": 5.0, "y": 7.0}, Recipe: "light-oil-cracking"},
+		{EntityNumber: 5, Name: "chemical-plant", Position: map[string]any{"x": 8.0, "y": 7.0}, Recipe: "light-oil-cracking"},
+	}
+	bp := makeBlueprint("Oil Processing", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	data := result["data"].(map[string]any)
+	analysis := data["recipe_analysis"].([]any)
+
+	// 3 distinct recipes
+	if len(analysis) != 3 {
+		t.Fatalf("expected 3 recipe analysis entries, got %d", len(analysis))
+	}
+
+	// Find each recipe by name
+	recipes := map[string]map[string]any{}
+	for _, a := range analysis {
+		entry := a.(map[string]any)
+		recipes[entry["recipe"].(string)] = entry
+	}
+
+	if recipes["advanced-oil-processing"]["machine_count"] != 2.0 {
+		t.Errorf("advanced-oil-processing count = %v, want 2", recipes["advanced-oil-processing"]["machine_count"])
+	}
+	if recipes["heavy-oil-cracking"]["machine_count"] != 1.0 {
+		t.Errorf("heavy-oil-cracking count = %v, want 1", recipes["heavy-oil-cracking"]["machine_count"])
+	}
+	if recipes["light-oil-cracking"]["machine_count"] != 2.0 {
+		t.Errorf("light-oil-cracking count = %v, want 2", recipes["light-oil-cracking"]["machine_count"])
+	}
+}
+
+func TestRecipeAnalysisUnknownRecipe(t *testing.T) {
+	// Modded recipe not in baked-in data
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-2", Position: map[string]any{"x": 1.0, "y": 1.0}, Recipe: "modded-super-item"},
+	}
+	bp := makeBlueprint("Modded Blueprint", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	data := result["data"].(map[string]any)
+
+	// Should still succeed, but report unknown recipes
+	unknownRecipes := data["unknown_recipes"].([]any)
+	if len(unknownRecipes) != 1 {
+		t.Fatalf("expected 1 unknown recipe, got %d", len(unknownRecipes))
+	}
+	if unknownRecipes[0] != "modded-super-item" {
+		t.Errorf("unknown recipe = %v, want modded-super-item", unknownRecipes[0])
+	}
+}
+
 func TestDecodeMissingBlueprintString(t *testing.T) {
 	result, code := runReference(t, `{"module":"blueprint_analyzer"}`)
 	if code != 1 {

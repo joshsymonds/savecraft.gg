@@ -274,6 +274,7 @@ func handleSingleBlueprint(enc *json.Encoder, bp *Blueprint) {
 	breakdown := classifyEntities(bp.Entities)
 	recipeSummary := extractRecipeSummary(bp.Entities)
 	moduleSummary := extractModuleSummary(bp.Entities)
+	recipeAnalysis, unknownRecipes := analyzeRecipes(bp.Entities)
 
 	result := map[string]any{
 		"type":             "blueprint",
@@ -283,6 +284,8 @@ func handleSingleBlueprint(enc *json.Encoder, bp *Blueprint) {
 		"entity_breakdown": breakdown,
 		"recipe_summary":   recipeSummary,
 		"module_summary":   moduleSummary,
+		"recipe_analysis":  recipeAnalysis,
+		"unknown_recipes":  unknownRecipes,
 	}
 
 	writeResult(enc, result)
@@ -295,6 +298,7 @@ func handleBlueprintBook(enc *json.Encoder, book *BlueprintBook) {
 		breakdown := classifyEntities(bp.Entities)
 		recipeSummary := extractRecipeSummary(bp.Entities)
 		moduleSummary := extractModuleSummary(bp.Entities)
+		recipeAnalysis, unknownRecipes := analyzeRecipes(bp.Entities)
 		blueprints = append(blueprints, map[string]any{
 			"label":            bp.Label,
 			"entity_count":     len(bp.Entities),
@@ -302,6 +306,8 @@ func handleBlueprintBook(enc *json.Encoder, book *BlueprintBook) {
 			"entity_breakdown": breakdown,
 			"recipe_summary":   recipeSummary,
 			"module_summary":   moduleSummary,
+			"recipe_analysis":  recipeAnalysis,
+			"unknown_recipes":  unknownRecipes,
 		})
 	}
 
@@ -312,6 +318,126 @@ func handleBlueprintBook(enc *json.Encoder, book *BlueprintBook) {
 	}
 
 	writeResult(enc, result)
+}
+
+// recipeGroup collects entities sharing the same recipe for analysis.
+type recipeGroup struct {
+	recipe      string
+	machineType string
+	count       int
+	modules     []string // flattened module list from all entities in the group
+}
+
+// analyzeRecipes computes production rates for each recipe in the blueprint.
+// Returns the analysis results and a list of recipes not found in baked-in data.
+func analyzeRecipes(entities []Entity) ([]map[string]any, []string) {
+	// Group entities by recipe
+	groups := map[string]*recipeGroup{}
+	var groupOrder []string
+	for _, e := range entities {
+		if e.Recipe == "" {
+			continue
+		}
+		g, ok := groups[e.Recipe]
+		if !ok {
+			g = &recipeGroup{recipe: e.Recipe, machineType: e.Name}
+			groups[e.Recipe] = g
+			groupOrder = append(groupOrder, e.Recipe)
+		}
+		g.count++
+		// Expand module items into repeated names for resolveModuleEffects
+		for name, count := range e.Items {
+			if _, isModule := data.Modules[name]; isModule {
+				for range count {
+					g.modules = append(g.modules, name)
+				}
+			}
+		}
+	}
+
+	var results []map[string]any
+	var unknownRecipes []string
+
+	for _, recipeName := range groupOrder {
+		g := groups[recipeName]
+
+		recipe, recipeOK := data.Recipes[recipeName]
+		machine, machineOK := data.Machines[g.machineType]
+
+		if !recipeOK {
+			unknownRecipes = append(unknownRecipes, recipeName)
+			continue
+		}
+
+		// Compute module effects (averaged across all machines in group)
+		// Each machine has the same module config (common blueprint pattern),
+		// so we use per-machine modules = total modules / machine count
+		perMachineModules := modulesPerMachine(g.modules, g.count)
+		speedBonus, prodBonus, _ := resolveModuleEffects(perMachineModules)
+
+		var effSpeed float64
+		if machineOK {
+			effSpeed = effectiveSpeed(&machine, speedBonus, 0) // no beacon effects (can't determine from blueprint)
+		} else {
+			effSpeed = 1.0 * (1 + speedBonus)
+		}
+
+		// Crafts per second
+		craftsPerSec := effSpeed / recipe.EnergyRequired
+
+		// Primary output amount
+		outputAmount := 0.0
+		outputName := ""
+		for _, r := range recipe.Results {
+			if outputName == "" || r.Name == recipeName {
+				outputAmount = r.Amount * r.Probability
+				outputName = r.Name
+			}
+		}
+
+		// Items per minute per machine (with productivity bonus)
+		itemsPerMinPerMachine := craftsPerSec * outputAmount * (1 + prodBonus) * 60
+		totalItemsPerMin := itemsPerMinPerMachine * float64(g.count)
+
+		entry := map[string]any{
+			"recipe":              recipeName,
+			"machine_type":       g.machineType,
+			"machine_count":      g.count,
+			"items_per_min":      roundTo(totalItemsPerMin, 2),
+			"per_machine":        roundTo(itemsPerMinPerMachine, 2),
+			"output_item":        outputName,
+			"productivity_bonus": roundTo(prodBonus, 2),
+			"effective_speed":    roundTo(effSpeed, 4),
+		}
+
+		if machineOK {
+			entry["module_slots"] = machine.ModuleSlots
+		}
+
+		results = append(results, entry)
+	}
+
+	if results == nil {
+		results = []map[string]any{}
+	}
+	if unknownRecipes == nil {
+		unknownRecipes = []string{}
+	}
+
+	return results, unknownRecipes
+}
+
+// modulesPerMachine splits a flattened module list into per-machine modules.
+// If all machines share the same config (common), this returns one machine's worth.
+func modulesPerMachine(allModules []string, machineCount int) []string {
+	if machineCount <= 0 || len(allModules) == 0 {
+		return nil
+	}
+	perMachine := len(allModules) / machineCount
+	if perMachine <= 0 {
+		return nil
+	}
+	return allModules[:perMachine]
 }
 
 // extractRecipeSummary counts machines per recipe.
