@@ -73,7 +73,6 @@
       // Blueprint book fields
       blueprints?: BlueprintData[];
     };
-    spriteBaseUrl?: string;
   }
 
   let { data }: Props = $props();

@@ -5,6 +5,7 @@ import (
 	"compress/zlib"
 	"encoding/base64"
 	"encoding/json"
+	"strings"
 	"testing"
 )
 
@@ -72,10 +73,9 @@ func TestDecodeSimpleBlueprint(t *testing.T) {
 
 	data := result["data"].(map[string]any)
 
-	// Should decode all 9 entities
-	entitiesOut := data["entities"].([]any)
-	if len(entitiesOut) != 9 {
-		t.Errorf("expected 9 entities, got %d", len(entitiesOut))
+	// Should report correct entity count
+	if data["entity_count"] != 9.0 {
+		t.Errorf("expected entity_count=9, got %v", data["entity_count"])
 	}
 
 	// Should have the label
@@ -193,9 +193,8 @@ func TestDecodeBlueprintBook(t *testing.T) {
 	if bp1["label"] != "Green Circuits" {
 		t.Errorf("bp1 label = %v, want Green Circuits", bp1["label"])
 	}
-	bp1Ents := bp1["entities"].([]any)
-	if len(bp1Ents) != 1 {
-		t.Errorf("bp1 entities = %d, want 1", len(bp1Ents))
+	if bp1["entity_count"] != 1.0 {
+		t.Errorf("bp1 entity_count = %v, want 1", bp1["entity_count"])
 	}
 }
 
@@ -226,10 +225,6 @@ func TestDecodeEmptyBlueprint(t *testing.T) {
 	}
 
 	data := result["data"].(map[string]any)
-	entitiesOut := data["entities"].([]any)
-	if len(entitiesOut) != 0 {
-		t.Errorf("expected 0 entities, got %d", len(entitiesOut))
-	}
 	if data["entity_count"] != 0.0 {
 		t.Errorf("entity_count = %v, want 0", data["entity_count"])
 	}
@@ -675,7 +670,20 @@ func TestRecommendations(t *testing.T) {
 	recommendations := data["recommendations"].([]any)
 
 	if len(recommendations) == 0 {
-		t.Error("expected at least 1 recommendation for empty module slots")
+		t.Fatal("expected at least 1 recommendation for empty module slots")
+	}
+
+	// Verify recommendation text is contextually relevant
+	found := false
+	for _, r := range recommendations {
+		rec := r.(string)
+		if strings.Contains(rec, "module") || strings.Contains(rec, "slot") {
+			found = true
+			break
+		}
+	}
+	if !found {
+		t.Errorf("expected a recommendation mentioning modules or slots, got %v", recommendations)
 	}
 }
 

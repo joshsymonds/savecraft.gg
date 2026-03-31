@@ -134,7 +134,7 @@ func schema() map[string]any {
 			},
 			"blueprint_analyzer": map[string]any{
 				"name":        "Blueprint Analyzer",
-				"description": "Decode a Factorio blueprint string and analyze its contents: entity breakdown, recipe ratios, module configuration, and belt throughput.",
+				"description": "Decode a Factorio blueprint string and analyze its contents: entity breakdown, production rates with beacon effects, and module configuration audit.",
 				"parameters": map[string]any{
 					"blueprint_string": map[string]any{"type": "string", "description": "Factorio blueprint string (starts with '0', base64+zlib encoded)", "required": true},
 				},

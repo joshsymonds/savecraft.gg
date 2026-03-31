@@ -87,9 +87,14 @@ func decodeBlueprintString(s string) (*BlueprintWrapper, error) {
 	}
 	defer r.Close()
 
-	jsonBytes, err := io.ReadAll(r)
+	// Limit decompressed size to 50 MB to defend against zip bombs.
+	const maxDecompressedSize = 50 << 20
+	jsonBytes, err := io.ReadAll(io.LimitReader(r, maxDecompressedSize))
 	if err != nil {
 		return nil, &decodeError{"zlib decompress failed: " + err.Error()}
+	}
+	if len(jsonBytes) >= maxDecompressedSize {
+		return nil, &decodeError{"blueprint too large (exceeds 50 MB decompressed)"}
 	}
 
 	var wrapper BlueprintWrapper
@@ -272,19 +277,19 @@ func handleBlueprintAnalyzer(enc *json.Encoder, query map[string]any) {
 	handleSingleBlueprint(enc, wrapper.Blueprint)
 }
 
-func handleSingleBlueprint(enc *json.Encoder, bp *Blueprint) {
+// analyzeBlueprint runs the full analysis pipeline on a single blueprint's entities.
+func analyzeBlueprint(bp *Blueprint) map[string]any {
+	beacons := findBeacons(bp.Entities)
 	breakdown := classifyEntities(bp.Entities)
 	recipeSummary := extractRecipeSummary(bp.Entities)
 	moduleSummary := extractModuleSummary(bp.Entities)
-	recipeAnalysis, unknownRecipes := analyzeRecipes(bp.Entities)
+	recipeAnalysis, unknownRecipes := analyzeRecipes(bp.Entities, beacons)
 	moduleAudit := auditModules(bp.Entities)
-	recommendations := generateRecommendations(moduleAudit, bp.Entities)
+	recommendations := generateRecommendations(moduleAudit, beacons)
 
-	result := map[string]any{
-		"type":              "blueprint",
+	return map[string]any{
 		"label":             bp.Label,
 		"entity_count":      len(bp.Entities),
-		"entities":          bp.Entities,
 		"entity_breakdown":  breakdown,
 		"recipe_summary":    recipeSummary,
 		"module_summary":    moduleSummary,
@@ -293,7 +298,11 @@ func handleSingleBlueprint(enc *json.Encoder, bp *Blueprint) {
 		"module_audit":      moduleAudit,
 		"recommendations":   recommendations,
 	}
+}
 
+func handleSingleBlueprint(enc *json.Encoder, bp *Blueprint) {
+	result := analyzeBlueprint(bp)
+	result["type"] = "blueprint"
 	writeResult(enc, result)
 }
 
@@ -301,33 +310,14 @@ func handleBlueprintBook(enc *json.Encoder, book *BlueprintBook) {
 	blueprints := make([]map[string]any, 0, len(book.Blueprints))
 	for _, entry := range book.Blueprints {
 		bp := entry.Blueprint
-		breakdown := classifyEntities(bp.Entities)
-		recipeSummary := extractRecipeSummary(bp.Entities)
-		moduleSummary := extractModuleSummary(bp.Entities)
-		recipeAnalysis, unknownRecipes := analyzeRecipes(bp.Entities)
-		moduleAudit := auditModules(bp.Entities)
-		recommendations := generateRecommendations(moduleAudit, bp.Entities)
-		blueprints = append(blueprints, map[string]any{
-			"label":             bp.Label,
-			"entity_count":      len(bp.Entities),
-			"entities":          bp.Entities,
-			"entity_breakdown":  breakdown,
-			"recipe_summary":    recipeSummary,
-			"module_summary":    moduleSummary,
-			"recipe_analysis":   recipeAnalysis,
-			"unknown_recipes":   unknownRecipes,
-			"module_audit":      moduleAudit,
-			"recommendations":   recommendations,
-		})
+		blueprints = append(blueprints, analyzeBlueprint(&bp))
 	}
 
-	result := map[string]any{
+	writeResult(enc, map[string]any{
 		"type":       "blueprint_book",
 		"label":      book.Label,
 		"blueprints": blueprints,
-	}
-
-	writeResult(enc, result)
+	})
 }
 
 // --- Beacon association ---
@@ -397,8 +387,7 @@ type recipeGroup struct {
 
 // analyzeRecipes computes production rates for each recipe in the blueprint,
 // applying beacon speed bonuses to machines within range.
-func analyzeRecipes(entities []Entity) ([]map[string]any, []string) {
-	beacons := findBeacons(entities)
+func analyzeRecipes(entities []Entity, beacons []beaconInfo) ([]map[string]any, []string) {
 	maxRange := beaconMaxRange()
 
 	// Group entities by recipe
@@ -582,7 +571,7 @@ func auditModules(entities []Entity) map[string]any {
 // --- Recommendations ---
 
 // generateRecommendations produces actionable suggestions based on the analysis.
-func generateRecommendations(moduleAudit map[string]any, entities []Entity) []string {
+func generateRecommendations(moduleAudit map[string]any, beacons []beaconInfo) []string {
 	var recs []string
 
 	// Recommend filling empty module slots
@@ -601,19 +590,9 @@ func generateRecommendations(moduleAudit map[string]any, entities []Entity) []st
 		}
 	}
 
-	// Check for production machines with no beacons nearby
-	beacons := findBeacons(entities)
-	if len(beacons) == 0 {
-		hasProd := false
-		for _, e := range entities {
-			if _, ok := data.Machines[e.Name]; ok && e.Recipe != "" {
-				hasProd = true
-				break
-			}
-		}
-		if hasProd {
-			recs = append(recs, "Consider adding beacons with speed modules to boost production")
-		}
+	// Check for production machines with no beacons
+	if len(beacons) == 0 && moduleAudit["total_slots"].(int) > 0 {
+		recs = append(recs, "Consider adding beacons with speed modules to boost production")
 	}
 
 	if recs == nil {
