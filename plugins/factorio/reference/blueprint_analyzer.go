@@ -348,16 +348,24 @@ func findBeacons(entities []Entity) []beaconInfo {
 	return beacons
 }
 
-// beaconMaxRange is the center-to-center distance within which a beacon affects a machine.
-// Beacon is 3x3 (half=1.5), machine is typically 3x3 (half=1.5), SupplyAreaDistance=3.
-// Total: 1.5 + 3 + 1.5 = 6.0
-func beaconMaxRange() float64 {
-	dist := 3.0 // default
+// beaconRangeFor returns the center-to-center distance within which a beacon affects a machine.
+// Formula: supply_area_distance + beacon_half_size + machine_half_size
+// Uses real collision box dimensions from data.EntitySizes.
+func beaconRangeFor(machineName string) float64 {
+	dist := 3.0 // default supply area distance
 	for _, b := range data.Beacons {
 		dist = b.SupplyAreaDistance
 		break
 	}
-	return dist + 3.0 // + half-beacon + half-machine (both 3x3)
+	beaconHalf := 1.5 // fallback for 3×3
+	if size, ok := data.EntitySizes["beacon"]; ok {
+		beaconHalf = max(size.Width, size.Height) / 2
+	}
+	machineHalf := 1.5 // fallback for 3×3
+	if size, ok := data.EntitySizes[machineName]; ok {
+		machineHalf = max(size.Width, size.Height) / 2
+	}
+	return dist + beaconHalf + machineHalf
 }
 
 // beaconsInRange returns the beacons within range of a given position.
@@ -388,8 +396,6 @@ type recipeGroup struct {
 // analyzeRecipes computes production rates for each recipe in the blueprint,
 // applying beacon speed bonuses to machines within range.
 func analyzeRecipes(entities []Entity, beacons []beaconInfo) ([]map[string]any, []string) {
-	maxRange := beaconMaxRange()
-
 	// Group entities by recipe
 	groups := map[string]*recipeGroup{}
 	var groupOrder []string
@@ -435,10 +441,11 @@ func analyzeRecipes(entities []Entity, beacons []beaconInfo) ([]map[string]any, 
 
 		// Compute beacon effects per machine by averaging across all machines in the group.
 		// Each machine may have a different number of beacons in range.
+		machineRange := beaconRangeFor(g.machineType)
 		totalBeaconSpeed := 0.0
 		totalBeaconCount := 0
 		for _, pos := range g.positions {
-			nearby := beaconsInRange(pos, beacons, maxRange)
+			nearby := beaconsInRange(pos, beacons, machineRange)
 			if len(nearby) > 0 {
 				// Use the first beacon's modules as representative (common pattern: all beacons identical)
 				beaconSpeed := resolveBeaconEffects(nearby[0].modules, len(nearby))

@@ -562,6 +562,64 @@ func TestBeaconOutOfRange(t *testing.T) {
 	}
 }
 
+func TestBeaconRangeForOilRefinery(t *testing.T) {
+	// Oil refinery is 5×5 (collision_box 4.8×4.8, half=2.4).
+	// Correct range = supply_area(3) + beacon_half(1.2) + refinery_half(2.4) = 6.6
+	// Old hardcoded range was 6.0 — beacon at distance 6.3 was incorrectly excluded.
+	// Place refinery at (0,0), beacon at (0, 6.3) → distance = 6.3, should be in range.
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "oil-refinery", Position: map[string]any{"x": 0.0, "y": 0.0},
+			Recipe: "basic-oil-processing"},
+		{EntityNumber: 2, Name: "beacon", Position: map[string]any{"x": 0.0, "y": 6.3},
+			Items: map[string]int{"speed-module-3": 2}},
+	}
+	bp := makeBlueprint("Refinery Beacon Range", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	d := result["data"].(map[string]any)
+	analysis := d["recipe_analysis"].([]any)
+	entry := analysis[0].(map[string]any)
+
+	// Beacon should be in range with correct entity-size-aware calculation
+	beaconCount := entry["beacon_count"].(float64)
+	if beaconCount < 1.0 {
+		t.Errorf("beacon_count = %v, want >= 1 (beacon at distance 6.3 should be in range for oil refinery)", beaconCount)
+	}
+}
+
+func TestBeaconRangeFor3x3Unchanged(t *testing.T) {
+	// 3×3 machine (AM3): range = supply_area(3) + beacon_half(1.2) + machine_half(1.2) = 5.4
+	// (Note: actual collision half is 1.2, not 1.5 — this is more precise than the old +3.0)
+	// Place AM3 at (0,0), beacon at (0, 5.3) → distance = 5.3, should be in range.
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 0.0, "y": 0.0},
+			Recipe: "automation-science-pack", Items: map[string]int{"productivity-module-3": 4}},
+		{EntityNumber: 2, Name: "beacon", Position: map[string]any{"x": 0.0, "y": 5.3},
+			Items: map[string]int{"speed-module-3": 2}},
+	}
+	bp := makeBlueprint("AM3 Beacon Range", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	d := result["data"].(map[string]any)
+	analysis := d["recipe_analysis"].([]any)
+	entry := analysis[0].(map[string]any)
+
+	beaconCount := entry["beacon_count"].(float64)
+	if beaconCount < 1.0 {
+		t.Errorf("beacon_count = %v, want >= 1 (beacon at distance 5.3 should be in range for AM3)", beaconCount)
+	}
+}
+
 // --- Module audit tests ---
 
 func TestModuleAuditEmptySlots(t *testing.T) {
