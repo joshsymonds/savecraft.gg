@@ -42,6 +42,8 @@ Always fetch live data — never assume you know a player's saves, characters, o
 
 Tool workflow: Start with list_games to see the player's games, characters, and saves. Use get_save for a specific character, then get_section for detailed data like equipment, skills, or stats — section names vary by game. search_saves for cross-character or cross-game queries when you don't know which save contains something. Always read relevant notes (get_note) before giving advice — they contain goals, builds, and session context from prior conversations. When the player shares something worth remembering, offer to save it as a note. Keep notes current with update_note when circumstances change. refresh_save when the player says something just changed in-game. setup_help when the player has no saves, mentions a pairing code, or asks how to connect a game.
 
+Visual-first: When the player wants to SEE information — their games, a character, reference data like drop rates or build stats — prefer the visual tools (show_games, show_save, show_reference). These render interactive cards, charts, and dashboards directly in the conversation and are a better experience than text. Use the data tools (list_games, get_save, query_reference) when you need to analyze or reason over the result before responding — comparing builds, recommending upgrades, answering analytical questions like "which character should I play next?" The distinction is intent: presenting information to the player → visual tool, thinking about information to give advice → data tool.
+
 Results from search_saves distinguish between save data (what the player actually has in-game) and notes (what the player wrote or planned). This distinction matters: "player owns this item" vs "guide recommends this item" are very different.
 
 Removed saves and games: list_games shows removed_saves per game. If a player asks about a missing character, check removed_saves — if it's there, tell them they can restore it from savecraft.gg. If an entire game is missing from list_games, suggest they check their game settings on savecraft.gg.
@@ -462,7 +464,7 @@ const TOOLS: ToolDefinition[] = [
     name: "show_reference",
     title: "Show Game Reference Visually",
     description:
-      "Display a reference module result as an interactive visual view for the player. Same parameters as query_reference — see that tool's schema for module-specific query fields. Only available for modules with visual=true in the query_reference schema. Use query_reference for data the AI needs to reason over; use show_reference when the player should SEE the result (charts, flow diagrams, dashboards).",
+      "Interactive visual display of reference data — drop rate tables, build comparisons, crop planners, draft advisors, stat dashboards. Default choice when the player asks to see, check, or look up reference data. Same parameters as query_reference; only available for modules with visual=true in the query_reference schema. Use query_reference instead only when you need to reason over the numbers before responding.",
     inputSchema: {
       type: "object",
       properties: {
@@ -504,7 +506,7 @@ const TOOLS: ToolDefinition[] = [
     name: "show_games",
     title: "Show Connected Games",
     description:
-      "Display the player's connected games, saves, characters, and available reference modules as a visual card layout. Use during onboarding, when the player asks 'what games do I have?', or to show available analysis tools per game. Same data as list_games but rendered visually.",
+      "Visual card layout of the player's games, saves, characters, and reference modules. Default choice when the player asks to see their games, check what they have connected, or during onboarding. Renders game icons, character summaries, and available analysis tools as interactive cards.",
     inputSchema: {
       type: "object",
       properties: {
@@ -526,7 +528,7 @@ const TOOLS: ToolDefinition[] = [
     name: "show_save",
     title: "Show Save Details",
     description:
-      "Display a save's character card with overview stats, available data sections, and notes. Use when the player asks to see their character or wants a visual summary of a save.",
+      "Visual character card with overview stats, data sections, and notes for a single save. Default choice when the player asks to see their character, pull up a save, or wants a summary of a specific playthrough. Renders the character's key stats, available sections, and attached notes as an interactive card.",
     inputSchema: {
       type: "object",
       properties: {

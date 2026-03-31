@@ -261,6 +261,23 @@ Players interact with Savecraft in two distinct modes — often in the same conv
 
 **The key insight:** the companion mode doesn't require different tools or data. It requires the same context — what character, what gear, what goals — applied with empathy instead of analysis.
 
+### Visual-First Pattern
+
+Every data tool has a visual counterpart: `list_games` → `show_games`, `get_save` → `show_save`, `query_reference` → `show_reference`. The visual tools render interactive cards, charts, and dashboards in the host iframe. The AI should prefer visual tools when **presenting** information and data tools when **analyzing** it.
+
+**The heuristic: presenting → visual, analyzing → data.**
+
+| Player says | Intent | Tool |
+|---|---|---|
+| "What games do I have?" | Presenting — wants to see the list | `show_games` |
+| "Show me my Hammerdin" | Presenting — wants to see the character | `show_save` |
+| "What are the drop rates for Shako?" | Presenting — wants to see the table | `show_reference` |
+| "Which character should I play next?" | Analyzing — AI compares characters | `list_games` → AI reasons |
+| "What should I upgrade?" | Analyzing — AI compares gear to goals | `get_save` + `get_section` → AI advises |
+| "Is it worth farming Mephisto or Pindle?" | Analyzing — AI compares numbers | `query_reference` → AI compares |
+
+When in doubt, prefer visual — the player gets a richer experience and the AI can still discuss the result conversationally. Use data tools when the AI must compute, compare, or synthesize across multiple results before responding.
+
 ### AI Interaction with Notes
 
 **Optimizer: Reading a build guide:**
