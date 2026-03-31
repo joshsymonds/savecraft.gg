@@ -490,6 +490,195 @@ func TestRecipeAnalysisUnknownRecipe(t *testing.T) {
 	}
 }
 
+// --- Beacon association tests ---
+
+func TestBeaconAssociation(t *testing.T) {
+	// 2 AM3s with 4x prod3 + 2 beacons with 2x speed3, beacons within range
+	// Beacon at (1,4), machines at (1,1) and (4,1) — distance 3.0 and ~4.2, both within 6.0
+	// resolveBeaconEffects(["speed-module-3","speed-module-3"], 2) = 2 * 1.0 * 1.5 / sqrt(2) ≈ 2.121
+	// effective_speed = 1.25 * (1 + (-0.6) + 2.121) ≈ 3.15
+	// crafts/sec = 3.15 / 5 = 0.630, items/min/machine = 0.630 * 1.4 * 60 ≈ 52.94
+	// Total: 2 * 52.94 ≈ 105.88
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 1.0, "y": 1.0},
+			Recipe: "automation-science-pack", Items: map[string]int{"productivity-module-3": 4}},
+		{EntityNumber: 2, Name: "assembling-machine-3", Position: map[string]any{"x": 4.0, "y": 1.0},
+			Recipe: "automation-science-pack", Items: map[string]int{"productivity-module-3": 4}},
+		{EntityNumber: 3, Name: "beacon", Position: map[string]any{"x": 1.0, "y": 4.0},
+			Items: map[string]int{"speed-module-3": 2}},
+		{EntityNumber: 4, Name: "beacon", Position: map[string]any{"x": 4.0, "y": 4.0},
+			Items: map[string]int{"speed-module-3": 2}},
+	}
+	bp := makeBlueprint("Beaconed Science", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	data := result["data"].(map[string]any)
+	analysis := data["recipe_analysis"].([]any)
+	entry := analysis[0].(map[string]any)
+
+	// With beacons, rate should be much higher than without (16.8 without beacons)
+	totalRate := entry["items_per_min"].(float64)
+	if totalRate < 100 || totalRate > 112 {
+		t.Errorf("items_per_min = %v, want ~105.88 (with beacon effects)", totalRate)
+	}
+
+	// Should report beacon count
+	beaconCount := entry["beacon_count"]
+	if beaconCount == nil || beaconCount == 0.0 {
+		t.Errorf("beacon_count = %v, want > 0", beaconCount)
+	}
+}
+
+func TestBeaconOutOfRange(t *testing.T) {
+	// AM3 at (1,1), beacon at (50,50) — way out of SupplyAreaDistance
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 1.0, "y": 1.0},
+			Recipe: "automation-science-pack", Items: map[string]int{"productivity-module-3": 4}},
+		{EntityNumber: 2, Name: "beacon", Position: map[string]any{"x": 50.0, "y": 50.0},
+			Items: map[string]int{"speed-module-3": 2}},
+	}
+	bp := makeBlueprint("Far Beacon", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	data := result["data"].(map[string]any)
+	analysis := data["recipe_analysis"].([]any)
+	entry := analysis[0].(map[string]any)
+
+	// Without beacon effects: same as TestRecipeAnalysisWithModules = 8.4/machine
+	totalRate := entry["items_per_min"].(float64)
+	if totalRate < 8.3 || totalRate > 8.5 {
+		t.Errorf("items_per_min = %v, want ~8.4 (no beacon effects)", totalRate)
+	}
+
+	// Beacon count should be 0 for this machine
+	beaconCount := entry["beacon_count"].(float64)
+	if beaconCount != 0 {
+		t.Errorf("beacon_count = %v, want 0", beaconCount)
+	}
+}
+
+// --- Module audit tests ---
+
+func TestModuleAuditEmptySlots(t *testing.T) {
+	// AM3 has 4 module slots, only 2 prod3 inserted
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 1.0, "y": 1.0},
+			Recipe: "electronic-circuit", Items: map[string]int{"productivity-module-3": 2}},
+	}
+	bp := makeBlueprint("Partial Modules", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	data := result["data"].(map[string]any)
+	moduleAudit := data["module_audit"].(map[string]any)
+
+	emptySlots := moduleAudit["total_empty_slots"].(float64)
+	if emptySlots != 2.0 {
+		t.Errorf("total_empty_slots = %v, want 2", emptySlots)
+	}
+
+	utilization := moduleAudit["utilization_pct"].(float64)
+	if utilization < 49.9 || utilization > 50.1 {
+		t.Errorf("utilization_pct = %v, want ~50", utilization)
+	}
+}
+
+func TestModuleAuditNoModules(t *testing.T) {
+	// AM2 has 2 module slots, no modules inserted
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-2", Position: map[string]any{"x": 1.0, "y": 1.0},
+			Recipe: "electronic-circuit"},
+	}
+	bp := makeBlueprint("No Modules", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	data := result["data"].(map[string]any)
+	moduleAudit := data["module_audit"].(map[string]any)
+
+	emptySlots := moduleAudit["total_empty_slots"].(float64)
+	if emptySlots != 2.0 {
+		t.Errorf("total_empty_slots = %v, want 2", emptySlots)
+	}
+
+	utilization := moduleAudit["utilization_pct"].(float64)
+	if utilization != 0 {
+		t.Errorf("utilization_pct = %v, want 0", utilization)
+	}
+}
+
+func TestModuleAuditFullyUtilized(t *testing.T) {
+	// AM3 has 4 module slots, all 4 filled with prod3
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 1.0, "y": 1.0},
+			Recipe: "electronic-circuit", Items: map[string]int{"productivity-module-3": 4}},
+	}
+	bp := makeBlueprint("Full Modules", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	data := result["data"].(map[string]any)
+	moduleAudit := data["module_audit"].(map[string]any)
+
+	emptySlots := moduleAudit["total_empty_slots"].(float64)
+	if emptySlots != 0 {
+		t.Errorf("total_empty_slots = %v, want 0", emptySlots)
+	}
+
+	utilization := moduleAudit["utilization_pct"].(float64)
+	if utilization != 100.0 {
+		t.Errorf("utilization_pct = %v, want 100", utilization)
+	}
+}
+
+// --- Scoring + recommendations tests ---
+
+func TestRecommendations(t *testing.T) {
+	// AM3 with empty module slots should generate a recommendation
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 1.0, "y": 1.0},
+			Recipe: "electronic-circuit"},
+		{EntityNumber: 2, Name: "assembling-machine-3", Position: map[string]any{"x": 4.0, "y": 1.0},
+			Recipe: "electronic-circuit", Items: map[string]int{"productivity-module-3": 2}},
+	}
+	bp := makeBlueprint("Needs Modules", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	data := result["data"].(map[string]any)
+	recommendations := data["recommendations"].([]any)
+
+	if len(recommendations) == 0 {
+		t.Error("expected at least 1 recommendation for empty module slots")
+	}
+}
+
 func TestDecodeMissingBlueprintString(t *testing.T) {
 	result, code := runReference(t, `{"module":"blueprint_analyzer"}`)
 	if code != 1 {

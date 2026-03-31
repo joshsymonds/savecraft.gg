@@ -5,7 +5,9 @@ import (
 	"compress/zlib"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"io"
+	"math"
 	"os"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
@@ -275,17 +277,21 @@ func handleSingleBlueprint(enc *json.Encoder, bp *Blueprint) {
 	recipeSummary := extractRecipeSummary(bp.Entities)
 	moduleSummary := extractModuleSummary(bp.Entities)
 	recipeAnalysis, unknownRecipes := analyzeRecipes(bp.Entities)
+	moduleAudit := auditModules(bp.Entities)
+	recommendations := generateRecommendations(moduleAudit, bp.Entities)
 
 	result := map[string]any{
-		"type":             "blueprint",
-		"label":            bp.Label,
-		"entity_count":     len(bp.Entities),
-		"entities":         bp.Entities,
-		"entity_breakdown": breakdown,
-		"recipe_summary":   recipeSummary,
-		"module_summary":   moduleSummary,
-		"recipe_analysis":  recipeAnalysis,
-		"unknown_recipes":  unknownRecipes,
+		"type":              "blueprint",
+		"label":             bp.Label,
+		"entity_count":      len(bp.Entities),
+		"entities":          bp.Entities,
+		"entity_breakdown":  breakdown,
+		"recipe_summary":    recipeSummary,
+		"module_summary":    moduleSummary,
+		"recipe_analysis":   recipeAnalysis,
+		"unknown_recipes":   unknownRecipes,
+		"module_audit":      moduleAudit,
+		"recommendations":   recommendations,
 	}
 
 	writeResult(enc, result)
@@ -299,15 +305,19 @@ func handleBlueprintBook(enc *json.Encoder, book *BlueprintBook) {
 		recipeSummary := extractRecipeSummary(bp.Entities)
 		moduleSummary := extractModuleSummary(bp.Entities)
 		recipeAnalysis, unknownRecipes := analyzeRecipes(bp.Entities)
+		moduleAudit := auditModules(bp.Entities)
+		recommendations := generateRecommendations(moduleAudit, bp.Entities)
 		blueprints = append(blueprints, map[string]any{
-			"label":            bp.Label,
-			"entity_count":     len(bp.Entities),
-			"entities":         bp.Entities,
-			"entity_breakdown": breakdown,
-			"recipe_summary":   recipeSummary,
-			"module_summary":   moduleSummary,
-			"recipe_analysis":  recipeAnalysis,
-			"unknown_recipes":  unknownRecipes,
+			"label":             bp.Label,
+			"entity_count":      len(bp.Entities),
+			"entities":          bp.Entities,
+			"entity_breakdown":  breakdown,
+			"recipe_summary":    recipeSummary,
+			"module_summary":    moduleSummary,
+			"recipe_analysis":   recipeAnalysis,
+			"unknown_recipes":   unknownRecipes,
+			"module_audit":      moduleAudit,
+			"recommendations":   recommendations,
 		})
 	}
 
@@ -320,17 +330,77 @@ func handleBlueprintBook(enc *json.Encoder, book *BlueprintBook) {
 	writeResult(enc, result)
 }
 
+// --- Beacon association ---
+
+// beaconInfo holds a beacon's position and module list for spatial association.
+type beaconInfo struct {
+	position Position
+	modules  []string
+}
+
+// findBeacons extracts beacon entities with their positions and modules.
+func findBeacons(entities []Entity) []beaconInfo {
+	var beacons []beaconInfo
+	for _, e := range entities {
+		if e.Name != "beacon" {
+			continue
+		}
+		var modules []string
+		for name, count := range e.Items {
+			if _, isModule := data.Modules[name]; isModule {
+				for range count {
+					modules = append(modules, name)
+				}
+			}
+		}
+		beacons = append(beacons, beaconInfo{position: e.Position, modules: modules})
+	}
+	return beacons
+}
+
+// beaconMaxRange is the center-to-center distance within which a beacon affects a machine.
+// Beacon is 3x3 (half=1.5), machine is typically 3x3 (half=1.5), SupplyAreaDistance=3.
+// Total: 1.5 + 3 + 1.5 = 6.0
+func beaconMaxRange() float64 {
+	dist := 3.0 // default
+	for _, b := range data.Beacons {
+		dist = b.SupplyAreaDistance
+		break
+	}
+	return dist + 3.0 // + half-beacon + half-machine (both 3x3)
+}
+
+// beaconsInRange returns the beacons within range of a given position.
+func beaconsInRange(pos Position, beacons []beaconInfo, maxRange float64) []beaconInfo {
+	var result []beaconInfo
+	for _, b := range beacons {
+		dx := pos.X - b.position.X
+		dy := pos.Y - b.position.Y
+		dist := math.Sqrt(dx*dx + dy*dy)
+		if dist <= maxRange {
+			result = append(result, b)
+		}
+	}
+	return result
+}
+
+// --- Recipe analysis ---
+
 // recipeGroup collects entities sharing the same recipe for analysis.
 type recipeGroup struct {
 	recipe      string
 	machineType string
 	count       int
-	modules     []string // flattened module list from all entities in the group
+	modules     []string   // flattened module list from all entities in the group
+	positions   []Position // positions for beacon association
 }
 
-// analyzeRecipes computes production rates for each recipe in the blueprint.
-// Returns the analysis results and a list of recipes not found in baked-in data.
+// analyzeRecipes computes production rates for each recipe in the blueprint,
+// applying beacon speed bonuses to machines within range.
 func analyzeRecipes(entities []Entity) ([]map[string]any, []string) {
+	beacons := findBeacons(entities)
+	maxRange := beaconMaxRange()
+
 	// Group entities by recipe
 	groups := map[string]*recipeGroup{}
 	var groupOrder []string
@@ -345,6 +415,7 @@ func analyzeRecipes(entities []Entity) ([]map[string]any, []string) {
 			groupOrder = append(groupOrder, e.Recipe)
 		}
 		g.count++
+		g.positions = append(g.positions, e.Position)
 		// Expand module items into repeated names for resolveModuleEffects
 		for name, count := range e.Items {
 			if _, isModule := data.Modules[name]; isModule {
@@ -369,17 +440,31 @@ func analyzeRecipes(entities []Entity) ([]map[string]any, []string) {
 			continue
 		}
 
-		// Compute module effects (averaged across all machines in group)
-		// Each machine has the same module config (common blueprint pattern),
-		// so we use per-machine modules = total modules / machine count
+		// Compute module effects per machine
 		perMachineModules := modulesPerMachine(g.modules, g.count)
 		speedBonus, prodBonus, _ := resolveModuleEffects(perMachineModules)
 
+		// Compute beacon effects per machine by averaging across all machines in the group.
+		// Each machine may have a different number of beacons in range.
+		totalBeaconSpeed := 0.0
+		totalBeaconCount := 0
+		for _, pos := range g.positions {
+			nearby := beaconsInRange(pos, beacons, maxRange)
+			if len(nearby) > 0 {
+				// Use the first beacon's modules as representative (common pattern: all beacons identical)
+				beaconSpeed := resolveBeaconEffects(nearby[0].modules, len(nearby))
+				totalBeaconSpeed += beaconSpeed
+				totalBeaconCount += len(nearby)
+			}
+		}
+		avgBeaconSpeed := totalBeaconSpeed / float64(g.count)
+		avgBeaconCount := float64(totalBeaconCount) / float64(g.count)
+
 		var effSpeed float64
 		if machineOK {
-			effSpeed = effectiveSpeed(&machine, speedBonus, 0) // no beacon effects (can't determine from blueprint)
+			effSpeed = effectiveSpeed(&machine, speedBonus, avgBeaconSpeed)
 		} else {
-			effSpeed = 1.0 * (1 + speedBonus)
+			effSpeed = 1.0 * (1 + speedBonus + avgBeaconSpeed)
 		}
 
 		// Crafts per second
@@ -408,6 +493,7 @@ func analyzeRecipes(entities []Entity) ([]map[string]any, []string) {
 			"output_item":        outputName,
 			"productivity_bonus": roundTo(prodBonus, 2),
 			"effective_speed":    roundTo(effSpeed, 4),
+			"beacon_count":       roundTo(avgBeaconCount, 1),
 		}
 
 		if machineOK {
@@ -438,6 +524,102 @@ func modulesPerMachine(allModules []string, machineCount int) []string {
 		return nil
 	}
 	return allModules[:perMachine]
+}
+
+// --- Module audit ---
+
+// auditModules checks module slot utilization across all production entities.
+func auditModules(entities []Entity) map[string]any {
+	totalSlots := 0
+	filledSlots := 0
+	var issues []map[string]any
+
+	for _, e := range entities {
+		machine, ok := data.Machines[e.Name]
+		if !ok || machine.ModuleSlots == 0 {
+			continue
+		}
+
+		// Count modules in this entity
+		moduleCount := 0
+		for name, count := range e.Items {
+			if _, isModule := data.Modules[name]; isModule {
+				moduleCount += count
+			}
+		}
+
+		totalSlots += machine.ModuleSlots
+		filledSlots += moduleCount
+		empty := machine.ModuleSlots - moduleCount
+		if empty > 0 {
+			issues = append(issues, map[string]any{
+				"entity":      e.Name,
+				"recipe":      e.Recipe,
+				"empty_slots": empty,
+				"total_slots": machine.ModuleSlots,
+			})
+		}
+	}
+
+	utilization := 0.0
+	if totalSlots > 0 {
+		utilization = roundTo(float64(filledSlots)/float64(totalSlots)*100, 1)
+	}
+
+	if issues == nil {
+		issues = []map[string]any{}
+	}
+
+	return map[string]any{
+		"total_slots":      totalSlots,
+		"filled_slots":     filledSlots,
+		"total_empty_slots": totalSlots - filledSlots,
+		"utilization_pct":  utilization,
+		"issues":           issues,
+	}
+}
+
+// --- Recommendations ---
+
+// generateRecommendations produces actionable suggestions based on the analysis.
+func generateRecommendations(moduleAudit map[string]any, entities []Entity) []string {
+	var recs []string
+
+	// Recommend filling empty module slots
+	emptySlots := moduleAudit["total_empty_slots"]
+	if es, ok := emptySlots.(int); ok && es > 0 {
+		// Group by machine type for cleaner recommendations
+		emptyByMachine := map[string]int{}
+		issues := moduleAudit["issues"].([]map[string]any)
+		for _, issue := range issues {
+			name := issue["entity"].(string)
+			empty := issue["empty_slots"].(int)
+			emptyByMachine[name] += empty
+		}
+		for machine, empty := range emptyByMachine {
+			recs = append(recs, fmt.Sprintf("Add modules to %d empty slot(s) in %s", empty, machine))
+		}
+	}
+
+	// Check for production machines with no beacons nearby
+	beacons := findBeacons(entities)
+	if len(beacons) == 0 {
+		hasProd := false
+		for _, e := range entities {
+			if _, ok := data.Machines[e.Name]; ok && e.Recipe != "" {
+				hasProd = true
+				break
+			}
+		}
+		if hasProd {
+			recs = append(recs, "Consider adding beacons with speed modules to boost production")
+		}
+	}
+
+	if recs == nil {
+		recs = []string{}
+	}
+	return recs
 }
 
 // extractRecipeSummary counts machines per recipe.
