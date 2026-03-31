@@ -193,12 +193,12 @@ const app = initBridge((result) => {
   // Multi-query: wrap each result in a tabbed view
   if (data?._multiQuery && Array.isArray(data.results) && data.results.length > 0) {
     mount(MultiResultView, {
-      target,
+      target: root,
       props: { component: Component, results: data.results, moduleId, iconUrl: data.icon_url, app },
     });
   } else {
     // Single-query: mount directly
-    mount(Component, { target, props: { data, app } });
+    mount(Component, { target: root, props: { data, app } });
   }
 
   const attrTarget = document.getElementById("attribution");
