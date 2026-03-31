@@ -263,20 +263,22 @@ Players interact with Savecraft in two distinct modes — often in the same conv
 
 ### Visual-First Pattern
 
-Every data tool has a visual counterpart: `list_games` → `show_games`, `get_save` → `show_save`, `query_reference` → `show_reference`. The visual tools render interactive cards, charts, and dashboards in the host iframe. The AI should prefer visual tools when **presenting** information and data tools when **analyzing** it.
+Every data tool has a visual counterpart: `list_games` → `show_games`, `get_save` → `show_save`, `query_reference` → `show_reference`. The visual tools render interactive cards, charts, and dashboards in the host iframe. **The visual tool is the default whenever a visual component exists.** The player sees a richer result and the AI can still narrate around it.
 
-**The heuristic: presenting → visual, analyzing → data.**
+**The heuristic: visual is default, data is the escape hatch.**
 
-| Player says | Intent | Tool |
+Fall back to the data tool only when:
+- The module has no visual component (`visual` is absent or false in the `query_reference` schema)
+- The AI needs raw data to answer a pointed question where the response is a sentence, not a view
+
+| Player says | Tool | Why |
 |---|---|---|
-| "What games do I have?" | Presenting — wants to see the list | `show_games` |
-| "Show me my Hammerdin" | Presenting — wants to see the character | `show_save` |
-| "What are the drop rates for Shako?" | Presenting — wants to see the table | `show_reference` |
-| "Which character should I play next?" | Analyzing — AI compares characters | `list_games` → AI reasons |
-| "What should I upgrade?" | Analyzing — AI compares gear to goals | `get_save` + `get_section` → AI advises |
-| "Is it worth farming Mephisto or Pindle?" | Analyzing — AI compares numbers | `query_reference` → AI compares |
-
-When in doubt, prefer visual — the player gets a richer experience and the AI can still discuss the result conversationally. Use data tools when the AI must compute, compare, or synthesize across multiple results before responding.
+| "What games do I have?" | `show_games` | Visual — player wants to see the list |
+| "Show me my Hammerdin" | `show_save` | Visual — player wants to see the character |
+| "Review my last draft" | `show_reference` | Visual — the review is best experienced as an interactive breakdown |
+| "What are the drop rates for Shako?" | `show_reference` | Visual — player benefits from seeing the table |
+| "Would this card fit in my deck?" | `query_reference` | Data — AI answers with a sentence, visual would be superfluous |
+| "Which character should I play next?" | `list_games` | Data — AI needs to reason across characters before advising |
 
 ### AI Interaction with Notes
 

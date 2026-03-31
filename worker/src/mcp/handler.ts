@@ -42,7 +42,7 @@ Always fetch live data — never assume you know a player's saves, characters, o
 
 Tool workflow: Start with list_games to see the player's games, characters, and saves. Use get_save for a specific character, then get_section for detailed data like equipment, skills, or stats — section names vary by game. search_saves for cross-character or cross-game queries when you don't know which save contains something. Always read relevant notes (get_note) before giving advice — they contain goals, builds, and session context from prior conversations. When the player shares something worth remembering, offer to save it as a note. Keep notes current with update_note when circumstances change. refresh_save when the player says something just changed in-game. setup_help when the player has no saves, mentions a pairing code, or asks how to connect a game.
 
-Visual-first: When the player wants to SEE information — their games, a character, reference data like drop rates or build stats — prefer the visual tools (show_games, show_save, show_reference). These render interactive cards, charts, and dashboards directly in the conversation and are a better experience than text. Use the data tools (list_games, get_save, query_reference) when you need to analyze or reason over the result before responding — comparing builds, recommending upgrades, answering analytical questions like "which character should I play next?" The distinction is intent: presenting information to the player → visual tool, thinking about information to give advice → data tool.
+Visual-first: Prefer show_games, show_save, and show_reference over their data counterparts (list_games, get_save, query_reference) whenever a visual is available. The visual tools render interactive cards, charts, and dashboards directly in the conversation — the player sees richer output and you can still narrate around it. Fall back to the data tools only when there is no visual component for the module, or when you need raw data to answer a pointed question where the response is a sentence rather than a view.
 
 Results from search_saves distinguish between save data (what the player actually has in-game) and notes (what the player wrote or planned). This distinction matters: "player owns this item" vs "guide recommends this item" are very different.
 
@@ -377,7 +377,7 @@ const TOOLS: ToolDefinition[] = [
     name: "query_reference",
     title: "Query Game Reference Data",
     description:
-      "Authoritative game calculations — drop rates, stat thresholds, build comparisons, draft ratings, mana curves, or any quantitative query where estimation would be unreliable. Batch multiple queries in a single call to avoid round-trips. Max 50 queries per call. Modules that accept card/deck lists can also accept a section reference (e.g., deck_section + save_id) to pull data directly from the player's save instead of passing cards inline.",
+      "Authoritative game calculations — drop rates, stat thresholds, build comparisons, draft ratings, mana curves, or any quantitative query where estimation would be unreliable. Use when the module has no visual component, or when you need raw data to answer a pointed question with a sentence rather than a view. For modules with visual=true, prefer show_reference instead — the player gets an interactive display and you can still narrate. Batch multiple queries in a single call to avoid round-trips. Max 50 queries per call. Modules that accept card/deck lists can also accept a section reference (e.g., deck_section + save_id) to pull data directly from the player's save instead of passing cards inline.",
     inputSchema: {
       type: "object",
       properties: {
@@ -464,7 +464,7 @@ const TOOLS: ToolDefinition[] = [
     name: "show_reference",
     title: "Show Game Reference Visually",
     description:
-      "Interactive visual display of reference data — drop rate tables, build comparisons, crop planners, draft advisors, stat dashboards. Default choice when the player asks to see, check, or look up reference data. Same parameters as query_reference; only available for modules with visual=true in the query_reference schema. Use query_reference instead only when you need to reason over the numbers before responding.",
+      "Interactive visual display of reference data — renders results as charts, tables, dashboards, and interactive views directly in the conversation. Default choice for any reference query when the module has visual=true in the query_reference schema. Same parameters as query_reference. The player sees a richer result and you can still narrate and discuss around it.",
     inputSchema: {
       type: "object",
       properties: {
