@@ -30,11 +30,11 @@ type Blueprint struct {
 }
 
 type BlueprintBook struct {
-	Item        string          `json:"item"`
-	Label       string          `json:"label,omitempty"`
-	Version     int64           `json:"version"`
-	ActiveIndex int             `json:"active_index"`
-	Blueprints  []BookEntry     `json:"blueprints"`
+	Item        string      `json:"item"`
+	Label       string      `json:"label,omitempty"`
+	Version     int64       `json:"version"`
+	ActiveIndex int         `json:"active_index"`
+	Blueprints  []BookEntry `json:"blueprints"`
 }
 
 type BookEntry struct {
@@ -189,19 +189,19 @@ func classifyEntity(name string) string {
 
 // Hardcoded entity name sets for categories not covered by baked-in data maps.
 var logisticsEntities = map[string]bool{
-	"splitter":                     true,
-	"fast-splitter":                true,
-	"express-splitter":             true,
-	"underground-belt":             true,
-	"fast-underground-belt":        true,
-	"express-underground-belt":     true,
-	"turbo-underground-belt":       true,
-	"turbo-splitter":               true,
-	"loader":                       true,
-	"fast-loader":                  true,
-	"express-loader":               true,
-	"turbo-loader":                 true,
-	"roboport":                     true,
+	"splitter":                        true,
+	"fast-splitter":                   true,
+	"express-splitter":                true,
+	"underground-belt":                true,
+	"fast-underground-belt":           true,
+	"express-underground-belt":        true,
+	"turbo-underground-belt":          true,
+	"turbo-splitter":                  true,
+	"loader":                          true,
+	"fast-loader":                     true,
+	"express-loader":                  true,
+	"turbo-loader":                    true,
+	"roboport":                        true,
 	"logistic-chest-passive-provider": true,
 	"logistic-chest-active-provider":  true,
 	"logistic-chest-requester":        true,
@@ -236,7 +236,7 @@ var logisticsEntities = map[string]bool{
 }
 
 var powerEntities = map[string]bool{
-	"heat-pipe":       true,
+	"heat-pipe":            true,
 	"small-electric-pole":  true,
 	"medium-electric-pole": true,
 	"big-electric-pole":    true,
@@ -288,15 +288,15 @@ func analyzeBlueprint(bp *Blueprint) map[string]any {
 	recommendations := generateRecommendations(moduleAudit, beacons)
 
 	return map[string]any{
-		"label":             bp.Label,
-		"entity_count":      len(bp.Entities),
-		"entity_breakdown":  breakdown,
-		"recipe_summary":    recipeSummary,
-		"module_summary":    moduleSummary,
-		"recipe_analysis":   recipeAnalysis,
-		"unknown_recipes":   unknownRecipes,
-		"module_audit":      moduleAudit,
-		"recommendations":   recommendations,
+		"label":            bp.Label,
+		"entity_count":     len(bp.Entities),
+		"entity_breakdown": breakdown,
+		"recipe_summary":   recipeSummary,
+		"module_summary":   moduleSummary,
+		"recipe_analysis":  recipeAnalysis,
+		"unknown_recipes":  unknownRecipes,
+		"module_audit":     moduleAudit,
+		"recommendations":  recommendations,
 	}
 }
 
@@ -474,7 +474,7 @@ func analyzeRecipes(entities []Entity, beacons []beaconInfo) ([]map[string]any, 
 		totalItemsPerMin := itemsPerMinPerMachine * float64(g.count)
 
 		entry := map[string]any{
-			"recipe":              recipeName,
+			"recipe":             recipeName,
 			"machine_type":       g.machineType,
 			"machine_count":      g.count,
 			"items_per_min":      roundTo(totalItemsPerMin, 2),
@@ -560,11 +560,11 @@ func auditModules(entities []Entity) map[string]any {
 	}
 
 	return map[string]any{
-		"total_slots":      totalSlots,
-		"filled_slots":     filledSlots,
+		"total_slots":       totalSlots,
+		"filled_slots":      filledSlots,
 		"total_empty_slots": totalSlots - filledSlots,
-		"utilization_pct":  utilization,
-		"issues":           issues,
+		"utilization_pct":   utilization,
+		"issues":            issues,
 	}
 }
 
