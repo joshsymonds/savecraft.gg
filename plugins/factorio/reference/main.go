@@ -47,6 +47,8 @@ func main() {
 		handleEvolutionTracker(enc, query)
 	case "power_calculator":
 		handlePowerCalculator(enc, query)
+	case "blueprint_analyzer":
+		handleBlueprintAnalyzer(enc, query)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -128,6 +130,13 @@ func schema() map[string]any {
 				"parameters": map[string]any{
 					"target_mw": map[string]any{"type": "number", "description": "Target power generation in megawatts", "required": true},
 					"sources":   map[string]any{"type": "array", "description": "Array of power sources. Each has 'type' ('steam', 'solar', 'nuclear'). Steam: optional 'fuel' (default 'coal'). Nuclear: optional 'layout' (default '2x2'). At most one source may omit 'mw' to fill the remainder.", "required": true},
+				},
+			},
+			"blueprint_analyzer": map[string]any{
+				"name":        "Blueprint Analyzer",
+				"description": "Decode a Factorio blueprint string and analyze its contents: entity breakdown, recipe ratios, module configuration, and belt throughput.",
+				"parameters": map[string]any{
+					"blueprint_string": map[string]any{"type": "string", "description": "Factorio blueprint string (starts with '0', base64+zlib encoded)", "required": true},
 				},
 			},
 			"ratio_calculator": map[string]any{
