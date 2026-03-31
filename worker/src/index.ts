@@ -185,8 +185,8 @@ export default {
       request = new Request(rewritten.toString(), request);
     }
 
-    // Serve favicon from main site so Google's favicon service resolves mcp.savecraft.gg.
-    if (mcpHost && url.pathname === "/favicon.ico") {
+    // Serve favicon from main site so Google's favicon service resolves subdomains.
+    if (url.pathname === "/favicon.ico") {
       return Response.redirect("https://savecraft.gg/favicon.png", 301);
     }
 
