@@ -86,6 +86,13 @@ type Beacon struct {
 	EnergyUsage             string
 }
 
+// EntitySize holds collision box dimensions for an entity prototype.
+type EntitySize struct {
+	Name   string
+	Width  float64 // collision box width in tiles
+	Height float64 // collision box height in tiles
+}
+
 // Fluid is a fluid prototype.
 type Fluid struct {
 	Name string

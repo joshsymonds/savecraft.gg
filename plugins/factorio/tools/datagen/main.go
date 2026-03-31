@@ -57,6 +57,7 @@ func main() {
 		{"logistics", genLogistics},
 		{"fluids", genFluids},
 		{"evolution", genEvolution},
+		{"entity_sizes", genEntitySizes},
 	}
 
 	for _, g := range generators {
@@ -707,6 +708,61 @@ func genEvolution(dump map[string]map[string]json.RawMessage) error {
 	fmt.Fprintln(f, "}")
 
 	return nil
+}
+
+// ─── Entity Sizes ───────────────────────────────────────────────────────────
+
+type rawEntityWithCollisionBox struct {
+	CollisionBox [2][2]float64 `json:"collision_box"`
+}
+
+func genEntitySizes(dump map[string]map[string]json.RawMessage) error {
+	// Collect entity sizes from all prototype categories.
+	// collision_box is [[x_min, y_min], [x_max, y_max]].
+	type sizeEntry struct {
+		name   string
+		width  float64
+		height float64
+	}
+	var entries []sizeEntry
+
+	for _, entities := range dump {
+		for name, raw := range entities {
+			var e rawEntityWithCollisionBox
+			if err := json.Unmarshal(raw, &e); err != nil {
+				continue
+			}
+			w := e.CollisionBox[1][0] - e.CollisionBox[0][0]
+			h := e.CollisionBox[1][1] - e.CollisionBox[0][1]
+			if w <= 0 || h <= 0 {
+				continue
+			}
+			entries = append(entries, sizeEntry{name: name, width: w, height: h})
+		}
+	}
+
+	// Deduplicate by name — same entity name can appear in multiple categories
+	// (e.g. as item + as entity), but only one will have a real collision_box.
+	seen := map[string]bool{}
+	var unique []sizeEntry
+	for _, e := range entries {
+		if !seen[e.name] {
+			seen[e.name] = true
+			unique = append(unique, e)
+		}
+	}
+
+	sort.Slice(unique, func(i, j int) bool { return unique[i].name < unique[j].name })
+
+	var lines []string
+	for _, e := range unique {
+		lines = append(lines, fmt.Sprintf(
+			`	%q: {Name: %q, Width: %s, Height: %s},`,
+			e.name, e.name, formatFloat(e.width), formatFloat(e.height),
+		))
+	}
+
+	return writeGenFile("entity_sizes_gen.go", "EntitySizes", "map[string]EntitySize", lines)
 }
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
