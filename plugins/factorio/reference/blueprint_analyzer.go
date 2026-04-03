@@ -355,9 +355,8 @@ func findBeacons(entities []Entity) []beaconInfo {
 // Uses real collision box dimensions from data.EntitySizes.
 func beaconRangeFor(machineName string) float64 {
 	dist := 3.0 // default supply area distance
-	for _, b := range data.Beacons {
+	if b, ok := data.Beacons["beacon"]; ok {
 		dist = b.SupplyAreaDistance
-		break
 	}
 	beaconHalf := 1.5 // fallback for 3×3
 	if size, ok := data.EntitySizes["beacon"]; ok {
@@ -737,17 +736,11 @@ func validateInserters(entities []Entity) []InserterIssue {
 			continue
 		}
 
-		// Look up entities at pickup and drop positions
+		// Look up entities at pickup and drop positions.
+		// No self-exclusion needed: inserter collision boxes (0.3×0.3) are far too small
+		// to contain their own pickup/drop positions (minimum 1 tile away).
 		pickupEntity := entityAtPoint(pickupX, pickupY, entities)
 		dropEntity := entityAtPoint(insertX, insertY, entities)
-
-		// Don't count the inserter itself
-		if pickupEntity == e.Name {
-			pickupEntity = ""
-		}
-		if dropEntity == e.Name {
-			dropEntity = ""
-		}
 
 		pickupEmpty := pickupEntity == ""
 		dropEmpty := dropEntity == ""

@@ -730,8 +730,19 @@ func genEntitySizes(dump map[string]map[string]json.RawMessage) error {
 	}
 	var entries []sizeEntry
 
-	for _, entities := range dump {
-		for name, raw := range entities {
+	// Sort category keys for deterministic iteration order.
+	// Same entity name can appear in multiple categories; sorted order
+	// ensures we always pick the same one during dedup.
+	categories := make([]string, 0, len(dump))
+	for cat := range dump {
+		categories = append(categories, cat)
+	}
+	sort.Strings(categories)
+	for _, cat := range categories {
+		entities := dump[cat]
+		names := sortedKeys(entities)
+		for _, name := range names {
+			raw := entities[name]
 			var e rawEntityWithCollisionBox
 			if err := json.Unmarshal(raw, &e); err != nil {
 				continue

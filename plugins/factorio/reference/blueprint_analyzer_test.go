@@ -620,6 +620,34 @@ func TestBeaconRangeFor3x3Unchanged(t *testing.T) {
 	}
 }
 
+func TestBeaconRangeForFoundry(t *testing.T) {
+	// Foundry is 5×5 (collision_box 4.4×4.4, half=2.2).
+	// Correct range = supply_area(3) + beacon_half(1.2) + foundry_half(2.2) = 6.4
+	// Old hardcoded range was 6.0 — beacon at distance 6.3 was incorrectly excluded.
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "foundry", Position: map[string]any{"x": 0.0, "y": 0.0},
+			Recipe: "metallurgic-science-pack"},
+		{EntityNumber: 2, Name: "beacon", Position: map[string]any{"x": 0.0, "y": 6.3},
+			Items: map[string]int{"speed-module-3": 2}},
+	}
+	bp := makeBlueprint("Foundry Beacon Range", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	d := result["data"].(map[string]any)
+	analysis := d["recipe_analysis"].([]any)
+	entry := analysis[0].(map[string]any)
+
+	beaconCount := entry["beacon_count"].(float64)
+	if beaconCount < 1.0 {
+		t.Errorf("beacon_count = %v, want >= 1 (beacon at distance 6.3 should be in range for foundry)", beaconCount)
+	}
+}
+
 // --- Module audit tests ---
 
 func TestModuleAuditEmptySlots(t *testing.T) {
