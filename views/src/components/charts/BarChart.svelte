@@ -5,7 +5,6 @@
 -->
 <script lang="ts">
   import type { Snippet } from "svelte";
-  import Tooltip from "./Tooltip.svelte";
 
   type Variant = "positive" | "negative" | "highlight" | "info" | "warning" | "muted";
 
@@ -28,16 +27,6 @@
 
   let { items, maxValue, icon }: Props = $props();
 
-  let tip = $state({ text: "", x: 0, y: 0, visible: false });
-
-  function showTip(e: MouseEvent, item: Item) {
-    const rect = (e.currentTarget as HTMLElement).getBoundingClientRect();
-    const parent = (e.currentTarget as HTMLElement).closest(".bar-chart")!.getBoundingClientRect();
-    tip = { text: `${item.label}: ${item.value}`, x: e.clientX - parent.left, y: rect.top - parent.top, visible: true };
-  }
-
-  function hideTip() { tip.visible = false; }
-
   const variantColors: Record<Variant, string> = {
     positive: "var(--color-positive)",
     negative: "var(--color-negative)",
@@ -50,10 +39,9 @@
   let max = $derived(maxValue ?? Math.max(...items.map((d) => d.value), 1));
 </script>
 
-<div class="bar-chart" style="position: relative;">
-  <Tooltip {...tip} />
+<div class="bar-chart">
   {#each items as item, i}
-    <div class="bar-row" style:animation-delay="{i * 50}ms" onmouseenter={(e) => showTip(e, item)} onmouseleave={hideTip}>
+    <div class="bar-row" style:animation-delay="{i * 50}ms">
       <span class="bar-label">{#if icon}{@render icon(item)}{/if}{item.label}</span>
       <div class="bar-track">
         <div
