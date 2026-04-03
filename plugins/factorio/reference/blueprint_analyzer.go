@@ -286,6 +286,7 @@ func analyzeBlueprint(bp *Blueprint) map[string]any {
 	recipeAnalysis, unknownRecipes := analyzeRecipes(bp.Entities, beacons)
 	moduleAudit := auditModules(bp.Entities)
 	recommendations := generateRecommendations(moduleAudit, beacons)
+	inserterIssues := validateInserters(bp.Entities)
 
 	return map[string]any{
 		"label":            bp.Label,
@@ -297,6 +298,7 @@ func analyzeBlueprint(bp *Blueprint) map[string]any {
 		"unknown_recipes":  unknownRecipes,
 		"module_audit":     moduleAudit,
 		"recommendations":  recommendations,
+		"inserter_issues":  inserterIssues,
 	}
 }
 
@@ -631,4 +633,152 @@ func extractModuleSummary(entities []Entity) map[string]int {
 		}
 	}
 	return modules
+}
+
+// --- Inserter wiring validation ---
+
+// InserterIssue describes a wiring problem with an inserter in the blueprint.
+type InserterIssue struct {
+	EntityNumber int      `json:"entity_number"`
+	Position     Position `json:"position"`
+	Severity     string   `json:"severity"` // "error" or "warning"
+	Message      string   `json:"message"`
+	PickupEntity string   `json:"pickup_entity"`
+	DropEntity   string   `json:"drop_entity"`
+}
+
+// rotateOffset applies a Factorio direction rotation to an [x,y] offset.
+// Factorio directions: 0=N, 2=E, 4=S, 6=W. Each step of 2 = 90° clockwise.
+// In Factorio's coordinate system, +Y = south (down), +X = east (right).
+func rotateOffset(offset [2]float64, direction int) (float64, float64) {
+	x, y := offset[0], offset[1]
+	steps := (direction / 2) % 4
+	for range steps {
+		x, y = -y, x
+	}
+	return x, y
+}
+
+// entityAtPoint finds the entity whose collision box contains the given world point.
+// Returns the entity name or "" if no entity covers that point.
+func entityAtPoint(px, py float64, entities []Entity) string {
+	for _, e := range entities {
+		size, ok := data.EntitySizes[e.Name]
+		if !ok {
+			continue
+		}
+		hw, hh := size.Width/2, size.Height/2
+		if px >= e.Position.X-hw && px <= e.Position.X+hw &&
+			py >= e.Position.Y-hh && py <= e.Position.Y+hh {
+			return e.Name
+		}
+	}
+	return ""
+}
+
+// blueprintBounds returns the axis-aligned bounding box of all entities,
+// expanded by each entity's collision box half-size.
+func blueprintBounds(entities []Entity) (minX, minY, maxX, maxY float64) {
+	if len(entities) == 0 {
+		return 0, 0, 0, 0
+	}
+	minX, minY = math.Inf(1), math.Inf(1)
+	maxX, maxY = math.Inf(-1), math.Inf(-1)
+	for _, e := range entities {
+		hw, hh := 0.5, 0.5 // default 1×1
+		if size, ok := data.EntitySizes[e.Name]; ok {
+			hw, hh = size.Width/2, size.Height/2
+		}
+		if e.Position.X-hw < minX {
+			minX = e.Position.X - hw
+		}
+		if e.Position.Y-hh < minY {
+			minY = e.Position.Y - hh
+		}
+		if e.Position.X+hw > maxX {
+			maxX = e.Position.X + hw
+		}
+		if e.Position.Y+hh > maxY {
+			maxY = e.Position.Y + hh
+		}
+	}
+	return
+}
+
+// validateInserters checks each inserter's pickup and drop positions for wiring issues.
+func validateInserters(entities []Entity) []InserterIssue {
+	minX, minY, maxX, maxY := blueprintBounds(entities)
+	var issues []InserterIssue
+
+	for _, e := range entities {
+		ins, ok := data.Inserters[e.Name]
+		if !ok {
+			continue
+		}
+
+		// Only handle cardinal directions (0, 2, 4, 6)
+		if e.Direction%2 != 0 || e.Direction > 6 {
+			continue
+		}
+
+		// Compute rotated pickup and drop positions
+		pickupDX, pickupDY := rotateOffset(ins.PickupOffset, e.Direction)
+		insertDX, insertDY := rotateOffset(ins.InsertOffset, e.Direction)
+
+		pickupX := e.Position.X + pickupDX
+		pickupY := e.Position.Y + pickupDY
+		insertX := e.Position.X + insertDX
+		insertY := e.Position.Y + insertDY
+
+		// Skip if either position is outside blueprint bounds
+		pickupInBounds := pickupX >= minX && pickupX <= maxX && pickupY >= minY && pickupY <= maxY
+		insertInBounds := insertX >= minX && insertX <= maxX && insertY >= minY && insertY <= maxY
+		if !pickupInBounds || !insertInBounds {
+			continue
+		}
+
+		// Look up entities at pickup and drop positions
+		pickupEntity := entityAtPoint(pickupX, pickupY, entities)
+		dropEntity := entityAtPoint(insertX, insertY, entities)
+
+		// Don't count the inserter itself
+		if pickupEntity == e.Name {
+			pickupEntity = ""
+		}
+		if dropEntity == e.Name {
+			dropEntity = ""
+		}
+
+		pickupEmpty := pickupEntity == ""
+		dropEmpty := dropEntity == ""
+
+		if pickupEmpty && dropEmpty {
+			issues = append(issues, InserterIssue{
+				EntityNumber: e.EntityNumber,
+				Position:     e.Position,
+				Severity:     "error",
+				Message:      fmt.Sprintf("%s at (%.1f, %.1f) has no entity at pickup or drop position", e.Name, e.Position.X, e.Position.Y),
+				PickupEntity: "",
+				DropEntity:   "",
+			})
+		} else if pickupEmpty || dropEmpty {
+			side := "pickup"
+			if dropEmpty {
+				side = "drop"
+			}
+			issues = append(issues, InserterIssue{
+				EntityNumber: e.EntityNumber,
+				Position:     e.Position,
+				Severity:     "warning",
+				Message:      fmt.Sprintf("%s at (%.1f, %.1f) has no entity at %s position", e.Name, e.Position.X, e.Position.Y, side),
+				PickupEntity: pickupEntity,
+				DropEntity:   dropEntity,
+			})
+		}
+	}
+
+	if issues == nil {
+		issues = []InserterIssue{}
+	}
+	return issues
 }

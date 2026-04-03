@@ -745,6 +745,151 @@ func TestRecommendations(t *testing.T) {
 	}
 }
 
+// --- Inserter wiring validation tests ---
+
+func TestInserterWiringValid(t *testing.T) {
+	// Fast inserter at (3.5, 2.5) facing south (dir=4):
+	//   pickup offset [0,-1] rotated 180° → [0,1] → pickup at (3.5, 3.5)
+	//   insert offset [0,1.2] rotated 180° → [0,-1.2] → insert at (3.5, 1.3)
+	// AM3 at (1.5, 1.5) covers (0.3, 0.3)-(2.7, 2.7) — contains drop point (3.5, 1.3)? No.
+	// Let me recalculate: AM3 at (3.5, 1.5) covers (2.3, 0.3)-(4.7, 2.7) — contains (3.5, 1.3) ✓
+	// Belt at (3.5, 3.5) covers (3.1, 3.1)-(3.9, 3.9) — contains (3.5, 3.5) ✓
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 3.5, "y": 1.5},
+			Recipe: "electronic-circuit"},
+		{EntityNumber: 2, Name: "fast-inserter", Position: map[string]any{"x": 3.5, "y": 2.5}, Direction: 4},
+		{EntityNumber: 3, Name: "transport-belt", Position: map[string]any{"x": 3.5, "y": 3.5}, Direction: 2},
+	}
+	bp := makeBlueprint("Valid Inserter", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	d := result["data"].(map[string]any)
+	issues := d["inserter_issues"].([]any)
+	if len(issues) != 0 {
+		t.Errorf("expected 0 inserter issues, got %d: %v", len(issues), issues)
+	}
+}
+
+func TestInserterWiringBothEmpty(t *testing.T) {
+	// Inserter at (5.5, 5.5) facing north (dir=0), nothing at pickup or drop:
+	//   pickup at (5.5, 4.5) — empty
+	//   insert at (5.5, 6.7) — empty
+	// Also include an AM3 far away to establish blueprint bounds that include the inserter.
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 1.5, "y": 1.5},
+			Recipe: "electronic-circuit"},
+		{EntityNumber: 2, Name: "fast-inserter", Position: map[string]any{"x": 5.5, "y": 5.5}, Direction: 0},
+		{EntityNumber: 3, Name: "assembling-machine-3", Position: map[string]any{"x": 9.5, "y": 9.5},
+			Recipe: "electronic-circuit"},
+	}
+	bp := makeBlueprint("Both Empty", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	d := result["data"].(map[string]any)
+	issues := d["inserter_issues"].([]any)
+	if len(issues) != 1 {
+		t.Fatalf("expected 1 inserter issue, got %d: %v", len(issues), issues)
+	}
+	issue := issues[0].(map[string]any)
+	if issue["severity"] != "error" {
+		t.Errorf("severity = %v, want error", issue["severity"])
+	}
+}
+
+func TestInserterWiringOneEmpty(t *testing.T) {
+	// Inserter at (3.5, 2.5) facing south (dir=4):
+	//   pickup rotated → (3.5, 3.5) — empty (no belt here)
+	//   insert rotated → (3.5, ~1.3) — inside AM3 at (3.5, 1.5)
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 3.5, "y": 1.5},
+			Recipe: "electronic-circuit"},
+		{EntityNumber: 2, Name: "fast-inserter", Position: map[string]any{"x": 3.5, "y": 2.5}, Direction: 4},
+		// No belt at pickup side — but still within blueprint bounds (AM3 extends to y=2.7)
+		// Need another entity to extend bounds past y=3.5
+		{EntityNumber: 3, Name: "transport-belt", Position: map[string]any{"x": 1.5, "y": 4.5}, Direction: 2},
+	}
+	bp := makeBlueprint("One Empty", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	d := result["data"].(map[string]any)
+	issues := d["inserter_issues"].([]any)
+	if len(issues) != 1 {
+		t.Fatalf("expected 1 inserter issue, got %d: %v", len(issues), issues)
+	}
+	issue := issues[0].(map[string]any)
+	if issue["severity"] != "warning" {
+		t.Errorf("severity = %v, want warning", issue["severity"])
+	}
+}
+
+func TestInserterWiringEdge(t *testing.T) {
+	// Inserter at edge of blueprint facing outward — drop tile outside bounds.
+	// Inserter at (0.5, 0.5) facing north (dir=0):
+	//   pickup at (0.5, -0.5) — outside blueprint bounds
+	//   insert at (0.5, 1.7) — inside AM3
+	// Should be silently skipped (no issue reported).
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 1.5, "y": 1.5},
+			Recipe: "electronic-circuit"},
+		{EntityNumber: 2, Name: "fast-inserter", Position: map[string]any{"x": 0.5, "y": 0.5}, Direction: 0},
+	}
+	bp := makeBlueprint("Edge Inserter", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	d := result["data"].(map[string]any)
+	issues := d["inserter_issues"].([]any)
+	if len(issues) != 0 {
+		t.Errorf("expected 0 inserter issues (edge inserter skipped), got %d: %v", len(issues), issues)
+	}
+}
+
+func TestInserterWiringLongHanded(t *testing.T) {
+	// Long-handed inserter at (3.5, 3.5) facing east (dir=2):
+	//   pickup [0,-2] rotated 90°CW → [2,0] → pickup at (5.5, 3.5)
+	//   insert [0,2.2] rotated 90°CW → [-2.2,0] → insert at (1.3, 3.5)
+	// AM3 at (1.5, 3.5) covers (0.3, 2.3)-(2.7, 4.7) — contains (1.3, 3.5) ✓
+	// Belt at (5.5, 3.5) covers (5.1, 3.1)-(5.9, 3.9) — contains (5.5, 3.5) ✓
+	entities := []blueprintEntity{
+		{EntityNumber: 1, Name: "assembling-machine-3", Position: map[string]any{"x": 1.5, "y": 3.5},
+			Recipe: "electronic-circuit"},
+		{EntityNumber: 2, Name: "long-handed-inserter", Position: map[string]any{"x": 3.5, "y": 3.5}, Direction: 2},
+		{EntityNumber: 3, Name: "transport-belt", Position: map[string]any{"x": 5.5, "y": 3.5}, Direction: 4},
+	}
+	bp := makeBlueprint("Long-Handed Inserter", entities)
+	s := encodeBlueprintString(t, bp)
+
+	result, code := runReference(t, `{"module":"blueprint_analyzer","blueprint_string":"`+s+`"}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d: %v", code, result)
+	}
+
+	d := result["data"].(map[string]any)
+	issues := d["inserter_issues"].([]any)
+	if len(issues) != 0 {
+		t.Errorf("expected 0 inserter issues for valid long-handed setup, got %d: %v", len(issues), issues)
+	}
+}
+
 func TestDecodeMissingBlueprintString(t *testing.T) {
 	result, code := runReference(t, `{"module":"blueprint_analyzer"}`)
 	if code != 1 {
