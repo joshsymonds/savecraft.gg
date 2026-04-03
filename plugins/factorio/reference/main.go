@@ -49,6 +49,8 @@ func main() {
 		handlePowerCalculator(enc, query)
 	case "blueprint_analyzer":
 		handleBlueprintAnalyzer(enc, query)
+	case "production_flow":
+		handleProductionFlow(enc, query)
 	default:
 		writeError(enc, "unknown_module", "unknown module: "+module)
 		os.Exit(1)
@@ -137,6 +139,14 @@ func schema() map[string]any {
 				"description": "Decode a Factorio blueprint string and analyze its contents: entity breakdown, production rates with beacon effects, and module configuration audit.",
 				"parameters": map[string]any{
 					"blueprint_string": map[string]any{"type": "string", "description": "Factorio blueprint string (starts with '0', base64+zlib encoded)", "required": true},
+				},
+			},
+			"production_flow": map[string]any{
+				"name":        "Factory Health Diagnosis",
+				"description": "Diagnose factory health by cross-referencing production rates with recipe, machine, and technology data. Computes deficit causes, machine gaps, cascade risks, and tech unlock impacts. Pass save_id to analyze your factory.",
+				"parameters": map[string]any{
+					"flow_data":         map[string]any{"type": "object", "description": "Production flow data from save (injected via save_id). Contains items/fluids with produced/consumed rates.", "required": true},
+					"existing_machines": map[string]any{"type": "object", "description": "Existing machine counts by recipe (injected via save_id). Contains by_recipe, by_type maps."},
 				},
 			},
 			"ratio_calculator": map[string]any{
