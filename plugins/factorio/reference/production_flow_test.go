@@ -264,6 +264,173 @@ func TestProductionFlow_HealthScore_Bottlenecked(t *testing.T) {
 	}
 }
 
+// ─── Machine Gap ────────────────────────────────────────────────────────────
+
+func TestProductionFlow_MachineGap(t *testing.T) {
+	// iron-plate deficit with existing stone-furnaces.
+	// stone-furnace: crafting_speed=1.0, iron-plate recipe: energy=3.2s, result=1
+	// Per furnace: (1.0 / 3.2) * 1 * 60 = 18.75 items/min
+	// 10 furnaces → 187.5/min. Consumed 300/min, produced 187.5/min → deficit 112.5/min
+	// Need 112.5/18.75 = 6 more furnaces to close gap
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 187.5,
+					"consumed_per_min": 300.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["iron-plate"],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"iron-plate": {
+					"machine_type": "stone-furnace",
+					"count": 10,
+					"modules": {}
+				}
+			},
+			"by_type": {"stone-furnace": 10},
+			"beacon_count": 0
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	iron := findDiagnosis(items, "iron-plate")
+	if iron == nil {
+		t.Fatal("expected iron-plate in item_diagnoses")
+	}
+
+	mg := iron["machine_gap"]
+	if mg == nil {
+		t.Fatal("expected machine_gap for deficit iron-plate")
+	}
+	gap := mg.(map[string]any)
+
+	if gap["machine_type"] != "stone-furnace" {
+		t.Errorf("machine_type = %v, want stone-furnace", gap["machine_type"])
+	}
+	if gap["current_count"].(float64) != 10 {
+		t.Errorf("current_count = %v, want 10", gap["current_count"])
+	}
+	// Need 6 more furnaces (ceil of 112.5/18.75)
+	needed := gap["additional_needed"].(float64)
+	if needed < 5 || needed > 7 {
+		t.Errorf("additional_needed = %.0f, want ~6", needed)
+	}
+}
+
+func TestProductionFlow_MachineGap_NotPresent_WhenNoMachinesData(t *testing.T) {
+	// Without existing_machines, machine_gap should not appear
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 300.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["iron-plate"],
+			"top_surpluses": []
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	iron := findDiagnosis(items, "iron-plate")
+	if iron == nil {
+		t.Fatal("expected iron-plate in item_diagnoses")
+	}
+	if iron["machine_gap"] != nil {
+		t.Error("machine_gap should not be present without existing_machines")
+	}
+}
+
+// ─── Cascade Depth ──────────────────────────────────────────────────────────
+
+func TestProductionFlow_CascadeDepth(t *testing.T) {
+	// iron-plate is consumed by iron-gear-wheel (and many others).
+	// iron-gear-wheel is consumed by transport-belt, inserter, etc.
+	// The cascade should show downstream items.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 0.0,
+					"consumed_per_min": 300.0
+				},
+				"iron-gear-wheel": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 80.0
+				},
+				"transport-belt": {
+					"produced_per_min": 50.0,
+					"consumed_per_min": 40.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["iron-plate"],
+			"top_surpluses": []
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	iron := findDiagnosis(items, "iron-plate")
+	if iron == nil {
+		t.Fatal("expected iron-plate in item_diagnoses")
+	}
+
+	cascade := iron["cascade"]
+	if cascade == nil {
+		t.Fatal("expected cascade for critical iron-plate")
+	}
+	c := cascade.(map[string]any)
+
+	// iron-plate feeds many downstream items via recipes
+	downstreamCount := c["downstream_count"].(float64)
+	if downstreamCount < 2 {
+		t.Errorf("downstream_count = %.0f, want >= 2 (at least gear-wheel + transport-belt)", downstreamCount)
+	}
+
+	// Impact fraction should be significant since iron-plate feeds most of the factory
+	impactFraction := c["impact_fraction"].(float64)
+	if impactFraction < 0.3 {
+		t.Errorf("impact_fraction = %.2f, want >= 0.3", impactFraction)
+	}
+}
+
+func TestProductionFlow_CascadeDepth_NotPresent_ForHealthy(t *testing.T) {
+	// Healthy items should not have cascade analysis
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 450.0,
+					"consumed_per_min": 420.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": [],
+			"top_surpluses": ["iron-plate"]
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	iron := findDiagnosis(items, "iron-plate")
+	if iron == nil {
+		t.Fatal("expected iron-plate in item_diagnoses")
+	}
+	if iron["cascade"] != nil {
+		t.Error("cascade should not be present for healthy items")
+	}
+}
+
 // ─── Schema Registration ────────────────────────────────────────────────────
 
 func TestProductionFlow_InSchema(t *testing.T) {

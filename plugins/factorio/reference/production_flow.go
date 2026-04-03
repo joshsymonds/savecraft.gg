@@ -19,12 +19,27 @@ type productionFlowQuery struct {
 // ─── Output Types ───────────────────────────────────────────────────────────
 
 type itemDiagnosis struct {
-	Item        string          `json:"item"`
-	Produced    float64         `json:"produced_per_min"`
-	Consumed    float64         `json:"consumed_per_min"`
-	NetRate     float64         `json:"net_rate"`
-	Severity    string          `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
+	Item        string           `json:"item"`
+	Produced    float64          `json:"produced_per_min"`
+	Consumed    float64          `json:"consumed_per_min"`
+	NetRate     float64          `json:"net_rate"`
+	Severity    string           `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
 	Consumers   []recipeConsumer `json:"consumers,omitempty"`
+	MachineGap  *machineGapInfo  `json:"machine_gap,omitempty"`
+	Cascade     *cascadeInfo     `json:"cascade,omitempty"`
+}
+
+type machineGapInfo struct {
+	MachineType      string  `json:"machine_type"`
+	CurrentCount     int     `json:"current_count"`
+	EffectiveRate    float64 `json:"effective_rate"`    // items/min from current machines
+	AdditionalNeeded int     `json:"additional_needed"` // machines to add to close deficit
+	Recipe           string  `json:"recipe"`
+}
+
+type cascadeInfo struct {
+	DownstreamCount int     `json:"downstream_count"` // number of downstream items affected
+	ImpactFraction  float64 `json:"impact_fraction"`  // fraction of factory items that depend on this
 }
 
 type recipeConsumer struct {
@@ -53,8 +68,8 @@ func handleProductionFlow(enc *json.Encoder, query map[string]any) {
 	consumerIndex := buildConsumerIndex()
 
 	// Analyze items
-	itemDiagnoses := analyzeFlowEntries(q.FlowData.Items, consumerIndex, q.FlowData)
-	fluidDiagnoses := analyzeFlowEntries(q.FlowData.Fluids, consumerIndex, q.FlowData)
+	itemDiagnoses := analyzeFlowEntries(q.FlowData.Items, consumerIndex, q.FlowData, q.ExistingMachines)
+	fluidDiagnoses := analyzeFlowEntries(q.FlowData.Fluids, consumerIndex, q.FlowData, q.ExistingMachines)
 
 	// Compute health score
 	healthScore := computeHealthScore(itemDiagnoses, fluidDiagnoses)
@@ -106,8 +121,21 @@ func buildConsumerIndex() map[string][]recipeConsumerEntry {
 
 // ─── Flow Analysis ──────────────────────────────────────────────────────────
 
-func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][]recipeConsumerEntry, flow *actualFlow) []itemDiagnosis {
+func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][]recipeConsumerEntry, flow *actualFlow, machines *existingMachines) []itemDiagnosis {
 	diagnoses := make([]itemDiagnosis, 0, len(entries))
+
+	// Count total active items for cascade impact fraction
+	totalActive := 0
+	for _, stats := range flow.Items {
+		if stats.ProducedPerMin > 0 || stats.ConsumedPerMin > 0 {
+			totalActive++
+		}
+	}
+	for _, stats := range flow.Fluids {
+		if stats.ProducedPerMin > 0 || stats.ConsumedPerMin > 0 {
+			totalActive++
+		}
+	}
 
 	for name, stats := range entries {
 		netRate := roundTo(stats.ProducedPerMin-stats.ConsumedPerMin, 1)
@@ -124,6 +152,16 @@ func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][
 		// Compute recipe fan-out for deficit items
 		if netRate < -0.1 {
 			diag.Consumers = computeRecipeFanOut(name, consumerIndex, flow)
+		}
+
+		// Compute machine gap for deficit items when machine data is available
+		if netRate < -0.1 && machines != nil {
+			diag.MachineGap = computeMachineGap(name, math.Abs(netRate), machines)
+		}
+
+		// Compute cascade depth for critical/severe deficit items
+		if severity == "critical" || severity == "severe" {
+			diag.Cascade = computeCascade(name, consumerIndex, flow, totalActive)
 		}
 
 		diagnoses = append(diagnoses, diag)
@@ -235,6 +273,134 @@ func lookupProductionRate(item string, flow *actualFlow) float64 {
 	}
 	if stats, ok := flow.Fluids[item]; ok {
 		return stats.ProducedPerMin
+	}
+	return 0
+}
+
+// ─── Machine Gap ────────────────────────────────────────────────────────────
+
+// computeMachineGap finds the recipe that produces this item, looks up existing
+// machines for that recipe, and computes how many more are needed to close the deficit.
+func computeMachineGap(item string, deficitRate float64, machines *existingMachines) *machineGapInfo {
+	// Find the recipe that produces this item
+	recipe, resultAmt, _ := resolveRecipe(item, "", nil)
+	if recipe == nil {
+		return nil
+	}
+
+	// Look up existing machines for this recipe
+	setup, ok := machines.ByRecipe[recipe.Name]
+	if !ok {
+		return nil
+	}
+
+	machine, ok := data.Machines[setup.MachineType]
+	if !ok {
+		return nil
+	}
+
+	// Compute per-machine rate
+	var moduleList []string
+	for name, count := range setup.Modules {
+		for range count {
+			moduleList = append(moduleList, name)
+		}
+	}
+	speedBonus, prodBonus, _ := resolveModuleEffects(moduleList)
+
+	craftingSpeed := machine.CraftingSpeed * (1 + speedBonus)
+	if craftingSpeed < 0.01 {
+		craftingSpeed = 0.01
+	}
+
+	craftTime := recipe.EnergyRequired
+	if craftTime <= 0 {
+		craftTime = 0.5
+	}
+
+	if resultAmt <= 0 {
+		resultAmt = 1.0
+	}
+	effectiveOutput := resultAmt * (1 + prodBonus)
+	perMachineRate := (craftingSpeed / craftTime) * effectiveOutput * 60 // items/min
+
+	effectiveRate := float64(setup.Count) * perMachineRate
+	additionalNeeded := int(math.Ceil(deficitRate / perMachineRate))
+
+	return &machineGapInfo{
+		MachineType:      setup.MachineType,
+		CurrentCount:     setup.Count,
+		EffectiveRate:    roundTo(effectiveRate, 1),
+		AdditionalNeeded: additionalNeeded,
+		Recipe:           recipe.Name,
+	}
+}
+
+// ─── Cascade Depth ──────────────────────────────────────────────────────────
+
+// computeCascade walks the recipe dependency graph forward from a deficit item,
+// counting how many downstream items in the active factory depend on it.
+func computeCascade(item string, consumerIndex map[string][]recipeConsumerEntry, flow *actualFlow, totalActive int) *cascadeInfo {
+	// BFS to find all downstream items
+	visited := map[string]bool{item: true}
+	queue := []string{item}
+	downstreamCount := 0
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		entries, ok := consumerIndex[current]
+		if !ok {
+			continue
+		}
+
+		for _, entry := range entries {
+			product := entry.Product
+			if product == "" || visited[product] {
+				continue
+			}
+
+			// Only count if this product is actively being produced in the factory
+			productRate := lookupProductionRate(product, flow)
+			if productRate <= 0 {
+				// Also check consumption — item might be consumed even if not produced
+				consumedRate := lookupConsumptionRate(product, flow)
+				if consumedRate <= 0 {
+					continue
+				}
+			}
+
+			visited[product] = true
+			downstreamCount++
+			queue = append(queue, product)
+		}
+	}
+
+	if downstreamCount == 0 {
+		return nil
+	}
+
+	impactFraction := 0.0
+	if totalActive > 0 {
+		impactFraction = roundTo(float64(downstreamCount)/float64(totalActive), 2)
+	}
+
+	return &cascadeInfo{
+		DownstreamCount: downstreamCount,
+		ImpactFraction:  impactFraction,
+	}
+}
+
+func lookupConsumptionRate(item string, flow *actualFlow) float64 {
+	if flow == nil {
+		return 0
+	}
+	if stats, ok := flow.Items[item]; ok {
+		return stats.ConsumedPerMin
+	}
+	if stats, ok := flow.Fluids[item]; ok {
+		return stats.ConsumedPerMin
 	}
 	return 0
 }
