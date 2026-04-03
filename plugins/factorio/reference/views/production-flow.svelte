@@ -16,6 +16,10 @@
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import FactorioIcon from "../../../../views/src/components/factorio/FactorioIcon.svelte";
+  import type { SpriteConfig } from "../../../../views/src/components/factorio/factorio-icons";
+
+  import itemManifest from "../../sprites/items.json";
+  import fluidManifest from "../../sprites/fluids.json";
 
   interface Consumer {
     recipe: string;
@@ -70,9 +74,30 @@
       overproduction: OverproductionEntry[];
       icon_url?: string;
     };
+    /** Base URL for sprite sheets (e.g., R2 URL or Storybook static path) */
+    spriteBaseUrl?: string;
   }
 
-  let { data }: Props = $props();
+  let { data, spriteBaseUrl = "/plugins/factorio/sprites" }: Props = $props();
+
+  let itemSpriteConfig: SpriteConfig = $derived({
+    url: `${spriteBaseUrl}/items.png`,
+    sheetWidth: 2048,
+    sheetHeight: 704,
+    manifest: itemManifest,
+  });
+
+  let fluidSpriteConfig: SpriteConfig = $derived({
+    url: `${spriteBaseUrl}/fluids.png`,
+    sheetWidth: 2048,
+    sheetHeight: 128,
+    manifest: fluidManifest,
+  });
+
+  function getSpriteConfig(iconName: string): SpriteConfig {
+    if (fluidManifest[iconName as keyof typeof fluidManifest]) return fluidSpriteConfig;
+    return itemSpriteConfig;
+  }
 
   // Health score variant
   let healthVariant = $derived<"positive" | "info" | "negative">(
@@ -187,7 +212,7 @@
           {#each criticalItems as d}
             <Panel nested compact>
               <div class="alert-item">
-                <FactorioIcon name={d.item} size={24} />
+                <FactorioIcon name={d.item} size={24} spriteConfig={getSpriteConfig(d.item)} />
                 <div class="alert-detail">
                   <span class="alert-name">{formatName(d.item)}</span>
                   <Badge label={severityLabel(d)} variant={severityVariant(d.severity)} />
@@ -209,7 +234,7 @@
           {#each criticalFluids as d}
             <Panel nested compact>
               <div class="alert-item">
-                <FactorioIcon name={d.item} size={24} />
+                <FactorioIcon name={d.item} size={24} spriteConfig={getSpriteConfig(d.item)} />
                 <div class="alert-detail">
                   <span class="alert-name">{formatName(d.item)}</span>
                   <Badge label="{severityLabel(d)} (Fluid)" variant={severityVariant(d.severity)} />
@@ -235,7 +260,7 @@
             <span class="sub-label">Deficits (items/min short)</span>
             <BarChart items={itemDeficits}>
               {#snippet icon(item)}
-                <FactorioIcon name={item.key ?? item.label} size={18} />
+                <FactorioIcon name={item.key ?? item.label} size={18} spriteConfig={getSpriteConfig(item.key ?? item.label)} />
               {/snippet}
             </BarChart>
           </Panel>
@@ -245,7 +270,7 @@
             <span class="sub-label">Surpluses (items/min excess)</span>
             <BarChart items={itemSurpluses}>
               {#snippet icon(item)}
-                <FactorioIcon name={item.key ?? item.label} size={18} />
+                <FactorioIcon name={item.key ?? item.label} size={18} spriteConfig={getSpriteConfig(item.key ?? item.label)} />
               {/snippet}
             </BarChart>
           </Panel>
@@ -261,7 +286,7 @@
             <span class="sub-label">Deficits (units/min short)</span>
             <BarChart items={fluidDeficits}>
               {#snippet icon(item)}
-                <FactorioIcon name={item.key ?? item.label} size={18} />
+                <FactorioIcon name={item.key ?? item.label} size={18} spriteConfig={getSpriteConfig(item.key ?? item.label)} />
               {/snippet}
             </BarChart>
           </Panel>
@@ -271,7 +296,7 @@
             <span class="sub-label">Surpluses (units/min excess)</span>
             <BarChart items={fluidSurpluses}>
               {#snippet icon(item)}
-                <FactorioIcon name={item.key ?? item.label} size={18} />
+                <FactorioIcon name={item.key ?? item.label} size={18} spriteConfig={getSpriteConfig(item.key ?? item.label)} />
               {/snippet}
             </BarChart>
           </Panel>
@@ -298,14 +323,14 @@
         {#each data.overproduction as entry}
           <Panel nested>
             <div class="overprod-header">
-              <FactorioIcon name={entry.item} size={20} />
+              <FactorioIcon name={entry.item} size={20} spriteConfig={getSpriteConfig(entry.item)} />
               <span class="overprod-name">{formatName(entry.item)}</span>
               <Badge label="+{entry.surplus_rate}/min" variant="positive" />
             </div>
             <div class="overprod-suggestions">
               {#each entry.suggested_recipes.slice(0, 4) as recipe}
                 <span class="suggestion">
-                  <FactorioIcon name={recipe.product} size={16} />
+                  <FactorioIcon name={recipe.product} size={16} spriteConfig={getSpriteConfig(recipe.product)} />
                   {formatName(recipe.recipe)}
                 </span>
               {/each}
