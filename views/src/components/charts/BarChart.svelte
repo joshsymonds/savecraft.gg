@@ -4,6 +4,7 @@
   Used for win rates by format, resistance values, stat comparisons.
 -->
 <script lang="ts">
+  import type { Snippet } from "svelte";
   import Tooltip from "./Tooltip.svelte";
 
   type Variant = "positive" | "negative" | "highlight" | "info" | "warning" | "muted";
@@ -12,6 +13,8 @@
     label: string;
     value: number;
     variant?: Variant;
+    /** Opaque key passed to the icon snippet (e.g. an internal ID for icon lookup) */
+    key?: string;
   }
 
   interface Props {
@@ -19,9 +22,11 @@
     items: Item[];
     /** Explicit max value (defaults to max of items) */
     maxValue?: number;
+    /** Optional snippet to render an icon before each bar label. Receives the item. */
+    icon?: Snippet<[Item]>;
   }
 
-  let { items, maxValue }: Props = $props();
+  let { items, maxValue, icon }: Props = $props();
 
   let tip = $state({ text: "", x: 0, y: 0, visible: false });
 
@@ -49,7 +54,7 @@
   <Tooltip {...tip} />
   {#each items as item, i}
     <div class="bar-row" style:animation-delay="{i * 50}ms" onmouseenter={(e) => showTip(e, item)} onmouseleave={hideTip}>
-      <span class="bar-label">{item.label}</span>
+      <span class="bar-label">{#if icon}{@render icon(item)}{/if}{item.label}</span>
       <div class="bar-track">
         <div
           class="bar-fill"
@@ -96,6 +101,9 @@
     color: var(--color-text);
     min-width: 100px;
     flex-shrink: 0;
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-xs, 4px);
   }
 
   .bar-track {
