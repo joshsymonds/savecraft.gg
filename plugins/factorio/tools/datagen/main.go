@@ -415,9 +415,11 @@ type rawBelt struct {
 }
 
 type rawInserter struct {
-	Name           string  `json:"name"`
-	RotationSpeed  float64 `json:"rotation_speed"`
-	StackSizeBonus int     `json:"stack_size_bonus"`
+	Name           string     `json:"name"`
+	RotationSpeed  float64    `json:"rotation_speed"`
+	StackSizeBonus int        `json:"stack_size_bonus"`
+	PickupPosition [2]float64 `json:"pickup_position"`
+	InsertPosition [2]float64 `json:"insert_position"`
 }
 
 type rawBeacon struct {
@@ -458,8 +460,10 @@ func genLogistics(dump map[string]map[string]json.RawMessage) error {
 			return fmt.Errorf("parse inserter %s: %w", name, err)
 		}
 		inserterLines = append(inserterLines, fmt.Sprintf(
-			`	%q: {Name: %q, RotationSpeed: %s, StackSizeBonus: %d},`,
+			`	%q: {Name: %q, RotationSpeed: %s, StackSizeBonus: %d, PickupOffset: [2]float64{%s, %s}, InsertOffset: [2]float64{%s, %s}},`,
 			name, name, formatFloat(ins.RotationSpeed), ins.StackSizeBonus,
+			formatFloat(ins.PickupPosition[0]), formatFloat(ins.PickupPosition[1]),
+			formatFloat(ins.InsertPosition[0]), formatFloat(ins.InsertPosition[1]),
 		))
 	}
 

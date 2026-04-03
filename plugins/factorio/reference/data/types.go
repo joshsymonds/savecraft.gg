@@ -75,6 +75,8 @@ type Inserter struct {
 	Name           string
 	RotationSpeed  float64
 	StackSizeBonus int
+	PickupOffset   [2]float64 // relative pickup position [x, y] (pre-rotation, direction=0)
+	InsertOffset   [2]float64 // relative drop position [x, y] (pre-rotation, direction=0)
 }
 
 // Beacon holds beacon parameters.

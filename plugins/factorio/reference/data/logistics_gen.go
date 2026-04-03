@@ -10,12 +10,12 @@ var Belts = map[string]Belt{
 }
 
 var Inserters = map[string]Inserter{
-	"bulk-inserter":        {Name: "bulk-inserter", RotationSpeed: 0.04, StackSizeBonus: 0},
-	"burner-inserter":      {Name: "burner-inserter", RotationSpeed: 0.013000000000000001, StackSizeBonus: 0},
-	"fast-inserter":        {Name: "fast-inserter", RotationSpeed: 0.04, StackSizeBonus: 0},
-	"inserter":             {Name: "inserter", RotationSpeed: 0.014000000000000002, StackSizeBonus: 0},
-	"long-handed-inserter": {Name: "long-handed-inserter", RotationSpeed: 0.02, StackSizeBonus: 0},
-	"stack-inserter":       {Name: "stack-inserter", RotationSpeed: 0.04, StackSizeBonus: 4},
+	"bulk-inserter":        {Name: "bulk-inserter", RotationSpeed: 0.04, StackSizeBonus: 0, PickupOffset: [2]float64{0, -1}, InsertOffset: [2]float64{0, 1.2}},
+	"burner-inserter":      {Name: "burner-inserter", RotationSpeed: 0.013000000000000001, StackSizeBonus: 0, PickupOffset: [2]float64{0, -1}, InsertOffset: [2]float64{0, 1.2}},
+	"fast-inserter":        {Name: "fast-inserter", RotationSpeed: 0.04, StackSizeBonus: 0, PickupOffset: [2]float64{0, -1}, InsertOffset: [2]float64{0, 1.2}},
+	"inserter":             {Name: "inserter", RotationSpeed: 0.014000000000000002, StackSizeBonus: 0, PickupOffset: [2]float64{0, -1}, InsertOffset: [2]float64{0, 1.2}},
+	"long-handed-inserter": {Name: "long-handed-inserter", RotationSpeed: 0.02, StackSizeBonus: 0, PickupOffset: [2]float64{0, -2}, InsertOffset: [2]float64{0, 2.2}},
+	"stack-inserter":       {Name: "stack-inserter", RotationSpeed: 0.04, StackSizeBonus: 4, PickupOffset: [2]float64{0, -1}, InsertOffset: [2]float64{0, 1.2}},
 }
 
 var Beacons = map[string]Beacon{
