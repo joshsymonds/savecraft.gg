@@ -143,6 +143,39 @@ func TestProductionFlow_Severity(t *testing.T) {
 	}
 }
 
+// ─── Top Deficit Severity Boost ──────────────────────────────────────────────
+
+func TestProductionFlow_TopDeficitBoostsSeverity(t *testing.T) {
+	// electronic-circuit has a moderate deficit (30% of consumed).
+	// When flagged in top_deficits by the Lua mod, severity should boost to severe.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"electronic-circuit": {
+					"produced_per_min": 140.0,
+					"consumed_per_min": 200.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["electronic-circuit"],
+			"top_surpluses": []
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	ec := findDiagnosis(items, "electronic-circuit")
+	if ec == nil {
+		t.Fatal("expected electronic-circuit in item_diagnoses")
+	}
+
+	// Without top_deficits boost, 60/200 = 30% deficit → moderate
+	// With boost, should be severe
+	if ec["severity"] != "severe" {
+		t.Errorf("severity = %v, want severe (boosted from moderate by top_deficits)", ec["severity"])
+	}
+}
+
 // ─── Recipe Fan-Out ─────────────────────────────────────────────────────────
 
 func TestProductionFlow_RecipeFanOut(t *testing.T) {

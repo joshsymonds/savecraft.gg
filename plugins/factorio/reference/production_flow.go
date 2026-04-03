@@ -68,9 +68,15 @@ func handleProductionFlow(enc *json.Encoder, query map[string]any) {
 	// Build reverse recipe index: item → list of recipes that consume it
 	consumerIndex := buildConsumerIndex()
 
+	// Build set of Lua-flagged top deficits for severity boosting
+	topDeficitSet := make(map[string]bool, len(q.FlowData.TopDeficits))
+	for _, item := range q.FlowData.TopDeficits {
+		topDeficitSet[item] = true
+	}
+
 	// Analyze items
-	itemDiagnoses := analyzeFlowEntries(q.FlowData.Items, consumerIndex, q.FlowData, q.ExistingMachines)
-	fluidDiagnoses := analyzeFlowEntries(q.FlowData.Fluids, consumerIndex, q.FlowData, q.ExistingMachines)
+	itemDiagnoses := analyzeFlowEntries(q.FlowData.Items, consumerIndex, q.FlowData, q.ExistingMachines, topDeficitSet)
+	fluidDiagnoses := analyzeFlowEntries(q.FlowData.Fluids, consumerIndex, q.FlowData, q.ExistingMachines, topDeficitSet)
 
 	// Compute tech unlock recommendations for deficit items
 	techRecs := computeTechRecommendations(itemDiagnoses, fluidDiagnoses)
@@ -130,7 +136,7 @@ func buildConsumerIndex() map[string][]recipeConsumerEntry {
 
 // ─── Flow Analysis ──────────────────────────────────────────────────────────
 
-func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][]recipeConsumerEntry, flow *actualFlow, machines *existingMachines) []itemDiagnosis {
+func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][]recipeConsumerEntry, flow *actualFlow, machines *existingMachines, topDeficits map[string]bool) []itemDiagnosis {
 	diagnoses := make([]itemDiagnosis, 0, len(entries))
 
 	// Count total active items for cascade impact fraction
@@ -149,6 +155,12 @@ func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][
 	for name, stats := range entries {
 		netRate := roundTo(stats.ProducedPerMin-stats.ConsumedPerMin, 1)
 		severity := classifySeverity(stats.ProducedPerMin, stats.ConsumedPerMin, netRate)
+
+		// Boost severity if the Lua mod flagged this as a top deficit.
+		// The mod is closer to the data and may detect issues the rate snapshot misses.
+		if topDeficits[name] && severity == "moderate" {
+			severity = "severe"
+		}
 
 		diag := itemDiagnosis{
 			Item:     name,

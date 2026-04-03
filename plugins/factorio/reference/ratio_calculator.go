@@ -81,8 +81,10 @@ type existingSetup struct {
 }
 
 type actualFlow struct {
-	Items  map[string]flowStats `json:"items"`
-	Fluids map[string]flowStats `json:"fluids"`
+	Items        map[string]flowStats `json:"items"`
+	Fluids       map[string]flowStats `json:"fluids"`
+	TopDeficits  []string             `json:"top_deficits"`
+	TopSurpluses []string             `json:"top_surpluses"`
 }
 
 type flowStats struct {

@@ -70,7 +70,6 @@
       overproduction: OverproductionEntry[];
       icon_url?: string;
     };
-    spriteBaseUrl?: string;
   }
 
   let { data }: Props = $props();
