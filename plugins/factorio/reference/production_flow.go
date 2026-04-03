@@ -5,6 +5,7 @@ import (
 	"math"
 	"os"
 	"sort"
+	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
 )
@@ -71,13 +72,21 @@ func handleProductionFlow(enc *json.Encoder, query map[string]any) {
 	itemDiagnoses := analyzeFlowEntries(q.FlowData.Items, consumerIndex, q.FlowData, q.ExistingMachines)
 	fluidDiagnoses := analyzeFlowEntries(q.FlowData.Fluids, consumerIndex, q.FlowData, q.ExistingMachines)
 
+	// Compute tech unlock recommendations for deficit items
+	techRecs := computeTechRecommendations(itemDiagnoses, fluidDiagnoses)
+
+	// Compute overproduction analysis for surplus items
+	overproduction := computeOverproduction(itemDiagnoses, fluidDiagnoses, consumerIndex)
+
 	// Compute health score
 	healthScore := computeHealthScore(itemDiagnoses, fluidDiagnoses)
 
 	result := map[string]any{
-		"health_score":    healthScore,
-		"item_diagnoses":  itemDiagnoses,
-		"fluid_diagnoses": fluidDiagnoses,
+		"health_score":         healthScore,
+		"item_diagnoses":       itemDiagnoses,
+		"fluid_diagnoses":      fluidDiagnoses,
+		"tech_recommendations": techRecs,
+		"overproduction":       overproduction,
 	}
 
 	writeResult(enc, result)
@@ -403,6 +412,173 @@ func lookupConsumptionRate(item string, flow *actualFlow) float64 {
 		return stats.ConsumedPerMin
 	}
 	return 0
+}
+
+// ─── Tech Unlock Recommendations ────────────────────────────────────────────
+
+type techRecommendation struct {
+	Tech           string `json:"tech"`
+	RecipeUnlocked string `json:"recipe_unlocked"`
+	DeficitItem    string `json:"deficit_item"`
+	Impact         string `json:"impact"` // human-readable description
+}
+
+// computeTechRecommendations finds technologies that unlock recipes producing deficit items.
+// For each critical/severe deficit, checks if there are disabled recipes that produce the
+// deficit item, then finds which tech unlocks each such recipe.
+func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis) []techRecommendation {
+	// Build tech → unlocked recipes index
+	techByRecipe := make(map[string]string) // recipe name → tech name
+	for _, tech := range data.Technologies {
+		for _, recipeName := range tech.Effects {
+			techByRecipe[recipeName] = tech.Name
+		}
+	}
+
+	// Collect deficit items
+	deficitItems := make(map[string]bool)
+	for _, d := range itemDiag {
+		if d.Severity == "critical" || d.Severity == "severe" {
+			deficitItems[d.Item] = true
+		}
+	}
+	for _, d := range fluidDiag {
+		if d.Severity == "critical" || d.Severity == "severe" {
+			deficitItems[d.Item] = true
+		}
+	}
+
+	if len(deficitItems) == 0 {
+		return []techRecommendation{}
+	}
+
+	// For each disabled recipe, check if it produces a deficit item
+	var recs []techRecommendation
+	seen := make(map[string]bool) // avoid duplicate tech+item combos
+
+	for _, recipe := range data.Recipes {
+		if recipe.Enabled {
+			continue // already available, no tech needed
+		}
+
+		for _, prod := range recipe.Results {
+			if !deficitItems[prod.Name] {
+				continue
+			}
+
+			techName, ok := techByRecipe[recipe.Name]
+			if !ok {
+				continue
+			}
+
+			key := techName + ":" + prod.Name
+			if seen[key] {
+				continue
+			}
+			seen[key] = true
+
+			recs = append(recs, techRecommendation{
+				Tech:           techName,
+				RecipeUnlocked: recipe.Name,
+				DeficitItem:    prod.Name,
+				Impact:         "Unlocks " + formatItemName(recipe.Name) + " recipe, which produces " + formatItemName(prod.Name),
+			})
+		}
+	}
+
+	// Sort by deficit item for deterministic output
+	sort.Slice(recs, func(i, j int) bool {
+		if recs[i].DeficitItem != recs[j].DeficitItem {
+			return recs[i].DeficitItem < recs[j].DeficitItem
+		}
+		return recs[i].Tech < recs[j].Tech
+	})
+
+	return recs
+}
+
+// ─── Overproduction Analysis ────────────────────────────────────────────────
+
+type overproductionEntry struct {
+	Item             string            `json:"item"`
+	SurplusRate      float64           `json:"surplus_rate"`
+	SuggestedRecipes []suggestedRecipe `json:"suggested_recipes"`
+}
+
+type suggestedRecipe struct {
+	Recipe  string `json:"recipe"`
+	Product string `json:"product"`
+}
+
+// computeOverproduction finds surplus items and suggests recipes that consume them.
+func computeOverproduction(itemDiag, fluidDiag []itemDiagnosis, consumerIndex map[string][]recipeConsumerEntry) []overproductionEntry {
+	entries := make([]overproductionEntry, 0)
+
+	for _, diags := range [][]itemDiagnosis{itemDiag, fluidDiag} {
+		for _, d := range diags {
+			if d.Severity != "surplus" {
+				continue
+			}
+
+			consumers, ok := consumerIndex[d.Item]
+			if !ok || len(consumers) == 0 {
+				continue
+			}
+
+			// Collect unique recipes that consume this item
+			seen := make(map[string]bool)
+			var suggestions []suggestedRecipe
+			for _, c := range consumers {
+				if seen[c.RecipeName] || c.Product == "" {
+					continue
+				}
+				seen[c.RecipeName] = true
+				suggestions = append(suggestions, suggestedRecipe{
+					Recipe:  c.RecipeName,
+					Product: c.Product,
+				})
+			}
+
+			// Sort suggestions: enabled recipes first (more likely useful), then alphabetically
+			sort.Slice(suggestions, func(i, j int) bool {
+				ri := data.Recipes[suggestions[i].Recipe]
+				rj := data.Recipes[suggestions[j].Recipe]
+				if ri.Enabled != rj.Enabled {
+					return ri.Enabled // enabled first
+				}
+				return suggestions[i].Recipe < suggestions[j].Recipe
+			})
+
+			// Cap at 8 suggestions
+			if len(suggestions) > 8 {
+				suggestions = suggestions[:8]
+			}
+
+			entries = append(entries, overproductionEntry{
+				Item:             d.Item,
+				SurplusRate:      d.NetRate,
+				SuggestedRecipes: suggestions,
+			})
+		}
+	}
+
+	// Sort by surplus rate descending
+	sort.Slice(entries, func(i, j int) bool {
+		return entries[i].SurplusRate > entries[j].SurplusRate
+	})
+
+	return entries
+}
+
+// formatItemName converts kebab-case to Title Case for display.
+func formatItemName(name string) string {
+	parts := strings.Split(name, "-")
+	for i, p := range parts {
+		if len(p) > 0 {
+			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+		}
+	}
+	return strings.Join(parts, " ")
 }
 
 // ─── Health Score ────────────────────────────────────────────────────────────

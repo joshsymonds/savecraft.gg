@@ -431,6 +431,154 @@ func TestProductionFlow_CascadeDepth_NotPresent_ForHealthy(t *testing.T) {
 	}
 }
 
+// ─── Tech Unlock Impact ─────────────────────────────────────────────────────
+
+func TestProductionFlow_TechUnlock(t *testing.T) {
+	// petroleum-gas deficit. advanced-oil-processing is a disabled recipe
+	// that unlocks heavy-oil-cracking and light-oil-cracking.
+	// The tech "advanced-oil-processing" should appear as a recommendation.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {},
+			"fluids": {
+				"petroleum-gas": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 300.0
+				}
+			},
+			"top_deficits": ["petroleum-gas"],
+			"top_surpluses": []
+		}
+	}`)
+
+	recs := data["tech_recommendations"]
+	if recs == nil {
+		t.Fatal("expected tech_recommendations in output")
+	}
+	techRecs := recs.([]any)
+
+	// Should find at least one tech that unlocks a recipe producing petroleum-gas
+	// (advanced-oil-processing unlocks light-oil-cracking which produces petroleum-gas)
+	if len(techRecs) == 0 {
+		t.Error("expected at least one tech recommendation for petroleum-gas deficit")
+	}
+
+	// Verify structure
+	for _, r := range techRecs {
+		rec := r.(map[string]any)
+		if rec["tech"] == nil || rec["tech"] == "" {
+			t.Error("tech recommendation missing tech field")
+		}
+		if rec["recipe_unlocked"] == nil || rec["recipe_unlocked"] == "" {
+			t.Error("tech recommendation missing recipe_unlocked field")
+		}
+		if rec["deficit_item"] == nil || rec["deficit_item"] == "" {
+			t.Error("tech recommendation missing deficit_item field")
+		}
+	}
+}
+
+func TestProductionFlow_TechUnlock_NoRecsForHealthy(t *testing.T) {
+	// No deficits → no tech recommendations
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 450.0,
+					"consumed_per_min": 420.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": [],
+			"top_surpluses": []
+		}
+	}`)
+
+	recs := data["tech_recommendations"].([]any)
+	if len(recs) != 0 {
+		t.Errorf("expected 0 tech recommendations for healthy factory, got %d", len(recs))
+	}
+}
+
+// ─── Overproduction Analysis ────────────────────────────────────────────────
+
+func TestProductionFlow_Overproduction(t *testing.T) {
+	// stone has large surplus. Recipes that consume stone include
+	// stone-brick and stone-furnace.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"stone": {
+					"produced_per_min": 300.0,
+					"consumed_per_min": 50.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": [],
+			"top_surpluses": ["stone"]
+		}
+	}`)
+
+	over := data["overproduction"]
+	if over == nil {
+		t.Fatal("expected overproduction in output")
+	}
+	overItems := over.([]any)
+	if len(overItems) == 0 {
+		t.Fatal("expected at least one overproduction entry for surplus stone")
+	}
+
+	stoneOver := overItems[0].(map[string]any)
+	if stoneOver["item"] != "stone" {
+		t.Errorf("expected stone, got %v", stoneOver["item"])
+	}
+	if stoneOver["surplus_rate"].(float64) <= 0 {
+		t.Error("surplus_rate should be positive")
+	}
+
+	recipes := stoneOver["suggested_recipes"].([]any)
+	if len(recipes) == 0 {
+		t.Fatal("expected at least one suggested recipe for stone")
+	}
+
+	// stone-brick should be among suggestions
+	foundBrick := false
+	for _, r := range recipes {
+		recipe := r.(map[string]any)
+		if recipe["recipe"] == "stone-brick" {
+			foundBrick = true
+		}
+	}
+	if !foundBrick {
+		t.Error("expected stone-brick in suggested recipes for stone surplus")
+	}
+}
+
+func TestProductionFlow_Overproduction_Empty_WhenNoSurplus(t *testing.T) {
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 300.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["iron-plate"],
+			"top_surpluses": []
+		}
+	}`)
+
+	over := data["overproduction"].([]any)
+	if len(over) != 0 {
+		t.Errorf("expected 0 overproduction entries, got %d", len(over))
+	}
+}
+
 // ─── Schema Registration ────────────────────────────────────────────────────
 
 func TestProductionFlow_InSchema(t *testing.T) {
