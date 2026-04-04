@@ -20,14 +20,14 @@ type productionFlowQuery struct {
 // ─── Output Types ───────────────────────────────────────────────────────────
 
 type itemDiagnosis struct {
-	Item        string           `json:"item"`
-	Produced    float64          `json:"produced_per_min"`
-	Consumed    float64          `json:"consumed_per_min"`
-	NetRate     float64          `json:"net_rate"`
-	Severity    string           `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
-	Consumers   []recipeConsumer `json:"consumers,omitempty"`
-	MachineGap  *machineGapInfo  `json:"machine_gap,omitempty"`
-	Cascade     *cascadeInfo     `json:"cascade,omitempty"`
+	Item       string           `json:"item"`
+	Produced   float64          `json:"produced_per_min"`
+	Consumed   float64          `json:"consumed_per_min"`
+	NetRate    float64          `json:"net_rate"`
+	Severity   string           `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
+	Consumers  []recipeConsumer `json:"consumers,omitempty"`
+	MachineGap *machineGapInfo  `json:"machine_gap,omitempty"`
+	Cascade    *cascadeInfo     `json:"cascade,omitempty"`
 }
 
 type machineGapInfo struct {

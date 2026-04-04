@@ -8,4 +8,29 @@ export const VIEWS: Record<string, string> = {
 };
 
 /** Reference modules that have a compiled Svelte view component. */
-export const VISUAL_MODULES: ReadonlySet<string> = new Set(["blueprint_analyzer","card_search","card_stats","collection_diff","combat","crops","deckbuilding","draft_advisor","drop_calc","drugs","evolution_tracker","genes","match_stats","materials","oil_balancer","play_advisor","power_calculator","production_flow","raids","ratio_calculator","recipe_lookup","research","surgery","tech_tree_navigator"]);
+export const VISUAL_MODULES: ReadonlySet<string> = new Set([
+  "blueprint_analyzer",
+  "card_search",
+  "card_stats",
+  "collection_diff",
+  "combat",
+  "crops",
+  "deckbuilding",
+  "draft_advisor",
+  "drop_calc",
+  "drugs",
+  "evolution_tracker",
+  "genes",
+  "match_stats",
+  "materials",
+  "oil_balancer",
+  "play_advisor",
+  "power_calculator",
+  "production_flow",
+  "raids",
+  "ratio_calculator",
+  "recipe_lookup",
+  "research",
+  "surgery",
+  "tech_tree_navigator",
+]);
