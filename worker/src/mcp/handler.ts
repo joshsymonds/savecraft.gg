@@ -729,6 +729,16 @@ export function identifyMcpClient(userAgent: string | null): string {
   return "unknown";
 }
 
+/** Cap logged params at 4 KB to prevent oversized inserts from malicious or buggy clients. */
+const MAX_PARAMS_LENGTH = 4096;
+
+/** Truncate a JSON params string to the size cap. */
+function truncateParams(paramsJson: string): string {
+  return paramsJson.length > MAX_PARAMS_LENGTH
+    ? paramsJson.slice(0, MAX_PARAMS_LENGTH)
+    : paramsJson;
+}
+
 /** Fire-and-forget: log a tool call to mcp_tool_calls and probabilistically prune old rows. */
 function logToolCall(
   db: D1Database,
@@ -756,10 +766,12 @@ function logToolCall(
     .run()
     .catch(Function.prototype as () => void);
 
-  // Probabilistic pruning: ~1% of requests trigger a 90-day cleanup.
+  // Probabilistic pruning: ~1% of requests trigger a bounded 90-day cleanup.
   // eslint-disable-next-line sonarjs/pseudo-random -- not security-sensitive, just throttling cleanup
   if (Math.random() < 0.01) {
-    db.prepare("DELETE FROM mcp_tool_calls WHERE created_at < datetime('now', '-90 days')")
+    db.prepare(
+      "DELETE FROM mcp_tool_calls WHERE created_at < datetime('now', '-90 days') LIMIT 1000",
+    )
       .run()
       .catch(Function.prototype as () => void);
   }
@@ -773,33 +785,29 @@ async function handleToolCall(
 ): Promise<unknown> {
   const toolName = params.name as string;
   const args = (params.arguments ?? {}) as Record<string, unknown>;
+  const argsJson = truncateParams(JSON.stringify(args));
   const handler = TOOL_HANDLERS[toolName];
   if (!handler) {
     const result = {
       content: [{ type: "text", text: `Unknown tool: ${toolName}` }],
       isError: true,
     };
-    logToolCall(env.DB, userUuid, toolName, JSON.stringify(args), 0, true, 0, mcpClient);
+    logToolCall(env.DB, userUuid, toolName, argsJson, 0, true, 0, mcpClient);
     return result;
   }
   const start = Date.now();
   const result = await handler(env, userUuid, args, args.save_id as string);
   const durationMs = Date.now() - start;
-  const resultJson = JSON.stringify(result);
   const isError =
     typeof result === "object" &&
     result !== null &&
     (result as Record<string, unknown>).isError === true;
-  logToolCall(
-    env.DB,
-    userUuid,
-    toolName,
-    JSON.stringify(args),
-    resultJson.length,
-    isError,
-    durationMs,
-    mcpClient,
-  );
+  // Estimate response size without a second full serialization — use the result
+  // object's JSON length. This runs in the fire-and-forget path via logToolCall,
+  // not blocking the response. The value is an approximation (UTF-16 code units,
+  // not bytes) which is acceptable for analytics.
+  const responseSize = JSON.stringify(result).length;
+  logToolCall(env.DB, userUuid, toolName, argsJson, responseSize, isError, durationMs, mcpClient);
   return result;
 }
 

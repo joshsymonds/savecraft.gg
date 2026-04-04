@@ -53,7 +53,7 @@ new_with_mcp AS (
   SELECT DISTINCT fs.user_uuid
   FROM first_seen fs
   WHERE EXISTS (SELECT 1 FROM api_keys ak WHERE ak.user_uuid = fs.user_uuid)
-     OR EXISTS (SELECT 1 FROM mcp_activity ma WHERE ma.user_uuid = fs.user_uuid)
+     OR EXISTS (SELECT 1 FROM mcp_tool_calls ma WHERE ma.user_uuid = fs.user_uuid)
 )
 SELECT
   (SELECT COUNT(*) FROM first_seen) as new_signups,
@@ -124,7 +124,7 @@ FUNNEL=$(d1 "SELECT
   (SELECT COUNT(DISTINCT user_uuid) FROM (
     SELECT user_uuid FROM api_keys WHERE user_uuid != '${DEMO_UUID}'
     UNION
-    SELECT user_uuid FROM mcp_activity WHERE user_uuid != '${DEMO_UUID}'
+    SELECT DISTINCT user_uuid FROM mcp_tool_calls WHERE user_uuid != '${DEMO_UUID}'
   )) as with_mcp")
 
 F_SOURCE=$(echo "$FUNNEL" | jq -r '.[0].results[0].with_source // 0')
@@ -144,7 +144,7 @@ SELECT
   fs.first_at,
   (SELECT GROUP_CONCAT(DISTINCT s.game_id) FROM saves s WHERE s.user_uuid = fs.user_uuid) as games,
   CASE WHEN EXISTS (SELECT 1 FROM api_keys ak WHERE ak.user_uuid = fs.user_uuid)
-            OR EXISTS (SELECT 1 FROM mcp_activity ma WHERE ma.user_uuid = fs.user_uuid)
+            OR EXISTS (SELECT 1 FROM mcp_tool_calls ma WHERE ma.user_uuid = fs.user_uuid)
        THEN 1 ELSE 0 END as has_mcp,
   (SELECT hostname FROM sources src WHERE src.user_uuid = fs.user_uuid ORDER BY src.created_at DESC LIMIT 1) as hostname,
   (SELECT source_kind FROM sources src WHERE src.user_uuid = fs.user_uuid ORDER BY src.created_at DESC LIMIT 1) as source_kind

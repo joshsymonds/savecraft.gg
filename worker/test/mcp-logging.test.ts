@@ -75,8 +75,23 @@ describe("MCP Tool Call Logging", () => {
     expect(row.params).toBe('{"foo":"bar"}');
   });
 
-  it("logs params as JSON", async () => {
-    const resp = await SELF.fetch(mcpToolCall("list_games", { filter: "d2r" }));
+  it("derives mcp_client from User-Agent header", async () => {
+    const resp = await SELF.fetch(
+      mcpToolCall("list_games", {}, { userAgent: "ClaudeDesktop/1.2.3" }),
+    );
+    expect(resp.status).toBe(200);
+
+    const rows = await env.DB.prepare("SELECT mcp_client FROM mcp_tool_calls WHERE user_uuid = ?")
+      .bind(TEST_USER)
+      .all();
+
+    expect(rows.results).toHaveLength(1);
+    expect(rows.results[0]!.mcp_client).toBe("claude-desktop");
+  });
+
+  it("truncates oversized params", async () => {
+    const largeValue = "x".repeat(8000);
+    const resp = await SELF.fetch(mcpToolCall("list_games", { filter: largeValue }));
     expect(resp.status).toBe(200);
 
     const rows = await env.DB.prepare("SELECT params FROM mcp_tool_calls WHERE user_uuid = ?")
@@ -84,7 +99,8 @@ describe("MCP Tool Call Logging", () => {
       .all();
 
     expect(rows.results).toHaveLength(1);
-    expect(rows.results[0]!.params).toBe('{"filter":"d2r"}');
+    const params = rows.results[0]!.params as string;
+    expect(params.length).toBe(4096);
   });
 
   it("does not log for non-tool-call RPC methods", async () => {
