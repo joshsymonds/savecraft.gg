@@ -1852,7 +1852,7 @@ async function handleGetSave(env: Env, userUuid: string, saveId: string): Promis
 // -- MCP Status ------------------------------------------------------------
 
 async function handleMcpStatus(env: Env, userUuid: string): Promise<Response> {
-  const row = await env.DB.prepare("SELECT 1 FROM mcp_activity WHERE user_uuid = ?")
+  const row = await env.DB.prepare("SELECT 1 FROM mcp_tool_calls WHERE user_uuid = ? LIMIT 1")
     .bind(userUuid)
     .first();
   return Response.json({ connected: row !== null });

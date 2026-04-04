@@ -35,7 +35,7 @@ describe("MCP Status", () => {
     expect(body.connected).toBe(false);
   });
 
-  it("returns connected: true after initialize", async () => {
+  it("returns connected: false after initialize (no tool call)", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {
         protocolVersion: "2025-06-18",
@@ -49,11 +49,11 @@ describe("MCP Status", () => {
     });
     expect(resp.status).toBe(200);
     const body = await resp.json<{ connected: boolean }>();
-    expect(body.connected).toBe(true);
+    expect(body.connected).toBe(false);
   });
 
-  it("returns connected: true after tools/list (no initialize)", async () => {
-    await SELF.fetch(mcpRequest("tools/list", 1));
+  it("returns connected: true after tools/call", async () => {
+    await SELF.fetch(mcpRequest("tools/call", 1, { name: "list_games", arguments: {} }));
 
     const resp = await SELF.fetch("https://test-host/api/v1/mcp-status", {
       headers: { Authorization: `Bearer ${TEST_USER}` },

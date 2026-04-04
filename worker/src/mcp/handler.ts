@@ -717,18 +717,90 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
 };
 /* eslint-enable @typescript-eslint/naming-convention */
 
+/** Derive a short MCP client label from the User-Agent header. */
+export function identifyMcpClient(userAgent: string | null): string {
+  if (!userAgent) return "unknown";
+  const ua = userAgent.toLowerCase();
+  if (ua.includes("claudedesktop") || ua.includes("claude-desktop")) return "claude-desktop";
+  if (ua.includes("claude")) return "claude";
+  if (ua.includes("chatgpt") || ua.includes("openai")) return "chatgpt";
+  if (ua.includes("gemini") || ua.includes("google")) return "gemini";
+  if (ua.includes("cursor")) return "cursor";
+  return "unknown";
+}
+
+/** Fire-and-forget: log a tool call to mcp_tool_calls and probabilistically prune old rows. */
+function logToolCall(
+  db: D1Database,
+  userUuid: string,
+  toolName: string,
+  params: string | null,
+  responseSize: number,
+  isError: boolean,
+  durationMs: number,
+  mcpClient: string,
+): void {
+  db.prepare(
+    `INSERT INTO mcp_tool_calls (user_uuid, tool_name, params, response_size, is_error, duration_ms, mcp_client)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+  )
+    .bind(
+      userUuid,
+      toolName,
+      params,
+      responseSize,
+      isError ? 1 : 0,
+      Math.round(durationMs),
+      mcpClient,
+    )
+    .run()
+    .catch(Function.prototype as () => void);
+
+  // Probabilistic pruning: ~1% of requests trigger a 90-day cleanup.
+  // eslint-disable-next-line sonarjs/pseudo-random -- not security-sensitive, just throttling cleanup
+  if (Math.random() < 0.01) {
+    db.prepare("DELETE FROM mcp_tool_calls WHERE created_at < datetime('now', '-90 days')")
+      .run()
+      .catch(Function.prototype as () => void);
+  }
+}
+
 async function handleToolCall(
   params: Record<string, unknown>,
   env: Env,
   userUuid: string,
+  mcpClient: string,
 ): Promise<unknown> {
   const toolName = params.name as string;
   const args = (params.arguments ?? {}) as Record<string, unknown>;
   const handler = TOOL_HANDLERS[toolName];
   if (!handler) {
-    return { content: [{ type: "text", text: `Unknown tool: ${toolName}` }], isError: true };
+    const result = {
+      content: [{ type: "text", text: `Unknown tool: ${toolName}` }],
+      isError: true,
+    };
+    logToolCall(env.DB, userUuid, toolName, JSON.stringify(args), 0, true, 0, mcpClient);
+    return result;
   }
-  return handler(env, userUuid, args, args.save_id as string);
+  const start = Date.now();
+  const result = await handler(env, userUuid, args, args.save_id as string);
+  const durationMs = Date.now() - start;
+  const resultJson = JSON.stringify(result);
+  const isError =
+    typeof result === "object" &&
+    result !== null &&
+    (result as Record<string, unknown>).isError === true;
+  logToolCall(
+    env.DB,
+    userUuid,
+    toolName,
+    JSON.stringify(args),
+    resultJson.length,
+    isError,
+    durationMs,
+    mcpClient,
+  );
+  return result;
 }
 
 function handleGetInfo(
@@ -866,7 +938,12 @@ function parseRpc(request: Request): Promise<JsonRpcRequest> {
   return request.json<JsonRpcRequest>();
 }
 
-function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Response> {
+function routeRpc(
+  rpc: JsonRpcRequest,
+  env: Env,
+  userUuid: string,
+  mcpClient: string,
+): Promise<Response> {
   const id = rpc.id ?? 0;
 
   switch (rpc.method) {
@@ -926,7 +1003,7 @@ function routeRpc(rpc: JsonRpcRequest, env: Env, userUuid: string): Promise<Resp
       if (!rpc.params) {
         return Promise.resolve(jsonRpcError(id, -32_602, "Missing params for tools/call"));
       }
-      return handleToolCall(rpc.params, env, userUuid).then((result) =>
+      return handleToolCall(rpc.params, env, userUuid, mcpClient).then((result) =>
         jsonRpcResponse(id, result),
       );
     }
@@ -956,6 +1033,8 @@ export async function handleMcpRequest(
     return new Response("Method Not Allowed", { status: 405, headers: MCP_HEADERS });
   }
 
+  const mcpClient = identifyMcpClient(request.headers.get("user-agent"));
+
   let rpc: JsonRpcRequest;
   try {
     rpc = await parseRpc(request);
@@ -967,12 +1046,5 @@ export async function handleMcpRequest(
     return jsonRpcError(rpc.id ?? null, -32_600, "Invalid Request: expected jsonrpc 2.0");
   }
 
-  // Track MCP activity on every request — some clients (e.g. Claude.ai)
-  // skip the initialize handshake, so we can't rely on it alone.
-  env.DB.prepare("INSERT OR IGNORE INTO mcp_activity (user_uuid) VALUES (?)")
-    .bind(userUuid)
-    .run()
-    .catch(Function.prototype as () => void);
-
-  return routeRpc(rpc, env, userUuid);
+  return routeRpc(rpc, env, userUuid, mcpClient);
 }
