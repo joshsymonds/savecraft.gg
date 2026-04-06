@@ -739,45 +739,53 @@ function truncateParams(paramsJson: string): string {
     : paramsJson;
 }
 
-/** Fire-and-forget: log a tool call to mcp_tool_calls and probabilistically prune old rows. */
+/** Log a tool call to mcp_tool_calls via ctx.waitUntil so the write completes after the response. */
 function logToolCall(
+  ctx: ExecutionContext,
   db: D1Database,
   userUuid: string,
   toolName: string,
   params: string | null,
-  responseSize: number,
+  result: unknown,
   isError: boolean,
   durationMs: number,
   mcpClient: string,
 ): void {
-  db.prepare(
-    `INSERT INTO mcp_tool_calls (user_uuid, tool_name, params, response_size, is_error, duration_ms, mcp_client)
-     VALUES (?, ?, ?, ?, ?, ?, ?)`,
-  )
-    .bind(
-      userUuid,
-      toolName,
-      params,
-      responseSize,
-      isError ? 1 : 0,
-      Math.round(durationMs),
-      mcpClient,
-    )
-    .run()
-    .catch(Function.prototype as () => void);
+  ctx.waitUntil(
+    Promise.resolve().then(async () => {
+      // Compute response size inside waitUntil so serialization doesn't block the response.
+      const responseSize = JSON.stringify(result).length;
+      await db
+        .prepare(
+          `INSERT INTO mcp_tool_calls (user_uuid, tool_name, params, response_size, is_error, duration_ms, mcp_client)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        )
+        .bind(
+          userUuid,
+          toolName,
+          params,
+          responseSize,
+          isError ? 1 : 0,
+          Math.round(durationMs),
+          mcpClient,
+        )
+        .run();
 
-  // Probabilistic pruning: ~1% of requests trigger a bounded 90-day cleanup.
-  // eslint-disable-next-line sonarjs/pseudo-random -- not security-sensitive, just throttling cleanup
-  if (Math.random() < 0.01) {
-    db.prepare(
-      "DELETE FROM mcp_tool_calls WHERE created_at < datetime('now', '-90 days') LIMIT 1000",
-    )
-      .run()
-      .catch(Function.prototype as () => void);
-  }
+      // Probabilistic pruning: ~1% of requests trigger a bounded 90-day cleanup.
+      // eslint-disable-next-line sonarjs/pseudo-random -- not security-sensitive, just throttling cleanup
+      if (Math.random() < 0.01) {
+        await db
+          .prepare(
+            "DELETE FROM mcp_tool_calls WHERE created_at < datetime('now', '-90 days') LIMIT 1000",
+          )
+          .run();
+      }
+    }).catch(Function.prototype as () => void),
+  );
 }
 
 async function handleToolCall(
+  ctx: ExecutionContext,
   params: Record<string, unknown>,
   env: Env,
   userUuid: string,
@@ -792,7 +800,7 @@ async function handleToolCall(
       content: [{ type: "text", text: `Unknown tool: ${toolName}` }],
       isError: true,
     };
-    logToolCall(env.DB, userUuid, toolName, argsJson, 0, true, 0, mcpClient);
+    logToolCall(ctx, env.DB, userUuid, toolName, argsJson, result, true, 0, mcpClient);
     return result;
   }
   const start = Date.now();
@@ -802,12 +810,7 @@ async function handleToolCall(
     typeof result === "object" &&
     result !== null &&
     (result as Record<string, unknown>).isError === true;
-  // Estimate response size without a second full serialization — use the result
-  // object's JSON length. This runs in the fire-and-forget path via logToolCall,
-  // not blocking the response. The value is an approximation (UTF-16 code units,
-  // not bytes) which is acceptable for analytics.
-  const responseSize = JSON.stringify(result).length;
-  logToolCall(env.DB, userUuid, toolName, argsJson, responseSize, isError, durationMs, mcpClient);
+  logToolCall(ctx, env.DB, userUuid, toolName, argsJson, result, isError, durationMs, mcpClient);
   return result;
 }
 
@@ -951,6 +954,7 @@ function routeRpc(
   env: Env,
   userUuid: string,
   mcpClient: string,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   const id = rpc.id ?? 0;
 
@@ -1011,7 +1015,7 @@ function routeRpc(
       if (!rpc.params) {
         return Promise.resolve(jsonRpcError(id, -32_602, "Missing params for tools/call"));
       }
-      return handleToolCall(rpc.params, env, userUuid, mcpClient).then((result) =>
+      return handleToolCall(ctx, rpc.params, env, userUuid, mcpClient).then((result) =>
         jsonRpcResponse(id, result),
       );
     }
@@ -1032,6 +1036,7 @@ export async function handleMcpRequest(
   request: Request,
   env: Env,
   userUuid: string,
+  ctx: ExecutionContext,
 ): Promise<Response> {
   if (request.method === "DELETE") {
     return new Response(null, { status: 200, headers: MCP_HEADERS });
@@ -1054,5 +1059,5 @@ export async function handleMcpRequest(
     return jsonRpcError(rpc.id ?? null, -32_600, "Invalid Request: expected jsonrpc 2.0");
   }
 
-  return routeRpc(rpc, env, userUuid, mcpClient);
+  return routeRpc(rpc, env, userUuid, mcpClient, ctx);
 }

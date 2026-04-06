@@ -45,7 +45,7 @@ export function buildOAuthProvider(defaultHandler: ExportedHandler<Env>): OAuthP
         if (!userUuid) {
           return new Response("Unauthorized", { status: 401 });
         }
-        return handleMcpRequest(request, env, userUuid);
+        return handleMcpRequest(request, env, userUuid, ctx);
       },
     },
     defaultHandler,
