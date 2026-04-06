@@ -389,14 +389,18 @@ func buildBottleneckTrees(
 		}
 	}
 
-	// Sort bottlenecks by severity then absolute net_rate descending
+	// Sort bottlenecks by severity then absolute net_rate descending, with name tiebreaker for determinism
 	sort.Slice(trees, func(i, j int) bool {
 		si := severityOrder(trees[i].Severity)
 		sj := severityOrder(trees[j].Severity)
 		if si != sj {
 			return si < sj
 		}
-		return math.Abs(trees[i].NetRate) > math.Abs(trees[j].NetRate)
+		ai, aj := math.Abs(trees[i].NetRate), math.Abs(trees[j].NetRate)
+		if ai != aj {
+			return ai > aj
+		}
+		return trees[i].RootItem < trees[j].RootItem
 	})
 
 	// Sort independent same way
@@ -406,7 +410,11 @@ func buildBottleneckTrees(
 		if si != sj {
 			return si < sj
 		}
-		return math.Abs(indep[i].NetRate) > math.Abs(indep[j].NetRate)
+		ai, aj := math.Abs(indep[i].NetRate), math.Abs(indep[j].NetRate)
+		if ai != aj {
+			return ai > aj
+		}
+		return indep[i].Item < indep[j].Item
 	})
 
 	summary := flowSummary{

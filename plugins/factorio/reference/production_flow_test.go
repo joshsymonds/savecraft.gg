@@ -929,8 +929,7 @@ func TestProductionFlow_TechUnlock_FiltersCompletedResearch(t *testing.T) {
 			"top_surpluses": []
 		},
 		"completed_research": {
-			"completed": ["advanced-oil-processing", "oil-processing", "coal-liquefaction"],
-			"completed_count": 3
+			"completed": ["advanced-oil-processing", "oil-processing", "coal-liquefaction"]
 		}
 	}`)
 
@@ -977,8 +976,7 @@ func TestProductionFlow_TechUnlock_KeepsUnresearched(t *testing.T) {
 			"top_surpluses": []
 		},
 		"completed_research": {
-			"completed": [],
-			"completed_count": 0
+			"completed": []
 		}
 	}`)
 
@@ -1475,6 +1473,41 @@ func TestProductionFlow_Summary(t *testing.T) {
 	indCount := int(summary["independent_count"].(float64))
 	if bnCount+indCount < 1 {
 		t.Errorf("bottleneck_count(%d) + independent_count(%d) should be >= 1", bnCount, indCount)
+	}
+}
+
+func TestProductionFlow_EmptyFlowData(t *testing.T) {
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {},
+			"fluids": {},
+			"top_deficits": [],
+			"top_surpluses": []
+		}
+	}`)
+
+	summary := data["summary"].(map[string]any)
+	if int(summary["active_count"].(float64)) != 0 {
+		t.Errorf("active_count = %v, want 0", summary["active_count"])
+	}
+	if int(summary["bottleneck_count"].(float64)) != 0 {
+		t.Errorf("bottleneck_count = %v, want 0", summary["bottleneck_count"])
+	}
+	if int(summary["independent_count"].(float64)) != 0 {
+		t.Errorf("independent_count = %v, want 0", summary["independent_count"])
+	}
+	if int(summary["critical_count"].(float64)) != 0 {
+		t.Errorf("critical_count = %v, want 0", summary["critical_count"])
+	}
+
+	bottlenecks := data["bottlenecks"].([]any)
+	if len(bottlenecks) != 0 {
+		t.Errorf("expected empty bottlenecks, got %d", len(bottlenecks))
+	}
+	independent := data["independent"].([]any)
+	if len(independent) != 0 {
+		t.Errorf("expected empty independent, got %d", len(independent))
 	}
 }
 

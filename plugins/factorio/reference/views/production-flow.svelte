@@ -172,8 +172,9 @@
               </div>
 
               <!-- Detail KV grid -->
-              {#if buildDetailKV(bn).length > 0}
-                <KeyValue items={buildDetailKV(bn)} />
+              {@const kv = buildDetailKV(bn)}
+              {#if kv.length > 0}
+                <KeyValue items={kv} />
               {/if}
 
               <!-- Affected downstream as chips -->
