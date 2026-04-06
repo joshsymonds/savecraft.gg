@@ -752,35 +752,37 @@ function logToolCall(
   mcpClient: string,
 ): void {
   ctx.waitUntil(
-    Promise.resolve().then(async () => {
-      // Compute response size inside waitUntil so serialization doesn't block the response.
-      const responseSize = JSON.stringify(result).length;
-      await db
-        .prepare(
-          `INSERT INTO mcp_tool_calls (user_uuid, tool_name, params, response_size, is_error, duration_ms, mcp_client)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`,
-        )
-        .bind(
-          userUuid,
-          toolName,
-          params,
-          responseSize,
-          isError ? 1 : 0,
-          Math.round(durationMs),
-          mcpClient,
-        )
-        .run();
-
-      // Probabilistic pruning: ~1% of requests trigger a bounded 90-day cleanup.
-      // eslint-disable-next-line sonarjs/pseudo-random -- not security-sensitive, just throttling cleanup
-      if (Math.random() < 0.01) {
+    Promise.resolve()
+      .then(async () => {
+        // Compute response size inside waitUntil so serialization doesn't block the response.
+        const responseSize = JSON.stringify(result).length;
         await db
           .prepare(
-            "DELETE FROM mcp_tool_calls WHERE created_at < datetime('now', '-90 days') LIMIT 1000",
+            `INSERT INTO mcp_tool_calls (user_uuid, tool_name, params, response_size, is_error, duration_ms, mcp_client)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          )
+          .bind(
+            userUuid,
+            toolName,
+            params,
+            responseSize,
+            isError ? 1 : 0,
+            Math.round(durationMs),
+            mcpClient,
           )
           .run();
-      }
-    }).catch(Function.prototype as () => void),
+
+        // Probabilistic pruning: ~1% of requests trigger a bounded 90-day cleanup.
+        // eslint-disable-next-line sonarjs/pseudo-random -- not security-sensitive, just throttling cleanup
+        if (Math.random() < 0.01) {
+          await db
+            .prepare(
+              "DELETE FROM mcp_tool_calls WHERE created_at < datetime('now', '-90 days') LIMIT 1000",
+            )
+            .run();
+        }
+      })
+      .catch(Function.prototype as () => void),
   );
 }
 
