@@ -648,21 +648,34 @@ func computeRecipeFanOut(item string, consumerIndex map[string][]recipeConsumerE
 
 	for _, entry := range entries {
 		// Only include recipes with machines actually running in the factory.
-		if _, running := machines.ByRecipe[entry.RecipeName]; !running {
+		setup, running := machines.ByRecipe[entry.RecipeName]
+		if !running {
 			continue
 		}
 
-		// Estimate how much of this item the recipe consumes based on
-		// the actual production rate of its output product.
-		productRate := lookupProductionRate(entry.Product, flow)
-		if productRate <= 0 {
-			continue
-		}
-
-		// Consumption rate = (ingredient amount / result amount) * product production rate
+		// Estimate how much of this item the recipe consumes.
+		// Primary method: derive from the product's actual production rate.
+		// Fallback: if product has zero production (items consumed immediately,
+		// e.g. concrete/landfill placed as terrain), estimate from machine throughput.
 		var consumptionRate float64
-		if entry.ResultAmt > 0 {
+		productRate := lookupProductionRate(entry.Product, flow)
+		if productRate > 0 && entry.ResultAmt > 0 {
 			consumptionRate = (entry.Amount / entry.ResultAmt) * productRate
+		} else if setup.Count > 0 {
+			// Fallback: machine_count × per-machine consumption rate
+			machine, machineOK := data.Machines[setup.MachineType]
+			if machineOK {
+				speedBonus, _, _ := resolveModuleEffects(expandModules(setup.Modules))
+				craftingSpeed := machine.CraftingSpeed * (1 + speedBonus)
+				if craftingSpeed < 0.01 {
+					craftingSpeed = 0.01
+				}
+				craftTime := entry.EnergyReq
+				if craftTime <= 0 {
+					craftTime = 0.5
+				}
+				consumptionRate = float64(setup.Count) * (craftingSpeed / craftTime) * entry.Amount * 60
+			}
 		}
 		if consumptionRate <= 0 {
 			continue

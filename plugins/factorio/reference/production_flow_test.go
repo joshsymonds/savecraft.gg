@@ -382,6 +382,89 @@ func TestProductionFlow_RecipeFanOut(t *testing.T) {
 	}
 }
 
+func TestProductionFlow_RecipeFanOut_ZeroProductionFallback(t *testing.T) {
+	// stone is consumed by stone-brick (product has production) and concrete
+	// (product has 0 produced_per_min — placed as terrain). The fan-out should
+	// still account for concrete via machine-throughput fallback.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"stone": {
+					"produced_per_min": 200.0,
+					"consumed_per_min": 900.0
+				},
+				"stone-brick": {
+					"produced_per_min": 60.0,
+					"consumed_per_min": 50.0
+				},
+				"concrete": {
+					"produced_per_min": 0.0,
+					"consumed_per_min": 30.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["stone"],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"stone-brick": {
+					"machine_type": "steel-furnace",
+					"count": 14,
+					"modules": {}
+				},
+				"concrete": {
+					"machine_type": "assembling-machine-3",
+					"count": 3,
+					"modules": {}
+				}
+			},
+			"by_type": {"steel-furnace": 14, "assembling-machine-3": 3},
+			"beacon_count": 0
+		}
+	}`)
+
+	// Stone should appear as a bottleneck or independent
+	bn := findBottleneck(data, "stone")
+	if bn == nil {
+		bn = findIndependent(data, "stone")
+	}
+	if bn == nil {
+		t.Fatal("expected stone in bottlenecks or independent")
+	}
+
+	// If it's a bottleneck root, check consumers include both stone-brick AND concrete
+	if bnRoot := findBottleneck(data, "stone"); bnRoot != nil {
+		consumers, ok := bnRoot["consumers"].([]any)
+		if !ok || len(consumers) == 0 {
+			t.Fatal("expected consumers for stone")
+		}
+
+		foundBrick := false
+		foundConcrete := false
+		for _, c := range consumers {
+			consumer := c.(map[string]any)
+			if consumer["recipe"] == "stone-brick" {
+				foundBrick = true
+			}
+			if consumer["recipe"] == "concrete" {
+				foundConcrete = true
+				// Concrete has 0 production rate — rate must come from machine fallback
+				if consumer["rate"].(float64) <= 0 {
+					t.Error("concrete consumer rate should be positive (machine fallback)")
+				}
+			}
+		}
+		if !foundBrick {
+			t.Error("expected stone-brick in consumers of stone")
+		}
+		if !foundConcrete {
+			t.Error("expected concrete in consumers of stone (zero-production fallback)")
+		}
+	}
+}
+
 // ─── Machine Gap ────────────────────────────────────────────────────────────
 
 func TestProductionFlow_MachineGap(t *testing.T) {
