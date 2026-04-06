@@ -457,17 +457,17 @@ func TestProductionFlow_TechUnlock(t *testing.T) {
 		t.Error("expected at least one tech recommendation for petroleum-gas deficit")
 	}
 
-	// Verify structure
+	// Verify new structure
 	for _, r := range techRecs {
 		rec := r.(map[string]any)
 		if rec["tech"] == nil || rec["tech"] == "" {
 			t.Error("tech recommendation missing tech field")
 		}
-		if rec["recipe_unlocked"] == nil || rec["recipe_unlocked"] == "" {
-			t.Error("tech recommendation missing recipe_unlocked field")
+		if rec["recipes_unlocked"] == nil {
+			t.Error("tech recommendation missing recipes_unlocked field")
 		}
-		if rec["deficit_item"] == nil || rec["deficit_item"] == "" {
-			t.Error("tech recommendation missing deficit_item field")
+		if rec["deficit_items"] == nil {
+			t.Error("tech recommendation missing deficit_items field")
 		}
 	}
 }
@@ -1033,6 +1033,143 @@ func TestProductionFlow_RootCause_NoMachinesData(t *testing.T) {
 	rc := iron["root_cause"]
 	if rc == nil {
 		t.Fatal("expected root_cause even without machines data")
+	}
+}
+
+// ─── Surplus Connections ────────────────────────────────────────────────────
+
+func TestProductionFlow_SurplusConnections(t *testing.T) {
+	// iron-plate is surplus. iron-gear-wheel recipe consumes iron-plate and is running.
+	// iron-gear-wheel is in deficit. Should show connection.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 500.0,
+					"consumed_per_min": 200.0
+				},
+				"iron-gear-wheel": {
+					"produced_per_min": 50.0,
+					"consumed_per_min": 100.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["iron-gear-wheel"],
+			"top_surpluses": ["iron-plate"]
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"iron-gear-wheel": {
+					"machine_type": "assembling-machine-2",
+					"count": 5,
+					"modules": {}
+				}
+			},
+			"by_type": {"assembling-machine-2": 5},
+			"beacon_count": 0
+		}
+	}`)
+
+	sc := data["surplus_connections"]
+	if sc == nil {
+		t.Fatal("expected surplus_connections in output")
+	}
+	connections := sc.([]any)
+
+	found := false
+	for _, c := range connections {
+		conn := c.(map[string]any)
+		if conn["surplus"] == "iron-plate" && conn["deficit"] == "iron-gear-wheel" {
+			found = true
+			if conn["recipe"] != "iron-gear-wheel" {
+				t.Errorf("expected recipe iron-gear-wheel, got %v", conn["recipe"])
+			}
+		}
+	}
+	if !found {
+		t.Error("expected surplus connection iron-plate → iron-gear-wheel")
+	}
+}
+
+func TestProductionFlow_SurplusConnections_NoRunningRecipe(t *testing.T) {
+	// iron-plate surplus but no running recipes consume it → no connections
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 500.0,
+					"consumed_per_min": 200.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": [],
+			"top_surpluses": ["iron-plate"]
+		},
+		"existing_machines": {
+			"by_recipe": {},
+			"by_type": {},
+			"beacon_count": 0
+		}
+	}`)
+
+	sc := data["surplus_connections"].([]any)
+	if len(sc) != 0 {
+		t.Errorf("expected 0 surplus connections with no running recipes, got %d", len(sc))
+	}
+}
+
+// ─── Improved Tech Recommendations ─────────────────────────────────────────
+
+func TestProductionFlow_TechRecs_Improved(t *testing.T) {
+	// petroleum-gas deficit. advanced-oil-processing unlocks cracking recipes.
+	// Check that tech recs include recipes_unlocked, deficit_items, inputs_available.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {},
+			"fluids": {
+				"petroleum-gas": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 300.0
+				},
+				"heavy-oil": {
+					"produced_per_min": 50.0,
+					"consumed_per_min": 20.0
+				},
+				"water": {
+					"produced_per_min": 1000.0,
+					"consumed_per_min": 500.0
+				}
+			},
+			"top_deficits": ["petroleum-gas"],
+			"top_surpluses": []
+		},
+		"completed_research": {
+			"completed": [],
+			"completed_count": 0
+		}
+	}`)
+
+	recs := data["tech_recommendations"].([]any)
+	if len(recs) == 0 {
+		t.Fatal("expected at least one tech recommendation")
+	}
+
+	// Find a rec and verify structure
+	rec := recs[0].(map[string]any)
+	if rec["tech"] == nil || rec["tech"] == "" {
+		t.Error("tech recommendation missing tech field")
+	}
+	if rec["recipes_unlocked"] == nil {
+		t.Error("tech recommendation missing recipes_unlocked field")
+	}
+	if rec["deficit_items"] == nil {
+		t.Error("tech recommendation missing deficit_items field")
+	}
+	if _, ok := rec["inputs_available"]; !ok {
+		t.Error("tech recommendation missing inputs_available field")
 	}
 }
 

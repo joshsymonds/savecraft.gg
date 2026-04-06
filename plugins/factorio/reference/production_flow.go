@@ -5,7 +5,6 @@ import (
 	"math"
 	"os"
 	"sort"
-	"strings"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
 )
@@ -32,9 +31,9 @@ type itemDiagnosis struct {
 	RecyclerConsumed float64          `json:"recycler_consumed"`
 	NetRate          float64          `json:"net_rate"`
 	Severity         string           `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
-	Consumers []recipeConsumer `json:"consumers,omitempty"`
-	MachineGap *machineGapInfo `json:"machine_gap,omitempty"`
-	RootCause  *rootCauseInfo  `json:"root_cause,omitempty"`
+	Consumers        []recipeConsumer `json:"consumers,omitempty"`
+	MachineGap       *machineGapInfo  `json:"machine_gap,omitempty"`
+	RootCause        *rootCauseInfo   `json:"root_cause,omitempty"`
 }
 
 type rootCauseInfo struct {
@@ -96,12 +95,16 @@ func handleProductionFlow(enc *json.Encoder, query map[string]any) {
 	}
 
 	// Compute tech unlock recommendations for deficit items
-	techRecs := computeTechRecommendations(itemDiagnoses, fluidDiagnoses, completedTechs)
+	techRecs := computeTechRecommendations(itemDiagnoses, fluidDiagnoses, completedTechs, q.FlowData)
+
+	// Compute surplus-to-deficit connections
+	surplusConns := computeSurplusConnections(itemDiagnoses, fluidDiagnoses, consumerIndex, q.ExistingMachines)
 
 	result := map[string]any{
 		"item_diagnoses":       itemDiagnoses,
 		"fluid_diagnoses":      fluidDiagnoses,
 		"tech_recommendations": techRecs,
+		"surplus_connections":  surplusConns,
 	}
 
 	writeResult(enc, result)
@@ -536,20 +539,90 @@ func lookupNetRate(item string, flow *actualFlow) float64 {
 	return 0
 }
 
+// ─── Surplus Connections ───────────────────────────────────────────────────
+
+type surplusConnection struct {
+	Surplus     string  `json:"surplus"`
+	SurplusRate float64 `json:"surplus_rate"`
+	Deficit     string  `json:"deficit"`
+	Recipe      string  `json:"recipe"`
+}
+
+// computeSurplusConnections finds direct 1-hop links from surplus items to deficit items
+// through recipes that are actually running in the factory.
+func computeSurplusConnections(itemDiag, fluidDiag []itemDiagnosis, consumerIndex map[string][]recipeConsumerEntry, machines *existingMachines) []surplusConnection {
+	if machines == nil {
+		return []surplusConnection{}
+	}
+
+	// Build deficit set
+	deficitItems := make(map[string]bool)
+	for _, diags := range [][]itemDiagnosis{itemDiag, fluidDiag} {
+		for _, d := range diags {
+			if d.NetRate < -0.1 {
+				deficitItems[d.Item] = true
+			}
+		}
+	}
+
+	var connections []surplusConnection
+
+	for _, diags := range [][]itemDiagnosis{itemDiag, fluidDiag} {
+		for _, d := range diags {
+			if d.Severity != "surplus" {
+				continue
+			}
+
+			consumers, ok := consumerIndex[d.Item]
+			if !ok {
+				continue
+			}
+
+			for _, entry := range consumers {
+				// Only running recipes
+				if _, running := machines.ByRecipe[entry.RecipeName]; !running {
+					continue
+				}
+				// Only if product is in deficit
+				if !deficitItems[entry.Product] {
+					continue
+				}
+
+				connections = append(connections, surplusConnection{
+					Surplus:     d.Item,
+					SurplusRate: d.NetRate,
+					Deficit:     entry.Product,
+					Recipe:      entry.RecipeName,
+				})
+			}
+		}
+	}
+
+	// Sort by surplus rate descending for deterministic output
+	sort.Slice(connections, func(i, j int) bool {
+		return connections[i].SurplusRate > connections[j].SurplusRate
+	})
+
+	if connections == nil {
+		connections = []surplusConnection{}
+	}
+
+	return connections
+}
+
 // ─── Tech Unlock Recommendations ────────────────────────────────────────────
 
 type techRecommendation struct {
-	Tech           string `json:"tech"`
-	RecipeUnlocked string `json:"recipe_unlocked"`
-	DeficitItem    string `json:"deficit_item"`
-	Impact         string `json:"impact"` // human-readable description
+	Tech            string   `json:"tech"`
+	RecipesUnlocked []string `json:"recipes_unlocked"` // recipe names this tech unlocks that produce deficit items
+	DeficitItems    []string `json:"deficit_items"`    // which deficit items those recipes produce
+	InputsAvailable bool     `json:"inputs_available"` // are all ingredients of the unlocked recipes currently healthy/surplus?
 }
 
 // computeTechRecommendations finds technologies that unlock recipes producing deficit items.
-// For each critical/severe deficit, checks if there are disabled recipes that produce the
-// deficit item, then finds which tech unlocks each such recipe.
-// completedTechs filters out already-researched technologies.
-func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis, completedTechs map[string]bool) []techRecommendation {
+// Groups by tech, lists all relevant recipes and deficit items, and flags whether
+// the recipe inputs are available (healthy/surplus in flow data).
+func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis, completedTechs map[string]bool, flow *actualFlow) []techRecommendation {
 	// Build tech → unlocked recipes index
 	techByRecipe := make(map[string]string) // recipe name → tech name
 	for _, tech := range data.Technologies {
@@ -575,13 +648,17 @@ func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis, completedTe
 		return []techRecommendation{}
 	}
 
-	// For each disabled recipe, check if it produces a deficit item
-	var recs []techRecommendation
-	seen := make(map[string]bool) // avoid duplicate tech+item combos
+	// Group by tech: collect all relevant recipes and deficit items per tech
+	type techEntry struct {
+		recipes     []string
+		deficits    []string
+		allInputsOK bool
+	}
+	techMap := make(map[string]*techEntry)
 
 	for _, recipe := range data.Recipes {
 		if recipe.Enabled {
-			continue // already available, no tech needed
+			continue
 		}
 
 		for _, prod := range recipe.Results {
@@ -593,46 +670,59 @@ func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis, completedTe
 			if !ok {
 				continue
 			}
-
-			// Skip already-researched technologies
 			if completedTechs[techName] {
 				continue
 			}
 
-			key := techName + ":" + prod.Name
-			if seen[key] {
-				continue
+			entry, exists := techMap[techName]
+			if !exists {
+				entry = &techEntry{allInputsOK: true}
+				techMap[techName] = entry
 			}
-			seen[key] = true
 
-			recs = append(recs, techRecommendation{
-				Tech:           techName,
-				RecipeUnlocked: recipe.Name,
-				DeficitItem:    prod.Name,
-				Impact:         "Unlocks " + formatItemName(recipe.Name) + " recipe, which produces " + formatItemName(prod.Name),
-			})
+			// Deduplicate recipes and deficit items
+			if !containsString(entry.recipes, recipe.Name) {
+				entry.recipes = append(entry.recipes, recipe.Name)
+			}
+			if !containsString(entry.deficits, prod.Name) {
+				entry.deficits = append(entry.deficits, prod.Name)
+			}
+
+			// Check if all ingredients are available (healthy/surplus)
+			for _, ing := range recipe.Ingredients {
+				ingNet := lookupNetRate(ing.Name, flow)
+				if ingNet < -0.1 {
+					entry.allInputsOK = false
+				}
+			}
 		}
 	}
 
-	// Sort by deficit item for deterministic output
+	// Convert to sorted slice
+	var recs []techRecommendation
+	for techName, entry := range techMap {
+		sort.Strings(entry.recipes)
+		sort.Strings(entry.deficits)
+		recs = append(recs, techRecommendation{
+			Tech:            techName,
+			RecipesUnlocked: entry.recipes,
+			DeficitItems:    entry.deficits,
+			InputsAvailable: entry.allInputsOK,
+		})
+	}
+
 	sort.Slice(recs, func(i, j int) bool {
-		if recs[i].DeficitItem != recs[j].DeficitItem {
-			return recs[i].DeficitItem < recs[j].DeficitItem
-		}
 		return recs[i].Tech < recs[j].Tech
 	})
 
 	return recs
 }
 
-// formatItemName converts kebab-case to Title Case for display.
-func formatItemName(name string) string {
-	parts := strings.Split(name, "-")
-	for i, p := range parts {
-		if len(p) > 0 {
-			parts[i] = strings.ToUpper(p[:1]) + p[1:]
+func containsString(slice []string, s string) bool {
+	for _, v := range slice {
+		if v == s {
+			return true
 		}
 	}
-	return strings.Join(parts, " ")
+	return false
 }
-
