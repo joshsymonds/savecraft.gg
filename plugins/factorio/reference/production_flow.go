@@ -260,7 +260,7 @@ func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][
 
 		// Compute recipe fan-out for deficit items (total deficit, not just real)
 		if netRate < -0.1 {
-			diag.Consumers = computeRecipeFanOut(name, consumerIndex, flow)
+			diag.Consumers = computeRecipeFanOut(name, consumerIndex, flow, machines)
 		}
 
 		// Compute machine gap against real deficit only
@@ -309,7 +309,11 @@ func classifySeverity(produced, consumed, netRate float64) string {
 
 // ─── Recipe Fan-Out ─────────────────────────────────────────────────────────
 
-func computeRecipeFanOut(item string, consumerIndex map[string][]recipeConsumerEntry, flow *actualFlow) []recipeConsumer {
+func computeRecipeFanOut(item string, consumerIndex map[string][]recipeConsumerEntry, flow *actualFlow, machines *existingMachines) []recipeConsumer {
+	if machines == nil {
+		return nil
+	}
+
 	entries, ok := consumerIndex[item]
 	if !ok {
 		return nil
@@ -326,6 +330,11 @@ func computeRecipeFanOut(item string, consumerIndex map[string][]recipeConsumerE
 	totalEstimated := 0.0
 
 	for _, entry := range entries {
+		// Only include recipes with machines actually running in the factory.
+		if _, running := machines.ByRecipe[entry.RecipeName]; !running {
+			continue
+		}
+
 		// Estimate how much of this item the recipe consumes based on
 		// the actual production rate of its output product.
 		productRate := lookupProductionRate(entry.Product, flow)

@@ -179,9 +179,8 @@ func TestProductionFlow_TopDeficitBoostsSeverity(t *testing.T) {
 // ─── Recipe Fan-Out ─────────────────────────────────────────────────────────
 
 func TestProductionFlow_RecipeFanOut(t *testing.T) {
-	// copper-plate is consumed by electronic-circuit (3 per recipe via copper-cable)
-	// and copper-cable directly. The fan-out should identify which recipes consume it
-	// and estimate percentage attribution based on actual downstream production rates.
+	// copper-plate is consumed by copper-cable. The fan-out should identify
+	// which recipes consume it based on machines actually running.
 	data := runProductionFlow(t, `{
 		"module": "production_flow",
 		"flow_data": {
@@ -202,6 +201,17 @@ func TestProductionFlow_RecipeFanOut(t *testing.T) {
 			"fluids": {},
 			"top_deficits": ["copper-plate"],
 			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"copper-cable": {
+					"machine_type": "assembling-machine-3",
+					"count": 10,
+					"modules": {}
+				}
+			},
+			"by_type": {"assembling-machine-3": 10},
+			"beacon_count": 0
 		}
 	}`)
 
@@ -760,8 +770,8 @@ func TestProductionFlow_NoMachinesData_FallsBackToTotal(t *testing.T) {
 
 func TestProductionFlow_ConsumerFanOut_IsRecycling(t *testing.T) {
 	// Verify that consumer fan-out entries are tagged with is_recycling.
-	// electronic-circuit-recycling produces iron-plate, so iron-plate must be
-	// in the flow data for the fan-out to detect the recycling consumer.
+	// electronic-circuit-recycling produces iron-plate and is running on a recycler.
+	// advanced-circuit recipe also consumes electronic-circuit and is running.
 	data := runProductionFlow(t, `{
 		"module": "production_flow",
 		"flow_data": {
@@ -786,6 +796,22 @@ func TestProductionFlow_ConsumerFanOut_IsRecycling(t *testing.T) {
 			"fluids": {},
 			"top_deficits": ["electronic-circuit"],
 			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"electronic-circuit-recycling": {
+					"machine_type": "recycler",
+					"count": 1,
+					"modules": {}
+				},
+				"advanced-circuit": {
+					"machine_type": "assembling-machine-3",
+					"count": 5,
+					"modules": {}
+				}
+			},
+			"by_type": {"recycler": 1, "assembling-machine-3": 5},
+			"beacon_count": 0
 		}
 	}`)
 
