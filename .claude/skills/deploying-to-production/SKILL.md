@@ -50,11 +50,16 @@ Each tag push triggers its deploy workflow automatically via GitHub Actions.
 | Install | `install-v` | `deploy-install.yml` | Install Worker + curl script to R2 |
 | Plugin | `plugin-{game}-v` | `deploy-plugin.yml` | WASM parser + manifest + icon to R2 |
 
-## Critical: Native TypeScript Reference Modules
+## Critical: Reference Module Deploy Targets
 
-Native TypeScript reference modules (e.g. MTGA's `plugins/mtga/reference/*.ts`) are **bundled into the main worker** via import. They deploy with the **cloud** workflow, NOT the plugin workflow.
+Reference modules have **split deploy targets** depending on their type:
 
-The script already handles this: `plugins/*/reference/` is in cloud's path list and excluded from plugin path lists. But when explaining results to the user, make this distinction clear if reference module changes appear in the cloud diff.
+| Module type | Identified by | Cloud deploys | Plugin deploys |
+|-------------|---------------|---------------|----------------|
+| Native TS (e.g. MTGA) | `reference/register.ts` exists | Entire `reference/` dir (bundled into worker) | Nothing from `reference/` |
+| WASM Go (e.g. Factorio, RimWorld) | No `register.ts` | Only `reference/views/` (Svelte → views.gen.ts) | `reference/*.go`, `reference/data/` (compiled to .wasm) |
+
+The script handles this automatically. When both cloud and plugin show changes for the same game, **both need releases** — the view HTML and the WASM binary are separate artifacts.
 
 ## What the script does internally
 
@@ -62,4 +67,8 @@ The script already handles this: `plugins/*/reference/` is in cloud's path list 
 2. For each tag, runs `git diff --stat <tag>..HEAD -- <paths>` to check for net changes
 3. Only reports components where the net diff is non-empty (ignores touch-then-revert)
 4. Plugin families are discovered dynamically from existing `plugin-*-v*` tags
-5. Path mappings: daemon=`internal/ cmd/ go.mod go.sum`, cloud=`worker/ web/ site/ plugins/*/reference/`, install=`install/`, plugin-{game}=`plugins/{game}/` excluding `reference/` and `tools/`
+5. Path mappings:
+   - daemon: `internal/ cmd/ go.mod go.sum`
+   - cloud: `worker/ web/ site/` + native TS `reference/` dirs + WASM `reference/views/` dirs
+   - install: `install/`
+   - plugin-{game}: `plugins/{game}/` excluding `tools/`, excluding `reference/views/` (WASM) or `reference/` (native TS)
