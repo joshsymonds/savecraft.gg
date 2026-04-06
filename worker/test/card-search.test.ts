@@ -113,10 +113,14 @@ describe("card_search native module", () => {
     ]);
   }
 
+  // Strip AI + Vectorize so FTS5 tests don't hit the network
+  // (Vectorize calls are slow/flaky in Miniflare).
+  const ftsEnv = { ...env, AI: undefined, MTGA_CARDS_INDEX: undefined } as unknown as typeof env;
+
   it("searches by card name via FTS5", async () => {
     await seedCards();
 
-    const result = await cardSearchModule.execute({ name: "lightning" }, env);
+    const result = await cardSearchModule.execute({ name: "lightning" }, ftsEnv);
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
@@ -129,7 +133,7 @@ describe("card_search native module", () => {
   it("searches oracle text via FTS5", async () => {
     await seedCards();
 
-    const result = await cardSearchModule.execute({ text: "discard" }, env);
+    const result = await cardSearchModule.execute({ text: "discard" }, ftsEnv);
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
@@ -220,7 +224,7 @@ describe("card_search native module", () => {
   it("combines FTS5 search with structured filters", async () => {
     await seedCards();
 
-    const result = await cardSearchModule.execute({ name: "sheoldred", rarity: "mythic" }, env);
+    const result = await cardSearchModule.execute({ name: "sheoldred", rarity: "mythic" }, ftsEnv);
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
@@ -256,7 +260,7 @@ describe("card_search native module", () => {
   it("returns empty array for no matches", async () => {
     await seedCards();
 
-    const result = await cardSearchModule.execute({ name: "nonexistent" }, env);
+    const result = await cardSearchModule.execute({ name: "nonexistent" }, ftsEnv);
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
@@ -302,7 +306,7 @@ describe("card_search native module", () => {
   it("returns all card fields in result", async () => {
     await seedCards();
 
-    const result = await cardSearchModule.execute({ name: "sheoldred" }, env);
+    const result = await cardSearchModule.execute({ name: "sheoldred" }, ftsEnv);
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
