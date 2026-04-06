@@ -9,6 +9,7 @@ Savecraft parses video game save files and serves structured game state to AI as
 Read the doc relevant to your current task. Start with `overview.md` for orientation.
 
 - `docs/overview.md` — What Savecraft is, system architecture, data flow, repo structure
+- `docs/games.md` — Supported games: sections each connector produces, reference module descriptions
 - `docs/daemon.md` — Go daemon: orchestrator, watcher, plugin loading, WebSocket client (`internal/`, `cmd/`)
 - `docs/worker.md` — Cloudflare Worker: SourceHub + UserHub DOs, WebSocket protocol, D1 schemas (`worker/`)
 - `docs/mcp.md` — OAuth architecture, MCP tools, notes, search, AI interaction patterns (`worker/src/mcp/`)
