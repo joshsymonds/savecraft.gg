@@ -25,17 +25,17 @@ type completedResearch struct {
 // ─── Output Types ───────────────────────────────────────────────────────────
 
 type itemDiagnosis struct {
-	Item              string           `json:"item"`
-	Produced          float64          `json:"produced_per_min"`
-	Consumed          float64          `json:"consumed_per_min"`
-	RealConsumed      float64          `json:"real_consumed"`
-	RecyclerConsumed  float64          `json:"recycler_consumed"`
-	NetRate           float64          `json:"net_rate"`
-	Severity          string           `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
-	Consumers         []recipeConsumer `json:"consumers,omitempty"`
-	MachineGap        *machineGapInfo  `json:"machine_gap,omitempty"`
-	Cascade           *cascadeInfo     `json:"cascade,omitempty"`
-	RecyclerCascade   *cascadeInfo     `json:"recycler_cascade,omitempty"`
+	Item             string           `json:"item"`
+	Produced         float64          `json:"produced_per_min"`
+	Consumed         float64          `json:"consumed_per_min"`
+	RealConsumed     float64          `json:"real_consumed"`
+	RecyclerConsumed float64          `json:"recycler_consumed"`
+	NetRate          float64          `json:"net_rate"`
+	Severity         string           `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
+	Consumers        []recipeConsumer `json:"consumers,omitempty"`
+	MachineGap       *machineGapInfo  `json:"machine_gap,omitempty"`
+	Cascade          *cascadeInfo     `json:"cascade,omitempty"`
+	RecyclerCascade  *cascadeInfo     `json:"recycler_cascade,omitempty"`
 }
 
 type machineGapInfo struct {
@@ -119,12 +119,12 @@ func handleProductionFlow(enc *json.Encoder, query map[string]any) {
 
 // recipeConsumerEntry maps an ingredient to the recipe and product that consume it.
 type recipeConsumerEntry struct {
-	RecipeName    string
-	Product       string  // primary product of the recipe
-	Amount        float64 // amount of ingredient consumed per craft
-	ResultAmt     float64 // amount of product produced per craft
-	IsRecycling   bool    // true if recipe Category == "recycling"
-	EnergyReq     float64 // craft time in seconds (for estimating recycler consumption)
+	RecipeName  string
+	Product     string  // primary product of the recipe
+	Amount      float64 // amount of ingredient consumed per craft
+	ResultAmt   float64 // amount of product produced per craft
+	IsRecycling bool    // true if recipe Category == "recycling"
+	EnergyReq   float64 // craft time in seconds (for estimating recycler consumption)
 }
 
 // buildConsumerIndex builds a map of item/fluid name → recipes that consume it.
