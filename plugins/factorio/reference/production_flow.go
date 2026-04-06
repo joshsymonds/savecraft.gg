@@ -22,7 +22,7 @@ type completedResearch struct {
 	Completed []string `json:"completed"`
 }
 
-// ─── Output Types ───────────────────────────────────────────────────────────
+// ─── Internal Diagnosis Types ───────────────────────────────────────────────
 
 type itemDiagnosis struct {
 	Item             string           `json:"item"`
@@ -59,6 +59,56 @@ type recipeConsumer struct {
 	IsRecycling bool    `json:"is_recycling"` // true if this is a recycling recipe
 }
 
+// ─── Output Types (v4 bottleneck tree) ─────────────────────────────────────
+
+type bottleneckTree struct {
+	RootItem       string             `json:"root_item"`
+	BottleneckType string             `json:"bottleneck_type"`
+	Severity       string             `json:"severity"`
+	NetRate        float64            `json:"net_rate"`
+	Produced       float64            `json:"produced_per_min"`
+	Consumed       float64            `json:"consumed_per_min"`
+	Consumers      []recipeConsumer   `json:"consumers,omitempty"`
+	MachineGap     *machineGapInfo    `json:"machine_gap,omitempty"`
+	Affected       []affectedItem     `json:"affected"`
+	FixableFrom    []fixableFromEntry `json:"fixable_from"`
+	Tech           []inlineTech       `json:"tech"`
+}
+
+type affectedItem struct {
+	Item     string  `json:"item"`
+	NetRate  float64 `json:"net_rate"`
+	Severity string  `json:"severity"`
+}
+
+type fixableFromEntry struct {
+	Item        string  `json:"item"`
+	SurplusRate float64 `json:"surplus_rate"`
+}
+
+type inlineTech struct {
+	Tech            string   `json:"tech"`
+	RecipesUnlocked []string `json:"recipes_unlocked"`
+	InputsAvailable bool     `json:"inputs_available"`
+}
+
+type independentProblem struct {
+	Item           string          `json:"item"`
+	Severity       string          `json:"severity"`
+	NetRate        float64         `json:"net_rate"`
+	Produced       float64         `json:"produced_per_min"`
+	Consumed       float64         `json:"consumed_per_min"`
+	BottleneckType string          `json:"bottleneck_type"`
+	MachineGap     *machineGapInfo `json:"machine_gap,omitempty"`
+}
+
+type flowSummary struct {
+	BottleneckCount  int `json:"bottleneck_count"`
+	IndependentCount int `json:"independent_count"`
+	ActiveCount      int `json:"active_count"`
+	CriticalCount    int `json:"critical_count"`
+}
+
 // ─── Handler ────────────────────────────────────────────────────────────────
 
 func handleProductionFlow(enc *json.Encoder, query map[string]any) {
@@ -80,7 +130,7 @@ func handleProductionFlow(enc *json.Encoder, query map[string]any) {
 		topDeficitSet[item] = true
 	}
 
-	// Analyze items
+	// Analyze items and fluids
 	itemDiagnoses := analyzeFlowEntries(q.FlowData.Items, consumerIndex, q.FlowData, q.ExistingMachines, topDeficitSet)
 	fluidDiagnoses := analyzeFlowEntries(q.FlowData.Fluids, consumerIndex, q.FlowData, q.ExistingMachines, topDeficitSet)
 
@@ -95,17 +145,278 @@ func handleProductionFlow(enc *json.Encoder, query map[string]any) {
 	// Compute tech unlock recommendations for deficit items
 	techRecs := computeTechRecommendations(itemDiagnoses, fluidDiagnoses, completedTechs, q.FlowData)
 
-	// Compute surplus-to-deficit connections
+	// Compute surplus-to-deficit connections (internal helper, not in output)
 	surplusConns := computeSurplusConnections(itemDiagnoses, fluidDiagnoses, consumerIndex, q.ExistingMachines)
 
+	// Build bottleneck tree output
+	bottlenecks, independent, remainingTech, summary := buildBottleneckTrees(
+		itemDiagnoses, fluidDiagnoses, surplusConns, techRecs, q.FlowData,
+	)
+
 	result := map[string]any{
-		"item_diagnoses":       itemDiagnoses,
-		"fluid_diagnoses":      fluidDiagnoses,
-		"tech_recommendations": techRecs,
-		"surplus_connections":  surplusConns,
+		"summary":              summary,
+		"bottlenecks":          bottlenecks,
+		"independent":          independent,
+		"tech_recommendations": remainingTech,
 	}
 
 	writeResult(enc, result)
+}
+
+// severityOrder returns a sort rank for severity (lower = more severe).
+func severityOrder(s string) int {
+	switch s {
+	case "critical":
+		return 0
+	case "severe":
+		return 1
+	case "moderate":
+		return 2
+	case "healthy":
+		return 3
+	case "surplus":
+		return 4
+	default:
+		return 5
+	}
+}
+
+// buildBottleneckTrees groups diagnoses by root cause into bottleneck trees and
+// independent problems. It folds surplus connections and tech recommendations
+// into the trees and returns leftover tech recs that didn't match any tree.
+func buildBottleneckTrees(
+	itemDiag, fluidDiag []itemDiagnosis,
+	surplusConns []surplusConnection,
+	techRecs []techRecommendation,
+	flow *actualFlow,
+) ([]bottleneckTree, []independentProblem, []techRecommendation, flowSummary) {
+	// Combine all diagnoses
+	allDiag := make([]itemDiagnosis, 0, len(itemDiag)+len(fluidDiag))
+	allDiag = append(allDiag, itemDiag...)
+	allDiag = append(allDiag, fluidDiag...)
+
+	// Build diagnosis lookup by item name
+	diagByItem := make(map[string]*itemDiagnosis, len(allDiag))
+	for i := range allDiag {
+		diagByItem[allDiag[i].Item] = &allDiag[i]
+	}
+
+	// Group deficit items by root_cause.root_item
+	// rootGroups maps root_item_name → list of diagnosis pointers whose root_cause.root_item == that name
+	rootGroups := make(map[string][]*itemDiagnosis)
+	for i := range allDiag {
+		d := &allDiag[i]
+		if d.RootCause == nil {
+			continue // healthy/surplus — excluded
+		}
+		rootGroups[d.RootCause.RootItem] = append(rootGroups[d.RootCause.RootItem], d)
+	}
+
+	// Compute summary counts
+	activeCount := len(allDiag)
+	criticalCount := 0
+	for i := range allDiag {
+		if allDiag[i].Severity == "critical" {
+			criticalCount++
+		}
+	}
+
+	// Build bottleneck trees and independent problems
+	trees := make([]bottleneckTree, 0)
+	indep := make([]independentProblem, 0)
+	processedRoots := make(map[string]bool)
+
+	for rootItem, group := range rootGroups {
+		if processedRoots[rootItem] {
+			continue
+		}
+		processedRoots[rootItem] = true
+
+		// Find the root item's own diagnosis
+		rootDiag := diagByItem[rootItem]
+
+		if len(group) == 1 && group[0].Item == rootItem {
+			// Only itself → independent problem
+			d := group[0]
+			indep = append(indep, independentProblem{
+				Item:           d.Item,
+				Severity:       d.Severity,
+				NetRate:        d.NetRate,
+				Produced:       d.Produced,
+				Consumed:       d.Consumed,
+				BottleneckType: d.RootCause.BottleneckType,
+				MachineGap:     d.MachineGap,
+			})
+			continue
+		}
+
+		// Multiple members or root != self for some members → bottleneck tree
+		var tree bottleneckTree
+		if rootDiag != nil {
+			tree = bottleneckTree{
+				RootItem:       rootItem,
+				BottleneckType: rootDiag.RootCause.BottleneckType,
+				Severity:       rootDiag.Severity,
+				NetRate:        rootDiag.NetRate,
+				Produced:       rootDiag.Produced,
+				Consumed:       rootDiag.Consumed,
+				Consumers:      rootDiag.Consumers,
+				MachineGap:     rootDiag.MachineGap,
+				Affected:       make([]affectedItem, 0),
+				FixableFrom:    make([]fixableFromEntry, 0),
+				Tech:           make([]inlineTech, 0),
+			}
+		} else {
+			// Root item doesn't exist as a diagnosis — create synthetic entry from flow data
+			var produced, consumed, netRate float64
+			var severity string
+			if stats, ok := flow.Items[rootItem]; ok {
+				produced = stats.ProducedPerMin
+				consumed = stats.ConsumedPerMin
+				netRate = roundTo(produced-consumed, 1)
+			} else if stats, ok := flow.Fluids[rootItem]; ok {
+				produced = stats.ProducedPerMin
+				consumed = stats.ConsumedPerMin
+				netRate = roundTo(produced-consumed, 1)
+			}
+			severity = classifySeverity(produced, consumed, netRate)
+
+			// Get bottleneck type from any group member's root cause
+			bnType := "throughput"
+			for _, d := range group {
+				if d.RootCause != nil {
+					bnType = d.RootCause.BottleneckType
+					break
+				}
+			}
+
+			tree = bottleneckTree{
+				RootItem:       rootItem,
+				BottleneckType: bnType,
+				Severity:       severity,
+				NetRate:        netRate,
+				Produced:       produced,
+				Consumed:       consumed,
+				Affected:       make([]affectedItem, 0),
+				FixableFrom:    make([]fixableFromEntry, 0),
+				Tech:           make([]inlineTech, 0),
+			}
+		}
+
+		// Build affected list from non-root members
+		for _, d := range group {
+			if d.Item == rootItem {
+				continue
+			}
+			tree.Affected = append(tree.Affected, affectedItem{
+				Item:     d.Item,
+				NetRate:  d.NetRate,
+				Severity: d.Severity,
+			})
+		}
+
+		// Sort affected by severity then net_rate
+		sort.Slice(tree.Affected, func(i, j int) bool {
+			si := severityOrder(tree.Affected[i].Severity)
+			sj := severityOrder(tree.Affected[j].Severity)
+			if si != sj {
+				return si < sj
+			}
+			return tree.Affected[i].NetRate < tree.Affected[j].NetRate
+		})
+
+		trees = append(trees, tree)
+	}
+
+	// Fold surplus connections into bottleneck trees as fixable_from
+	// Build set of all items in each tree (root + affected) for matching
+	type treeIndex struct {
+		idx   int
+		items map[string]bool
+	}
+	treeIndexes := make([]treeIndex, len(trees))
+	for i := range trees {
+		items := map[string]bool{trees[i].RootItem: true}
+		for _, a := range trees[i].Affected {
+			items[a.Item] = true
+		}
+		treeIndexes[i] = treeIndex{idx: i, items: items}
+	}
+
+	for _, sc := range surplusConns {
+		for _, ti := range treeIndexes {
+			if !ti.items[sc.Deficit] {
+				continue
+			}
+			// Deduplicate by surplus item name
+			alreadyExists := false
+			for _, f := range trees[ti.idx].FixableFrom {
+				if f.Item == sc.Surplus {
+					alreadyExists = true
+					break
+				}
+			}
+			if !alreadyExists {
+				trees[ti.idx].FixableFrom = append(trees[ti.idx].FixableFrom, fixableFromEntry{
+					Item:        sc.Surplus,
+					SurplusRate: sc.SurplusRate,
+				})
+			}
+		}
+	}
+
+	// Fold tech recommendations into bottleneck trees
+	techUsed := make(map[int]bool) // index into techRecs that were folded
+	for i, rec := range techRecs {
+		for j := range trees {
+			if !slices.Contains(rec.DeficitItems, trees[j].RootItem) {
+				continue
+			}
+			trees[j].Tech = append(trees[j].Tech, inlineTech{
+				Tech:            rec.Tech,
+				RecipesUnlocked: rec.RecipesUnlocked,
+				InputsAvailable: rec.InputsAvailable,
+			})
+			techUsed[i] = true
+		}
+	}
+
+	// Remaining tech recs that weren't folded into any tree
+	remainingTech := make([]techRecommendation, 0)
+	for i, rec := range techRecs {
+		if !techUsed[i] {
+			remainingTech = append(remainingTech, rec)
+		}
+	}
+
+	// Sort bottlenecks by severity then absolute net_rate descending
+	sort.Slice(trees, func(i, j int) bool {
+		si := severityOrder(trees[i].Severity)
+		sj := severityOrder(trees[j].Severity)
+		if si != sj {
+			return si < sj
+		}
+		return math.Abs(trees[i].NetRate) > math.Abs(trees[j].NetRate)
+	})
+
+	// Sort independent same way
+	sort.Slice(indep, func(i, j int) bool {
+		si := severityOrder(indep[i].Severity)
+		sj := severityOrder(indep[j].Severity)
+		if si != sj {
+			return si < sj
+		}
+		return math.Abs(indep[i].NetRate) > math.Abs(indep[j].NetRate)
+	})
+
+	summary := flowSummary{
+		BottleneckCount:  len(trees),
+		IndependentCount: len(indep),
+		ActiveCount:      activeCount,
+		CriticalCount:    criticalCount,
+	}
+
+	return trees, indep, remainingTech, summary
 }
 
 // ─── Consumer Index ─────────────────────────────────────────────────────────
