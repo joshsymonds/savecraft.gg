@@ -1,18 +1,15 @@
 <!--
   @component
-  Factorio factory health diagnosis view.
-  Shows factory health score, critical alerts, item/fluid deficit and surplus
-  analysis with machine gaps, cascade risks, tech recommendations,
-  and overproduction suggestions.
+  Factorio factory diagnosis view.
+  Shows deficits with root cause chains, bottleneck classification,
+  machine gaps, surplus connections, and tech recommendations.
 
   @attribution wube
 -->
 <script lang="ts">
-  import ProgressRing from "../../../../views/src/components/charts/ProgressRing.svelte";
   import BarChart from "../../../../views/src/components/charts/BarChart.svelte";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import Stat from "../../../../views/src/components/data/Stat.svelte";
-  import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import FactorioIcon from "../../../../views/src/components/factorio/FactorioIcon.svelte";
@@ -26,6 +23,7 @@
     item: string;
     rate: number;
     percent: number;
+    is_recycling: boolean;
   }
 
   interface MachineGap {
@@ -36,45 +34,47 @@
     recipe: string;
   }
 
-  interface Cascade {
-    downstream_count: number;
-    impact_fraction: number;
+  interface RootCause {
+    chain: string[];
+    root_item: string;
+    bottleneck_type: "not_built" | "input_starvation" | "throughput";
   }
 
   interface ItemDiagnosis {
     item: string;
     produced_per_min: number;
     consumed_per_min: number;
+    real_consumed: number;
+    recycler_consumed: number;
     net_rate: number;
     severity: "critical" | "severe" | "moderate" | "healthy" | "surplus";
     consumers?: Consumer[];
     machine_gap?: MachineGap;
-    cascade?: Cascade;
+    root_cause?: RootCause;
+  }
+
+  interface SurplusConnection {
+    surplus: string;
+    surplus_rate: number;
+    deficit: string;
+    recipe: string;
   }
 
   interface TechRecommendation {
     tech: string;
-    recipe_unlocked: string;
-    deficit_item: string;
-    impact: string;
-  }
-
-  interface OverproductionEntry {
-    item: string;
-    surplus_rate: number;
-    suggested_recipes: Array<{ recipe: string; product: string }>;
+    recipes_unlocked: string[];
+    deficit_items: string[];
+    inputs_available: boolean;
   }
 
   interface Props {
     data: {
-      health_score: number;
       item_diagnoses: ItemDiagnosis[];
       fluid_diagnoses: ItemDiagnosis[];
       tech_recommendations: TechRecommendation[];
-      overproduction: OverproductionEntry[];
+      surplus_connections: SurplusConnection[];
       icon_url?: string;
     };
-    /** Base URL for sprite sheets (e.g., R2 URL or Storybook static path) */
     spriteBaseUrl?: string;
   }
 
@@ -99,20 +99,17 @@
     return itemSpriteConfig;
   }
 
-  // Health score variant
-  let healthVariant = $derived<"positive" | "info" | "negative">(
-    data.health_score >= 80 ? "positive" : data.health_score >= 50 ? "info" : "negative",
+  // Deficit items sorted by severity then magnitude
+  let allDeficits = $derived(
+    [...data.item_diagnoses, ...data.fluid_diagnoses]
+      .filter((d) => d.net_rate < -0.1)
+      .sort((a, b) => a.net_rate - b.net_rate),
   );
 
-  // Critical alerts: items with critical or severe severity
-  let criticalItems = $derived(
-    data.item_diagnoses.filter((d) => d.severity === "critical" || d.severity === "severe"),
-  );
-  let criticalFluids = $derived(
-    data.fluid_diagnoses.filter((d) => d.severity === "critical" || d.severity === "severe"),
-  );
+  let criticalDeficits = $derived(allDeficits.filter((d) => d.severity === "critical" || d.severity === "severe"));
+  let moderateDeficits = $derived(allDeficits.filter((d) => d.severity === "moderate"));
 
-  // Bar chart data: deficits (negative net_rate) sorted by magnitude
+  // Bar chart data
   function deficitBars(diagnoses: ItemDiagnosis[]) {
     return diagnoses
       .filter((d) => d.net_rate < -0.1)
@@ -121,7 +118,7 @@
       .map((d) => ({
         label: formatName(d.item),
         value: Math.abs(d.net_rate),
-        variant: d.severity === "critical" ? "negative" as const : "warning" as const,
+        variant: (d.severity === "critical" ? "negative" : "warning") as "negative" | "warning",
         key: d.item,
       }));
   }
@@ -145,12 +142,8 @@
   let fluidSurpluses = $derived(surplusBars(data.fluid_diagnoses));
 
   // Summary stats
-  let totalItems = $derived(data.item_diagnoses.length);
-  let totalFluids = $derived(data.fluid_diagnoses.length);
-  let deficitCount = $derived(
-    data.item_diagnoses.filter((d) => d.net_rate < -0.1).length +
-      data.fluid_diagnoses.filter((d) => d.net_rate < -0.1).length,
-  );
+  let deficitCount = $derived(allDeficits.length);
+  let activeItems = $derived(data.item_diagnoses.length + data.fluid_diagnoses.length);
 
   function formatName(name: string): string {
     return name
@@ -174,76 +167,85 @@
     }
   }
 
-  function severityLabel(d: ItemDiagnosis): string {
-    if (d.severity === "critical") return "Zero Production";
-    if (d.severity === "severe") return `${Math.round((Math.abs(d.net_rate) / d.consumed_per_min) * 100)}% Deficit`;
-    return d.severity;
+  function bottleneckLabel(type: string): string {
+    switch (type) {
+      case "not_built":
+        return "Not Built";
+      case "input_starvation":
+        return "Input Starved";
+      case "throughput":
+        return "Need More Machines";
+      default:
+        return type;
+    }
+  }
+
+  function bottleneckVariant(type: string): "negative" | "warning" | "info" {
+    switch (type) {
+      case "not_built":
+        return "negative";
+      case "input_starvation":
+        return "warning";
+      default:
+        return "info";
+    }
   }
 </script>
 
 <Panel watermark={data.icon_url}>
   <div class="flow-layout">
-    <!-- Health Score Hero -->
-    <Section title="Factory Health" accent={data.health_score >= 80 ? "var(--color-positive)" : data.health_score >= 50 ? "var(--color-info)" : "var(--color-negative)"}>
-      <div class="hero-row">
-        <ProgressRing
-          value={data.health_score}
-          label={`${data.health_score}`}
-          variant={healthVariant}
-          size={100}
-        />
-        <div class="hero-stats">
-          <Stat value={data.health_score} label="Health Score" variant={healthVariant} />
-          <div class="summary-line">
-            <Badge label="{totalItems} items" variant="muted" />
-            <Badge label="{totalFluids} fluids" variant="muted" />
-            {#if deficitCount > 0}
-              <Badge label="{deficitCount} deficits" variant="negative" />
-            {/if}
-          </div>
-        </div>
+    <!-- Summary -->
+    <Section title="Factory Diagnosis" accent={criticalDeficits.length > 0 ? "var(--color-negative)" : deficitCount > 0 ? "var(--color-warning)" : "var(--color-positive)"}>
+      <div class="summary-row">
+        <Stat value={activeItems} label="Active Items" variant="muted" />
+        <Stat value={deficitCount} label="Deficits" variant={deficitCount > 0 ? "negative" : "positive"} />
+        <Stat value={criticalDeficits.length} label="Critical" variant={criticalDeficits.length > 0 ? "negative" : "muted"} />
       </div>
     </Section>
 
-    <!-- Critical Alerts -->
-    {#if criticalItems.length > 0 || criticalFluids.length > 0}
-      <Section title="Critical Alerts" count={criticalItems.length + criticalFluids.length} accent="var(--color-negative)">
+    <!-- Critical & Severe Deficits with Root Causes -->
+    {#if criticalDeficits.length > 0}
+      <Section title="Bottlenecks" count={criticalDeficits.length} accent="var(--color-negative)">
         <div class="alerts-grid">
-          {#each criticalItems as d}
+          {#each criticalDeficits as d}
             <Panel nested compact>
               <div class="alert-item">
                 <FactorioIcon name={d.item} size={24} spriteConfig={getSpriteConfig(d.item)} />
                 <div class="alert-detail">
                   <span class="alert-name">{formatName(d.item)}</span>
-                  <Badge label={severityLabel(d)} variant={severityVariant(d.severity)} />
+                  <div class="alert-badges">
+                    <Badge label={d.severity === "critical" ? "Critical" : "Severe"} variant={severityVariant(d.severity)} />
+                    {#if d.root_cause}
+                      <Badge label={bottleneckLabel(d.root_cause.bottleneck_type)} variant={bottleneckVariant(d.root_cause.bottleneck_type)} />
+                    {/if}
+                  </div>
                 </div>
                 <span class="alert-rate">{d.net_rate}/min</span>
               </div>
+              {#if d.root_cause && d.root_cause.chain.length > 1}
+                <div class="root-chain">
+                  {#each d.root_cause.chain as chainItem, i}
+                    {#if i > 0}<span class="chain-arrow">←</span>{/if}
+                    <span class="chain-item" class:chain-root={i === d.root_cause.chain.length - 1}>
+                      <FactorioIcon name={chainItem} size={14} spriteConfig={getSpriteConfig(chainItem)} />
+                      {formatName(chainItem)}
+                    </span>
+                  {/each}
+                </div>
+              {/if}
               {#if d.machine_gap}
                 <div class="alert-meta">
                   Need {d.machine_gap.additional_needed} more {formatName(d.machine_gap.machine_type)}
                 </div>
               {/if}
-              {#if d.cascade}
-                <div class="alert-meta">
-                  Affects {d.cascade.downstream_count} downstream items ({Math.round(d.cascade.impact_fraction * 100)}% of factory)
-                </div>
-              {/if}
-            </Panel>
-          {/each}
-          {#each criticalFluids as d}
-            <Panel nested compact>
-              <div class="alert-item">
-                <FactorioIcon name={d.item} size={24} spriteConfig={getSpriteConfig(d.item)} />
-                <div class="alert-detail">
-                  <span class="alert-name">{formatName(d.item)}</span>
-                  <Badge label="{severityLabel(d)} (Fluid)" variant={severityVariant(d.severity)} />
-                </div>
-                <span class="alert-rate">{d.net_rate}/min</span>
-              </div>
-              {#if d.cascade}
-                <div class="alert-meta">
-                  Affects {d.cascade.downstream_count} downstream products ({Math.round(d.cascade.impact_fraction * 100)}% of factory)
+              {#if d.consumers && d.consumers.filter((c) => !c.is_recycling).length > 0}
+                <div class="consumers">
+                  {#each d.consumers.filter((c) => !c.is_recycling).slice(0, 3) as c}
+                    <span class="consumer">
+                      <FactorioIcon name={c.item} size={14} spriteConfig={getSpriteConfig(c.item)} />
+                      {formatName(c.recipe)} ({c.percent}%)
+                    </span>
+                  {/each}
                 </div>
               {/if}
             </Panel>
@@ -252,9 +254,36 @@
       </Section>
     {/if}
 
-    <!-- Item Flow -->
+    <!-- Moderate Deficits -->
+    {#if moderateDeficits.length > 0}
+      <Section title="Minor Deficits" count={moderateDeficits.length} accent="var(--color-info)">
+        <div class="alerts-grid">
+          {#each moderateDeficits as d}
+            <Panel nested compact>
+              <div class="alert-item">
+                <FactorioIcon name={d.item} size={20} spriteConfig={getSpriteConfig(d.item)} />
+                <div class="alert-detail">
+                  <span class="alert-name">{formatName(d.item)}</span>
+                  {#if d.root_cause}
+                    <Badge label={bottleneckLabel(d.root_cause.bottleneck_type)} variant={bottleneckVariant(d.root_cause.bottleneck_type)} />
+                  {/if}
+                </div>
+                <span class="alert-rate-moderate">{d.net_rate}/min</span>
+              </div>
+              {#if d.machine_gap}
+                <div class="alert-meta">
+                  Need {d.machine_gap.additional_needed} more {formatName(d.machine_gap.machine_type)}
+                </div>
+              {/if}
+            </Panel>
+          {/each}
+        </div>
+      </Section>
+    {/if}
+
+    <!-- Item Flow Charts -->
     {#if itemDeficits.length > 0 || itemSurpluses.length > 0}
-      <Section title="Item Flow" subtitle="Belt logistics">
+      <Section title="Item Flow">
         {#if itemDeficits.length > 0}
           <Panel nested>
             <span class="sub-label">Deficits (items/min short)</span>
@@ -278,9 +307,9 @@
       </Section>
     {/if}
 
-    <!-- Fluid Flow -->
+    <!-- Fluid Flow Charts -->
     {#if fluidDeficits.length > 0 || fluidSurpluses.length > 0}
-      <Section title="Fluid Flow" subtitle="Pipe logistics">
+      <Section title="Fluid Flow">
         {#if fluidDeficits.length > 0}
           <Panel nested>
             <span class="sub-label">Deficits (units/min short)</span>
@@ -304,34 +333,53 @@
       </Section>
     {/if}
 
-    <!-- Tech Recommendations -->
-    {#if data.tech_recommendations.length > 0}
-      <Section title="Tech Unlock Impact" count={data.tech_recommendations.length} accent="var(--color-info)">
-        <KeyValue
-          items={data.tech_recommendations.map((r) => ({
-            key: formatName(r.tech),
-            value: r.impact,
-            variant: "info" as const,
-          }))}
-        />
+    <!-- Surplus Connections -->
+    {#if data.surplus_connections && data.surplus_connections.length > 0}
+      <Section title="Surplus → Deficit Links" count={data.surplus_connections.length} accent="var(--color-positive)">
+        <div class="connections-grid">
+          {#each data.surplus_connections.slice(0, 8) as conn}
+            <div class="connection">
+              <span class="conn-surplus">
+                <FactorioIcon name={conn.surplus} size={16} spriteConfig={getSpriteConfig(conn.surplus)} />
+                {formatName(conn.surplus)}
+                <Badge label="+{conn.surplus_rate}/min" variant="positive" />
+              </span>
+              <span class="conn-arrow">→</span>
+              <span class="conn-deficit">
+                <FactorioIcon name={conn.deficit} size={16} spriteConfig={getSpriteConfig(conn.deficit)} />
+                {formatName(conn.deficit)}
+              </span>
+            </div>
+          {/each}
+        </div>
       </Section>
     {/if}
 
-    <!-- Overproduction -->
-    {#if data.overproduction.length > 0}
-      <Section title="Overproduction" count={data.overproduction.length} accent="var(--color-positive)">
-        {#each data.overproduction as entry}
-          <Panel nested>
-            <div class="overprod-header">
-              <FactorioIcon name={entry.item} size={20} spriteConfig={getSpriteConfig(entry.item)} />
-              <span class="overprod-name">{formatName(entry.item)}</span>
-              <Badge label="+{entry.surplus_rate}/min" variant="positive" />
+    <!-- Tech Recommendations -->
+    {#if data.tech_recommendations.length > 0}
+      <Section title="Research Recommendations" count={data.tech_recommendations.length} accent="var(--color-info)">
+        {#each data.tech_recommendations as rec}
+          <Panel nested compact>
+            <div class="tech-header">
+              <span class="tech-name">{formatName(rec.tech)}</span>
+              {#if rec.inputs_available}
+                <Badge label="Ready to Use" variant="positive" />
+              {:else}
+                <Badge label="Missing Inputs" variant="warning" />
+              {/if}
             </div>
-            <div class="overprod-suggestions">
-              {#each entry.suggested_recipes.slice(0, 4) as recipe}
-                <span class="suggestion">
-                  <FactorioIcon name={recipe.product} size={16} spriteConfig={getSpriteConfig(recipe.product)} />
-                  {formatName(recipe.recipe)}
+            <div class="tech-details">
+              <span class="tech-label">Unlocks:</span>
+              {#each rec.recipes_unlocked as recipe}
+                <span class="tech-recipe">{formatName(recipe)}</span>
+              {/each}
+            </div>
+            <div class="tech-details">
+              <span class="tech-label">Helps:</span>
+              {#each rec.deficit_items as item}
+                <span class="tech-deficit">
+                  <FactorioIcon name={item} size={14} spriteConfig={getSpriteConfig(item)} />
+                  {formatName(item)}
                 </span>
               {/each}
             </div>
@@ -349,26 +397,11 @@
     gap: 24px;
   }
 
-  .hero-row {
+  .summary-row {
     display: flex;
-    align-items: center;
     gap: var(--space-xl);
-    padding: var(--space-md) 0;
     justify-content: center;
-  }
-
-  .hero-stats {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-    align-items: center;
-  }
-
-  .summary-line {
-    display: flex;
-    gap: var(--space-xs);
-    flex-wrap: wrap;
-    justify-content: center;
+    padding: var(--space-sm) 0;
   }
 
   .alerts-grid {
@@ -391,6 +424,12 @@
     min-width: 0;
   }
 
+  .alert-badges {
+    display: flex;
+    gap: var(--space-xs);
+    flex-wrap: wrap;
+  }
+
   .alert-name {
     font-family: var(--font-body);
     font-size: 14px;
@@ -406,12 +445,69 @@
     white-space: nowrap;
   }
 
+  .alert-rate-moderate {
+    font-family: var(--font-heading);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-info);
+    white-space: nowrap;
+  }
+
   .alert-meta {
     font-family: var(--font-body);
     font-size: 12px;
     color: var(--color-text-muted);
     padding-left: calc(24px + var(--space-sm));
     margin-top: 2px;
+  }
+
+  .root-chain {
+    display: flex;
+    align-items: center;
+    gap: var(--space-xs);
+    padding-left: calc(24px + var(--space-sm));
+    margin-top: 4px;
+    flex-wrap: wrap;
+  }
+
+  .chain-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--color-text-muted);
+  }
+
+  .chain-root {
+    color: var(--color-negative);
+    font-weight: 600;
+  }
+
+  .chain-arrow {
+    font-size: 11px;
+    color: var(--color-text-muted);
+    opacity: 0.5;
+  }
+
+  .consumers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    padding-left: calc(24px + var(--space-sm));
+    margin-top: 4px;
+  }
+
+  .consumer {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: var(--color-text-muted);
+    background: color-mix(in srgb, var(--color-border) 10%, transparent);
+    padding: 2px 6px;
+    border-radius: var(--radius-sm);
   }
 
   .sub-label {
@@ -424,14 +520,48 @@
     display: block;
   }
 
-  .overprod-header {
+  .connections-grid {
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-xs);
+  }
+
+  .connection {
+    display: flex;
+    align-items: center;
+    gap: var(--space-sm);
+    font-family: var(--font-body);
+    font-size: 13px;
+  }
+
+  .conn-surplus,
+  .conn-deficit {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .conn-surplus {
+    color: var(--color-positive);
+  }
+
+  .conn-deficit {
+    color: var(--color-text);
+  }
+
+  .conn-arrow {
+    color: var(--color-text-muted);
+    font-size: 12px;
+  }
+
+  .tech-header {
     display: flex;
     align-items: center;
     gap: var(--space-sm);
     margin-bottom: var(--space-xs);
   }
 
-  .overprod-name {
+  .tech-name {
     font-family: var(--font-body);
     font-size: 14px;
     font-weight: 600;
@@ -439,22 +569,39 @@
     flex: 1;
   }
 
-  .overprod-suggestions {
+  .tech-details {
     display: flex;
-    flex-wrap: wrap;
+    align-items: center;
     gap: var(--space-xs);
-    padding-left: calc(20px + var(--space-sm));
+    flex-wrap: wrap;
+    padding-left: var(--space-xs);
+    margin-top: 2px;
   }
 
-  .suggestion {
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
+  .tech-label {
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: var(--color-text-muted);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+
+  .tech-recipe {
     font-family: var(--font-body);
     font-size: 12px;
-    color: var(--color-text-muted);
-    background: color-mix(in srgb, var(--color-border) 10%, transparent);
-    padding: 2px 8px;
+    color: var(--color-info);
+    background: color-mix(in srgb, var(--color-info) 10%, transparent);
+    padding: 1px 6px;
     border-radius: var(--radius-sm);
+  }
+
+  .tech-deficit {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--color-text);
   }
 </style>
