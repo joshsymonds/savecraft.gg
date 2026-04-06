@@ -457,7 +457,7 @@ func TestProductionFlow_TechUnlock(t *testing.T) {
 		t.Error("expected at least one tech recommendation for petroleum-gas deficit")
 	}
 
-	// Verify new structure
+	// Verify structure: tech, recipes_unlocked, deficit_items, inputs_available
 	for _, r := range techRecs {
 		rec := r.(map[string]any)
 		if rec["tech"] == nil || rec["tech"] == "" {
@@ -468,6 +468,9 @@ func TestProductionFlow_TechUnlock(t *testing.T) {
 		}
 		if rec["deficit_items"] == nil {
 			t.Error("tech recommendation missing deficit_items field")
+		}
+		if _, ok := rec["inputs_available"]; !ok {
+			t.Error("tech recommendation missing inputs_available field")
 		}
 	}
 }
@@ -1120,56 +1123,134 @@ func TestProductionFlow_SurplusConnections_NoRunningRecipe(t *testing.T) {
 	}
 }
 
-// ─── Improved Tech Recommendations ─────────────────────────────────────────
+// ─── Edge Cases ────────────────────────────────────────────────────────────
 
-func TestProductionFlow_TechRecs_Improved(t *testing.T) {
-	// petroleum-gas deficit. advanced-oil-processing unlocks cracking recipes.
-	// Check that tech recs include recipes_unlocked, deficit_items, inputs_available.
+func TestProductionFlow_RootCause_CycleDetection(t *testing.T) {
+	// Two items mutually in deficit that consume each other's products.
+	// kovarex-enrichment-process: u-235 + u-238 → more u-235 + u-238
+	// Both in deficit → cycle. visited set should prevent infinite loop.
 	data := runProductionFlow(t, `{
 		"module": "production_flow",
 		"flow_data": {
-			"items": {},
-			"fluids": {
-				"petroleum-gas": {
-					"produced_per_min": 100.0,
-					"consumed_per_min": 300.0
+			"items": {
+				"uranium-235": {
+					"produced_per_min": 1.0,
+					"consumed_per_min": 5.0
 				},
-				"heavy-oil": {
-					"produced_per_min": 50.0,
-					"consumed_per_min": 20.0
-				},
-				"water": {
-					"produced_per_min": 1000.0,
-					"consumed_per_min": 500.0
+				"uranium-238": {
+					"produced_per_min": 10.0,
+					"consumed_per_min": 50.0
 				}
 			},
-			"top_deficits": ["petroleum-gas"],
+			"fluids": {},
+			"top_deficits": ["uranium-235", "uranium-238"],
 			"top_surpluses": []
 		},
-		"completed_research": {
-			"completed": [],
-			"completed_count": 0
+		"existing_machines": {
+			"by_recipe": {
+				"kovarex-enrichment-process": {
+					"machine_type": "centrifuge",
+					"count": 5,
+					"modules": {}
+				}
+			},
+			"by_type": {"centrifuge": 5},
+			"beacon_count": 0
 		}
 	}`)
 
-	recs := data["tech_recommendations"].([]any)
-	if len(recs) == 0 {
-		t.Fatal("expected at least one tech recommendation")
+	items := data["item_diagnoses"].([]any)
+	u235 := findDiagnosis(items, "uranium-235")
+	if u235 == nil {
+		t.Fatal("expected uranium-235 in diagnoses")
 	}
+	// Should have a root_cause without hanging — visited set prevents cycle
+	rc := u235["root_cause"]
+	if rc == nil {
+		t.Fatal("expected root_cause for deficit uranium-235 (cycle should terminate)")
+	}
+}
 
-	// Find a rec and verify structure
-	rec := recs[0].(map[string]any)
-	if rec["tech"] == nil || rec["tech"] == "" {
-		t.Error("tech recommendation missing tech field")
+func TestProductionFlow_SurplusConnections_CrossType(t *testing.T) {
+	// sulfuric-acid (fluid) is surplus. processing-unit recipe consumes it and is running.
+	// processing-unit (item) is in deficit. Should show cross-type connection.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"processing-unit": {
+					"produced_per_min": 2.0,
+					"consumed_per_min": 10.0
+				},
+				"electronic-circuit": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 80.0
+				},
+				"advanced-circuit": {
+					"produced_per_min": 50.0,
+					"consumed_per_min": 40.0
+				}
+			},
+			"fluids": {
+				"sulfuric-acid": {
+					"produced_per_min": 500.0,
+					"consumed_per_min": 50.0
+				}
+			},
+			"top_deficits": ["processing-unit"],
+			"top_surpluses": ["sulfuric-acid"]
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"processing-unit": {
+					"machine_type": "assembling-machine-3",
+					"count": 5,
+					"modules": {}
+				}
+			},
+			"by_type": {"assembling-machine-3": 5},
+			"beacon_count": 0
+		}
+	}`)
+
+	sc := data["surplus_connections"].([]any)
+	found := false
+	for _, c := range sc {
+		conn := c.(map[string]any)
+		if conn["surplus"] == "sulfuric-acid" && conn["deficit"] == "processing-unit" {
+			found = true
+		}
 	}
-	if rec["recipes_unlocked"] == nil {
-		t.Error("tech recommendation missing recipes_unlocked field")
+	if !found {
+		t.Error("expected cross-type surplus connection: sulfuric-acid (fluid) → processing-unit (item)")
 	}
-	if rec["deficit_items"] == nil {
-		t.Error("tech recommendation missing deficit_items field")
+}
+
+func TestProductionFlow_Severity_Moderate(t *testing.T) {
+	// Item with small deficit (< 50% of consumed) → moderate severity
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 350.0,
+					"consumed_per_min": 420.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": [],
+			"top_surpluses": []
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	iron := findDiagnosis(items, "iron-plate")
+	if iron == nil {
+		t.Fatal("expected iron-plate in diagnoses")
 	}
-	if _, ok := rec["inputs_available"]; !ok {
-		t.Error("tech recommendation missing inputs_available field")
+	// deficit 70/420 = 16.7% < 50% → moderate
+	if iron["severity"] != "moderate" {
+		t.Errorf("severity = %v, want moderate (deficit 16.7%% of consumed)", iron["severity"])
 	}
 }
 

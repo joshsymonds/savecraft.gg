@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"math"
 	"os"
+	"slices"
 	"sort"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
@@ -73,9 +74,6 @@ func handleProductionFlow(enc *json.Encoder, query map[string]any) {
 		os.Exit(1)
 	}
 
-	// Build reverse recipe index: item → list of recipes that consume it
-	consumerIndex := buildConsumerIndex()
-
 	// Build set of Lua-flagged top deficits for severity boosting
 	topDeficitSet := make(map[string]bool, len(q.FlowData.TopDeficits))
 	for _, item := range q.FlowData.TopDeficits {
@@ -122,12 +120,22 @@ type recipeConsumerEntry struct {
 	EnergyReq   float64 // craft time in seconds (for estimating recycler consumption)
 }
 
-// buildConsumerIndex builds a map of item/fluid name → recipes that consume it.
-func buildConsumerIndex() map[string][]recipeConsumerEntry {
-	index := make(map[string][]recipeConsumerEntry)
+// consumerIndex is built once at init from the static data.Recipes map.
+// Maps item/fluid name → recipes that consume it.
+var consumerIndex map[string][]recipeConsumerEntry
 
+// productRecipeIndex maps product name → disabled recipes that produce it.
+// Used by computeTechRecommendations to avoid scanning all recipes per query.
+var productRecipeIndex map[string][]productRecipeEntry
+
+type productRecipeEntry struct {
+	recipe *data.Recipe
+}
+
+func init() {
+	// Build consumer index
+	consumerIndex = make(map[string][]recipeConsumerEntry)
 	for _, recipe := range data.Recipes {
-		// Find primary product
 		primaryProduct := ""
 		primaryAmount := 0.0
 		if len(recipe.Results) > 0 {
@@ -142,7 +150,7 @@ func buildConsumerIndex() map[string][]recipeConsumerEntry {
 		}
 
 		for _, ing := range recipe.Ingredients {
-			index[ing.Name] = append(index[ing.Name], recipeConsumerEntry{
+			consumerIndex[ing.Name] = append(consumerIndex[ing.Name], recipeConsumerEntry{
 				RecipeName:  recipe.Name,
 				Product:     primaryProduct,
 				Amount:      ing.Amount,
@@ -153,7 +161,19 @@ func buildConsumerIndex() map[string][]recipeConsumerEntry {
 		}
 	}
 
-	return index
+	// Build product → disabled recipe index for tech recommendations
+	productRecipeIndex = make(map[string][]productRecipeEntry)
+	for _, recipe := range data.Recipes {
+		if recipe.Enabled {
+			continue
+		}
+		for _, prod := range recipe.Results {
+			r := recipe
+			productRecipeIndex[prod.Name] = append(productRecipeIndex[prod.Name], productRecipeEntry{
+				recipe: &r,
+			})
+		}
+	}
 }
 
 // ─── Recycler Estimation ───────────────────────────────────────────────────
@@ -457,7 +477,7 @@ func computeRootCause(item string, flow *actualFlow, machines *existingMachines)
 			return &rootCauseInfo{
 				Chain:          chain,
 				RootItem:       current,
-				BottleneckType: classifyBottleneck(current, chain, recipe, machines),
+				BottleneckType: classifyBottleneck(chain, recipe, machines),
 			}
 		}
 
@@ -472,16 +492,18 @@ func computeRootCause(item string, flow *actualFlow, machines *existingMachines)
 			}
 		}
 
-		// Check each ingredient — is any in deficit?
+		// Check each ingredient — find the one with the worst deficit (most negative net rate)
+		// for stable, informative root cause chains regardless of ingredient ordering.
 		var starvedIngredient string
+		worstNet := 0.0
 		for _, ing := range recipe.Ingredients {
 			if visited[ing.Name] {
 				continue // avoid cycles
 			}
 			ingNet := lookupNetRate(ing.Name, flow)
-			if ingNet < -0.1 {
+			if ingNet < -0.1 && ingNet < worstNet {
 				starvedIngredient = ing.Name
-				break
+				worstNet = ingNet
 			}
 		}
 
@@ -490,7 +512,7 @@ func computeRootCause(item string, flow *actualFlow, machines *existingMachines)
 			return &rootCauseInfo{
 				Chain:          chain,
 				RootItem:       current,
-				BottleneckType: classifyBottleneck(current, chain, recipe, machines),
+				BottleneckType: classifyBottleneck(chain, recipe, machines),
 			}
 		}
 
@@ -505,7 +527,7 @@ func computeRootCause(item string, flow *actualFlow, machines *existingMachines)
 // - If the chain has multiple items, the original item is input-starved.
 // - If the root item has no machines, it's not_built.
 // - If the root item has machines and all inputs are healthy, it's throughput.
-func classifyBottleneck(_ string, chain []string, recipe *data.Recipe, machines *existingMachines) string {
+func classifyBottleneck(chain []string, recipe *data.Recipe, machines *existingMachines) string {
 	// If we traced upstream past the original item, the original is input-starved
 	if len(chain) > 1 {
 		return "input_starvation"
@@ -565,7 +587,7 @@ func computeSurplusConnections(itemDiag, fluidDiag []itemDiagnosis, consumerInde
 		}
 	}
 
-	var connections []surplusConnection
+	connections := []surplusConnection{}
 
 	for _, diags := range [][]itemDiagnosis{itemDiag, fluidDiag} {
 		for _, d := range diags {
@@ -602,10 +624,6 @@ func computeSurplusConnections(itemDiag, fluidDiag []itemDiagnosis, consumerInde
 	sort.Slice(connections, func(i, j int) bool {
 		return connections[i].SurplusRate > connections[j].SurplusRate
 	})
-
-	if connections == nil {
-		connections = []surplusConnection{}
-	}
 
 	return connections
 }
@@ -656,15 +674,16 @@ func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis, completedTe
 	}
 	techMap := make(map[string]*techEntry)
 
-	for _, recipe := range data.Recipes {
-		if recipe.Enabled {
+	// Use pre-built product → disabled recipe index instead of scanning all recipes
+	for deficitItem := range deficitItems {
+		entries, ok := productRecipeIndex[deficitItem]
+		if !ok {
 			continue
 		}
 
-		for _, prod := range recipe.Results {
-			if !deficitItems[prod.Name] {
-				continue
-			}
+		for _, entry := range entries {
+			recipe := entry.recipe
+			prod := deficitItem
 
 			techName, ok := techByRecipe[recipe.Name]
 			if !ok {
@@ -681,11 +700,11 @@ func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis, completedTe
 			}
 
 			// Deduplicate recipes and deficit items
-			if !containsString(entry.recipes, recipe.Name) {
+			if !slices.Contains(entry.recipes, recipe.Name) {
 				entry.recipes = append(entry.recipes, recipe.Name)
 			}
-			if !containsString(entry.deficits, prod.Name) {
-				entry.deficits = append(entry.deficits, prod.Name)
+			if !slices.Contains(entry.deficits, prod) {
+				entry.deficits = append(entry.deficits, prod)
 			}
 
 			// Check if all ingredients are available (healthy/surplus)
@@ -716,13 +735,4 @@ func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis, completedTe
 	})
 
 	return recs
-}
-
-func containsString(slice []string, s string) bool {
-	for _, v := range slice {
-		if v == s {
-			return true
-		}
-	}
-	return false
 }

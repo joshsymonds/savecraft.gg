@@ -143,10 +143,11 @@ func schema() map[string]any {
 			},
 			"production_flow": map[string]any{
 				"name":        "Factory Health Diagnosis",
-				"description": "Diagnose factory health by cross-referencing production rates with recipe, machine, and technology data. Computes deficit causes, machine gaps, cascade risks, and tech unlock impacts. Pass save_id to analyze your factory.",
+				"description": "Diagnose factory health by cross-referencing production rates with recipe, machine, and technology data. Computes root cause chains, bottleneck classification, machine gaps, surplus-to-deficit connections, and tech unlock recommendations. Pass save_id to analyze your factory.",
 				"parameters": map[string]any{
-					"flow_data":         map[string]any{"type": "object", "description": "Production flow data from save (injected via save_id). Contains items/fluids with produced/consumed rates.", "required": true},
-					"existing_machines": map[string]any{"type": "object", "description": "Existing machine counts by recipe (injected via save_id). Contains by_recipe, by_type maps."},
+					"flow_data":          map[string]any{"type": "object", "description": "Production flow data from save (injected via save_id). Contains items/fluids with produced/consumed rates.", "required": true},
+					"existing_machines":  map[string]any{"type": "object", "description": "Existing machine counts by recipe (injected via save_id). Contains by_recipe, by_type maps."},
+					"completed_research": map[string]any{"type": "object", "description": "Completed research data from save (injected via save_id). Contains completed tech name list."},
 				},
 			},
 			"ratio_calculator": map[string]any{
