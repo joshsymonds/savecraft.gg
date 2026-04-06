@@ -28,6 +28,97 @@ func findDiagnosis(diagnoses []any, item string) map[string]any {
 	return nil
 }
 
+// ─── Output Shape ──────────────────────────────────────────────────────────
+
+func TestProductionFlow_NoHealthScore(t *testing.T) {
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {"produced_per_min": 450.0, "consumed_per_min": 420.0}
+			},
+			"fluids": {},
+			"top_deficits": [],
+			"top_surpluses": []
+		}
+	}`)
+
+	if _, ok := data["health_score"]; ok {
+		t.Error("health_score should not be in output")
+	}
+}
+
+func TestProductionFlow_NoOverproduction(t *testing.T) {
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"stone": {"produced_per_min": 300.0, "consumed_per_min": 50.0}
+			},
+			"fluids": {},
+			"top_deficits": [],
+			"top_surpluses": ["stone"]
+		}
+	}`)
+
+	if _, ok := data["overproduction"]; ok {
+		t.Error("overproduction should not be in output")
+	}
+}
+
+func TestProductionFlow_NoCascade(t *testing.T) {
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {"produced_per_min": 0.0, "consumed_per_min": 300.0}
+			},
+			"fluids": {},
+			"top_deficits": ["iron-plate"],
+			"top_surpluses": []
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	iron := findDiagnosis(items, "iron-plate")
+	if iron == nil {
+		t.Fatal("expected iron-plate in diagnoses")
+	}
+	if iron["cascade"] != nil {
+		t.Error("cascade should not be in output")
+	}
+	if iron["recycler_cascade"] != nil {
+		t.Error("recycler_cascade should not be in output")
+	}
+}
+
+func TestProductionFlow_FiltersZeroActivity(t *testing.T) {
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {"produced_per_min": 450.0, "consumed_per_min": 420.0},
+				"nuclear-reactor": {"produced_per_min": 0.0, "consumed_per_min": 0.0},
+				"beacon": {"produced_per_min": 0.0, "consumed_per_min": 0.0}
+			},
+			"fluids": {},
+			"top_deficits": [],
+			"top_surpluses": []
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	for _, d := range items {
+		diag := d.(map[string]any)
+		if diag["produced_per_min"].(float64) == 0 && diag["consumed_per_min"].(float64) == 0 {
+			t.Errorf("zero-activity item %q should be filtered out", diag["item"])
+		}
+	}
+	if len(items) != 1 {
+		t.Errorf("expected 1 active item, got %d", len(items))
+	}
+}
+
 // ─── Net Rate Computation ───────────────────────────────────────────────────
 
 func TestProductionFlow_NetRates(t *testing.T) {
@@ -247,66 +338,6 @@ func TestProductionFlow_RecipeFanOut(t *testing.T) {
 	}
 }
 
-// ─── Health Score ────────────────────────────────────────────────────────────
-
-func TestProductionFlow_HealthScore(t *testing.T) {
-	// Healthy factory: small surpluses, no deficits
-	data := runProductionFlow(t, `{
-		"module": "production_flow",
-		"flow_data": {
-			"items": {
-				"iron-plate": {
-					"produced_per_min": 450.0,
-					"consumed_per_min": 420.0
-				},
-				"copper-plate": {
-					"produced_per_min": 350.0,
-					"consumed_per_min": 300.0
-				}
-			},
-			"fluids": {},
-			"top_deficits": [],
-			"top_surpluses": ["iron-plate", "copper-plate"]
-		}
-	}`)
-
-	score := data["health_score"].(float64)
-	if score < 80 {
-		t.Errorf("healthy factory score = %.0f, want >= 80", score)
-	}
-}
-
-func TestProductionFlow_HealthScore_Bottlenecked(t *testing.T) {
-	// Bottlenecked factory: multiple severe deficits
-	data := runProductionFlow(t, `{
-		"module": "production_flow",
-		"flow_data": {
-			"items": {
-				"iron-plate": {
-					"produced_per_min": 100.0,
-					"consumed_per_min": 400.0
-				},
-				"copper-plate": {
-					"produced_per_min": 0.0,
-					"consumed_per_min": 300.0
-				},
-				"steel-plate": {
-					"produced_per_min": 10.0,
-					"consumed_per_min": 80.0
-				}
-			},
-			"fluids": {},
-			"top_deficits": ["copper-plate", "iron-plate", "steel-plate"],
-			"top_surpluses": []
-		}
-	}`)
-
-	score := data["health_score"].(float64)
-	if score > 50 {
-		t.Errorf("bottlenecked factory score = %.0f, want <= 50", score)
-	}
-}
-
 // ─── Machine Gap ────────────────────────────────────────────────────────────
 
 func TestProductionFlow_MachineGap(t *testing.T) {
@@ -393,87 +424,6 @@ func TestProductionFlow_MachineGap_NotPresent_WhenNoMachinesData(t *testing.T) {
 	}
 }
 
-// ─── Cascade Depth ──────────────────────────────────────────────────────────
-
-func TestProductionFlow_CascadeDepth(t *testing.T) {
-	// iron-plate is consumed by iron-gear-wheel (and many others).
-	// iron-gear-wheel is consumed by transport-belt, inserter, etc.
-	// The cascade should show downstream items.
-	data := runProductionFlow(t, `{
-		"module": "production_flow",
-		"flow_data": {
-			"items": {
-				"iron-plate": {
-					"produced_per_min": 0.0,
-					"consumed_per_min": 300.0
-				},
-				"iron-gear-wheel": {
-					"produced_per_min": 100.0,
-					"consumed_per_min": 80.0
-				},
-				"transport-belt": {
-					"produced_per_min": 50.0,
-					"consumed_per_min": 40.0
-				}
-			},
-			"fluids": {},
-			"top_deficits": ["iron-plate"],
-			"top_surpluses": []
-		}
-	}`)
-
-	items := data["item_diagnoses"].([]any)
-	iron := findDiagnosis(items, "iron-plate")
-	if iron == nil {
-		t.Fatal("expected iron-plate in item_diagnoses")
-	}
-
-	cascade := iron["cascade"]
-	if cascade == nil {
-		t.Fatal("expected cascade for critical iron-plate")
-	}
-	c := cascade.(map[string]any)
-
-	// iron-plate feeds many downstream items via recipes
-	downstreamCount := c["downstream_count"].(float64)
-	if downstreamCount < 2 {
-		t.Errorf("downstream_count = %.0f, want >= 2 (at least gear-wheel + transport-belt)", downstreamCount)
-	}
-
-	// Impact fraction should be significant since iron-plate feeds most of the factory
-	impactFraction := c["impact_fraction"].(float64)
-	if impactFraction < 0.3 {
-		t.Errorf("impact_fraction = %.2f, want >= 0.3", impactFraction)
-	}
-}
-
-func TestProductionFlow_CascadeDepth_NotPresent_ForHealthy(t *testing.T) {
-	// Healthy items should not have cascade analysis
-	data := runProductionFlow(t, `{
-		"module": "production_flow",
-		"flow_data": {
-			"items": {
-				"iron-plate": {
-					"produced_per_min": 450.0,
-					"consumed_per_min": 420.0
-				}
-			},
-			"fluids": {},
-			"top_deficits": [],
-			"top_surpluses": ["iron-plate"]
-		}
-	}`)
-
-	items := data["item_diagnoses"].([]any)
-	iron := findDiagnosis(items, "iron-plate")
-	if iron == nil {
-		t.Fatal("expected iron-plate in item_diagnoses")
-	}
-	if iron["cascade"] != nil {
-		t.Error("cascade should not be present for healthy items")
-	}
-}
-
 // ─── Tech Unlock Impact ─────────────────────────────────────────────────────
 
 func TestProductionFlow_TechUnlock(t *testing.T) {
@@ -542,83 +492,6 @@ func TestProductionFlow_TechUnlock_NoRecsForHealthy(t *testing.T) {
 	recs := data["tech_recommendations"].([]any)
 	if len(recs) != 0 {
 		t.Errorf("expected 0 tech recommendations for healthy factory, got %d", len(recs))
-	}
-}
-
-// ─── Overproduction Analysis ────────────────────────────────────────────────
-
-func TestProductionFlow_Overproduction(t *testing.T) {
-	// stone has large surplus. Recipes that consume stone include
-	// stone-brick and stone-furnace.
-	data := runProductionFlow(t, `{
-		"module": "production_flow",
-		"flow_data": {
-			"items": {
-				"stone": {
-					"produced_per_min": 300.0,
-					"consumed_per_min": 50.0
-				}
-			},
-			"fluids": {},
-			"top_deficits": [],
-			"top_surpluses": ["stone"]
-		}
-	}`)
-
-	over := data["overproduction"]
-	if over == nil {
-		t.Fatal("expected overproduction in output")
-	}
-	overItems := over.([]any)
-	if len(overItems) == 0 {
-		t.Fatal("expected at least one overproduction entry for surplus stone")
-	}
-
-	stoneOver := overItems[0].(map[string]any)
-	if stoneOver["item"] != "stone" {
-		t.Errorf("expected stone, got %v", stoneOver["item"])
-	}
-	if stoneOver["surplus_rate"].(float64) <= 0 {
-		t.Error("surplus_rate should be positive")
-	}
-
-	recipes := stoneOver["suggested_recipes"].([]any)
-	if len(recipes) == 0 {
-		t.Fatal("expected at least one suggested recipe for stone")
-	}
-
-	// stone-brick should be among suggestions
-	foundBrick := false
-	for _, r := range recipes {
-		recipe := r.(map[string]any)
-		if recipe["recipe"] == "stone-brick" {
-			foundBrick = true
-		}
-	}
-	if !foundBrick {
-		t.Error("expected stone-brick in suggested recipes for stone surplus")
-	}
-}
-
-func TestProductionFlow_Overproduction_Empty_WhenNoSurplus(t *testing.T) {
-	data := runProductionFlow(t, `{
-		"module": "production_flow",
-		"flow_data": {
-			"items": {
-				"iron-plate": {
-					"produced_per_min": 100.0,
-					"consumed_per_min": 300.0
-				}
-			},
-			"fluids": {},
-			"top_deficits": ["iron-plate"],
-			"top_surpluses": []
-		}
-	}`)
-
-	over := data["overproduction"].([]any)
-	if len(over) != 0 {
-		t.Errorf("expected 0 overproduction entries, got %d", len(over))
 	}
 }
 
@@ -905,102 +778,6 @@ func TestProductionFlow_MachineGap_UsesRealDeficit(t *testing.T) {
 	}
 }
 
-// ─── Dual Cascade ──────────────────────────────────────────────────────────
-
-func TestProductionFlow_DualCascade_RealSkipsRecycling(t *testing.T) {
-	// iron-plate is consumed by iron-gear-wheel (real) and iron-plate-recycling (recycler).
-	// Real cascade should include iron-gear-wheel but not traverse recycling edges.
-	data := runProductionFlow(t, `{
-		"module": "production_flow",
-		"flow_data": {
-			"items": {
-				"iron-plate": {
-					"produced_per_min": 0.0,
-					"consumed_per_min": 300.0
-				},
-				"iron-gear-wheel": {
-					"produced_per_min": 100.0,
-					"consumed_per_min": 80.0
-				}
-			},
-			"fluids": {},
-			"top_deficits": ["iron-plate"],
-			"top_surpluses": []
-		}
-	}`)
-
-	items := data["item_diagnoses"].([]any)
-	iron := findDiagnosis(items, "iron-plate")
-	if iron == nil {
-		t.Fatal("expected iron-plate in item_diagnoses")
-	}
-
-	// Real cascade should exist (iron-gear-wheel and downstream)
-	cascade := iron["cascade"]
-	if cascade == nil {
-		t.Fatal("expected cascade for critical iron-plate")
-	}
-
-	// Now check recycler_cascade — iron-plate-recycling produces iron-ore,
-	// but iron-ore isn't in the flow data, so recycler cascade may be nil.
-	// The key thing is the field exists in the output.
-	// (recycler_cascade can be nil if no active recycler downstream)
-}
-
-func TestProductionFlow_DualCascade_RecyclerCascadePresent(t *testing.T) {
-	// electronic-circuit consumed at critical level.
-	// electronic-circuit-recycling produces iron-plate (active in flow).
-	// Recycler cascade should show iron-plate as downstream.
-	data := runProductionFlow(t, `{
-		"module": "production_flow",
-		"flow_data": {
-			"items": {
-				"electronic-circuit": {
-					"produced_per_min": 0.0,
-					"consumed_per_min": 300.0
-				},
-				"iron-plate": {
-					"produced_per_min": 500.0,
-					"consumed_per_min": 400.0
-				},
-				"copper-cable": {
-					"produced_per_min": 200.0,
-					"consumed_per_min": 180.0
-				},
-				"advanced-circuit": {
-					"produced_per_min": 50.0,
-					"consumed_per_min": 40.0
-				}
-			},
-			"fluids": {},
-			"top_deficits": ["electronic-circuit"],
-			"top_surpluses": []
-		}
-	}`)
-
-	items := data["item_diagnoses"].([]any)
-	ec := findDiagnosis(items, "electronic-circuit")
-	if ec == nil {
-		t.Fatal("expected electronic-circuit in item_diagnoses")
-	}
-
-	// Real cascade should exist (advanced-circuit, etc.)
-	cascade := ec["cascade"]
-	if cascade == nil {
-		t.Fatal("expected real cascade for critical electronic-circuit")
-	}
-
-	// Recycler cascade should exist (electronic-circuit-recycling → iron-plate)
-	recyclerCascade := ec["recycler_cascade"]
-	if recyclerCascade == nil {
-		t.Fatal("expected recycler_cascade for electronic-circuit (recycling → iron-plate)")
-	}
-	rc := recyclerCascade.(map[string]any)
-	if rc["downstream_count"].(float64) < 1 {
-		t.Error("recycler_cascade downstream_count should be >= 1 (at least iron-plate)")
-	}
-}
-
 // ─── Tech Recommendation Filtering ─────────────────────────────────────────
 
 func TestProductionFlow_TechUnlock_FiltersCompletedResearch(t *testing.T) {
@@ -1063,6 +840,199 @@ func TestProductionFlow_TechUnlock_KeepsUnresearched(t *testing.T) {
 	// With no research completed, there should be at least one tech rec
 	if len(recs) == 0 {
 		t.Error("expected tech recommendations when no research is completed")
+	}
+}
+
+// ─── Root Cause Chains ─────────────────────────────────────────────────────
+
+func TestProductionFlow_RootCause_NotBuilt(t *testing.T) {
+	// steel-plate in deficit, no machines for steel-plate recipe → not_built
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"steel-plate": {
+					"produced_per_min": 0.0,
+					"consumed_per_min": 100.0
+				},
+				"iron-plate": {
+					"produced_per_min": 500.0,
+					"consumed_per_min": 200.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["steel-plate"],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {},
+			"by_type": {},
+			"beacon_count": 0
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	steel := findDiagnosis(items, "steel-plate")
+	if steel == nil {
+		t.Fatal("expected steel-plate in diagnoses")
+	}
+
+	rc := steel["root_cause"]
+	if rc == nil {
+		t.Fatal("expected root_cause for deficit steel-plate")
+	}
+	rootCause := rc.(map[string]any)
+	if rootCause["bottleneck_type"] != "not_built" {
+		t.Errorf("bottleneck_type = %v, want not_built", rootCause["bottleneck_type"])
+	}
+}
+
+func TestProductionFlow_RootCause_InputStarvation(t *testing.T) {
+	// engine-unit in deficit, machines exist, but steel-plate (ingredient) is also in deficit
+	// → input_starvation, chain should include steel-plate
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"engine-unit": {
+					"produced_per_min": 5.0,
+					"consumed_per_min": 30.0
+				},
+				"steel-plate": {
+					"produced_per_min": 10.0,
+					"consumed_per_min": 50.0
+				},
+				"iron-gear-wheel": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 80.0
+				},
+				"pipe": {
+					"produced_per_min": 60.0,
+					"consumed_per_min": 40.0
+				},
+				"iron-plate": {
+					"produced_per_min": 500.0,
+					"consumed_per_min": 400.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["engine-unit", "steel-plate"],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"engine-unit": {
+					"machine_type": "assembling-machine-2",
+					"count": 10,
+					"modules": {}
+				},
+				"steel-plate": {
+					"machine_type": "electric-furnace",
+					"count": 5,
+					"modules": {}
+				}
+			},
+			"by_type": {"assembling-machine-2": 10, "electric-furnace": 5},
+			"beacon_count": 0
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	engine := findDiagnosis(items, "engine-unit")
+	if engine == nil {
+		t.Fatal("expected engine-unit in diagnoses")
+	}
+
+	rc := engine["root_cause"]
+	if rc == nil {
+		t.Fatal("expected root_cause for deficit engine-unit")
+	}
+	rootCause := rc.(map[string]any)
+	if rootCause["bottleneck_type"] != "input_starvation" {
+		t.Errorf("bottleneck_type = %v, want input_starvation", rootCause["bottleneck_type"])
+	}
+
+	chain := rootCause["chain"].([]any)
+	if len(chain) < 2 {
+		t.Errorf("chain length = %d, want >= 2 (should trace through steel-plate)", len(chain))
+	}
+}
+
+func TestProductionFlow_RootCause_Throughput(t *testing.T) {
+	// iron-plate in deficit, machines exist, all inputs (iron-ore) healthy → throughput
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 200.0,
+					"consumed_per_min": 400.0
+				},
+				"iron-ore": {
+					"produced_per_min": 500.0,
+					"consumed_per_min": 300.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["iron-plate"],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"iron-plate": {
+					"machine_type": "electric-furnace",
+					"count": 10,
+					"modules": {}
+				}
+			},
+			"by_type": {"electric-furnace": 10},
+			"beacon_count": 0
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	iron := findDiagnosis(items, "iron-plate")
+	if iron == nil {
+		t.Fatal("expected iron-plate in diagnoses")
+	}
+
+	rc := iron["root_cause"]
+	if rc == nil {
+		t.Fatal("expected root_cause for deficit iron-plate")
+	}
+	rootCause := rc.(map[string]any)
+	if rootCause["bottleneck_type"] != "throughput" {
+		t.Errorf("bottleneck_type = %v, want throughput", rootCause["bottleneck_type"])
+	}
+}
+
+func TestProductionFlow_RootCause_NoMachinesData(t *testing.T) {
+	// Without machines data, can still detect not_built (no recipe) vs unknown
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 400.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["iron-plate"],
+			"top_surpluses": []
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	iron := findDiagnosis(items, "iron-plate")
+	if iron == nil {
+		t.Fatal("expected iron-plate in diagnoses")
+	}
+
+	// root_cause should still be present (can reason about recipes without machines)
+	rc := iron["root_cause"]
+	if rc == nil {
+		t.Fatal("expected root_cause even without machines data")
 	}
 }
 

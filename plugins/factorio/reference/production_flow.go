@@ -32,10 +32,15 @@ type itemDiagnosis struct {
 	RecyclerConsumed float64          `json:"recycler_consumed"`
 	NetRate          float64          `json:"net_rate"`
 	Severity         string           `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
-	Consumers        []recipeConsumer `json:"consumers,omitempty"`
-	MachineGap       *machineGapInfo  `json:"machine_gap,omitempty"`
-	Cascade          *cascadeInfo     `json:"cascade,omitempty"`
-	RecyclerCascade  *cascadeInfo     `json:"recycler_cascade,omitempty"`
+	Consumers []recipeConsumer `json:"consumers,omitempty"`
+	MachineGap *machineGapInfo `json:"machine_gap,omitempty"`
+	RootCause  *rootCauseInfo  `json:"root_cause,omitempty"`
+}
+
+type rootCauseInfo struct {
+	Chain          []string `json:"chain"`           // items from this item upstream to the root bottleneck
+	RootItem       string   `json:"root_item"`       // the item at the end of the chain (the actual bottleneck)
+	BottleneckType string   `json:"bottleneck_type"` // "not_built", "input_starvation", "throughput"
 }
 
 type machineGapInfo struct {
@@ -44,11 +49,6 @@ type machineGapInfo struct {
 	EffectiveRate    float64 `json:"effective_rate"`    // items/min from current machines
 	AdditionalNeeded int     `json:"additional_needed"` // machines to add to close deficit
 	Recipe           string  `json:"recipe"`
-}
-
-type cascadeInfo struct {
-	DownstreamCount int     `json:"downstream_count"` // number of downstream items affected
-	ImpactFraction  float64 `json:"impact_fraction"`  // fraction of factory items that depend on this
 }
 
 type recipeConsumer struct {
@@ -98,18 +98,10 @@ func handleProductionFlow(enc *json.Encoder, query map[string]any) {
 	// Compute tech unlock recommendations for deficit items
 	techRecs := computeTechRecommendations(itemDiagnoses, fluidDiagnoses, completedTechs)
 
-	// Compute overproduction analysis for surplus items
-	overproduction := computeOverproduction(itemDiagnoses, fluidDiagnoses, consumerIndex)
-
-	// Compute health score
-	healthScore := computeHealthScore(itemDiagnoses, fluidDiagnoses)
-
 	result := map[string]any{
-		"health_score":         healthScore,
 		"item_diagnoses":       itemDiagnoses,
 		"fluid_diagnoses":      fluidDiagnoses,
 		"tech_recommendations": techRecs,
-		"overproduction":       overproduction,
 	}
 
 	writeResult(enc, result)
@@ -213,20 +205,12 @@ func estimateRecyclerConsumption(item string, consumerIndex map[string][]recipeC
 func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][]recipeConsumerEntry, flow *actualFlow, machines *existingMachines, topDeficits map[string]bool) []itemDiagnosis {
 	diagnoses := make([]itemDiagnosis, 0, len(entries))
 
-	// Count total active items for cascade impact fraction
-	totalActive := 0
-	for _, stats := range flow.Items {
-		if stats.ProducedPerMin > 0 || stats.ConsumedPerMin > 0 {
-			totalActive++
-		}
-	}
-	for _, stats := range flow.Fluids {
-		if stats.ProducedPerMin > 0 || stats.ConsumedPerMin > 0 {
-			totalActive++
-		}
-	}
-
 	for name, stats := range entries {
+		// Filter zero-activity items
+		if stats.ProducedPerMin == 0 && stats.ConsumedPerMin == 0 {
+			continue
+		}
+
 		netRate := roundTo(stats.ProducedPerMin-stats.ConsumedPerMin, 1)
 
 		// Estimate recycler consumption and compute real consumption
@@ -269,10 +253,9 @@ func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][
 			diag.MachineGap = computeMachineGap(name, realDeficit, machines)
 		}
 
-		// Compute cascade depth for critical/severe deficit items
-		if severity == "critical" || severity == "severe" {
-			diag.Cascade = computeCascade(name, consumerIndex, flow, totalActive, cascadeReal)
-			diag.RecyclerCascade = computeCascade(name, consumerIndex, flow, totalActive, cascadeRecycler)
+		// Compute root cause chain for deficit items
+		if netRate < -0.1 {
+			diag.RootCause = computeRootCause(name, flow, machines)
 		}
 
 		diagnoses = append(diagnoses, diag)
@@ -453,92 +436,102 @@ func computeMachineGap(item string, deficitRate float64, machines *existingMachi
 	}
 }
 
-// ─── Cascade Depth ──────────────────────────────────────────────────────────
+// ─── Root Cause Chain ──────────────────────────────────────────────────────
 
-// cascadeMode controls which recipe edges the BFS follows.
-type cascadeMode int
-
-const (
-	cascadeReal     cascadeMode = iota // skip recycling edges
-	cascadeRecycler                    // follow only recycling edges
-)
-
-// computeCascade walks the recipe dependency graph forward from a deficit item,
-// counting how many downstream items in the active factory depend on it.
-// mode controls which edges are followed: real (non-recycling) or recycler-only.
-func computeCascade(item string, consumerIndex map[string][]recipeConsumerEntry, flow *actualFlow, totalActive int, mode cascadeMode) *cascadeInfo {
-	// BFS to find all downstream items
+// computeRootCause walks upstream through recipe ingredients to find the root
+// bottleneck for a deficit item. Returns the chain of items from this item to
+// the root, plus a bottleneck type classification.
+func computeRootCause(item string, flow *actualFlow, machines *existingMachines) *rootCauseInfo {
+	chain := []string{item}
 	visited := map[string]bool{item: true}
-	queue := []string{item}
-	downstreamCount := 0
+	current := item
 
-	for len(queue) > 0 {
-		current := queue[0]
-		queue = queue[1:]
-
-		entries, ok := consumerIndex[current]
-		if !ok {
-			continue
+	for {
+		// Find the recipe that produces this item
+		recipe, _, _ := resolveRecipe(current, "", nil)
+		if recipe == nil {
+			// No recipe produces this item — it's a raw resource or unknown.
+			return &rootCauseInfo{
+				Chain:          chain,
+				RootItem:       current,
+				BottleneckType: classifyBottleneck(current, chain, recipe, machines),
+			}
 		}
 
-		for _, entry := range entries {
-			// Filter by cascade mode
-			switch mode {
-			case cascadeReal:
-				if entry.IsRecycling {
-					continue
-				}
-			case cascadeRecycler:
-				if !entry.IsRecycling {
-					continue
+		// Check if machines exist for this recipe
+		if machines != nil {
+			if _, running := machines.ByRecipe[recipe.Name]; !running {
+				return &rootCauseInfo{
+					Chain:          chain,
+					RootItem:       current,
+					BottleneckType: "not_built",
 				}
 			}
-
-			product := entry.Product
-			if product == "" || visited[product] {
-				continue
-			}
-
-			// Only count if this product is actively being produced in the factory
-			productRate := lookupProductionRate(product, flow)
-			if productRate <= 0 {
-				// Also check consumption — item might be consumed even if not produced
-				consumedRate := lookupConsumptionRate(product, flow)
-				if consumedRate <= 0 {
-					continue
-				}
-			}
-
-			visited[product] = true
-			downstreamCount++
-			queue = append(queue, product)
 		}
-	}
 
-	if downstreamCount == 0 {
-		return nil
-	}
+		// Check each ingredient — is any in deficit?
+		var starvedIngredient string
+		for _, ing := range recipe.Ingredients {
+			if visited[ing.Name] {
+				continue // avoid cycles
+			}
+			ingNet := lookupNetRate(ing.Name, flow)
+			if ingNet < -0.1 {
+				starvedIngredient = ing.Name
+				break
+			}
+		}
 
-	impactFraction := 0.0
-	if totalActive > 0 {
-		impactFraction = roundTo(float64(downstreamCount)/float64(totalActive), 2)
-	}
+		if starvedIngredient == "" {
+			// All inputs are healthy — this item is the throughput bottleneck
+			return &rootCauseInfo{
+				Chain:          chain,
+				RootItem:       current,
+				BottleneckType: classifyBottleneck(current, chain, recipe, machines),
+			}
+		}
 
-	return &cascadeInfo{
-		DownstreamCount: downstreamCount,
-		ImpactFraction:  impactFraction,
+		// An upstream ingredient is starved — follow the chain
+		visited[starvedIngredient] = true
+		chain = append(chain, starvedIngredient)
+		current = starvedIngredient
 	}
 }
 
-func lookupConsumptionRate(item string, flow *actualFlow) float64 {
+// classifyBottleneck determines why the root item is the bottleneck.
+// - If the chain has multiple items, the original item is input-starved.
+// - If the root item has no machines, it's not_built.
+// - If the root item has machines and all inputs are healthy, it's throughput.
+func classifyBottleneck(_ string, chain []string, recipe *data.Recipe, machines *existingMachines) string {
+	// If we traced upstream past the original item, the original is input-starved
+	if len(chain) > 1 {
+		return "input_starvation"
+	}
+	// No recipe → raw resource or unknown
+	if recipe == nil {
+		return "not_built"
+	}
+	// Has machines → throughput problem
+	if machines != nil {
+		if _, running := machines.ByRecipe[recipe.Name]; running {
+			return "throughput"
+		}
+		return "not_built"
+	}
+	// No machines data → can't tell, default to throughput
+	return "throughput"
+}
+
+// lookupNetRate returns produced - consumed for an item across items and fluids.
+func lookupNetRate(item string, flow *actualFlow) float64 {
 	if flow == nil {
 		return 0
 	}
 	if stats, ok := flow.Items[item]; ok {
-		return stats.ConsumedPerMin
+		return stats.ProducedPerMin - stats.ConsumedPerMin
 	}
 	if stats, ok := flow.Fluids[item]; ok {
-		return stats.ConsumedPerMin
+		return stats.ProducedPerMin - stats.ConsumedPerMin
 	}
 	return 0
 }
@@ -632,79 +625,6 @@ func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis, completedTe
 	return recs
 }
 
-// ─── Overproduction Analysis ────────────────────────────────────────────────
-
-type overproductionEntry struct {
-	Item             string            `json:"item"`
-	SurplusRate      float64           `json:"surplus_rate"`
-	SuggestedRecipes []suggestedRecipe `json:"suggested_recipes"`
-}
-
-type suggestedRecipe struct {
-	Recipe  string `json:"recipe"`
-	Product string `json:"product"`
-}
-
-// computeOverproduction finds surplus items and suggests recipes that consume them.
-func computeOverproduction(itemDiag, fluidDiag []itemDiagnosis, consumerIndex map[string][]recipeConsumerEntry) []overproductionEntry {
-	entries := make([]overproductionEntry, 0)
-
-	for _, diags := range [][]itemDiagnosis{itemDiag, fluidDiag} {
-		for _, d := range diags {
-			if d.Severity != "surplus" {
-				continue
-			}
-
-			consumers, ok := consumerIndex[d.Item]
-			if !ok || len(consumers) == 0 {
-				continue
-			}
-
-			// Collect unique recipes that consume this item
-			seen := make(map[string]bool)
-			var suggestions []suggestedRecipe
-			for _, c := range consumers {
-				if seen[c.RecipeName] || c.Product == "" {
-					continue
-				}
-				seen[c.RecipeName] = true
-				suggestions = append(suggestions, suggestedRecipe{
-					Recipe:  c.RecipeName,
-					Product: c.Product,
-				})
-			}
-
-			// Sort suggestions: enabled recipes first (more likely useful), then alphabetically
-			sort.Slice(suggestions, func(i, j int) bool {
-				ri := data.Recipes[suggestions[i].Recipe]
-				rj := data.Recipes[suggestions[j].Recipe]
-				if ri.Enabled != rj.Enabled {
-					return ri.Enabled // enabled first
-				}
-				return suggestions[i].Recipe < suggestions[j].Recipe
-			})
-
-			// Cap at 8 suggestions
-			if len(suggestions) > 8 {
-				suggestions = suggestions[:8]
-			}
-
-			entries = append(entries, overproductionEntry{
-				Item:             d.Item,
-				SurplusRate:      d.NetRate,
-				SuggestedRecipes: suggestions,
-			})
-		}
-	}
-
-	// Sort by surplus rate descending
-	sort.Slice(entries, func(i, j int) bool {
-		return entries[i].SurplusRate > entries[j].SurplusRate
-	})
-
-	return entries
-}
-
 // formatItemName converts kebab-case to Title Case for display.
 func formatItemName(name string) string {
 	parts := strings.Split(name, "-")
@@ -716,55 +636,3 @@ func formatItemName(name string) string {
 	return strings.Join(parts, " ")
 }
 
-// ─── Health Score ────────────────────────────────────────────────────────────
-
-func computeHealthScore(itemDiag, fluidDiag []itemDiagnosis) float64 {
-	all := make([]itemDiagnosis, 0, len(itemDiag)+len(fluidDiag))
-	all = append(all, itemDiag...)
-	all = append(all, fluidDiag...)
-
-	if len(all) == 0 {
-		return 100
-	}
-
-	// Count active items (have production or consumption)
-	activeItems := 0
-	criticalCount := 0
-	severeCount := 0
-	moderateCount := 0
-
-	for _, d := range all {
-		if d.Produced == 0 && d.Consumed == 0 {
-			continue
-		}
-		activeItems++
-
-		switch d.Severity {
-		case "critical":
-			criticalCount++
-		case "severe":
-			severeCount++
-		case "moderate":
-			moderateCount++
-		}
-	}
-
-	if activeItems == 0 {
-		return 100
-	}
-
-	// Score based on proportion of items in deficit states
-	// Each critical item is a 25-point deduction, severe 15, moderate 3
-	deduction := float64(criticalCount)*25 + float64(severeCount)*15 + float64(moderateCount)*3
-	score := 100.0 - deduction
-
-	// Clamp to 0-100
-	if score < 0 {
-		score = 0
-	}
-	if score > 100 {
-		score = 100
-	}
-
-	return math.Round(score)
-}
