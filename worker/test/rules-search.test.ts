@@ -220,10 +220,14 @@ describe("rules_search native module", () => {
 
   // ── Keyword search (BM25 via FTS5) ──────────────────────
 
+  // Strip AI + Vectorize so keyword tests exercise BM25 only and don't
+  // hit the network (Vectorize calls are slow/flaky in Miniflare).
+  const bm25Env = { ...env, AI: undefined, MTGA_RULES_INDEX: undefined } as unknown as typeof env;
+
   it("keyword search returns BM25-ranked results", async () => {
     await seedRules();
     const module_ = getNativeModule("mtga", "rules_search")!;
-    const result = await module_.execute({ keyword: "deathtouch" }, env);
+    const result = await module_.execute({ keyword: "deathtouch" }, bm25Env);
 
     expect(result.type).toBe("text");
     const text = (result as { content: string }).content;
@@ -236,7 +240,7 @@ describe("rules_search native module", () => {
   it("keyword search handles multiple terms", async () => {
     await seedRules();
     const module_ = getNativeModule("mtga", "rules_search")!;
-    const result = await module_.execute({ keyword: "trample deathtouch" }, env);
+    const result = await module_.execute({ keyword: "trample deathtouch" }, bm25Env);
 
     expect(result.type).toBe("text");
     const text = (result as { content: string }).content;
@@ -292,7 +296,7 @@ describe("rules_search native module", () => {
   it("keyword search includes cite-rules guidance", async () => {
     await seedRules();
     const module_ = getNativeModule("mtga", "rules_search")!;
-    const result = await module_.execute({ keyword: "deathtouch" }, env);
+    const result = await module_.execute({ keyword: "deathtouch" }, bm25Env);
     const text = (result as { content: string }).content;
     expect(text).toContain("cite specific rule numbers");
   });
