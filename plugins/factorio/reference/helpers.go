@@ -145,6 +145,18 @@ func findIngredientAmount(ingredients []data.Ingredient, name string) float64 {
 	return 0
 }
 
+// expandModules converts a module frequency map (module_name → count per machine)
+// into a flat list of module names for use with resolveModuleEffects.
+func expandModules(modules map[string]int) []string {
+	var list []string
+	for name, count := range modules {
+		for range count {
+			list = append(list, name)
+		}
+	}
+	return list
+}
+
 // roundTo rounds a float to the given number of decimal places.
 func roundTo(v float64, decimals int) float64 {
 	shift := math.Pow(10, float64(decimals))

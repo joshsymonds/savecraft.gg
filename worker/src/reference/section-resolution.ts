@@ -51,8 +51,18 @@ async function resolveOneSection(
     .first<{ data: string }>();
 
   if (!row) {
+    const available = await db
+      .prepare("SELECT name FROM sections WHERE save_uuid = ?")
+      .bind(saveId)
+      .all<{ name: string }>();
+    const sectionList = available.results.map((r) => r.name).join(", ");
+
     throw new Error(
-      `Section not found: "${sectionName}" in save ${saveId}. Call get_save to see available sections.`,
+      `This reference module requires the "${sectionName}" section from save data, ` +
+        `but it was not found in this save. ` +
+        `Available sections: [${sectionList}]. ` +
+        `The section may not be exported yet — ensure the game's Savecraft mod/plugin is running ` +
+        `and has exported at least one full update.`,
     );
   }
 
@@ -111,8 +121,19 @@ export async function resolveWasmSectionParams(
         .first<{ data: string }>();
 
       if (!row) {
+        // Fetch available sections to give actionable context
+        const available = await db
+          .prepare("SELECT name FROM sections WHERE save_uuid = ?")
+          .bind(saveId)
+          .all<{ name: string }>();
+        const sectionList = available.results.map((r) => r.name).join(", ");
+
         throw new Error(
-          `Section not found: "${sectionName}" in save ${saveId}. Call get_save to see available sections.`,
+          `This reference module requires the "${sectionName}" section from save data, ` +
+            `but it was not found in this save. ` +
+            `Available sections: [${sectionList}]. ` +
+            `The "${sectionName}" section may not be exported yet — ` +
+            `ensure the game's Savecraft mod/plugin is running and has exported at least one full update.`,
         );
       }
 

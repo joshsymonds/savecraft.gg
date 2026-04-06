@@ -131,7 +131,7 @@ describe("WASM section resolution", () => {
     };
 
     await expect(resolveWasmSectionParams(env.DB, USER_A, sectionMappings, query)).rejects.toThrow(
-      "Section not found",
+      'requires the "machines" section from save data',
     );
   });
 

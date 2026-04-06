@@ -243,7 +243,7 @@ describe("section-reference resolution", () => {
     };
 
     await expect(resolveSectionParams(env.DB, USER_A, module, query)).rejects.toThrow(
-      "Section not found",
+      "requires the",
     );
   });
 });

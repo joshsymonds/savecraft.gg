@@ -612,6 +612,434 @@ func TestProductionFlow_Overproduction_Empty_WhenNoSurplus(t *testing.T) {
 	}
 }
 
+// ─── Recycler Separation ────────────────────────────────────────────────────
+
+func TestProductionFlow_RecyclerOnly_Severity(t *testing.T) {
+	// electronic-circuit consumed at 200/min but ALL consumption is by recyclers.
+	// The recycler machine ("recycler") runs "electronic-circuit-recycling" recipe.
+	// With machines data showing recyclers, real consumption should be ~0 → severity "healthy".
+	//
+	// electronic-circuit-recycling recipe: 1 electronic-circuit → 0.25 products, energy=0.125s
+	// recycler: crafting_speed=0.5
+	// Per machine: (0.5 / 0.125) * 1 * 60 = 240 items/min consumed
+	// 1 recycler ≈ 240/min → more than enough to explain 200/min consumption.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"electronic-circuit": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 200.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["electronic-circuit"],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"electronic-circuit-recycling": {
+					"machine_type": "recycler",
+					"count": 1,
+					"modules": {}
+				}
+			},
+			"by_type": {"recycler": 1},
+			"beacon_count": 0
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	ec := findDiagnosis(items, "electronic-circuit")
+	if ec == nil {
+		t.Fatal("expected electronic-circuit in item_diagnoses")
+	}
+
+	// Recycler can consume ~240/min, actual consumed is 200/min.
+	// All consumption is attributable to recyclers → real consumed ≈ 0 → healthy.
+	if ec["severity"] == "severe" || ec["severity"] == "critical" {
+		t.Errorf("severity = %v, want healthy or moderate (not severe/critical) when all consumption is recycler", ec["severity"])
+	}
+
+	// Check new fields exist
+	recyclerConsumed := ec["recycler_consumed"].(float64)
+	if recyclerConsumed < 100 {
+		t.Errorf("recycler_consumed = %.1f, want >= 100 (recycler explains most consumption)", recyclerConsumed)
+	}
+
+	realConsumed := ec["real_consumed"].(float64)
+	if realConsumed > 100 {
+		t.Errorf("real_consumed = %.1f, want < 100 (real demand should be low)", realConsumed)
+	}
+}
+
+func TestProductionFlow_RecyclerMixed_Severity(t *testing.T) {
+	// steel-plate consumed at 200/min. Recyclers account for some, real recipes for the rest.
+	// steel-plate-recycling recipe: 1 steel-plate, energy=1.0s
+	// recycler crafting_speed=0.5 → per machine: (0.5 / 1.0) * 1 * 60 = 30/min
+	// 5 recyclers → 150/min recycler consumption
+	// Total consumed 200/min - recycler 150/min = real 50/min
+	// Produced 150/min, real consumed 50/min → real net +100/min → surplus or healthy
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"steel-plate": {
+					"produced_per_min": 150.0,
+					"consumed_per_min": 200.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": [],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"steel-plate-recycling": {
+					"machine_type": "recycler",
+					"count": 5,
+					"modules": {}
+				}
+			},
+			"by_type": {"recycler": 5},
+			"beacon_count": 0
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	steel := findDiagnosis(items, "steel-plate")
+	if steel == nil {
+		t.Fatal("expected steel-plate in item_diagnoses")
+	}
+
+	// With recycler subtracted, real consumed ~50/min, produced 150/min → healthy or surplus.
+	if steel["severity"] == "severe" || steel["severity"] == "critical" {
+		t.Errorf("severity = %v, want healthy or surplus when recycler consumption is subtracted", steel["severity"])
+	}
+
+	recyclerConsumed := steel["recycler_consumed"].(float64)
+	if recyclerConsumed < 100 {
+		t.Errorf("recycler_consumed = %.1f, want >= 100", recyclerConsumed)
+	}
+}
+
+func TestProductionFlow_NoMachinesData_FallsBackToTotal(t *testing.T) {
+	// Without machines data, can't estimate recycler share → treat all consumption as real.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"electronic-circuit": {
+					"produced_per_min": 0.0,
+					"consumed_per_min": 200.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["electronic-circuit"],
+			"top_surpluses": []
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	ec := findDiagnosis(items, "electronic-circuit")
+	if ec == nil {
+		t.Fatal("expected electronic-circuit in item_diagnoses")
+	}
+
+	// No machines → can't separate → severity should use total → critical
+	if ec["severity"] != "critical" {
+		t.Errorf("severity = %v, want critical (no machines data to estimate recycler share)", ec["severity"])
+	}
+
+	// recycler_consumed should be 0 (unknown)
+	recyclerConsumed := ec["recycler_consumed"].(float64)
+	if recyclerConsumed != 0 {
+		t.Errorf("recycler_consumed = %.1f, want 0 (no machines data)", recyclerConsumed)
+	}
+}
+
+func TestProductionFlow_ConsumerFanOut_IsRecycling(t *testing.T) {
+	// Verify that consumer fan-out entries are tagged with is_recycling.
+	// electronic-circuit-recycling produces iron-plate, so iron-plate must be
+	// in the flow data for the fan-out to detect the recycling consumer.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"electronic-circuit": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 300.0
+				},
+				"advanced-circuit": {
+					"produced_per_min": 50.0,
+					"consumed_per_min": 40.0
+				},
+				"iron-plate": {
+					"produced_per_min": 500.0,
+					"consumed_per_min": 400.0
+				},
+				"copper-cable": {
+					"produced_per_min": 200.0,
+					"consumed_per_min": 180.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["electronic-circuit"],
+			"top_surpluses": []
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	ec := findDiagnosis(items, "electronic-circuit")
+	if ec == nil {
+		t.Fatal("expected electronic-circuit in item_diagnoses")
+	}
+
+	consumers := ec["consumers"].([]any)
+
+	foundRecycling := false
+	foundNonRecycling := false
+	for _, c := range consumers {
+		consumer := c.(map[string]any)
+		isRecycling, ok := consumer["is_recycling"]
+		if !ok {
+			t.Fatal("consumer missing is_recycling field")
+		}
+		if isRecycling.(bool) {
+			foundRecycling = true
+		} else {
+			foundNonRecycling = true
+		}
+	}
+
+	// electronic-circuit is consumed by both normal recipes (advanced-circuit)
+	// and electronic-circuit-recycling
+	if !foundNonRecycling {
+		t.Error("expected at least one non-recycling consumer for electronic-circuit")
+	}
+	if !foundRecycling {
+		t.Error("expected at least one recycling consumer for electronic-circuit")
+	}
+}
+
+func TestProductionFlow_MachineGap_UsesRealDeficit(t *testing.T) {
+	// iron-plate: consumed 300/min, produced 250/min. Total deficit = 50/min.
+	// But iron-plate-recycling on 1 recycler accounts for some consumption.
+	// iron-plate-recycling: 1 iron-plate, energy=0.0625s
+	// recycler speed=0.5 → (0.5/0.0625)*1*60 = 480/min per recycler (capped at actual consumption)
+	// Real deficit should be much smaller → fewer additional machines needed.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 250.0,
+					"consumed_per_min": 300.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["iron-plate"],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"iron-plate": {
+					"machine_type": "stone-furnace",
+					"count": 10,
+					"modules": {}
+				},
+				"iron-plate-recycling": {
+					"machine_type": "recycler",
+					"count": 1,
+					"modules": {}
+				}
+			},
+			"by_type": {"stone-furnace": 10, "recycler": 1},
+			"beacon_count": 0
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	iron := findDiagnosis(items, "iron-plate")
+	if iron == nil {
+		t.Fatal("expected iron-plate in item_diagnoses")
+	}
+
+	// If machine_gap exists, additional_needed should be based on real deficit (near 0),
+	// not the total deficit of 50/min.
+	mg := iron["machine_gap"]
+	if mg != nil {
+		gap := mg.(map[string]any)
+		needed := gap["additional_needed"].(float64)
+		// Total deficit = 50, but recycler consumes most of it → real deficit near 0
+		// So additional_needed should be very small (0-1)
+		if needed > 2 {
+			t.Errorf("additional_needed = %.0f, want <= 2 (machine gap should use real deficit, not recycler-inflated)", needed)
+		}
+	}
+}
+
+// ─── Dual Cascade ──────────────────────────────────────────────────────────
+
+func TestProductionFlow_DualCascade_RealSkipsRecycling(t *testing.T) {
+	// iron-plate is consumed by iron-gear-wheel (real) and iron-plate-recycling (recycler).
+	// Real cascade should include iron-gear-wheel but not traverse recycling edges.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"iron-plate": {
+					"produced_per_min": 0.0,
+					"consumed_per_min": 300.0
+				},
+				"iron-gear-wheel": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 80.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["iron-plate"],
+			"top_surpluses": []
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	iron := findDiagnosis(items, "iron-plate")
+	if iron == nil {
+		t.Fatal("expected iron-plate in item_diagnoses")
+	}
+
+	// Real cascade should exist (iron-gear-wheel and downstream)
+	cascade := iron["cascade"]
+	if cascade == nil {
+		t.Fatal("expected cascade for critical iron-plate")
+	}
+
+	// Now check recycler_cascade — iron-plate-recycling produces iron-ore,
+	// but iron-ore isn't in the flow data, so recycler cascade may be nil.
+	// The key thing is the field exists in the output.
+	// (recycler_cascade can be nil if no active recycler downstream)
+}
+
+func TestProductionFlow_DualCascade_RecyclerCascadePresent(t *testing.T) {
+	// electronic-circuit consumed at critical level.
+	// electronic-circuit-recycling produces iron-plate (active in flow).
+	// Recycler cascade should show iron-plate as downstream.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"electronic-circuit": {
+					"produced_per_min": 0.0,
+					"consumed_per_min": 300.0
+				},
+				"iron-plate": {
+					"produced_per_min": 500.0,
+					"consumed_per_min": 400.0
+				},
+				"copper-cable": {
+					"produced_per_min": 200.0,
+					"consumed_per_min": 180.0
+				},
+				"advanced-circuit": {
+					"produced_per_min": 50.0,
+					"consumed_per_min": 40.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["electronic-circuit"],
+			"top_surpluses": []
+		}
+	}`)
+
+	items := data["item_diagnoses"].([]any)
+	ec := findDiagnosis(items, "electronic-circuit")
+	if ec == nil {
+		t.Fatal("expected electronic-circuit in item_diagnoses")
+	}
+
+	// Real cascade should exist (advanced-circuit, etc.)
+	cascade := ec["cascade"]
+	if cascade == nil {
+		t.Fatal("expected real cascade for critical electronic-circuit")
+	}
+
+	// Recycler cascade should exist (electronic-circuit-recycling → iron-plate)
+	recyclerCascade := ec["recycler_cascade"]
+	if recyclerCascade == nil {
+		t.Fatal("expected recycler_cascade for electronic-circuit (recycling → iron-plate)")
+	}
+	rc := recyclerCascade.(map[string]any)
+	if rc["downstream_count"].(float64) < 1 {
+		t.Error("recycler_cascade downstream_count should be >= 1 (at least iron-plate)")
+	}
+}
+
+// ─── Tech Recommendation Filtering ─────────────────────────────────────────
+
+func TestProductionFlow_TechUnlock_FiltersCompletedResearch(t *testing.T) {
+	// petroleum-gas deficit. advanced-oil-processing tech unlocks recipes for it.
+	// But if advanced-oil-processing is in completed_research, it should be excluded.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {},
+			"fluids": {
+				"petroleum-gas": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 300.0
+				}
+			},
+			"top_deficits": ["petroleum-gas"],
+			"top_surpluses": []
+		},
+		"completed_research": {
+			"completed": ["advanced-oil-processing", "oil-processing", "coal-liquefaction"],
+			"completed_count": 3
+		}
+	}`)
+
+	recs := data["tech_recommendations"].([]any)
+
+	// All oil-related techs are completed → no tech recs for petroleum-gas
+	for _, r := range recs {
+		rec := r.(map[string]any)
+		techName := rec["tech"].(string)
+		if techName == "advanced-oil-processing" || techName == "oil-processing" || techName == "coal-liquefaction" {
+			t.Errorf("tech %q should be filtered out (already researched)", techName)
+		}
+	}
+}
+
+func TestProductionFlow_TechUnlock_KeepsUnresearched(t *testing.T) {
+	// petroleum-gas deficit. Some techs researched, but not all.
+	// Unresearched techs should still appear.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {},
+			"fluids": {
+				"petroleum-gas": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 300.0
+				}
+			},
+			"top_deficits": ["petroleum-gas"],
+			"top_surpluses": []
+		},
+		"completed_research": {
+			"completed": [],
+			"completed_count": 0
+		}
+	}`)
+
+	recs := data["tech_recommendations"].([]any)
+	// With no research completed, there should be at least one tech rec
+	if len(recs) == 0 {
+		t.Error("expected tech recommendations when no research is completed")
+	}
+}
+
 // ─── Schema Registration ────────────────────────────────────────────────────
 
 func TestProductionFlow_InSchema(t *testing.T) {

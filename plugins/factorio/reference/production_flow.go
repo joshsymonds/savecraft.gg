@@ -13,21 +13,29 @@ import (
 // ─── Input Types ────────────────────────────────────────────────────────────
 
 type productionFlowQuery struct {
-	FlowData         *actualFlow       `json:"flow_data"`
-	ExistingMachines *existingMachines `json:"existing_machines"`
+	FlowData          *actualFlow        `json:"flow_data"`
+	ExistingMachines  *existingMachines  `json:"existing_machines"`
+	CompletedResearch *completedResearch `json:"completed_research"`
+}
+
+type completedResearch struct {
+	Completed []string `json:"completed"`
 }
 
 // ─── Output Types ───────────────────────────────────────────────────────────
 
 type itemDiagnosis struct {
-	Item       string           `json:"item"`
-	Produced   float64          `json:"produced_per_min"`
-	Consumed   float64          `json:"consumed_per_min"`
-	NetRate    float64          `json:"net_rate"`
-	Severity   string           `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
-	Consumers  []recipeConsumer `json:"consumers,omitempty"`
-	MachineGap *machineGapInfo  `json:"machine_gap,omitempty"`
-	Cascade    *cascadeInfo     `json:"cascade,omitempty"`
+	Item              string           `json:"item"`
+	Produced          float64          `json:"produced_per_min"`
+	Consumed          float64          `json:"consumed_per_min"`
+	RealConsumed      float64          `json:"real_consumed"`
+	RecyclerConsumed  float64          `json:"recycler_consumed"`
+	NetRate           float64          `json:"net_rate"`
+	Severity          string           `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
+	Consumers         []recipeConsumer `json:"consumers,omitempty"`
+	MachineGap        *machineGapInfo  `json:"machine_gap,omitempty"`
+	Cascade           *cascadeInfo     `json:"cascade,omitempty"`
+	RecyclerCascade   *cascadeInfo     `json:"recycler_cascade,omitempty"`
 }
 
 type machineGapInfo struct {
@@ -44,10 +52,11 @@ type cascadeInfo struct {
 }
 
 type recipeConsumer struct {
-	Recipe  string  `json:"recipe"`
-	Item    string  `json:"item"`    // the downstream product
-	Rate    float64 `json:"rate"`    // estimated consumption rate of this item by this recipe
-	Percent float64 `json:"percent"` // percentage of total consumption
+	Recipe      string  `json:"recipe"`
+	Item        string  `json:"item"`         // the downstream product
+	Rate        float64 `json:"rate"`         // estimated consumption rate of this item by this recipe
+	Percent     float64 `json:"percent"`      // percentage of total consumption
+	IsRecycling bool    `json:"is_recycling"` // true if this is a recycling recipe
 }
 
 // ─── Handler ────────────────────────────────────────────────────────────────
@@ -78,8 +87,16 @@ func handleProductionFlow(enc *json.Encoder, query map[string]any) {
 	itemDiagnoses := analyzeFlowEntries(q.FlowData.Items, consumerIndex, q.FlowData, q.ExistingMachines, topDeficitSet)
 	fluidDiagnoses := analyzeFlowEntries(q.FlowData.Fluids, consumerIndex, q.FlowData, q.ExistingMachines, topDeficitSet)
 
+	// Build completed tech set from research data
+	completedTechs := make(map[string]bool)
+	if q.CompletedResearch != nil {
+		for _, tech := range q.CompletedResearch.Completed {
+			completedTechs[tech] = true
+		}
+	}
+
 	// Compute tech unlock recommendations for deficit items
-	techRecs := computeTechRecommendations(itemDiagnoses, fluidDiagnoses)
+	techRecs := computeTechRecommendations(itemDiagnoses, fluidDiagnoses, completedTechs)
 
 	// Compute overproduction analysis for surplus items
 	overproduction := computeOverproduction(itemDiagnoses, fluidDiagnoses, consumerIndex)
@@ -102,10 +119,12 @@ func handleProductionFlow(enc *json.Encoder, query map[string]any) {
 
 // recipeConsumerEntry maps an ingredient to the recipe and product that consume it.
 type recipeConsumerEntry struct {
-	RecipeName string
-	Product    string  // primary product of the recipe
-	Amount     float64 // amount of ingredient consumed per craft
-	ResultAmt  float64 // amount of product produced per craft
+	RecipeName    string
+	Product       string  // primary product of the recipe
+	Amount        float64 // amount of ingredient consumed per craft
+	ResultAmt     float64 // amount of product produced per craft
+	IsRecycling   bool    // true if recipe Category == "recycling"
+	EnergyReq     float64 // craft time in seconds (for estimating recycler consumption)
 }
 
 // buildConsumerIndex builds a map of item/fluid name → recipes that consume it.
@@ -121,17 +140,72 @@ func buildConsumerIndex() map[string][]recipeConsumerEntry {
 			primaryAmount = recipe.Results[0].Amount * recipe.Results[0].Probability
 		}
 
+		isRecycling := recipe.Category == "recycling"
+		energyReq := recipe.EnergyRequired
+		if energyReq <= 0 {
+			energyReq = 0.5
+		}
+
 		for _, ing := range recipe.Ingredients {
 			index[ing.Name] = append(index[ing.Name], recipeConsumerEntry{
-				RecipeName: recipe.Name,
-				Product:    primaryProduct,
-				Amount:     ing.Amount,
-				ResultAmt:  primaryAmount,
+				RecipeName:  recipe.Name,
+				Product:     primaryProduct,
+				Amount:      ing.Amount,
+				ResultAmt:   primaryAmount,
+				IsRecycling: isRecycling,
+				EnergyReq:   energyReq,
 			})
 		}
 	}
 
 	return index
+}
+
+// ─── Recycler Estimation ───────────────────────────────────────────────────
+
+// estimateRecyclerConsumption estimates how much of an item's consumption is
+// attributable to recycling machines. For each recycling recipe that consumes
+// this item, it checks if machines are running that recipe and computes the
+// theoretical consumption rate: machine_count × crafting_speed × (amount / craft_time) × 60.
+// Returns 0 if no machines data or no recycling recipes found.
+func estimateRecyclerConsumption(item string, consumerIndex map[string][]recipeConsumerEntry, machines *existingMachines) float64 {
+	if machines == nil {
+		return 0
+	}
+
+	consumers, ok := consumerIndex[item]
+	if !ok {
+		return 0
+	}
+
+	total := 0.0
+	for _, entry := range consumers {
+		if !entry.IsRecycling {
+			continue
+		}
+
+		setup, ok := machines.ByRecipe[entry.RecipeName]
+		if !ok || setup.Count <= 0 {
+			continue
+		}
+
+		machine, ok := data.Machines[setup.MachineType]
+		if !ok {
+			continue
+		}
+
+		speedBonus, _, _ := resolveModuleEffects(expandModules(setup.Modules))
+		craftingSpeed := machine.CraftingSpeed * (1 + speedBonus)
+		if craftingSpeed < 0.01 {
+			craftingSpeed = 0.01
+		}
+
+		// Consumption rate = machines × (craftingSpeed / craftTime) × ingredientAmount × 60
+		perMachineRate := (craftingSpeed / entry.EnergyReq) * entry.Amount * 60
+		total += float64(setup.Count) * perMachineRate
+	}
+
+	return total
 }
 
 // ─── Flow Analysis ──────────────────────────────────────────────────────────
@@ -154,35 +228,51 @@ func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][
 
 	for name, stats := range entries {
 		netRate := roundTo(stats.ProducedPerMin-stats.ConsumedPerMin, 1)
-		severity := classifySeverity(stats.ProducedPerMin, stats.ConsumedPerMin, netRate)
+
+		// Estimate recycler consumption and compute real consumption
+		recyclerConsumed := estimateRecyclerConsumption(name, consumerIndex, machines)
+		// Cap recycler estimate at actual consumption (can't recycle more than is consumed)
+		if recyclerConsumed > stats.ConsumedPerMin {
+			recyclerConsumed = stats.ConsumedPerMin
+		}
+		realConsumed := stats.ConsumedPerMin - recyclerConsumed
+		realNetRate := stats.ProducedPerMin - realConsumed
+
+		// Severity is based on real consumption, not recycler-inflated totals
+		severity := classifySeverity(stats.ProducedPerMin, realConsumed, roundTo(realNetRate, 1))
 
 		// Boost severity if the Lua mod flagged this as a top deficit.
 		// The mod is closer to the data and may detect issues the rate snapshot misses.
-		if topDeficits[name] && severity == "moderate" {
+		// Only boost if there's a real deficit (not just recycler demand).
+		if topDeficits[name] && severity == "moderate" && realNetRate < -0.1 {
 			severity = "severe"
 		}
 
 		diag := itemDiagnosis{
-			Item:     name,
-			Produced: stats.ProducedPerMin,
-			Consumed: stats.ConsumedPerMin,
-			NetRate:  netRate,
-			Severity: severity,
+			Item:             name,
+			Produced:         stats.ProducedPerMin,
+			Consumed:         stats.ConsumedPerMin,
+			RealConsumed:     roundTo(realConsumed, 1),
+			RecyclerConsumed: roundTo(recyclerConsumed, 1),
+			NetRate:          netRate,
+			Severity:         severity,
 		}
 
-		// Compute recipe fan-out for deficit items
+		// Compute recipe fan-out for deficit items (total deficit, not just real)
 		if netRate < -0.1 {
 			diag.Consumers = computeRecipeFanOut(name, consumerIndex, flow)
 		}
 
-		// Compute machine gap for deficit items when machine data is available
-		if netRate < -0.1 && machines != nil {
-			diag.MachineGap = computeMachineGap(name, math.Abs(netRate), machines)
+		// Compute machine gap against real deficit only
+		realDeficit := math.Abs(math.Min(realNetRate, 0))
+		if realDeficit > 0.1 && machines != nil {
+			diag.MachineGap = computeMachineGap(name, realDeficit, machines)
 		}
 
 		// Compute cascade depth for critical/severe deficit items
 		if severity == "critical" || severity == "severe" {
-			diag.Cascade = computeCascade(name, consumerIndex, flow, totalActive)
+			diag.Cascade = computeCascade(name, consumerIndex, flow, totalActive, cascadeReal)
+			diag.RecyclerCascade = computeCascade(name, consumerIndex, flow, totalActive, cascadeRecycler)
 		}
 
 		diagnoses = append(diagnoses, diag)
@@ -229,6 +319,7 @@ func computeRecipeFanOut(item string, consumerIndex map[string][]recipeConsumerE
 		recipe        string
 		product       string
 		estimatedRate float64
+		isRecycling   bool
 	}
 
 	var consumers []weightedConsumer
@@ -255,6 +346,7 @@ func computeRecipeFanOut(item string, consumerIndex map[string][]recipeConsumerE
 			recipe:        entry.RecipeName,
 			product:       entry.Product,
 			estimatedRate: consumptionRate,
+			isRecycling:   entry.IsRecycling,
 		})
 		totalEstimated += consumptionRate
 	}
@@ -275,10 +367,11 @@ func computeRecipeFanOut(item string, consumerIndex map[string][]recipeConsumerE
 			pct = roundTo((c.estimatedRate/totalEstimated)*100, 1)
 		}
 		result = append(result, recipeConsumer{
-			Recipe:  c.recipe,
-			Item:    c.product,
-			Rate:    roundTo(c.estimatedRate, 1),
-			Percent: pct,
+			Recipe:      c.recipe,
+			Item:        c.product,
+			Rate:        roundTo(c.estimatedRate, 1),
+			Percent:     pct,
+			IsRecycling: c.isRecycling,
 		})
 	}
 
@@ -321,13 +414,7 @@ func computeMachineGap(item string, deficitRate float64, machines *existingMachi
 	}
 
 	// Compute per-machine rate
-	var moduleList []string
-	for name, count := range setup.Modules {
-		for range count {
-			moduleList = append(moduleList, name)
-		}
-	}
-	speedBonus, prodBonus, _ := resolveModuleEffects(moduleList)
+	speedBonus, prodBonus, _ := resolveModuleEffects(expandModules(setup.Modules))
 
 	craftingSpeed := machine.CraftingSpeed * (1 + speedBonus)
 	if craftingSpeed < 0.01 {
@@ -359,9 +446,18 @@ func computeMachineGap(item string, deficitRate float64, machines *existingMachi
 
 // ─── Cascade Depth ──────────────────────────────────────────────────────────
 
+// cascadeMode controls which recipe edges the BFS follows.
+type cascadeMode int
+
+const (
+	cascadeReal     cascadeMode = iota // skip recycling edges
+	cascadeRecycler                    // follow only recycling edges
+)
+
 // computeCascade walks the recipe dependency graph forward from a deficit item,
 // counting how many downstream items in the active factory depend on it.
-func computeCascade(item string, consumerIndex map[string][]recipeConsumerEntry, flow *actualFlow, totalActive int) *cascadeInfo {
+// mode controls which edges are followed: real (non-recycling) or recycler-only.
+func computeCascade(item string, consumerIndex map[string][]recipeConsumerEntry, flow *actualFlow, totalActive int, mode cascadeMode) *cascadeInfo {
 	// BFS to find all downstream items
 	visited := map[string]bool{item: true}
 	queue := []string{item}
@@ -377,6 +473,18 @@ func computeCascade(item string, consumerIndex map[string][]recipeConsumerEntry,
 		}
 
 		for _, entry := range entries {
+			// Filter by cascade mode
+			switch mode {
+			case cascadeReal:
+				if entry.IsRecycling {
+					continue
+				}
+			case cascadeRecycler:
+				if !entry.IsRecycling {
+					continue
+				}
+			}
+
 			product := entry.Product
 			if product == "" || visited[product] {
 				continue
@@ -438,7 +546,8 @@ type techRecommendation struct {
 // computeTechRecommendations finds technologies that unlock recipes producing deficit items.
 // For each critical/severe deficit, checks if there are disabled recipes that produce the
 // deficit item, then finds which tech unlocks each such recipe.
-func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis) []techRecommendation {
+// completedTechs filters out already-researched technologies.
+func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis, completedTechs map[string]bool) []techRecommendation {
 	// Build tech → unlocked recipes index
 	techByRecipe := make(map[string]string) // recipe name → tech name
 	for _, tech := range data.Technologies {
@@ -480,6 +589,11 @@ func computeTechRecommendations(itemDiag, fluidDiag []itemDiagnosis) []techRecom
 
 			techName, ok := techByRecipe[recipe.Name]
 			if !ok {
+				continue
+			}
+
+			// Skip already-researched technologies
+			if completedTechs[techName] {
 				continue
 			}
 
