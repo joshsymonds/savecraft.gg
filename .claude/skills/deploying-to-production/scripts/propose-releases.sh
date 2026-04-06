@@ -11,19 +11,34 @@ cd "$(git rev-parse --show-toplevel)"
 
 # Component definitions: tag_prefix|paths (space-separated, passed to git -- <paths>)
 #
-# IMPORTANT: Native TypeScript reference modules (plugins/*/reference/) are
-# bundled into the main worker and deploy via cloud, NOT via plugin deploy.
-# Plugin entries exclude reference/ and tools/ directories.
+# Native TypeScript reference modules (identified by register.ts) are bundled
+# into the main worker and deploy via cloud. WASM reference modules (Go) compile
+# into reference.wasm and deploy via the plugin workflow.
+# Plugin entries exclude tools/ always; reference/ only excluded for native TS.
+
+# Find native TS reference module paths for cloud
+native_ref_paths=""
+for reg in plugins/*/reference/register.ts; do
+  [ -f "$reg" ] || continue
+  dir=$(dirname "$reg")
+  native_ref_paths="${native_ref_paths} ${dir}/"
+done
+
 COMPONENTS=(
   "daemon|internal/ cmd/ go.mod go.sum"
-  "cloud|worker/ web/ site/ plugins/*/reference/"
+  "cloud|worker/ web/ site/${native_ref_paths}"
   "install|install/"
 )
 
 # Dynamically discover plugin tag families
 while IFS= read -r family; do
   game_id="${family#plugin-}"
-  COMPONENTS+=("${family}|plugins/${game_id}/ :(exclude)plugins/${game_id}/reference/ :(exclude)plugins/${game_id}/tools/")
+  # Only exclude reference/ for native TS reference modules (have register.ts)
+  if [ -f "plugins/${game_id}/reference/register.ts" ]; then
+    COMPONENTS+=("${family}|plugins/${game_id}/ :(exclude)plugins/${game_id}/reference/ :(exclude)plugins/${game_id}/tools/")
+  else
+    COMPONENTS+=("${family}|plugins/${game_id}/ :(exclude)plugins/${game_id}/tools/")
+  fi
 done < <(git tag --list 'plugin-*-v*' | sed -E 's/-v[0-9]+\.[0-9]+\.[0-9]+.*$//' | sort -u)
 
 found_changes=false
