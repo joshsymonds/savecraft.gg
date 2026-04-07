@@ -186,11 +186,15 @@ Clair Obscur has no reference modules yet. Damage formulas and item categorizati
 
 The Stellaris plugin is the first Rust WASM plugin, sharing the `clausewitz-core` library with the planned Victoria 3 plugin. It uses the `jomini` crate for Clausewitz format parsing and produces 13 sections: `overview` (empire identity, ethics, civics, authority, origin, rank, resource stockpiles, DLCs, game version), `economy` (income/expense breakdown by resource with category detail, net balance), `technology` (researched techs, in-progress research with progress %, available alternatives, repeatables), `military` (fleet power, fleet size, naval capacity, empire size), `wars` (active wars with participants, war goals, war exhaustion), `diplomacy` (relations sorted by opinion, casus belli), `progression` (traditions, ascension perks, active edicts), `leaders` (ruler, scientists, admirals, generals with traits, level, age), `species` (species traits, founder species), `factions` (faction happiness, support), `exploration` (archaeological sites), `geography` (owned/controlled planet IDs), and `planets` (per-colony: class, size, designation, pops, stability, crime, amenities, housing).
 
-Stellaris has the largest reference module suite by game data volume — eight Rust WASM modules with 4,782 game data entries covering all vanilla and DLC content. The data is generated from the game's `common/` directory by a jomini-based datagen pipeline and embedded at compile time into a 474KB WASM binary.
+Stellaris has the largest reference module suite by game data volume — nine Rust WASM modules with 4,782 game data entries covering all vanilla and DLC content. The data is generated from the game's `common/` directory by a jomini-based datagen pipeline and embedded at compile time into a 474KB WASM binary. Three modules have interactive views: Technology Search, Ship Component Search, and Technology Path.
 
 ### Reference: Technology Search
 
-Searches all 663 technologies by name, area (physics/society/engineering), tier, or category. Returns cost, prerequisites, research weight, and start/repeatable flags. Supports case-insensitive matching.
+Searches all 663 technologies by name, area (physics/society/engineering), tier, or category. Returns cost, prerequisites, research weight, and start/repeatable flags. Supports case-insensitive matching. **Has view:** sortable DataTable with area-colored badges.
+
+### Reference: Technology Path
+
+Resolves the full prerequisite chain for a target technology. Accepts an optional `researched` array (from the save's technology section) to annotate each step as completed or remaining. Returns a topologically sorted chain with per-tech area, tier, cost, and researched status, plus total and remaining research cost. **Has view:** Timeline with researched/remaining coloring and remaining cost hero stat.
 
 ### Reference: Building Search
 
@@ -198,7 +202,7 @@ Searches 490 buildings by name or category. Returns build time and capital statu
 
 ### Reference: Ship Component Search
 
-Searches 1,379 ship components (weapons, utilities, reactors, combat computers) by name, size slot, or component set. Returns power draw and tech prerequisites.
+Searches 1,379 ship components (weapons, utilities, reactors, combat computers) by name, size slot, or component set. Returns power draw and tech prerequisites. **Has view:** sortable DataTable with size badges and power coloring (green for generators, red for consumers).
 
 ### Reference: Tradition & Ascension Perk Search
 
