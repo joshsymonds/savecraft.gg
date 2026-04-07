@@ -83,8 +83,9 @@ func handleTechTreeNavigator(enc *json.Encoder, query map[string]any) {
 		}
 	}
 
-	// With save data: only return totals (time + materials to reach target)
-	// Without save data: include full chain and research order for planning
+	// Both paths include research_order so the view can list remaining techs.
+	// With save data: also include remaining/already_completed counts.
+	order := topoSort(chain)
 	if hasSaveData {
 		writeResult(enc, map[string]any{
 			"target":             resolved,
@@ -92,18 +93,17 @@ func handleTechTreeNavigator(enc *json.Encoder, query map[string]any) {
 			"total_time_seconds": totalTime,
 			"remaining":          len(chain),
 			"already_completed":  len(completed),
+			"research_order":     order,
 		})
 	} else {
-		order := topoSort(chain)
-		result := map[string]any{
+		writeResult(enc, map[string]any{
 			"target":             resolved,
 			"chain":              chain,
 			"chain_length":       len(chain),
 			"total_cost":         totalCost,
 			"total_time_seconds": totalTime,
 			"research_order":     order,
-		}
-		writeResult(enc, result)
+		})
 	}
 }
 

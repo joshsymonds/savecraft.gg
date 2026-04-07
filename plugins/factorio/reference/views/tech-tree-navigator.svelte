@@ -45,7 +45,7 @@
   }
 
   let isComplete = $derived((data.chain_length ?? data.remaining ?? 0) === 0);
-  let hasSaveData = $derived(data.remaining != null && data.research_order == null);
+  let hasSaveData = $derived(data.remaining != null);
 
   // ── Science pack cost table ──────────────────────────────────
   let costColumns = [

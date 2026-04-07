@@ -236,8 +236,8 @@ func TestTechTree_RemainingPath_TargetAlreadyCompleted(t *testing.T) {
 
 // ─── Save Data Mode (completed_research section) ───────────────────────────
 
-func TestTechTree_SaveData_OnlyTotals(t *testing.T) {
-	// With completed_research (save data), output should be totals only
+func TestTechTree_SaveData_IncludesResearchOrder(t *testing.T) {
+	// With completed_research (save data), output includes totals and research_order
 	result, code := runReference(t, `{
 		"module": "tech_tree_navigator",
 		"target": "automation-2",
@@ -264,12 +264,28 @@ func TestTechTree_SaveData_OnlyTotals(t *testing.T) {
 		t.Error("expected already_completed in save data result")
 	}
 
-	// Should NOT have chain or research_order
+	// Should have research_order (remaining techs in dependency order)
+	order, ok := data["research_order"].([]any)
+	if !ok {
+		t.Fatal("expected research_order in save data result")
+	}
+	if len(order) == 0 {
+		t.Error("expected non-empty research_order")
+	}
+	// research_order should not contain any completed techs
+	completedSet := map[string]bool{
+		"automation": true, "automation-science-pack": true,
+		"steam-power": true, "electronics": true,
+	}
+	for _, v := range order {
+		if completedSet[v.(string)] {
+			t.Errorf("research_order contains completed tech: %s", v)
+		}
+	}
+
+	// Should NOT have chain or chain_length
 	if _, ok := data["chain"]; ok {
 		t.Error("save data result should not include chain")
-	}
-	if _, ok := data["research_order"]; ok {
-		t.Error("save data result should not include research_order")
 	}
 	if _, ok := data["chain_length"]; ok {
 		t.Error("save data result should not include chain_length")
