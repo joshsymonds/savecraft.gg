@@ -66,7 +66,7 @@ Frank Karsten's mana consistency methodology applied to the player's deck. Given
 
 ## Factorio
 
-**Source:** Lua mod + WASM plugin — the Savecraft Export mod (`mod/`) writes game state as JSON to Factorio's `script-output/savecraft/` directory; the daemon watches that directory and the WASM parser validates and relays the data
+**Source:** [Factorio Mod Portal](https://mods.factorio.com/mod/savecraft) + WASM plugin — the Savecraft Export mod writes game state as JSON to Factorio's `script-output/savecraft/` directory; the daemon watches that directory and the WASM parser validates and relays the data
 **Status:** Alpha
 
 Factorio's connector is a hybrid: a Lua mod running inside the game collects data that Factorio's API exposes, and the daemon picks up the exported JSON. The mod produces `game_overview` (active mods, surfaces, tick count, difficulty, research queue), `machines` (crafting machines by type with utilization statistics), `power` (generation and consumption by source), `production_flow` (item flow rates between production stages), `resources` (raw material reserves on each surface), `logistics` (belt and inserter network topology), `trains` (train schedule and network layout), and `defenses` (turret placement, wall integrity, damage statistics). Section content is defined by the Lua mod and can expand without changing the WASM parser.
