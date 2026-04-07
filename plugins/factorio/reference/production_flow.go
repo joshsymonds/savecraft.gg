@@ -25,16 +25,18 @@ type completedResearch struct {
 // ─── Internal Diagnosis Types ───────────────────────────────────────────────
 
 type itemDiagnosis struct {
-	Item             string           `json:"item"`
-	Produced         float64          `json:"produced_per_min"`
-	Consumed         float64          `json:"consumed_per_min"`
-	RealConsumed     float64          `json:"real_consumed"`
-	RecyclerConsumed float64          `json:"recycler_consumed"`
-	NetRate          float64          `json:"net_rate"`
-	Severity         string           `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
-	Consumers        []recipeConsumer `json:"consumers,omitempty"`
-	MachineGap       *machineGapInfo  `json:"machine_gap,omitempty"`
-	RootCause        *rootCauseInfo   `json:"root_cause,omitempty"`
+	Item                 string           `json:"item"`
+	Produced             float64          `json:"produced_per_min"`
+	Consumed             float64          `json:"consumed_per_min"`
+	RealConsumed         float64          `json:"real_consumed"`
+	RecyclerConsumed     float64          `json:"recycler_consumed"`
+	ConstructionConsumed float64          `json:"construction_consumed"`
+	ConstructionPct      float64          `json:"construction_pct"`
+	NetRate              float64          `json:"net_rate"`
+	Severity             string           `json:"severity"` // "critical", "severe", "moderate", "healthy", "surplus"
+	Consumers            []recipeConsumer `json:"consumers,omitempty"`
+	MachineGap           *machineGapInfo  `json:"machine_gap,omitempty"`
+	RootCause            *rootCauseInfo   `json:"root_cause,omitempty"`
 }
 
 type rootCauseInfo struct {
@@ -62,17 +64,19 @@ type recipeConsumer struct {
 // ─── Output Types (v4 bottleneck tree) ─────────────────────────────────────
 
 type bottleneckTree struct {
-	RootItem       string             `json:"root_item"`
-	BottleneckType string             `json:"bottleneck_type"`
-	Severity       string             `json:"severity"`
-	NetRate        float64            `json:"net_rate"`
-	Produced       float64            `json:"produced_per_min"`
-	Consumed       float64            `json:"consumed_per_min"`
-	Consumers      []recipeConsumer   `json:"consumers,omitempty"`
-	MachineGap     *machineGapInfo    `json:"machine_gap,omitempty"`
-	Affected       []affectedItem     `json:"affected"`
-	FixableFrom    []fixableFromEntry `json:"fixable_from"`
-	Tech           []inlineTech       `json:"tech"`
+	RootItem             string             `json:"root_item"`
+	BottleneckType       string             `json:"bottleneck_type"`
+	Severity             string             `json:"severity"`
+	NetRate              float64            `json:"net_rate"`
+	Produced             float64            `json:"produced_per_min"`
+	Consumed             float64            `json:"consumed_per_min"`
+	ConstructionConsumed float64            `json:"construction_consumed"`
+	ConstructionPct      float64            `json:"construction_pct"`
+	Consumers            []recipeConsumer   `json:"consumers,omitempty"`
+	MachineGap           *machineGapInfo    `json:"machine_gap,omitempty"`
+	Affected             []affectedItem     `json:"affected"`
+	FixableFrom          []fixableFromEntry `json:"fixable_from"`
+	Tech                 []inlineTech       `json:"tech"`
 }
 
 type affectedItem struct {
@@ -93,13 +97,15 @@ type inlineTech struct {
 }
 
 type independentProblem struct {
-	Item           string          `json:"item"`
-	Severity       string          `json:"severity"`
-	NetRate        float64         `json:"net_rate"`
-	Produced       float64         `json:"produced_per_min"`
-	Consumed       float64         `json:"consumed_per_min"`
-	BottleneckType string          `json:"bottleneck_type"`
-	MachineGap     *machineGapInfo `json:"machine_gap,omitempty"`
+	Item                 string          `json:"item"`
+	Severity             string          `json:"severity"`
+	NetRate              float64         `json:"net_rate"`
+	Produced             float64         `json:"produced_per_min"`
+	Consumed             float64         `json:"consumed_per_min"`
+	ConstructionConsumed float64         `json:"construction_consumed"`
+	ConstructionPct      float64         `json:"construction_pct"`
+	BottleneckType       string          `json:"bottleneck_type"`
+	MachineGap           *machineGapInfo `json:"machine_gap,omitempty"`
 }
 
 type flowSummary struct {
@@ -239,13 +245,15 @@ func buildBottleneckTrees(
 			// Only itself → independent problem
 			d := group[0]
 			indep = append(indep, independentProblem{
-				Item:           d.Item,
-				Severity:       d.Severity,
-				NetRate:        d.NetRate,
-				Produced:       d.Produced,
-				Consumed:       d.Consumed,
-				BottleneckType: d.RootCause.BottleneckType,
-				MachineGap:     d.MachineGap,
+				Item:                 d.Item,
+				Severity:             d.Severity,
+				NetRate:              d.NetRate,
+				Produced:             d.Produced,
+				Consumed:             d.Consumed,
+				ConstructionConsumed: d.ConstructionConsumed,
+				ConstructionPct:      d.ConstructionPct,
+				BottleneckType:       d.RootCause.BottleneckType,
+				MachineGap:           d.MachineGap,
 			})
 			continue
 		}
@@ -254,17 +262,19 @@ func buildBottleneckTrees(
 		var tree bottleneckTree
 		if rootDiag != nil {
 			tree = bottleneckTree{
-				RootItem:       rootItem,
-				BottleneckType: rootDiag.RootCause.BottleneckType,
-				Severity:       rootDiag.Severity,
-				NetRate:        rootDiag.NetRate,
-				Produced:       rootDiag.Produced,
-				Consumed:       rootDiag.Consumed,
-				Consumers:      rootDiag.Consumers,
-				MachineGap:     rootDiag.MachineGap,
-				Affected:       make([]affectedItem, 0),
-				FixableFrom:    make([]fixableFromEntry, 0),
-				Tech:           make([]inlineTech, 0),
+				RootItem:             rootItem,
+				BottleneckType:       rootDiag.RootCause.BottleneckType,
+				Severity:             rootDiag.Severity,
+				NetRate:              rootDiag.NetRate,
+				Produced:             rootDiag.Produced,
+				Consumed:             rootDiag.Consumed,
+				ConstructionConsumed: rootDiag.ConstructionConsumed,
+				ConstructionPct:      rootDiag.ConstructionPct,
+				Consumers:            rootDiag.Consumers,
+				MachineGap:           rootDiag.MachineGap,
+				Affected:             make([]affectedItem, 0),
+				FixableFrom:          make([]fixableFromEntry, 0),
+				Tech:                 make([]inlineTech, 0),
 			}
 		} else {
 			// Root item doesn't exist as a diagnosis — create synthetic entry from flow data
@@ -587,6 +597,35 @@ func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][
 		// Compute recipe fan-out for deficit items (total deficit, not just real)
 		if netRate < -0.1 {
 			diag.Consumers = computeRecipeFanOut(name, consumerIndex, flow, machines)
+		}
+
+		// Estimate construction/transient demand as the gap between total
+		// consumption and what recipe fan-out + recycling can explain.
+		if len(diag.Consumers) > 0 {
+			var totalRecipeRate float64
+			for _, c := range diag.Consumers {
+				totalRecipeRate += c.Rate
+			}
+			constructionConsumed := stats.ConsumedPerMin - recyclerConsumed - totalRecipeRate
+			if constructionConsumed < 0 {
+				constructionConsumed = 0
+			}
+			diag.ConstructionConsumed = roundTo(constructionConsumed, 1)
+			if stats.ConsumedPerMin > 0 {
+				diag.ConstructionPct = roundTo((constructionConsumed/stats.ConsumedPerMin)*100, 1)
+			}
+
+			// Recompute real consumption and severity excluding construction
+			realConsumed = stats.ConsumedPerMin - recyclerConsumed - constructionConsumed
+			diag.RealConsumed = roundTo(realConsumed, 1)
+			realNetRate = stats.ProducedPerMin - realConsumed
+			severity = classifySeverity(stats.ProducedPerMin, realConsumed, roundTo(realNetRate, 1))
+
+			// Re-apply top deficit boost with updated severity
+			if topDeficits[name] && severity == "moderate" && realNetRate < -0.1 {
+				severity = "severe"
+			}
+			diag.Severity = severity
 		}
 
 		// Compute machine gap against real deficit only

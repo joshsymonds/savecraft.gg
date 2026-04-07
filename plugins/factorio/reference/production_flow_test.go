@@ -1511,6 +1511,201 @@ func TestProductionFlow_EmptyFlowData(t *testing.T) {
 	}
 }
 
+// ─── Construction Demand (Gap Computation) ─────────────────────────────────
+
+func TestProductionFlow_ConstructionDemand_PureConstruction(t *testing.T) {
+	// Steel plate: consumed heavily, but only a small amount is explained by recipes.
+	// 1 assembler making rails consumes ~30/min of steel. The rest (970/min) is construction.
+	// Severity should be based on recipe demand (30) vs production (38), not total consumed (1000).
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"steel-plate": {
+					"produced_per_min": 38.0,
+					"consumed_per_min": 1000.0
+				},
+				"rail": {
+					"produced_per_min": 30.0,
+					"consumed_per_min": 0.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["steel-plate"],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"rail": {
+					"machine_type": "assembling-machine-2",
+					"count": 7,
+					"modules": {}
+				}
+			},
+			"by_type": {"assembling-machine-2": 7},
+			"beacon_count": 0
+		}
+	}`)
+
+	steel := findAnyDiagnosis(data, "steel-plate")
+	if steel == nil {
+		t.Fatal("expected steel-plate in output")
+	}
+
+	// Construction consumed should be the gap: 1000 - 0 (recycler) - recipe_fan_out
+	constructionConsumed := steel["construction_consumed"].(float64)
+	if constructionConsumed <= 0 {
+		t.Errorf("expected positive construction_consumed, got %.1f", constructionConsumed)
+	}
+
+	constructionPct := steel["construction_pct"].(float64)
+	if constructionPct < 50 {
+		t.Errorf("expected construction_pct > 50%%, got %.1f%%", constructionPct)
+	}
+
+	// Severity should be healthy or surplus — recipe demand (~30) ≤ production (38).
+	// This proves RealConsumed was recomputed: without construction exclusion it would be "critical" (38 vs 1000).
+	severity := steel["severity"].(string)
+	if severity != "healthy" && severity != "surplus" {
+		t.Errorf("expected healthy or surplus severity when production covers recipe demand; got %s", severity)
+	}
+}
+
+func TestProductionFlow_ConstructionDemand_MixedDeficit(t *testing.T) {
+	// Steel plate: consumed=500, produced=10. Rail recipe: 1 steel + 1 iron-stick → 2 rail.
+	// Fan-out estimates: (1/2) × 30 rail/min = 15 steel/min consumed by rail.
+	// Construction = 500 - 0 - 15 = 485. RealConsumed = 15.
+	// But produced (10) < realConsumed (15) → still a real recipe deficit.
+	// Severity should reflect the recipe shortage, not the massive construction one.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"steel-plate": {
+					"produced_per_min": 10.0,
+					"consumed_per_min": 500.0
+				},
+				"rail": {
+					"produced_per_min": 30.0,
+					"consumed_per_min": 0.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["steel-plate"],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"rail": {
+					"machine_type": "assembling-machine-2",
+					"count": 7,
+					"modules": {}
+				}
+			},
+			"by_type": {"assembling-machine-2": 7},
+			"beacon_count": 0
+		}
+	}`)
+
+	steel := findAnyDiagnosis(data, "steel-plate")
+	if steel == nil {
+		t.Fatal("expected steel-plate in output")
+	}
+
+	// Construction should absorb most of the consumption
+	constructionConsumed := steel["construction_consumed"].(float64)
+	if constructionConsumed < 400 {
+		t.Errorf("expected construction_consumed > 400, got %.1f", constructionConsumed)
+	}
+
+	// Severity should reflect a real but moderate deficit (20 produced vs ~30 recipe demand).
+	// NOT critical (which it would be without construction exclusion: 20 vs 500).
+	// NOT healthy/surplus (there IS a real recipe deficit).
+	severity := steel["severity"].(string)
+	if severity == "critical" {
+		t.Errorf("severity should not be critical with construction excluded; got %s", severity)
+	}
+	if severity == "healthy" || severity == "surplus" {
+		t.Errorf("severity should reflect real recipe deficit; got %s", severity)
+	}
+}
+
+func TestProductionFlow_ConstructionDemand_FanOutExceedsConsumed(t *testing.T) {
+	// When recipe fan-out estimates exceed actual consumption, construction_consumed
+	// should clamp to 0 (not go negative). This happens when fan-out over-estimates
+	// recipe demand based on product flow rates.
+	// copper-cable: 1 copper-plate per craft, 2 cable per craft.
+	// Fan-out estimates copper consumption as (1/2) × cable_produced = (1/2) × 600 = 300.
+	// But total copper consumed is only 200. Gap = 200 - 0 - 300 = -100 → clamped to 0.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"copper-plate": {
+					"produced_per_min": 100.0,
+					"consumed_per_min": 200.0
+				},
+				"copper-cable": {
+					"produced_per_min": 600.0,
+					"consumed_per_min": 580.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["copper-plate"],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"copper-cable": {
+					"machine_type": "assembling-machine-3",
+					"count": 40,
+					"modules": {}
+				}
+			},
+			"by_type": {"assembling-machine-3": 40},
+			"beacon_count": 0
+		}
+	}`)
+
+	copper := findAnyDiagnosis(data, "copper-plate")
+	if copper == nil {
+		t.Fatal("expected copper-plate in output")
+	}
+
+	constructionConsumed := copper["construction_consumed"].(float64)
+	if constructionConsumed != 0 {
+		t.Errorf("expected construction_consumed=0 when fan-out exceeds consumed, got %.1f", constructionConsumed)
+	}
+}
+
+func TestProductionFlow_ConstructionDemand_NoMachines(t *testing.T) {
+	// Without machine data, can't compute fan-out, so construction_consumed should be 0.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"steel-plate": {
+					"produced_per_min": 38.0,
+					"consumed_per_min": 1000.0
+				}
+			},
+			"fluids": {},
+			"top_deficits": ["steel-plate"],
+			"top_surpluses": []
+		}
+	}`)
+
+	steel := findAnyDiagnosis(data, "steel-plate")
+	if steel == nil {
+		t.Fatal("expected steel-plate in output")
+	}
+
+	constructionConsumed := steel["construction_consumed"].(float64)
+	if constructionConsumed != 0 {
+		t.Errorf("expected construction_consumed=0 without machines data, got %.1f", constructionConsumed)
+	}
+}
+
 // ─── Schema Registration ────────────────────────────────────────────────────
 
 func TestProductionFlow_InSchema(t *testing.T) {
