@@ -18,11 +18,11 @@
       /** Game icon injected by the handler */
       icon_url?: string;
       target: string;
-      chain: string[];
-      chain_length: number;
+      chain?: string[];
+      chain_length?: number;
       total_cost: Record<string, number>;
       total_time_seconds: number;
-      research_order: string[];
+      research_order?: string[];
       remaining?: number;
       already_completed?: number;
     };
@@ -44,7 +44,8 @@
     return `${secs}s`;
   }
 
-  let isComplete = $derived(data.chain_length === 0);
+  let isComplete = $derived((data.chain_length ?? data.remaining ?? 0) === 0);
+  let hasSaveData = $derived(data.remaining != null && data.research_order == null);
 
   // ── Science pack cost table ──────────────────────────────────
   let costColumns = [
@@ -65,12 +66,14 @@
   let summaryKV = $derived.by(() => {
     const items: Array<{ key: string; value: string; variant?: "positive" | "negative" | "highlight" | "info" | "warning" | "muted" }> = [
       { key: "Target", value: formatItemName(data.target) },
-      { key: "Technologies", value: String(data.chain_length) },
-      { key: "Total Research Time", value: formatTime(data.total_time_seconds) },
     ];
     if (data.remaining != null) {
       items.push({ key: "Remaining", value: String(data.remaining) });
     }
+    if (data.chain_length != null && !hasSaveData) {
+      items.push({ key: "Technologies", value: String(data.chain_length) });
+    }
+    items.push({ key: "Total Research Time", value: formatTime(data.total_time_seconds) });
     if (data.already_completed != null) {
       items.push({ key: "Already Completed", value: String(data.already_completed), variant: "positive" });
     }
@@ -88,7 +91,7 @@
         <KeyValue items={summaryKV} />
       </Section>
 
-      {#if !isComplete}
+      {#if !isComplete && data.research_order}
         <Section title="Research Path" count={data.research_order.length}>
           <ol class="research-path">
             {#each data.research_order as tech, i}
@@ -99,12 +102,12 @@
             {/each}
           </ol>
         </Section>
+      {/if}
 
-        {#if costRows.length > 0}
-          <Section title="Science Pack Cost">
-            <DataTable columns={costColumns} rows={costRows} />
-          </Section>
-        {/if}
+      {#if !isComplete && costRows.length > 0}
+        <Section title="Science Pack Cost">
+          <DataTable columns={costColumns} rows={costRows} />
+        </Section>
       {/if}
     </div>
   </Panel>

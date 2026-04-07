@@ -78,6 +78,29 @@
     remaining: 0,
     already_completed: 4,
   };
+
+  // ── Save data mode (totals only, no chain/research_order) ───
+  const saveDataTotalsData = {
+    icon_url,
+    target: "automation-2",
+    total_cost: {
+      "automation-science-pack": 120,
+      "logistic-science-pack": 40,
+    },
+    total_time_seconds: 900,
+    remaining: 3,
+    already_completed: 4,
+  };
+
+  // ── Save data mode: already completed ───────────────────────
+  const saveDataCompletedData = {
+    icon_url,
+    target: "automation",
+    total_cost: {},
+    total_time_seconds: 0,
+    remaining: 0,
+    already_completed: 4,
+  };
 </script>
 
 <Story name="SimpleChain">
@@ -94,4 +117,12 @@
 
 <Story name="AlreadyCompleted">
   <TechTreeNavigator data={alreadyCompletedData} />
+</Story>
+
+<Story name="SaveDataTotals">
+  <TechTreeNavigator data={saveDataTotalsData} />
+</Story>
+
+<Story name="SaveDataCompleted">
+  <TechTreeNavigator data={saveDataCompletedData} />
 </Story>
