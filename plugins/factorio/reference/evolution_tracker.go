@@ -17,7 +17,7 @@ type defensesSection struct {
 	Threats          map[string]surfaceThreat `json:"threats"`
 	Turrets          map[string]int           `json:"turrets"`
 	Walls            int                      `json:"walls"`
-	EnemyBasesNearby []any                    `json:"enemy_bases_nearby"`
+	EnemyBasesNearby any                      `json:"enemy_bases_nearby"`
 }
 
 // surfaceThreat holds evolution and pollution data for a single surface.

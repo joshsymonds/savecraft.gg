@@ -156,6 +156,35 @@ func TestEvolution_DefenseSummaryPassthrough(t *testing.T) {
 	}
 }
 
+func TestEvolution_DefenseSummaryEmptyObject(t *testing.T) {
+	// Lua serializes empty tables as {} (object) not [] (array).
+	// The handler must accept both forms.
+	result := runEvolution(t, `{
+		"module": "evolution_tracker",
+		"defenses": {
+			"threats": {
+				"nauvis": {
+					"pollutant": "pollution",
+					"evolution": {"factor": 0.5, "time_factor": 0.3, "pollution_factor": 0.15, "kill_factor": 0.05},
+					"current_pollution": 15000
+				}
+			},
+			"turrets": {},
+			"walls": 0,
+			"enemy_bases_nearby": {}
+		}
+	}`)
+
+	defenses := result["defenses"].(map[string]any)
+	bases := defenses["enemy_bases_nearby"]
+	if bases == nil {
+		t.Fatal("expected enemy_bases_nearby to be present (even if empty object)")
+	}
+	if _, ok := bases.(map[string]any); !ok {
+		t.Errorf("expected enemy_bases_nearby to be map[string]any, got %T", bases)
+	}
+}
+
 // ─── Zero / Edge Cases ─────────────────────────────────────────────────────
 
 func TestEvolution_ZeroEvolution(t *testing.T) {
