@@ -1,4 +1,5 @@
 pub mod tech_search;
+pub mod tech_path;
 pub mod building_search;
 pub mod component_search;
 pub mod simple_search;
@@ -21,6 +22,14 @@ pub fn schema() -> Value {
                     "area": {"type": "string", "description": "Filter by area: physics, society, engineering"},
                     "tier": {"type": "integer", "description": "Filter by tier (0-5)"},
                     "category": {"type": "string", "description": "Filter by category"},
+                }
+            },
+            "tech_path": {
+                "name": "Technology Path",
+                "description": "Resolve the full prerequisite chain for a target technology. Returns topologically sorted prerequisites with researched/remaining annotations.",
+                "parameters": {
+                    "target": {"type": "string", "description": "Target tech key to resolve prerequisites for"},
+                    "researched": {"type": "array", "description": "Optional array of already-researched tech keys to annotate the chain"},
                 }
             },
             "building_search": {

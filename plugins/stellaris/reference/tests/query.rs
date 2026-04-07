@@ -214,6 +214,108 @@ fn unknown_module_returns_error() {
     assert_eq!(result["errorType"], "unknown_module");
 }
 
+// --- tech_path tests ---
+
+#[test]
+fn tech_path_no_prerequisites() {
+    // tech_basic_industry is a start tech with no prerequisites
+    let result = run_query(r#"{"module": "tech_path", "target": "tech_basic_industry"}"#);
+    assert_eq!(result["type"], "result");
+    let data = &result["data"];
+    assert_eq!(data["target"]["key"], "tech_basic_industry");
+    let chain = data["chain"].as_array().unwrap();
+    assert!(chain.is_empty(), "start tech should have empty chain");
+    assert_eq!(data["total_cost"], 0);
+    assert_eq!(data["remaining_cost"], 0);
+}
+
+#[test]
+fn tech_path_simple_chain() {
+    // tech_destroyers requires tech_corvettes (a start tech)
+    let result = run_query(r#"{"module": "tech_path", "target": "tech_destroyers"}"#);
+    assert_eq!(result["type"], "result");
+    let data = &result["data"];
+    assert_eq!(data["target"]["key"], "tech_destroyers");
+    let chain = data["chain"].as_array().unwrap();
+    assert!(!chain.is_empty(), "should have prerequisites");
+    // All chain entries should have required fields
+    for entry in chain {
+        assert!(entry["key"].is_string());
+        assert!(entry["area"].is_string());
+        assert!(entry["tier"].is_number());
+        assert!(entry["cost"].is_number());
+        assert!(entry["researched"].is_boolean());
+    }
+    // Without researched input, all should be false
+    for entry in chain {
+        assert_eq!(entry["researched"], false);
+    }
+}
+
+#[test]
+fn tech_path_with_researched() {
+    let result = run_query(
+        r#"{"module": "tech_path", "target": "tech_destroyers", "researched": ["tech_corvettes"]}"#,
+    );
+    assert_eq!(result["type"], "result");
+    let data = &result["data"];
+    let chain = data["chain"].as_array().unwrap();
+    // tech_corvettes should be marked as researched
+    let corvettes = chain.iter().find(|e| e["key"] == "tech_corvettes");
+    assert!(corvettes.is_some(), "tech_corvettes should be in chain");
+    assert_eq!(corvettes.unwrap()["researched"], true);
+    // remaining_cost should be less than total_cost
+    assert!(
+        data["remaining_cost"].as_i64().unwrap() < data["total_cost"].as_i64().unwrap(),
+        "remaining_cost should be less than total_cost when some techs are researched"
+    );
+}
+
+#[test]
+fn tech_path_unknown_target() {
+    let result = run_query_allow_failure(r#"{"module": "tech_path", "target": "nonexistent_tech"}"#);
+    assert_eq!(result["type"], "error");
+}
+
+#[test]
+fn tech_path_missing_target() {
+    let result = run_query_allow_failure(r#"{"module": "tech_path"}"#);
+    assert_eq!(result["type"], "error");
+}
+
+#[test]
+fn tech_path_deep_chain() {
+    // tech_mega_engineering has multiple prerequisites: tech_battleships, tech_citadel_3, tech_zero_point_power
+    // Each of those has its own chain. Verify the full chain is resolved.
+    let result = run_query(r#"{"module": "tech_path", "target": "tech_mega_engineering"}"#);
+    assert_eq!(result["type"], "result");
+    let data = &result["data"];
+    let chain = data["chain"].as_array().unwrap();
+    assert!(chain.len() >= 3, "mega engineering should have at least 3 prerequisites in chain");
+    // Verify topological order: each tech's prerequisites appear before it
+    let keys: Vec<&str> = chain.iter().map(|e| e["key"].as_str().unwrap()).collect();
+    for (i, entry) in chain.iter().enumerate() {
+        if let Some(prereqs) = entry.get("prerequisites") {
+            if let Some(prereqs) = prereqs.as_array() {
+                for prereq in prereqs {
+                    let prereq_key = prereq.as_str().unwrap();
+                    if let Some(prereq_idx) = keys.iter().position(|k| *k == prereq_key) {
+                        assert!(prereq_idx < i, "prerequisite {prereq_key} should appear before {}", entry["key"]);
+                    }
+                }
+            }
+        }
+    }
+    assert!(data["total_cost"].as_i64().unwrap() > 0);
+}
+
+#[test]
+fn tech_path_schema_includes_tech_path() {
+    let result = run_query("{}");
+    assert_eq!(result["type"], "result");
+    assert!(result["data"]["modules"]["tech_path"].is_object(), "tech_path missing from schema");
+}
+
 #[test]
 fn case_insensitive_search() {
     let result = run_query(r#"{"module": "tech_search", "name": "Laser"}"#);

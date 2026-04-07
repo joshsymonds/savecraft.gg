@@ -40,6 +40,14 @@ fn main() {
 
     let result = match module {
         "tech_search" => modules::tech_search::handle(query_obj),
+        "tech_path" => match modules::tech_path::handle(query_obj) {
+            Some(result) => result,
+            None => {
+                let target = query_obj.get("target").and_then(|v| v.as_str()).unwrap_or("(missing)");
+                write_error("invalid_query", &format!("unknown or missing target tech: {target}"));
+                std::process::exit(1);
+            }
+        },
         "building_search" => modules::building_search::handle(query_obj),
         "component_search" => modules::component_search::handle(query_obj),
         "tradition_search" => modules::tradition_search::handle_query(query_obj),
