@@ -64,6 +64,12 @@ export const SOURCES: Record<string, Attribution> = {
       "Factorio is a trademark of Wube Software Ltd. Not affiliated with or endorsed by Wube Software.",
     url: "https://www.factorio.com",
   },
+  paradox: {
+    name: "Paradox Interactive",
+    disclaimer:
+      "Stellaris is a trademark of Paradox Interactive AB. Not affiliated with or endorsed by Paradox Interactive.",
+    url: "https://www.paradoxinteractive.com",
+  },
 };
 
 /**
