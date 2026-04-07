@@ -318,7 +318,11 @@ func TestPowerCalculator_ExistingPower(t *testing.T) {
 					"consumption_mw": 55,
 					"satisfaction": 1.09,
 					"generators": {
-						"steam-engine": {"count": 80, "mw": 60}
+						"steam-engine": {"count": 67, "mw": 60}
+					},
+					"consumers": {
+						"assembling-machine-2": {"mw": 30},
+						"electric-mining-drill": {"mw": 25}
 					}
 				}
 			}
