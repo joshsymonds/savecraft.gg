@@ -513,43 +513,7 @@ func init() {
 // theoretical consumption rate: machine_count × crafting_speed × (amount / craft_time) × 60.
 // Returns 0 if no machines data or no recycling recipes found.
 func estimateRecyclerConsumption(item string, consumerIndex map[string][]recipeConsumerEntry, machines *existingMachines) float64 {
-	if machines == nil {
-		return 0
-	}
-
-	consumers, ok := consumerIndex[item]
-	if !ok {
-		return 0
-	}
-
-	total := 0.0
-	for _, entry := range consumers {
-		if !entry.IsRecycling {
-			continue
-		}
-
-		setup, ok := machines.ByRecipe[entry.RecipeName]
-		if !ok || setup.Count <= 0 {
-			continue
-		}
-
-		machine, ok := data.Machines[setup.MachineType]
-		if !ok {
-			continue
-		}
-
-		speedBonus, _, _ := resolveModuleEffects(perMachineModules(setup.Modules, setup.Count))
-		craftingSpeed := machine.CraftingSpeed * (1 + speedBonus)
-		if craftingSpeed < 0.01 {
-			craftingSpeed = 0.01
-		}
-
-		// Consumption rate = machines × (craftingSpeed / craftTime) × ingredientAmount × 60
-		perMachineRate := (craftingSpeed / entry.EnergyReq) * entry.Amount * 60
-		total += float64(setup.Count) * perMachineRate
-	}
-
-	return total
+	return estimateThroughput(item, consumerIndex, machines, true)
 }
 
 // computeMaxRecipeConsumption returns the theoretical maximum consumption rate
@@ -557,6 +521,13 @@ func estimateRecyclerConsumption(item string, consumerIndex map[string][]recipeC
 // at full speed. Used as a ceiling for the construction gap — if actual consumption
 // is below this, the gap is NOT construction demand.
 func computeMaxRecipeConsumption(item string, consumerIndex map[string][]recipeConsumerEntry, machines *existingMachines) float64 {
+	return estimateThroughput(item, consumerIndex, machines, false)
+}
+
+// estimateThroughput computes the theoretical max consumption rate of an item
+// by all running recipes matching the recycling filter. When recyclingOnly is
+// true, only recycling recipes are included; when false, only non-recycling.
+func estimateThroughput(item string, consumerIndex map[string][]recipeConsumerEntry, machines *existingMachines, recyclingOnly bool) float64 {
 	if machines == nil {
 		return 0
 	}
@@ -568,7 +539,7 @@ func computeMaxRecipeConsumption(item string, consumerIndex map[string][]recipeC
 
 	total := 0.0
 	for _, entry := range consumers {
-		if entry.IsRecycling {
+		if entry.IsRecycling != recyclingOnly {
 			continue
 		}
 

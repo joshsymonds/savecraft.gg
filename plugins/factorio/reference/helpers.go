@@ -145,21 +145,11 @@ func findIngredientAmount(ingredients []data.Ingredient, name string) float64 {
 	return 0
 }
 
-// expandModules converts a module frequency map (module_name → count per machine)
-// into a flat list of module names for use with resolveModuleEffects.
-func expandModules(modules map[string]int) []string {
-	var list []string
-	for name, count := range modules {
-		for range count {
-			list = append(list, name)
-		}
-	}
-	return list
-}
-
 // perMachineModules divides total module counts by machine count to get
 // per-machine module list. Machine setups report total modules across all
 // machines; resolveModuleEffects needs per-machine counts.
+// Integer division truncates remainders — correct for Factorio where modules
+// are evenly distributed across machines of the same recipe group.
 func perMachineModules(modules map[string]int, machineCount int) []string {
 	if machineCount <= 0 {
 		return nil
