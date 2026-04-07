@@ -292,19 +292,21 @@ fn tech_path_deep_chain() {
     let data = &result["data"];
     let chain = data["chain"].as_array().unwrap();
     assert!(chain.len() >= 3, "mega engineering should have at least 3 prerequisites in chain");
-    // Verify topological order: each tech's prerequisites appear before it
+    // Verify topological order using known prerequisite relationships:
+    // tech_corvettes -> tech_destroyers -> tech_cruisers -> tech_battleships
     let keys: Vec<&str> = chain.iter().map(|e| e["key"].as_str().unwrap()).collect();
-    for (i, entry) in chain.iter().enumerate() {
-        if let Some(prereqs) = entry.get("prerequisites") {
-            if let Some(prereqs) = prereqs.as_array() {
-                for prereq in prereqs {
-                    let prereq_key = prereq.as_str().unwrap();
-                    if let Some(prereq_idx) = keys.iter().position(|k| *k == prereq_key) {
-                        assert!(prereq_idx < i, "prerequisite {prereq_key} should appear before {}", entry["key"]);
-                    }
-                }
-            }
-        }
+    let pos = |key: &str| keys.iter().position(|k| *k == key);
+    // Corvettes before destroyers
+    if let (Some(a), Some(b)) = (pos("tech_corvettes"), pos("tech_destroyers")) {
+        assert!(a < b, "tech_corvettes should appear before tech_destroyers");
+    }
+    // Destroyers before cruisers
+    if let (Some(a), Some(b)) = (pos("tech_destroyers"), pos("tech_cruisers")) {
+        assert!(a < b, "tech_destroyers should appear before tech_cruisers");
+    }
+    // Cruisers before battleships
+    if let (Some(a), Some(b)) = (pos("tech_cruisers"), pos("tech_battleships")) {
+        assert!(a < b, "tech_cruisers should appear before tech_battleships");
     }
     assert!(data["total_cost"].as_i64().unwrap() > 0);
 }

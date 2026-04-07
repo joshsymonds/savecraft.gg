@@ -3,7 +3,9 @@ use serde_json::{json, Map, Value};
 
 use crate::data::techs_gen::TECHS;
 
-/// Non-tech prerequisite tokens that appear in the datagen output.
+/// Clausewitz script operators that leak into prerequisite arrays from datagen.
+/// e.g. `prerequisites = { "tech_disruptors_3" OR "tech_lasers_5" }` produces
+/// `["tech_disruptors_3", "OR", "tech_lasers_5"]`. Filter these out.
 const SKIP_TOKENS: &[&str] = &["OR", "=", "AND"];
 
 pub fn handle(query: &Map<String, Value>) -> Option<Value> {
@@ -36,13 +38,16 @@ pub fn handle(query: &Map<String, Value>) -> Option<Value> {
         }
     }
 
-    // Topological sort via Kahn's algorithm (only over visited nodes)
+    // Topological sort via Kahn's algorithm (only over visited nodes).
+    // Build adjacency list (prereq → successors) and in-degree counts in one pass.
     let mut in_degree: HashMap<&str, usize> = visited.iter().map(|&k| (k, 0)).collect();
+    let mut successors: HashMap<&str, Vec<&str>> = HashMap::new();
     for &key in &visited {
         if let Some(tech) = tech_map.get(key) {
             for &prereq in tech.prerequisites {
                 if !SKIP_TOKENS.contains(&prereq) && visited.contains(prereq) {
                     *in_degree.entry(key).or_default() += 1;
+                    successors.entry(prereq).or_default().push(key);
                 }
             }
         }
@@ -57,15 +62,12 @@ pub fn handle(query: &Map<String, Value>) -> Option<Value> {
 
     while let Some(key) = topo_queue.pop_front() {
         sorted.push(key);
-        // Find nodes in visited that have `key` as a prerequisite
-        for &node in &visited {
-            if let Some(tech) = tech_map.get(node) {
-                if tech.prerequisites.contains(&key) {
-                    if let Some(deg) = in_degree.get_mut(node) {
-                        *deg = deg.saturating_sub(1);
-                        if *deg == 0 {
-                            topo_queue.push_back(node);
-                        }
+        if let Some(succs) = successors.get(key) {
+            for &node in succs {
+                if let Some(deg) = in_degree.get_mut(node) {
+                    *deg = deg.saturating_sub(1);
+                    if *deg == 0 {
+                        topo_queue.push_back(node);
                     }
                 }
             }

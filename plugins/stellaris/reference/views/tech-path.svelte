@@ -47,7 +47,7 @@
     isReady ? "Ready" : data.remaining_cost.toLocaleString(),
   );
 
-  let heroVariant = $derived<"positive" | "warning" | "highlight">(
+  let heroVariant = $derived<"positive" | "highlight">(
     isReady ? "positive" : "highlight",
   );
 
