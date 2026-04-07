@@ -157,6 +157,23 @@ func expandModules(modules map[string]int) []string {
 	return list
 }
 
+// perMachineModules divides total module counts by machine count to get
+// per-machine module list. Machine setups report total modules across all
+// machines; resolveModuleEffects needs per-machine counts.
+func perMachineModules(modules map[string]int, machineCount int) []string {
+	if machineCount <= 0 {
+		return nil
+	}
+	var list []string
+	for name, total := range modules {
+		perMachine := total / machineCount
+		for range perMachine {
+			list = append(list, name)
+		}
+	}
+	return list
+}
+
 // roundTo rounds a float to the given number of decimal places.
 func roundTo(v float64, decimals int) float64 {
 	shift := math.Pow(10, float64(decimals))

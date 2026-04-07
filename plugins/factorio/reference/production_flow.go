@@ -538,7 +538,7 @@ func estimateRecyclerConsumption(item string, consumerIndex map[string][]recipeC
 			continue
 		}
 
-		speedBonus, _, _ := resolveModuleEffects(expandModules(setup.Modules))
+		speedBonus, _, _ := resolveModuleEffects(perMachineModules(setup.Modules, setup.Count))
 		craftingSpeed := machine.CraftingSpeed * (1 + speedBonus)
 		if craftingSpeed < 0.01 {
 			craftingSpeed = 0.01
@@ -546,6 +546,54 @@ func estimateRecyclerConsumption(item string, consumerIndex map[string][]recipeC
 
 		// Consumption rate = machines × (craftingSpeed / craftTime) × ingredientAmount × 60
 		perMachineRate := (craftingSpeed / entry.EnergyReq) * entry.Amount * 60
+		total += float64(setup.Count) * perMachineRate
+	}
+
+	return total
+}
+
+// computeMaxRecipeConsumption returns the theoretical maximum consumption rate
+// of an item/fluid by all running non-recycling recipes, assuming machines run
+// at full speed. Used as a ceiling for the construction gap — if actual consumption
+// is below this, the gap is NOT construction demand.
+func computeMaxRecipeConsumption(item string, consumerIndex map[string][]recipeConsumerEntry, machines *existingMachines) float64 {
+	if machines == nil {
+		return 0
+	}
+
+	consumers, ok := consumerIndex[item]
+	if !ok {
+		return 0
+	}
+
+	total := 0.0
+	for _, entry := range consumers {
+		if entry.IsRecycling {
+			continue
+		}
+
+		setup, ok := machines.ByRecipe[entry.RecipeName]
+		if !ok || setup.Count <= 0 {
+			continue
+		}
+
+		machine, ok := data.Machines[setup.MachineType]
+		if !ok {
+			continue
+		}
+
+		speedBonus, _, _ := resolveModuleEffects(perMachineModules(setup.Modules, setup.Count))
+		craftingSpeed := machine.CraftingSpeed * (1 + speedBonus)
+		if craftingSpeed < 0.01 {
+			craftingSpeed = 0.01
+		}
+
+		craftTime := entry.EnergyReq
+		if craftTime <= 0 {
+			craftTime = 0.5
+		}
+
+		perMachineRate := (craftingSpeed / craftTime) * entry.Amount * 60
 		total += float64(setup.Count) * perMachineRate
 	}
 
@@ -600,13 +648,13 @@ func analyzeFlowEntries(entries map[string]flowStats, consumerIndex map[string][
 		}
 
 		// Estimate construction/transient demand as the gap between total
-		// consumption and what recipe fan-out + recycling can explain.
+		// consumption and what running machines could physically consume.
+		// Uses machine throughput ceiling (not product-rate estimates) to avoid
+		// false positives when machines run at partial capacity — especially for
+		// fluids where product-rate fan-out under-estimates consumption.
 		if len(diag.Consumers) > 0 {
-			var totalRecipeRate float64
-			for _, c := range diag.Consumers {
-				totalRecipeRate += c.Rate
-			}
-			constructionConsumed := stats.ConsumedPerMin - recyclerConsumed - totalRecipeRate
+			maxRecipeCapacity := computeMaxRecipeConsumption(name, consumerIndex, machines)
+			constructionConsumed := stats.ConsumedPerMin - recyclerConsumed - maxRecipeCapacity
 			if constructionConsumed < 0 {
 				constructionConsumed = 0
 			}
@@ -712,7 +760,7 @@ func computeRecipeFanOut(item string, consumerIndex map[string][]recipeConsumerE
 			// Fallback: machine_count × per-machine consumption rate
 			machine, machineOK := data.Machines[setup.MachineType]
 			if machineOK {
-				speedBonus, _, _ := resolveModuleEffects(expandModules(setup.Modules))
+				speedBonus, _, _ := resolveModuleEffects(perMachineModules(setup.Modules, setup.Count))
 				craftingSpeed := machine.CraftingSpeed * (1 + speedBonus)
 				if craftingSpeed < 0.01 {
 					craftingSpeed = 0.01
@@ -800,7 +848,7 @@ func computeMachineGap(item string, deficitRate float64, machines *existingMachi
 	}
 
 	// Compute per-machine rate
-	speedBonus, prodBonus, _ := resolveModuleEffects(expandModules(setup.Modules))
+	speedBonus, prodBonus, _ := resolveModuleEffects(perMachineModules(setup.Modules, setup.Count))
 
 	craftingSpeed := machine.CraftingSpeed * (1 + speedBonus)
 	if craftingSpeed < 0.01 {

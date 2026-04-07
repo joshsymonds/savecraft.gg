@@ -1514,15 +1514,17 @@ func TestProductionFlow_EmptyFlowData(t *testing.T) {
 // ─── Construction Demand (Gap Computation) ─────────────────────────────────
 
 func TestProductionFlow_ConstructionDemand_PureConstruction(t *testing.T) {
-	// Steel plate: consumed heavily, but only a small amount is explained by recipes.
-	// 1 assembler making rails consumes ~30/min of steel. The rest (970/min) is construction.
-	// Severity should be based on recipe demand (30) vs production (38), not total consumed (1000).
+	// Steel plate: consumed heavily (1000/min), but only 1 AM2 making rails.
+	// AM2 speed=0.75, rail recipe: 1 steel, 0.5 sec craft time.
+	// Machine throughput ceiling: 1 × (0.75/0.5) × 1 × 60 = 90 steel/min.
+	// Construction = 1000 - 0 - 90 = 910 (91%). The rest is construction demand.
+	// Severity should be based on recipe capacity (90) vs production (100).
 	data := runProductionFlow(t, `{
 		"module": "production_flow",
 		"flow_data": {
 			"items": {
 				"steel-plate": {
-					"produced_per_min": 38.0,
+					"produced_per_min": 100.0,
 					"consumed_per_min": 1000.0
 				},
 				"rail": {
@@ -1538,11 +1540,11 @@ func TestProductionFlow_ConstructionDemand_PureConstruction(t *testing.T) {
 			"by_recipe": {
 				"rail": {
 					"machine_type": "assembling-machine-2",
-					"count": 7,
+					"count": 1,
 					"modules": {}
 				}
 			},
-			"by_type": {"assembling-machine-2": 7},
+			"by_type": {"assembling-machine-2": 1},
 			"beacon_count": 0
 		}
 	}`)
@@ -1572,10 +1574,10 @@ func TestProductionFlow_ConstructionDemand_PureConstruction(t *testing.T) {
 }
 
 func TestProductionFlow_ConstructionDemand_MixedDeficit(t *testing.T) {
-	// Steel plate: consumed=500, produced=10. Rail recipe: 1 steel + 1 iron-stick → 2 rail.
-	// Fan-out estimates: (1/2) × 30 rail/min = 15 steel/min consumed by rail.
-	// Construction = 500 - 0 - 15 = 485. RealConsumed = 15.
-	// But produced (10) < realConsumed (15) → still a real recipe deficit.
+	// Steel plate: consumed=500, produced=10. 1 AM2 making rails.
+	// Machine throughput ceiling: 1 × (0.75/0.5) × 1 × 60 = 90 steel/min.
+	// Construction = 500 - 0 - 90 = 410 (82%). RealConsumed = 90.
+	// But produced (10) < realConsumed (90) → still a real recipe deficit.
 	// Severity should reflect the recipe shortage, not the massive construction one.
 	data := runProductionFlow(t, `{
 		"module": "production_flow",
@@ -1598,11 +1600,11 @@ func TestProductionFlow_ConstructionDemand_MixedDeficit(t *testing.T) {
 			"by_recipe": {
 				"rail": {
 					"machine_type": "assembling-machine-2",
-					"count": 7,
+					"count": 1,
 					"modules": {}
 				}
 			},
-			"by_type": {"assembling-machine-2": 7},
+			"by_type": {"assembling-machine-2": 1},
 			"beacon_count": 0
 		}
 	}`)
@@ -1612,14 +1614,14 @@ func TestProductionFlow_ConstructionDemand_MixedDeficit(t *testing.T) {
 		t.Fatal("expected steel-plate in output")
 	}
 
-	// Construction should absorb most of the consumption
+	// Construction should absorb most of the consumption (ceiling=90, consumed=500)
 	constructionConsumed := steel["construction_consumed"].(float64)
-	if constructionConsumed < 400 {
-		t.Errorf("expected construction_consumed > 400, got %.1f", constructionConsumed)
+	if constructionConsumed < 350 {
+		t.Errorf("expected construction_consumed > 350, got %.1f", constructionConsumed)
 	}
 
-	// Severity should reflect a real but moderate deficit (20 produced vs ~30 recipe demand).
-	// NOT critical (which it would be without construction exclusion: 20 vs 500).
+	// Severity should reflect a real recipe deficit (10 produced vs ~90 capacity).
+	// NOT critical (which it would be without construction exclusion: 10 vs 500).
 	// NOT healthy/surplus (there IS a real recipe deficit).
 	severity := steel["severity"].(string)
 	if severity == "critical" {
@@ -1675,6 +1677,59 @@ func TestProductionFlow_ConstructionDemand_FanOutExceedsConsumed(t *testing.T) {
 	constructionConsumed := copper["construction_consumed"].(float64)
 	if constructionConsumed != 0 {
 		t.Errorf("expected construction_consumed=0 when fan-out exceeds consumed, got %.1f", constructionConsumed)
+	}
+}
+
+func TestProductionFlow_ConstructionDemand_FluidFalsePositive(t *testing.T) {
+	// Regression test: petroleum gas shows false "construction consumed" because
+	// product-rate fan-out under-estimates when machines run at partial capacity.
+	// 12 chemical plants making plastic from petro (20 petro → 2 plastic, 1 sec craft).
+	// Plastic produced = 189/min (machines starved, running at ~14% capacity).
+	// Fan-out primary method: (20/2) × 189 = 1890. But total petro consumed = 6650.
+	// Old code: gap = 6650 - 1890 = 4760 → false construction signal.
+	// Fix: use machine throughput ceiling. 12 plants × 1.0 speed × 20 × 60 = 14400 >> 6650.
+	// No construction possible — machines COULD consume all of it.
+	data := runProductionFlow(t, `{
+		"module": "production_flow",
+		"flow_data": {
+			"items": {
+				"plastic-bar": {
+					"produced_per_min": 189.0,
+					"consumed_per_min": 200.0
+				}
+			},
+			"fluids": {
+				"petroleum-gas": {
+					"produced_per_min": 6420.0,
+					"consumed_per_min": 6650.0
+				}
+			},
+			"top_deficits": ["petroleum-gas"],
+			"top_surpluses": []
+		},
+		"existing_machines": {
+			"by_recipe": {
+				"plastic-bar": {
+					"machine_type": "chemical-plant",
+					"count": 12,
+					"modules": {"productivity-module": 36}
+				}
+			},
+			"by_type": {"chemical-plant": 12},
+			"beacon_count": 0
+		}
+	}`)
+
+	petro := findAnyDiagnosis(data, "petroleum-gas")
+	if petro == nil {
+		t.Fatal("expected petroleum-gas in output")
+	}
+
+	// Machine throughput ceiling for 12 chemical plants (speed 1.0, craft 1 sec, 20 petro):
+	// 12 × 1.0 × 20 × 60 = 14400/min >> 6650 consumed. No construction signal.
+	constructionConsumed := petro["construction_consumed"].(float64)
+	if constructionConsumed > 0 {
+		t.Errorf("expected construction_consumed=0 for fluid with ample machine capacity, got %.1f", constructionConsumed)
 	}
 }
 
