@@ -179,9 +179,50 @@ The Clair Obscur plugin uses a shared GVAS parser (`plugins/gvas/`) that handles
 
 Clair Obscur has no reference modules yet. Damage formulas and item categorization are planned.
 
+## Stellaris
+
+**Source:** Rust WASM plugin — parses `.sav` files (ZIP containing Clausewitz-format `meta` + `gamestate`)
+**Status:** Alpha
+
+The Stellaris plugin is the first Rust WASM plugin, sharing the `clausewitz-core` library with the planned Victoria 3 plugin. It uses the `jomini` crate for Clausewitz format parsing and produces 13 sections: `overview` (empire identity, ethics, civics, authority, origin, rank, resource stockpiles, DLCs, game version), `economy` (income/expense breakdown by resource with category detail, net balance), `technology` (researched techs, in-progress research with progress %, available alternatives, repeatables), `military` (fleet power, fleet size, naval capacity, empire size), `wars` (active wars with participants, war goals, war exhaustion), `diplomacy` (relations sorted by opinion, casus belli), `progression` (traditions, ascension perks, active edicts), `leaders` (ruler, scientists, admirals, generals with traits, level, age), `species` (species traits, founder species), `factions` (faction happiness, support), `exploration` (archaeological sites), `geography` (owned/controlled planet IDs), and `planets` (per-colony: class, size, designation, pops, stability, crime, amenities, housing).
+
+Stellaris has the largest reference module suite by game data volume — eight Rust WASM modules with 4,782 game data entries covering all vanilla and DLC content. The data is generated from the game's `common/` directory by a jomini-based datagen pipeline and embedded at compile time into a 474KB WASM binary.
+
+### Reference: Technology Search
+
+Searches all 663 technologies by name, area (physics/society/engineering), tier, or category. Returns cost, prerequisites, research weight, and start/repeatable flags. Supports case-insensitive matching.
+
+### Reference: Building Search
+
+Searches 490 buildings by name or category. Returns build time and capital status.
+
+### Reference: Ship Component Search
+
+Searches 1,379 ship components (weapons, utilities, reactors, combat computers) by name, size slot, or component set. Returns power draw and tech prerequisites.
+
+### Reference: Tradition & Ascension Perk Search
+
+Searches 279 traditions and ascension perks by name or category.
+
+### Reference: Species & Leader Trait Search
+
+Searches 1,098 species traits and leader traits by name or category. Returns trait cost.
+
+### Reference: Civic & Origin Search
+
+Searches 335 civics and origins by name. Distinguishes civics from origins via the `is_origin` flag.
+
+### Reference: Edict & Policy Search
+
+Searches 165 edicts and policies by name or category. Returns edict cost.
+
+### Reference: Pop Job Search
+
+Searches 373 pop jobs by name or category (worker, specialist, ruler).
+
 ## Victoria 3 (Planned)
 
 **Source:** Rust WASM plugin — will parse Clausewitz-format save files (ZIP containing text or binary game state)
 **Status:** Spec complete, implementation not started
 
-Victoria 3 will be the first non-Go plugin, validating that Savecraft's plugin contract is truly language-agnostic. The plugin uses the Rust `jomini` library, the gold-standard parser for Paradox's Clausewitz save format (shared across EU4, CK3, HOI4, Vic3, Imperator, and EU5). The 2MB result cap requires aggressive summarization for late-game saves, which can contain hundreds of thousands of entities. Both a `parser.wasm` and `reference.wasm` are planned. The reference module will provide building, law, technology, and goods data lookups to help the AI explain Victoria 3's notoriously opaque economic and political systems.
+Victoria 3 shares `clausewitz-core` and `jomini` with the Stellaris plugin. The 2MB result cap requires aggressive summarization for late-game saves. Both a `parser.wasm` and `reference.wasm` are planned. The reference module will provide building, law, technology, and goods data lookups to help the AI explain Victoria 3's notoriously opaque economic and political systems.

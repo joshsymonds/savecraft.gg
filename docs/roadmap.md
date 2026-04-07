@@ -137,7 +137,7 @@ Factorio is currently the only identified candidate. If other sandboxed framewor
 | Hollow Knight: Silksong | AES-ECB encrypted JSON | See [Hollow Knight notes](#hollow-knight--silksong) below. |
 | Slay the Spire 1 & 2 | XOR+Base64 JSON (StS1) / plain JSON (StS2) | See [Slay the Spire notes](#slay-the-spire) below. |
 | Stardew Valley | XML (plain text) | Trivial to parse. Massive audience. Completionist culture. |
-| Paradox games (Stellaris, CK3) | Clausewitz text | Deep strategy, dozens of systems to optimize. |
+| Paradox games (CK3, HOI4) | Clausewitz text | Deep strategy, dozens of systems to optimize. Stellaris already implemented. |
 
 ### Tier 3: High Value, More Complex
 
