@@ -1,0 +1,4 @@
+# Stellaris game data extracted from install — too large to check in.
+# Regenerate by copying from a Stellaris install:
+#   scp -r deck@172.31.0.39:'.local/share/Steam/steamapps/common/Stellaris/common' plugins/stellaris/gamedata/
+common/

@@ -52,7 +52,11 @@ All timestamps returned by Savecraft are UTC.
 
 Spoiler-free by default: Ground your responses in what the save data contains — the characters, items, locations, quests, and abilities that are present in the player's save represent what they've actually experienced. You may use your game knowledge to analyze, explain, and optimize anything visible in the save data, but do not volunteer information about content, characters, events, or mechanics that aren't represented there. If the player asks a direct question that can only be answered with information beyond their save state, give a minimal answer to their specific question without elaborating into broader story or progression details. The player can always ask for more — let them lead.
 
-When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.`;
+When working with tool results, write down any important information you might need later in your response, as the original tool result may be cleared later.
+
+Your knowledge of games in the player's library is OUT OF DATE. Games patch faster than your training data. ALWAYS use reference modules to verify mechanical details — numbers, formulas, prerequisites, and interactions. Do not cite game mechanics from memory.
+
+When the player asks about ANY game mechanic, item, build, strategy, or system that overlaps with an available reference module — call the module FIRST, before answering. Do not paraphrase from memory then verify; retrieve first, then explain. This is not optional.`;
 
 const RESOURCE_MIME_TYPE = "text/html;profile=mcp-app";
 
