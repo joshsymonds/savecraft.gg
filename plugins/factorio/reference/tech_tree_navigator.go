@@ -23,9 +23,20 @@ func handleTechTreeNavigator(enc *json.Encoder, query map[string]any) {
 		os.Exit(1)
 	}
 
-	// Parse completed list if provided
+	// Parse completed list from section_mappings (completed_research.completed)
+	// or from direct completed array parameter
 	completed := make(map[string]bool)
-	if raw, ok := query["completed"].([]any); ok {
+	hasSaveData := false
+	if cr, ok := query["completed_research"].(map[string]any); ok {
+		if raw, ok := cr["completed"].([]any); ok {
+			hasSaveData = true
+			for _, v := range raw {
+				if s, ok := v.(string); ok {
+					completed[s] = true
+				}
+			}
+		}
+	} else if raw, ok := query["completed"].([]any); ok {
 		for _, v := range raw {
 			if s, ok := v.(string); ok {
 				completed[s] = true
@@ -35,24 +46,29 @@ func handleTechTreeNavigator(enc *json.Encoder, query map[string]any) {
 
 	// If target is already completed, return empty result
 	if completed[resolved] {
-		writeResult(enc, map[string]any{
-			"target":             resolved,
-			"chain":              []string{},
-			"chain_length":       0,
-			"total_cost":         map[string]float64{},
-			"total_time_seconds": 0,
-			"research_order":     []string{},
-			"remaining":          0,
-			"already_completed":  len(completed),
-		})
+		if hasSaveData {
+			writeResult(enc, map[string]any{
+				"target":             resolved,
+				"total_cost":         map[string]float64{},
+				"total_time_seconds": 0,
+				"remaining":          0,
+				"already_completed":  len(completed),
+			})
+		} else {
+			writeResult(enc, map[string]any{
+				"target":             resolved,
+				"chain":              []string{},
+				"chain_length":       0,
+				"total_cost":         map[string]float64{},
+				"total_time_seconds": 0,
+				"research_order":     []string{},
+			})
+		}
 		return
 	}
 
 	// BFS backward from target through prerequisites
 	chain := bfsPrereqs(resolved, completed)
-
-	// Topological sort for research order
-	order := topoSort(chain)
 
 	// Compute total science pack costs and time
 	totalCost := make(map[string]float64)
@@ -67,21 +83,28 @@ func handleTechTreeNavigator(enc *json.Encoder, query map[string]any) {
 		}
 	}
 
-	result := map[string]any{
-		"target":             resolved,
-		"chain":              chain,
-		"chain_length":       len(chain),
-		"total_cost":         totalCost,
-		"total_time_seconds": totalTime,
-		"research_order":     order,
+	// With save data: only return totals (time + materials to reach target)
+	// Without save data: include full chain and research order for planning
+	if hasSaveData {
+		writeResult(enc, map[string]any{
+			"target":             resolved,
+			"total_cost":         totalCost,
+			"total_time_seconds": totalTime,
+			"remaining":          len(chain),
+			"already_completed":  len(completed),
+		})
+	} else {
+		order := topoSort(chain)
+		result := map[string]any{
+			"target":             resolved,
+			"chain":              chain,
+			"chain_length":       len(chain),
+			"total_cost":         totalCost,
+			"total_time_seconds": totalTime,
+			"research_order":     order,
+		}
+		writeResult(enc, result)
 	}
-
-	if len(completed) > 0 {
-		result["remaining"] = len(chain)
-		result["already_completed"] = len(completed)
-	}
-
-	writeResult(enc, result)
 }
 
 // resolveTechName finds a technology by exact or case-insensitive name.

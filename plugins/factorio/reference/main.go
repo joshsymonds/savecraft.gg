@@ -117,10 +117,10 @@ func schema() map[string]any {
 			},
 			"tech_tree_navigator": map[string]any{
 				"name":        "Tech Tree Navigator",
-				"description": "Traverse technology prerequisite chains with total science pack costs. Given a target technology and optionally completed research, compute the remaining research path and cost.",
+				"description": "Traverse technology prerequisite chains with total science pack costs. Given a target technology, compute the remaining research path and cost. With save data, returns only total time and materials needed.",
 				"parameters": map[string]any{
-					"target":    map[string]any{"type": "string", "description": "Target technology name (e.g. 'nuclear-power', 'spidertron')", "required": true},
-					"completed": map[string]any{"type": "array", "description": "List of already-completed technology names to exclude from the path (from save data's research section)"},
+					"target":             map[string]any{"type": "string", "description": "Target technology name (e.g. 'nuclear-power', 'spidertron')", "required": true},
+					"completed_research": map[string]any{"type": "object", "description": "Completed research data from save (injected via save_id). Contains completed tech name list."},
 				},
 			},
 			"power_calculator": map[string]any{

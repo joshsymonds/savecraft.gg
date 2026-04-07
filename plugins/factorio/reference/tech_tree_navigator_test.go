@@ -154,7 +154,7 @@ func TestTechTree_ResearchOrder_Valid(t *testing.T) {
 	}
 }
 
-// ─── Remaining Path Mode ────────────────────────────────────────────────────
+// ─── Remaining Path Mode (direct completed param, no save data) ─────────────
 
 func TestTechTree_RemainingPath(t *testing.T) {
 	result, code := runReference(t, `{
@@ -167,6 +167,7 @@ func TestTechTree_RemainingPath(t *testing.T) {
 	}
 	data := result["data"].(map[string]any)
 
+	// Direct completed param still returns full chain + research_order
 	chain := toStringSlice(t, data["chain"])
 	got := make(map[string]bool)
 	for _, name := range chain {
@@ -202,6 +203,11 @@ func TestTechTree_RemainingPath(t *testing.T) {
 	if remainAuto >= fullAuto {
 		t.Errorf("remaining cost (%v) should be less than full cost (%v)", remainAuto, fullAuto)
 	}
+
+	// Non-save-data path should include research_order
+	if _, ok := data["research_order"]; !ok {
+		t.Error("non-save-data path should include research_order")
+	}
 }
 
 func TestTechTree_RemainingPath_TargetAlreadyCompleted(t *testing.T) {
@@ -215,9 +221,112 @@ func TestTechTree_RemainingPath_TargetAlreadyCompleted(t *testing.T) {
 	}
 	data := result["data"].(map[string]any)
 
+	// Non-save-data early return should include full output shape
 	chain := toStringSlice(t, data["chain"])
 	if len(chain) != 0 {
 		t.Errorf("expected empty chain when target is completed, got %v", chain)
+	}
+	if _, ok := data["research_order"]; !ok {
+		t.Error("non-save-data path should include research_order even when already completed")
+	}
+	if _, ok := data["chain_length"]; !ok {
+		t.Error("non-save-data path should include chain_length even when already completed")
+	}
+}
+
+// ─── Save Data Mode (completed_research section) ───────────────────────────
+
+func TestTechTree_SaveData_OnlyTotals(t *testing.T) {
+	// With completed_research (save data), output should be totals only
+	result, code := runReference(t, `{
+		"module": "tech_tree_navigator",
+		"target": "automation-2",
+		"completed_research": {
+			"completed": ["automation", "automation-science-pack", "steam-power", "electronics"]
+		}
+	}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+	data := result["data"].(map[string]any)
+
+	// Should have totals
+	if _, ok := data["total_cost"]; !ok {
+		t.Error("expected total_cost in save data result")
+	}
+	if _, ok := data["total_time_seconds"]; !ok {
+		t.Error("expected total_time_seconds in save data result")
+	}
+	if _, ok := data["remaining"]; !ok {
+		t.Error("expected remaining in save data result")
+	}
+	if _, ok := data["already_completed"]; !ok {
+		t.Error("expected already_completed in save data result")
+	}
+
+	// Should NOT have chain or research_order
+	if _, ok := data["chain"]; ok {
+		t.Error("save data result should not include chain")
+	}
+	if _, ok := data["research_order"]; ok {
+		t.Error("save data result should not include research_order")
+	}
+	if _, ok := data["chain_length"]; ok {
+		t.Error("save data result should not include chain_length")
+	}
+}
+
+func TestTechTree_SaveData_CostsLowerThanFull(t *testing.T) {
+	// Save data costs should be less than full chain costs
+	saveResult, code := runReference(t, `{
+		"module": "tech_tree_navigator",
+		"target": "automation-2",
+		"completed_research": {
+			"completed": ["automation", "automation-science-pack", "steam-power", "electronics"]
+		}
+	}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+	fullResult, code := runReference(t, `{
+		"module": "tech_tree_navigator",
+		"target": "automation-2"
+	}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+
+	saveCost := saveResult["data"].(map[string]any)["total_cost"].(map[string]any)
+	fullCost := fullResult["data"].(map[string]any)["total_cost"].(map[string]any)
+
+	saveAuto := saveCost["automation-science-pack"].(float64)
+	fullAuto := fullCost["automation-science-pack"].(float64)
+	if saveAuto >= fullAuto {
+		t.Errorf("save data cost (%v) should be less than full cost (%v)", saveAuto, fullAuto)
+	}
+}
+
+func TestTechTree_SaveData_TargetAlreadyCompleted(t *testing.T) {
+	result, code := runReference(t, `{
+		"module": "tech_tree_navigator",
+		"target": "automation",
+		"completed_research": {
+			"completed": ["automation", "automation-science-pack", "steam-power", "electronics"]
+		}
+	}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+	data := result["data"].(map[string]any)
+
+	remaining := data["remaining"].(float64)
+	if remaining != 0 {
+		t.Errorf("expected 0 remaining when target is completed, got %v", remaining)
+	}
+
+	// Should not have chain/research_order even when already completed
+	if _, ok := data["chain"]; ok {
+		t.Error("save data result should not include chain")
 	}
 }
 
