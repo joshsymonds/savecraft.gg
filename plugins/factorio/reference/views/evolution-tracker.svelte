@@ -179,7 +179,7 @@
             variant: "muted" as const,
           })),
           { key: "Walls", value: String(data.defenses.walls) },
-          { key: "Nearby enemy bases", value: String(data.defenses.enemy_bases_nearby.length) },
+          { key: "Nearby enemy bases", value: String(Array.isArray(data.defenses.enemy_bases_nearby) ? data.defenses.enemy_bases_nearby.length : 0) },
         ]} />
       </Panel>
     </Section>
