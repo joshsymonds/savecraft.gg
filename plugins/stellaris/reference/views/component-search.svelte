@@ -39,13 +39,8 @@
     titan: "highlight",
   };
 
-  function formatName(c: ComponentResult): string {
-    let name = c.key.replace(/_/g, " ").toLowerCase();
-    const prereqs = c.prerequisites
-      .map((p) => p.replace(/^tech_/, "").replace(/_/g, " "))
-      .join(", ");
-    if (prereqs) name += ` \u00b7 ${prereqs}`;
-    return name;
+  function formatName(key: string): string {
+    return key.replace(/_/g, " ").toLowerCase();
   }
 
   let columns = [
@@ -61,7 +56,7 @@
       const powerVariant: Variant = c.power > 0 ? "positive" : c.power < 0 ? "negative" : "muted";
 
       return {
-        name: formatName(c),
+        name: formatName(c.key),
         size: { value: c.size.toUpperCase(), variant },
         power: { value: c.power, variant: powerVariant },
         set: c.component_set.replace(/_/g, " ").toLowerCase() || "\u2014",

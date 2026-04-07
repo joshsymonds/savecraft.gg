@@ -38,13 +38,8 @@
     engineering: "warning",
   };
 
-  function formatTechName(tech: TechResult): string {
-    return tech.key.replace(/^tech_/, "").replace(/_/g, " ");
-  }
-
-  function prereqSublabel(tech: TechResult): string {
-    if (tech.prerequisites.length === 0) return "";
-    return tech.prerequisites.map((p) => p.replace(/^tech_/, "").replace(/_/g, " ")).join(", ");
+  function formatTechName(key: string): string {
+    return key.replace(/^tech_/, "").replace(/_/g, " ");
   }
 
   let columns = [
@@ -58,13 +53,9 @@
   let rows = $derived(
     data.results.map((tech) => {
       const variant = areaVariant[tech.area] ?? "muted";
-      const prereqs = prereqSublabel(tech);
-      let name = formatTechName(tech);
-      if (prereqs) name += ` \u00b7 ${prereqs}`;
-      if (tech.is_repeatable) name += " \u221e";
 
       return {
-        name: { value: name, variant: tech.is_repeatable ? "highlight" as const : undefined, sortValue: 0 },
+        name: { value: formatTechName(tech.key), variant: tech.is_repeatable ? "highlight" as const : undefined },
         area: { value: tech.area.toUpperCase(), variant },
         tier: tech.tier,
         category: tech.category.replace(/_/g, " "),
