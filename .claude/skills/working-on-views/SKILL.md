@@ -8,6 +8,15 @@ description: MCP Apps view development for Savecraft. Use when creating or modif
 Read `docs/views.md` for architecture, response format, and constraints.
 Read `docs/view-design.md` for when to build a view, interaction patterns, and visual principles.
 
+## CRITICAL: Rebuild After Every .svelte Change
+
+`worker/src/mcp/views.gen.ts` is a committed build artifact — **CI does not rebuild it.** After modifying ANY `.svelte` file (in `views/`, `worker/src/mcp/views/`, or `plugins/*/reference/views/`), you MUST:
+
+1. Run `just build-views`
+2. Commit the regenerated `views.gen.ts` alongside your other changes
+
+Forgetting this means production serves stale view HTML even after a successful cloud deploy. The deploy will succeed, the tests will pass, but users see the old view.
+
 ## Verification
 
 ```bash

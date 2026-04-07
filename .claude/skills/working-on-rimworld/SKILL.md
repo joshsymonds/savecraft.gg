@@ -21,6 +21,8 @@ plugins/rimworld/reference/        # WASM entry point + 8 computation packages
 
 ## Verification
 
+**View changes require `just build-views` + committing `views.gen.ts`.** See `working-on-views` skill for details. CI does not rebuild views — forgetting this ships stale HTML.
+
 ```bash
 go test ./plugins/rimworld/...                                    # All RimWorld tests
 go run ./plugins/rimworld/tools/datagen                           # Regenerate from XML

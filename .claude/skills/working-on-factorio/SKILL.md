@@ -36,6 +36,8 @@ just spritesheet            # Regenerate sprite sheets from .reference/ PNGs
 
 Full suite: `just test-go` (all Go) + `just test-worker` (all Worker) + `just build-views` (view compilation).
 
+**View changes require `just build-views` + committing `views.gen.ts`.** See `working-on-views` skill for details. CI does not rebuild views — forgetting this ships stale HTML.
+
 ## Key Conventions
 
 ### Recipe Disambiguation
