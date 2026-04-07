@@ -2,72 +2,48 @@ package main
 
 import (
 	"encoding/json"
-	"math"
 	"os"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
 )
 
-func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
-	// All three inputs are required (can be zero)
-	gameTimeHours, hasTime := query["game_time_hours"].(float64)
-	pollutionAbsorbed, hasPollution := query["pollution_absorbed"].(float64)
-	nestsDestroyed, hasKills := query["nests_destroyed"].(float64)
+// evolutionQuery is the typed input for the evolution tracker module.
+type evolutionQuery struct {
+	Defenses *defensesSection `json:"defenses"`
+}
 
-	if !hasTime && !hasPollution && !hasKills {
-		writeError(enc, "missing_param", "evolution_tracker requires at least one of: game_time_hours, pollution_absorbed, nests_destroyed")
+// defensesSection mirrors the defenses section from the Factorio mod's control.lua.
+type defensesSection struct {
+	Evolution struct {
+		Factor          float64 `json:"factor"`
+		TimeFactor      float64 `json:"time_factor"`
+		PollutionFactor float64 `json:"pollution_factor"`
+		KillFactor      float64 `json:"kill_factor"`
+	} `json:"evolution"`
+	Turrets          map[string]int `json:"turrets"`
+	Walls            int            `json:"walls"`
+	EnemyBasesNearby []any          `json:"enemy_bases_nearby"`
+	TotalPollution   int            `json:"total_pollution"`
+}
+
+func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
+	raw, _ := json.Marshal(query)
+	var q evolutionQuery
+	if err := json.Unmarshal(raw, &q); err != nil {
+		writeError(enc, "parse_error", "failed to parse query: "+err.Error())
 		os.Exit(1)
 	}
 
-	// Resolve evolution rates (base or preset override)
-	timeFactor := data.BaseEvolution.TimeFactor
-	pollutionFactor := data.BaseEvolution.PollutionFactor
-	destroyFactor := data.BaseEvolution.DestroyFactor
-
-	if preset := stringParam(query, "preset"); preset != "" {
-		if preset == "peaceful" {
-			// Peaceful mode disables evolution entirely
-			writeResult(enc, map[string]any{
-				"evolution_factor":        0,
-				"sources":                 map[string]any{"time": 0, "pollution": 0, "kills": 0},
-				"dominant_source":         "none",
-				"current_tier":            "none",
-				"previous_tier_threshold": 0,
-				"next_tier":               nil,
-				"spawn_weights":           computeSpawnWeights(0, "biter-spawner"),
-				"preset":                  "peaceful",
-				"note":                    "Peaceful mode disables enemy evolution entirely.",
-			})
-			return
-		}
-		if p, ok := data.DifficultyPresets[preset]; ok {
-			if p.TimeFactor != 0 {
-				timeFactor = p.TimeFactor
-			}
-			if p.PollutionFactor != 0 {
-				pollutionFactor = p.PollutionFactor
-			}
-			if p.DestroyFactor != 0 {
-				destroyFactor = p.DestroyFactor
-			}
-		} else {
-			writeError(enc, "unknown_preset", "unknown difficulty preset: "+preset+". Valid presets: death-world, death-world-marathon, rail-world, peaceful")
-			os.Exit(1)
-		}
+	if q.Defenses == nil {
+		writeError(enc, "missing_section", "evolution_tracker requires the defenses section (pass save_id to provide it)")
+		os.Exit(1)
 	}
 
-	// Compute per-source evolution
-	// Formula: evo = 1 - (1 - factor)^N
-	// For time: N = hours * 3600 * 60 (ticks)
-	// For pollution: N = total pollution absorbed
-	// For kills: N = nests destroyed
-	ticks := gameTimeHours * 3600 * 60
-	evoTime := computeEvolution(timeFactor, ticks)
-	evoPollution := computeEvolution(pollutionFactor, pollutionAbsorbed)
-	evoKills := computeEvolution(destroyFactor, nestsDestroyed)
-
-	// Combined: evo = 1 - (1-evo_time) * (1-evo_pollution) * (1-evo_kills)
-	combined := 1 - (1-evoTime)*(1-evoPollution)*(1-evoKills)
+	defenses := q.Defenses
+	combined := defenses.Evolution.Factor
+	evoTime := defenses.Evolution.TimeFactor
+	evoPollution := defenses.Evolution.PollutionFactor
+	evoKills := defenses.Evolution.KillFactor
 
 	// Determine dominant source
 	dominant := "time"
@@ -101,7 +77,8 @@ func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
 	}
 
 	// Compute spawn weights for biter-spawner at current evolution
-	spawnWeights := computeSpawnWeights(combined, "biter-spawner")
+	const spawnerName = "biter-spawner"
+	spawnWeights := computeSpawnWeights(combined, spawnerName)
 
 	result := map[string]any{
 		"evolution_factor": roundTo(combined, 6),
@@ -114,20 +91,17 @@ func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
 		"current_tier":            currentTier,
 		"previous_tier_threshold": previousTierThreshold,
 		"next_tier":               nextTier,
+		"spawner":                 spawnerName,
 		"spawn_weights":           spawnWeights,
+		"defenses": map[string]any{
+			"turrets":            defenses.Turrets,
+			"walls":              defenses.Walls,
+			"enemy_bases_nearby": defenses.EnemyBasesNearby,
+			"total_pollution":    defenses.TotalPollution,
+		},
 	}
 
 	writeResult(enc, result)
-}
-
-// computeEvolution calculates evo = 1 - (1 - factor)^n using log to avoid
-// precision issues with very small factors raised to large powers.
-func computeEvolution(factor, n float64) float64 {
-	if factor <= 0 || n <= 0 {
-		return 0
-	}
-	// 1 - (1-factor)^n = 1 - exp(n * ln(1-factor))
-	return 1 - math.Exp(n*math.Log(1-factor))
 }
 
 // computeSpawnWeights interpolates spawn weights for each unit in a spawner

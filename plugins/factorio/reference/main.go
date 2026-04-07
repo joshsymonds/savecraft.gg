@@ -110,12 +110,9 @@ func schema() map[string]any {
 			},
 			"evolution_tracker": map[string]any{
 				"name":        "Evolution & Threat Tracker",
-				"description": "Compute biter evolution factor from time, pollution, and nest kills. Predict next enemy tier threshold, dominant evolution source, and spawn weight distribution.",
+				"description": "Analyze biter evolution and defense posture from save data. Returns evolution factor with source breakdown, enemy tier prediction, spawn weight distribution, and defense summary including turret counts, walls, and nearby enemy bases.",
 				"parameters": map[string]any{
-					"game_time_hours":    map[string]any{"type": "number", "description": "Hours of game time played", "required": true},
-					"pollution_absorbed": map[string]any{"type": "number", "description": "Total pollution absorbed by enemy bases", "required": true},
-					"nests_destroyed":    map[string]any{"type": "number", "description": "Total enemy spawner buildings destroyed", "required": true},
-					"preset":             map[string]any{"type": "string", "description": "Difficulty preset: 'death-world', 'death-world-marathon', 'rail-world'. Omit for normal rates."},
+					"defenses": map[string]any{"type": "object", "description": "Defenses section from save data (injected via save_id). Contains evolution factor, turret counts, walls, enemy bases, and pollution.", "required": true},
 				},
 			},
 			"tech_tree_navigator": map[string]any{
