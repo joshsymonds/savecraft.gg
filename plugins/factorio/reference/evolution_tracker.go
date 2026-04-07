@@ -14,16 +14,22 @@ type evolutionQuery struct {
 
 // defensesSection mirrors the defenses section from the Factorio mod's control.lua.
 type defensesSection struct {
+	Threats          map[string]surfaceThreat `json:"threats"`
+	Turrets          map[string]int           `json:"turrets"`
+	Walls            int                      `json:"walls"`
+	EnemyBasesNearby []any                    `json:"enemy_bases_nearby"`
+}
+
+// surfaceThreat holds evolution and pollution data for a single surface.
+type surfaceThreat struct {
+	Pollutant string `json:"pollutant"`
 	Evolution struct {
 		Factor          float64 `json:"factor"`
 		TimeFactor      float64 `json:"time_factor"`
 		PollutionFactor float64 `json:"pollution_factor"`
 		KillFactor      float64 `json:"kill_factor"`
 	} `json:"evolution"`
-	Turrets          map[string]int `json:"turrets"`
-	Walls            int            `json:"walls"`
-	EnemyBasesNearby []any          `json:"enemy_bases_nearby"`
-	TotalPollution   int            `json:"total_pollution"`
+	CurrentPollution int `json:"current_pollution"`
 }
 
 func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
@@ -40,64 +46,90 @@ func handleEvolutionTracker(enc *json.Encoder, query map[string]any) {
 	}
 
 	defenses := q.Defenses
-	combined := defenses.Evolution.Factor
-	evoTime := defenses.Evolution.TimeFactor
-	evoPollution := defenses.Evolution.PollutionFactor
-	evoKills := defenses.Evolution.KillFactor
 
-	// Determine dominant source
-	dominant := "time"
-	maxSource := evoTime
-	if evoPollution > maxSource {
-		dominant = "pollution"
-		maxSource = evoPollution
-	}
-	if evoKills > maxSource {
-		dominant = "kills"
+	if len(defenses.Threats) == 0 {
+		writeResult(enc, map[string]any{
+			"surfaces": map[string]any{},
+			"defenses": map[string]any{
+				"turrets":            defenses.Turrets,
+				"walls":              defenses.Walls,
+				"enemy_bases_nearby": defenses.EnemyBasesNearby,
+			},
+			"note": "No surfaces with active threats (all surfaces lack a pollutant type).",
+		})
+		return
 	}
 
-	// Determine current and next tier
-	var currentTier string
-	var previousTierThreshold float64
-	var nextTier map[string]any
-	for _, tier := range data.EnemyTiers {
-		if combined >= tier.Threshold {
-			currentTier = tier.Name
-			previousTierThreshold = tier.Threshold
-		} else {
-			nextTier = map[string]any{
-				"name":      tier.Name,
-				"threshold": tier.Threshold,
+	// Build per-surface analysis
+	surfaces := make(map[string]any, len(defenses.Threats))
+	for surfaceName, threat := range defenses.Threats {
+		combined := threat.Evolution.Factor
+		evoTime := threat.Evolution.TimeFactor
+		evoPollution := threat.Evolution.PollutionFactor
+		evoKills := threat.Evolution.KillFactor
+
+		// Determine dominant source
+		dominant := "time"
+		maxSource := evoTime
+		if evoPollution > maxSource {
+			dominant = "pollution"
+			maxSource = evoPollution
+		}
+		if evoKills > maxSource {
+			dominant = "kills"
+		}
+
+		// Determine current and next tier
+		var currentTier string
+		var previousTierThreshold float64
+		var nextTier map[string]any
+		for _, tier := range data.EnemyTiers {
+			if combined >= tier.Threshold {
+				currentTier = tier.Name
+				previousTierThreshold = tier.Threshold
+			} else {
+				nextTier = map[string]any{
+					"name":      tier.Name,
+					"threshold": tier.Threshold,
+				}
+				break
 			}
-			break
+		}
+		if currentTier == "" && len(data.EnemyTiers) > 0 {
+			currentTier = "none"
+		}
+
+		// Pick spawner based on pollutant type
+		spawnerName := "biter-spawner"
+		if threat.Pollutant == "spores" {
+			spawnerName = "gleba-spawner"
+		}
+		spawnWeights := computeSpawnWeights(combined, spawnerName)
+
+		surfaces[surfaceName] = map[string]any{
+			"pollutant":        threat.Pollutant,
+			"evolution_factor": roundTo(combined, 6),
+			"sources": map[string]any{
+				"time":      roundTo(evoTime, 6),
+				"pollution": roundTo(evoPollution, 6),
+				"kills":     roundTo(evoKills, 6),
+			},
+			"dominant_source":         dominant,
+			"current_tier":            currentTier,
+			"previous_tier_threshold": previousTierThreshold,
+			"next_tier":               nextTier,
+			"spawner":                 spawnerName,
+			"spawn_weights":           spawnWeights,
+			"current_pollution":       threat.CurrentPollution,
 		}
 	}
-	if currentTier == "" && len(data.EnemyTiers) > 0 {
-		currentTier = "none"
-	}
-
-	// Compute spawn weights for biter-spawner at current evolution
-	const spawnerName = "biter-spawner"
-	spawnWeights := computeSpawnWeights(combined, spawnerName)
 
 	result := map[string]any{
-		"evolution_factor": roundTo(combined, 6),
-		"sources": map[string]any{
-			"time":      roundTo(evoTime, 6),
-			"pollution": roundTo(evoPollution, 6),
-			"kills":     roundTo(evoKills, 6),
-		},
-		"dominant_source":         dominant,
-		"current_tier":            currentTier,
-		"previous_tier_threshold": previousTierThreshold,
-		"next_tier":               nextTier,
-		"spawner":                 spawnerName,
-		"spawn_weights":           spawnWeights,
+		"surfaces": surfaces,
 		"defenses": map[string]any{
 			"turrets":            defenses.Turrets,
 			"walls":              defenses.Walls,
 			"enemy_bases_nearby": defenses.EnemyBasesNearby,
-			"total_pollution":    defenses.TotalPollution,
 		},
 	}
 

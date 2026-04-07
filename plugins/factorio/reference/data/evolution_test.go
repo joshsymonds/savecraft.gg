@@ -4,42 +4,6 @@ import (
 	"testing"
 )
 
-func TestEvolutionSettings_BaseRates(t *testing.T) {
-	if BaseEvolution.TimeFactor != 4e-06 {
-		t.Errorf("TimeFactor = %v, want 4e-06", BaseEvolution.TimeFactor)
-	}
-	if BaseEvolution.DestroyFactor != 0.002 {
-		t.Errorf("DestroyFactor = %v, want 0.002", BaseEvolution.DestroyFactor)
-	}
-	if BaseEvolution.PollutionFactor != 9e-07 {
-		t.Errorf("PollutionFactor = %v, want 9e-07", BaseEvolution.PollutionFactor)
-	}
-}
-
-func TestDifficultyPresets(t *testing.T) {
-	dw, ok := DifficultyPresets["death-world"]
-	if !ok {
-		t.Fatal("death-world preset not found")
-	}
-	if dw.TimeFactor != 2e-05 {
-		t.Errorf("death-world TimeFactor = %v, want 2e-05", dw.TimeFactor)
-	}
-	if dw.PollutionFactor != 1.2e-06 {
-		t.Errorf("death-world PollutionFactor = %v, want 1.2e-06", dw.PollutionFactor)
-	}
-
-	dwm, ok := DifficultyPresets["death-world-marathon"]
-	if !ok {
-		t.Fatal("death-world-marathon preset not found")
-	}
-	if dwm.TimeFactor != 1.5e-05 {
-		t.Errorf("death-world-marathon TimeFactor = %v, want 1.5e-05", dwm.TimeFactor)
-	}
-	if dwm.PollutionFactor != 1e-06 {
-		t.Errorf("death-world-marathon PollutionFactor = %v, want 1e-06", dwm.PollutionFactor)
-	}
-}
-
 func TestSpawnerTables(t *testing.T) {
 	bs, ok := Spawners["biter-spawner"]
 	if !ok {

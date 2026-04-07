@@ -1,8 +1,8 @@
 <!--
   @component
   Factorio evolution tracker reference view.
-  Shows evolution progress toward next enemy tier with source breakdown
-  and biter spawn weight distribution.
+  Shows per-surface evolution progress toward next enemy tier with source breakdown
+  and spawn weight distribution.
 
   @attribution wube
 -->
@@ -14,43 +14,55 @@
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
 
+  interface SurfaceData {
+    pollutant: string;
+    evolution_factor: number;
+    sources: {
+      time: number;
+      pollution: number;
+      kills: number;
+    };
+    dominant_source: "time" | "pollution" | "kills";
+    current_tier: string;
+    previous_tier_threshold: number;
+    next_tier?: {
+      name: string;
+      threshold: number;
+    } | null;
+    spawn_weights: Record<string, number>;
+    current_pollution: number;
+  }
+
   interface Props {
     data: {
-      evolution_factor: number;
-      sources: {
-        time: number;
-        pollution: number;
-        kills: number;
+      surfaces: Record<string, SurfaceData>;
+      defenses: {
+        turrets: Record<string, number>;
+        walls: number;
+        enemy_bases_nearby: Array<{ distance: number; direction: string; type: string }>;
       };
-      dominant_source: "time" | "pollution" | "kills";
-      current_tier: string;
-      previous_tier_threshold: number;
-      next_tier?: {
-        name: string;
-        threshold: number;
-      } | null;
-      spawn_weights: Record<string, number>;
       icon_url?: string;
     };
   }
 
   let { data }: Props = $props();
 
-  let evoPercent = $derived(Math.round(data.evolution_factor * 1000) / 10);
+  let surfaceEntries = $derived(Object.entries(data.surfaces));
 
-  let threatVariant = $derived<"positive" | "info" | "negative">(
-    data.evolution_factor >= 0.9 ? "negative" : data.evolution_factor >= 0.5 ? "info" : "positive",
-  );
+  function evoPercent(factor: number): number {
+    return Math.round(factor * 1000) / 10;
+  }
 
-  // Progress toward next tier (0-100), or 100 if past all tiers
-  let tierProgress = $derived.by(() => {
-    if (!data.next_tier) return 100;
-    const range = data.next_tier.threshold - data.previous_tier_threshold;
+  function threatVariant(factor: number): "positive" | "info" | "negative" {
+    return factor >= 0.9 ? "negative" : factor >= 0.5 ? "info" : "positive";
+  }
+
+  function tierProgress(surface: SurfaceData): number {
+    if (!surface.next_tier) return 100;
+    const range = surface.next_tier.threshold - surface.previous_tier_threshold;
     if (range <= 0) return 100;
-    return Math.round(((data.evolution_factor - data.previous_tier_threshold) / range) * 100);
-  });
-
-  let tierProgressLabel = $derived(`${evoPercent}%`);
+    return Math.round(((surface.evolution_factor - surface.previous_tier_threshold) / range) * 100);
+  }
 
   function formatTierName(name: string): string {
     const labels: Record<string, string> = {
@@ -66,88 +78,111 @@
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
 
-  let sourceSegments = $derived([
-    { label: "Time", value: Math.round(data.sources.time * 10000) / 100, color: "var(--color-info)" },
-    { label: "Pollution", value: Math.round(data.sources.pollution * 10000) / 100, color: "var(--color-warning)" },
-    { label: "Kills", value: Math.round(data.sources.kills * 10000) / 100, color: "var(--color-negative)" },
-  ]);
+  function formatSurfaceName(name: string): string {
+    return name.charAt(0).toUpperCase() + name.slice(1);
+  }
 
-  let tierKV = $derived.by(() => {
-    const items: Array<{ key: string; value: string; variant?: "positive" | "negative" | "highlight" | "info" | "warning" | "muted" }> = [
-      { key: "Current tier", value: formatTierName(data.current_tier) },
+  function sourceSegments(surface: SurfaceData) {
+    return [
+      { label: "Time", value: Math.round(surface.sources.time * 10000) / 100, color: "var(--color-info)" },
+      { label: formatSourceName(surface.pollutant), value: Math.round(surface.sources.pollution * 10000) / 100, color: "var(--color-warning)" },
+      { label: "Kills", value: Math.round(surface.sources.kills * 10000) / 100, color: "var(--color-negative)" },
     ];
-    if (data.next_tier) {
-      items.push({ key: "Next tier", value: `${formatTierName(data.next_tier.name)} at ${(data.next_tier.threshold * 100).toFixed(0)}%` });
+  }
+
+  function tierKV(surface: SurfaceData) {
+    const items: Array<{ key: string; value: string; variant?: "positive" | "negative" | "highlight" | "info" | "warning" | "muted" }> = [
+      { key: "Current tier", value: formatTierName(surface.current_tier) },
+    ];
+    if (surface.next_tier) {
+      items.push({ key: "Next tier", value: `${formatTierName(surface.next_tier.name)} at ${(surface.next_tier.threshold * 100).toFixed(0)}%` });
     } else {
       items.push({ key: "Next tier", value: "All tiers unlocked", variant: "negative" });
     }
     items.push({
       key: "Dominant source",
-      value: formatSourceName(data.dominant_source),
-      variant: data.dominant_source === "time" ? "info" : data.dominant_source === "pollution" ? "warning" : "negative",
+      value: formatSourceName(surface.dominant_source),
+      variant: surface.dominant_source === "time" ? "info" : surface.dominant_source === "pollution" ? "warning" : "negative",
     });
     return items;
-  });
+  }
 
-  // Filter to non-zero spawn weights, sorted by weight descending
-  let spawnEntries = $derived(
-    Object.entries(data.spawn_weights ?? {})
+  function spawnEntries(surface: SurfaceData) {
+    return Object.entries(surface.spawn_weights ?? {})
       .filter(([, w]) => w > 0)
-      .sort(([, a], [, b]) => b - a),
-  );
+      .sort(([, a], [, b]) => b - a);
+  }
 
-  let spawnSegments = $derived(
-    spawnEntries.map(([name, weight]) => ({
+  function spawnSegments(surface: SurfaceData) {
+    return spawnEntries(surface).map(([name, weight]) => ({
       label: name.split("-").map((w) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
       value: Math.round(weight * 1000) / 10,
       color: spawnColor(name),
-    })),
-  );
+    }));
+  }
 
   function spawnColor(name: string): string {
-    if (name.includes("behemoth")) return "var(--color-negative)";
-    if (name.includes("big")) return "var(--color-warning)";
-    if (name.includes("medium")) return "var(--color-info)";
+    if (name.includes("behemoth") || name.includes("big")) return "var(--color-negative)";
+    if (name.includes("medium")) return "var(--color-warning)";
     return "var(--color-positive)";
   }
+
+  let totalTurrets = $derived(Object.values(data.defenses.turrets).reduce((sum, n) => sum + n, 0));
 </script>
 
 <Panel watermark={data.icon_url}>
   <div class="evo-layout">
-    <Section title="Evolution Progress" accent="var(--color-negative)">
-      <div class="hero-row">
-        <ProgressRing
-          value={tierProgress}
-          label={tierProgressLabel}
-          variant={threatVariant}
-          size={100}
-        />
-        <div class="hero-stats">
-          <Stat value={`${evoPercent}%`} label="Evolution Factor" variant={threatVariant} />
+    {#each surfaceEntries as [surfaceName, surface]}
+      <Section title="{formatSurfaceName(surfaceName)} — Evolution" accent="var(--color-negative)">
+        <div class="hero-row">
+          <ProgressRing
+            value={tierProgress(surface)}
+            label={`${evoPercent(surface.evolution_factor)}%`}
+            variant={threatVariant(surface.evolution_factor)}
+            size={100}
+          />
+          <div class="hero-stats">
+            <Stat value={`${evoPercent(surface.evolution_factor)}%`} label="Evolution Factor" variant={threatVariant(surface.evolution_factor)} />
+          </div>
         </div>
-      </div>
-    </Section>
+      </Section>
 
-    <Section title="Evolution Sources">
-      <Panel nested>
-        <span class="sub-label">Source Breakdown</span>
-        <StackedBar segments={sourceSegments} />
-      </Panel>
-
-      <Panel nested>
-        <span class="sub-label">Tier Status</span>
-        <KeyValue items={tierKV} />
-      </Panel>
-    </Section>
-
-    {#if spawnEntries.length > 0}
-      <Section title="Biter Spawn Distribution">
+      <Section title="{formatSurfaceName(surfaceName)} — Sources">
         <Panel nested>
-          <span class="sub-label">Current Spawn Weights</span>
-          <StackedBar segments={spawnSegments} />
+          <span class="sub-label">Source Breakdown</span>
+          <StackedBar segments={sourceSegments(surface)} />
+        </Panel>
+
+        <Panel nested>
+          <span class="sub-label">Tier Status</span>
+          <KeyValue items={tierKV(surface)} />
         </Panel>
       </Section>
-    {/if}
+
+      {#if spawnEntries(surface).length > 0}
+        <Section title="{formatSurfaceName(surfaceName)} — Spawn Distribution">
+          <Panel nested>
+            <span class="sub-label">Current Spawn Weights</span>
+            <StackedBar segments={spawnSegments(surface)} />
+          </Panel>
+        </Section>
+      {/if}
+    {/each}
+
+    <Section title="Defenses">
+      <Panel nested>
+        <KeyValue items={[
+          { key: "Total turrets", value: String(totalTurrets) },
+          ...Object.entries(data.defenses.turrets).map(([name, count]) => ({
+            key: name.split("-").map((w: string) => w.charAt(0).toUpperCase() + w.slice(1)).join(" "),
+            value: String(count),
+            variant: "muted" as const,
+          })),
+          { key: "Walls", value: String(data.defenses.walls) },
+          { key: "Nearby enemy bases", value: String(data.defenses.enemy_bases_nearby.length) },
+        ]} />
+      </Panel>
+    </Section>
   </div>
 </Panel>
 
