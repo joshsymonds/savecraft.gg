@@ -13,6 +13,11 @@
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
 
+  interface ResearchStep {
+    name: string;
+    planet?: string;
+  }
+
   interface Props {
     data: {
       /** Game icon injected by the handler */
@@ -22,7 +27,7 @@
       chain_length?: number;
       total_cost: Record<string, number>;
       total_time_seconds: number;
-      research_order?: string[];
+      research_order?: ResearchStep[];
       remaining?: number;
       already_completed?: number;
     };
@@ -46,6 +51,13 @@
 
   let isComplete = $derived((data.chain_length ?? data.remaining ?? 0) === 0);
   let hasSaveData = $derived(data.remaining != null);
+
+  const planetVariant: Record<string, "warning" | "info" | "positive" | "muted"> = {
+    vulcanus: "warning",
+    fulgora: "info",
+    gleba: "positive",
+    aquilo: "muted",
+  };
 
   // ── Science pack cost table ──────────────────────────────────
   let costColumns = [
@@ -94,10 +106,13 @@
       {#if !isComplete && data.research_order}
         <Section title="Research Path" count={data.research_order.length}>
           <ol class="research-path">
-            {#each data.research_order as tech, i}
+            {#each data.research_order as step, i}
               <li class="research-step">
                 <span class="step-number">{i + 1}</span>
-                <span class="step-name">{formatItemName(tech)}</span>
+                <span class="step-name">{formatItemName(step.name)}</span>
+                {#if step.planet}
+                  <Badge label={formatItemName(step.planet)} variant={planetVariant[step.planet] ?? "muted"} />
+                {/if}
               </li>
             {/each}
           </ol>

@@ -61,7 +61,7 @@ func handleTechTreeNavigator(enc *json.Encoder, query map[string]any) {
 				"chain_length":       0,
 				"total_cost":         map[string]float64{},
 				"total_time_seconds": 0,
-				"research_order":     []string{},
+				"research_order":     []map[string]string{},
 			})
 		}
 		return
@@ -83,9 +83,9 @@ func handleTechTreeNavigator(enc *json.Encoder, query map[string]any) {
 		}
 	}
 
-	// Both paths include research_order so the view can list remaining techs.
-	// With save data: also include remaining/already_completed counts.
+	// Both paths include research_order with planet annotations.
 	order := topoSort(chain)
+	annotated := annotateWithPlanets(order)
 	if hasSaveData {
 		writeResult(enc, map[string]any{
 			"target":             resolved,
@@ -93,7 +93,7 @@ func handleTechTreeNavigator(enc *json.Encoder, query map[string]any) {
 			"total_time_seconds": totalTime,
 			"remaining":          len(chain),
 			"already_completed":  len(completed),
-			"research_order":     order,
+			"research_order":     annotated,
 		})
 	} else {
 		writeResult(enc, map[string]any{
@@ -102,7 +102,7 @@ func handleTechTreeNavigator(enc *json.Encoder, query map[string]any) {
 			"chain_length":       len(chain),
 			"total_cost":         totalCost,
 			"total_time_seconds": totalTime,
-			"research_order":     order,
+			"research_order":     annotated,
 		})
 	}
 }
@@ -216,4 +216,72 @@ func topoSort(chain []string) []string {
 	}
 
 	return order
+}
+
+// planetDiscoveryTechs maps planet-discovery technology names to their planet.
+var planetDiscoveryTechs = map[string]string{
+	"planet-discovery-vulcanus": "vulcanus",
+	"planet-discovery-fulgora":  "fulgora",
+	"planet-discovery-gleba":    "gleba",
+	"planet-discovery-aquilo":   "aquilo",
+}
+
+// planetPriority determines which planet wins when multiple planet-discovery
+// techs are ancestors (e.g. aquilo depends on fulgora + gleba techs).
+var planetPriority = map[string]int{
+	"vulcanus": 1,
+	"fulgora":  1,
+	"gleba":    1,
+	"aquilo":   2,
+}
+
+// techPlanet determines which planet a technology belongs to by walking its
+// prerequisite chain backward and finding the deepest planet-discovery ancestor.
+// Returns "" for Nauvis/space techs with no planet gate.
+func techPlanet(techName string) string {
+	visited := make(map[string]bool)
+	queue := []string{techName}
+	bestPlanet := ""
+	bestPriority := 0
+
+	for len(queue) > 0 {
+		name := queue[0]
+		queue = queue[1:]
+		if visited[name] {
+			continue
+		}
+		visited[name] = true
+
+		if planet, ok := planetDiscoveryTechs[name]; ok {
+			if p := planetPriority[planet]; p > bestPriority {
+				bestPlanet = planet
+				bestPriority = p
+			}
+		}
+
+		tech, ok := data.Technologies[name]
+		if !ok {
+			continue
+		}
+		for _, prereq := range tech.Prerequisites {
+			if !visited[prereq] {
+				queue = append(queue, prereq)
+			}
+		}
+	}
+	return bestPlanet
+}
+
+// annotateWithPlanets converts a string slice of tech names into objects
+// with name and planet fields for the view to render planet badges.
+func annotateWithPlanets(order []string) []map[string]string {
+	result := make([]map[string]string, len(order))
+	for i, name := range order {
+		entry := map[string]string{"name": name}
+		if planet := techPlanet(name); planet != "" {
+			entry["planet"] = planet
+		}
+		result[i] = entry
+	}
+	return result
 }

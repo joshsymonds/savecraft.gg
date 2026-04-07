@@ -2,6 +2,8 @@ package main
 
 import (
 	"testing"
+
+	"github.com/joshsymonds/savecraft.gg/plugins/factorio/reference/data"
 )
 
 // ─── Full Chain Mode ────────────────────────────────────────────────────────
@@ -116,10 +118,10 @@ func TestTechTree_ResearchOrder_Valid(t *testing.T) {
 	if code != 0 {
 		t.Fatalf("expected exit 0, got %d", code)
 	}
-	data := result["data"].(map[string]any)
+	d := result["data"].(map[string]any)
 
-	order := toStringSlice(t, data["research_order"])
-	chain := toStringSlice(t, data["chain"])
+	order := toResearchOrder(t, d["research_order"])
+	chain := toStringSlice(t, d["chain"])
 	if len(order) == 0 {
 		t.Fatal("expected non-empty research_order")
 	}
@@ -131,8 +133,8 @@ func TestTechTree_ResearchOrder_Valid(t *testing.T) {
 
 	// Every tech must appear after ALL its prerequisites in the order
 	position := make(map[string]int)
-	for i, name := range order {
-		position[name] = i
+	for i, step := range order {
+		position[step.name] = i
 	}
 
 	// Check that automation appears before automation-2
@@ -150,6 +152,13 @@ func TestTechTree_ResearchOrder_Valid(t *testing.T) {
 			if pos >= pos2 {
 				t.Errorf("uranium-processing (pos %d) should appear before nuclear-power (pos %d)", pos, pos2)
 			}
+		}
+	}
+
+	// All techs should have no planet (nuclear-power is Nauvis-only)
+	for _, step := range order {
+		if step.planet != "" {
+			t.Errorf("Nauvis tech %q should have no planet, got %q", step.name, step.planet)
 		}
 	}
 }
@@ -204,9 +213,10 @@ func TestTechTree_RemainingPath(t *testing.T) {
 		t.Errorf("remaining cost (%v) should be less than full cost (%v)", remainAuto, fullAuto)
 	}
 
-	// Non-save-data path should include research_order
-	if _, ok := data["research_order"]; !ok {
-		t.Error("non-save-data path should include research_order")
+	// Non-save-data path should include research_order as annotated objects
+	order := toResearchOrder(t, data["research_order"])
+	if len(order) == 0 {
+		t.Error("non-save-data path should include non-empty research_order")
 	}
 }
 
@@ -264,11 +274,8 @@ func TestTechTree_SaveData_IncludesResearchOrder(t *testing.T) {
 		t.Error("expected already_completed in save data result")
 	}
 
-	// Should have research_order (remaining techs in dependency order)
-	order, ok := data["research_order"].([]any)
-	if !ok {
-		t.Fatal("expected research_order in save data result")
-	}
+	// Should have research_order (remaining techs in dependency order, annotated)
+	order := toResearchOrder(t, data["research_order"])
 	if len(order) == 0 {
 		t.Error("expected non-empty research_order")
 	}
@@ -277,9 +284,9 @@ func TestTechTree_SaveData_IncludesResearchOrder(t *testing.T) {
 		"automation": true, "automation-science-pack": true,
 		"steam-power": true, "electronics": true,
 	}
-	for _, v := range order {
-		if completedSet[v.(string)] {
-			t.Errorf("research_order contains completed tech: %s", v)
+	for _, step := range order {
+		if completedSet[step.name] {
+			t.Errorf("research_order contains completed tech: %s", step.name)
 		}
 	}
 
@@ -402,7 +409,95 @@ func TestTechTree_InfiniteResearchNotTraversed(t *testing.T) {
 	}
 }
 
+// ─── Planet Annotations ────────────────────────────────────────────────────
+
+func TestTechTree_PlanetAnnotations_Vulcanus(t *testing.T) {
+	// foundry is a Vulcanus tech — its chain should include planet-gated techs
+	if _, ok := data.Technologies["foundry"]; !ok {
+		t.Skip("foundry not in tech data")
+	}
+	result, code := runReference(t, `{
+		"module": "tech_tree_navigator",
+		"target": "foundry"
+	}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+	d := result["data"].(map[string]any)
+	order := toResearchOrder(t, d["research_order"])
+
+	// foundry itself should be tagged vulcanus
+	var foundryStep *researchStep
+	for i := range order {
+		if order[i].name == "foundry" {
+			foundryStep = &order[i]
+			break
+		}
+	}
+	if foundryStep == nil {
+		t.Fatal("foundry not in research_order")
+	}
+	if foundryStep.planet != "vulcanus" {
+		t.Errorf("foundry should be planet=vulcanus, got %q", foundryStep.planet)
+	}
+
+	// Early Nauvis techs should have no planet
+	for _, step := range order {
+		if step.name == "automation" || step.name == "automation-science-pack" {
+			if step.planet != "" {
+				t.Errorf("Nauvis tech %q should have no planet, got %q", step.name, step.planet)
+			}
+		}
+	}
+}
+
+func TestTechTree_PlanetAnnotations_NauvisOnly(t *testing.T) {
+	// automation-2 is pure Nauvis — no steps should have a planet
+	result, code := runReference(t, `{
+		"module": "tech_tree_navigator",
+		"target": "automation-2"
+	}`)
+	if code != 0 {
+		t.Fatalf("expected exit 0, got %d", code)
+	}
+	d := result["data"].(map[string]any)
+	order := toResearchOrder(t, d["research_order"])
+
+	for _, step := range order {
+		if step.planet != "" {
+			t.Errorf("Nauvis tech %q should have no planet, got %q", step.name, step.planet)
+		}
+	}
+}
+
 // ─── Helpers ────────────────────────────────────────────────────────────────
+
+type researchStep struct {
+	name   string
+	planet string
+}
+
+func toResearchOrder(t *testing.T, v any) []researchStep {
+	t.Helper()
+	if v == nil {
+		return nil
+	}
+	raw, ok := v.([]any)
+	if !ok {
+		t.Fatalf("expected array, got %T", v)
+	}
+	var result []researchStep
+	for _, item := range raw {
+		obj, ok := item.(map[string]any)
+		if !ok {
+			t.Fatalf("expected object in research_order, got %T", item)
+		}
+		name, _ := obj["name"].(string)
+		planet, _ := obj["planet"].(string)
+		result = append(result, researchStep{name: name, planet: planet})
+	}
+	return result
+}
 
 func toStringSlice(t *testing.T, v any) []string {
 	t.Helper()
