@@ -1,3 +1,9 @@
 pub mod types;
 pub mod techs_gen;
 pub mod buildings_gen;
+pub mod components_gen;
+pub mod traditions_gen;
+pub mod traits_gen;
+pub mod civics_gen;
+pub mod edicts_gen;
+pub mod jobs_gen;

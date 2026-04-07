@@ -22,3 +22,58 @@ pub struct Building {
     pub base_buildtime: i32,
     pub is_capital: bool,
 }
+
+/// A ship component (weapon, utility, combat computer, etc.).
+#[derive(Debug, Clone)]
+pub struct Component {
+    pub key: &'static str,
+    pub size: &'static str,
+    pub power: i32,
+    pub component_set: &'static str,
+    pub prerequisites: &'static [&'static str],
+}
+
+/// A tradition or ascension perk.
+#[derive(Debug, Clone)]
+pub struct Tradition {
+    pub key: &'static str,
+    pub category: &'static str,
+    pub cost: i32,
+    pub is_origin: bool,
+}
+
+/// A species or leader trait.
+#[derive(Debug, Clone)]
+pub struct Trait {
+    pub key: &'static str,
+    pub category: &'static str,
+    pub cost: i32,
+    pub is_origin: bool,
+}
+
+/// A civic or origin.
+#[derive(Debug, Clone)]
+pub struct Civic {
+    pub key: &'static str,
+    pub category: &'static str,
+    pub cost: i32,
+    pub is_origin: bool,
+}
+
+/// An edict or policy.
+#[derive(Debug, Clone)]
+pub struct Edict {
+    pub key: &'static str,
+    pub category: &'static str,
+    pub cost: i32,
+    pub is_origin: bool,
+}
+
+/// A pop job.
+#[derive(Debug, Clone)]
+pub struct Job {
+    pub key: &'static str,
+    pub category: &'static str,
+    pub cost: i32,
+    pub is_origin: bool,
+}
