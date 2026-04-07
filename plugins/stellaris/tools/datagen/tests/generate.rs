@@ -76,6 +76,25 @@ fn generate_tech_and_building_data() {
         "expected >30 buildings, got {building_count}"
     );
 
+    // Verify all 8 generated data files exist with content
+    for (filename, expected_type, min_count) in &[
+        ("components_gen.rs", "Component {", 100),
+        ("traditions_gen.rs", "Tradition {", 50),
+        ("traits_gen.rs", "Trait {", 100),
+        ("civics_gen.rs", "Civic {", 50),
+        ("edicts_gen.rs", "Edict {", 30),
+        ("jobs_gen.rs", "Job {", 50),
+    ] {
+        let path = output_dir.join(filename);
+        assert!(path.exists(), "{filename} not generated");
+        let content = std::fs::read_to_string(&path).unwrap();
+        let count = content.matches(expected_type).count();
+        assert!(
+            count > *min_count,
+            "{filename}: expected >{min_count} entries, got {count}"
+        );
+    }
+
     // Cleanup
     let _ = std::fs::remove_dir_all(&output_dir);
 }

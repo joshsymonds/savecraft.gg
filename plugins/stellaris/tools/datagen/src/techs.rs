@@ -150,15 +150,15 @@ pub fn generate_rust(techs: &[Tech]) -> String {
     );
 
     for tech in techs {
-        let prereqs: Vec<String> = tech.prerequisites.iter().map(|p| format!("\"{p}\"")).collect();
+        let prereqs: Vec<String> = tech.prerequisites.iter().map(|p| format!("\"{}\"", variables::escape_rust_str(p))).collect();
         out.push_str(&format!(
             "    Tech {{ key: \"{}\", area: \"{}\", tier: {}, cost: {}, category: \"{}\", \
              prerequisites: &[{}], is_start_tech: {}, is_repeatable: {}, weight: {} }},\n",
-            tech.key,
-            tech.area,
+            variables::escape_rust_str(&tech.key),
+            variables::escape_rust_str(&tech.area),
             tech.tier,
             tech.cost,
-            tech.category,
+            variables::escape_rust_str(&tech.category),
             prereqs.join(", "),
             tech.is_start_tech,
             tech.is_repeatable,

@@ -67,3 +67,8 @@ pub fn resolve_i32(value: &str, vars: &HashMap<String, String>) -> i32 {
     let resolved = resolve(value, vars);
     resolved.parse().unwrap_or(0)
 }
+
+/// Escape a string for embedding in Rust source code.
+pub fn escape_rust_str(s: &str) -> String {
+    s.replace('\\', "\\\\").replace('"', "\\\"")
+}

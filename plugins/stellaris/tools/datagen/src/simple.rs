@@ -107,7 +107,10 @@ pub fn generate_rust(type_name: &str, array_name: &str, items: &[SimpleEntry]) -
     for e in items {
         out.push_str(&format!(
             "    {type_name} {{ key: \"{}\", category: \"{}\", cost: {}, is_origin: {} }},\n",
-            e.key, e.category, e.cost, e.is_origin,
+            crate::variables::escape_rust_str(&e.key),
+            crate::variables::escape_rust_str(&e.category),
+            e.cost,
+            e.is_origin,
         ));
     }
     out.push_str("];\n");

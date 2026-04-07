@@ -1,6 +1,27 @@
 use std::process::{Command, Stdio};
 use std::io::Write;
 
+fn run_query_allow_failure(query: &str) -> serde_json::Value {
+    let mut child = Command::new(env!("CARGO_BIN_EXE_stellaris-reference"))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .expect("failed to run reference");
+
+    child
+        .stdin
+        .take()
+        .unwrap()
+        .write_all(query.as_bytes())
+        .unwrap();
+
+    let output = child.wait_with_output().expect("failed to wait");
+    let stdout = String::from_utf8(output.stdout).expect("non-UTF8");
+    let line = stdout.lines().next().expect("no output");
+    serde_json::from_str(line).expect("invalid JSON")
+}
+
 fn run_query(query: &str) -> serde_json::Value {
     let mut child = Command::new(env!("CARGO_BIN_EXE_stellaris-reference"))
         .stdin(Stdio::piped())
@@ -61,7 +82,7 @@ fn tech_search_by_name() {
 
 #[test]
 fn tech_search_by_area() {
-    let result = run_query(r#"{"module": "tech_search", "area": "physics"}"#);
+    let result = run_query(r#"{"module": "tech_search", "area": "physics", "limit": 500}"#);
     assert_eq!(result["type"], "result");
     let techs = result["data"]["results"].as_array().expect("results should be array");
     assert!(techs.len() > 50, "expected many physics techs");
@@ -125,6 +146,12 @@ fn component_search_by_name() {
     assert_eq!(result["type"], "result");
     let components = result["data"]["results"].as_array().unwrap();
     assert!(!components.is_empty(), "should find reactor components");
+    // Verify field structure
+    let first = &components[0];
+    assert!(first["key"].is_string(), "component should have key");
+    assert!(first["size"].is_string(), "component should have size");
+    assert!(first["power"].is_number(), "component should have power");
+    assert!(first["component_set"].is_string(), "component should have component_set");
 }
 
 #[test]
@@ -133,6 +160,8 @@ fn tradition_search_by_name() {
     assert_eq!(result["type"], "result");
     let traditions = result["data"]["results"].as_array().unwrap();
     assert!(!traditions.is_empty(), "should find expansion traditions");
+    let first = &traditions[0];
+    assert!(first["key"].as_str().unwrap().contains("expansion"));
 }
 
 #[test]
@@ -141,6 +170,9 @@ fn trait_search_by_name() {
     assert_eq!(result["type"], "result");
     let traits = result["data"]["results"].as_array().unwrap();
     assert!(!traits.is_empty(), "should find resilient trait");
+    let first = &traits[0];
+    assert!(first["key"].as_str().unwrap().contains("resilient"));
+    assert!(first["cost"].is_number(), "trait should have cost");
 }
 
 #[test]
@@ -149,6 +181,9 @@ fn civic_search_by_name() {
     assert_eq!(result["type"], "result");
     let civics = result["data"]["results"].as_array().unwrap();
     assert!(!civics.is_empty(), "should find devouring swarm civic");
+    let first = &civics[0];
+    assert!(first["key"].as_str().unwrap().contains("devouring_swarm"));
+    assert!(first["is_origin"].is_boolean(), "civic should have is_origin");
 }
 
 #[test]
@@ -157,6 +192,8 @@ fn edict_search_by_name() {
     assert_eq!(result["type"], "result");
     let edicts = result["data"]["results"].as_array().unwrap();
     assert!(!edicts.is_empty(), "should find fleet-related edicts");
+    let first = &edicts[0];
+    assert!(first["key"].as_str().unwrap().contains("fleet"));
 }
 
 #[test]
@@ -165,4 +202,22 @@ fn job_search_by_name() {
     assert_eq!(result["type"], "result");
     let jobs = result["data"]["results"].as_array().unwrap();
     assert!(!jobs.is_empty(), "should find clerk job");
+    let first = &jobs[0];
+    assert!(first["key"].as_str().unwrap().contains("clerk"));
+    assert!(first["category"].is_string(), "job should have category");
+}
+
+#[test]
+fn unknown_module_returns_error() {
+    let result = run_query_allow_failure(r#"{"module": "nonexistent"}"#);
+    assert_eq!(result["type"], "error");
+    assert_eq!(result["errorType"], "unknown_module");
+}
+
+#[test]
+fn case_insensitive_search() {
+    let result = run_query(r#"{"module": "tech_search", "name": "Laser"}"#);
+    assert_eq!(result["type"], "result");
+    let techs = result["data"]["results"].as_array().unwrap();
+    assert!(!techs.is_empty(), "case-insensitive search should find lasers");
 }

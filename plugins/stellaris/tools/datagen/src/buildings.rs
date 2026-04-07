@@ -99,7 +99,10 @@ pub fn generate_rust(buildings: &[Building]) -> String {
     for b in buildings {
         out.push_str(&format!(
             "    Building {{ key: \"{}\", category: \"{}\", base_buildtime: {}, is_capital: {} }},\n",
-            b.key, b.category, b.base_buildtime, b.is_capital,
+            crate::variables::escape_rust_str(&b.key),
+            crate::variables::escape_rust_str(&b.category),
+            b.base_buildtime,
+            b.is_capital,
         ));
     }
 
