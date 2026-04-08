@@ -7,6 +7,7 @@ pub mod tradition_search;
 pub mod trait_search;
 pub mod civic_search;
 pub mod edict_search;
+pub mod empire_health;
 pub mod job_search;
 
 use serde_json::{json, Value};
@@ -88,6 +89,11 @@ pub fn schema() -> Value {
                     "name": {"type": "string", "description": "Search by job key substring"},
                     "category": {"type": "string", "description": "Filter by category (worker, specialist, ruler)"},
                 }
+            },
+            "empire_health": {
+                "name": "Empire Health Diagnosis",
+                "description": "Diagnose empire health across 5 dimensions: economy, stability, military, politics, and external threats. Surfaces problems by severity with actionable detail. Requires save_id to inject section data.",
+                "parameters": {}
             }
         }
     })

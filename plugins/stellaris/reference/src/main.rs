@@ -55,6 +55,7 @@ fn main() {
         "civic_search" => modules::civic_search::handle_query(query_obj),
         "edict_search" => modules::edict_search::handle_query(query_obj),
         "job_search" => modules::job_search::handle_query(query_obj),
+        "empire_health" => modules::empire_health::handle(query_obj),
         _ => {
             write_error("unknown_module", &format!("unknown module: {module}"));
             std::process::exit(1);
