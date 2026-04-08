@@ -450,10 +450,10 @@ func run() error {
 	}
 
 	type spellSpec struct {
-		spellID     int
-		treeName    string // name from talent tree tooltip
-		treeDesc    string // description from talent tree tooltip
-		spec        specInfo
+		spellID  int
+		treeName string // name from talent tree tooltip
+		treeDesc string // description from talent tree tooltip
+		spec     specInfo
 	}
 	var allSpellSpecs []spellSpec
 

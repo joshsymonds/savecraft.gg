@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { dungeonGuideModule } from "../../plugins/wow/reference/dungeon-guide";
+
 import { cleanAll } from "./helpers";
 
 // ---------------------------------------------------------------------------
@@ -13,26 +14,31 @@ interface EncounterSeed {
   encounter_name: string;
   instance_id: number;
   instance_name: string;
-  abilities: Array<{ name: string; description: string }>;
+  abilities: { name: string; description: string }[];
 }
 
 async function seedEncounters(encounters: EncounterSeed[]): Promise<void> {
-  const stmts = encounters.flatMap((e) => {
+  const stmts = encounters.flatMap((encounter) => {
     const encounterStmts = [
       env.DB.prepare(
         `INSERT INTO wow_encounters (encounter_id, encounter_name, instance_id, instance_name)
          VALUES (?, ?, ?, ?)`,
-      ).bind(e.encounter_id, e.encounter_name, e.instance_id, e.instance_name),
+      ).bind(
+        encounter.encounter_id,
+        encounter.encounter_name,
+        encounter.instance_id,
+        encounter.instance_name,
+      ),
       env.DB.prepare(
         `INSERT INTO wow_encounters_fts (encounter_id, encounter_name, instance_name)
          VALUES (?, ?, ?)`,
-      ).bind(e.encounter_id, e.encounter_name, e.instance_name),
+      ).bind(encounter.encounter_id, encounter.encounter_name, encounter.instance_name),
     ];
-    const abilityStmts = e.abilities.map((a) =>
+    const abilityStmts = encounter.abilities.map((a) =>
       env.DB.prepare(
         `INSERT INTO wow_encounter_abilities (encounter_id, ability_name, ability_description)
          VALUES (?, ?, ?)`,
-      ).bind(e.encounter_id, a.name, a.description),
+      ).bind(encounter.encounter_id, a.name, a.description),
     );
     return [...encounterStmts, ...abilityStmts];
   });
@@ -45,7 +51,10 @@ const FIRST_BOSS: EncounterSeed = {
   instance_id: 1299,
   instance_name: "Windrunner Spire",
   abilities: [
-    { name: "Frost Bolt Volley", description: "Hurls bolts of frost at all players, dealing 5,000 Frost damage." },
+    {
+      name: "Frost Bolt Volley",
+      description: "Hurls bolts of frost at all players, dealing 5,000 Frost damage.",
+    },
     { name: "Encasing Ice", description: "Encases a player in ice, stunning them for 6 sec." },
   ],
 };
@@ -66,7 +75,10 @@ const OTHER_DUNGEON_BOSS: EncounterSeed = {
   instance_id: 1300,
   instance_name: "Magisters' Terrace",
   abilities: [
-    { name: "Arcane Explosion", description: "Releases a burst of arcane energy, dealing damage to all nearby players." },
+    {
+      name: "Arcane Explosion",
+      description: "Releases a burst of arcane energy, dealing damage to all nearby players.",
+    },
   ],
 };
 
@@ -84,12 +96,12 @@ describe("dungeon_guide reference module", () => {
 
     expect(result.type).toBe("structured");
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-    const encounters = data.encounters as Array<Record<string, unknown>>;
+    const encounters = data.encounters as Record<string, unknown>[];
     expect(encounters.length).toBe(1);
     expect(encounters[0]!.encounter_name).toBe("Nal'thar the Rimebinder");
     expect(encounters[0]!.instance_name).toBe("Windrunner Spire");
     // Should include abilities
-    const abilities = encounters[0]!.abilities as Array<Record<string, unknown>>;
+    const abilities = encounters[0]!.abilities as Record<string, unknown>[];
     expect(abilities.length).toBe(2);
     expect(abilities[0]!.ability_name).toBe("Frost Bolt Volley");
   });
@@ -103,12 +115,12 @@ describe("dungeon_guide reference module", () => {
     );
 
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-    const encounters = data.encounters as Array<Record<string, unknown>>;
+    const encounters = data.encounters as Record<string, unknown>[];
     // Both bosses from Windrunner Spire match "Windrunner" in FTS5
     // (instance_name is indexed in FTS5)
     expect(encounters.length).toBeGreaterThanOrEqual(1);
-    for (const e of encounters) {
-      expect(e.instance_name).toBe("Windrunner Spire");
+    for (const entry of encounters) {
+      expect(entry.instance_name).toBe("Windrunner Spire");
     }
   });
 
@@ -118,10 +130,10 @@ describe("dungeon_guide reference module", () => {
     const result = await dungeonGuideModule.execute({ encounter_id: 2901 }, env);
 
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-    const encounters = data.encounters as Array<Record<string, unknown>>;
+    const encounters = data.encounters as Record<string, unknown>[];
     expect(encounters.length).toBe(1);
     expect(encounters[0]!.encounter_name).toBe("Alleria Windrunner");
-    const abilities = encounters[0]!.abilities as Array<Record<string, unknown>>;
+    const abilities = encounters[0]!.abilities as Record<string, unknown>[];
     expect(abilities.length).toBe(1);
     expect(abilities[0]!.ability_name).toBe("Void Barrage");
   });
@@ -132,7 +144,7 @@ describe("dungeon_guide reference module", () => {
     const result = await dungeonGuideModule.execute({ name: "Nonexistent" }, env);
 
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-    const encounters = data.encounters as Array<Record<string, unknown>>;
+    const encounters = data.encounters as Record<string, unknown>[];
     expect(encounters.length).toBe(0);
   });
 

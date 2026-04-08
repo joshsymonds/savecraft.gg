@@ -40,7 +40,7 @@ const SERVER_INSTRUCTIONS = `Savecraft gives you access to the player's actual g
 
 Always fetch live data — never assume you know a player's saves, characters, or game state from memory or prior conversations. Save data changes constantly as players play. Fetch only what's relevant: use the filter parameter on list_games, and request only the sections you'll actually reference. Memory is useful for player goals and preferences, but never for game state.
 
-Tool workflow: Start with list_games to see the player's games, characters, and saves. Use get_save for a specific character, then get_section for detailed data like equipment, skills, or stats — section names vary by game. search_saves for cross-character or cross-game queries when you don't know which save contains something. Always read relevant notes (get_note) before giving advice — they contain goals, builds, and session context from prior conversations. When the player shares something worth remembering, offer to save it as a note. Keep notes current with update_note when circumstances change. refresh_save when the player says something just changed in-game. setup_help when the player has no saves, mentions a pairing code, or asks how to connect a game.
+Tool workflow: Start with list_games to see the player's games, characters, and saves. Use get_save for a specific character, then get_section for detailed data like equipment, skills, or stats — section names vary by game. For character equipment, gear, inventory, or stats, always use get_section on the character's section directly rather than search_saves — it is faster and more reliable. search_saves is best for cross-character or cross-game queries when you don't know which save contains something — when searching, default to OR between keywords for broad matches (e.g., "armor OR shield OR vest"). Always read relevant notes (get_note) before giving advice — they contain goals, builds, and session context from prior conversations. When the player shares something worth remembering, offer to save it as a note. Keep notes current with update_note when circumstances change. refresh_save when the player says something just changed in-game. setup_help when the player has no saves, mentions a pairing code, or asks how to connect a game.
 
 Visual-first: Prefer show_games, show_save, and show_reference over their data counterparts (list_games, get_save, query_reference) whenever a visual is available. The visual tools render interactive cards, charts, and dashboards directly in the conversation — the player sees richer output and you can still narrate around it. Fall back to the data tools only when there is no visual component for the module, or when you need raw data to answer a pointed question where the response is a sentence rather than a view.
 
@@ -623,12 +623,7 @@ async function dispatchShowGames(
   args: Record<string, unknown>,
 ): Promise<ToolResult | ViewToolResult> {
   return asView(
-    await listGames(
-      env.DB,
-      userUuid,
-      args.filter as string | undefined,
-      env.SERVER_URL,
-    ),
+    await listGames(env.DB, userUuid, args.filter as string | undefined, env.SERVER_URL),
   );
 }
 
@@ -690,8 +685,7 @@ type ToolHandler = (
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
   list_games: (env, userUuid, args) =>
     listGames(env.DB, userUuid, args.filter as string | undefined, env.SERVER_URL),
-  get_save: (env, userUuid, _args, saveId) =>
-    getSave(env.DB, userUuid, saveId, env.SERVER_URL),
+  get_save: (env, userUuid, _args, saveId) => getSave(env.DB, userUuid, saveId, env.SERVER_URL),
   get_section: (env, userUuid, args, saveId) =>
     getSection(env.DB, userUuid, saveId, parseSectionsArgument(args.sections) ?? []),
   get_note: (env, userUuid, args, saveId) =>
@@ -886,9 +880,7 @@ async function handleQueryReference(
 
   // For WASM modules, check the manifest for section_mappings.
   // Loaded once per batch (manifest is per-isolate cached).
-  const wasmMappings = nativeModule
-    ? undefined
-    : getWasmSectionMappings(gameId, moduleId);
+  const wasmMappings = nativeModule ? undefined : getWasmSectionMappings(gameId, moduleId);
 
   // Cache verified save ownership across queries in this batch to avoid
   // redundant D1 lookups when multiple queries reference the same save_id.
@@ -933,9 +925,7 @@ async function handleQueryReference(
     return label && typeof data === "object" && data !== null ? { ...data, label } : data;
   });
 
-  const iconUrl = env.SERVER_URL
-    ? resolveIconUrl(env.SERVER_URL, gameId)
-    : undefined;
+  const iconUrl = env.SERVER_URL ? resolveIconUrl(env.SERVER_URL, gameId) : undefined;
   const iconSpread = iconUrl ? { icon_url: iconUrl } : {};
 
   // Single-query shortcut: unwrap the array

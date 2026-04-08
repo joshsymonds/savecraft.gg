@@ -1,1 +1,3 @@
 src/proto/
+src/mcp/manifests.gen.ts
+src/mcp/views.gen.ts

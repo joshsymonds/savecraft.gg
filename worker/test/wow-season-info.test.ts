@@ -67,10 +67,26 @@ const FAKE_SEASON_DETAIL = {
 // Based on real API responses (saved in plugins/wow/testdata/blizzard-expansion-*.json)
 const FAKE_EXPANSION_INDEX = {
   tiers: [
-    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/503" }, name: "Dragonflight", id: 503 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/505" }, name: "Current Season", id: 505 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/514" }, name: "The War Within", id: 514 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/516" }, name: "Midnight", id: 516 },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/503" },
+      name: "Dragonflight",
+      id: 503,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/505" },
+      name: "Current Season",
+      id: 505,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/514" },
+      name: "The War Within",
+      id: 514,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/516" },
+      name: "Midnight",
+      id: 516,
+    },
   ],
 };
 
@@ -212,7 +228,7 @@ describe("season_info reference module", () => {
     expect(result.type).toBe("structured");
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
     expect(data.expansion).toBe("Midnight");
-    const raids = data.raids as Array<Record<string, unknown>>;
+    const raids = data.raids as Record<string, unknown>[];
     expect(raids.length).toBe(4);
     expect(raids[0]!.name).toBe("Midnight");
     expect(raids[3]!.name).toBe("March on Quel'Danas");

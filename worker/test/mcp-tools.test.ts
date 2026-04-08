@@ -340,12 +340,7 @@ describe("MCP Tools", () => {
 
       // Icon data comes from embedded manifests.gen.ts (d2r has icon: "icon.png")
 
-      const result = await listGames(
-        env.DB,
-        USER_A,
-        undefined,
-        "https://api.savecraft.gg",
-      );
+      const result = await listGames(env.DB, USER_A, undefined, "https://api.savecraft.gg");
       const data = parseResult(result) as { games: GameEntry[] };
       const d2r = data.games.find((g) => g.game_id === "d2r")!;
       expect(d2r.icon_url).toBe("https://api.savecraft.gg/plugins/d2r/icon.png");
@@ -362,12 +357,7 @@ describe("MCP Tools", () => {
 
       // "stardew" has no manifest in manifests.gen.ts, so no icon_url
 
-      const result = await listGames(
-        env.DB,
-        USER_A,
-        undefined,
-        "https://api.savecraft.gg",
-      );
+      const result = await listGames(env.DB, USER_A, undefined, "https://api.savecraft.gg");
       const data = parseResult(result) as { games: GameEntry[] };
       const stardew = data.games.find((g) => g.game_id === "stardew")!;
       expect(stardew.icon_url).toBeUndefined();
@@ -664,12 +654,7 @@ describe("MCP Tools", () => {
 
       // Icon data comes from embedded manifests.gen.ts (d2r has icon: "icon.png")
 
-      const result = await getSave(
-        env.DB,
-        USER_A,
-        "save-icon-get",
-        "https://api.savecraft.gg",
-      );
+      const result = await getSave(env.DB, USER_A, "save-icon-get", "https://api.savecraft.gg");
       const data = parseResult(result) as { icon_url?: string };
       expect(data.icon_url).toBe("https://api.savecraft.gg/plugins/d2r/icon.png");
     });
@@ -1652,7 +1637,7 @@ describe("MCP Tools", () => {
       expect(names).toContain("RimWorld");
       expect(names).toContain("World of Warcraft");
       // Verify sorted
-      const sorted = [...names].sort((a, b) => a.localeCompare(b));
+      const sorted = [...names].toSorted((a, b) => a.localeCompare(b));
       expect(names).toEqual(sorted);
       // Should NOT include other category content
       expect(data).not.toHaveProperty("categories");
@@ -1679,8 +1664,16 @@ describe("MCP Tools", () => {
       const data = parseResult(result) as { games: { game_id: string }[] };
       // All 7 embedded manifests are always present
       expect(data.games).toHaveLength(7);
-      const gameIds = data.games.map((g) => g.game_id).toSorted();
-      expect(gameIds).toEqual(["clair-obscur", "d2r", "factorio", "mtga", "rimworld", "sdv", "wow"]);
+      const gameIds = data.games.map((g) => g.game_id).toSorted((a, b) => a.localeCompare(b));
+      expect(gameIds).toEqual([
+        "clair-obscur",
+        "d2r",
+        "factorio",
+        "mtga",
+        "rimworld",
+        "sdv",
+        "wow",
+      ]);
     });
 
     it("games category includes full metadata from embedded manifests", async () => {

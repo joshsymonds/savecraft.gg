@@ -2,6 +2,7 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { gearAuditModule } from "../../plugins/wow/reference/gear-audit";
+
 import { cleanAll } from "./helpers";
 
 // ---------------------------------------------------------------------------
@@ -38,15 +39,18 @@ describe("gear_audit reference module", () => {
   it("flags item with missing enchant on enchantable slot", async () => {
     const gear = makeGearSection([
       makeItem({ slot: "Chest", enchantments: [] }), // Missing enchant
-      makeItem({ slot: "Back", enchantments: [{ description: "Enchanted: Avoidance", source: null }] }),
+      makeItem({
+        slot: "Back",
+        enchantments: [{ description: "Enchanted: Avoidance", source: null }],
+      }),
     ]);
 
     const result = await gearAuditModule.execute({ gear_data: gear }, env);
 
     expect(result.type).toBe("structured");
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-    const issues = data.issues as Array<Record<string, unknown>>;
-    const enchantIssues = issues.filter((i) => i.type === "missing_enchant");
+    const issues = data.issues as Record<string, unknown>[];
+    const enchantIssues = issues.filter((index) => index.type === "missing_enchant");
     expect(enchantIssues.length).toBe(1);
     expect(enchantIssues[0]!.slot).toBe("Chest");
   });
@@ -62,8 +66,8 @@ describe("gear_audit reference module", () => {
     const result = await gearAuditModule.execute({ gear_data: gear }, env);
 
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-    const issues = data.issues as Array<Record<string, unknown>>;
-    const socketIssues = issues.filter((i) => i.type === "empty_socket");
+    const issues = data.issues as Record<string, unknown>[];
+    const socketIssues = issues.filter((index) => index.type === "empty_socket");
     expect(socketIssues.length).toBe(1);
     expect(socketIssues[0]!.slot).toBe("Head");
   });
@@ -87,8 +91,8 @@ describe("gear_audit reference module", () => {
     const result = await gearAuditModule.execute({ gear_data: gear }, env);
 
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-    const issues = data.issues as Array<Record<string, unknown>>;
-    const ilvlIssues = issues.filter((i) => i.type === "ilvl_outlier");
+    const issues = data.issues as Record<string, unknown>[];
+    const ilvlIssues = issues.filter((index) => index.type === "ilvl_outlier");
     expect(ilvlIssues.length).toBe(1);
     expect(ilvlIssues[0]!.slot).toBe("Trinket 1");
     expect(ilvlIssues[0]!.item_level).toBe(550);
@@ -116,7 +120,7 @@ describe("gear_audit reference module", () => {
     const result = await gearAuditModule.execute({ gear_data: gear }, env);
 
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-    const issues = data.issues as Array<Record<string, unknown>>;
+    const issues = data.issues as Record<string, unknown>[];
     expect(issues.length).toBe(0);
   });
 

@@ -35,22 +35,22 @@ import (
 type expansionIndexResponse struct {
 	Tiers []struct {
 		Key  struct{ Href string } `json:"key"`
-		Name string               `json:"name"`
-		ID   int                  `json:"id"`
+		Name string                `json:"name"`
+		ID   int                   `json:"id"`
 	} `json:"tiers"`
 }
 
 type expansionDetailResponse struct {
-	ID       int `json:"id"`
-	Name     string `json:"name"`
+	ID       int           `json:"id"`
+	Name     string        `json:"name"`
 	Raids    []instanceRef `json:"raids"`
 	Dungeons []instanceRef `json:"dungeons"`
 }
 
 type instanceRef struct {
 	Key  struct{ Href string } `json:"key"`
-	Name string               `json:"name"`
-	ID   int                  `json:"id"`
+	Name string                `json:"name"`
+	ID   int                   `json:"id"`
 }
 
 type instanceDetailResponse struct {
@@ -58,15 +58,15 @@ type instanceDetailResponse struct {
 	Name       string `json:"name"`
 	Encounters []struct {
 		Key  struct{ Href string } `json:"key"`
-		Name string               `json:"name"`
-		ID   int                  `json:"id"`
+		Name string                `json:"name"`
+		ID   int                   `json:"id"`
 	} `json:"encounters"`
 }
 
 type encounterDetailResponse struct {
-	ID          int              `json:"id"`
-	Name        string           `json:"name"`
-	Description string           `json:"description"`
+	ID          int                `json:"id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description"`
 	Sections    []encounterSection `json:"sections"`
 }
 
@@ -75,8 +75,8 @@ type encounterSection struct {
 	BodyText string `json:"body_text"`
 	Spell    *struct {
 		Key  struct{ Href string } `json:"key"`
-		Name string               `json:"name"`
-		ID   int                  `json:"id"`
+		Name string                `json:"name"`
+		ID   int                   `json:"id"`
 	} `json:"spell"`
 	Sections []encounterSection `json:"sections"`
 }
@@ -93,8 +93,8 @@ type encounterEntry struct {
 }
 
 type abilityEntry struct {
-	encounterID      int
-	abilityName      string
+	encounterID        int
+	abilityName        string
 	abilityDescription string
 }
 
@@ -114,8 +114,8 @@ func extractAbilities(sections []encounterSection, encounterID int) []abilityEnt
 				seen[s.Spell.ID] = true
 				desc := s.BodyText
 				abilities = append(abilities, abilityEntry{
-					encounterID:      encounterID,
-					abilityName:      s.Spell.Name,
+					encounterID:        encounterID,
+					abilityName:        s.Spell.Name,
 					abilityDescription: desc,
 				})
 			}
@@ -300,4 +300,3 @@ func run() error {
 
 	return nil
 }
-

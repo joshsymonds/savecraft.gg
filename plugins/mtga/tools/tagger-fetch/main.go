@@ -35,8 +35,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/sets"
+	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 )
 
 // taggerRoles maps Scryfall Tagger function tags to D1 role names.

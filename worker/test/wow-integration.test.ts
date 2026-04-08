@@ -10,13 +10,13 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { abilityLookupModule } from "../../plugins/wow/reference/ability-lookup";
 import { dungeonGuideModule } from "../../plugins/wow/reference/dungeon-guide";
 import { gearAuditModule } from "../../plugins/wow/reference/gear-audit";
-import { registerNativeModule } from "../src/reference/registry";
 import { seasonInfoModule } from "../../plugins/wow/reference/season-info";
-import { getNativeModules } from "../src/reference/registry";
-import { cleanAll } from "./helpers";
-
 // Real fixture data from Blizzard API (plugins/wow/testdata/)
 import backstabFixture from "../../plugins/wow/testdata/blizzard-spell-53.json";
+import { registerNativeModule } from "../src/reference/registry";
+import { getNativeModules } from "../src/reference/registry";
+
+import { cleanAll } from "./helpers";
 
 /** Re-register WoW modules after cleanAll wipes the native registry. */
 function registerWowModules(): void {
@@ -98,7 +98,7 @@ describe("WoW reference module integration", () => {
 
     expect(result.type).toBe("structured");
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-    const spells = data.spells as Array<Record<string, unknown>>;
+    const spells = data.spells as Record<string, unknown>[];
 
     // Should find exactly 3 results (one per Rogue spec), NOT 3×1=3 cartesian
     expect(spells.length).toBe(3);
@@ -111,7 +111,9 @@ describe("WoW reference module integration", () => {
     // Real description from fixture — resolved numbers, not placeholders
     expect(spells[0]!.description).toContain("Physical damage");
     // Verify spec assignment
-    const specNames = spells.map((s) => s.spec_name).sort();
+    const specNames = spells
+      .map((s) => s.spec_name as string)
+      .toSorted((a, b) => a.localeCompare(b));
     expect(specNames).toEqual(["Assassination", "Outlaw", "Subtlety"]);
   });
 
@@ -129,7 +131,7 @@ describe("WoW reference module integration", () => {
 
     const result = await abilityLookupModule.execute({ name: "Test Ability" }, env);
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-    const spells = data.spells as Array<Record<string, unknown>>;
+    const spells = data.spells as Record<string, unknown>[];
 
     expect(spells.length).toBe(1);
     expect(spells[0]!.source).toBe("talent_tree");

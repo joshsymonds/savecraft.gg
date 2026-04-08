@@ -4,8 +4,8 @@
  * storePush upserts a save in D1 (metadata + sections) and indexes sections in FTS.
  */
 
-import { ingestMatchHistory } from "./mtga/ingest";
 import { MANIFESTS } from "./mcp/manifests.gen.js";
+import { ingestMatchHistory } from "./mtga/ingest";
 import type { Env } from "./types";
 
 export function resolveGameName(gameId: string): string {

@@ -12,7 +12,7 @@ import type { NativeReferenceModule } from "../reference/types";
 import { storePush } from "../store";
 import type { Env } from "../types";
 
-import { MANIFESTS, MANIFEST_LIST } from "./manifests.gen.js";
+import { MANIFEST_LIST, MANIFESTS } from "./manifests.gen.js";
 import { VISUAL_MODULES } from "./views.gen.js";
 
 /** MCP tool result — matches the MCP spec's ToolResult shape. */
@@ -107,7 +107,6 @@ interface NotePreviewRow {
   preview: string;
 }
 
-
 /** Test if a game matches a filter pattern (case-insensitive substring on id or name). */
 function matchesGameFilter(gameId: string, gameName: string, filter: string): boolean {
   const lower = filter.toLowerCase();
@@ -185,10 +184,7 @@ function groupSavesByGame(
 }
 
 /** Resolve a game's icon URL from its embedded manifest. */
-export function resolveIconUrl(
-  serverUrl: string,
-  gameId: string,
-): string | undefined {
+export function resolveIconUrl(serverUrl: string, gameId: string): string | undefined {
   const manifest = MANIFESTS.get(gameId);
   if (manifest && (manifest.icon === "icon.png" || manifest.icon === "icon.svg")) {
     return `${serverUrl}/plugins/${gameId}/${manifest.icon}`;
@@ -393,7 +389,7 @@ export async function getSave(
       )
       .bind(saveId, userUuid)
       .all<{ note_id: string; title: string; source: string; size_bytes: number }>(),
-    serverUrl ? resolveIconUrl(serverUrl, save.game_id) : undefined,
+    Promise.resolve(serverUrl ? resolveIconUrl(serverUrl, save.game_id) : undefined),
   ]);
 
   const result: Record<string, unknown> = {
@@ -1344,10 +1340,7 @@ function buildDaemonGuide(platform?: string): Record<string, PlatformGuide | str
   return { ...PLATFORM_GUIDES, pairing: PAIRING_GUIDE };
 }
 
-function buildGuide(
-  sourceKinds: Set<string>,
-  platform?: string,
-): Record<string, GuideEntry> {
+function buildGuide(sourceKinds: Set<string>, platform?: string): Record<string, GuideEntry> {
   const hasDaemon = sourceKinds.has("daemon");
   const hasAdapter = sourceKinds.has("adapter");
   const hasNone = sourceKinds.size === 0;
@@ -1369,24 +1362,23 @@ function buildGuide(
 }
 
 function getApiGamesFromManifests(): AdapterGameInfo[] {
-  return MANIFEST_LIST
-    .filter((m) => m.sources?.includes("api"))
-    .map((m) => ({ game_id: m.game_id, name: m.name ?? m.game_id }));
+  return MANIFEST_LIST.filter((m) => m.sources?.includes("api")).map((m) => ({
+    game_id: m.game_id,
+    name: m.name ?? m.game_id,
+  }));
 }
 
 function getAllGamesFromManifests(): SupportedGameInfo[] {
-  return MANIFEST_LIST
-    .map((m) => ({
-      game_id: m.game_id,
-      name: m.name ?? m.game_id,
-      description: m.description ?? "",
-      sources: m.sources ?? ["wasm"],
-      channel: m.channel ?? "beta",
-      coverage: m.coverage ?? "partial",
-      limitations: m.limitations ?? [],
-      setup: buildSetupBlurb(m.sources ?? ["wasm"]),
-    }))
-    .toSorted((a, b) => a.name.localeCompare(b.name));
+  return MANIFEST_LIST.map((m) => ({
+    game_id: m.game_id,
+    name: m.name ?? m.game_id,
+    description: m.description ?? "",
+    sources: m.sources ?? ["wasm"],
+    channel: m.channel ?? "beta",
+    coverage: m.coverage ?? "partial",
+    limitations: m.limitations ?? [],
+    setup: buildSetupBlurb(m.sources ?? ["wasm"]),
+  })).toSorted((a, b) => a.name.localeCompare(b.name));
 }
 
 const SOURCE_COLS =
