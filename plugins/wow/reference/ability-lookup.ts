@@ -121,18 +121,14 @@ export const abilityLookupModule: NativeReferenceModule = {
 
     // FTS5 name search
     if (name) {
-      // Build FTS5 query, then join back to main table for full data + optional filters
+      // Use subquery to get matching spell_ids from FTS5, then fetch full rows
+      // from wow_spells. This avoids cartesian products when a spell appears
+      // in multiple specs (multiple rows in both tables).
       const safeName = fts5Safe(name);
-      const conditions: string[] = [];
-      const bindings: unknown[] = [];
-
-      // Base: FTS5 match on name column
-      let sql = `
-        SELECT s.* FROM wow_spells s
-        INNER JOIN wow_spells_fts fts ON s.spell_id = fts.spell_id
-        WHERE wow_spells_fts MATCH ?
-      `;
-      bindings.push(safeName);
+      const conditions: string[] = [
+        "s.spell_id IN (SELECT spell_id FROM wow_spells_fts WHERE wow_spells_fts MATCH ?)",
+      ];
+      const bindings: unknown[] = [safeName];
 
       if (className) {
         conditions.push("s.class_name = ?");
@@ -143,11 +139,8 @@ export const abilityLookupModule: NativeReferenceModule = {
         bindings.push(specName);
       }
 
-      if (conditions.length > 0) {
-        sql += ` AND ${conditions.join(" AND ")}`;
-      }
-
-      sql += ` ORDER BY rank LIMIT ?`;
+      let sql = `SELECT s.* FROM wow_spells s WHERE ${conditions.join(" AND ")}`;
+      sql += ` ORDER BY s.name, s.spec_name LIMIT ?`;
       bindings.push(limit);
 
       const rows = await db

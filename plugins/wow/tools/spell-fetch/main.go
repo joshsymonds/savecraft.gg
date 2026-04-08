@@ -743,16 +743,23 @@ func run() error {
 	var sb strings.Builder
 	sb.WriteString("DELETE FROM wow_spells;\nDELETE FROM wow_spells_fts;\n")
 
+	// Track which spell_ids we've already written to FTS5 (one row per unique spell)
+	ftsWritten := make(map[int]bool)
+
 	for _, e := range entries {
 		fmt.Fprintf(&sb,
 			"INSERT INTO wow_spells (spell_id, name, description, source, class_id, class_name, spec_id, spec_name) VALUES (%d, %s, %s, %s, %d, %s, %d, %s);\n",
 			e.spellID, cfapi.SQLQuote(e.name), cfapi.SQLQuote(e.description), cfapi.SQLQuote(e.source),
 			e.classID, cfapi.SQLQuote(e.className), e.specID, cfapi.SQLQuote(e.specName),
 		)
-		fmt.Fprintf(&sb,
-			"INSERT INTO wow_spells_fts (spell_id, name, description) VALUES (%d, %s, %s);\n",
-			e.spellID, cfapi.SQLQuote(e.name), cfapi.SQLQuote(e.description),
-		)
+		// FTS5: one row per unique spell_id (avoids cartesian products on JOIN)
+		if !ftsWritten[e.spellID] {
+			fmt.Fprintf(&sb,
+				"INSERT INTO wow_spells_fts (spell_id, name, description) VALUES (%d, %s, %s);\n",
+				e.spellID, cfapi.SQLQuote(e.name), cfapi.SQLQuote(e.description),
+			)
+			ftsWritten[e.spellID] = true
+		}
 	}
 
 	sql := sb.String()

@@ -82,6 +82,37 @@ const ICEBOUND_FORTITUDE: SpellSeed = {
   spec_name: "Blood",
 };
 
+// Multi-spec spell: Judgment exists for all 3 Paladin specs
+const JUDGMENT_HOLY: SpellSeed = {
+  spell_id: 275_773,
+  name: "Judgment",
+  description: "Judges the target, dealing 465 Holy damage.",
+  class_id: 2,
+  class_name: "Paladin",
+  spec_id: 65,
+  spec_name: "Holy",
+};
+
+const JUDGMENT_PROTECTION: SpellSeed = {
+  spell_id: 275_773,
+  name: "Judgment",
+  description: "Judges the target, dealing 465 Holy damage.",
+  class_id: 2,
+  class_name: "Paladin",
+  spec_id: 66,
+  spec_name: "Protection",
+};
+
+const JUDGMENT_RETRIBUTION: SpellSeed = {
+  spell_id: 275_773,
+  name: "Judgment",
+  description: "Judges the target, dealing 465 Holy damage.",
+  class_id: 2,
+  class_name: "Paladin",
+  spec_id: 70,
+  spec_name: "Retribution",
+};
+
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
@@ -135,6 +166,22 @@ describe("ability_lookup reference module", () => {
     expect(spells.length).toBe(1);
     expect(spells[0]!.name).toBe("Flash of Light");
     expect(spells[0]!.spec_name).toBe("Holy");
+  });
+
+  it("returns exactly N results for a spell shared by N specs (no cartesian product)", async () => {
+    await seedSpells([JUDGMENT_HOLY, JUDGMENT_PROTECTION, JUDGMENT_RETRIBUTION]);
+
+    const result = await abilityLookupModule.execute({ name: "Judgment" }, env);
+
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    const spells = data.spells as Record<string, unknown>[];
+    // Must be exactly 3 (one per spec), NOT 9 (cartesian product of 3×3)
+    expect(spells.length).toBe(3);
+    const specNames = spells.map((s) => s.spec_name);
+    expect(specNames).toContain("Holy");
+    expect(specNames).toContain("Protection");
+    expect(specNames).toContain("Retribution");
   });
 
   it("looks up by spell_id directly", async () => {
