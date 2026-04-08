@@ -9,6 +9,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { abilityLookupModule } from "../../plugins/wow/reference/ability-lookup";
 import { dungeonGuideModule } from "../../plugins/wow/reference/dungeon-guide";
+import { gearAuditModule } from "../../plugins/wow/reference/gear-audit";
 import { registerNativeModule } from "../src/reference/registry";
 import { seasonInfoModule } from "../../plugins/wow/reference/season-info";
 import { getNativeModules } from "../src/reference/registry";
@@ -21,6 +22,7 @@ import backstabFixture from "../../plugins/wow/testdata/blizzard-spell-53.json";
 function registerWowModules(): void {
   registerNativeModule("wow", abilityLookupModule);
   registerNativeModule("wow", dungeonGuideModule);
+  registerNativeModule("wow", gearAuditModule);
   registerNativeModule("wow", seasonInfoModule);
 }
 
@@ -37,6 +39,7 @@ describe("WoW reference module integration", () => {
     const ids = modules.map((m) => m.id);
     expect(ids).toContain("ability_lookup");
     expect(ids).toContain("dungeon_guide");
+    expect(ids).toContain("gear_audit");
     expect(ids).toContain("season_info");
   });
 
