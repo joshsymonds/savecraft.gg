@@ -62,6 +62,205 @@ fn empty_query_returns_schema() {
     assert!(modules["civic_search"].is_object(), "civic_search missing from schema");
     assert!(modules["edict_search"].is_object(), "edict_search missing from schema");
     assert!(modules["job_search"].is_object(), "job_search missing from schema");
+    assert!(modules["empire_health"].is_object(), "empire_health missing from schema");
+}
+
+// --- empire_health tests ---
+
+#[test]
+fn empire_health_empty_sections() {
+    // With no section data injected, should produce a healthy output with no problems
+    let result = run_query(r#"{"module": "empire_health"}"#);
+    assert_eq!(result["type"], "result");
+    let data = &result["data"];
+    assert_eq!(data["summary"]["critical"], 0);
+    assert_eq!(data["summary"]["severe"], 0);
+    assert_eq!(data["summary"]["moderate"], 0);
+    assert_eq!(data["summary"]["healthy_dimensions"], 5);
+    assert!(data["economy"]["problems"].as_array().unwrap().is_empty());
+    assert!(data["stability"]["planets"].as_array().unwrap().is_empty());
+    assert!(data["military"]["wars"].as_array().unwrap().is_empty());
+    assert!(data["politics"]["factions"].as_array().unwrap().is_empty());
+    assert!(data["threats"]["hostile_empires"].as_array().unwrap().is_empty());
+    assert_eq!(data["threats"]["crisis_active"], false);
+}
+
+#[test]
+fn empire_health_economy_deficit() {
+    let result = run_query(r#"{
+        "module": "empire_health",
+        "overview_data": {
+            "military_power": 50.0,
+            "resources": { "energy": 100.0, "minerals": 5000.0 }
+        },
+        "economy_data": {
+            "net": { "energy": -50.0, "minerals": 20.0 },
+            "expenses_by_category": {
+                "ship_maintenance": { "energy": 80.0 },
+                "station_maintenance": { "energy": 30.0 }
+            }
+        }
+    }"#);
+    assert_eq!(result["type"], "result");
+    let problems = result["data"]["economy"]["problems"].as_array().unwrap();
+    // Energy should be a problem (net negative)
+    let energy = problems.iter().find(|p| p["resource"] == "energy").unwrap();
+    assert_eq!(energy["net_per_month"], -50.0);
+    assert_eq!(energy["stockpile"], 100.0);
+    assert_eq!(energy["runway_months"], 2); // 100 / 50 = 2
+    assert_eq!(energy["severity"], "critical"); // runway < 6
+    // Should have expense breakdown
+    let expenses = energy["top_expenses"].as_array().unwrap();
+    assert!(!expenses.is_empty());
+    assert_eq!(expenses[0]["category"], "ship_maintenance");
+
+    // Minerals should be healthy (net positive)
+    let minerals = problems.iter().find(|p| p["resource"] == "minerals").unwrap();
+    assert_eq!(minerals["severity"], "healthy");
+}
+
+#[test]
+fn empire_health_stability_problems() {
+    let result = run_query(r#"{
+        "module": "empire_health",
+        "planets_data": {
+            "colonies": [
+                {
+                    "planet_id": 1,
+                    "name": "Sol III",
+                    "stability": 12.0,
+                    "crime": 67.0,
+                    "amenities": 10.0,
+                    "amenities_usage": 25.0,
+                    "free_housing": -8.0
+                },
+                {
+                    "planet_id": 2,
+                    "name": "Alpha Centauri I",
+                    "stability": 80.0,
+                    "crime": 2.0,
+                    "amenities": 20.0,
+                    "amenities_usage": 10.0,
+                    "free_housing": 5.0
+                }
+            ]
+        }
+    }"#);
+    assert_eq!(result["type"], "result");
+    let planets = result["data"]["stability"]["planets"].as_array().unwrap();
+    // Only the first planet should be a problem
+    assert_eq!(planets.len(), 1);
+    assert_eq!(planets[0]["name"], "Sol III");
+    assert_eq!(planets[0]["severity"], "critical");
+    let issues = planets[0]["issues"].as_array().unwrap();
+    assert!(issues.contains(&serde_json::json!("low_stability")));
+    assert!(issues.contains(&serde_json::json!("housing_shortage")));
+    assert!(issues.contains(&serde_json::json!("high_crime")));
+    assert!(issues.contains(&serde_json::json!("amenity_deficit")));
+}
+
+#[test]
+fn empire_health_war_exhaustion() {
+    let result = run_query(r#"{
+        "module": "empire_health",
+        "wars_data": {
+            "active_wars": [
+                {
+                    "war_id": "1",
+                    "attacker_war_goal": "wg_conquest",
+                    "defender_war_goal": "wg_defend",
+                    "attacker_war_exhaustion": 82.0,
+                    "defender_war_exhaustion": 15.0,
+                    "player_side": "attacker"
+                }
+            ],
+            "player_at_war": true
+        }
+    }"#);
+    assert_eq!(result["type"], "result");
+    let wars = result["data"]["military"]["wars"].as_array().unwrap();
+    assert_eq!(wars.len(), 1);
+    assert_eq!(wars[0]["war_exhaustion"], 82.0);
+    assert_eq!(wars[0]["severity"], "critical"); // > 75
+    assert_eq!(wars[0]["player_side"], "attacker");
+}
+
+#[test]
+fn empire_health_faction_severity_tiers() {
+    let result = run_query(r#"{
+        "module": "empire_health",
+        "factions_data": {
+            "factions": [
+                { "faction_type": "xenoist", "happiness": 0.15, "support": 0.3 },
+                { "faction_type": "militarist", "happiness": 0.35, "support": 0.2 },
+                { "faction_type": "technologist", "happiness": 0.45, "support": 0.25 },
+                { "faction_type": "egalitarian", "happiness": 0.72, "support": 0.25 }
+            ]
+        }
+    }"#);
+    assert_eq!(result["type"], "result");
+    let factions = result["data"]["politics"]["factions"].as_array().unwrap();
+    assert_eq!(factions.len(), 4);
+    // Sorted by happiness ascending
+    assert_eq!(factions[0]["severity"], "critical");  // 0.15 < 0.3
+    assert_eq!(factions[1]["severity"], "severe");    // 0.35 < 0.4
+    assert_eq!(factions[2]["severity"], "moderate");   // 0.45 < 0.5
+    assert_eq!(factions[3]["severity"], "healthy");    // 0.72 >= 0.5
+}
+
+#[test]
+fn empire_health_crisis_detection() {
+    let result = run_query(r#"{
+        "module": "empire_health",
+        "overview_data": { "military_power": 50.0 },
+        "threats_data": {
+            "crisis_active": true,
+            "crisis_type": "prethoryn_scourge",
+            "crisis_countries": [
+                { "country_id": "42", "country_type": "swarm", "military_power": 450.0 }
+            ],
+            "fallen_empires": [
+                { "country_id": "7", "country_type": "awakened_fallen_empire", "awakened": true, "military_power": 280.0 }
+            ],
+            "hostile_neighbors": [
+                { "country_id": "10", "military_power": 80.0, "cb_types": ["cb_claim"] }
+            ]
+        }
+    }"#);
+    assert_eq!(result["type"], "result");
+    let data = &result["data"];
+    assert_eq!(data["threats"]["crisis_active"], true);
+    assert_eq!(data["threats"]["crisis_type"], "prethoryn_scourge");
+    let hostiles = data["threats"]["hostile_empires"].as_array().unwrap();
+    assert_eq!(hostiles.len(), 3);
+    // Crisis country should be critical
+    let crisis = hostiles.iter().find(|h| h["reason"] == "crisis").unwrap();
+    assert_eq!(crisis["severity"], "critical");
+    assert_eq!(crisis["military_power"], 450.0);
+    assert_eq!(crisis["power_ratio"], 9.0); // 450 / 50
+    // Awakened FE should be severe
+    let awakened = hostiles.iter().find(|h| h["reason"] == "awakened_fe").unwrap();
+    assert_eq!(awakened["severity"], "severe");
+    // CB neighbor should be critical
+    let cb = hostiles.iter().find(|h| h["reason"] == "casus_belli").unwrap();
+    assert_eq!(cb["severity"], "critical");
+    assert_eq!(cb["power_ratio"], 1.6); // 80 / 50
+}
+
+#[test]
+fn empire_health_summary_counts() {
+    let result = run_query(r#"{
+        "module": "empire_health",
+        "overview_data": { "military_power": 50.0, "resources": { "energy": 10.0 } },
+        "economy_data": { "net": { "energy": -50.0 } },
+        "planets_data": { "colonies": [{ "planet_id": 1, "stability": 12.0, "crime": 67.0, "amenities": 5.0, "amenities_usage": 20.0, "free_housing": -8.0 }] },
+        "factions_data": { "factions": [{ "faction_type": "xenoist", "happiness": 0.15, "support": 0.3 }] }
+    }"#);
+    assert_eq!(result["type"], "result");
+    let summary = &result["data"]["summary"];
+    // Energy critical (runway ~0), planet critical, faction critical
+    assert!(summary["critical"].as_i64().unwrap() >= 3, "expected at least 3 critical problems");
+    assert_eq!(summary["healthy_dimensions"], 2); // military + threats are healthy
 }
 
 #[test]

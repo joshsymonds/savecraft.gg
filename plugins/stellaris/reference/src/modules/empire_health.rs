@@ -1,4 +1,3 @@
-#![allow(dead_code)] // Input structs deserialize all fields but diagnostics only read some
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Map, Value};
 use std::collections::HashMap;
@@ -23,8 +22,10 @@ struct PlanetsSection {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)] // Deserialized from save section; diagnostics read a subset
 struct Colony {
     planet_id: Option<i64>,
+    name: Option<String>,
     planet_class: Option<String>,
     designation: Option<String>,
     num_pops: Option<i64>,
@@ -37,6 +38,7 @@ struct Colony {
 }
 
 #[derive(Deserialize, Default)]
+#[allow(dead_code)] // Deserialized from save section; diagnostics read a subset
 struct MilitarySection {
     military_power: Option<f64>,
     fleet_size: Option<i64>,
@@ -45,12 +47,14 @@ struct MilitarySection {
 }
 
 #[derive(Deserialize, Default)]
+#[allow(dead_code)]
 struct WarsSection {
     active_wars: Option<Vec<WarEntry>>,
     player_at_war: Option<bool>,
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct WarEntry {
     war_id: Option<String>,
     start_date: Option<String>,
@@ -62,12 +66,14 @@ struct WarEntry {
 }
 
 #[derive(Deserialize, Default)]
+#[allow(dead_code)]
 struct DiplomacySection {
     relations: Option<Vec<DiplomacyRelation>>,
     casus_belli: Option<Vec<CasusBelliEntry>>,
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct DiplomacyRelation {
     country: Option<i64>,
     opinion: Option<f64>,
@@ -78,6 +84,7 @@ struct DiplomacyRelation {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct CasusBelliEntry {
     cb_type: Option<String>,
     target_country: Option<i64>,
@@ -89,6 +96,7 @@ struct FactionsSection {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct FactionEntry {
     faction_id: Option<String>,
     faction_type: Option<String>,
@@ -106,6 +114,7 @@ struct ThreatsSection {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct HostileNeighborEntry {
     country_id: Option<String>,
     military_power: Option<f64>,
@@ -113,6 +122,7 @@ struct HostileNeighborEntry {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct ThreatCountry {
     country_id: Option<String>,
     country_type: Option<String>,
@@ -120,6 +130,7 @@ struct ThreatCountry {
 }
 
 #[derive(Deserialize)]
+#[allow(dead_code)]
 struct FallenEmpireEntry {
     country_id: Option<String>,
     country_type: Option<String>,
@@ -247,6 +258,16 @@ const KEY_RESOURCES: &[&str] = &[
     "unity",
 ];
 
+/// Map severity string to sort order (lower = more severe).
+fn sev_order(s: &str) -> u8 {
+    match s {
+        "critical" => 0,
+        "severe" => 1,
+        "moderate" => 2,
+        _ => 3,
+    }
+}
+
 fn prettify_key(key: &str) -> String {
     key.split('_')
         .filter(|w| !w.is_empty())
@@ -343,12 +364,6 @@ fn diagnose_economy(
 
     // Sort: deficits first (by severity), then healthy
     problems.sort_by(|a, b| {
-        let sev_order = |s: &str| match s {
-            "critical" => 0,
-            "severe" => 1,
-            "moderate" => 2,
-            _ => 3,
-        };
         sev_order(&a.severity).cmp(&sev_order(&b.severity))
     });
 
@@ -432,9 +447,9 @@ fn diagnose_stability(planets: &PlanetsSection) -> StabilityOutput {
             };
 
             let name = colony
-                .designation
-                .as_deref()
-                .map(prettify_key)
+                .name
+                .clone()
+                .or_else(|| colony.designation.as_deref().map(prettify_key))
                 .unwrap_or_else(|| {
                     format!("Planet {}", colony.planet_id.unwrap_or(0))
                 });
@@ -539,6 +554,8 @@ fn diagnose_politics(factions: &FactionsSection) -> PoliticsOutput {
 
         let severity = if happiness < 0.3 {
             "critical"
+        } else if happiness < 0.4 {
+            "severe"
         } else if happiness < 0.5 {
             "moderate"
         } else {
@@ -653,6 +670,15 @@ fn diagnose_threats(
     }
 
     // Add diplomatic threats (hostile status, closed borders) from player's relations
+    // Pre-build set of hostile neighbor IDs to avoid O(n*m) string parsing
+    let neighbor_ids: std::collections::HashSet<i64> = threats
+        .hostile_neighbors
+        .as_deref()
+        .unwrap_or(&[])
+        .iter()
+        .filter_map(|n| n.country_id.as_deref().and_then(|id| id.parse().ok()))
+        .collect();
+
     let relations = diplomacy.relations.as_deref().unwrap_or(&[]);
     for rel in relations {
         let country_id = match rel.country {
@@ -664,14 +690,7 @@ fn diagnose_threats(
         let closed_borders = rel.closed_borders.unwrap_or(false);
 
         // Skip if already added as hostile neighbor (has CB)
-        if threats.hostile_neighbors.as_ref().map_or(false, |ns| {
-            ns.iter().any(|n| {
-                n.country_id
-                    .as_deref()
-                    .and_then(|id| id.parse::<i64>().ok())
-                    == Some(country_id)
-            })
-        }) {
+        if neighbor_ids.contains(&country_id) {
             continue;
         }
 

@@ -72,7 +72,7 @@
       worst_stability: 12,
       planets: [
         {
-          name: "New Terra",
+          name: "Patraggor I",
           severity: "critical",
           stability: 12,
           free_housing: -8,
@@ -81,7 +81,7 @@
           issues: ["low_stability", "housing_shortage", "high_crime", "amenity_deficit"],
         },
         {
-          name: "Arcturus Prime",
+          name: "Jurg-Sahuul",
           severity: "severe",
           stability: 35,
           free_housing: -3,
@@ -90,7 +90,7 @@
           issues: ["low_stability", "housing_shortage", "high_crime"],
         },
         {
-          name: "Kepler Station",
+          name: "Kepler IV",
           severity: "moderate",
           stability: 48,
           free_housing: 1,
@@ -99,7 +99,7 @@
           issues: ["low_stability", "amenity_deficit"],
         },
         {
-          name: "Vega Colony",
+          name: "Vega Prime",
           severity: "moderate",
           stability: 45,
           free_housing: -1,
@@ -224,6 +224,7 @@
       planets: [
         {
           name: "Deneb IV",
+
           severity: "moderate",
           stability: 42,
           free_housing: 2,

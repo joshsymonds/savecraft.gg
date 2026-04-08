@@ -175,7 +175,7 @@
   let unhappyFactions = $derived(data.politics.factions.filter((f) => f.severity !== "healthy"));
 
   let factionBars = $derived(
-    data.politics.factions
+    [...data.politics.factions]
       .sort((a, b) => a.happiness - b.happiness)
       .map((f) => ({
         label: f.name,
