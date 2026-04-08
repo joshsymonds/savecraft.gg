@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { seasonInfoModule } from "../../plugins/wow/reference/season-info";
+import { resetSeasonCache, seasonInfoModule } from "../../plugins/wow/reference/season-info";
 import { resetTokenCache } from "../../plugins/wow/shared/blizzard-api";
 
 // ---------------------------------------------------------------------------
@@ -64,6 +64,37 @@ const FAKE_SEASON_DETAIL = {
   ],
 };
 
+const FAKE_EXPANSION_INDEX = {
+  tiers: [
+    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/395" }, name: "The War Within", id: 395 },
+    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/503" }, name: "Midnight", id: 503 },
+  ],
+};
+
+const FAKE_EXPANSION_DETAIL = {
+  id: 503,
+  name: "Midnight",
+  raids: [
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-instance/1296" },
+      name: "Priory of the Sacred Flame",
+      id: 1296,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-instance/1304" },
+      name: "Tomb of Sargeras",
+      id: 1304,
+    },
+  ],
+  dungeons: [
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-instance/1297" },
+      name: "Ara-Kara, City of Echoes",
+      id: 1297,
+    },
+  ],
+};
+
 type FetchInput = string | URL | Request;
 
 function resolveInputUrl(input: FetchInput): string {
@@ -85,6 +116,12 @@ function makeFetchResponder(): (input: FetchInput, init?: RequestInit) => Promis
     if (url.includes("mythic-keystone/season/14")) {
       return Promise.resolve(Response.json(FAKE_SEASON_DETAIL, { status: 200 }));
     }
+    if (url.includes("journal-expansion/index") || url.includes("journal-expansion?")) {
+      return Promise.resolve(Response.json(FAKE_EXPANSION_INDEX, { status: 200 }));
+    }
+    if (url.includes("journal-expansion/503")) {
+      return Promise.resolve(Response.json(FAKE_EXPANSION_DETAIL, { status: 200 }));
+    }
 
     return Promise.resolve(new Response("Not Found", { status: 404 }));
   };
@@ -97,6 +134,7 @@ function makeFetchResponder(): (input: FetchInput, init?: RequestInit) => Promis
 describe("season_info reference module", () => {
   beforeEach(() => {
     resetTokenCache();
+    resetSeasonCache();
     vi.stubGlobal("fetch", vi.fn(makeFetchResponder()));
   });
 
@@ -153,6 +191,32 @@ describe("season_info reference module", () => {
     await seasonInfoModule.execute({ type: "mythic_plus" }, testEnv);
     // Should not make additional API calls (cached)
     expect(mockFetch.mock.calls.length).toBe(firstCallCount);
+  });
+
+  it("returns current raid tier for type=raids", async () => {
+    const result = await seasonInfoModule.execute({ type: "raids" }, testEnv);
+
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    expect(data.expansion).toBe("Midnight");
+    const raids = data.raids as Array<Record<string, unknown>>;
+    expect(raids.length).toBe(2);
+    expect(raids[0]!.name).toBe("Priory of the Sacred Flame");
+    expect(raids[1]!.name).toBe("Tomb of Sargeras");
+    expect(data.current_raid).toBe("Tomb of Sargeras");
+  });
+
+  it("overview includes both M+ and raid data", async () => {
+    const result = await seasonInfoModule.execute({ type: "overview" }, testEnv);
+
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    // M+ data present
+    expect(data.mythic_plus).toBeDefined();
+    // Raid data present
+    expect(data.raids).toBeDefined();
+    const raids = data.raids as Record<string, unknown>;
+    expect(raids.current_raid).toBe("Tomb of Sargeras");
   });
 
   it("has correct module metadata", () => {

@@ -22,9 +22,16 @@ import { blizzardFetch, getAppToken } from "../shared/blizzard-api";
 
 const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
 
+interface RaidInfo {
+  expansion: string;
+  raids: Array<{ id: number; name: string }>;
+  currentRaid: string;
+}
+
 interface CachedSeasonData {
   seasonId: number;
   dungeons: Array<{ id: number; name: string }>;
+  raidInfo: RaidInfo | null;
   fetchedAt: number;
 }
 
@@ -42,6 +49,17 @@ export function resetSeasonCache(): void {
 interface SeasonIndexResponse {
   seasons: Array<{ key: { href: string }; id: number }>;
   current_season: { key: { href: string }; id: number };
+}
+
+interface ExpansionIndexResponse {
+  tiers: Array<{ key: { href: string }; name: string; id: number }>;
+}
+
+interface ExpansionDetailResponse {
+  id: number;
+  name: string;
+  raids?: Array<{ key: { href: string }; name: string; id: number }>;
+  dungeons?: Array<{ key: { href: string }; name: string; id: number }>;
 }
 
 interface SeasonDetailResponse {
@@ -88,9 +106,40 @@ async function fetchCurrentSeason(env: Env): Promise<CachedSeasonData> {
     name: typeof d.name === "string" ? d.name : (d.name.en_US ?? `Dungeon ${d.id}`),
   }));
 
+  // Step 3: Fetch current raid tier from journal expansion API (static namespace)
+  const staticNs = `namespace=static-${region}&locale=en_US`;
+  let raidInfo: RaidInfo | null = null;
+  try {
+    const { data: expansionIndex } = await blizzardFetch<ExpansionIndexResponse>(
+      `${base}/data/wow/journal-expansion/index?${staticNs}`,
+      token,
+    );
+
+    // Latest expansion = highest ID
+    const tiers = expansionIndex.tiers;
+    if (tiers.length > 0) {
+      const latestExpansion = tiers.reduce((a, b) => (a.id > b.id ? a : b));
+
+      const { data: expansionDetail } = await blizzardFetch<ExpansionDetailResponse>(
+        `${base}/data/wow/journal-expansion/${latestExpansion.id}?${staticNs}`,
+        token,
+      );
+
+      const raids = expansionDetail.raids ?? [];
+      raidInfo = {
+        expansion: expansionDetail.name,
+        raids: raids.map((r) => ({ id: r.id, name: r.name })),
+        currentRaid: raids.length > 0 ? raids[raids.length - 1]!.name : "",
+      };
+    }
+  } catch {
+    // Raid info is non-critical — M+ data is still returned
+  }
+
   cachedSeason = {
     seasonId: currentSeasonId,
     dungeons,
+    raidInfo,
     fetchedAt: Date.now(),
   };
 
@@ -105,14 +154,14 @@ export const seasonInfoModule: NativeReferenceModule = {
   id: "season_info",
   name: "Season Info",
   description: [
-    "Returns the current WoW season info: M+ dungeon rotation and season ID.",
+    "Returns current WoW season info: M+ dungeon rotation, current raid tier, and season ID.",
     "USE PROACTIVELY: query this module before mentioning specific dungeons, raids, or seasonal content to ensure you reference the current rotation — not stale training data.",
   ].join(" "),
   parameters: {
     type: {
       type: "string",
       description:
-        "What to return: 'mythic_plus' for current M+ dungeon pool, 'overview' for full season summary. Defaults to 'overview'.",
+        "What to return: 'mythic_plus' for current M+ dungeon pool, 'raids' for current raid tier, 'overview' for everything. Defaults to 'overview'.",
     },
   },
 
@@ -136,6 +185,16 @@ export const seasonInfoModule: NativeReferenceModule = {
           },
         };
 
+      case "raids":
+        return {
+          type: "structured",
+          data: {
+            expansion: season.raidInfo?.expansion ?? null,
+            raids: season.raidInfo?.raids ?? [],
+            current_raid: season.raidInfo?.currentRaid ?? null,
+          },
+        };
+
       case "overview":
       default:
         return {
@@ -146,6 +205,13 @@ export const seasonInfoModule: NativeReferenceModule = {
               dungeons: season.dungeons,
               dungeon_count: season.dungeons.length,
             },
+            raids: season.raidInfo
+              ? {
+                  expansion: season.raidInfo.expansion,
+                  raids: season.raidInfo.raids,
+                  current_raid: season.raidInfo.currentRaid,
+                }
+              : null,
           },
         };
     }
