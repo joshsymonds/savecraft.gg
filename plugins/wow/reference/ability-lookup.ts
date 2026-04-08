@@ -29,6 +29,7 @@ interface SpellRow {
   class_name: string | null;
   spec_id: number | null;
   spec_name: string | null;
+  source: string;
 }
 
 function spellRowToResult(row: SpellRow): Record<string, unknown> {
@@ -41,6 +42,7 @@ function spellRowToResult(row: SpellRow): Record<string, unknown> {
     class_name: row.class_name,
     spec_id: row.spec_id,
     spec_name: row.spec_name,
+    source: row.source,
   };
 }
 

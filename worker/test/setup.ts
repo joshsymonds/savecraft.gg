@@ -450,7 +450,8 @@ const statements = [
     class_id INTEGER,
     class_name TEXT,
     spec_id INTEGER,
-    spec_name TEXT
+    spec_name TEXT,
+    source TEXT NOT NULL DEFAULT 'blizzard_api'
   )`,
   `CREATE INDEX IF NOT EXISTS idx_wow_spells_spell_id ON wow_spells(spell_id)`,
   `CREATE INDEX IF NOT EXISTS idx_wow_spells_class ON wow_spells(class_name)`,

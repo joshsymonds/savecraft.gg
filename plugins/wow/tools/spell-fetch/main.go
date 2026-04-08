@@ -99,8 +99,10 @@ type specDetailResponse struct {
 }
 
 type talentTreeResponse struct {
-	ClassTalentNodes []talentNode `json:"class_talent_nodes"`
-	HeroTalentTrees  []struct {
+	// talent_nodes is the correct field name (not class_talent_nodes).
+	// Contains all class-wide talent nodes shared across specs.
+	TalentNodes     []talentNode `json:"talent_nodes"`
+	HeroTalentTrees []struct {
 		HeroTalentNodes []talentNode `json:"hero_talent_nodes"`
 	} `json:"hero_talent_trees"`
 }
@@ -185,10 +187,18 @@ type spellEntry struct {
 	spellID     int
 	name        string
 	description string
+	source      string // "blizzard_api", "talent_tree", "spell_name_csv"
 	classID     int
 	className   string
 	specID      int
 	specName    string
+}
+
+// spellFromTree stores the name and description extracted from talent tree tooltips.
+// These serve as a fallback when the Blizzard spell detail API returns 404.
+type spellFromTree struct {
+	name        string
+	description string
 }
 
 // ---------------------------------------------------------------------------
@@ -214,8 +224,8 @@ func blizzardGet(apiURL, token string, out any) error {
 	return json.NewDecoder(resp.Body).Decode(out)
 }
 
-func extractSpellIDs(nodes []talentNode) map[int]string {
-	spells := make(map[int]string)
+func extractSpellIDs(nodes []talentNode) map[int]spellFromTree {
+	spells := make(map[int]spellFromTree)
 	for _, node := range nodes {
 		for _, rank := range node.Ranks {
 			if rank.Tooltip != nil {
@@ -237,9 +247,18 @@ func extractSpellIDs(nodes []talentNode) map[int]string {
 	return spells
 }
 
-func extractFromTooltip(t *tooltipEntry, spells map[int]string) {
+func extractFromTooltip(t *tooltipEntry, spells map[int]spellFromTree) {
 	if t.SpellTooltip != nil && t.SpellTooltip.Spell != nil && t.SpellTooltip.Spell.ID > 0 {
-		spells[t.SpellTooltip.Spell.ID] = t.SpellTooltip.Spell.Name.Value
+		s := t.SpellTooltip.Spell
+		existing, exists := spells[s.ID]
+		// Keep the entry with the longest description (most informative)
+		desc := t.SpellTooltip.Description.Value
+		if !exists || len(desc) > len(existing.description) {
+			spells[s.ID] = spellFromTree{
+				name:        s.Name.Value,
+				description: desc,
+			}
+		}
 	}
 }
 
@@ -485,9 +504,10 @@ func run() error {
 	}
 
 	type spellSpec struct {
-		spellID   int
-		spellName string
-		spec      specInfo
+		spellID     int
+		treeName    string // name from talent tree tooltip
+		treeDesc    string // description from talent tree tooltip
+		spec        specInfo
 	}
 	var allSpellSpecs []spellSpec
 
@@ -504,10 +524,10 @@ func run() error {
 		}
 
 		// Class-wide talent nodes → all specs of this class
-		classSpellIDs := extractSpellIDs(classTree.ClassTalentNodes)
+		classSpellIDs := extractSpellIDs(classTree.TalentNodes)
 		for spellID, spellName := range classSpellIDs {
 			for _, s := range classSpecs {
-				allSpellSpecs = append(allSpellSpecs, spellSpec{spellID, spellName, s})
+				allSpellSpecs = append(allSpellSpecs, spellSpec{spellID, spellName.name, spellName.description, s})
 			}
 		}
 		fmt.Printf("    %d class-wide spells\n", len(classSpellIDs))
@@ -518,7 +538,7 @@ func run() error {
 			heroSpellIDs := extractSpellIDs(heroTree.HeroTalentNodes)
 			for spellID, spellName := range heroSpellIDs {
 				for _, s := range classSpecs {
-					allSpellSpecs = append(allSpellSpecs, spellSpec{spellID, spellName, s})
+					allSpellSpecs = append(allSpellSpecs, spellSpec{spellID, spellName.name, spellName.description, s})
 				}
 			}
 			heroCount += len(heroSpellIDs)
@@ -539,7 +559,7 @@ func run() error {
 			}
 			specSpellIDs := extractSpellIDs(specTree.SpecTalentNodes)
 			for spellID, spellName := range specSpellIDs {
-				allSpellSpecs = append(allSpellSpecs, spellSpec{spellID, spellName, s})
+				allSpellSpecs = append(allSpellSpecs, spellSpec{spellID, spellName.name, spellName.description, s})
 			}
 			fmt.Printf("    %s: %d spec spells\n", s.specName, len(specSpellIDs))
 		}
@@ -568,9 +588,10 @@ func run() error {
 			}
 			for _, spellID := range spellIDs {
 				allSpellSpecs = append(allSpellSpecs, spellSpec{
-					spellID:   spellID,
-					spellName: "", // Will be resolved from SpellName CSV or Blizzard API
-					spec:      si,
+					spellID:  spellID,
+					treeName: "", // Will be resolved from SpellName CSV or Blizzard API
+					treeDesc: "",
+					spec:     si,
 				})
 				baseAbilityCount++
 			}
@@ -659,23 +680,39 @@ func run() error {
 		}
 		seen[key] = true
 
-		// Priority for name: Blizzard API > SpellName CSV > talent tree tooltip
-		name := ss.spellName
-		description := ""
+		// Priority: Blizzard spell API > talent tree tooltip > SpellName CSV
+		name := ss.treeName
+		description := ss.treeDesc
 		if detail, ok := spellDetails[ss.spellID]; ok {
 			name = detail.Name
-			description = detail.Description
-		} else if csvName, ok := spellNameMap[ss.spellID]; ok {
-			name = csvName
+			if detail.Description != "" {
+				description = detail.Description
+			}
+		}
+		if name == "" {
+			if csvName, ok := spellNameMap[ss.spellID]; ok {
+				name = csvName
+			}
 		}
 		if name == "" {
 			continue // Skip entries with no name at all
+		}
+
+		// Determine data source for provenance tracking
+		source := "spell_name_csv" // fallback
+		if _, ok := spellDetails[ss.spellID]; ok {
+			source = "blizzard_api"
+		} else if ss.treeDesc != "" {
+			source = "talent_tree"
+		} else if ss.treeName != "" {
+			source = "talent_tree"
 		}
 
 		entries = append(entries, spellEntry{
 			spellID:     ss.spellID,
 			name:        name,
 			description: description,
+			source:      source,
 			classID:     ss.spec.classID,
 			className:   ss.spec.className,
 			specID:      ss.spec.specID,
@@ -708,8 +745,8 @@ func run() error {
 
 	for _, e := range entries {
 		fmt.Fprintf(&sb,
-			"INSERT INTO wow_spells (spell_id, name, description, icon, class_id, class_name, spec_id, spec_name) VALUES (%d, %s, %s, NULL, %d, %s, %d, %s);\n",
-			e.spellID, cfapi.SQLQuote(e.name), cfapi.SQLQuote(e.description),
+			"INSERT INTO wow_spells (spell_id, name, description, source, class_id, class_name, spec_id, spec_name) VALUES (%d, %s, %s, %s, %d, %s, %d, %s);\n",
+			e.spellID, cfapi.SQLQuote(e.name), cfapi.SQLQuote(e.description), cfapi.SQLQuote(e.source),
 			e.classID, cfapi.SQLQuote(e.className), e.specID, cfapi.SQLQuote(e.specName),
 		)
 		fmt.Fprintf(&sb,
