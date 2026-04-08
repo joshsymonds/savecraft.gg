@@ -1,0 +1,34 @@
+{
+  "game_id": "mtga",
+  "sources": [
+    "wasm"
+  ],
+  "icon": "icon.png",
+  "name": "Magic: The Gathering Arena",
+  "description": "Parses Player.log for collection, decks, match history, play-by-play game logs, drafts, rank, and inventory. Constructed coaching: personal match stats, sideboard analysis, deck evaluation. Gameplay analysis: per-turn play advice, mana efficiency, card timing, attack decisions, mulligan evaluation.",
+  "channel": "beta",
+  "coverage": "partial",
+  "file_extensions": [],
+  "file_patterns": [
+    "Player.log",
+    "Player-prev.log"
+  ],
+  "homepage": "https://savecraft.gg/plugins/mtga",
+  "limitations": [
+    "Requires 'Detailed Logs' enabled in MTGA settings",
+    "Log clears on game restart — only current session data available",
+    "Card names require Scryfall data update after new set releases"
+  ],
+  "author": {
+    "name": "Josh Symonds",
+    "github": "joshsymonds"
+  },
+  "default_paths": {
+    "windows": "%USERPROFILE%/AppData/LocalLow/Wizards Of The Coast/MTGA",
+    "linux": "~/.local/share/Steam/steamapps/compatdata/2141910/pfx/drive_c/users/steamuser/AppData/LocalLow/Wizards Of The Coast/MTGA",
+    "darwin": "~/Library/Logs/Wizards of the Coast/MTGA"
+  },
+  "version": "dev",
+  "sha256": "2e55be42694c27f9e43bccbe5199daea57fbbb5234844cf09d396374fe7843cb",
+  "url": "plugins/mtga/parser.wasm"
+}

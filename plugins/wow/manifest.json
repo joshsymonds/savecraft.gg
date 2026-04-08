@@ -1,0 +1,42 @@
+{
+  "game_id": "wow",
+  "sources": [
+    "api"
+  ],
+  "icon": "icon.png",
+  "name": "World of Warcraft",
+  "description": "Character profiles via Battle.net API with Raider.io ranking enrichment",
+  "channel": "beta",
+  "coverage": "partial",
+  "file_extensions": [],
+  "homepage": "https://savecraft.gg/plugins/wow",
+  "limitations": [
+    "Character data updates on logout, not in real-time",
+    "Bag and bank inventory not available (API limitation)",
+    "Combat performance data not included (see Warcraft Logs integration roadmap)"
+  ],
+  "author": {
+    "name": "Josh Symonds",
+    "github": "joshsymonds"
+  },
+  "default_paths": {
+    "windows": "",
+    "linux": "",
+    "darwin": ""
+  },
+  "version": "dev",
+  "adapter": {
+    "authProvider": "battlenet",
+    "authFlow": "oauth2_code",
+    "scopes": [
+      "wow.profile",
+      "openid"
+    ],
+    "regions": [
+      "us",
+      "eu",
+      "kr",
+      "tw"
+    ]
+  }
+}

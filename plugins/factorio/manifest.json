@@ -1,0 +1,165 @@
+{
+  "game_id": "factorio",
+  "sources": [
+    "wasm",
+    "mod"
+  ],
+  "icon": "icon.png",
+  "name": "Factorio",
+  "description": "Lua mod exports game state to JSON; daemon watches script-output and pushes structured save data",
+  "channel": "alpha",
+  "coverage": "partial",
+  "file_extensions": [
+    ".json"
+  ],
+  "homepage": "https://savecraft.gg/plugins/factorio",
+  "limitations": [
+    "Requires the Savecraft Export mod installed in Factorio",
+    "Modded recipes and items not yet reflected in reference modules — vanilla data only",
+    "Space Age content (planets, platforms, quality) tracked in sections but reference modules are base-game only"
+  ],
+  "author": {
+    "name": "Josh Symonds",
+    "github": "joshsymonds"
+  },
+  "default_paths": {
+    "windows": "%APPDATA%/Factorio/script-output/savecraft",
+    "linux": "~/.factorio/script-output/savecraft",
+    "darwin": "~/Library/Application Support/factorio/script-output/savecraft"
+  },
+  "version": "dev",
+  "sha256": "163d7948b339e926ca5393fd5ea9128b5f5bddd9f9f247708506801b60784ec5",
+  "url": "plugins/factorio/parser.wasm",
+  "reference": {
+    "sha256": "00a4da2a439729cef406800f988f52ba476a0f695948cfc00c309d385a2d091a",
+    "url": "plugins/factorio/reference.wasm",
+    "modules": {
+      "blueprint_analyzer": {
+        "name": "Blueprint Analyzer",
+        "description": "Decode a Factorio blueprint string (version byte + base64 + zlib + JSON), extract the entity list, and evaluate production ratios, belt throughput, module usage, and inserter adequacy against baked-in recipe data."
+      },
+      "evolution_tracker": {
+        "name": "Evolution \u0026 Threat Tracker",
+        "description": "Analyze biter evolution and defense posture from save data. Returns evolution factor with source breakdown, enemy tier prediction, spawn weight distribution, and defense summary including turret counts, walls, and nearby enemy bases.",
+        "section_mappings": {
+          "defenses": "defenses"
+        }
+      },
+      "module_optimizer": {
+        "name": "Module \u0026 Beacon Optimizer",
+        "description": "Given a machine type, recipe, and production target, recommend optimal module and beacon configuration. Compares speed, productivity, and efficiency module combinations with beacon count trade-offs."
+      },
+      "oil_balancer": {
+        "name": "Oil Processing Balancer",
+        "description": "Given target fluid products and rates, compute optimal refinery and cracking plant counts for basic, advanced, or coal liquefaction processing. Returns machine counts, water and crude input rates, and surplus byproducts. Pass save_id to compare against your actual factory and identify bottlenecks.",
+        "section_mappings": {
+          "actual_flow": "production_flow",
+          "existing_setup": "machines"
+        }
+      },
+      "power_calculator": {
+        "name": "Power Generation Calculator",
+        "description": "Given power demand in MW, compute optimal generation setup for steam (boiler/engine ratios), solar (panel/accumulator ratios), or nuclear (reactor neighbor bonuses, heat exchanger and turbine counts, fuel cell consumption).",
+        "section_mappings": {
+          "existing_power": "power"
+        }
+      },
+      "production_flow": {
+        "name": "Factory Health Diagnosis",
+        "description": "Diagnose factory health by cross-referencing production rates with recipe, machine, and technology data. Computes deficit causes, machine gaps, cascade risks, and tech unlock impacts. Pass save_id to analyze your factory.",
+        "section_mappings": {
+          "completed_research": "research",
+          "existing_machines": "machines",
+          "flow_data": "production_flow"
+        }
+      },
+      "quality_calculator": {
+        "name": "Quality Tier Calculator",
+        "description": "Compute quality tier probability distributions from module setup, including geometric re-roll chains. Calculate expected materials per legendary output and recycler loop efficiency for Space Age quality mechanics."
+      },
+      "ratio_calculator": {
+        "name": "Production Ratio Calculator",
+        "description": "Given a target item and production rate, compute the full dependency tree: machine counts by tier, belt lane requirements, raw material input rates. Accounts for module effects, beacon transmission (distribution_efficiency / sqrt(n)), and productivity bonuses. Pass save_id to compare against your actual factory and identify bottlenecks.",
+        "parameters": {
+          "assembler_tier": {
+            "default": "assembling-machine-2",
+            "description": "Preferred assembler (e.g. 'assembling-machine-3')",
+            "type": "string"
+          },
+          "beacon_count": {
+            "default": 0,
+            "description": "Number of beacons affecting each machine",
+            "type": "integer"
+          },
+          "beacon_modules": {
+            "description": "Module names in each beacon (e.g. ['speed-module-3', 'speed-module-3'])",
+            "type": "array"
+          },
+          "modules": {
+            "description": "Module names in machine slots (e.g. ['productivity-module-3', 'productivity-module-3'])",
+            "type": "array"
+          },
+          "recipe": {
+            "description": "Explicit recipe name for the target item. Required when multiple recipes produce the same item (e.g. 'solid-fuel-from-light-oil'). Use recipe_lookup with product query to find options.",
+            "type": "string"
+          },
+          "recipe_overrides": {
+            "description": "Map of item → recipe name for intermediate products with multiple recipes (e.g. {\"solid-fuel\": \"solid-fuel-from-light-oil\", \"copper-plate\": \"casting-copper\"})",
+            "type": "object"
+          },
+          "target_item": {
+            "description": "Item to produce (e.g. 'electronic-circuit')",
+            "required": true,
+            "type": "string"
+          },
+          "target_rate": {
+            "default": 60,
+            "description": "Target production rate in items per minute",
+            "type": "number"
+          }
+        },
+        "section_mappings": {
+          "actual_flow": "production_flow",
+          "existing_machines": "machines"
+        }
+      },
+      "recipe_lookup": {
+        "name": "Recipe \u0026 Item Lookup",
+        "description": "Look up any item, recipe, entity, or technology by exact name. Supports reverse lookups (what uses X, what produces Y). Returns exact ingredients, products, craft time, machine category, and allowed modules. Prevents hallucination on recipe data.",
+        "parameters": {
+          "machine": {
+            "description": "Look up a crafting machine's stats and categories (e.g. 'assembling-machine-3')",
+            "type": "string"
+          },
+          "name": {
+            "description": "Recipe or item name to look up (e.g. 'electronic-circuit')",
+            "type": "string"
+          },
+          "product": {
+            "description": "Find all recipes that produce this item (e.g. 'plastic-bar')",
+            "type": "string"
+          },
+          "tech": {
+            "description": "Look up a technology's prerequisites, costs, and unlocked recipes (e.g. 'advanced-oil-processing')",
+            "type": "string"
+          },
+          "usage": {
+            "description": "Find all recipes that use this item as an ingredient (e.g. 'copper-cable')",
+            "type": "string"
+          }
+        }
+      },
+      "tech_tree_navigator": {
+        "name": "Tech Tree Navigator",
+        "description": "Traverse technology prerequisite chains with total science pack costs. Given a target technology and completed research, compute the optimal research path and total cost by pack type.",
+        "section_mappings": {
+          "completed_research": "research"
+        }
+      },
+      "train_throughput": {
+        "name": "Train Throughput Calculator",
+        "description": "Compute train network throughput between stations given train composition, fuel type, distance, inserter configuration, and signal spacing. Returns round-trip time breakdown and bottleneck identification."
+      }
+    }
+  }
+}

@@ -1,0 +1,63 @@
+{
+  "game_id": "sdv",
+  "sources": [
+    "wasm"
+  ],
+  "icon": "icon.png",
+  "name": "Stardew Valley",
+  "description": "Parses Stardew Valley 1.6 save files into structured game state",
+  "channel": "beta",
+  "coverage": "partial",
+  "file_extensions": [],
+  "homepage": "https://savecraft.gg/plugins/sdv",
+  "limitations": [
+    "Only Stardew Valley 1.6+ saves supported",
+    "Directory-based save discovery requires daemon enhancement (pending)"
+  ],
+  "author": {
+    "name": "Josh Symonds",
+    "github": "joshsymonds"
+  },
+  "default_paths": {
+    "windows": "%APPDATA%/StardewValley/Saves",
+    "linux": "~/.config/StardewValley/Saves",
+    "darwin": "~/.config/StardewValley/Saves"
+  },
+  "version": "dev",
+  "sha256": "99595f117b0af6b3c332da81bf4197bbe609bd847e2f8591110818416d48f8b5",
+  "url": "plugins/sdv/parser.wasm",
+  "reference": {
+    "sha256": "d31799bb7a1c00b90b97bf6253e0e99f1e838d89ec901c33fab55d1ab97d957f",
+    "url": "plugins/sdv/reference.wasm",
+    "modules": {
+      "crop_planner": {
+        "name": "Crop Planner",
+        "description": "Look up crop growth data, profitability, fertilizer effects, and artisan goods values. Use 'crop' for a specific crop's full analysis, or 'season' for all crops ranked by gold/day.",
+        "parameters": {
+          "crop": {
+            "description": "Crop name for forward lookup (e.g. 'Pumpkin', 'Starfruit'). Returns growth time, seasons, sell prices, gold/day, and artisan goods values.",
+            "type": "string"
+          },
+          "season": {
+            "description": "Season name for reverse lookup ('Spring', 'Summer', 'Fall', 'Winter'). Returns all crops for that season ranked by gold/day.",
+            "type": "string"
+          }
+        }
+      },
+      "gift_preferences": {
+        "name": "Gift Preferences",
+        "description": "Look up NPC gift preferences by villager name or item name. Includes universal and personal taste data from Stardew Valley 1.6.",
+        "parameters": {
+          "item": {
+            "description": "Item name for reverse lookup (e.g. 'Diamond', 'Pumpkin', 'Prismatic Shard'). Returns which NPCs love/like/dislike/hate it.",
+            "type": "string"
+          },
+          "npc": {
+            "description": "NPC name for forward lookup (e.g. 'Abigail', 'Sebastian'). Returns loved/liked/disliked/hated items.",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,181 @@
+{
+  "game_id": "stellaris",
+  "sources": [
+    "wasm"
+  ],
+  "icon": "icon.png",
+  "name": "Stellaris",
+  "description": "Parses Stellaris save files (.sav) — empire overview, economy, technology, military, diplomacy, and more",
+  "channel": "beta",
+  "coverage": "partial",
+  "file_extensions": [
+    ".sav"
+  ],
+  "homepage": "https://savecraft.gg/plugins/stellaris",
+  "workshop_url": "https://steamcommunity.com/sharedfiles/filedetails/?id=3702302465",
+  "limitations": [
+    "Binary (ironman) saves not yet tested — text saves only",
+    "Planet section shows summary stats, not full district/building breakdown",
+    "Name resolution for wars and fleets uses raw IDs, not localized names"
+  ],
+  "author": {
+    "name": "Josh Symonds",
+    "github": "joshsymonds"
+  },
+  "default_paths": {
+    "windows": "%USERPROFILE%/Documents/Paradox Interactive/Stellaris/save games/*",
+    "linux": "~/.local/share/Paradox Interactive/Stellaris/save games/*",
+    "darwin": "~/Documents/Paradox Interactive/Stellaris/save games/*"
+  },
+  "version": "dev",
+  "sha256": "215dfff34ed7cfddb925c28f9d404d6da7a65c1cd6ea5b3479d9ca12e0e42b3c",
+  "url": "plugins/stellaris/parser.wasm",
+  "reference": {
+    "sha256": "093a7fb34a05c4add4002a6aadd82f2ef8ddd305740d7ef754ce51b683e97d50",
+    "url": "plugins/stellaris/reference.wasm",
+    "modules": {
+      "building_search": {
+        "name": "Building Search",
+        "description": "Search Stellaris buildings by name or category. Returns build time and capital status.",
+        "parameters": {
+          "category": {
+            "description": "Filter by category",
+            "type": "string"
+          },
+          "name": {
+            "description": "Search by building key substring",
+            "type": "string"
+          }
+        }
+      },
+      "civic_search": {
+        "name": "Civic \u0026 Origin Search",
+        "description": "Search civics and origins by name or category.",
+        "parameters": {
+          "category": {
+            "description": "Filter by category",
+            "type": "string"
+          },
+          "name": {
+            "description": "Search by civic/origin key substring",
+            "type": "string"
+          }
+        }
+      },
+      "component_search": {
+        "name": "Ship Component Search",
+        "description": "Search ship weapons, utilities, reactors, and combat computers by name, size, or component set.",
+        "parameters": {
+          "component_set": {
+            "description": "Filter by component set",
+            "type": "string"
+          },
+          "name": {
+            "description": "Search by component key substring",
+            "type": "string"
+          },
+          "size": {
+            "description": "Filter by size slot (small, medium, large, etc.)",
+            "type": "string"
+          }
+        }
+      },
+      "edict_search": {
+        "name": "Edict \u0026 Policy Search",
+        "description": "Search edicts and policies by name or category.",
+        "parameters": {
+          "category": {
+            "description": "Filter by category",
+            "type": "string"
+          },
+          "name": {
+            "description": "Search by edict key substring",
+            "type": "string"
+          }
+        }
+      },
+      "empire_health": {
+        "name": "Empire Health Diagnosis",
+        "description": "START HERE for any general question about the player's empire — 'how am I doing?', 'what should I focus on?', 'any problems?', 'give me advice', or any broad empire status check. Scans economy (resource deficits and runway), colony stability (housing, crime, amenities), military (wars and exhaustion), politics (faction happiness), and external threats (hostile neighbors, crises, fallen empires) in one call. Returns problems ranked by severity so you can lead with what matters most. Always use this before diving into specific sections when the player asks a general or open-ended question about their empire.",
+        "section_mappings": {
+          "diplomacy_data": "diplomacy",
+          "economy_data": "economy",
+          "factions_data": "factions",
+          "military_data": "military",
+          "overview_data": "overview",
+          "planets_data": "planets",
+          "threats_data": "threats",
+          "wars_data": "wars"
+        }
+      },
+      "job_search": {
+        "name": "Pop Job Search",
+        "description": "Search pop jobs by name or category.",
+        "parameters": {
+          "category": {
+            "description": "Filter by category (worker, specialist, ruler)",
+            "type": "string"
+          },
+          "name": {
+            "description": "Search by job key substring",
+            "type": "string"
+          }
+        }
+      },
+      "tech_path": {
+        "name": "Technology Path",
+        "description": "Resolve the full prerequisite chain for a target technology. Returns topologically sorted prerequisites with researched/remaining annotations."
+      },
+      "tech_search": {
+        "name": "Technology Search",
+        "description": "Search Stellaris technologies by name, area, tier, or category. Returns cost, prerequisites, and research weight.",
+        "parameters": {
+          "area": {
+            "description": "Filter by area: physics, society, engineering",
+            "type": "string"
+          },
+          "category": {
+            "description": "Filter by category",
+            "type": "string"
+          },
+          "name": {
+            "description": "Search by tech key substring",
+            "type": "string"
+          },
+          "tier": {
+            "description": "Filter by tier (0-5)",
+            "type": "integer"
+          }
+        }
+      },
+      "tradition_search": {
+        "name": "Tradition \u0026 Ascension Perk Search",
+        "description": "Search traditions and ascension perks by name or category.",
+        "parameters": {
+          "category": {
+            "description": "Filter by category",
+            "type": "string"
+          },
+          "name": {
+            "description": "Search by key substring",
+            "type": "string"
+          }
+        }
+      },
+      "trait_search": {
+        "name": "Species \u0026 Leader Trait Search",
+        "description": "Search species traits and leader traits by name or category.",
+        "parameters": {
+          "category": {
+            "description": "Filter by category",
+            "type": "string"
+          },
+          "name": {
+            "description": "Search by trait key substring",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

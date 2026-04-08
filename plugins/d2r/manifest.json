@@ -1,0 +1,95 @@
+{
+  "game_id": "d2r",
+  "sources": [
+    "wasm"
+  ],
+  "icon": "icon.png",
+  "name": "Diablo II: Resurrected",
+  "description": "Parses .d2s character saves and .d2i shared stash from Reign of the Warlock (v105)",
+  "channel": "beta",
+  "coverage": "partial",
+  "file_extensions": [
+    ".d2s",
+    ".d2i"
+  ],
+  "homepage": "https://savecraft.gg/plugins/d2r",
+  "limitations": [
+    "Only Reign of the Warlock (v105) saves — classic LoD not supported"
+  ],
+  "author": {
+    "name": "Josh Symonds",
+    "github": "joshsymonds"
+  },
+  "default_paths": {
+    "windows": "%USERPROFILE%/Saved Games/Diablo II Resurrected",
+    "linux": "~/.steam/steam/steamapps/compatdata/2536520/pfx/drive_c/users/steamuser/Saved Games/Diablo II Resurrected",
+    "darwin": "~/Library/Application Support/Diablo II Resurrected"
+  },
+  "version": "dev",
+  "sha256": "5c946e175d044b6487ec43e0344a60ef9013f4d6ff36688b6f888997b2d3b068",
+  "url": "plugins/d2r/parser.wasm",
+  "reference": {
+    "sha256": "bb406099fb00b38cd84b33f7b8bbf4c684a05910088c0612d38bcd25e5f0285d",
+    "url": "plugins/d2r/reference.wasm",
+    "modules": {
+      "drop_calc": {
+        "name": "Drop Calculator",
+        "description": "Compute drop probabilities for any item from any farmable source, accounting for Magic Find, player count, and treasure class mechanics.",
+        "parameters": {
+          "area": {
+            "description": "Filter to specific area (e.g. 'Pit Level 1', 'Drifter Cavern').",
+            "type": "string"
+          },
+          "boss_only": {
+            "default": false,
+            "description": "Item mode only: filter to boss monsters.",
+            "type": "boolean"
+          },
+          "difficulty": {
+            "description": "Difficulty: 'normal', 'nightmare', 'hell', or 'all'. Omit or use 'all' to search all difficulties (recommended for finding best farming spots). Specifying a difficulty restricts results to ONLY that difficulty. Default 'hell' for monster mode, 'all' for item mode.",
+            "type": "string"
+          },
+          "item": {
+            "description": "Item code, base item name, unique item name, or set item name for reverse lookup (e.g. 'r13', 'Shael', 'xea', 'Serpentskin Armor', 'Skin of the Vipermagi', 'Magefist', 'Tal Rasha's Horadric Crest'). Supports fuzzy matching — close misspellings auto-resolve. Mutually exclusive with 'monster' and 'search'.",
+            "type": "string"
+          },
+          "mf": {
+            "default": 0,
+            "type": "integer"
+          },
+          "monster": {
+            "description": "Monster ID for forward lookup (e.g. 'mephisto', 'andariel'). Mutually exclusive with 'item'.",
+            "type": "string"
+          },
+          "offset": {
+            "default": 0,
+            "description": "Pagination offset. Results are returned in pages of 50.",
+            "type": "integer"
+          },
+          "party_size": {
+            "default": 1,
+            "type": "integer"
+          },
+          "players": {
+            "default": 1,
+            "type": "integer"
+          },
+          "search": {
+            "description": "Search for unique/set items by name, stats, item type, or set membership. Supports natural language queries like 'Cannot Be Frozen', 'cold resist ring', 'Tal Rasha', 'life steal amulet'. Returns matching items with stats and top 20 drop sources. Mutually exclusive with 'monster' and 'item'.",
+            "type": "string"
+          },
+          "sort": {
+            "default": "desc",
+            "description": "Sort order for drop chance: 'desc' (best first) or 'asc' (worst first).",
+            "type": "string"
+          },
+          "tc_type": {
+            "default": -1,
+            "description": "Item mode only: 0=regular, 1=champion, 2=unique, 3=quest. -1 for all.",
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
+}
