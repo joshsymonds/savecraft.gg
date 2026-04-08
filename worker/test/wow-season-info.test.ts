@@ -64,33 +64,46 @@ const FAKE_SEASON_DETAIL = {
   ],
 };
 
+// Based on real API responses (saved in plugins/wow/testdata/blizzard-expansion-*.json)
 const FAKE_EXPANSION_INDEX = {
   tiers: [
-    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/395" }, name: "The War Within", id: 395 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/503" }, name: "Midnight", id: 503 },
+    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/503" }, name: "Dragonflight", id: 503 },
+    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/505" }, name: "Current Season", id: 505 },
+    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/514" }, name: "The War Within", id: 514 },
+    { key: { href: "https://us.api.blizzard.com/data/wow/journal-expansion/516" }, name: "Midnight", id: 516 },
   ],
 };
 
 const FAKE_EXPANSION_DETAIL = {
-  id: 503,
+  id: 516,
   name: "Midnight",
   raids: [
     {
-      key: { href: "https://us.api.blizzard.com/data/wow/journal-instance/1296" },
-      name: "Priory of the Sacred Flame",
-      id: 1296,
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-instance/1312" },
+      name: "Midnight",
+      id: 1312,
     },
     {
-      key: { href: "https://us.api.blizzard.com/data/wow/journal-instance/1304" },
-      name: "Tomb of Sargeras",
-      id: 1304,
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-instance/1314" },
+      name: "The Dreamrift",
+      id: 1314,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-instance/1307" },
+      name: "The Voidspire",
+      id: 1307,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-instance/1308" },
+      name: "March on Quel'Danas",
+      id: 1308,
     },
   ],
   dungeons: [
     {
-      key: { href: "https://us.api.blizzard.com/data/wow/journal-instance/1297" },
-      name: "Ara-Kara, City of Echoes",
-      id: 1297,
+      key: { href: "https://us.api.blizzard.com/data/wow/journal-instance/1299" },
+      name: "Windrunner Spire",
+      id: 1299,
     },
   ],
 };
@@ -119,7 +132,7 @@ function makeFetchResponder(): (input: FetchInput, init?: RequestInit) => Promis
     if (url.includes("journal-expansion/index") || url.includes("journal-expansion?")) {
       return Promise.resolve(Response.json(FAKE_EXPANSION_INDEX, { status: 200 }));
     }
-    if (url.includes("journal-expansion/503")) {
+    if (url.includes("journal-expansion/516")) {
       return Promise.resolve(Response.json(FAKE_EXPANSION_DETAIL, { status: 200 }));
     }
 
@@ -200,10 +213,11 @@ describe("season_info reference module", () => {
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
     expect(data.expansion).toBe("Midnight");
     const raids = data.raids as Array<Record<string, unknown>>;
-    expect(raids.length).toBe(2);
-    expect(raids[0]!.name).toBe("Priory of the Sacred Flame");
-    expect(raids[1]!.name).toBe("Tomb of Sargeras");
-    expect(data.current_raid).toBe("Tomb of Sargeras");
+    expect(raids.length).toBe(4);
+    expect(raids[0]!.name).toBe("Midnight");
+    expect(raids[3]!.name).toBe("March on Quel'Danas");
+    // Current raid = last in the array (most recently added)
+    expect(data.current_raid).toBe("March on Quel'Danas");
   });
 
   it("overview includes both M+ and raid data", async () => {
@@ -216,7 +230,8 @@ describe("season_info reference module", () => {
     // Raid data present
     expect(data.raids).toBeDefined();
     const raids = data.raids as Record<string, unknown>;
-    expect(raids.current_raid).toBe("Tomb of Sargeras");
+    expect(raids.expansion).toBe("Midnight");
+    expect((raids.raids as unknown[]).length).toBe(4);
   });
 
   it("has correct module metadata", () => {
