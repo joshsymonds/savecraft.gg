@@ -111,7 +111,7 @@
     },
     military: {
       naval_used: 285,
-      naval_cap: 220,
+      fleet_size: 653,
       wars: [
         {
           name: "War in Heaven",
@@ -235,7 +235,7 @@
     },
     military: {
       naval_used: 145,
-      naval_cap: 200,
+      fleet_size: 95,
       wars: [],
     },
     politics: {
@@ -289,7 +289,7 @@
     },
     military: {
       naval_used: 168,
-      naval_cap: 230,
+      fleet_size: 180,
       wars: [],
     },
     politics: {
@@ -326,7 +326,7 @@
     },
     military: {
       naval_used: 18,
-      naval_cap: 40,
+      fleet_size: 12,
       wars: [],
     },
     politics: {

@@ -102,6 +102,14 @@ struct ThreatsSection {
     crisis_type: Option<String>,
     crisis_countries: Option<Vec<ThreatCountry>>,
     fallen_empires: Option<Vec<FallenEmpireEntry>>,
+    hostile_neighbors: Option<Vec<HostileNeighborEntry>>,
+}
+
+#[derive(Deserialize)]
+struct HostileNeighborEntry {
+    country_id: Option<String>,
+    military_power: Option<f64>,
+    cb_types: Option<Vec<String>>,
 }
 
 #[derive(Deserialize)]
@@ -181,7 +189,7 @@ struct PlanetProblem {
 #[derive(Serialize)]
 struct MilitaryOutput {
     naval_used: i64,
-    naval_cap: i64,
+    fleet_size: i64,
     wars: Vec<WarProblem>,
 }
 
@@ -470,9 +478,7 @@ fn diagnose_stability(planets: &PlanetsSection) -> StabilityOutput {
 
 fn diagnose_military(military: &MilitarySection, wars: &WarsSection) -> MilitaryOutput {
     let naval_used = military.used_naval_capacity.unwrap_or(0);
-    // We don't have naval_cap from the parser — approximate from empire_size
-    // TODO: extract actual naval capacity from the save when parser supports it
-    let naval_cap = naval_used + 50; // placeholder until we have real cap
+    let fleet_size = military.fleet_size.unwrap_or(0);
 
     let active_wars = wars.active_wars.as_deref().unwrap_or(&[]);
     let mut war_problems = Vec::new();
@@ -518,7 +524,7 @@ fn diagnose_military(military: &MilitarySection, wars: &WarsSection) -> Military
 
     MilitaryOutput {
         naval_used,
-        naval_cap,
+        fleet_size,
         wars: war_problems,
     }
 }
@@ -614,8 +620,8 @@ fn diagnose_threats(
             };
             hostile_empires.push(HostileEmpire {
                 name: format!(
-                    "Awakened {}",
-                    fe.country_id.as_deref().unwrap_or("Empire")
+                    "Awakened Empire #{}",
+                    fe.country_id.as_deref().unwrap_or("?")
                 ),
                 severity: "severe".to_string(),
                 reason: "awakened_fe".to_string(),
@@ -626,16 +632,28 @@ fn diagnose_threats(
         }
     }
 
-    // Add diplomatic threats from relations
+    // Add hostile neighbors — countries with CBs against the player (from threats section)
+    if let Some(neighbors) = &threats.hostile_neighbors {
+        for n in neighbors {
+            let mil = n.military_power.unwrap_or(0.0);
+            let ratio = if player_military_power > 0.0 {
+                mil / player_military_power
+            } else {
+                99.0
+            };
+            hostile_empires.push(HostileEmpire {
+                name: format!("Empire #{}", n.country_id.as_deref().unwrap_or("?")),
+                severity: "critical".to_string(),
+                reason: "casus_belli".to_string(),
+                military_power: mil,
+                player_military_power,
+                power_ratio: ratio,
+            });
+        }
+    }
+
+    // Add diplomatic threats (hostile status, closed borders) from player's relations
     let relations = diplomacy.relations.as_deref().unwrap_or(&[]);
-    let casus_belli = diplomacy.casus_belli.as_deref().unwrap_or(&[]);
-
-    // Build set of countries with CB against the player
-    let cb_countries: std::collections::HashSet<i64> = casus_belli
-        .iter()
-        .filter_map(|cb| cb.target_country)
-        .collect();
-
     for rel in relations {
         let country_id = match rel.country {
             Some(id) => id,
@@ -645,22 +663,31 @@ fn diagnose_threats(
         let hostile = rel.hostile.unwrap_or(false);
         let closed_borders = rel.closed_borders.unwrap_or(false);
 
-        // Determine threat level
-        let (severity, reason) = if cb_countries.contains(&country_id) {
-            ("critical", "casus_belli")
-        } else if hostile {
+        // Skip if already added as hostile neighbor (has CB)
+        if threats.hostile_neighbors.as_ref().map_or(false, |ns| {
+            ns.iter().any(|n| {
+                n.country_id
+                    .as_deref()
+                    .and_then(|id| id.parse::<i64>().ok())
+                    == Some(country_id)
+            })
+        }) {
+            continue;
+        }
+
+        let (severity, reason) = if hostile {
             ("severe", "hostile")
         } else if closed_borders && opinion < -50.0 {
             ("moderate", "closed_borders_low_opinion")
         } else {
-            continue; // not a threat
+            continue;
         };
 
         hostile_empires.push(HostileEmpire {
             name: format!("Empire #{}", country_id),
             severity: severity.to_string(),
             reason: reason.to_string(),
-            military_power: 0.0, // we don't have other empires' military power from diplomacy
+            military_power: 0.0, // diplomacy doesn't have other empires' power
             player_military_power,
             power_ratio: 0.0,
         });
@@ -731,7 +758,7 @@ fn count_problems(
     if stability.planets.is_empty() {
         healthy += 1;
     }
-    if military.wars.iter().all(|w| w.severity == "healthy") && military.naval_used <= military.naval_cap {
+    if military.wars.iter().all(|w| w.severity == "healthy") {
         healthy += 1;
     }
     if politics.factions.iter().all(|f| f.severity == "healthy") {

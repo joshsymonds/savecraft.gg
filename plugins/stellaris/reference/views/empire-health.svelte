@@ -67,7 +67,7 @@
       summary: { critical: number; severe: number; moderate: number; healthy_dimensions: number };
       economy: { problems: EconomyProblem[] };
       stability: { problem_count: number; worst_stability: number; planets: PlanetProblem[] };
-      military: { naval_used: number; naval_cap: number; wars: War[] };
+      military: { naval_used: number; fleet_size: number; wars: War[] };
       politics: { factions: Faction[] };
       threats: { crisis_active: boolean; crisis_type: string | null; hostile_empires: HostileEmpire[] };
     };
@@ -195,16 +195,10 @@
     }))
   );
 
-  let navalPercent = $derived(
-    data.military.naval_cap > 0 ? Math.round((data.military.naval_used / data.military.naval_cap) * 100) : 0
-  );
-
-  let navalVariant = $derived<"positive" | "negative" | "warning" | "info">(
-    data.military.naval_used > data.military.naval_cap ? "negative"
-    : navalPercent > 90 ? "warning"
-    : navalPercent < 50 ? "info"
-    : "positive"
-  );
+  let fleetStats = $derived([
+    { key: "Fleet Size", value: data.military.fleet_size.toLocaleString() },
+    { key: "Naval Capacity Used", value: data.military.naval_used.toLocaleString() },
+  ]);
 </script>
 
 <Panel>
@@ -326,21 +320,11 @@
     <!-- ═══ Military ═══ -->
     <Section
       title="Military"
-      accent={sectionAccent([...data.military.wars, ...(data.military.naval_used > data.military.naval_cap ? [{ severity: "severe" as Severity }] : [])])}
+      accent={sectionAccent(data.military.wars)}
       count={data.military.wars.length > 0 ? data.military.wars.length : undefined}
     >
-      <div class="naval-section">
-        <div class="naval-header">
-          <span class="naval-label">Naval Capacity</span>
-          <span class="naval-numbers">{data.military.naval_used} / {data.military.naval_cap}</span>
-        </div>
-        <ProgressBar
-          value={data.military.naval_used}
-          max={data.military.naval_cap}
-          label="{navalPercent}%"
-          variant={navalVariant}
-          height={14}
-        />
+      <div class="fleet-section">
+        <KeyValue items={fleetStats} columns={2} />
       </div>
 
       {#if data.military.wars.length === 0}
@@ -560,33 +544,8 @@
 
   /* ── Military ── */
 
-  .naval-section {
+  .fleet-section {
     margin-bottom: var(--space-md);
-    padding: var(--space-sm) var(--space-md);
-    background: color-mix(in srgb, var(--color-surface) 60%, transparent);
-    border-radius: var(--radius-sm);
-  }
-
-  .naval-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: var(--space-xs);
-  }
-
-  .naval-label {
-    font-family: var(--font-pixel);
-    font-size: 9px;
-    color: var(--color-text-muted);
-    text-transform: uppercase;
-    letter-spacing: 1.5px;
-  }
-
-  .naval-numbers {
-    font-family: var(--font-heading);
-    font-size: 14px;
-    font-weight: 700;
-    color: var(--color-text);
   }
 
   .war-list {
