@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 )
 
 // cardEmbeddingText builds the text to embed for a card's Vectorize vector.

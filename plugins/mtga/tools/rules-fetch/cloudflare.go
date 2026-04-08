@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 )
 
 // buildImportSQL generates a complete SQL string for bulk import.

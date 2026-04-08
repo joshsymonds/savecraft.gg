@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 )
 
 // buildFullCardImportSQL generates the SQL for D1 bulk import of full card data.

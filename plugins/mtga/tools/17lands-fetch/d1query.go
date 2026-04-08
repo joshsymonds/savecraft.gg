@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 )
 
 // fetchCardCMC queries D1 for card name → CMC mapping from mtga_cards.

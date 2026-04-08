@@ -1,0 +1,17 @@
+{
+  "id": 263,
+  "name": "Enhancement",
+  "playable_class": {
+    "key": {
+      "Href": "https://us.api.blizzard.com/data/wow/playable-class/7?namespace=static-12.0.1_65617-us"
+    },
+    "name": "Shaman",
+    "id": 7
+  },
+  "spec_talent_tree": {
+    "key": {
+      "Href": "https://us.api.blizzard.com/data/wow/talent-tree/786/playable-specialization/263?namespace=static-12.0.1_65617-us"
+    },
+    "name": "Enhancement"
+  }
+}

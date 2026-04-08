@@ -31,7 +31,7 @@ import (
 	"time"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/parser/data"
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 )
 
 // ScryfallCard represents the fields we extract from each Scryfall card object.

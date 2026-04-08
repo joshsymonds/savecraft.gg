@@ -25,7 +25,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 	"github.com/joshsymonds/savecraft.gg/plugins/mtga/tools/internal/sets"
 )
 
