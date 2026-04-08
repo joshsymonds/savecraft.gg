@@ -18,14 +18,18 @@
 package main
 
 import (
+	"bufio"
+	"encoding/csv"
 	"encoding/json"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"net/url"
 	"os"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -250,6 +254,127 @@ func ensureNamespace(href, ns string) string {
 }
 
 // ---------------------------------------------------------------------------
+// Wago.tools DB2 CSV fetching
+// ---------------------------------------------------------------------------
+
+// fetchSpecializationSpells downloads the SpecializationSpells DB2 table from wago.tools.
+// Returns a map of specID → []spellID for base class/spec abilities.
+func fetchSpecializationSpells() (map[int][]int, error) {
+	resp, err := http.Get("https://wago.tools/db2/SpecializationSpells/csv")
+	if err != nil {
+		return nil, fmt.Errorf("fetching SpecializationSpells: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SpecializationSpells: HTTP %d", resp.StatusCode)
+	}
+
+	reader := csv.NewReader(bufio.NewReader(resp.Body))
+	header, err := reader.Read()
+	if err != nil {
+		return nil, fmt.Errorf("reading CSV header: %w", err)
+	}
+
+	// Find column indices
+	specIDCol, spellIDCol := -1, -1
+	for i, col := range header {
+		switch col {
+		case "SpecID":
+			specIDCol = i
+		case "SpellID":
+			spellIDCol = i
+		}
+	}
+	if specIDCol < 0 || spellIDCol < 0 {
+		return nil, fmt.Errorf("SpecializationSpells CSV missing required columns (found: %v)", header)
+	}
+
+	result := make(map[int][]int)
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			continue // Skip malformed rows
+		}
+		if specIDCol >= len(record) || spellIDCol >= len(record) {
+			continue
+		}
+
+		specID, err1 := strconv.Atoi(record[specIDCol])
+		spellID, err2 := strconv.Atoi(record[spellIDCol])
+		if err1 != nil || err2 != nil || spellID == 0 {
+			continue
+		}
+
+		result[specID] = append(result[specID], spellID)
+	}
+
+	return result, nil
+}
+
+// fetchSpellNames downloads the SpellName DB2 table from wago.tools.
+// Returns a map of spellID → name for all spells in the game.
+func fetchSpellNames() (map[int]string, error) {
+	resp, err := http.Get("https://wago.tools/db2/SpellName/csv")
+	if err != nil {
+		return nil, fmt.Errorf("fetching SpellName: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("SpellName: HTTP %d", resp.StatusCode)
+	}
+
+	reader := csv.NewReader(bufio.NewReader(resp.Body))
+	header, err := reader.Read()
+	if err != nil {
+		return nil, fmt.Errorf("reading CSV header: %w", err)
+	}
+
+	// Find column indices
+	idCol, nameCol := -1, -1
+	for i, col := range header {
+		switch col {
+		case "ID":
+			idCol = i
+		case "Name_lang":
+			nameCol = i
+		}
+	}
+	if idCol < 0 || nameCol < 0 {
+		return nil, fmt.Errorf("SpellName CSV missing required columns (found: %v)", header)
+	}
+
+	result := make(map[int]string)
+	for {
+		record, err := reader.Read()
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			continue
+		}
+		if idCol >= len(record) || nameCol >= len(record) {
+			continue
+		}
+
+		id, err := strconv.Atoi(record[idCol])
+		if err != nil || id == 0 {
+			continue
+		}
+		name := record[nameCol]
+		if name != "" {
+			result[id] = name
+		}
+	}
+
+	return result, nil
+}
+
+// ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
 
@@ -421,7 +546,49 @@ func run() error {
 
 		time.Sleep(100 * time.Millisecond)
 	}
-	fmt.Printf("  ✓ %d total spell-spec assignments\n", len(allSpellSpecs))
+	fmt.Printf("  ✓ %d spell-spec assignments from talent trees\n", len(allSpellSpecs))
+
+	// Step 4b: Fetch base abilities from wago.tools SpecializationSpells
+	fmt.Println("Fetching base abilities from wago.tools SpecializationSpells...")
+	specSpellMap, err := fetchSpecializationSpells()
+	if err != nil {
+		fmt.Printf("  WARN: SpecializationSpells fetch failed: %v (continuing with talent tree data only)\n", err)
+	} else {
+		// Build specID → specInfo lookup
+		specByID := make(map[int]specInfo)
+		for _, s := range specs {
+			specByID[s.specID] = s
+		}
+
+		baseAbilityCount := 0
+		for specID, spellIDs := range specSpellMap {
+			si, ok := specByID[specID]
+			if !ok {
+				continue // Not a player spec (might be NPC or pet)
+			}
+			for _, spellID := range spellIDs {
+				allSpellSpecs = append(allSpellSpecs, spellSpec{
+					spellID:   spellID,
+					spellName: "", // Will be resolved from SpellName CSV or Blizzard API
+					spec:      si,
+				})
+				baseAbilityCount++
+			}
+		}
+		fmt.Printf("  ✓ %d base ability assignments from SpecializationSpells\n", baseAbilityCount)
+	}
+
+	// Step 4c: Fetch spell names from wago.tools SpellName
+	fmt.Println("Fetching spell names from wago.tools SpellName...")
+	spellNameMap, err := fetchSpellNames()
+	if err != nil {
+		fmt.Printf("  WARN: SpellName fetch failed: %v (will rely on Blizzard API only)\n", err)
+		spellNameMap = make(map[int]string)
+	} else {
+		fmt.Printf("  ✓ %d spell names loaded\n", len(spellNameMap))
+	}
+
+	fmt.Printf("  Total: %d spell-spec assignments (talent trees + base abilities)\n", len(allSpellSpecs))
 
 	// Step 5: Fetch unique spell descriptions (concurrent, max 10)
 	uniqueSpellIDs := make(map[int]bool)
@@ -492,11 +659,17 @@ func run() error {
 		}
 		seen[key] = true
 
+		// Priority for name: Blizzard API > SpellName CSV > talent tree tooltip
 		name := ss.spellName
 		description := ""
 		if detail, ok := spellDetails[ss.spellID]; ok {
 			name = detail.Name
 			description = detail.Description
+		} else if csvName, ok := spellNameMap[ss.spellID]; ok {
+			name = csvName
+		}
+		if name == "" {
+			continue // Skip entries with no name at all
 		}
 
 		entries = append(entries, spellEntry{
@@ -520,7 +693,15 @@ func run() error {
 		return entries[i].name < entries[j].name
 	})
 
-	fmt.Printf("  %d unique spell-spec entries\n", len(entries))
+	// Count entries with and without descriptions
+	withDesc := 0
+	for _, e := range entries {
+		if e.description != "" {
+			withDesc++
+		}
+	}
+	fmt.Printf("  %d unique spell-spec entries (%d with descriptions, %d name-only)\n",
+		len(entries), withDesc, len(entries)-withDesc)
 
 	var sb strings.Builder
 	sb.WriteString("DELETE FROM wow_spells;\nDELETE FROM wow_spells_fts;\n")
