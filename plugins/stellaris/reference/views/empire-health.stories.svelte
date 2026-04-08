@@ -4,7 +4,7 @@
   import EmpireHealth from "./empire-health.svelte";
 
   const { Story } = defineMeta({
-    title: "Stellaris/Views/EmpireHealth",
+    title: "Stellaris/EmpireHealth",
     tags: ["autodocs"],
   });
 
