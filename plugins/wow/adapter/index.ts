@@ -13,6 +13,11 @@ import {
 } from "../../../worker/src/adapters/adapter";
 import type { Env } from "../../../worker/src/types";
 import {
+  BlizzardApiError,
+  blizzardFetch,
+  getAppToken,
+} from "../shared/blizzard-api";
+import {
   mapCharacterOverview,
   mapCharacterStats,
   mapEquippedGear,
@@ -80,94 +85,43 @@ const RAIDERIO_FIELDS = [
 // ---------------------------------------------------------------------------
 
 /**
- * Per-isolate, best-effort cache for Blizzard app token (valid ~24h).
- * Each Workers isolate gets its own module scope; cache resets on isolate eviction.
+ * Adapter-aware wrapper around shared blizzardFetch.
+ * Catches BlizzardApiError and converts to AdapterError with user-facing context.
  */
-let cachedAppToken: { token: string; expiresAt: number } | null = null;
-
-async function getAppToken(env: Env): Promise<string> {
-  // Return cached token if still valid (with 5-minute safety margin)
-  if (cachedAppToken && Date.now() < cachedAppToken.expiresAt - 5 * 60 * 1000) {
-    return cachedAppToken.token;
-  }
-
-  const tokenUrl =
-    OAUTH_URLS[env.BATTLENET_REGION ?? "us"]?.token ??
-    "https://oauth.battle.net/token";
-
-  const res = await fetch(tokenUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({
-      grant_type: "client_credentials",
-      client_id: env.BATTLENET_CLIENT_ID ?? "",
-      client_secret: env.BATTLENET_CLIENT_SECRET ?? "",
-    }),
-  });
-
-  if (!res.ok) {
-    throw new AdapterError(
-      "api_unavailable",
-      `Failed to get Blizzard app token: HTTP ${res.status}`,
-    );
-  }
-
-  const data = (await res.json()) as { access_token?: string; expires_in?: number };
-  if (!data.access_token) {
-    throw new AdapterError(
-      "api_unavailable",
-      "Blizzard token response missing access_token",
-    );
-  }
-
-  const expiresInMs = (data.expires_in ?? 86400) * 1000;
-  cachedAppToken = { token: data.access_token, expiresAt: Date.now() + expiresInMs };
-
-  return data.access_token;
-}
-
-function handleBlizzardError(status: number, context: string): never {
-  switch (status) {
-    case 401:
-      throw new AdapterError("token_expired", `Blizzard API: ${context}`, {
-        userAction:
-          "Reconnect your Battle.net account at savecraft.gg/settings",
-      });
-    case 404:
-      throw new AdapterError(
-        "character_not_found",
-        `Character not found: ${context}`,
-      );
-    case 429: {
-      throw new AdapterError(
-        "rate_limited",
-        `Blizzard API rate limited: ${context}`,
-        { retryAfter: 60 },
-      );
-    }
-    default:
-      throw new AdapterError(
-        "api_unavailable",
-        `Blizzard API error ${status}: ${context}`,
-      );
-  }
-}
-
-async function blizzardFetch<T>(
+async function adapterFetch<T>(
   url: string,
   token: string,
 ): Promise<{ data: T; lastModified: string | null }> {
-  const res = await fetch(url, {
-    headers: { Authorization: `Bearer ${token}` },
-  });
-
-  if (!res.ok) {
-    handleBlizzardError(res.status, url);
+  try {
+    return await blizzardFetch<T>(url, token);
+  } catch (e) {
+    if (e instanceof BlizzardApiError && e.status !== undefined) {
+      switch (e.status) {
+        case 401:
+          throw new AdapterError("token_expired", `Blizzard API: ${url}`, {
+            userAction:
+              "Reconnect your Battle.net account at savecraft.gg/settings",
+          });
+        case 404:
+          throw new AdapterError(
+            "character_not_found",
+            `Character not found: ${url}`,
+          );
+        case 429:
+          throw new AdapterError(
+            "rate_limited",
+            `Blizzard API rate limited: ${url}`,
+            { retryAfter: 60 },
+          );
+        default:
+          throw new AdapterError(
+            "api_unavailable",
+            `Blizzard API error ${e.status}: ${url}`,
+          );
+      }
+    }
+    throw e;
   }
-
-  const data = (await res.json()) as T;
-  const lastModified = res.headers.get("Last-Modified");
-  return { data, lastModified };
 }
 
 // ---------------------------------------------------------------------------
@@ -322,28 +276,28 @@ export const wowAdapter: ApiAdapter = {
       professionsResult,
       raiderio,
     ] = await Promise.all([
-      blizzardFetch<BlizzardProfile>(`${base}/${charPath}?${ns}`, token),
-      blizzardFetch<BlizzardEquipment>(
+      adapterFetch<BlizzardProfile>(`${base}/${charPath}?${ns}`, token),
+      adapterFetch<BlizzardEquipment>(
         `${base}/${charPath}/equipment?${ns}`,
         token,
       ),
-      blizzardFetch<BlizzardStatistics>(
+      adapterFetch<BlizzardStatistics>(
         `${base}/${charPath}/statistics?${ns}`,
         token,
       ),
-      blizzardFetch<BlizzardSpecializations>(
+      adapterFetch<BlizzardSpecializations>(
         `${base}/${charPath}/specializations?${ns}`,
         token,
       ),
-      blizzardFetch<BlizzardMythicKeystoneProfile>(
+      adapterFetch<BlizzardMythicKeystoneProfile>(
         `${base}/${charPath}/mythic-keystone-profile?${ns}`,
         token,
       ),
-      blizzardFetch<BlizzardRaids>(
+      adapterFetch<BlizzardRaids>(
         `${base}/${charPath}/encounters/raids?${ns}`,
         token,
       ),
-      blizzardFetch<BlizzardProfessions>(
+      adapterFetch<BlizzardProfessions>(
         `${base}/${charPath}/professions?${ns}`,
         token,
       ),
@@ -355,7 +309,7 @@ export const wowAdapter: ApiAdapter = {
     let mythicKeystoneSeason: BlizzardMythicKeystoneSeason | undefined;
     if (currentSeasonId !== undefined) {
       try {
-        const seasonResult = await blizzardFetch<BlizzardMythicKeystoneSeason>(
+        const seasonResult = await adapterFetch<BlizzardMythicKeystoneSeason>(
           `${base}/${charPath}/mythic-keystone-profile/season/${currentSeasonId}?${ns}`,
           token,
         );
