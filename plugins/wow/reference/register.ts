@@ -5,5 +5,7 @@
 
 import { registerNativeModule } from "../../../worker/src/reference/registry";
 import { abilityLookupModule } from "./ability-lookup";
+import { seasonInfoModule } from "./season-info";
 
 registerNativeModule("wow", abilityLookupModule);
+registerNativeModule("wow", seasonInfoModule);
