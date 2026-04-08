@@ -25,7 +25,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"regexp"
 	"sort"
@@ -35,44 +34,8 @@ import (
 	"time"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/wow/tools/shared"
 )
-
-// ---------------------------------------------------------------------------
-// Blizzard OAuth
-// ---------------------------------------------------------------------------
-
-func getAppToken(clientID, clientSecret, region string) (string, error) {
-	tokenURL := "https://oauth.battle.net/token"
-	if region == "kr" || region == "tw" {
-		tokenURL = "https://apac.oauth.battle.net/token"
-	}
-
-	resp, err := http.PostForm(tokenURL, url.Values{
-		"grant_type":    {"client_credentials"},
-		"client_id":     {clientID},
-		"client_secret": {clientSecret},
-	})
-	if err != nil {
-		return "", fmt.Errorf("token request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("token request: HTTP %d", resp.StatusCode)
-	}
-
-	var result struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decoding token: %w", err)
-	}
-	if result.AccessToken == "" {
-		return "", fmt.Errorf("empty access_token in response")
-	}
-
-	return result.AccessToken, nil
-}
 
 // ---------------------------------------------------------------------------
 // Blizzard API types
@@ -206,23 +169,6 @@ type spellFromTree struct {
 // ---------------------------------------------------------------------------
 
 var treeIDRegex = regexp.MustCompile(`/talent-tree/(\d+)/`)
-
-func blizzardGet(apiURL, token string, out any) error {
-	req, _ := http.NewRequest("GET", apiURL, nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("GET %s: %w", apiURL, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GET %s: HTTP %d", apiURL, resp.StatusCode)
-	}
-
-	return json.NewDecoder(resp.Body).Decode(out)
-}
 
 func extractSpellIDs(nodes []talentNode) map[int]spellFromTree {
 	spells := make(map[int]spellFromTree)
@@ -410,7 +356,7 @@ func run() error {
 	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (required)")
 	bnetClientID := flag.String("battlenet-client-id", os.Getenv("BATTLENET_CLIENT_ID"), "Battle.net client ID")
 	bnetClientSecret := flag.String("battlenet-client-secret", os.Getenv("BATTLENET_CLIENT_SECRET"), "Battle.net client secret")
-	bnetRegion := flag.String("battlenet-region", envOrDefault("BATTLENET_REGION", "us"), "Battle.net region")
+	bnetRegion := flag.String("battlenet-region", shared.EnvOrDefault("BATTLENET_REGION", "us"), "Battle.net region")
 	saveFixtures := flag.Bool("save-fixtures", false, "Save raw API responses to plugins/wow/testdata/")
 	flag.Parse()
 
@@ -440,7 +386,7 @@ func run() error {
 
 	// Step 1: Auth
 	fmt.Println("Authenticating with Battle.net...")
-	token, err := getAppToken(*bnetClientID, *bnetClientSecret, region)
+	token, err := shared.GetAppToken(*bnetClientID, *bnetClientSecret, region)
 	if err != nil {
 		return fmt.Errorf("auth: %w", err)
 	}
@@ -449,7 +395,7 @@ func run() error {
 	// Step 2: Fetch all specs
 	fmt.Println("Fetching specialization index...")
 	var specIndex specIndexResponse
-	if err := blizzardGet(fmt.Sprintf("%s/data/wow/playable-specialization/index?%s", base, ns), token, &specIndex); err != nil {
+	if err := shared.BlizzardGet(fmt.Sprintf("%s/data/wow/playable-specialization/index?%s", base, ns), token, &specIndex); err != nil {
 		return fmt.Errorf("spec index: %w", err)
 	}
 	fmt.Printf("  Found %d specializations\n", len(specIndex.CharacterSpecializations))
@@ -460,7 +406,7 @@ func run() error {
 	for _, s := range specIndex.CharacterSpecializations {
 		var detail specDetailResponse
 		specURL := fmt.Sprintf("%s/data/wow/playable-specialization/%d?%s", base, s.ID, ns)
-		if err := blizzardGet(specURL, token, &detail); err != nil {
+		if err := shared.BlizzardGet(specURL, token, &detail); err != nil {
 			fmt.Printf("  WARN: skip spec %d (%s): %v\n", s.ID, s.Name, err)
 			continue
 		}
@@ -484,11 +430,11 @@ func run() error {
 	fmt.Printf("  ✓ Got %d spec details\n", len(specs))
 
 	if *saveFixtures {
-		saveJSON("plugins/wow/testdata/blizzard-spec-index.json", specIndex)
+		shared.SaveJSON("plugins/wow/testdata/blizzard-spec-index.json", specIndex)
 		if len(specs) > 0 {
 			var detail specDetailResponse
-			blizzardGet(fmt.Sprintf("%s/data/wow/playable-specialization/%d?%s", base, specs[0].specID, ns), token, &detail)
-			saveJSON("plugins/wow/testdata/blizzard-spec-detail.json", detail)
+			shared.BlizzardGet(fmt.Sprintf("%s/data/wow/playable-specialization/%d?%s", base, specs[0].specID, ns), token, &detail)
+			shared.SaveJSON("plugins/wow/testdata/blizzard-spec-detail.json", detail)
 		}
 	}
 
@@ -518,7 +464,7 @@ func run() error {
 		// Fetch the class talent tree (shared nodes)
 		var classTree talentTreeResponse
 		treeURL := fmt.Sprintf("%s/data/wow/talent-tree/%d?%s", base, treeID, ns)
-		if err := blizzardGet(treeURL, token, &classTree); err != nil {
+		if err := shared.BlizzardGet(treeURL, token, &classTree); err != nil {
 			fmt.Printf("    WARN: skip class tree %d: %v\n", treeID, err)
 			continue
 		}
@@ -553,7 +499,7 @@ func run() error {
 				continue
 			}
 			var specTree specTalentTreeResponse
-			if err := blizzardGet(ensureNamespace(s.treeURL, ns), token, &specTree); err != nil {
+			if err := shared.BlizzardGet(ensureNamespace(s.treeURL, ns), token, &specTree); err != nil {
 				fmt.Printf("    WARN: skip spec tree for %s: %v\n", s.specName, err)
 				continue
 			}
@@ -638,7 +584,7 @@ func run() error {
 			defer func() { <-sem }()
 
 			var spell spellResponse
-			if err := blizzardGet(fmt.Sprintf("%s/data/wow/spell/%d?%s", base, id, ns), token, &spell); err != nil {
+			if err := shared.BlizzardGet(fmt.Sprintf("%s/data/wow/spell/%d?%s", base, id, ns), token, &spell); err != nil {
 				mu.Lock()
 				fetchErrors++
 				mu.Unlock()
@@ -662,7 +608,7 @@ func run() error {
 		count := 0
 		for _, id := range sortedIDs {
 			if detail, ok := spellDetails[id]; ok && count < 3 {
-				saveJSON(fmt.Sprintf("plugins/wow/testdata/blizzard-spell-%d.json", id), detail)
+				shared.SaveJSON(fmt.Sprintf("plugins/wow/testdata/blizzard-spell-%d.json", id), detail)
 				count++
 			}
 		}
@@ -779,28 +725,4 @@ func run() error {
 	fmt.Printf("  ✓ Imported %d spell-spec entries to D1\n", len(entries))
 
 	return nil
-}
-
-func envOrDefault(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func saveJSON(path string, v any) {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		fmt.Printf("  WARN: couldn't marshal fixture: %v\n", err)
-		return
-	}
-	if err := os.MkdirAll("plugins/wow/testdata", 0o755); err != nil {
-		fmt.Printf("  WARN: couldn't create testdata dir: %v\n", err)
-		return
-	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		fmt.Printf("  WARN: couldn't write fixture %s: %v\n", path, err)
-		return
-	}
-	fmt.Printf("  Saved fixture: %s\n", path)
 }

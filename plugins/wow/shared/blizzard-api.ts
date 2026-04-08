@@ -52,6 +52,12 @@ export async function getAppToken(env: Env): Promise<string> {
     return cachedAppToken.token;
   }
 
+  if (!env.BATTLENET_CLIENT_ID || !env.BATTLENET_CLIENT_SECRET) {
+    throw new BlizzardApiError(
+      "Battle.net credentials not configured (BATTLENET_CLIENT_ID and BATTLENET_CLIENT_SECRET required)",
+    );
+  }
+
   const tokenUrl =
     TOKEN_URLS[env.BATTLENET_REGION ?? "us"] ?? "https://oauth.battle.net/token";
 
@@ -60,8 +66,8 @@ export async function getAppToken(env: Env): Promise<string> {
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "client_credentials",
-      client_id: env.BATTLENET_CLIENT_ID ?? "",
-      client_secret: env.BATTLENET_CLIENT_SECRET ?? "",
+      client_id: env.BATTLENET_CLIENT_ID,
+      client_secret: env.BATTLENET_CLIENT_SECRET,
     }),
   });
 

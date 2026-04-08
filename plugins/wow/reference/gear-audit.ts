@@ -148,6 +148,11 @@ export const gearAuditModule: NativeReferenceModule = {
       type: "string",
       description: "The player's save UUID. Required to read equipped gear data.",
     },
+    gear_section: {
+      type: "string",
+      description:
+        "Section name to load gear data from. Pass 'equipped_gear' with a save_id to auto-load the player's gear.",
+    },
     check: {
       type: "string",
       description:
@@ -156,13 +161,13 @@ export const gearAuditModule: NativeReferenceModule = {
     gear_data: {
       type: "object",
       description:
-        "Direct gear data (for testing). Normally populated via section mapping from save_id.",
+        "Direct gear data (for testing). Normally populated via section mapping from gear_section + save_id.",
     },
   },
 
   sectionMappings: [
     {
-      sectionParam: "save_id",
+      sectionParam: "gear_section",
       extract: (sectionData: unknown): Record<string, unknown> => {
         return { gear_data: sectionData };
       },

@@ -17,54 +17,16 @@
 package main
 
 import (
-	"encoding/json"
 	"flag"
 	"fmt"
-	"net/http"
-	"net/url"
 	"os"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
+	"github.com/joshsymonds/savecraft.gg/plugins/wow/tools/shared"
 )
-
-// ---------------------------------------------------------------------------
-// Blizzard OAuth (same as spell-fetch)
-// ---------------------------------------------------------------------------
-
-func getAppToken(clientID, clientSecret, region string) (string, error) {
-	tokenURL := "https://oauth.battle.net/token"
-	if region == "kr" || region == "tw" {
-		tokenURL = "https://apac.oauth.battle.net/token"
-	}
-
-	resp, err := http.PostForm(tokenURL, url.Values{
-		"grant_type":    {"client_credentials"},
-		"client_id":     {clientID},
-		"client_secret": {clientSecret},
-	})
-	if err != nil {
-		return "", fmt.Errorf("token request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("token request: HTTP %d", resp.StatusCode)
-	}
-
-	var result struct {
-		AccessToken string `json:"access_token"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
-		return "", fmt.Errorf("decoding token: %w", err)
-	}
-	if result.AccessToken == "" {
-		return "", fmt.Errorf("empty access_token in response")
-	}
-	return result.AccessToken, nil
-}
 
 // ---------------------------------------------------------------------------
 // Blizzard API types
@@ -140,23 +102,6 @@ type abilityEntry struct {
 // Helpers
 // ---------------------------------------------------------------------------
 
-func blizzardGet(apiURL, token string, out any) error {
-	req, _ := http.NewRequest("GET", apiURL, nil)
-	req.Header.Set("Authorization", "Bearer "+token)
-
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return fmt.Errorf("GET %s: %w", apiURL, err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("GET %s: HTTP %d", apiURL, resp.StatusCode)
-	}
-
-	return json.NewDecoder(resp.Body).Decode(out)
-}
-
 // extractAbilities recursively extracts spell abilities from encounter sections.
 func extractAbilities(sections []encounterSection, encounterID int) []abilityEntry {
 	var abilities []abilityEntry
@@ -198,7 +143,7 @@ func run() error {
 	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (required)")
 	bnetClientID := flag.String("battlenet-client-id", os.Getenv("BATTLENET_CLIENT_ID"), "Battle.net client ID")
 	bnetClientSecret := flag.String("battlenet-client-secret", os.Getenv("BATTLENET_CLIENT_SECRET"), "Battle.net client secret")
-	bnetRegion := flag.String("battlenet-region", envOrDefault("BATTLENET_REGION", "us"), "Battle.net region")
+	bnetRegion := flag.String("battlenet-region", shared.EnvOrDefault("BATTLENET_REGION", "us"), "Battle.net region")
 	saveFixtures := flag.Bool("save-fixtures", false, "Save raw API responses to plugins/wow/testdata/")
 	flag.Parse()
 
@@ -228,7 +173,7 @@ func run() error {
 
 	// Step 1: Auth
 	fmt.Println("Authenticating with Battle.net...")
-	token, err := getAppToken(*bnetClientID, *bnetClientSecret, region)
+	token, err := shared.GetAppToken(*bnetClientID, *bnetClientSecret, region)
 	if err != nil {
 		return fmt.Errorf("auth: %w", err)
 	}
@@ -237,7 +182,7 @@ func run() error {
 	// Step 2: Get current expansion's instances
 	fmt.Println("Fetching expansion index...")
 	var expIndex expansionIndexResponse
-	if err := blizzardGet(fmt.Sprintf("%s/data/wow/journal-expansion/index?%s", base, ns), token, &expIndex); err != nil {
+	if err := shared.BlizzardGet(fmt.Sprintf("%s/data/wow/journal-expansion/index?%s", base, ns), token, &expIndex); err != nil {
 		return fmt.Errorf("expansion index: %w", err)
 	}
 
@@ -253,7 +198,7 @@ func run() error {
 	fmt.Printf("  Latest expansion: %s (ID %d)\n", latestName, latestID)
 
 	var expDetail expansionDetailResponse
-	if err := blizzardGet(fmt.Sprintf("%s/data/wow/journal-expansion/%d?%s", base, latestID, ns), token, &expDetail); err != nil {
+	if err := shared.BlizzardGet(fmt.Sprintf("%s/data/wow/journal-expansion/%d?%s", base, latestID, ns), token, &expDetail); err != nil {
 		return fmt.Errorf("expansion detail: %w", err)
 	}
 
@@ -269,7 +214,7 @@ func run() error {
 		fmt.Printf("  %s (ID %d)...\n", inst.Name, inst.ID)
 
 		var instDetail instanceDetailResponse
-		if err := blizzardGet(fmt.Sprintf("%s/data/wow/journal-instance/%d?%s", base, inst.ID, ns), token, &instDetail); err != nil {
+		if err := shared.BlizzardGet(fmt.Sprintf("%s/data/wow/journal-instance/%d?%s", base, inst.ID, ns), token, &instDetail); err != nil {
 			fmt.Printf("    WARN: skip instance %d: %v\n", inst.ID, err)
 			continue
 		}
@@ -284,7 +229,7 @@ func run() error {
 
 			// Fetch encounter detail for abilities
 			var encDetail encounterDetailResponse
-			if err := blizzardGet(fmt.Sprintf("%s/data/wow/journal-encounter/%d?%s", base, enc.ID, ns), token, &encDetail); err != nil {
+			if err := shared.BlizzardGet(fmt.Sprintf("%s/data/wow/journal-encounter/%d?%s", base, enc.ID, ns), token, &encDetail); err != nil {
 				fmt.Printf("    WARN: skip encounter %d (%s): %v\n", enc.ID, enc.Name, err)
 				continue
 			}
@@ -294,14 +239,14 @@ func run() error {
 			fmt.Printf("    %s: %d abilities\n", enc.Name, len(encAbilities))
 
 			if *saveFixtures && enc.ID == instDetail.Encounters[0].ID {
-				saveJSON(fmt.Sprintf("plugins/wow/testdata/blizzard-encounter-%d.json", enc.ID), encDetail)
+				shared.SaveJSON(fmt.Sprintf("plugins/wow/testdata/blizzard-encounter-%d.json", enc.ID), encDetail)
 			}
 
 			time.Sleep(50 * time.Millisecond)
 		}
 
 		if *saveFixtures {
-			saveJSON(fmt.Sprintf("plugins/wow/testdata/blizzard-instance-%d.json", inst.ID), instDetail)
+			shared.SaveJSON(fmt.Sprintf("plugins/wow/testdata/blizzard-instance-%d.json", inst.ID), instDetail)
 		}
 
 		time.Sleep(100 * time.Millisecond)
@@ -356,26 +301,3 @@ func run() error {
 	return nil
 }
 
-func envOrDefault(key, def string) string {
-	if v := os.Getenv(key); v != "" {
-		return v
-	}
-	return def
-}
-
-func saveJSON(path string, v any) {
-	data, err := json.MarshalIndent(v, "", "  ")
-	if err != nil {
-		fmt.Printf("  WARN: couldn't marshal fixture: %v\n", err)
-		return
-	}
-	if err := os.MkdirAll("plugins/wow/testdata", 0o755); err != nil {
-		fmt.Printf("  WARN: couldn't create testdata dir: %v\n", err)
-		return
-	}
-	if err := os.WriteFile(path, data, 0o644); err != nil {
-		fmt.Printf("  WARN: couldn't write fixture %s: %v\n", path, err)
-		return
-	}
-	fmt.Printf("    Saved fixture: %s\n", path)
-}
