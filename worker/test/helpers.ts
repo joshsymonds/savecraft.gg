@@ -49,6 +49,8 @@ export const CLEANUP_TABLES = [
   "mtga_meta_decklists",
   "mtga_meta_matchups",
   "mtga_meta_archetypes",
+  "wow_spells_fts",
+  "wow_spells",
 ] as const;
 
 /**

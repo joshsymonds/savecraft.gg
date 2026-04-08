@@ -1,5 +1,6 @@
 // Side-effect import: register native reference modules
 import "../../plugins/mtga/reference/register";
+import "../../plugins/wow/reference/register";
 
 import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError, type ApiAdapter } from "./adapters/adapter";
 import { discoverAndReconcileSaves } from "./adapters/discover";
