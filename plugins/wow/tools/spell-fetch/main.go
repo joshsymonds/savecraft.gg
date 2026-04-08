@@ -765,6 +765,12 @@ func run() error {
 	sql := sb.String()
 	fmt.Printf("  SQL size: %.1f KB\n", float64(len(sql))/1024)
 
+	// Note: hash-based skip detection (like MTGA's pipeline_state) doesn't work
+	// well here because concurrent Blizzard spell API fetches produce slightly
+	// different results each run (varying success rates). The spell-spec assignments
+	// are deterministic, but description fetch is not. Since this pipeline runs
+	// manually per patch (~monthly), full reimport on every run is acceptable.
+
 	// Step 7: Import to D1
 	fmt.Println("Importing to D1...")
 	if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
