@@ -355,7 +355,7 @@ const TOOLS: ToolDefinition[] = [
         query: {
           type: "string",
           description:
-            "Keywords to search for. Supports prefix matching (drag*) and boolean operators (sword OR shield).",
+            "Keywords to search for. Default to OR between terms for broad matches (armor OR shield OR vest). Bare space is implicit AND — only use when ALL terms must appear in the same section. Supports prefix matching (drag*). Save data is stored in the player's game language — if you have seen Spanish, Korean, or other non-English section data, search in that language.",
         },
         save_id: {
           type: "string",
