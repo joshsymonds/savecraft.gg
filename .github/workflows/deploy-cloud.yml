@@ -35,13 +35,29 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: worker/package-lock.json
+          cache-dependency-path: |
+            worker/package-lock.json
+            views/package-lock.json
 
       - run: npm ci
+
+      - name: Install views dependencies
+        run: npm ci
+        working-directory: views
+
+      - run: npm install -g tsx@4.21.0
 
       - uses: taiki-e/install-action@a3324fb0eb94b8230ec968c3389c1b7929fc2f3b # v2
         with:
           tool: just
+
+      - name: Generate manifests
+        run: just build-manifests
+        working-directory: .
+
+      - name: Generate views
+        run: just build-views
+        working-directory: .
 
       - name: Lint
         run: just lint-worker
@@ -199,11 +215,29 @@ jobs:
         with:
           node-version: "22"
           cache: npm
-          cache-dependency-path: worker/package-lock.json
+          cache-dependency-path: |
+            worker/package-lock.json
+            views/package-lock.json
 
       - name: Install dependencies
         run: npm ci
         working-directory: worker
+
+      - name: Install views dependencies
+        run: npm ci
+        working-directory: views
+
+      - run: npm install -g tsx@4.21.0
+
+      - uses: taiki-e/install-action@a3324fb0eb94b8230ec968c3389c1b7929fc2f3b # v2
+        with:
+          tool: just
+
+      - name: Generate manifests
+        run: just build-manifests
+
+      - name: Generate views
+        run: just build-views
 
       - name: Apply D1 migrations
         run: npx wrangler d1 migrations apply ${{ needs.environment.outputs.d1_database }} --env ${{ needs.environment.outputs.wrangler_env }} --remote
