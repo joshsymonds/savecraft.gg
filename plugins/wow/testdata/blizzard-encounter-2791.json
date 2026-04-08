@@ -1,0 +1,100 @@
+{
+  "id": 2791,
+  "name": "Taz'Rah",
+  "description": "The domanaar's prized champion, Taz'Rah, is forced to fight against his will. Taz'Rah demands his own death from every opponent, hoping each battle will finally end his suffering.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "Taz'Rah uses [Gather Shadows] to summon Ethereal Shades that perform [Nether Dash], damaging targets in a line in front of them.\r\n\r\nWhile Taz'rah's [Dark Rift] is active, players are drawn towards it.",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet;The effect from [Dark Rift] pulls in all players toward it and inflicts very high damage to those who fall into its center.\r\n\r\n$bullet;Taz'Rah uses [Gather Shadows] to summon Ethereal Shades that perform [Nether Dash], damaging targets in a line in front of them.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healers",
+          "body_text": "$bullet;[Nether Dash] strikes all players in a line and inflicts Shadow damage over a long duration.\r\n\r\n$bullet;The effect from [Dark Rift] pulls all nearby enemy targets toward it and inflicts very high damage to any who get pulled into it.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Tanks",
+          "body_text": "$bullet;[Cosmic Spike] inflicts heavy Shadowstrike damage.\r\n\r\n$bullet;The effect from [Dark Rift] pulls in all players toward it and inflicts very high damage to those who fall into its center.",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Dark Rift",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1222199?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Dark Rift",
+        "id": 1222199
+      },
+      "sections": null
+    },
+    {
+      "title": "Ethereal Shards",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1225107?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Ethereal Shards",
+        "id": 1225107
+      },
+      "sections": null
+    },
+    {
+      "title": "Gather Shadows",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1263593?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Gather Shadows",
+        "id": 1263593
+      },
+      "sections": [
+        {
+          "title": "Ethereal Shade",
+          "body_text": "",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Nether Dash",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1222098?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Nether Dash",
+                "id": 1222098
+              },
+              "sections": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Cosmic Spike",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1222085?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Cosmic Spike",
+        "id": 1222085
+      },
+      "sections": null
+    }
+  ]
+}

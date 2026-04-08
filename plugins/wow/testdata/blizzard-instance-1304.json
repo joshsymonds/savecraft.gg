@@ -1,0 +1,34 @@
+{
+  "id": 1304,
+  "name": "Murder Row",
+  "encounters": [
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2679?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Kystia Manaheart",
+      "id": 2679
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2680?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Zaen Bladesorrow",
+      "id": 2680
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2681?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Xathuux the Annihilator",
+      "id": 2681
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2682?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Lithiel Cinderfury",
+      "id": 2682
+    }
+  ]
+}

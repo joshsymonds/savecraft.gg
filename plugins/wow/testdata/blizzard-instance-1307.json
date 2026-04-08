@@ -1,0 +1,48 @@
+{
+  "id": 1307,
+  "name": "The Voidspire",
+  "encounters": [
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2733?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Imperator Averzian",
+      "id": 2733
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2734?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Vorasius",
+      "id": 2734
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2736?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Fallen-King Salhadaar",
+      "id": 2736
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2735?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Vaelgor \u0026 Ezzorak",
+      "id": 2735
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2737?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Lightblinded Vanguard",
+      "id": 2737
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2738?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Crown of the Cosmos",
+      "id": 2738
+    }
+  ]
+}

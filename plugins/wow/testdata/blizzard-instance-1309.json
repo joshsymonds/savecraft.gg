@@ -1,0 +1,34 @@
+{
+  "id": 1309,
+  "name": "The Blinding Vale",
+  "encounters": [
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2769?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Lightblossom Trinity",
+      "id": 2769
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2770?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Ikuzz the Light Hunter",
+      "id": 2770
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2771?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Lightwarden Ruia",
+      "id": 2771
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2772?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Ziekket",
+      "id": 2772
+    }
+  ]
+}

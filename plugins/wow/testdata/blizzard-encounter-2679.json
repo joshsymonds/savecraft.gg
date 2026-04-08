@@ -1,0 +1,168 @@
+{
+  "id": 2679,
+  "name": "Kystia Manaheart",
+  "description": "Although an accomplished Magister, Kystia Manaheart was far too devoted to fel magic to give it up entirely. Little wonder she's become a staunch supporter and ally to underground fel smuggling operations in the Row.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "Kystia Manaheart is accompanied by her pet mana wyrm Nibbles, who is controlled by [Illicit Infusion]. When this infusion is removed, Nibbles breaks free of Kystia's control and reverts back to her light form to assist players in battle with [Light Infusion].",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet; Kystia turns Nibbles hostile to players with [Illicit Infusion].\r\n$bullet; Avoid Nibbles' [Fel Spray].\r\n$bullet; Interrupt Kystia's [Mirror Images].",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healers",
+          "body_text": "$bullet; Kystia turns Nibbles hostile to players with [Illicit Infusion].\r\n$bullet; Avoid Nibbles' [Fel Spray].\r\n$bullet; Kystia inflicts heavy damage to all players while [Destabilized].",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Tank",
+          "body_text": "$bullet; Kystia turns Nibbles hostile to players with [Illicit Infusion].\r\n$bullet; Avoid Nibbles' [Fel Spray].\r\n$bullet; Interrupt Kystia's [Mirror Images].",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Kystia Manaheart",
+      "body_text": "",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Illicit Infusion",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1230289?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Illicit Infusion",
+            "id": 1230289
+          },
+          "sections": null
+        },
+        {
+          "title": "Felshield",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1217989?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Felshield",
+            "id": 1217989
+          },
+          "sections": null
+        },
+        {
+          "title": "Chaos Barrage",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1230298?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Chaos Barrage",
+            "id": 1230298
+          },
+          "sections": null
+        },
+        {
+          "title": "Fel Nova",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1223906?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Fel Nova",
+            "id": 1223906
+          },
+          "sections": null
+        },
+        {
+          "title": "Mirror Images",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1264095?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Mirror Images",
+            "id": 1264095
+          },
+          "sections": [
+            {
+              "title": "Felstorm",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1264106?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Felstorm",
+                "id": 1264106
+              },
+              "sections": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Nibbles",
+      "body_text": "",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Fel Spray",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1253811?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Fel Spray",
+            "id": 1253811
+          },
+          "sections": null
+        },
+        {
+          "title": "Corroding Spittle",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1228198?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Corroding Spittle",
+            "id": 1228198
+          },
+          "sections": null
+        },
+        {
+          "title": "Light Infusion",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1230304?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Light Infusion",
+            "id": 1230304
+          },
+          "sections": [
+            {
+              "title": "Destabilized",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1265412?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Destabilized",
+                "id": 1265412
+              },
+              "sections": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

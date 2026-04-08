@@ -1,0 +1,143 @@
+{
+  "id": 2813,
+  "name": "Chief Corewright Kasreth",
+  "description": "Chief Corewright Kasreth and the Shadowguard Ethereals once upheld flawless energy flow within the Nexus-Point's Corespark Engine. But Lothraxion's radiant disruption shattered their balance. Now, cloaked in mistrust and weary of outsiders, they labor to restore the arcane harmony that once sustained the Nexus-Point.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "Kasreth's Corespark Engine ebbs and flows with arcane energies, forming [Leyline Arrays] between the conduits around the room. The Corewright is a mastermind of circuitry, overwhelming a player with [Reflux Charge]. At 100 energy, Kasreth picks up a corespark and overcharges it in the engine, unleashing a [Corespark Detonation] at the impact location.",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet;[Reflux Charge] inflicts damage until overloaded.\r\n$bullet;[Leyline Arrays] link randomly between conduits around the room and inflict heavy damage when crossing.\r\n$bullet;[Flux Collapse] launches a continuous flow of arcane towards a player.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healers",
+          "body_text": "$bullet;[Reflux Charge] inflicts damage until overloaded.\r\n$bullet;[Leyline Arrays] link randomly between conduits around the room and inflict heavy damage when crossing.\r\n$bullet;[Flux Collapse] launches a continuous flow of arcane towards a player.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Tanks",
+          "body_text": "$bullet;[Reflux Charge] inflicts damage until overloaded.\r\n$bullet;[Leyline Arrays] link randomly between conduits around the room and inflict heavy damage when crossing.\r\n$bullet;[Flux Collapse] launches a continuous flow of arcane towards a player.",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Leyline Array",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1251579?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Leyline Array",
+        "id": 1251579
+      },
+      "sections": null
+    },
+    {
+      "title": "Corespark Detonation",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1257509?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Corespark Detonation",
+        "id": 1257509
+      },
+      "sections": [
+        {
+          "title": "Sparkburn",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1276485?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Sparkburn",
+            "id": 1276485
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Corespark Detonation",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1257509?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Corespark Detonation",
+        "id": 1257509
+      },
+      "sections": [
+        {
+          "title": "Sparkburn",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1276485?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Sparkburn",
+            "id": 1276485
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Reflux Charge",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1251767?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Reflux Charge",
+        "id": 1251767
+      },
+      "sections": null
+    },
+    {
+      "title": "Flux Collapse",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1264040?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Flux Collapse",
+        "id": 1264040
+      },
+      "sections": [
+        {
+          "title": "Arcane Spill",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1264042?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Arcane Spill",
+            "id": 1264042
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Arcane Zap",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1250553?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Arcane Zap",
+        "id": 1250553
+      },
+      "sections": null
+    }
+  ]
+}

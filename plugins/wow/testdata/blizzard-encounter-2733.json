@@ -1,0 +1,593 @@
+{
+  "id": 2733,
+  "name": "Imperator Averzian",
+  "description": "Imperator Averzian wages a relentless campaign, seeking not conquest, but annihilation. His entire will is bent to a singular ambition: to rend the veil between worlds and carve a breach into the Void itself. Through this wound, his infinite host shall pour forth, drowning Azeroth in darkness.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "Averzian uses [Shadow's Advance] to claim territory on the battlefield. Territory claimed cannot be retaken, and if Averzian claims three adjacent territories in a row he unleashes the [March of the Endless].\r\n\r\nCausing an [Umbral Collapse] on a territory being taken prevents its capture.",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet; Abyssal Voidshapers attempt to use [Gathering Darkness] at full power.\r\n$bullet; Shadowguard Stalwarts attempt to empower their allies with [Pitch Bulwark].",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healers",
+          "body_text": "$bullet;[Dark Upheaval] inflicts periodic damage to all players.\r\n$bullet;[Umbral Collapse] inflicts damage to everyone that is reduced by the number of players at the impact location.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Tanks",
+          "body_text": "$bullet; Averzian gains [Void Claimed] while close to ground he controls.\r\n$bullet; When Averzian strikes his current target he infects them with [Blackening Wounds].",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Shadow's Advance",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1251361?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Shadow's Advance",
+        "id": 1251361
+      },
+      "sections": [
+        {
+          "title": "Abyssal Voidshaper",
+          "body_text": "",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Umbral Barrier",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1249714?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Umbral Barrier",
+                "id": 1249714
+              },
+              "sections": null
+            },
+            {
+              "title": "Void Rupture",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1262036?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Void Rupture",
+                "id": 1262036
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Abyssal Voidshaper",
+          "body_text": "On Heroic difficulty, Abyssal Voidshapers cast [Gathering Darkness] to transform into Obscurion Endwalkers.",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Umbral Barrier",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1249714?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Umbral Barrier",
+                "id": 1249714
+              },
+              "sections": null
+            },
+            {
+              "title": "Void Rupture",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1262036?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Void Rupture",
+                "id": 1262036
+              },
+              "sections": null
+            },
+            {
+              "title": "Gathering Darkness",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1255749?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Gathering Darkness",
+                "id": 1255749
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Voidmaw",
+          "body_text": "",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Gnashing Void",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1255683?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Gnashing Void",
+                "id": 1255683
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Voidmaw",
+          "body_text": "On Heroic difficulty, at 35% health remaining the Voidmaw crawls towards the nearest void-claimed space to restore its health.",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Gnashing Void",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1255683?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Gnashing Void",
+                "id": 1255683
+              },
+              "sections": null
+            },
+            {
+              "title": "Hobbled",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1267205?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Hobbled",
+                "id": 1267205
+              },
+              "sections": null
+            },
+            {
+              "title": "Dark Resilience",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1264164?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Dark Resilience",
+                "id": 1264164
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Shadowguard Stalwart",
+          "body_text": "",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Pitch Bulwark",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1255702?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Pitch Bulwark",
+                "id": 1255702
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Voidbound Annihilator",
+          "body_text": "",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Pitch Bulwark",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1255702?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Pitch Bulwark",
+                "id": 1255702
+              },
+              "sections": null
+            },
+            {
+              "title": "Dark Barrage",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1274846?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Dark Barrage",
+                "id": 1274846
+              },
+              "sections": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Shadow's Advance",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1251361?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Shadow's Advance",
+        "id": 1251361
+      },
+      "sections": [
+        {
+          "title": "Abyssal Voidshaper",
+          "body_text": "On Mythic difficulty, Abyssal Voidshapers cast [Gathering Darkness] to transform into Obscurion Endwalkers. In addition, they also cast [Cosmic Shell] to become immune to [Umbral Collapse].",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Cosmic Shell",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1280035?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Cosmic Shell",
+                "id": 1280035
+              },
+              "sections": null
+            },
+            {
+              "title": "Umbral Barrier",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1249714?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Umbral Barrier",
+                "id": 1249714
+              },
+              "sections": null
+            },
+            {
+              "title": "Void Rupture",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1262036?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Void Rupture",
+                "id": 1262036
+              },
+              "sections": null
+            },
+            {
+              "title": "Gathering Darkness",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1255749?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Gathering Darkness",
+                "id": 1255749
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Voidmaw",
+          "body_text": "On Mythic difficulty, at 35% health remaining the Voidmaw rushes towards the nearest void-claimed space to restore its health.",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Gnashing Void",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1255683?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Gnashing Void",
+                "id": 1255683
+              },
+              "sections": null
+            },
+            {
+              "title": "Dark Resilience",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1264164?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Dark Resilience",
+                "id": 1264164
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Shadowguard Stalwart",
+          "body_text": "",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Pitch Bulwark",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1255702?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Pitch Bulwark",
+                "id": 1255702
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Voidbound Annihilator",
+          "body_text": "",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Pitch Bulwark",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1255702?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Pitch Bulwark",
+                "id": 1255702
+              },
+              "sections": null
+            },
+            {
+              "title": "Dark Barrage",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1274846?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Dark Barrage",
+                "id": 1274846
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Abyssal Malus",
+          "body_text": "",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Pitch Bulwark",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1255702?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Pitch Bulwark",
+                "id": 1255702
+              },
+              "sections": null
+            },
+            {
+              "title": "Dark Barrage",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1274846?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Dark Barrage",
+                "id": 1274846
+              },
+              "sections": null
+            },
+            {
+              "title": "Black Miasma",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1275059?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Black Miasma",
+                "id": 1275059
+              },
+              "sections": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Umbral Collapse",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1249262?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Umbral Collapse",
+        "id": 1249262
+      },
+      "sections": null
+    },
+    {
+      "title": "Umbral Collapse",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1249262?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Umbral Collapse",
+        "id": 1249262
+      },
+      "sections": null
+    },
+    {
+      "title": "Void Marked",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1280015?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Void Marked",
+        "id": 1280015
+      },
+      "sections": [
+        {
+          "title": "Lingering Darkness",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1280075?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Lingering Darkness",
+            "id": 1280075
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Oblivion's Wrath",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1260712?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Oblivion's Wrath",
+        "id": 1260712
+      },
+      "sections": null
+    },
+    {
+      "title": "Void Fall",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1258883?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Void Fall",
+        "id": 1258883
+      },
+      "sections": null
+    },
+    {
+      "title": "Shadow Phalanx",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1284786?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Shadow Phalanx",
+        "id": 1284786
+      },
+      "sections": null
+    },
+    {
+      "title": "March of the Endless",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1251583?namespace=static-12.0.1_65617-us"
+        },
+        "name": "March of the Endless",
+        "id": 1251583
+      },
+      "sections": null
+    },
+    {
+      "title": "Dark Upheaval",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1249251?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Dark Upheaval",
+        "id": 1249251
+      },
+      "sections": null
+    },
+    {
+      "title": "Blackening Wounds",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1265540?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Blackening Wounds",
+        "id": 1265540
+      },
+      "sections": [
+        {
+          "title": "Weakened",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1283069?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Weakened",
+            "id": 1283069
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Imperator's Glory",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1253918?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Imperator's Glory",
+        "id": 1253918
+      },
+      "sections": null
+    },
+    {
+      "title": "Imperator's Glory",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1253918?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Imperator's Glory",
+        "id": 1253918
+      },
+      "sections": null
+    },
+    {
+      "title": "Imperator's Glory",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1253918?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Imperator's Glory",
+        "id": 1253918
+      },
+      "sections": null
+    }
+  ]
+}

@@ -1,0 +1,218 @@
+{
+  "id": 2810,
+  "name": "Muro'jin and Nekraxx",
+  "description": "Muro'jin is a relentless tracker, charged with capturing victims for the Vilebranch's dark rites. Nekraxx, a reanimated eagle, strikes down any who resist capture by her master. They must not be allowed to supply souls for Vordaza's necrotic magic any longer.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "The cunning duo of Muro'jin and Nekraxx fight as one, assailing players with an array of combined tactics.\r\n\r\nMuro'jin withers players down with [Barrage] while Nekraxx flings a salvo of feathers with [Fetid Quillstorm].\r\n\r\nAs Muro'jin scatters [Freezing Traps] across the arena, Nekraxx barrels forward with [Carrion Swoop].",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet;Muro'jin attempts to [Revive Pet] upon Nekraxx's defeat, and Nekraxx enters [Bestial Wrath] upon Muro'jin's defeat.\r\n$bullet;Muro'jin's [Freezing Traps] encase players in ice upon contact. Players encased in ice can intercept Nekraxx's [Carrion Swoop].\r\n$bullet;Muro'jin's [Barrage] follows the targeted player and affects all players in a frontal cone.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healers",
+          "body_text": "$bullet;Nekraxx's [Infected Pinions] inflicts significant damage to all players.\r\n$bullet;Muro'jin's [Freezing Traps] encase players in ice upon contact. Players encased in ice can intercept Nekraxx's [Carrion Swoop].\r\n$bullet;Muro'jin's [Barrage] follows the targeted player and affects all players in a frontal cone.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Tank",
+          "body_text": "$bullet;Muro'jin's [Flanking Spear] both repositions behind his current target and applies [Open Wound].\r\n$bullet;Muro'jin's [Freezing Traps] encase players in ice upon contact. Players encased in ice can intercept Nekraxx's [Carrion Swoop].\r\n$bullet;Nekraxx's [Carrion Swoop] affects all players in its path, inflicting damage and knocking them upwards.",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Muro'jin",
+      "body_text": "",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Freezing Trap",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1260731?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Freezing Trap",
+            "id": 1260731
+          },
+          "sections": null
+        },
+        {
+          "title": "Freezing Trap",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1260731?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Freezing Trap",
+            "id": 1260731
+          },
+          "sections": [
+            {
+              "title": "Icy Slick",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1243751?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Icy Slick",
+                "id": 1243751
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Barrage",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1260643?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Barrage",
+            "id": 1260643
+          },
+          "sections": [
+            {
+              "title": "Vilebranch Sting",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1260709?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Vilebranch Sting",
+                "id": 1260709
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Flanking Spear",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1266480?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Flanking Spear",
+            "id": 1266480
+          },
+          "sections": [
+            {
+              "title": "Open Wound",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1266488?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Open Wound",
+                "id": 1266488
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Revive Pet",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1249789?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Revive Pet",
+            "id": 1249789
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Nekraxx",
+      "body_text": "",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Carrion Swoop",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1249479?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Carrion Swoop",
+            "id": 1249479
+          },
+          "sections": null
+        },
+        {
+          "title": "Carrion Swoop",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1249479?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Carrion Swoop",
+            "id": 1249479
+          },
+          "sections": [
+            {
+              "title": "Coordinated Assault",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1249769?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Coordinated Assault",
+                "id": 1249769
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Fetid Quillstorm",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1243900?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Fetid Quillstorm",
+            "id": 1243900
+          },
+          "sections": null
+        },
+        {
+          "title": "Infected Pinions",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1246666?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Infected Pinions",
+            "id": 1246666
+          },
+          "sections": null
+        },
+        {
+          "title": "Bestial Wrath",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1249948?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Bestial Wrath",
+            "id": 1249948
+          },
+          "sections": null
+        }
+      ]
+    }
+  ]
+}

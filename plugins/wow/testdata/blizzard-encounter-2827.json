@@ -1,0 +1,106 @@
+{
+  "id": 2827,
+  "name": "Lu'ashal",
+  "description": "While the Lightbloom in Eversong has devastated much of the native wildlife, a few creatures have instead been strengthened by its power. Lu'ashal has grown to gargantuan size from the surging Holy energy and is now as dangerous as it is beautiful.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "Lu'ashal assails foes in a holy frenzy, raining energy from the skies with [Radiant Sunder]  to shatter the ground that  leave [Blinding Fissures] behind. During [Radiant Flare] , she unleashes waves of [Radiant Embers] that tarvel across the battlefield.",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Healers",
+          "body_text": "$bullet; [Dawncrazed Halo] inflicts moderate damage in an area around afflicted players.\r\n$bullet; [Radiant Flare] inflicts substantial damage and casues [Radiant Embers] to erupt from [Blinding Fissures] .",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Tanks",
+          "body_text": "$bullet; [Dawnfire Breath] inflicts heavy Radiant damage in a cone at the primary target.\r\n$bullet; [Radiant Flare] inflicts substantial damage and casues [Radiant Embers] to erupt from [Blinding Fissures] .",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet; [Dawncrazed Halo] inflicts moderate damage in an area around afflicted players.\r\n$bullet; [Radiant Flare] inflicts substantial damage and casues [Radiant Embers] to erupt from [Blinding Fissures] .",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Radiant Flare",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1258427?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Radiant Flare",
+        "id": 1258427
+      },
+      "sections": [
+        {
+          "title": "Radiant Ember",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1258426?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Radiant Ember",
+            "id": 1258426
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Radiant Sunder",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1243963?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Radiant Sunder",
+        "id": 1243963
+      },
+      "sections": [
+        {
+          "title": "Blinding Fissure",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1243988?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Blinding Fissure",
+            "id": 1243988
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Dawncrazed Halo",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1276436?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Dawncrazed Halo",
+        "id": 1276436
+      },
+      "sections": null
+    },
+    {
+      "title": "Dawnfire Breath",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1276247?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Dawnfire Breath",
+        "id": 1276247
+      },
+      "sections": null
+    }
+  ]
+}

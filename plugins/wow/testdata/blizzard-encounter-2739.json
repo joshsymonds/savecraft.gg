@@ -1,0 +1,503 @@
+{
+  "id": 2739,
+  "name": "Belo'ren, Child of Al'ar",
+  "description": "One of the last clutch of Al'ar, Belo'ren was raised for the purpose of protecting the Isle of Quel'Danas. In the aftermath of the Voidspire, Belo'ren has been irradiated by Void. Confused and freshly hatched, the phoenix is focused on its sole task: Keep any invaders from reaching the Sunwell.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "Belo'ren guards the Sunwell with both Light and Void magic. His [Voidlight Convergence] infuses players with either Light or Void, protecting them from one while leaving them vulnerable to the other.\r\n\r\nWhen his health is depleted, Belo'ren retreats into an ashen egg and begins to cast [Rebirth]. Players must damage Belo'ren to diminish his [Immortal Flame] before he is reborn anew.",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet; [Light Feather] reduces incoming Holy damage. [Void Feather] reduces incoming Shadow damage.\r\n$bullet; Damage from [Light Dive] and [Void Dive] is split evenly between all players hit.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healers",
+          "body_text": "$bullet; [Light Feather] reduces incoming Holy damage. [Void Feather] reduces incoming Shadow damage.\r\n$bullet; [Light Burn] and [Void Burn] absorb significant healing and inflict damage over time until fully healed.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Tanks",
+          "body_text": "$bullet; [Light Feather] reduces incoming Holy damage. [Void Feather] reduces incoming Shadow damage.\r\n$bullet; Failing to hit a player with [Guardian's Edict] empowers Belo'ren, significantly increasing his damage.",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Stage One: Phoenix Reborn",
+      "body_text": "Belo'ren ascends in his majestic phoenix form wielding the power of the radiant Light and devouring Void.",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Voidlight Convergence",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1242515?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Voidlight Convergence",
+            "id": 1242515
+          },
+          "sections": [
+            {
+              "title": "Light Feather",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1241162?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Light Feather",
+                "id": 1241162
+              },
+              "sections": null
+            },
+            {
+              "title": "Void Feather",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1241163?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Void Feather",
+                "id": 1241163
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Immortal Flame",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1243320?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Immortal Flame",
+            "id": 1243320
+          },
+          "sections": [
+            {
+              "title": "Burning Heart",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1283067?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Burning Heart",
+                "id": 1283067
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Embers of Belo'ren",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1241282?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Embers of Belo'ren",
+            "id": 1241282
+          },
+          "sections": [
+            {
+              "title": "Light Ember",
+              "body_text": "",
+              "spell": null,
+              "sections": [
+                {
+                  "title": "Light Dive",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1241292?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Light Dive",
+                    "id": 1241292
+                  },
+                  "sections": [
+                    {
+                      "title": "Light Patch",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1241838?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Light Patch",
+                        "id": 1241838
+                      },
+                      "sections": null
+                    }
+                  ]
+                },
+                {
+                  "title": "Light Blast",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1264696?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Light Blast",
+                    "id": 1264696
+                  },
+                  "sections": null
+                },
+                {
+                  "title": "Light Eruption",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1243852?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Light Eruption",
+                    "id": 1243852
+                  },
+                  "sections": null
+                },
+                {
+                  "title": "Rebirth",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1263412?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Rebirth",
+                    "id": 1263412
+                  },
+                  "sections": null
+                }
+              ]
+            },
+            {
+              "title": "Void Ember",
+              "body_text": "",
+              "spell": null,
+              "sections": [
+                {
+                  "title": "Void Dive",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1241339?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Void Dive",
+                    "id": 1241339
+                  },
+                  "sections": [
+                    {
+                      "title": "Void Patch",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1241845?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Void Patch",
+                        "id": 1241845
+                      },
+                      "sections": null
+                    }
+                  ]
+                },
+                {
+                  "title": "Void Blast",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1264698?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Void Blast",
+                    "id": 1264698
+                  },
+                  "sections": null
+                },
+                {
+                  "title": "Void Eruption",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1243854?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Void Eruption",
+                    "id": 1243854
+                  },
+                  "sections": null
+                },
+                {
+                  "title": "Rebirth",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1263412?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Rebirth",
+                    "id": 1263412
+                  },
+                  "sections": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Radiant Echoes",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1242981?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Radiant Echoes",
+            "id": 1242981
+          },
+          "sections": [
+            {
+              "title": "Light Echo",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1243021?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Light Echo",
+                "id": 1243021
+              },
+              "sections": null
+            },
+            {
+              "title": "Void Echo",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1243026?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Void Echo",
+                "id": 1243026
+              },
+              "sections": null
+            },
+            {
+              "title": "Voidlight Rupture",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1243866?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Voidlight Rupture",
+                "id": 1243866
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Guardian's Edict",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1260763?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Guardian's Edict",
+            "id": 1260763
+          },
+          "sections": [
+            {
+              "title": "Light Edict",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1261217?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Light Edict",
+                "id": 1261217
+              },
+              "sections": null
+            },
+            {
+              "title": "Void Edict",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1261218?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Void Edict",
+                "id": 1261218
+              },
+              "sections": null
+            },
+            {
+              "title": "Voidlight Edict",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1241640?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Voidlight Edict",
+                "id": 1241640
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Eternal Burns",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1244344?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Eternal Burns",
+            "id": 1244344
+          },
+          "sections": [
+            {
+              "title": "Light Burn",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1244348?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Light Burn",
+                "id": 1244348
+              },
+              "sections": null
+            },
+            {
+              "title": "Void Burn",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1266404?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Void Burn",
+                "id": 1266404
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Infused Quills",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1242260?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Infused Quills",
+            "id": 1242260
+          },
+          "sections": [
+            {
+              "title": "Light Quill",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1242093?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Light Quill",
+                "id": 1242093
+              },
+              "sections": null
+            },
+            {
+              "title": "Void Quill",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1242094?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Void Quill",
+                "id": 1242094
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Death Drop",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1246709?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Death Drop",
+            "id": 1246709
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Stage Two: Ashen Shell",
+      "body_text": "As Belo'ren falls he retreats into an ashen egg and kindles the fire of rebirth.",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Rebirth",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1241313?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Rebirth",
+            "id": 1241313
+          },
+          "sections": [
+            {
+              "title": "Ashen Benediction",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1262573?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Ashen Benediction",
+                "id": 1262573
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Incubation of Flames",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1242792?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Incubation of Flames",
+            "id": 1242792
+          },
+          "sections": [
+            {
+              "title": "Light Flames",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1242803?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Light Flames",
+                "id": 1242803
+              },
+              "sections": null
+            },
+            {
+              "title": "Void Flames",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1242815?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Void Flames",
+                "id": 1242815
+              },
+              "sections": null
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

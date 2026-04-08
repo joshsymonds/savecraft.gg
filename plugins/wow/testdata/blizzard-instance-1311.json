@@ -1,0 +1,27 @@
+{
+  "id": 1311,
+  "name": "Den of Nalorakk",
+  "encounters": [
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2776?namespace=static-12.0.1_65617-us"
+      },
+      "name": "The Hoardmonger",
+      "id": 2776
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2777?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Sentinel of Winter",
+      "id": 2777
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2778?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Nalorakk",
+      "id": 2778
+    }
+  ]
+}

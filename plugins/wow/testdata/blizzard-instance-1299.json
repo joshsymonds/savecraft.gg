@@ -1,0 +1,34 @@
+{
+  "id": 1299,
+  "name": "Windrunner Spire",
+  "encounters": [
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2655?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Emberdawn",
+      "id": 2655
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2656?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Derelict Duo",
+      "id": 2656
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2657?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Commander Kroluk",
+      "id": 2657
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2658?namespace=static-12.0.1_65617-us"
+      },
+      "name": "The Restless Heart",
+      "id": 2658
+    }
+  ]
+}

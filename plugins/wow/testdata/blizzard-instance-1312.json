@@ -1,0 +1,34 @@
+{
+  "id": 1312,
+  "name": "Midnight",
+  "encounters": [
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2827?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Lu'ashal",
+      "id": 2827
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2829?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Thorm'belan",
+      "id": 2829
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2828?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Predaxas",
+      "id": 2828
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2782?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Cragpine",
+      "id": 2782
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "id": 1308,
+  "name": "March on Quel'Danas",
+  "encounters": [
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2739?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Belo'ren, Child of Al'ar",
+      "id": 2739
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2740?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Midnight Falls",
+      "id": 2740
+    }
+  ]
+}

@@ -1,0 +1,224 @@
+{
+  "id": 2776,
+  "name": "The Hoardmonger",
+  "description": "Driven by voracious greed, the gluttonous Hoardmonger fiercely defends the stashes of food and supplies he has stolen from nearby troll tribes. Nalorakk's first trial is to eliminate him before the tribes go hungry.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "The Hoardmonger prevents his reserves from being pilfered at all costs, casting [Resourceful Measures] upon reaching 90%, 60%, and 30% health, empowering one of his abilities.\r\n\r\nUpon reaching 100 energy, he tosses [Spoiled Supplies] throughout the arena, growing Rotten Mushrooms for 12 seconds. Upon contact, these apply [Toxic Spores] destroying the fungi, preventing [Putrid Burst].",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet; Rotten Mushrooms apply [Toxic Spores] upon contact, preventing them from detonating in a [Putrid Burst].\r\n$bullet; [Earthshatter Slam] and [Bonespike Slam] inflict massive damage in a frontal cone.\r\n$bullet; [Ravenous Bellow] and [Hearty Bellow] inflicts high damage to all players.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healers",
+          "body_text": "$bullet; [Ravenous Bellow] and [Hearty Bellow] inflict high damage to all players.\r\n$bullet; Rotten Mushrooms' [Toxic Spores] can be removed by Poison-cleansing effects.\r\n$bullet; [Earthshatter Slam] and [Bonespike Slam] inflict massive damage in a frontal cone.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Tanks",
+          "body_text": "$bullet; The Hoardmonger gathers from the nearest resource pile during [Resourceful Measures].\r\n$bullet; Rotten Mushrooms apply [Toxic Spores] upon contact, preventing them from detonating in a [Putrid Burst].\r\n$bullet; [Ravenous Bellow] and [Hearty Bellow] inflict high damage to all players.",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Resourceful Measures",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1235072?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Resourceful Measures",
+        "id": 1235072
+      },
+      "sections": [
+        {
+          "title": "Overflowing Supplies",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1235105?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Overflowing Supplies",
+            "id": 1235105
+          },
+          "sections": null
+        },
+        {
+          "title": "Bonespike Slam",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1235129?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Bonespike Slam",
+            "id": 1235129
+          },
+          "sections": [
+            {
+              "title": "Bonespiked",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1235405?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Bonespiked",
+                "id": 1235405
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Hearty Bellow",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1235125?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Hearty Bellow",
+            "id": 1235125
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Resourceful Measures",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1235072?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Resourceful Measures",
+        "id": 1235072
+      },
+      "sections": [
+        {
+          "title": "Overflowing Supplies",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1235105?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Overflowing Supplies",
+            "id": 1235105
+          },
+          "sections": null
+        },
+        {
+          "title": "Bonespike Slam",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1235129?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Bonespike Slam",
+            "id": 1235129
+          },
+          "sections": [
+            {
+              "title": "Bonespiked",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1235405?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Bonespiked",
+                "id": 1235405
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Hearty Bellow",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1235125?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Hearty Bellow",
+            "id": 1235125
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Spoiled Supplies",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1234233?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Spoiled Supplies",
+        "id": 1234233
+      },
+      "sections": [
+        {
+          "title": "Rotten Mushroom",
+          "body_text": "This fungi grows for 12 seconds then detonates in a Putrid Burst, covering all players in Toxic Spores.\r\n\r\nUpon contact, the spores transfer, applying Toxic Spores and destroying the fungi.",
+          "spell": null,
+          "sections": [
+            {
+              "title": "Toxic Spores",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1234846?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Toxic Spores",
+                "id": 1234846
+              },
+              "sections": null
+            },
+            {
+              "title": "Putrid Burst",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1245593?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Putrid Burst",
+                "id": 1245593
+              },
+              "sections": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Earthshatter Slam",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1234021?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Earthshatter Slam",
+        "id": 1234021
+      },
+      "sections": null
+    },
+    {
+      "title": "Ravenous Bellow",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1234681?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Ravenous Bellow",
+        "id": 1234681
+      },
+      "sections": null
+    }
+  ]
+}

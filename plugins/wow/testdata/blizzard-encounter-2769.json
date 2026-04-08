@@ -1,0 +1,296 @@
+{
+  "id": 2769,
+  "name": "Lightblossom Trinity",
+  "description": "The Lightbloom has suffered a terrible defeat, but like the rutaani it imbues, it changes. These Lightblossomed rutaani fanatically propagate their vicious and invasive garden.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "The trio of Lightbloom rutaani work in tandem to sow and nurture a Lightblossom garden. Meittik creates [Fertile Loam] that is then planted by Lekshi's [Lightsower Dash]. Kezkitt rapidly germinates the flora with [Lightblossom Beam] until they burst in a [Lightbloom Overgrowth].",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet; Lightblossoms gain an increasing amount of [Light-Gorged] unless the rays of [Lightblossom Beam] are blocked.\r\n$bullet; Damage taken is shared between the trio with [Thicket's Trinity].",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healers",
+          "body_text": "$bullet; [Lightbloom Overgrowth] inflicts higher damage based on applications of [Light-Gorged].\r\n$bullet; [Thornblade] causes random players to bleed for high damage.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healers",
+          "body_text": "$bullet; [Lightbloom Overgrowth] inflicts higher damage based on applications of [Light-Gorged].\r\n$bullet; [Thornblade] causes random players to bleed for high damage.\r\n$bullet; [Bedrock Surge] inflicts periodic damage to all players.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Tank",
+          "body_text": "$bullet; [Bedrock Slam] creates patches of [Fertile Loam] near the location of the target.\r\n$bullet; Lightblossoms gain an increasing amount of [Light-Gorged] unless the rays of [Lightblossom Beam] are blocked.",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Thicket's Trinity",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1253028?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Thicket's Trinity",
+        "id": 1253028
+      },
+      "sections": null
+    },
+    {
+      "title": "Meittik",
+      "body_text": "",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Bedrock Slam",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1234753?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Bedrock Slam",
+            "id": 1234753
+          },
+          "sections": [
+            {
+              "title": "Fertile Loam",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1234782?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Fertile Loam",
+                "id": 1234782
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Bedrock Slam",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1234753?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Bedrock Slam",
+            "id": 1234753
+          },
+          "sections": [
+            {
+              "title": "Fertile Loam",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1234782?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Fertile Loam",
+                "id": 1234782
+              },
+              "sections": null
+            },
+            {
+              "title": "Bedrock Surge",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1276586?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Bedrock Surge",
+                "id": 1276586
+              },
+              "sections": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Lekshi",
+      "body_text": "",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Lightsower Dash",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1234850?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Lightsower Dash",
+            "id": 1234850
+          },
+          "sections": [
+            {
+              "title": "Lightblossom",
+              "body_text": "",
+              "spell": null,
+              "sections": [
+                {
+                  "title": "Light-Gorged",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1235729?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Light-Gorged",
+                    "id": 1235729
+                  },
+                  "sections": null
+                },
+                {
+                  "title": "Lightbloom Overgrowth",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1235751?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Lightbloom Overgrowth",
+                    "id": 1235751
+                  },
+                  "sections": [
+                    {
+                      "title": "Light-Scorched Earth",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1235814?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Light-Scorched Earth",
+                        "id": 1235814
+                      },
+                      "sections": null
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Thornblade",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1235640?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Thornblade",
+            "id": 1235640
+          },
+          "sections": null
+        },
+        {
+          "title": "Thornblade",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1235640?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Thornblade",
+            "id": 1235640
+          },
+          "sections": [
+            {
+              "title": "Fan Of Thorns",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1261011?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Fan Of Thorns",
+                "id": 1261011
+              },
+              "sections": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Kezkitt",
+      "body_text": "",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Lightblossom Beam",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1235564?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Lightblossom Beam",
+            "id": 1235564
+          },
+          "sections": [
+            {
+              "title": "Lightblossom",
+              "body_text": "",
+              "spell": null,
+              "sections": [
+                {
+                  "title": "Light-Gorged",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1235729?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Light-Gorged",
+                    "id": 1235729
+                  },
+                  "sections": null
+                },
+                {
+                  "title": "Lightbloom Overgrowth",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1235751?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Lightbloom Overgrowth",
+                    "id": 1235751
+                  },
+                  "sections": [
+                    {
+                      "title": "Light-Scorched Earth",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1235814?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Light-Scorched Earth",
+                        "id": 1235814
+                      },
+                      "sections": null
+                    }
+                  ]
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Light Bolt",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1235616?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Light Bolt",
+            "id": 1235616
+          },
+          "sections": null
+        }
+      ]
+    }
+  ]
+}

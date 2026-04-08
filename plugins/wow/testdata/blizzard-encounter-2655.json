@@ -1,0 +1,118 @@
+{
+  "id": 2655,
+  "name": "Emberdawn",
+  "description": "Emberdawn settled in the gardens of Windrunner Spire after seeking a place to raise her young. Highly territorial, she guards her nest with a searing ferocity.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "Emberdawn lights the winds aflame as she protects her nest. [Burning Gale] pushes players and lights [Ignited Embers], creating [Flaming Twisters] that sweep across the garden.",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet;[Flaming Updraft] leaves behind a [Ignited Embers] upon expiration.\r\n\r\n$bullet;[Burning Gale] pushes players and causes [Ignited Embers] to create [Flaming Twisters].",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healer",
+          "body_text": "$bullet;[Flaming Updraft] inflicts significant damage to afflicted players.\r\n\r\n$bullet;[Burning Gale] pushes players and causes [Ignited Embers] to create [Flaming Twisters].",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Tank",
+          "body_text": "$bullet;Emberdawn's [Searing Beak] inflicts heavy Physical damage followed by significant Fire damage over time.\r\n\r\n$bullet;[Burning Gale] pushes players and causes [Ignited Embers] to create [Flaming Twisters].",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Burning Gale",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/465904?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Burning Gale",
+        "id": 465904
+      },
+      "sections": null
+    },
+    {
+      "title": "Burning Gale",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/465904?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Burning Gale",
+        "id": 465904
+      },
+      "sections": [
+        {
+          "title": "Fire Breath",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1217762?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Fire Breath",
+            "id": 1217762
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Flaming Updraft",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/466556?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Flaming Updraft",
+        "id": 466556
+      },
+      "sections": [
+        {
+          "title": "Ignited Embers",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/467120?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Ignited Embers",
+            "id": 467120
+          },
+          "sections": null
+        },
+        {
+          "title": "Flaming Twisters",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/469633?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Flaming Twisters",
+            "id": 469633
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Searing Beak",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/466064?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Searing Beak",
+        "id": 466064
+      },
+      "sections": null
+    }
+  ]
+}

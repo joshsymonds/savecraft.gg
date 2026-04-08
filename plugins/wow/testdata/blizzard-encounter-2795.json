@@ -1,0 +1,692 @@
+{
+  "id": 2795,
+  "name": "Chimaerus the Undreamt God",
+  "description": "When Aln'hara was taken from her Cradle, only pain and madness were left to shape the chaos of the rift. Chimaerus feasted on the void left behind, gorging itself on other nightmarish manifestations. Now it stands as the monster within the rift: a being of agony and rage.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "Chimaerus wrenches its enemies into the Rift during [Alndust Upheaval] where they must contend with aberrant Manifestations shielded by [Alnshroud]. Manifestations that lose their shroud emerge into Reality and move towards the [Insatiable] Chimaerus.\r\n\r\nUpon reaching 100 energy, Chimaerus takes to the skies with [Corrupted Devastation] while summoning Manifestations below.",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Tanks",
+          "body_text": "$bullet; [Alndust Upheaval] allows players to see into the Aln and attack Manifestations.\r\n$bullet; Coalesced Manifestations afflict the raid with [Rift Sickness].\r\n$bullet; Manifestations in Reality move toward [Insatiable] Chimaerus.\r\n$bullet; Colossal Horrors unleash a series of [Colossal Strikes] against their current target.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet; [Alndust Upheaval] allows players to see into the Aln and attack Manifestations.\r\n$bullet; Coalesced Manifestations afflict the raid with [Rift Sickness].\r\n$bullet; Manifestations in Reality move toward [Insatiable] Chimaerus.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healers",
+          "body_text": "$bullet; Coalesced Manifestations afflict the raid with [Rift Sickness].\r\n$bullet; [Alndust Upheaval] allows players to see into the Aln and attack Manifestations.\r\n$bullet; Players within the Rift who are affected by [Alnsight] cannot interact with allies.",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Dissonance",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1267201?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Dissonance",
+        "id": 1267201
+      },
+      "sections": null
+    },
+    {
+      "title": "Stage One: Insatiable Hunger",
+      "body_text": "",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Alndust Upheaval",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1282001?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Alndust Upheaval",
+            "id": 1282001
+          },
+          "sections": [
+            {
+              "title": "Alnsight",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1245698?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Alnsight",
+                "id": 1245698
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Alndust Upheaval",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1262289?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Alndust Upheaval",
+            "id": 1262289
+          },
+          "sections": [
+            {
+              "title": "Alnsight",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1245698?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Alnsight",
+                "id": 1245698
+              },
+              "sections": null
+            },
+            {
+              "title": "Rift Vulnerability",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1253744?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Rift Vulnerability",
+                "id": 1253744
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Rift Emergence",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1258610?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Rift Emergence",
+            "id": 1258610
+          },
+          "sections": [
+            {
+              "title": "Coalesced Manifestations",
+              "body_text": "",
+              "spell": null,
+              "sections": [
+                {
+                  "title": "Rift Sickness",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1250953?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Rift Sickness",
+                    "id": 1250953
+                  },
+                  "sections": null
+                },
+                {
+                  "title": "Alnshroud",
+                  "body_text": "",
+                  "spell": {
+                    "key": {
+                      "Href": "https://us.api.blizzard.com/data/wow/spell/1245727?namespace=static-12.0.1_65617-us"
+                    },
+                    "name": "Alnshroud",
+                    "id": 1245727
+                  },
+                  "sections": [
+                    {
+                      "title": "Alndust Essence",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1245919?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Alndust Essence",
+                        "id": 1245919
+                      },
+                      "sections": null
+                    }
+                  ]
+                },
+                {
+                  "title": "Colossal Horror",
+                  "body_text": "",
+                  "spell": null,
+                  "sections": [
+                    {
+                      "title": "Discordant Roar",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1249207?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Discordant Roar",
+                        "id": 1249207
+                      },
+                      "sections": null
+                    },
+                    {
+                      "title": "Colossal Strikes",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1262020?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Colossal Strikes",
+                        "id": 1262020
+                      },
+                      "sections": null
+                    }
+                  ]
+                },
+                {
+                  "title": "Haunting Essence",
+                  "body_text": "",
+                  "spell": null,
+                  "sections": [
+                    {
+                      "title": "Fearsome Cry",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1249017?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Fearsome Cry",
+                        "id": 1249017
+                      },
+                      "sections": null
+                    },
+                    {
+                      "title": "Essence Bolt",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1261997?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Essence Bolt",
+                        "id": 1261997
+                      },
+                      "sections": null
+                    }
+                  ]
+                },
+                {
+                  "title": "Swarming Shade",
+                  "body_text": "A swarming horror called from the Rift.",
+                  "spell": null,
+                  "sections": null
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "Insatiable",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1252863?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Insatiable",
+            "id": 1252863
+          },
+          "sections": [
+            {
+              "title": "Cannibalized Essence",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1245844?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Cannibalized Essence",
+                "id": 1245844
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Rift Madness",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1264756?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Rift Madness",
+            "id": 1264756
+          },
+          "sections": null
+        },
+        {
+          "title": "Consuming Miasma",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1257087?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Consuming Miasma",
+            "id": 1257087
+          },
+          "sections": [
+            {
+              "title": "Lingering Miasma",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1257093?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Lingering Miasma",
+                "id": 1257093
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Caustic Phlegm",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1246653?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Caustic Phlegm",
+            "id": 1246653
+          },
+          "sections": null
+        },
+        {
+          "title": "Rending Tear",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1272726?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Rending Tear",
+            "id": 1272726
+          },
+          "sections": null
+        },
+        {
+          "title": "Consume",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1245396?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Consume",
+            "id": 1245396
+          },
+          "sections": [
+            {
+              "title": "Cannibalized Essence",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1245844?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Cannibalized Essence",
+                "id": 1245844
+              },
+              "sections": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Stage Two: To The Skies",
+      "body_text": "",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Alndust Upheaval",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1262289?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Alndust Upheaval",
+            "id": 1262289
+          },
+          "sections": [
+            {
+              "title": "Alnsight",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1245698?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Alnsight",
+                "id": 1245698
+              },
+              "sections": null
+            },
+            {
+              "title": "Rift Vulnerability",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1253744?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Rift Vulnerability",
+                "id": 1253744
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Corrupted Devastation",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1245486?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Corrupted Devastation",
+            "id": 1245486
+          },
+          "sections": [
+            {
+              "title": "Coalesced Manifestations",
+              "body_text": "",
+              "spell": null,
+              "sections": [
+                {
+                  "title": "Colossal Horror",
+                  "body_text": "",
+                  "spell": null,
+                  "sections": [
+                    {
+                      "title": "Discordant Roar",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1249207?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Discordant Roar",
+                        "id": 1249207
+                      },
+                      "sections": null
+                    },
+                    {
+                      "title": "Colossal Strikes",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1262020?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Colossal Strikes",
+                        "id": 1262020
+                      },
+                      "sections": null
+                    }
+                  ]
+                },
+                {
+                  "title": "Haunting Essence",
+                  "body_text": "",
+                  "spell": null,
+                  "sections": [
+                    {
+                      "title": "Fearsome Cry",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1249017?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Fearsome Cry",
+                        "id": 1249017
+                      },
+                      "sections": null
+                    },
+                    {
+                      "title": "Essence Bolt",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1261997?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Essence Bolt",
+                        "id": 1261997
+                      },
+                      "sections": null
+                    }
+                  ]
+                },
+                {
+                  "title": "Swarming Shade",
+                  "body_text": "A swarming horror called from the Rift.",
+                  "spell": null,
+                  "sections": null
+                }
+              ]
+            },
+            {
+              "title": "Alndust Essence",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1245919?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Alndust Essence",
+                "id": 1245919
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Corrupted Devastation",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1245486?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Corrupted Devastation",
+            "id": 1245486
+          },
+          "sections": [
+            {
+              "title": "Coalesced Manifestations",
+              "body_text": "",
+              "spell": null,
+              "sections": [
+                {
+                  "title": "Colossal Horror",
+                  "body_text": "",
+                  "spell": null,
+                  "sections": [
+                    {
+                      "title": "Discordant Roar",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1249207?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Discordant Roar",
+                        "id": 1249207
+                      },
+                      "sections": null
+                    },
+                    {
+                      "title": "Colossal Strikes",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1262020?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Colossal Strikes",
+                        "id": 1262020
+                      },
+                      "sections": null
+                    }
+                  ]
+                },
+                {
+                  "title": "Haunting Essence",
+                  "body_text": "",
+                  "spell": null,
+                  "sections": [
+                    {
+                      "title": "Fearsome Cry",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1249017?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Fearsome Cry",
+                        "id": 1249017
+                      },
+                      "sections": null
+                    },
+                    {
+                      "title": "Essence Bolt",
+                      "body_text": "",
+                      "spell": {
+                        "key": {
+                          "Href": "https://us.api.blizzard.com/data/wow/spell/1261997?namespace=static-12.0.1_65617-us"
+                        },
+                        "name": "Essence Bolt",
+                        "id": 1261997
+                      },
+                      "sections": null
+                    }
+                  ]
+                },
+                {
+                  "title": "Swarming Shade",
+                  "body_text": "A swarming horror called from the Rift.",
+                  "spell": null,
+                  "sections": null
+                }
+              ]
+            },
+            {
+              "title": "Alndust Essence",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1245919?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Alndust Essence",
+                "id": 1245919
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Ravenous Dive",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1245406?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Ravenous Dive",
+            "id": 1245406
+          },
+          "sections": [
+            {
+              "title": "Cannibalized Essence",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1245844?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Cannibalized Essence",
+                "id": 1245844
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Ravenous Dive",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1245406?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Ravenous Dive",
+            "id": 1245406
+          },
+          "sections": [
+            {
+              "title": "Cannibalized Essence",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1245844?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Cannibalized Essence",
+                "id": 1245844
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Caustic Phlegm",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1246621?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Caustic Phlegm",
+            "id": 1246621
+          },
+          "sections": null
+        },
+        {
+          "title": "Consuming Miasma",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1257085?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Consuming Miasma",
+            "id": 1257085
+          },
+          "sections": [
+            {
+              "title": "Lingering Miasma",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1257093?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Lingering Miasma",
+                "id": 1257093
+              },
+              "sections": null
+            }
+          ]
+        },
+        {
+          "title": "Rift Shroud",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1246132?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Rift Shroud",
+            "id": 1246132
+          },
+          "sections": null
+        }
+      ]
+    }
+  ]
+}

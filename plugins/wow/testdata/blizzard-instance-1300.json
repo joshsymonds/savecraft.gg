@@ -1,0 +1,34 @@
+{
+  "id": 1300,
+  "name": "Magisters' Terrace",
+  "encounters": [
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2659?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Arcanotron Custos",
+      "id": 2659
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2661?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Seranel Sunlash",
+      "id": 2661
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2660?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Gemellus",
+      "id": 2660
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2662?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Degentrius",
+      "id": 2662
+    }
+  ]
+}

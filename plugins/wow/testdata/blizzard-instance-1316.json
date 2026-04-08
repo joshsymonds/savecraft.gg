@@ -1,0 +1,27 @@
+{
+  "id": 1316,
+  "name": "Nexus-Point Xenas",
+  "encounters": [
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2813?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Chief Corewright Kasreth",
+      "id": 2813
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2814?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Corewarden Nysarra",
+      "id": 2814
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2815?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Lothraxion",
+      "id": 2815
+    }
+  ]
+}

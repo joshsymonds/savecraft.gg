@@ -1,0 +1,27 @@
+{
+  "id": 1315,
+  "name": "Maisara Caverns",
+  "encounters": [
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2810?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Muro'jin and Nekraxx",
+      "id": 2810
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2811?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Vordaza",
+      "id": 2811
+    },
+    {
+      "key": {
+        "Href": "https://us.api.blizzard.com/data/wow/journal-encounter/2812?namespace=static-12.0.1_65617-us"
+      },
+      "name": "Rak'tul, Vessel of Souls",
+      "id": 2812
+    }
+  ]
+}

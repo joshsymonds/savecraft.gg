@@ -1,0 +1,143 @@
+{
+  "id": 2659,
+  "name": "Arcanotron Custos",
+  "description": "This highly advanced arcane construct has been charged with keeping the peace and ensuring that all Magisters adhere to rules and restrictions. Veering from said rules will not be tolerated.",
+  "sections": [
+    {
+      "title": "Overview",
+      "body_text": "Arcanotron Custos controls players with its [Ethereal Shackles] and by creating pools of [Arcane Residue]. Upon running out of energy, Arcanotron Custos begins its [Refueling Protocol], drawing in [Energy Orbs] to refuel itself.",
+      "spell": null,
+      "sections": [
+        {
+          "title": "Damage Dealers",
+          "body_text": "$bullet;[Arcane Expulsion] inflicts a heavy amount of damage and knocks back all players.\r\n$bullet;[Arcane Residue] inflicts heavy damage to players standing in the area.\r\n$bullet; Arcanotron Custos gains [Arcane Empowerment] if an Energy Orb reaches it.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Healers",
+          "body_text": "$bullet;[Ethereal Shackles] roots players and inflicts periodic damage.\r\n$bullet;[Arcane Residue] inflicts heavy damage to players standing in the area.\r\n$bullet; Arcanotron Custos gains [Arcane Empowerment] if an Energy Orb reaches it.",
+          "spell": null,
+          "sections": null
+        },
+        {
+          "title": "Tanks",
+          "body_text": "$bullet;[Repulsing Slam] inflicts a heavy amount of damage and knocks back its target.\r\n$bullet;[Arcane Residue] inflicts heavy damage to players standing in the area.\r\n$bullet; Arcanotron Custos gains [Arcane Empowerment] if an Energy Orb reaches it.",
+          "spell": null,
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Refueling Protocol",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/474345?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Refueling Protocol",
+        "id": 474345
+      },
+      "sections": [
+        {
+          "title": "Energy Orb",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/474308?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Energy Orb",
+            "id": 474308
+          },
+          "sections": [
+            {
+              "title": "Arcane Residue",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1214089?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Arcane Residue",
+                "id": 1214089
+              },
+              "sections": null
+            },
+            {
+              "title": "Unstable Energy",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/1243905?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Unstable Energy",
+                "id": 1243905
+              },
+              "sections": null
+            },
+            {
+              "title": "Arcane Empowerment",
+              "body_text": "",
+              "spell": {
+                "key": {
+                  "Href": "https://us.api.blizzard.com/data/wow/spell/474407?namespace=static-12.0.1_65617-us"
+                },
+                "name": "Arcane Empowerment",
+                "id": 474407
+              },
+              "sections": null
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "Arcane Expulsion",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1214081?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Arcane Expulsion",
+        "id": 1214081
+      },
+      "sections": [
+        {
+          "title": "Arcane Residue",
+          "body_text": "",
+          "spell": {
+            "key": {
+              "Href": "https://us.api.blizzard.com/data/wow/spell/1214089?namespace=static-12.0.1_65617-us"
+            },
+            "name": "Arcane Residue",
+            "id": 1214089
+          },
+          "sections": null
+        }
+      ]
+    },
+    {
+      "title": "Ethereal Shackles",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/1214038?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Ethereal Shackles",
+        "id": 1214038
+      },
+      "sections": null
+    },
+    {
+      "title": "Repulsing Slam",
+      "body_text": "",
+      "spell": {
+        "key": {
+          "Href": "https://us.api.blizzard.com/data/wow/spell/474496?namespace=static-12.0.1_65617-us"
+        },
+        "name": "Repulsing Slam",
+        "id": 474496
+      },
+      "sections": null
+    }
+  ]
+}
