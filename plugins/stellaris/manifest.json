@@ -28,10 +28,10 @@
     "darwin": "~/Documents/Paradox Interactive/Stellaris/save games/*"
   },
   "version": "dev",
-  "sha256": "215dfff34ed7cfddb925c28f9d404d6da7a65c1cd6ea5b3479d9ca12e0e42b3c",
+  "sha256": "5de97944c63d7bf76dfa8e5ab6f47f33f14463caf7d51a0b6599095795eafca5",
   "url": "plugins/stellaris/parser.wasm",
   "reference": {
-    "sha256": "093a7fb34a05c4add4002a6aadd82f2ef8ddd305740d7ef754ce51b683e97d50",
+    "sha256": "dd8af720a63c71aa6692700dc231015bf5b3cc50cf323e45674f37b9dbc0be0d",
     "url": "plugins/stellaris/reference.wasm",
     "modules": {
       "building_search": {
@@ -124,7 +124,17 @@
       },
       "tech_path": {
         "name": "Technology Path",
-        "description": "Resolve the full prerequisite chain for a target technology. Returns topologically sorted prerequisites with researched/remaining annotations."
+        "description": "Resolve the full prerequisite chain for a target technology. Returns topologically sorted prerequisites with researched/remaining annotations.",
+        "parameters": {
+          "researched": {
+            "description": "Optional array of already-researched tech keys to annotate the chain",
+            "type": "array"
+          },
+          "target": {
+            "description": "Target tech key to resolve prerequisites for",
+            "type": "string"
+          }
+        }
       },
       "tech_search": {
         "name": "Technology Search",

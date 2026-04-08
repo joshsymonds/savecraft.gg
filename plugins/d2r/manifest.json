@@ -26,10 +26,10 @@
     "darwin": "~/Library/Application Support/Diablo II Resurrected"
   },
   "version": "dev",
-  "sha256": "5c946e175d044b6487ec43e0344a60ef9013f4d6ff36688b6f888997b2d3b068",
+  "sha256": "9f9817a00fc2ff93af1bd67c372aa3a2068d14b2076321458e3c2df541fb3875",
   "url": "plugins/d2r/parser.wasm",
   "reference": {
-    "sha256": "bb406099fb00b38cd84b33f7b8bbf4c684a05910088c0612d38bcd25e5f0285d",
+    "sha256": "b334de614f916ffa290f3345f62c471916fc66f395015dc0a17064dfceb9800a",
     "url": "plugins/d2r/reference.wasm",
     "modules": {
       "drop_calc": {

@@ -32,6 +32,6 @@
     "darwin": "~/Library/Application Support/Epic/Sandfall/Saved/SaveGames/*"
   },
   "version": "dev",
-  "sha256": "08650c9c98c33721f9b672a5f3717688c20422a91e942b976849f37ceade9107",
+  "sha256": "f2c451b6ecbc320dd00e3b1fbf89d102a70589eab7898c9f15223187836505aa",
   "url": "plugins/clair-obscur/parser.wasm"
 }

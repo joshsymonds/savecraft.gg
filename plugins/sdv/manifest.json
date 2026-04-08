@@ -24,10 +24,10 @@
     "darwin": "~/.config/StardewValley/Saves"
   },
   "version": "dev",
-  "sha256": "99595f117b0af6b3c332da81bf4197bbe609bd847e2f8591110818416d48f8b5",
+  "sha256": "2d270996fdd014e56200b5232949f1ad332392b8ccca37dee6d90be263eadd03",
   "url": "plugins/sdv/parser.wasm",
   "reference": {
-    "sha256": "d31799bb7a1c00b90b97bf6253e0e99f1e838d89ec901c33fab55d1ab97d957f",
+    "sha256": "31b75218dd69a1e3df43515b41b306499ea72a03f04d17dfe81765e89ef92a6a",
     "url": "plugins/sdv/reference.wasm",
     "modules": {
       "crop_planner": {

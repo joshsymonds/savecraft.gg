@@ -28,19 +28,33 @@
     "darwin": "~/Library/Application Support/factorio/script-output/savecraft"
   },
   "version": "dev",
-  "sha256": "163d7948b339e926ca5393fd5ea9128b5f5bddd9f9f247708506801b60784ec5",
+  "sha256": "82f59db328fddc65b208219cabac4d3adf459c5e7f20f1afef2ced365b332649",
   "url": "plugins/factorio/parser.wasm",
   "reference": {
-    "sha256": "00a4da2a439729cef406800f988f52ba476a0f695948cfc00c309d385a2d091a",
+    "sha256": "96ec5d97b4db2283a430dc5923628f3f4ee682d8d0b3856090b8f40d31c1dd24",
     "url": "plugins/factorio/reference.wasm",
     "modules": {
       "blueprint_analyzer": {
         "name": "Blueprint Analyzer",
-        "description": "Decode a Factorio blueprint string (version byte + base64 + zlib + JSON), extract the entity list, and evaluate production ratios, belt throughput, module usage, and inserter adequacy against baked-in recipe data."
+        "description": "Decode a Factorio blueprint string (version byte + base64 + zlib + JSON), extract the entity list, and evaluate production ratios, belt throughput, module usage, and inserter adequacy against baked-in recipe data.",
+        "parameters": {
+          "blueprint_string": {
+            "description": "Factorio blueprint string (starts with '0', base64+zlib encoded)",
+            "required": true,
+            "type": "string"
+          }
+        }
       },
       "evolution_tracker": {
         "name": "Evolution \u0026 Threat Tracker",
         "description": "Analyze biter evolution and defense posture from save data. Returns evolution factor with source breakdown, enemy tier prediction, spawn weight distribution, and defense summary including turret counts, walls, and nearby enemy bases.",
+        "parameters": {
+          "defenses": {
+            "description": "Defenses section from save data (injected via save_id). Contains evolution factor, turret counts, walls, enemy bases, and pollution.",
+            "required": true,
+            "type": "object"
+          }
+        },
         "section_mappings": {
           "defenses": "defenses"
         }
@@ -52,6 +66,39 @@
       "oil_balancer": {
         "name": "Oil Processing Balancer",
         "description": "Given target fluid products and rates, compute optimal refinery and cracking plant counts for basic, advanced, or coal liquefaction processing. Returns machine counts, water and crude input rates, and surplus byproducts. Pass save_id to compare against your actual factory and identify bottlenecks.",
+        "parameters": {
+          "actual_flow": {
+            "description": "Player's actual fluid production/consumption rates (injected from save data when save_id is present). Contains items, fluids maps.",
+            "type": "object"
+          },
+          "beacon_count": {
+            "default": 0,
+            "description": "Number of beacons affecting each machine",
+            "type": "integer"
+          },
+          "beacon_modules": {
+            "description": "Module names in each beacon (e.g. ['speed-module-3', 'speed-module-3'])",
+            "type": "array"
+          },
+          "existing_setup": {
+            "description": "Player's existing machines by recipe (injected from save data when save_id is present). Contains by_recipe, by_type, beacon_count.",
+            "type": "object"
+          },
+          "modules": {
+            "description": "Module names in each machine slot (e.g. ['productivity-module-3', 'productivity-module-3', 'productivity-module-3'])",
+            "type": "array"
+          },
+          "processing_type": {
+            "description": "Oil processing recipe: 'advanced-oil-processing', 'basic-oil-processing', 'coal-liquefaction', or 'simple-coal-liquefaction'",
+            "required": true,
+            "type": "string"
+          },
+          "targets": {
+            "description": "Map of fluid name to target rate in units per second (e.g. {\"petroleum-gas\": 100, \"lubricant\": 10})",
+            "required": true,
+            "type": "object"
+          }
+        },
         "section_mappings": {
           "actual_flow": "production_flow",
           "existing_setup": "machines"
@@ -60,6 +107,18 @@
       "power_calculator": {
         "name": "Power Generation Calculator",
         "description": "Given power demand in MW, compute optimal generation setup for steam (boiler/engine ratios), solar (panel/accumulator ratios), or nuclear (reactor neighbor bonuses, heat exchanger and turbine counts, fuel cell consumption).",
+        "parameters": {
+          "sources": {
+            "description": "Array of power sources. Each has 'type' ('steam', 'solar', 'nuclear'). Steam: optional 'fuel' (default 'coal'). Nuclear: optional 'layout' (default '2x2'). At most one source may omit 'mw' to fill the remainder.",
+            "required": true,
+            "type": "array"
+          },
+          "target_mw": {
+            "description": "Target power generation in megawatts",
+            "required": true,
+            "type": "number"
+          }
+        },
         "section_mappings": {
           "existing_power": "power"
         }
@@ -67,6 +126,21 @@
       "production_flow": {
         "name": "Factory Health Diagnosis",
         "description": "Diagnose factory health by cross-referencing production rates with recipe, machine, and technology data. Computes deficit causes, machine gaps, cascade risks, and tech unlock impacts. Pass save_id to analyze your factory.",
+        "parameters": {
+          "completed_research": {
+            "description": "Completed research data from save (injected via save_id). Contains completed tech name list.",
+            "type": "object"
+          },
+          "existing_machines": {
+            "description": "Existing machine counts by recipe (injected via save_id). Contains by_recipe, by_type maps.",
+            "type": "object"
+          },
+          "flow_data": {
+            "description": "Production flow data from save (injected via save_id). Contains items/fluids with produced/consumed rates.",
+            "required": true,
+            "type": "object"
+          }
+        },
         "section_mappings": {
           "completed_research": "research",
           "existing_machines": "machines",
@@ -152,6 +226,17 @@
       "tech_tree_navigator": {
         "name": "Tech Tree Navigator",
         "description": "Traverse technology prerequisite chains with total science pack costs. Given a target technology and completed research, compute the optimal research path and total cost by pack type.",
+        "parameters": {
+          "completed_research": {
+            "description": "Completed research data from save (injected via save_id). Contains completed tech name list.",
+            "type": "object"
+          },
+          "target": {
+            "description": "Target technology name (e.g. 'nuclear-power', 'spidertron')",
+            "required": true,
+            "type": "string"
+          }
+        },
         "section_mappings": {
           "completed_research": "research"
         }
