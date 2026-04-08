@@ -5,21 +5,11 @@
  */
 
 import { ingestMatchHistory } from "./mtga/ingest";
+import { MANIFESTS } from "./mcp/manifests.gen.js";
 import type { Env } from "./types";
 
-/** Per-isolate cache for game name lookups — avoids R2 read on every new save. */
-const gameNameCache = new Map<string, { name: string; fetchedAt: number }>();
-const GAME_NAME_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
-
-export async function resolveGameName(plugins: R2Bucket, gameId: string): Promise<string> {
-  const cached = gameNameCache.get(gameId);
-  if (cached && Date.now() - cached.fetchedAt < GAME_NAME_CACHE_TTL_MS) return cached.name;
-  const manifest = await plugins.get(`plugins/${gameId}/manifest.json`);
-  if (!manifest) return gameId;
-  const data = await manifest.json<{ name?: string }>();
-  const name = data.name ?? gameId;
-  gameNameCache.set(gameId, { name, fetchedAt: Date.now() });
-  return name;
+export function resolveGameName(gameId: string): string {
+  return MANIFESTS.get(gameId)?.name ?? gameId;
 }
 
 export interface SectionInput {
@@ -91,7 +81,7 @@ export async function storePush(
 
   if (!existingSave) {
     const saveUuid = crypto.randomUUID();
-    const gameName = await resolveGameName(env.PLUGINS, gameId);
+    const gameName = resolveGameName(gameId);
     await env.DB.prepare(
       "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
     )

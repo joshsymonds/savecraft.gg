@@ -1,7 +1,6 @@
 import { getOAuthApi } from "@cloudflare/workers-oauth-provider";
 import { env, SELF } from "cloudflare:test";
 
-import { clearToolCaches } from "../src/mcp/tools";
 import { OAUTH_ENDPOINTS } from "../src/oauth";
 import type { OAuthProps } from "../src/oauth";
 import { type DeepPartial, Message, RelayedMessage } from "../src/proto/savecraft/v1/protocol";
@@ -66,7 +65,6 @@ export async function cleanAll(): Promise<void> {
   for (const object of listed.objects) {
     await env.PLUGINS.delete(object.key);
   }
-  clearToolCaches();
   clearNativeRegistry();
 }
 

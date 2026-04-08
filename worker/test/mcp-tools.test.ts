@@ -142,7 +142,7 @@ describe("MCP Tools", () => {
 
   describe("listGames", () => {
     it("returns empty array when user has no saves", async () => {
-      const result = await listGames(env.DB, env.PLUGINS, "no-saves-user");
+      const result = await listGames(env.DB, "no-saves-user");
       const data = parseResult(result) as { games: GameEntry[] };
       expect(data.games).toEqual([]);
     });
@@ -165,7 +165,7 @@ describe("MCP Tools", () => {
         summary: "Berry Farm, Year 3 Fall",
       });
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const result = await listGames(env.DB, USER_A);
       const data = parseResult(result) as { games: GameEntry[] };
       expect(data.games).toHaveLength(2);
 
@@ -189,7 +189,7 @@ describe("MCP Tools", () => {
       await seedNote("save-notes", USER_A, "note-1", "Build Guide", "## Gear section");
       await seedNote("save-notes", USER_A, "note-2", "Farming Goals", "Need Ber rune");
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const result = await listGames(env.DB, USER_A);
       const data = parseResult(result) as { games: GameEntry[] };
       const game = data.games.find((g) => g.game_id === "d2r")!;
       const save = game.saves.find((s) => s.save_id === "save-notes")!;
@@ -215,7 +215,7 @@ describe("MCP Tools", () => {
         summary: "Sorceress, Level 80",
       });
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const result = await listGames(env.DB, USER_A);
       const data = parseResult(result) as { games: GameEntry[] };
       const allSaveIds = data.games.flatMap((g) => g.saves.map((s) => s.save_id));
       expect(allSaveIds).not.toContain("save-other");
@@ -231,7 +231,7 @@ describe("MCP Tools", () => {
         lastUpdated: "2026-02-25T21:30:00Z",
       });
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const result = await listGames(env.DB, USER_A);
       const data = parseResult(result) as { games: GameEntry[] };
       const game = data.games.find((g) => g.game_id === "d2r")!;
       const save = game.saves.find((s) => s.save_id === "save-meta")!;
@@ -258,7 +258,7 @@ describe("MCP Tools", () => {
         summary: "Berry Farm, Year 3",
       });
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A, "diablo");
+      const result = await listGames(env.DB, USER_A, "diablo");
       const data = parseResult(result) as { games: GameEntry[] };
       expect(data.games).toHaveLength(1);
       expect(data.games[0]!.game_id).toBe("d2r");
@@ -275,23 +275,9 @@ describe("MCP Tools", () => {
         summary: "Hammerdin, Level 89",
       });
 
-      // Seed a manifest with reference modules
-      const manifest = {
-        game_id: "d2r",
-        name: "Diablo II: Resurrected",
-        reference: {
-          modules: {
-            drop_calc: {
-              name: "Drop Calculator",
-              description: "Compute drop probabilities for any monster, area, or boss",
-              parameters: { type: "object", properties: { area: { type: "string" } } },
-            },
-          },
-        },
-      };
-      await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(manifest));
+      // Reference modules come from embedded manifests.gen.ts
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const result = await listGames(env.DB, USER_A);
       const data = parseResult(result) as { games: GameEntry[] };
       const d2r = data.games.find((g) => g.game_id === "d2r")!;
       expect(d2r.references).toBeDefined();
@@ -311,7 +297,7 @@ describe("MCP Tools", () => {
         summary: "Year 1",
       });
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const result = await listGames(env.DB, USER_A);
       const data = parseResult(result) as { games: GameEntry[] };
       const stardew = data.games.find((g) => g.game_id === "stardew")!;
       expect(stardew.references).toBeUndefined();
@@ -328,13 +314,9 @@ describe("MCP Tools", () => {
         summary: "Level 90 Warrior",
       });
 
-      // Put a manifest with the correct display name
-      await env.PLUGINS.put(
-        "plugins/wow/manifest.json",
-        JSON.stringify({ game_id: "wow", name: "World of Warcraft" }),
-      );
+      // Embedded manifest has name: "World of Warcraft" — attachReferenceModules corrects the stale name
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const result = await listGames(env.DB, USER_A);
       const data = parseResult(result) as { games: GameEntry[] };
       const wow = data.games.find((g) => g.game_id === "wow")!;
       expect(wow.game_name).toBe("World of Warcraft");
@@ -356,17 +338,10 @@ describe("MCP Tools", () => {
         summary: "Level 89",
       });
 
-      const manifest = {
-        game_id: "d2r",
-        name: "Diablo II: Resurrected",
-        icon: "icon.png",
-        reference: { modules: {} },
-      };
-      await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(manifest));
+      // Icon data comes from embedded manifests.gen.ts (d2r has icon: "icon.png")
 
       const result = await listGames(
         env.DB,
-        env.PLUGINS,
         USER_A,
         undefined,
         "https://api.savecraft.gg",
@@ -385,12 +360,10 @@ describe("MCP Tools", () => {
         summary: "Year 1",
       });
 
-      const manifest = { game_id: "stardew", name: "Stardew Valley" };
-      await env.PLUGINS.put("plugins/stardew/manifest.json", JSON.stringify(manifest));
+      // "stardew" has no manifest in manifests.gen.ts, so no icon_url
 
       const result = await listGames(
         env.DB,
-        env.PLUGINS,
         USER_A,
         undefined,
         "https://api.savecraft.gg",
@@ -435,7 +408,7 @@ describe("MCP Tools", () => {
         summary: "Level 89 Paladin",
       });
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const result = await listGames(env.DB, USER_A);
       expect("structuredContent" in result).toBe(false);
       const data = JSON.parse(result.content[0]!.text) as { games: GameEntry[] };
       expect(data.games).toHaveLength(1);
@@ -689,27 +662,25 @@ describe("MCP Tools", () => {
         summary: "Test icon URL",
       });
 
-      const manifest = { game_id: "d2r", name: "Diablo II: Resurrected", icon: "icon.png" };
-      await env.PLUGINS.put("plugins/d2r/manifest.json", JSON.stringify(manifest));
+      // Icon data comes from embedded manifests.gen.ts (d2r has icon: "icon.png")
 
       const result = await getSave(
         env.DB,
         USER_A,
         "save-icon-get",
-        env.PLUGINS,
         "https://api.savecraft.gg",
       );
       const data = parseResult(result) as { icon_url?: string };
       expect(data.icon_url).toBe("https://api.savecraft.gg/plugins/d2r/icon.png");
     });
 
-    it("omits icon_url when plugins param is not provided", async () => {
+    it("omits icon_url when serverUrl is not provided", async () => {
       await seedSave({
         saveUuid: "save-no-icon-get",
         userUuid: USER_A,
         gameId: "d2r",
         saveName: "NoIconTest",
-        summary: "No icon without plugins",
+        summary: "No icon without serverUrl",
       });
 
       const result = await getSave(env.DB, USER_A, "save-no-icon-get");
@@ -1475,17 +1446,19 @@ describe("MCP Tools", () => {
       expect(data.setup.api_games.setup).toContain("OAuth");
     });
 
-    it("adapter guide does not list non-API games", async () => {
+    it("adapter guide includes API games from embedded manifests", async () => {
       await seedAdapterSource({ sourceUuid: "adapter-nolist", userUuid: USER_A });
-      await env.PLUGINS.put(
-        "plugins/d2r/manifest.json",
-        JSON.stringify({ game_id: "d2r", name: "Diablo II: Resurrected" }),
-      );
 
       const result = await getInfo(env, USER_A, "setup");
-      const data = parseResult(result) as { setup: Record<string, unknown> };
-      // No api games found in manifests, so no api_games section even for adapter source
-      expect(data.setup).not.toHaveProperty("api_games");
+      const data = parseResult(result) as {
+        setup: { api_games?: { available_games: { game_id: string }[] } };
+      };
+      // Embedded manifests include WoW (sources: ["api"]), so api_games should appear
+      expect(data.setup.api_games).toBeDefined();
+      const gameIds = data.setup.api_games!.available_games.map((g) => g.game_id);
+      expect(gameIds).toContain("wow");
+      // Non-API games should not appear in api_games
+      expect(gameIds).not.toContain("d2r");
     });
 
     // ── Adapter source support ────────────────────────────────
@@ -1658,41 +1631,6 @@ describe("MCP Tools", () => {
     });
 
     it("returns all supported games for category='games'", async () => {
-      await env.PLUGINS.put(
-        "plugins/d2r/manifest.json",
-        JSON.stringify({
-          game_id: "d2r",
-          name: "Diablo II: Resurrected",
-          sources: ["wasm"],
-          description: "Parses D2R save files",
-          channel: "beta",
-          coverage: "partial",
-          limitations: ["No shared stash"],
-        }),
-      );
-      await env.PLUGINS.put(
-        "plugins/wow/manifest.json",
-        JSON.stringify({
-          game_id: "wow",
-          name: "World of Warcraft",
-          sources: ["api"],
-          description: "Battle.net API integration",
-          channel: "beta",
-          coverage: "partial",
-        }),
-      );
-      await env.PLUGINS.put(
-        "plugins/rimworld/manifest.json",
-        JSON.stringify({
-          game_id: "rimworld",
-          name: "RimWorld",
-          sources: ["mod"],
-          description: "In-game Harmony mod",
-          channel: "alpha",
-          coverage: "full",
-        }),
-      );
-
       const result = await getInfo(env, USER_A, "games");
       const data = parseResult(result) as {
         sources: unknown[];
@@ -1707,11 +1645,15 @@ describe("MCP Tools", () => {
           setup: string;
         }[];
       };
-      expect(data.games).toHaveLength(3);
-      // Sorted alphabetically by name
-      expect(data.games[0]!.name).toBe("Diablo II: Resurrected");
-      expect(data.games[1]!.name).toBe("RimWorld");
-      expect(data.games[2]!.name).toBe("World of Warcraft");
+      // All 7 embedded manifests returned, sorted alphabetically by name
+      expect(data.games).toHaveLength(7);
+      const names = data.games.map((g) => g.name);
+      expect(names).toContain("Diablo II: Resurrected");
+      expect(names).toContain("RimWorld");
+      expect(names).toContain("World of Warcraft");
+      // Verify sorted
+      const sorted = [...names].sort((a, b) => a.localeCompare(b));
+      expect(names).toEqual(sorted);
       // Should NOT include other category content
       expect(data).not.toHaveProperty("categories");
       expect(data).not.toHaveProperty("setup");
@@ -1719,19 +1661,6 @@ describe("MCP Tools", () => {
     });
 
     it("games category includes per-source-type setup instructions", async () => {
-      await env.PLUGINS.put(
-        "plugins/d2r/manifest.json",
-        JSON.stringify({ game_id: "d2r", name: "D2R", sources: ["wasm"] }),
-      );
-      await env.PLUGINS.put(
-        "plugins/wow/manifest.json",
-        JSON.stringify({ game_id: "wow", name: "WoW", sources: ["api"] }),
-      );
-      await env.PLUGINS.put(
-        "plugins/rimworld/manifest.json",
-        JSON.stringify({ game_id: "rimworld", name: "RimWorld", sources: ["mod"] }),
-      );
-
       const result = await getInfo(env, USER_A, "games");
       const data = parseResult(result) as {
         games: { game_id: string; sources: string[]; setup: string }[];
@@ -1745,26 +1674,16 @@ describe("MCP Tools", () => {
       expect(rimworld.setup).toContain("Steam Workshop");
     });
 
-    it("games category returns empty array when no manifests exist", async () => {
+    it("games category returns all embedded manifests", async () => {
       const result = await getInfo(env, USER_A, "games");
-      const data = parseResult(result) as { games: unknown[] };
-      expect(data.games).toEqual([]);
+      const data = parseResult(result) as { games: { game_id: string }[] };
+      // All 7 embedded manifests are always present
+      expect(data.games).toHaveLength(7);
+      const gameIds = data.games.map((g) => g.game_id).toSorted();
+      expect(gameIds).toEqual(["clair-obscur", "d2r", "factorio", "mtga", "rimworld", "sdv", "wow"]);
     });
 
-    it("games category includes full metadata from manifests", async () => {
-      await env.PLUGINS.put(
-        "plugins/d2r/manifest.json",
-        JSON.stringify({
-          game_id: "d2r",
-          name: "Diablo II: Resurrected",
-          source: "wasm",
-          description: "Parses D2R save files",
-          channel: "beta",
-          coverage: "partial",
-          limitations: ["No shared stash", "No ladder data"],
-        }),
-      );
-
+    it("games category includes full metadata from embedded manifests", async () => {
       const result = await getInfo(env, USER_A, "games");
       const data = parseResult(result) as {
         games: {
@@ -1776,10 +1695,10 @@ describe("MCP Tools", () => {
         }[];
       };
       const d2r = data.games.find((g) => g.game_id === "d2r")!;
-      expect(d2r.description).toBe("Parses D2R save files");
+      expect(d2r.description).toContain("d2s");
       expect(d2r.channel).toBe("beta");
       expect(d2r.coverage).toBe("partial");
-      expect(d2r.limitations).toEqual(["No shared stash", "No ladder data"]);
+      expect(d2r.limitations.length).toBeGreaterThan(0);
     });
 
     it("returns privacy info for category='privacy'", async () => {
@@ -1888,7 +1807,7 @@ describe("MCP Tools", () => {
         .bind("removed-save")
         .run();
 
-      const result = await listGames(env.DB, env.PLUGINS, USER_A);
+      const result = await listGames(env.DB, USER_A);
       const data = parseResult(result) as { games: GameEntry[] };
       const d2r = data.games.find((g) => g.game_id === "d2r");
       expect(d2r!.saves).toHaveLength(1);

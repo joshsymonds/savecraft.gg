@@ -1,6 +1,6 @@
 /**
  * Pure MCP tool handler functions. Each takes explicit dependencies
- * (D1, R2, user UUID) and returns MCP-compatible tool result objects.
+ * (D1, user UUID) and returns MCP-compatible tool result objects.
  * Tested independently of the MCP protocol layer.
  */
 
@@ -12,6 +12,7 @@ import type { NativeReferenceModule } from "../reference/types";
 import { storePush } from "../store";
 import type { Env } from "../types";
 
+import { MANIFESTS, MANIFEST_LIST } from "./manifests.gen.js";
 import { VISUAL_MODULES } from "./views.gen.js";
 
 /** MCP tool result — matches the MCP spec's ToolResult shape. */
@@ -106,27 +107,6 @@ interface NotePreviewRow {
   preview: string;
 }
 
-interface ReferenceModule {
-  name: string;
-  description: string;
-  parameters?: Record<string, unknown>;
-  /** WASM section mappings: {queryKey: sectionName}. When save_id is in the query, each section is fetched and injected under queryKey. */
-  section_mappings?: Record<string, string>;
-}
-
-interface ManifestData {
-  game_id?: string;
-  name?: string;
-  icon?: string;
-  sources?: string[];
-  description?: string;
-  channel?: string;
-  coverage?: string;
-  limitations?: string[];
-  reference?: {
-    modules?: Record<string, ReferenceModule>;
-  };
-}
 
 /** Test if a game matches a filter pattern (case-insensitive substring on id or name). */
 function matchesGameFilter(gameId: string, gameName: string, filter: string): boolean {
@@ -204,86 +184,24 @@ function groupSavesByGame(
   return gameMap;
 }
 
-/** Per-isolate manifest cache — avoids repeated R2 reads on every list_games call. */
-const manifestCache = new Map<string, { data: ManifestData; fetchedAt: number }>();
-const MANIFEST_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
-
-/** Fetch a manifest from R2, using a per-isolate cache with 5-minute TTL. */
-export async function getCachedManifest(
-  plugins: R2Bucket,
-  key: string,
-): Promise<ManifestData | null> {
-  const cached = manifestCache.get(key);
-  if (cached && Date.now() - cached.fetchedAt < MANIFEST_CACHE_TTL_MS) {
-    return cached.data;
-  }
-  const manifest = await plugins.get(key);
-  if (!manifest) return null;
-  const data = await manifest.json<ManifestData>();
-  manifestCache.set(key, { data, fetchedAt: Date.now() });
-  return data;
-}
-
-/** Resolve a game's icon URL from its manifest. Uses per-isolate cache. */
-export async function resolveIconUrl(
-  plugins: R2Bucket,
+/** Resolve a game's icon URL from its embedded manifest. */
+export function resolveIconUrl(
   serverUrl: string,
   gameId: string,
-): Promise<string | undefined> {
-  const manifest = await getCachedManifest(plugins, `plugins/${gameId}/manifest.json`);
+): string | undefined {
+  const manifest = MANIFESTS.get(gameId);
   if (manifest && (manifest.icon === "icon.png" || manifest.icon === "icon.svg")) {
     return `${serverUrl}/plugins/${gameId}/${manifest.icon}`;
   }
   return undefined;
 }
 
-/** Look up WASM section_mappings for a specific module from its manifest. */
-export async function getWasmSectionMappings(
-  plugins: R2Bucket,
+/** Look up WASM section_mappings for a specific module from its embedded manifest. */
+export function getWasmSectionMappings(
   gameId: string,
   moduleId: string,
-): Promise<Record<string, string> | undefined> {
-  const manifest = await getCachedManifest(plugins, `plugins/${gameId}/manifest.json`);
-  return manifest?.reference?.modules?.[moduleId]?.section_mappings;
-}
-
-/** Per-isolate cache for R2 manifest key list — avoids R2 list on every list_games call. */
-let manifestKeysCache: { keys: string[]; fetchedAt: number } | null = null;
-const MANIFEST_KEYS_CACHE_TTL_MS = 5 * 60_000; // 5 minutes
-
-/** Clear all per-isolate caches. Exported for test cleanup. */
-export function clearToolCaches(): void {
-  manifestCache.clear();
-  manifestKeysCache = null;
-}
-
-async function getManifestKeys(plugins: R2Bucket): Promise<string[]> {
-  if (manifestKeysCache && Date.now() - manifestKeysCache.fetchedAt < MANIFEST_KEYS_CACHE_TTL_MS) {
-    return manifestKeysCache.keys;
-  }
-  const allObjects: R2Object[] = [];
-  let cursor: string | undefined;
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition -- R2 pagination loop
-  while (true) {
-    const listed = await plugins.list({ prefix: "plugins/", cursor });
-    allObjects.push(...listed.objects);
-    if (!listed.truncated) break;
-    cursor = listed.cursor;
-  }
-  const keys = allObjects
-    .filter((object) => object.key.endsWith("/manifest.json"))
-    .map((object) => object.key);
-  manifestKeysCache = { keys, fetchedAt: Date.now() };
-
-  // Evict manifest cache entries for keys no longer in R2
-  const keySet = new Set(keys);
-  for (const cachedKey of manifestCache.keys()) {
-    if (!keySet.has(cachedKey)) {
-      manifestCache.delete(cachedKey);
-    }
-  }
-
-  return keys;
+): Record<string, string> | undefined {
+  return MANIFESTS.get(gameId)?.reference?.modules?.[moduleId]?.section_mappings;
 }
 
 /**
@@ -316,55 +234,33 @@ function mergeNativeModules(gameMap: Map<string, GameEntry>, filter?: string): v
   }
 }
 
-/** Resolve or create a GameEntry, updating stale game names via fire-and-forget D1. */
-function resolveGameEntry(
+/** Attach reference modules from embedded manifests to game entries the user owns. */
+function attachReferenceModules(
   db: D1Database,
-  gameMap: Map<string, GameEntry>,
-  gameId: string,
-  manifestGameName: string,
-  manifestName: string | undefined,
-  userUuid: string,
-): GameEntry {
-  const existing = gameMap.get(gameId);
-  if (existing) {
-    if (manifestName && existing.game_name !== manifestGameName) {
-      existing.game_name = manifestGameName;
-      void db
-        .prepare(
-          "UPDATE saves SET game_name = ? WHERE game_id = ? AND game_name != ? AND user_uuid = ?",
-        )
-        .bind(manifestGameName, gameId, manifestGameName, userUuid)
-        .run();
-    }
-    return existing;
-  }
-  const game: GameEntry = { game_id: gameId, game_name: manifestGameName, saves: [] };
-  gameMap.set(gameId, game);
-  return game;
-}
-
-/** Scan R2 manifests and attach reference modules to game entries. */
-async function attachReferenceModules(
-  db: D1Database,
-  plugins: R2Bucket,
   gameMap: Map<string, GameEntry>,
   userUuid: string,
   filter?: string,
   serverUrl?: string,
-): Promise<void> {
-  const manifestKeys = await getManifestKeys(plugins);
-
-  const manifests = await Promise.all(manifestKeys.map((key) => getCachedManifest(plugins, key)));
-
-  for (const data of manifests) {
-    if (!data?.game_id) continue;
-
+): void {
+  for (const data of MANIFEST_LIST) {
     const manifestGameName = data.name ?? data.game_id;
     if (filter && !matchesGameFilter(data.game_id, manifestGameName, filter)) continue;
 
-    const game = resolveGameEntry(db, gameMap, data.game_id, manifestGameName, data.name, userUuid);
+    // Only enrich games the user already has saves for — don't create phantom entries.
+    const game = gameMap.get(data.game_id);
+    if (!game) continue;
 
-    // Construct icon URL directly from already-loaded manifest data
+    // Update stale game names from manifest (fire-and-forget D1 update)
+    if (data.name && game.game_name !== manifestGameName) {
+      game.game_name = manifestGameName;
+      void db
+        .prepare(
+          "UPDATE saves SET game_name = ? WHERE game_id = ? AND game_name != ? AND user_uuid = ?",
+        )
+        .bind(manifestGameName, data.game_id, manifestGameName, userUuid)
+        .run();
+    }
+
     if (serverUrl && data.icon && (data.icon === "icon.png" || data.icon === "icon.svg")) {
       game.icon_url = `${serverUrl}/plugins/${data.game_id}/${data.icon}`;
     }
@@ -385,7 +281,6 @@ async function attachReferenceModules(
 
 export async function listGames(
   db: D1Database,
-  plugins: R2Bucket,
   userUuid: string,
   filter?: string,
   serverUrl?: string,
@@ -417,7 +312,7 @@ export async function listGames(
     }
   }
 
-  await attachReferenceModules(db, plugins, gameMap, userUuid, filter, serverUrl);
+  attachReferenceModules(db, gameMap, userUuid, filter, serverUrl);
 
   const games = [...gameMap.values()];
   if (filter && games.length === 0) {
@@ -448,7 +343,6 @@ export async function getSave(
   db: D1Database,
   userUuid: string,
   saveId: string,
-  plugins?: R2Bucket,
   serverUrl?: string,
 ): Promise<ToolResult> {
   const save = await lookupSave(db, userUuid, saveId);
@@ -499,7 +393,7 @@ export async function getSave(
       )
       .bind(saveId, userUuid)
       .all<{ note_id: string; title: string; source: string; size_bytes: number }>(),
-    plugins && serverUrl ? resolveIconUrl(plugins, serverUrl, save.game_id) : undefined,
+    serverUrl ? resolveIconUrl(serverUrl, save.game_id) : undefined,
   ]);
 
   const result: Record<string, unknown> = {
@@ -1450,25 +1344,22 @@ function buildDaemonGuide(platform?: string): Record<string, PlatformGuide | str
   return { ...PLATFORM_GUIDES, pairing: PAIRING_GUIDE };
 }
 
-async function buildGuide(
-  plugins: R2Bucket,
+function buildGuide(
   sourceKinds: Set<string>,
   platform?: string,
-): Promise<Record<string, GuideEntry>> {
+): Record<string, GuideEntry> {
   const hasDaemon = sourceKinds.has("daemon");
   const hasAdapter = sourceKinds.has("adapter");
   const hasNone = sourceKinds.size === 0;
 
   const guide: Record<string, GuideEntry> = {};
 
-  // Include daemon guide if user has daemon sources or no sources at all
   if (hasDaemon || hasNone) {
     Object.assign(guide, buildDaemonGuide(platform));
   }
 
-  // Include adapter guide if user has adapter sources or no sources at all
   if (hasAdapter || hasNone) {
-    const apiGames = await getApiGamesFromManifests(plugins);
+    const apiGames = getApiGamesFromManifests();
     if (apiGames.length > 0) {
       guide.api_games = { setup: ADAPTER_SETUP_GUIDE, available_games: apiGames };
     }
@@ -1477,22 +1368,14 @@ async function buildGuide(
   return guide;
 }
 
-async function getApiGamesFromManifests(plugins: R2Bucket): Promise<AdapterGameInfo[]> {
-  const manifestKeys = await getManifestKeys(plugins);
-  const manifests = await Promise.all(manifestKeys.map((key) => getCachedManifest(plugins, key)));
-  return manifests
-    .filter(
-      (m): m is ManifestData & { game_id: string } =>
-        m !== null && !!m.sources?.includes("api") && !!m.game_id,
-    )
+function getApiGamesFromManifests(): AdapterGameInfo[] {
+  return MANIFEST_LIST
+    .filter((m) => m.sources?.includes("api"))
     .map((m) => ({ game_id: m.game_id, name: m.name ?? m.game_id }));
 }
 
-async function getAllGamesFromManifests(plugins: R2Bucket): Promise<SupportedGameInfo[]> {
-  const manifestKeys = await getManifestKeys(plugins);
-  const manifests = await Promise.all(manifestKeys.map((key) => getCachedManifest(plugins, key)));
-  return manifests
-    .filter((m): m is ManifestData & { game_id: string } => m !== null && !!m.game_id)
+function getAllGamesFromManifests(): SupportedGameInfo[] {
+  return MANIFEST_LIST
     .map((m) => ({
       game_id: m.game_id,
       name: m.name ?? m.game_id,
@@ -1645,12 +1528,12 @@ export async function getInfo(
       break;
     }
     case "games": {
-      response.games = await getAllGamesFromManifests(env.PLUGINS);
+      response.games = getAllGamesFromManifests();
       break;
     }
     case "setup": {
       const sourceKinds = new Set(sourceRows.results.map((r) => r.source_kind));
-      response.setup = await buildGuide(env.PLUGINS, sourceKinds, platform);
+      response.setup = buildGuide(sourceKinds, platform);
       break;
     }
     case "privacy": {

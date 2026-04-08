@@ -31,7 +31,7 @@ import {
   updateNote,
   viewResult,
   type ViewToolResult,
-} from "./tools";
+} from "./tools.js";
 import { VIEWS, VISUAL_MODULES } from "./views.gen.js";
 
 const PROTOCOL_VERSION = "2025-06-18";
@@ -625,7 +625,6 @@ async function dispatchShowGames(
   return asView(
     await listGames(
       env.DB,
-      env.PLUGINS,
       userUuid,
       args.filter as string | undefined,
       env.SERVER_URL,
@@ -639,7 +638,7 @@ async function dispatchShowSave(
   userUuid: string,
   saveId: string,
 ): Promise<ToolResult | ViewToolResult> {
-  return asView(await getSave(env.DB, userUuid, saveId, env.PLUGINS, env.SERVER_URL));
+  return asView(await getSave(env.DB, userUuid, saveId, env.SERVER_URL));
 }
 
 /** Text-only reference query: strip structuredContent so no iframe loads. */
@@ -690,9 +689,9 @@ type ToolHandler = (
 /** Tool dispatch table — maps tool name to handler. Replaces switch to stay under complexity limit. */
 const TOOL_HANDLERS: Record<string, ToolHandler> = {
   list_games: (env, userUuid, args) =>
-    listGames(env.DB, env.PLUGINS, userUuid, args.filter as string | undefined, env.SERVER_URL),
+    listGames(env.DB, userUuid, args.filter as string | undefined, env.SERVER_URL),
   get_save: (env, userUuid, _args, saveId) =>
-    getSave(env.DB, userUuid, saveId, env.PLUGINS, env.SERVER_URL),
+    getSave(env.DB, userUuid, saveId, env.SERVER_URL),
   get_section: (env, userUuid, args, saveId) =>
     getSection(env.DB, userUuid, saveId, parseSectionsArgument(args.sections) ?? []),
   get_note: (env, userUuid, args, saveId) =>
@@ -889,7 +888,7 @@ async function handleQueryReference(
   // Loaded once per batch (manifest is per-isolate cached).
   const wasmMappings = nativeModule
     ? undefined
-    : await getWasmSectionMappings(env.PLUGINS, gameId, moduleId);
+    : getWasmSectionMappings(gameId, moduleId);
 
   // Cache verified save ownership across queries in this batch to avoid
   // redundant D1 lookups when multiple queries reference the same save_id.
@@ -935,7 +934,7 @@ async function handleQueryReference(
   });
 
   const iconUrl = env.SERVER_URL
-    ? await resolveIconUrl(env.PLUGINS, env.SERVER_URL, gameId)
+    ? resolveIconUrl(env.SERVER_URL, gameId)
     : undefined;
   const iconSpread = iconUrl ? { icon_url: iconUrl } : {};
 

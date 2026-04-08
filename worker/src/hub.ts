@@ -1822,14 +1822,10 @@ export class SourceHub extends DurableObject<Env> {
         source.canRescan = meta.canRescan;
         source.canReceiveConfig = meta.canReceiveConfig;
 
-        // Resolve display names for games from plugin manifests
-        await Promise.all(
-          source.games
-            .filter((game) => !game.gameName)
-            .map(async (game) => {
-              game.gameName = await resolveGameName(this.env.PLUGINS, game.gameId);
-            }),
-        );
+        // Resolve display names for games from embedded manifests
+        for (const game of source.games) {
+          if (!game.gameName) game.gameName = resolveGameName(game.gameId);
+        }
 
         // Enrich adapter sources with saves from D1
         if (meta.sourceKind === "adapter") {
