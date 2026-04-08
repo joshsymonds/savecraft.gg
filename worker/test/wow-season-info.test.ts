@@ -10,16 +10,28 @@ import { resetTokenCache } from "../../plugins/wow/shared/blizzard-api";
 
 const FAKE_TOKEN_RESPONSE = {
   access_token: "fake-season-token",
-  expires_in: 86400,
+  expires_in: 86_400,
 };
 
 const FAKE_SEASON_INDEX = {
   seasons: [
-    { key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/season/14?namespace=dynamic-us" }, id: 14 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/season/13?namespace=dynamic-us" }, id: 13 },
+    {
+      key: {
+        href: "https://us.api.blizzard.com/data/wow/mythic-keystone/season/14?namespace=dynamic-us",
+      },
+      id: 14,
+    },
+    {
+      key: {
+        href: "https://us.api.blizzard.com/data/wow/mythic-keystone/season/13?namespace=dynamic-us",
+      },
+      id: 13,
+    },
   ],
   current_season: {
-    key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/season/14?namespace=dynamic-us" },
+    key: {
+      href: "https://us.api.blizzard.com/data/wow/mythic-keystone/season/14?namespace=dynamic-us",
+    },
     id: 14,
   },
 };
@@ -52,21 +64,29 @@ const FAKE_SEASON_DETAIL = {
   ],
 };
 
-function makeFetchResponder(): (input: string | URL | Request, init?: RequestInit) => Promise<Response> {
-  return async (input: string | URL | Request) => {
-    const url = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+type FetchInput = string | URL | Request;
+
+function resolveInputUrl(input: FetchInput): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
+}
+
+function makeFetchResponder(): (input: FetchInput, init?: RequestInit) => Promise<Response> {
+  return (input: FetchInput) => {
+    const url = resolveInputUrl(input);
 
     if (url.includes("oauth.battle.net/token")) {
-      return new Response(JSON.stringify(FAKE_TOKEN_RESPONSE), { status: 200 });
+      return Promise.resolve(Response.json(FAKE_TOKEN_RESPONSE, { status: 200 }));
     }
-    if (url.includes("mythic-keystone/season/index") || url.match(/mythic-keystone\/season\?/)) {
-      return new Response(JSON.stringify(FAKE_SEASON_INDEX), { status: 200 });
+    if (url.includes("mythic-keystone/season?") || url.includes("mythic-keystone/season/index")) {
+      return Promise.resolve(Response.json(FAKE_SEASON_INDEX, { status: 200 }));
     }
     if (url.includes("mythic-keystone/season/14")) {
-      return new Response(JSON.stringify(FAKE_SEASON_DETAIL), { status: 200 });
+      return Promise.resolve(Response.json(FAKE_SEASON_DETAIL, { status: 200 }));
     }
 
-    return new Response("Not Found", { status: 404 });
+    return Promise.resolve(new Response("Not Found", { status: 404 }));
   };
 }
 
@@ -98,7 +118,7 @@ describe("season_info reference module", () => {
     expect(result.type).toBe("structured");
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
     expect(data.season_id).toBe(14);
-    const dungeons = data.dungeons as Array<Record<string, unknown>>;
+    const dungeons = data.dungeons as Record<string, unknown>[];
     expect(dungeons.length).toBe(4);
     expect(dungeons[0]!.name).toBe("Ara-Kara, City of Echoes");
     expect(dungeons[1]!.name).toBe("Cinderbrew Meadery");

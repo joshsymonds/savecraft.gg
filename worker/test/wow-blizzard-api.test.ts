@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Env } from "../src/types";
 import {
   BlizzardApiError,
   blizzardFetch,
   getAppToken,
   resetTokenCache,
 } from "../../plugins/wow/shared/blizzard-api";
+import type { Env } from "../src/types";
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -21,11 +21,8 @@ function fakeEnv(overrides?: Partial<Env>): Env {
   } as unknown as Env;
 }
 
-function fakeTokenResponse(token = "fake-token", expiresIn = 86400): Response {
-  return new Response(
-    JSON.stringify({ access_token: token, expires_in: expiresIn }),
-    { status: 200 },
-  );
+function fakeTokenResponse(token = "fake-token", expiresIn = 86_400): Response {
+  return Response.json({ access_token: token, expires_in: expiresIn }, { status: 200 });
 }
 
 // ---------------------------------------------------------------------------
@@ -82,27 +79,21 @@ describe("getAppToken", () => {
   });
 
   it("throws BlizzardApiError on non-200 response", async () => {
-    const mockFetch = vi.fn().mockResolvedValueOnce(
-      new Response("Unauthorized", { status: 401 }),
-    );
+    const mockFetch = vi.fn().mockResolvedValueOnce(new Response("Unauthorized", { status: 401 }));
     vi.stubGlobal("fetch", mockFetch);
 
     await expect(getAppToken(fakeEnv())).rejects.toThrow(BlizzardApiError);
   });
 
   it("throws BlizzardApiError when access_token is missing", async () => {
-    const mockFetch = vi.fn().mockResolvedValueOnce(
-      new Response(JSON.stringify({}), { status: 200 }),
-    );
+    const mockFetch = vi.fn().mockResolvedValueOnce(Response.json({}, { status: 200 }));
     vi.stubGlobal("fetch", mockFetch);
 
-    try {
-      await getAppToken(fakeEnv());
-      expect.unreachable("should have thrown");
-    } catch (e) {
-      expect(e).toBeInstanceOf(BlizzardApiError);
-      expect((e as BlizzardApiError).message).toMatch(/missing access_token/);
-    }
+    await expect(getAppToken(fakeEnv())).rejects.toSatisfy((error: unknown) => {
+      expect(error).toBeInstanceOf(BlizzardApiError);
+      expect((error as BlizzardApiError).message).toMatch(/missing access_token/);
+      return true;
+    });
   });
 });
 
@@ -117,10 +108,13 @@ describe("blizzardFetch", () => {
 
   it("sends Bearer header and parses JSON response", async () => {
     const mockFetch = vi.fn().mockResolvedValueOnce(
-      new Response(JSON.stringify({ name: "Thrall" }), {
-        status: 200,
-        headers: { "Last-Modified": "Mon, 01 Jan 2024 00:00:00 GMT" },
-      }),
+      Response.json(
+        { name: "Thrall" },
+        {
+          status: 200,
+          headers: { "Last-Modified": "Mon, 01 Jan 2024 00:00:00 GMT" },
+        },
+      ),
     );
     vi.stubGlobal("fetch", mockFetch);
 
@@ -137,9 +131,7 @@ describe("blizzardFetch", () => {
   });
 
   it("returns null lastModified when header is missing", async () => {
-    const mockFetch = vi.fn().mockResolvedValueOnce(
-      new Response(JSON.stringify({}), { status: 200 }),
-    );
+    const mockFetch = vi.fn().mockResolvedValueOnce(Response.json({}, { status: 200 }));
     vi.stubGlobal("fetch", mockFetch);
 
     const result = await blizzardFetch("https://example.com/api", "token");
@@ -147,32 +139,28 @@ describe("blizzardFetch", () => {
   });
 
   it("throws BlizzardApiError with status on non-200 response", async () => {
-    const mockFetch = vi.fn().mockResolvedValueOnce(
-      new Response("Not Found", { status: 404 }),
-    );
+    const mockFetch = vi.fn().mockResolvedValueOnce(new Response("Not Found", { status: 404 }));
     vi.stubGlobal("fetch", mockFetch);
 
-    try {
-      await blizzardFetch("https://us.api.blizzard.com/missing", "token");
-      expect.unreachable("should have thrown");
-    } catch (e) {
-      expect(e).toBeInstanceOf(BlizzardApiError);
-      expect((e as BlizzardApiError).status).toBe(404);
-    }
+    await expect(blizzardFetch("https://us.api.blizzard.com/missing", "token")).rejects.toSatisfy(
+      (error: unknown) => {
+        expect(error).toBeInstanceOf(BlizzardApiError);
+        expect((error as BlizzardApiError).status).toBe(404);
+        return true;
+      },
+    );
   });
 
   it("throws BlizzardApiError on rate limit (429)", async () => {
-    const mockFetch = vi.fn().mockResolvedValueOnce(
-      new Response("Rate Limited", { status: 429 }),
-    );
+    const mockFetch = vi.fn().mockResolvedValueOnce(new Response("Rate Limited", { status: 429 }));
     vi.stubGlobal("fetch", mockFetch);
 
-    try {
-      await blizzardFetch("https://us.api.blizzard.com/test", "token");
-      expect.unreachable("should have thrown");
-    } catch (e) {
-      expect(e).toBeInstanceOf(BlizzardApiError);
-      expect((e as BlizzardApiError).status).toBe(429);
-    }
+    await expect(blizzardFetch("https://us.api.blizzard.com/test", "token")).rejects.toSatisfy(
+      (error: unknown) => {
+        expect(error).toBeInstanceOf(BlizzardApiError);
+        expect((error as BlizzardApiError).status).toBe(429);
+        return true;
+      },
+    );
   });
 });
