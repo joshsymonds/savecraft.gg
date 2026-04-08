@@ -92,8 +92,9 @@ pub fn schema() -> Value {
             },
             "empire_health": {
                 "name": "Empire Health Diagnosis",
-                "description": "Diagnose empire health across 5 dimensions: economy, stability, military, politics, and external threats. Surfaces problems by severity with actionable detail. Requires save_id to inject section data.",
-                "parameters": {}
+                "description": "START HERE for any general question about the player's empire — 'how am I doing?', 'what should I focus on?', 'any problems?', 'give me advice', or any broad empire status check. Scans economy, stability, military, politics, and external threats in one call. Returns problems ranked by severity.",
+                "parameters": {},
+                "visual": true
             }
         }
     })
