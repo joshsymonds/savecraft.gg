@@ -24,5 +24,219 @@
     "linux": "",
     "darwin": ""
   },
-  "version": "dev"
+  "version": "dev",
+  "reference": {
+    "sha256": "ef84f696429f19f0d9efe44330ab86dd20618dab7a743b84ba291c5b7ac90de2",
+    "url": "plugins/rimworld/reference.wasm",
+    "modules": {
+      "combat": {
+        "name": "Weapon \u0026 Armor Combat Calculator",
+        "description": "Compute ranged DPS at any distance (accuracy interpolation across 4 range breakpoints), melee true DPS via weighted verb selection, and armor damage reduction expected values.",
+        "parameters": {
+          "armor": {
+            "default": 0,
+            "description": "Target armor rating (0-2, e.g. 1.0 = flak vest)",
+            "type": "number"
+          },
+          "range": {
+            "default": 12,
+            "description": "Distance in tiles for ranged DPS",
+            "type": "number"
+          },
+          "weapon": {
+            "description": "Weapon name (ranged or melee)",
+            "type": "string"
+          }
+        }
+      },
+      "crops": {
+        "name": "Crop Production Optimizer",
+        "description": "Compute nutrition/day/tile and silver/day/tile for any crop on any soil type, accounting for fertility sensitivity, temperature growth curves, and rest periods. Includes tiles-per-colonist estimates.",
+        "parameters": {
+          "colonists": {
+            "default": 1,
+            "description": "Number of colonists to feed (for tiles calculation)",
+            "type": "integer"
+          },
+          "crop": {
+            "description": "Crop name (e.g. rice, potato, corn, strawberry, devilstrand)",
+            "type": "string"
+          },
+          "soil": {
+            "default": "soil",
+            "description": "Soil type (e.g. soil, rich soil, gravel, hydroponics)",
+            "type": "string"
+          },
+          "temperature": {
+            "default": 20,
+            "description": "Average temperature in C",
+            "type": "number"
+          }
+        }
+      },
+      "drugs": {
+        "name": "Drug Economy \u0026 Addiction Analyzer",
+        "description": "Compute silver/day for drug production chains (crop to processed drug), silver per raw material, and addiction risk data including tolerance thresholds and safe dose intervals.",
+        "parameters": {
+          "drug": {
+            "description": "Drug name (e.g. flake, yayo, beer, smokeleaf joint). Omit to list all.",
+            "type": "string"
+          },
+          "soil": {
+            "description": "Soil type for production chain (e.g. soil, rich soil, gravel)",
+            "type": "string"
+          },
+          "temperature": {
+            "description": "Average temperature for production chain calculation",
+            "type": "number"
+          }
+        }
+      },
+      "genes": {
+        "name": "Gene Metabolism \u0026 Xenotype Builder",
+        "description": "Validate xenogerm builds against complexity and metabolism budgets, detect gene conflicts via exclusion tags, and tally archite capsule requirements.",
+        "parameters": {
+          "category": {
+            "description": "Filter genes by category",
+            "type": "string"
+          },
+          "genes": {
+            "description": "Array of gene names to validate as a build",
+            "type": "array"
+          },
+          "max_complexity": {
+            "default": 6,
+            "description": "Maximum allowed complexity",
+            "type": "integer"
+          },
+          "min_metabolism": {
+            "default": -5,
+            "description": "Minimum allowed metabolism",
+            "type": "integer"
+          },
+          "search": {
+            "description": "Search genes by name or description substring",
+            "type": "string"
+          }
+        }
+      },
+      "materials": {
+        "name": "Material \u0026 Item Stat Lookup",
+        "description": "Look up final stats for any item-material-quality combination using the three-layer multiplication: base stat, material factor, and quality multiplier.",
+        "parameters": {
+          "material": {
+            "description": "Material name (e.g. steel, plasteel, hyperweave). Omit to list all.",
+            "type": "string"
+          },
+          "quality": {
+            "default": "normal",
+            "description": "Quality level: awful, poor, normal, good, excellent, masterwork, legendary",
+            "type": "string"
+          }
+        }
+      },
+      "raids": {
+        "name": "Colony Wealth \u0026 Raid Threat Estimator",
+        "description": "Convert colony wealth to expected raid points using the piecewise wealth curve from StorytellerUtility, with per-colonist point scaling and building wealth at 50% factor.",
+        "parameters": {
+          "building_wealth": {
+            "default": 0,
+            "description": "Total building wealth (counted at 50%)",
+            "type": "number"
+          },
+          "colonists": {
+            "default": 1,
+            "description": "Number of colonists",
+            "type": "integer"
+          },
+          "item_wealth": {
+            "description": "Total item/silver wealth",
+            "type": "number"
+          }
+        }
+      },
+      "research": {
+        "name": "Research Tree \u0026 Crafting Chain Navigator",
+        "description": "Traverse research prerequisite chains with total costs, applying tech level multipliers for tribal starts. Includes research speed estimation.",
+        "parameters": {
+          "colony_tech": {
+            "default": "Industrial",
+            "description": "Colony tech level for cost multipliers",
+            "type": "string"
+          },
+          "project": {
+            "description": "Research project name. Omit to list all.",
+            "type": "string"
+          }
+        }
+      },
+      "surgery": {
+        "name": "Surgery Success Calculator",
+        "description": "Calculate true surgery success probability from surgeon skill, bed type, quality, room cleanliness, medicine, and operation difficulty. Implements the exact formula from Recipe_Surgery.CheckSurgeryFail.",
+        "parameters": {
+          "bed": {
+            "description": "Bed type: sleeping spot, bed, hospital bed, ancient bed, rusted bed",
+            "type": "string"
+          },
+          "bed_factor": {
+            "description": "Direct bed factor override (alternative to bed name)",
+            "type": "number"
+          },
+          "cleanliness": {
+            "default": 0,
+            "description": "Room cleanliness stat (-5 to +5, 0 = clean)",
+            "type": "number"
+          },
+          "difficulty": {
+            "default": 1,
+            "description": "Operation's surgerySuccessChanceFactor (1.0 = standard)",
+            "type": "number"
+          },
+          "glow": {
+            "default": 1,
+            "description": "Light level (0 = dark, 1 = fully lit)",
+            "type": "number"
+          },
+          "inspired": {
+            "default": false,
+            "description": "Whether the surgeon has Inspired Surgery",
+            "type": "boolean"
+          },
+          "manipulation": {
+            "default": 1,
+            "description": "Surgeon's Manipulation capacity (0-1+, 1.0 = healthy)",
+            "type": "number"
+          },
+          "medicine": {
+            "description": "Medicine type: none, herbal, industrial/medicine, glitterworld",
+            "type": "string"
+          },
+          "medicine_potency": {
+            "description": "Direct medicine potency override (0=none, 0.6=herbal, 1.0=industrial, 1.6=glitterworld)",
+            "type": "number"
+          },
+          "outdoors": {
+            "default": false,
+            "description": "Whether surgery is performed outdoors",
+            "type": "boolean"
+          },
+          "quality": {
+            "default": "normal",
+            "description": "Bed quality: awful, poor, normal, good, excellent, masterwork, legendary",
+            "type": "string"
+          },
+          "sight": {
+            "default": 1,
+            "description": "Surgeon's Sight capacity (0-1+, 1.0 = healthy)",
+            "type": "number"
+          },
+          "skill": {
+            "default": 10,
+            "description": "Surgeon's Medicine skill level (0-20)",
+            "type": "integer"
+          }
+        }
+      }
+    }
+  }
 }
