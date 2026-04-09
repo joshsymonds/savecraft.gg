@@ -48,4 +48,8 @@ export interface Env {
   MTGA_RULES_INDEX?: VectorizeIndex;
   /** Vectorize index for MTG Arena card semantic search. */
   MTGA_CARDS_INDEX?: VectorizeIndex;
+  /** URL of the PoB calc service (e.g. "https://pob.savecraft.gg"). */
+  POB_URL?: string;
+  /** API key for the PoB calc service. Set via `wrangler secret put POB_API_KEY`. */
+  POB_API_KEY?: string;
 }

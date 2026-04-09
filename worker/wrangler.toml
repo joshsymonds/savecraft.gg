@@ -74,6 +74,7 @@ INSTALL_URL = "https://install.savecraft.gg"
 MCP_HOSTNAME = "mcp.savecraft.gg"
 SERVER_URL = "https://api.savecraft.gg"
 WEB_URL = "https://my.savecraft.gg"
+POB_URL = "https://pob.savecraft.gg"
 
 [[env.production.d1_databases]]
 binding = "DB"
@@ -136,6 +137,7 @@ CLERK_ISSUER = "https://clerk.staging.savecraft.gg"
 INSTALL_URL = "https://staging-install.savecraft.gg"
 MCP_HOSTNAME = "staging-mcp.savecraft.gg"
 WEB_URL = "https://staging-my.savecraft.gg"
+POB_URL = "https://pob.savecraft.gg"
 
 [[env.staging.d1_databases]]
 binding = "DB"
