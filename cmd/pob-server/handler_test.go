@@ -185,6 +185,164 @@ func keysOf(m map[string]json.RawMessage) []string {
 	return keys
 }
 
+func newTestServer(t *testing.T) *Server {
+	t.Helper()
+	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    time.Now,
+		cancel:     func() {},
+		store:      store,
+	}
+
+	return &Server{
+		pool:  newTestPool(1, 5*time.Minute),
+		cache: cache,
+		log:   slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+}
+
+func TestGetBuildReturnsXML(t *testing.T) {
+	srv := newTestServer(t)
+
+	xml := "<PathOfBuilding><Build level=\"90\"/></PathOfBuilding>"
+	id := srv.cache.Put(xml)
+	_ = srv.cache.store.Put(id, xml, `{"stats":{}}`, "", "")
+
+	req := httptest.NewRequest(http.MethodGet, "/build/"+id, nil)
+	rec := httptest.NewRecorder()
+	srv.handleGetBuild(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/xml" {
+		t.Fatalf("expected application/xml, got %s", ct)
+	}
+	if rec.Body.String() != xml {
+		t.Fatalf("body mismatch: got %q", rec.Body.String())
+	}
+}
+
+func TestGetBuildReturnsBuildCode(t *testing.T) {
+	srv := newTestServer(t)
+
+	xml := "<PathOfBuilding><Build level=\"90\"/></PathOfBuilding>"
+	id := srv.cache.Put(xml)
+	_ = srv.cache.store.Put(id, xml, `{"stats":{}}`, "", "")
+
+	req := httptest.NewRequest(http.MethodGet, "/build/"+id, nil)
+	req.Header.Set("Accept", "application/x-pob-code")
+	rec := httptest.NewRecorder()
+	srv.handleGetBuild(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "text/plain" {
+		t.Fatalf("expected text/plain, got %s", ct)
+	}
+
+	// Decode the returned build code and verify round-trip
+	decoded, err := DecodeBuildCode(rec.Body.String())
+	if err != nil {
+		t.Fatalf("failed to decode returned build code: %v", err)
+	}
+	if decoded != xml {
+		t.Fatalf("round-trip mismatch: got %q", decoded)
+	}
+}
+
+func TestGetBuildReturns404(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(http.MethodGet, "/build/nonexistent", nil)
+	rec := httptest.NewRecorder()
+	srv.handleGetBuild(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+}
+
+func TestGetBuildSummaryReturnsJSON(t *testing.T) {
+	srv := newTestServer(t)
+
+	xml := "<PathOfBuilding/>"
+	id := srv.cache.Put(xml)
+	summary := `{"character":{"class":"Witch"},"stats":{"Life":6728}}`
+	_ = srv.cache.store.Put(id, xml, summary, "", "")
+
+	req := httptest.NewRequest(
+		http.MethodGet, "/build/"+id+"/summary", nil,
+	)
+	rec := httptest.NewRecorder()
+	srv.handleGetBuild(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if ct := rec.Header().Get("Content-Type"); ct != "application/json" {
+		t.Fatalf("expected application/json, got %s", ct)
+	}
+
+	// Verify it's the summary JSON with buildId wrapper
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+	if _, ok := resp["buildId"]; !ok {
+		t.Fatal("response missing buildId")
+	}
+	if _, ok := resp["data"]; !ok {
+		t.Fatal("response missing data")
+	}
+}
+
+func TestGetBuildSummaryReturns404(t *testing.T) {
+	srv := newTestServer(t)
+
+	req := httptest.NewRequest(
+		http.MethodGet, "/build/nonexistent/summary", nil,
+	)
+	rec := httptest.NewRecorder()
+	srv.handleGetBuild(rec, req)
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("expected 404, got %d", rec.Code)
+	}
+}
+
+func TestGetBuildRequiresStore(t *testing.T) {
+	// Server without a store should return 501
+	srv := &Server{
+		pool: newTestPool(1, 5*time.Minute),
+		cache: &BuildCache{
+			builds:     make(map[string]cachedBuild),
+			ttl:        10 * time.Minute,
+			maxEntries: 100,
+			nowFunc:    time.Now,
+			cancel:     func() {},
+		},
+		log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/build/abc123", nil)
+	rec := httptest.NewRecorder()
+	srv.handleGetBuild(rec, req)
+
+	if rec.Code != http.StatusNotImplemented {
+		t.Fatalf("expected 501, got %d", rec.Code)
+	}
+}
+
 func TestCalcRejectsEmptyBody(t *testing.T) {
 	srv := &Server{
 		pool: newTestPool(1, 5*time.Minute),

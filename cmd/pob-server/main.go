@@ -91,6 +91,7 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/calc", srv.authMiddleware(srv.handleCalc))
+	mux.HandleFunc("/build/", srv.authMiddleware(srv.handleGetBuild))
 	mux.HandleFunc("/health", srv.handleHealth)
 
 	addr := fmt.Sprintf(":%d", cfg.port)

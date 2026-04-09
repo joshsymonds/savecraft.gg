@@ -150,6 +150,69 @@ func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
 	})
 }
 
+func (srv *Server) handleGetBuild(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	if srv.cache.store == nil {
+		jsonError(writer, "build storage not enabled", http.StatusNotImplemented)
+		return
+	}
+
+	// Parse /build/{id} or /build/{id}/summary from the path.
+	path := strings.TrimPrefix(request.URL.Path, "/build/")
+	if path == "" || path == request.URL.Path {
+		jsonError(writer, "build ID required", http.StatusBadRequest)
+		return
+	}
+
+	var id string
+	var wantSummary bool
+	if after, found := strings.CutSuffix(path, "/summary"); found {
+		id = after
+		wantSummary = true
+	} else {
+		id = path
+	}
+
+	xml, summary, err := srv.cache.store.Get(id)
+	if errors.Is(err, ErrBuildNotFound) {
+		jsonError(writer, "build not found", http.StatusNotFound)
+		return
+	}
+	if err != nil {
+		srv.log.Error("store get error", "id", id, "err", err)
+		jsonError(writer, "failed to retrieve build", http.StatusInternalServerError)
+		return
+	}
+
+	if wantSummary {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]json.RawMessage{
+			"buildId": json.RawMessage(`"` + id + `"`),
+			"data":    json.RawMessage(summary),
+		})
+		return
+	}
+
+	// Return build code or XML based on Accept header
+	accept := request.Header.Get("Accept")
+	if strings.Contains(accept, "application/x-pob-code") {
+		code, encErr := EncodeBuildCode(xml)
+		if encErr != nil {
+			srv.log.Error("encode build code error", "id", id, "err", encErr)
+			jsonError(writer, "failed to encode build code", http.StatusInternalServerError)
+			return
+		}
+		writer.Header().Set("Content-Type", "text/plain")
+		_, _ = writer.Write([]byte(code))
+		return
+	}
+
+	writer.Header().Set("Content-Type", "application/xml")
+	_, _ = writer.Write([]byte(xml))
+}
+
 func jsonError(writer http.ResponseWriter, msg string, code int) {
 	writer.Header().Set("Content-Type", "application/json")
 	writer.WriteHeader(code)
