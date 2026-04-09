@@ -11,6 +11,7 @@ import {
   getSection,
   indexSaveSections,
   listGames,
+  pobCalc,
   refreshSave,
   searchSaves,
   updateNote,
@@ -1854,22 +1855,15 @@ describe("MCP Tools", () => {
 
 // ── PoB Calc ──────────────────────────────────────
 describe("pobCalc", () => {
-  // Import lazily to avoid circular issues
-  let pobCalcFn: typeof import("../src/mcp/tools").pobCalc;
-  beforeEach(async () => {
-    const mod = await import("../src/mcp/tools");
-    pobCalcFn = mod.pobCalc;
-  });
-
   it("returns error when POB_URL is not configured", async () => {
-    const result = await pobCalcFn(undefined, undefined, "someBuildCode");
+    const result = await pobCalc(undefined, undefined, "someBuildCode");
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("not configured");
   });
 
   it("returns error when service is unreachable", async () => {
     // Use a URL that will refuse connection
-    const result = await pobCalcFn("http://127.0.0.1:1", undefined, "someBuildCode");
+    const result = await pobCalc("http://127.0.0.1:1", undefined, "someBuildCode");
     expect(result.isError).toBe(true);
     expect(result.content[0].text).toContain("unavailable");
   });

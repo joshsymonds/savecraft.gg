@@ -739,7 +739,8 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   show_games: (env, userUuid, args) => dispatchShowGames(env, userUuid, args),
   show_save: (env, userUuid, _args, saveId) => dispatchShowSave(env, userUuid, saveId),
   setup_help: (env, userUuid, args) => handleGetInfo(env, userUuid, args),
-  pob_calc: (env, _userUuid, args) => pobCalc(env.POB_URL, env.POB_API_KEY, args.build_code as string),
+  pob_calc: (env, _userUuid, args) =>
+    pobCalc(env.POB_URL, env.POB_API_KEY, args.build_code as string),
 };
 /* eslint-enable @typescript-eslint/naming-convention */
 

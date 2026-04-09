@@ -1620,7 +1620,7 @@ export async function pobCalc(
 
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (pobApiKey) {
-    headers["Authorization"] = `Bearer ${pobApiKey}`;
+    headers.Authorization = `Bearer ${pobApiKey}`;
   }
 
   let response: Response;
@@ -1642,11 +1642,11 @@ export async function pobCalc(
     return errorResult(`PoB calc service returned an error (${String(response.status)}): ${body}`);
   }
 
-  const data = (await response.json()) as Record<string, unknown>;
+  const data = await response.json<{ type?: string; message?: string }>();
 
   // The PoB server wraps results as {buildId, type, data: {...}}
-  if (data["type"] === "error") {
-    return errorResult(`PoB calc error: ${String(data["message"] ?? "unknown error")}`);
+  if (data.type === "error") {
+    return errorResult(`PoB calc error: ${data.message ?? "unknown error"}`);
   }
 
   return textResult(data);
