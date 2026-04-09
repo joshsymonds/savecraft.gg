@@ -117,11 +117,10 @@ export const pobCalcModule: NativeReferenceModule = {
       let response: Response;
       try {
         response = await pobFetch(pobUrl, "/resolve", { url: build }, env.POB_API_KEY);
-      } catch {
+      } catch (e) {
         return {
           type: "text",
-          content:
-            "PoB calc service is currently unavailable. The build URL was valid but the calculation server could not be reached. Try again later.",
+          content: `PoB calc service is currently unavailable: ${e instanceof Error ? e.message : "unknown error"}. Try again later.`,
         };
       }
 
@@ -169,10 +168,10 @@ export const pobCalcModule: NativeReferenceModule = {
           { buildId: resolvedBuildId, operations: parsedOps },
           env.POB_API_KEY,
         );
-      } catch {
+      } catch (e) {
         return {
           type: "text",
-          content: "PoB calc service is currently unavailable. Try again later.",
+          content: `PoB calc service is currently unavailable: ${e instanceof Error ? e.message : "unknown error"}. Try again later.`,
         };
       }
 
@@ -199,10 +198,10 @@ export const pobCalcModule: NativeReferenceModule = {
         headers,
         signal: AbortSignal.timeout(POB_TIMEOUT_MS),
       });
-    } catch {
+    } catch (e) {
       return {
         type: "text",
-        content: "PoB calc service is currently unavailable. Try again later.",
+        content: `PoB calc service is currently unavailable: ${e instanceof Error ? e.message : "unknown error"}. Try again later.`,
       };
     }
 

@@ -146,7 +146,7 @@ func TestBuildCacheGetReadThrough(t *testing.T) {
 	}
 }
 
-func TestBuildCachePutWritesStore(t *testing.T) {
+func TestBuildCachePutDoesNotWriteStore(t *testing.T) {
 	store, err := NewBuildStore(tempDBPath(t))
 	if err != nil {
 		t.Fatal(err)
@@ -159,12 +159,9 @@ func TestBuildCachePutWritesStore(t *testing.T) {
 	xml := "<test/>"
 	id := cache.Put(xml)
 
-	// Verify it's in SQLite
-	got, _, err := store.Get(id)
-	if err != nil {
-		t.Fatalf("expected build in store: %v", err)
-	}
-	if got != xml {
-		t.Fatalf("store xml mismatch: got %q, want %q", got, xml)
+	// cache.Put only writes to memory; callers persist to store directly
+	_, _, err = store.Get(id)
+	if !errors.Is(err, ErrBuildNotFound) {
+		t.Fatal("cache.Put should not write to store")
 	}
 }

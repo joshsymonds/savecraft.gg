@@ -236,7 +236,6 @@ local function ensureGemIndex()
 			gemIndex[gem.name:lower()] = gem
 		end
 	end
-	log("Built gem index: %d entries", 0) -- count for debugging
 	local count = 0
 	for _ in pairs(gemIndex) do count = count + 1 end
 	log("Built gem index: %d entries", count)

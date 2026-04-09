@@ -361,3 +361,29 @@ func TestCalcRejectsEmptyBody(t *testing.T) {
 		t.Fatalf("expected 400, got %d", recorder.Code)
 	}
 }
+
+func TestCalcRejectsInvalidBuildCode(t *testing.T) {
+	srv := &Server{
+		pool: newTestPool(1, 5*time.Minute),
+		cache: &BuildCache{
+			builds:     make(map[string]cachedBuild),
+			ttl:        10 * time.Minute,
+			maxEntries: 100,
+			nowFunc:    time.Now,
+			cancel:     func() {},
+		},
+		log: slog.New(slog.NewTextHandler(io.Discard, nil)),
+	}
+
+	body := `{"buildCode":"not-valid-base64!!!"}`
+	req := httptest.NewRequest(http.MethodPost, "/calc", strings.NewReader(body))
+	recorder := httptest.NewRecorder()
+	srv.handleCalc(recorder, req)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+	if !strings.Contains(recorder.Body.String(), "invalid build code") {
+		t.Fatalf("expected 'invalid build code' error, got: %s", recorder.Body.String())
+	}
+}

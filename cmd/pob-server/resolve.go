@@ -23,7 +23,7 @@ const maxResolveBody = 1024 * 1024
 
 // resolveBuildURL fetches a build code from a URL and decodes it to XML.
 // For internal pob.savecraft.gg URLs, it returns the stored build directly.
-// For external URLs (pobb.in, pastebin, generic), it fetches and decodes.
+// For external URLs, only known paste sites (pobb.in, pastebin.com) are allowed.
 func resolveBuildURL(
 	rawURL string,
 	store *BuildStore,
@@ -41,12 +41,26 @@ func resolveBuildURL(
 		return resolveInternal(parsed, store)
 	}
 
+	// Only allow known paste sites to prevent SSRF
+	if !isAllowedExternalHost(parsed.Host) {
+		return nil, fmt.Errorf(
+			"unsupported host %q: only pobb.in and pastebin.com URLs are supported",
+			parsed.Host,
+		)
+	}
+
 	// External: fetch and decode
-	return resolveExternal(rawURL, parsed, store, client)
+	return resolveExternal(rawURL, parsed, client)
 }
 
 func isInternalHost(host string) bool {
 	return host == "pob.savecraft.gg"
+}
+
+func isAllowedExternalHost(host string) bool {
+	h := strings.ToLower(host)
+	return h == "pobb.in" || h == "www.pobb.in" ||
+		h == "pastebin.com" || h == "www.pastebin.com"
 }
 
 func resolveInternal(
@@ -74,7 +88,6 @@ func resolveInternal(
 func resolveExternal(
 	rawURL string,
 	parsed *url.URL,
-	_ *BuildStore,
 	client *http.Client,
 ) (*resolveResult, error) {
 	fetchURL := buildFetchURL(rawURL, parsed)
@@ -136,6 +149,6 @@ func buildFetchURL(rawURL string, parsed *url.URL) string {
 		return rawURL
 	}
 
-	// Generic: try as-is (response should be a raw build code)
+	// Unreachable: isAllowedExternalHost gates entry to this function.
 	return rawURL
 }

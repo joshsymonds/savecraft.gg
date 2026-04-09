@@ -86,6 +86,7 @@ func main() {
 		pool:   pool,
 		cache:  cache,
 		apiKey: cfg.apiKey,
+		client: &http.Client{Timeout: 15 * time.Second},
 		log:    logger,
 	}
 

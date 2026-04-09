@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 )
 
 func TestResolveInternalURL(t *testing.T) {
@@ -64,7 +63,7 @@ func TestResolveInternalURLNotFound(t *testing.T) {
 }
 
 func TestResolveExternalURL(t *testing.T) {
-	// Mock a server that returns a raw build code at root
+	// Test resolveExternal directly with a mock server
 	xml := "<PathOfBuilding><Build level=\"80\"/></PathOfBuilding>"
 	code, err := EncodeBuildCode(xml)
 	if err != nil {
@@ -76,13 +75,8 @@ func TestResolveExternalURL(t *testing.T) {
 	}))
 	defer mock.Close()
 
-	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-
-	result, err := resolveBuildURL(mock.URL+"/mybuild", store, mock.Client())
+	parsed, _ := url.Parse(mock.URL + "/mybuild")
+	result, err := resolveExternal(mock.URL+"/mybuild", parsed, mock.Client())
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,6 +88,26 @@ func TestResolveExternalURL(t *testing.T) {
 	}
 	if result.sourceURL != mock.URL+"/mybuild" {
 		t.Fatalf("sourceURL mismatch: got %q", result.sourceURL)
+	}
+}
+
+func TestResolveRejectsUnknownHost(t *testing.T) {
+	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	_, err = resolveBuildURL(
+		"https://evil.example.com/build",
+		store,
+		http.DefaultClient,
+	)
+	if err == nil {
+		t.Fatal("expected error for unknown host")
+	}
+	if !strings.Contains(err.Error(), "unsupported host") {
+		t.Fatalf("expected unsupported host error, got: %v", err)
 	}
 }
 
@@ -212,6 +226,3 @@ func TestResolveHandlerRejectsEmptyURL(t *testing.T) {
 		t.Fatalf("expected 400, got %d", rec.Code)
 	}
 }
-
-// Anchor time import — used by newTestServer in handler_test.go.
-var _ = time.Now

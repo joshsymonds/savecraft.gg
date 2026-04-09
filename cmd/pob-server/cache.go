@@ -41,9 +41,9 @@ func NewBuildCache(ttl time.Duration, maxEntries int) *BuildCache {
 	return cache
 }
 
-// Put stores build XML and returns its content-hash ID.
-// If a store is attached, the build is also persisted to SQLite.
-// If the cache exceeds maxEntries, the oldest entry is evicted from memory.
+// Put stores build XML in the memory cache and returns its content-hash ID.
+// Callers are responsible for persisting to the SQLite store with full metadata
+// via store.Put() — the cache only manages the in-memory hot layer.
 func (cache *BuildCache) Put(xml string) string {
 	id := contentHash(xml)
 	cache.mu.Lock()
@@ -65,12 +65,6 @@ func (cache *BuildCache) Put(xml string) string {
 	}
 
 	cache.mu.Unlock()
-
-	// Write-through to persistent store (best-effort)
-	if cache.store != nil {
-		_ = cache.store.Put(id, xml, "{}", "", "")
-	}
-
 	return id
 }
 
@@ -118,16 +112,29 @@ func (cache *BuildCache) Shutdown() {
 }
 
 func (cache *BuildCache) evictLoop(ctx context.Context) {
-	ticker := time.NewTicker(30 * time.Second)
-	defer ticker.Stop()
+	memTicker := time.NewTicker(30 * time.Second)
+	storeTicker := time.NewTicker(1 * time.Hour)
+	defer memTicker.Stop()
+	defer storeTicker.Stop()
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case <-ticker.C:
+		case <-memTicker.C:
 			cache.evict()
+		case <-storeTicker.C:
+			cache.cleanupStore()
 		}
 	}
+}
+
+const storeMaxAge = 30 * 24 * time.Hour // 30 days
+
+func (cache *BuildCache) cleanupStore() {
+	if cache.store == nil {
+		return
+	}
+	_, _ = cache.store.Cleanup(storeMaxAge)
 }
 
 func (cache *BuildCache) evict() {

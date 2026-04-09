@@ -140,15 +140,16 @@ func (srv *Server) handleResolve(
 			return
 		}
 		srv.log.Error("resolve error", "url", req.URL, "err", err)
-		jsonError(writer, "failed to resolve URL: "+err.Error(), http.StatusUnprocessableEntity)
+		jsonError(writer, "failed to resolve build from URL", http.StatusUnprocessableEntity)
 		return
 	}
 
 	// If already cached (internal URL), return stored summary
 	if result.cached && result.summary != "" {
+		idJSON, _ := json.Marshal(result.buildID)
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]json.RawMessage{
-			"buildId": json.RawMessage(`"` + result.buildID + `"`),
+			"buildId": idJSON,
 			"data":    json.RawMessage(result.summary),
 		})
 		return
@@ -211,9 +212,11 @@ func (srv *Server) calcAndRespond(
 
 	buildID := srv.cache.Put(xml)
 	if srv.cache.store != nil {
-		_ = srv.cache.store.Put(
+		if err := srv.cache.store.Put(
 			buildID, xml, string(pobResp.Data), sourceURL, parentID,
-		)
+		); err != nil {
+			srv.log.Warn("store put failed", "id", buildID, "err", err)
+		}
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
@@ -344,9 +347,11 @@ func (srv *Server) modifyAndRespond(
 	}
 	newID := srv.cache.Put(modifiedXML)
 	if srv.cache.store != nil {
-		_ = srv.cache.store.Put(
+		if err := srv.cache.store.Put(
 			newID, modifiedXML, string(pobResp.Data), "", parentID,
-		)
+		); err != nil {
+			srv.log.Warn("store put failed", "id", newID, "err", err)
+		}
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
@@ -401,9 +406,10 @@ func (srv *Server) handleGetBuild(
 	}
 
 	if wantSummary {
+		idJSON, _ := json.Marshal(id)
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]json.RawMessage{
-			"buildId": json.RawMessage(`"` + id + `"`),
+			"buildId": idJSON,
 			"data":    json.RawMessage(summary),
 		})
 		return
