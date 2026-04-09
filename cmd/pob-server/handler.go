@@ -223,6 +223,139 @@ func (srv *Server) calcAndRespond(
 	})
 }
 
+// ModifyRequest is the JSON body for POST /modify.
+type ModifyRequest struct {
+	BuildID    string            `json:"buildId"`
+	Operations []json.RawMessage `json:"operations"`
+}
+
+type modifyLuaRequest struct {
+	Type       string            `json:"type"`
+	XML        string            `json:"xml"`
+	Operations []json.RawMessage `json:"operations"`
+}
+
+type modifyLuaResponse struct {
+	Type    string          `json:"type"`
+	Message string          `json:"message,omitempty"`
+	Data    json.RawMessage `json:"data,omitempty"`
+	XML     string          `json:"xml,omitempty"`
+}
+
+func (srv *Server) handleModify(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	if request.Method != http.MethodPost {
+		jsonError(writer, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if srv.cache.store == nil {
+		jsonError(writer, "build storage not enabled", http.StatusNotImplemented)
+		return
+	}
+
+	request.Body = http.MaxBytesReader(writer, request.Body, maxRequestBodySize)
+
+	var req ModifyRequest
+	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+		jsonError(writer, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if req.BuildID == "" {
+		jsonError(writer, "buildId is required", http.StatusBadRequest)
+		return
+	}
+	if len(req.Operations) == 0 {
+		jsonError(writer, "at least one operation is required", http.StatusBadRequest)
+		return
+	}
+
+	// Look up the original build XML
+	xml, err := srv.cache.Get(req.BuildID)
+	if err != nil {
+		if errors.Is(err, ErrBuildNotFound) {
+			jsonError(writer, "build not found", http.StatusNotFound)
+			return
+		}
+		srv.log.Error("cache get error", "id", req.BuildID, "err", err)
+		jsonError(writer, "failed to retrieve build", http.StatusInternalServerError)
+		return
+	}
+
+	srv.modifyAndRespond(writer, xml, req.BuildID, req.Operations)
+}
+
+// modifyAndRespond sends a modify request to PoB, persists the result, and writes the response.
+func (srv *Server) modifyAndRespond(
+	writer http.ResponseWriter,
+	xml, parentID string,
+	operations []json.RawMessage,
+) {
+	proc, err := srv.pool.Acquire()
+	if err != nil {
+		if errors.Is(err, ErrPoolExhausted) {
+			jsonError(
+				writer,
+				"all PoB processes are busy, try again later",
+				http.StatusServiceUnavailable,
+			)
+			return
+		}
+		srv.log.Error("pool acquire error", "err", err)
+		jsonError(writer, "failed to acquire PoB process", http.StatusInternalServerError)
+		return
+	}
+	defer srv.pool.Release(proc)
+
+	response, err := proc.Send(modifyLuaRequest{
+		Type:       "modify",
+		XML:        xml,
+		Operations: operations,
+	})
+	if err != nil {
+		srv.log.Error("process send error", "err", err)
+		jsonError(
+			writer,
+			"PoB process error — check server logs for details",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	var pobResp modifyLuaResponse
+	if err := json.Unmarshal(response, &pobResp); err != nil {
+		srv.log.Error("failed to parse PoB response", "err", err)
+		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
+		return
+	}
+	if pobResp.Type == "error" {
+		jsonError(
+			writer,
+			"PoB modify error: "+pobResp.Message,
+			http.StatusUnprocessableEntity,
+		)
+		return
+	}
+
+	modifiedXML := pobResp.XML
+	if modifiedXML == "" {
+		modifiedXML = xml
+	}
+	newID := srv.cache.Put(modifiedXML)
+	if srv.cache.store != nil {
+		_ = srv.cache.store.Put(
+			newID, modifiedXML, string(pobResp.Data), "", parentID,
+		)
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(calcResponse{
+		BuildID: newID,
+		PobData: pobResp.Data,
+	})
+}
+
 // httpClient returns the server's HTTP client, defaulting to http.DefaultClient.
 func (srv *Server) httpClient() *http.Client {
 	if srv.client != nil {

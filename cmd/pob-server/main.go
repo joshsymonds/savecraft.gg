@@ -92,6 +92,7 @@ func main() {
 	mux := http.NewServeMux()
 	mux.HandleFunc("/calc", srv.authMiddleware(srv.handleCalc))
 	mux.HandleFunc("/resolve", srv.authMiddleware(srv.handleResolve))
+	mux.HandleFunc("/modify", srv.authMiddleware(srv.handleModify))
 	mux.HandleFunc("/build/", srv.authMiddleware(srv.handleGetBuild))
 	mux.HandleFunc("/health", srv.handleHealth)
 

@@ -219,6 +219,292 @@ local function handleCalc(request)
 	return result
 end
 
+-- ---------------------------------------------------------------------------
+-- Name → object indexes (built lazily, cached for process lifetime)
+-- ---------------------------------------------------------------------------
+
+local gemIndex     -- name (lower) → gem data from build.data.gems
+local uniqueIndex  -- name (lower) → { raw = raw_text, type = item_type }
+local nodeIndex    -- name (lower) → tree node
+
+local function ensureGemIndex()
+	if gemIndex then return end
+	gemIndex = {}
+	if not build or not build.data or not build.data.gems then return end
+	for id, gem in pairs(build.data.gems) do
+		if gem.name then
+			gemIndex[gem.name:lower()] = gem
+		end
+	end
+	log("Built gem index: %d entries", 0) -- count for debugging
+	local count = 0
+	for _ in pairs(gemIndex) do count = count + 1 end
+	log("Built gem index: %d entries", count)
+end
+
+local function ensureUniqueIndex()
+	if uniqueIndex then return end
+	uniqueIndex = {}
+	if not build or not build.data or not build.data.uniques then return end
+	for itemType, list in pairs(build.data.uniques) do
+		for _, raw in ipairs(list) do
+			-- Extract name from first line of the raw text
+			local name = raw:match("^(.-)\n")
+			if name then
+				uniqueIndex[name:lower()] = { raw = raw, type = itemType }
+			end
+		end
+	end
+	local count = 0
+	for _ in pairs(uniqueIndex) do count = count + 1 end
+	log("Built unique index: %d entries", count)
+end
+
+local function ensureNodeIndex()
+	if nodeIndex then return end
+	nodeIndex = {}
+	if not build or not build.spec or not build.spec.tree then return end
+	for id, node in pairs(build.spec.tree.nodes) do
+		local name = node.dn or node.name
+		if name and (node.isKeystone or node.isNotable) then
+			nodeIndex[name:lower()] = node
+		end
+	end
+	local count = 0
+	for _ in pairs(nodeIndex) do count = count + 1 end
+	log("Built node index: %d entries (keystones + notables)", count)
+end
+
+-- ---------------------------------------------------------------------------
+-- Modify operation handlers
+-- ---------------------------------------------------------------------------
+
+local function applySetLevel(op)
+	if not op.level then return "set_level: missing 'level'" end
+	build.characterLevel = op.level
+	return nil
+end
+
+local function applyToggleKeystone(op)
+	if not op.name then return "toggle_keystone: missing 'name'" end
+	ensureNodeIndex()
+	local node = nodeIndex[op.name:lower()]
+	if not node then return "toggle_keystone: keystone not found: " .. op.name end
+	if op.enabled == false then
+		build.spec:DeallocNode(node)
+	else
+		build.spec:AllocNode(node)
+	end
+	return nil
+end
+
+local function applyAllocateNode(op)
+	if not op.name then return "allocate_node: missing 'name'" end
+	ensureNodeIndex()
+	local node = nodeIndex[op.name:lower()]
+	if not node then return "allocate_node: node not found: " .. op.name end
+	build.spec:AllocNode(node)
+	return nil
+end
+
+local function applyDeallocateNode(op)
+	if not op.name then return "deallocate_node: missing 'name'" end
+	ensureNodeIndex()
+	local node = nodeIndex[op.name:lower()]
+	if not node then return "deallocate_node: node not found: " .. op.name end
+	build.spec:DeallocNode(node)
+	return nil
+end
+
+local function applySwapGem(op)
+	if not op.new_gem then return "swap_gem: missing 'new_gem'" end
+	ensureGemIndex()
+	local gemData = gemIndex[op.new_gem:lower()]
+	if not gemData then return "swap_gem: gem not found: " .. op.new_gem end
+
+	local groupIdx = (op.socket_group or 0) + 1 -- Lua is 1-indexed
+	local gemIdx = (op.gem_index or 0) + 1
+	local groups = build.skillsTab.socketGroupList
+	if not groups[groupIdx] then return "swap_gem: socket group not found" end
+	local group = groups[groupIdx]
+	if not group.gemList[gemIdx] then return "swap_gem: gem index out of range" end
+
+	group.gemList[gemIdx] = {
+		nameSpec = gemData.name,
+		level = op.level or 20,
+		quality = op.quality or 20,
+		qualityId = op.quality_id or "Default",
+		enabled = true,
+		gemId = gemData.id,
+		skillId = gemData.grantedEffectId,
+	}
+	build.skillsTab:ProcessSocketGroup(group)
+	return nil
+end
+
+local function applyAddGem(op)
+	if not op.gem then return "add_gem: missing 'gem'" end
+	ensureGemIndex()
+	local gemData = gemIndex[op.gem:lower()]
+	if not gemData then return "add_gem: gem not found: " .. op.gem end
+
+	local groupIdx = (op.socket_group or 0) + 1
+	local groups = build.skillsTab.socketGroupList
+	if not groups[groupIdx] then return "add_gem: socket group not found" end
+	local group = groups[groupIdx]
+
+	group.gemList[#group.gemList + 1] = {
+		nameSpec = gemData.name,
+		level = op.level or 20,
+		quality = op.quality or 20,
+		qualityId = op.quality_id or "Default",
+		enabled = true,
+		gemId = gemData.id,
+		skillId = gemData.grantedEffectId,
+	}
+	build.skillsTab:ProcessSocketGroup(group)
+	return nil
+end
+
+local function applyRemoveGem(op)
+	local groupIdx = (op.socket_group or 0) + 1
+	local gemIdx = (op.gem_index or 0) + 1
+	local groups = build.skillsTab.socketGroupList
+	if not groups[groupIdx] then return "remove_gem: socket group not found" end
+	local group = groups[groupIdx]
+	if not group.gemList[gemIdx] then return "remove_gem: gem index out of range" end
+
+	table.remove(group.gemList, gemIdx)
+	build.skillsTab:ProcessSocketGroup(group)
+	return nil
+end
+
+local function applyEquipUnique(op)
+	if not op.name then return "equip_unique: missing 'name'" end
+	if not op.slot then return "equip_unique: missing 'slot'" end
+	ensureUniqueIndex()
+	local entry = uniqueIndex[op.name:lower()]
+	if not entry then return "equip_unique: unique not found: " .. op.name end
+
+	local item = new("Item", entry.raw)
+	build.itemsTab:AddItem(item, true) -- noAutoEquip
+
+	-- Find the target slot and equip
+	local activeSet = build.itemsTab.activeItemSet
+	local itemSet = build.itemsTab.itemSets[activeSet]
+	if itemSet and itemSet[op.slot] then
+		itemSet[op.slot].selItemId = item.id
+	else
+		-- Try direct slot access
+		for _, slot in ipairs(build.itemsTab.orderedSlots) do
+			if slot.slotName == op.slot then
+				slot.selItemId = item.id
+				break
+			end
+		end
+	end
+	return nil
+end
+
+local function applySetItem(op)
+	if not op.text then return "set_item: missing 'text'" end
+	if not op.slot then return "set_item: missing 'slot'" end
+
+	local item = new("Item", op.text)
+	build.itemsTab:AddItem(item, true)
+
+	local activeSet = build.itemsTab.activeItemSet
+	local itemSet = build.itemsTab.itemSets[activeSet]
+	if itemSet and itemSet[op.slot] then
+		itemSet[op.slot].selItemId = item.id
+	else
+		for _, slot in ipairs(build.itemsTab.orderedSlots) do
+			if slot.slotName == op.slot then
+				slot.selItemId = item.id
+				break
+			end
+		end
+	end
+	return nil
+end
+
+-- Dispatch table for operations
+local opHandlers = {
+	set_level        = applySetLevel,
+	toggle_keystone  = applyToggleKeystone,
+	allocate_node    = applyAllocateNode,
+	deallocate_node  = applyDeallocateNode,
+	swap_gem         = applySwapGem,
+	add_gem          = applyAddGem,
+	remove_gem       = applyRemoveGem,
+	equip_unique     = applyEquipUnique,
+	set_item         = applySetItem,
+}
+
+-- Process a modify request
+local function handleModify(request)
+	local xml = request.xml
+	if not xml or xml == "" then
+		return { type = "error", message = "missing 'xml' field" }
+	end
+	local ops = request.operations
+	if not ops or #ops == 0 then
+		return { type = "error", message = "missing 'operations' field" }
+	end
+
+	-- Load the build from XML
+	local loadOk, loadErr = pcall(function()
+		loadBuildFromXML(xml, "modify-build")
+	end)
+	if not loadOk then
+		return { type = "error", message = "failed to load build: " .. tostring(loadErr) }
+	end
+
+	-- Invalidate cached indexes (new build may have different tree/data)
+	nodeIndex = nil
+
+	-- Apply each operation in order
+	for i, op in ipairs(ops) do
+		if not op.op then
+			return { type = "error", message = "operation " .. i .. ": missing 'op' field" }
+		end
+		local handler = opHandlers[op.op]
+		if not handler then
+			return { type = "error", message = "operation " .. i .. ": unknown op: " .. op.op }
+		end
+		local errMsg = handler(op)
+		if errMsg then
+			return { type = "error", message = "operation " .. i .. ": " .. errMsg }
+		end
+	end
+
+	-- Recalculate
+	build.buildFlag = true
+	runCallback("OnFrame")
+
+	-- Export the modified build to XML
+	local modifiedXml = build:SaveDB("modified")
+
+	-- Serialize results (same as handleCalc)
+	return {
+		type = "result",
+		data = {
+			character = {
+				class = build.spec.curClassName,
+				ascendancy = build.spec.curAscendClassName,
+				level = build.characterLevel,
+				bandit = build.bandit,
+			},
+			stats = serializeCalcOutput(build),
+			socket_groups = serializeSocketGroups(build),
+			items = serializeItems(build),
+			keystones = serializeKeystones(build),
+			tree = serializeTreeSummary(build),
+		},
+		xml = modifiedXml,
+	}
+end
+
 -- Main request loop
 log("Ready for requests")
 
@@ -237,6 +523,13 @@ for line in io.stdin:lines() do
 				response = result
 			else
 				response = { type = "error", message = "calc crashed: " .. tostring(result) }
+			end
+		elseif request.type == "modify" then
+			local ok, result = pcall(handleModify, request)
+			if ok then
+				response = result
+			else
+				response = { type = "error", message = "modify crashed: " .. tostring(result) }
 			end
 		elseif request.type == "ping" then
 			response = { type = "pong" }
