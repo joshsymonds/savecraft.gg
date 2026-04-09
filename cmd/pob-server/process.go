@@ -22,6 +22,7 @@ type Process struct {
 	stdin  io.WriteCloser
 	stdout *bufio.Scanner
 	stderr io.ReadCloser
+	exited chan struct{} // closed when the process exits
 }
 
 // SpawnProcess starts a new LuaJIT subprocess running wrapper.lua.
@@ -54,21 +55,26 @@ func SpawnProcess(ctx context.Context, luajitBin, wrapperPath, pobDir string) (*
 		stdin:  stdin,
 		stdout: bufio.NewScanner(stdout),
 		stderr: stderrPipe,
+		exited: make(chan struct{}),
 	}
 	proc.stdout.Buffer(make([]byte, 0, 64*1024), 4*1024*1024) // 4MB max line
 
-	// Drain stderr in background
-	go drainStderr(stderrPipe)
+	// Wait for the process in the background so Alive() is reliable.
+	// Also drains stderr for logging.
+	go proc.waitAndDrain(stderrPipe)
 
 	return proc, nil
 }
 
-func drainStderr(reader io.Reader) {
+func (proc *Process) waitAndDrain(reader io.Reader) {
 	scanner := bufio.NewScanner(reader)
 	for scanner.Scan() {
-		// Log at debug level to avoid noise; PoB prints load progress here
+		// Debug level to avoid noise; PoB prints load progress here
 		slog.Default().Debug("pob", "msg", scanner.Text())
 	}
+	// stderr closed = process exited. Call Wait to populate ProcessState.
+	_ = proc.cmd.Wait()
+	close(proc.exited)
 }
 
 // SendTimeout is the maximum time to wait for a response from the LuaJIT process.
@@ -117,16 +123,21 @@ func (proc *Process) Send(request any) (json.RawMessage, error) {
 	}
 }
 
-// Kill terminates the subprocess.
+// Kill terminates the subprocess and waits for the background goroutine to finish.
 func (proc *Process) Kill() {
 	proc.stdin.Close()
 	_ = proc.cmd.Process.Kill()
-	_ = proc.cmd.Wait()
+	<-proc.exited // wait for waitAndDrain to complete
 }
 
 // Alive checks if the subprocess is still running.
 func (proc *Process) Alive() bool {
-	return proc.cmd.ProcessState == nil // nil means not yet exited
+	select {
+	case <-proc.exited:
+		return false
+	default:
+		return true
+	}
 }
 
 // Pool manages a lazy pool of PoB LuaJIT processes.

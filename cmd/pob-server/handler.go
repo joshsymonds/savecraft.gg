@@ -31,8 +31,7 @@ type calcLuaRequest struct {
 // calcResponse wraps the PoB result with a buildId for caching.
 type calcResponse struct {
 	BuildID string          `json:"buildId"`
-	PobData json.RawMessage `json:"data,omitempty"`
-	Type    string          `json:"type,omitempty"`
+	PobData json.RawMessage `json:"data"`
 }
 
 // maxRequestBodySize limits incoming POST bodies to 2 MB.
@@ -102,7 +101,7 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 	response, err := proc.Send(calcLuaRequest{Type: "calc", XML: xml})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
-		jsonError(writer, "PoB process error: "+err.Error(), http.StatusInternalServerError)
+		jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
 		return
 	}
 
@@ -122,7 +121,6 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 	// Marshal a proper response wrapping the PoB data with buildId
 	resp := calcResponse{
 		BuildID: buildID,
-		Type:    pobResp.Type,
 		PobData: response,
 	}
 	writer.Header().Set("Content-Type", "application/json")

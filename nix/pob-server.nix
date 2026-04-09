@@ -86,8 +86,19 @@ in {
     # Ensure LuaJIT is available
     environment.systemPackages = [pkgs.luajit];
 
+    # Dedicated low-privilege user for the PoB service.
+    # Untrusted build codes are processed by PoB's Lua codebase,
+    # so the service should not run as a personal user.
+    users.users.pob-server = {
+      isSystemUser = true;
+      group = "pob-server";
+      home = "/var/lib/pob-server";
+      createHome = true;
+    };
+    users.groups.pob-server = {};
+
     systemd.tmpfiles.rules = [
-      "d /var/lib/pob-server 0755 ${cfg.user} ${cfg.user} -"
+      "d /var/lib/pob-server 0755 pob-server pob-server -"
     ];
 
     systemd.services.pob-server = {
@@ -98,25 +109,35 @@ in {
 
       serviceConfig = {
         Type = "simple";
-        User = cfg.user;
+        User = "pob-server";
+        Group = "pob-server";
         Restart = "always";
         RestartSec = "5s";
 
-        # Build the binary before starting (idempotent, fast if unchanged).
-        ExecStartPre = "${pkgs.bash}/bin/bash ${buildScript}";
+        # Build step runs as the repo owner (needs repo + nix access),
+        # then the service runs as the sandboxed pob-server user.
+        ExecStartPre = "+${pkgs.bash}/bin/bash ${buildScript}";
         ExecStart = "${pkgs.bash}/bin/bash ${runScript}";
 
-        # Working directory for the Go build
-        WorkingDirectory = cfg.repoPath;
+        WorkingDirectory = "/var/lib/pob-server";
 
         Environment = [
-          "HOME=/home/${cfg.user}"
-          "PATH=${lib.makeBinPath [pkgs.bash pkgs.coreutils pkgs.git pkgs.nix pkgs.go pkgs.luajit]}:/home/${cfg.user}/.nix-profile/bin"
+          "HOME=/var/lib/pob-server"
+          "PATH=${lib.makeBinPath [pkgs.bash pkgs.coreutils pkgs.luajit]}"
         ];
 
-        # Security hardening
+        # Security hardening — process untrusted PoB build codes safely
         PrivateTmp = true;
         NoNewPrivileges = true;
+        ProtectHome = true;
+        ProtectSystem = "strict";
+        ReadOnlyPaths = [
+          "${pobSrc}"
+          cfg.repoPath
+        ];
+        ReadWritePaths = ["/var/lib/pob-server"];
+        PrivateDevices = true;
+        RestrictRealtime = true;
       };
     };
   };
