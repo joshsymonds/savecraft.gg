@@ -76,15 +76,8 @@ export const pobCalcModule: NativeReferenceModule = {
       };
     }
 
-    const data = (await response.json()) as { type?: string; message?: string };
+    const data = (await response.json()) as Record<string, unknown>;
 
-    if (data.type === "error") {
-      return {
-        type: "text",
-        content: `PoB calc error: ${data.message ?? "unknown error"}`,
-      };
-    }
-
-    return { type: "structured", data: data as Record<string, unknown> };
+    return { type: "structured", data };
   },
 };
