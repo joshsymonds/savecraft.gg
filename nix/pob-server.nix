@@ -26,12 +26,15 @@
       ./cmd/pob-server/
   '';
 
-  # Install the built binary into the service directory (runs as root).
+  # Install the built binary and wrapper into the service directory (runs as root).
+  # wrapper.lua must be copied here because ProtectHome=true blocks /home at runtime.
   installScript = pkgs.writeShellScript "pob-server-install" ''
     set -euo pipefail
     ${pkgs.coreutils}/bin/mv /tmp/pob-server-bin /var/lib/pob-server/pob-server
-    ${pkgs.coreutils}/bin/chown pob-server:pob-server /var/lib/pob-server/pob-server
+    ${pkgs.coreutils}/bin/cp ${lib.escapeShellArg cfg.repoPath}/cmd/pob-server/wrapper.lua /var/lib/pob-server/wrapper.lua
+    ${pkgs.coreutils}/bin/chown pob-server:pob-server /var/lib/pob-server/pob-server /var/lib/pob-server/wrapper.lua
     ${pkgs.coreutils}/bin/chmod 0755 /var/lib/pob-server/pob-server
+    ${pkgs.coreutils}/bin/chmod 0644 /var/lib/pob-server/wrapper.lua
   '';
 
   # Run the pob-server binary.
@@ -46,7 +49,7 @@
 
     exec /var/lib/pob-server/pob-server \
       -pob-dir ${pobSrc}/src \
-      -wrapper ${lib.escapeShellArg cfg.repoPath}/cmd/pob-server/wrapper.lua \
+      -wrapper /var/lib/pob-server/wrapper.lua \
       -luajit ${pkgs.luajit}/bin/luajit \
       -port ${toString cfg.port} \
       -pool-size ${toString cfg.poolSize} \
@@ -148,7 +151,6 @@ in {
         ProtectSystem = "strict";
         ReadOnlyPaths = [
           "${pobSrc}"
-          cfg.repoPath
         ];
         ReadWritePaths = ["/var/lib/pob-server"];
         PrivateDevices = true;
