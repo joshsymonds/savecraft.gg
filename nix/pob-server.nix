@@ -122,6 +122,7 @@ in {
         Group = "pob-server";
         Restart = "always";
         RestartSec = "5s";
+        TimeoutStartSec = "10min"; # First build fetches devenv deps + compiles Go
 
         # Build as repo owner (libgit2 rejects repos not owned by current user),
         # then install as root into the service directory.
