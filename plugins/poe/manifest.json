@@ -1,0 +1,40 @@
+{
+  "game_id": "poe",
+  "sources": [],
+  "icon": "icon.png",
+  "name": "Path of Exile",
+  "description": "Build calculation via headless Path of Building",
+  "channel": "beta",
+  "coverage": "partial",
+  "file_extensions": [],
+  "limitations": [
+    "Build calculation only — no live character data yet",
+    "Requires a PoB build code (base64 export string)",
+    "Timeless jewel calculations are not supported"
+  ],
+  "author": {
+    "name": "Josh Symonds",
+    "github": "joshsymonds"
+  },
+  "default_paths": {
+    "windows": "",
+    "linux": "",
+    "darwin": ""
+  },
+  "version": "dev",
+  "reference": {
+    "modules": {
+      "pob_calc": {
+        "name": "PoB Build Calculator",
+        "description": "Run a Path of Building build code through the PoB calc engine. Returns structured DPS, defence, resistance, skill, item, and passive tree data. Use when the player shares a PoB build code (a long base64 string) and wants analysis, optimization advice, or comparison.",
+        "parameters": {
+          "build_code": {
+            "type": "string",
+            "description": "PoB build code — the base64 string players share (e.g. from pastebin, discord, reddit). This is NOT an XML document; it is the compressed export code from Path of Building.",
+            "required": true
+          }
+        }
+      }
+    }
+  }
+}

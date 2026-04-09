@@ -23,7 +23,6 @@ import {
   getSection,
   getWasmSectionMappings,
   listGames,
-  pobCalc,
   queryReference,
   refreshSave,
   resolveIconUrl,
@@ -551,33 +550,6 @@ const TOOLS: ToolDefinition[] = [
       openWorldHint: false,
     },
   },
-  // ── Path of Building Calc ──────────────────────────────
-  //
-  // Runs a PoB build code through the headless Path of Building calc engine
-  // and returns structured DPS, defence, skill, and item data.
-  {
-    name: "pob_calc",
-    title: "PoB Build Calculator",
-    description:
-      "Run a Path of Building build code through the PoB calc engine. Returns structured DPS, defence, resistance, skill, item, and passive tree data. Use when the player shares a PoB build code (a long base64 string) and wants analysis, optimization advice, or comparison.",
-    inputSchema: {
-      type: "object",
-      properties: {
-        build_code: {
-          type: "string",
-          description:
-            "PoB build code — the base64 string players share (e.g. from pastebin, discord, reddit). This is NOT an XML document; it is the compressed export code from Path of Building.",
-        },
-      },
-      required: ["build_code"],
-    },
-    annotations: {
-      readOnlyHint: true,
-      destructiveHint: false,
-      idempotentHint: true,
-      openWorldHint: true,
-    },
-  },
 ];
 
 /** Map show_* tool names to their view bundle slugs. */
@@ -739,8 +711,6 @@ const TOOL_HANDLERS: Record<string, ToolHandler> = {
   show_games: (env, userUuid, args) => dispatchShowGames(env, userUuid, args),
   show_save: (env, userUuid, _args, saveId) => dispatchShowSave(env, userUuid, saveId),
   setup_help: (env, userUuid, args) => handleGetInfo(env, userUuid, args),
-  pob_calc: (env, _userUuid, args) =>
-    pobCalc(env.POB_URL, env.POB_API_KEY, args.build_code as string),
 };
 /* eslint-enable @typescript-eslint/naming-convention */
 

@@ -11,12 +11,12 @@ import {
   getSection,
   indexSaveSections,
   listGames,
-  pobCalc,
   refreshSave,
   searchSaves,
   updateNote,
   viewResult,
 } from "../src/mcp/tools";
+import type { Env } from "../src/types";
 
 import { cleanAll } from "./helpers";
 
@@ -1632,7 +1632,7 @@ describe("MCP Tools", () => {
         }[];
       };
       // All 8 embedded manifests returned, sorted alphabetically by name
-      expect(data.games).toHaveLength(8);
+      expect(data.games).toHaveLength(9);
       const names = data.games.map((g) => g.name);
       expect(names).toContain("Diablo II: Resurrected");
       expect(names).toContain("RimWorld");
@@ -1664,13 +1664,14 @@ describe("MCP Tools", () => {
       const result = await getInfo(env, USER_A, "games");
       const data = parseResult(result) as { games: { game_id: string }[] };
       // All 8 embedded manifests are always present
-      expect(data.games).toHaveLength(8);
+      expect(data.games).toHaveLength(9);
       const gameIds = data.games.map((g) => g.game_id).toSorted((a, b) => a.localeCompare(b));
       expect(gameIds).toEqual([
         "clair-obscur",
         "d2r",
         "factorio",
         "mtga",
+        "poe",
         "rimworld",
         "sdv",
         "stellaris",
@@ -1853,18 +1854,23 @@ describe("MCP Tools", () => {
   });
 }); // MCP Tools
 
-// ── PoB Calc ──────────────────────────────────────
-describe("pobCalc", () => {
+// ── PoB Calc (native reference module) ──────────────────────────────────────
+describe("pobCalcModule", () => {
   it("returns error when POB_URL is not configured", async () => {
-    const result = await pobCalc(undefined, undefined, "someBuildCode");
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("not configured");
+    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
+    const result = await pobCalcModule.execute({ build_code: "someBuildCode" }, {
+      ...env,
+      POB_URL: undefined,
+    } as unknown as Env);
+    expect(result).toEqual({ type: "text", content: expect.stringContaining("not configured") });
   });
 
   it("returns error when service is unreachable", async () => {
-    // Use a URL that will refuse connection
-    const result = await pobCalc("http://127.0.0.1:1", undefined, "someBuildCode");
-    expect(result.isError).toBe(true);
-    expect(result.content[0].text).toContain("unavailable");
+    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
+    const result = await pobCalcModule.execute({ build_code: "someBuildCode" }, {
+      ...env,
+      POB_URL: "http://127.0.0.1:1",
+    } as unknown as Env);
+    expect(result).toEqual({ type: "text", content: expect.stringContaining("unavailable") });
   });
 });

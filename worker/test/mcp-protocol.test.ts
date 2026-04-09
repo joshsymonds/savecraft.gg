@@ -174,7 +174,6 @@ describe("MCP Protocol", () => {
       "get_save",
       "get_section",
       "list_games",
-      "pob_calc",
       "query_reference",
       "refresh_save",
       "search_saves",
