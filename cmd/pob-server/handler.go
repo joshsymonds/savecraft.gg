@@ -14,6 +14,7 @@ type Server struct {
 	pool   *Pool
 	cache  *BuildCache
 	apiKey string
+	client *http.Client // for outbound requests (URL resolution); nil uses DefaultClient
 	log    *slog.Logger
 }
 
@@ -84,56 +85,7 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	// Acquire a PoB process
-	proc, err := srv.pool.Acquire()
-	if err != nil {
-		if errors.Is(err, ErrPoolExhausted) {
-			jsonError(writer, "all PoB processes are busy, try again later", http.StatusServiceUnavailable)
-			return
-		}
-		srv.log.Error("pool acquire error", "err", err)
-		jsonError(writer, "failed to acquire PoB process", http.StatusInternalServerError)
-		return
-	}
-	defer srv.pool.Release(proc)
-
-	// Send calc request to PoB
-	response, err := proc.Send(calcLuaRequest{Type: "calc", XML: xml})
-	if err != nil {
-		srv.log.Error("process send error", "err", err)
-		jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
-		return
-	}
-
-	// Parse PoB response envelope: {"type": "result"|"error", "data": {...}, "message": "..."}
-	var pobResp struct {
-		Type    string          `json:"type"`
-		Message string          `json:"message,omitempty"`
-		Data    json.RawMessage `json:"data,omitempty"`
-	}
-	if err := json.Unmarshal(response, &pobResp); err != nil {
-		srv.log.Error("failed to parse PoB response", "err", err)
-		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
-		return
-	}
-	if pobResp.Type == "error" {
-		jsonError(writer, "PoB calc error: "+pobResp.Message, http.StatusUnprocessableEntity)
-		return
-	}
-
-	// Cache the build XML and persist with summary
-	buildID := srv.cache.Put(xml)
-	if srv.cache.store != nil {
-		_ = srv.cache.store.Put(buildID, xml, string(pobResp.Data), "", "")
-	}
-
-	// Return the unwrapped PoB data with buildId (no double nesting)
-	resp := calcResponse{
-		BuildID: buildID,
-		PobData: pobResp.Data,
-	}
-	writer.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(writer).Encode(resp)
+	srv.calcAndRespond(writer, xml, "", "")
 }
 
 func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
@@ -148,6 +100,135 @@ func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
 		},
 		"cacheSize": srv.cache.Len(),
 	})
+}
+
+// ResolveRequest is the JSON body for POST /resolve.
+type ResolveRequest struct {
+	URL string `json:"url"`
+}
+
+func (srv *Server) handleResolve(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	if request.Method != http.MethodPost {
+		jsonError(writer, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	if srv.cache.store == nil {
+		jsonError(writer, "build storage not enabled", http.StatusNotImplemented)
+		return
+	}
+
+	request.Body = http.MaxBytesReader(writer, request.Body, maxRequestBodySize)
+
+	var req ResolveRequest
+	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+		jsonError(writer, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if req.URL == "" {
+		jsonError(writer, "url is required", http.StatusBadRequest)
+		return
+	}
+
+	result, err := resolveBuildURL(req.URL, srv.cache.store, srv.httpClient())
+	if err != nil {
+		if errors.Is(err, ErrBuildNotFound) {
+			jsonError(writer, "build not found", http.StatusNotFound)
+			return
+		}
+		srv.log.Error("resolve error", "url", req.URL, "err", err)
+		jsonError(writer, "failed to resolve URL: "+err.Error(), http.StatusUnprocessableEntity)
+		return
+	}
+
+	// If already cached (internal URL), return stored summary
+	if result.cached && result.summary != "" {
+		writer.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(writer).Encode(map[string]json.RawMessage{
+			"buildId": json.RawMessage(`"` + result.buildID + `"`),
+			"data":    json.RawMessage(result.summary),
+		})
+		return
+	}
+
+	// External URL: calc through PoB, persist, return
+	srv.calcAndRespond(writer, result.xml, result.sourceURL, "")
+}
+
+// calcAndRespond acquires a PoB process, runs calc, persists, and writes the JSON response.
+func (srv *Server) calcAndRespond(
+	writer http.ResponseWriter,
+	xml, sourceURL, parentID string,
+) {
+	proc, err := srv.pool.Acquire()
+	if err != nil {
+		if errors.Is(err, ErrPoolExhausted) {
+			jsonError(
+				writer,
+				"all PoB processes are busy, try again later",
+				http.StatusServiceUnavailable,
+			)
+			return
+		}
+		srv.log.Error("pool acquire error", "err", err)
+		jsonError(writer, "failed to acquire PoB process", http.StatusInternalServerError)
+		return
+	}
+	defer srv.pool.Release(proc)
+
+	response, err := proc.Send(calcLuaRequest{Type: "calc", XML: xml})
+	if err != nil {
+		srv.log.Error("process send error", "err", err)
+		jsonError(
+			writer,
+			"PoB process error — check server logs for details",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	var pobResp struct {
+		Type    string          `json:"type"`
+		Message string          `json:"message,omitempty"`
+		Data    json.RawMessage `json:"data,omitempty"`
+	}
+	if err := json.Unmarshal(response, &pobResp); err != nil {
+		srv.log.Error("failed to parse PoB response", "err", err)
+		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
+		return
+	}
+	if pobResp.Type == "error" {
+		jsonError(
+			writer,
+			"PoB calc error: "+pobResp.Message,
+			http.StatusUnprocessableEntity,
+		)
+		return
+	}
+
+	buildID := srv.cache.Put(xml)
+	if srv.cache.store != nil {
+		_ = srv.cache.store.Put(
+			buildID, xml, string(pobResp.Data), sourceURL, parentID,
+		)
+	}
+
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(calcResponse{
+		BuildID: buildID,
+		PobData: pobResp.Data,
+	})
+}
+
+// httpClient returns the server's HTTP client, defaulting to http.DefaultClient.
+func (srv *Server) httpClient() *http.Client {
+	if srv.client != nil {
+		return srv.client
+	}
+	return http.DefaultClient
 }
 
 func (srv *Server) handleGetBuild(
