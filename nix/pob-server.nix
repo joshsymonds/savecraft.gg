@@ -14,13 +14,22 @@
   };
 
   # Build the pob-server binary from the savecraft repo.
+  # Outputs to /tmp so the build user doesn't need write access to /var/lib.
   buildScript = pkgs.writeShellScript "pob-server-build" ''
     set -euo pipefail
     cd ${lib.escapeShellArg cfg.repoPath}
     exec ${pkgs.nix}/bin/nix develop --no-pure-eval \
       --command ${pkgs.go}/bin/go build \
-      -o /var/lib/pob-server/pob-server \
+      -o /tmp/pob-server-bin \
       ./cmd/pob-server/
+  '';
+
+  # Install the built binary into the service directory (runs as root).
+  installScript = pkgs.writeShellScript "pob-server-install" ''
+    set -euo pipefail
+    ${pkgs.coreutils}/bin/mv /tmp/pob-server-bin /var/lib/pob-server/pob-server
+    ${pkgs.coreutils}/bin/chown pob-server:pob-server /var/lib/pob-server/pob-server
+    ${pkgs.coreutils}/bin/chmod 0755 /var/lib/pob-server/pob-server
   '';
 
   # Run the pob-server binary.
@@ -114,9 +123,12 @@ in {
         Restart = "always";
         RestartSec = "5s";
 
-        # Build step runs as the repo owner (needs repo + nix access),
-        # then the service runs as the sandboxed pob-server user.
-        ExecStartPre = "+${pkgs.bash}/bin/bash ${buildScript}";
+        # Build as repo owner (libgit2 rejects repos not owned by current user),
+        # then install as root into the service directory.
+        ExecStartPre = [
+          "+${pkgs.util-linux}/bin/runuser -u ${cfg.user} -- ${pkgs.bash}/bin/bash ${buildScript}"
+          "+${pkgs.bash}/bin/bash ${installScript}"
+        ];
         ExecStart = "${pkgs.bash}/bin/bash ${runScript}";
 
         WorkingDirectory = "/var/lib/pob-server";
