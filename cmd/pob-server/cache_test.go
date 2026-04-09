@@ -1,15 +1,16 @@
 package main
 
 import (
+	"errors"
 	"testing"
 	"time"
 )
 
-func newTestCache(ttl time.Duration) *BuildCache {
+func newTestCache() *BuildCache {
 	now := time.Now()
 	return &BuildCache{
 		builds:     make(map[string]cachedBuild),
-		ttl:        ttl,
+		ttl:        10 * time.Minute,
 		maxEntries: 100,
 		nowFunc:    func() time.Time { return now },
 		cancel:     func() {},
@@ -17,7 +18,7 @@ func newTestCache(ttl time.Duration) *BuildCache {
 }
 
 func TestBuildCachePutAndLen(t *testing.T) {
-	cache := newTestCache(10 * time.Minute)
+	cache := newTestCache()
 
 	xml := "<PathOfBuilding><Build level=\"99\"/></PathOfBuilding>"
 	id := cache.Put(xml)
@@ -31,7 +32,7 @@ func TestBuildCachePutAndLen(t *testing.T) {
 }
 
 func TestBuildCacheContentHashDedup(t *testing.T) {
-	cache := newTestCache(10 * time.Minute)
+	cache := newTestCache()
 
 	xml := "<PathOfBuilding/>"
 	id1 := cache.Put(xml)
@@ -82,5 +83,88 @@ func TestBuildCacheMaxEntries(t *testing.T) {
 
 	if cache.Len() != 3 {
 		t.Fatalf("expected 3 entries after eviction, got %d", cache.Len())
+	}
+}
+
+func TestBuildCacheGetFromMemory(t *testing.T) {
+	cache := newTestCache()
+
+	xml := "<PathOfBuilding/>"
+	id := cache.Put(xml)
+
+	got, err := cache.Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != xml {
+		t.Fatalf("xml mismatch: got %q, want %q", got, xml)
+	}
+}
+
+func TestBuildCacheGetMissNoStore(t *testing.T) {
+	cache := newTestCache()
+
+	_, err := cache.Get("nonexistent")
+	if !errors.Is(err, ErrBuildNotFound) {
+		t.Fatalf("expected ErrBuildNotFound, got %v", err)
+	}
+}
+
+func TestBuildCacheGetReadThrough(t *testing.T) {
+	store, err := NewBuildStore(tempDBPath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	cache := newTestCache()
+	cache.store = store
+
+	// Put directly into store, bypassing memory cache
+	xml := "<PathOfBuilding><Build/></PathOfBuilding>"
+	id := contentHash(xml)
+	if err := store.Put(id, xml, "{}", "", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	// Cache memory is empty — should read through to SQLite
+	if cache.Len() != 0 {
+		t.Fatal("expected empty memory cache")
+	}
+
+	got, err := cache.Get(id)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != xml {
+		t.Fatalf("xml mismatch: got %q, want %q", got, xml)
+	}
+
+	// Should now be in memory cache
+	if cache.Len() != 1 {
+		t.Fatal("expected build to be promoted to memory cache")
+	}
+}
+
+func TestBuildCachePutWritesStore(t *testing.T) {
+	store, err := NewBuildStore(tempDBPath(t))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	cache := newTestCache()
+	cache.store = store
+
+	xml := "<test/>"
+	id := cache.Put(xml)
+
+	// Verify it's in SQLite
+	got, _, err := store.Get(id)
+	if err != nil {
+		t.Fatalf("expected build in store: %v", err)
+	}
+	if got != xml {
+		t.Fatalf("store xml mismatch: got %q, want %q", got, xml)
 	}
 }

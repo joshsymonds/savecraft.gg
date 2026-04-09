@@ -10,9 +10,12 @@ import (
 )
 
 // BuildCache stores build XML keyed by content hash with TTL-based eviction.
+// If a BuildStore is attached, writes go to both memory and SQLite,
+// and reads fall through to SQLite on memory miss.
 type BuildCache struct {
 	mu         sync.Mutex
 	builds     map[string]cachedBuild
+	store      *BuildStore // optional persistent backing store
 	ttl        time.Duration
 	maxEntries int
 	nowFunc    func() time.Time // for testing
@@ -39,7 +42,8 @@ func NewBuildCache(ttl time.Duration, maxEntries int) *BuildCache {
 }
 
 // Put stores build XML and returns its content-hash ID.
-// If the cache exceeds maxEntries, the oldest entry is evicted.
+// If a store is attached, the build is also persisted to SQLite.
+// If the cache exceeds maxEntries, the oldest entry is evicted from memory.
 func (cache *BuildCache) Put(xml string) string {
 	id := contentHash(xml)
 	cache.mu.Lock()
@@ -61,7 +65,41 @@ func (cache *BuildCache) Put(xml string) string {
 	}
 
 	cache.mu.Unlock()
+
+	// Write-through to persistent store (best-effort)
+	if cache.store != nil {
+		_ = cache.store.Put(id, xml, "{}", "", "")
+	}
+
 	return id
+}
+
+// Get retrieves build XML by ID. Checks memory first, then falls back to
+// the SQLite store if attached. On a store hit, the build is promoted to memory.
+// Returns ErrBuildNotFound if the build is not in either layer.
+func (cache *BuildCache) Get(id string) (string, error) {
+	cache.mu.Lock()
+	if entry, ok := cache.builds[id]; ok {
+		cache.builds[id] = cachedBuild{xml: entry.xml, lastUsed: cache.nowFunc()}
+		cache.mu.Unlock()
+		return entry.xml, nil
+	}
+	cache.mu.Unlock()
+
+	// Fall through to SQLite
+	if cache.store != nil {
+		xml, _, err := cache.store.Get(id)
+		if err != nil {
+			return "", err
+		}
+		// Promote to memory cache
+		cache.mu.Lock()
+		cache.builds[id] = cachedBuild{xml: xml, lastUsed: cache.nowFunc()}
+		cache.mu.Unlock()
+		return xml, nil
+	}
+
+	return "", ErrBuildNotFound
 }
 
 // Len returns the number of cached builds.
@@ -71,9 +109,12 @@ func (cache *BuildCache) Len() int {
 	return len(cache.builds)
 }
 
-// Shutdown stops the eviction goroutine.
+// Shutdown stops the eviction goroutine and closes the backing store.
 func (cache *BuildCache) Shutdown() {
 	cache.cancel()
+	if cache.store != nil {
+		cache.store.Close()
+	}
 }
 
 func (cache *BuildCache) evictLoop(ctx context.Context) {

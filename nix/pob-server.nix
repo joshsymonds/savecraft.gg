@@ -44,6 +44,12 @@ in {
       default = "5m";
       description = "Kill idle LuaJIT processes after this duration (Go duration string).";
     };
+
+    dbPath = lib.mkOption {
+      type = lib.types.str;
+      default = "/var/lib/pob-server/builds.db";
+      description = "SQLite database path for persistent build storage. Empty string disables persistence.";
+    };
   };
 
   config = lib.mkIf cfg.enable {
@@ -90,7 +96,8 @@ in {
               -luajit ${pkgs.luajit}/bin/luajit \
               -port ${toString cfg.port} \
               -pool-size ${toString cfg.poolSize} \
-              -idle-timeout ${cfg.idleTimeout}
+              -idle-timeout ${cfg.idleTimeout} \
+              ${lib.optionalString (cfg.dbPath != "") "-db-path ${lib.escapeShellArg cfg.dbPath}"}
           '';
         in "${pkgs.bash}/bin/bash ${runScript}";
 

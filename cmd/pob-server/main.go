@@ -18,43 +18,74 @@ import (
 	"time"
 )
 
-func main() {
-	port := flag.Int("port", 8077, "HTTP listen port")
-	pobDir := flag.String("pob-dir", "", "Path to PoB src/ directory (required)")
-	apiKey := flag.String("api-key", "", "API key for authentication (optional, reads POB_API_KEY env if not set)")
-	poolSize := flag.Int("pool-size", 4, "Maximum number of concurrent PoB processes")
-	idleTimeout := flag.Duration("idle-timeout", 5*time.Minute, "Kill idle processes after this duration")
-	cacheTTL := flag.Duration("cache-ttl", 10*time.Minute, "Build cache entry TTL")
-	cacheMax := flag.Int("cache-max", 1000, "Maximum number of cached builds")
-	luajitBin := flag.String("luajit", "luajit", "Path to luajit binary")
-	wrapperPath := flag.String("wrapper", "", "Path to wrapper.lua (default: <pob-dir>/../wrapper.lua)")
+type config struct {
+	port        int
+	pobDir      string
+	apiKey      string
+	poolSize    int
+	idleTimeout time.Duration
+	cacheTTL    time.Duration
+	cacheMax    int
+	dbPath      string
+	luajitBin   string
+	wrapperPath string
+}
+
+func parseConfig() config {
+	cfg := config{}
+	flag.IntVar(&cfg.port, "port", 8077, "HTTP listen port")
+	flag.StringVar(&cfg.pobDir, "pob-dir", "", "Path to PoB src/ directory (required)")
+	flag.StringVar(
+		&cfg.apiKey, "api-key", "",
+		"API key for authentication (optional, reads POB_API_KEY env if not set)",
+	)
+	flag.IntVar(&cfg.poolSize, "pool-size", 4, "Maximum number of concurrent PoB processes")
+	flag.DurationVar(&cfg.idleTimeout, "idle-timeout", 5*time.Minute, "Kill idle processes after this duration")
+	flag.DurationVar(&cfg.cacheTTL, "cache-ttl", 10*time.Minute, "Build cache entry TTL")
+	flag.IntVar(&cfg.cacheMax, "cache-max", 1000, "Maximum number of cached builds")
+	flag.StringVar(
+		&cfg.dbPath, "db-path", "",
+		"SQLite database path for persistent build storage (empty = memory only)",
+	)
+	flag.StringVar(&cfg.luajitBin, "luajit", "luajit", "Path to luajit binary")
+	flag.StringVar(&cfg.wrapperPath, "wrapper", "", "Path to wrapper.lua (default: <pob-dir>/../wrapper.lua)")
 	flag.Parse()
 
-	logger := slog.Default()
-
-	if *pobDir == "" {
+	if cfg.pobDir == "" {
 		fmt.Fprintf(os.Stderr, "error: -pob-dir is required\n")
 		flag.Usage()
 		os.Exit(1)
 	}
-
-	key := *apiKey
-	if key == "" {
-		key = os.Getenv("POB_API_KEY")
+	if cfg.apiKey == "" {
+		cfg.apiKey = os.Getenv("POB_API_KEY")
 	}
-
-	wp := *wrapperPath
-	if wp == "" {
-		wp = *pobDir + "/../wrapper.lua"
+	if cfg.wrapperPath == "" {
+		cfg.wrapperPath = cfg.pobDir + "/../wrapper.lua"
 	}
+	return cfg
+}
 
-	pool := NewPool(*poolSize, *idleTimeout, *luajitBin, wp, *pobDir, logger)
-	cache := NewBuildCache(*cacheTTL, *cacheMax)
+func main() {
+	cfg := parseConfig()
+	logger := slog.Default()
+
+	pool := NewPool(cfg.poolSize, cfg.idleTimeout, cfg.luajitBin, cfg.wrapperPath, cfg.pobDir, logger)
+	cache := NewBuildCache(cfg.cacheTTL, cfg.cacheMax)
+
+	if cfg.dbPath != "" {
+		store, err := NewBuildStore(cfg.dbPath)
+		if err != nil {
+			logger.Error("failed to open build store", "path", cfg.dbPath, "err", err)
+			os.Exit(1)
+		}
+		cache.store = store
+		logger.Info("build store enabled", "path", cfg.dbPath)
+	}
 
 	srv := &Server{
 		pool:   pool,
 		cache:  cache,
-		apiKey: key,
+		apiKey: cfg.apiKey,
 		log:    logger,
 	}
 
@@ -62,8 +93,8 @@ func main() {
 	mux.HandleFunc("/calc", srv.authMiddleware(srv.handleCalc))
 	mux.HandleFunc("/health", srv.handleHealth)
 
-	addr := fmt.Sprintf(":%d", *port)
-	logger.Info("pob-server starting", "addr", addr, "poolMax", *poolSize, "idleTimeout", *idleTimeout)
+	addr := fmt.Sprintf(":%d", cfg.port)
+	logger.Info("pob-server starting", "addr", addr, "poolMax", cfg.poolSize, "idleTimeout", cfg.idleTimeout)
 
 	httpServer := &http.Server{
 		Addr:         addr,

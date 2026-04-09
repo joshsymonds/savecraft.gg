@@ -121,8 +121,11 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	// Cache the build XML
+	// Cache the build XML and persist with summary
 	buildID := srv.cache.Put(xml)
+	if srv.cache.store != nil {
+		_ = srv.cache.store.Put(buildID, xml, string(pobResp.Data), "", "")
+	}
 
 	// Return the unwrapped PoB data with buildId (no double nesting)
 	resp := calcResponse{
