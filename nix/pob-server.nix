@@ -15,8 +15,10 @@
 
   # Build the pob-server binary from the savecraft repo.
   # Outputs to /tmp so the build user doesn't need write access to /var/lib.
+  # git is needed because devenv's git-hooks:install looks for it in PATH.
   buildScript = pkgs.writeShellScript "pob-server-build" ''
     set -euo pipefail
+    export PATH="${lib.makeBinPath [pkgs.git pkgs.coreutils pkgs.bash]}:$PATH"
     cd ${lib.escapeShellArg cfg.repoPath}
     exec ${pkgs.nix}/bin/nix develop --no-pure-eval \
       --command ${pkgs.go}/bin/go build \
