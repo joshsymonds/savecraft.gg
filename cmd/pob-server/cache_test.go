@@ -5,104 +5,82 @@ import (
 	"time"
 )
 
-func TestBuildCachePutGet(t *testing.T) {
-	c := &BuildCache{
-		builds:  make(map[string]cachedBuild),
-		ttl:     10 * time.Minute,
-		nowFunc: time.Now,
+func newTestCache(ttl time.Duration) *BuildCache {
+	now := time.Now()
+	return &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        ttl,
+		maxEntries: 100,
+		nowFunc:    func() time.Time { return now },
+		cancel:     func() {},
 	}
+}
+
+func TestBuildCachePutAndLen(t *testing.T) {
+	cache := newTestCache(10 * time.Minute)
 
 	xml := "<PathOfBuilding><Build level=\"99\"/></PathOfBuilding>"
-	id := c.Put(xml)
+	id := cache.Put(xml)
 
 	if id == "" {
 		t.Fatal("expected non-empty build ID")
 	}
-
-	got, ok := c.Get(id)
-	if !ok {
-		t.Fatal("expected cache hit")
-	}
-	if got != xml {
-		t.Fatalf("expected %q, got %q", xml, got)
-	}
-}
-
-func TestBuildCacheMiss(t *testing.T) {
-	c := &BuildCache{
-		builds:  make(map[string]cachedBuild),
-		ttl:     10 * time.Minute,
-		nowFunc: time.Now,
-	}
-
-	_, ok := c.Get("nonexistent")
-	if ok {
-		t.Fatal("expected cache miss")
+	if cache.Len() != 1 {
+		t.Fatalf("expected 1 entry, got %d", cache.Len())
 	}
 }
 
 func TestBuildCacheContentHashDedup(t *testing.T) {
-	c := &BuildCache{
-		builds:  make(map[string]cachedBuild),
-		ttl:     10 * time.Minute,
-		nowFunc: time.Now,
-	}
+	cache := newTestCache(10 * time.Minute)
 
 	xml := "<PathOfBuilding/>"
-	id1 := c.Put(xml)
-	id2 := c.Put(xml)
+	id1 := cache.Put(xml)
+	id2 := cache.Put(xml)
 
 	if id1 != id2 {
 		t.Fatalf("same content should produce same ID: %q != %q", id1, id2)
 	}
-	if c.Len() != 1 {
-		t.Fatalf("expected 1 entry, got %d", c.Len())
+	if cache.Len() != 1 {
+		t.Fatalf("expected 1 entry, got %d", cache.Len())
 	}
 }
 
 func TestBuildCacheTTLExpiry(t *testing.T) {
 	now := time.Now()
-	c := &BuildCache{
-		builds:  make(map[string]cachedBuild),
-		ttl:     5 * time.Minute,
-		nowFunc: func() time.Time { return now },
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        5 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    func() time.Time { return now },
+		cancel:     func() {},
 	}
 
-	id := c.Put("<build/>")
+	cache.Put("<build/>")
 
 	// Advance time past TTL
 	now = now.Add(6 * time.Minute)
-	c.evict()
+	cache.evict()
 
-	_, ok := c.Get(id)
-	if ok {
-		t.Fatal("expected cache miss after TTL expiry")
+	if cache.Len() != 0 {
+		t.Fatal("expected 0 entries after TTL expiry")
 	}
 }
 
-func TestBuildCacheGetRefreshesTTL(t *testing.T) {
-	now := time.Now()
-	c := &BuildCache{
-		builds:  make(map[string]cachedBuild),
-		ttl:     5 * time.Minute,
-		nowFunc: func() time.Time { return now },
+func TestBuildCacheMaxEntries(t *testing.T) {
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 3,
+		nowFunc:    time.Now,
+		cancel:     func() {},
 	}
 
-	id := c.Put("<build/>")
+	cache.Put("<build1/>")
+	cache.Put("<build2/>")
+	cache.Put("<build3/>")
+	cache.Put("<build4/>") // should evict the oldest
 
-	// Advance 4 minutes, then Get (should refresh)
-	now = now.Add(4 * time.Minute)
-	_, ok := c.Get(id)
-	if !ok {
-		t.Fatal("expected cache hit at 4 minutes")
-	}
-
-	// Advance another 4 minutes (8 total, but only 4 since last Get)
-	now = now.Add(4 * time.Minute)
-	c.evict()
-
-	_, ok = c.Get(id)
-	if !ok {
-		t.Fatal("expected cache hit — Get should have refreshed TTL")
+	if cache.Len() != 3 {
+		t.Fatalf("expected 3 entries after eviction, got %d", cache.Len())
 	}
 }

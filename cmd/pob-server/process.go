@@ -71,7 +71,12 @@ func drainStderr(reader io.Reader) {
 	}
 }
 
+// SendTimeout is the maximum time to wait for a response from the LuaJIT process.
+const SendTimeout = 25 * time.Second
+
 // Send sends a JSON request to the process and reads the JSON response.
+// It enforces a timeout — if the process doesn't respond within SendTimeout,
+// it is killed and an error is returned.
 func (proc *Process) Send(request any) (json.RawMessage, error) {
 	data, err := json.Marshal(request)
 	if err != nil {
@@ -83,14 +88,33 @@ func (proc *Process) Send(request any) (json.RawMessage, error) {
 		return nil, fmt.Errorf("write to process: %w", err)
 	}
 
-	if !proc.stdout.Scan() {
-		if scanErr := proc.stdout.Err(); scanErr != nil {
-			return nil, fmt.Errorf("read from process: %w", scanErr)
-		}
-		return nil, fmt.Errorf("process closed stdout unexpectedly")
+	type scanResult struct {
+		data []byte
+		err  error
 	}
+	ch := make(chan scanResult, 1)
+	go func() {
+		if proc.stdout.Scan() {
+			// Copy the bytes — scanner reuses its internal buffer on next Scan()
+			ch <- scanResult{data: []byte(proc.stdout.Text())}
+		} else {
+			ch <- scanResult{err: proc.stdout.Err()}
+		}
+	}()
 
-	return json.RawMessage(proc.stdout.Bytes()), nil
+	select {
+	case result := <-ch:
+		if result.err != nil {
+			return nil, fmt.Errorf("read from process: %w", result.err)
+		}
+		if result.data == nil {
+			return nil, fmt.Errorf("process closed stdout unexpectedly")
+		}
+		return json.RawMessage(result.data), nil
+	case <-time.After(SendTimeout):
+		proc.Kill()
+		return nil, fmt.Errorf("PoB process timed out after %s", SendTimeout)
+	}
 }
 
 // Kill terminates the subprocess.

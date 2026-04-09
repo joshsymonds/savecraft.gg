@@ -23,6 +23,7 @@ func main() {
 	poolSize := flag.Int("pool-size", 4, "Maximum number of concurrent PoB processes")
 	idleTimeout := flag.Duration("idle-timeout", 5*time.Minute, "Kill idle processes after this duration")
 	cacheTTL := flag.Duration("cache-ttl", 10*time.Minute, "Build cache entry TTL")
+	cacheMax := flag.Int("cache-max", 1000, "Maximum number of cached builds")
 	luajitBin := flag.String("luajit", "luajit", "Path to luajit binary")
 	wrapperPath := flag.String("wrapper", "", "Path to wrapper.lua (default: <pob-dir>/../wrapper.lua)")
 	flag.Parse()
@@ -46,7 +47,7 @@ func main() {
 	}
 
 	pool := NewPool(*poolSize, *idleTimeout, *luajitBin, wp, *pobDir, logger)
-	cache := NewBuildCache(*cacheTTL)
+	cache := NewBuildCache(*cacheTTL, *cacheMax)
 
 	srv := &Server{
 		pool:   pool,
@@ -62,17 +63,26 @@ func main() {
 	addr := fmt.Sprintf(":%d", *port)
 	logger.Info("pob-server starting", "addr", addr, "poolMax", *poolSize, "idleTimeout", *idleTimeout)
 
+	httpServer := &http.Server{
+		Addr:         addr,
+		Handler:      mux,
+		ReadTimeout:  10 * time.Second,
+		WriteTimeout: 35 * time.Second, // > SendTimeout (25s) so response can be written
+		IdleTimeout:  120 * time.Second,
+	}
+
 	// Graceful shutdown on SIGINT/SIGTERM
 	go func() {
 		sigCh := make(chan os.Signal, 1)
 		signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 		sig := <-sigCh
 		logger.Info("shutting down", "signal", sig)
+		cache.Shutdown()
 		pool.Shutdown()
 		os.Exit(0)
 	}()
 
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	if err := httpServer.ListenAndServe(); err != nil {
 		logger.Error("listen failed", "err", err)
 		os.Exit(1)
 	}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"errors"
 	"log/slog"
@@ -27,6 +28,16 @@ type calcLuaRequest struct {
 	XML  string `json:"xml"`
 }
 
+// calcResponse wraps the PoB result with a buildId for caching.
+type calcResponse struct {
+	BuildID string          `json:"buildId"`
+	PobData json.RawMessage `json:"data,omitempty"`
+	Type    string          `json:"type,omitempty"`
+}
+
+// maxRequestBodySize limits incoming POST bodies to 2 MB.
+const maxRequestBodySize = 2 * 1024 * 1024
+
 func (srv *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 	return func(writer http.ResponseWriter, request *http.Request) {
 		if srv.apiKey == "" {
@@ -34,7 +45,8 @@ func (srv *Server) authMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 		auth := request.Header.Get("Authorization")
-		if !strings.HasPrefix(auth, "Bearer ") || auth[7:] != srv.apiKey {
+		if !strings.HasPrefix(auth, "Bearer ") ||
+			subtle.ConstantTimeCompare([]byte(auth[7:]), []byte(srv.apiKey)) != 1 {
 			http.Error(writer, `{"error": "unauthorized"}`, http.StatusUnauthorized)
 			return
 		}
@@ -47,6 +59,8 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 		http.Error(writer, `{"error": "method not allowed"}`, http.StatusMethodNotAllowed)
 		return
 	}
+
+	request.Body = http.MaxBytesReader(writer, request.Body, maxRequestBodySize)
 
 	var req CalcRequest
 	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
@@ -105,18 +119,14 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 	// Cache the build XML
 	buildID := srv.cache.Put(xml)
 
-	// Wrap the response with buildId
-	writer.Header().Set("Content-Type", "application/json")
-	_, _ = writer.Write([]byte(`{"buildId":"`))
-	_, _ = writer.Write([]byte(buildID))
-	_, _ = writer.Write([]byte(`",`))
-	// Strip the leading { from the PoB response and append
-	raw := []byte(response)
-	if len(raw) > 0 && raw[0] == '{' {
-		_, _ = writer.Write(raw[1:])
-	} else {
-		_, _ = writer.Write(raw)
+	// Marshal a proper response wrapping the PoB data with buildId
+	resp := calcResponse{
+		BuildID: buildID,
+		Type:    pobResp.Type,
+		PobData: response,
 	}
+	writer.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(writer).Encode(resp)
 }
 
 func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {

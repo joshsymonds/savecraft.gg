@@ -34,7 +34,9 @@ func DecodeBuildCode(code string) (string, error) {
 	}
 	defer reader.Close()
 
-	xml, err := io.ReadAll(reader)
+	// Limit decompressed size to prevent decompression bombs.
+	const maxDecompressedSize = 10 * 1024 * 1024 // 10 MB
+	xml, err := io.ReadAll(io.LimitReader(reader, maxDecompressedSize))
 	if err != nil {
 		return "", fmt.Errorf("zlib decompress: %w", err)
 	}
