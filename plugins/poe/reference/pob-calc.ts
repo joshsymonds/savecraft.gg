@@ -1,14 +1,14 @@
 /**
  * PoE pob_calc — native reference module.
  *
- * Calls the headless Path of Building calc service (pob-server) running
- * on ultraviolet behind a Cloudflare tunnel. Accepts a URL to a PoB build
- * (pobb.in, pastebin, pob.savecraft.gg, etc.) and returns structured DPS,
- * defence, skill, item, and tree data.
+ * Bridges the headless Path of Building calc service (pob-server) into the
+ * MCP reference module system. Supports two workflows:
  *
- * The PoB service is external to the Worker — this module bridges it
- * into the reference module system so it's discoverable through
- * list_games / query_reference like all other reference modules.
+ *   1. Analyze: pass a build URL → get structured calc results + buildId
+ *   2. Modify: pass a buildId + operations → get updated results + new buildId
+ *
+ * Every call returns a buildId that can be used for subsequent modifications,
+ * enabling iterative build design without the player exporting build codes.
  */
 
 import type { Env } from "../../../worker/src/types";
@@ -17,7 +17,7 @@ import type {
   ReferenceResult,
 } from "../../../worker/src/reference/types";
 
-/** Timeout for PoB resolve requests (ms). */
+/** Timeout for PoB requests (ms). */
 const POB_TIMEOUT_MS = 30_000;
 
 /** Minimal URL validation — must have a scheme and host. */
@@ -30,26 +30,69 @@ function isURL(value: string): boolean {
   }
 }
 
+function pobFetch(
+  pobUrl: string,
+  path: string,
+  body: Record<string, unknown>,
+  apiKey?: string,
+): Promise<Response> {
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) {
+    headers.Authorization = `Bearer ${apiKey}`;
+  }
+  return fetch(`${pobUrl}${path}`, {
+    method: "POST",
+    headers,
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(POB_TIMEOUT_MS),
+  });
+}
+
 export const pobCalcModule: NativeReferenceModule = {
   id: "pob_calc",
   name: "PoB Build Calculator",
   description:
-    "Analyze a Path of Building build from a URL. Accepts pobb.in, pastebin.com, pob.savecraft.gg, or any link containing a PoB build code. Returns structured DPS, defence, resistance, skill, item, and passive tree data. Use when the player shares a build link and wants analysis, optimization advice, or comparison.",
+    "Analyze or modify a Path of Exile build via Path of Building. Pass a build URL to analyze it, or a buildId with operations to modify an existing build. Every response includes a buildId for follow-up modifications — enabling iterative build design.",
   parameters: {
     build: {
       type: "string",
       description:
-        "URL to a PoB build — a pobb.in link, pastebin link, or any URL hosting a PoB build code. Do NOT pass raw base64 build codes; paste the link the player shared.",
+        "URL to a PoB build (pobb.in, pastebin, pob.savecraft.gg link). Required on first call. Omit when modifying an existing build by buildId.",
+    },
+    build_id: {
+      type: "string",
+      description:
+        "Build ID from a previous pob_calc response. Use this to modify or re-analyze a build without a URL. Omit on first call.",
+    },
+    operations: {
+      type: "string",
+      description:
+        'JSON array of modifications to apply to the build. Omit for pure analysis. Each operation is an object with an "op" field and operation-specific parameters. Operations are applied in order. Available operations:\n'
+        + '- {"op":"set_level","level":95} — Set character level.\n'
+        + '- {"op":"swap_gem","socket_group":0,"gem_index":1,"new_gem":"Ruthless Support","level":20,"quality":20} — Replace a gem in a socket group (0-indexed).\n'
+        + '- {"op":"add_gem","socket_group":0,"gem":"Inspiration Support","level":20,"quality":20} — Add a gem to a socket group.\n'
+        + '- {"op":"remove_gem","socket_group":0,"gem_index":3} — Remove a gem by index from a socket group.\n'
+        + '- {"op":"toggle_keystone","name":"Resolute Technique","enabled":false} — Allocate or deallocate a keystone passive.\n'
+        + '- {"op":"allocate_node","name":"Unwavering Stance"} — Allocate a notable or keystone by name.\n'
+        + '- {"op":"deallocate_node","name":"Phase Acrobatics"} — Deallocate a notable or keystone by name.\n'
+        + '- {"op":"equip_unique","name":"Abyssus","slot":"Helmet"} — Equip a unique item by name. Slots: Weapon 1, Weapon 2, Helmet, Body Armour, Gloves, Boots, Belt, Ring 1, Ring 2, Amulet.\n'
+        + '- {"op":"set_item","slot":"Body Armour","text":"Astral Plate\\nRarity: Rare\\n..."} — Equip a rare/custom item using PoB item text format.',
     },
   },
 
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
     const build = query.build as string | undefined;
-    if (!build) {
-      return { type: "text", content: "Error: build is required. Pass a URL to a PoB build (e.g. a pobb.in link)." };
+    const buildId = query.build_id as string | undefined;
+    const operations = query.operations as string | undefined;
+
+    if (!build && !buildId) {
+      return {
+        type: "text",
+        content: "Error: either build (URL) or build_id is required.",
+      };
     }
 
-    if (!isURL(build)) {
+    if (build && !isURL(build)) {
       return {
         type: "text",
         content:
@@ -66,24 +109,100 @@ export const pobCalcModule: NativeReferenceModule = {
       };
     }
 
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (env.POB_API_KEY) {
-      headers.Authorization = `Bearer ${env.POB_API_KEY}`;
+    // Step 1: Resolve the build (from URL or existing buildId)
+    let resolvedBuildId = buildId;
+
+    if (build) {
+      // Resolve URL → buildId + calc results
+      let response: Response;
+      try {
+        response = await pobFetch(pobUrl, "/resolve", { url: build }, env.POB_API_KEY);
+      } catch {
+        return {
+          type: "text",
+          content:
+            "PoB calc service is currently unavailable. The build URL was valid but the calculation server could not be reached. Try again later.",
+        };
+      }
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        return {
+          type: "text",
+          content: `PoB resolve error (${String(response.status)}): ${body}`,
+        };
+      }
+
+      const resolveResult = (await response.json()) as { buildId: string; data: unknown };
+      resolvedBuildId = resolveResult.buildId;
+
+      // If no operations, return the resolve result directly
+      if (!operations) {
+        return { type: "structured", data: resolveResult };
+      }
     }
 
+    // Step 2: If operations provided, modify the build
+    if (operations) {
+      if (!resolvedBuildId) {
+        return {
+          type: "text",
+          content: "Error: operations require a build to modify. Provide either build (URL) or build_id.",
+        };
+      }
+
+      let parsedOps: unknown[];
+      try {
+        parsedOps = JSON.parse(operations);
+        if (!Array.isArray(parsedOps) || parsedOps.length === 0) {
+          return { type: "text", content: "Error: operations must be a non-empty JSON array." };
+        }
+      } catch {
+        return { type: "text", content: "Error: operations is not valid JSON." };
+      }
+
+      let response: Response;
+      try {
+        response = await pobFetch(
+          pobUrl,
+          "/modify",
+          { buildId: resolvedBuildId, operations: parsedOps },
+          env.POB_API_KEY,
+        );
+      } catch {
+        return {
+          type: "text",
+          content: "PoB calc service is currently unavailable. Try again later.",
+        };
+      }
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        return {
+          type: "text",
+          content: `PoB modify error (${String(response.status)}): ${body}`,
+        };
+      }
+
+      const modifyResult = (await response.json()) as Record<string, unknown>;
+      return { type: "structured", data: modifyResult };
+    }
+
+    // Step 3: build_id only, no operations — return stored summary
     let response: Response;
     try {
-      response = await fetch(`${pobUrl}/resolve`, {
-        method: "POST",
+      const headers: Record<string, string> = {};
+      if (env.POB_API_KEY) {
+        headers.Authorization = `Bearer ${env.POB_API_KEY}`;
+      }
+      response = await fetch(`${pobUrl}/build/${resolvedBuildId}/summary`, {
         headers,
-        body: JSON.stringify({ url: build }),
         signal: AbortSignal.timeout(POB_TIMEOUT_MS),
       });
     } catch {
       return {
         type: "text",
-        content:
-          "PoB calc service is currently unavailable. The build URL was valid but the calculation server could not be reached. Try again later.",
+        content: "PoB calc service is currently unavailable. Try again later.",
       };
     }
 
@@ -91,12 +210,11 @@ export const pobCalcModule: NativeReferenceModule = {
       const body = await response.text().catch(() => "");
       return {
         type: "text",
-        content: `PoB calc service returned an error (${String(response.status)}): ${body}`,
+        content: `PoB lookup error (${String(response.status)}): ${body}`,
       };
     }
 
-    const data = (await response.json()) as Record<string, unknown>;
-
-    return { type: "structured", data };
+    const summaryResult = (await response.json()) as Record<string, unknown>;
+    return { type: "structured", data: summaryResult };
   },
 };

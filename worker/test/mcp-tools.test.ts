@@ -1856,13 +1856,37 @@ describe("MCP Tools", () => {
 
 // ── PoB Calc (native reference module) ──────────────────────────────────────
 describe("pobCalcModule", () => {
-  it("returns error when build param is missing", async () => {
+  it("returns error when neither build nor build_id provided", async () => {
     const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
     const result = await pobCalcModule.execute({}, {
       ...env,
       POB_URL: "http://localhost:8077",
     } as unknown as Env);
-    expect(result).toEqual({ type: "text", content: expect.stringContaining("build is required") });
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("either build (URL) or build_id is required"),
+    });
+  });
+
+  it("returns error for invalid operations JSON", async () => {
+    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
+    const result = await pobCalcModule.execute({ build_id: "abc123", operations: "not json" }, {
+      ...env,
+      POB_URL: "http://localhost:8077",
+    } as unknown as Env);
+    expect(result).toEqual({ type: "text", content: expect.stringContaining("not valid JSON") });
+  });
+
+  it("returns error for empty operations array", async () => {
+    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
+    const result = await pobCalcModule.execute({ build_id: "abc123", operations: "[]" }, {
+      ...env,
+      POB_URL: "http://localhost:8077",
+    } as unknown as Env);
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("non-empty JSON array"),
+    });
   });
 
   it("rejects raw base64 build codes", async () => {

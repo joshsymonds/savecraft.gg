@@ -3,7 +3,7 @@
   "sources": [],
   "icon": "icon.png",
   "name": "Path of Exile",
-  "description": "Build analysis via headless Path of Building — paste a build link for DPS, defence, and gear breakdown",
+  "description": "Build analysis and modification via headless Path of Building — paste a build link or iterate on existing builds",
   "channel": "beta",
   "coverage": "partial",
   "file_extensions": [],
@@ -25,12 +25,19 @@
     "modules": {
       "pob_calc": {
         "name": "PoB Build Calculator",
-        "description": "Analyze a Path of Building build from a URL. Accepts pobb.in, pastebin.com, pob.savecraft.gg, or any link containing a PoB build code. Returns structured DPS, defence, resistance, skill, item, and passive tree data.",
+        "description": "Analyze or modify a Path of Exile build via Path of Building. Pass a build URL to analyze it, or a buildId with operations to modify an existing build. Every response includes a buildId for follow-up modifications.",
         "parameters": {
           "build": {
             "type": "string",
-            "description": "URL to a PoB build — a pobb.in link, pastebin link, or any URL hosting a PoB build code. Do NOT pass raw base64 build codes.",
-            "required": true
+            "description": "URL to a PoB build (pobb.in, pastebin, pob.savecraft.gg link). Required on first call. Omit when modifying by buildId."
+          },
+          "build_id": {
+            "type": "string",
+            "description": "Build ID from a previous pob_calc response. Use to modify or re-analyze without a URL."
+          },
+          "operations": {
+            "type": "string",
+            "description": "JSON array of modifications. Omit for analysis. Ops: set_level, swap_gem, add_gem, remove_gem, toggle_keystone, allocate_node, deallocate_node, equip_unique, set_item. See query_reference parameter docs for full syntax."
           }
         }
       }
