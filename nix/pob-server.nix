@@ -12,57 +12,13 @@
     rev = "d126ab7dc269aaf8371430ad2238e0c8041357e3";
     hash = "sha256-KZSwLT/nIglOjwp4Ddho4Jup0sH1a0SdIrMSWu4CiqE=";
   };
-
-  # Build the pob-server binary from the savecraft repo.
-  # Outputs to /tmp so the build user doesn't need write access to /var/lib.
-  # git is needed because devenv's git-hooks:install looks for it in PATH.
-  buildScript = pkgs.writeShellScript "pob-server-build" ''
-    set -euo pipefail
-    export PATH="${lib.makeBinPath [pkgs.git pkgs.coreutils pkgs.bash]}:$PATH"
-    cd ${lib.escapeShellArg cfg.repoPath}
-    exec ${pkgs.nix}/bin/nix develop --no-pure-eval \
-      --command ${pkgs.go}/bin/go build \
-      -o /tmp/pob-server-bin \
-      ./cmd/pob-server/
-  '';
-
-  # Install the built binary and wrapper into the service directory (runs as root).
-  # wrapper.lua must be copied here because ProtectHome=true blocks /home at runtime.
-  installScript = pkgs.writeShellScript "pob-server-install" ''
-    set -euo pipefail
-    ${pkgs.coreutils}/bin/mv /tmp/pob-server-bin /var/lib/pob-server/pob-server
-    ${pkgs.coreutils}/bin/cp ${lib.escapeShellArg cfg.repoPath}/cmd/pob-server/wrapper.lua /var/lib/pob-server/wrapper.lua
-    ${pkgs.coreutils}/bin/chown pob-server:pob-server /var/lib/pob-server/pob-server /var/lib/pob-server/wrapper.lua
-    ${pkgs.coreutils}/bin/chmod 0755 /var/lib/pob-server/pob-server
-    ${pkgs.coreutils}/bin/chmod 0644 /var/lib/pob-server/wrapper.lua
-  '';
-
-  # Run the pob-server binary.
-  runScript = pkgs.writeShellScript "pob-server-run" ''
-    set -euo pipefail
-
-    # Read API key from file if provided.
-    export POB_API_KEY=""
-    ${lib.optionalString (cfg.apiKeyFile != null) ''
-      POB_API_KEY="$(cat ${lib.escapeShellArg cfg.apiKeyFile})"
-    ''}
-
-    exec /var/lib/pob-server/pob-server \
-      -pob-dir ${pobSrc}/src \
-      -wrapper /var/lib/pob-server/wrapper.lua \
-      -luajit ${pkgs.luajit}/bin/luajit \
-      -port ${toString cfg.port} \
-      -pool-size ${toString cfg.poolSize} \
-      -idle-timeout ${cfg.idleTimeout}
-  '';
 in {
   options.services.savecraftPobServer = {
     enable = lib.mkEnableOption "PoB calc server (headless Path of Building via LuaJIT)";
 
-    repoPath = lib.mkOption {
-      type = lib.types.str;
-      default = "/home/joshsymonds/Personal/savecraft.gg";
-      description = "Path to the savecraft.gg repository checkout.";
+    package = lib.mkOption {
+      type = lib.types.package;
+      description = "The pob-server package to use. Set this to the flake's packages.\${system}.pob-server.";
     };
 
     port = lib.mkOption {
@@ -87,12 +43,6 @@ in {
       type = lib.types.str;
       default = "5m";
       description = "Kill idle LuaJIT processes after this duration (Go duration string).";
-    };
-
-    user = lib.mkOption {
-      type = lib.types.str;
-      default = "joshsymonds";
-      description = "User to run the service as.";
     };
   };
 
@@ -127,15 +77,22 @@ in {
         Group = "pob-server";
         Restart = "always";
         RestartSec = "5s";
-        TimeoutStartSec = "10min"; # First build fetches devenv deps + compiles Go
 
-        # Build as repo owner (libgit2 rejects repos not owned by current user),
-        # then install as root into the service directory.
-        ExecStartPre = [
-          "+${pkgs.util-linux}/bin/runuser -u ${cfg.user} -- ${pkgs.bash}/bin/bash ${buildScript}"
-          "+${pkgs.bash}/bin/bash ${installScript}"
-        ];
-        ExecStart = "${pkgs.bash}/bin/bash ${runScript}";
+        ExecStart = let
+          runScript = pkgs.writeShellScript "pob-server-run" ''
+            set -euo pipefail
+            ${lib.optionalString (cfg.apiKeyFile != null) ''
+              export POB_API_KEY="$(cat ${lib.escapeShellArg cfg.apiKeyFile})"
+            ''}
+            exec ${cfg.package}/bin/pob-server \
+              -pob-dir ${pobSrc}/src \
+              -wrapper ${cfg.package}/share/pob-server/wrapper.lua \
+              -luajit ${pkgs.luajit}/bin/luajit \
+              -port ${toString cfg.port} \
+              -pool-size ${toString cfg.poolSize} \
+              -idle-timeout ${cfg.idleTimeout}
+          '';
+        in "${pkgs.bash}/bin/bash ${runScript}";
 
         WorkingDirectory = "/var/lib/pob-server";
 
