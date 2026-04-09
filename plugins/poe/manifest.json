@@ -3,13 +3,12 @@
   "sources": [],
   "icon": "icon.png",
   "name": "Path of Exile",
-  "description": "Build calculation via headless Path of Building",
+  "description": "Build analysis via headless Path of Building — paste a build link for DPS, defence, and gear breakdown",
   "channel": "beta",
   "coverage": "partial",
   "file_extensions": [],
   "limitations": [
-    "Build calculation only — no live character data yet",
-    "Requires a PoB build code (base64 export string)",
+    "Build analysis only — no live character data yet (GGG API access pending)",
     "Timeless jewel calculations are not supported"
   ],
   "author": {
@@ -26,11 +25,11 @@
     "modules": {
       "pob_calc": {
         "name": "PoB Build Calculator",
-        "description": "Run a Path of Building build code through the PoB calc engine. Returns structured DPS, defence, resistance, skill, item, and passive tree data. Use when the player shares a PoB build code (a long base64 string) and wants analysis, optimization advice, or comparison.",
+        "description": "Analyze a Path of Building build from a URL. Accepts pobb.in, pastebin.com, pob.savecraft.gg, or any link containing a PoB build code. Returns structured DPS, defence, resistance, skill, item, and passive tree data.",
         "parameters": {
-          "build_code": {
+          "build": {
             "type": "string",
-            "description": "PoB build code — the base64 string players share (e.g. from pastebin, discord, reddit). This is NOT an XML document; it is the compressed export code from Path of Building.",
+            "description": "URL to a PoB build — a pobb.in link, pastebin link, or any URL hosting a PoB build code. Do NOT pass raw base64 build codes.",
             "required": true
           }
         }

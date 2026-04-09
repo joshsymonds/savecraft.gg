@@ -2,8 +2,9 @@
  * PoE pob_calc — native reference module.
  *
  * Calls the headless Path of Building calc service (pob-server) running
- * on ultraviolet behind a Cloudflare tunnel. Accepts a PoB build code
- * and returns structured DPS, defence, skill, item, and tree data.
+ * on ultraviolet behind a Cloudflare tunnel. Accepts a URL to a PoB build
+ * (pobb.in, pastebin, pob.savecraft.gg, etc.) and returns structured DPS,
+ * defence, skill, item, and tree data.
  *
  * The PoB service is external to the Worker — this module bridges it
  * into the reference module system so it's discoverable through
@@ -16,26 +17,44 @@ import type {
   ReferenceResult,
 } from "../../../worker/src/reference/types";
 
-/** Timeout for PoB calc requests (ms). */
+/** Timeout for PoB resolve requests (ms). */
 const POB_TIMEOUT_MS = 30_000;
+
+/** Minimal URL validation — must have a scheme and host. */
+function isURL(value: string): boolean {
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" || url.protocol === "http:";
+  } catch {
+    return false;
+  }
+}
 
 export const pobCalcModule: NativeReferenceModule = {
   id: "pob_calc",
   name: "PoB Build Calculator",
   description:
-    "Run a Path of Building build code through the PoB calc engine. Returns structured DPS, defence, resistance, skill, item, and passive tree data. Use when the player shares a PoB build code (a long base64 string) and wants analysis, optimization advice, or comparison.",
+    "Analyze a Path of Building build from a URL. Accepts pobb.in, pastebin.com, pob.savecraft.gg, or any link containing a PoB build code. Returns structured DPS, defence, resistance, skill, item, and passive tree data. Use when the player shares a build link and wants analysis, optimization advice, or comparison.",
   parameters: {
-    build_code: {
+    build: {
       type: "string",
       description:
-        "PoB build code — the base64 string players share (e.g. from pastebin, discord, reddit). This is NOT an XML document; it is the compressed export code from Path of Building.",
+        "URL to a PoB build — a pobb.in link, pastebin link, or any URL hosting a PoB build code. Do NOT pass raw base64 build codes; paste the link the player shared.",
     },
   },
 
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
-    const buildCode = query.build_code as string | undefined;
-    if (!buildCode) {
-      return { type: "text", content: "Error: build_code is required." };
+    const build = query.build as string | undefined;
+    if (!build) {
+      return { type: "text", content: "Error: build is required. Pass a URL to a PoB build (e.g. a pobb.in link)." };
+    }
+
+    if (!isURL(build)) {
+      return {
+        type: "text",
+        content:
+          "Error: build must be a URL (e.g. https://pobb.in/abc123). Raw base64 build codes are not accepted — ask the player for a link instead.",
+      };
     }
 
     const pobUrl = env.POB_URL;
@@ -54,17 +73,17 @@ export const pobCalcModule: NativeReferenceModule = {
 
     let response: Response;
     try {
-      response = await fetch(`${pobUrl}/calc`, {
+      response = await fetch(`${pobUrl}/resolve`, {
         method: "POST",
         headers,
-        body: JSON.stringify({ buildCode }),
+        body: JSON.stringify({ url: build }),
         signal: AbortSignal.timeout(POB_TIMEOUT_MS),
       });
     } catch {
       return {
         type: "text",
         content:
-          "PoB calc service is currently unavailable. The build code was valid but the calculation server could not be reached. Try again later.",
+          "PoB calc service is currently unavailable. The build URL was valid but the calculation server could not be reached. Try again later.",
       };
     }
 

@@ -1856,9 +1856,27 @@ describe("MCP Tools", () => {
 
 // ── PoB Calc (native reference module) ──────────────────────────────────────
 describe("pobCalcModule", () => {
+  it("returns error when build param is missing", async () => {
+    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
+    const result = await pobCalcModule.execute({}, {
+      ...env,
+      POB_URL: "http://localhost:8077",
+    } as unknown as Env);
+    expect(result).toEqual({ type: "text", content: expect.stringContaining("build is required") });
+  });
+
+  it("rejects raw base64 build codes", async () => {
+    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
+    const result = await pobCalcModule.execute({ build: "eJy9XVtzm8i2fh7_Cs..." }, {
+      ...env,
+      POB_URL: "http://localhost:8077",
+    } as unknown as Env);
+    expect(result).toEqual({ type: "text", content: expect.stringContaining("must be a URL") });
+  });
+
   it("returns error when POB_URL is not configured", async () => {
     const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
-    const result = await pobCalcModule.execute({ build_code: "someBuildCode" }, {
+    const result = await pobCalcModule.execute({ build: "https://pobb.in/abc123" }, {
       ...env,
       POB_URL: undefined,
     } as unknown as Env);
@@ -1867,7 +1885,7 @@ describe("pobCalcModule", () => {
 
   it("returns error when service is unreachable", async () => {
     const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
-    const result = await pobCalcModule.execute({ build_code: "someBuildCode" }, {
+    const result = await pobCalcModule.execute({ build: "https://pobb.in/abc123" }, {
       ...env,
       POB_URL: "http://127.0.0.1:1",
     } as unknown as Env);
