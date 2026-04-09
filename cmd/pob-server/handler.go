@@ -105,12 +105,18 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	// Check for PoB-level errors
+	// Parse PoB response envelope: {"type": "result"|"error", "data": {...}, "message": "..."}
 	var pobResp struct {
-		Type    string `json:"type"`
-		Message string `json:"message,omitempty"`
+		Type    string          `json:"type"`
+		Message string          `json:"message,omitempty"`
+		Data    json.RawMessage `json:"data,omitempty"`
 	}
-	if err := json.Unmarshal(response, &pobResp); err == nil && pobResp.Type == "error" {
+	if err := json.Unmarshal(response, &pobResp); err != nil {
+		srv.log.Error("failed to parse PoB response", "err", err)
+		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
+		return
+	}
+	if pobResp.Type == "error" {
 		jsonError(writer, "PoB calc error: "+pobResp.Message, http.StatusUnprocessableEntity)
 		return
 	}
@@ -118,10 +124,10 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 	// Cache the build XML
 	buildID := srv.cache.Put(xml)
 
-	// Marshal a proper response wrapping the PoB data with buildId
+	// Return the unwrapped PoB data with buildId (no double nesting)
 	resp := calcResponse{
 		BuildID: buildID,
-		PobData: response,
+		PobData: pobResp.Data,
 	}
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(resp)

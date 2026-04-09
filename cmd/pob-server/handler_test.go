@@ -1,8 +1,14 @@
 package main
 
 import (
+	"encoding/json"
+	"io"
+	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -104,6 +110,79 @@ func TestCalcRejectsGet(t *testing.T) {
 	if recorder.Code != http.StatusMethodNotAllowed {
 		t.Fatalf("expected 405, got %d", recorder.Code)
 	}
+}
+
+// TestCalcResponseIsFlat verifies the /calc response unwraps the PoB envelope
+// so consumers see {buildId, data: {character, stats, ...}} not {buildId, data: {type, data: {...}}}.
+func TestCalcResponseIsFlat(t *testing.T) {
+	// Write a mock LuaJIT script that echoes a PoB-shaped response
+	mockScript := filepath.Join(t.TempDir(), "mock-pob.sh")
+	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
+read line
+echo '{"type":"result","data":{"character":{"class":"Witch","ascendancy":"Occultist","level":99},"stats":{"Life":6728}}}'
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	// Verify bash is available
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	defer pool.Shutdown()
+
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    time.Now,
+		cancel:     func() {},
+	}
+
+	srv := &Server{pool: pool, cache: cache, log: logger}
+
+	body := `{"buildXml":"<PathOfBuilding/>"}`
+	req := httptest.NewRequest(http.MethodPost, "/calc", strings.NewReader(body))
+	recorder := httptest.NewRecorder()
+	srv.handleCalc(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON response: %v", err)
+	}
+
+	// Must have buildId at top level
+	if _, ok := resp["buildId"]; !ok {
+		t.Fatal("response missing buildId")
+	}
+
+	// data must contain character directly (not nested under another data key)
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("data field is not an object: %v", err)
+	}
+	if _, ok := data["character"]; !ok {
+		t.Fatalf("data should contain 'character' directly, got keys: %v", keysOf(data))
+	}
+	// data must NOT contain a nested "type" field (that's the PoB envelope)
+	if _, ok := data["type"]; ok {
+		t.Fatal("data contains 'type' — response is double-nested, PoB envelope was not unwrapped")
+	}
+}
+
+func keysOf(m map[string]json.RawMessage) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
 }
 
 func TestCalcRejectsEmptyBody(t *testing.T) {
