@@ -221,7 +221,6 @@ local explicitSections = {
 	CappingLife = "ehp",
 	CappingES = "ehp",
 	PvPTotalTakenHit = "ehp",
-	AnyTakenReflect = "ehp",
 	-- Charges-specific
 	Devotion = "charges",
 	TotalCharges = "charges",

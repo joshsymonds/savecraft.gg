@@ -667,3 +667,140 @@ func TestCalcWithSectionsParam(t *testing.T) {
 		t.Error("sections should not contain 'defense' (not requested)")
 	}
 }
+
+func TestModifyWithSectionsParam(t *testing.T) {
+	// Mock PoB that handles both calc (for initial build) and modify requests
+	mockScript := filepath.Join(t.TempDir(), "mock-pob.sh")
+	mockResponse := `{"type":"result","data":{` +
+		`"character":{"class":"Witch","ascendancy":"Occultist","level":99},` +
+		`"summary":{"CombinedDPS":200000,"Life":6728},` +
+		`"section_index":[{"id":"offense","name":"Offense","description":"DPS"}],` +
+		`"sections":{` +
+		`"offense":{"TotalDPS":200000,"CritChance":50},` +
+		`"defense":{"Armour":6000}` +
+		`}},"xml":"<PathOfBuilding/>"}`
+
+	if err := os.WriteFile(mockScript, []byte("#!/bin/sh\nread line\necho '"+mockResponse+"'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	defer pool.Shutdown()
+
+	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    time.Now,
+		cancel:     func() {},
+		store:      store,
+	}
+
+	srv := &Server{pool: pool, cache: cache, log: logger}
+
+	// First, create a build so we have a buildId
+	xml := "<PathOfBuilding/>"
+	buildID := cache.Put(xml)
+	_ = store.Put(buildID, xml, `{}`, "", "")
+
+	body := `{"buildId":"` + buildID + `","operations":[{"op":"set_level","level":95}]}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/modify?sections=offense",
+		strings.NewReader(body),
+	)
+	rec := httptest.NewRecorder()
+	srv.handleModify(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("data is not an object: %v", err)
+	}
+
+	// Must have sections with only offense
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(data["sections"], &sections); err != nil {
+		t.Fatalf("sections is not an object: %v", err)
+	}
+	if _, ok := sections["offense"]; !ok {
+		t.Error("sections missing 'offense'")
+	}
+	if _, ok := sections["defense"]; ok {
+		t.Error("sections should not contain 'defense' (not requested)")
+	}
+}
+
+func TestResolveCachedWithSectionsParam(t *testing.T) {
+	srv := newTestServer(t)
+
+	xml := "<PathOfBuilding/>"
+	id := srv.cache.Put(xml)
+	_ = srv.cache.store.Put(id, xml, storedSummary, "https://pob.savecraft.gg/"+id, "")
+
+	// Simulate the cached resolve path by hitting /build/{id}/summary with sections
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/build/"+id+"/summary?sections=defense,resistances",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	srv.handleGetBuild(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("data is not an object: %v", err)
+	}
+
+	// Must have character, summary, section_index, sections
+	for _, key := range []string{"character", "summary", "section_index", "sections"} {
+		if _, ok := data[key]; !ok {
+			t.Errorf("data missing %q", key)
+		}
+	}
+
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(data["sections"], &sections); err != nil {
+		t.Fatalf("sections is not an object: %v", err)
+	}
+
+	// Only defense and resistances requested
+	if _, ok := sections["defense"]; !ok {
+		t.Error("sections missing 'defense'")
+	}
+	if _, ok := sections["resistances"]; !ok {
+		t.Error("sections missing 'resistances'")
+	}
+	if _, ok := sections["offense"]; ok {
+		t.Error("sections should not contain 'offense' (not requested)")
+	}
+}

@@ -220,9 +220,10 @@ func (srv *Server) calcAndRespond(
 		return
 	}
 	if pobResp.Type == "error" {
+		srv.log.Error("PoB calc error", "message", pobResp.Message)
 		jsonError(
 			writer,
-			"PoB calc error: "+pobResp.Message,
+			"PoB calculation failed",
 			http.StatusUnprocessableEntity,
 		)
 		return
@@ -362,9 +363,10 @@ func (srv *Server) modifyAndRespond(
 		return
 	}
 	if pobResp.Type == "error" {
+		srv.log.Error("PoB modify error", "message", pobResp.Message)
 		jsonError(
 			writer,
-			"PoB modify error: "+pobResp.Message,
+			"PoB modification failed",
 			http.StatusUnprocessableEntity,
 		)
 		return
