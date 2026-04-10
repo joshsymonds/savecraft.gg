@@ -98,6 +98,12 @@ func resolveExternal(
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode == http.StatusNotFound {
+		return nil, fmt.Errorf(
+			"build not found at %s — the paste may have been deleted or the URL may be incorrect",
+			rawURL,
+		)
+	}
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf(
 			"fetching %s: HTTP %d", fetchURL, resp.StatusCode,

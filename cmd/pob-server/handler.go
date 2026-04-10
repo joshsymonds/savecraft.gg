@@ -140,7 +140,16 @@ func (srv *Server) handleResolve(
 			return
 		}
 		srv.log.Error("resolve error", "url", req.URL, "err", err)
-		jsonError(writer, "failed to resolve build from URL", http.StatusUnprocessableEntity)
+		// Surface user-friendly error messages (e.g. "build not found at ...")
+		// but don't leak internal details like hostnames or connection errors.
+		msg := err.Error()
+		if strings.Contains(msg, "build not found at") ||
+			strings.Contains(msg, "unsupported host") ||
+			strings.Contains(msg, "invalid URL") {
+			jsonError(writer, msg, http.StatusUnprocessableEntity)
+		} else {
+			jsonError(writer, "failed to resolve build from URL", http.StatusUnprocessableEntity)
+		}
 		return
 	}
 
