@@ -6,7 +6,7 @@
 // syntax queries Oracle Tags that describe card roles. These are NOT included
 // in Scryfall bulk data — they must be fetched via the search API.
 //
-// Creature roles are derived from mtga_cards.type_line in D1 (requires
+// Creature roles are derived from magic_cards.type_line in D1 (requires
 // scryfall-fetch to run first). noncreature_nonremoval is computed as the
 // remainder: any card not tagged as creature, removal, or mana_fixing.
 //
@@ -185,7 +185,7 @@ func run() error {
 		return nil
 	}
 
-	// Phase 2: Derive creature roles from mtga_cards type_line in D1 (4 sets concurrently).
+	// Phase 2: Derive creature roles from magic_cards type_line in D1 (4 sets concurrently).
 	p2Results := make([]phase2Result, len(targetSets))
 	var wg2 sync.WaitGroup
 
@@ -393,7 +393,7 @@ type d1Card struct {
 // Returns creature role entries and the full card list (for remainder computation).
 func fetchCreaturesAndAllCards(accountID, databaseID, apiToken, setCode string) ([]roleEntry, []d1Card, error) {
 	sql := fmt.Sprintf(
-		"SELECT oracle_id, front_face_name, type_line, produced_mana FROM mtga_cards WHERE set_code = %s AND is_default = 1",
+		"SELECT oracle_id, front_face_name, type_line, produced_mana FROM magic_cards WHERE set_code = %s AND is_default = 1",
 		cfapi.SQLQuote(strings.ToLower(setCode)),
 	)
 	rows, err := cfapi.QueryD1(accountID, databaseID, apiToken, sql)

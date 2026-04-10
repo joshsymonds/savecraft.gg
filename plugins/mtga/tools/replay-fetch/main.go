@@ -191,9 +191,9 @@ type arenaCardInfo struct {
 // fetchArenaCards queries D1 for arena_id → (front_face_name, cmc) mapping.
 func fetchArenaCards(accountID, databaseID, apiToken string) (map[int]arenaCardInfo, error) {
 	rows, err := cfapi.QueryD1(accountID, databaseID, apiToken,
-		"SELECT arena_id, front_face_name, cmc FROM mtga_cards WHERE is_default = 1 AND front_face_name != '' AND arena_id IS NOT NULL")
+		"SELECT arena_id, front_face_name, cmc FROM magic_cards WHERE is_default = 1 AND front_face_name != '' AND arena_id IS NOT NULL")
 	if err != nil {
-		return nil, fmt.Errorf("querying mtga_cards: %w", err)
+		return nil, fmt.Errorf("querying magic_cards: %w", err)
 	}
 
 	cards := make(map[int]arenaCardInfo, len(rows))

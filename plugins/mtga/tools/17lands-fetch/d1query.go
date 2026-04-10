@@ -7,15 +7,15 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 )
 
-// fetchCardCMC queries D1 for card name → CMC mapping from mtga_cards.
+// fetchCardCMC queries D1 for card name → CMC mapping from magic_cards.
 // Uses front_face_name for matching since 17Lands CSV headers use front-face-only
 // names (e.g. "Bonecrusher Giant" not "Bonecrusher Giant // Stomp").
 // Returns nil map if the query returns no results.
 func fetchCardCMC(accountID, databaseID, apiToken string) (map[string]float64, error) {
 	rows, err := cfapi.QueryD1(accountID, databaseID, apiToken,
-		"SELECT front_face_name, cmc FROM mtga_cards WHERE is_default = 1 AND front_face_name != ''")
+		"SELECT front_face_name, cmc FROM magic_cards WHERE is_default = 1 AND front_face_name != ''")
 	if err != nil {
-		return nil, fmt.Errorf("querying mtga_cards: %w", err)
+		return nil, fmt.Errorf("querying magic_cards: %w", err)
 	}
 
 	cardCMC := make(map[string]float64, len(rows))
@@ -72,9 +72,9 @@ func fetchCardRoles(accountID, databaseID, apiToken string) (map[string]map[stri
 // AND its type_line does not contain "Basic".
 func fetchCardLandInfo(accountID, databaseID, apiToken string) (cardLands map[string]bool, cardFixing map[string]bool, err error) {
 	rows, err := cfapi.QueryD1(accountID, databaseID, apiToken,
-		"SELECT front_face_name, type_line, produced_mana FROM mtga_cards WHERE is_default = 1 AND front_face_name != '' AND type_line LIKE '%Land%'")
+		"SELECT front_face_name, type_line, produced_mana FROM magic_cards WHERE is_default = 1 AND front_face_name != '' AND type_line LIKE '%Land%'")
 	if err != nil {
-		return nil, nil, fmt.Errorf("querying mtga_cards for lands: %w", err)
+		return nil, nil, fmt.Errorf("querying magic_cards for lands: %w", err)
 	}
 
 	cardLands = make(map[string]bool, len(rows))

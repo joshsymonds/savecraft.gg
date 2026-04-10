@@ -34,6 +34,7 @@ CREATE TABLE IF NOT EXISTS magic_cards (
 );
 
 CREATE INDEX idx_magic_cards_arena_id ON magic_cards(arena_id);
+CREATE INDEX idx_magic_cards_arena_id_back ON magic_cards(arena_id_back) WHERE arena_id_back IS NOT NULL;
 CREATE INDEX idx_magic_cards_oracle_id ON magic_cards(oracle_id);
 CREATE INDEX idx_magic_cards_is_default ON magic_cards(is_default);
 CREATE INDEX idx_magic_cards_name_default ON magic_cards(name, is_default);

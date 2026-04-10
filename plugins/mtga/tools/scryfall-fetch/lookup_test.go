@@ -97,9 +97,9 @@ func TestBackfillArenaOnlySkipsNameMatches(t *testing.T) {
 }
 
 func TestMergeBackFaceArenaIDs(t *testing.T) {
-	// Simulate a DFC: "Poppet Stitcher // Poppet Factory"
-	// Front face has arena_id from Scryfall, back face has a separate arena_id
-	// in MTGA client data that should be merged.
+	// Poppet Stitcher (78407) // Poppet Factory (78408) is a known DFC in MID.
+	// ArenaCards has 78408 as the back face. mergeBackFaceArenaIDs should
+	// store 78408 as ArenaIDBack on the front face's row.
 	cards := []ScryfallCard{
 		{
 			ScryfallID:    "abc-123",
@@ -110,9 +110,6 @@ func TestMergeBackFaceArenaIDs(t *testing.T) {
 		},
 	}
 
-	// mergeBackFaceArenaIDs reads from data.ArenaCards so we can't control
-	// inputs directly. But we can verify it doesn't crash and preserves
-	// existing card data.
 	mergeBackFaceArenaIDs(cards)
 
 	if cards[0].ScryfallID != "abc-123" {
@@ -120,6 +117,9 @@ func TestMergeBackFaceArenaIDs(t *testing.T) {
 	}
 	if cards[0].ArenaID != 78407 {
 		t.Error("mergeBackFaceArenaIDs should not modify front-face arena_id")
+	}
+	if cards[0].ArenaIDBack != 78408 {
+		t.Errorf("expected ArenaIDBack=78408 (Poppet Factory), got %d", cards[0].ArenaIDBack)
 	}
 }
 
