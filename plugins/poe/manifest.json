@@ -38,6 +38,10 @@
           "operations": {
             "type": "string",
             "description": "JSON array of modifications. Omit for analysis. Ops: set_level, swap_gem, add_gem, remove_gem, toggle_keystone, allocate_node, deallocate_node, equip_unique, set_item. See query_reference parameter docs for full syntax."
+          },
+          "sections": {
+            "type": "string",
+            "description": "Comma-separated section names to include in the response (e.g. 'offense,defense'). Omit for a compact summary with section index listing available sections. Available: offense, ailments, defense, resistances, ehp, recovery, charges, limits, socket_groups, items, keystones, tree, minion_offense, minion_defense."
           }
         }
       }

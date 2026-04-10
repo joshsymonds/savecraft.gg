@@ -35,12 +35,14 @@ function pobFetch(
   path: string,
   body: Record<string, unknown>,
   apiKey?: string,
+  sections?: string,
 ): Promise<Response> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) {
     headers.Authorization = `Bearer ${apiKey}`;
   }
-  return fetch(`${pobUrl}${path}`, {
+  const url = sections ? `${pobUrl}${path}?sections=${encodeURIComponent(sections)}` : `${pobUrl}${path}`;
+  return fetch(url, {
     method: "POST",
     headers,
     body: JSON.stringify(body),
@@ -78,12 +80,21 @@ export const pobCalcModule: NativeReferenceModule = {
         + '- {"op":"equip_unique","name":"Abyssus","slot":"Helmet"} — Equip a unique item by name. Slots: Weapon 1, Weapon 2, Helmet, Body Armour, Gloves, Boots, Belt, Ring 1, Ring 2, Amulet.\n'
         + '- {"op":"set_item","slot":"Body Armour","text":"Astral Plate\\nRarity: Rare\\n..."} — Equip a rare/custom item using PoB item text format.',
     },
+    sections: {
+      type: "string",
+      description:
+        "Comma-separated section names to include in the response (e.g. 'offense,defense'). "
+        + "Omit for a compact summary with a section index listing available sections. "
+        + "Available: offense, ailments, defense, resistances, ehp, recovery, charges, limits, "
+        + "socket_groups, items, keystones, tree, minion_offense, minion_defense.",
+    },
   },
 
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
     const build = query.build as string | undefined;
     const buildId = query.build_id as string | undefined;
     const operations = query.operations as string | undefined;
+    const sections = query.sections as string | undefined;
 
     if (!build && !buildId) {
       return {
@@ -116,7 +127,7 @@ export const pobCalcModule: NativeReferenceModule = {
       // Resolve URL → buildId + calc results
       let response: Response;
       try {
-        response = await pobFetch(pobUrl, "/resolve", { url: build }, env.POB_API_KEY);
+        response = await pobFetch(pobUrl, "/resolve", { url: build }, env.POB_API_KEY, sections);
       } catch (e) {
         return {
           type: "text",
@@ -167,6 +178,7 @@ export const pobCalcModule: NativeReferenceModule = {
           "/modify",
           { buildId: resolvedBuildId, operations: parsedOps },
           env.POB_API_KEY,
+          sections,
         );
       } catch (e) {
         return {
@@ -194,7 +206,10 @@ export const pobCalcModule: NativeReferenceModule = {
       if (env.POB_API_KEY) {
         headers.Authorization = `Bearer ${env.POB_API_KEY}`;
       }
-      response = await fetch(`${pobUrl}/build/${resolvedBuildId}/summary`, {
+      const summaryUrl = sections
+        ? `${pobUrl}/build/${resolvedBuildId}/summary?sections=${encodeURIComponent(sections)}`
+        : `${pobUrl}/build/${resolvedBuildId}/summary`;
+      response = await fetch(summaryUrl, {
         headers,
         signal: AbortSignal.timeout(POB_TIMEOUT_MS),
       });
