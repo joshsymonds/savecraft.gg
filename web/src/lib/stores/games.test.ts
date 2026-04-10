@@ -355,7 +355,7 @@ describe("buildPickerCatalog", () => {
           game_id: "wow",
           name: "World of Warcraft",
           source: "api",
-          file_extensions: null as unknown as string[],
+          file_extensions: null,
           adapter: { authProvider: "battlenet", regions: ["us", "eu"] },
         }),
       ],
@@ -373,7 +373,7 @@ describe("buildPickerCatalog", () => {
           game_id: "stellaris",
           name: "Stellaris",
           description: "Grand strategy saves",
-          file_extensions: null as unknown as string[],
+          file_extensions: null,
         }),
       ],
     ]);
