@@ -43,7 +43,7 @@ describe("WoW reference module integration", () => {
     expect(ids).toContain("season_info");
   });
 
-  it("ability_lookup has correct metadata shape for list_games", () => {
+  it("ability_lookup has correct registry metadata shape", () => {
     const modules = getNativeModules("wow");
     const abilityLookup = modules.find((m) => m.id === "ability_lookup");
     expect(abilityLookup).toBeDefined();
@@ -56,7 +56,7 @@ describe("WoW reference module integration", () => {
     expect(abilityLookup!.parameters!.spec).toBeDefined();
   });
 
-  it("season_info has correct metadata shape for list_games", () => {
+  it("season_info has correct registry metadata shape", () => {
     const modules = getNativeModules("wow");
     const seasonInfo = modules.find((m) => m.id === "season_info");
     expect(seasonInfo).toBeDefined();

@@ -116,6 +116,7 @@ function matchesGameFilter(gameId: string, gameName: string, filter: string): bo
 interface GameEntry {
   game_id: string;
   game_name: string;
+  game_description?: string;
   icon_url?: string;
   saves: {
     save_id: string;
@@ -129,9 +130,10 @@ interface GameEntry {
     id: string;
     name: string;
     description: string;
-    parameters?: Record<string, unknown>;
     visual?: boolean;
   }[];
+  /** Hint for AI models: full parameter schemas are in get_save/show_save. */
+  reference_schemas?: string;
 }
 
 /** Fetch note previews and group by save_id. */
@@ -200,10 +202,69 @@ export function getWasmSectionMappings(
   return MANIFESTS.get(gameId)?.reference?.modules?.[moduleId]?.section_mappings;
 }
 
+/** Hint text for AI models: directs them from list_games to get_save for full schemas. */
+const REFERENCE_SCHEMAS_HINT =
+  "Use get_save on any character to see full parameter schemas for these modules.";
+
 /**
- * Merge native reference modules into game entries.
- * Native modules overlay WASM modules (same id replaces) or add new ones.
+ * Build full reference module metadata (with parameter schemas) for a game.
+ * Used by get_save/show_save for progressive schema discovery.
  */
+interface FullReference {
+  id: string;
+  name: string;
+  description: string;
+  parameters?: Record<string, unknown>;
+  visual?: boolean;
+}
+
+export function getFullReferences(gameId: string): FullReference[] {
+  const references: FullReference[] = [];
+
+  // Start with WASM manifest modules
+  const manifest = MANIFESTS.get(gameId);
+  if (manifest?.reference?.modules) {
+    for (const [id, entry] of Object.entries(manifest.reference.modules)) {
+      references.push({
+        id,
+        name: entry.name,
+        description: entry.description,
+        parameters: entry.parameters,
+        visual: VISUAL_MODULES.has(id),
+      });
+    }
+  }
+
+  // Overlay/append native modules (same id replaces, new ids append)
+  const nativeModules = getNativeModules(gameId);
+  const indexById = new Map(references.map((r, index) => [r.id, index]));
+  for (const native of nativeModules) {
+    const existing = indexById.get(native.id);
+    if (existing === undefined) {
+      references.push(native);
+    } else {
+      references[existing] = native;
+    }
+  }
+
+  return references;
+}
+
+/** Strip parameters from a ReferenceModuleMetadata for lightweight list_games output. */
+function toListReference(source: {
+  id: string;
+  name: string;
+  description: string;
+  visual?: boolean;
+}): { id: string; name: string; description: string; visual?: boolean } {
+  return {
+    id: source.id,
+    name: source.name,
+    description: source.description,
+    visual: source.visual,
+  };
+}
+
 function mergeNativeModules(gameMap: Map<string, GameEntry>, filter?: string): void {
   for (const gameId of getNativeGameIds()) {
     let game = gameMap.get(gameId);
@@ -216,17 +277,60 @@ function mergeNativeModules(gameMap: Map<string, GameEntry>, filter?: string): v
     const nativeModules = getNativeModules(gameId);
     const existing = game.references ?? [];
     const existingIds = new Set(existing.map((r) => r.id));
-    // Replace existing entries with native versions, append new ones.
+    // Replace existing entries with native versions (stripping parameters), append new ones.
     const merged = existing.map((reference) => {
       const native = nativeModules.find((n) => n.id === reference.id);
-      return native ?? reference;
+      return native ? toListReference(native) : reference;
     });
     for (const native of nativeModules) {
       if (!existingIds.has(native.id)) {
-        merged.push(native);
+        merged.push(toListReference(native));
       }
     }
     game.references = merged;
+    if (merged.length > 0) {
+      game.reference_schemas = REFERENCE_SCHEMAS_HINT;
+    }
+  }
+}
+
+/** Enrich a single game entry from its manifest data. */
+function enrichFromManifest(
+  db: D1Database,
+  game: GameEntry,
+  data: (typeof MANIFEST_LIST)[number],
+  userUuid: string,
+  serverUrl?: string,
+): void {
+  const manifestGameName = data.name ?? data.game_id;
+
+  // Update stale game names from manifest (fire-and-forget D1 update)
+  if (data.name && game.game_name !== manifestGameName) {
+    game.game_name = manifestGameName;
+    void db
+      .prepare(
+        "UPDATE saves SET game_name = ? WHERE game_id = ? AND game_name != ? AND user_uuid = ?",
+      )
+      .bind(manifestGameName, data.game_id, manifestGameName, userUuid)
+      .run();
+  }
+
+  if (serverUrl && data.icon && (data.icon === "icon.png" || data.icon === "icon.svg")) {
+    game.icon_url = `${serverUrl}/plugins/${data.game_id}/${data.icon}`;
+  }
+
+  if (data.description) {
+    game.game_description = data.description;
+  }
+
+  if (data.reference?.modules) {
+    game.references = Object.entries(data.reference.modules).map(([id, entry]) => ({
+      id,
+      name: entry.name,
+      description: entry.description,
+      visual: VISUAL_MODULES.has(id),
+    }));
+    game.reference_schemas = REFERENCE_SCHEMAS_HINT;
   }
 }
 
@@ -246,30 +350,7 @@ function attachReferenceModules(
     const game = gameMap.get(data.game_id);
     if (!game) continue;
 
-    // Update stale game names from manifest (fire-and-forget D1 update)
-    if (data.name && game.game_name !== manifestGameName) {
-      game.game_name = manifestGameName;
-      void db
-        .prepare(
-          "UPDATE saves SET game_name = ? WHERE game_id = ? AND game_name != ? AND user_uuid = ?",
-        )
-        .bind(manifestGameName, data.game_id, manifestGameName, userUuid)
-        .run();
-    }
-
-    if (serverUrl && data.icon && (data.icon === "icon.png" || data.icon === "icon.svg")) {
-      game.icon_url = `${serverUrl}/plugins/${data.game_id}/${data.icon}`;
-    }
-
-    if (data.reference?.modules) {
-      game.references = Object.entries(data.reference.modules).map(([id, entry]) => ({
-        id,
-        name: entry.name,
-        description: entry.description,
-        parameters: entry.parameters,
-        visual: VISUAL_MODULES.has(id),
-      }));
-    }
+    enrichFromManifest(db, game, data, userUuid, serverUrl);
   }
 
   mergeNativeModules(gameMap, filter);
@@ -409,6 +490,14 @@ export async function getSave(
   };
 
   if (iconUrl) result.icon_url = iconUrl;
+
+  // Attach full reference module schemas (with parameters) for this game.
+  // This is the progressive discovery point: list_games shows summaries,
+  // get_save provides the full parameter schemas needed to call query_reference.
+  const references = getFullReferences(save.game_id);
+  if (references.length > 0) {
+    result.references = references;
+  }
 
   // Include refresh status for adapter saves (null for daemon saves)
   if (save.refresh_status) {
