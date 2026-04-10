@@ -5,7 +5,6 @@ import type { ToolResult, ViewToolResult } from "../src/mcp/tools";
 import {
   createNote,
   deleteNote,
-  getFullReferences,
   getInfo,
   getNote,
   getSave,
@@ -139,7 +138,13 @@ describe("MCP Tools", () => {
       notes: { note_id: string; title: string }[];
     }[];
     removed_saves?: string[];
-    references?: { id: string; name: string; description: string; visual?: boolean }[];
+    references?: {
+      id: string;
+      name: string;
+      description: string;
+      parameters?: unknown;
+      visual?: boolean;
+    }[];
     reference_schemas?: string;
     game_description?: string;
   }
@@ -268,8 +273,7 @@ describe("MCP Tools", () => {
       expect(data.games[0]!.game_id).toBe("d2r");
     });
 
-    it("includes lightweight reference modules without parameter schemas", async () => {
-      // Seed save so the game shows up
+    it("omits parameter schemas from references when unfiltered", async () => {
       await seedSave({
         saveUuid: "save-ref",
         userUuid: USER_A,
@@ -279,8 +283,6 @@ describe("MCP Tools", () => {
         summary: "Hammerdin, Level 89",
       });
 
-      // Reference modules come from embedded manifests.gen.ts
-
       const result = await listGames(env.DB, USER_A);
       const data = parseResult(result) as { games: GameEntry[] };
       const d2r = data.games.find((g) => g.game_id === "d2r")!;
@@ -288,10 +290,29 @@ describe("MCP Tools", () => {
       expect(d2r.references).toHaveLength(1);
       expect(d2r.references![0]!.id).toBe("drop_calc");
       expect(d2r.references![0]!.name).toBe("Drop Calculator");
-      expect(d2r.references![0]!.description).toContain("drop probabilities");
-      // Parameters are NOT included in list_games — they live in get_save/show_save
-      expect((d2r.references![0] as Record<string, unknown>).parameters).toBeUndefined();
-      expect(d2r.reference_schemas).toContain("get_save");
+      // Unfiltered: no parameters, hint present
+      expect(d2r.references![0]!.parameters).toBeUndefined();
+      expect(d2r.reference_schemas).toContain("filter");
+    });
+
+    it("includes full parameter schemas when filtered", async () => {
+      await seedSave({
+        saveUuid: "save-ref-filtered",
+        userUuid: USER_A,
+        gameId: "d2r",
+        gameName: "Diablo II: Resurrected",
+        saveName: "Hammerdin",
+        summary: "Hammerdin, Level 89",
+      });
+
+      const result = await listGames(env.DB, USER_A, "d2r");
+      const data = parseResult(result) as { games: GameEntry[] };
+      const d2r = data.games.find((g) => g.game_id === "d2r")!;
+      expect(d2r.references).toBeDefined();
+      expect(d2r.references![0]!.id).toBe("drop_calc");
+      // Filtered: full parameters included, no hint needed
+      expect(d2r.references![0]!.parameters).toBeDefined();
+      expect(d2r.reference_schemas).toBeUndefined();
     });
 
     it("includes game_description from manifest", async () => {
@@ -694,65 +715,6 @@ describe("MCP Tools", () => {
       const result = await getSave(env.DB, USER_A, "save-no-icon-get");
       const data = parseResult(result) as { icon_url?: string };
       expect(data.icon_url).toBeUndefined();
-    });
-
-    it("includes full reference module schemas with parameters", async () => {
-      await seedSave({
-        saveUuid: "save-ref-schemas",
-        userUuid: USER_A,
-        gameId: "d2r",
-        saveName: "Hammerdin",
-        summary: "Hammerdin, Level 89",
-      });
-
-      const result = await getSave(env.DB, USER_A, "save-ref-schemas");
-      const data = parseResult(result) as {
-        references?: {
-          id: string;
-          name: string;
-          description: string;
-          parameters?: unknown;
-          visual?: boolean;
-        }[];
-      };
-      expect(data.references).toBeDefined();
-      const dropCalc = data.references!.find((r) => r.id === "drop_calc");
-      expect(dropCalc).toBeDefined();
-      expect(dropCalc!.name).toBe("Drop Calculator");
-      // get_save includes full parameter schemas (unlike list_games)
-      expect(dropCalc!.parameters).toBeDefined();
-    });
-
-    it("omits references when game has no reference modules", async () => {
-      await seedSave({
-        saveUuid: "save-no-refs",
-        userUuid: USER_A,
-        gameId: "stardew",
-        saveName: "Farm",
-        summary: "Year 1",
-      });
-
-      const result = await getSave(env.DB, USER_A, "save-no-refs");
-      const data = parseResult(result) as { references?: unknown[] };
-      expect(data.references).toBeUndefined();
-    });
-  });
-
-  // ── getFullReferences ─────────────────────────────────────────
-
-  describe("getFullReferences", () => {
-    it("returns WASM manifest modules with parameters for d2r", () => {
-      const references = getFullReferences("d2r");
-      expect(references.length).toBeGreaterThan(0);
-      const dropCalc = references.find((r) => r.id === "drop_calc");
-      expect(dropCalc).toBeDefined();
-      expect(dropCalc!.parameters).toBeDefined();
-      expect(dropCalc!.name).toBe("Drop Calculator");
-    });
-
-    it("returns empty array for unknown game", () => {
-      const references = getFullReferences("nonexistent");
-      expect(references).toEqual([]);
     });
   });
 

@@ -40,7 +40,7 @@ const SERVER_INSTRUCTIONS = `Savecraft gives you access to the player's actual g
 
 Always fetch live data — never assume you know a player's saves, characters, or game state from memory or prior conversations. Save data changes constantly as players play. Fetch only what's relevant: use the filter parameter on list_games, and request only the sections you'll actually reference. Memory is useful for player goals and preferences, but never for game state.
 
-Tool workflow: Start with list_games to see the player's games, characters, and saves. list_games shows reference module summaries (name, description) but NOT parameter schemas — you MUST call get_save or show_save on a character to get the full parameter schemas needed to call query_reference or show_reference. Use get_save for a specific character, then get_section for detailed data like equipment, skills, or stats — section names vary by game. For character equipment, gear, inventory, or stats, always use get_section on the character's section directly rather than search_saves — it is faster and more reliable. search_saves is best for cross-character or cross-game queries when you don't know which save contains something — when searching, default to OR between keywords for broad matches (e.g., "armor OR shield OR vest"). Always read relevant notes (get_note) before giving advice — they contain goals, builds, and session context from prior conversations. When the player shares something worth remembering, offer to save it as a note. Keep notes current with update_note when circumstances change. refresh_save when the player says something just changed in-game. setup_help when the player has no saves, mentions a pairing code, or asks how to connect a game.
+Tool workflow: Start with list_games to see the player's games, characters, and saves. Unfiltered list_games shows reference module summaries (name, description) without parameter schemas. To get full parameter schemas for a game's reference modules, pass a filter — e.g. list_games(filter="poe") returns complete schemas you need to call query_reference or show_reference. Use get_save for a specific character, then get_section for detailed data like equipment, skills, or stats — section names vary by game. For character equipment, gear, inventory, or stats, always use get_section on the character's section directly rather than search_saves — it is faster and more reliable. search_saves is best for cross-character or cross-game queries when you don't know which save contains something — when searching, default to OR between keywords for broad matches (e.g., "armor OR shield OR vest"). Always read relevant notes (get_note) before giving advice — they contain goals, builds, and session context from prior conversations. When the player shares something worth remembering, offer to save it as a note. Keep notes current with update_note when circumstances change. refresh_save when the player says something just changed in-game. setup_help when the player has no saves, mentions a pairing code, or asks how to connect a game.
 
 Visual-first: Prefer show_games, show_save, and show_reference over their data counterparts (list_games, get_save, query_reference) whenever a visual is available. The visual tools render interactive cards, charts, and dashboards directly in the conversation — the player sees richer output and you can still narrate around it. Fall back to the data tools only when there is no visual component for the module, or when you need raw data to answer a pointed question where the response is a sentence rather than a view.
 
@@ -161,7 +161,7 @@ const TOOLS: ToolDefinition[] = [
     name: "list_games",
     title: "List Games & Saves",
     description:
-      "The player's complete game library — all games, characters, saves, notes, and reference module summaries. Start here when beginning any conversation about the player's game state. Reference modules listed here are summaries only (name, description) — call get_save or show_save on a character to get the full parameter schemas required to call query_reference or show_reference. If a character seems missing, check removed_saves — it may have been removed rather than deleted.",
+      "The player's complete game library — all games, characters, saves, notes, and reference modules. Start here when beginning any conversation about the player's game state. Without a filter, reference modules are summaries only (name, description). Pass a filter to get full parameter schemas needed to call query_reference or show_reference — e.g. filter='poe' returns complete schemas for PoE modules. If a character seems missing, check removed_saves — it may have been removed rather than deleted.",
     inputSchema: {
       type: "object",
       properties: {
@@ -183,7 +183,7 @@ const TOOLS: ToolDefinition[] = [
     name: "get_save",
     title: "Get Save Details",
     description:
-      "Detailed view of a single character or save — summary, overview stats, list of available data sections, attached notes, and full reference module schemas with parameter definitions. Use when the player asks about a specific character, playthrough, or save file. The references block contains the parameter schemas needed to call query_reference or show_reference.",
+      "Detailed view of a single character or save — summary, overview stats, list of available data sections, and attached notes. Use when the player asks about a specific character, playthrough, or save file.",
     inputSchema: {
       type: "object",
       properties: {
@@ -381,7 +381,7 @@ const TOOLS: ToolDefinition[] = [
     name: "query_reference",
     title: "Query Game Reference Data",
     description:
-      "Authoritative game calculations — drop rates, stat thresholds, build comparisons, draft ratings, mana curves, or any quantitative query where estimation would be unreliable. Parameter schemas for each module are returned by get_save/show_save, not list_games — always drill into a save first to see the schema before calling this tool. Use when the module has no visual component, or when you need raw data to answer a pointed question with a sentence rather than a view. For modules with visual=true, prefer show_reference instead — the player gets an interactive display and you can still narrate. Batch multiple queries in a single call to avoid round-trips. Max 50 queries per call. Modules that accept card/deck lists can also accept a section reference (e.g., deck_section + save_id) to pull data directly from the player's save instead of passing cards inline.",
+      "Authoritative game calculations — drop rates, stat thresholds, build comparisons, draft ratings, mana curves, or any quantitative query where estimation would be unreliable. Parameter schemas for each module are returned by list_games when you pass a filter — always filter to the game first to see schemas before calling this tool. Use when the module has no visual component, or when you need raw data to answer a pointed question with a sentence rather than a view. For modules with visual=true, prefer show_reference instead — the player gets an interactive display and you can still narrate. Batch multiple queries in a single call to avoid round-trips. Max 50 queries per call. Modules that accept card/deck lists can also accept a section reference (e.g., deck_section + save_id) to pull data directly from the player's save instead of passing cards inline.",
     inputSchema: {
       type: "object",
       properties: {
@@ -468,7 +468,7 @@ const TOOLS: ToolDefinition[] = [
     name: "show_reference",
     title: "Show Game Reference Visually",
     description:
-      "Interactive visual display of reference data — renders results as charts, tables, dashboards, and interactive views directly in the conversation. Default choice for any reference query when the module has visual=true. Parameter schemas for each module are returned by get_save/show_save, not list_games — always drill into a save first. Same parameters as query_reference. The player sees a richer result and you can still narrate and discuss around it.",
+      "Interactive visual display of reference data — renders results as charts, tables, dashboards, and interactive views directly in the conversation. Default choice for any reference query when the module has visual=true. Parameter schemas for each module are returned by list_games when you pass a filter — always filter to the game first. Same parameters as query_reference. The player sees a richer result and you can still narrate and discuss around it.",
     inputSchema: {
       type: "object",
       properties: {
@@ -532,7 +532,7 @@ const TOOLS: ToolDefinition[] = [
     name: "show_save",
     title: "Show Save Details",
     description:
-      "Visual character card with overview stats, data sections, notes, and full reference module schemas for a single save. Default choice when the player asks to see their character, pull up a save, or wants a summary of a specific playthrough. Renders the character's key stats, available sections, and attached notes as an interactive card. Also returns reference module parameter schemas needed to call query_reference or show_reference.",
+      "Visual character card with overview stats, data sections, and notes for a single save. Default choice when the player asks to see their character, pull up a save, or wants a summary of a specific playthrough. Renders the character's key stats, available sections, and attached notes as an interactive card.",
     inputSchema: {
       type: "object",
       properties: {
