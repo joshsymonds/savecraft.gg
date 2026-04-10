@@ -16,6 +16,11 @@ import type {
 } from "../../../worker/src/reference/types";
 import { resolveAliases } from "./alias";
 
+// Alias resolution is only used in mulligan mode (which queries magic_cards for
+// card metadata like cmc/type_line). Other modes (card_timing, attack_analysis,
+// game_review) query 17Lands stats tables that only contain canonical card names,
+// so alias-named cards simply won't have play statistics — this is expected.
+
 // ── Types ────────────────────────────────────────────────────
 
 interface CardTimingRow {

@@ -16,6 +16,10 @@ const ALIAS_BATCH_SIZE = 50;
  *
  * Returns a Map from lowercase alias name → row (with the selected columns).
  * The caller specifies which columns to SELECT from magic_cards.
+ *
+ * @internal Only called by reference modules with hardcoded column strings.
+ * SAFETY: `columns` is interpolated into SQL — it must be a hardcoded string
+ * literal, never user input.
  */
 export async function resolveAliases<T extends { name: string }>(
   db: D1Database,
