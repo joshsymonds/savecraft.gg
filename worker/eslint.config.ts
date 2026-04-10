@@ -176,6 +176,7 @@ export default tseslint.config(
             env: false,
             err: false,
             fn: false,
+            mod: false, // PoE domain term: modifier, not abbreviation of module
             msg: false,
             params: false,
             props: false,

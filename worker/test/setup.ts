@@ -493,6 +493,98 @@ const statements = [
     instance_name,
     tokenize='porter unicode61'
   )`,
+  // ── PoE reference data ──────────────────────────────────────────
+  `CREATE TABLE IF NOT EXISTS poe_gems (
+    gem_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    is_support INTEGER NOT NULL DEFAULT 0,
+    color TEXT NOT NULL DEFAULT 'W',
+    tags TEXT NOT NULL DEFAULT '[]',
+    level_requirement INTEGER,
+    str_requirement INTEGER,
+    dex_requirement INTEGER,
+    int_requirement INTEGER,
+    cast_time REAL,
+    mana_cost TEXT,
+    description TEXT,
+    stats_at_20 TEXT NOT NULL DEFAULT '[]',
+    quality_stats TEXT NOT NULL DEFAULT '[]',
+    supports_tags TEXT
+  )`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS poe_gems_fts USING fts5(
+    gem_id UNINDEXED, name, tags, description,
+    tokenize='porter unicode61'
+  )`,
+  `CREATE TABLE IF NOT EXISTS poe_uniques (
+    name TEXT NOT NULL,
+    variant TEXT NOT NULL DEFAULT '',
+    base_type TEXT NOT NULL,
+    item_class TEXT NOT NULL,
+    level_requirement INTEGER,
+    str_requirement INTEGER,
+    dex_requirement INTEGER,
+    int_requirement INTEGER,
+    properties TEXT NOT NULL DEFAULT '[]',
+    implicit_mods TEXT NOT NULL DEFAULT '[]',
+    explicit_mods TEXT NOT NULL DEFAULT '[]',
+    flavour_text TEXT,
+    drop_level INTEGER,
+    PRIMARY KEY (name, variant)
+  )`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS poe_uniques_fts USING fts5(
+    name, variant UNINDEXED, base_type, item_class, explicit_mods,
+    tokenize='porter unicode61'
+  )`,
+  `CREATE TABLE IF NOT EXISTS poe_passive_nodes (
+    skill_id INTEGER PRIMARY KEY,
+    name TEXT NOT NULL,
+    is_notable INTEGER NOT NULL DEFAULT 0,
+    is_keystone INTEGER NOT NULL DEFAULT 0,
+    is_mastery INTEGER NOT NULL DEFAULT 0,
+    is_ascendancy INTEGER NOT NULL DEFAULT 0,
+    ascendancy_name TEXT,
+    stats TEXT NOT NULL DEFAULT '[]',
+    group_id INTEGER,
+    orbit INTEGER,
+    orbit_index INTEGER
+  )`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS poe_passive_nodes_fts USING fts5(
+    skill_id UNINDEXED, name, stats, ascendancy_name,
+    tokenize='porter unicode61'
+  )`,
+  `CREATE TABLE IF NOT EXISTS poe_stat_translations (
+    stat_id TEXT PRIMARY KEY,
+    translation TEXT NOT NULL,
+    format_type TEXT
+  )`,
+  `CREATE TABLE IF NOT EXISTS poe_base_items (
+    item_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    item_class TEXT NOT NULL,
+    level_requirement INTEGER,
+    implicit_mods TEXT NOT NULL DEFAULT '[]',
+    properties TEXT NOT NULL DEFAULT '{}',
+    tags TEXT NOT NULL DEFAULT '[]'
+  )`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS poe_base_items_fts USING fts5(
+    item_id UNINDEXED, name, item_class,
+    tokenize='porter unicode61'
+  )`,
+  `CREATE TABLE IF NOT EXISTS poe_mods (
+    mod_id TEXT PRIMARY KEY,
+    mod_name TEXT NOT NULL,
+    generation_type TEXT,
+    mod_type TEXT,
+    domain TEXT,
+    item_class_spawns TEXT NOT NULL DEFAULT '{}',
+    stat_ids TEXT NOT NULL DEFAULT '[]',
+    stat_ranges TEXT NOT NULL DEFAULT '[]',
+    tiers TEXT NOT NULL DEFAULT '[]'
+  )`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS poe_mods_fts USING fts5(
+    mod_id UNINDEXED, mod_name,
+    tokenize='porter unicode61'
+  )`,
 ];
 
 for (const sql of statements) {

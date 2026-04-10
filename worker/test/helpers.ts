@@ -54,6 +54,17 @@ export const CLEANUP_TABLES = [
   "wow_encounters_fts",
   "wow_encounter_abilities",
   "wow_encounters",
+  "poe_gems_fts",
+  "poe_gems",
+  "poe_passive_nodes_fts",
+  "poe_passive_nodes",
+  "poe_base_items_fts",
+  "poe_base_items",
+  "poe_stat_translations",
+  "poe_uniques_fts",
+  "poe_uniques",
+  "poe_mods_fts",
+  "poe_mods",
 ] as const;
 
 /**
