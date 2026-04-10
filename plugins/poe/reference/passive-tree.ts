@@ -10,11 +10,13 @@ import type {
   NativeReferenceModule,
   ReferenceResult,
 } from "../../../worker/src/reference/types";
+import { mergeWithRRF } from "../../../worker/src/reference/rrf";
 
 const DEFAULT_LIMIT = 20;
+const RRF_K = 60;
 
 interface PassiveNodeRow {
-  node_id: number;
+  skill_id: number;
   name: string;
   is_keystone: number;
   is_notable: number;
@@ -41,7 +43,7 @@ function nodeRowToResult(row: PassiveNodeRow): Record<string, unknown> {
   else if (row.is_mastery === 1) nodeType = "mastery";
 
   return {
-    node_id: row.node_id,
+    skill_id: row.skill_id,
     name: row.name,
     type: nodeType,
     ascendancy: row.ascendancy,
@@ -110,11 +112,49 @@ export const passiveTreeModule: NativeReferenceModule = {
       };
     }
 
+    // FTS5 keyword search
     const safeQuery = fts5Safe(searchQuery);
-    const conditions: string[] = [
-      "n.node_id IN (SELECT node_id FROM poe_passive_nodes_fts WHERE poe_passive_nodes_fts MATCH ?)",
-    ];
-    const bindings: unknown[] = [safeQuery];
+    const ftsResults = await db
+      .prepare("SELECT skill_id FROM poe_passive_nodes_fts WHERE poe_passive_nodes_fts MATCH ? LIMIT ?")
+      .bind(safeQuery, limit * 3)
+      .all<{ skill_id: number }>();
+    let skillIds = ftsResults.results.map((r) => String(r.skill_id));
+
+    // Vectorize semantic search (if available)
+    const vectorIndex = env.POE_INDEX;
+    if (env.AI && vectorIndex) {
+      try {
+        const embedding = (await env.AI.run("@cf/baai/bge-base-en-v1.5", {
+          text: [searchQuery],
+        })) as { data?: number[][] };
+        if (embedding.data?.[0]) {
+          const vectorResults = await vectorIndex.query(embedding.data[0], {
+            topK: limit * 2,
+            filter: { type: "node" },
+          });
+          const vectorIds = vectorResults.matches
+            .map((m) => m.id.replace(/^node:/, ""))
+            .filter((id) => id !== "");
+          if (vectorIds.length > 0) {
+            skillIds = mergeWithRRF(skillIds, vectorIds, RRF_K, limit * 3);
+          }
+        }
+      } catch (error) {
+        console.warn("Vectorize node query failed, falling back to FTS5-only:", error);
+      }
+    }
+
+    if (skillIds.length === 0) {
+      return {
+        type: "structured",
+        data: { query: searchQuery, results: [], count: 0 },
+      };
+    }
+
+    // Fetch full rows with filters
+    const placeholders = skillIds.map(() => "?").join(",");
+    const conditions: string[] = [`n.skill_id IN (${placeholders})`];
+    const bindings: unknown[] = [...skillIds.map(Number)];
 
     if (nodeType) {
       switch (nodeType) {
@@ -134,25 +174,26 @@ export const passiveTreeModule: NativeReferenceModule = {
     }
 
     if (ascendancy) {
-      conditions.push("n.ascendancy = ?");
+      conditions.push("n.ascendancy_name = ?");
       bindings.push(ascendancy);
     }
 
-    let sql = `SELECT n.* FROM poe_passive_nodes n WHERE ${conditions.join(" AND ")}`;
-    sql += " ORDER BY n.name LIMIT ?";
     bindings.push(limit);
+    const sql = `SELECT n.* FROM poe_passive_nodes n WHERE ${conditions.join(" AND ")} LIMIT ?`;
+    const rows = await db.prepare(sql).bind(...bindings).all<PassiveNodeRow>();
 
-    const rows = await db
-      .prepare(sql)
-      .bind(...bindings)
-      .all<PassiveNodeRow>();
+    // Re-sort by RRF rank order
+    const rowMap = new Map(rows.results.map((r) => [r.skill_id, r]));
+    const ordered = skillIds
+      .map((id) => rowMap.get(Number(id)))
+      .filter((r): r is PassiveNodeRow => r != null);
 
     return {
       type: "structured",
       data: {
         query: searchQuery,
-        results: rows.results.map(nodeRowToResult),
-        count: rows.results.length,
+        results: ordered.map(nodeRowToResult),
+        count: ordered.length,
       },
     };
   },

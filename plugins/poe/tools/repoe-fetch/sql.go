@@ -137,14 +137,14 @@ func buildSQL(
 			levelReq = fmt.Sprintf("%d", item.LevelReq)
 		}
 
-		fmt.Fprintf(&b, "INSERT INTO poe_base_items (name, item_class, level_requirement, implicit_mods, properties, tags) VALUES (%s, %s, %s, %s, %s, %s);\n",
-			q(item.Name), q(item.ItemClass), levelReq,
+		fmt.Fprintf(&b, "INSERT INTO poe_base_items (item_id, name, item_class, level_requirement, implicit_mods, properties, tags) VALUES (%s, %s, %s, %s, %s, %s, %s);\n",
+			q(item.ItemID), q(item.Name), q(item.ItemClass), levelReq,
 			q(item.ImplicitMods), q(item.Properties), q(item.Tags),
 		)
 
 		// FTS5 row.
-		fmt.Fprintf(&b, "INSERT INTO poe_base_items_fts (name, item_class) VALUES (%s, %s);\n",
-			q(item.Name), q(item.ItemClass),
+		fmt.Fprintf(&b, "INSERT INTO poe_base_items_fts (item_id, name, item_class) VALUES (%s, %s, %s);\n",
+			q(item.ItemID), q(item.Name), q(item.ItemClass),
 		)
 	}
 

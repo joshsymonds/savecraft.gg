@@ -10,8 +10,10 @@ import type {
   NativeReferenceModule,
   ReferenceResult,
 } from "../../../worker/src/reference/types";
+import { mergeWithRRF } from "../../../worker/src/reference/rrf";
 
 const DEFAULT_LIMIT = 20;
+const RRF_K = 60;
 
 interface GemRow {
   gem_id: string;
@@ -111,11 +113,49 @@ export const gemSearchModule: NativeReferenceModule = {
       };
     }
 
+    // FTS5 keyword search
     const safeQuery = fts5Safe(searchQuery);
-    const conditions: string[] = [
-      "g.gem_id IN (SELECT gem_id FROM poe_gems_fts WHERE poe_gems_fts MATCH ?)",
-    ];
-    const bindings: unknown[] = [safeQuery];
+    const ftsResults = await db
+      .prepare("SELECT gem_id FROM poe_gems_fts WHERE poe_gems_fts MATCH ? LIMIT ?")
+      .bind(safeQuery, limit * 3)
+      .all<{ gem_id: string }>();
+    let gemIds = ftsResults.results.map((r) => r.gem_id);
+
+    // Vectorize semantic search (if available)
+    const vectorIndex = env.POE_INDEX;
+    if (env.AI && vectorIndex) {
+      try {
+        const embedding = (await env.AI.run("@cf/baai/bge-base-en-v1.5", {
+          text: [searchQuery],
+        })) as { data?: number[][] };
+        if (embedding.data?.[0]) {
+          const vectorResults = await vectorIndex.query(embedding.data[0], {
+            topK: limit * 2,
+            filter: { type: "gem" },
+          });
+          const vectorIds = vectorResults.matches
+            .map((m) => m.id.replace(/^gem:/, ""))
+            .filter((id) => id !== "");
+          if (vectorIds.length > 0) {
+            gemIds = mergeWithRRF(gemIds, vectorIds, RRF_K, limit * 3);
+          }
+        }
+      } catch (error) {
+        console.warn("Vectorize gem query failed, falling back to FTS5-only:", error);
+      }
+    }
+
+    if (gemIds.length === 0) {
+      return {
+        type: "structured",
+        data: { query: searchQuery, gems: [], count: 0 },
+      };
+    }
+
+    // Fetch full rows for merged IDs with filters
+    const placeholders = gemIds.map(() => "?").join(",");
+    const conditions: string[] = [`g.gem_id IN (${placeholders})`];
+    const bindings: unknown[] = [...gemIds];
 
     if (isSupport !== undefined) {
       conditions.push("g.is_support = ?");
@@ -126,21 +166,22 @@ export const gemSearchModule: NativeReferenceModule = {
       bindings.push(color);
     }
 
-    let sql = `SELECT g.* FROM poe_gems g WHERE ${conditions.join(" AND ")}`;
-    sql += " ORDER BY g.name LIMIT ?";
     bindings.push(limit);
+    const sql = `SELECT g.* FROM poe_gems g WHERE ${conditions.join(" AND ")} LIMIT ?`;
+    const rows = await db.prepare(sql).bind(...bindings).all<GemRow>();
 
-    const rows = await db
-      .prepare(sql)
-      .bind(...bindings)
-      .all<GemRow>();
+    // Re-sort by RRF rank order
+    const rowMap = new Map(rows.results.map((r) => [r.gem_id, r]));
+    const ordered = gemIds
+      .map((id) => rowMap.get(id))
+      .filter((r): r is GemRow => r != null);
 
     return {
       type: "structured",
       data: {
         query: searchQuery,
-        gems: rows.results.map(gemRowToResult),
-        count: rows.results.length,
+        gems: ordered.map(gemRowToResult),
+        count: ordered.length,
       },
     };
   },

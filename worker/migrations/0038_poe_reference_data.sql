@@ -104,7 +104,8 @@ CREATE TABLE IF NOT EXISTS poe_stat_translations (
 -- ── Base items ──────────────────────────────────────────────────────
 
 CREATE TABLE IF NOT EXISTS poe_base_items (
-  name TEXT PRIMARY KEY,
+  item_id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
   item_class TEXT NOT NULL,
   level_requirement INTEGER,
   implicit_mods TEXT NOT NULL DEFAULT '[]', -- JSON array of mod strings
@@ -112,9 +113,11 @@ CREATE TABLE IF NOT EXISTS poe_base_items (
   tags TEXT NOT NULL DEFAULT '[]'           -- JSON array: ["str_armour", "chest"]
 );
 
+CREATE INDEX idx_poe_base_items_name ON poe_base_items(name);
 CREATE INDEX idx_poe_base_items_class ON poe_base_items(item_class);
 
 CREATE VIRTUAL TABLE IF NOT EXISTS poe_base_items_fts USING fts5(
+  item_id UNINDEXED,
   name,
   item_class,
   tokenize='porter unicode61'

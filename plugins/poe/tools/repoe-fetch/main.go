@@ -2,7 +2,7 @@
 // skill tree export. It is the sole writer to poe_gems, poe_base_items,
 // poe_stat_translations, and poe_passive_nodes.
 //
-// Usage: go run ./plugins/poe/tools/repoe-fetch --d1-database-id=UUID
+// Usage: go run ./plugins/poe/tools/repoe-fetch --d1-database-id=UUID [--vectorize-index=NAME]
 package main
 
 import (
@@ -15,16 +15,18 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 )
 
 const (
-	gemsURL             = "https://raw.githubusercontent.com/repoe-fork/repoe/master/RePoE/data/gems.json"
-	baseItemsURL        = "https://raw.githubusercontent.com/repoe-fork/repoe/master/RePoE/data/base_items.json"
-	statTranslationsURL = "https://raw.githubusercontent.com/repoe-fork/repoe/master/RePoE/data/stat_translations.json"
+	gemsURL             = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/gems.json"
+	baseItemsURL        = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/base_items.json"
+	statTranslationsURL = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/stat_translations.json"
 	passiveTreeURL      = "https://raw.githubusercontent.com/grindinggear/skilltree-export/refs/tags/3.28.0/data.json"
 )
 
@@ -45,17 +47,17 @@ type GemBaseItem struct {
 
 // GemRequirements holds attribute requirements for a gem.
 type GemRequirements struct {
-	Level    int `json:"level"`
-	Strength int `json:"str"`
-	Dexterity int `json:"dex"`
+	Level        int `json:"level"`
+	Strength     int `json:"str"`
+	Dexterity    int `json:"dex"`
 	Intelligence int `json:"int"`
 }
 
 // GemLevel holds per-level stats for a gem.
 type GemLevel struct {
-	ManaCost        *int               `json:"mana_cost"`
-	Stats           []GemStat          `json:"stats"`
-	QualityStats    []GemQualityStat   `json:"quality_stats"`
+	ManaCost     *int             `json:"mana_cost"`
+	Stats        []GemStat        `json:"stats"`
+	QualityStats []GemQualityStat `json:"quality_stats"`
 }
 
 // GemStat is a stat value at a given gem level.
@@ -78,13 +80,13 @@ type GemStatic struct {
 
 // BaseItem represents a base item entry from RePoE's base_items.json.
 type BaseItem struct {
-	Name         string           `json:"name"`
-	ItemClass    string           `json:"item_class"`
-	ReleaseState string           `json:"release_state"`
-	Requirements *BaseItemReqs    `json:"requirements"`
-	Implicits    []string         `json:"implicits"`
-	Properties   json.RawMessage  `json:"properties"`
-	Tags         []string         `json:"tags"`
+	Name         string          `json:"name"`
+	ItemClass    string          `json:"item_class"`
+	ReleaseState string          `json:"release_state"`
+	Requirements *BaseItemReqs   `json:"requirements"`
+	Implicits    []string        `json:"implicits"`
+	Properties   json.RawMessage `json:"properties"`
+	Tags         []string        `json:"tags"`
 }
 
 // BaseItemReqs holds level requirements for a base item.
@@ -110,41 +112,42 @@ type PassiveTree struct {
 
 // PassiveNode represents a node in the passive skill tree.
 type PassiveNode struct {
-	Skill          int      `json:"skill"`
-	Name           string   `json:"name"`
-	Stats          []string `json:"stats"`
-	IsNotable      bool     `json:"isNotable"`
-	IsKeystone     bool     `json:"isKeystone"`
-	IsMastery      bool     `json:"isMastery"`
-	AscendancyName string   `json:"ascendancyName"`
-	Group          *int     `json:"group"`
-	Orbit          *int     `json:"orbit"`
-	OrbitIndex     *int     `json:"orbitIndex"`
-	ClassStartIndex *int    `json:"classStartIndex"`
-	IsProxy        bool     `json:"isProxy"`
+	Skill           int      `json:"skill"`
+	Name            string   `json:"name"`
+	Stats           []string `json:"stats"`
+	IsNotable       bool     `json:"isNotable"`
+	IsKeystone      bool     `json:"isKeystone"`
+	IsMastery       bool     `json:"isMastery"`
+	AscendancyName  string   `json:"ascendancyName"`
+	Group           *int     `json:"group"`
+	Orbit           *int     `json:"orbit"`
+	OrbitIndex      *int     `json:"orbitIndex"`
+	ClassStartIndex *int     `json:"classStartIndex"`
+	IsProxy         bool     `json:"isProxy"`
 }
 
 // ProcessedGem holds the processed gem data ready for SQL generation.
 type ProcessedGem struct {
-	GemID           string
-	Name            string
-	IsSupport       bool
-	Color           string
-	Tags            []string
-	LevelReq        int
-	StrReq          int
-	DexReq          int
-	IntReq          int
-	CastTime        float64
-	ManaCost        string // JSON string or empty
-	Description     string
-	StatsAt20       string // JSON array
-	QualityStats    string // JSON array
-	SupportsTags    string // empty or JSON array
+	GemID        string
+	Name         string
+	IsSupport    bool
+	Color        string
+	Tags         []string
+	LevelReq     int
+	StrReq       int
+	DexReq       int
+	IntReq       int
+	CastTime     float64
+	ManaCost     string // JSON string or empty
+	Description  string
+	StatsAt20    string // JSON array
+	QualityStats string // JSON array
+	SupportsTags string // empty or JSON array
 }
 
 // ProcessedBaseItem holds the processed base item data ready for SQL generation.
 type ProcessedBaseItem struct {
+	ItemID       string
 	Name         string
 	ItemClass    string
 	LevelReq     int
@@ -162,17 +165,17 @@ type ProcessedStatTranslation struct {
 
 // ProcessedPassiveNode holds the processed passive node data ready for SQL generation.
 type ProcessedPassiveNode struct {
-	SkillID       int
-	Name          string
-	IsNotable     bool
-	IsKeystone    bool
-	IsMastery     bool
-	IsAscendancy  bool
+	SkillID        int
+	Name           string
+	IsNotable      bool
+	IsKeystone     bool
+	IsMastery      bool
+	IsAscendancy   bool
 	AscendancyName string
-	Stats         string // JSON array
-	GroupID       *int
-	Orbit         *int
-	OrbitIndex    *int
+	Stats          string // JSON array
+	GroupID        *int
+	Orbit          *int
+	OrbitIndex     *int
 }
 
 func main() {
@@ -186,12 +189,14 @@ func run() error {
 	cfAccountID := flag.String("cf-account-id", os.Getenv("CLOUDFLARE_ACCOUNT_ID"), "Cloudflare account ID")
 	cfAPIToken := flag.String("cf-api-token", os.Getenv("CLOUDFLARE_API_TOKEN"), "Cloudflare API token")
 	d1DatabaseID := flag.String("d1-database-id", "", "D1 database ID (required)")
+	vectorizeIndex := flag.String("vectorize-index", "", "Vectorize index name (enables Vectorize population)")
 	flag.Parse()
 
 	if *d1DatabaseID == "" {
 		return fmt.Errorf("--d1-database-id is required")
 	}
 
+	// Validate Cloudflare credentials early — don't download data we can't store.
 	var missing []string
 	if *cfAccountID == "" {
 		missing = append(missing, "--cf-account-id / CLOUDFLARE_ACCOUNT_ID")
@@ -240,40 +245,212 @@ func run() error {
 	h := sha256.Sum256([]byte(sql))
 	contentHash := hex.EncodeToString(h[:])
 
-	existing, err := cfapi.GetPipelineHash(*cfAccountID, *d1DatabaseID, *cfAPIToken, "repoe", cfapi.PipelineGlobalSet)
-	if err == nil && existing == contentHash {
-		fmt.Println("D1 data unchanged (hash match), skipping import")
-		return nil
+	// ── Cloudflare population (D1 + Vectorize) ──────────────
+	// D1 and Vectorize are independent — run them concurrently when both are requested.
+	var wg sync.WaitGroup
+	errs := make(chan error, 2)
+
+	wg.Go(func() {
+		existing, err := cfapi.GetPipelineHash(*cfAccountID, *d1DatabaseID, *cfAPIToken, "repoe", cfapi.PipelineGlobalSet)
+		if err == nil && existing == contentHash {
+			fmt.Println("D1 data unchanged (hash match), skipping import")
+			return
+		}
+
+		// Write SQL to disk before import (best-effort cache for debugging).
+		sqlDir := filepath.Join(os.TempDir(), "savecraft", "sql")
+		sqlPath := "(not cached)"
+		if err := os.MkdirAll(sqlDir, 0700); err != nil {
+			fmt.Printf("WARN: could not create temp dir: %v\n", err)
+		} else {
+			sqlPath = filepath.Join(sqlDir, "repoe_poe.sql")
+			if err := os.WriteFile(sqlPath, []byte(sql), 0600); err != nil {
+				fmt.Printf("WARN: could not cache SQL to disk: %v\n", err)
+				sqlPath = "(not cached)"
+			}
+		}
+
+		fmt.Printf("Generated %.1f MB of SQL (%d gems, %d base items, %d stat translations, %d passive nodes)\n",
+			float64(len(sql))/1048576, len(gems), len(baseItems), len(statTranslations), len(passiveNodes))
+
+		fmt.Println("Importing to D1...")
+		if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
+			errs <- fmt.Errorf("D1 import: %w (SQL cached at %s)", err, sqlPath)
+			return
+		}
+		os.Remove(sqlPath)
+
+		totalRows := len(gems) + len(baseItems) + len(statTranslations) + len(passiveNodes)
+		if err := cfapi.UpdatePipelineState(*cfAccountID, *d1DatabaseID, *cfAPIToken, "repoe", cfapi.PipelineGlobalSet, contentHash, totalRows); err != nil {
+			fmt.Printf("WARN: pipeline state update failed: %v\n", err)
+		}
+
+		fmt.Println("D1 population complete")
+	})
+
+	if *vectorizeIndex != "" {
+		wg.Go(func() {
+			fmt.Println("\nPopulating Vectorize index...")
+			if err := populateVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, gems, passiveNodes); err != nil {
+				errs <- fmt.Errorf("populating vectorize: %w", err)
+				return
+			}
+			fmt.Println("Vectorize population complete")
+		})
 	}
 
-	// Write SQL to disk before import (best-effort cache for debugging).
-	sqlDir := filepath.Join(os.TempDir(), "savecraft", "sql")
-	sqlPath := "(not cached)"
-	if err := os.MkdirAll(sqlDir, 0700); err != nil {
-		fmt.Printf("WARN: could not create temp dir: %v\n", err)
-	} else {
-		sqlPath = filepath.Join(sqlDir, "repoe_poe.sql")
-		if err := os.WriteFile(sqlPath, []byte(sql), 0600); err != nil {
-			fmt.Printf("WARN: could not cache SQL to disk: %v\n", err)
-			sqlPath = "(not cached)"
+	wg.Wait()
+	close(errs)
+
+	// Collect all errors.
+	var errMsgs []string
+	for err := range errs {
+		errMsgs = append(errMsgs, err.Error())
+	}
+	if len(errMsgs) > 0 {
+		return fmt.Errorf("cloudflare population failed:\n  %s", strings.Join(errMsgs, "\n  "))
+	}
+
+	return nil
+}
+
+// populateVectorize embeds gems and notable/keystone passive nodes, then
+// upserts their vectors into a Vectorize index for semantic search.
+func populateVectorize(accountID, indexName, apiToken string, gems []ProcessedGem, nodes []ProcessedPassiveNode) error {
+	const embeddingBatchSize = 100
+	const vectorizeBatchSize = 1000
+	const embeddingConcurrency = 6
+
+	// Build the list of items to embed: all gems + notable/keystone nodes.
+	type embeddable struct {
+		id   string
+		text string
+		meta map[string]string
+	}
+
+	var items []embeddable
+	for _, g := range gems {
+		text := g.Name + " " + strings.Join(g.Tags, " ") + " " + g.Description
+		items = append(items, embeddable{
+			id:   "gem:" + g.GemID,
+			text: text,
+			meta: map[string]string{"name": g.Name, "type": "gem"},
+		})
+	}
+	for _, n := range nodes {
+		if !n.IsNotable && !n.IsKeystone {
+			continue
+		}
+		// Parse stats JSON array back to []string for embedding text.
+		var stats []string
+		_ = json.Unmarshal([]byte(n.Stats), &stats)
+		text := n.Name + " " + strings.Join(stats, " ")
+		items = append(items, embeddable{
+			id:   "node:" + strconv.Itoa(n.SkillID),
+			text: text,
+			meta: map[string]string{"name": n.Name, "type": "node"},
+		})
+	}
+
+	fmt.Printf("Embedding %d items (gems + notable/keystone nodes)...\n", len(items))
+
+	// Pre-allocate slots so concurrent goroutines write to distinct indices.
+	numBatches := (len(items) + embeddingBatchSize - 1) / embeddingBatchSize
+	batchResults := make([][]cfapi.VectorizeVector, numBatches)
+
+	// Milestone progress: report at 25%, 50%, 75%, 100%.
+	embeddingMilestones := cfapi.MilestoneSet(len(items), embeddingBatchSize)
+
+	sem := make(chan struct{}, embeddingConcurrency)
+	var mu sync.Mutex
+	var firstErr error
+	var wg sync.WaitGroup
+
+	for batchIdx := range numBatches {
+		i := batchIdx * embeddingBatchSize
+		end := min(i+embeddingBatchSize, len(items))
+		batch := items[i:end]
+
+		wg.Add(1)
+		go func(batchIdx, end int, batch []embeddable) {
+			defer wg.Done()
+
+			sem <- struct{}{}        // acquire semaphore slot
+			defer func() { <-sem }() // release semaphore slot
+
+			// Skip work if a previous batch already failed.
+			mu.Lock()
+			failed := firstErr != nil
+			mu.Unlock()
+			if failed {
+				return
+			}
+
+			texts := make([]string, len(batch))
+			for j, item := range batch {
+				texts[j] = item.text
+			}
+
+			embeddings, err := cfapi.EmbedTextsWithRetry(accountID, apiToken, texts)
+			if err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("embedding batch ending at %d: %w", end, err)
+				}
+				mu.Unlock()
+				return
+			}
+
+			if len(embeddings) != len(batch) {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = fmt.Errorf("embedding batch ending at %d: expected %d embeddings, got %d", end, len(batch), len(embeddings))
+				}
+				mu.Unlock()
+				return
+			}
+
+			vectors := make([]cfapi.VectorizeVector, len(batch))
+			for j, item := range batch {
+				vectors[j] = cfapi.VectorizeVector{
+					ID:       item.id,
+					Values:   embeddings[j],
+					Metadata: item.meta,
+				}
+			}
+			batchResults[batchIdx] = vectors
+
+			if embeddingMilestones[end] {
+				fmt.Printf("  Embedded %d/%d\n", end, len(items))
+			}
+		}(batchIdx, end, batch)
+	}
+
+	wg.Wait()
+
+	if firstErr != nil {
+		return firstErr
+	}
+
+	// Flatten batch results in order.
+	var allVectors []cfapi.VectorizeVector
+	for _, vecs := range batchResults {
+		allVectors = append(allVectors, vecs...)
+	}
+
+	// Upsert vectors in batches.
+	fmt.Printf("Upserting %d vectors to Vectorize...\n", len(allVectors))
+	upsertMilestones := cfapi.MilestoneSet(len(allVectors), vectorizeBatchSize)
+	for i := 0; i < len(allVectors); i += vectorizeBatchSize {
+		end := min(i+vectorizeBatchSize, len(allVectors))
+		if err := cfapi.UpsertVectors(accountID, indexName, apiToken, allVectors[i:end]); err != nil {
+			return fmt.Errorf("vectorize upsert %d-%d: %w", i, end, err)
+		}
+		if upsertMilestones[end] {
+			fmt.Printf("  Upserted %d/%d\n", end, len(allVectors))
 		}
 	}
 
-	fmt.Printf("Generated %.1f MB of SQL (%d gems, %d base items, %d stat translations, %d passive nodes)\n",
-		float64(len(sql))/1048576, len(gems), len(baseItems), len(statTranslations), len(passiveNodes))
-
-	fmt.Println("Importing to D1...")
-	if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
-		return fmt.Errorf("D1 import: %w (SQL cached at %s)", err, sqlPath)
-	}
-	os.Remove(sqlPath)
-
-	totalRows := len(gems) + len(baseItems) + len(statTranslations) + len(passiveNodes)
-	if err := cfapi.UpdatePipelineState(*cfAccountID, *d1DatabaseID, *cfAPIToken, "repoe", cfapi.PipelineGlobalSet, contentHash, totalRows); err != nil {
-		fmt.Printf("WARN: pipeline state update failed: %v\n", err)
-	}
-
-	fmt.Println("D1 population complete")
 	return nil
 }
 
@@ -397,7 +574,7 @@ func fetchBaseItems() ([]ProcessedBaseItem, error) {
 	}
 
 	var items []ProcessedBaseItem
-	for _, item := range raw {
+	for itemID, item := range raw {
 		if item.Name == "" {
 			continue
 		}
@@ -420,6 +597,7 @@ func fetchBaseItems() ([]ProcessedBaseItem, error) {
 		tags := cfapi.JSONArray(item.Tags)
 
 		items = append(items, ProcessedBaseItem{
+			ItemID:       itemID,
 			Name:         item.Name,
 			ItemClass:    item.ItemClass,
 			LevelReq:     levelReq,
