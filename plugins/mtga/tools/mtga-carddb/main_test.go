@@ -2,7 +2,6 @@ package main
 
 import (
 	"slices"
-	"strings"
 	"testing"
 )
 
@@ -245,83 +244,3 @@ func TestAssembleOracleText(t *testing.T) {
 	}
 }
 
-func TestBuildFullCardImportSQL(t *testing.T) {
-	cards := []FullCard{
-		{
-			ArenaID:       97973,
-			Name:          "Kavaero, Mind-Bitten",
-			FrontFaceName: "Kavaero, Mind-Bitten",
-			ManaCost:      "{2}{U}{B}",
-			CMC:           4,
-			Colors:        []string{"U", "B"},
-			ColorIdentity: []string{"U", "B"},
-			TypeLine:      "Legendary Creature — Spider Human Hero",
-			OracleText:    "Some ability text.",
-			Rarity:        "mythic",
-			Set:           "om1",
-			ProducedMana:  nil,
-			Power:         "4",
-			Toughness:     "4",
-			IsDefault:     true,
-		},
-		{
-			ArenaID:       69394,
-			Name:          "Breeding Pool",
-			FrontFaceName: "Breeding Pool",
-			ManaCost:      "",
-			CMC:           0,
-			Colors:        nil,
-			ColorIdentity: nil,
-			TypeLine:      "Land — Forest Island",
-			OracleText:    "",
-			Rarity:        "rare",
-			Set:           "rna",
-			ProducedMana:  []string{"G", "U"},
-			Power:         "",
-			Toughness:     "",
-			IsDefault:     false,
-		},
-	}
-
-	sql := buildFullCardImportSQL(cards)
-
-	// Should start with DELETE statements.
-	if !strings.HasPrefix(sql, "DELETE FROM mtga_cards_fts;") {
-		t.Error("SQL should start with DELETE FROM mtga_cards_fts")
-	}
-
-	// Should contain INSERT for Kavaero with synthetic oracle_id.
-	if !strings.Contains(sql, "'arena-97973'") {
-		t.Error("SQL should contain synthetic oracle_id 'arena-97973'")
-	}
-	if !strings.Contains(sql, "'Kavaero, Mind-Bitten'") {
-		t.Error("SQL should contain Kavaero's name")
-	}
-	if !strings.Contains(sql, "'{2}{U}{B}'") {
-		t.Error("SQL should contain Kavaero's mana cost")
-	}
-	// Power and toughness.
-	if !strings.Contains(sql, "'4', '4'") {
-		t.Error("SQL should contain power and toughness")
-	}
-	// Kavaero is_default=1, so should have FTS5 entry.
-	if !strings.Contains(sql, "INSERT INTO mtga_cards_fts") {
-		t.Error("SQL should contain FTS5 INSERT for default card")
-	}
-
-	// Breeding Pool should have produced_mana.
-	if !strings.Contains(sql, `["G","U"]`) {
-		t.Error("SQL should contain Breeding Pool's produced_mana")
-	}
-	// Breeding Pool is NOT default, so should NOT have a second FTS5 entry.
-	// Count FTS5 inserts — should be exactly 1 (Kavaero only).
-	ftsCount := strings.Count(sql, "INSERT INTO mtga_cards_fts")
-	if ftsCount != 1 {
-		t.Errorf("Expected 1 FTS5 INSERT, got %d", ftsCount)
-	}
-
-	// Empty legalities for MTGA-only cards.
-	if !strings.Contains(sql, "'{}'") {
-		t.Error("SQL should contain empty legalities '{}'")
-	}
-}

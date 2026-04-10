@@ -1,9 +1,10 @@
-// mtga-carddb extracts card data from MTGA's Raw_CardDatabase SQLite file,
-// imports it to D1, and regenerates arena_cards_gen.go for the parser.
+// mtga-carddb extracts card data from MTGA's Raw_CardDatabase SQLite file
+// and regenerates arena_cards_gen.go for the parser. D1 population is
+// handled entirely by scryfall-fetch.
 //
 // Usage:
 //
-//	go run ./plugins/mtga/tools/mtga-carddb --card-db path/to/Raw_CardDatabase.mtga --d1-database-id X --cf-account-id Y --cf-api-token Z
+//	go run ./plugins/mtga/tools/mtga-carddb --card-db path/to/Raw_CardDatabase.mtga
 //
 // The MTGA client stores this file in MTGA_Data/Downloads/Raw/ after first launch.
 // This gives 100% arena_id coverage — every card in Arena, including recent sets
@@ -44,13 +45,10 @@ func main() {
 
 func run() error {
 	cardDBPath := flag.String("card-db", "", "Path to Raw_CardDatabase .mtga SQLite file (required)")
-	d1DatabaseID := flag.String("d1-database-id", "", "Cloudflare D1 database ID (required)")
-	cfAccountID := flag.String("cf-account-id", "", "Cloudflare account ID (required)")
-	cfAPIToken := flag.String("cf-api-token", "", "Cloudflare API token (required)")
 	flag.Parse()
 
-	if *cardDBPath == "" || *d1DatabaseID == "" || *cfAccountID == "" || *cfAPIToken == "" {
-		return fmt.Errorf("all flags required: --card-db, --d1-database-id, --cf-account-id, --cf-api-token")
+	if *cardDBPath == "" {
+		return fmt.Errorf("--card-db is required")
 	}
 
 	_, thisFile, _, _ := runtime.Caller(0)
@@ -67,12 +65,6 @@ func run() error {
 	sort.Slice(cards, func(i, j int) bool {
 		return cards[i].ArenaID < cards[j].ArenaID
 	})
-
-	// Import to D1.
-	if err := importToD1(*cfAccountID, *d1DatabaseID, *cfAPIToken, cards); err != nil {
-		return fmt.Errorf("D1 import: %w", err)
-	}
-	fmt.Printf("Imported %d cards to D1\n", len(cards))
 
 	// Regenerate arena_cards_gen.go for the parser.
 	arenaCards := fullToArenaCards(cards)
