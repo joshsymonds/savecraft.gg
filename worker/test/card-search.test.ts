@@ -498,6 +498,20 @@ describe("card_search native module", () => {
     expect(names).not.toContain("Sheoldred, the Apocalypse"); // has B
   });
 
+  it("does not exceed D1 bind param limit with high limit + filters", async () => {
+    await seedCards();
+    // limit=50 → FTS fetches 150 IDs, which without capping would generate
+    // 150+ bind params and crash D1 (max 100). This test verifies the cap.
+    const result = await cardSearchModule.execute(
+      { text: "life", colors: "W", colors_op: "<=", cmc: 2, cmc_op: "<=", type: "creature", limit: 50 },
+      ftsEnv,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+    // Should not throw — the exact result count depends on seed data
+    expect(result.data.cards).toBeDefined();
+  });
+
   it("excludes tokens by default", async () => {
     await seedCards();
     // Add a token card

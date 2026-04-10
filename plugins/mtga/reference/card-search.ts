@@ -12,6 +12,10 @@ import { mergeWithRRF } from "./rules-search";
 
 const DEFAULT_LIMIT = 20;
 const RRF_K = 60;
+// D1 limits prepared statements to 100 bind parameters. Reserve slots for
+// structured filters (colors, cmc, type, format, rarity, set, LIMIT) so the
+// FTS ID IN-clause never overflows.
+const MAX_IN_CLAUSE_IDS = 85;
 
 interface CardRow {
   scryfall_id: string;
@@ -152,6 +156,13 @@ export const cardSearchModule: NativeReferenceModule = {
 
       if (ftsScryfallIds!.length === 0) {
         return { type: "structured", data: { cards: [], total: 0 } };
+      }
+
+      // D1 limits prepared statements to 100 bind parameters. The IN clause
+      // for FTS IDs is the largest consumer; cap it to leave room for
+      // structured filter params (colors, cmc, type, format, rarity, set, LIMIT).
+      if (ftsScryfallIds!.length > MAX_IN_CLAUSE_IDS) {
+        ftsScryfallIds = ftsScryfallIds!.slice(0, MAX_IN_CLAUSE_IDS);
       }
     }
 
