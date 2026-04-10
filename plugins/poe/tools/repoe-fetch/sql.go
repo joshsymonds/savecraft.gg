@@ -21,6 +21,8 @@ func buildSQL(
 	var b strings.Builder
 	q := cfapi.SQLQuote
 
+	b.WriteString("BEGIN;\n")
+
 	// Wipe all tables (FTS first, then data).
 	// NOTE: poe_uniques is managed by poeninja-fetch, not repoe-fetch.
 	b.WriteString("DELETE FROM poe_gems_fts;\n")
@@ -198,5 +200,6 @@ func buildSQL(
 		)
 	}
 
+	b.WriteString("COMMIT;\n")
 	return b.String()
 }

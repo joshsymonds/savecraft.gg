@@ -8,6 +8,7 @@
 
 import type { Env } from "../../../worker/src/types";
 import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
+import { fts5Safe } from "../../../worker/src/reference/fts5";
 import { mergeWithRRF } from "../../../worker/src/reference/rrf";
 
 const DEFAULT_LIMIT = 20;
@@ -50,11 +51,6 @@ function cardRowToResult(row: CardRow): Record<string, unknown> {
     set: row.set_code,
     keywords: JSON.parse(row.keywords || "[]") as string[],
   };
-}
-
-/** Sanitize a string for FTS5 MATCH: wrap in double quotes, escape internal double quotes. */
-function fts5Safe(s: string): string {
-  return `"${s.replace(/"/g, '""')}"`;
 }
 
 export const cardSearchModule: NativeReferenceModule = {

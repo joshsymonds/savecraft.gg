@@ -14,6 +14,8 @@ func buildUniqueSQL(uniques []ProcessedUnique) string {
 	var b strings.Builder
 	q := cfapi.SQLQuote
 
+	b.WriteString("BEGIN;\n")
+
 	// Wipe uniques tables only (FTS first, then data).
 	b.WriteString("DELETE FROM poe_uniques_fts;\n")
 	b.WriteString("DELETE FROM poe_uniques;\n")
@@ -42,5 +44,6 @@ func buildUniqueSQL(uniques []ProcessedUnique) string {
 		)
 	}
 
+	b.WriteString("COMMIT;\n")
 	return b.String()
 }

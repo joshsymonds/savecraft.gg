@@ -100,11 +100,11 @@ export const uniqueSearchModule: NativeReferenceModule = {
       };
     }
 
-    // Check if table has data
-    const countResult = await db
-      .prepare("SELECT COUNT(*) as cnt FROM poe_uniques")
-      .first<{ cnt: number }>();
-    if (!countResult || countResult.cnt === 0) {
+    // Existence check (avoid full COUNT(*) table scan).
+    const exists = await db
+      .prepare("SELECT 1 FROM poe_uniques LIMIT 1")
+      .first<Record<string, unknown>>();
+    if (!exists) {
       return {
         type: "text",
         content:

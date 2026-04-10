@@ -1,9 +1,6 @@
 /** Shared utilities for PoE reference modules. */
 
-/** Sanitize a string for FTS5 MATCH: wrap in double quotes, escape internal double quotes. */
-export function fts5Safe(s: string): string {
-  return `"${s.replace(/"/g, '""')}"`;
-}
+export { fts5Safe } from "../../../worker/src/reference/fts5";
 
 /** Parse a JSON column value (string) back to an array. Returns [] on null or parse failure. */
 export function parseJsonColumn(value: string | null): unknown[] {

@@ -16,6 +16,31 @@ import { fts5Safe, parseJsonColumn } from "./shared";
 
 const DEFAULT_LIMIT = 20;
 
+/** Map from user-facing item class names to PoE spawn weight tags. */
+const ITEM_CLASS_TAG_MAP: Record<string, string[]> = {
+  weapon: ["weapon", "sword", "axe", "mace", "claw", "dagger", "wand", "sceptre", "staff", "bow"],
+  sword: ["sword", "one_hand_weapon", "two_hand_weapon"],
+  axe: ["axe", "one_hand_weapon", "two_hand_weapon"],
+  mace: ["mace", "one_hand_weapon", "two_hand_weapon"],
+  claw: ["claw"],
+  dagger: ["dagger"],
+  wand: ["wand"],
+  sceptre: ["sceptre"],
+  staff: ["staff"],
+  bow: ["bow"],
+  quiver: ["quiver"],
+  helmet: ["helmet"],
+  body_armour: ["body_armour", "str_armour", "dex_armour", "int_armour", "str_dex_armour", "str_int_armour", "dex_int_armour", "str_dex_int_armour"],
+  gloves: ["gloves"],
+  boots: ["boots"],
+  shield: ["shield", "str_shield", "dex_shield", "int_shield", "str_dex_shield", "str_int_shield", "dex_int_shield"],
+  ring: ["ring"],
+  amulet: ["amulet"],
+  belt: ["belt"],
+  flask: ["flask"],
+  jewel: ["jewel", "abyss_jewel_melee", "abyss_jewel_ranged", "abyss_jewel_caster", "abyss_jewel_summoner"],
+};
+
 interface ModRow {
   mod_id: string;
   mod_name: string;
@@ -45,17 +70,16 @@ function matchesItemClass(
   if (!spawnsJson) return false;
   try {
     const spawns: Record<string, number> = JSON.parse(spawnsJson);
-    // Check for exact tag match or common category tags.
-    // poe.ninja uses display names like "Body Armour"; spawn weights use
-    // internal tags like "str_armour", "weapon", "ring", etc.
     const lc = itemClass.toLowerCase().replace(/\s+/g, "_");
-    for (const tag of Object.keys(spawns)) {
-      if (tag === lc || tag.includes(lc) || lc.includes(tag)) {
-        return true;
-      }
+
+    // Look up known tags for this item class.
+    const knownTags = ITEM_CLASS_TAG_MAP[lc];
+    if (knownTags) {
+      return knownTags.some((tag) => tag in spawns);
     }
-    // Also check if "weapon" or "armour" tags match broad categories.
-    return false;
+
+    // Fallback: exact match against spawn weight tags.
+    return lc in spawns;
   } catch {
     return false;
   }
@@ -128,11 +152,11 @@ export const modSearchModule: NativeReferenceModule = {
       };
     }
 
-    // Check if table has data
-    const countResult = await db
-      .prepare("SELECT COUNT(*) as cnt FROM poe_mods")
-      .first<{ cnt: number }>();
-    if (!countResult || countResult.cnt === 0) {
+    // Existence check (avoid full COUNT(*) table scan).
+    const exists = await db
+      .prepare("SELECT 1 FROM poe_mods LIMIT 1")
+      .first<Record<string, unknown>>();
+    if (!exists) {
       return {
         type: "text",
         content:
@@ -140,27 +164,12 @@ export const modSearchModule: NativeReferenceModule = {
       };
     }
 
-    // FTS5 keyword search — get matching mod_ids
+    // FTS5 JOIN — applies text matching and structured filters in one query.
+    // No pre-filter truncation: SQLite evaluates the full FTS result set
+    // against all WHERE conditions before applying LIMIT.
     const safeQuery = fts5Safe(searchQuery);
-    const ftsResults = await db
-      .prepare(
-        "SELECT mod_id FROM poe_mods_fts WHERE poe_mods_fts MATCH ? LIMIT ?",
-      )
-      .bind(safeQuery, 90)
-      .all<{ mod_id: string }>();
-
-    const modIds = ftsResults.results.map((r) => r.mod_id);
-    if (modIds.length === 0) {
-      return {
-        type: "structured",
-        data: { query: searchQuery, mods: [], count: 0 },
-      };
-    }
-
-    // Fetch full rows with filters
-    const placeholders = modIds.map(() => "?").join(",");
-    const conditions: string[] = [`m.mod_id IN (${placeholders})`];
-    const bindings: unknown[] = [...modIds];
+    const conditions: string[] = [];
+    const bindings: unknown[] = [];
 
     if (generationType) {
       conditions.push("m.generation_type = ?");
@@ -171,17 +180,29 @@ export const modSearchModule: NativeReferenceModule = {
       bindings.push(domain);
     }
 
-    bindings.push(limit);
-    const sql = `SELECT m.* FROM poe_mods m WHERE ${conditions.join(" AND ")} ORDER BY m.mod_name LIMIT ?`;
+    const whereClause =
+      conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+    // FTS MATCH is in the JOIN condition, structured filters in WHERE.
+    // item_class filter is applied in JS after the query because it requires
+    // JSON parsing of spawn weight tags. We fetch extra rows to compensate.
+    const sqlLimit = itemClass ? limit * 5 : limit;
+
+    const sql = `SELECT m.* FROM poe_mods m INNER JOIN poe_mods_fts fts ON m.mod_id = fts.mod_id AND fts.poe_mods_fts MATCH ? ${whereClause} ORDER BY fts.rank, m.mod_name LIMIT ?`;
+    bindings.unshift(safeQuery);
+    bindings.push(sqlLimit);
+
     const rows = await db.prepare(sql).bind(...bindings).all<ModRow>();
 
-    // Apply item_class filter in JS (checks JSON spawn weight tags)
+    // Apply item_class filter in JS (checks JSON spawn weight tags).
+    // Fetch extra rows above to avoid truncation, then trim to limit.
     let results = rows.results;
     if (itemClass) {
       results = results.filter((r) =>
         matchesItemClass(r.item_class_spawns, itemClass),
       );
     }
+    results = results.slice(0, limit);
 
     return {
       type: "structured",

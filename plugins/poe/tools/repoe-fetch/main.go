@@ -299,11 +299,22 @@ func run() error {
 	fmt.Printf("Fetched %d base items\n", len(baseItems))
 
 	fmt.Println("Fetching stat translations...")
-	statTranslations, err := fetchStatTranslations()
+	rawTransBytes, err := fetchRawStatTranslations()
 	if err != nil {
 		return fmt.Errorf("fetching stat translations: %w", err)
 	}
+	statTranslations, err := parseStatTranslations(rawTransBytes)
+	if err != nil {
+		return fmt.Errorf("parsing stat translations: %w", err)
+	}
 	fmt.Printf("Fetched %d stat translations\n", len(statTranslations))
+
+	// Build the translator for mod rendering from the same raw data.
+	var rawTranslations []RawStatTranslation
+	if err := json.Unmarshal(rawTransBytes, &rawTranslations); err != nil {
+		return fmt.Errorf("parsing raw stat translations for translator: %w", err)
+	}
+	translator := NewStatTranslator(rawTranslations)
 
 	fmt.Println("Fetching passive tree...")
 	passiveNodes, err := fetchPassiveNodes()
@@ -313,7 +324,7 @@ func run() error {
 	fmt.Printf("Fetched %d passive nodes\n", len(passiveNodes))
 
 	fmt.Println("Fetching mods...")
-	modGroups, err := fetchAndProcessMods()
+	modGroups, err := fetchAndProcessMods(translator)
 	if err != nil {
 		return fmt.Errorf("fetching mods: %w", err)
 	}
@@ -692,15 +703,20 @@ func fetchBaseItems() ([]ProcessedBaseItem, error) {
 	return items, nil
 }
 
-func fetchStatTranslations() ([]ProcessedStatTranslation, error) {
+// fetchRawStatTranslations fetches and returns the raw stat_translations.json bytes.
+// Called once; the bytes are parsed twice (for D1 import and for the mod translator).
+func fetchRawStatTranslations() ([]byte, error) {
 	resp, err := httpGet(statTranslationsURL)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+	return io.ReadAll(resp.Body)
+}
 
+func parseStatTranslations(data []byte) ([]ProcessedStatTranslation, error) {
 	var raw []StatTranslation
-	if err := json.NewDecoder(resp.Body).Decode(&raw); err != nil {
+	if err := json.Unmarshal(data, &raw); err != nil {
 		return nil, fmt.Errorf("decoding stat translations: %w", err)
 	}
 
@@ -785,7 +801,7 @@ func fetchPassiveNodes() ([]ProcessedPassiveNode, error) {
 // fetchAndProcessMods fetches mods.json and stat_translations.json, then
 // groups mods by (type, domain, generation_type), renders human-readable
 // mod names via stat translations, and returns per-group processed data.
-func fetchAndProcessMods() ([]ProcessedModGroup, error) {
+func fetchAndProcessMods(translator *StatTranslator) ([]ProcessedModGroup, error) {
 	// Fetch mods.
 	resp, err := httpGet(modsURL)
 	if err != nil {
@@ -798,20 +814,6 @@ func fetchAndProcessMods() ([]ProcessedModGroup, error) {
 		return nil, fmt.Errorf("decoding mods: %w", err)
 	}
 	fmt.Printf("  Fetched %d raw mods\n", len(rawMods))
-
-	// Fetch stat translations for rendering.
-	transResp, err := httpGet(statTranslationsURL)
-	if err != nil {
-		return nil, fmt.Errorf("fetching stat translations for mod rendering: %w", err)
-	}
-	defer transResp.Body.Close()
-
-	var rawTranslations []RawStatTranslation
-	if err := json.NewDecoder(transResp.Body).Decode(&rawTranslations); err != nil {
-		return nil, fmt.Errorf("decoding stat translations: %w", err)
-	}
-
-	translator := NewStatTranslator(rawTranslations)
 
 	// Filter to crafting-relevant mods and group by (type, domain, generation_type).
 	type groupKey struct{ typ, domain, genType string }
