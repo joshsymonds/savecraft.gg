@@ -1,16 +1,14 @@
-// scryfall-fetch enriches existing MTGA-sourced card data in D1 with Scryfall
-// metadata (oracle_id, legalities, keywords, oracle_text, produced_mana) and
-// inserts non-Arena cards from Scryfall bulk data.
-//
-// Prerequisite: mtga-carddb must run first to populate D1 with base card data
-// from the MTGA client database. This tool only enriches — it never deletes
-// the mtga_cards table.
+// scryfall-fetch populates magic_cards in D1 with all Magic cards from
+// Scryfall's default_cards bulk data (~113k cards). It is the sole writer
+// to magic_cards — mtga-carddb only generates arena_cards_gen.go for the parser.
 //
 // Usage: go run ./plugins/mtga/tools/scryfall-fetch --d1-database-id=UUID [--vectorize-index=NAME]
 //
-// D1 enrichment:
-//   - UPSERTs into mtga_cards (enriches existing rows, inserts non-Arena cards)
-//   - Rebuilds mtga_cards_fts from enriched default printings
+// D1 population:
+//   - Wipes and repopulates magic_cards with all Scryfall cards
+//   - Arena cards get arena_id from Scryfall + MTGA client fallback
+//   - DFC back-face arena_ids stored in arena_id_back on the front face's row
+//   - Rebuilds magic_cards_fts from default printings
 //   - Vectorize card embeddings (when --vectorize-index also set)
 package main
 
@@ -36,7 +34,9 @@ import (
 
 // ScryfallCard represents the fields we extract from each Scryfall card object.
 type ScryfallCard struct {
-	ArenaID       int               `json:"arena_id"`
+	ScryfallID    string            `json:"id"`           // Scryfall's unique card ID (per printing)
+	ArenaID       int               `json:"arena_id"`     // MTGA arena_id (0 if not on Arena)
+	ArenaIDBack   int               `json:"-"`            // DFC back-face arena_id (merged from MTGA client data)
 	OracleID      string            `json:"oracle_id"`
 	Name          string            `json:"name"`
 	PrintedName   string            `json:"printed_name"` // Arena alternate name for UB cards (e.g., "Kavaero, Mind-Bitten")
@@ -51,6 +51,8 @@ type ScryfallCard struct {
 	Set           string            `json:"set"`
 	Keywords      []string          `json:"keywords"`
 	ProducedMana  []string          `json:"produced_mana"`
+	Power         string            `json:"power"`
+	Toughness     string            `json:"toughness"`
 	Games         []string          `json:"games"`
 	IsDefault     bool              `json:"-"` // computed, not from Scryfall
 	FrontFaceName string            `json:"-"` // computed: Name split on " // ", first part
@@ -107,35 +109,25 @@ func run() error {
 		return fmt.Errorf("downloading cards: %w", err)
 	}
 	cards := result.cards
-	// Deduplicate by arena_id. default_cards can list multiple printings of the
-	// same card sharing one arena_id (e.g., a set printing + a Historic Anthology
-	// reprint). Keep only one entry per arena_id.
-	seen := make(map[int]struct{}, len(cards))
-	deduped := cards[:0]
-	for _, c := range cards {
-		if _, ok := seen[c.ArenaID]; ok {
-			continue
-		}
-		seen[c.ArenaID] = struct{}{}
-		deduped = append(deduped, c)
-	}
-	cards = deduped
-	fmt.Printf("Found %d unique arena_ids (%d unique cards)\n", len(cards), countUniqueOracleIDs(cards))
+	fmt.Printf("Found %d cards (%d unique oracle_ids)\n", len(cards), countUniqueOracleIDs(cards))
 
-	// Backfill: MTGA client cards not matched by arena_id can still get
-	// legalities via exact name match against the full Scryfall bulk data.
-	backfilled := backfillFromNameIndex(cards, result.nameIndex)
+	// Merge DFC back-face arena_ids from MTGA client data onto front-face rows.
+	mergeBackFaceArenaIDs(cards)
+
+	// Backfill: MTGA client cards not in Scryfall at all (emblems, Arena-only
+	// game objects) get synthetic scryfall_ids and are appended.
+	backfilled := backfillArenaOnly(cards, result.nameIndex)
 	if len(backfilled) > 0 {
 		cards = append(cards, backfilled...)
-		fmt.Printf("Backfilled %d MTGA-only cards with Scryfall data via exact name match\n", len(backfilled))
+		fmt.Printf("Backfilled %d Arena-only cards not in Scryfall (emblems, tokens)\n", len(backfilled))
 	}
 
-	// Mark the most recent Arena printing (highest arena_id) per oracle_id as default.
+	// Mark one default printing per oracle_id. Prefer Arena printings.
 	computeDefaults(cards)
 
-	// Sort by arena_id for deterministic output.
+	// Sort by scryfall_id for deterministic output.
 	sort.Slice(cards, func(i, j int) bool {
-		return cards[i].ArenaID < cards[j].ArenaID
+		return cards[i].ScryfallID < cards[j].ScryfallID
 	})
 
 	// ── Cloudflare population (D1 + Vectorize) ──────────────
@@ -146,7 +138,7 @@ func run() error {
 	if *d1DatabaseID != "" {
 		wg.Go(func() {
 			fmt.Println("\nPopulating D1 tables...")
-			sql := buildCardEnrichmentSQL(cards)
+			sql := buildCardSQL(cards)
 
 			// Content hash for change detection.
 			h := sha256.Sum256([]byte(sql))
@@ -231,8 +223,8 @@ func getDefaultCardsURL() (string, error) {
 	return "", fmt.Errorf("default_cards not found in bulk data response")
 }
 
-// downloadResult holds Arena-matched cards and a name-based index of all
-// Scryfall cards for backfilling MTGA-only cards that weren't matched.
+// downloadResult holds all Scryfall cards and a name-based index for
+// backfilling Arena-only cards not in Scryfall.
 type downloadResult struct {
 	cards     []ScryfallCard
 	nameIndex map[string]ScryfallCard // lowercase front_face_name → best card (most legalities)
@@ -257,23 +249,29 @@ func downloadAndFilter(url string) (downloadResult, error) {
 	}
 
 	// Build reverse lookup from MTGA client data: (name, set) → arena_id.
-	// Scryfall bulk data often lacks arena_id for newer Universes Beyond sets
-	// even when the cards are on Arena. The MTGA client database has 100% coverage.
+	// Used to resolve arena_id for Arena cards where Scryfall lacks it.
 	arenaLookup := buildArenaLookup()
 
-	// Name-based index: for every card in the bulk data (not just Arena),
-	// keep the entry with the most populated legalities. Used to backfill
-	// MTGA client cards that Scryfall doesn't have an arena_id for.
+	// Name-based index for backfilling Arena-only cards not in Scryfall.
 	nameIndex := make(map[string]ScryfallCard)
+
+	// Deduplicate by scryfall_id.
+	seen := make(map[string]struct{})
 
 	var cards []ScryfallCard
 	var resolved int
-	var unresolved []string
 	for dec.More() {
 		var card ScryfallCard
 		if err := dec.Decode(&card); err != nil {
 			return downloadResult{}, fmt.Errorf("decoding card: %w", err)
 		}
+
+		// Deduplicate by scryfall_id.
+		if _, ok := seen[card.ScryfallID]; ok {
+			continue
+		}
+		seen[card.ScryfallID] = struct{}{}
+
 		// Split/adventure/DFC cards: extract front face name.
 		if before, _, ok := strings.Cut(card.Name, " // "); ok {
 			card.FrontFaceName = before
@@ -282,13 +280,11 @@ func downloadAndFilter(url string) (downloadResult, error) {
 		}
 
 		// Index every card by front face name for backfill lookups.
-		// Prefer the entry with more legality data.
 		nameKey := strings.ToLower(card.FrontFaceName)
 		if existing, ok := nameIndex[nameKey]; !ok || len(card.Legalities) > len(existing.Legalities) {
 			nameIndex[nameKey] = card
 		}
 		// Also index by printed_name (Arena alternate name for UB cards).
-		// e.g., "Kavaero, Mind-Bitten" is the printed_name for "Superior Spider-Man".
 		if card.PrintedName != "" {
 			printedKey := strings.ToLower(card.PrintedName)
 			if before, _, ok := strings.Cut(printedKey, " // "); ok {
@@ -299,76 +295,129 @@ func downloadAndFilter(url string) (downloadResult, error) {
 			}
 		}
 
-		// Only collect Arena cards for the main enrichment pass.
-		if !slices.Contains(card.Games, "arena") {
-			continue
-		}
-		// Fall back to MTGA client data for arena_id when Scryfall doesn't have it.
-		if card.ArenaID == 0 {
+		// For Arena cards, resolve arena_id from Scryfall or MTGA client fallback.
+		if slices.Contains(card.Games, "arena") && card.ArenaID == 0 {
 			key := arenaKey{strings.ToLower(card.FrontFaceName), strings.ToLower(card.Set)}
 			if id, ok := arenaLookup[key]; ok {
 				card.ArenaID = id
 				resolved++
-			} else {
-				unresolved = append(unresolved, fmt.Sprintf("%s [%s]", card.Name, card.Set))
-				continue
 			}
 		}
+
 		cards = append(cards, card)
 	}
 
 	if resolved > 0 {
 		fmt.Printf("Resolved %d arena_ids from MTGA client data (Scryfall bulk data was missing them)\n", resolved)
 	}
-	if len(unresolved) > 0 {
-		fmt.Fprintf(os.Stderr, "WARN: %d Arena cards skipped (no arena_id in Scryfall or MTGA client data):\n", len(unresolved))
-		for _, name := range unresolved {
-			fmt.Fprintf(os.Stderr, "  %s\n", name)
-		}
-	}
 	return downloadResult{cards: cards, nameIndex: nameIndex}, nil
 }
 
-// backfillFromNameIndex finds MTGA client cards that weren't matched to
-// Scryfall by arena_id and enriches them via exact front_face_name match
-// against the full Scryfall bulk data. Only exact matches are used —
-// ambiguous or missing names are skipped.
-func backfillFromNameIndex(matched []ScryfallCard, nameIndex map[string]ScryfallCard) []ScryfallCard {
-	// Build set of arena_ids already matched.
-	matchedIDs := make(map[int]struct{}, len(matched))
-	for _, c := range matched {
-		matchedIDs[c.ArenaID] = struct{}{}
+// mergeBackFaceArenaIDs finds MTGA client cards that are DFC back faces
+// (not matched by front_face_name to any Scryfall card) and stores their
+// arena_id as ArenaIDBack on the matching front-face Scryfall card.
+func mergeBackFaceArenaIDs(cards []ScryfallCard) {
+	// Build set of arena_ids already on front-face cards.
+	frontIDs := make(map[int]struct{}, len(cards))
+	for _, c := range cards {
+		if c.ArenaID > 0 {
+			frontIDs[c.ArenaID] = struct{}{}
+		}
+	}
+
+	// Build (lowercase_name, lowercase_set) → card index for merging.
+	type nameSetKey struct{ name, set string }
+	frontIndex := make(map[nameSetKey]int, len(cards))
+	for i, c := range cards {
+		key := nameSetKey{strings.ToLower(c.FrontFaceName), strings.ToLower(c.Set)}
+		frontIndex[key] = i
+	}
+
+	var merged int
+	for arenaID, card := range data.ArenaCards {
+		if _, ok := frontIDs[arenaID]; ok {
+			continue // already a front-face match
+		}
+		// This MTGA card wasn't matched — it's likely a DFC back face.
+		// Try to find its front face in our Scryfall cards by (name, set).
+		// Back faces in MTGA have their own name; look for any Scryfall card
+		// in the same set whose full Name contains " // back_face_name".
+		name := strings.ToLower(card.Name)
+		if before, _, ok := strings.Cut(name, " // "); ok {
+			name = before
+		}
+		// First try direct (name, set) match — handles cases where the back
+		// face name IS the front face name of another card (rare).
+		key := nameSetKey{name, card.Set}
+		if idx, ok := frontIndex[key]; ok {
+			if cards[idx].ArenaIDBack == 0 {
+				cards[idx].ArenaIDBack = arenaID
+				merged++
+			}
+			continue
+		}
+		// Search all cards in same set for one whose Name includes this as back face.
+		for i, c := range cards {
+			if strings.ToLower(c.Set) != card.Set {
+				continue
+			}
+			_, backPart, ok := strings.Cut(c.Name, " // ")
+			if !ok {
+				continue
+			}
+			if strings.ToLower(backPart) == name && cards[i].ArenaIDBack == 0 {
+				cards[i].ArenaIDBack = arenaID
+				merged++
+				break
+			}
+		}
+	}
+	if merged > 0 {
+		fmt.Printf("Merged %d DFC back-face arena_ids onto front-face cards\n", merged)
+	}
+}
+
+// backfillArenaOnly finds MTGA client cards that don't exist in Scryfall at
+// all (Arena-only emblems, tokens, event cards). These get synthetic
+// scryfall_ids of the form "arena-{arena_id}".
+func backfillArenaOnly(cards []ScryfallCard, nameIndex map[string]ScryfallCard) []ScryfallCard {
+	// Build set of all arena_ids already in cards (front + back).
+	matchedIDs := make(map[int]struct{}, len(cards)*2)
+	for _, c := range cards {
+		if c.ArenaID > 0 {
+			matchedIDs[c.ArenaID] = struct{}{}
+		}
+		if c.ArenaIDBack > 0 {
+			matchedIDs[c.ArenaIDBack] = struct{}{}
+		}
 	}
 
 	var backfilled []ScryfallCard
 	for arenaID, card := range data.ArenaCards {
 		if _, ok := matchedIDs[arenaID]; ok {
-			continue // already matched
+			continue
 		}
 		name := strings.ToLower(card.Name)
 		if before, _, ok := strings.Cut(name, " // "); ok {
 			name = before
 		}
-		scryfall, ok := nameIndex[name]
-		if !ok || len(scryfall.Legalities) == 0 {
-			continue // no match or no legality data
+		// If Scryfall has this card by name, it was already collected —
+		// this arena_id just wasn't linked. Skip it to avoid duplicates.
+		if sc, ok := nameIndex[name]; ok && sc.ScryfallID != "" {
+			continue
+		}
+		frontFace := card.Name
+		if before, _, ok := strings.Cut(frontFace, " // "); ok {
+			frontFace = before
 		}
 		backfilled = append(backfilled, ScryfallCard{
+			ScryfallID:    fmt.Sprintf("arena-%d", arenaID),
 			ArenaID:       arenaID,
-			OracleID:      scryfall.OracleID,
-			Name:          scryfall.Name,
-			FrontFaceName: scryfall.FrontFaceName,
-			ManaCost:      scryfall.ManaCost,
-			CMC:           scryfall.CMC,
-			TypeLine:      scryfall.TypeLine,
-			OracleText:    scryfall.OracleText,
-			Colors:        scryfall.Colors,
-			ColorIdentity: scryfall.ColorIdentity,
-			Legalities:    scryfall.Legalities,
-			Rarity:        scryfall.Rarity,
-			Set:           scryfall.Set,
-			Keywords:      scryfall.Keywords,
-			ProducedMana:  scryfall.ProducedMana,
+			OracleID:      fmt.Sprintf("arena-%d", arenaID),
+			Name:          card.Name,
+			FrontFaceName: frontFace,
+			Rarity:        card.Rarity,
+			Set:           card.Set,
 		})
 	}
 	return backfilled
@@ -399,14 +448,23 @@ func buildArenaLookup() map[arenaKey]int {
 	return lookup
 }
 
-// computeDefaults marks the highest arena_id per oracle_id as IsDefault = true.
-// This makes the most recently added Arena printing the canonical one for
-// search (FTS5) and Vectorize, while all printings remain in the structured table.
+// computeDefaults marks one printing per oracle_id as IsDefault = true.
+// Prefers Arena printings (highest arena_id) over non-Arena printings.
+// Among non-Arena printings, picks the first one encountered (stable by scryfall_id sort).
 func computeDefaults(cards []ScryfallCard) {
-	// Find highest arena_id per oracle_id.
 	best := make(map[string]int) // oracle_id → index in cards slice
 	for i, c := range cards {
-		if prev, ok := best[c.OracleID]; !ok || c.ArenaID > cards[prev].ArenaID {
+		prev, exists := best[c.OracleID]
+		if !exists {
+			best[c.OracleID] = i
+			continue
+		}
+		prevCard := cards[prev]
+		// Prefer Arena printings over non-Arena.
+		if c.ArenaID > 0 && prevCard.ArenaID == 0 {
+			best[c.OracleID] = i
+		} else if c.ArenaID > 0 && prevCard.ArenaID > 0 && c.ArenaID > prevCard.ArenaID {
+			// Among Arena printings, prefer highest arena_id.
 			best[c.OracleID] = i
 		}
 	}

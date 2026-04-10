@@ -3,8 +3,6 @@ package main
 import (
 	"strings"
 	"testing"
-
-	"github.com/joshsymonds/savecraft.gg/plugins/mtga/parser/data"
 )
 
 func TestBuildArenaLookup(t *testing.T) {
@@ -37,30 +35,24 @@ func TestBuildArenaLookup(t *testing.T) {
 	}
 }
 
-func TestBackfillFromNameIndex(t *testing.T) {
-	// Simulate: arena_id 999 is in MTGA client data but not matched by Scryfall.
-	// The name index has the card with legalities.
-	matched := []ScryfallCard{
-		{ArenaID: 1, FrontFaceName: "Lightning Bolt"},
+func TestBackfillArenaOnly(t *testing.T) {
+	// backfillArenaOnly finds MTGA client cards not in Scryfall at all.
+	// Cards with a name match in the nameIndex should NOT be backfilled
+	// (they're already in Scryfall under a different printing).
+	cards := []ScryfallCard{
+		{ScryfallID: "abc-123", ArenaID: 1, FrontFaceName: "Lightning Bolt"},
 	}
 	nameIndex := map[string]ScryfallCard{
 		"lightning bolt": {
+			ScryfallID:    "abc-123",
 			OracleID:      "bolt-oracle",
 			Name:          "Lightning Bolt",
 			FrontFaceName: "Lightning Bolt",
 			Legalities:    map[string]string{"standard": "legal"},
 		},
-		// A card that exists in MTGA client data but not in matched
-		"kavaero, mind-bitten": {
-			OracleID:      "kavaero-oracle",
-			Name:          "Kavaero, Mind-Bitten",
-			FrontFaceName: "Kavaero, Mind-Bitten",
-			Legalities:    map[string]string{"standard": "legal", "historic": "legal"},
-			TypeLine:      "Legendary Creature",
-		},
 	}
 
-	backfilled := backfillFromNameIndex(matched, nameIndex)
+	backfilled := backfillArenaOnly(cards, nameIndex)
 
 	// Lightning Bolt (arena_id 1) is already matched — should NOT be backfilled.
 	for _, c := range backfilled {
@@ -69,88 +61,104 @@ func TestBackfillFromNameIndex(t *testing.T) {
 		}
 	}
 
-	// Cards from MTGA client data that match by name should be backfilled.
-	// We can't predict specific arena_ids from data.ArenaCards, but we can
-	// verify the function doesn't crash and returns reasonable results.
-	// The key property: backfilled cards should have legalities from the index.
+	// Backfilled cards should have synthetic scryfall_ids.
 	for _, c := range backfilled {
-		if len(c.Legalities) == 0 {
-			t.Errorf("backfilled card %d (%s) has empty legalities", c.ArenaID, c.Name)
+		if !strings.HasPrefix(c.ScryfallID, "arena-") {
+			t.Errorf("backfilled card %d (%s) should have synthetic scryfall_id, got %q", c.ArenaID, c.Name, c.ScryfallID)
 		}
-		if c.OracleID == "" {
-			t.Errorf("backfilled card %d (%s) has empty oracle_id", c.ArenaID, c.Name)
+		if c.ArenaID <= 0 {
+			t.Errorf("backfilled card should have positive arena_id, got %d", c.ArenaID)
 		}
 	}
 }
 
-func TestBackfillMatchesByPrintedName(t *testing.T) {
-	// UB cards have printed_name in Scryfall (Arena alternate name).
-	// The name index should contain both the canonical name AND the printed name.
-	matched := []ScryfallCard{}
+func TestBackfillArenaOnlySkipsNameMatches(t *testing.T) {
+	// If the nameIndex has a Scryfall entry for the card name, the card
+	// exists in Scryfall (just wasn't matched by arena_id) — skip it.
+	cards := []ScryfallCard{}
 	nameIndex := map[string]ScryfallCard{
-		// Canonical name
-		"superior spider-man": {
-			OracleID:   "spider-oracle",
-			Name:       "Superior Spider-Man",
-			Legalities: map[string]string{"standard": "legal"},
-		},
-		// Printed name (Arena alternate) — should also be in the index
 		"kavaero, mind-bitten": {
+			ScryfallID: "real-scryfall-id",
 			OracleID:   "spider-oracle",
 			Name:       "Superior Spider-Man",
 			Legalities: map[string]string{"standard": "legal"},
 		},
 	}
 
-	backfilled := backfillFromNameIndex(matched, nameIndex)
+	backfilled := backfillArenaOnly(cards, nameIndex)
 
-	// Any MTGA client card named "Kavaero, Mind-Bitten" should match
-	// via the printed_name index entry.
-	found := false
+	// Kavaero should NOT be backfilled because it exists in Scryfall
+	// (under its canonical name via the nameIndex).
 	for _, c := range backfilled {
-		if c.OracleID == "spider-oracle" {
-			found = true
-			if len(c.Legalities) == 0 {
-				t.Error("backfilled UB card should have legalities")
-			}
-		}
-	}
-	// We can only verify this if data.ArenaCards actually has a card named
-	// "Kavaero, Mind-Bitten" — which it does (arena_id 97973).
-	if !found {
-		// Check if the card exists in MTGA client data
-		for _, card := range data.ArenaCards {
-			name := strings.ToLower(card.Name)
-			if before, _, ok := strings.Cut(name, " // "); ok {
-				name = before
-			}
-			if name == "kavaero, mind-bitten" {
-				t.Error("Kavaero exists in ArenaCards but wasn't backfilled — printed_name index missing")
-				break
-			}
+		if strings.Contains(strings.ToLower(c.Name), "kavaero") {
+			t.Error("card with Scryfall name match should not be backfilled as Arena-only")
 		}
 	}
 }
 
-func TestBackfillSkipsEmptyLegalities(t *testing.T) {
-	matched := []ScryfallCard{}
-	nameIndex := map[string]ScryfallCard{
-		// Card exists in index but has no legalities — should be skipped
-		"some card": {
-			OracleID:   "some-oracle",
-			Name:       "Some Card",
-			Legalities: map[string]string{},
+func TestMergeBackFaceArenaIDs(t *testing.T) {
+	// Simulate a DFC: "Poppet Stitcher // Poppet Factory"
+	// Front face has arena_id from Scryfall, back face has a separate arena_id
+	// in MTGA client data that should be merged.
+	cards := []ScryfallCard{
+		{
+			ScryfallID:    "abc-123",
+			ArenaID:       78407,
+			Name:          "Poppet Stitcher // Poppet Factory",
+			FrontFaceName: "Poppet Stitcher",
+			Set:           "mid",
 		},
 	}
 
-	backfilled := backfillFromNameIndex(matched, nameIndex)
+	// mergeBackFaceArenaIDs reads from data.ArenaCards so we can't control
+	// inputs directly. But we can verify it doesn't crash and preserves
+	// existing card data.
+	mergeBackFaceArenaIDs(cards)
 
-	// No MTGA client card named "some card" exists, so nothing to backfill.
-	// But even if one did, empty legalities should be skipped.
-	for _, c := range backfilled {
-		if len(c.Legalities) == 0 {
-			t.Errorf("card with empty legalities should not be backfilled: %s", c.Name)
+	if cards[0].ScryfallID != "abc-123" {
+		t.Error("mergeBackFaceArenaIDs should not modify scryfall_id")
+	}
+	if cards[0].ArenaID != 78407 {
+		t.Error("mergeBackFaceArenaIDs should not modify front-face arena_id")
+	}
+}
+
+func TestComputeDefaultsPrefersArena(t *testing.T) {
+	cards := []ScryfallCard{
+		{ScryfallID: "paper-1", ArenaID: 0, OracleID: "bolt-oracle", Name: "Lightning Bolt"},
+		{ScryfallID: "arena-1", ArenaID: 12345, OracleID: "bolt-oracle", Name: "Lightning Bolt"},
+		{ScryfallID: "paper-2", ArenaID: 0, OracleID: "bolt-oracle", Name: "Lightning Bolt"},
+	}
+
+	computeDefaults(cards)
+
+	for i, c := range cards {
+		if c.ScryfallID == "arena-1" && !c.IsDefault {
+			t.Errorf("card[%d] Arena printing should be default", i)
 		}
+		if c.ScryfallID != "arena-1" && c.IsDefault {
+			t.Errorf("card[%d] non-Arena printing should not be default", i)
+		}
+	}
+}
+
+func TestComputeDefaultsNonArenaFallback(t *testing.T) {
+	// When no Arena printing exists, one non-Arena printing should be default.
+	cards := []ScryfallCard{
+		{ScryfallID: "paper-1", ArenaID: 0, OracleID: "force-oracle", Name: "Force of Will"},
+		{ScryfallID: "paper-2", ArenaID: 0, OracleID: "force-oracle", Name: "Force of Will"},
+	}
+
+	computeDefaults(cards)
+
+	defaultCount := 0
+	for _, c := range cards {
+		if c.IsDefault {
+			defaultCount++
+		}
+	}
+	if defaultCount != 1 {
+		t.Errorf("expected exactly 1 default, got %d", defaultCount)
 	}
 }
 
@@ -159,10 +167,7 @@ func TestBuildArenaLookupSplitCards(t *testing.T) {
 
 	// Split/DFC cards in ArenaCards have full names ("Fire // Ice").
 	// The lookup should index them by front face name ("fire").
-	// Check that a known split card is accessible by front face.
-	//
-	// We can't predict exact card names, but we can verify the property:
-	// no key should contain " // " since we split on it.
+	// No key should contain " // " since we split on it.
 	for key := range lookup {
 		if strings.Contains(key.name, " // ") {
 			t.Errorf("lookup key contains unsplit name: %q", key.name)

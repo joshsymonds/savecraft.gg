@@ -5,9 +5,10 @@ import (
 	"testing"
 )
 
-func TestBuildCardEnrichmentSQL(t *testing.T) {
+func TestBuildCardSQL(t *testing.T) {
 	cards := []ScryfallCard{
 		{
+			ScryfallID:    "scry-sheoldred",
 			ArenaID:       87521,
 			OracleID:      "abc-123",
 			Name:          "Sheoldred, the Apocalypse",
@@ -25,7 +26,8 @@ func TestBuildCardEnrichmentSQL(t *testing.T) {
 			IsDefault:     true,
 		},
 		{
-			ArenaID:       1,
+			ScryfallID:    "scry-bolt",
+			ArenaID:       0, // non-Arena card
 			OracleID:      "def-456",
 			Name:          "Lightning Bolt",
 			FrontFaceName: "Lightning Bolt",
@@ -40,35 +42,30 @@ func TestBuildCardEnrichmentSQL(t *testing.T) {
 		},
 	}
 
-	sql := buildCardEnrichmentSQL(cards)
+	sql := buildCardSQL(cards)
 
-	// Should delete FTS5 entries per card (not bulk delete).
-	if !strings.Contains(sql, "DELETE FROM mtga_cards_fts WHERE arena_id = 87521;") {
-		t.Error("SQL should delete FTS5 for Sheoldred's arena_id")
+	// Should wipe both tables first.
+	if !strings.Contains(sql, "DELETE FROM magic_cards_fts;") {
+		t.Error("SQL should wipe magic_cards_fts")
 	}
-	if !strings.Contains(sql, "DELETE FROM mtga_cards_fts WHERE arena_id = 1;") {
-		t.Error("SQL should delete FTS5 for Lightning Bolt's arena_id")
-	}
-
-	// Should NOT delete from mtga_cards — mtga-carddb owns that data.
-	if strings.Contains(sql, "DELETE FROM mtga_cards;") {
-		t.Error("SQL should NOT contain DELETE FROM mtga_cards (mtga-carddb owns base data)")
+	if !strings.Contains(sql, "DELETE FROM magic_cards;") {
+		t.Error("SQL should wipe magic_cards")
 	}
 
-	// Should contain UPSERT with ON CONFLICT for enrichment.
-	if !strings.Contains(sql, "ON CONFLICT(arena_id) DO UPDATE SET") {
-		t.Error("SQL should contain ON CONFLICT upsert for enrichment")
+	// Should INSERT into magic_cards (not UPSERT — we wipe first).
+	if strings.Contains(sql, "ON CONFLICT") {
+		t.Error("SQL should not contain ON CONFLICT (wipe-and-replace)")
 	}
 
-	// Should enrich oracle_id, legalities, keywords, oracle_text, produced_mana.
-	if !strings.Contains(sql, "oracle_id =") {
-		t.Error("ON CONFLICT should update oracle_id")
+	// Arena card should have numeric arena_id.
+	if !strings.Contains(sql, "87521") {
+		t.Error("SQL should contain Sheoldred's arena_id")
 	}
-	if !strings.Contains(sql, "legalities =") {
-		t.Error("ON CONFLICT should update legalities")
-	}
-	if !strings.Contains(sql, "keywords =") {
-		t.Error("ON CONFLICT should update keywords")
+
+	// Non-Arena card should have NULL arena_id.
+	// Count NULLs — Lightning Bolt has arena_id=NULL and arena_id_back=NULL.
+	if !strings.Contains(sql, "NULL") {
+		t.Error("SQL should contain NULL for non-Arena card's arena_id")
 	}
 
 	// Should contain card names.
@@ -80,9 +77,14 @@ func TestBuildCardEnrichmentSQL(t *testing.T) {
 	}
 
 	// Both cards are default, so FTS5 INSERTs for both.
-	ftsCount := strings.Count(sql, "INSERT INTO mtga_cards_fts")
+	ftsCount := strings.Count(sql, "INSERT INTO magic_cards_fts")
 	if ftsCount != 2 {
 		t.Errorf("expected 2 FTS5 INSERTs, got %d", ftsCount)
+	}
+
+	// FTS5 should use scryfall_id.
+	if !strings.Contains(sql, "'scry-sheoldred'") {
+		t.Error("FTS5 INSERT should use scryfall_id")
 	}
 
 	// JSON arrays for colors.
@@ -91,9 +93,10 @@ func TestBuildCardEnrichmentSQL(t *testing.T) {
 	}
 }
 
-func TestBuildCardEnrichmentSQL_ProducedMana(t *testing.T) {
+func TestBuildCardSQL_ProducedMana(t *testing.T) {
 	cards := []ScryfallCard{
 		{
+			ScryfallID:    "scry-sunpetal",
 			ArenaID:       1,
 			OracleID:      "land-1",
 			Name:          "Sunpetal Grove",
@@ -106,16 +109,17 @@ func TestBuildCardEnrichmentSQL_ProducedMana(t *testing.T) {
 		},
 	}
 
-	sql := buildCardEnrichmentSQL(cards)
+	sql := buildCardSQL(cards)
 
 	if !strings.Contains(sql, `["G","W"]`) {
 		t.Error("SQL should contain produced_mana JSON for dual land")
 	}
 }
 
-func TestBuildCardEnrichmentSQL_NonDefaultSkipsFTS(t *testing.T) {
+func TestBuildCardSQL_NonDefaultSkipsFTS(t *testing.T) {
 	cards := []ScryfallCard{
 		{
+			ScryfallID:    "scry-gftt-bro",
 			ArenaID:       100,
 			OracleID:      "oracle-1",
 			Name:          "Go for the Throat",
@@ -125,6 +129,7 @@ func TestBuildCardEnrichmentSQL_NonDefaultSkipsFTS(t *testing.T) {
 			IsDefault:     false,
 		},
 		{
+			ScryfallID:    "scry-gftt-fdn",
 			ArenaID:       200,
 			OracleID:      "oracle-1",
 			Name:          "Go for the Throat",
@@ -135,24 +140,25 @@ func TestBuildCardEnrichmentSQL_NonDefaultSkipsFTS(t *testing.T) {
 		},
 	}
 
-	sql := buildCardEnrichmentSQL(cards)
+	sql := buildCardSQL(cards)
 
-	// Both get mtga_cards UPSERT.
-	upsertCount := strings.Count(sql, "INSERT INTO mtga_cards (")
-	if upsertCount != 2 {
-		t.Errorf("expected 2 mtga_cards UPSERTs, got %d", upsertCount)
+	// Both get magic_cards INSERT.
+	insertCount := strings.Count(sql, "INSERT INTO magic_cards (")
+	if insertCount != 2 {
+		t.Errorf("expected 2 magic_cards INSERTs, got %d", insertCount)
 	}
 
 	// Only default card gets FTS5 INSERT.
-	ftsCount := strings.Count(sql, "INSERT INTO mtga_cards_fts")
+	ftsCount := strings.Count(sql, "INSERT INTO magic_cards_fts")
 	if ftsCount != 1 {
 		t.Errorf("expected 1 FTS5 INSERT, got %d", ftsCount)
 	}
 }
 
-func TestBuildCardEnrichmentSQL_EscapesSingleQuotes(t *testing.T) {
+func TestBuildCardSQL_EscapesSingleQuotes(t *testing.T) {
 	cards := []ScryfallCard{
 		{
+			ScryfallID:    "scry-frodo",
 			ArenaID:       1,
 			OracleID:      "a",
 			Name:          "Frodo's Ring",
@@ -164,7 +170,7 @@ func TestBuildCardEnrichmentSQL_EscapesSingleQuotes(t *testing.T) {
 		},
 	}
 
-	sql := buildCardEnrichmentSQL(cards)
+	sql := buildCardSQL(cards)
 
 	if !strings.Contains(sql, "Frodo''s Ring") {
 		t.Error("SQL should escape single quotes in card names")
@@ -174,24 +180,55 @@ func TestBuildCardEnrichmentSQL_EscapesSingleQuotes(t *testing.T) {
 	}
 }
 
-func TestBuildCardEnrichmentSQL_EmptyCards(t *testing.T) {
-	sql := buildCardEnrichmentSQL(nil)
+func TestBuildCardSQL_EmptyCards(t *testing.T) {
+	sql := buildCardSQL(nil)
 
-	// No DELETE, no INSERT — empty input produces empty SQL.
-	if strings.Contains(sql, "DELETE") {
-		t.Error("SQL should not contain DELETE with empty cards")
+	// Should still have DELETE statements (wipe is unconditional).
+	if !strings.Contains(sql, "DELETE FROM magic_cards_fts;") {
+		t.Error("SQL should contain DELETE even with empty cards")
 	}
+	if !strings.Contains(sql, "DELETE FROM magic_cards;") {
+		t.Error("SQL should contain DELETE even with empty cards")
+	}
+	// No INSERT statements.
 	if strings.Contains(sql, "INSERT") {
 		t.Error("SQL should not contain INSERT with empty cards")
 	}
 }
 
+func TestBuildCardSQL_DFCBackFaceArenaID(t *testing.T) {
+	cards := []ScryfallCard{
+		{
+			ScryfallID:    "scry-poppet",
+			ArenaID:       78407,
+			ArenaIDBack:   78408,
+			OracleID:      "poppet-oracle",
+			Name:          "Poppet Stitcher // Poppet Factory",
+			FrontFaceName: "Poppet Stitcher",
+			TypeLine:      "Creature — Human Wizard",
+			Rarity:        "mythic",
+			Set:           "mid",
+			IsDefault:     true,
+		},
+	}
+
+	sql := buildCardSQL(cards)
+
+	// Should contain both arena_id and arena_id_back.
+	if !strings.Contains(sql, "78407") {
+		t.Error("SQL should contain front-face arena_id")
+	}
+	if !strings.Contains(sql, "78408") {
+		t.Error("SQL should contain back-face arena_id")
+	}
+}
+
 func TestComputeDefaults(t *testing.T) {
 	cards := []ScryfallCard{
-		{ArenaID: 100, OracleID: "oracle-1", Name: "Go for the Throat", Set: "BRO"},
-		{ArenaID: 300, OracleID: "oracle-1", Name: "Go for the Throat", Set: "FDN"},
-		{ArenaID: 200, OracleID: "oracle-1", Name: "Go for the Throat", Set: "DSK"},
-		{ArenaID: 500, OracleID: "oracle-2", Name: "Lightning Bolt", Set: "STA"},
+		{ScryfallID: "a", ArenaID: 100, OracleID: "oracle-1", Name: "Go for the Throat", Set: "BRO"},
+		{ScryfallID: "b", ArenaID: 300, OracleID: "oracle-1", Name: "Go for the Throat", Set: "FDN"},
+		{ScryfallID: "c", ArenaID: 200, OracleID: "oracle-1", Name: "Go for the Throat", Set: "DSK"},
+		{ScryfallID: "d", ArenaID: 500, OracleID: "oracle-2", Name: "Lightning Bolt", Set: "STA"},
 	}
 
 	computeDefaults(cards)

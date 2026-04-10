@@ -14,27 +14,16 @@ func cardEmbeddingText(c ScryfallCard) string {
 	return c.Name + " " + c.TypeLine + " " + c.OracleText
 }
 
-// buildCardEnrichmentSQL generates SQL that enriches existing MTGA-sourced rows
-// with Scryfall data (oracle_id, legalities, keywords, oracle_text, produced_mana)
-// and inserts non-Arena cards that don't already exist in D1.
-//
-// For existing rows (arena_id already in D1 from mtga-carddb): uses INSERT ... ON
-// CONFLICT to update only Scryfall-provided fields, preserving mtga-carddb's data
-// for power, toughness, and other MTGA-sourced columns.
-//
-// For non-Arena cards (no matching arena_id in D1): does a full INSERT.
-//
-// FTS5: clears and rebuilds since default printings may have changed via oracle_id
-// dedup, and Scryfall provides better oracle_text for search.
-func buildCardEnrichmentSQL(cards []ScryfallCard) string {
+// buildCardSQL generates SQL that wipes and repopulates magic_cards and
+// magic_cards_fts with all cards from Scryfall. scryfall-fetch owns the
+// full table lifecycle — no other tool writes to these tables.
+func buildCardSQL(cards []ScryfallCard) string {
 	var b strings.Builder
 	q := cfapi.SQLQuote
 
-	// Delete FTS5 entries for cards we're about to enrich. This preserves
-	// FTS entries for MTGA-only cards (like Kavaero) that Scryfall doesn't know.
-	for _, c := range cards {
-		fmt.Fprintf(&b, "DELETE FROM mtga_cards_fts WHERE arena_id = %d;\n", c.ArenaID)
-	}
+	// Wipe both tables before repopulating.
+	b.WriteString("DELETE FROM magic_cards_fts;\n")
+	b.WriteString("DELETE FROM magic_cards;\n")
 
 	for _, c := range cards {
 		colorsJSON := cfapi.JSONArray(c.Colors)
@@ -52,20 +41,28 @@ func buildCardEnrichmentSQL(cards []ScryfallCard) string {
 			isDefault = 1
 		}
 
-		// UPSERT: insert if new (non-Arena card), or update Scryfall-specific
-		// fields if the row already exists (MTGA-sourced card).
-		fmt.Fprintf(&b, "INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default, produced_mana) VALUES (%d, %s, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s, %d, %s) ON CONFLICT(arena_id) DO UPDATE SET oracle_id = %s, legalities = %s, keywords = %s, oracle_text = %s, produced_mana = %s, is_default = %d;\n",
-			c.ArenaID, q(c.OracleID), q(c.Name), q(c.FrontFaceName), q(c.ManaCost), c.CMC,
+		// arena_id and arena_id_back are nullable — use NULL for zero values.
+		arenaID := "NULL"
+		if c.ArenaID > 0 {
+			arenaID = fmt.Sprintf("%d", c.ArenaID)
+		}
+		arenaIDBack := "NULL"
+		if c.ArenaIDBack > 0 {
+			arenaIDBack = fmt.Sprintf("%d", c.ArenaIDBack)
+		}
+
+		fmt.Fprintf(&b, "INSERT INTO magic_cards (scryfall_id, arena_id, arena_id_back, oracle_id, name, front_face_name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, produced_mana, power, toughness, is_default) VALUES (%s, %s, %s, %s, %s, %s, %s, %g, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %d);\n",
+			q(c.ScryfallID), arenaID, arenaIDBack, q(c.OracleID),
+			q(c.Name), q(c.FrontFaceName), q(c.ManaCost), c.CMC,
 			q(c.TypeLine), q(c.OracleText), q(colorsJSON), q(colorIdentityJSON),
-			q(legalitiesJSON), q(c.Rarity), q(c.Set), q(keywordsJSON), isDefault, q(producedManaJSON),
-			// ON CONFLICT UPDATE — only Scryfall-enriched fields:
-			q(c.OracleID), q(legalitiesJSON), q(keywordsJSON), q(c.OracleText), q(producedManaJSON), isDefault,
+			q(legalitiesJSON), q(c.Rarity), q(c.Set), q(keywordsJSON),
+			q(producedManaJSON), q(c.Power), q(c.Toughness), isDefault,
 		)
 
 		// FTS5 table (default printings only).
 		if c.IsDefault {
-			fmt.Fprintf(&b, "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (%d, %s, %s, %s);\n",
-				c.ArenaID, q(c.Name), q(c.OracleText), q(c.TypeLine),
+			fmt.Fprintf(&b, "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (%s, %s, %s, %s);\n",
+				q(c.ScryfallID), q(c.Name), q(c.OracleText), q(c.TypeLine),
 			)
 		}
 	}
@@ -140,7 +137,7 @@ func populateCardVectorize(accountID, indexName, apiToken string, cards []Scryfa
 			vectors := make([]cfapi.VectorizeVector, len(batch))
 			for j, c := range batch {
 				vectors[j] = cfapi.VectorizeVector{
-					ID:     fmt.Sprintf("card:%d", c.ArenaID),
+					ID:     fmt.Sprintf("card:%s", c.ScryfallID),
 					Values: embeddings[j],
 					Metadata: map[string]string{
 						"type": "card",
