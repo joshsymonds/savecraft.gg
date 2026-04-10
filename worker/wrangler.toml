@@ -41,7 +41,7 @@ index_name = "mtga-rules"
 
 [[vectorize]]
 binding = "MTGA_CARDS_INDEX"
-index_name = "mtga-cards"
+index_name = "magic-cards"
 
 [durable_objects]
 bindings = [
@@ -103,7 +103,7 @@ index_name = "mtga-rules"
 
 [[env.production.vectorize]]
 binding = "MTGA_CARDS_INDEX"
-index_name = "mtga-cards"
+index_name = "magic-cards"
 
 [env.production.durable_objects]
 bindings = [
@@ -166,7 +166,7 @@ index_name = "mtga-rules-staging"
 
 [[env.staging.vectorize]]
 binding = "MTGA_CARDS_INDEX"
-index_name = "mtga-cards-staging"
+index_name = "magic-cards-staging"
 
 [env.staging.durable_objects]
 bindings = [
