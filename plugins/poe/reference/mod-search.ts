@@ -16,31 +16,6 @@ import { fts5Safe, parseJsonColumn } from "./shared";
 
 const DEFAULT_LIMIT = 20;
 
-/** Map from user-facing item class names to PoE spawn weight tags. */
-const ITEM_CLASS_TAG_MAP: Record<string, string[]> = {
-  weapon: ["weapon", "sword", "axe", "mace", "claw", "dagger", "wand", "sceptre", "staff", "bow"],
-  sword: ["sword", "one_hand_weapon", "two_hand_weapon"],
-  axe: ["axe", "one_hand_weapon", "two_hand_weapon"],
-  mace: ["mace", "one_hand_weapon", "two_hand_weapon"],
-  claw: ["claw"],
-  dagger: ["dagger"],
-  wand: ["wand"],
-  sceptre: ["sceptre"],
-  staff: ["staff"],
-  bow: ["bow"],
-  quiver: ["quiver"],
-  helmet: ["helmet"],
-  body_armour: ["body_armour", "str_armour", "dex_armour", "int_armour", "str_dex_armour", "str_int_armour", "dex_int_armour", "str_dex_int_armour"],
-  gloves: ["gloves"],
-  boots: ["boots"],
-  shield: ["shield", "str_shield", "dex_shield", "int_shield", "str_dex_shield", "str_int_shield", "dex_int_shield"],
-  ring: ["ring"],
-  amulet: ["amulet"],
-  belt: ["belt"],
-  flask: ["flask"],
-  jewel: ["jewel", "abyss_jewel_melee", "abyss_jewel_ranged", "abyss_jewel_caster", "abyss_jewel_summoner"],
-};
-
 interface ModRow {
   mod_id: string;
   mod_name: string;
@@ -62,7 +37,11 @@ function modRowToResult(row: ModRow): Record<string, unknown> {
   };
 }
 
-/** Check if a mod can spawn on a given item class by inspecting spawn weight tags. */
+/**
+ * Check if a mod can spawn on a given item class by inspecting spawn weight tags.
+ * Tags are derived from RePoE data, not a hardcoded map — matches the user's
+ * input against actual tag keys in the mod's spawn weights JSON.
+ */
 function matchesItemClass(
   spawnsJson: string | null,
   itemClass: string,
@@ -72,14 +51,18 @@ function matchesItemClass(
     const spawns: Record<string, number> = JSON.parse(spawnsJson);
     const lc = itemClass.toLowerCase().replace(/\s+/g, "_");
 
-    // Look up known tags for this item class.
-    const knownTags = ITEM_CLASS_TAG_MAP[lc];
-    if (knownTags) {
-      return knownTags.some((tag) => tag in spawns);
+    // Exact match first (handles "ring", "amulet", "weapon", "flask", etc.)
+    if (lc in spawns) return true;
+
+    // Check if any spawn tag contains the user's term as a full word segment.
+    // e.g., "sword" matches "one_hand_sword" but "a" doesn't match "amulet".
+    // Split on _ to match whole segments only.
+    for (const tag of Object.keys(spawns)) {
+      const segments = tag.split("_");
+      if (segments.includes(lc)) return true;
     }
 
-    // Fallback: exact match against spawn weight tags.
-    return lc in spawns;
+    return false;
   } catch {
     return false;
   }
