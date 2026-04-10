@@ -32,6 +32,8 @@ interface CardRow {
   rarity: string;
   set_code: string;
   keywords: string;
+  power: string | null;
+  toughness: string | null;
 }
 
 function cardRowToResult(row: CardRow): Record<string, unknown> {
@@ -50,6 +52,8 @@ function cardRowToResult(row: CardRow): Record<string, unknown> {
     rarity: row.rarity,
     set: row.set_code,
     keywords: JSON.parse(row.keywords || "[]") as string[],
+    ...(row.power != null && { power: row.power }),
+    ...(row.toughness != null && { toughness: row.toughness }),
   };
 }
 
@@ -76,6 +80,7 @@ export const cardSearchModule: NativeReferenceModule = {
     sort: { type: "string", description: "Sort order: 'name' (default) or 'cmc'." },
     limit: { type: "integer", description: "Max results (default 20)." },
     include_tokens: { type: "boolean", description: "Include token cards in results (default false). Tokens are excluded by default." },
+    include_alchemy: { type: "boolean", description: "Include Alchemy rebalanced cards (A- prefix) in results (default false). Alchemy cards are excluded by default since they are digital-only variants." },
   },
 
 
@@ -95,6 +100,7 @@ export const cardSearchModule: NativeReferenceModule = {
     const sortBy = (query.sort as string) || "name";
     const limit = Math.min(Math.max(typeof query.limit === "number" ? query.limit : DEFAULT_LIMIT, 1), 100);
     const includeTokens = query.include_tokens === true;
+    const includeAlchemy = query.include_alchemy === true;
 
     const hasFtsQuery = name !== "" || text !== "";
 
@@ -149,6 +155,12 @@ export const cardSearchModule: NativeReferenceModule = {
     // Exclude tokens by default — they dominate keyword searches and are rarely wanted
     if (!includeTokens) {
       conditions.push(`c.type_line NOT LIKE '%Token%'`);
+    }
+
+    // Exclude Alchemy rebalances (A- prefix) by default — digital-only variants
+    // that clutter results for non-Alchemy players
+    if (!includeAlchemy) {
+      conditions.push(`c.name NOT LIKE 'A-%'`);
     }
 
     // Vectorize results are fetched in a separate query after the main FTS
@@ -243,7 +255,7 @@ export const cardSearchModule: NativeReferenceModule = {
         : "ORDER BY c.name ASC";
     }
 
-    const sql = `SELECT c.* FROM ${fromClause} ${whereClause} ${orderClause} LIMIT ?${paramIdx}`;
+    const sql = `SELECT DISTINCT c.* FROM ${fromClause} ${whereClause} ${orderClause} LIMIT ?${paramIdx}`;
     params.push(limit);
 
     const results = await env.DB.prepare(sql)

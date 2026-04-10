@@ -12,6 +12,8 @@
     colorIdentity?: string[];
     rarity: string;
     keywords?: string[];
+    power?: string;
+    toughness?: string;
   }
 
   let { data }: { data: { cards: Card[]; total: number; icon_url?: string } } = $props();

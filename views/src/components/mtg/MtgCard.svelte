@@ -21,6 +21,8 @@
     colorIdentity?: string[];
     rarity: string;
     keywords?: string[];
+    power?: string;
+    toughness?: string;
   }
 
   interface Props {
@@ -48,6 +50,7 @@
   });
 
   let isMythic = $derived(card.rarity === "mythic");
+  let hasPT = $derived(card.power != null && card.toughness != null);
 </script>
 
 <div class="mtg-card" class:mythic={isMythic}>
@@ -74,6 +77,9 @@
         {#if card.oracleText}
           <OracleText text={card.oracleText} />
         {/if}
+        {#if hasPT}
+          <div class="pt-line">{card.power}/{card.toughness}</div>
+        {/if}
       </div>
     </Section>
   </Panel>
@@ -90,6 +96,14 @@
 
   .card-body {
     min-height: 48px;
+  }
+
+  .pt-line {
+    text-align: right;
+    font-weight: 700;
+    font-size: var(--font-size-lg, 1.1rem);
+    margin-top: var(--space-xs, 4px);
+    letter-spacing: 0.02em;
   }
 
 </style>

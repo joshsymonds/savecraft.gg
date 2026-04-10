@@ -23,6 +23,8 @@ const sheoldred = {
   colors: ["B"],
   colorIdentity: ["B"],
   rarity: "mythic",
+  power: "4",
+  toughness: "5",
 };
 
 describe("CardSearch view", () => {
@@ -55,5 +57,20 @@ describe("CardSearch view", () => {
     });
     const cards = container.querySelectorAll(".mtg-card");
     expect(cards.length).toBe(2);
+  });
+
+  it("renders power/toughness for creatures", () => {
+    const { container } = render(CardSearch, {
+      props: { data: { cards: [sheoldred], total: 1 } },
+    });
+    expect(container.textContent).toContain("4/5");
+  });
+
+  it("does not render power/toughness for non-creatures", () => {
+    const { container } = render(CardSearch, {
+      props: { data: { cards: [bolt], total: 1 } },
+    });
+    const ptLines = container.querySelectorAll(".pt-line");
+    expect(ptLines.length).toBe(0);
   });
 });

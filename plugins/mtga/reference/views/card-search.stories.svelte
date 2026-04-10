@@ -24,6 +24,8 @@
     colorIdentity: ["B"],
     rarity: "mythic",
     keywords: ["Deathtouch"],
+    power: "4",
+    toughness: "5",
   };
 
   const omnath = {
@@ -35,6 +37,8 @@
     colorIdentity: ["R", "G", "W", "U"],
     rarity: "mythic",
     keywords: ["Landfall"],
+    power: "4",
+    toughness: "4",
   };
 
   const goForTheThroat = {
