@@ -243,4 +243,3 @@ func TestAssembleOracleText(t *testing.T) {
 		})
 	}
 }
-

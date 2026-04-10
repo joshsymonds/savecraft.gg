@@ -34,9 +34,9 @@ import (
 
 // ScryfallCard represents the fields we extract from each Scryfall card object.
 type ScryfallCard struct {
-	ScryfallID    string            `json:"id"`           // Scryfall's unique card ID (per printing)
-	ArenaID       int               `json:"arena_id"`     // MTGA arena_id (0 if not on Arena)
-	ArenaIDBack   int               `json:"-"`            // DFC back-face arena_id (merged from MTGA client data)
+	ScryfallID    string            `json:"id"`       // Scryfall's unique card ID (per printing)
+	ArenaID       int               `json:"arena_id"` // MTGA arena_id (0 if not on Arena)
+	ArenaIDBack   int               `json:"-"`        // DFC back-face arena_id (merged from MTGA client data)
 	OracleID      string            `json:"oracle_id"`
 	Name          string            `json:"name"`
 	PrintedName   string            `json:"printed_name"` // Arena alternate name for UB cards (e.g., "Kavaero, Mind-Bitten")

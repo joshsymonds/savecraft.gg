@@ -53,7 +53,7 @@ async function seedCard(overrides: {
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
-      `scry-${arena_id}`,
+      `scry-${String(arena_id)}`,
       arena_id,
       `oracle-${String(arena_id)}`,
       name,

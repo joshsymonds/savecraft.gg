@@ -107,10 +107,20 @@ describe("MTGA cards D1 schema", () => {
       // FTS5 rows
       env.DB.prepare(
         "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
-      ).bind("scry-90", "Lightning Bolt", "Lightning Bolt deals 3 damage to any target.", "Instant"),
+      ).bind(
+        "scry-90",
+        "Lightning Bolt",
+        "Lightning Bolt deals 3 damage to any target.",
+        "Instant",
+      ),
       env.DB.prepare(
         "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
-      ).bind("scry-91", "Lightning Strike", "Lightning Strike deals 3 damage to any target.", "Instant"),
+      ).bind(
+        "scry-91",
+        "Lightning Strike",
+        "Lightning Strike deals 3 damage to any target.",
+        "Instant",
+      ),
       env.DB.prepare(
         "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
       ).bind("scry-92", "Llanowar Elves", "Tap: Add {G}.", "Creature — Elf Druid"),

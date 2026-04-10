@@ -126,7 +126,20 @@ async function seedDraftData(): Promise<void> {
     ),
     env.DB.prepare(
       `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(`scry-34`, 10_002, "oracle-5", "Card B", "Card B", "{W}", 1, "Creature", '["W"]', "rare", "BLB", 1),
+    ).bind(
+      `scry-34`,
+      10_002,
+      "oracle-5",
+      "Card B",
+      "Card B",
+      "{W}",
+      1,
+      "Creature",
+      '["W"]',
+      "rare",
+      "BLB",
+      1,
+    ),
 
     // Basic land (common rarity, high GIH WR — should be excluded from rarity-filtered leaderboards)
     env.DB.prepare(
@@ -937,7 +950,18 @@ describe("draft_advisor native module", () => {
     await env.DB.batch([
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(`scry-38`, 4, "oracle-land", "Darkslick Shores", "Darkslick Shores", "", 0, "Land", "[]", 1),
+      ).bind(
+        `scry-38`,
+        4,
+        "oracle-land",
+        "Darkslick Shores",
+        "Darkslick Shores",
+        "",
+        0,
+        "Land",
+        "[]",
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind("DSK", "Darkslick Shores", 12_000, 16_000, 4000, 0.56, 0.58, 0.54, 0.49, 0.04, 4, 3.5),
@@ -1155,10 +1179,32 @@ describe("draft_advisor native module", () => {
       ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(`scry-42`, 103, "o-tt", "Think Twice", "Think Twice", "{1}{U}", 2, "Instant", '["U"]', 1),
+      ).bind(
+        `scry-42`,
+        103,
+        "o-tt",
+        "Think Twice",
+        "Think Twice",
+        "{1}{U}",
+        2,
+        "Instant",
+        '["U"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(`scry-43`, 104, "o-ft", "Faebloom Trick", "Faebloom Trick", "{1}{U}", 2, "Instant", '["U"]', 1),
+      ).bind(
+        `scry-43`,
+        104,
+        "o-ft",
+        "Faebloom Trick",
+        "Faebloom Trick",
+        "{1}{U}",
+        2,
+        "Instant",
+        '["U"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(`scry-44`, 105, "o-ref", "Refute", "Refute", "{1}{U}{U}", 3, "Instant", '["U"]', 1),
@@ -1192,7 +1238,18 @@ describe("draft_advisor native module", () => {
       ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(`scry-47`, 108, "o-lr", "Luminous Rebuke", "Luminous Rebuke", "{4}{W}", 5, "Instant", '["W"]', 1),
+      ).bind(
+        `scry-47`,
+        108,
+        "o-lr",
+        "Luminous Rebuke",
+        "Luminous Rebuke",
+        "{4}{W}",
+        5,
+        "Instant",
+        '["W"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default, produced_mana) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
@@ -1402,22 +1459,77 @@ describe("draft_advisor native module", () => {
       ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(`scry-52`, 101, "o-hh", "Helpful Hunter", "Helpful Hunter", "{1}{W}", 2, "Creature", '["W"]', 1),
+      ).bind(
+        `scry-52`,
+        101,
+        "o-hh",
+        "Helpful Hunter",
+        "Helpful Hunter",
+        "{1}{W}",
+        2,
+        "Creature",
+        '["W"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(`scry-53`, 102, "o-sl", "Strix Lookout", "Strix Lookout", "{U}", 1, "Creature", '["U"]', 1),
+      ).bind(
+        `scry-53`,
+        102,
+        "o-sl",
+        "Strix Lookout",
+        "Strix Lookout",
+        "{U}",
+        1,
+        "Creature",
+        '["U"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(`scry-54`, 103, "o-tt", "Think Twice", "Think Twice", "{1}{U}", 2, "Instant", '["U"]', 1),
+      ).bind(
+        `scry-54`,
+        103,
+        "o-tt",
+        "Think Twice",
+        "Think Twice",
+        "{1}{U}",
+        2,
+        "Instant",
+        '["U"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(`scry-55`, 104, "o-ft", "Faebloom Trick", "Faebloom Trick", "{1}{U}", 2, "Instant", '["U"]', 1),
+      ).bind(
+        `scry-55`,
+        104,
+        "o-ft",
+        "Faebloom Trick",
+        "Faebloom Trick",
+        "{1}{U}",
+        2,
+        "Instant",
+        '["U"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(`scry-56`, 105, "o-ref", "Refute", "Refute", "{1}{U}{U}", 3, "Instant", '["U"]', 1),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(`scry-57`, 106, "o-ld", "Lightshell Duo", "Lightshell Duo", "{3}{U}", 4, "Creature", '["U"]', 1),
+      ).bind(
+        `scry-57`,
+        106,
+        "o-ld",
+        "Lightshell Duo",
+        "Lightshell Duo",
+        "{3}{U}",
+        4,
+        "Creature",
+        '["U"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
@@ -1434,7 +1546,18 @@ describe("draft_advisor native module", () => {
       ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(`scry-59`, 108, "o-lr", "Luminous Rebuke", "Luminous Rebuke", "{4}{W}", 5, "Instant", '["W"]', 1),
+      ).bind(
+        `scry-59`,
+        108,
+        "o-lr",
+        "Luminous Rebuke",
+        "Luminous Rebuke",
+        "{4}{W}",
+        5,
+        "Instant",
+        '["W"]',
+        1,
+      ),
       env.DB.prepare(
         `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, is_default, produced_mana) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(

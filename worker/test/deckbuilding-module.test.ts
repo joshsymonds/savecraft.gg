@@ -88,7 +88,19 @@ async function seedDeckbuildingData(): Promise<void> {
     ),
     env.DB.prepare(
       `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(`scry-25`, 105, "o-6", "Island", "Island", "", 0, "Basic Land — Island", "[]", '["U"]', 1),
+    ).bind(
+      `scry-25`,
+      105,
+      "o-6",
+      "Island",
+      "Island",
+      "",
+      0,
+      "Basic Land — Island",
+      "[]",
+      '["U"]',
+      1,
+    ),
     env.DB.prepare(
       `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(`scry-26`, 106, "o-7", "Swamp", "Swamp", "", 0, "Basic Land — Swamp", "[]", '["B"]', 1),
@@ -337,7 +349,19 @@ describe("deckbuilding native module", () => {
       await env.DB.batch([
         env.DB.prepare(
           `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).bind(`scry-27`, 200, "o-draw", "Divination", "Divination", "{2}{U}", 3, "Sorcery", '["U"]', "[]", 1),
+        ).bind(
+          `scry-27`,
+          200,
+          "o-draw",
+          "Divination",
+          "Divination",
+          "{2}{U}",
+          3,
+          "Sorcery",
+          '["U"]',
+          "[]",
+          1,
+        ),
       ]);
 
       const result = await deckbuildingModule.execute(
