@@ -54,7 +54,11 @@ export const pobCalcModule: NativeReferenceModule = {
   id: "pob_calc",
   name: "PoB Build Calculator",
   description:
-    "Analyze or modify a Path of Exile build via Path of Building. Pass a build URL to analyze it, or a buildId with operations to modify an existing build. Every response includes a buildId for follow-up modifications — enabling iterative build design.",
+    "Analyze or modify a Path of Exile build via Path of Building. "
+    + "First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. "
+    + "To drill deeper, call again with the buildId and sections parameter (e.g. sections='offense,defense'). "
+    + "For modifications, pass buildId + operations + sections to see before/after comparison on the stats you care about. "
+    + "Every response includes a buildId for follow-up calls.",
   parameters: {
     build: {
       type: "string",

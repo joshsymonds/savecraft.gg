@@ -25,7 +25,7 @@
     "modules": {
       "pob_calc": {
         "name": "PoB Build Calculator",
-        "description": "Analyze or modify a Path of Exile build via Path of Building. Pass a build URL to analyze it, or a buildId with operations to modify an existing build. Every response includes a buildId for follow-up modifications.",
+        "description": "Analyze or modify a Path of Exile build via Path of Building. First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. To drill deeper, call again with buildId and sections (e.g. 'offense,defense'). For modifications, pass buildId + operations + sections to see before/after comparison. Every response includes a buildId for follow-up calls.",
         "parameters": {
           "build": {
             "type": "string",
