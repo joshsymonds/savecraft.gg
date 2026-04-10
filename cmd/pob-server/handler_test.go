@@ -112,19 +112,37 @@ func TestCalcRejectsGet(t *testing.T) {
 	}
 }
 
-// TestCalcResponseIsFlat verifies the /calc response unwraps the PoB envelope
-// so consumers see {buildId, data: {character, stats, ...}} not {buildId, data: {type, data: {...}}}.
-func TestCalcResponseIsFlat(t *testing.T) {
-	// Write a mock LuaJIT script that echoes a PoB-shaped response
+// TestCalcResponseShape verifies the /calc response has the grouped section structure:
+// {buildId, data: {character, summary, section_index, sections}}.
+func TestCalcResponseShape(t *testing.T) {
+	// Mock PoB response with the new grouped section structure
 	mockScript := filepath.Join(t.TempDir(), "mock-pob.sh")
-	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
-read line
-echo '{"type":"result","data":{"character":{"class":"Witch","ascendancy":"Occultist","level":99},"stats":{"Life":6728}}}'
-`), 0o755); err != nil {
+	mockResponse := `{"type":"result","data":{` +
+		`"character":{"class":"Witch","ascendancy":"Occultist","level":99},` +
+		`"summary":{"CombinedDPS":100000,"Life":6728,"EnergyShield":2000,"Mana":500,` +
+		`"Armour":5000,"Evasion":3000,"FireResist":75,"ColdResist":75,` +
+		`"LightningResist":75,"ChaosResist":40,"BlockChance":30,` +
+		`"SpellSuppressionChance":100,"MovementSpeedMod":1.5,` +
+		`"Str":100,"Dex":150,"Int":200,"FlaskEffect":50,"FlaskChargeGen":10,` +
+		`"LootQuantityNormalEnemies":0,"LootRarityMagicEnemies":0,` +
+		`"EnemyCurseLimit":1,"TotalDPS":100000},` +
+		`"section_index":[` +
+		`{"id":"offense","name":"Offense","description":"Hit damage, DPS"},` +
+		`{"id":"defense","name":"Defense","description":"Armour, evasion, ES"}` +
+		`],` +
+		`"sections":{` +
+		`"offense":{"TotalDPS":100000,"CritChance":45.5,"Speed":2.1},` +
+		`"defense":{"Armour":5000,"Evasion":3000,"EnergyShield":2000},` +
+		`"socket_groups":[],` +
+		`"items":{},` +
+		`"keystones":["Acrobatics"],` +
+		`"tree":{"version":"3.25","allocated_nodes":95}` +
+		`}}}`
+
+	if err := os.WriteFile(mockScript, []byte("#!/bin/sh\nread line\necho '"+mockResponse+"'\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
 
-	// Verify bash is available
 	bashPath, err := exec.LookPath("bash")
 	if err != nil {
 		t.Skip("bash not available")
@@ -163,17 +181,65 @@ echo '{"type":"result","data":{"character":{"class":"Witch","ascendancy":"Occult
 		t.Fatal("response missing buildId")
 	}
 
-	// data must contain character directly (not nested under another data key)
+	// Parse data envelope
 	var data map[string]json.RawMessage
 	if err := json.Unmarshal(resp["data"], &data); err != nil {
 		t.Fatalf("data field is not an object: %v", err)
 	}
-	if _, ok := data["character"]; !ok {
-		t.Fatalf("data should contain 'character' directly, got keys: %v", keysOf(data))
-	}
-	// data must NOT contain a nested "type" field (that's the PoB envelope)
+
+	// data must NOT contain a nested "type" field (PoB envelope must be unwrapped)
 	if _, ok := data["type"]; ok {
-		t.Fatal("data contains 'type' — response is double-nested, PoB envelope was not unwrapped")
+		t.Fatal("data contains 'type' — PoB envelope was not unwrapped")
+	}
+
+	// Required top-level keys in data
+	for _, key := range []string{"character", "summary", "section_index", "sections"} {
+		if _, ok := data[key]; !ok {
+			t.Fatalf("data missing required key %q, got keys: %v", key, keysOf(data))
+		}
+	}
+
+	// Verify summary has the expected fixed keys
+	var summary map[string]json.RawMessage
+	if err := json.Unmarshal(data["summary"], &summary); err != nil {
+		t.Fatalf("summary is not an object: %v", err)
+	}
+	expectedSummaryKeys := []string{
+		"CombinedDPS", "TotalDPS", "Life", "EnergyShield", "Mana",
+		"Armour", "Evasion", "FireResist", "ColdResist", "LightningResist",
+		"ChaosResist", "BlockChance", "SpellSuppressionChance", "MovementSpeedMod",
+		"Str", "Dex", "Int", "FlaskEffect", "FlaskChargeGen",
+		"LootQuantityNormalEnemies", "LootRarityMagicEnemies", "EnemyCurseLimit",
+	}
+	for _, key := range expectedSummaryKeys {
+		if _, ok := summary[key]; !ok {
+			t.Errorf("summary missing key %q", key)
+		}
+	}
+
+	// Verify section_index is an array with id/name/description
+	var sectionIndex []map[string]string
+	if err := json.Unmarshal(data["section_index"], &sectionIndex); err != nil {
+		t.Fatalf("section_index is not an array: %v", err)
+	}
+	if len(sectionIndex) < 2 {
+		t.Fatalf("expected at least 2 section index entries, got %d", len(sectionIndex))
+	}
+	for _, entry := range sectionIndex {
+		if entry["id"] == "" || entry["name"] == "" || entry["description"] == "" {
+			t.Errorf("section_index entry missing fields: %v", entry)
+		}
+	}
+
+	// Verify sections object contains expected keys
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(data["sections"], &sections); err != nil {
+		t.Fatalf("sections is not an object: %v", err)
+	}
+	for _, key := range []string{"offense", "defense", "socket_groups", "items", "keystones", "tree"} {
+		if _, ok := sections[key]; !ok {
+			t.Errorf("sections missing %q", key)
+		}
 	}
 }
 
@@ -214,7 +280,7 @@ func TestGetBuildReturnsXML(t *testing.T) {
 
 	xml := "<PathOfBuilding><Build level=\"90\"/></PathOfBuilding>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, `{"stats":{}}`, "", "")
+	_ = srv.cache.store.Put(id, xml, `{"summary":{},"section_index":[],"sections":{}}`, "", "")
 
 	req := httptest.NewRequest(http.MethodGet, "/build/"+id, nil)
 	rec := httptest.NewRecorder()
@@ -236,7 +302,7 @@ func TestGetBuildReturnsBuildCode(t *testing.T) {
 
 	xml := "<PathOfBuilding><Build level=\"90\"/></PathOfBuilding>"
 	id := srv.cache.Put(xml)
-	_ = srv.cache.store.Put(id, xml, `{"stats":{}}`, "", "")
+	_ = srv.cache.store.Put(id, xml, `{"summary":{},"section_index":[],"sections":{}}`, "", "")
 
 	req := httptest.NewRequest(http.MethodGet, "/build/"+id, nil)
 	req.Header.Set("Accept", "application/x-pob-code")
@@ -277,7 +343,7 @@ func TestGetBuildSummaryReturnsJSON(t *testing.T) {
 
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
-	summary := `{"character":{"class":"Witch"},"stats":{"Life":6728}}`
+	summary := `{"character":{"class":"Witch"},"summary":{"Life":6728},"section_index":[],"sections":{}}`
 	_ = srv.cache.store.Put(id, xml, summary, "", "")
 
 	req := httptest.NewRequest(

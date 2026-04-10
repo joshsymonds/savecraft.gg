@@ -159,21 +159,331 @@ local function serializeTreeSummary(build)
 	}
 end
 
--- Serialize the main calc output stats
-local function serializeCalcOutput(build)
-	if not build.calcsTab or not build.calcsTab.mainOutput then
-		return {}
-	end
-	local output = build.calcsTab.mainOutput
-	local result = {}
-	-- Copy all numeric and string values from the output table
-	for k, v in pairs(output) do
-		local t = type(v)
-		if t == "number" or t == "string" or t == "boolean" then
-			result[k] = v
+-- =========================================================================
+-- Stat section system
+-- =========================================================================
+
+-- Summary: fixed set of headline stats, always returned.
+local summaryKeys = {
+	"CombinedDPS", "TotalDPS",
+	"Life", "EnergyShield", "Mana", "Armour", "Evasion",
+	"FireResist", "ColdResist", "LightningResist", "ChaosResist",
+	"BlockChance", "SpellSuppressionChance", "MovementSpeedMod",
+	"Str", "Dex", "Int",
+	"FlaskEffect", "FlaskChargeGen",
+	"LootQuantityNormalEnemies", "LootRarityMagicEnemies",
+	"EnemyCurseLimit",
+}
+
+-- Section definitions (stat sections only; structured sections added separately).
+local statSectionDefs = {
+	{ id = "offense",      name = "Offense",      description = "Hit damage, DPS, crit, speed, accuracy, projectiles, AoE, impale, durations, cooldowns" },
+	{ id = "ailments",     name = "Ailments",      description = "Bleed, poison, ignite, decay, burning ground, DoT DPS, chill, freeze, shock effects" },
+	{ id = "defense",      name = "Defense",       description = "Armour, evasion, ES, ward, block, dodge, suppression, stun, avoidance, immunities, movement speed" },
+	{ id = "resistances",  name = "Resistances",   description = "Elemental and chaos resistances, overcap, damage reduction by type" },
+	{ id = "ehp",          name = "Effective HP",   description = "Maximum hit taken, life and ES pools, Mind over Matter, guard, aegis, energy shield bypass" },
+	{ id = "recovery",     name = "Recovery",       description = "Life/mana/ES regeneration, leech rates, recharge, recoup, net recovery vs degeneration" },
+	{ id = "charges",      name = "Charges",        description = "Power, frenzy, endurance charges, fortification, rage, elusive, special charges" },
+	{ id = "limits",       name = "Limits",         description = "Totem, trap, mine, minion, brand limits, flask generation, tinctures, gem levels, stored uses" },
+}
+
+-- Full section index including structured data sections.
+local structuredSectionDefs = {
+	{ id = "socket_groups", name = "Socket Groups",  description = "Skill gems, links, and socket group configuration" },
+	{ id = "items",         name = "Items",           description = "Equipped gear by slot" },
+	{ id = "keystones",     name = "Keystones",       description = "Allocated keystone passives" },
+	{ id = "tree",          name = "Passive Tree",    description = "Tree version and allocated node count" },
+}
+
+-- Explicit section assignments for bare or ambiguous stat keys.
+-- Checked first (exact match) before pattern rules.
+local explicitSections = {
+	-- Resource pools
+	Life = "ehp",
+	Mana = "ehp",
+	EnergyShield = "defense",
+	Armour = "defense",
+	Evasion = "defense",
+	Ward = "defense",
+	LowestOfArmourAndEvasion = "defense",
+	-- Attributes
+	Str = "offense",
+	Dex = "offense",
+	Int = "offense",
+	TotalAttr = "offense",
+	LowestAttribute = "offense",
+	-- EHP-specific
+	LowestOfMaximumLifeAndMaximumMana = "ehp",
+	ChaosInoculation = "ehp",
+	LowLifePercentage = "ehp",
+	FullLifePercentage = "ehp",
+	LifeRecoverable = "ehp",
+	CappingLife = "ehp",
+	CappingES = "ehp",
+	PvPTotalTakenHit = "ehp",
+	AnyTakenReflect = "ehp",
+	-- Charges-specific
+	Devotion = "charges",
+	TotalCharges = "charges",
+	GhostShrouds = "charges",
+	-- Resistances-specific
+	CritExtraDamageReduction = "resistances",
+	-- Defense-specific
+	DamageReductionMax = "defense",
+	MovementSpeedMod = "defense",
+	EffectiveMovementSpeedMod = "defense",
+	AnyTakenReflect = "defense",
+	-- Limits-specific
+	HexDoomLimit = "limits",
+	StoredUses = "limits",
+	SealMax = "limits",
+	EnemyCurseLimit = "limits",
+	-- Flask/loot → limits
+	FlaskEffect = "limits",
+	FlaskChargeGen = "limits",
+	LifeFlaskChargeGen = "limits",
+	ManaFlaskChargeGen = "limits",
+	UtilityFlaskChargeGen = "limits",
+	FlaskChargeOnCritChance = "limits",
+	LifeFlaskRecovery = "limits",
+	LifeFlaskCharges = "limits",
+	LootQuantityNormalEnemies = "offense",
+	LootRarityMagicEnemies = "offense",
+	QuantityMultiplier = "offense",
+	-- Offense-specific
+	CombinedDPS = "offense",
+	TotalDPS = "offense",
+	CullingDPS = "offense",
+	ReservationDPS = "offense",
+	ReservationDpsMultiplier = "offense",
+	DisplayDamage = "offense",
+	ActionSpeedMod = "offense",
+	PreciseTechnique = "offense",
+	-- Ailments-specific
+	HasBonechill = "ailments",
+}
+
+-- Substring → section rules, checked in order. First match wins.
+-- More specific patterns must come before broader ones.
+local substringRules = {
+	-- Defense: avoidance and immunities (before ailment element checks)
+	{ "Avoid",     "defense" },
+	{ "Immune",    "defense" },
+	{ "Immunity",  "defense" },
+	-- Resistances
+	{ "Resist",    "resistances" },
+	-- EHP
+	{ "HitPool",          "ehp" },
+	{ "MaximumHitTaken",  "ehp" },
+	{ "Bypass",           "ehp" },
+	{ "Guard",            "ehp" },
+	{ "Aegis",            "ehp" },
+	{ "MindOverMatter",   "ehp" },
+	{ "SecondMinimal",    "ehp" },
+	{ "ehpSection",       "ehp" },
+	{ "OnlyShared",       "ehp" },
+	{ "AnySpecific",      "ehp" },
+	{ "LifeLoss",         "ehp" },
+	-- Recovery (before defense to catch EnergyShieldRecharge etc.)
+	{ "Regen",         "recovery" },
+	{ "Recharge",      "recovery" },
+	{ "Recoup",        "recovery" },
+	{ "Leech",         "recovery" },
+	{ "RecoveryRate",  "recovery" },
+	{ "LifeOn",        "recovery" },
+	{ "ManaOn",        "recovery" },
+	{ "EnergyShieldOn","recovery" },
+	{ "Degen",         "recovery" },
+	{ "NetLife",       "recovery" },
+	{ "NetMana",       "recovery" },
+	{ "NetEnergy",     "recovery" },
+	{ "ComprehensiveNet", "recovery" },
+	{ "TotalNetRegen", "recovery" },
+	-- Ailments (element-specific damage effects)
+	{ "Bleed",            "ailments" },
+	{ "Poison",           "ailments" },
+	{ "Ignite",           "ailments" },
+	{ "Decay",            "ailments" },
+	{ "BurningGround",    "ailments" },
+	{ "CausticGround",    "ailments" },
+	{ "CorruptingBlood",  "ailments" },
+	{ "TotalDot",         "ailments" },
+	{ "showTotalDot",     "ailments" },
+	{ "WithBleed",        "ailments" },
+	{ "WithPoison",       "ailments" },
+	{ "WithIgnite",       "ailments" },
+	{ "WithDot",          "ailments" },
+	{ "WithImpale",       "ailments" },
+	{ "Chill",            "ailments" },
+	{ "Freeze",           "ailments" },
+	{ "Shock",            "ailments" },
+	{ "Scorch",           "ailments" },
+	{ "Brittle",          "ailments" },
+	{ "Sap",              "ailments" },
+	-- Charges
+	{ "Charge",       "charges" },
+	{ "Fortif",       "charges" },
+	{ "Rage",         "charges" },
+	{ "Elusive",      "charges" },
+	{ "CrabBarrier",  "charges" },
+	{ "Siphoning",    "charges" },
+	{ "Challenger",   "charges" },
+	{ "Blitz",        "charges" },
+	{ "Inspiration",  "charges" },
+	{ "Absorption",   "charges" },
+	{ "Affliction",   "charges" },
+	{ "Brutal",       "charges" },
+	{ "Blood",        "charges" },
+	{ "Spirit",       "charges" },
+	-- Limits
+	{ "ActiveTotem",        "limits" },
+	{ "ActiveTrap",         "limits" },
+	{ "ActiveMine",         "limits" },
+	{ "ActiveBrand",        "limits" },
+	{ "ActiveMinion",       "limits" },
+	{ "ActivePhantasm",     "limits" },
+	{ "Summoned",           "limits" },
+	{ "ThrowCount",         "limits" },
+	{ "Tincture",           "limits" },
+	{ "BrandAttachment",    "limits" },
+	{ "Corpse",             "limits" },
+	{ "GemLevel",           "limits" },
+	{ "GemQuality",         "limits" },
+	{ "GemHas",             "limits" },
+	-- Defense (broad patterns)
+	{ "Block",              "defense" },
+	{ "Evade",              "defense" },
+	{ "Evasion",            "defense" },
+	{ "Suppress",           "defense" },
+	{ "Dodge",              "defense" },
+	{ "Stun",               "defense" },
+	{ "NotHitChance",       "defense" },
+	{ "LightRadius",        "defense" },
+	{ "DamageReduction",    "defense" },
+	{ "ArmourDefense",      "defense" },
+	{ "Blind",              "defense" },
+	{ "Silence",            "defense" },
+	{ "Maim",               "defense" },
+	{ "Hinder",             "defense" },
+	{ "Knockback",          "defense" },
+	{ "DebuffExpiration",   "defense" },
+	{ "SelfBlink",          "defense" },
+	{ "SelfBlind",          "defense" },
+	{ "Exposure",           "defense" },
+	{ "Wither",             "defense" },
+	{ "Curse",              "defense" },
+	{ "MovementSpeed",      "defense" },
+	{ "TotemLife",           "defense" },
+	{ "TotemArmour",        "defense" },
+	{ "TotemBlockChance",   "defense" },
+	{ "TotemEnergyShield",  "defense" },
+}
+
+-- Classify a stat key into a section ID.
+local function classifyStat(key)
+	-- 1. Explicit table (exact match)
+	local section = explicitSections[key]
+	if section then return section end
+
+	-- 2. Special pattern: Base<Type>DamageReduction → resistances
+	if key:match("^Base%a+DamageReduction") then return "resistances" end
+
+	-- 3. Substring rules (first match wins)
+	for _, rule in ipairs(substringRules) do
+		if key:find(rule[1], 1, true) then
+			return rule[2]
 		end
 	end
-	return result
+
+	-- 4. Catch-all
+	return "offense"
+end
+
+-- Serialize calc output into grouped sections.
+local function serializeSections(build)
+	local emptySummary = {}
+	for _, key in ipairs(summaryKeys) do
+		emptySummary[key] = 0
+	end
+
+	if not build.calcsTab or not build.calcsTab.mainOutput then
+		return {
+			summary = emptySummary,
+			section_index = {},
+			sections = {},
+		}
+	end
+
+	local output = build.calcsTab.mainOutput
+
+	-- Initialize stat section buckets
+	local sections = {}
+	for _, def in ipairs(statSectionDefs) do
+		sections[def.id] = {}
+	end
+
+	-- Build summary from fixed keys
+	local summary = {}
+	for _, key in ipairs(summaryKeys) do
+		summary[key] = output[key] or 0
+	end
+
+	-- Classify all scalar stats into sections
+	for key, value in pairs(output) do
+		local t = type(value)
+		if t == "number" or t == "string" or t == "boolean" then
+			local sid = classifyStat(key)
+			if sections[sid] then
+				sections[sid][key] = value
+			else
+				-- Unknown section from classifyStat; put in offense
+				sections.offense[key] = value
+			end
+		end
+	end
+
+	-- Add structured data as sections
+	sections.socket_groups = serializeSocketGroups(build)
+	sections.items = serializeItems(build)
+	sections.keystones = serializeKeystones(build)
+	sections.tree = serializeTreeSummary(build)
+
+	-- Build section index
+	local index = {}
+	for _, def in ipairs(statSectionDefs) do
+		index[#index + 1] = { id = def.id, name = def.name, description = def.description }
+	end
+	for _, def in ipairs(structuredSectionDefs) do
+		index[#index + 1] = { id = def.id, name = def.name, description = def.description }
+	end
+
+	-- Minion sections (conditional — only when build has minions)
+	if output.Minion and type(output.Minion) == "table" then
+		local minionOffense = {}
+		local minionDefense = {}
+		for key, value in pairs(output.Minion) do
+			local t = type(value)
+			if t == "number" or t == "string" or t == "boolean" then
+				local sid = classifyStat(key)
+				-- Group minion stats into just two buckets
+				if sid == "defense" or sid == "resistances" or sid == "recovery" or sid == "ehp" then
+					minionDefense[key] = value
+				else
+					minionOffense[key] = value
+				end
+			end
+		end
+		sections.minion_offense = minionOffense
+		sections.minion_defense = minionDefense
+		index[#index + 1] = { id = "minion_offense", name = "Minion Offense", description = "Minion damage, DPS, crit, speed, accuracy, ailments" }
+		index[#index + 1] = { id = "minion_defense", name = "Minion Defense", description = "Minion armour, evasion, ES, resistances, recovery, block" }
+	end
+
+	return {
+		summary = summary,
+		section_index = index,
+		sections = sections,
+	}
 end
 
 -- Process a calc request
@@ -198,7 +508,8 @@ local function handleCalc(request)
 	build.buildFlag = true
 	runCallback("OnFrame")
 
-	-- Serialize results
+	-- Serialize results into grouped sections
+	local grouped = serializeSections(build)
 	local result = {
 		type = "result",
 		data = {
@@ -208,11 +519,9 @@ local function handleCalc(request)
 				level = build.characterLevel,
 				bandit = build.bandit,
 			},
-			stats = serializeCalcOutput(build),
-			socket_groups = serializeSocketGroups(build),
-			items = serializeItems(build),
-			keystones = serializeKeystones(build),
-			tree = serializeTreeSummary(build),
+			summary = grouped.summary,
+			section_index = grouped.section_index,
+			sections = grouped.sections,
 		}
 	}
 
@@ -484,7 +793,8 @@ local function handleModify(request)
 	-- Export the modified build to XML
 	local modifiedXml = build:SaveDB("modified")
 
-	-- Serialize results (same as handleCalc)
+	-- Serialize results into grouped sections (same as handleCalc)
+	local grouped = serializeSections(build)
 	return {
 		type = "result",
 		data = {
@@ -494,11 +804,9 @@ local function handleModify(request)
 				level = build.characterLevel,
 				bandit = build.bandit,
 			},
-			stats = serializeCalcOutput(build),
-			socket_groups = serializeSocketGroups(build),
-			items = serializeItems(build),
-			keystones = serializeKeystones(build),
-			tree = serializeTreeSummary(build),
+			summary = grouped.summary,
+			section_index = grouped.section_index,
+			sections = grouped.sections,
 		},
 		xml = modifiedXml,
 	}
