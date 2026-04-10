@@ -44,15 +44,51 @@ const FAKE_SEASON_DETAIL = {
 
 const FAKE_DUNGEON_INDEX = {
   dungeons: [
-    { key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/161" }, name: "Skyreach", id: 161 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/239" }, name: "Seat of the Triumvirate", id: 239 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/402" }, name: "Algeth'ar Academy", id: 402 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/525" }, name: "Operation: Floodgate", id: 525 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/556" }, name: "Pit of Saron", id: 556 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/557" }, name: "Windrunner Spire", id: 557 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/558" }, name: "Magisters' Terrace", id: 558 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/559" }, name: "Nexus-Point Xenas", id: 559 },
-    { key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/560" }, name: "Maisara Caverns", id: 560 },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/161" },
+      name: "Skyreach",
+      id: 161,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/239" },
+      name: "Seat of the Triumvirate",
+      id: 239,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/402" },
+      name: "Algeth'ar Academy",
+      id: 402,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/525" },
+      name: "Operation: Floodgate",
+      id: 525,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/556" },
+      name: "Pit of Saron",
+      id: 556,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/557" },
+      name: "Windrunner Spire",
+      id: 557,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/558" },
+      name: "Magisters' Terrace",
+      id: 558,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/559" },
+      name: "Nexus-Point Xenas",
+      id: 559,
+    },
+    {
+      key: { href: "https://us.api.blizzard.com/data/wow/mythic-keystone/dungeon/560" },
+      name: "Maisara Caverns",
+      id: 560,
+    },
   ],
 };
 
@@ -127,7 +163,7 @@ function makeFetchResponder(): (input: FetchInput, init?: RequestInit) => Promis
       return Promise.resolve(Response.json(FAKE_DUNGEON_INDEX, { status: 200 }));
     }
     // Individual dungeon detail
-    const dungeonMatch = url.match(/mythic-keystone\/dungeon\/(\d+)/);
+    const dungeonMatch = /mythic-keystone\/dungeon\/(\d+)/.exec(url);
     if (dungeonMatch) {
       const id = Number(dungeonMatch[1]);
       const detail = FAKE_DUNGEON_DETAILS[id];
@@ -248,7 +284,7 @@ describe("season_info reference module", () => {
     const result = await seasonInfoModule.execute({ type: "mythic_plus" }, testEnv);
 
     const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
-    const dungeons = data.dungeons as Array<{ id: number; name: string }>;
+    const dungeons = data.dungeons as { id: number; name: string }[];
     // Operation: Floodgate (id 525) is is_tracked: false
     expect(dungeons.find((d) => d.id === 525)).toBeUndefined();
     // All tracked dungeons are present
