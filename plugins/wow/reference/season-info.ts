@@ -30,6 +30,7 @@ interface RaidInfo {
 
 interface CachedSeasonData {
   seasonId: number;
+  seasonName: string | null;
   dungeons: Array<{ id: number; name: string }>;
   raidInfo: RaidInfo | null;
   fetchedAt: number;
@@ -52,7 +53,7 @@ interface SeasonIndexResponse {
 }
 
 interface ExpansionIndexResponse {
-  tiers: Array<{ key: { href: string }; name: string; id: number }>;
+  tiers?: Array<{ key: { href: string }; name: string; id: number }>;
 }
 
 interface ExpansionDetailResponse {
@@ -64,12 +65,17 @@ interface ExpansionDetailResponse {
 
 interface SeasonDetailResponse {
   id: number;
-  season_name?: { en_US?: string };
-  dungeons: Array<{
-    key: { href: string };
-    name: { en_US?: string } | string;
-    id: number;
-  }>;
+  season_name?: string;
+}
+
+interface DungeonIndexResponse {
+  dungeons: Array<{ key: { href: string }; name: string; id: number }>;
+}
+
+interface DungeonDetailResponse {
+  id: number;
+  name: string;
+  is_tracked: boolean;
 }
 
 // ---------------------------------------------------------------------------
@@ -95,16 +101,31 @@ async function fetchCurrentSeason(env: Env): Promise<CachedSeasonData> {
 
   const currentSeasonId = seasonIndex.current_season.id;
 
-  // Step 2: Get season detail with dungeon pool
-  const { data: seasonDetail } = await blizzardFetch<SeasonDetailResponse>(
-    `${base}/data/wow/mythic-keystone/season/${currentSeasonId}?${ns}`,
-    token,
+  // Step 2: Get season name + current dungeon pool
+  const [{ data: seasonDetail }, { data: dungeonIndex }] = await Promise.all([
+    blizzardFetch<SeasonDetailResponse>(
+      `${base}/data/wow/mythic-keystone/season/${currentSeasonId}?${ns}`,
+      token,
+    ),
+    blizzardFetch<DungeonIndexResponse>(
+      `${base}/data/wow/mythic-keystone/dungeon/index?${ns}`,
+      token,
+    ),
+  ]);
+
+  // Fetch each dungeon detail in parallel to check is_tracked
+  const dungeonDetails = await Promise.all(
+    dungeonIndex.dungeons.map((d) =>
+      blizzardFetch<DungeonDetailResponse>(
+        `${base}/data/wow/mythic-keystone/dungeon/${d.id}?${ns}`,
+        token,
+      ).then(({ data }) => data),
+    ),
   );
 
-  const dungeons = seasonDetail.dungeons.map((d) => ({
-    id: d.id,
-    name: typeof d.name === "string" ? d.name : (d.name.en_US ?? `Dungeon ${d.id}`),
-  }));
+  const dungeons = dungeonDetails
+    .filter((d) => d.is_tracked)
+    .map((d) => ({ id: d.id, name: d.name }));
 
   // Step 3: Fetch current raid tier from journal expansion API (static namespace)
   const staticNs = `namespace=static-${region}&locale=en_US`;
@@ -116,7 +137,7 @@ async function fetchCurrentSeason(env: Env): Promise<CachedSeasonData> {
     );
 
     // Latest expansion = highest ID
-    const tiers = expansionIndex.tiers;
+    const tiers = expansionIndex.tiers ?? [];
     if (tiers.length > 0) {
       const latestExpansion = tiers.reduce((a, b) => (a.id > b.id ? a : b));
 
@@ -138,6 +159,7 @@ async function fetchCurrentSeason(env: Env): Promise<CachedSeasonData> {
 
   cachedSeason = {
     seasonId: currentSeasonId,
+    seasonName: seasonDetail.season_name ?? null,
     dungeons,
     raidInfo,
     fetchedAt: Date.now(),
@@ -180,6 +202,7 @@ export const seasonInfoModule: NativeReferenceModule = {
           type: "structured",
           data: {
             season_id: season.seasonId,
+            season_name: season.seasonName,
             dungeons: season.dungeons,
             dungeon_count: season.dungeons.length,
           },
@@ -201,6 +224,7 @@ export const seasonInfoModule: NativeReferenceModule = {
           type: "structured",
           data: {
             current_season_id: season.seasonId,
+            season_name: season.seasonName,
             mythic_plus: {
               dungeons: season.dungeons,
               dungeon_count: season.dungeons.length,
