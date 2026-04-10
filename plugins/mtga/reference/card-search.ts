@@ -155,10 +155,8 @@ export const cardSearchModule: NativeReferenceModule = {
       conditions.push(`c.type_line NOT LIKE '%Token%'`);
     }
 
-    // Note: Vectorize results are NOT added to the main query's WHERE clause.
-    // The main query uses an FTS JOIN which already returns all text-matching
-    // cards. Vector-only matches (semantic hits that FTS missed) are fetched
-    // in a separate query and merged via RRF after the main query runs.
+    // Vectorize results are fetched in a separate query after the main FTS
+    // JOIN query, using the same structured filters, then merged via RRF.
 
     if (colors) {
       const ALL_COLORS = ["W", "U", "B", "R", "G"];
@@ -223,6 +221,11 @@ export const cardSearchModule: NativeReferenceModule = {
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
 
+    // Snapshot structured filter state before adding FTS/LIMIT params.
+    // Used by the vector-only query to apply the same filters.
+    const structuredConditions = [...conditions];
+    const structuredParams = [...params];
+
     // ── Build FROM clause: JOIN with FTS5 when text search is active ──
     let fromClause: string;
     let orderClause: string;
@@ -263,16 +266,23 @@ export const cardSearchModule: NativeReferenceModule = {
 
       let vectorRows: CardRow[] = [];
       if (vectorOnlyIds.length > 0) {
-        // Query vector-only IDs with is_default filter. Structured filters
-        // (cmc, colors, etc.) are applied by the main query's WHERE clause,
-        // but vector-only hits bypass that — we accept them as semantic
-        // matches that may not match structured criteria exactly.
-        const vecParams: unknown[] = [];
-        let vecIdx = 1;
-        const placeholders = vectorOnlyIds.map(() => `?${vecIdx++}`).join(",");
-        vecParams.push(...vectorOnlyIds);
+        // Apply the same structured filters (cmc, colors, type, etc.) to
+        // vector-only hits so semantic results respect user criteria.
+        // Cap IDs to stay within D1's 100-bind-parameter limit:
+        // structuredParams (max ~15) + vectorOnlyIds + LIMIT must be < 100.
+        const maxVecIds = 100 - structuredParams.length - 1;
+        const cappedVecIds = vectorOnlyIds.slice(0, maxVecIds);
 
-        const vecSql = `SELECT c.* FROM magic_cards c WHERE c.is_default = 1 AND c.scryfall_id IN (${placeholders}) LIMIT ?${vecIdx}`;
+        const vecConditions = [...structuredConditions];
+        const vecParams = [...structuredParams];
+        let vecIdx = structuredParams.length + 1;
+
+        const placeholders = cappedVecIds.map(() => `?${vecIdx++}`).join(",");
+        vecConditions.push(`c.scryfall_id IN (${placeholders})`);
+        vecParams.push(...cappedVecIds);
+
+        const vecWhereClause = `WHERE ${vecConditions.join(" AND ")}`;
+        const vecSql = `SELECT c.* FROM magic_cards c ${vecWhereClause} LIMIT ?${vecIdx}`;
         vecParams.push(limit);
 
         const vecResults = await env.DB.prepare(vecSql)
@@ -293,8 +303,9 @@ export const cardSearchModule: NativeReferenceModule = {
         if (row) sorted.push(row);
       }
       // Append any FTS rows that RRF didn't include (if RRF capped at limit)
+      const includedIds = new Set(sorted.map((s) => s.scryfall_id));
       for (const row of results.results) {
-        if (!sorted.some((s) => s.scryfall_id === row.scryfall_id)) {
+        if (!includedIds.has(row.scryfall_id)) {
           sorted.push(row);
         }
       }

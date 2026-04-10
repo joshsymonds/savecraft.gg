@@ -5,8 +5,8 @@
  * Each ID gets a score of 1/(k + rank) from each list, and scores are summed.
  * Higher k smooths differences between ranks (k=60 is standard).
  *
- * The result is capped at maxResults to prevent D1's 100-parameter bind limit
- * from being exceeded when the merged list is used in SQL IN clauses.
+ * The result is capped at maxResults to bound the merged output for
+ * final result slicing and vector-only fetch queries.
  */
 export function mergeWithRRF(
   bm25Ids: string[],

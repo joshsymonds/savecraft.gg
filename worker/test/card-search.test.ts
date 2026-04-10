@@ -301,6 +301,47 @@ describe("card_search native module", () => {
     expect(cards.length).toBe(1);
   });
 
+  it("limit > DEFAULT_LIMIT returns more than 20 results with FTS", async () => {
+    // Regression test for bug #3: limit:50 returned only 20 results because
+    // the old FTS pre-filter capped candidates before structured filtering.
+    const stmts = [];
+    for (let index = 0; index < 25; index++) {
+      const id = `limit-test-${String(index)}`;
+      stmts.push(
+        env.DB.prepare(
+          `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        ).bind(
+          id,
+          index + 500,
+          id,
+          `Burn Spell ${String(index)}`,
+          "{R}",
+          1,
+          "Instant",
+          "Deal 3 damage to any target.",
+          '["R"]',
+          '["R"]',
+          '{"standard":"legal"}',
+          "common",
+          "TST",
+          "[]",
+        ),
+        env.DB.prepare(
+          "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+        ).bind(id, `Burn Spell ${String(index)}`, "Deal 3 damage to any target.", "Instant"),
+      );
+    }
+    await env.DB.batch(stmts);
+
+    const result = await cardSearchModule.execute({ text: "damage", limit: 50 }, ftsEnv);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Record<string, unknown>[];
+    expect(cards.length).toBe(25);
+  });
+
   it("sorts by cmc", async () => {
     await seedCards();
 
@@ -613,19 +654,19 @@ describe("card_search native module", () => {
     const stmts = [];
 
     // 30 cards with "life" in oracle text at CMC 1-4 (will dominate FTS rankings)
-    for (let i = 0; i < 30; i++) {
-      const id = `fts-noise-${i}`;
+    for (let index = 0; index < 30; index++) {
+      const id = `fts-noise-${String(index)}`;
       stmts.push(
         env.DB.prepare(
           `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
         ).bind(
           id,
-          i + 100,
+          index + 100,
           id,
-          `Life Noise ${i}`,
-          `{${(i % 4) + 1}}`,
-          (i % 4) + 1,
+          `Life Noise ${String(index)}`,
+          `{${String((index % 4) + 1)}}`,
+          (index % 4) + 1,
           "Creature — Human",
           "Whenever you gain life, draw a card.",
           '["W"]',
@@ -635,26 +676,29 @@ describe("card_search native module", () => {
           "TST",
           "[]",
         ),
-      );
-      stmts.push(
         env.DB.prepare(
           "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
-        ).bind(id, `Life Noise ${i}`, "Whenever you gain life, draw a card.", "Creature — Human"),
+        ).bind(
+          id,
+          `Life Noise ${String(index)}`,
+          "Whenever you gain life, draw a card.",
+          "Creature — Human",
+        ),
       );
     }
 
     // 5 cards with "life" in oracle text at CMC 5 — these are the targets
-    for (let i = 0; i < 5; i++) {
-      const id = `fts-target-${i}`;
+    for (let index = 0; index < 5; index++) {
+      const id = `fts-target-${String(index)}`;
       stmts.push(
         env.DB.prepare(
           `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
         ).bind(
           id,
-          i + 200,
+          index + 200,
           id,
-          `Life Target ${i}`,
+          `Life Target ${String(index)}`,
           "{5}",
           5,
           "Creature — Angel",
@@ -666,13 +710,11 @@ describe("card_search native module", () => {
           "TST",
           '["flying"]',
         ),
-      );
-      stmts.push(
         env.DB.prepare(
           "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
         ).bind(
           id,
-          `Life Target ${i}`,
+          `Life Target ${String(index)}`,
           "You gain 5 life when this enters the battlefield.",
           "Creature — Angel",
         ),
@@ -694,8 +736,8 @@ describe("card_search native module", () => {
 
     const cards = result.data.cards as Record<string, unknown>[];
     expect(cards.length).toBe(5);
-    for (let i = 0; i < 5; i++) {
-      expect(cards.map((c) => c.name)).toContain(`Life Target ${i}`);
+    for (let index = 0; index < 5; index++) {
+      expect(cards.map((c) => c.name)).toContain(`Life Target ${String(index)}`);
     }
   });
 
@@ -703,17 +745,17 @@ describe("card_search native module", () => {
     const stmts = [];
 
     // 30 non-W "lifelink" cards at various CMCs (dominate FTS rankings, filtered out by colors>=W)
-    for (let i = 0; i < 30; i++) {
-      const id = `lifelink-nonw-${i}`;
+    for (let index = 0; index < 30; index++) {
+      const id = `lifelink-nonw-${String(index)}`;
       stmts.push(
         env.DB.prepare(
           `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
         ).bind(
           id,
-          i + 300,
+          index + 300,
           id,
-          `Lifelink NonW ${i}`,
+          `Lifelink NonW ${String(index)}`,
           "{1}{B}",
           2,
           "Creature — Vampire",
@@ -725,46 +767,40 @@ describe("card_search native module", () => {
           "TST",
           '["lifelink"]',
         ),
-      );
-      stmts.push(
         env.DB.prepare(
           "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
-        ).bind(id, `Lifelink NonW ${i}`, "Lifelink", "Creature — Vampire"),
+        ).bind(id, `Lifelink NonW ${String(index)}`, "Lifelink", "Creature — Vampire"),
       );
     }
 
     // 5 multicolor-with-W "lifelink" cards at CMC 2 (targets — should appear with >=W)
-    const multiColors = ["WB", "WG", "WU", "WR", "WBG"];
-    for (let i = 0; i < 5; i++) {
-      const id = `lifelink-multi-${i}`;
-      const colorArr = multiColors[i]!.split("")
-        .map((c) => `"${c}"`)
-        .join(",");
+    const multiColorJsons = ['["W","B"]', '["W","G"]', '["W","U"]', '["W","R"]', '["W","B","G"]'];
+    for (let index = 0; index < 5; index++) {
+      const id = `lifelink-multi-${String(index)}`;
+      const colorJson = multiColorJsons[index]!;
       stmts.push(
         env.DB.prepare(
           `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
         ).bind(
           id,
-          i + 400,
+          index + 400,
           id,
-          `Lifelink Multi ${i}`,
+          `Lifelink Multi ${String(index)}`,
           "{1}{W}",
           2,
           "Creature — Human Knight",
           "Lifelink",
-          `[${colorArr}]`,
-          `[${colorArr}]`,
+          colorJson,
+          colorJson,
           '{"standard":"legal"}',
           "uncommon",
           "TST",
           '["lifelink"]',
         ),
-      );
-      stmts.push(
         env.DB.prepare(
           "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
-        ).bind(id, `Lifelink Multi ${i}`, "Lifelink", "Creature — Human Knight"),
+        ).bind(id, `Lifelink Multi ${String(index)}`, "Lifelink", "Creature — Human Knight"),
       );
     }
 
