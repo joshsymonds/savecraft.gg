@@ -28,10 +28,8 @@ func buildSQL(
 	b.WriteString("DELETE FROM poe_base_items_fts;\n")
 	b.WriteString("DELETE FROM poe_base_items;\n")
 	b.WriteString("DELETE FROM poe_stat_translations;\n")
-	b.WriteString("DELETE FROM poe_uniques_fts;\n")
-	b.WriteString("DELETE FROM poe_uniques;\n")
-	b.WriteString("DELETE FROM poe_mods_fts;\n")
-	b.WriteString("DELETE FROM poe_mods;\n")
+	// NOTE: poe_uniques is managed by poeninja-fetch, not repoe-fetch.
+	// poe_mods will be managed by repoe-fetch once the mod pipeline is added.
 
 	// ── Gems ──────────────────────────────────────────────────
 	for _, g := range gems {

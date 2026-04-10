@@ -14,6 +14,7 @@
 
   interface UniqueResult {
     name: string;
+    variant?: string;
     base_type: string;
     item_class: string;
     level_requirement?: number;
@@ -49,7 +50,7 @@
           {#each data.items as item}
             <div class="item-card">
               <ItemFrame
-                name={item.name}
+                name={item.variant ? `${item.name} (${item.variant})` : item.name}
                 baseName={item.base_type}
                 rarity="UNIQUE"
                 itemType={item.item_class}

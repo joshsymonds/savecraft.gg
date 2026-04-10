@@ -2,11 +2,9 @@
  * PoE unique_search — native reference module.
  *
  * FTS5 search over unique items stored in D1. Supports filtering by item
- * class (e.g. "Body Armour", "Amulet").
- *
- * NOTE: The poe_uniques table is not yet populated by repoe-fetch (RePoE's
- * uniques format needs investigation). This module is wired up and ready —
- * it will return results once the data pipeline is extended.
+ * class (e.g. "Body Armour", "Amulet"). Variant items (e.g., Atziri's
+ * Splendour with different defense types) are stored as separate rows.
+ * Populated by poeninja-fetch from poe.ninja.
  */
 
 import type { Env } from "../../../worker/src/types";
@@ -20,6 +18,7 @@ const DEFAULT_LIMIT = 20;
 
 interface UniqueRow {
   name: string;
+  variant: string | null;
   base_type: string | null;
   item_class: string | null;
   level_requirement: number | null;
@@ -34,7 +33,7 @@ interface UniqueRow {
 }
 
 function uniqueRowToResult(row: UniqueRow): Record<string, unknown> {
-  return {
+  const result: Record<string, unknown> = {
     name: row.name,
     base_type: row.base_type,
     item_class: row.item_class,
@@ -45,6 +44,10 @@ function uniqueRowToResult(row: UniqueRow): Record<string, unknown> {
     flavour_text: row.flavour_text,
     drop_level: row.drop_level,
   };
+  if (row.variant) {
+    result.variant = row.variant;
+  }
+  return result;
 }
 
 export const uniqueSearchModule: NativeReferenceModule = {
@@ -81,7 +84,9 @@ export const uniqueSearchModule: NativeReferenceModule = {
     const searchQuery =
       typeof query.query === "string" ? query.query.trim() : undefined;
     const itemClass =
-      typeof query.item_class === "string" ? query.item_class.trim() : undefined;
+      typeof query.item_class === "string"
+        ? query.item_class.trim()
+        : undefined;
     const limit =
       typeof query.limit === "number"
         ? Math.min(Math.max(query.limit, 1), 100)
@@ -119,7 +124,7 @@ export const uniqueSearchModule: NativeReferenceModule = {
     }
 
     let sql = `SELECT u.* FROM poe_uniques u WHERE ${conditions.join(" AND ")}`;
-    sql += " ORDER BY u.name LIMIT ?";
+    sql += " ORDER BY u.name, u.variant LIMIT ?";
     bindings.push(limit);
 
     const rows = await db
