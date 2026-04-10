@@ -168,8 +168,19 @@ func buildManifest(pluginDir string) (pluginManifest, error) {
 		return manifest, nil
 	}
 
-	// WASM plugin: hash parser.wasm and optionally include reference metadata.
+	// Native-only plugins have no parser WASM — just metadata and reference module declarations.
 	wasmPath := filepath.Join(pluginDir, "parser.wasm")
+	if _, err := os.Stat(wasmPath); errors.Is(err, os.ErrNotExist) {
+		// Include reference module metadata from plugin.toml (native modules need no WASM hash).
+		if len(cfg.Reference.Modules) > 0 {
+			manifest.Reference = &referenceManifest{
+				Modules: cfg.Reference.Modules,
+			}
+		}
+		return manifest, nil
+	}
+
+	// WASM plugin: hash parser.wasm and optionally include reference metadata.
 	hash, err := fileSHA256(wasmPath)
 	if err != nil {
 		return pluginManifest{}, fmt.Errorf("hash %s: %w", wasmPath, err)

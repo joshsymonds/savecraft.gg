@@ -7,6 +7,7 @@
   "channel": "beta",
   "coverage": "partial",
   "file_extensions": [],
+  "homepage": "",
   "limitations": [
     "Build analysis only — no live character data yet (GGG API access pending)",
     "Timeless jewel calculations are not supported"
@@ -20,30 +21,14 @@
     "linux": "",
     "darwin": ""
   },
-  "version": "dev",
+  "version": "",
   "reference": {
+    "sha256": "",
+    "url": "",
     "modules": {
       "pob_calc": {
         "name": "PoB Build Calculator",
-        "description": "Analyze or modify a Path of Exile build via Path of Building. First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. To drill deeper, call again with buildId and sections (e.g. 'offense,defense'). For modifications, pass buildId + operations + sections to see before/after comparison. Every response includes a buildId for follow-up calls.",
-        "parameters": {
-          "build": {
-            "type": "string",
-            "description": "URL to a PoB build (pobb.in, pastebin, pob.savecraft.gg link). Required on first call. Omit when modifying by buildId."
-          },
-          "build_id": {
-            "type": "string",
-            "description": "Build ID from a previous pob_calc response. Use to modify or re-analyze without a URL."
-          },
-          "operations": {
-            "type": "string",
-            "description": "JSON array of modifications. Omit for analysis. Ops: set_level, swap_gem, add_gem, remove_gem, toggle_keystone, allocate_node, deallocate_node, equip_unique, set_item. See query_reference parameter docs for full syntax."
-          },
-          "sections": {
-            "type": "string",
-            "description": "Comma-separated section names to include in the response (e.g. 'offense,defense'). Omit for a compact summary with section index listing available sections. Available: offense, ailments, defense, resistances, ehp, recovery, charges, limits, socket_groups, items, keystones, tree, minion_offense, minion_defense."
-          }
-        }
+        "description": "Analyze or modify a Path of Exile build via Path of Building. First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. To drill deeper, call again with buildId and sections (e.g. 'offense,defense'). For modifications, pass buildId + operations + sections to see before/after comparison. Every response includes a buildId for follow-up calls."
       }
     }
   }
