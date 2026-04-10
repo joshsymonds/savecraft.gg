@@ -16,11 +16,13 @@ func buildSQL(
 	baseItems []ProcessedBaseItem,
 	statTranslations []ProcessedStatTranslation,
 	passiveNodes []ProcessedPassiveNode,
+	modGroups []ProcessedModGroup,
 ) string {
 	var b strings.Builder
 	q := cfapi.SQLQuote
 
 	// Wipe all tables (FTS first, then data).
+	// NOTE: poe_uniques is managed by poeninja-fetch, not repoe-fetch.
 	b.WriteString("DELETE FROM poe_gems_fts;\n")
 	b.WriteString("DELETE FROM poe_gems;\n")
 	b.WriteString("DELETE FROM poe_passive_nodes_fts;\n")
@@ -28,8 +30,8 @@ func buildSQL(
 	b.WriteString("DELETE FROM poe_base_items_fts;\n")
 	b.WriteString("DELETE FROM poe_base_items;\n")
 	b.WriteString("DELETE FROM poe_stat_translations;\n")
-	// NOTE: poe_uniques is managed by poeninja-fetch, not repoe-fetch.
-	// poe_mods will be managed by repoe-fetch once the mod pipeline is added.
+	b.WriteString("DELETE FROM poe_mods_fts;\n")
+	b.WriteString("DELETE FROM poe_mods;\n")
 
 	// ── Gems ──────────────────────────────────────────────────
 	for _, g := range gems {
@@ -156,6 +158,43 @@ func buildSQL(
 
 		fmt.Fprintf(&b, "INSERT INTO poe_stat_translations (stat_id, translation, format_type) VALUES (%s, %s, %s);\n",
 			q(st.StatID), q(st.Translation), formatType,
+		)
+	}
+
+	// ── Mods ─────────────────────────────────────────────────
+	for _, mg := range modGroups {
+		genType := "NULL"
+		if mg.GenerationType != "" {
+			genType = q(mg.GenerationType)
+		}
+		domain := "NULL"
+		if mg.Domain != "" {
+			domain = q(mg.Domain)
+		}
+
+		// Derive mod_type from generation_type + domain.
+		modType := "NULL"
+		switch {
+		case mg.GenerationType == "prefix" || mg.GenerationType == "suffix":
+			modType = q("explicit")
+		case mg.GenerationType == "corrupted" || mg.GenerationType == "exarch_implicit" || mg.GenerationType == "eater_implicit":
+			modType = q("implicit")
+		case mg.Domain == "crafted":
+			modType = q("crafted")
+		case mg.Domain == "unveiled":
+			modType = q("unveiled")
+		case mg.GenerationType == "essence":
+			modType = q("essence")
+		}
+
+		fmt.Fprintf(&b, "INSERT INTO poe_mods (mod_id, mod_name, generation_type, mod_type, domain, item_class_spawns, stat_ids, stat_ranges, tiers) VALUES (%s, %s, %s, %s, %s, %s, %s, '[]', %s);\n",
+			q(mg.ModID), q(mg.ModName), genType, modType, domain,
+			q(mg.ItemClassSpawns), q(mg.StatIDs), q(mg.Tiers),
+		)
+
+		// FTS5 row: searchable by mod name.
+		fmt.Fprintf(&b, "INSERT INTO poe_mods_fts (mod_id, mod_name) VALUES (%s, %s);\n",
+			q(mg.ModID), q(mg.ModName),
 		)
 	}
 

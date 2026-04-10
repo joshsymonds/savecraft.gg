@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +29,7 @@ const (
 	baseItemsURL        = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/base_items.json"
 	statTranslationsURL = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/stat_translations.json"
 	passiveTreeURL      = "https://raw.githubusercontent.com/grindinggear/skilltree-export/refs/tags/3.28.0/data.json"
+	modsURL             = "https://raw.githubusercontent.com/brather1ng/RePoE/master/RePoE/data/mods.json"
 )
 
 // Gem represents a gem entry from RePoE's gems.json.
@@ -178,6 +180,79 @@ type ProcessedPassiveNode struct {
 	OrbitIndex     *int
 }
 
+// RawMod represents a single mod entry from RePoE's mods.json.
+type RawMod struct {
+	Name           string        `json:"name"`
+	Domain         string        `json:"domain"`
+	GenerationType string        `json:"generation_type"`
+	RequiredLevel  int           `json:"required_level"`
+	Stats          []RawModStat  `json:"stats"`
+	SpawnWeights   []SpawnWeight `json:"spawn_weights"`
+	Type           string        `json:"type"`
+	Groups         []string      `json:"groups"`
+	IsEssenceOnly  bool          `json:"is_essence_only"`
+}
+
+// RawModStat is a stat entry within a mod.
+type RawModStat struct {
+	ID  string `json:"id"`
+	Min int    `json:"min"`
+	Max int    `json:"max"`
+}
+
+// SpawnWeight is an item class tag + weight pair.
+type SpawnWeight struct {
+	Tag    string `json:"tag"`
+	Weight int    `json:"weight"`
+}
+
+// ProcessedModGroup holds a grouped mod (all tiers of one effect) ready for SQL.
+type ProcessedModGroup struct {
+	ModID           string // "type|domain|generation_type"
+	ModName         string // Human-readable effect description
+	GenerationType  string
+	Domain          string
+	ItemClassSpawns string // JSON: {"weapon": 50, "default": 0}
+	StatIDs         string // JSON array of stat IDs
+	Tiers           string // JSON array of tier objects
+}
+
+// modTier holds one tier's data for JSON serialization.
+type modTier struct {
+	Tier   int        `json:"tier"`
+	Name   string     `json:"name"`
+	Level  int        `json:"level"`
+	Stats  []tierStat `json:"stats"`
+	Weight int        `json:"weight"`
+}
+
+// tierStat holds a rendered stat line + range for one tier.
+type tierStat struct {
+	Text string `json:"text"`
+	Min  int    `json:"min"`
+	Max  int    `json:"max"`
+}
+
+// craftingGenerationTypes is the set of generation_types relevant for crafting.
+var craftingGenerationTypes = map[string]bool{
+	"prefix":          true,
+	"suffix":          true,
+	"corrupted":       true,
+	"essence":         true,
+	"exarch_implicit": true,
+	"eater_implicit":  true,
+}
+
+// craftingDomains is the set of domains relevant for crafting.
+var craftingDomains = map[string]bool{
+	"item":             true,
+	"crafted":          true,
+	"flask":            true,
+	"abyss_jewel":      true,
+	"affliction_jewel": true,
+	"unveiled":         true,
+}
+
 func main() {
 	if err := run(); err != nil {
 		fmt.Fprintf(os.Stderr, "error: %v\n", err)
@@ -237,9 +312,16 @@ func run() error {
 	}
 	fmt.Printf("Fetched %d passive nodes\n", len(passiveNodes))
 
+	fmt.Println("Fetching mods...")
+	modGroups, err := fetchAndProcessMods()
+	if err != nil {
+		return fmt.Errorf("fetching mods: %w", err)
+	}
+	fmt.Printf("Processed %d mod groups\n", len(modGroups))
+
 	// Build SQL.
 	fmt.Println("\nBuilding SQL...")
-	sql := buildSQL(gems, baseItems, statTranslations, passiveNodes)
+	sql := buildSQL(gems, baseItems, statTranslations, passiveNodes, modGroups)
 
 	// Content hash for change detection.
 	h := sha256.Sum256([]byte(sql))
@@ -270,8 +352,8 @@ func run() error {
 			}
 		}
 
-		fmt.Printf("Generated %.1f MB of SQL (%d gems, %d base items, %d stat translations, %d passive nodes)\n",
-			float64(len(sql))/1048576, len(gems), len(baseItems), len(statTranslations), len(passiveNodes))
+		fmt.Printf("Generated %.1f MB of SQL (%d gems, %d base items, %d stat translations, %d passive nodes, %d mod groups)\n",
+			float64(len(sql))/1048576, len(gems), len(baseItems), len(statTranslations), len(passiveNodes), len(modGroups))
 
 		fmt.Println("Importing to D1...")
 		if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
@@ -280,7 +362,7 @@ func run() error {
 		}
 		os.Remove(sqlPath)
 
-		totalRows := len(gems) + len(baseItems) + len(statTranslations) + len(passiveNodes)
+		totalRows := len(gems) + len(baseItems) + len(statTranslations) + len(passiveNodes) + len(modGroups)
 		if err := cfapi.UpdatePipelineState(*cfAccountID, *d1DatabaseID, *cfAPIToken, "repoe", cfapi.PipelineGlobalSet, contentHash, totalRows); err != nil {
 			fmt.Printf("WARN: pipeline state update failed: %v\n", err)
 		}
@@ -698,6 +780,176 @@ func fetchPassiveNodes() ([]ProcessedPassiveNode, error) {
 	}
 
 	return nodes, nil
+}
+
+// fetchAndProcessMods fetches mods.json and stat_translations.json, then
+// groups mods by (type, domain, generation_type), renders human-readable
+// mod names via stat translations, and returns per-group processed data.
+func fetchAndProcessMods() ([]ProcessedModGroup, error) {
+	// Fetch mods.
+	resp, err := httpGet(modsURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetching mods: %w", err)
+	}
+	defer resp.Body.Close()
+
+	var rawMods map[string]RawMod
+	if err := json.NewDecoder(resp.Body).Decode(&rawMods); err != nil {
+		return nil, fmt.Errorf("decoding mods: %w", err)
+	}
+	fmt.Printf("  Fetched %d raw mods\n", len(rawMods))
+
+	// Fetch stat translations for rendering.
+	transResp, err := httpGet(statTranslationsURL)
+	if err != nil {
+		return nil, fmt.Errorf("fetching stat translations for mod rendering: %w", err)
+	}
+	defer transResp.Body.Close()
+
+	var rawTranslations []RawStatTranslation
+	if err := json.NewDecoder(transResp.Body).Decode(&rawTranslations); err != nil {
+		return nil, fmt.Errorf("decoding stat translations: %w", err)
+	}
+
+	translator := NewStatTranslator(rawTranslations)
+
+	// Filter to crafting-relevant mods and group by (type, domain, generation_type).
+	type groupKey struct{ typ, domain, genType string }
+	groups := make(map[groupKey][]struct {
+		modID string
+		mod   RawMod
+	})
+
+	filtered := 0
+	for modID, mod := range rawMods {
+		if !craftingGenerationTypes[mod.GenerationType] {
+			continue
+		}
+		if !craftingDomains[mod.Domain] {
+			continue
+		}
+		if len(mod.Stats) == 0 {
+			continue
+		}
+		filtered++
+		k := groupKey{mod.Type, mod.Domain, mod.GenerationType}
+		groups[k] = append(groups[k], struct {
+			modID string
+			mod   RawMod
+		}{modID, mod})
+	}
+	fmt.Printf("  Filtered to %d crafting mods in %d groups\n", filtered, len(groups))
+
+	// Process each group into a ProcessedModGroup.
+	var result []ProcessedModGroup
+	for k, mods := range groups {
+		// Sort tiers by required_level descending (highest = T1).
+		sort.Slice(mods, func(i, j int) bool {
+			return mods[i].mod.RequiredLevel > mods[j].mod.RequiredLevel
+		})
+
+		// Render mod name from the first tier's stats (they all share the same effect).
+		firstMod := mods[0].mod
+		var statValues []StatValue
+		for _, s := range firstMod.Stats {
+			// Use mid-range value for condition matching.
+			mid := (s.Min + s.Max) / 2
+			if mid == 0 && s.Max > 0 {
+				mid = 1
+			}
+			if mid == 0 && s.Min < 0 {
+				mid = -1
+			}
+			statValues = append(statValues, StatValue{ID: s.ID, Value: mid})
+		}
+		// Get the template string (with {0}, {1} placeholders) for clean mod name.
+		template := translator.Template(statValues)
+		if template == "" {
+			// Fallback: use the stat IDs joined.
+			ids := make([]string, len(firstMod.Stats))
+			for i, s := range firstMod.Stats {
+				ids[i] = s.ID
+			}
+			template = strings.Join(ids, ", ")
+		}
+		modName := extractModName(template)
+
+		// Collect stat IDs.
+		statIDs := make([]string, len(firstMod.Stats))
+		for i, s := range firstMod.Stats {
+			statIDs[i] = s.ID
+		}
+
+		// Build tier array.
+		var tiers []modTier
+		for tierNum, entry := range mods {
+			mod := entry.mod
+
+			// Render each tier's stat text. Use min value for display; the
+			// view shows (min-max) from the Min/Max fields directly.
+			var tierStats []tierStat
+			for _, s := range mod.Stats {
+				sv := []StatValue{{ID: s.ID, Value: s.Min}}
+				text := translator.Translate(sv)
+				if text == "" {
+					text = s.ID
+				}
+
+				tierStats = append(tierStats, tierStat{
+					Text: text,
+					Min:  s.Min,
+					Max:  s.Max,
+				})
+			}
+
+			// Extract max spawn weight (primary weight for the mod).
+			maxWeight := 0
+			for _, sw := range mod.SpawnWeights {
+				if sw.Tag != "default" && sw.Weight > maxWeight {
+					maxWeight = sw.Weight
+				}
+			}
+
+			tiers = append(tiers, modTier{
+				Tier:   tierNum + 1,
+				Name:   mod.Name,
+				Level:  mod.RequiredLevel,
+				Stats:  tierStats,
+				Weight: maxWeight,
+			})
+		}
+
+		tiersJSON, _ := json.Marshal(tiers)
+		statIDsJSON, _ := json.Marshal(statIDs)
+
+		// Build item_class_spawns from first tier's spawn weights.
+		spawnMap := make(map[string]int)
+		for _, sw := range firstMod.SpawnWeights {
+			if sw.Weight > 0 {
+				spawnMap[sw.Tag] = sw.Weight
+			}
+		}
+		spawnJSON, _ := json.Marshal(spawnMap)
+
+		compositeID := k.typ + "|" + k.domain + "|" + k.genType
+
+		result = append(result, ProcessedModGroup{
+			ModID:           compositeID,
+			ModName:         modName,
+			GenerationType:  k.genType,
+			Domain:          k.domain,
+			ItemClassSpawns: string(spawnJSON),
+			StatIDs:         string(statIDsJSON),
+			Tiers:           string(tiersJSON),
+		})
+	}
+
+	// Sort for deterministic output.
+	sort.Slice(result, func(i, j int) bool {
+		return result[i].ModID < result[j].ModID
+	})
+
+	return result, nil
 }
 
 func httpGet(url string) (*http.Response, error) {
