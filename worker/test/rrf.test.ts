@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+
 import { mergeWithRRF } from "../src/reference/rrf";
 
 describe("mergeWithRRF", () => {
@@ -48,7 +49,7 @@ describe("mergeWithRRF", () => {
     // With large k, rank position barely matters: 1/1000 vs 1/1004 ≈ same
     // A shared item at low ranks can beat or lose to a single-list item at rank 0
     // depending on k.
-    const bm25 = ["a", "b", "c", "d", "shared"];  // "shared" at rank 4
+    const bm25 = ["a", "b", "c", "d", "shared"]; // "shared" at rank 4
     const vector = ["e", "f", "g", "h", "shared"]; // "shared" at rank 4
 
     // shared score = 1/(k+4) + 1/(k+4) = 2/(k+4)
@@ -67,8 +68,8 @@ describe("mergeWithRRF", () => {
   });
 
   it("merges large lists correctly", () => {
-    const bm25 = Array.from({ length: 50 }, (_, i) => `bm25-${i}`);
-    const vector = Array.from({ length: 50 }, (_, i) => `vec-${i}`);
+    const bm25 = Array.from({ length: 50 }, (_, index) => `bm25-${String(index)}`);
+    const vector = Array.from({ length: 50 }, (_, index) => `vec-${String(index)}`);
     // Add some overlap
     bm25[5] = "shared-1";
     vector[3] = "shared-1";

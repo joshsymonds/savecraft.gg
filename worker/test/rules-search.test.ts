@@ -2,8 +2,8 @@ import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { rulesSearchModule } from "../../plugins/mtga/reference/rules-search";
-import { mergeWithRRF } from "../src/reference/rrf";
 import { getNativeModule, registerNativeModule } from "../src/reference/registry";
+import { mergeWithRRF } from "../src/reference/rrf";
 
 import { cleanAll } from "./helpers";
 

@@ -16,17 +16,15 @@ export function mergeWithRRF(
 ): string[] {
   const scores = new Map<string, number>();
 
-  for (let i = 0; i < bm25Ids.length; i++) {
-    const id = bm25Ids[i]!;
-    scores.set(id, (scores.get(id) ?? 0) + 1 / (k + i));
+  for (const [rank, id] of bm25Ids.entries()) {
+    scores.set(id, (scores.get(id) ?? 0) + 1 / (k + rank));
   }
-  for (let i = 0; i < vectorIds.length; i++) {
-    const id = vectorIds[i]!;
-    scores.set(id, (scores.get(id) ?? 0) + 1 / (k + i));
+  for (const [rank, id] of vectorIds.entries()) {
+    scores.set(id, (scores.get(id) ?? 0) + 1 / (k + rank));
   }
 
   return [...scores.entries()]
-    .sort((a, b) => b[1] - a[1])
+    .toSorted((a, b) => b[1] - a[1])
     .slice(0, maxResults)
     .map(([id]) => id);
 }
