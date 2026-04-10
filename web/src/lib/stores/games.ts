@@ -1,4 +1,5 @@
-import type { Game, GameSourceEntry, Save, Source } from "$lib/types/source";
+import type { PluginManifest } from "$lib/api/client";
+import type { Game, GameSourceEntry, PickerGame, Save, Source } from "$lib/types/source";
 
 /** Flatten sources into a game-centric list, merging saves across sources by gameId. */
 export function mergeGames(sources: Source[]): Game[] {
@@ -65,4 +66,41 @@ export function mergeGames(sources: Source[]): Game[] {
 
   result.sort((a, b) => a.name.localeCompare(b.name));
   return result;
+}
+
+/** Build the game picker catalog from plugin manifests and the current merged game list. */
+export function buildPickerCatalog(
+  plugins: Map<string, PluginManifest>,
+  mergedGames: Game[],
+): PickerGame[] {
+  const watchedIds = new Set(mergedGames.map((g) => g.gameId));
+  const result: PickerGame[] = [];
+  for (const [gameId, manifest] of plugins) {
+    const merged = mergedGames.find((g) => g.gameId === gameId);
+    const isApi = manifest.source === "api";
+    const isModule = manifest.source === "mod";
+    let description: string;
+    if (isApi) {
+      description = manifest.name;
+    } else if (isModule) {
+      description = manifest.description;
+    } else if (manifest.file_extensions?.length) {
+      description = `Parses ${manifest.file_extensions.join(", ")} files`;
+    } else {
+      description = manifest.description;
+    }
+    result.push({
+      gameId,
+      name: manifest.name,
+      iconUrl: manifest.icon_url,
+      description,
+      watched: watchedIds.has(gameId),
+      saveCount: merged?.saves.length ?? 0,
+      defaultPaths: manifest.default_paths,
+      isApiGame: isApi || undefined,
+      workshopUrl: manifest.workshop_url,
+      adapter: manifest.adapter,
+    });
+  }
+  return result.sort((a, b) => a.name.localeCompare(b.name));
 }

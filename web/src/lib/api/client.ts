@@ -74,7 +74,7 @@ export interface PluginManifest {
   name: string;
   description: string;
   version: string;
-  file_extensions: string[];
+  file_extensions: string[] | null;
   default_paths: { windows?: string; linux?: string; darwin?: string };
   coverage: string;
   source?: string;

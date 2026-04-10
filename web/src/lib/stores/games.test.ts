@@ -1,7 +1,8 @@
+import type { PluginManifest } from "$lib/api/client";
 import type { Game, Save, Source } from "$lib/types/source";
 import { describe, expect, it } from "vitest";
 
-import { mergeGames } from "./games";
+import { buildPickerCatalog, mergeGames } from "./games";
 
 function makeSource(overrides: Partial<Source> & { id: string }): Source {
   return {
@@ -330,5 +331,113 @@ describe("mergeGames", () => {
 
     const result = mergeGames(sources);
     expect(result[0]!.statusLine).toBe("No saves");
+  });
+});
+
+function makeManifest(overrides: Partial<PluginManifest> & { game_id: string }): PluginManifest {
+  return {
+    name: overrides.game_id,
+    description: "Test game",
+    version: "1.0.0",
+    file_extensions: [".sav"],
+    default_paths: {},
+    coverage: "full",
+    ...overrides,
+  };
+}
+
+describe("buildPickerCatalog", () => {
+  it("does not crash when manifest has null file_extensions", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "wow",
+        makeManifest({
+          game_id: "wow",
+          name: "World of Warcraft",
+          source: "api",
+          file_extensions: null as unknown as string[],
+          adapter: { authProvider: "battlenet", regions: ["us", "eu"] },
+        }),
+      ],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.gameId).toBe("wow");
+  });
+
+  it("uses manifest.description for file_extensions fallback", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "stellaris",
+        makeManifest({
+          game_id: "stellaris",
+          name: "Stellaris",
+          description: "Grand strategy saves",
+          file_extensions: null as unknown as string[],
+        }),
+      ],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    expect(result[0]!.description).toBe("Grand strategy saves");
+  });
+
+  it("formats file_extensions into description when present", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "d2r",
+        makeManifest({
+          game_id: "d2r",
+          name: "Diablo II: Resurrected",
+          file_extensions: [".d2s", ".d2i"],
+        }),
+      ],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    expect(result[0]!.description).toBe("Parses .d2s, .d2i files");
+  });
+
+  it("marks watched games correctly", () => {
+    const plugins = new Map<string, PluginManifest>([
+      ["d2r", makeManifest({ game_id: "d2r", name: "Diablo II: Resurrected" })],
+    ]);
+    const mergedGames: Game[] = [
+      {
+        gameId: "d2r",
+        name: "Diablo II: Resurrected",
+        iconUrl: undefined,
+        statusLine: "1 save",
+        saves: [
+          {
+            saveUuid: "s1",
+            saveName: "Atmus",
+            summary: "Paladin",
+            lastUpdated: "now",
+            status: "success",
+            sourceId: "src-1",
+            sourceName: "PC",
+          },
+        ],
+        sourceCount: 1,
+        sources: [],
+        needsConfig: false,
+      },
+    ];
+    const result = buildPickerCatalog(plugins, mergedGames);
+    expect(result[0]!.watched).toBe(true);
+    expect(result[0]!.saveCount).toBe(1);
+  });
+
+  it("sorts results alphabetically", () => {
+    const plugins = new Map<string, PluginManifest>([
+      ["sdv", makeManifest({ game_id: "sdv", name: "Stardew Valley" })],
+      ["bg3", makeManifest({ game_id: "bg3", name: "Baldur's Gate 3" })],
+      ["d2r", makeManifest({ game_id: "d2r", name: "Diablo II: Resurrected" })],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    expect(result.map((g) => g.name)).toEqual([
+      "Baldur's Gate 3",
+      "Diablo II: Resurrected",
+      "Stardew Valley",
+    ]);
   });
 });

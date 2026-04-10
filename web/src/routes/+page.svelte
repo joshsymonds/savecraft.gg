@@ -34,7 +34,7 @@
   import { RelayedMessage } from "$lib/proto/savecraft/v1/protocol";
   import type { Message, TestPathResult } from "$lib/proto/savecraft/v1/protocol";
   import { activityEvents, pushActivityEvent } from "$lib/stores/activity";
-  import { mergeGames } from "$lib/stores/games";
+  import { buildPickerCatalog, mergeGames } from "$lib/stores/games";
   import { consumePendingLinkCode } from "$lib/stores/link-code";
   import {
     cancelLink,
@@ -49,7 +49,6 @@
   import { clearTestPathResult, testPathResult } from "$lib/stores/testpath";
   import type {
     Game,
-    PickerGame,
     RemovedSave,
     Save,
     Source,
@@ -183,31 +182,7 @@
   let showSourceBadges = $derived($sources.length > 1);
 
   // -- Game picker catalog --
-  let pickerGames = $derived.by((): PickerGame[] => {
-    const watchedIds = new Set(mergedGames.map((g) => g.gameId));
-    const result: PickerGame[] = [];
-    for (const [gameId, manifest] of $plugins) {
-      const merged = mergedGames.find((g) => g.gameId === gameId);
-      const isApi = manifest.source === "api";
-      const isModule = manifest.source === "mod";
-      let description = `Parses ${manifest.file_extensions.join(", ")} files`;
-      if (isApi) description = manifest.name;
-      else if (isModule) description = manifest.description;
-      result.push({
-        gameId,
-        name: manifest.name,
-        iconUrl: manifest.icon_url,
-        description,
-        watched: watchedIds.has(gameId),
-        saveCount: merged?.saves.length ?? 0,
-        defaultPaths: manifest.default_paths,
-        isApiGame: isApi || undefined,
-        workshopUrl: manifest.workshop_url,
-        adapter: manifest.adapter,
-      });
-    }
-    return result.sort((a, b) => a.name.localeCompare(b.name));
-  });
+  let pickerGames = $derived(buildPickerCatalog($plugins, mergedGames));
 
   function handleManualLink(code: string): void {
     wasManualInput = true;
