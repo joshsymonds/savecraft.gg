@@ -125,7 +125,8 @@ export const cardSearchModule: NativeReferenceModule = {
               topK: limit * 3,
               filter: { type: "card" },
             });
-            // Vector IDs are "card:{scryfall_id}"
+            // Vector IDs are "card:{scryfall_id}" or "alias:{scryfall_id}".
+            // Both formats have scryfall_id as parts[1].
             vectorScryfallIds = vectorResults.matches
               .map((m) => {
                 const parts = m.id.split(":");

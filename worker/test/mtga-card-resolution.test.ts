@@ -142,6 +142,35 @@ describe("deckbuilding mana card resolution", () => {
     expect(data.unresolved_cards ?? []).not.toContain("Breeding Pool");
   });
 
+  it("resolves flavor name cards via alias table", async () => {
+    // Shadowspear is the canonical card.
+    await seedCard({
+      arena_id: 400,
+      name: "Shadowspear",
+      mana_cost: "{1}",
+      cmc: 1,
+      colors: [],
+      rarity: "mythic",
+      type_line: "Legendary Artifact — Equipment",
+    });
+    // Alias: "Donnie's Bō" → Shadowspear's oracle_id
+    await env.DB.prepare(`INSERT INTO magic_card_aliases (alias_name, oracle_id) VALUES (?, ?)`)
+      .bind("Donnie's Bō", "oracle-400")
+      .run();
+
+    const result = await deckbuildingModule.execute(
+      {
+        mode: "constructed",
+        deck: [{ name: "Donnie's Bō", count: 1 }],
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    expect(data.unresolved_cards ?? []).not.toContain("Donnie's Bō");
+  });
+
   it("resolves DFC cards by front_face_name", async () => {
     await seedCard({
       arena_id: 100,
@@ -253,6 +282,36 @@ describe("collection_diff card resolution", () => {
     await cleanAll();
   });
 
+  it("resolves flavor name cards via alias table for rarity lookup", async () => {
+    await seedCard({
+      arena_id: 500,
+      name: "Shadowspear",
+      rarity: "mythic",
+      type_line: "Legendary Artifact — Equipment",
+    });
+    await env.DB.prepare(`INSERT INTO magic_card_aliases (alias_name, oracle_id) VALUES (?, ?)`)
+      .bind("Donnie's Bō", "oracle-500")
+      .run();
+
+    const result = await collectionDiffModule.execute(
+      {
+        deck: [{ name: "Donnie's Bō", count: 1 }],
+        collection: [],
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    const unresolved = data.unresolvedCards as string[];
+    expect(unresolved).not.toContain("Donnie's Bō");
+    // Should resolve the rarity via alias → canonical card.
+    const missing = data.missing as { name: string; rarity: string }[];
+    const entry = missing.find((m) => m.name === "Donnie's Bō");
+    expect(entry).toBeDefined();
+    expect(entry!.rarity).toBe("mythic");
+  });
+
   it("resolves DFC cards by front_face_name for rarity lookup", async () => {
     await seedCard({
       arena_id: 100,
@@ -318,6 +377,54 @@ describe("collection_diff card resolution", () => {
 describe("play_advisor card resolution", () => {
   beforeEach(async () => {
     await cleanAll();
+  });
+
+  it("resolves flavor name cards in mulligan hand via alias table", async () => {
+    // Shadowspear is the default printing (canonical name).
+    await seedCard({
+      arena_id: 300,
+      name: "Shadowspear",
+      mana_cost: "{1}",
+      cmc: 1,
+      colors: [],
+      rarity: "mythic",
+      type_line: "Legendary Artifact — Equipment",
+    });
+    // Alias: "Donnie's Bō" → Shadowspear's oracle_id
+    await env.DB.prepare(`INSERT INTO magic_card_aliases (alias_name, oracle_id) VALUES (?, ?)`)
+      .bind("Donnie's Bō", "oracle-300")
+      .run();
+
+    await seedCard({
+      arena_id: 301,
+      name: "Island",
+      mana_cost: "",
+      colors: [],
+      produced_mana: ["U"],
+      type_line: "Basic Land — Island",
+    });
+
+    // Seed mulligan data.
+    await env.DB.prepare(
+      `INSERT INTO mtga_play_mulligan (set_code, archetype, on_play, land_count, nonland_cmc_bucket, num_mulligans, games_won, total_games)
+       VALUES ('test', 'ALL', 1, 1, 'low', 0, 50, 100)`,
+    ).run();
+
+    const result = await playAdvisorModule.execute(
+      {
+        mode: "mulligan",
+        set: "test",
+        on_play: true,
+        hand: ["Donnie's Bō", "Island"],
+      },
+      env,
+    );
+
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+    // Donnie's Bō should resolve to Shadowspear (cmc 1), not default 2.5.
+    expect(data.land_count).toBe(1);
+    expect(data.cmc_bucket).toBe("low"); // CMC 1 → low bucket
   });
 
   it("resolves DFC cards in mulligan hand by front_face_name", async () => {

@@ -14,6 +14,7 @@ import type {
   NativeReferenceModule,
   ReferenceResult,
 } from "../../../worker/src/reference/types";
+import { resolveAliases } from "./alias";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -397,10 +398,10 @@ async function mulligan(
 
   const arch = await resolveArchetype(env, "mtga_play_mulligan", set, archetype);
 
-  const placeholders = hand.map(() => "?").join(", ");
+  const ph = hand.map(() => "?").join(", ");
   const cardRows = await env.DB.prepare(
     `SELECT front_face_name AS name, cmc, type_line FROM magic_cards
-     WHERE is_default = 1 AND front_face_name COLLATE NOCASE IN (${placeholders})`,
+     WHERE is_default = 1 AND front_face_name COLLATE NOCASE IN (${ph})`,
   )
     .bind(...hand)
     .all<{ name: string; cmc: number; type_line: string }>();
@@ -411,6 +412,27 @@ async function mulligan(
       cmc: r.cmc,
       isLand: r.type_line.includes("Land"),
     });
+  }
+
+  // Second pass: resolve unmatched hand cards via alias table.
+  const unresolvedHand = hand.filter((n) => !cardInfo.has(n));
+  if (unresolvedHand.length > 0) {
+    const aliasRows = await resolveAliases<{ name: string; cmc: number; type_line: string }>(
+      env.DB,
+      unresolvedHand,
+      "mc.front_face_name AS name, mc.cmc, mc.type_line",
+    );
+    // Map under the original hand card name (the alias) since downstream
+    // code does cardInfo.get(card) with the user's input name.
+    for (const unresolvedName of unresolvedHand) {
+      const row = aliasRows.get(unresolvedName.toLowerCase());
+      if (row) {
+        cardInfo.set(unresolvedName, {
+          cmc: row.cmc,
+          isLand: row.type_line.includes("Land"),
+        });
+      }
+    }
   }
 
   let landCount = 0;

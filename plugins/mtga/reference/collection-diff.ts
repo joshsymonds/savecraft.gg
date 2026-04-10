@@ -7,6 +7,7 @@
 
 import type { Env } from "../../../worker/src/types";
 import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
+import { resolveAliases } from "./alias";
 
 interface DeckEntry {
   name: string;
@@ -107,6 +108,21 @@ export const collectionDiffModule: NativeReferenceModule = {
         .all<{ name: string; rarity: string }>();
       for (const row of rows.results) {
         rarityByName.set(row.name.toLowerCase(), row.rarity);
+      }
+    }
+
+    // Second pass: resolve unmatched names via alias table.
+    const unresolvedDeckNames = deck
+      .filter((e) => !rarityByName.has(e.name.toLowerCase()))
+      .map((e) => e.name);
+    if (unresolvedDeckNames.length > 0) {
+      const aliasRows = await resolveAliases<{ name: string; rarity: string }>(
+        env.DB,
+        unresolvedDeckNames,
+        "mc.front_face_name AS name, mc.rarity",
+      );
+      for (const [aliasKey, row] of aliasRows) {
+        rarityByName.set(aliasKey, row.rarity);
       }
     }
 

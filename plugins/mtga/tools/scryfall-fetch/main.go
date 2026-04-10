@@ -40,6 +40,7 @@ type ScryfallCard struct {
 	OracleID      string            `json:"oracle_id"`
 	Name          string            `json:"name"`
 	PrintedName   string            `json:"printed_name"` // Arena alternate name for UB cards (e.g., "Kavaero, Mind-Bitten")
+	FlavorName    string            `json:"flavor_name"`  // UB "Source Material" reskin name (e.g., "Donnie's Bō" for Shadowspear)
 	ManaCost      string            `json:"mana_cost"`
 	CMC           float64           `json:"cmc"`
 	TypeLine      string            `json:"type_line"`
@@ -125,9 +126,19 @@ func run() error {
 	// Mark one default printing per oracle_id. Prefer Arena printings.
 	computeDefaults(cards)
 
+	// Collect aliases for flavor_name / printed_name before sorting.
+	aliases := collectAliases(cards)
+	if len(aliases) > 0 {
+		fmt.Printf("Collected %d card aliases (flavor_name + printed_name)\n", len(aliases))
+	}
+
 	// Sort by scryfall_id for deterministic output.
 	sort.Slice(cards, func(i, j int) bool {
 		return cards[i].ScryfallID < cards[j].ScryfallID
+	})
+	// Sort aliases by alias name for deterministic output.
+	sort.Slice(aliases, func(i, j int) bool {
+		return strings.ToLower(aliases[i].AliasName) < strings.ToLower(aliases[j].AliasName)
 	})
 
 	// ── Cloudflare population (D1 + Vectorize) ──────────────
@@ -138,7 +149,7 @@ func run() error {
 	if *d1DatabaseID != "" {
 		wg.Go(func() {
 			fmt.Println("\nPopulating D1 tables...")
-			sql := buildCardSQL(cards)
+			sql := buildCardSQL(cards, aliases)
 
 			// Content hash for change detection.
 			h := sha256.Sum256([]byte(sql))
@@ -187,7 +198,7 @@ func run() error {
 				}
 			}
 			fmt.Printf("\nPopulating Vectorize index (%d default cards)...\n", len(defaults))
-			if err := populateCardVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, defaults); err != nil {
+			if err := populateCardVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, defaults, aliases); err != nil {
 				errs <- fmt.Errorf("populating vectorize: %w", err)
 				return
 			}
@@ -299,6 +310,16 @@ func downloadAndFilter(url string) (downloadResult, error) {
 			}
 			if existing, ok := nameIndex[printedKey]; !ok || len(card.Legalities) > len(existing.Legalities) {
 				nameIndex[printedKey] = card
+			}
+		}
+		// Also index by flavor_name (UB "Source Material" reskin name).
+		if card.FlavorName != "" {
+			flavorKey := strings.ToLower(card.FlavorName)
+			if before, _, ok := strings.Cut(flavorKey, " // "); ok {
+				flavorKey = before
+			}
+			if existing, ok := nameIndex[flavorKey]; !ok || len(card.Legalities) > len(existing.Legalities) {
+				nameIndex[flavorKey] = card
 			}
 		}
 
@@ -478,6 +499,64 @@ func computeDefaults(cards []ScryfallCard) {
 	for _, idx := range best {
 		cards[idx].IsDefault = true
 	}
+}
+
+// CardAlias maps an alternate name (flavor_name or printed_name) to its
+// oracle_id and the default printing for that oracle_id. Used to populate
+// magic_card_aliases, FTS5 alias rows, and Vectorize alias embeddings.
+type CardAlias struct {
+	AliasName   string // front-face-split alternate name
+	OracleID    string
+	DefaultCard ScryfallCard // default printing for this oracle_id
+}
+
+// collectAliases builds alias entries for cards with flavor_name or printed_name.
+// Each alias maps the alternate front-face name to the oracle_id's default printing.
+func collectAliases(cards []ScryfallCard) []CardAlias {
+	// Build oracle_id → default printing index.
+	defaults := make(map[string]ScryfallCard, len(cards))
+	for _, c := range cards {
+		if c.IsDefault {
+			defaults[c.OracleID] = c
+		}
+	}
+
+	// Collect aliases, deduplicating by lowercase alias name.
+	seen := make(map[string]struct{})
+	var aliases []CardAlias
+
+	for _, c := range cards {
+		for _, altName := range []string{c.PrintedName, c.FlavorName} {
+			if altName == "" {
+				continue
+			}
+			// Front-face-split to match resolution conventions.
+			if before, _, ok := strings.Cut(altName, " // "); ok {
+				altName = before
+			}
+			key := strings.ToLower(altName)
+			// Skip if this alias is the same as the card's own front face name
+			// (no point aliasing a card to itself).
+			if key == strings.ToLower(c.FrontFaceName) {
+				continue
+			}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+
+			def, ok := defaults[c.OracleID]
+			if !ok {
+				continue // no default printing — skip
+			}
+			aliases = append(aliases, CardAlias{
+				AliasName:   altName,
+				OracleID:    c.OracleID,
+				DefaultCard: def,
+			})
+		}
+	}
+	return aliases
 }
 
 func countUniqueOracleIDs(cards []ScryfallCard) int {

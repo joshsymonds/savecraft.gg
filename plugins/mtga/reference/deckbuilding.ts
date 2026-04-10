@@ -30,6 +30,7 @@ import {
   META_BATCH_SIZE,
   computeViabilityTier,
 } from "./scoring";
+import { resolveAliases } from "./alias";
 
 // ── Types ────────────────────────────────────────────────────
 
@@ -484,6 +485,20 @@ async function resolveCards(
       result.set(row.name.toLowerCase(), row);
     }
   }
+
+  // Second pass: resolve unmatched names via alias table.
+  const unresolved = unique.filter((n) => !result.has(n.toLowerCase()));
+  if (unresolved.length > 0) {
+    const aliasRows = await resolveAliases<CardMetaRow>(
+      db,
+      unresolved,
+      "mc.front_face_name AS name, mc.cmc, mc.mana_cost, mc.colors, mc.type_line, mc.produced_mana",
+    );
+    for (const [aliasKey, row] of aliasRows) {
+      result.set(aliasKey, row);
+    }
+  }
+
   return result;
 }
 
@@ -1332,6 +1347,20 @@ async function constructedHealthCheck(
         // Prefer the printing with populated legalities
         cardData.set(key, { ...existing, legalities: row.legalities });
       }
+    }
+  }
+
+  // Second pass: resolve unmatched names via alias table.
+  // Use resolveAliases to get default printing, then map under alias name.
+  const unresolvedLegality = allNames.filter((n) => !cardData.has(n.toLowerCase()));
+  if (unresolvedLegality.length > 0) {
+    const aliasRows = await resolveAliases<LegalityRow>(
+      db,
+      unresolvedLegality,
+      "mc.front_face_name AS name, mc.legalities, mc.type_line, mc.cmc, mc.mana_cost, mc.colors, mc.produced_mana",
+    );
+    for (const [aliasKey, row] of aliasRows) {
+      cardData.set(aliasKey, row);
     }
   }
 

@@ -17,13 +17,14 @@ func cardEmbeddingText(c ScryfallCard) string {
 // buildCardSQL generates SQL that wipes and repopulates magic_cards and
 // magic_cards_fts with all cards from Scryfall. scryfall-fetch owns the
 // full table lifecycle — no other tool writes to these tables.
-func buildCardSQL(cards []ScryfallCard) string {
+func buildCardSQL(cards []ScryfallCard, aliases []CardAlias) string {
 	var b strings.Builder
 	q := cfapi.SQLQuote
 
-	// Wipe both tables before repopulating.
+	// Wipe all tables before repopulating.
 	b.WriteString("DELETE FROM magic_cards_fts;\n")
 	b.WriteString("DELETE FROM magic_cards;\n")
+	b.WriteString("DELETE FROM magic_card_aliases;\n")
 
 	for _, c := range cards {
 		colorsJSON := cfapi.JSONArray(c.Colors)
@@ -67,11 +68,27 @@ func buildCardSQL(cards []ScryfallCard) string {
 		}
 	}
 
+	// Alias table + FTS rows for alternate names (flavor_name, printed_name).
+	for _, a := range aliases {
+		fmt.Fprintf(&b, "INSERT INTO magic_card_aliases (alias_name, oracle_id) VALUES (%s, %s);\n",
+			q(a.AliasName), q(a.OracleID),
+		)
+		// FTS row pointing to the default printing so search finds aliases.
+		fmt.Fprintf(&b, "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (%s, %s, %s, %s);\n",
+			q(a.DefaultCard.ScryfallID), q(a.AliasName), q(a.DefaultCard.OracleText), q(a.DefaultCard.TypeLine),
+		)
+	}
+
 	return b.String()
 }
 
 // populateCardVectorize embeds all cards concurrently and upserts to Vectorize.
-func populateCardVectorize(accountID, indexName, apiToken string, cards []ScryfallCard) error {
+// aliasEmbeddingText builds the text to embed for an alias's Vectorize vector.
+func aliasEmbeddingText(a CardAlias) string {
+	return a.AliasName + " " + a.DefaultCard.TypeLine + " " + a.DefaultCard.OracleText
+}
+
+func populateCardVectorize(accountID, indexName, apiToken string, cards []ScryfallCard, aliases []CardAlias) error {
 	const embeddingBatchSize = 100
 	const vectorizeBatchSize = 1000
 	const embeddingConcurrency = 6
@@ -165,7 +182,7 @@ func populateCardVectorize(accountID, indexName, apiToken string, cards []Scryfa
 		allVectors = append(allVectors, vecs...)
 	}
 
-	// Upsert in batches
+	// Upsert card vectors in batches.
 	fmt.Printf("Upserting %d card vectors to Vectorize...\n", len(allVectors))
 	upsertMilestones := cfapi.MilestoneSet(len(allVectors), vectorizeBatchSize)
 	for i := 0; i < len(allVectors); i += vectorizeBatchSize {
@@ -176,6 +193,43 @@ func populateCardVectorize(accountID, indexName, apiToken string, cards []Scryfa
 		if upsertMilestones[end] {
 			fmt.Printf("  Upserted %d/%d\n", end, len(allVectors))
 		}
+	}
+
+	// Embed and upsert alias vectors — separate entries so semantic search
+	// finds cards by their alternate names.
+	if len(aliases) > 0 {
+		fmt.Printf("Embedding %d alias vectors...\n", len(aliases))
+		aliasTexts := make([]string, len(aliases))
+		for i, a := range aliases {
+			aliasTexts[i] = aliasEmbeddingText(a)
+		}
+
+		// Aliases are few enough to embed in a single batch.
+		embeddings, err := cfapi.EmbedTextsWithRetry(accountID, apiToken, aliasTexts)
+		if err != nil {
+			return fmt.Errorf("embedding aliases: %w", err)
+		}
+
+		aliasVectors := make([]cfapi.VectorizeVector, len(aliases))
+		for i, a := range aliases {
+			// ID format: "alias:{scryfall_id}" — max 42 bytes, well under
+			// Vectorize's 64-byte limit. scryfall_id is in metadata for
+			// card-search.ts to extract.
+			aliasVectors[i] = cfapi.VectorizeVector{
+				ID:     fmt.Sprintf("alias:%s", a.DefaultCard.ScryfallID),
+				Values: embeddings[i],
+				Metadata: map[string]string{
+					"type":        "card",
+					"name":        a.AliasName,
+					"scryfall_id": a.DefaultCard.ScryfallID,
+				},
+			}
+		}
+
+		if err := cfapi.UpsertVectors(accountID, indexName, apiToken, aliasVectors); err != nil {
+			return fmt.Errorf("vectorize alias upsert: %w", err)
+		}
+		fmt.Printf("Upserted %d alias vectors\n", len(aliasVectors))
 	}
 
 	return nil

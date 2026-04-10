@@ -209,6 +209,12 @@ const statements = [
     type_line,
     tokenize='porter unicode61'
   )`,
+  `CREATE TABLE IF NOT EXISTS magic_card_aliases (
+    alias_name TEXT NOT NULL COLLATE NOCASE,
+    oracle_id TEXT NOT NULL,
+    PRIMARY KEY (alias_name)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_magic_card_aliases_oracle_id ON magic_card_aliases(oracle_id)`,
   `CREATE TABLE IF NOT EXISTS mtga_draft_ratings (
     set_code TEXT NOT NULL,
     card_name TEXT NOT NULL,

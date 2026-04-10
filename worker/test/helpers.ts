@@ -26,6 +26,7 @@ export const CLEANUP_TABLES = [
   "mtga_rules",
   "mtga_card_rulings",
   "magic_cards_fts",
+  "magic_card_aliases",
   "magic_cards",
   "mtga_draft_ratings_fts",
   "mtga_draft_archetype_stats",
