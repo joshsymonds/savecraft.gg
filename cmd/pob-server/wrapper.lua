@@ -78,13 +78,28 @@ log("PoB loaded successfully")
 local dkjson = require("dkjson")
 
 -- Serialize socket groups (skills) from the build
+-- Map grantedEffect.color (1=str, 2=dex, 3=int) to socket color letter.
+local gemColorMap = { [1] = "R", [2] = "G", [3] = "B" }
+
 local function serializeSocketGroups(build)
 	local groups = {}
 	if not build.skillsTab or not build.skillsTab.socketGroupList then
 		return groups
 	end
+
+	-- Look up the item for a slot to get socket colors.
+	local function getItemSockets(slotName)
+		if not slotName or slotName == "" then return nil end
+		if not build.itemsTab or not build.itemsTab.slots then return nil end
+		local slot = build.itemsTab.slots[slotName]
+		if not slot or not slot.selItemId or slot.selItemId <= 0 then return nil end
+		local item = build.itemsTab.items[slot.selItemId]
+		return item and item.sockets
+	end
+
 	for i, group in ipairs(build.skillsTab.socketGroupList) do
 		local gems = {}
+		local itemSockets = getItemSockets(group.slot)
 		if group.gemList then
 			for j, gem in ipairs(group.gemList) do
 				local gemInfo = {
@@ -95,10 +110,32 @@ local function serializeSocketGroups(build)
 					enabled = gem.enabled,
 					skillId = gem.skillId,
 				}
+
+				-- Socket color: from the item socket this gem sits in, or from gem attribute.
+				if itemSockets and itemSockets[j] then
+					gemInfo.socketColor = itemSockets[j].color
+				end
+
 				if gem.grantedEffect then
 					gemInfo.name = gem.grantedEffect.name
 					gemInfo.support = gem.grantedEffect.support or false
+					gemInfo.color = gemColorMap[gem.grantedEffect.color] or "W"
+					gemInfo.description = gem.grantedEffect.description
+					gemInfo.castTime = gem.grantedEffect.castTime
+					gemInfo.hasGlobalEffect = gem.grantedEffect.hasGlobalEffect or false
 				end
+
+				if gem.gemData then
+					gemInfo.tags = gem.gemData.tagString
+					gemInfo.reqStr = gem.gemData.reqStr
+					gemInfo.reqDex = gem.gemData.reqDex
+					gemInfo.reqInt = gem.gemData.reqInt
+					gemInfo.naturalMaxLevel = gem.gemData.naturalMaxLevel
+					if gem.gemData.vaalGem or gem.gemData.VaalGem then
+						gemInfo.vaal = true
+					end
+				end
+
 				gems[#gems + 1] = gemInfo
 			end
 		end
@@ -121,11 +158,20 @@ local function serializeItems(build)
 		if slot.selItemId and slot.selItemId > 0 then
 			local item = build.itemsTab.items[slot.selItemId]
 			if item then
+				-- Serialize socket layout: array of {color, group} for link visualization.
+				local sockets
+				if item.sockets and #item.sockets > 0 then
+					sockets = {}
+					for _, s in ipairs(item.sockets) do
+						sockets[#sockets + 1] = { color = s.color, group = s.group }
+					end
+				end
 				items[slotName] = {
 					name = item.title or item.name or item.baseName or "Unknown",
 					baseName = item.baseName,
 					rarity = item.rarity,
 					type = item.type,
+					sockets = sockets,
 				}
 			end
 		end
