@@ -503,7 +503,15 @@ describe("card_search native module", () => {
     // limit=50 → FTS fetches 150 IDs, which without capping would generate
     // 150+ bind params and crash D1 (max 100). This test verifies the cap.
     const result = await cardSearchModule.execute(
-      { text: "life", colors: "W", colors_op: "<=", cmc: 2, cmc_op: "<=", type: "creature", limit: 50 },
+      {
+        text: "life",
+        colors: "W",
+        colors_op: "<=",
+        cmc: 2,
+        cmc_op: "<=",
+        type: "creature",
+        limit: 50,
+      },
       ftsEnv,
     );
     expect(result.type).toBe("structured");

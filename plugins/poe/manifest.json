@@ -29,6 +29,22 @@
       "pob_calc": {
         "name": "PoB Build Calculator",
         "description": "Analyze or modify a Path of Exile build via Path of Building. First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. To drill deeper, call again with buildId and sections (e.g. 'offense,defense'). For modifications, pass buildId + operations + sections to see before/after comparison. Every response includes a buildId for follow-up calls."
+      },
+      "gem_search": {
+        "name": "Gem Search",
+        "description": "Search PoE skill and support gems by name, tags, or description. Returns gem stats, requirements, and scaling data. Use proactively to verify gem names and mechanics before referencing them in advice."
+      },
+      "passive_tree": {
+        "name": "Passive Tree Search",
+        "description": "Search PoE passive tree nodes (keystones, notables, small passives) by name or stat description. Use proactively to verify keystone effects, find notable locations, or check ascendancy nodes before advising on tree pathing."
+      },
+      "unique_search": {
+        "name": "Unique Item Search",
+        "description": "Search PoE unique items by name, base type, or mod text. Returns item mods, requirements, and properties. Use proactively to verify unique item stats before recommending gear changes."
+      },
+      "economy": {
+        "name": "Economy Lookup",
+        "description": "Look up current PoE item prices from poe.ninja. Returns chaos/divine values, price trends, and listing counts. Use when the player asks about item value or when recommending gear upgrades."
       }
     }
   }
