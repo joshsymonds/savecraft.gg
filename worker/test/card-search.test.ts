@@ -596,6 +596,196 @@ describe("card_search native module", () => {
     expect(names).toContain("Soldier");
   });
 
+  // ── FTS pre-filter truncation tests ────────────────────────────
+  // These tests demonstrate that structured filters (cmc, colors) applied
+  // AFTER the FTS pre-filter can miss valid cards when FTS returns a
+  // capped candidate pool that doesn't include all matching cards.
+
+  /**
+   * Seed a large set of cards where many match FTS ("life") but only a
+   * subset match the structured filter (cmc=5). With the old IN-clause
+   * approach, FTS fetches limit*3 IDs ranked by text relevance — if most
+   * top-ranked "life" cards have cmc != 5, the structured filter eliminates
+   * them and returns fewer results than `limit`, even though more cmc=5
+   * cards with "life" exist in the database.
+   */
+  async function seedFtsPrefilterCards(): Promise<void> {
+    const stmts = [];
+
+    // 30 cards with "life" in oracle text at CMC 1-4 (will dominate FTS rankings)
+    for (let i = 0; i < 30; i++) {
+      const id = `fts-noise-${i}`;
+      stmts.push(
+        env.DB.prepare(
+          `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        ).bind(
+          id,
+          i + 100,
+          id,
+          `Life Noise ${i}`,
+          `{${(i % 4) + 1}}`,
+          (i % 4) + 1,
+          "Creature — Human",
+          "Whenever you gain life, draw a card.",
+          '["W"]',
+          '["W"]',
+          '{"standard":"legal"}',
+          "common",
+          "TST",
+          "[]",
+        ),
+      );
+      stmts.push(
+        env.DB.prepare(
+          "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+        ).bind(id, `Life Noise ${i}`, "Whenever you gain life, draw a card.", "Creature — Human"),
+      );
+    }
+
+    // 5 cards with "life" in oracle text at CMC 5 — these are the targets
+    for (let i = 0; i < 5; i++) {
+      const id = `fts-target-${i}`;
+      stmts.push(
+        env.DB.prepare(
+          `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        ).bind(
+          id,
+          i + 200,
+          id,
+          `Life Target ${i}`,
+          "{5}",
+          5,
+          "Creature — Angel",
+          "You gain 5 life when this enters the battlefield.",
+          '["W"]',
+          '["W"]',
+          '{"standard":"legal"}',
+          "rare",
+          "TST",
+          '["flying"]',
+        ),
+      );
+      stmts.push(
+        env.DB.prepare(
+          "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+        ).bind(
+          id,
+          `Life Target ${i}`,
+          "You gain 5 life when this enters the battlefield.",
+          "Creature — Angel",
+        ),
+      );
+    }
+
+    await env.DB.batch(stmts);
+  }
+
+  it("FTS + structured filters return all matching cards, not just FTS top-N", async () => {
+    await seedFtsPrefilterCards();
+
+    // Search for "life" filtered to CMC 5 with limit 10.
+    // All 5 cmc=5 cards should appear, even though 30 other "life" cards
+    // would dominate a naive FTS pre-filter (limit=10 → top 30 FTS IDs).
+    const result = await cardSearchModule.execute({ text: "life", cmc: 5, limit: 10 }, ftsEnv);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Record<string, unknown>[];
+    expect(cards.length).toBe(5);
+    for (let i = 0; i < 5; i++) {
+      expect(cards.map((c) => c.name)).toContain(`Life Target ${i}`);
+    }
+  });
+
+  it("FTS + colors_op >= returns multicolor cards not in FTS top-N", async () => {
+    const stmts = [];
+
+    // 30 non-W "lifelink" cards at various CMCs (dominate FTS rankings, filtered out by colors>=W)
+    for (let i = 0; i < 30; i++) {
+      const id = `lifelink-nonw-${i}`;
+      stmts.push(
+        env.DB.prepare(
+          `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        ).bind(
+          id,
+          i + 300,
+          id,
+          `Lifelink NonW ${i}`,
+          "{1}{B}",
+          2,
+          "Creature — Vampire",
+          "Lifelink",
+          '["B"]',
+          '["B"]',
+          '{"standard":"legal"}',
+          "common",
+          "TST",
+          '["lifelink"]',
+        ),
+      );
+      stmts.push(
+        env.DB.prepare(
+          "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+        ).bind(id, `Lifelink NonW ${i}`, "Lifelink", "Creature — Vampire"),
+      );
+    }
+
+    // 5 multicolor-with-W "lifelink" cards at CMC 2 (targets — should appear with >=W)
+    const multiColors = ["WB", "WG", "WU", "WR", "WBG"];
+    for (let i = 0; i < 5; i++) {
+      const id = `lifelink-multi-${i}`;
+      const colorArr = multiColors[i]!.split("")
+        .map((c) => `"${c}"`)
+        .join(",");
+      stmts.push(
+        env.DB.prepare(
+          `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        ).bind(
+          id,
+          i + 400,
+          id,
+          `Lifelink Multi ${i}`,
+          "{1}{W}",
+          2,
+          "Creature — Human Knight",
+          "Lifelink",
+          `[${colorArr}]`,
+          `[${colorArr}]`,
+          '{"standard":"legal"}',
+          "uncommon",
+          "TST",
+          '["lifelink"]',
+        ),
+      );
+      stmts.push(
+        env.DB.prepare(
+          "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+        ).bind(id, `Lifelink Multi ${i}`, "Lifelink", "Creature — Human Knight"),
+      );
+    }
+
+    await env.DB.batch(stmts);
+
+    // colors_op >= W with limit 10: should return all 5 multicolor-W cards.
+    // With the old pre-filter, FTS fetches 30 IDs (limit 10 * 3) — if all 30
+    // slots go to non-W cards, the color filter eliminates them all and the
+    // 5 multicolor-W cards never get a chance.
+    const result = await cardSearchModule.execute(
+      { text: "lifelink", colors: "W", colors_op: ">=", cmc: 2, limit: 10 },
+      ftsEnv,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Record<string, unknown>[];
+    const multiNames = cards.filter((c) => (c.name as string).startsWith("Lifelink Multi"));
+    expect(multiNames.length).toBe(5);
+  });
+
   it("returns all card fields in result", async () => {
     await seedCards();
 

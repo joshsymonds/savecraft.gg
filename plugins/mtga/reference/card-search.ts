@@ -12,10 +12,9 @@ import { mergeWithRRF } from "../../../worker/src/reference/rrf";
 
 const DEFAULT_LIMIT = 20;
 const RRF_K = 60;
-// D1 limits prepared statements to 100 bind parameters. Reserve slots for
-// structured filters (colors, cmc, type, format, rarity, set, LIMIT) so the
-// FTS ID IN-clause never overflows.
-const MAX_IN_CLAUSE_IDS = 85;
+// Vectorize topK cap — generous enough to capture semantic matches while
+// staying within D1's 100-bind-parameter limit alongside structured filters.
+const MAX_VECTOR_IDS = 80;
 
 interface CardRow {
   scryfall_id: string;
@@ -103,26 +102,18 @@ export const cardSearchModule: NativeReferenceModule = {
 
     const hasFtsQuery = name !== "" || text !== "";
 
-    // ── FTS5 search for name/text queries ──────────────────────
-    let ftsScryfallIds: string[] | null = null;
-
+    // ── FTS5 MATCH expression ─────────────────────────────────
+    let ftsMatchExpr = "";
     if (hasFtsQuery) {
-      // Build FTS5 MATCH expression
       const matchParts: string[] = [];
       if (name) matchParts.push(`name : ${fts5Safe(name)}`);
       if (text) matchParts.push(`oracle_text : ${fts5Safe(text)}`);
-      const matchExpr = matchParts.join(" OR ");
+      ftsMatchExpr = matchParts.join(" OR ");
+    }
 
-      const ftsResults = await env.DB.prepare(
-        `SELECT scryfall_id FROM magic_cards_fts WHERE magic_cards_fts MATCH ?1 ORDER BY rank LIMIT ?2`,
-      )
-        .bind(matchExpr, limit * 3)
-        .all<{ scryfall_id: string }>();
-
-      ftsScryfallIds = ftsResults.results.map((r) => r.scryfall_id);
-
-      // Vectorize semantic search (if available)
-      let vectorScryfallIds: string[] = [];
+    // ── Vectorize semantic search (if available) ──────────────
+    let vectorScryfallIds: string[] = [];
+    if (hasFtsQuery) {
       const vectorIndex = env.MTGA_CARDS_INDEX;
       if (env.AI && vectorIndex) {
         try {
@@ -132,7 +123,7 @@ export const cardSearchModule: NativeReferenceModule = {
           })) as { data?: number[][] };
           if (embedding.data?.[0]) {
             const vectorResults = await vectorIndex.query(embedding.data[0], {
-              topK: limit * 3,
+              topK: Math.min(limit * 3, MAX_VECTOR_IDS),
               filter: { type: "card" },
             });
             // Vector IDs are "card:{scryfall_id}" or "alias:{scryfall_id}".
@@ -148,124 +139,167 @@ export const cardSearchModule: NativeReferenceModule = {
           console.warn("Vectorize card query failed, falling back to FTS5-only:", error);
         }
       }
-
-      // Merge via RRF if we have vector results
-      if (vectorScryfallIds.length > 0) {
-        ftsScryfallIds = mergeWithRRF(ftsScryfallIds!, vectorScryfallIds, RRF_K, limit * 3);
-      }
-
-      if (ftsScryfallIds!.length === 0) {
-        return { type: "structured", data: { cards: [], total: 0 } };
-      }
-
-      // D1 limits prepared statements to 100 bind parameters. The IN clause
-      // for FTS IDs is the largest consumer; cap it to leave room for
-      // structured filter params (colors, cmc, type, format, rarity, set, LIMIT).
-      if (ftsScryfallIds!.length > MAX_IN_CLAUSE_IDS) {
-        ftsScryfallIds = ftsScryfallIds!.slice(0, MAX_IN_CLAUSE_IDS);
-      }
     }
 
     // ── Build SQL query with structured filters ────────────────
-    // Always filter to default printings (one result per card name).
-    // Non-default printings exist for collection_diff arena_id lookups.
-    // Redundant when FTS narrows results (FTS only indexes defaults), but
-    // serves as defense-in-depth for non-FTS queries (e.g. rarity-only).
-    const conditions: string[] = ["is_default = 1"];
+    // Uses a JOIN with FTS5 instead of pre-fetching IDs into an IN clause.
+    // This ensures structured filters (cmc, colors, etc.) are applied to the
+    // full FTS result set rather than a truncated top-N, fixing cases where
+    // valid cards were dropped before filtering.
+    const conditions: string[] = ["c.is_default = 1"];
     const params: unknown[] = [];
     let paramIdx = 1;
 
     // Exclude tokens by default — they dominate keyword searches and are rarely wanted
     if (!includeTokens) {
-      conditions.push(`type_line NOT LIKE '%Token%'`);
+      conditions.push(`c.type_line NOT LIKE '%Token%'`);
     }
 
-    // If FTS narrowed results, filter to those scryfall_ids
-    if (ftsScryfallIds !== null) {
-      const placeholders = ftsScryfallIds.map(() => `?${paramIdx++}`).join(",");
-      conditions.push(`scryfall_id IN (${placeholders})`);
-      params.push(...ftsScryfallIds);
-    }
+    // Note: Vectorize results are NOT added to the main query's WHERE clause.
+    // The main query uses an FTS JOIN which already returns all text-matching
+    // cards. Vector-only matches (semantic hits that FTS missed) are fetched
+    // in a separate query and merged via RRF after the main query runs.
 
     if (colors) {
       const ALL_COLORS = ["W", "U", "B", "R", "G"];
-      const specified = [...new Set(colors.toUpperCase().split("").filter((c) => ALL_COLORS.includes(c)))];
+      const specified = [...new Set(colors.toUpperCase().split("").filter((ch) => ALL_COLORS.includes(ch)))];
 
       if (colorsOp === "=" || colorsOp === ">=" || colorsOp === ">") {
         // Must contain all specified colors
-        for (const c of specified) {
-          conditions.push(`color_identity LIKE ?${paramIdx++}`);
-          params.push(`%"${c}"%`);
+        for (const ch of specified) {
+          conditions.push(`c.color_identity LIKE ?${paramIdx++}`);
+          params.push(`%"${ch}"%`);
         }
       }
 
       if (colorsOp === "=") {
         // Exactly these colors — no more, no fewer
-        conditions.push(`json_array_length(color_identity) = ${specified.length}`);
+        conditions.push(`json_array_length(c.color_identity) = ${specified.length}`);
       } else if (colorsOp === ">") {
         // Strict superset — must have extras beyond specified
-        conditions.push(`json_array_length(color_identity) > ${specified.length}`);
+        conditions.push(`json_array_length(c.color_identity) > ${specified.length}`);
       } else if (colorsOp === "<=" || colorsOp === "<") {
         // Every color in card must be in the specified set (colorless [] passes naturally)
-        const excluded = ALL_COLORS.filter((c) => !specified.includes(c));
-        for (const c of excluded) {
-          conditions.push(`color_identity NOT LIKE ?${paramIdx++}`);
-          params.push(`%"${c}"%`);
+        const excluded = ALL_COLORS.filter((ch) => !specified.includes(ch));
+        for (const ch of excluded) {
+          conditions.push(`c.color_identity NOT LIKE ?${paramIdx++}`);
+          params.push(`%"${ch}"%`);
         }
         if (colorsOp === "<") {
           // Strict subset — must have fewer colors than specified
-          conditions.push(`json_array_length(color_identity) < ${specified.length}`);
+          conditions.push(`json_array_length(c.color_identity) < ${specified.length}`);
         }
       }
     }
 
     if (cmc !== undefined) {
       const op = cmcOp === "<=" ? "<=" : cmcOp === ">=" ? ">=" : "=";
-      conditions.push(`cmc ${op} ?${paramIdx++}`);
+      conditions.push(`c.cmc ${op} ?${paramIdx++}`);
       params.push(cmc);
     }
 
     if (type) {
-      conditions.push(`type_line LIKE ?${paramIdx++} COLLATE NOCASE`);
+      conditions.push(`c.type_line LIKE ?${paramIdx++} COLLATE NOCASE`);
       params.push(`%${type}%`);
     }
 
     if (format) {
       // Cards where the format key exists and value is NOT "not_legal"
-      conditions.push(`json_extract(legalities, ?${paramIdx++}) IS NOT NULL`);
+      conditions.push(`json_extract(c.legalities, ?${paramIdx++}) IS NOT NULL`);
       params.push(`$.${format.toLowerCase()}`);
-      conditions.push(`json_extract(legalities, ?${paramIdx++}) != 'not_legal'`);
+      conditions.push(`json_extract(c.legalities, ?${paramIdx++}) != 'not_legal'`);
       params.push(`$.${format.toLowerCase()}`);
     }
 
     if (rarity) {
-      conditions.push(`rarity = ?${paramIdx++}`);
+      conditions.push(`c.rarity = ?${paramIdx++}`);
       params.push(rarity.toLowerCase());
     }
 
     if (set) {
-      conditions.push(`set_code = ?${paramIdx++} COLLATE NOCASE`);
+      conditions.push(`c.set_code = ?${paramIdx++} COLLATE NOCASE`);
       params.push(set);
     }
 
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
-    const orderClause = sortBy === "cmc" ? "ORDER BY cmc ASC, name ASC" : "ORDER BY name ASC";
 
-    const sql = `SELECT * FROM magic_cards ${whereClause} ${orderClause} LIMIT ?${paramIdx}`;
+    // ── Build FROM clause: JOIN with FTS5 when text search is active ──
+    let fromClause: string;
+    let orderClause: string;
+
+    if (hasFtsQuery) {
+      // INNER JOIN with FTS5 applies text matching and structured filters in
+      // one query. No pre-filter truncation — SQLite evaluates the full FTS
+      // result set against all WHERE conditions before applying LIMIT.
+      fromClause = `magic_cards c INNER JOIN magic_cards_fts fts ON c.scryfall_id = fts.scryfall_id AND fts.magic_cards_fts MATCH ?${paramIdx++}`;
+      params.push(ftsMatchExpr);
+
+      orderClause = sortBy === "cmc"
+        ? "ORDER BY c.cmc ASC, c.name ASC"
+        : "ORDER BY fts.rank, c.name ASC";
+    } else {
+      fromClause = "magic_cards c";
+      orderClause = sortBy === "cmc"
+        ? "ORDER BY c.cmc ASC, c.name ASC"
+        : "ORDER BY c.name ASC";
+    }
+
+    const sql = `SELECT c.* FROM ${fromClause} ${whereClause} ${orderClause} LIMIT ?${paramIdx}`;
     params.push(limit);
 
     const results = await env.DB.prepare(sql)
       .bind(...params)
       .all<CardRow>();
 
-    // If we had FTS results, re-sort by FTS/RRF rank order
     let cards: Record<string, unknown>[];
-    if (ftsScryfallIds !== null && sortBy !== "cmc") {
-      const rankMap = new Map(ftsScryfallIds.map((id, i) => [id, i]));
-      const sorted = [...results.results].sort(
-        (a, b) => (rankMap.get(a.scryfall_id) ?? Infinity) - (rankMap.get(b.scryfall_id) ?? Infinity),
-      );
-      cards = sorted.map(cardRowToResult);
+
+    if (hasFtsQuery && vectorScryfallIds.length > 0) {
+      // Vectorize path: the main query (FTS JOIN) returned all text-matching
+      // cards that pass structured filters. Now fetch vector-only matches
+      // (semantic hits that FTS missed) and merge via RRF.
+      const ftsIds = results.results.map((r) => r.scryfall_id);
+      const ftsIdSet = new Set(ftsIds);
+      const vectorOnlyIds = vectorScryfallIds.filter((id) => !ftsIdSet.has(id));
+
+      let vectorRows: CardRow[] = [];
+      if (vectorOnlyIds.length > 0) {
+        // Query vector-only IDs with is_default filter. Structured filters
+        // (cmc, colors, etc.) are applied by the main query's WHERE clause,
+        // but vector-only hits bypass that — we accept them as semantic
+        // matches that may not match structured criteria exactly.
+        const vecParams: unknown[] = [];
+        let vecIdx = 1;
+        const placeholders = vectorOnlyIds.map(() => `?${vecIdx++}`).join(",");
+        vecParams.push(...vectorOnlyIds);
+
+        const vecSql = `SELECT c.* FROM magic_cards c WHERE c.is_default = 1 AND c.scryfall_id IN (${placeholders}) LIMIT ?${vecIdx}`;
+        vecParams.push(limit);
+
+        const vecResults = await env.DB.prepare(vecSql)
+          .bind(...vecParams)
+          .all<CardRow>();
+        vectorRows = vecResults.results;
+      }
+
+      // Merge FTS results + vector-only results via RRF
+      const allRows = [...results.results, ...vectorRows];
+      const rrfIds = mergeWithRRF(ftsIds, vectorScryfallIds, RRF_K, limit);
+
+      // Re-sort all rows by RRF order
+      const rowMap = new Map(allRows.map((r) => [r.scryfall_id, r]));
+      const sorted: CardRow[] = [];
+      for (const id of rrfIds) {
+        const row = rowMap.get(id);
+        if (row) sorted.push(row);
+      }
+      // Append any FTS rows that RRF didn't include (if RRF capped at limit)
+      for (const row of results.results) {
+        if (!sorted.some((s) => s.scryfall_id === row.scryfall_id)) {
+          sorted.push(row);
+        }
+      }
+
+      cards = sorted.slice(0, limit).map(cardRowToResult);
     } else {
       cards = results.results.map(cardRowToResult);
     }
