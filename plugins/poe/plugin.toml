@@ -1,0 +1,26 @@
+game_id = "poe"
+sources = []
+icon = "icon.png"
+name = "Path of Exile"
+description = "Build analysis and modification via headless Path of Building — paste a build link or iterate on existing builds"
+channel = "beta"
+coverage = "partial"
+file_extensions = []
+
+limitations = [
+  "Build analysis only — no live character data yet (GGG API access pending)",
+  "Timeless jewel calculations are not supported",
+]
+
+[author]
+name = "Josh Symonds"
+github = "joshsymonds"
+
+[default_paths]
+windows = ""
+linux = ""
+darwin = ""
+
+[reference.modules.pob_calc]
+name = "PoB Build Calculator"
+description = "Analyze or modify a Path of Exile build via Path of Building. First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. To drill deeper, call again with buildId and sections (e.g. 'offense,defense'). For modifications, pass buildId + operations + sections to see before/after comparison. Every response includes a buildId for follow-up calls."
