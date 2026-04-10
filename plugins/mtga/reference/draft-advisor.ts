@@ -138,7 +138,7 @@ async function preloadSetData(
     metaChunks.push(
       db
         .prepare(
-          `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
+          `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM magic_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
         )
         .bind(...chunk)
         .all<CardMetaRow>(),
@@ -307,7 +307,7 @@ async function contextualPick(
         const ph = placeholders(chunk.length, 1);
         const result = await db
           .prepare(
-            `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
+            `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM magic_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
           )
           .bind(...chunk)
           .all<CardMetaRow>();
@@ -321,7 +321,7 @@ async function contextualPick(
     const metaPlaceholders = placeholders(allNames.length, 1);
     const metaResult = await db
       .prepare(
-        `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM mtga_cards WHERE front_face_name IN (${metaPlaceholders}) AND is_default = 1`,
+        `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM magic_cards WHERE front_face_name IN (${metaPlaceholders}) AND is_default = 1`,
       )
       .bind(...allNames)
       .all<CardMetaRow>();
@@ -752,7 +752,7 @@ async function contextualPick(
             const ph = placeholders(chunk.length, 1);
             const extraMeta = await db
               .prepare(
-                `SELECT front_face_name AS name, cmc, mana_cost, colors, produced_mana FROM mtga_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
+                `SELECT front_face_name AS name, cmc, mana_cost, colors, produced_mana FROM magic_cards WHERE front_face_name IN (${ph}) AND is_default = 1`,
               )
               .bind(...chunk)
               .all<CardMetaRow>();
@@ -768,7 +768,7 @@ async function contextualPick(
           const missingPH = placeholders(missingMeta.length, 1);
           const extraMeta = await db
             .prepare(
-              `SELECT front_face_name AS name, cmc, mana_cost, colors, produced_mana FROM mtga_cards WHERE front_face_name IN (${missingPH}) AND is_default = 1`,
+              `SELECT front_face_name AS name, cmc, mana_cost, colors, produced_mana FROM magic_cards WHERE front_face_name IN (${missingPH}) AND is_default = 1`,
             )
             .bind(...missingMeta)
             .all<CardMetaRow>();

@@ -174,10 +174,13 @@ const statements = [
     tokenize='porter unicode61'
   )`,
   // MTG Arena cards + draft ratings (migration 0015)
-  `CREATE TABLE IF NOT EXISTS mtga_cards (
-    arena_id INTEGER PRIMARY KEY,
+  `CREATE TABLE IF NOT EXISTS magic_cards (
+    scryfall_id TEXT PRIMARY KEY,
+    arena_id INTEGER,
+    arena_id_back INTEGER,
     oracle_id TEXT NOT NULL,
     name TEXT NOT NULL,
+    front_face_name TEXT NOT NULL DEFAULT '',
     mana_cost TEXT NOT NULL DEFAULT '',
     cmc REAL NOT NULL DEFAULT 0,
     type_line TEXT NOT NULL DEFAULT '',
@@ -188,21 +191,18 @@ const statements = [
     rarity TEXT NOT NULL DEFAULT '',
     set_code TEXT NOT NULL DEFAULT '',
     keywords TEXT NOT NULL DEFAULT '[]',
-    is_default INTEGER NOT NULL DEFAULT 0,
-    front_face_name TEXT NOT NULL DEFAULT '',
     produced_mana TEXT NOT NULL DEFAULT '[]',
     power TEXT NOT NULL DEFAULT '',
-    toughness TEXT NOT NULL DEFAULT ''
+    toughness TEXT NOT NULL DEFAULT '',
+    is_default INTEGER NOT NULL DEFAULT 0
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_mtga_cards_name ON mtga_cards(name)`,
-  `CREATE INDEX IF NOT EXISTS idx_mtga_cards_set ON mtga_cards(set_code)`,
-  `CREATE INDEX IF NOT EXISTS idx_mtga_cards_rarity ON mtga_cards(rarity)`,
-  `CREATE INDEX IF NOT EXISTS idx_mtga_cards_is_default ON mtga_cards(is_default)`,
-  `CREATE INDEX IF NOT EXISTS idx_mtga_cards_name_default ON mtga_cards(name, is_default)`,
-  `CREATE INDEX IF NOT EXISTS idx_mtga_cards_front_face ON mtga_cards(front_face_name)`,
-  `CREATE INDEX IF NOT EXISTS idx_mtga_cards_front_face_default ON mtga_cards(front_face_name, is_default)`,
-  `CREATE VIRTUAL TABLE IF NOT EXISTS mtga_cards_fts USING fts5(
-    arena_id UNINDEXED,
+  `CREATE INDEX IF NOT EXISTS idx_magic_cards_arena_id ON magic_cards(arena_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_magic_cards_oracle_id ON magic_cards(oracle_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_magic_cards_is_default ON magic_cards(is_default)`,
+  `CREATE INDEX IF NOT EXISTS idx_magic_cards_name_default ON magic_cards(name, is_default)`,
+  `CREATE INDEX IF NOT EXISTS idx_magic_cards_front_face_default ON magic_cards(front_face_name, is_default)`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS magic_cards_fts USING fts5(
+    scryfall_id UNINDEXED,
     name,
     oracle_text,
     type_line,

@@ -7,13 +7,14 @@ import { cleanAll } from "./helpers";
 
 // ── Seed helpers ─────────────────────────────────────────────
 
-const INSERT_CARD = `INSERT INTO mtga_cards
-  (arena_id, oracle_id, name, front_face_name, is_default, mana_cost, cmc, type_line, colors, color_identity, legalities, rarity, set_code, keywords, produced_mana)
-  VALUES (?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
+const INSERT_CARD = `INSERT INTO magic_cards
+  (scryfall_id, arena_id, oracle_id, name, front_face_name, is_default, mana_cost, cmc, type_line, colors, color_identity, legalities, rarity, set_code, keywords, produced_mana)
+  VALUES (?, ?, ?, ?, ?, 1, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`;
 
 async function seedConstructedCards(): Promise<void> {
   await env.DB.batch([
     env.DB.prepare(INSERT_CARD).bind(
+      "scry-cd-2001",
       2001,
       "o-2001",
       "Heartfire Hero",
@@ -30,6 +31,7 @@ async function seedConstructedCards(): Promise<void> {
       "[]",
     ),
     env.DB.prepare(INSERT_CARD).bind(
+      "scry-cd-2002",
       2002,
       "o-2002",
       "Monastery Swiftspear",
@@ -46,6 +48,7 @@ async function seedConstructedCards(): Promise<void> {
       "[]",
     ),
     env.DB.prepare(INSERT_CARD).bind(
+      "scry-cd-2003",
       2003,
       "o-2003",
       "Play with Fire",
@@ -62,6 +65,7 @@ async function seedConstructedCards(): Promise<void> {
       "[]",
     ),
     env.DB.prepare(INSERT_CARD).bind(
+      "scry-cd-2004",
       2004,
       "o-2004",
       "Lightning Strike",
@@ -78,6 +82,7 @@ async function seedConstructedCards(): Promise<void> {
       "[]",
     ),
     env.DB.prepare(INSERT_CARD).bind(
+      "scry-cd-2005",
       2005,
       "o-2005",
       "Mountain",
@@ -94,6 +99,7 @@ async function seedConstructedCards(): Promise<void> {
       '["R"]',
     ),
     env.DB.prepare(INSERT_CARD).bind(
+      "scry-cd-2006",
       2006,
       "o-2006",
       "Smuggler's Copter",
@@ -110,6 +116,7 @@ async function seedConstructedCards(): Promise<void> {
       "[]",
     ),
     env.DB.prepare(INSERT_CARD).bind(
+      "scry-cd-2007",
       2007,
       "o-2007",
       "Goblin Chainwhirler",
@@ -237,6 +244,7 @@ describe("deckbuilding Constructed mode", () => {
     await env.DB.batch([
       // Default printing — empty legalities (the bug trigger)
       env.DB.prepare(INSERT_CARD).bind(
+        "scry-cd-3001",
         3001,
         "o-breed",
         "Breeding Pool",
@@ -254,10 +262,11 @@ describe("deckbuilding Constructed mode", () => {
       ),
       // Non-default printing — has real legalities
       env.DB.prepare(
-        `INSERT INTO mtga_cards
-          (arena_id, oracle_id, name, front_face_name, is_default, mana_cost, cmc, type_line, colors, color_identity, legalities, rarity, set_code, keywords, produced_mana)
-          VALUES (?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO magic_cards
+          (scryfall_id, arena_id, oracle_id, name, front_face_name, is_default, mana_cost, cmc, type_line, colors, color_identity, legalities, rarity, set_code, keywords, produced_mana)
+          VALUES (?, ?, ?, ?, ?, 0, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
+        "scry-cd-3002",
         3002,
         "o-breed",
         "Breeding Pool",

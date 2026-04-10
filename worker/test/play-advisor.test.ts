@@ -337,10 +337,10 @@ async function seedCards(): Promise<void> {
   ];
   for (const c of cards) {
     await env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, cmc, type_line, is_default, front_face_name)
-       VALUES (?, ?, ?, ?, ?, 1, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, cmc, type_line, is_default, front_face_name)
+       VALUES (?, ?, ?, ?, ?, ?, 1, ?)`,
     )
-      .bind(c.id, `oracle-${String(c.id)}`, c.name, c.cmc, c.type, c.name)
+      .bind(`scry-pa-${c.id}`, c.id, `oracle-${String(c.id)}`, c.name, c.cmc, c.type, c.name)
       .run();
   }
 }

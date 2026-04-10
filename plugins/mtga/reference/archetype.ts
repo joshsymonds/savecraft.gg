@@ -55,7 +55,7 @@ export async function buildColorMap(
     const chunk = unique.slice(i, i + 100);
     const placeholders = chunk.map(() => "?").join(", ");
     const rows = await db
-      .prepare(`SELECT arena_id, colors FROM mtga_cards WHERE arena_id IN (${placeholders})`)
+      .prepare(`SELECT arena_id, colors FROM magic_cards WHERE arena_id IN (${placeholders})`)
       .bind(...chunk)
       .all<{ arena_id: number; colors: string }>();
 

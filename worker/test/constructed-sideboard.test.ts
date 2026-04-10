@@ -10,9 +10,10 @@ import { cleanAll } from "./helpers";
 async function seedCards(): Promise<void> {
   await env.DB.batch([
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-17`,
       1001,
       "o-1001",
       "Monastery Swiftspear",
@@ -25,9 +26,10 @@ async function seedCards(): Promise<void> {
       "FDN",
     ),
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-18`,
       1005,
       "o-1005",
       "Teferi, Hero of Dominaria",
@@ -40,9 +42,10 @@ async function seedCards(): Promise<void> {
       "DOM",
     ),
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-19`,
       1003,
       "o-1003",
       "Sheoldred, the Apocalypse",

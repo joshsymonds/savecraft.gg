@@ -6,16 +6,17 @@ import { cleanAll } from "./helpers";
 describe("MTGA cards D1 schema", () => {
   beforeEach(cleanAll);
 
-  // ── mtga_cards table + FTS5 ────────────────────────────────
+  // ── magic_cards table + FTS5 ────────────────────────────────
 
   it("inserts and retrieves cards", async () => {
     await env.DB.prepare(
-      `INSERT INTO mtga_cards
-        (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text,
+      `INSERT INTO magic_cards
+        (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text,
          colors, color_identity, legalities, rarity, set_code, keywords)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
+        "scry-sheoldred",
         87_521,
         "abc-123",
         "Sheoldred, the Apocalypse",
@@ -32,9 +33,10 @@ describe("MTGA cards D1 schema", () => {
       )
       .run();
 
-    const row = await env.DB.prepare("SELECT * FROM mtga_cards WHERE arena_id = ?")
-      .bind(87_521)
+    const row = await env.DB.prepare("SELECT * FROM magic_cards WHERE scryfall_id = ?")
+      .bind("scry-sheoldred")
       .first<{
+        scryfall_id: string;
         arena_id: number;
         oracle_id: string;
         name: string;
@@ -58,9 +60,10 @@ describe("MTGA cards D1 schema", () => {
   it("FTS5 keyword search returns ranked results", async () => {
     await env.DB.batch([
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, rarity, set_code)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, rarity, set_code)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
+        `scry-90`,
         1,
         "a",
         "Lightning Bolt",
@@ -72,9 +75,10 @@ describe("MTGA cards D1 schema", () => {
         "STA",
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, rarity, set_code)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, rarity, set_code)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
+        `scry-91`,
         2,
         "b",
         "Lightning Strike",
@@ -86,9 +90,10 @@ describe("MTGA cards D1 schema", () => {
         "DMU",
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, rarity, set_code)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, rarity, set_code)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
+        `scry-92`,
         3,
         "c",
         "Llanowar Elves",
@@ -101,35 +106,36 @@ describe("MTGA cards D1 schema", () => {
       ),
       // FTS5 rows
       env.DB.prepare(
-        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
-      ).bind(1, "Lightning Bolt", "Lightning Bolt deals 3 damage to any target.", "Instant"),
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind("scry-90", "Lightning Bolt", "Lightning Bolt deals 3 damage to any target.", "Instant"),
       env.DB.prepare(
-        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
-      ).bind(2, "Lightning Strike", "Lightning Strike deals 3 damage to any target.", "Instant"),
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind("scry-91", "Lightning Strike", "Lightning Strike deals 3 damage to any target.", "Instant"),
       env.DB.prepare(
-        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
-      ).bind(3, "Llanowar Elves", "Tap: Add {G}.", "Creature — Elf Druid"),
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind("scry-92", "Llanowar Elves", "Tap: Add {G}.", "Creature — Elf Druid"),
     ]);
 
     const results = await env.DB.prepare(
-      `SELECT arena_id FROM mtga_cards_fts WHERE mtga_cards_fts MATCH ? ORDER BY rank LIMIT 10`,
+      `SELECT scryfall_id FROM magic_cards_fts WHERE magic_cards_fts MATCH ? ORDER BY rank LIMIT 10`,
     )
       .bind("lightning")
-      .all<{ arena_id: number }>();
+      .all<{ scryfall_id: string }>();
 
     expect(results.results.length).toBe(2);
-    const ids = results.results.map((r) => r.arena_id);
-    expect(ids).toContain(1);
-    expect(ids).toContain(2);
-    expect(ids).not.toContain(3);
+    const ids = results.results.map((r) => r.scryfall_id);
+    expect(ids).toContain("scry-90");
+    expect(ids).toContain("scry-91");
+    expect(ids).not.toContain("scry-92");
   });
 
   it("FTS5 searches oracle text content", async () => {
     await env.DB.batch([
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, oracle_text, rarity, set_code)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, oracle_text, rarity, set_code)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
       ).bind(
+        `scry-93`,
         10,
         "x",
         "Thoughtseize",
@@ -138,9 +144,9 @@ describe("MTGA cards D1 schema", () => {
         "AKR",
       ),
       env.DB.prepare(
-        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
       ).bind(
-        10,
+        "scry-93",
         "Thoughtseize",
         "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.",
         "",
@@ -148,36 +154,36 @@ describe("MTGA cards D1 schema", () => {
     ]);
 
     const results = await env.DB.prepare(
-      `SELECT arena_id FROM mtga_cards_fts WHERE mtga_cards_fts MATCH ? LIMIT 10`,
+      `SELECT scryfall_id FROM magic_cards_fts WHERE magic_cards_fts MATCH ? LIMIT 10`,
     )
       .bind("discard")
-      .all<{ arena_id: number }>();
+      .all<{ scryfall_id: string }>();
 
     expect(results.results.length).toBe(1);
-    expect(results.results[0]!.arena_id).toBe(10);
+    expect(results.results[0]!.scryfall_id).toBe("scry-93");
   });
 
   it("structured table indexes support filtering", async () => {
     await env.DB.batch([
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, rarity, set_code) VALUES (?, ?, ?, ?, ?)`,
-      ).bind(1, "a", "Card A", "rare", "DMU"),
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, rarity, set_code) VALUES (?, ?, ?, ?, ?, ?)`,
+      ).bind(`scry-94`, 1, "a", "Card A", "rare", "DMU"),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, rarity, set_code) VALUES (?, ?, ?, ?, ?)`,
-      ).bind(2, "b", "Card B", "common", "DMU"),
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, rarity, set_code) VALUES (?, ?, ?, ?, ?, ?)`,
+      ).bind(`scry-95`, 2, "b", "Card B", "common", "DMU"),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, rarity, set_code) VALUES (?, ?, ?, ?, ?)`,
-      ).bind(3, "c", "Card C", "rare", "BRO"),
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, rarity, set_code) VALUES (?, ?, ?, ?, ?, ?)`,
+      ).bind(`scry-96`, 3, "c", "Card C", "rare", "BRO"),
     ]);
 
     // Filter by rarity
-    const rares = await env.DB.prepare("SELECT arena_id FROM mtga_cards WHERE rarity = ?")
+    const rares = await env.DB.prepare("SELECT arena_id FROM magic_cards WHERE rarity = ?")
       .bind("rare")
       .all<{ arena_id: number }>();
     expect(rares.results.length).toBe(2);
 
     // Filter by set
-    const dmu = await env.DB.prepare("SELECT arena_id FROM mtga_cards WHERE set_code = ?")
+    const dmu = await env.DB.prepare("SELECT arena_id FROM magic_cards WHERE set_code = ?")
       .bind("DMU")
       .all<{ arena_id: number }>();
     expect(dmu.results.length).toBe(2);

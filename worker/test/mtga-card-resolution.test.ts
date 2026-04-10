@@ -20,7 +20,7 @@ import { cleanAll } from "./helpers";
 
 // ── Seed data ────────────────────────────────────────────────
 
-/** Insert a card into mtga_cards with sensible defaults. */
+/** Insert a card into magic_cards with sensible defaults. */
 async function seedCard(overrides: {
   arena_id: number;
   name: string;
@@ -47,13 +47,13 @@ async function seedCard(overrides: {
   } = overrides;
 
   await env.DB.prepare(
-    `INSERT INTO mtga_cards
-      (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line,
-       oracle_text, colors, color_identity, legalities, rarity, set_code,
-       keywords, is_default, produced_mana)
-     VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, '', ?8, '[]', '{}', ?9, 'test', '[]', ?10, ?11)`,
+    `INSERT INTO magic_cards
+      (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line,
+       colors, rarity, is_default, produced_mana)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   )
     .bind(
+      `scry-${arena_id}`,
       arena_id,
       `oracle-${String(arena_id)}`,
       name,

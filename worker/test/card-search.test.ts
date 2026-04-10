@@ -16,9 +16,10 @@ describe("card_search native module", () => {
     await env.DB.batch([
       // Structured table
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       ).bind(
+        `scry-1`,
         87_521,
         "abc-123",
         "Sheoldred, the Apocalypse",
@@ -34,9 +35,10 @@ describe("card_search native module", () => {
         '["deathtouch"]',
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       ).bind(
+        `scry-2`,
         1,
         "def-456",
         "Lightning Bolt",
@@ -52,9 +54,10 @@ describe("card_search native module", () => {
         "[]",
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       ).bind(
+        `scry-3`,
         2,
         "ghi-789",
         "Llanowar Elves",
@@ -70,9 +73,10 @@ describe("card_search native module", () => {
         "[]",
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
       ).bind(
+        `scry-4`,
         3,
         "jkl-012",
         "Thoughtseize",
@@ -87,25 +91,25 @@ describe("card_search native module", () => {
         "AKR",
         "[]",
       ),
-      // FTS5 rows
+      // FTS5 rows (scryfall_id must match magic_cards entries)
       env.DB.prepare(
-        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
       ).bind(
-        87_521,
+        "scry-1",
         "Sheoldred, the Apocalypse",
         "Deathtouch\nWhenever you draw a card, you gain 2 life.\nWhenever an opponent draws a card, they lose 2 life.",
         "Legendary Creature — Phyrexian Praetor",
       ),
       env.DB.prepare(
-        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
-      ).bind(1, "Lightning Bolt", "Lightning Bolt deals 3 damage to any target.", "Instant"),
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind("scry-2", "Lightning Bolt", "Lightning Bolt deals 3 damage to any target.", "Instant"),
       env.DB.prepare(
-        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
-      ).bind(2, "Llanowar Elves", "{T}: Add {G}.", "Creature — Elf Druid"),
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind("scry-3", "Llanowar Elves", "{T}: Add {G}.", "Creature — Elf Druid"),
       env.DB.prepare(
-        "INSERT INTO mtga_cards_fts (arena_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
       ).bind(
-        3,
+        "scry-4",
         "Thoughtseize",
         "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.",
         "Sorcery",
@@ -272,10 +276,11 @@ describe("card_search native module", () => {
     await seedCards();
     // Add a non-default printing of Lightning Bolt (different arena_id, is_default = 0)
     await env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
     )
       .bind(
+        `scry-5`,
         99,
         "def-456",
         "Lightning Bolt",

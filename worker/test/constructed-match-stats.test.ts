@@ -11,9 +11,10 @@ async function seedCards(): Promise<void> {
   await env.DB.batch([
     // Red aggro cards
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-11`,
       1001,
       "o-1001",
       "Monastery Swiftspear",
@@ -26,9 +27,10 @@ async function seedCards(): Promise<void> {
       "FDN",
     ),
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-12`,
       1002,
       "o-1002",
       "Play with Fire",
@@ -42,9 +44,10 @@ async function seedCards(): Promise<void> {
     ),
     // Black midrange cards
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-13`,
       1003,
       "o-1003",
       "Sheoldred, the Apocalypse",
@@ -57,9 +60,10 @@ async function seedCards(): Promise<void> {
       "DMU",
     ),
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-14`,
       1004,
       "o-1004",
       "Go for the Throat",
@@ -73,9 +77,10 @@ async function seedCards(): Promise<void> {
     ),
     // Blue-white control cards
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-15`,
       1005,
       "o-1005",
       "Teferi, Hero of Dominaria",
@@ -88,9 +93,10 @@ async function seedCards(): Promise<void> {
       "DOM",
     ),
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, colors, color_identity, rarity, set_code)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-16`,
       1006,
       "o-1006",
       "Absorb",

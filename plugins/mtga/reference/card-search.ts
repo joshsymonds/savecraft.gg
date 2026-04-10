@@ -14,7 +14,8 @@ const DEFAULT_LIMIT = 20;
 const RRF_K = 60;
 
 interface CardRow {
-  arena_id: number;
+  scryfall_id: string;
+  arena_id: number | null;
   oracle_id: string;
   name: string;
   mana_cost: string;
@@ -31,6 +32,7 @@ interface CardRow {
 
 function cardRowToResult(row: CardRow): Record<string, unknown> {
   return {
+    scryfallId: row.scryfall_id,
     arenaId: row.arena_id,
     oracleId: row.oracle_id,
     name: row.name,
@@ -92,7 +94,7 @@ export const cardSearchModule: NativeReferenceModule = {
     const hasFtsQuery = name !== "" || text !== "";
 
     // ── FTS5 search for name/text queries ──────────────────────
-    let ftsArenaIds: number[] | null = null;
+    let ftsScryfallIds: string[] | null = null;
 
     if (hasFtsQuery) {
       // Build FTS5 MATCH expression
@@ -102,15 +104,15 @@ export const cardSearchModule: NativeReferenceModule = {
       const matchExpr = matchParts.join(" OR ");
 
       const ftsResults = await env.DB.prepare(
-        `SELECT arena_id FROM mtga_cards_fts WHERE mtga_cards_fts MATCH ?1 ORDER BY rank LIMIT ?2`,
+        `SELECT scryfall_id FROM magic_cards_fts WHERE magic_cards_fts MATCH ?1 ORDER BY rank LIMIT ?2`,
       )
         .bind(matchExpr, limit * 3)
-        .all<{ arena_id: number }>();
+        .all<{ scryfall_id: string }>();
 
-      ftsArenaIds = ftsResults.results.map((r) => r.arena_id);
+      ftsScryfallIds = ftsResults.results.map((r) => r.scryfall_id);
 
       // Vectorize semantic search (if available)
-      let vectorArenaIds: number[] = [];
+      let vectorScryfallIds: string[] = [];
       const vectorIndex = env.MTGA_CARDS_INDEX;
       if (env.AI && vectorIndex) {
         try {
@@ -123,13 +125,13 @@ export const cardSearchModule: NativeReferenceModule = {
               topK: limit * 3,
               filter: { type: "card" },
             });
-            // Vector IDs are "card:{arena_id}"
-            vectorArenaIds = vectorResults.matches
+            // Vector IDs are "card:{scryfall_id}"
+            vectorScryfallIds = vectorResults.matches
               .map((m) => {
                 const parts = m.id.split(":");
-                return parts.length === 2 ? parseInt(parts[1]!, 10) : NaN;
+                return parts.length === 2 ? parts[1]! : "";
               })
-              .filter((id) => !isNaN(id));
+              .filter((id) => id !== "");
           }
         } catch (error) {
           console.warn("Vectorize card query failed, falling back to FTS5-only:", error);
@@ -137,16 +139,11 @@ export const cardSearchModule: NativeReferenceModule = {
       }
 
       // Merge via RRF if we have vector results
-      if (vectorArenaIds.length > 0) {
-        const mergedIds = mergeWithRRF(
-          ftsArenaIds.map(String),
-          vectorArenaIds.map(String),
-          RRF_K,
-        );
-        ftsArenaIds = mergedIds.map((id) => parseInt(id, 10));
+      if (vectorScryfallIds.length > 0) {
+        ftsScryfallIds = mergeWithRRF(ftsScryfallIds!, vectorScryfallIds, RRF_K);
       }
 
-      if (ftsArenaIds.length === 0) {
+      if (ftsScryfallIds!.length === 0) {
         return { type: "structured", data: { cards: [], total: 0 } };
       }
     }
@@ -160,11 +157,11 @@ export const cardSearchModule: NativeReferenceModule = {
     const params: unknown[] = [];
     let paramIdx = 1;
 
-    // If FTS narrowed results, filter to those arena_ids
-    if (ftsArenaIds !== null) {
-      const placeholders = ftsArenaIds.map(() => `?${paramIdx++}`).join(",");
-      conditions.push(`arena_id IN (${placeholders})`);
-      params.push(...ftsArenaIds);
+    // If FTS narrowed results, filter to those scryfall_ids
+    if (ftsScryfallIds !== null) {
+      const placeholders = ftsScryfallIds.map(() => `?${paramIdx++}`).join(",");
+      conditions.push(`scryfall_id IN (${placeholders})`);
+      params.push(...ftsScryfallIds);
     }
 
     if (colors) {
@@ -207,7 +204,7 @@ export const cardSearchModule: NativeReferenceModule = {
     const whereClause = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
     const orderClause = sortBy === "cmc" ? "ORDER BY cmc ASC, name ASC" : "ORDER BY name ASC";
 
-    const sql = `SELECT * FROM mtga_cards ${whereClause} ${orderClause} LIMIT ?${paramIdx}`;
+    const sql = `SELECT * FROM magic_cards ${whereClause} ${orderClause} LIMIT ?${paramIdx}`;
     params.push(limit);
 
     const results = await env.DB.prepare(sql)
@@ -216,10 +213,10 @@ export const cardSearchModule: NativeReferenceModule = {
 
     // If we had FTS results, re-sort by FTS/RRF rank order
     let cards: Record<string, unknown>[];
-    if (ftsArenaIds !== null && sortBy !== "cmc") {
-      const rankMap = new Map(ftsArenaIds.map((id, i) => [id, i]));
+    if (ftsScryfallIds !== null && sortBy !== "cmc") {
+      const rankMap = new Map(ftsScryfallIds.map((id, i) => [id, i]));
       const sorted = [...results.results].sort(
-        (a, b) => (rankMap.get(a.arena_id) ?? Infinity) - (rankMap.get(b.arena_id) ?? Infinity),
+        (a, b) => (rankMap.get(a.scryfall_id) ?? Infinity) - (rankMap.get(b.scryfall_id) ?? Infinity),
       );
       cards = sorted.map(cardRowToResult);
     } else {

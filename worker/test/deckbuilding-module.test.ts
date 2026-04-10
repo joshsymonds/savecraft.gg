@@ -12,8 +12,9 @@ async function seedDeckbuildingData(): Promise<void> {
   await env.DB.batch([
     // Cards: a mix of creatures, spells, lands, and a fixing land
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-20`,
       100,
       "o-1",
       "Vengeful Strangler",
@@ -26,8 +27,9 @@ async function seedDeckbuildingData(): Promise<void> {
       1,
     ),
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-21`,
       101,
       "o-2",
       "Doomsday Excruciator",
@@ -40,8 +42,9 @@ async function seedDeckbuildingData(): Promise<void> {
       1,
     ),
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-22`,
       102,
       "o-3",
       "Go for the Throat",
@@ -54,8 +57,9 @@ async function seedDeckbuildingData(): Promise<void> {
       1,
     ),
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-23`,
       103,
       "o-4",
       "Gloomlake Verge",
@@ -68,8 +72,9 @@ async function seedDeckbuildingData(): Promise<void> {
       1,
     ),
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind(
+      `scry-24`,
       104,
       "o-5",
       "Evolving Wilds",
@@ -82,11 +87,11 @@ async function seedDeckbuildingData(): Promise<void> {
       1,
     ),
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(105, "o-6", "Island", "Island", "", 0, "Basic Land — Island", "[]", '["U"]', 1),
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(`scry-25`, 105, "o-6", "Island", "Island", "", 0, "Basic Land — Island", "[]", '["U"]', 1),
     env.DB.prepare(
-      `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-    ).bind(106, "o-7", "Swamp", "Swamp", "", 0, "Basic Land — Swamp", "[]", '["B"]', 1),
+      `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    ).bind(`scry-26`, 106, "o-7", "Swamp", "Swamp", "", 0, "Basic Land — Swamp", "[]", '["B"]', 1),
 
     // Draft ratings (DSK set)
     env.DB.prepare(
@@ -331,8 +336,8 @@ describe("deckbuilding native module", () => {
       // Add a non-CABS card to the DB
       await env.DB.batch([
         env.DB.prepare(
-          `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        ).bind(200, "o-draw", "Divination", "Divination", "{2}{U}", 3, "Sorcery", '["U"]', "[]", 1),
+          `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(`scry-27`, 200, "o-draw", "Divination", "Divination", "{2}{U}", 3, "Sorcery", '["U"]', "[]", 1),
       ]);
 
       const result = await deckbuildingModule.execute(
@@ -629,9 +634,10 @@ describe("deckbuilding native module", () => {
       // Add a dual land that produces U and B
       await seedDeckbuildingData();
       await env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
         .bind(
+          `scry-28`,
           300,
           "o-dual",
           "Dimir Guildgate",
@@ -695,8 +701,9 @@ describe("deckbuilding native module", () => {
         ).bind("DSK", "Gloomlake Verge", "UB", 3000, 0.59),
         // Add a white card so WUB is a viable archetype candidate
         env.DB.prepare(
-          `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, mana_cost, cmc, type_line, colors, produced_mana, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind(
+          `scry-29`,
           200,
           "o-alt",
           "White Knight",

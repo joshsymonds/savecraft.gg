@@ -15,8 +15,9 @@ describe("collection_diff native module", () => {
   async function seedCards(): Promise<void> {
     await env.DB.batch([
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, 1)`,
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
       ).bind(
+        `scry-6`,
         87_521,
         "abc",
         "Sheoldred, the Apocalypse",
@@ -25,11 +26,11 @@ describe("collection_diff native module", () => {
         "DMU",
       ),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, 1)`,
-      ).bind(1, "def", "Lightning Bolt", "Lightning Bolt", "common", "STA"),
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(`scry-7`, 1, "def", "Lightning Bolt", "Lightning Bolt", "common", "STA"),
       env.DB.prepare(
-        `INSERT INTO mtga_cards (arena_id, oracle_id, name, front_face_name, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, 1)`,
-      ).bind(2, "ghi", "Thoughtseize", "Thoughtseize", "rare", "AKR"),
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, front_face_name, rarity, set_code, is_default) VALUES (?, ?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(`scry-8`, 2, "ghi", "Thoughtseize", "Thoughtseize", "rare", "AKR"),
     ]);
   }
 

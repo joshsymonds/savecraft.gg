@@ -476,7 +476,7 @@ async function resolveCards(
     const ph = placeholders(chunk.length, 1);
     const rows = await db
       .prepare(
-        `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM mtga_cards WHERE front_face_name COLLATE NOCASE IN (${ph}) AND is_default = 1`,
+        `SELECT front_face_name AS name, cmc, mana_cost, colors, type_line, produced_mana FROM magic_cards WHERE front_face_name COLLATE NOCASE IN (${ph}) AND is_default = 1`,
       )
       .bind(...chunk)
       .all<CardMetaRow>();
@@ -1318,7 +1318,7 @@ async function constructedHealthCheck(
     const rows = await db
       .prepare(
         `SELECT front_face_name AS name, legalities, type_line, cmc, mana_cost, colors, produced_mana
-         FROM mtga_cards WHERE front_face_name COLLATE NOCASE IN (${ph})
+         FROM magic_cards WHERE front_face_name COLLATE NOCASE IN (${ph})
          ORDER BY is_default DESC, length(legalities) DESC`,
       )
       .bind(...chunk)

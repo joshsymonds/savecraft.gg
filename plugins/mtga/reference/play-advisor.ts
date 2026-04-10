@@ -399,7 +399,7 @@ async function mulligan(
 
   const placeholders = hand.map(() => "?").join(", ");
   const cardRows = await env.DB.prepare(
-    `SELECT front_face_name AS name, cmc, type_line FROM mtga_cards
+    `SELECT front_face_name AS name, cmc, type_line FROM magic_cards
      WHERE is_default = 1 AND front_face_name COLLATE NOCASE IN (${placeholders})`,
   )
     .bind(...hand)
