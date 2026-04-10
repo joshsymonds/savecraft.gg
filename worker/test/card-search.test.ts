@@ -91,6 +91,46 @@ describe("card_search native module", () => {
         "AKR",
         "[]",
       ),
+      // Multicolor card (Orzhov — W/B)
+      env.DB.prepare(
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(
+        "scry-5",
+        5,
+        "mno-345",
+        "Kambal, Consul of Allocation",
+        "{1}{W}{B}",
+        3,
+        "Legendary Creature — Human Advisor",
+        "Whenever an opponent casts a noncreature spell, that player loses 2 life and you gain 2 life.",
+        '["W","B"]',
+        '["W","B"]',
+        '{"standard":"not_legal","historic":"legal"}',
+        "rare",
+        "KLD",
+        "[]",
+      ),
+      // Colorless card
+      env.DB.prepare(
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(
+        "scry-6",
+        6,
+        "pqr-678",
+        "Sol Ring",
+        "{1}",
+        1,
+        "Artifact",
+        "{T}: Add {C}{C}.",
+        "[]",
+        "[]",
+        '{"standard":"not_legal","historic":"not_legal"}',
+        "uncommon",
+        "C21",
+        "[]",
+      ),
       // FTS5 rows (scryfall_id must match magic_cards entries)
       env.DB.prepare(
         "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
@@ -114,6 +154,17 @@ describe("card_search native module", () => {
         "Target player reveals their hand. You choose a nonland card from it. That player discards that card. You lose 2 life.",
         "Sorcery",
       ),
+      env.DB.prepare(
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind(
+        "scry-5",
+        "Kambal, Consul of Allocation",
+        "Whenever an opponent casts a noncreature spell, that player loses 2 life and you gain 2 life.",
+        "Legendary Creature — Human Advisor",
+      ),
+      env.DB.prepare(
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind("scry-6", "Sol Ring", "{T}: Add {C}{C}.", "Artifact"),
     ]);
   }
 
@@ -180,10 +231,11 @@ describe("card_search native module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
 
     const cards = result.data.cards as Record<string, unknown>[];
-    expect(cards.length).toBe(2);
+    expect(cards.length).toBe(3);
     const names = cards.map((c) => c.name);
     expect(names).toContain("Sheoldred, the Apocalypse");
     expect(names).toContain("Thoughtseize");
+    expect(names).toContain("Kambal, Consul of Allocation");
   });
 
   it("filters by cmc with operator", async () => {
@@ -194,7 +246,7 @@ describe("card_search native module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
 
     const cards = result.data.cards as Record<string, unknown>[];
-    expect(cards.length).toBe(3); // Lightning Bolt, Llanowar Elves, Thoughtseize
+    expect(cards.length).toBe(4); // Lightning Bolt, Llanowar Elves, Sol Ring, Thoughtseize
   });
 
   it("filters by format legality", async () => {
@@ -219,10 +271,11 @@ describe("card_search native module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
 
     const cards = result.data.cards as Record<string, unknown>[];
-    expect(cards.length).toBe(2);
+    expect(cards.length).toBe(3);
     const names = cards.map((c) => c.name);
     expect(names).toContain("Sheoldred, the Apocalypse");
     expect(names).toContain("Llanowar Elves");
+    expect(names).toContain("Kambal, Consul of Allocation");
   });
 
   it("combines FTS5 search with structured filters", async () => {
@@ -256,8 +309,8 @@ describe("card_search native module", () => {
     if (result.type !== "structured") throw new Error("unexpected type");
 
     const cards = result.data.cards as Record<string, unknown>[];
-    expect(cards.length).toBe(4);
-    // CMC order: Lightning Bolt(1), Llanowar Elves(1), Thoughtseize(1), Sheoldred(4)
+    expect(cards.length).toBe(6);
+    // CMC order: Lightning Bolt(1), Llanowar Elves(1), Sol Ring(1), Thoughtseize(1), Kambal(3), Sheoldred(4)
     expect(cards.at(-1)!.name).toBe("Sheoldred, the Apocalypse");
   });
 
@@ -280,7 +333,7 @@ describe("card_search native module", () => {
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)`,
     )
       .bind(
-        `scry-5`,
+        `scry-99`,
         99,
         "def-456",
         "Lightning Bolt",
@@ -306,6 +359,143 @@ describe("card_search native module", () => {
     const bolts = cards.filter((c) => c.name === "Lightning Bolt");
     expect(bolts.length).toBe(1);
     expect(bolts[0]!.arenaId).toBe(1); // default printing, not arena_id 99
+  });
+
+  // ── Color operator tests ─────────────────────────────────────
+  // Seed cards by color_identity:
+  //   scry-1 Sheoldred ["B"], scry-2 Lightning Bolt ["R"], scry-3 Llanowar Elves ["G"],
+  //   scry-4 Thoughtseize ["B"], scry-5 Kambal ["W","B"], scry-6 Sol Ring []
+
+  it("colors_op >= (default): contains all specified colors", async () => {
+    await seedCards();
+    const result = await cardSearchModule.execute({ colors: "B" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const names = (result.data.cards as Record<string, unknown>[]).map((c) => c.name);
+    // Mono-B and multicolor containing B
+    expect(names).toContain("Sheoldred, the Apocalypse");
+    expect(names).toContain("Thoughtseize");
+    expect(names).toContain("Kambal, Consul of Allocation");
+    expect(names).not.toContain("Sol Ring");
+    expect(names).not.toContain("Lightning Bolt");
+  });
+
+  it("colors_op =: exactly these colors", async () => {
+    await seedCards();
+    const result = await cardSearchModule.execute({ colors: "B", colors_op: "=" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const names = (result.data.cards as Record<string, unknown>[]).map((c) => c.name);
+    // Only mono-B, not Kambal (W/B)
+    expect(names).toContain("Sheoldred, the Apocalypse");
+    expect(names).toContain("Thoughtseize");
+    expect(names).not.toContain("Kambal, Consul of Allocation");
+  });
+
+  it("colors_op = with two colors: exactly Orzhov", async () => {
+    await seedCards();
+    const result = await cardSearchModule.execute({ colors: "WB", colors_op: "=" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const names = (result.data.cards as Record<string, unknown>[]).map((c) => c.name);
+    expect(names).toContain("Kambal, Consul of Allocation");
+    expect(names).not.toContain("Sheoldred, the Apocalypse"); // mono-B
+    expect(names).not.toContain("Thoughtseize"); // mono-B
+  });
+
+  it("colors_op <=: subset of specified colors (includes colorless)", async () => {
+    await seedCards();
+    const result = await cardSearchModule.execute({ colors: "WB", colors_op: "<=" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const names = (result.data.cards as Record<string, unknown>[]).map((c) => c.name);
+    // mono-W (none in seed), mono-B, Orzhov, and colorless
+    expect(names).toContain("Sheoldred, the Apocalypse"); // ["B"] ⊆ {W,B}
+    expect(names).toContain("Thoughtseize"); // ["B"] ⊆ {W,B}
+    expect(names).toContain("Kambal, Consul of Allocation"); // ["W","B"] ⊆ {W,B}
+    expect(names).toContain("Sol Ring"); // [] ⊆ {W,B}
+    expect(names).not.toContain("Lightning Bolt"); // ["R"] ⊄ {W,B}
+    expect(names).not.toContain("Llanowar Elves"); // ["G"] ⊄ {W,B}
+  });
+
+  it("colors_op <: strict subset (includes colorless, excludes equal)", async () => {
+    await seedCards();
+    const result = await cardSearchModule.execute({ colors: "WB", colors_op: "<" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const names = (result.data.cards as Record<string, unknown>[]).map((c) => c.name);
+    // Strict subset: mono-B, colorless — but NOT exactly WB (Kambal)
+    expect(names).toContain("Sheoldred, the Apocalypse"); // 1 color < 2
+    expect(names).toContain("Thoughtseize"); // 1 color < 2
+    expect(names).toContain("Sol Ring"); // 0 colors < 2
+    expect(names).not.toContain("Kambal, Consul of Allocation"); // 2 colors = 2, not strict
+  });
+
+  it("colors_op >: strict superset", async () => {
+    await seedCards();
+    const result = await cardSearchModule.execute({ colors: "B", colors_op: ">" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const names = (result.data.cards as Record<string, unknown>[]).map((c) => c.name);
+    // Must contain B and have more colors
+    expect(names).toContain("Kambal, Consul of Allocation"); // ["W","B"] ⊃ {B}
+    expect(names).not.toContain("Sheoldred, the Apocalypse"); // ["B"] = {B}, not strict
+    expect(names).not.toContain("Thoughtseize"); // ["B"] = {B}, not strict
+  });
+
+  it("colors_op >= with multiple colors: contains all specified", async () => {
+    await seedCards();
+    const result = await cardSearchModule.execute({ colors: "WB", colors_op: ">=" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const names = (result.data.cards as Record<string, unknown>[]).map((c) => c.name);
+    // Must contain both W and B — only Kambal qualifies
+    expect(names).toContain("Kambal, Consul of Allocation");
+    expect(names).not.toContain("Sheoldred, the Apocalypse"); // mono-B, missing W
+    expect(names).not.toContain("Thoughtseize"); // mono-B, missing W
+  });
+
+  it("colors_op > with no matching superset returns empty", async () => {
+    await seedCards();
+    const result = await cardSearchModule.execute({ colors: "WB", colors_op: ">" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Record<string, unknown>[];
+    // No card in seed has 3+ colors including both W and B
+    expect(cards.length).toBe(0);
+  });
+
+  it("colors_op < with single color returns only colorless", async () => {
+    await seedCards();
+    const result = await cardSearchModule.execute({ colors: "W", colors_op: "<" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const names = (result.data.cards as Record<string, unknown>[]).map((c) => c.name);
+    // Strict subset of {W}: only colorless (0 < 1)
+    expect(names).toContain("Sol Ring");
+    expect(names.length).toBe(1);
+  });
+
+  it("colors_op <= with single color includes colorless", async () => {
+    await seedCards();
+    const result = await cardSearchModule.execute({ colors: "W", colors_op: "<=" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const names = (result.data.cards as Record<string, unknown>[]).map((c) => c.name);
+    // Only mono-W (none in seed) and colorless
+    expect(names).toContain("Sol Ring");
+    expect(names).not.toContain("Kambal, Consul of Allocation"); // has B, not subset of {W}
+    expect(names).not.toContain("Sheoldred, the Apocalypse"); // has B
   });
 
   it("excludes tokens by default", async () => {

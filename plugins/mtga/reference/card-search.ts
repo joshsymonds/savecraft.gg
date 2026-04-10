@@ -60,13 +60,14 @@ export const cardSearchModule: NativeReferenceModule = {
   description: [
     "Search the MTG Arena card database (Scryfall Oracle Cards).",
     "USE PROACTIVELY: query this module when you need to look up specific cards, find cards matching criteria, or verify card details.",
-    "Supports searching by name, oracle text, type line, colors, mana cost, format legality, rarity, and set.",
+    "Supports searching by name, oracle text, type line, colors (with Scryfall-style operators: >=, =, <=, <, >), mana cost, format legality, rarity, and set.",
     "Results include full card data: name, mana cost, type line, oracle text, colors, legalities, rarity, set, and keywords.",
   ].join(" "),
   parameters: {
     name: { type: "string", description: "Card name search (keyword match via FTS5)." },
     text: { type: "string", description: "Oracle text search (keyword match via FTS5)." },
-    colors: { type: "string", description: "Color identity filter, e.g. 'BR' for black-red cards." },
+    colors: { type: "string", description: "Color identity filter using WUBRG letters (e.g. 'W', 'BR', 'WUB'). Behavior depends on colors_op. Matches Scryfall c: syntax." },
+    colors_op: { type: "string", description: "Color comparison operator (Scryfall syntax). '>=' (default): contains all specified colors (c>=W includes multicolor). '=': exactly these colors (c=W is mono-white only). '<=': subset of specified (c<=WB includes mono-W, mono-B, Orzhov, and colorless). '<': strict subset. '>': strict superset (must have specified colors plus more)." },
     cmc: { type: "integer", description: "Converted mana cost filter." },
     cmc_op: { type: "string", description: "CMC comparison operator: '<=', '=', '>=' (default '=')." },
     type: { type: "string", description: "Type line substring filter (case-insensitive), e.g. 'creature'." },
@@ -83,6 +84,9 @@ export const cardSearchModule: NativeReferenceModule = {
     const name = (query.name as string) ?? "";
     const text = (query.text as string) ?? "";
     const colors = (query.colors as string) ?? "";
+    const VALID_COLOR_OPS = [">=", "=", "<=", "<", ">"] as const;
+    const rawColorsOp = (query.colors_op as string) || ">=";
+    const colorsOp = (VALID_COLOR_OPS as readonly string[]).includes(rawColorsOp) ? rawColorsOp : ">=";
     const cmc = query.cmc as number | undefined;
     const cmcOp = (query.cmc_op as string) || "=";
     const type = (query.type as string) ?? "";
@@ -173,10 +177,34 @@ export const cardSearchModule: NativeReferenceModule = {
     }
 
     if (colors) {
-      // Filter by color identity: card must contain all specified colors
-      for (const c of colors.toUpperCase()) {
-        conditions.push(`color_identity LIKE ?${paramIdx++}`);
-        params.push(`%"${c}"%`);
+      const ALL_COLORS = ["W", "U", "B", "R", "G"];
+      const specified = [...new Set(colors.toUpperCase().split("").filter((c) => ALL_COLORS.includes(c)))];
+
+      if (colorsOp === "=" || colorsOp === ">=" || colorsOp === ">") {
+        // Must contain all specified colors
+        for (const c of specified) {
+          conditions.push(`color_identity LIKE ?${paramIdx++}`);
+          params.push(`%"${c}"%`);
+        }
+      }
+
+      if (colorsOp === "=") {
+        // Exactly these colors — no more, no fewer
+        conditions.push(`json_array_length(color_identity) = ${specified.length}`);
+      } else if (colorsOp === ">") {
+        // Strict superset — must have extras beyond specified
+        conditions.push(`json_array_length(color_identity) > ${specified.length}`);
+      } else if (colorsOp === "<=" || colorsOp === "<") {
+        // Every color in card must be in the specified set (colorless [] passes naturally)
+        const excluded = ALL_COLORS.filter((c) => !specified.includes(c));
+        for (const c of excluded) {
+          conditions.push(`color_identity NOT LIKE ?${paramIdx++}`);
+          params.push(`%"${c}"%`);
+        }
+        if (colorsOp === "<") {
+          // Strict subset — must have fewer colors than specified
+          conditions.push(`json_array_length(color_identity) < ${specified.length}`);
+        }
       }
     }
 
