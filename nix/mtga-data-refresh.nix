@@ -9,7 +9,7 @@
   stagingD1 = "0147892e-82e6-413e-a0ef-52f6d8787fdf";
   productionD1 = "df241bb0-9b7d-48e5-a4d4-f84ebf09e6e5";
 
-  runFetchers = env: d1Id: vectorizeSuffix: ''
+  runMtgaFetchers = env: d1Id: vectorizeSuffix: ''
     echo "=== ${env}: scryfall-fetch ==="
     go run ./tools/scryfall-fetch \
       --d1-database-id=${d1Id} \
@@ -25,10 +25,17 @@
       --d1-database-id=${d1Id}
   '';
 
+  runPoeFetchers = env: d1Id: vectorizeSuffix: ''
+    echo "=== ${env}: repoe-fetch ==="
+    go run ./tools/repoe-fetch \
+      --d1-database-id=${d1Id} \
+      --vectorize-index=poe${vectorizeSuffix}
+  '';
+
   innerScript = pkgs.writeShellScript "savecraft-data-refresh-inner" ''
     set -euo pipefail
 
-    echo "=== Savecraft MTGA data refresh started at $(date) ==="
+    echo "=== Savecraft data refresh started at $(date) ==="
 
     # Load Cloudflare credentials.
     # Sourced here (inside nix develop) because nix develop resets the environment.
@@ -36,15 +43,22 @@
     source .env.local
     set +a
 
+    # ── MTGA ──────────────────────────────────────────────
     cd plugins/mtga
 
     # Staging first (canary) — failure here prevents production run.
-    ${runFetchers "Staging" stagingD1 "-staging"}
+    ${runMtgaFetchers "Staging" stagingD1 "-staging"}
 
     # Production — only reached if staging succeeded.
-    ${runFetchers "Production" productionD1 ""}
+    ${runMtgaFetchers "Production" productionD1 ""}
 
-    echo "=== Savecraft MTGA data refresh completed at $(date) ==="
+    # ── PoE ───────────────────────────────────────────────
+    cd ../../plugins/poe
+
+    ${runPoeFetchers "Staging" stagingD1 "-staging"}
+    ${runPoeFetchers "Production" productionD1 ""}
+
+    echo "=== Savecraft data refresh completed at $(date) ==="
   '';
 
   # Outer script: source secrets, then enter the flake devShell to run fetchers.
@@ -57,7 +71,7 @@
   '';
 in {
   options.services.savecraftDataRefresh = {
-    enable = lib.mkEnableOption "Weekly MTGA data refresh (scryfall, rules, 17lands)";
+    enable = lib.mkEnableOption "Weekly game data refresh (MTGA + PoE reference data)";
 
     repoPath = lib.mkOption {
       type = lib.types.str;
@@ -80,7 +94,7 @@ in {
 
   config = lib.mkIf cfg.enable {
     systemd.services.savecraft-data-refresh = {
-      description = "Savecraft MTGA data refresh (scryfall, rules, 17lands)";
+      description = "Savecraft game data refresh (MTGA + PoE)";
       after = ["network-online.target"];
       wants = ["network-online.target"];
 
@@ -97,7 +111,7 @@ in {
     };
 
     systemd.timers.savecraft-data-refresh = {
-      description = "Weekly MTGA data refresh timer";
+      description = "Weekly game data refresh timer (MTGA + PoE)";
       wantedBy = ["timers.target"];
       timerConfig = {
         OnCalendar = cfg.onCalendar;
