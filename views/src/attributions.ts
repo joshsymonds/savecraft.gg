@@ -70,6 +70,18 @@ export const SOURCES: Record<string, Attribution> = {
       "Stellaris is a trademark of Paradox Interactive AB. Not affiliated with or endorsed by Paradox Interactive.",
     url: "https://www.paradoxinteractive.com",
   },
+  ggg: {
+    name: "Grinding Gear Games",
+    disclaimer:
+      "Path of Exile\u00ae is a registered trademark of Grinding Gear Games. Not affiliated with or endorsed by Grinding Gear Games.",
+    url: "https://www.pathofexile.com",
+  },
+  pob: {
+    name: "Path of Building Community",
+    disclaimer:
+      "Build calculations powered by Path of Building Community Fork. Not affiliated with or endorsed by the Path of Building Community project.",
+    url: "https://github.com/PathOfBuildingCommunity/PathOfBuilding",
+  },
 };
 
 /**

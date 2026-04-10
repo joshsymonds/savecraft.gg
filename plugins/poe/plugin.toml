@@ -12,6 +12,9 @@ limitations = [
   "Timeless jewel calculations are not supported",
 ]
 
+[attribution]
+sources = ["ggg", "pob"]
+
 [author]
 name = "Josh Symonds"
 github = "joshsymonds"
