@@ -24,7 +24,7 @@
     "github": "joshsymonds"
   },
   "default_paths": {
-    "windows": "%USERPROFILE%/AppData/LocalLow/Wizards Of The Coast/MTGA",
+    "windows": "%LOCALAPPDATA_LOW%/Wizards Of The Coast/MTGA",
     "linux": "~/.local/share/Steam/steamapps/compatdata/2141910/pfx/drive_c/users/steamuser/AppData/LocalLow/Wizards Of The Coast/MTGA",
     "darwin": "~/Library/Logs/Wizards of the Coast/MTGA"
   },
