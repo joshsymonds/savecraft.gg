@@ -308,6 +308,82 @@ describe("card_search native module", () => {
     expect(bolts[0]!.arenaId).toBe(1); // default printing, not arena_id 99
   });
 
+  it("excludes tokens by default", async () => {
+    await seedCards();
+    // Add a token card
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(
+        "scry-token-1",
+        null,
+        "tok-001",
+        "Soldier",
+        "",
+        0,
+        "Token Creature — Soldier",
+        "",
+        '["W"]',
+        '["W"]',
+        '{"standard":"not_legal"}',
+        "common",
+        "DMU",
+        "[]",
+      ),
+      env.DB.prepare(
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind("scry-token-1", "Soldier", "", "Token Creature — Soldier"),
+    ]);
+
+    // Default search should exclude token
+    const result = await cardSearchModule.execute({ type: "creature" }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Record<string, unknown>[];
+    const names = cards.map((c) => c.name);
+    expect(names).not.toContain("Soldier");
+    expect(names).toContain("Sheoldred, the Apocalypse");
+    expect(names).toContain("Llanowar Elves");
+  });
+
+  it("includes tokens when include_tokens is true", async () => {
+    await seedCards();
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, colors, color_identity, legalities, rarity, set_code, keywords, is_default)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`,
+      ).bind(
+        "scry-token-1",
+        null,
+        "tok-001",
+        "Soldier",
+        "",
+        0,
+        "Token Creature — Soldier",
+        "",
+        '["W"]',
+        '["W"]',
+        '{"standard":"not_legal"}',
+        "common",
+        "DMU",
+        "[]",
+      ),
+      env.DB.prepare(
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, ?, ?)",
+      ).bind("scry-token-1", "Soldier", "", "Token Creature — Soldier"),
+    ]);
+
+    const result = await cardSearchModule.execute({ type: "creature", include_tokens: true }, env);
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const cards = result.data.cards as Record<string, unknown>[];
+    const names = cards.map((c) => c.name);
+    expect(names).toContain("Soldier");
+  });
+
   it("returns all card fields in result", async () => {
     await seedCards();
 

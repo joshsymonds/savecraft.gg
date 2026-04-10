@@ -75,6 +75,7 @@ export const cardSearchModule: NativeReferenceModule = {
     set: { type: "string", description: "Set code filter, e.g. 'DMU'." },
     sort: { type: "string", description: "Sort order: 'name' (default) or 'cmc'." },
     limit: { type: "integer", description: "Max results (default 20)." },
+    include_tokens: { type: "boolean", description: "Include token cards in results (default false). Tokens are excluded by default." },
   },
 
 
@@ -90,6 +91,7 @@ export const cardSearchModule: NativeReferenceModule = {
     const set = (query.set as string) ?? "";
     const sortBy = (query.sort as string) || "name";
     const limit = Math.min(Math.max(typeof query.limit === "number" ? query.limit : DEFAULT_LIMIT, 1), 100);
+    const includeTokens = query.include_tokens === true;
 
     const hasFtsQuery = name !== "" || text !== "";
 
@@ -157,6 +159,11 @@ export const cardSearchModule: NativeReferenceModule = {
     const conditions: string[] = ["is_default = 1"];
     const params: unknown[] = [];
     let paramIdx = 1;
+
+    // Exclude tokens by default — they dominate keyword searches and are rarely wanted
+    if (!includeTokens) {
+      conditions.push(`type_line NOT LIKE '%Token%'`);
+    }
 
     // If FTS narrowed results, filter to those scryfall_ids
     if (ftsScryfallIds !== null) {
