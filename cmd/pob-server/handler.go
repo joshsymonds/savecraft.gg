@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -386,7 +387,7 @@ func (srv *Server) modifyAndRespond(
 	}
 
 	// Filter sections based on query parameter
-	responseData := json.RawMessage(pobResp.Data)
+	responseData := pobResp.Data
 	sections := parseSections(request)
 	filtered, err := filterSections(responseData, sections)
 	if err != nil {
@@ -510,34 +511,49 @@ func parseSections(r *http.Request) []string {
 func filterSections(data json.RawMessage, sections []string) (json.RawMessage, error) {
 	var parsed map[string]json.RawMessage
 	if err := json.Unmarshal(data, &parsed); err != nil {
-		return data, err
+		return data, fmt.Errorf("unmarshal data: %w", err)
 	}
 
 	if sections == nil {
-		// No sections requested — remove the key entirely
 		delete(parsed, "sections")
-	} else {
-		// Filter to only requested sections
-		var allSections map[string]json.RawMessage
-		if raw, ok := parsed["sections"]; ok {
-			if err := json.Unmarshal(raw, &allSections); err != nil {
-				return data, err
-			}
-		}
-		filtered := make(map[string]json.RawMessage)
-		for _, name := range sections {
-			if val, ok := allSections[name]; ok {
-				filtered[name] = val
-			}
-		}
-		filteredJSON, err := json.Marshal(filtered)
+		result, err := json.Marshal(parsed)
 		if err != nil {
-			return data, err
+			return data, fmt.Errorf("marshal response: %w", err)
 		}
-		parsed["sections"] = filteredJSON
+		return result, nil
 	}
 
-	return json.Marshal(parsed)
+	return filterRequestedSections(parsed, data, sections)
+}
+
+// filterRequestedSections keeps only the named keys in the "sections" object.
+func filterRequestedSections(
+	parsed map[string]json.RawMessage,
+	original json.RawMessage,
+	sections []string,
+) (json.RawMessage, error) {
+	var allSections map[string]json.RawMessage
+	if raw, ok := parsed["sections"]; ok {
+		if err := json.Unmarshal(raw, &allSections); err != nil {
+			return original, fmt.Errorf("unmarshal sections: %w", err)
+		}
+	}
+	filtered := make(map[string]json.RawMessage)
+	for _, name := range sections {
+		if val, ok := allSections[name]; ok {
+			filtered[name] = val
+		}
+	}
+	filteredJSON, err := json.Marshal(filtered)
+	if err != nil {
+		return original, fmt.Errorf("marshal filtered sections: %w", err)
+	}
+	parsed["sections"] = filteredJSON
+	result, err := json.Marshal(parsed)
+	if err != nil {
+		return original, fmt.Errorf("marshal response: %w", err)
+	}
+	return result, nil
 }
 
 func jsonError(writer http.ResponseWriter, msg string, code int) {
