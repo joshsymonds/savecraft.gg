@@ -192,11 +192,16 @@ func TestCalcResponseShape(t *testing.T) {
 		t.Fatal("data contains 'type' — PoB envelope was not unwrapped")
 	}
 
-	// Required top-level keys in data
-	for _, key := range []string{"character", "summary", "section_index", "sections"} {
+	// Required top-level keys in data (no sections when param absent)
+	for _, key := range []string{"character", "summary", "section_index"} {
 		if _, ok := data[key]; !ok {
 			t.Fatalf("data missing required key %q, got keys: %v", key, keysOf(data))
 		}
+	}
+
+	// sections must NOT be present when no ?sections= param
+	if _, ok := data["sections"]; ok {
+		t.Fatal("data should not contain 'sections' when no sections param is provided")
 	}
 
 	// Verify summary has the expected fixed keys
@@ -228,17 +233,6 @@ func TestCalcResponseShape(t *testing.T) {
 	for _, entry := range sectionIndex {
 		if entry["id"] == "" || entry["name"] == "" || entry["description"] == "" {
 			t.Errorf("section_index entry missing fields: %v", entry)
-		}
-	}
-
-	// Verify sections object contains expected keys
-	var sections map[string]json.RawMessage
-	if err := json.Unmarshal(data["sections"], &sections); err != nil {
-		t.Fatalf("sections is not an object: %v", err)
-	}
-	for _, key := range []string{"offense", "defense", "socket_groups", "items", "keystones", "tree"} {
-		if _, ok := sections[key]; !ok {
-			t.Errorf("sections missing %q", key)
 		}
 	}
 }
@@ -451,5 +445,225 @@ func TestCalcRejectsInvalidBuildCode(t *testing.T) {
 	}
 	if !strings.Contains(recorder.Body.String(), "invalid build code") {
 		t.Fatalf("expected 'invalid build code' error, got: %s", recorder.Body.String())
+	}
+}
+
+// storedSummary is a realistic grouped calc result stored in SQLite.
+const storedSummary = `{` +
+	`"character":{"class":"Witch","ascendancy":"Occultist","level":95},` +
+	`"summary":{"CombinedDPS":150000,"Life":5200,"EnergyShield":2000},` +
+	`"section_index":[` +
+	`{"id":"offense","name":"Offense","description":"Hit damage"},` +
+	`{"id":"defense","name":"Defense","description":"Armour, evasion"}` +
+	`],` +
+	`"sections":{` +
+	`"offense":{"TotalDPS":150000,"CritChance":45.5,"Speed":2.1},` +
+	`"defense":{"Armour":5000,"Evasion":3000,"EnergyShield":2000},` +
+	`"resistances":{"FireResist":75,"ColdResist":75},` +
+	`"socket_groups":[],` +
+	`"items":{},` +
+	`"keystones":["Acrobatics"],` +
+	`"tree":{"version":"3.25","allocated_nodes":95}` +
+	`}}`
+
+func TestSummaryWithoutSectionsParam(t *testing.T) {
+	srv := newTestServer(t)
+
+	xml := "<PathOfBuilding/>"
+	id := srv.cache.Put(xml)
+	_ = srv.cache.store.Put(id, xml, storedSummary, "", "")
+
+	req := httptest.NewRequest(http.MethodGet, "/build/"+id+"/summary", nil)
+	rec := httptest.NewRecorder()
+	srv.handleGetBuild(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("data is not an object: %v", err)
+	}
+
+	// Must have character, summary, section_index
+	for _, key := range []string{"character", "summary", "section_index"} {
+		if _, ok := data[key]; !ok {
+			t.Errorf("data missing %q", key)
+		}
+	}
+
+	// Must NOT have sections when no ?sections= param
+	if _, ok := data["sections"]; ok {
+		t.Fatal("data should NOT contain 'sections' when no sections param is provided")
+	}
+}
+
+func TestSummaryWithSectionsParam(t *testing.T) {
+	srv := newTestServer(t)
+
+	xml := "<PathOfBuilding/>"
+	id := srv.cache.Put(xml)
+	_ = srv.cache.store.Put(id, xml, storedSummary, "", "")
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/build/"+id+"/summary?sections=offense,defense",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	srv.handleGetBuild(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("data is not an object: %v", err)
+	}
+
+	// Must have character, summary, section_index, sections
+	for _, key := range []string{"character", "summary", "section_index", "sections"} {
+		if _, ok := data[key]; !ok {
+			t.Errorf("data missing %q", key)
+		}
+	}
+
+	// sections must contain only offense and defense
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(data["sections"], &sections); err != nil {
+		t.Fatalf("sections is not an object: %v", err)
+	}
+
+	if _, ok := sections["offense"]; !ok {
+		t.Error("sections missing 'offense'")
+	}
+	if _, ok := sections["defense"]; !ok {
+		t.Error("sections missing 'defense'")
+	}
+	// Must not contain unrequested sections
+	if _, ok := sections["resistances"]; ok {
+		t.Error("sections should not contain 'resistances' (not requested)")
+	}
+	if _, ok := sections["socket_groups"]; ok {
+		t.Error("sections should not contain 'socket_groups' (not requested)")
+	}
+}
+
+func TestSummaryWithUnknownSections(t *testing.T) {
+	srv := newTestServer(t)
+
+	xml := "<PathOfBuilding/>"
+	id := srv.cache.Put(xml)
+	_ = srv.cache.store.Put(id, xml, storedSummary, "", "")
+
+	req := httptest.NewRequest(
+		http.MethodGet,
+		"/build/"+id+"/summary?sections=nonexistent,bogus",
+		nil,
+	)
+	rec := httptest.NewRecorder()
+	srv.handleGetBuild(rec, req)
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("data is not an object: %v", err)
+	}
+
+	// sections should be present but empty (unknown sections silently ignored)
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(data["sections"], &sections); err != nil {
+		t.Fatalf("sections is not an object: %v", err)
+	}
+	if len(sections) != 0 {
+		t.Fatalf("expected empty sections for unknown names, got %d keys", len(sections))
+	}
+}
+
+func TestCalcWithSectionsParam(t *testing.T) {
+	// Mock PoB response with the grouped section structure
+	mockScript := filepath.Join(t.TempDir(), "mock-pob.sh")
+	mockResponse := `{"type":"result","data":{` +
+		`"character":{"class":"Witch","ascendancy":"Occultist","level":99},` +
+		`"summary":{"CombinedDPS":100000,"Life":6728},` +
+		`"section_index":[{"id":"offense","name":"Offense","description":"DPS"}],` +
+		`"sections":{` +
+		`"offense":{"TotalDPS":100000,"CritChance":45.5},` +
+		`"defense":{"Armour":5000},` +
+		`"socket_groups":[]` +
+		`}}}`
+
+	if err := os.WriteFile(mockScript, []byte("#!/bin/sh\nread line\necho '"+mockResponse+"'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	defer pool.Shutdown()
+
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    time.Now,
+		cancel:     func() {},
+	}
+
+	srv := &Server{pool: pool, cache: cache, log: logger}
+
+	body := `{"buildXml":"<PathOfBuilding/>"}`
+	req := httptest.NewRequest(http.MethodPost, "/calc?sections=offense", strings.NewReader(body))
+	recorder := httptest.NewRecorder()
+	srv.handleCalc(recorder, req)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", recorder.Code, recorder.Body.String())
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(recorder.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("data is not an object: %v", err)
+	}
+
+	// Must have sections with only offense
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(data["sections"], &sections); err != nil {
+		t.Fatalf("sections is not an object: %v", err)
+	}
+	if _, ok := sections["offense"]; !ok {
+		t.Error("sections missing 'offense'")
+	}
+	if _, ok := sections["defense"]; ok {
+		t.Error("sections should not contain 'defense' (not requested)")
 	}
 }

@@ -85,7 +85,7 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	srv.calcAndRespond(writer, xml, "", "")
+	srv.calcAndRespond(writer, request, xml, "", "")
 }
 
 func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
@@ -155,22 +155,31 @@ func (srv *Server) handleResolve(
 
 	// If already cached (internal URL), return stored summary
 	if result.cached && result.summary != "" {
+		data := json.RawMessage(result.summary)
+		sections := parseSections(request)
+		filtered, filterErr := filterSections(data, sections)
+		if filterErr != nil {
+			srv.log.Warn("section filter failed, returning unfiltered", "err", filterErr)
+			filtered = data
+		}
+
 		idJSON, _ := json.Marshal(result.buildID)
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]json.RawMessage{
 			"buildId": idJSON,
-			"data":    json.RawMessage(result.summary),
+			"data":    filtered,
 		})
 		return
 	}
 
 	// External URL: calc through PoB, persist, return
-	srv.calcAndRespond(writer, result.xml, result.sourceURL, "")
+	srv.calcAndRespond(writer, request, result.xml, result.sourceURL, "")
 }
 
 // calcAndRespond acquires a PoB process, runs calc, persists, and writes the JSON response.
 func (srv *Server) calcAndRespond(
 	writer http.ResponseWriter,
+	request *http.Request,
 	xml, sourceURL, parentID string,
 ) {
 	proc, err := srv.pool.Acquire()
@@ -221,6 +230,7 @@ func (srv *Server) calcAndRespond(
 
 	buildID := srv.cache.Put(xml)
 	if srv.cache.store != nil {
+		// Store full unfiltered data in SQLite
 		if err := srv.cache.store.Put(
 			buildID, xml, string(pobResp.Data), sourceURL, parentID,
 		); err != nil {
@@ -228,10 +238,19 @@ func (srv *Server) calcAndRespond(
 		}
 	}
 
+	// Filter sections based on query parameter
+	responseData := pobResp.Data
+	sections := parseSections(request)
+	filtered, err := filterSections(responseData, sections)
+	if err != nil {
+		srv.log.Warn("section filter failed, returning unfiltered", "err", err)
+		filtered = responseData
+	}
+
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(calcResponse{
 		BuildID: buildID,
-		PobData: pobResp.Data,
+		PobData: filtered,
 	})
 }
 
@@ -295,12 +314,13 @@ func (srv *Server) handleModify(
 		return
 	}
 
-	srv.modifyAndRespond(writer, xml, req.BuildID, req.Operations)
+	srv.modifyAndRespond(writer, request, xml, req.BuildID, req.Operations)
 }
 
 // modifyAndRespond sends a modify request to PoB, persists the result, and writes the response.
 func (srv *Server) modifyAndRespond(
 	writer http.ResponseWriter,
+	request *http.Request,
 	xml, parentID string,
 	operations []json.RawMessage,
 ) {
@@ -363,10 +383,19 @@ func (srv *Server) modifyAndRespond(
 		}
 	}
 
+	// Filter sections based on query parameter
+	responseData := json.RawMessage(pobResp.Data)
+	sections := parseSections(request)
+	filtered, err := filterSections(responseData, sections)
+	if err != nil {
+		srv.log.Warn("section filter failed, returning unfiltered", "err", err)
+		filtered = responseData
+	}
+
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(calcResponse{
 		BuildID: newID,
-		PobData: pobResp.Data,
+		PobData: filtered,
 	})
 }
 
@@ -415,11 +444,20 @@ func (srv *Server) handleGetBuild(
 	}
 
 	if wantSummary {
+		// Filter sections based on query parameter
+		data := json.RawMessage(summary)
+		sections := parseSections(request)
+		filtered, filterErr := filterSections(data, sections)
+		if filterErr != nil {
+			srv.log.Warn("section filter failed, returning unfiltered", "err", filterErr)
+			filtered = data
+		}
+
 		idJSON, _ := json.Marshal(id)
 		writer.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(writer).Encode(map[string]json.RawMessage{
 			"buildId": idJSON,
-			"data":    json.RawMessage(summary),
+			"data":    filtered,
 		})
 		return
 	}
@@ -440,6 +478,64 @@ func (srv *Server) handleGetBuild(
 
 	writer.Header().Set("Content-Type", "application/xml")
 	_, _ = writer.Write([]byte(xml))
+}
+
+// parseSections reads the "sections" query parameter and returns
+// the requested section names. Returns nil if the parameter is absent.
+func parseSections(r *http.Request) []string {
+	raw := r.URL.Query().Get("sections")
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
+}
+
+// filterSections modifies the PoB data JSON to control which sections are
+// included in the response. If sections is nil, the "sections" key is removed
+// entirely (summary-only response). If sections is non-nil, only the listed
+// keys are kept within the "sections" object.
+func filterSections(data json.RawMessage, sections []string) (json.RawMessage, error) {
+	var parsed map[string]json.RawMessage
+	if err := json.Unmarshal(data, &parsed); err != nil {
+		return data, err
+	}
+
+	if sections == nil {
+		// No sections requested — remove the key entirely
+		delete(parsed, "sections")
+	} else {
+		// Filter to only requested sections
+		var allSections map[string]json.RawMessage
+		if raw, ok := parsed["sections"]; ok {
+			if err := json.Unmarshal(raw, &allSections); err != nil {
+				return data, err
+			}
+		}
+		filtered := make(map[string]json.RawMessage)
+		for _, name := range sections {
+			if val, ok := allSections[name]; ok {
+				filtered[name] = val
+			}
+		}
+		filteredJSON, err := json.Marshal(filtered)
+		if err != nil {
+			return data, err
+		}
+		parsed["sections"] = filteredJSON
+	}
+
+	return json.Marshal(parsed)
 }
 
 func jsonError(writer http.ResponseWriter, msg string, code int) {
