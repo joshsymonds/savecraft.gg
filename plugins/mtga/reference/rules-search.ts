@@ -27,8 +27,10 @@ interface RuleRow {
   see_also: string | null;
 }
 
-/** Reciprocal Rank Fusion: merge two ranked ID lists into one. */
-export function mergeWithRRF(bm25Ids: string[], vectorIds: string[], k: number): string[] {
+/** Reciprocal Rank Fusion: merge two ranked ID lists into one, capped at maxResults.
+ *  The cap prevents the merged list from exceeding D1's 100-parameter bind limit
+ *  when used in SQL IN clauses. */
+export function mergeWithRRF(bm25Ids: string[], vectorIds: string[], k: number, maxResults: number): string[] {
   const scores = new Map<string, number>();
 
   for (let i = 0; i < bm25Ids.length; i++) {
@@ -42,6 +44,7 @@ export function mergeWithRRF(bm25Ids: string[], vectorIds: string[], k: number):
 
   return [...scores.entries()]
     .sort((a, b) => b[1] - a[1])
+    .slice(0, maxResults)
     .map(([id]) => id);
 }
 
@@ -206,8 +209,7 @@ async function searchByKeyword(
   }
 
   // Merge results via RRF
-  const mergedIds = mergeWithRRF(bm25Ids, vectorIds, RRF_K);
-  const topIds = mergedIds.slice(0, limit);
+  const topIds = mergeWithRRF(bm25Ids, vectorIds, RRF_K, limit);
 
   if (topIds.length === 0) {
     return {

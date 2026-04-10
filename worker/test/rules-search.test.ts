@@ -13,7 +13,7 @@ describe("mergeWithRRF", () => {
     const bm25 = ["rule-a", "rule-b", "rule-c"];
     const vector = ["rule-b", "rule-d", "rule-a"];
 
-    const merged = mergeWithRRF(bm25, vector, 60);
+    const merged = mergeWithRRF(bm25, vector, 60, 100);
 
     // rule-b: 1/(60+1) + 1/(60+0) = 0.01639 + 0.01667 = 0.03306 (highest)
     // rule-a: 1/(60+0) + 1/(60+2) = 0.01667 + 0.01613 = 0.03279
@@ -27,22 +27,37 @@ describe("mergeWithRRF", () => {
   });
 
   it("handles empty bm25 list (vector-only)", () => {
-    const merged = mergeWithRRF([], ["rule-x", "rule-y"], 60);
+    const merged = mergeWithRRF([], ["rule-x", "rule-y"], 60, 100);
     expect(merged).toEqual(["rule-x", "rule-y"]);
   });
 
   it("handles empty vector list (bm25-only)", () => {
-    const merged = mergeWithRRF(["rule-x", "rule-y"], [], 60);
+    const merged = mergeWithRRF(["rule-x", "rule-y"], [], 60, 100);
     expect(merged).toEqual(["rule-x", "rule-y"]);
   });
 
   it("handles both lists empty", () => {
-    expect(mergeWithRRF([], [], 60)).toEqual([]);
+    expect(mergeWithRRF([], [], 60, 100)).toEqual([]);
   });
 
   it("deduplicates entries", () => {
-    const merged = mergeWithRRF(["rule-a"], ["rule-a"], 60);
+    const merged = mergeWithRRF(["rule-a"], ["rule-a"], 60, 100);
     expect(merged).toEqual(["rule-a"]);
+  });
+
+  it("truncates merged output to maxResults", () => {
+    // 60 unique FTS IDs + 60 unique vector IDs = 120 total after merge
+    const bm25 = Array.from({ length: 60 }, (_, index) => `fts-${String(index)}`);
+    const vector = Array.from({ length: 60 }, (_, index) => `vec-${String(index)}`);
+    const merged = mergeWithRRF(bm25, vector, 60, 60);
+    expect(merged.length).toBe(60);
+  });
+
+  it("returns all results when under maxResults", () => {
+    const bm25 = ["a", "b", "c"];
+    const vector = ["d", "e"];
+    const merged = mergeWithRRF(bm25, vector, 60, 100);
+    expect(merged.length).toBe(5);
   });
 });
 

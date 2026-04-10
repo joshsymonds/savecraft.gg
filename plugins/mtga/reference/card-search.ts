@@ -147,7 +147,7 @@ export const cardSearchModule: NativeReferenceModule = {
 
       // Merge via RRF if we have vector results
       if (vectorScryfallIds.length > 0) {
-        ftsScryfallIds = mergeWithRRF(ftsScryfallIds!, vectorScryfallIds, RRF_K);
+        ftsScryfallIds = mergeWithRRF(ftsScryfallIds!, vectorScryfallIds, RRF_K, limit * 3);
       }
 
       if (ftsScryfallIds!.length === 0) {
