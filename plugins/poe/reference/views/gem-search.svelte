@@ -11,8 +11,6 @@
   import ItemFrame from "../../../../views/src/components/poe/ItemFrame.svelte";
   import StatLine from "../../../../views/src/components/poe/StatLine.svelte";
   import RequirementBar from "../../../../views/src/components/poe/RequirementBar.svelte";
-  import GemTag from "../../../../views/src/components/poe/GemTag.svelte";
-  import { GEM_COLORS } from "../../../../views/src/components/poe/colors";
 
   interface GemResult {
     name: string;
@@ -44,20 +42,6 @@
   }
 
   let { data }: Props = $props();
-
-  const COLOR_MAP: Record<string, keyof typeof GEM_COLORS> = {
-    R: "str", G: "dex", B: "int", W: "white",
-  };
-
-  function gemRarity(gem: GemResult): string {
-    // Gems display as "magic" (blue border) in PoE
-    return "MAGIC";
-  }
-
-  function gemAccent(color: string): string {
-    const mapped = COLOR_MAP[color] ?? "white";
-    return GEM_COLORS[mapped].glow;
-  }
 </script>
 
 {#if data.gems.length === 0}
@@ -70,7 +54,7 @@
           {#each data.gems as gem}
             <ItemFrame
               name={gem.name}
-              rarity={gemRarity(gem)}
+              rarity="MAGIC"
               itemType={gem.is_support ? "Support Gem" : "Skill Gem"}
             >
               {#snippet properties()}

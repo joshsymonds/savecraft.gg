@@ -3,6 +3,10 @@
  *
  * FTS5 search over unique items stored in D1. Supports filtering by item
  * class (e.g. "Body Armour", "Amulet").
+ *
+ * NOTE: The poe_uniques table is not yet populated by repoe-fetch (RePoE's
+ * uniques format needs investigation). This module is wired up and ready —
+ * it will return results once the data pipeline is extended.
  */
 
 import type { Env } from "../../../worker/src/types";
@@ -10,49 +14,37 @@ import type {
   NativeReferenceModule,
   ReferenceResult,
 } from "../../../worker/src/reference/types";
+import { fts5Safe, parseJsonColumn } from "./shared";
 
 const DEFAULT_LIMIT = 20;
 
 interface UniqueRow {
-  unique_id: string;
   name: string;
   base_type: string | null;
   item_class: string | null;
+  level_requirement: number | null;
+  str_requirement: number | null;
+  dex_requirement: number | null;
+  int_requirement: number | null;
   properties: string | null;
   implicit_mods: string | null;
   explicit_mods: string | null;
-  icon: string | null;
   flavour_text: string | null;
-  required_level: number | null;
-}
-
-function parseJsonColumn(value: string | null): unknown {
-  if (value === null) return [];
-  try {
-    return JSON.parse(value) as unknown;
-  } catch {
-    return [];
-  }
+  drop_level: number | null;
 }
 
 function uniqueRowToResult(row: UniqueRow): Record<string, unknown> {
   return {
-    unique_id: row.unique_id,
     name: row.name,
     base_type: row.base_type,
     item_class: row.item_class,
+    level_requirement: row.level_requirement,
     properties: parseJsonColumn(row.properties),
     implicit_mods: parseJsonColumn(row.implicit_mods),
     explicit_mods: parseJsonColumn(row.explicit_mods),
-    icon: row.icon,
     flavour_text: row.flavour_text,
-    required_level: row.required_level,
+    drop_level: row.drop_level,
   };
-}
-
-/** Sanitize a string for FTS5 MATCH: wrap in double quotes, escape internal double quotes. */
-function fts5Safe(s: string): string {
-  return `"${s.replace(/"/g, '""')}"`;
 }
 
 export const uniqueSearchModule: NativeReferenceModule = {
@@ -103,9 +95,21 @@ export const uniqueSearchModule: NativeReferenceModule = {
       };
     }
 
+    // Check if table has data
+    const countResult = await db
+      .prepare("SELECT COUNT(*) as cnt FROM poe_uniques")
+      .first<{ cnt: number }>();
+    if (!countResult || countResult.cnt === 0) {
+      return {
+        type: "text",
+        content:
+          "Unique item data is not yet populated. The data pipeline for uniques is under development. Use the pob_calc module to inspect items on specific builds.",
+      };
+    }
+
     const safeQuery = fts5Safe(searchQuery);
     const conditions: string[] = [
-      "u.unique_id IN (SELECT unique_id FROM poe_uniques_fts WHERE poe_uniques_fts MATCH ?)",
+      "u.name IN (SELECT name FROM poe_uniques_fts WHERE poe_uniques_fts MATCH ?)",
     ];
     const bindings: unknown[] = [safeQuery];
 

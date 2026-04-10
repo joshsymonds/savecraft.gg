@@ -8,7 +8,7 @@
 
 import type { Env } from "../../../worker/src/types";
 import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
-import { mergeWithRRF } from "./rules-search";
+import { mergeWithRRF } from "../../../worker/src/reference/rrf";
 
 const DEFAULT_LIMIT = 20;
 const RRF_K = 60;

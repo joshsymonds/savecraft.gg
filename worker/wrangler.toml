@@ -43,6 +43,10 @@ index_name = "mtga-rules"
 binding = "MTGA_CARDS_INDEX"
 index_name = "magic-cards"
 
+[[vectorize]]
+binding = "POE_INDEX"
+index_name = "poe"
+
 [durable_objects]
 bindings = [
   { name = "SOURCE_HUB", class_name = "SourceHub" },
@@ -104,6 +108,10 @@ index_name = "mtga-rules"
 [[env.production.vectorize]]
 binding = "MTGA_CARDS_INDEX"
 index_name = "magic-cards"
+
+[[env.production.vectorize]]
+binding = "POE_INDEX"
+index_name = "poe"
 
 [env.production.durable_objects]
 bindings = [
@@ -167,6 +175,10 @@ index_name = "mtga-rules-staging"
 [[env.staging.vectorize]]
 binding = "MTGA_CARDS_INDEX"
 index_name = "magic-cards-staging"
+
+[[env.staging.vectorize]]
+binding = "POE_INDEX"
+index_name = "poe-staging"
 
 [env.staging.durable_objects]
 bindings = [

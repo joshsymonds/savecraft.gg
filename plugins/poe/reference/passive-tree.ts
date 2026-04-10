@@ -1,7 +1,8 @@
 /**
  * PoE passive_tree — native reference module.
  *
- * FTS5 search over the passive skill tree stored in D1. Supports filtering
+ * Hybrid search: D1 FTS5 (keyword) + Vectorize (semantic), merged via RRF.
+ * Falls back to FTS5-only when Vectorize is unavailable. Supports filtering
  * by node type (keystone, notable, mastery, small) and ascendancy class.
  */
 
@@ -11,66 +12,57 @@ import type {
   ReferenceResult,
 } from "../../../worker/src/reference/types";
 import { mergeWithRRF } from "../../../worker/src/reference/rrf";
+import { fts5Safe, parseJsonColumn } from "./shared";
 
 const DEFAULT_LIMIT = 20;
 const RRF_K = 60;
+const MAX_RRF_IDS = 90; // Stay under D1's 100-parameter bind limit
 
 interface PassiveNodeRow {
   skill_id: number;
   name: string;
-  is_keystone: number;
   is_notable: number;
+  is_keystone: number;
   is_mastery: number;
-  ascendancy: string | null;
+  is_ascendancy: number;
+  ascendancy_name: string | null;
   stats: string | null;
-  icon: string | null;
+  group_id: number | null;
+  orbit: number | null;
+  orbit_index: number | null;
 }
 
-function parseJsonColumn(value: string | null): unknown[] {
-  if (value === null) return [];
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+function nodeType(row: PassiveNodeRow): string {
+  if (row.is_keystone) return "keystone";
+  if (row.is_notable) return "notable";
+  if (row.is_mastery) return "mastery";
+  return "small";
 }
 
 function nodeRowToResult(row: PassiveNodeRow): Record<string, unknown> {
-  let nodeType = "small";
-  if (row.is_keystone === 1) nodeType = "keystone";
-  else if (row.is_notable === 1) nodeType = "notable";
-  else if (row.is_mastery === 1) nodeType = "mastery";
-
   return {
-    skill_id: row.skill_id,
+    id: row.skill_id,
     name: row.name,
-    type: nodeType,
-    ascendancy: row.ascendancy,
+    type: nodeType(row),
     stats: parseJsonColumn(row.stats),
-    icon: row.icon,
+    ascendancy: row.ascendancy_name,
   };
-}
-
-/** Sanitize a string for FTS5 MATCH: wrap in double quotes, escape internal double quotes. */
-function fts5Safe(s: string): string {
-  return `"${s.replace(/"/g, '""')}"`;
 }
 
 export const passiveTreeModule: NativeReferenceModule = {
   id: "passive_tree",
   name: "Passive Tree Search",
   description: [
-    "Search the Path of Exile passive skill tree by node name, stats, or ascendancy.",
-    "USE PROACTIVELY: query this module to verify keystone and notable names,",
-    "check exact stat values on passive nodes, or find nodes by keyword before",
-    "referencing them in build advice. Prevents hallucinating passive names or wrong stat values.",
+    "Search Path of Exile passive tree nodes by name or stat description.",
+    "USE PROACTIVELY: query this module to verify keystone effects, find notable",
+    "locations, or check ascendancy nodes before advising on tree pathing.",
+    "Supports filtering by type (keystone, notable, mastery, small) and ascendancy.",
   ].join(" "),
   parameters: {
     query: {
       type: "string",
       description:
-        "Full-text search on node name, stats, and ascendancy. Example: 'Resolute Technique'",
+        "Full-text search on node name, stats, or ascendancy. Example: 'Mind Over Matter'",
     },
     type: {
       type: "string",
@@ -80,7 +72,7 @@ export const passiveTreeModule: NativeReferenceModule = {
     ascendancy: {
       type: "string",
       description:
-        "Filter to a specific ascendancy class. Example: 'Juggernaut', 'Necromancer'",
+        "Filter to a specific ascendancy class. Example: 'Hierophant', 'Necromancer'",
     },
     limit: {
       type: "number",
@@ -95,7 +87,7 @@ export const passiveTreeModule: NativeReferenceModule = {
     const db = env.DB;
     const searchQuery =
       typeof query.query === "string" ? query.query.trim() : undefined;
-    const nodeType =
+    const nodeTypeFilter =
       typeof query.type === "string" ? query.type.trim().toLowerCase() : undefined;
     const ascendancy =
       typeof query.ascendancy === "string" ? query.ascendancy.trim() : undefined;
@@ -116,7 +108,7 @@ export const passiveTreeModule: NativeReferenceModule = {
     const safeQuery = fts5Safe(searchQuery);
     const ftsResults = await db
       .prepare("SELECT skill_id FROM poe_passive_nodes_fts WHERE poe_passive_nodes_fts MATCH ? LIMIT ?")
-      .bind(safeQuery, limit * 3)
+      .bind(safeQuery, MAX_RRF_IDS)
       .all<{ skill_id: number }>();
     let skillIds = ftsResults.results.map((r) => String(r.skill_id));
 
@@ -136,7 +128,7 @@ export const passiveTreeModule: NativeReferenceModule = {
             .map((m) => m.id.replace(/^node:/, ""))
             .filter((id) => id !== "");
           if (vectorIds.length > 0) {
-            skillIds = mergeWithRRF(skillIds, vectorIds, RRF_K, limit * 3);
+            skillIds = mergeWithRRF(skillIds, vectorIds, RRF_K, MAX_RRF_IDS);
           }
         }
       } catch (error) {
@@ -156,8 +148,8 @@ export const passiveTreeModule: NativeReferenceModule = {
     const conditions: string[] = [`n.skill_id IN (${placeholders})`];
     const bindings: unknown[] = [...skillIds.map(Number)];
 
-    if (nodeType) {
-      switch (nodeType) {
+    if (nodeTypeFilter) {
+      switch (nodeTypeFilter) {
         case "keystone":
           conditions.push("n.is_keystone = 1");
           break;

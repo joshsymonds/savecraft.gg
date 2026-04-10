@@ -42,11 +42,15 @@ interface CachedPriceData {
   readonly fetchedAt: number;
 }
 
+const MAX_CACHE_ENTRIES = 50;
 const priceCache = new Map<string, CachedPriceData>();
+/** Singleflight: in-flight fetch promises to deduplicate concurrent requests. */
+const inflightFetches = new Map<string, Promise<CachedPriceData | null>>();
 
 /** Clear cache (for tests). */
 export function resetEconomyCache(): void {
   priceCache.clear();
+  inflightFetches.clear();
 }
 
 // ---------------------------------------------------------------------------
@@ -144,28 +148,46 @@ export const economyModule: NativeReferenceModule = {
 
     // Fetch if cache miss or expired
     if (!cached || now - cached.fetchedAt >= CACHE_TTL_MS) {
-      const url = `https://poe.ninja/api/data/itemoverview?league=${encodeURIComponent(league)}&type=${encodeURIComponent(type)}`;
-      let response: Response;
+      // Singleflight: reuse in-flight fetch for the same key
+      let fetchPromise = inflightFetches.get(cacheKey);
+      if (!fetchPromise) {
+        fetchPromise = (async (): Promise<CachedPriceData | null> => {
+          const url = `https://poe.ninja/api/data/itemoverview?league=${encodeURIComponent(league)}&type=${encodeURIComponent(type)}`;
+          const response = await fetch(url, {
+            signal: AbortSignal.timeout(10_000),
+          });
+          if (!response.ok) return null;
+          const body = (await response.json()) as PoeNinjaResponse;
+          return { lines: body.lines, fetchedAt: Date.now() };
+        })();
+        inflightFetches.set(cacheKey, fetchPromise);
+      }
+
+      let result: CachedPriceData | null;
       try {
-        response = await fetch(url, {
-          signal: AbortSignal.timeout(10_000),
-        });
+        result = await fetchPromise;
       } catch (e) {
+        inflightFetches.delete(cacheKey);
         return {
           type: "text",
           content: `poe.ninja is currently unavailable: ${e instanceof Error ? e.message : "unknown error"}. Try again later.`,
         };
+      } finally {
+        inflightFetches.delete(cacheKey);
       }
 
-      if (!response.ok) {
+      if (!result) {
         return {
           type: "text",
-          content: `poe.ninja returned ${String(response.status)} for type '${type}' in league '${league}'. Check that the type and league names are correct.`,
+          content: `poe.ninja returned an error for type '${type}' in league '${league}'. Check that the type and league names are correct.`,
         };
       }
 
-      const body = (await response.json()) as PoeNinjaResponse;
-      cached = { lines: body.lines, fetchedAt: now };
+      cached = result;
+      // Bound cache size
+      if (priceCache.size >= MAX_CACHE_ENTRIES) {
+        priceCache.clear();
+      }
       priceCache.set(cacheKey, cached);
     }
 

@@ -28,8 +28,6 @@ interface RuleRow {
 }
 
 import { mergeWithRRF } from "../../../worker/src/reference/rrf";
-// Re-export for card-search.ts which imports from here.
-export { mergeWithRRF };
 
 // ── Query handlers ───────────────────────────────────────────
 

@@ -22,7 +22,6 @@
   let { chaos, divine, confidence, compact = false }: Props = $props();
 
   function fmt(n: number): string {
-    if (n >= 10000) return `${(n / 1000).toFixed(1)}k`;
     if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
     if (n >= 100) return Math.round(n).toString();
     if (n >= 10) return n.toFixed(1);

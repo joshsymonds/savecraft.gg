@@ -1,8 +1,8 @@
 /**
  * PoE gem_search — native reference module.
  *
- * FTS5 search over PoE skill and support gems stored in D1. Supports
- * filtering by gem color and support/active type.
+ * Hybrid search: D1 FTS5 (keyword) + Vectorize (semantic), merged via RRF.
+ * Falls back to FTS5-only when Vectorize is unavailable.
  */
 
 import type { Env } from "../../../worker/src/types";
@@ -11,9 +11,11 @@ import type {
   ReferenceResult,
 } from "../../../worker/src/reference/types";
 import { mergeWithRRF } from "../../../worker/src/reference/rrf";
+import { fts5Safe, parseJsonColumn } from "./shared";
 
 const DEFAULT_LIMIT = 20;
 const RRF_K = 60;
+const MAX_RRF_IDS = 90; // Stay under D1's 100-parameter bind limit
 
 interface GemRow {
   gem_id: string;
@@ -25,18 +27,12 @@ interface GemRow {
   stats_at_20: string | null;
   quality_stats: string | null;
   supports_tags: string | null;
-  icon: string | null;
   level_requirement: number | null;
-}
-
-function parseJsonColumn(value: string | null): unknown[] {
-  if (value === null) return [];
-  try {
-    const parsed: unknown = JSON.parse(value);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  str_requirement: number | null;
+  dex_requirement: number | null;
+  int_requirement: number | null;
+  cast_time: number | null;
+  mana_cost: string | null;
 }
 
 function gemRowToResult(row: GemRow): Record<string, unknown> {
@@ -50,14 +46,13 @@ function gemRowToResult(row: GemRow): Record<string, unknown> {
     stats_at_20: parseJsonColumn(row.stats_at_20),
     quality_stats: parseJsonColumn(row.quality_stats),
     supports_tags: parseJsonColumn(row.supports_tags),
-    icon: row.icon,
     level_requirement: row.level_requirement,
+    str_requirement: row.str_requirement,
+    dex_requirement: row.dex_requirement,
+    int_requirement: row.int_requirement,
+    cast_time: row.cast_time,
+    mana_cost: row.mana_cost,
   };
-}
-
-/** Sanitize a string for FTS5 MATCH: wrap in double quotes, escape internal double quotes. */
-function fts5Safe(s: string): string {
-  return `"${s.replace(/"/g, '""')}"`;
 }
 
 export const gemSearchModule: NativeReferenceModule = {
@@ -117,7 +112,7 @@ export const gemSearchModule: NativeReferenceModule = {
     const safeQuery = fts5Safe(searchQuery);
     const ftsResults = await db
       .prepare("SELECT gem_id FROM poe_gems_fts WHERE poe_gems_fts MATCH ? LIMIT ?")
-      .bind(safeQuery, limit * 3)
+      .bind(safeQuery, MAX_RRF_IDS)
       .all<{ gem_id: string }>();
     let gemIds = ftsResults.results.map((r) => r.gem_id);
 
@@ -137,7 +132,7 @@ export const gemSearchModule: NativeReferenceModule = {
             .map((m) => m.id.replace(/^gem:/, ""))
             .filter((id) => id !== "");
           if (vectorIds.length > 0) {
-            gemIds = mergeWithRRF(gemIds, vectorIds, RRF_K, limit * 3);
+            gemIds = mergeWithRRF(gemIds, vectorIds, RRF_K, MAX_RRF_IDS);
           }
         }
       } catch (error) {

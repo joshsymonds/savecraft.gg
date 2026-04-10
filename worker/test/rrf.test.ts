@@ -44,13 +44,26 @@ describe("mergeWithRRF", () => {
   });
 
   it("uses k parameter to control rank smoothing", () => {
-    // With k=1, rank differences matter much more than k=1000
-    const smallK = mergeWithRRF(["a", "b"], ["b", "a"], 1, 10);
-    const largeK = mergeWithRRF(["a", "b"], ["b", "a"], 1000, 10);
-    // With equal opposing ranks and any k, scores should be equal — order is stable
-    // Both should contain both items
-    expect(smallK).toHaveLength(2);
-    expect(largeK).toHaveLength(2);
+    // With small k, rank position matters a lot: rank 0 = 1/(k+0), rank 4 = 1/(k+4)
+    // With large k, rank position barely matters: 1/1000 vs 1/1004 ≈ same
+    // A shared item at low ranks can beat or lose to a single-list item at rank 0
+    // depending on k.
+    const bm25 = ["a", "b", "c", "d", "shared"];  // "shared" at rank 4
+    const vector = ["e", "f", "g", "h", "shared"]; // "shared" at rank 4
+
+    // shared score = 1/(k+4) + 1/(k+4) = 2/(k+4)
+    // a score = 1/(k+0)
+    // With k=1: shared = 2/5 = 0.4, a = 1/1 = 1.0 → a wins
+    // With k=100: shared = 2/104 ≈ 0.019, a = 1/100 = 0.01 → shared wins
+    const smallK = mergeWithRRF(bm25, vector, 1, 10);
+    const largeK = mergeWithRRF(bm25, vector, 100, 10);
+
+    // Small k: single-list rank-0 items beat the shared item
+    expect(smallK[0]).toBe("a");
+    expect(smallK.indexOf("shared")).toBeGreaterThan(1);
+
+    // Large k: shared item beats single-list items (double contribution outweighs rank)
+    expect(largeK[0]).toBe("shared");
   });
 
   it("merges large lists correctly", () => {
