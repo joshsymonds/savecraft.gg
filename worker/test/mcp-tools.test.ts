@@ -150,10 +150,25 @@ describe("MCP Tools", () => {
   }
 
   describe("listGames", () => {
-    it("returns empty array when user has no saves", async () => {
+    it("includes games with reference modules even when user has no saves", async () => {
       const result = await listGames(env.DB, "no-saves-user");
       const data = parseResult(result) as { games: GameEntry[] };
-      expect(data.games).toEqual([]);
+      // Games with reference modules appear with empty saves
+      const gamesWithRefs = data.games.filter((g) => g.references && g.references.length > 0);
+      expect(gamesWithRefs.length).toBeGreaterThan(0);
+      for (const game of gamesWithRefs) {
+        expect(game.saves).toEqual([]);
+      }
+    });
+
+    it("returns filtered game with reference modules even without saves", async () => {
+      const result = await listGames(env.DB, "no-saves-user", "d2r");
+      const data = parseResult(result) as { games: GameEntry[] };
+      const d2r = data.games.find((g) => g.game_id === "d2r");
+      expect(d2r).toBeDefined();
+      expect(d2r!.saves).toEqual([]);
+      expect(d2r!.references).toBeDefined();
+      expect(d2r!.references!.length).toBeGreaterThan(0);
     });
 
     it("groups saves by game_id", async () => {

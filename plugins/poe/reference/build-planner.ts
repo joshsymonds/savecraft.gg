@@ -127,6 +127,13 @@ export const buildPlannerModule: NativeReferenceModule = {
         "JSON array of extra stat names to include in each node's deltas for context "
         + "(default '[\"Life\",\"CombinedDPS\",\"EnergyShield\"]'). Only used with nearby_metrics.",
     },
+    nearby_sort: {
+      type: "string",
+      description:
+        "Sort order for nearby results: 'desc' (default) ranks nodes with the highest positive impact first "
+        + "(best improvements). 'asc' ranks nodes with the most negative impact first "
+        + "(useful for finding what would hurt a stat). Only used with nearby_metrics.",
+    },
   },
 
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
@@ -138,6 +145,7 @@ export const buildPlannerModule: NativeReferenceModule = {
     const nearbyRadius = query.nearby_radius as number | undefined;
     const nearbyLimit = query.nearby_limit as number | undefined;
     const nearbyDeltaStats = query.nearby_delta_stats as string | undefined;
+    const nearbySort = query.nearby_sort as string | undefined;
 
     if (!build && !buildId) {
       return {
@@ -201,6 +209,7 @@ export const buildPlannerModule: NativeReferenceModule = {
       if (nearbyRadius) nearbyBody.radius = nearbyRadius;
       if (nearbyLimit) nearbyBody.limit = nearbyLimit;
       if (parsedDeltaStats) nearbyBody.deltaStats = parsedDeltaStats;
+      if (nearbySort) nearbyBody.sort = nearbySort;
 
       let response: Response;
       try {

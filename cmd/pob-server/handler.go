@@ -415,6 +415,7 @@ type NearbyRequest struct {
 	Radius     int      `json:"radius"`
 	Limit      int      `json:"limit"`
 	DeltaStats []string `json:"deltaStats"`
+	Sort       string   `json:"sort"`
 }
 
 type nearbyLuaRequest struct {
@@ -424,6 +425,7 @@ type nearbyLuaRequest struct {
 	Radius     int      `json:"radius"`
 	Limit      int      `json:"limit"`
 	DeltaStats []string `json:"deltaStats"`
+	Sort       string   `json:"sort"`
 }
 
 // parseNearbyRequest decodes, validates, and applies defaults/clamping to a nearby request.
@@ -457,6 +459,11 @@ func parseNearbyRequest(w http.ResponseWriter, r *http.Request) (NearbyRequest, 
 	}
 	if len(req.DeltaStats) == 0 {
 		req.DeltaStats = []string{"Life", "CombinedDPS", "EnergyShield"}
+	}
+	if req.Sort == "" {
+		req.Sort = "desc"
+	} else if req.Sort != "asc" && req.Sort != "desc" {
+		return req, "sort must be 'asc' or 'desc'"
 	}
 
 	return req, ""
@@ -516,6 +523,7 @@ func (srv *Server) handleNearby(
 		Radius:     req.Radius,
 		Limit:      req.Limit,
 		DeltaStats: req.DeltaStats,
+		Sort:       req.Sort,
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)

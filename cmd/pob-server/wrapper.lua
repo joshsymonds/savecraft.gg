@@ -952,6 +952,7 @@ local function handleNearby(request)
 	local radius = request.radius or 5
 	local limit = request.limit or 10
 	local deltaStats = request.deltaStats or { "Life", "CombinedDPS", "EnergyShield" }
+	local sortOrder = request.sort or "desc" -- "desc" = highest first (beneficial), "asc" = lowest first
 
 	-- Load the build from XML
 	local loadOk, loadErr = pcall(function()
@@ -1045,15 +1046,16 @@ local function handleNearby(request)
 	end
 
 	-- Build result sets: one per metric, ranked by efficiency
+	local ascending = sortOrder == "asc"
 	local results = {}
 	for _, metric in ipairs(metrics) do
-		-- Compute efficiency for this metric and sort
+		-- Compute signed efficiency for this metric and sort
 		local ranked = {}
 		for _, c in ipairs(candidates) do
 			local delta = c.deltas[metric] or 0
 			local eff = 0
 			if c.path_cost > 0 then
-				eff = math.abs(delta) / c.path_cost
+				eff = delta / c.path_cost
 			end
 			ranked[#ranked + 1] = {
 				name = c.name,
@@ -1066,11 +1068,19 @@ local function handleNearby(request)
 			}
 		end
 
-		table.sort(ranked, function(a, b)
-			if a.efficiency ~= b.efficiency then return a.efficiency > b.efficiency end
-			if a.path_cost ~= b.path_cost then return a.path_cost < b.path_cost end
-			return a.name < b.name
-		end)
+		if ascending then
+			table.sort(ranked, function(a, b)
+				if a.efficiency ~= b.efficiency then return a.efficiency < b.efficiency end
+				if a.path_cost ~= b.path_cost then return a.path_cost < b.path_cost end
+				return a.name < b.name
+			end)
+		else
+			table.sort(ranked, function(a, b)
+				if a.efficiency ~= b.efficiency then return a.efficiency > b.efficiency end
+				if a.path_cost ~= b.path_cost then return a.path_cost < b.path_cost end
+				return a.name < b.name
+			end)
+		end
 
 		-- Take top N
 		local nodes = {}
