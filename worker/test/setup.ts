@@ -145,32 +145,17 @@ const statements = [
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(user_uuid, game_id)
   )`,
-  // MTG Arena rules + card rulings (migration 0014)
+  // MTG Arena rules (migration 0014, card rulings dropped in 0040)
   `CREATE TABLE IF NOT EXISTS mtga_rules (
     number TEXT PRIMARY KEY,
     text TEXT NOT NULL,
     example TEXT,
     see_also TEXT
   )`,
-  `CREATE TABLE IF NOT EXISTS mtga_card_rulings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    oracle_id TEXT NOT NULL,
-    card_name TEXT NOT NULL,
-    published_at TEXT,
-    comment TEXT NOT NULL
-  )`,
-  `CREATE INDEX IF NOT EXISTS idx_card_rulings_oracle ON mtga_card_rulings(oracle_id)`,
-  `CREATE INDEX IF NOT EXISTS idx_card_rulings_name ON mtga_card_rulings(card_name)`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS mtga_rules_fts USING fts5(
     number UNINDEXED,
     text,
     example,
-    tokenize='porter unicode61'
-  )`,
-  `CREATE VIRTUAL TABLE IF NOT EXISTS mtga_card_rulings_fts USING fts5(
-    oracle_id UNINDEXED,
-    card_name,
-    comment,
     tokenize='porter unicode61'
   )`,
   // MTG Arena cards + draft ratings (migration 0015)

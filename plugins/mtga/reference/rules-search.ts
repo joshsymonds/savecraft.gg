@@ -5,20 +5,17 @@
  * merged via Reciprocal Rank Fusion. Falls back to FTS5-only when Vectorize is
  * unavailable.
  *
- * Three query modes:
+ * Two query modes:
  *   rule    — exact D1 lookup + cross-reference expansion
  *   keyword — hybrid FTS5 + Vectorize search
- *   card    — card ruling lookup by name
  */
 
 import type { Env } from "../../../worker/src/types";
 import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
 
 const DEFAULT_LIMIT = 20;
-const CARD_RULES_LIMIT = 10;
 const RRF_K = 60;
 const EFFECTIVE_DATE = "November 14, 2025";
-const EFFECTIVE_DATE_ISO = "2025-11-14"; // For comparing against ruling published_at dates
 const RULES_HEADER = `MTG Comprehensive Rules (effective ${EFFECTIVE_DATE})`;
 const MAX_SEE_ALSO_REFS = 20;
 
@@ -31,7 +28,7 @@ interface RuleRow {
 
 import { mergeWithRRF } from "../../../worker/src/reference/rrf";
 
-// ── Shared helpers ──────────────────────────────────────────
+// ── Shared helpers ───────────────────────────────────���──────
 
 /** FTS5-only keyword search — returns ranked rule rows without Vectorize. */
 async function searchRulesByFts(
@@ -165,18 +162,6 @@ function buildFollowUpSuggestions(rules: RuleRow[], expandedRefs: Set<string>): 
     suggestions.push(`Look up related rules: ${topRefs.map((r) => `rule ${r}`).join(", ")}`);
   }
 
-  // Suggest card ruling lookup if the rule is about a keyword
-  const keywords = /\b(deathtouch|trample|flying|first strike|double strike|lifelink|vigilance|haste|reach|menace|hexproof|indestructible|ward|flash)\b/i;
-  for (const r of rules) {
-    const match = keywords.exec(r.text);
-    if (match) {
-      suggestions.push(
-        `To see how ${match[1]} works on specific cards, search by card name with the "card" parameter`,
-      );
-      break;
-    }
-  }
-
   if (suggestions.length === 0) return "";
   return "\n---\nSuggested follow-ups:\n" + suggestions.map((s) => `- ${s}`).join("\n");
 }
@@ -253,139 +238,17 @@ async function searchByKeyword(
   };
 }
 
-async function searchCardRulings(
-  db: D1Database,
-  cardName: string,
-): Promise<ReferenceResult> {
-  // Sanitize for FTS5 MATCH: wrap in double quotes, escape internal double quotes
-  const safeFtsQuery = `"${cardName.replace(/"/g, '""')}"`;
-
-  // Escape LIKE wildcards in card name
-  const escapedName = cardName.replace(/[%_]/g, "\\$&");
-
-  // Run card ruling lookup, LIKE fallback, and Comp Rules cross-reference in parallel
-  const [ftsResults, likeResults, relatedRules] = await Promise.all([
-    db
-      .prepare(
-        `SELECT DISTINCT oracle_id, card_name FROM mtga_card_rulings_fts WHERE mtga_card_rulings_fts MATCH ?1 LIMIT ?2`,
-      )
-      .bind(safeFtsQuery, 5)
-      .all<{ oracle_id: string; card_name: string }>(),
-    db
-      .prepare(
-        `SELECT DISTINCT oracle_id, card_name FROM mtga_card_rulings WHERE card_name LIKE ?1 ESCAPE '\\' LIMIT 5`,
-      )
-      .bind(`%${escapedName}%`)
-      .all<{ oracle_id: string; card_name: string }>(),
-    searchRulesByFts(db, cardName, CARD_RULES_LIMIT),
-  ]);
-
-  // Merge unique oracle_ids
-  const seen = new Map<string, string>();
-  for (const r of [...ftsResults.results, ...likeResults.results]) {
-    if (!seen.has(r.oracle_id)) {
-      seen.set(r.oracle_id, r.card_name);
-    }
-  }
-
-  if (seen.size === 0) {
-    return { type: "text", content: `No card rulings found for "${cardName}". Try a partial name or check the card name spelling.\n` };
-  }
-
-  // Collect all oracle_ids to fetch rulings in a single query (avoid N+1)
-  const oracleIds = [...seen.keys()].slice(0, 5);
-  const placeholders = oracleIds.map(() => "?").join(",");
-  const allRulings = await db
-    .prepare(
-      `SELECT oracle_id, published_at, comment FROM mtga_card_rulings WHERE oracle_id IN (${placeholders}) ORDER BY oracle_id, published_at DESC`,
-    )
-    .bind(...oracleIds)
-    .all<{ oracle_id: string; published_at: string | null; comment: string }>();
-
-  // Group rulings by oracle_id
-  const rulingsByOracle = new Map<string, Array<{ published_at: string | null; comment: string }>>();
-  for (const r of allRulings.results) {
-    let list = rulingsByOracle.get(r.oracle_id);
-    if (!list) {
-      list = [];
-      rulingsByOracle.set(r.oracle_id, list);
-    }
-    list.push({ published_at: r.published_at, comment: r.comment });
-  }
-
-  // ── Build output: Comp Rules first (authoritative), then card rulings ──
-
-  const lines: string[] = [];
-
-  // Section 1: Related Comprehensive Rules (if any matched the card name)
-  if (relatedRules.length > 0) {
-    lines.push(`${RULES_HEADER}\n`);
-    lines.push(`Related rules for "${cardName}" (${relatedRules.length} matches — these are AUTHORITATIVE):\n`);
-    for (const r of relatedRules) {
-      lines.push(`${r.number} ${r.text}`);
-    }
-    lines.push("");
-  }
-
-  // Section 2: Card rulings from Scryfall
-  lines.push("Card Rulings via Scryfall (supplementary — the Comprehensive Rules above take precedence)\n");
-  let count = 0;
-  let latestDate = "";
-
-  for (const [oracleId, name] of seen) {
-    if (count >= 5) {
-      lines.push(`(${seen.size - 5} more cards match, narrow your search)`);
-      break;
-    }
-
-    const rulings = rulingsByOracle.get(oracleId) ?? [];
-
-    if (rulings.length > 0) {
-      lines.push(`${name} (${rulings.length} rulings):\n`);
-      for (const r of rulings) {
-        const date = r.published_at ?? "unknown";
-        lines.push(`  [${date}] ${r.comment}`);
-        if (date > latestDate) latestDate = date;
-      }
-      lines.push("");
-    }
-    count++;
-  }
-
-  if (lines.length <= 1) {
-    return {
-      type: "text",
-      content: `No rulings found for "${cardName}" (card exists but has no official rulings). Check the Comprehensive Rules for the underlying mechanics instead — use the "keyword" parameter.\n`,
-    };
-  }
-
-  // Guidance footer
-  lines.push("---");
-  if (latestDate) {
-    lines.push(`Most recent ruling: ${latestDate}`);
-    if (latestDate < EFFECTIVE_DATE_ISO) {
-      lines.push(`⚠ All rulings above predate the current Comprehensive Rules (effective ${EFFECTIVE_DATE}). If any ruling appears to conflict with current rules text, the Comprehensive Rules are correct — the ruling may not have been updated after a rules change.`);
-    }
-  }
-  lines.push("IMPORTANT: The Comprehensive Rules are always authoritative. Card rulings are supplementary and can become outdated when rules change between set releases. If a ruling conflicts with the rules shown above, trust the Comprehensive Rules.");
-
-  return {
-    type: "text",
-    content: lines.join("\n") + "\n",
-  };
-}
-
 // ── Module definition ────────────────────────────────────────
 
 export const rulesSearchModule: NativeReferenceModule = {
   id: "rules_search",
   name: "Rules Search",
   description: [
-    "Search the MTG Comprehensive Rules and official per-card rulings from Scryfall.",
+    "Search the MTG Comprehensive Rules — the authoritative, complete rules of Magic: The Gathering, updated every set release.",
     "USE PROACTIVELY: query this module BEFORE making any claim about how a card interaction works, what happens during a game phase, how triggered abilities resolve, or any rules interpretation.",
-    "Do not rely on training data for MTG rules — the Comprehensive Rules are updated with every set release and card-specific rulings are issued continuously. Verify against this authoritative source.",
+    "Do not rely on training data for MTG rules — the Comprehensive Rules change with every set release. Your training data may contain outdated rules, obsolete card rulings, or incorrect interaction analyses. Verify against this authoritative source.",
     "Especially critical for: card interactions between specific cards, triggered vs replacement effects, state-based actions, combat damage assignment with keywords like trample+deathtouch, stack and priority, layer system, and any ruling a player might dispute.",
-    "Query by rule number for specific lookups with full cross-references, by keyword for ranked search across all rules, or by card name for official Scryfall rulings on specific cards.",
+    "Query by rule number for specific lookups with full cross-references, or by keyword for ranked search across all rules.",
     "When explaining an interaction, cite the specific rule numbers from the results. If the answer involves multiple rules, make multiple queries to build a complete picture.",
   ].join(" "),
   parameters: {
@@ -397,12 +260,7 @@ export const rulesSearchModule: NativeReferenceModule = {
     keyword: {
       type: "string",
       description:
-        "Keyword search ranked by relevance (e.g., 'deathtouch', 'trample'). Multi-word queries match rules containing ANY term (OR). For complex interactions involving multiple mechanics (e.g., trample + deathtouch), query each keyword separately and synthesize the results — this finds the specific rules for each mechanic rather than only rules that happen to mention both.",
-    },
-    card: {
-      type: "string",
-      description:
-        "Card name lookup (e.g., 'Sheoldred'). Returns related Comprehensive Rules AND supplementary Scryfall rulings. The Comprehensive Rules are authoritative; card rulings may be outdated.",
+        "Keyword search ranked by relevance (e.g., 'deathtouch', 'trample', 'Saga'). Multi-word queries match rules containing ANY term (OR). For complex interactions involving multiple mechanics (e.g., trample + deathtouch), query each keyword separately and synthesize the results — this finds the specific rules for each mechanic rather than only rules that happen to mention both. Also works for card-specific mechanics — search for the card's types or keywords (e.g., 'Saga' for Urza's Saga rules).",
     },
     limit: { type: "integer", description: "Max results (default 20)." },
   },
@@ -410,19 +268,15 @@ export const rulesSearchModule: NativeReferenceModule = {
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
     const rule = (query.rule as string) ?? "";
     const keyword = (query.keyword as string) ?? "";
-    const card = (query.card as string) ?? "";
     const limit = typeof query.limit === "number" ? query.limit : DEFAULT_LIMIT;
 
     if (rule) {
       return searchByRuleNumber(env.DB, rule);
     }
-    if (card) {
-      return searchCardRulings(env.DB, card);
-    }
     if (keyword) {
       return searchByKeyword(env.DB, env.AI, env.MTGA_RULES_INDEX, keyword, limit);
     }
 
-    return { type: "text", content: "Specify one of: rule (number), keyword, or card.\n" };
+    return { type: "text", content: "Specify one of: rule (number) or keyword.\n" };
   },
 };

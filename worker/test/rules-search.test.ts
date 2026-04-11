@@ -147,45 +147,6 @@ describe("rules_search native module", () => {
     ]);
   }
 
-  async function seedCardRulings(): Promise<void> {
-    await env.DB.batch([
-      env.DB.prepare(
-        "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
-      ).bind(
-        "abc-123",
-        "Sheoldred, the Apocalypse",
-        "2025-02-07",
-        "Sheoldred triggers when opponent draws.",
-      ),
-      env.DB.prepare(
-        "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
-      ).bind(
-        "abc-123",
-        "Sheoldred, the Apocalypse",
-        "2025-03-01",
-        "The ability triggers once per card drawn.",
-      ),
-      env.DB.prepare(
-        "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
-      ).bind(
-        "def-456",
-        "Lightning Bolt",
-        "2025-01-01",
-        "Lightning Bolt deals 3 damage to any target.",
-      ),
-      // FTS5 entries
-      env.DB.prepare(
-        "INSERT INTO mtga_card_rulings_fts (oracle_id, card_name, comment) VALUES (?, ?, ?)",
-      ).bind("abc-123", "Sheoldred, the Apocalypse", "Sheoldred triggers when opponent draws."),
-      env.DB.prepare(
-        "INSERT INTO mtga_card_rulings_fts (oracle_id, card_name, comment) VALUES (?, ?, ?)",
-      ).bind("abc-123", "Sheoldred, the Apocalypse", "The ability triggers once per card drawn."),
-      env.DB.prepare(
-        "INSERT INTO mtga_card_rulings_fts (oracle_id, card_name, comment) VALUES (?, ?, ?)",
-      ).bind("def-456", "Lightning Bolt", "Lightning Bolt deals 3 damage to any target."),
-    ]);
-  }
-
   it("is registered as a native module for mtga", () => {
     const module_ = getNativeModule("mtga", "rules_search");
     expect(module_).toBeDefined();
@@ -266,31 +227,6 @@ describe("rules_search native module", () => {
     expect(text).not.toContain("No rules found");
   });
 
-  // ── Card rulings ─────────────────────────────────────────
-
-  it("card ruling search finds rulings by card name", async () => {
-    await seedCardRulings();
-    const module_ = getNativeModule("mtga", "rules_search")!;
-    const result = await module_.execute({ card: "Sheoldred" }, env);
-
-    expect(result.type).toBe("text");
-    const text = (result as { content: string }).content;
-    expect(text).toContain("Sheoldred, the Apocalypse");
-    expect(text).toContain("triggers when opponent draws");
-    expect(text).toContain("once per card drawn");
-    // Should NOT include Lightning Bolt
-    expect(text).not.toContain("Lightning Bolt");
-  });
-
-  it("card ruling search returns not found for unknown card", async () => {
-    await seedCardRulings();
-    const module_ = getNativeModule("mtga", "rules_search")!;
-    const result = await module_.execute({ card: "Nonexistent Card" }, env);
-
-    const text = (result as { content: string }).content;
-    expect(text).toContain("No card rulings found");
-  });
-
   // ── Response formatting ──────────────────────────────────
 
   it("rule lookup includes effective date header", async () => {
@@ -315,78 +251,6 @@ describe("rules_search native module", () => {
     const result = await module_.execute({ keyword: "deathtouch" }, bm25Env);
     const text = (result as { content: string }).content;
     expect(text).toContain("cite specific rule numbers");
-  });
-
-  it("card ruling response includes authority attribution", async () => {
-    await seedCardRulings();
-    const module_ = getNativeModule("mtga", "rules_search")!;
-    const result = await module_.execute({ card: "Sheoldred" }, env);
-    const text = (result as { content: string }).content;
-    expect(text).toContain("Card Rulings via Scryfall");
-    expect(text).toContain("Comprehensive Rules are always authoritative");
-  });
-
-  it("card ruling response cross-references related Comprehensive Rules", async () => {
-    // Seed rules that match a card name term, then query by card name
-    await seedRules();
-    await env.DB.batch([
-      env.DB.prepare(
-        "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
-      ).bind("dt-001", "Deathtouch Viper", "2025-01-01", "Deathtouch means any damage is lethal."),
-      env.DB.prepare(
-        "INSERT INTO mtga_card_rulings_fts (oracle_id, card_name, comment) VALUES (?, ?, ?)",
-      ).bind("dt-001", "Deathtouch Viper", "Deathtouch means any damage is lethal."),
-    ]);
-    const module_ = getNativeModule("mtga", "rules_search")!;
-    const result = await module_.execute({ card: "Deathtouch Viper" }, env);
-    const text = (result as { content: string }).content;
-    // Should include Comp Rules section with deathtouch rules
-    expect(text).toContain("MTG Comprehensive Rules");
-    expect(text).toContain("AUTHORITATIVE");
-    expect(text).toContain("702.2");
-    // Should also include the card ruling
-    expect(text).toContain("Deathtouch Viper");
-    expect(text).toContain("any damage is lethal");
-  });
-
-  it("card ruling response works without matching Comprehensive Rules", async () => {
-    // "Sheoldred" won't match any Comp Rules terms (no rules seeded with that name)
-    await seedCardRulings();
-    const module_ = getNativeModule("mtga", "rules_search")!;
-    const result = await module_.execute({ card: "Sheoldred" }, env);
-    const text = (result as { content: string }).content;
-    // Should still show card rulings even without matching rules
-    expect(text).toContain("Sheoldred, the Apocalypse");
-    expect(text).toContain("triggers when opponent draws");
-    // Should NOT have the Comp Rules header (no matches)
-    expect(text).not.toContain("MTG Comprehensive Rules");
-  });
-
-  it("card ruling response flags stale rulings predating current rules", async () => {
-    // Seed data has rulings from 2025-02-07 and 2025-03-01, both before
-    // the Comprehensive Rules effective date (2025-11-14)
-    await seedCardRulings();
-    const module_ = getNativeModule("mtga", "rules_search")!;
-    const result = await module_.execute({ card: "Sheoldred" }, env);
-    const text = (result as { content: string }).content;
-    expect(text).toContain("All rulings above predate the current Comprehensive Rules");
-  });
-
-  it("card ruling response omits staleness warning for current rulings", async () => {
-    // Insert a ruling dated after the effective date
-    await env.DB.batch([
-      env.DB.prepare(
-        "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
-      ).bind("fresh-001", "Fresh Card", "2026-01-15", "This is a current ruling."),
-      env.DB.prepare(
-        "INSERT INTO mtga_card_rulings_fts (oracle_id, card_name, comment) VALUES (?, ?, ?)",
-      ).bind("fresh-001", "Fresh Card", "This is a current ruling."),
-    ]);
-    const module_ = getNativeModule("mtga", "rules_search")!;
-    const result = await module_.execute({ card: "Fresh Card" }, env);
-    const text = (result as { content: string }).content;
-    expect(text).toContain("Fresh Card");
-    expect(text).not.toContain("All rulings above predate");
   });
 
   it("module description includes proactive usage guidance", () => {

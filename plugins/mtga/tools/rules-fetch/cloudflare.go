@@ -9,16 +9,14 @@ import (
 	"github.com/joshsymonds/savecraft.gg/plugins/tools/cfapi"
 )
 
-// buildImportSQL generates a complete SQL string for bulk import.
-func buildImportSQL(rules []Rule, cardRulings map[string][]CardRuling, cardNames map[string]string) string {
+// buildImportSQL generates a complete SQL string for bulk import of Comprehensive Rules.
+func buildImportSQL(rules []Rule) string {
 	var b strings.Builder
 	q := cfapi.SQLQuote
 
 	// Clear existing data
 	b.WriteString("DELETE FROM mtga_rules_fts;\n")
-	b.WriteString("DELETE FROM mtga_card_rulings_fts;\n")
 	b.WriteString("DELETE FROM mtga_rules;\n")
-	b.WriteString("DELETE FROM mtga_card_rulings;\n")
 
 	// Insert rules
 	for _, r := range rules {
@@ -37,27 +35,11 @@ func buildImportSQL(rules []Rule, cardRulings map[string][]CardRuling, cardNames
 			q(r.Number), q(r.Text), q(r.Example))
 	}
 
-	// Insert card rulings
-	for oracleID, rulingList := range cardRulings {
-		cardName, ok := cardNames[oracleID]
-		if !ok {
-			continue
-		}
-		for _, r := range rulingList {
-			fmt.Fprintf(&b, "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (%s, %s, %s, %s);\n",
-				q(oracleID), q(cardName), q(r.PublishedAt), q(r.Comment))
-			fmt.Fprintf(&b, "INSERT INTO mtga_card_rulings_fts (oracle_id, card_name, comment) VALUES (%s, %s, %s);\n",
-				q(oracleID), q(cardName), q(r.Comment))
-		}
-	}
-
 	return b.String()
 }
 
 // populateVectorize embeds Comprehensive Rules and upserts to Vectorize.
-// Card rulings are intentionally excluded — they can go stale when rules change
-// and are only served as supplementary context alongside authoritative rules.
-func populateVectorize(accountID, indexName, apiToken string, rules []Rule, _ map[string][]CardRuling, _ map[string]string) error {
+func populateVectorize(accountID, indexName, apiToken string, rules []Rule) error {
 	const embeddingBatchSize = 100
 	const vectorizeBatchSize = 1000
 	const embeddingConcurrency = 6
@@ -184,70 +166,4 @@ func populateVectorize(accountID, indexName, apiToken string, rules []Rule, _ ma
 	}
 
 	return nil
-}
-
-// downloadCardNames fetches oracle card names from Scryfall's bulk data API.
-func downloadCardNames() (map[string]string, error) {
-	resp, err := httpGet("https://api.scryfall.com/bulk-data")
-	if err != nil {
-		return nil, fmt.Errorf("fetching bulk-data index: %w", err)
-	}
-	defer resp.Body.Close()
-
-	var bulk struct {
-		Data []struct {
-			Type        string `json:"type"`
-			DownloadURI string `json:"download_uri"`
-		} `json:"data"`
-	}
-	if err := json.NewDecoder(resp.Body).Decode(&bulk); err != nil {
-		return nil, err
-	}
-
-	var downloadURL string
-	for _, d := range bulk.Data {
-		if d.Type == "oracle_cards" {
-			downloadURL = d.DownloadURI
-			break
-		}
-	}
-	if downloadURL == "" {
-		return nil, fmt.Errorf("oracle_cards bulk data not found")
-	}
-	if !strings.HasPrefix(downloadURL, "https://data.scryfall.io/") {
-		return nil, fmt.Errorf("unexpected oracle cards download URL: %s", downloadURL)
-	}
-
-	fmt.Printf("Downloading oracle card names from %s...\n", downloadURL)
-	resp2, err := httpGet(downloadURL)
-	if err != nil {
-		return nil, err
-	}
-	defer resp2.Body.Close()
-
-	dec := json.NewDecoder(resp2.Body)
-	tok, err := dec.Token()
-	if err != nil {
-		return nil, err
-	}
-	if delim, ok := tok.(json.Delim); !ok || delim != '[' {
-		return nil, fmt.Errorf("expected '[', got %v", tok)
-	}
-
-	names := make(map[string]string)
-	for dec.More() {
-		var card struct {
-			OracleID string `json:"oracle_id"`
-			Name     string `json:"name"`
-		}
-		if err := dec.Decode(&card); err != nil {
-			continue
-		}
-		if card.OracleID != "" && card.Name != "" {
-			names[card.OracleID] = card.Name
-		}
-	}
-
-	fmt.Printf("Card name mapping: %d cards (all of Magic)\n", len(names))
-	return names, nil
 }

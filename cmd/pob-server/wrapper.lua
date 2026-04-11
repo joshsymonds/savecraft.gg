@@ -199,7 +199,10 @@ local function serializeTreeSummary(build)
 	local used, ascUsed = build.spec:CountAllocNodes()
 	local output = build.calcsTab and build.calcsTab.mainOutput
 	local extra = output and output.ExtraPoints or 0
-	local available = (build.characterLevel - 1) + extra
+	-- 23 quest reward passive points (all acts complete). PoB assumes this too
+	-- (Build.lua:863: usedMax = 99 + 23 + extra). The acts table is local to
+	-- Build.lua so we hardcode the same constant.
+	local available = (build.characterLevel - 1) + 23 + extra
 	return {
 		version = build.spec.treeVersion,
 		allocated_nodes = used,
