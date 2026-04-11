@@ -187,7 +187,9 @@ describe("query_reference and show_reference tools", () => {
       const listData = JSON.parse(content[0]!.text) as {
         games: { saves: { save_id: string }[] }[];
       };
-      const saveId = listData.games[0]!.saves[0]!.save_id;
+      const gameWithSaves = listData.games.find((g) => g.saves.length > 0);
+      expect(gameWithSaves).toBeDefined();
+      const saveId = gameWithSaves!.saves[0]!.save_id;
 
       const result = await callTool("show_save", { save_id: saveId });
       expect(result).toHaveProperty("structuredContent");
