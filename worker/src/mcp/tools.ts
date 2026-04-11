@@ -159,7 +159,6 @@ async function fetchNotesBySave(
   return notesBySave;
 }
 
-
 /** Resolve a game's icon URL from its embedded manifest. */
 export function resolveIconUrl(serverUrl: string, gameId: string): string | undefined {
   const manifest = MANIFESTS.get(gameId);
@@ -218,7 +217,6 @@ function mergeNativeIntoGame(game: GameEntry, gameId: string, filtered: boolean)
     game.reference_schemas = REFERENCE_SCHEMAS_HINT;
   }
 }
-
 
 /** Enrich a single game entry from its manifest data. When filtered, include full parameter schemas. */
 function enrichFromManifest(

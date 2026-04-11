@@ -154,9 +154,9 @@ describe("MCP Tools", () => {
       const result = await listGames(env.DB, "no-saves-user");
       const data = parseResult(result) as { games: GameEntry[] };
       // Games with reference modules appear with empty saves
-      const gamesWithRefs = data.games.filter((g) => g.references && g.references.length > 0);
-      expect(gamesWithRefs.length).toBeGreaterThan(0);
-      for (const game of gamesWithRefs) {
+      const gamesWithReferences = data.games.filter((g) => g.references && g.references.length > 0);
+      expect(gamesWithReferences.length).toBeGreaterThan(0);
+      for (const game of gamesWithReferences) {
         expect(game.saves).toEqual([]);
       }
     });
