@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -26,8 +27,9 @@ type CalcRequest struct {
 }
 
 type calcLuaRequest struct {
-	Type string `json:"type"`
-	XML  string `json:"xml"`
+	Type         string `json:"type"`
+	XML          string `json:"xml"`
+	NearbyRadius int    `json:"nearby_radius,omitempty"`
 }
 
 // calcResponse wraps the PoB result with a buildId for caching.
@@ -199,7 +201,11 @@ func (srv *Server) calcAndRespond(
 	}
 	defer srv.pool.Release(proc)
 
-	response, err := proc.Send(calcLuaRequest{Type: "calc", XML: xml})
+	response, err := proc.Send(calcLuaRequest{
+		Type:         "calc",
+		XML:          xml,
+		NearbyRadius: parseNearbyRadius(request),
+	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
 		jsonError(
@@ -263,9 +269,10 @@ type ModifyRequest struct {
 }
 
 type modifyLuaRequest struct {
-	Type       string            `json:"type"`
-	XML        string            `json:"xml"`
-	Operations []json.RawMessage `json:"operations"`
+	Type         string            `json:"type"`
+	XML          string            `json:"xml"`
+	Operations   []json.RawMessage `json:"operations"`
+	NearbyRadius int               `json:"nearby_radius,omitempty"`
 }
 
 type modifyLuaResponse struct {
@@ -343,9 +350,10 @@ func (srv *Server) modifyAndRespond(
 	defer srv.pool.Release(proc)
 
 	response, err := proc.Send(modifyLuaRequest{
-		Type:       "modify",
-		XML:        xml,
-		Operations: operations,
+		Type:         "modify",
+		XML:          xml,
+		Operations:   operations,
+		NearbyRadius: parseNearbyRadius(request),
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
@@ -502,6 +510,20 @@ func parseSections(r *http.Request) []string {
 		return nil
 	}
 	return result
+}
+
+// parseNearbyRadius reads the "nearby_radius" query parameter.
+// Returns 0 if absent or invalid (Lua defaults to 5).
+func parseNearbyRadius(r *http.Request) int {
+	raw := r.URL.Query().Get("nearby_radius")
+	if raw == "" {
+		return 0
+	}
+	n, err := strconv.Atoi(raw)
+	if err != nil || n < 1 {
+		return 0
+	}
+	return n
 }
 
 // filterSections modifies the PoB data JSON to control which sections are

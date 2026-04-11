@@ -195,14 +195,54 @@ end
 -- Serialize tree allocation summary
 local function serializeTreeSummary(build)
 	if not build.spec then return {} end
-	local allocated = 0
-	for _ in pairs(build.spec.allocNodes or {}) do
-		allocated = allocated + 1
-	end
+	-- CountAllocNodes separates regular vs ascendancy vs class-start nodes
+	local used, ascUsed = build.spec:CountAllocNodes()
+	local output = build.calcsTab and build.calcsTab.mainOutput
+	local extra = output and output.ExtraPoints or 0
+	local available = (build.characterLevel - 1) + extra
 	return {
 		version = build.spec.treeVersion,
-		allocated_nodes = allocated,
+		allocated_nodes = used,
+		ascendancy_nodes = ascUsed,
+		available_points = available,
+		remaining_points = available - used,
 	}
+end
+
+-- Serialize nearby unallocated notables/keystones with path costs
+local function serializeNearbyNotables(build, radius)
+	radius = radius or 5
+	if not build.spec or not build.spec.nodes then return {} end
+	local results = {}
+	for id, node in pairs(build.spec.nodes) do
+		if not node.alloc
+			and (node.isKeystone or node.isNotable)
+			and node.pathDist and node.pathDist <= radius
+			and node.path
+		then
+			local name = node.dn or node.name
+			if name then
+				local stats = {}
+				local sd = node.sd or node.stats
+				if sd then
+					for _, s in ipairs(sd) do
+						stats[#stats + 1] = s
+					end
+				end
+				results[#results + 1] = {
+					name = name,
+					type = node.isKeystone and "keystone" or "notable",
+					stats = stats,
+					path_cost = node.pathDist,
+				}
+			end
+		end
+	end
+	table.sort(results, function(a, b)
+		if a.path_cost ~= b.path_cost then return a.path_cost < b.path_cost end
+		return a.name < b.name
+	end)
+	return results
 end
 
 -- =========================================================================
@@ -237,8 +277,9 @@ local statSectionDefs = {
 local structuredSectionDefs = {
 	{ id = "socket_groups", name = "Socket Groups",  description = "Skill gems, links, and socket group configuration" },
 	{ id = "items",         name = "Items",           description = "Equipped gear by slot" },
-	{ id = "keystones",     name = "Keystones",       description = "Allocated keystone passives" },
-	{ id = "tree",          name = "Passive Tree",    description = "Tree version and allocated node count" },
+	{ id = "keystones",        name = "Keystones",         description = "Allocated keystone passives" },
+	{ id = "tree",             name = "Passive Tree",      description = "Allocated/available/remaining passive points, ascendancy nodes, tree version" },
+	{ id = "nearby_notables",  name = "Nearby Notables",   description = "Unallocated notables and keystones reachable within a few passive points, with stats and path cost" },
 }
 
 -- Explicit section assignments for bare or ambiguous stat keys.
@@ -445,7 +486,7 @@ local function classifyStat(key)
 end
 
 -- Serialize calc output into grouped sections.
-local function serializeSections(build)
+local function serializeSections(build, nearbyRadius)
 	local emptySummary = {}
 	for _, key in ipairs(summaryKeys) do
 		emptySummary[key] = 0
@@ -492,6 +533,7 @@ local function serializeSections(build)
 	sections.items = serializeItems(build)
 	sections.keystones = serializeKeystones(build)
 	sections.tree = serializeTreeSummary(build)
+	sections.nearby_notables = serializeNearbyNotables(build, nearbyRadius)
 
 	-- Build section index
 	local index = {}
@@ -554,7 +596,7 @@ local function handleCalc(request)
 	runCallback("OnFrame")
 
 	-- Serialize results into grouped sections
-	local grouped = serializeSections(build)
+	local grouped = serializeSections(build, request.nearby_radius)
 	local result = {
 		type = "result",
 		data = {
@@ -616,8 +658,8 @@ end
 local function ensureNodeIndex()
 	if nodeIndex then return end
 	nodeIndex = {}
-	if not build or not build.spec or not build.spec.tree then return end
-	for id, node in pairs(build.spec.tree.nodes) do
+	if not build or not build.spec or not build.spec.nodes then return end
+	for id, node in pairs(build.spec.nodes) do
 		local name = node.dn or node.name
 		if name and (node.isKeystone or node.isNotable) then
 			nodeIndex[name:lower()] = node
@@ -631,6 +673,10 @@ end
 -- ---------------------------------------------------------------------------
 -- Modify operation handlers
 -- ---------------------------------------------------------------------------
+
+-- Collects path details from allocate_node operations within a single
+-- handleModify call. Reset before the operation loop, read after.
+local allocationLog = {}
 
 local function applySetLevel(op)
 	if not op.level then return "set_level: missing 'level'" end
@@ -656,7 +702,28 @@ local function applyAllocateNode(op)
 	ensureNodeIndex()
 	local node = nodeIndex[op.name:lower()]
 	if not node then return "allocate_node: node not found: " .. op.name end
+	if not node.path then return "allocate_node: no path to node (unreachable from current tree): " .. op.name end
+
+	-- Capture the path before AllocNode (it rebuilds paths after allocation)
+	local pathNodes = {}
+	for _, pathNode in ipairs(node.path) do
+		if not pathNode.alloc then
+			pathNodes[#pathNodes + 1] = {
+				name = pathNode.dn or pathNode.name or tostring(pathNode.id),
+				type = pathNode.isKeystone and "keystone"
+					or pathNode.isNotable and "notable"
+					or "travel",
+			}
+		end
+	end
+
 	build.spec:AllocNode(node)
+
+	allocationLog[#allocationLog + 1] = {
+		target = node.dn or node.name,
+		points_spent = #pathNodes,
+		path = pathNodes,
+	}
 	return nil
 end
 
@@ -665,6 +732,7 @@ local function applyDeallocateNode(op)
 	ensureNodeIndex()
 	local node = nodeIndex[op.name:lower()]
 	if not node then return "deallocate_node: node not found: " .. op.name end
+	if not node.alloc then return "deallocate_node: node is not allocated: " .. op.name end
 	build.spec:DeallocNode(node)
 	return nil
 end
@@ -815,6 +883,7 @@ local function handleModify(request)
 
 	-- Invalidate cached indexes (new build may have different tree/data)
 	nodeIndex = nil
+	allocationLog = {}
 
 	-- Apply each operation in order
 	for i, op in ipairs(ops) do
@@ -839,7 +908,18 @@ local function handleModify(request)
 	local modifiedXml = build:SaveDB("modified")
 
 	-- Serialize results into grouped sections (same as handleCalc)
-	local grouped = serializeSections(build)
+	local grouped = serializeSections(build, request.nearby_radius)
+
+	-- Include allocation log if any allocate_node operations ran
+	if #allocationLog > 0 then
+		grouped.sections.allocation_log = allocationLog
+		grouped.section_index[#grouped.section_index + 1] = {
+			id = "allocation_log",
+			name = "Allocation Log",
+			description = "Nodes allocated along the path for each allocate_node operation, with points spent",
+		}
+	end
+
 	return {
 		type = "result",
 		data = {

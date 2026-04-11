@@ -36,12 +36,17 @@ function pobFetch(
   body: Record<string, unknown>,
   apiKey?: string,
   sections?: string,
+  nearbyRadius?: number,
 ): Promise<Response> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) {
     headers.Authorization = `Bearer ${apiKey}`;
   }
-  const url = sections ? `${pobUrl}${path}?sections=${encodeURIComponent(sections)}` : `${pobUrl}${path}`;
+  const params = new URLSearchParams();
+  if (sections) params.set("sections", sections);
+  if (nearbyRadius) params.set("nearby_radius", String(nearbyRadius));
+  const qs = params.toString();
+  const url = qs ? `${pobUrl}${path}?${qs}` : `${pobUrl}${path}`;
   return fetch(url, {
     method: "POST",
     headers,
@@ -79,8 +84,8 @@ export const pobCalcModule: NativeReferenceModule = {
         + '- {"op":"add_gem","socket_group":0,"gem":"Inspiration Support","level":20,"quality":20} — Add a gem to a socket group.\n'
         + '- {"op":"remove_gem","socket_group":0,"gem_index":3} — Remove a gem by index from a socket group.\n'
         + '- {"op":"toggle_keystone","name":"Resolute Technique","enabled":false} — Allocate or deallocate a keystone passive.\n'
-        + '- {"op":"allocate_node","name":"Unwavering Stance"} — Allocate a notable or keystone by name.\n'
-        + '- {"op":"deallocate_node","name":"Phase Acrobatics"} — Deallocate a notable or keystone by name.\n'
+        + '- {"op":"allocate_node","name":"Unwavering Stance"} — Allocate a notable or keystone by name. Auto-paths through travel nodes. Response includes an allocation_log section showing every node allocated along the path and the total points spent.\n'
+        + '- {"op":"deallocate_node","name":"Phase Acrobatics"} — Deallocate a notable or keystone by name. Errors if the node is not currently allocated.\n'
         + '- {"op":"equip_unique","name":"Abyssus","slot":"Helmet"} — Equip a unique item by name. Slots: Weapon 1, Weapon 2, Helmet, Body Armour, Gloves, Boots, Belt, Ring 1, Ring 2, Amulet.\n'
         + '- {"op":"set_item","slot":"Body Armour","text":"Astral Plate\\nRarity: Rare\\n..."} — Equip a rare/custom item using PoB item text format.',
     },
@@ -90,7 +95,18 @@ export const pobCalcModule: NativeReferenceModule = {
         "Comma-separated section names to include in the response (e.g. 'offense,defense'). "
         + "Omit for a compact summary with a section index listing available sections. "
         + "Available: offense, ailments, defense, resistances, ehp, recovery, charges, limits, "
-        + "socket_groups, items, keystones, tree, minion_offense, minion_defense.",
+        + "socket_groups, items, keystones, tree, nearby_notables, minion_offense, minion_defense. "
+        + "tree returns allocated/available/remaining passive points and ascendancy node count — use it to check the point budget. "
+        + "nearby_notables returns unallocated notables/keystones reachable from the current tree, "
+        + "each with stat descriptions and path_cost (number of nodes to allocate). "
+        + "Use nearby_notables before allocate_node to see what's reachable and what each node does. "
+        + "After allocate_node, the response includes an allocation_log section showing every node allocated along the path and points spent.",
+    },
+    nearby_radius: {
+      type: "number",
+      description:
+        "Maximum path cost for nearby_notables results (default 5). "
+        + "Increase to see notables further from the current tree.",
     },
   },
 
@@ -99,6 +115,7 @@ export const pobCalcModule: NativeReferenceModule = {
     const buildId = query.build_id as string | undefined;
     const operations = query.operations as string | undefined;
     const sections = query.sections as string | undefined;
+    const nearbyRadius = query.nearby_radius as number | undefined;
 
     if (!build && !buildId) {
       return {
@@ -131,7 +148,7 @@ export const pobCalcModule: NativeReferenceModule = {
       // Resolve URL → buildId + calc results
       let response: Response;
       try {
-        response = await pobFetch(pobUrl, "/resolve", { url: build }, env.POB_API_KEY, sections);
+        response = await pobFetch(pobUrl, "/resolve", { url: build }, env.POB_API_KEY, sections, nearbyRadius);
       } catch (e) {
         return {
           type: "text",
@@ -183,6 +200,7 @@ export const pobCalcModule: NativeReferenceModule = {
           { buildId: resolvedBuildId, operations: parsedOps },
           env.POB_API_KEY,
           sections,
+          nearbyRadius,
         );
       } catch (e) {
         return {
