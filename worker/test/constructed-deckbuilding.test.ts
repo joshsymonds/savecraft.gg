@@ -300,6 +300,71 @@ describe("deckbuilding Constructed mode", () => {
     expect(data.illegal_cards).toBeUndefined();
   });
 
+  it("does not flag cards as illegal when Art Series printing has all not_legal legalities", async () => {
+    // Reproduces production bug: Art Series printings (e.g. afdn, atdm) share
+    // the same front_face_name as real cards but have a different oracle_id
+    // and all legalities set to "not_legal". Both are is_default=1 for their
+    // respective oracle_ids. The old sort (length(legalities) DESC) preferred
+    // Art Series rows because "not_legal" is longer than "legal", giving them
+    // a higher length. The fix must prefer rows with more legal formats.
+    await env.DB.batch([
+      // Art Series Mountain — different oracle_id, all not_legal, is_default=1
+      env.DB.prepare(INSERT_CARD).bind(
+        "scry-cd-art-mountain",
+        0,
+        "o-art-mountain",
+        "Mountain",
+        "Mountain",
+        "",
+        0,
+        "Card — Art Series",
+        "[]",
+        "[]",
+        '{"standard":"not_legal","historic":"not_legal","modern":"not_legal","legacy":"not_legal","vintage":"not_legal","commander":"not_legal","pioneer":"not_legal","pauper":"not_legal","brawl":"not_legal","alchemy":"not_legal"}',
+        "common",
+        "afdn",
+        "[]",
+        "[]",
+      ),
+      // Art Series Heartfire Hero — different oracle_id, all not_legal, is_default=1
+      env.DB.prepare(INSERT_CARD).bind(
+        "scry-cd-art-heartfire",
+        0,
+        "o-art-heartfire",
+        "Heartfire Hero",
+        "Heartfire Hero",
+        "{R}",
+        1,
+        "Card — Art Series",
+        "[]",
+        "[]",
+        '{"standard":"not_legal","historic":"not_legal","modern":"not_legal","legacy":"not_legal","vintage":"not_legal","commander":"not_legal","pioneer":"not_legal","pauper":"not_legal","brawl":"not_legal","alchemy":"not_legal"}',
+        "common",
+        "ablb",
+        "[]",
+        "[]",
+      ),
+    ]);
+
+    const deck = [
+      { name: "Heartfire Hero", count: 4 },
+      { name: "Mountain", count: 20 },
+    ];
+
+    const result = await deckbuildingModule.execute(
+      { deck, mode: "constructed", format: "standard" },
+      env,
+    );
+    expect(result.type).toBe("structured");
+    const data = (result as { type: "structured"; data: Record<string, unknown> }).data;
+
+    // Art Series should NOT shadow real cards' legalities or metadata
+    expect(data.illegal_cards).toBeUndefined();
+    const comp = data.composition as { creatures: number; noncreatures: number; lands: number };
+    expect(comp.creatures).toBe(4);
+    expect(comp.lands).toBe(20);
+  });
+
   it("existing draft mode still works", async () => {
     // Seed minimal draft data so the existing mode doesn't break
     await env.DB.prepare(

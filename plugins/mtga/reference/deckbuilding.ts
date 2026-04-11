@@ -1327,14 +1327,14 @@ async function constructedHealthCheck(
   for (let i = 0; i < allNames.length; i += META_BATCH_SIZE) {
     const chunk = allNames.slice(i, i + META_BATCH_SIZE);
     const ph = placeholders(chunk.length, 1);
-    // Fetch all printings (not just is_default) so we can pick the one with
-    // populated legalities. Some default printings have empty legalities {}
-    // while a non-default printing of the same card has the real data.
+    // Fetch all printings — multiple oracle_ids can share a front_face_name
+    // (e.g. Art Series cards). Pick the row whose legalities show the card
+    // as legal in the requested format, falling back to any row with
+    // populated legalities over empty {}.
     const rows = await db
       .prepare(
         `SELECT front_face_name AS name, legalities, type_line, cmc, mana_cost, colors, produced_mana
-         FROM magic_cards WHERE front_face_name COLLATE NOCASE IN (${ph})
-         ORDER BY is_default DESC, length(legalities) DESC`,
+         FROM magic_cards WHERE front_face_name COLLATE NOCASE IN (${ph})`,
       )
       .bind(...chunk)
       .all<LegalityRow>();
@@ -1343,9 +1343,30 @@ async function constructedHealthCheck(
       const existing = cardData.get(key);
       if (!existing) {
         cardData.set(key, row);
-      } else if (existing.legalities === "{}" && row.legalities !== "{}") {
-        // Prefer the printing with populated legalities
-        cardData.set(key, { ...existing, legalities: row.legalities });
+        continue;
+      }
+      // Always prefer populated legalities over empty.
+      if (existing.legalities === "{}") {
+        if (row.legalities !== "{}") {
+          cardData.set(key, row);
+        }
+        continue;
+      }
+      // When both have legalities, prefer the one that's legal in the
+      // requested format. Art Series cards share front_face_name but have
+      // all formats set to not_legal — this ensures the real card wins.
+      if (format && row.legalities !== "{}") {
+        try {
+          const existingLeg = JSON.parse(existing.legalities) as Record<string, string>;
+          if (existingLeg[format.toLowerCase()] !== "legal") {
+            const rowLeg = JSON.parse(row.legalities) as Record<string, string>;
+            if (rowLeg[format.toLowerCase()] === "legal") {
+              cardData.set(key, row);
+            }
+          }
+        } catch {
+          // skip unparseable
+        }
       }
     }
   }
