@@ -1897,7 +1897,7 @@ describe("MCP Tools", () => {
   });
 }); // MCP Tools
 
-// ── PoB Calc (native reference module) ──────────────────────────────────────
+// ── Build Planner (native reference module) ─────────────────────────────────
 describe("buildPlannerModule", () => {
   it("returns error when neither build nor build_id provided", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
