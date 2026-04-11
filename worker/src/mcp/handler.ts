@@ -54,7 +54,7 @@ Always fetch live data — never assume you know a player's saves, characters, o
 
 Tool workflow: list_games shows games, saves, and reference modules. Unfiltered list_games shows module summaries without parameter schemas. Pass a filter to get full schemas — e.g. list_games(filter="poe"). If a filter returns no results, try the game_id directly (e.g. "mtga" for Magic, "d2r" for Diablo II) — game_ids don't always match colloquial names. get_save for a character, then get_section for detail. search_saves for cross-character queries (default to OR between keywords). Read relevant notes (get_note) before giving advice. refresh_save when something just changed in-game. setup_help ONLY when the player explicitly wants to connect a game or save — not when they merely lack saves. Answer reference questions first.
 
-Visual-first: show_* tools return full data AND render an interactive view — the player sees a richer result and you can still reason from the data. Use show tools when presenting results; fall back to data tools when the answer is a sentence or no visual exists.
+Visual-first: show_* tools return full data AND render an interactive view — the player sees a richer result and you can still reason from the data. Use show tools when presenting results to the player; fall back to data tools when the answer is a sentence or no visual exists. Exception: always use list_games (not show_games) for schema loading before reference queries — the visual is unnecessary for that step.
 
 Results from search_saves distinguish save data (what the player has) from notes (what they planned). This distinction matters.
 
@@ -385,7 +385,7 @@ const TOOLS: ToolDefinition[] = [
     name: "query_reference",
     title: "Query Game Reference Data",
     description:
-      "Text-only game reference data — rules, items, builds, drop rates, economy prices — as raw JSON. Use when the answer is a sentence, the module has no visual component, or you need raw data before making a cross-module decision. When presenting results to the player and the module has visual=true, prefer show_reference — it returns the same data plus an interactive view. You MUST call show_games(filter=...) or list_games(filter=...) first to load parameter schemas — calling without schemas will return errors. Batch multiple queries per call (max 50) — each query targets one module and has its own parameters. Modules accepting card/deck lists can also take a section reference (deck_section + save_id) — get valid section names from get_save first.",
+      "Text-only game reference data — rules, items, builds, drop rates, economy prices — as raw JSON. Use when the answer is a sentence, the module has no visual component, or you need raw data before making a cross-module decision. When presenting results to the player and the module has visual=true, prefer show_reference — it returns the same data plus an interactive view. You MUST call list_games(filter=...) first to load parameter schemas — calling without schemas will return errors. Batch multiple queries per call (max 50) — each query targets one module and has its own parameters. Modules accepting card/deck lists can also take a section reference (deck_section + save_id) — get valid section names from get_save first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -472,7 +472,7 @@ const TOOLS: ToolDefinition[] = [
     name: "show_reference",
     title: "Show Game Reference Visually",
     description:
-      "Present game reference results to the player as interactive charts, tables, and dashboards — returns full structured data you can reason from AND renders a visual the player sees. Default for analysis, reviews, and thorough breakdowns when the module has visual=true. You MUST call show_games(filter=...) or list_games(filter=...) first to load parameter schemas — calling without schemas will return errors. Batch multiple queries per call (max 50) — each query targets one module and has its own parameters.",
+      "Present game reference results to the player as interactive charts, tables, and dashboards — returns full structured data you can reason from AND renders a visual the player sees. Default for analysis, reviews, and thorough breakdowns when the module has visual=true. You MUST call list_games(filter=...) first to load parameter schemas — calling without schemas will return errors. Batch multiple queries per call (max 50) — each query targets one module and has its own parameters.",
     inputSchema: {
       type: "object",
       properties: {
@@ -513,7 +513,7 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "show_games",
     title: "Show Connected Games",
-    description: `CALL FIRST when the player asks about ANY game mechanic, rule, item, or build — Savecraft has authoritative reference data that is more current than your training data. Do not answer game questions from memory without checking here first. Reference modules work without saves — no setup needed. Returns all games, saves, notes, and reference modules as interactive visual cards. Pass a filter to get full parameter schemas before calling query_reference or show_reference. Supported games: ${GAME_ID_HINT}. Call with no filter to see all.`,
+    description: `Present the player's connected games, saves, and reference modules as interactive visual cards. Use when the player asks to see their games, wants an overview, or you are presenting a game listing as a final result. For schema loading before reference queries, use list_games instead — the visual is unnecessary for that step. Supported games: ${GAME_ID_HINT}.`,
     inputSchema: {
       type: "object",
       properties: {
