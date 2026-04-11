@@ -4,7 +4,19 @@ import { defineWorkersConfig } from "@cloudflare/vitest-pool-workers/config";
 // launches N vitest processes in parallel (each with its own Miniflare).
 // This sidesteps Miniflare's isolatedStorage WAL bug while giving us true
 // file-level parallelism across shards.
+//
+// SHARD_INDEX (set by test-sharded.mjs) isolates Vite's dependency
+// optimization cache per shard.  Without this, parallel shards race on
+// node_modules/.vite/ — one shard's dep-optimization write changes the
+// hashes another shard's Vite uses to resolve imports in src/index.ts,
+// causing workerd to see different transformed content and break the
+// input gate (inputGateBroken), invalidating all live DO stubs.
+// eslint-disable-next-line -- vitest config runs in Node.js
+declare const process: { env: Record<string, string | undefined> };
+const shardIndex = process.env.SHARD_INDEX;
+
 export default defineWorkersConfig({
+  cacheDir: shardIndex ? `node_modules/.vite-shard-${shardIndex}` : undefined,
   test: {
     setupFiles: ["./test/setup.ts"],
     fileParallelism: false,

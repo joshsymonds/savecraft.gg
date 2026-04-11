@@ -7,6 +7,7 @@
  * Usage: node scripts/test-sharded.mjs [--shards=N]
  */
 import { spawn } from "node:child_process";
+import { rm } from "node:fs/promises";
 
 const SHARD_COUNT = parseInt(
   process.argv.find((a) => a.startsWith("--shards="))?.split("=")[1] ?? "4",
@@ -24,7 +25,7 @@ function runShard(index, total) {
     const args = ["vitest", "run", `--shard=${index}/${total}`, "--reporter=basic"];
     const child = spawn("npx", args, {
       stdio: ["ignore", "pipe", "pipe"],
-      env: { ...process.env, FORCE_COLOR: "0" },
+      env: { ...process.env, FORCE_COLOR: "0", SHARD_INDEX: String(index) },
     });
 
     let stdout = "";
@@ -110,5 +111,12 @@ for (const { index, code, stdout, stderr } of results) {
 }
 
 console.log(`\n  ${totalFiles} files, ${totalTests} tests in ${elapsed}s (${SHARD_COUNT} shards)`);
+
+// Clean up per-shard Vite cache directories
+await Promise.all(
+  Array.from({ length: SHARD_COUNT }, (_, i) =>
+    rm(`node_modules/.vite-shard-${i + 1}`, { recursive: true, force: true })
+  ),
+);
 
 if (failed) process.exit(1);
