@@ -34,6 +34,18 @@
       { card: "Undercity Sewers", score: 0.35, reason: "Enters tapped — with 17 other lands you have sufficient color fixing" },
     ],
   };
+
+  const constructed = {
+    icon_url: iconUrl,
+    mode: "constructed",
+    formatted_report: `Your Azorius Control list is well-positioned for the current meta. The core counter suite (Make Disappear, No More Lies, Dissolve) covers the early-to-mid game effectively, and The Wandering Emperor provides flexible interaction at instant speed.
+
+Mana base looks solid at 26 lands with 4 Azorius Chancery. The Restless Anchorage pair gives you a win condition that dodges sorcery-speed removal.
+
+Areas to watch: You're light on board wipes — only 2 Depopulate mainboard. Against aggressive creature decks (Boros Convoke, Mono-Red), consider going up to 3. The sideboard Temporary Lockdown helps but comes down a turn late against the fastest starts.
+
+Card quality is high overall. Recommended swaps: cut 1 Impulse for a 3rd Depopulate, and consider Memory Deluge over the 2nd Dig Through Time to avoid graveyard dependency.`,
+  };
 </script>
 
 <Story name="HealthCheck">
@@ -45,5 +57,11 @@
 <Story name="CutAdvisor">
   <div style="width: 500px;">
     <Deckbuilding data={cutAdvisor} />
+  </div>
+</Story>
+
+<Story name="Constructed">
+  <div style="width: 500px;">
+    <Deckbuilding data={constructed} />
   </div>
 </Story>
