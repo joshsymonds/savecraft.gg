@@ -1437,70 +1437,11 @@ async function constructedHealthCheck(
     }
   }
 
-  const lines: string[] = [];
-  const header = format
-    ? `Constructed Deck Analysis (${format}):`
-    : "Constructed Deck Analysis:";
-  lines.push(header);
-  lines.push("");
-
-  if (format && illegalCards.length > 0) {
-    lines.push("  LEGALITY ISSUES:");
-    for (const card of illegalCards) {
-      lines.push(`    ${card.name} — ${card.status} in ${format}`);
-    }
-    lines.push("");
-  } else if (format) {
-    lines.push(`  All cards legal in ${format}.`);
-    lines.push("");
-  }
-
-  lines.push("  Composition:");
-  lines.push(`    Total:         ${totalCards} cards`);
-  lines.push(`    Creatures:     ${creatures}`);
-  lines.push(`    Noncreatures:  ${noncreatures}`);
-  lines.push(`    Lands:         ${lands}`);
-  if (totalCards < 60) {
-    lines.push(`    Deck has ${totalCards} cards (minimum 60 for Constructed)`);
-  }
-  lines.push("");
-
-  if (sideboardCards !== undefined) {
-    lines.push(`  Sideboard: ${sideboardCards} cards`);
-    if (sideboardCards !== 15 && sideboardCards !== 0) {
-      lines.push(
-        `    Note: Standard sideboard is 15 cards (have ${sideboardCards})`,
-      );
-    }
-    lines.push("");
-  }
-
-  const maxCmc = Math.max(...cmcCounts.keys(), 0);
-  if (maxCmc > 0) {
-    lines.push("  Curve (non-land spells):");
-    lines.push(`    ${"CMC".padEnd(6)} ${"Count".padStart(6)}  Bar`);
-    for (let cmc = 0; cmc <= Math.min(maxCmc, 7); cmc++) {
-      const count = cmcCounts.get(cmc) ?? 0;
-      const label = cmc === 7 ? "7+" : String(cmc);
-      const bar = "\u2588".repeat(Math.min(count, 30));
-      lines.push(`    ${label.padEnd(6)} ${String(count).padStart(6)}  ${bar}`);
-    }
-    lines.push("");
-  }
-
   const mana = analyzeManaBase(deck, cardData, totalCards);
 
-  if (unresolvedCards.length > 0) {
-    lines.push(
-      `  Unresolved cards (not in database): ${unresolvedCards.join(", ")}`,
-    );
-    lines.push("");
-  }
-
-  // Build curve data for structured output
   const curve: { cmc: number; count: number }[] = [];
-  const maxCmcVal = Math.max(...cmcCounts.keys(), 0);
-  for (let cmc = 0; cmc <= Math.min(maxCmcVal, 7); cmc++) {
+  const maxCmc = Math.max(...cmcCounts.keys(), 0);
+  for (let cmc = 0; cmc <= Math.min(maxCmc, 7); cmc++) {
     const count = cmcCounts.get(cmc) ?? 0;
     if (count > 0) curve.push({ cmc, count });
   }
@@ -1518,7 +1459,6 @@ async function constructedHealthCheck(
       mana,
       unresolved_cards:
         unresolvedCards.length > 0 ? unresolvedCards : undefined,
-      formatted_report: lines.join("\n") + "\n",
     },
   };
 }

@@ -6,6 +6,8 @@
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
+  import Stat from "../../../../views/src/components/data/Stat.svelte";
+  import BarChart from "../../../../views/src/components/charts/BarChart.svelte";
   import Timeline from "../../../../views/src/components/charts/Timeline.svelte";
   import ArchetypeLabel from "../../../../views/src/components/mtg/ArchetypeLabel.svelte";
   import { archetypeColors } from "../../../../views/src/components/mtg/colors";
@@ -24,6 +26,29 @@
     reason: string;
   }
 
+  interface ManaColorAnalysis {
+    color: string;
+    color_name: string;
+    sources_needed: number;
+    sources_actual: number;
+    surplus: number;
+    status: string;
+    most_demanding: string;
+    cost_pattern: string;
+  }
+
+  interface ManaSwapSuggestion {
+    cut: string;
+    add: string;
+    reason: string;
+  }
+
+  interface ManaAnalysis {
+    pip_distribution: Record<string, number>;
+    colors: ManaColorAnalysis[];
+    swap_suggestions: ManaSwapSuggestion[];
+  }
+
   let { data }: {
     data: {
       mode?: string;
@@ -31,14 +56,18 @@
       archetype?: string;
       // Health check
       sections?: HealthSection[];
-      mana?: { lands: number; sources: Record<string, number> };
       // Cut advisor
       cuts_requested?: number;
       candidates?: CutCandidate[];
       // Constructed
-      formatted_report?: string;
+      format?: string | null;
+      total_cards?: number;
+      composition?: { creatures: number; noncreatures: number; lands: number };
+      sideboard_count?: number | null;
+      illegal_cards?: { name: string; status: string }[];
+      curve?: { cmc: number; count: number }[];
+      mana?: ManaAnalysis;
       // Shared
-      alternatives?: unknown[];
       unresolved_cards?: string[];
       icon_url?: string;
     };
@@ -50,10 +79,19 @@
     issue: "negative",
   };
 
+  const COLOR_VARIANTS: Record<string, "negative" | "info" | "warning" | "highlight" | "muted"> = {
+    W: "warning",
+    U: "info",
+    B: "muted",
+    R: "negative",
+    G: "highlight",
+  };
+
   let isHealthCheck = $derived(data.mode === "health_check");
   let isCutAdvisor = $derived(data.mode === "cut_advisor");
   let isConstructed = $derived(data.mode === "constructed");
 
+  // ── Health check ──
   let healthEvents = $derived(
     (data.sections ?? []).map((section) => ({
       label: section.name,
@@ -65,6 +103,7 @@
     })),
   );
 
+  // ── Cut advisor ──
   let cutEvents = $derived(
     (data.candidates ?? []).map((cut, i) => ({
       label: cut.card,
@@ -76,8 +115,37 @@
     })),
   );
 
-  let reportParagraphs = $derived(
-    (data.formatted_report ?? "").split(/\n\n+/).filter((p) => p.trim()),
+  // ── Constructed ──
+  let curveItems = $derived(
+    (data.curve ?? []).map((c) => ({
+      label: c.cmc === 7 ? "7+" : `${c.cmc}`,
+      value: c.count,
+      variant: "info" as const,
+    })),
+  );
+
+  let manaSourceItems = $derived(
+    (data.mana?.colors ?? []).map((c) => ({
+      label: `${c.color_name} (${c.sources_actual}/${c.sources_needed})`,
+      value: c.sources_actual,
+      variant: (c.surplus >= 0 ? "positive" : "negative") as "positive" | "negative",
+    })),
+  );
+
+  let swapEvents = $derived(
+    (data.mana?.swap_suggestions ?? []).map((s) => ({
+      label: `${s.cut} → ${s.add}`,
+      sublabel: s.reason,
+      tag: "swap",
+      tagVariant: "warning" as const,
+      variant: "warning" as const,
+    })),
+  );
+
+  let legalityOk = $derived(!data.illegal_cards || data.illegal_cards.length === 0);
+
+  let constructedSubtitle = $derived(
+    [data.format, data.total_cards ? `${data.total_cards} cards` : null].filter(Boolean).join(" · "),
   );
 </script>
 
@@ -110,16 +178,59 @@
     </Panel>
   {/if}
 
-  {#if isConstructed && reportParagraphs.length > 0}
+  {#if isConstructed}
     <Panel watermark={data.icon_url}>
-      <Section title="Deck Analysis">
-        <div class="report">
-          {#each reportParagraphs as para}
-            <p class="report-para">{para}</p>
-          {/each}
+      <Section title="Deck Overview" subtitle={constructedSubtitle}>
+        <div class="hero-stats">
+          {#if data.total_cards != null}
+            <Stat value={data.total_cards} label="Total" variant="highlight" />
+          {/if}
+          {#if data.composition}
+            <Stat value={data.composition.creatures} label="Creatures" variant="positive" />
+            <Stat value={data.composition.noncreatures} label="Spells" variant="info" />
+            <Stat value={data.composition.lands} label="Lands" variant="muted" />
+          {/if}
+          {#if data.sideboard_count != null}
+            <Stat value={data.sideboard_count} label="Sideboard" variant="muted" />
+          {/if}
+        </div>
+        <div class="legality">
+          {#if data.format}
+            {#if legalityOk}
+              <Badge label="All legal in {data.format}" variant="positive" />
+            {:else}
+              {#each data.illegal_cards ?? [] as card}
+                <Badge label="{card.name} — {card.status}" variant="negative" />
+              {/each}
+            {/if}
+          {/if}
+          {#if data.unresolved_cards && data.unresolved_cards.length > 0}
+            {#each data.unresolved_cards as card}
+              <Badge label="{card} — not in database" variant="warning" />
+            {/each}
+          {/if}
         </div>
       </Section>
     </Panel>
+
+    {#if curveItems.length > 0}
+      <Panel watermark={data.icon_url}>
+        <Section title="Mana Curve">
+          <BarChart items={curveItems} />
+        </Section>
+      </Panel>
+    {/if}
+
+    {#if manaSourceItems.length > 0}
+      <Panel watermark={data.icon_url}>
+        <Section title="Mana Base">
+          <BarChart items={manaSourceItems} />
+          {#if swapEvents.length > 0}
+            <Timeline events={swapEvents} />
+          {/if}
+        </Section>
+      </Panel>
+    {/if}
   {/if}
 </div>
 
@@ -132,18 +243,17 @@
     animation: fade-slide-in 0.3s ease-out;
   }
 
-  .report {
+  .hero-stats {
     display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
+    justify-content: space-around;
+    gap: var(--space-md);
+    padding: var(--space-sm) 0;
   }
 
-  .report-para {
-    font-family: var(--font-body);
-    font-size: 14px;
-    color: var(--color-text-dim);
-    line-height: 1.6;
-    margin: 0;
-    white-space: pre-line;
+  .legality {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--space-xs);
+    justify-content: center;
   }
 </style>

@@ -38,13 +38,56 @@
   const constructed = {
     icon_url: iconUrl,
     mode: "constructed",
-    formatted_report: `Your Azorius Control list is well-positioned for the current meta. The core counter suite (Make Disappear, No More Lies, Dissolve) covers the early-to-mid game effectively, and The Wandering Emperor provides flexible interaction at instant speed.
+    format: "standard",
+    total_cards: 60,
+    composition: { creatures: 25, noncreatures: 11, lands: 24 },
+    sideboard_count: 15,
+    curve: [
+      { cmc: 1, count: 8 },
+      { cmc: 2, count: 11 },
+      { cmc: 3, count: 4 },
+      { cmc: 4, count: 4 },
+      { cmc: 5, count: 7 },
+      { cmc: 6, count: 2 },
+    ],
+    mana: {
+      pip_distribution: { W: 18, U: 14 },
+      colors: [
+        { color: "W", color_name: "White", sources_needed: 16, sources_actual: 14, surplus: -2, status: "warning", most_demanding: "The Wandering Emperor", cost_pattern: "2WW", is_gold_adjusted: false },
+        { color: "U", color_name: "Blue", sources_needed: 14, sources_actual: 15, surplus: 1, status: "good", most_demanding: "No More Lies", cost_pattern: "WU", is_gold_adjusted: true },
+      ],
+      swap_suggestions: [
+        { cut: "Plains", add: "Azorius Chancery", reason: "Adds a Blue source while keeping White — closes the 2-source White deficit" },
+      ],
+    },
+    unresolved_cards: [],
+  };
 
-Mana base looks solid at 26 lands with 4 Azorius Chancery. The Restless Anchorage pair gives you a win condition that dodges sorcery-speed removal.
-
-Areas to watch: You're light on board wipes — only 2 Depopulate mainboard. Against aggressive creature decks (Boros Convoke, Mono-Red), consider going up to 3. The sideboard Temporary Lockdown helps but comes down a turn late against the fastest starts.
-
-Card quality is high overall. Recommended swaps: cut 1 Impulse for a 3rd Depopulate, and consider Memory Deluge over the 2nd Dig Through Time to avoid graveyard dependency.`,
+  const constructedWithIssues = {
+    icon_url: iconUrl,
+    mode: "constructed",
+    format: "standard",
+    total_cards: 58,
+    composition: { creatures: 20, noncreatures: 14, lands: 24 },
+    sideboard_count: 12,
+    illegal_cards: [
+      { name: "Smuggler's Copter", status: "not_legal" },
+    ],
+    curve: [
+      { cmc: 1, count: 6 },
+      { cmc: 2, count: 10 },
+      { cmc: 3, count: 8 },
+      { cmc: 4, count: 6 },
+      { cmc: 5, count: 4 },
+    ],
+    mana: {
+      pip_distribution: { R: 22 },
+      colors: [
+        { color: "R", color_name: "Red", sources_needed: 18, sources_actual: 20, surplus: 2, status: "good", most_demanding: "Embercleave", cost_pattern: "4RR", is_gold_adjusted: false },
+      ],
+      swap_suggestions: [],
+    },
+    unresolved_cards: ["Totally Made Up Card"],
   };
 </script>
 
@@ -63,5 +106,11 @@ Card quality is high overall. Recommended swaps: cut 1 Impulse for a 3rd Depopul
 <Story name="Constructed">
   <div style="width: 500px;">
     <Deckbuilding data={constructed} />
+  </div>
+</Story>
+
+<Story name="ConstructedWithIssues">
+  <div style="width: 500px;">
+    <Deckbuilding data={constructedWithIssues} />
   </div>
 </Story>
