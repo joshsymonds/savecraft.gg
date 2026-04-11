@@ -12,6 +12,7 @@ import {
   requirePayload,
   seedSource,
   sendSourceOnlineAndDrainLinkState,
+  waitForPayload,
   waitForProtoMessage,
   waitForRelayedMessage,
 } from "./helpers";
@@ -331,7 +332,7 @@ describe("Config push via SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemonWs);
 
-    const msg = await waitForProtoMessage(daemonWs);
+    const msg = await waitForPayload(daemonWs, "configUpdate");
     const cu = requirePayload(msg, "configUpdate");
     expect(cu.games.d2r).toBeDefined();
     expect(cu.games.d2r!.savePath).toBe("/saves/d2r");
@@ -348,7 +349,7 @@ describe("Config push via SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemonWs);
 
-    const msg = await waitForProtoMessage(daemonWs);
+    const msg = await waitForPayload(daemonWs, "configUpdate");
     const cu = requirePayload(msg, "configUpdate");
     expect(Object.keys(cu.games)).toHaveLength(0);
 
@@ -368,7 +369,7 @@ describe("Config push via SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemonWs);
-    await waitForProtoMessage(daemonWs);
+    await waitForPayload(daemonWs, "configUpdate");
 
     const uiWs = await connectWs("/ws/ui", userUuid);
     const msg = await waitForRelayedMessage(uiWs);
@@ -397,7 +398,7 @@ describe("Config push via SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemonWs);
-    await waitForProtoMessage(daemonWs);
+    await waitForPayload(daemonWs, "configUpdate");
 
     const uiWs = await connectWs("/ws/ui", userUuid);
     const msg = await waitForRelayedMessage(uiWs);
@@ -426,7 +427,7 @@ describe("Config push via SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemonWs);
-    await waitForProtoMessage(daemonWs);
+    await waitForPayload(daemonWs, "configUpdate");
 
     await closeWs(daemonWs);
 
@@ -450,7 +451,7 @@ describe("Config push via SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     await sendSourceOnlineAndDrainLinkState(daemonWs);
-    await waitForProtoMessage(daemonWs);
+    await waitForPayload(daemonWs, "configUpdate");
 
     const configPromise = waitForProtoMessage(daemonWs);
 

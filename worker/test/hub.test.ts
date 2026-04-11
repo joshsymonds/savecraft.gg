@@ -14,6 +14,7 @@ import {
   seedSource,
   sendProto,
   sendSourceOnlineAndDrainLinkState,
+  waitForPayload,
   waitForProtoMessage,
   waitForRelayedMessage,
   waitForRelayedMessageMatching,
@@ -471,11 +472,11 @@ describe("SourceHub", () => {
     const daemonB = await connectDaemonWs(sourceB.sourceToken);
 
     await sendSourceOnlineAndDrainLinkState(daemonA);
-    const configA = await waitForProtoMessage(daemonA);
+    const configA = await waitForPayload(daemonA, "configUpdate");
     const cuA = requirePayload(configA, "configUpdate");
 
     await sendSourceOnlineAndDrainLinkState(daemonB);
-    const configB = await waitForProtoMessage(daemonB);
+    const configB = await waitForPayload(daemonB, "configUpdate");
     const cuB = requirePayload(configB, "configUpdate");
 
     expect(Object.keys(cuA.games)).toHaveLength(1);
@@ -899,7 +900,8 @@ describe("SourceHub", () => {
 
     const daemonWs = await connectDaemonWs(sourceToken);
     sendProto(daemonWs, sourceOnlineMsg());
-    await waitForProtoMessage(daemonWs);
+    // Drain until configUpdate to ensure sourceOnline processing completed
+    await waitForPayload(daemonWs, "configUpdate");
 
     const doId = env.SOURCE_HUB.idFromName(sourceUuid);
     const doStub = env.SOURCE_HUB.get(doId);
@@ -1034,7 +1036,7 @@ describe("SourceHub", () => {
 
     const daemon1 = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon1);
-    await waitForProtoMessage(daemon1); // drain configUpdate (empty)
+    await waitForPayload(daemon1, "configUpdate"); // drain configUpdate (empty)
     sendProto(daemon1, {
       payload: {
         $case: "gameDetected",
@@ -1048,7 +1050,7 @@ describe("SourceHub", () => {
 
     const daemon2 = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon2);
-    const configMsg = await waitForProtoMessage(daemon2);
+    const configMsg = await waitForPayload(daemon2, "configUpdate");
 
     const cu = requirePayload(configMsg, "configUpdate");
     const d2rConfig = cu.games.d2r;
@@ -1073,7 +1075,7 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     await sendSourceOnlineAndDrainLinkState(daemonWs);
-    await waitForProtoMessage(daemonWs); // drain configUpdate
+    await waitForPayload(daemonWs, "configUpdate"); // drain configUpdate
 
     sendProto(daemonWs, {
       payload: {
@@ -1111,7 +1113,7 @@ describe("SourceHub", () => {
 
     // Get daemon online and let it settle
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     // Daemon reports watching the game
     sendProto(daemon, {
@@ -1175,7 +1177,7 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     await sendSourceOnlineAndDrainLinkState(daemonWs);
-    await waitForProtoMessage(daemonWs); // drain configUpdate
+    await waitForPayload(daemonWs, "configUpdate"); // drain configUpdate
 
     sendProto(daemonWs, {
       payload: {
@@ -1204,7 +1206,9 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     sendProto(daemonWs, sourceOnlineMsg());
-    await waitForProtoMessage(daemonWs);
+    // sourceOnline triggers both sourceLinked and configUpdate — drain until
+    // we get the configUpdate so later waits don't pick up stale messages.
+    await waitForPayload(daemonWs, "configUpdate");
 
     sendProto(daemonWs, {
       payload: {
@@ -1234,7 +1238,7 @@ describe("SourceHub", () => {
       },
     });
 
-    const configMsg = await waitForProtoMessage(daemonWs);
+    const configMsg = await waitForPayload(daemonWs, "configUpdate");
     const cu = requirePayload(configMsg, "configUpdate");
     expect(cu.games.d2r).toBeDefined();
     expect(cu.games.d2r!.savePath).toBe("/home/user/.d2r/saves");
@@ -1269,7 +1273,9 @@ describe("SourceHub", () => {
     const daemonWs = await connectDaemonWs(sourceToken);
 
     sendProto(daemonWs, sourceOnlineMsg());
-    await waitForProtoMessage(daemonWs);
+    // sourceOnline triggers both sourceLinked and configUpdate — drain until
+    // we get the configUpdate so later waits don't pick up stale messages.
+    await waitForPayload(daemonWs, "configUpdate");
 
     sendProto(daemonWs, {
       payload: {
@@ -1299,7 +1305,7 @@ describe("SourceHub", () => {
       },
     });
 
-    const configMsg = await waitForProtoMessage(daemonWs);
+    const configMsg = await waitForPayload(daemonWs, "configUpdate");
     const cu = requirePayload(configMsg, "configUpdate");
     expect(cu.games.d2r!.savePath).toBe("/custom/path");
     expect(cu.games.sdv!.savePath).toBe("/home/user/.sdv/saves");
@@ -1376,7 +1382,7 @@ describe("SourceHub", () => {
 
     await sendSourceOnlineAndDrainLinkState(daemonWs, "0.2.0", "linux-amd64");
 
-    const msg1 = await waitForProtoMessage(daemonWs);
+    const msg1 = await waitForPayload(daemonWs, "configUpdate");
     requirePayload(msg1, "configUpdate");
 
     const noUpdate = await waitForProtoMessage(daemonWs, 200).catch(() => null);
@@ -1597,7 +1603,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     sendProto(daemon, {
       payload: {
@@ -1633,7 +1639,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     // Build 51 sections (over the 50-section cap)
     const sections = Array.from({ length: 51 }, (_, index) => ({
@@ -1673,7 +1679,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     // Single section with >1MB of data
     const bigData: Record<string, string> = {};
@@ -1710,7 +1716,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     sendProto(daemon, {
       payload: {
@@ -1741,7 +1747,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     sendProto(daemon, {
       payload: {
@@ -1780,7 +1786,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     sendProto(daemon, {
       payload: {
@@ -1819,7 +1825,7 @@ describe("SourceHub", () => {
     // No source_configs seeded — game has never been configured
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     sendProto(daemon, {
       payload: {
@@ -1871,7 +1877,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     sendProto(daemon, {
       payload: {
@@ -1922,7 +1928,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     sendProto(daemon, {
       payload: {
@@ -1959,7 +1965,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
     await new Promise((r) => setTimeout(r, 50));
 
     // Push a save so it appears in SourceState
@@ -2027,7 +2033,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     const pushPayload = (level: number) => ({
       payload: {
@@ -2081,7 +2087,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     // First push: 3 sections.
     sendProto(daemon, {
@@ -2144,7 +2150,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     // First push: 3 sections.
     sendProto(daemon, {
@@ -2203,7 +2209,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     // Build a PushSave message and gzip it manually.
     const msg = MessageCodec.fromPartial({
@@ -2268,7 +2274,7 @@ describe("SourceHub", () => {
 
     const daemon = await connectDaemonWs(sourceToken);
     await sendSourceOnlineAndDrainLinkState(daemon);
-    await waitForProtoMessage(daemon); // drain configUpdate
+    await waitForPayload(daemon, "configUpdate"); // drain configUpdate
 
     // Build a PushSave message and send raw bytes (no gzip).
     const msg = MessageCodec.fromPartial({

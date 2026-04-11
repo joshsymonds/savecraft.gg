@@ -200,6 +200,37 @@ export function waitForProtoMessage(ws: WebSocket, timeoutMs = 2000): Promise<Me
 }
 
 /**
+ * Drain messages from a daemon WebSocket until one with the specified payload
+ * $case arrives, discarding any that don't match (e.g. sourceLinked).
+ */
+export function waitForPayload(ws: WebSocket, $case: string, timeoutMs = 2000): Promise<Message> {
+  return new Promise<Message>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      reject(new Error(`Timed out waiting for payload "${$case}" after ${String(timeoutMs)}ms`));
+    }, timeoutMs);
+
+    const handler = (event: MessageEvent): void => {
+      try {
+        const data = event.data as ArrayBuffer;
+        const msg = Message.decode(new Uint8Array(data));
+        if (msg.payload?.$case === $case) {
+          clearTimeout(timer);
+          ws.removeEventListener("message", handler);
+          resolve(msg);
+        }
+        // else: discard and keep listening
+      } catch (error) {
+        clearTimeout(timer);
+        ws.removeEventListener("message", handler);
+        reject(new Error(`Failed to decode proto Message: ${String(error)}`));
+      }
+    };
+
+    ws.addEventListener("message", handler);
+  });
+}
+
+/**
  * Wait for a RelayedMessage matching a predicate, discarding non-matches.
  */
 export function waitForRelayedMessageMatching(
@@ -304,8 +335,35 @@ export async function sendSourceOnlineAndDrainLinkState(
       },
     },
   });
-  // The server now pushes a link state notification after SourceOnline.
-  return waitForProtoMessage(ws);
+  // The server pushes a link state notification (sourceLinked or
+  // refreshLinkCodeResult) after SourceOnline — but configUpdate may arrive
+  // first depending on timing.  Drain until we find the link state message.
+  return new Promise<Message>((resolve, reject) => {
+    const timer = setTimeout(() => {
+      ws.removeEventListener("message", handler);
+      reject(new Error("Timed out waiting for link state after sourceOnline"));
+    }, 2000);
+
+    function handler(event: MessageEvent): void {
+      try {
+        const data = event.data as ArrayBuffer;
+        const msg = Message.decode(new Uint8Array(data));
+        const $case = msg.payload?.$case;
+        if ($case === "sourceLinked" || $case === "refreshLinkCodeResult") {
+          clearTimeout(timer);
+          ws.removeEventListener("message", handler);
+          resolve(msg);
+        }
+        // else: discard (e.g. configUpdate) and keep listening
+      } catch (error) {
+        clearTimeout(timer);
+        ws.removeEventListener("message", handler);
+        reject(new Error(`Failed to decode proto Message: ${String(error)}`));
+      }
+    }
+
+    ws.addEventListener("message", handler);
+  });
 }
 
 /**

@@ -11,7 +11,7 @@ import {
   seedSaveWithData,
   seedSource,
   sendSourceOnlineAndDrainLinkState,
-  waitForProtoMessage,
+  waitForPayload,
   waitForRelayedMessage,
   waitForRelayedMessageMatching,
 } from "./helpers";
@@ -86,7 +86,7 @@ describe("Source Removal", () => {
       // Connect daemon so SourceHub creates state, then push it to UserHub
       const daemonWs = await connectDaemonWs(sourceToken);
       await sendSourceOnlineAndDrainLinkState(daemonWs);
-      await waitForProtoMessage(daemonWs); // drain configUpdate
+      await waitForPayload(daemonWs, "configUpdate"); // drain configUpdate
 
       // Connect UI to verify source appears in state
       const uiWs = await connectWs("/ws/ui", TEST_USER);
@@ -252,7 +252,7 @@ describe("Source Removal", () => {
       const daemonWs = await connectDaemonWs(sourceToken);
       await sendSourceOnlineAndDrainLinkState(daemonWs);
       // Consume configUpdate
-      await waitForProtoMessage(daemonWs);
+      await waitForPayload(daemonWs, "configUpdate");
 
       // Connect UI
       const uiWs = await connectWs("/ws/ui", TEST_USER);
