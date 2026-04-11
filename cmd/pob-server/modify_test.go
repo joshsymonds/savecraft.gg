@@ -69,6 +69,94 @@ func TestModifyHandlerReturns404ForMissingBuild(t *testing.T) {
 	}
 }
 
+func TestModifyEquipFlaskWithMockPoB(t *testing.T) {
+	// Mock script: reads a modify request with equip_flask, returns a canned result
+	// where PhysicalMaximumHitTaken increased (showing flask stats are applied).
+	mockScript := filepath.Join(t.TempDir(), "mock-flask.sh")
+	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
+read line
+echo '{"type":"result","data":{"character":{"class":"Templar","ascendancy":"Hierophant","level":94},"summary":{"Life":20854,"CombinedDPS":5222051},"section_index":[],"sections":{"ehp":{"PhysicalMaximumHitTaken":25000,"ColdMaximumHitTaken":95000}}},"xml":"<PathOfBuilding><Build level=\"94\"/></PathOfBuilding>"}'
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	defer pool.Shutdown()
+
+	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    time.Now,
+		cancel:     func() {},
+		store:      store,
+	}
+
+	origXML := "<PathOfBuilding/>"
+	origID := cache.Put(origXML)
+	_ = store.Put(origID, origXML, `{"summary":{"Life":20854}}`, "", "")
+
+	srv := &Server{pool: pool, cache: cache, log: logger}
+
+	body := `{"buildId":"` + origID + `","operations":[{"op":"equip_flask","name":"Taste of Hate","slot":"Flask 2"}]}`
+	req := httptest.NewRequest(
+		http.MethodPost,
+		"/modify?sections=ehp",
+		strings.NewReader(body),
+	)
+	rec := httptest.NewRecorder()
+	srv.handleModify(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON: %v", err)
+	}
+
+	// Must have buildId and data
+	if _, ok := resp["buildId"]; !ok {
+		t.Fatal("response missing buildId")
+	}
+
+	var data map[string]json.RawMessage
+	if err := json.Unmarshal(resp["data"], &data); err != nil {
+		t.Fatalf("data is not an object: %v", err)
+	}
+
+	// Sections should contain ehp with flask-affected stats
+	var sections map[string]json.RawMessage
+	if err := json.Unmarshal(data["sections"], &sections); err != nil {
+		t.Fatalf("sections is not an object: %v", err)
+	}
+	if _, ok := sections["ehp"]; !ok {
+		t.Error("sections missing 'ehp'")
+	}
+
+	// Verify PhysicalMaximumHitTaken is present in ehp section
+	var ehp map[string]json.RawMessage
+	if err := json.Unmarshal(sections["ehp"], &ehp); err != nil {
+		t.Fatalf("ehp is not an object: %v", err)
+	}
+	if _, ok := ehp["PhysicalMaximumHitTaken"]; !ok {
+		t.Error("ehp missing PhysicalMaximumHitTaken")
+	}
+}
+
 func TestModifyHandlerWithMockPoB(t *testing.T) {
 	// Mock script: reads a modify request, returns a canned result with modified XML.
 	mockScript := filepath.Join(t.TempDir(), "mock-modify.sh")

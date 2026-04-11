@@ -108,7 +108,7 @@ export const uniqueSearchModule: NativeReferenceModule = {
       return {
         type: "text",
         content:
-          "Unique item data is not yet populated. The data pipeline for uniques is under development. Use the pob_calc module to inspect items on specific builds.",
+          "Unique item data is not yet populated. The data pipeline for uniques is under development. Use the build_planner module to inspect items on specific builds.",
       };
     }
 

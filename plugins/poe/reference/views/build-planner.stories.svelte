@@ -1,7 +1,7 @@
 <script module>
   import { defineMeta } from "@storybook/addon-svelte-csf";
-  import PobCalc from "./pob-calc.svelte";
-  const { Story } = defineMeta({ title: "PoE/Views/PobCalc", tags: ["autodocs"] });
+  import BuildPlanner from "./build-planner.svelte";
+  const { Story } = defineMeta({ title: "PoE/Views/BuildPlanner", tags: ["autodocs"] });
 
   const iconUrl = "/plugins/poe/icon.png";
 
@@ -327,34 +327,34 @@
 <!-- Full endgame build with all sections -->
 <Story name="FullBuild">
   <div style="max-width: 700px;">
-    <PobCalc data={fullBuild} />
+    <BuildPlanner data={fullBuild} />
   </div>
 </Story>
 
 <!-- Summary only, no detail sections -->
 <Story name="SummaryOnly">
   <div style="max-width: 700px;">
-    <PobCalc data={summaryOnly} />
+    <BuildPlanner data={summaryOnly} />
   </div>
 </Story>
 
 <!-- Offense and defense sections only -->
 <Story name="OffenseDefense">
   <div style="max-width: 700px;">
-    <PobCalc data={offenseDefense} />
+    <BuildPlanner data={offenseDefense} />
   </div>
 </Story>
 
 <!-- Low-level character with minimal stats -->
 <Story name="MinimalBuild">
   <div style="max-width: 700px;">
-    <PobCalc data={minimalBuild} />
+    <BuildPlanner data={minimalBuild} />
   </div>
 </Story>
 
 <!-- Minion build with minion-specific sections -->
 <Story name="MinionBuild">
   <div style="max-width: 700px;">
-    <PobCalc data={minionBuild} />
+    <BuildPlanner data={minionBuild} />
   </div>
 </Story>

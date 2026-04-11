@@ -8,10 +8,10 @@ import { economyModule } from "./economy";
 import { gemSearchModule } from "./gem-search";
 import { modSearchModule } from "./mod-search";
 import { passiveTreeModule } from "./passive-tree";
-import { pobCalcModule } from "./pob-calc";
+import { buildPlannerModule } from "./build-planner";
 import { uniqueSearchModule } from "./unique-search";
 
-registerNativeModule("poe", pobCalcModule);
+registerNativeModule("poe", buildPlannerModule);
 registerNativeModule("poe", gemSearchModule);
 registerNativeModule("poe", passiveTreeModule);
 registerNativeModule("poe", uniqueSearchModule);

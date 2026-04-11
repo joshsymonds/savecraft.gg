@@ -1898,10 +1898,10 @@ describe("MCP Tools", () => {
 }); // MCP Tools
 
 // ── PoB Calc (native reference module) ──────────────────────────────────────
-describe("pobCalcModule", () => {
+describe("buildPlannerModule", () => {
   it("returns error when neither build nor build_id provided", async () => {
-    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
-    const result = await pobCalcModule.execute({}, {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({}, {
       ...env,
       POB_URL: "http://localhost:8077",
     } as unknown as Env);
@@ -1912,8 +1912,8 @@ describe("pobCalcModule", () => {
   });
 
   it("returns error for invalid operations JSON", async () => {
-    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
-    const result = await pobCalcModule.execute({ build_id: "abc123", operations: "not json" }, {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({ build_id: "abc123", operations: "not json" }, {
       ...env,
       POB_URL: "http://localhost:8077",
     } as unknown as Env);
@@ -1921,8 +1921,8 @@ describe("pobCalcModule", () => {
   });
 
   it("returns error for empty operations array", async () => {
-    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
-    const result = await pobCalcModule.execute({ build_id: "abc123", operations: "[]" }, {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({ build_id: "abc123", operations: "[]" }, {
       ...env,
       POB_URL: "http://localhost:8077",
     } as unknown as Env);
@@ -1933,8 +1933,8 @@ describe("pobCalcModule", () => {
   });
 
   it("rejects raw base64 build codes", async () => {
-    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
-    const result = await pobCalcModule.execute({ build: "eJy9XVtzm8i2fh7_Cs..." }, {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({ build: "eJy9XVtzm8i2fh7_Cs..." }, {
       ...env,
       POB_URL: "http://localhost:8077",
     } as unknown as Env);
@@ -1942,8 +1942,8 @@ describe("pobCalcModule", () => {
   });
 
   it("returns error when POB_URL is not configured", async () => {
-    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
-    const result = await pobCalcModule.execute({ build: "https://pobb.in/abc123" }, {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({ build: "https://pobb.in/abc123" }, {
       ...env,
       POB_URL: undefined,
     } as unknown as Env);
@@ -1951,8 +1951,8 @@ describe("pobCalcModule", () => {
   });
 
   it("returns error when service is unreachable", async () => {
-    const { pobCalcModule } = await import("../../plugins/poe/reference/pob-calc");
-    const result = await pobCalcModule.execute({ build: "https://pobb.in/abc123" }, {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({ build: "https://pobb.in/abc123" }, {
       ...env,
       POB_URL: "http://127.0.0.1:1",
     } as unknown as Env);

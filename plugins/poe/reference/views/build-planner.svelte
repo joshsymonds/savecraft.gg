@@ -134,7 +134,7 @@
   let tree = $derived(sections.tree as { version?: number; allocated_nodes?: number } | undefined);
 </script>
 
-<div class="pob-calc">
+<div class="build-planner">
   <!-- Character header + summary stats -->
   <Panel watermark={data.icon_url} accent={accent}>
     <Section title={character.ascendancy || character.class} subtitle={subtitle} accent={accent}>
@@ -274,7 +274,7 @@
 </div>
 
 <style>
-  .pob-calc {
+  .build-planner {
     display: flex;
     flex-direction: column;
     gap: var(--space-md);

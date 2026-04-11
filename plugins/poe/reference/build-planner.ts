@@ -1,11 +1,12 @@
 /**
- * PoE pob_calc — native reference module.
+ * PoE build_planner — native reference module.
  *
  * Bridges the headless Path of Building calc service (pob-server) into the
- * MCP reference module system. Supports two workflows:
+ * MCP reference module system. Supports three workflows:
  *
  *   1. Analyze: pass a build URL → get structured calc results + buildId
  *   2. Modify: pass a buildId + operations → get updated results + new buildId
+ *   3. Explore: pass a buildId + nearby_metrics → get ranked nearby nodes by impact
  *
  * Every call returns a buildId that can be used for subsequent modifications,
  * enabling iterative build design without the player exporting build codes.
@@ -36,7 +37,6 @@ function pobFetch(
   body: Record<string, unknown>,
   apiKey?: string,
   sections?: string,
-  nearbyRadius?: number,
 ): Promise<Response> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) {
@@ -44,7 +44,6 @@ function pobFetch(
   }
   const params = new URLSearchParams();
   if (sections) params.set("sections", sections);
-  if (nearbyRadius) params.set("nearby_radius", String(nearbyRadius));
   const qs = params.toString();
   const url = qs ? `${pobUrl}${path}?${qs}` : `${pobUrl}${path}`;
   return fetch(url, {
@@ -55,14 +54,15 @@ function pobFetch(
   });
 }
 
-export const pobCalcModule: NativeReferenceModule = {
-  id: "pob_calc",
-  name: "PoB Build Calculator",
+export const buildPlannerModule: NativeReferenceModule = {
+  id: "build_planner",
+  name: "Build Planner",
   description:
-    "Analyze or modify a Path of Exile build via Path of Building. "
+    "Analyze, modify, or explore a Path of Exile build via Path of Building. "
     + "First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. "
     + "To drill deeper, call again with the buildId and sections parameter (e.g. sections='offense,defense'). "
     + "For modifications, pass buildId + operations + sections to see before/after comparison on the stats you care about. "
+    + "For tree exploration, pass buildId + nearby_metrics to find the highest-impact nearby nodes ranked by real calc deltas. "
     + "Every response includes a buildId for follow-up calls.",
   parameters: {
     build: {
@@ -73,7 +73,7 @@ export const pobCalcModule: NativeReferenceModule = {
     build_id: {
       type: "string",
       description:
-        "Build ID from a previous pob_calc response. Use this to modify or re-analyze a build without a URL. Omit on first call.",
+        "Build ID from a previous build_planner response. Use this to modify, re-analyze, or explore a build without a URL. Omit on first call.",
     },
     operations: {
       type: "string",
@@ -86,7 +86,8 @@ export const pobCalcModule: NativeReferenceModule = {
         + '- {"op":"toggle_keystone","name":"Resolute Technique","enabled":false} — Allocate or deallocate a keystone passive.\n'
         + '- {"op":"allocate_node","name":"Unwavering Stance"} — Allocate a notable or keystone by name. Auto-paths through travel nodes. Response includes an allocation_log section showing every node allocated along the path and the total points spent.\n'
         + '- {"op":"deallocate_node","name":"Phase Acrobatics"} — Deallocate a notable or keystone by name. Errors if the node is not currently allocated.\n'
-        + '- {"op":"equip_unique","name":"Abyssus","slot":"Helmet"} — Equip a unique item by name. Slots: Weapon 1, Weapon 2, Helmet, Body Armour, Gloves, Boots, Belt, Ring 1, Ring 2, Amulet.\n'
+        + '- {"op":"equip_unique","name":"Abyssus","slot":"Helmet"} — Equip a unique item by name. Slots: Weapon 1, Weapon 2, Helmet, Body Armour, Gloves, Boots, Belt, Ring 1, Ring 2, Amulet. For flasks, use equip_flask instead.\n'
+        + '- {"op":"equip_flask","name":"Taste of Hate","slot":"Flask 2"} — Equip a unique flask by name and activate it. Slots: Flask 1, Flask 2, Flask 3, Flask 4, Flask 5. The flask is automatically toggled active so its stats are included in calculations.\n'
         + '- {"op":"set_item","slot":"Body Armour","text":"Astral Plate\\nRarity: Rare\\n..."} — Equip a rare/custom item using PoB item text format.',
     },
     sections: {
@@ -95,18 +96,9 @@ export const pobCalcModule: NativeReferenceModule = {
         "Comma-separated section names to include in the response (e.g. 'offense,defense'). "
         + "Omit for a compact summary with a section index listing available sections. "
         + "Available: offense, ailments, defense, resistances, ehp, recovery, charges, limits, "
-        + "socket_groups, items, keystones, tree, nearby_notables, minion_offense, minion_defense. "
+        + "socket_groups, items, keystones, tree, minion_offense, minion_defense. "
         + "tree returns allocated/available/remaining passive points and ascendancy node count — use it to check the point budget. "
-        + "nearby_notables returns unallocated notables/keystones reachable from the current tree, "
-        + "each with stat descriptions and path_cost (number of nodes to allocate). "
-        + "Use nearby_notables before allocate_node to see what's reachable and what each node does. "
         + "After allocate_node, the response includes an allocation_log section showing every node allocated along the path and points spent.",
-    },
-    nearby_radius: {
-      type: "number",
-      description:
-        "Maximum path cost for nearby_notables results (default 5). "
-        + "Increase to see notables further from the current tree.",
     },
   },
 
@@ -115,7 +107,6 @@ export const pobCalcModule: NativeReferenceModule = {
     const buildId = query.build_id as string | undefined;
     const operations = query.operations as string | undefined;
     const sections = query.sections as string | undefined;
-    const nearbyRadius = query.nearby_radius as number | undefined;
 
     if (!build && !buildId) {
       return {
@@ -148,7 +139,7 @@ export const pobCalcModule: NativeReferenceModule = {
       // Resolve URL → buildId + calc results
       let response: Response;
       try {
-        response = await pobFetch(pobUrl, "/resolve", { url: build }, env.POB_API_KEY, sections, nearbyRadius);
+        response = await pobFetch(pobUrl, "/resolve", { url: build }, env.POB_API_KEY, sections);
       } catch (e) {
         return {
           type: "text",
@@ -200,7 +191,6 @@ export const pobCalcModule: NativeReferenceModule = {
           { buildId: resolvedBuildId, operations: parsedOps },
           env.POB_API_KEY,
           sections,
-          nearbyRadius,
         );
       } catch (e) {
         return {

@@ -209,42 +209,6 @@ local function serializeTreeSummary(build)
 	}
 end
 
--- Serialize nearby unallocated notables/keystones with path costs
-local function serializeNearbyNotables(build, radius)
-	radius = radius or 5
-	if not build.spec or not build.spec.nodes then return {} end
-	local results = {}
-	for id, node in pairs(build.spec.nodes) do
-		if not node.alloc
-			and (node.isKeystone or node.isNotable)
-			and node.pathDist and node.pathDist <= radius
-			and node.path
-		then
-			local name = node.dn or node.name
-			if name then
-				local stats = {}
-				local sd = node.sd or node.stats
-				if sd then
-					for _, s in ipairs(sd) do
-						stats[#stats + 1] = s
-					end
-				end
-				results[#results + 1] = {
-					name = name,
-					type = node.isKeystone and "keystone" or "notable",
-					stats = stats,
-					path_cost = node.pathDist,
-				}
-			end
-		end
-	end
-	table.sort(results, function(a, b)
-		if a.path_cost ~= b.path_cost then return a.path_cost < b.path_cost end
-		return a.name < b.name
-	end)
-	return results
-end
-
 -- =========================================================================
 -- Stat section system
 -- =========================================================================
@@ -279,7 +243,6 @@ local structuredSectionDefs = {
 	{ id = "items",         name = "Items",           description = "Equipped gear by slot" },
 	{ id = "keystones",        name = "Keystones",         description = "Allocated keystone passives" },
 	{ id = "tree",             name = "Passive Tree",      description = "Allocated/available/remaining passive points, ascendancy nodes, tree version" },
-	{ id = "nearby_notables",  name = "Nearby Notables",   description = "Unallocated notables and keystones reachable within a few passive points, with stats and path cost" },
 }
 
 -- Explicit section assignments for bare or ambiguous stat keys.
@@ -486,7 +449,7 @@ local function classifyStat(key)
 end
 
 -- Serialize calc output into grouped sections.
-local function serializeSections(build, nearbyRadius)
+local function serializeSections(build)
 	local emptySummary = {}
 	for _, key in ipairs(summaryKeys) do
 		emptySummary[key] = 0
@@ -533,7 +496,7 @@ local function serializeSections(build, nearbyRadius)
 	sections.items = serializeItems(build)
 	sections.keystones = serializeKeystones(build)
 	sections.tree = serializeTreeSummary(build)
-	sections.nearby_notables = serializeNearbyNotables(build, nearbyRadius)
+
 
 	-- Build section index
 	local index = {}
@@ -596,7 +559,7 @@ local function handleCalc(request)
 	runCallback("OnFrame")
 
 	-- Serialize results into grouped sections
-	local grouped = serializeSections(build, request.nearbyRadius)
+	local grouped = serializeSections(build)
 	local result = {
 		type = "result",
 		data = {
@@ -827,6 +790,39 @@ local function applyEquipUnique(op)
 	return nil
 end
 
+local function applyEquipFlask(op)
+	if not op.name then return "equip_flask: missing 'name'" end
+	if not op.slot then return "equip_flask: missing 'slot'" end
+	if not op.slot:match("^Flask %d$") then
+		return "equip_flask: slot must be Flask 1-5, got: " .. op.slot
+	end
+	ensureUniqueIndex()
+	local entry = uniqueIndex[op.name:lower()]
+	if not entry then return "equip_flask: unique not found: " .. op.name end
+
+	local item = new("Item", entry.raw)
+	build.itemsTab:AddItem(item, true) -- noAutoEquip
+
+	-- Equip to slot and activate
+	local activeSet = build.itemsTab.activeItemSet
+	local itemSet = build.itemsTab.itemSets[activeSet]
+	if itemSet and itemSet[op.slot] then
+		itemSet[op.slot].selItemId = item.id
+		itemSet[op.slot].active = true
+	end
+	for _, slot in ipairs(build.itemsTab.orderedSlots) do
+		if slot.slotName == op.slot then
+			slot.selItemId = item.id
+			slot.active = true
+			if slot.controls and slot.controls.activate then
+				slot.controls.activate.state = true
+			end
+			break
+		end
+	end
+	return nil
+end
+
 local function applySetItem(op)
 	if not op.text then return "set_item: missing 'text'" end
 	if not op.slot then return "set_item: missing 'slot'" end
@@ -859,6 +855,7 @@ local opHandlers = {
 	add_gem          = applyAddGem,
 	remove_gem       = applyRemoveGem,
 	equip_unique     = applyEquipUnique,
+	equip_flask      = applyEquipFlask,
 	set_item         = applySetItem,
 }
 
@@ -908,7 +905,7 @@ local function handleModify(request)
 	local modifiedXml = build:SaveDB("modified")
 
 	-- Serialize results into grouped sections (same as handleCalc)
-	local grouped = serializeSections(build, request.nearbyRadius)
+	local grouped = serializeSections(build)
 
 	-- Include allocation log if any allocate_node operations ran
 	if #allocationLog > 0 then

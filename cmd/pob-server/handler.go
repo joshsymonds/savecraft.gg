@@ -27,9 +27,8 @@ type CalcRequest struct {
 }
 
 type calcLuaRequest struct {
-	Type         string `json:"type"`
-	XML          string `json:"xml"`
-	NearbyRadius int    `json:"nearbyRadius,omitempty"`
+	Type string `json:"type"`
+	XML  string `json:"xml"`
 }
 
 // calcResponse wraps the PoB result with a buildId for caching.
@@ -202,9 +201,8 @@ func (srv *Server) calcAndRespond(
 	defer srv.pool.Release(proc)
 
 	response, err := proc.Send(calcLuaRequest{
-		Type:         "calc",
-		XML:          xml,
-		NearbyRadius: parseNearbyRadius(request),
+		Type: "calc",
+		XML:  xml,
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
@@ -269,10 +267,9 @@ type ModifyRequest struct {
 }
 
 type modifyLuaRequest struct {
-	Type         string            `json:"type"`
-	XML          string            `json:"xml"`
-	Operations   []json.RawMessage `json:"operations"`
-	NearbyRadius int               `json:"nearbyRadius,omitempty"`
+	Type       string            `json:"type"`
+	XML        string            `json:"xml"`
+	Operations []json.RawMessage `json:"operations"`
 }
 
 type modifyLuaResponse struct {
@@ -350,10 +347,9 @@ func (srv *Server) modifyAndRespond(
 	defer srv.pool.Release(proc)
 
 	response, err := proc.Send(modifyLuaRequest{
-		Type:         "modify",
-		XML:          xml,
-		Operations:   operations,
-		NearbyRadius: parseNearbyRadius(request),
+		Type:       "modify",
+		XML:        xml,
+		Operations: operations,
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
