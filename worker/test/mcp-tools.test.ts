@@ -1958,4 +1958,46 @@ describe("buildPlannerModule", () => {
     } as unknown as Env);
     expect(result).toEqual({ type: "text", content: expect.stringContaining("unavailable") });
   });
+
+  it("returns error for nearby_metrics without build_id", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({ nearby_metrics: '["Life"]' }, {
+      ...env,
+      POB_URL: "http://localhost:8077",
+    } as unknown as Env);
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("build_id is required"),
+    });
+  });
+
+  it("returns error for invalid nearby_metrics JSON", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({ build_id: "abc123", nearby_metrics: "not json" }, {
+      ...env,
+      POB_URL: "http://localhost:8077",
+    } as unknown as Env);
+    expect(result).toEqual({ type: "text", content: expect.stringContaining("not valid JSON") });
+  });
+
+  it("returns error for empty nearby_metrics array", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({ build_id: "abc123", nearby_metrics: "[]" }, {
+      ...env,
+      POB_URL: "http://localhost:8077",
+    } as unknown as Env);
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("non-empty JSON array"),
+    });
+  });
+
+  it("returns error for nearby_metrics when POB_URL not configured", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({ build_id: "abc123", nearby_metrics: '["Life"]' }, {
+      ...env,
+      POB_URL: undefined,
+    } as unknown as Env);
+    expect(result).toEqual({ type: "text", content: expect.stringContaining("not configured") });
+  });
 });

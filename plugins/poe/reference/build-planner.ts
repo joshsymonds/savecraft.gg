@@ -100,6 +100,33 @@ export const buildPlannerModule: NativeReferenceModule = {
         + "tree returns allocated/available/remaining passive points and ascendancy node count — use it to check the point budget. "
         + "After allocate_node, the response includes an allocation_log section showing every node allocated along the path and points spent.",
     },
+    nearby_metrics: {
+      type: "string",
+      description:
+        "JSON array of stat names to rank nearby nodes by (e.g. '[\"Life\",\"CombinedDPS\"]'). "
+        + "Triggers explore mode: finds unallocated nodes reachable from the current tree and ranks them by real calc impact per passive point. "
+        + "Requires build_id. Returns one ranked list per metric, each with baseline value and top nodes including stat deltas, path cost, travel path, and efficiency score. "
+        + "Common metrics: Life, EnergyShield, CombinedDPS, FullDPS, Armour, Evasion, BlockChance, "
+        + "SpellSuppressionChance, PhysicalMaximumHitTaken, ColdMaximumHitTaken, FireMaximumHitTaken, "
+        + "LightningMaximumHitTaken, Str, Dex, Int. Any PoB calc output key is accepted.",
+    },
+    nearby_radius: {
+      type: "number",
+      description:
+        "Maximum path distance for nearby node search (default 5). "
+        + "Increase to discover high-value nodes further from the current tree. Only used with nearby_metrics.",
+    },
+    nearby_limit: {
+      type: "number",
+      description:
+        "Maximum results per metric (default 10). Only used with nearby_metrics.",
+    },
+    nearby_delta_stats: {
+      type: "string",
+      description:
+        "JSON array of extra stat names to include in each node's deltas for context "
+        + "(default '[\"Life\",\"CombinedDPS\",\"EnergyShield\"]'). Only used with nearby_metrics.",
+    },
   },
 
   async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
@@ -107,6 +134,10 @@ export const buildPlannerModule: NativeReferenceModule = {
     const buildId = query.build_id as string | undefined;
     const operations = query.operations as string | undefined;
     const sections = query.sections as string | undefined;
+    const nearbyMetrics = query.nearby_metrics as string | undefined;
+    const nearbyRadius = query.nearby_radius as number | undefined;
+    const nearbyLimit = query.nearby_limit as number | undefined;
+    const nearbyDeltaStats = query.nearby_delta_stats as string | undefined;
 
     if (!build && !buildId) {
       return {
@@ -130,6 +161,67 @@ export const buildPlannerModule: NativeReferenceModule = {
         content:
           "PoB calc service is not configured. The POB_URL environment variable is not set.",
       };
+    }
+
+    // Explore mode: nearby_metrics triggers /nearby search
+    if (nearbyMetrics) {
+      if (!buildId) {
+        return {
+          type: "text",
+          content: "Error: build_id is required for nearby node search.",
+        };
+      }
+
+      let parsedMetrics: unknown[];
+      try {
+        parsedMetrics = JSON.parse(nearbyMetrics);
+        if (!Array.isArray(parsedMetrics) || parsedMetrics.length === 0) {
+          return { type: "text", content: "Error: nearby_metrics must be a non-empty JSON array." };
+        }
+      } catch {
+        return { type: "text", content: "Error: nearby_metrics is not valid JSON." };
+      }
+
+      let parsedDeltaStats: unknown[] | undefined;
+      if (nearbyDeltaStats) {
+        try {
+          parsedDeltaStats = JSON.parse(nearbyDeltaStats);
+          if (!Array.isArray(parsedDeltaStats)) {
+            return { type: "text", content: "Error: nearby_delta_stats must be a JSON array." };
+          }
+        } catch {
+          return { type: "text", content: "Error: nearby_delta_stats is not valid JSON." };
+        }
+      }
+
+      const nearbyBody: Record<string, unknown> = {
+        buildId,
+        metrics: parsedMetrics,
+      };
+      if (nearbyRadius) nearbyBody.radius = nearbyRadius;
+      if (nearbyLimit) nearbyBody.limit = nearbyLimit;
+      if (parsedDeltaStats) nearbyBody.deltaStats = parsedDeltaStats;
+
+      let response: Response;
+      try {
+        response = await pobFetch(pobUrl, "/nearby", nearbyBody, env.POB_API_KEY);
+      } catch (e) {
+        return {
+          type: "text",
+          content: `PoB calc service is currently unavailable: ${e instanceof Error ? e.message : "unknown error"}. Try again later.`,
+        };
+      }
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        return {
+          type: "text",
+          content: `PoB nearby error (${String(response.status)}): ${body}`,
+        };
+      }
+
+      const nearbyResult = (await response.json()) as Record<string, unknown>;
+      return { type: "structured", data: nearbyResult };
     }
 
     // Step 1: Resolve the build (from URL or existing buildId)
