@@ -54,8 +54,10 @@ func buildImportSQL(rules []Rule, cardRulings map[string][]CardRuling, cardNames
 	return b.String()
 }
 
-// populateVectorize embeds all rules and card rulings, then upserts to Vectorize.
-func populateVectorize(accountID, indexName, apiToken string, rules []Rule, cardRulings map[string][]CardRuling, cardNames map[string]string) error {
+// populateVectorize embeds Comprehensive Rules and upserts to Vectorize.
+// Card rulings are intentionally excluded — they can go stale when rules change
+// and are only served as supplementary context alongside authoritative rules.
+func populateVectorize(accountID, indexName, apiToken string, rules []Rule, _ map[string][]CardRuling, _ map[string]string) error {
 	const embeddingBatchSize = 100
 	const vectorizeBatchSize = 1000
 	const embeddingConcurrency = 6
@@ -73,20 +75,6 @@ func populateVectorize(accountID, indexName, apiToken string, rules []Rule, card
 			text += " " + r.Example
 		}
 		entries = append(entries, entry{id: r.Number, text: text, metaType: "rule"})
-	}
-
-	for oracleID, rulings := range cardRulings {
-		name, ok := cardNames[oracleID]
-		if !ok {
-			continue
-		}
-		var combined []string
-		combined = append(combined, name)
-		for _, r := range rulings {
-			combined = append(combined, r.Comment)
-		}
-		text := fmt.Sprintf("%s: %s", name, joinShort(combined[1:], " | "))
-		entries = append(entries, entry{id: "card:" + oracleID, text: text, metaType: "card_ruling"})
 	}
 
 	fmt.Printf("Embedding %d entries...\n", len(entries))
@@ -196,20 +184,6 @@ func populateVectorize(accountID, indexName, apiToken string, rules []Rule, card
 	}
 
 	return nil
-}
-
-func joinShort(parts []string, sep string) string {
-	result := ""
-	for i, p := range parts {
-		if i > 0 {
-			result += sep
-		}
-		result += p
-		if len(result) > 500 {
-			break
-		}
-	}
-	return result
 }
 
 // downloadCardNames fetches oracle card names from Scryfall's bulk data API.

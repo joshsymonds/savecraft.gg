@@ -323,8 +323,43 @@ describe("rules_search native module", () => {
     const result = await module_.execute({ card: "Sheoldred" }, env);
     const text = (result as { content: string }).content;
     expect(text).toContain("Card Rulings via Scryfall");
-    expect(text).toContain("Comprehensive Rules are authoritative");
     expect(text).toContain("Comprehensive Rules are always authoritative");
+  });
+
+  it("card ruling response cross-references related Comprehensive Rules", async () => {
+    // Seed rules that match a card name term, then query by card name
+    await seedRules();
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
+      ).bind("dt-001", "Deathtouch Viper", "2025-01-01", "Deathtouch means any damage is lethal."),
+      env.DB.prepare(
+        "INSERT INTO mtga_card_rulings_fts (oracle_id, card_name, comment) VALUES (?, ?, ?)",
+      ).bind("dt-001", "Deathtouch Viper", "Deathtouch means any damage is lethal."),
+    ]);
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ card: "Deathtouch Viper" }, env);
+    const text = (result as { content: string }).content;
+    // Should include Comp Rules section with deathtouch rules
+    expect(text).toContain("MTG Comprehensive Rules");
+    expect(text).toContain("AUTHORITATIVE");
+    expect(text).toContain("702.2");
+    // Should also include the card ruling
+    expect(text).toContain("Deathtouch Viper");
+    expect(text).toContain("any damage is lethal");
+  });
+
+  it("card ruling response works without matching Comprehensive Rules", async () => {
+    // "Sheoldred" won't match any Comp Rules terms (no rules seeded with that name)
+    await seedCardRulings();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ card: "Sheoldred" }, env);
+    const text = (result as { content: string }).content;
+    // Should still show card rulings even without matching rules
+    expect(text).toContain("Sheoldred, the Apocalypse");
+    expect(text).toContain("triggers when opponent draws");
+    // Should NOT have the Comp Rules header (no matches)
+    expect(text).not.toContain("MTG Comprehensive Rules");
   });
 
   it("card ruling response flags stale rulings predating current rules", async () => {

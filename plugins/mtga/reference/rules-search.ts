@@ -15,6 +15,7 @@ import type { Env } from "../../../worker/src/types";
 import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
 
 const DEFAULT_LIMIT = 20;
+const CARD_RULES_LIMIT = 10;
 const RRF_K = 60;
 const EFFECTIVE_DATE = "November 14, 2025";
 const EFFECTIVE_DATE_ISO = "2025-11-14"; // For comparing against ruling published_at dates
@@ -29,6 +30,40 @@ interface RuleRow {
 }
 
 import { mergeWithRRF } from "../../../worker/src/reference/rrf";
+
+// ── Shared helpers ──────────────────────────────────────────
+
+/** FTS5-only keyword search — returns ranked rule rows without Vectorize. */
+async function searchRulesByFts(
+  db: D1Database,
+  queryText: string,
+  limit: number,
+): Promise<RuleRow[]> {
+  const terms = queryText.trim().split(/\s+/).filter((t) => t.length >= 3);
+  if (terms.length === 0) return [];
+
+  const safeQuery = terms.map((t) => `"${t.replace(/"/g, '""')}"`).join(" OR ");
+
+  const ftsResults = await db
+    .prepare(
+      `SELECT number FROM mtga_rules_fts WHERE mtga_rules_fts MATCH ?1 ORDER BY rank LIMIT ?2`,
+    )
+    .bind(safeQuery, limit)
+    .all<{ number: string }>();
+
+  if (ftsResults.results.length === 0) return [];
+
+  const ids = ftsResults.results.map((r) => r.number);
+  const placeholders = ids.map(() => "?").join(",");
+  const ruleRows = await db
+    .prepare(`SELECT * FROM mtga_rules WHERE number IN (${placeholders})`)
+    .bind(...ids)
+    .all<RuleRow>();
+
+  // Preserve FTS5 rank order
+  const ruleMap = new Map(ruleRows.results.map((r) => [r.number, r]));
+  return ids.map((id) => ruleMap.get(id)).filter((r): r is RuleRow => r != null);
+}
 
 // ── Query handlers ───────────────────────────────────────────
 
@@ -153,23 +188,9 @@ async function searchByKeyword(
   queryText: string,
   limit: number,
 ): Promise<ReferenceResult> {
-  // Build FTS5 MATCH expression from query text.
-  // Split into individual terms, quote each for injection safety.
-  // OR: find rules about any term, ranked by relevance.
-  const terms = queryText.trim().split(/\s+/).filter(Boolean);
-  const safeQuery = terms.length > 0
-    ? terms.map((t) => `"${t.replace(/"/g, '""')}"`).join(" OR ")
-    : `"${queryText.replace(/"/g, '""')}"`;
-
-  // BM25 search via FTS5
-  const bm25Results = await db
-    .prepare(
-      `SELECT number FROM mtga_rules_fts WHERE mtga_rules_fts MATCH ?1 ORDER BY rank LIMIT ?2`,
-    )
-    .bind(safeQuery, limit * 2) // fetch extra for RRF merge
-    .all<{ number: string }>();
-
-  const bm25Ids = bm25Results.results.map((r) => r.number);
+  // BM25 search via shared FTS5 helper (fetch extra for RRF merge)
+  const bm25Rules = await searchRulesByFts(db, queryText, limit * 2);
+  const bm25Ids = bm25Rules.map((r) => r.number);
 
   // Vectorize semantic search (if available)
   let vectorIds: string[] = [];
@@ -242,8 +263,8 @@ async function searchCardRulings(
   // Escape LIKE wildcards in card name
   const escapedName = cardName.replace(/[%_]/g, "\\$&");
 
-  // Run FTS5 and LIKE queries in parallel — they are independent
-  const [ftsResults, likeResults] = await Promise.all([
+  // Run card ruling lookup, LIKE fallback, and Comp Rules cross-reference in parallel
+  const [ftsResults, likeResults, relatedRules] = await Promise.all([
     db
       .prepare(
         `SELECT DISTINCT oracle_id, card_name FROM mtga_card_rulings_fts WHERE mtga_card_rulings_fts MATCH ?1 LIMIT ?2`,
@@ -256,6 +277,7 @@ async function searchCardRulings(
       )
       .bind(`%${escapedName}%`)
       .all<{ oracle_id: string; card_name: string }>(),
+    searchRulesByFts(db, cardName, CARD_RULES_LIMIT),
   ]);
 
   // Merge unique oracle_ids
@@ -291,8 +313,22 @@ async function searchCardRulings(
     list.push({ published_at: r.published_at, comment: r.comment });
   }
 
+  // ── Build output: Comp Rules first (authoritative), then card rulings ──
+
   const lines: string[] = [];
-  lines.push("Card Rulings via Scryfall (supplementary — Comprehensive Rules are authoritative)\n");
+
+  // Section 1: Related Comprehensive Rules (if any matched the card name)
+  if (relatedRules.length > 0) {
+    lines.push(`${RULES_HEADER}\n`);
+    lines.push(`Related rules for "${cardName}" (${relatedRules.length} matches — these are AUTHORITATIVE):\n`);
+    for (const r of relatedRules) {
+      lines.push(`${r.number} ${r.text}`);
+    }
+    lines.push("");
+  }
+
+  // Section 2: Card rulings from Scryfall
+  lines.push("Card Rulings via Scryfall (supplementary — the Comprehensive Rules above take precedence)\n");
   let count = 0;
   let latestDate = "";
 
@@ -331,8 +367,7 @@ async function searchCardRulings(
       lines.push(`⚠ All rulings above predate the current Comprehensive Rules (effective ${EFFECTIVE_DATE}). If any ruling appears to conflict with current rules text, the Comprehensive Rules are correct — the ruling may not have been updated after a rules change.`);
     }
   }
-  lines.push("These are official WotC rulings via Scryfall, published at the dates shown. They are interpretive aids, not the rules themselves.");
-  lines.push("IMPORTANT: The Comprehensive Rules are always authoritative. Card rulings are supplementary and can become outdated when rules change between set releases. ALWAYS cross-reference card rulings against the current Comprehensive Rules (query by keyword or rule number) before citing them. If a ruling conflicts with current rules text, trust the Comprehensive Rules.");
+  lines.push("IMPORTANT: The Comprehensive Rules are always authoritative. Card rulings are supplementary and can become outdated when rules change between set releases. If a ruling conflicts with the rules shown above, trust the Comprehensive Rules.");
 
   return {
     type: "text",
@@ -367,7 +402,7 @@ export const rulesSearchModule: NativeReferenceModule = {
     card: {
       type: "string",
       description:
-        "Card name for official Scryfall rulings (e.g., 'Sheoldred'). Returns card-specific rulings from Wizards of the Coast. Use alongside keyword/rule searches for complete interaction analysis.",
+        "Card name lookup (e.g., 'Sheoldred'). Returns related Comprehensive Rules AND supplementary Scryfall rulings. The Comprehensive Rules are authoritative; card rulings may be outdated.",
     },
     limit: { type: "integer", description: "Max results (default 20)." },
   },
