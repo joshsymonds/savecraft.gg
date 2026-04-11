@@ -2,8 +2,9 @@
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
+  import Stat from "../../../../views/src/components/data/Stat.svelte";
+  import RankedList from "../../../../views/src/components/data/RankedList.svelte";
   import FilterBar from "../../../../views/src/components/data/FilterBar.svelte";
-  import HoverTip from "../../../../views/src/components/data/HoverTip.svelte";
   import Timeline from "../../../../views/src/components/charts/Timeline.svelte";
   import ArchetypeLabel from "../../../../views/src/components/mtg/ArchetypeLabel.svelte";
   import { archetypeColors } from "../../../../views/src/components/mtg/colors";
@@ -80,16 +81,6 @@
     if (score >= 0.35) return "playable";
     if (score >= 0.2) return "filler";
     return "skip";
-  }
-
-  function gradeDescription(score: number): string {
-    const pct = Math.round(score * 100);
-    if (score >= 0.8) return `Score: ${pct}% — Top-tier pick, take it every time`;
-    if (score >= 0.65) return `Score: ${pct}% — Strong pick for your deck`;
-    if (score >= 0.5) return `Score: ${pct}% — Solid, fills a need`;
-    if (score >= 0.35) return `Score: ${pct}% — Acceptable if nothing better`;
-    if (score >= 0.2) return `Score: ${pct}% — Weak, only if desperate`;
-    return `Score: ${pct}% — Not worth picking`;
   }
 
   function gradeVariant(score: number): string {
@@ -195,6 +186,20 @@
       tagVariant: (CLASS_VARIANT[pick.classification] ?? "muted") as "positive" | "negative" | "highlight" | "info" | "warning" | "muted",
     })),
   );
+
+  let pickItems = $derived(
+    (data.recommendations ?? []).map((rec) => {
+      const reasons = topReasons(rec.axes);
+      return {
+        rank: rec.rank,
+        label: rec.card,
+        sublabel: reasons.length > 0 ? reasons.join(" · ") : undefined,
+        value: `${Math.round(rec.composite_score * 100)}%`,
+        variant: gradeVariant(rec.composite_score) as "positive" | "negative" | "highlight" | "info" | "warning" | "muted",
+        badge: { label: gradeLabel(rec.composite_score), variant: gradeVariant(rec.composite_score) as "positive" | "negative" | "highlight" | "info" | "warning" | "muted" },
+      };
+    }),
+  );
 </script>
 
 {#if isBatchMode}
@@ -205,24 +210,11 @@
   <div class="draft-advisor">
     <Panel watermark={data.icon_url}>
       <Section title="Draft Review">
-        <!-- Summary scorecard -->
-        <div class="scorecard">
-          <div class="score-block" style:--score-color="var(--color-positive)">
-            <span class="score-value">{summary.optimal}</span>
-            <span class="score-label">Optimal</span>
-          </div>
-          <div class="score-block" style:--score-color="var(--color-info)">
-            <span class="score-value">{summary.good}</span>
-            <span class="score-label">Good</span>
-          </div>
-          <div class="score-block" style:--score-color="var(--color-warning)">
-            <span class="score-value">{summary.questionable}</span>
-            <span class="score-label">Questionable</span>
-          </div>
-          <div class="score-block" style:--score-color="var(--color-negative)">
-            <span class="score-value">{summary.misses}</span>
-            <span class="score-label">Misses</span>
-          </div>
+        <div class="hero-stats">
+          <Stat value={summary.optimal} label="Optimal" variant="positive" />
+          <Stat value={summary.good} label="Good" variant="info" />
+          <Stat value={summary.questionable} label="Questionable" variant="warning" />
+          <Stat value={summary.misses} label="Misses" variant="negative" />
         </div>
 
         <!-- Archetype warnings -->
@@ -260,23 +252,7 @@
           {/if}
         {/snippet}
 
-        <div class="pick-list">
-          {#each data.recommendations ?? [] as rec (rec.card)}
-            {@const reasons = topReasons(rec.axes)}
-            <div class="pick-row" class:top-pick={rec.rank === 1}>
-              <span class="rank">#{rec.rank}</span>
-              <div class="pick-info">
-                <span class="pick-name">{rec.card}</span>
-                {#if reasons.length > 0}
-                  <span class="pick-reasons">{reasons.join(" · ")}</span>
-                {/if}
-              </div>
-              <HoverTip text={gradeDescription(rec.composite_score)}>
-                <Badge label={gradeLabel(rec.composite_score)} variant={gradeVariant(rec.composite_score)} />
-              </HoverTip>
-            </div>
-          {/each}
-        </div>
+        <RankedList items={pickItems} />
       </Section>
     </Panel>
   </div>
@@ -291,37 +267,11 @@
     animation: fade-slide-in 0.3s ease-out;
   }
 
-  /* ── Scorecard ── */
-  .scorecard {
+  .hero-stats {
     display: flex;
-    gap: var(--space-sm);
-  }
-
-  .score-block {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    padding: var(--space-sm) var(--space-xs);
-    background: color-mix(in srgb, var(--score-color) 10%, transparent);
-    border: 1px solid color-mix(in srgb, var(--score-color) 30%, transparent);
-    border-radius: var(--radius-md);
-  }
-
-  .score-value {
-    font-family: var(--font-heading);
-    font-size: 24px;
-    font-weight: 700;
-    color: var(--score-color);
-  }
-
-  .score-label {
-    font-family: var(--font-pixel);
-    font-size: 7px;
-    color: var(--score-color);
-    text-transform: uppercase;
-    letter-spacing: 1px;
-    opacity: 0.8;
+    justify-content: space-around;
+    gap: var(--space-md);
+    padding: var(--space-sm) 0;
   }
 
   /* ── Warnings ── */
@@ -329,68 +279,5 @@
     display: flex;
     flex-direction: column;
     gap: var(--space-xs);
-  }
-
-  /* ── Pick list (shared between modes) ── */
-  .pick-list {
-    display: flex;
-    flex-direction: column;
-  }
-
-  .pick-row {
-    display: flex;
-    align-items: center;
-    gap: var(--space-sm);
-    padding: var(--space-sm) var(--space-sm);
-    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 20%, transparent);
-  }
-
-  .pick-row:last-child {
-    border-bottom: none;
-  }
-
-  .pick-row.top-pick {
-    background: color-mix(in srgb, var(--color-gold) 6%, transparent);
-  }
-
-  .pick-row:hover {
-    background: color-mix(in srgb, var(--color-border) 10%, transparent);
-  }
-
-  .rank {
-    font-family: var(--font-pixel);
-    font-size: 9px;
-    color: var(--color-gold);
-    min-width: 36px;
-    flex-shrink: 0;
-  }
-
-  .pick-info {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    flex: 1;
-    min-width: 0;
-  }
-
-  .pick-name {
-    font-family: var(--font-heading);
-    font-size: 16px;
-    font-weight: 600;
-    color: var(--color-text);
-  }
-
-  .pick-reasons {
-    font-family: var(--font-body);
-    font-size: 13px;
-    color: var(--color-text-muted);
-  }
-
-  .top-pick .rank {
-    color: var(--color-gold-light);
-  }
-
-  .top-pick .pick-name {
-    color: var(--color-gold-light);
   }
 </style>

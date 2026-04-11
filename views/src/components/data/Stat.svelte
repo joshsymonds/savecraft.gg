@@ -4,7 +4,7 @@
   Used for hero stats: success percentages, total counts, win rates, grades.
 -->
 <script lang="ts">
-  type Variant = "positive" | "negative" | "highlight" | "info" | "muted";
+  type Variant = "positive" | "negative" | "highlight" | "info" | "warning" | "muted";
 
   interface Props {
     /** The big number or grade (e.g., "85.5%", 47, "A+") */
@@ -22,6 +22,7 @@
     negative: "var(--color-negative)",
     highlight: "var(--color-highlight)",
     info: "var(--color-info)",
+    warning: "var(--color-warning)",
     muted: "var(--color-text-muted)",
   };
 

@@ -54,8 +54,10 @@ describe("DraftAdvisor view", () => {
 
   it("renders rank numbers", () => {
     const { container } = render(DraftAdvisor, { props: { data } });
-    expect(container.textContent).toContain("#1");
-    expect(container.textContent).toContain("#2");
+    const ranks = container.querySelectorAll(".rank");
+    expect(ranks.length).toBe(3);
+    expect(ranks[0].textContent).toBe("1");
+    expect(ranks[1].textContent).toBe("2");
   });
 
   it("renders grade badges", () => {
@@ -74,8 +76,8 @@ describe("DraftAdvisor view", () => {
     expect(container.textContent).toContain("Pick 3");
   });
 
-  it("highlights top pick", () => {
+  it("renders ranked list", () => {
     const { container } = render(DraftAdvisor, { props: { data } });
-    expect(container.querySelector(".top-pick")).not.toBeNull();
+    expect(container.querySelector(".ranked-list")).not.toBeNull();
   });
 });
