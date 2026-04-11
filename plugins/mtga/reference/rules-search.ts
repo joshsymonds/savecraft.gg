@@ -17,6 +17,7 @@ import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src
 const DEFAULT_LIMIT = 20;
 const RRF_K = 60;
 const EFFECTIVE_DATE = "November 14, 2025";
+const EFFECTIVE_DATE_ISO = "2025-11-14"; // For comparing against ruling published_at dates
 const RULES_HEADER = `MTG Comprehensive Rules (effective ${EFFECTIVE_DATE})`;
 const MAX_SEE_ALSO_REFS = 20;
 
@@ -291,7 +292,7 @@ async function searchCardRulings(
   }
 
   const lines: string[] = [];
-  lines.push("Official Scryfall Rulings (Wizards of the Coast)\n");
+  lines.push("Card Rulings via Scryfall (supplementary — Comprehensive Rules are authoritative)\n");
   let count = 0;
   let latestDate = "";
 
@@ -326,9 +327,12 @@ async function searchCardRulings(
   lines.push("---");
   if (latestDate) {
     lines.push(`Most recent ruling: ${latestDate}`);
+    if (latestDate < EFFECTIVE_DATE_ISO) {
+      lines.push(`⚠ All rulings above predate the current Comprehensive Rules (effective ${EFFECTIVE_DATE}). If any ruling appears to conflict with current rules text, the Comprehensive Rules are correct — the ruling may not have been updated after a rules change.`);
+    }
   }
-  lines.push("These are official WotC rulings via Scryfall. For the underlying game mechanics (e.g., how deathtouch or trample work in general), query by keyword or rule number.");
-  lines.push("IMPORTANT: Card-specific rulings override general rules. Always check both when analyzing an interaction.");
+  lines.push("These are official WotC rulings via Scryfall, published at the dates shown. They are interpretive aids, not the rules themselves.");
+  lines.push("IMPORTANT: The Comprehensive Rules are always authoritative. Card rulings are supplementary and can become outdated when rules change between set releases. ALWAYS cross-reference card rulings against the current Comprehensive Rules (query by keyword or rule number) before citing them. If a ruling conflicts with current rules text, trust the Comprehensive Rules.");
 
   return {
     type: "text",

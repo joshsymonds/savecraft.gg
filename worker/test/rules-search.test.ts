@@ -322,8 +322,36 @@ describe("rules_search native module", () => {
     const module_ = getNativeModule("mtga", "rules_search")!;
     const result = await module_.execute({ card: "Sheoldred" }, env);
     const text = (result as { content: string }).content;
-    expect(text).toContain("Official Scryfall Rulings");
-    expect(text).toContain("Card-specific rulings override general rules");
+    expect(text).toContain("Card Rulings via Scryfall");
+    expect(text).toContain("Comprehensive Rules are authoritative");
+    expect(text).toContain("Comprehensive Rules are always authoritative");
+  });
+
+  it("card ruling response flags stale rulings predating current rules", async () => {
+    // Seed data has rulings from 2025-02-07 and 2025-03-01, both before
+    // the Comprehensive Rules effective date (2025-11-14)
+    await seedCardRulings();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ card: "Sheoldred" }, env);
+    const text = (result as { content: string }).content;
+    expect(text).toContain("All rulings above predate the current Comprehensive Rules");
+  });
+
+  it("card ruling response omits staleness warning for current rulings", async () => {
+    // Insert a ruling dated after the effective date
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO mtga_card_rulings (oracle_id, card_name, published_at, comment) VALUES (?, ?, ?, ?)",
+      ).bind("fresh-001", "Fresh Card", "2026-01-15", "This is a current ruling."),
+      env.DB.prepare(
+        "INSERT INTO mtga_card_rulings_fts (oracle_id, card_name, comment) VALUES (?, ?, ?)",
+      ).bind("fresh-001", "Fresh Card", "This is a current ruling."),
+    ]);
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ card: "Fresh Card" }, env);
+    const text = (result as { content: string }).content;
+    expect(text).toContain("Fresh Card");
+    expect(text).not.toContain("All rulings above predate");
   });
 
   it("module description includes proactive usage guidance", () => {
