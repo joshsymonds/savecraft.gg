@@ -934,6 +934,159 @@ local function handleModify(request)
 	}
 end
 
+-- Process a nearby node search request
+local function handleNearby(request)
+	local xml = request.xml
+	if not xml or xml == "" then
+		return { type = "error", message = "missing 'xml' field" }
+	end
+
+	local metrics = request.metrics
+	if not metrics or #metrics == 0 then
+		return { type = "error", message = "missing 'metrics' field" }
+	end
+
+	local radius = request.radius or 5
+	local limit = request.limit or 10
+	local deltaStats = request.deltaStats or { "Life", "CombinedDPS", "EnergyShield" }
+
+	-- Load the build from XML
+	local loadOk, loadErr = pcall(function()
+		loadBuildFromXML(xml, "nearby-build")
+	end)
+	if not loadOk then
+		return { type = "error", message = "failed to load build: " .. tostring(loadErr) }
+	end
+
+	-- Force a full recalculation so calcsTab is populated
+	build.buildFlag = true
+	runCallback("OnFrame")
+
+	-- Get the calculator function and baseline output
+	local calcFunc, calcBase = build.calcsTab:GetMiscCalculator()
+
+	-- Collect all stats we need deltas for (metrics + deltaStats, deduplicated)
+	local allStats = {}
+	local statSet = {}
+	for _, s in ipairs(metrics) do
+		if not statSet[s] then
+			allStats[#allStats + 1] = s
+			statSet[s] = true
+		end
+	end
+	for _, s in ipairs(deltaStats) do
+		if not statSet[s] then
+			allStats[#allStats + 1] = s
+			statSet[s] = true
+		end
+	end
+
+	-- Evaluate all candidate nodes within radius
+	local cache = {}
+	local candidates = {}
+	for id, node in pairs(build.spec.nodes) do
+		if not node.alloc
+			and node.pathDist and node.pathDist <= radius
+			and node.path
+			and (node.type == "Normal" or node.type == "Notable" or node.type == "Keystone")
+			and node.modKey and node.modKey ~= ""
+			and not node.ascendancyName
+		then
+			-- Compute output with this node hypothetically allocated (modKey cache)
+			if not cache[node.modKey] then
+				cache[node.modKey] = calcFunc({ addNodes = { [node] = true } })
+			end
+			local output = cache[node.modKey]
+
+			-- Compute deltas for all requested stats
+			local deltas = {}
+			for _, stat in ipairs(allStats) do
+				local base = calcBase[stat] or 0
+				local modified = output[stat] or 0
+				deltas[stat] = modified - base
+			end
+
+			-- Build path names
+			local pathNames = {}
+			for _, pathNode in ipairs(node.path) do
+				pathNames[#pathNames + 1] = pathNode.dn or pathNode.name or tostring(pathNode.id)
+			end
+
+			-- Build stat descriptions
+			local stats = {}
+			local sd = node.sd or node.stats
+			if sd then
+				for _, s in ipairs(sd) do
+					stats[#stats + 1] = s
+				end
+			end
+
+			-- Determine node type string
+			local nodeType = "normal"
+			if node.isKeystone then
+				nodeType = "keystone"
+			elseif node.isNotable then
+				nodeType = "notable"
+			end
+
+			candidates[#candidates + 1] = {
+				name = node.dn or node.name or ("node_" .. tostring(id)),
+				type = nodeType,
+				stats = stats,
+				path_cost = node.pathDist,
+				path = pathNames,
+				deltas = deltas,
+				-- efficiency computed per-metric below
+			}
+		end
+	end
+
+	-- Build result sets: one per metric, ranked by efficiency
+	local results = {}
+	for _, metric in ipairs(metrics) do
+		-- Compute efficiency for this metric and sort
+		local ranked = {}
+		for _, c in ipairs(candidates) do
+			local delta = c.deltas[metric] or 0
+			local eff = 0
+			if c.path_cost > 0 then
+				eff = math.abs(delta) / c.path_cost
+			end
+			ranked[#ranked + 1] = {
+				name = c.name,
+				type = c.type,
+				stats = c.stats,
+				path_cost = c.path_cost,
+				path = c.path,
+				deltas = c.deltas,
+				efficiency = eff,
+			}
+		end
+
+		table.sort(ranked, function(a, b)
+			if a.efficiency ~= b.efficiency then return a.efficiency > b.efficiency end
+			if a.path_cost ~= b.path_cost then return a.path_cost < b.path_cost end
+			return a.name < b.name
+		end)
+
+		-- Take top N
+		local nodes = {}
+		for i = 1, math.min(limit, #ranked) do
+			nodes[i] = ranked[i]
+		end
+
+		results[#results + 1] = {
+			metric = metric,
+			baseline = calcBase[metric] or 0,
+			limit = limit,
+			radius = radius,
+			nodes = nodes,
+		}
+	end
+
+	return { type = "result", data = results }
+end
+
 -- Main request loop
 log("Ready for requests")
 
@@ -959,6 +1112,13 @@ for line in io.stdin:lines() do
 				response = result
 			else
 				response = { type = "error", message = "modify crashed: " .. tostring(result) }
+			end
+		elseif request.type == "nearby" then
+			local ok, result = pcall(handleNearby, request)
+			if ok then
+				response = result
+			else
+				response = { type = "error", message = "nearby crashed: " .. tostring(result) }
 			end
 		elseif request.type == "ping" then
 			response = { type = "pong" }
