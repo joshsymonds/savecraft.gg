@@ -5,6 +5,7 @@
 -->
 <script lang="ts">
   import Stat from "../../../../views/src/components/data/Stat.svelte";
+  import StatRow from "../../../../views/src/components/data/StatRow.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
@@ -40,7 +41,7 @@
     {/snippet}
 
     <div class="crop-layout">
-      <div class="hero-stats">
+      <StatRow justify="center" gap="var(--space-xl)" padding="var(--space-lg) 0">
         <div class="hero-stat">
           <Stat value={data.tiles_needed} label="Tiles per colonist" variant="highlight" />
         </div>
@@ -48,7 +49,7 @@
         <div class="hero-stat">
           <Stat value="{data.actual_grow_days.toFixed(1)}d" label="Days to harvest" variant="info" />
         </div>
-      </div>
+      </StatRow>
 
       <div class="details">
         <Panel nested>
@@ -77,13 +78,6 @@
     gap: var(--space-lg);
   }
 
-  .hero-stats {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: var(--space-xl);
-    padding: var(--space-lg) 0;
-  }
 
   .hero-stat {
     flex: 1;

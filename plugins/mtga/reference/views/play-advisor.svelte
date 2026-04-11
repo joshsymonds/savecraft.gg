@@ -6,6 +6,7 @@
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Stat from "../../../../views/src/components/data/Stat.svelte";
+  import StatRow from "../../../../views/src/components/data/StatRow.svelte";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import Timeline from "../../../../views/src/components/charts/Timeline.svelte";
   import BarChart from "../../../../views/src/components/charts/BarChart.svelte";
@@ -100,7 +101,7 @@
     <Panel watermark={data.icon_url}>
       <Section title="Mulligan Decision">
         <div class="mulligan">
-          <div class="hero-stats">
+          <StatRow>
             <Stat
               value={data.recommendation ?? "—"}
               label="Recommendation"
@@ -115,7 +116,7 @@
             {#if data.margin_pp != null}
               <Stat value="{data.margin_pp > 0 ? '+' : ''}{data.margin_pp.toFixed(1)}pp" label="Margin" variant={data.margin_pp > 0 ? "positive" : "negative"} />
             {/if}
-          </div>
+          </StatRow>
           <div class="mulligan-context">
             <Badge label="{data.hand_size} cards" variant="info" />
             <Badge label="{data.land_count} lands" variant="info" />
@@ -170,13 +171,6 @@
     font-family: var(--font-body);
     font-size: 13px;
     color: var(--color-text-muted);
-  }
-
-  .hero-stats {
-    display: flex;
-    justify-content: space-around;
-    gap: var(--space-md);
-    padding: var(--space-sm) 0;
   }
 
   .mulligan {

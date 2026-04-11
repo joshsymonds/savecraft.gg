@@ -76,8 +76,12 @@ describe("DraftAdvisor view", () => {
     expect(container.textContent).toContain("Pick 3");
   });
 
-  it("renders ranked list", () => {
+  it("renders ranked list with all recommendations", () => {
     const { container } = render(DraftAdvisor, { props: { data } });
-    expect(container.querySelector(".ranked-list")).not.toBeNull();
+    const list = container.querySelector(".ranked-list");
+    expect(list).not.toBeNull();
+    const items = list!.querySelectorAll(".ranked-item");
+    expect(items.length).toBe(3);
+    expect(items[0].textContent).toContain("Go for the Throat");
   });
 });

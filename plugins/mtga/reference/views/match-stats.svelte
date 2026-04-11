@@ -6,6 +6,7 @@
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Stat from "../../../../views/src/components/data/Stat.svelte";
+  import StatRow from "../../../../views/src/components/data/StatRow.svelte";
   import BarChart from "../../../../views/src/components/charts/BarChart.svelte";
 
   interface WinLossRow {
@@ -62,12 +63,12 @@
     <!-- Hero stats -->
     <Panel watermark={data.icon_url}>
       <Section title="Match Record">
-        <div class="hero-stats">
+        <StatRow>
           <Stat value="{data.win_rate?.toFixed(1)}%" label="Win Rate" variant={winRateVariant(data.win_rate ?? 0)} />
           <Stat value={data.total_matches ?? 0} label="Matches" variant="info" />
           <Stat value={data.total_wins ?? 0} label="Wins" variant="positive" />
           <Stat value={data.total_losses ?? 0} label="Losses" variant="negative" />
-        </div>
+        </StatRow>
       </Section>
     </Panel>
 
@@ -126,10 +127,4 @@
     animation: fade-slide-in 0.3s ease-out;
   }
 
-  .hero-stats {
-    display: flex;
-    justify-content: space-around;
-    gap: var(--space-md);
-    padding: var(--space-sm) 0;
-  }
 </style>

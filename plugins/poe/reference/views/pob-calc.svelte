@@ -9,6 +9,7 @@
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import Stat from "../../../../views/src/components/data/Stat.svelte";
+  import StatRow from "../../../../views/src/components/data/StatRow.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
   import SocketGroup from "../../../../views/src/components/poe/SocketGroup.svelte";
   import ItemSlot from "../../../../views/src/components/poe/ItemSlot.svelte";
@@ -140,7 +141,7 @@
       {#snippet icons()}
         <Badge label="PoB" variant="muted" />
       {/snippet}
-      <div class="hero-stats">
+      <StatRow justify="center" gap="var(--space-xl)">
         {#if summary.CombinedDPS != null}
           <Stat value={formatNumber(summary.CombinedDPS)} label="DPS" variant="highlight" />
         {/if}
@@ -153,7 +154,7 @@
         {#if summary.Mana != null}
           <Stat value={formatNumber(summary.Mana)} label="Mana" variant="info" />
         {/if}
-      </div>
+      </StatRow>
 
       <!-- Resist + defense row -->
       <div class="resist-row">
@@ -281,12 +282,6 @@
     animation: fade-slide-in 0.3s ease-out;
   }
 
-  .hero-stats {
-    display: flex;
-    gap: var(--space-xl);
-    justify-content: center;
-    padding: var(--space-sm) 0;
-  }
 
   .resist-row {
     display: flex;

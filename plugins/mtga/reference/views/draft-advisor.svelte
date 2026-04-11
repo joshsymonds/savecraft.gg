@@ -3,6 +3,7 @@
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import Stat from "../../../../views/src/components/data/Stat.svelte";
+  import StatRow from "../../../../views/src/components/data/StatRow.svelte";
   import RankedList from "../../../../views/src/components/data/RankedList.svelte";
   import FilterBar from "../../../../views/src/components/data/FilterBar.svelte";
   import Timeline from "../../../../views/src/components/charts/Timeline.svelte";
@@ -142,13 +143,6 @@
   });
 
   // ── Batch review helpers ──
-  const CLASS_COLORS: Record<string, string> = {
-    optimal: "var(--color-positive)",
-    good: "var(--color-info)",
-    questionable: "var(--color-warning)",
-    miss: "var(--color-negative)",
-  };
-
   const CLASS_VARIANT: Record<string, string> = {
     optimal: "positive",
     good: "info",
@@ -210,12 +204,12 @@
   <div class="draft-advisor">
     <Panel watermark={data.icon_url}>
       <Section title="Draft Review">
-        <div class="hero-stats">
+        <StatRow>
           <Stat value={summary.optimal} label="Optimal" variant="positive" />
           <Stat value={summary.good} label="Good" variant="info" />
           <Stat value={summary.questionable} label="Questionable" variant="warning" />
           <Stat value={summary.misses} label="Misses" variant="negative" />
-        </div>
+        </StatRow>
 
         <!-- Archetype warnings -->
         {#if summary.archetype_warnings.length > 0}
@@ -265,13 +259,6 @@
     gap: var(--space-md);
     padding: var(--space-lg);
     animation: fade-slide-in 0.3s ease-out;
-  }
-
-  .hero-stats {
-    display: flex;
-    justify-content: space-around;
-    gap: var(--space-md);
-    padding: var(--space-sm) 0;
   }
 
   /* ── Warnings ── */

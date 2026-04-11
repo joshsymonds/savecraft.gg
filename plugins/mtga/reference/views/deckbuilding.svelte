@@ -7,6 +7,7 @@
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import Stat from "../../../../views/src/components/data/Stat.svelte";
+  import StatRow from "../../../../views/src/components/data/StatRow.svelte";
   import BarChart from "../../../../views/src/components/charts/BarChart.svelte";
   import Timeline from "../../../../views/src/components/charts/Timeline.svelte";
   import ArchetypeLabel from "../../../../views/src/components/mtg/ArchetypeLabel.svelte";
@@ -35,6 +36,7 @@
     status: string;
     most_demanding: string;
     cost_pattern: string;
+    is_gold_adjusted: boolean;
   }
 
   interface ManaSwapSuggestion {
@@ -77,14 +79,6 @@
     good: "positive",
     warning: "warning",
     issue: "negative",
-  };
-
-  const COLOR_VARIANTS: Record<string, "negative" | "info" | "warning" | "highlight" | "muted"> = {
-    W: "warning",
-    U: "info",
-    B: "muted",
-    R: "negative",
-    G: "highlight",
   };
 
   let isHealthCheck = $derived(data.mode === "health_check");
@@ -181,7 +175,7 @@
   {#if isConstructed}
     <Panel watermark={data.icon_url}>
       <Section title="Deck Overview" subtitle={constructedSubtitle}>
-        <div class="hero-stats">
+        <StatRow>
           {#if data.total_cards != null}
             <Stat value={data.total_cards} label="Total" variant="highlight" />
           {/if}
@@ -193,7 +187,7 @@
           {#if data.sideboard_count != null}
             <Stat value={data.sideboard_count} label="Sideboard" variant="muted" />
           {/if}
-        </div>
+        </StatRow>
         <div class="legality">
           {#if data.format}
             {#if legalityOk}
@@ -241,13 +235,6 @@
     gap: var(--space-md);
     padding: var(--space-lg);
     animation: fade-slide-in 0.3s ease-out;
-  }
-
-  .hero-stats {
-    display: flex;
-    justify-content: space-around;
-    gap: var(--space-md);
-    padding: var(--space-sm) 0;
   }
 
   .legality {

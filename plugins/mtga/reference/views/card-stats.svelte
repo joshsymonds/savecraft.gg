@@ -6,6 +6,7 @@
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Stat from "../../../../views/src/components/data/Stat.svelte";
+  import StatRow from "../../../../views/src/components/data/StatRow.svelte";
   import BarChart from "../../../../views/src/components/charts/BarChart.svelte";
 
   interface CardStatRow {
@@ -79,11 +80,11 @@
     <!-- Set overview hero -->
     <Panel watermark={data.icon_url}>
       <Section title={data.set_code ?? "Set"} subtitle={data.format}>
-        <div class="hero-stats">
+        <StatRow>
           <Stat value="{data.avg_gihwr?.toFixed(1)}%" label="Avg Win Rate" variant="highlight" />
           <Stat value={data.card_count ?? 0} label="Cards" variant="info" />
           <Stat value={(data.total_games ?? 0).toLocaleString()} label="Games" variant="muted" />
-        </div>
+        </StatRow>
       </Section>
     </Panel>
 
@@ -120,7 +121,7 @@
       <!-- Card hero -->
       <Panel watermark={data.icon_url}>
         <Section title={card.card_name} subtitle="{data.set_code} · {data.format}">
-          <div class="hero-stats">
+          <StatRow>
             <Stat
               value="{card.gihwr.toFixed(1)}%"
               label="GIH Win Rate"
@@ -129,7 +130,7 @@
             <Stat value="{card.ohwr.toFixed(1)}%" label="Opening Hand" variant={wrVariant(card.ohwr, card.set_avg_gihwr)} />
             <Stat value="{card.iwd > 0 ? '+' : ''}{card.iwd.toFixed(1)}pp" label="Impact" variant={card.iwd > 0 ? "positive" : "negative"} />
             <Stat value={card.ata.toFixed(1)} label="Avg Taken At" variant="muted" />
-          </div>
+          </StatRow>
         </Section>
       </Panel>
 
@@ -161,10 +162,4 @@
     animation: fade-slide-in 0.3s ease-out;
   }
 
-  .hero-stats {
-    display: flex;
-    justify-content: space-around;
-    gap: var(--space-md);
-    padding: var(--space-sm) 0;
-  }
 </style>

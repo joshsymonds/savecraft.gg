@@ -10,6 +10,7 @@
   import ProgressRing from "../../../../views/src/components/charts/ProgressRing.svelte";
   import StackedBar from "../../../../views/src/components/charts/StackedBar.svelte";
   import Stat from "../../../../views/src/components/data/Stat.svelte";
+  import StatRow from "../../../../views/src/components/data/StatRow.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import Panel from "../../../../views/src/components/layout/Panel.svelte";
@@ -141,9 +142,9 @@
             variant={threatVariant(surface.evolution_factor)}
             size={100}
           />
-          <div class="hero-stats">
+          <StatRow vertical gap="var(--space-sm)" padding="0">
             <Stat value={`${evoPercent(surface.evolution_factor)}%`} label="Evolution Factor" variant={threatVariant(surface.evolution_factor)} />
-          </div>
+          </StatRow>
         </div>
       </Section>
 
@@ -201,9 +202,4 @@
     justify-content: center;
   }
 
-  .hero-stats {
-    display: flex;
-    flex-direction: column;
-    gap: var(--space-sm);
-  }
 </style>
