@@ -10,6 +10,9 @@ import (
 	"strings"
 )
 
+// pobRespTypeError is the PoB JSON-lines protocol error type.
+const pobRespTypeError = "error"
+
 // Server is the PoB HTTP server.
 type Server struct {
 	pool   *Pool
@@ -223,7 +226,7 @@ func (srv *Server) calcAndRespond(
 		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
 		return
 	}
-	if pobResp.Type == "error" {
+	if pobResp.Type == pobRespTypeError {
 		srv.log.Error("PoB calc error", "message", pobResp.Message)
 		jsonError(
 			writer,
@@ -366,7 +369,7 @@ func (srv *Server) modifyAndRespond(
 		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
 		return
 	}
-	if pobResp.Type == "error" {
+	if pobResp.Type == pobRespTypeError {
 		srv.log.Error("PoB modify error", "message", pobResp.Message)
 		jsonError(
 			writer,
@@ -423,36 +426,19 @@ type nearbyLuaRequest struct {
 	DeltaStats []string `json:"deltaStats"`
 }
 
-// Default delta stats shown alongside the queried metric.
-var defaultDeltaStats = []string{"Life", "CombinedDPS", "EnergyShield"}
-
-func (srv *Server) handleNearby(
-	writer http.ResponseWriter,
-	request *http.Request,
-) {
-	if request.Method != http.MethodPost {
-		jsonError(writer, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if srv.cache.store == nil {
-		jsonError(writer, "build storage not enabled", http.StatusNotImplemented)
-		return
-	}
-
-	request.Body = http.MaxBytesReader(writer, request.Body, maxRequestBodySize)
+// parseNearbyRequest decodes, validates, and applies defaults/clamping to a nearby request.
+func parseNearbyRequest(w http.ResponseWriter, r *http.Request) (NearbyRequest, string) {
+	r.Body = http.MaxBytesReader(w, r.Body, maxRequestBodySize)
 
 	var req NearbyRequest
-	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
-		jsonError(writer, "invalid JSON body", http.StatusBadRequest)
-		return
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		return req, "invalid JSON body"
 	}
 	if req.BuildID == "" {
-		jsonError(writer, "buildId is required", http.StatusBadRequest)
-		return
+		return req, "buildId is required"
 	}
 	if len(req.Metrics) == 0 {
-		jsonError(writer, "at least one metric is required", http.StatusBadRequest)
-		return
+		return req, "at least one metric is required"
 	}
 
 	// Apply defaults and clamp to safe maximums
@@ -470,7 +456,29 @@ func (srv *Server) handleNearby(
 		req.Metrics = req.Metrics[:10]
 	}
 	if len(req.DeltaStats) == 0 {
-		req.DeltaStats = defaultDeltaStats
+		req.DeltaStats = []string{"Life", "CombinedDPS", "EnergyShield"}
+	}
+
+	return req, ""
+}
+
+func (srv *Server) handleNearby(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	if request.Method != http.MethodPost {
+		jsonError(writer, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if srv.cache.store == nil {
+		jsonError(writer, "build storage not enabled", http.StatusNotImplemented)
+		return
+	}
+
+	req, validationErr := parseNearbyRequest(writer, request)
+	if validationErr != "" {
+		jsonError(writer, validationErr, http.StatusBadRequest)
+		return
 	}
 
 	// Look up build XML
@@ -529,7 +537,7 @@ func (srv *Server) handleNearby(
 		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
 		return
 	}
-	if pobResp.Type == "error" {
+	if pobResp.Type == pobRespTypeError {
 		srv.log.Error("PoB nearby error", "message", pobResp.Message)
 		jsonError(writer, "PoB nearby search failed", http.StatusUnprocessableEntity)
 		return

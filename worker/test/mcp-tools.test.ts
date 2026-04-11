@@ -1913,10 +1913,13 @@ describe("buildPlannerModule", () => {
 
   it("returns error for invalid operations JSON", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
-    const result = await buildPlannerModule.execute({ build_id: "abc123", operations: "not json" }, {
-      ...env,
-      POB_URL: "http://localhost:8077",
-    } as unknown as Env);
+    const result = await buildPlannerModule.execute(
+      { build_id: "abc123", operations: "not json" },
+      {
+        ...env,
+        POB_URL: "http://localhost:8077",
+      } as unknown as Env,
+    );
     expect(result).toEqual({ type: "text", content: expect.stringContaining("not valid JSON") });
   });
 
@@ -1973,10 +1976,13 @@ describe("buildPlannerModule", () => {
 
   it("returns error for invalid nearby_metrics JSON", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
-    const result = await buildPlannerModule.execute({ build_id: "abc123", nearby_metrics: "not json" }, {
-      ...env,
-      POB_URL: "http://localhost:8077",
-    } as unknown as Env);
+    const result = await buildPlannerModule.execute(
+      { build_id: "abc123", nearby_metrics: "not json" },
+      {
+        ...env,
+        POB_URL: "http://localhost:8077",
+      } as unknown as Env,
+    );
     expect(result).toEqual({ type: "text", content: expect.stringContaining("not valid JSON") });
   });
 
@@ -1994,23 +2000,32 @@ describe("buildPlannerModule", () => {
 
   it("returns error for nearby_metrics when POB_URL not configured", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
-    const result = await buildPlannerModule.execute({ build_id: "abc123", nearby_metrics: '["Life"]' }, {
-      ...env,
-      POB_URL: undefined,
-    } as unknown as Env);
+    const result = await buildPlannerModule.execute(
+      { build_id: "abc123", nearby_metrics: '["Life"]' },
+      {
+        ...env,
+        POB_URL: undefined,
+      } as unknown as Env,
+    );
     expect(result).toEqual({ type: "text", content: expect.stringContaining("not configured") });
   });
 
   it("returns error for invalid nearby_delta_stats JSON", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
-    const result = await buildPlannerModule.execute({
-      build_id: "abc123",
-      nearby_metrics: '["Life"]',
-      nearby_delta_stats: "not json",
-    }, {
-      ...env,
-      POB_URL: "http://localhost:8077",
-    } as unknown as Env);
-    expect(result).toEqual({ type: "text", content: expect.stringContaining("nearby_delta_stats is not valid JSON") });
+    const result = await buildPlannerModule.execute(
+      {
+        build_id: "abc123",
+        nearby_metrics: '["Life"]',
+        nearby_delta_stats: "not json",
+      },
+      {
+        ...env,
+        POB_URL: "http://localhost:8077",
+      } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("nearby_delta_stats is not valid JSON"),
+    });
   });
 });

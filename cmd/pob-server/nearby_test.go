@@ -151,13 +151,13 @@ func TestNearbyWithMockPoB(t *testing.T) {
 		Limit    int    `json:"limit"`
 		Radius   int    `json:"radius"`
 		Nodes    []struct {
-			Name      string            `json:"name"`
-			Type      string            `json:"type"`
-			Stats     []string          `json:"stats"`
-			PathCost  int               `json:"path_cost"`
-			Path      []string          `json:"path"`
-			Deltas    map[string]float64 `json:"deltas"`
-			Efficiency float64           `json:"efficiency"`
+			Name       string             `json:"name"`
+			Type       string             `json:"type"`
+			Stats      []string           `json:"stats"`
+			PathCost   int                `json:"path_cost"`
+			Path       []string           `json:"path"`
+			Deltas     map[string]float64 `json:"deltas"`
+			Efficiency float64            `json:"efficiency"`
 		} `json:"nodes"`
 	}
 	if err := json.Unmarshal(results[0], &first); err != nil {
