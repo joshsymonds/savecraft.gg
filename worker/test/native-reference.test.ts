@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { queryReference } from "../src/mcp/tools";
+import { getModuleParameters, queryReference } from "../src/mcp/tools";
 import {
   clearNativeRegistry,
   getNativeModule,
@@ -154,7 +154,7 @@ describe("queryReference native routing", () => {
   it("falls through to WfP dispatch when module is not native", async () => {
     // No native module registered for "unknown_game".
     // WfP dispatch will also fail (no Worker deployed), but we verify the
-    // error comes from the WfP path, not native routing.
+    // error directs the LLM to list_games for discovery.
     const result = await queryReference(
       env.REFERENCE_PLUGINS,
       "unknown_game",
@@ -164,8 +164,8 @@ describe("queryReference native routing", () => {
     );
 
     expect(result.isError).toBe(true);
-    // WfP dispatch error message pattern
-    expect(result.content[0]!.text).toMatch(/reference module/i);
+    expect(result.content[0]!.text).toContain('"some_module" not found');
+    expect(result.content[0]!.text).toContain('list_games(filter="unknown_game")');
   });
 
   it("returns ViewToolResult for structured result", async () => {
@@ -236,10 +236,123 @@ describe("queryReference native routing", () => {
     registerNativeModule("testgame", nativeModule);
 
     // Request module_b, which is not registered natively.
-    // Should fall through to WfP dispatch (which will fail in tests).
+    // Should fall through to WfP dispatch (which will fail in tests),
+    // then direct the LLM to list_games for discovery.
     const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "module_b", {}, env);
 
     expect(result.isError).toBe(true);
-    expect(result.content[0]!.text).toMatch(/reference module/i);
+    expect(result.content[0]!.text).toContain('"module_b" not found');
+    expect(result.content[0]!.text).toContain('list_games(filter="testgame")');
+  });
+});
+
+// ── Schema hint on error tests ──────────────────────────────
+
+describe("queryReference schema hint on error", () => {
+  beforeEach(() => {
+    clearNativeRegistry();
+  });
+
+  afterEach(() => {
+    clearNativeRegistry();
+  });
+
+  it("appends parameter schema when native module returns an error", async () => {
+    const moduleWithSchema: NativeReferenceModule = {
+      id: "schema_mod",
+      name: "Schema Module",
+      description: "Module with parameters",
+      parameters: {
+        build: { type: "string", description: "URL to a build" },
+        sections: { type: "string", description: "Sections to include" },
+      },
+      execute: () => {
+        throw new Error("build must be a URL");
+      },
+    };
+    registerNativeModule("testgame", moduleWithSchema);
+
+    const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "schema_mod", {}, env);
+
+    expect(result.isError).toBe(true);
+    const text = result.content[0]!.text;
+    expect(text).toContain("build must be a URL");
+    expect(text).toContain("This module's actual parameters:");
+    expect(text).toContain("build (string): URL to a build");
+    expect(text).toContain("sections (string): Sections to include");
+  });
+
+  it("does not append schema hint on successful result", async () => {
+    const moduleWithSchema: NativeReferenceModule = {
+      id: "ok_mod",
+      name: "OK Module",
+      description: "Returns success",
+      parameters: {
+        query: { type: "string", description: "Search query" },
+      },
+      execute: () => Promise.resolve({ type: "text", content: "result: ok" }),
+    };
+    registerNativeModule("testgame", moduleWithSchema);
+
+    const result = await queryReference(
+      env.REFERENCE_PLUGINS,
+      "testgame",
+      "ok_mod",
+      { query: "test" },
+      env,
+    );
+
+    expect(result.isError).toBeFalsy();
+    expect(result.content[0]!.text).toBe("result: ok");
+    expect(result.content[0]!.text).not.toContain("actual parameters");
+  });
+
+  it("does not append schema when module has no parameters", async () => {
+    const noParameterModule: NativeReferenceModule = {
+      id: "noparam_mod",
+      name: "No Params",
+      description: "No parameters defined",
+      execute: () => {
+        throw new Error("something went wrong");
+      },
+    };
+    registerNativeModule("testgame", noParameterModule);
+
+    const result = await queryReference(env.REFERENCE_PLUGINS, "testgame", "noparam_mod", {}, env);
+
+    expect(result.isError).toBe(true);
+    expect(result.content[0]!.text).toContain("something went wrong");
+    expect(result.content[0]!.text).not.toContain("actual parameters");
+  });
+});
+
+// ── getModuleParameters tests ───────────────────────────────
+
+describe("getModuleParameters", () => {
+  beforeEach(() => {
+    clearNativeRegistry();
+  });
+
+  afterEach(() => {
+    clearNativeRegistry();
+  });
+
+  it("returns parameters for a registered native module", () => {
+    const mod: NativeReferenceModule = {
+      id: "param_mod",
+      name: "Param Module",
+      description: "Has params",
+      parameters: { q: { type: "string", description: "query" } },
+      execute: () => Promise.resolve({ type: "text", content: "" }),
+    };
+    registerNativeModule("testgame", mod);
+
+    expect(getModuleParameters("testgame", "param_mod")).toEqual({
+      q: { type: "string", description: "query" },
+    });
+  });
+
+  it("returns undefined for unregistered module with no manifest", () => {
+    expect(getModuleParameters("nonexistent", "nonexistent")).toBeUndefined();
   });
 });

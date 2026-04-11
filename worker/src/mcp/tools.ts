@@ -1038,6 +1038,48 @@ export async function searchSaves(
 
 // ── Reference Data ───────────────────────────────────────────
 
+/** Look up the parameter schema for any module (native or WASM). */
+export function getModuleParameters(
+  gameId: string,
+  moduleId: string,
+): Record<string, unknown> | undefined {
+  const nativeModule = getNativeModule(gameId, moduleId);
+  if (nativeModule?.parameters) return nativeModule.parameters;
+  return MANIFESTS.get(gameId)?.reference?.modules?.[moduleId]?.parameters;
+}
+
+/** Format a parameter schema as a compact hint string for error responses. */
+function formatSchemaHint(gameId: string, moduleId: string): string {
+  const params = getModuleParameters(gameId, moduleId);
+  if (!params) return "";
+  const lines = Object.entries(params).map(([name, schema]) => {
+    const s = schema as { type?: string; description?: string };
+    const desc = s.description ? `: ${s.description}` : "";
+    return `  ${name} (${s.type ?? "string"})${desc}`;
+  });
+  return `\n\nThis module's actual parameters:\n${lines.join("\n")}`;
+}
+
+/** Append schema hint to an error result so the LLM can self-correct. */
+function withSchemaHint(result: ToolResult, gameId: string, moduleId: string): ToolResult {
+  if (!result.isError) return result;
+  const hint = formatSchemaHint(gameId, moduleId);
+  if (!hint) return result;
+  const text = result.content[0];
+  if (text?.type === "text") {
+    return { ...result, content: [{ type: "text", text: text.text + hint }] };
+  }
+  return result;
+}
+
+/** Error message when a module doesn't exist — directs the LLM to discover available modules. */
+function moduleNotFoundError(gameId: string, moduleId: string): ToolResult {
+  return errorResult(
+    `Reference module "${moduleId}" not found for game "${gameId}". ` +
+      `Call list_games(filter="${gameId}") to see available reference modules and their parameter schemas.`,
+  );
+}
+
 /** Execute a native reference module and wrap the result as a ToolResult. */
 async function executeNativeModule(
   nativeModule: NativeReferenceModule,
@@ -1064,11 +1106,14 @@ export async function queryReference(
   query: Record<string, unknown>,
   env?: Env,
 ): Promise<ToolResult | ViewToolResult> {
+  const addHint = (r: ToolResult): ToolResult => withSchemaHint(r, gameId, module);
+
   // Check native module registry first — native modules run in-process
   // with full platform bindings (D1, Vectorize, Workers AI).
   const nativeModule = getNativeModule(gameId, module);
   if (nativeModule && env) {
-    return executeNativeModule(nativeModule, query, env);
+    const result = await executeNativeModule(nativeModule, query, env);
+    return "isError" in result && result.isError ? addHint(result as ToolResult) : result;
   }
 
   // Fall through to Workers for Platforms dispatch for WASM modules.
@@ -1076,9 +1121,7 @@ export async function queryReference(
   try {
     plugin = referencePlugins.get(`${gameId}-reference`);
   } catch {
-    return errorResult(
-      `No reference module found for game "${gameId}". Check the game listing for available games and their reference modules.`,
-    );
+    return moduleNotFoundError(gameId, module);
   }
 
   const queryBody = { ...query, module };
@@ -1093,9 +1136,7 @@ export async function queryReference(
       }),
     );
   } catch {
-    return errorResult(
-      `Reference module for "${gameId}" is not available. It may not be deployed yet. Check the game listing for available games and their reference modules.`,
-    );
+    return moduleNotFoundError(gameId, module);
   }
 
   const text = await response.text();
@@ -1105,12 +1146,12 @@ export async function queryReference(
     try {
       const parsed = JSON.parse(text.trim()) as { type: string; message?: string };
       if (parsed.message) {
-        return errorResult(`Reference module error: ${parsed.message}`);
+        return addHint(errorResult(`Reference module error: ${parsed.message}`));
       }
     } catch {
       // Not valid JSON — return raw
     }
-    return errorResult(`Reference module returned an error: ${text.trim()}`);
+    return addHint(errorResult(`Reference module returned an error: ${text.trim()}`));
   }
 
   return parseWasmResponse(text);

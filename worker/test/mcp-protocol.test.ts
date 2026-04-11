@@ -450,7 +450,8 @@ describe("MCP Protocol", () => {
     };
     // Single-query errors are surfaced directly
     expect(body.result.isError).toBe(true);
-    expect(body.result.content![0]!.text).toContain("No reference module found");
+    expect(body.result.content![0]!.text).toContain('"drop_calc" not found');
+    expect(body.result.content![0]!.text).toContain('list_games(filter="nonexistent")');
   });
 
   it("query_reference rejects empty queries array", async () => {
