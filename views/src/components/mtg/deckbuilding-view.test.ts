@@ -52,6 +52,71 @@ describe("Deckbuilding view", () => {
     });
   });
 
+  describe("constructed", () => {
+    const constructed = {
+      mode: "constructed",
+      format: "standard",
+      total_cards: 60,
+      composition: { creatures: 25, noncreatures: 11, lands: 24 },
+      sideboard_count: 15,
+      curve: [
+        { cmc: 1, count: 8 },
+        { cmc: 2, count: 11 },
+        { cmc: 3, count: 4 },
+      ],
+      mana: {
+        pip_distribution: { W: 18, U: 14 },
+        colors: [
+          { color: "W", color_name: "White", sources_needed: 16, sources_actual: 14, surplus: -2, status: "warning", most_demanding: "The Wandering Emperor", cost_pattern: "2WW", is_gold_adjusted: false },
+          { color: "U", color_name: "Blue", sources_needed: 14, sources_actual: 15, surplus: 1, status: "good", most_demanding: "No More Lies", cost_pattern: "WU", is_gold_adjusted: true },
+        ],
+        swap_suggestions: [
+          { cut: "Plains", add: "Azorius Chancery", reason: "Adds a Blue source" },
+        ],
+      },
+    };
+
+    it("renders composition stats", () => {
+      const { container } = render(Deckbuilding, { props: { data: constructed } });
+      expect(container.textContent).toContain("60");
+      expect(container.textContent).toContain("25");
+      expect(container.textContent).toContain("Creatures");
+      expect(container.textContent).toContain("Lands");
+    });
+
+    it("renders legality badge when format provided", () => {
+      const { container } = render(Deckbuilding, { props: { data: constructed } });
+      expect(container.textContent).toContain("All legal in standard");
+    });
+
+    it("renders illegal cards as badges", () => {
+      const data = {
+        ...constructed,
+        illegal_cards: [{ name: "Smuggler's Copter", status: "not_legal" }],
+      };
+      const { container } = render(Deckbuilding, { props: { data } });
+      expect(container.textContent).toContain("Smuggler's Copter");
+      expect(container.textContent).toContain("not_legal");
+    });
+
+    it("renders mana curve bar chart", () => {
+      const { container } = render(Deckbuilding, { props: { data: constructed } });
+      expect(container.querySelector(".bar-chart")).not.toBeNull();
+    });
+
+    it("renders mana base sources", () => {
+      const { container } = render(Deckbuilding, { props: { data: constructed } });
+      expect(container.textContent).toContain("White");
+      expect(container.textContent).toContain("Blue");
+    });
+
+    it("renders swap suggestions as timeline", () => {
+      const { container } = render(Deckbuilding, { props: { data: constructed } });
+      expect(container.textContent).toContain("Plains");
+      expect(container.textContent).toContain("Azorius Chancery");
+    });
+  });
+
   describe("cut advisor", () => {
     it("renders cut candidates", () => {
       const { container } = render(Deckbuilding, { props: { data: cutAdvisor } });
