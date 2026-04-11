@@ -2000,4 +2000,17 @@ describe("buildPlannerModule", () => {
     } as unknown as Env);
     expect(result).toEqual({ type: "text", content: expect.stringContaining("not configured") });
   });
+
+  it("returns error for invalid nearby_delta_stats JSON", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({
+      build_id: "abc123",
+      nearby_metrics: '["Life"]',
+      nearby_delta_stats: "not json",
+    }, {
+      ...env,
+      POB_URL: "http://localhost:8077",
+    } as unknown as Env);
+    expect(result).toEqual({ type: "text", content: expect.stringContaining("nearby_delta_stats is not valid JSON") });
+  });
 });

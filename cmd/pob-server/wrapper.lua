@@ -766,6 +766,9 @@ end
 local function applyEquipUnique(op)
 	if not op.name then return "equip_unique: missing 'name'" end
 	if not op.slot then return "equip_unique: missing 'slot'" end
+	if op.slot:match("^Flask %d$") then
+		return "equip_unique: use equip_flask for Flask slots"
+	end
 	ensureUniqueIndex()
 	local entry = uniqueIndex[op.name:lower()]
 	if not entry then return "equip_unique: unique not found: " .. op.name end
