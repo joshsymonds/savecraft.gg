@@ -1,6 +1,7 @@
 import { env, SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { MANIFEST_LIST } from "../src/mcp/manifests.gen";
 import { clearNativeRegistry, registerNativeModule } from "../src/reference/registry";
 import type { NativeReferenceModule } from "../src/reference/types";
 
@@ -183,6 +184,29 @@ describe("MCP Protocol", () => {
       "show_save",
       "update_note",
     ]);
+  });
+
+  it("includes every manifest game_id in list_games and show_games descriptions", async () => {
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(mcpRequest("tools/list", 2));
+    const body = (await parseJsonResponse(resp)) as {
+      result: { tools: { name: string; description: string }[] };
+    };
+
+    const listGames = body.result.tools.find((t) => t.name === "list_games")!;
+    const showGames = body.result.tools.find((t) => t.name === "show_games")!;
+
+    for (const manifest of MANIFEST_LIST) {
+      expect(listGames.description).toContain(manifest.game_id);
+      expect(showGames.description).toContain(manifest.game_id);
+    }
   });
 
   it("omits domain from tools _meta.ui (host-dependent field)", async () => {

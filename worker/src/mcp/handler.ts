@@ -14,6 +14,7 @@ import {
 } from "../reference/section-resolution";
 import type { Env } from "../types";
 
+import { MANIFEST_LIST } from "./manifests.gen.js";
 import {
   createNote,
   deleteNote,
@@ -33,13 +34,12 @@ import {
   type ViewToolResult,
 } from "./tools.js";
 import { VIEWS, VISUAL_MODULES } from "./views.gen.js";
-import { MANIFEST_LIST } from "./manifests.gen.js";
 
 const PROTOCOL_VERSION = "2025-06-18";
 
 /** Generated game_id hint for tool descriptions — e.g. "poe (Path of Exile), mtga (Magic: The Gathering), ..." */
-const GAME_ID_HINT = MANIFEST_LIST.map(
-  (m) => (m.name ? `${m.game_id} (${m.name})` : m.game_id),
+const GAME_ID_HINT = MANIFEST_LIST.map((m) =>
+  m.name ? `${m.game_id} (${m.name})` : m.game_id,
 ).join(", ");
 
 const SERVER_INSTRUCTIONS = `Savecraft gives you access to the player's live game state — characters, gear, progress — parsed from save files, and authoritative game reference data — rules, items, builds, economy prices — from curated databases updated every patch. You are their gaming companion and rules expert.
@@ -385,7 +385,7 @@ const TOOLS: ToolDefinition[] = [
     name: "query_reference",
     title: "Query Game Reference Data",
     description:
-      "Query authoritative game reference data — rules, items, builds, drop rates, economy prices. You MUST call list_games(filter=...) first to load parameter schemas — calling without schemas will return errors. If the module has visual=true (shown in list_games output), use show_reference instead — query_reference returns raw data only. Use this tool when the module has no visual component or you need raw data for a sentence-length answer. Batch multiple queries per call (max 50) — each query targets one module and has its own parameters. Modules accepting card/deck lists can also take a section reference (deck_section + save_id) — get valid section names from get_save first.",
+      "Query authoritative game reference data — rules, items, builds, drop rates, economy prices — as raw data. You MUST call show_games(filter=...) or list_games(filter=...) first to load parameter schemas — calling without schemas will return errors. If the module has visual=true, use show_reference instead — this tool returns raw data only. Use when the module has no visual component or you need raw data for a sentence-length answer. Batch multiple queries per call (max 50) — each query targets one module and has its own parameters. Modules accepting card/deck lists can also take a section reference (deck_section + save_id) — get valid section names from get_save first.",
     inputSchema: {
       type: "object",
       properties: {
@@ -472,7 +472,7 @@ const TOOLS: ToolDefinition[] = [
     name: "show_reference",
     title: "Show Game Reference Visually",
     description:
-      "Interactive visual display of reference data — charts, tables, dashboards. Default choice for any reference query when the module has visual=true. You MUST call list_games(filter=...) first to load parameter schemas — calling without schemas will return errors. Same parameters as query_reference. The player sees a richer result and you can still narrate around it.",
+      "Query authoritative game reference data — rules, items, builds, drop rates, economy prices — rendered as interactive charts, tables, and dashboards. You MUST call show_games(filter=...) or list_games(filter=...) first to load parameter schemas — calling without schemas will return errors. Default choice when the module has visual=true. Batch multiple queries per call (max 50) — each query targets one module and has its own parameters. The player sees a richer result and you can still narrate around it.",
     inputSchema: {
       type: "object",
       properties: {
@@ -482,7 +482,7 @@ const TOOLS: ToolDefinition[] = [
         },
         module: {
           type: "string",
-          description: "Reference module ID. Must be a visual module (see query_reference schema).",
+          description: "Reference module ID — must have visual=true in the game listing.",
         },
         queries: {
           type: "array",
@@ -513,14 +513,13 @@ const TOOLS: ToolDefinition[] = [
   {
     name: "show_games",
     title: "Show Connected Games",
-    description:
-      "Visual card layout of the player's games, saves, characters, and reference modules. Default choice when the player asks to see their games or during onboarding. Renders game icons, character summaries, and available reference modules as interactive cards.",
+    description: `CALL FIRST when the player asks about ANY game mechanic, rule, item, or build — Savecraft has authoritative reference data that is more current than your training data. Do not answer game questions from memory without checking here first. Reference modules work without saves — no setup needed. Returns all games, saves, notes, and reference modules as interactive visual cards. Pass a filter to get full parameter schemas before calling query_reference or show_reference. Supported games: ${GAME_ID_HINT}. Call with no filter to see all.`,
     inputSchema: {
       type: "object",
       properties: {
         filter: {
           type: "string",
-          description: "Optional game name or ID to filter results.",
+          description: `Filter by game name or ID (case-insensitive substring). Supported game_ids: ${GAME_ID_HINT}. Omit to see all games.`,
         },
       },
     },
