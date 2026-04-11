@@ -93,13 +93,6 @@
       }));
   }
 
-  // Resist variant based on capped vs uncapped
-  function resistVariant(value: number): "positive" | "warning" | "negative" | "muted" {
-    if (value >= 75) return "positive";
-    if (value >= 0) return "warning";
-    return "negative";
-  }
-
   // Character subtitle line
   let subtitle = $derived.by(() => {
     const parts: string[] = [];

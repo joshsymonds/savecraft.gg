@@ -188,12 +188,12 @@ func TestNearbyWithMockPoB(t *testing.T) {
 }
 
 func TestNearbyAppliesDefaults(t *testing.T) {
-	// Mock script that echoes back the request so we can inspect what was sent
+	// Mock script echoes the request JSON back as the response data,
+	// so we can verify the Go handler applied defaults before forwarding.
 	mockScript := filepath.Join(t.TempDir(), "mock-nearby-echo.sh")
-	// The script reads the JSON request, extracts fields, and returns them in the response
 	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
 read line
-echo "{\"type\":\"result\",\"data\":[]}"
+echo "{\"type\":\"result\",\"data\":$line}"
 `), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -238,9 +238,101 @@ echo "{\"type\":\"result\",\"data\":[]}"
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	// Response is valid (defaults applied server-side, Lua receives them)
-	var results []json.RawMessage
-	if err := json.Unmarshal(rec.Body.Bytes(), &results); err != nil {
-		t.Fatalf("response is not a JSON array: %v", err)
+	// The mock echoed back the Lua request — verify defaults were applied
+	var echoed struct {
+		Type       string   `json:"type"`
+		Radius     int      `json:"radius"`
+		Limit      int      `json:"limit"`
+		DeltaStats []string `json:"deltaStats"`
+		Metrics    []string `json:"metrics"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &echoed); err != nil {
+		t.Fatalf("failed to parse echoed request: %v", err)
+	}
+
+	if echoed.Type != "nearby" {
+		t.Errorf("expected type 'nearby', got %q", echoed.Type)
+	}
+	if echoed.Radius != 5 {
+		t.Errorf("expected default radius 5, got %d", echoed.Radius)
+	}
+	if echoed.Limit != 10 {
+		t.Errorf("expected default limit 10, got %d", echoed.Limit)
+	}
+	if len(echoed.DeltaStats) != 3 {
+		t.Errorf("expected 3 default deltaStats, got %d", len(echoed.DeltaStats))
+	}
+	if len(echoed.Metrics) != 1 || echoed.Metrics[0] != "Life" {
+		t.Errorf("expected metrics [Life], got %v", echoed.Metrics)
+	}
+}
+
+func TestNearbyClampsCrazyValues(t *testing.T) {
+	// Mock echoes back the request to verify clamping
+	mockScript := filepath.Join(t.TempDir(), "mock-nearby-clamp.sh")
+	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
+read line
+echo "{\"type\":\"result\",\"data\":$line}"
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	defer pool.Shutdown()
+
+	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    time.Now,
+		cancel:     func() {},
+		store:      store,
+	}
+
+	xml := "<PathOfBuilding/>"
+	buildID := cache.Put(xml)
+	_ = store.Put(buildID, xml, `{}`, "", "")
+
+	srv := &Server{pool: pool, cache: cache, log: logger}
+
+	// Send absurd radius and limit
+	body := `{"buildId":"` + buildID + `","metrics":["Life","ES","DPS","Armour","Evasion","Block","Suppress","Str","Dex","Int","Extra1","Extra2"],"radius":999,"limit":999}`
+	req := httptest.NewRequest(http.MethodPost, "/nearby", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.handleNearby(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var echoed struct {
+		Radius  int      `json:"radius"`
+		Limit   int      `json:"limit"`
+		Metrics []string `json:"metrics"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &echoed); err != nil {
+		t.Fatalf("failed to parse echoed request: %v", err)
+	}
+
+	if echoed.Radius != 15 {
+		t.Errorf("expected clamped radius 15, got %d", echoed.Radius)
+	}
+	if echoed.Limit != 50 {
+		t.Errorf("expected clamped limit 50, got %d", echoed.Limit)
+	}
+	if len(echoed.Metrics) != 10 {
+		t.Errorf("expected clamped metrics to 10, got %d", len(echoed.Metrics))
 	}
 }

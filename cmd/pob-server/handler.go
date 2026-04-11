@@ -455,12 +455,19 @@ func (srv *Server) handleNearby(
 		return
 	}
 
-	// Apply defaults
+	// Apply defaults and clamp to safe maximums
 	if req.Radius <= 0 {
 		req.Radius = 5
+	} else if req.Radius > 15 {
+		req.Radius = 15
 	}
 	if req.Limit <= 0 {
 		req.Limit = 10
+	} else if req.Limit > 50 {
+		req.Limit = 50
+	}
+	if len(req.Metrics) > 10 {
+		req.Metrics = req.Metrics[:10]
 	}
 	if len(req.DeltaStats) == 0 {
 		req.DeltaStats = defaultDeltaStats
