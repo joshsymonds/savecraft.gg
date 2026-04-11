@@ -159,32 +159,6 @@ async function fetchNotesBySave(
   return notesBySave;
 }
 
-/** Group saves into a game map, applying optional filter. */
-function groupSavesByGame(
-  saves: SaveRow[],
-  notesBySave: Map<string, { note_id: string; title: string }[]>,
-  filter?: string,
-): Map<string, GameEntry> {
-  const gameMap = new Map<string, GameEntry>();
-  for (const row of saves) {
-    const gameName = row.game_name || row.game_id;
-    if (filter && !matchesGameFilter(row.game_id, gameName, filter)) continue;
-
-    let game = gameMap.get(row.game_id);
-    if (!game) {
-      game = { game_id: row.game_id, game_name: gameName, saves: [] };
-      gameMap.set(row.game_id, game);
-    }
-    game.saves.push({
-      save_id: row.uuid,
-      name: row.save_name,
-      summary: row.summary,
-      last_updated: relativeTime(row.last_updated),
-      notes: notesBySave.get(row.uuid) ?? [],
-    });
-  }
-  return gameMap;
-}
 
 /** Resolve a game's icon URL from its embedded manifest. */
 export function resolveIconUrl(serverUrl: string, gameId: string): string | undefined {
@@ -245,21 +219,6 @@ function mergeNativeIntoGame(game: GameEntry, gameId: string, filtered: boolean)
   }
 }
 
-function mergeNativeModules(
-  gameMap: Map<string, GameEntry>,
-  filter: string | undefined,
-  filtered: boolean,
-): void {
-  for (const gameId of getNativeGameIds()) {
-    let game = gameMap.get(gameId);
-    if (!game) {
-      if (filter && !matchesGameFilter(gameId, gameId, filter)) continue;
-      game = { game_id: gameId, game_name: gameId, saves: [] };
-      gameMap.set(gameId, game);
-    }
-    mergeNativeIntoGame(game, gameId, filtered);
-  }
-}
 
 /** Enrich a single game entry from its manifest data. When filtered, include full parameter schemas. */
 function enrichFromManifest(
@@ -272,9 +231,9 @@ function enrichFromManifest(
 ): void {
   const manifestGameName = data.name ?? data.game_id;
 
-  // Update stale game names from manifest (fire-and-forget D1 update)
-  if (data.name && game.game_name !== manifestGameName) {
-    game.game_name = manifestGameName;
+  // Correct stale game names in D1 (fire-and-forget — the SQL WHERE filters no-ops)
+  game.game_name = manifestGameName;
+  if (data.name) {
     void db
       .prepare(
         "UPDATE saves SET game_name = ? WHERE game_id = ? AND game_name != ? AND user_uuid = ?",
@@ -305,26 +264,38 @@ function enrichFromManifest(
   }
 }
 
-/** Attach reference modules from embedded manifests to game entries the user owns. */
-function attachReferenceModules(
+/** Build game map from all known sources: manifests and native modules. Games with reference modules get entries regardless of whether the user has saves. */
+function buildGameCatalog(
   db: D1Database,
-  gameMap: Map<string, GameEntry>,
   userUuid: string,
   filter?: string,
   serverUrl?: string,
-): void {
+): Map<string, GameEntry> {
+  const gameMap = new Map<string, GameEntry>();
+  const filtered = !!filter;
+
+  // All manifest games get catalog entries — enrichFromManifest provides name, icon, description, and WASM reference modules
   for (const data of MANIFEST_LIST) {
     const manifestGameName = data.name ?? data.game_id;
     if (filter && !matchesGameFilter(data.game_id, manifestGameName, filter)) continue;
 
-    // Only enrich games the user already has saves for — don't create phantom entries.
-    const game = gameMap.get(data.game_id);
-    if (!game) continue;
-
-    enrichFromManifest(db, game, data, userUuid, !!filter, serverUrl);
+    const game: GameEntry = { game_id: data.game_id, game_name: manifestGameName, saves: [] };
+    gameMap.set(data.game_id, game);
+    enrichFromManifest(db, game, data, userUuid, filtered, serverUrl);
   }
 
-  mergeNativeModules(gameMap, filter, !!filter);
+  // Native modules: create or merge into entries for games with registered native modules
+  for (const gameId of getNativeGameIds()) {
+    let game = gameMap.get(gameId);
+    if (!game) {
+      if (filter && !matchesGameFilter(gameId, gameId, filter)) continue;
+      game = { game_id: gameId, game_name: gameId, saves: [] };
+      gameMap.set(gameId, game);
+    }
+    mergeNativeIntoGame(game, gameId, filtered);
+  }
+
+  return gameMap;
 }
 
 export async function listGames(
@@ -333,6 +304,9 @@ export async function listGames(
   filter?: string,
   serverUrl?: string,
 ): Promise<ToolResult> {
+  // Start from the full game catalog (manifests + native modules), then layer user data on top
+  const gameMap = buildGameCatalog(db, userUuid, filter, serverUrl);
+
   const [saveRows, notesBySave, removedRows] = await Promise.all([
     db
       .prepare(
@@ -349,7 +323,24 @@ export async function listGames(
       .all<{ game_id: string; save_name: string }>(),
   ]);
 
-  const gameMap = groupSavesByGame(saveRows.results, notesBySave, filter);
+  // Attach saves to their game entries
+  for (const row of saveRows.results) {
+    const gameName = row.game_name || row.game_id;
+    if (filter && !matchesGameFilter(row.game_id, gameName, filter)) continue;
+
+    let game = gameMap.get(row.game_id);
+    if (!game) {
+      game = { game_id: row.game_id, game_name: gameName, saves: [] };
+      gameMap.set(row.game_id, game);
+    }
+    game.saves.push({
+      save_id: row.uuid,
+      name: row.save_name,
+      summary: row.summary,
+      last_updated: relativeTime(row.last_updated),
+      notes: notesBySave.get(row.uuid) ?? [],
+    });
+  }
 
   // Attach removed save names per game
   for (const row of removedRows.results) {
@@ -359,8 +350,6 @@ export async function listGames(
       game.removed_saves.push(row.save_name);
     }
   }
-
-  attachReferenceModules(db, gameMap, userUuid, filter, serverUrl);
 
   const games = [...gameMap.values()];
   if (filter && games.length === 0) {

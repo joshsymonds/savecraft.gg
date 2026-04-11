@@ -191,15 +191,17 @@ describe("MCP Tools", () => {
 
       const result = await listGames(env.DB, USER_A);
       const data = parseResult(result) as { games: GameEntry[] };
-      expect(data.games).toHaveLength(2);
-
-      const gameIds = data.games.map((g) => g.game_id).toSorted((a, b) => a.localeCompare(b));
-      expect(gameIds).toEqual(["d2r", "stardew"]);
 
       const d2r = data.games.find((g) => g.game_id === "d2r")!;
+      expect(d2r).toBeDefined();
       expect(d2r.game_name).toBe("Diablo II: Resurrected");
       expect(d2r.saves).toHaveLength(1);
       expect(d2r.saves[0]!.name).toBe("Hammerdin");
+
+      const stardew = data.games.find((g) => g.game_id === "stardew");
+      expect(stardew).toBeDefined();
+      expect(stardew!.saves).toHaveLength(1);
+      expect(stardew!.saves[0]!.name).toBe("Berry Farm");
     });
 
     it("includes note titles per save", async () => {
@@ -373,7 +375,7 @@ describe("MCP Tools", () => {
         summary: "Level 90 Warrior",
       });
 
-      // Embedded manifest has name: "World of Warcraft" — attachReferenceModules corrects the stale name
+      // Catalog entry from manifest has name: "World of Warcraft" — enrichFromManifest corrects stale D1 data
 
       const result = await listGames(env.DB, USER_A);
       const data = parseResult(result) as { games: GameEntry[] };
@@ -460,8 +462,9 @@ describe("MCP Tools", () => {
       const result = await listGames(env.DB, USER_A);
       expect("structuredContent" in result).toBe(false);
       const data = JSON.parse(result.content[0]!.text) as { games: GameEntry[] };
-      expect(data.games).toHaveLength(1);
-      expect(data.games[0]!.game_id).toBe("d2r");
+      const d2r = data.games.find((g) => g.game_id === "d2r");
+      expect(d2r).toBeDefined();
+      expect(d2r!.saves).toHaveLength(1);
     });
   });
 
