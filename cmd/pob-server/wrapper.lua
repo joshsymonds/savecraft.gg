@@ -596,7 +596,7 @@ local function handleCalc(request)
 	runCallback("OnFrame")
 
 	-- Serialize results into grouped sections
-	local grouped = serializeSections(build, request.nearby_radius)
+	local grouped = serializeSections(build, request.nearbyRadius)
 	local result = {
 		type = "result",
 		data = {
@@ -908,7 +908,7 @@ local function handleModify(request)
 	local modifiedXml = build:SaveDB("modified")
 
 	-- Serialize results into grouped sections (same as handleCalc)
-	local grouped = serializeSections(build, request.nearby_radius)
+	local grouped = serializeSections(build, request.nearbyRadius)
 
 	-- Include allocation log if any allocate_node operations ran
 	if #allocationLog > 0 then

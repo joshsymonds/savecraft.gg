@@ -29,7 +29,7 @@ type CalcRequest struct {
 type calcLuaRequest struct {
 	Type         string `json:"type"`
 	XML          string `json:"xml"`
-	NearbyRadius int    `json:"nearby_radius,omitempty"`
+	NearbyRadius int    `json:"nearbyRadius,omitempty"`
 }
 
 // calcResponse wraps the PoB result with a buildId for caching.
@@ -272,7 +272,7 @@ type modifyLuaRequest struct {
 	Type         string            `json:"type"`
 	XML          string            `json:"xml"`
 	Operations   []json.RawMessage `json:"operations"`
-	NearbyRadius int               `json:"nearby_radius,omitempty"`
+	NearbyRadius int               `json:"nearbyRadius,omitempty"`
 }
 
 type modifyLuaResponse struct {
