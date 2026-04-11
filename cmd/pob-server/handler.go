@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
-	"strconv"
 	"strings"
 )
 
@@ -406,6 +405,134 @@ func (srv *Server) modifyAndRespond(
 	})
 }
 
+// NearbyRequest is the JSON body for POST /nearby.
+type NearbyRequest struct {
+	BuildID    string   `json:"buildId"`
+	Metrics    []string `json:"metrics"`
+	Radius     int      `json:"radius"`
+	Limit      int      `json:"limit"`
+	DeltaStats []string `json:"deltaStats"`
+}
+
+type nearbyLuaRequest struct {
+	Type       string   `json:"type"`
+	XML        string   `json:"xml"`
+	Metrics    []string `json:"metrics"`
+	Radius     int      `json:"radius"`
+	Limit      int      `json:"limit"`
+	DeltaStats []string `json:"deltaStats"`
+}
+
+// Default delta stats shown alongside the queried metric.
+var defaultDeltaStats = []string{"Life", "CombinedDPS", "EnergyShield"}
+
+func (srv *Server) handleNearby(
+	writer http.ResponseWriter,
+	request *http.Request,
+) {
+	if request.Method != http.MethodPost {
+		jsonError(writer, "method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+	if srv.cache.store == nil {
+		jsonError(writer, "build storage not enabled", http.StatusNotImplemented)
+		return
+	}
+
+	request.Body = http.MaxBytesReader(writer, request.Body, maxRequestBodySize)
+
+	var req NearbyRequest
+	if err := json.NewDecoder(request.Body).Decode(&req); err != nil {
+		jsonError(writer, "invalid JSON body", http.StatusBadRequest)
+		return
+	}
+	if req.BuildID == "" {
+		jsonError(writer, "buildId is required", http.StatusBadRequest)
+		return
+	}
+	if len(req.Metrics) == 0 {
+		jsonError(writer, "at least one metric is required", http.StatusBadRequest)
+		return
+	}
+
+	// Apply defaults
+	if req.Radius <= 0 {
+		req.Radius = 5
+	}
+	if req.Limit <= 0 {
+		req.Limit = 10
+	}
+	if len(req.DeltaStats) == 0 {
+		req.DeltaStats = defaultDeltaStats
+	}
+
+	// Look up build XML
+	xml, err := srv.cache.Get(req.BuildID)
+	if err != nil {
+		if errors.Is(err, ErrBuildNotFound) {
+			jsonError(writer, "build not found", http.StatusNotFound)
+			return
+		}
+		srv.log.Error("cache get error", "id", req.BuildID, "err", err)
+		jsonError(writer, "failed to retrieve build", http.StatusInternalServerError)
+		return
+	}
+
+	proc, err := srv.pool.Acquire()
+	if err != nil {
+		if errors.Is(err, ErrPoolExhausted) {
+			jsonError(
+				writer,
+				"all PoB processes are busy, try again later",
+				http.StatusServiceUnavailable,
+			)
+			return
+		}
+		srv.log.Error("pool acquire error", "err", err)
+		jsonError(writer, "failed to acquire PoB process", http.StatusInternalServerError)
+		return
+	}
+	defer srv.pool.Release(proc)
+
+	response, err := proc.Send(nearbyLuaRequest{
+		Type:       "nearby",
+		XML:        xml,
+		Metrics:    req.Metrics,
+		Radius:     req.Radius,
+		Limit:      req.Limit,
+		DeltaStats: req.DeltaStats,
+	})
+	if err != nil {
+		srv.log.Error("process send error", "err", err)
+		jsonError(
+			writer,
+			"PoB process error — check server logs for details",
+			http.StatusInternalServerError,
+		)
+		return
+	}
+
+	var pobResp struct {
+		Type    string          `json:"type"`
+		Message string          `json:"message,omitempty"`
+		Data    json.RawMessage `json:"data,omitempty"`
+	}
+	if err := json.Unmarshal(response, &pobResp); err != nil {
+		srv.log.Error("failed to parse PoB response", "err", err)
+		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
+		return
+	}
+	if pobResp.Type == "error" {
+		srv.log.Error("PoB nearby error", "message", pobResp.Message)
+		jsonError(writer, "PoB nearby search failed", http.StatusUnprocessableEntity)
+		return
+	}
+
+	// Return the data array directly — no wrapping, no caching
+	writer.Header().Set("Content-Type", "application/json")
+	_, _ = writer.Write(pobResp.Data)
+}
+
 // httpClient returns the server's HTTP client, defaulting to http.DefaultClient.
 func (srv *Server) httpClient() *http.Client {
 	if srv.client != nil {
@@ -506,20 +633,6 @@ func parseSections(r *http.Request) []string {
 		return nil
 	}
 	return result
-}
-
-// parseNearbyRadius reads the "nearby_radius" query parameter.
-// Returns 0 if absent or invalid (Lua defaults to 5).
-func parseNearbyRadius(r *http.Request) int {
-	raw := r.URL.Query().Get("nearby_radius")
-	if raw == "" {
-		return 0
-	}
-	n, err := strconv.Atoi(raw)
-	if err != nil || n < 1 {
-		return 0
-	}
-	return n
 }
 
 // filterSections modifies the PoB data JSON to control which sections are
