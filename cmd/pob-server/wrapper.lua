@@ -77,6 +77,74 @@ log("PoB loaded successfully")
 -- JSON library is available from PoB's runtime
 local dkjson = require("dkjson")
 
+-- =========================================================================
+-- Human-readable label mappings for PoB internal values
+-- =========================================================================
+
+local banditLabels = {
+	None = "Kill All",
+	Oak = "Help Oak",
+	Kraityn = "Help Kraityn",
+	Alira = "Help Alira",
+}
+
+local pantheonMajorLabels = {
+	None = "None",
+	TheBrineKing = "Soul of the Brine King",
+	Lunaris = "Soul of Lunaris",
+	Solaris = "Soul of Solaris",
+	Arakaali = "Soul of Arakaali",
+}
+
+local pantheonMinorLabels = {
+	None = "None",
+	Gruthkul = "Soul of Gruthkul",
+	Yugul = "Soul of Yugul",
+	Abberath = "Soul of Abberath",
+	Tukohama = "Soul of Tukohama",
+	Garukhan = "Soul of Garukhan",
+	Ralakesh = "Soul of Ralakesh",
+	Ryslatha = "Soul of Ryslatha",
+	Shakari = "Soul of Shakari",
+}
+
+-- Keys in configTab.input that are serialized in the character object, not in config.
+local configCharacterKeys = {
+	bandit = true,
+	pantheonMajorGod = true,
+	pantheonMinorGod = true,
+}
+
+-- Serialize the build's character info with human-readable labels.
+local function serializeCharacter(build)
+	local banditRaw = (build.configTab and build.configTab.input.bandit) or build.bandit or "None"
+	local majorRaw = (build.configTab and build.configTab.input.pantheonMajorGod) or build.pantheonMajorGod or "None"
+	local minorRaw = (build.configTab and build.configTab.input.pantheonMinorGod) or build.pantheonMinorGod or "None"
+	return {
+		class = build.spec.curClassName,
+		ascendancy = build.spec.curAscendClassName,
+		level = build.characterLevel,
+		bandit = banditLabels[banditRaw] or banditRaw,
+		pantheon_major = pantheonMajorLabels[majorRaw] or majorRaw,
+		pantheon_minor = pantheonMinorLabels[minorRaw] or minorRaw,
+	}
+end
+
+-- Serialize all non-default configTab inputs (excluding character keys).
+local function serializeConfig(build)
+	if not build.configTab or not build.configTab.input then return nil end
+	local config = {}
+	local hasEntries = false
+	for k, v in pairs(build.configTab.input) do
+		if not configCharacterKeys[k] and v ~= nil and v ~= false and v ~= 0 and v ~= "" then
+			config[k] = v
+			hasEntries = true
+		end
+	end
+	if not hasEntries then return nil end
+	return config
+end
+
 -- Serialize socket groups (skills) from the build
 -- Map grantedEffect.color (1=str, 2=dex, 3=int) to socket color letter.
 local gemColorMap = { [1] = "R", [2] = "G", [3] = "B" }
@@ -683,15 +751,22 @@ local function handleCalc(request)
 	-- Serialize results into grouped sections
 	local statKeys = parseStatKeys(request)
 	local grouped = serializeSections(build, statKeys)
+
+	-- Add config as a section
+	local config = serializeConfig(build)
+	if config then
+		grouped.sections.config = config
+		grouped.section_index[#grouped.section_index + 1] = {
+			id = "config",
+			name = "Configuration",
+			description = "Active configuration overrides (conditions, enemy settings, combat state)",
+		}
+	end
+
 	local result = {
 		type = "result",
 		data = {
-			character = {
-				class = build.spec.curClassName,
-				ascendancy = build.spec.curAscendClassName,
-				level = build.characterLevel,
-				bandit = build.bandit,
-			},
+			character = serializeCharacter(build),
 			summary = grouped.summary,
 			section_index = grouped.section_index,
 			sections = grouped.sections,
@@ -971,6 +1046,62 @@ local function applySetItem(op)
 	return nil
 end
 
+local function applySetConfig(op)
+	if not op.var then return "set_config: missing 'var'" end
+	if op.value == nil then return "set_config: missing 'value'" end
+	if not build.configTab then return "set_config: configTab not available" end
+	-- Don't allow setting character keys via set_config — use set_bandit/set_pantheon
+	if configCharacterKeys[op.var] then
+		return "set_config: use set_bandit or set_pantheon for " .. op.var
+	end
+	build.configTab.input[op.var] = op.value
+	build.configTab:BuildModList()
+	return nil
+end
+
+local validBandits = { None = true, Oak = true, Kraityn = true, Alira = true }
+
+local function applySetBandit(op)
+	if not op.bandit then return "set_bandit: missing 'bandit'" end
+	if not validBandits[op.bandit] then
+		return "set_bandit: invalid value '" .. op.bandit .. "'. Valid: None, Oak, Kraityn, Alira"
+	end
+	if not build.configTab then return "set_bandit: configTab not available" end
+	build.bandit = op.bandit
+	build.configTab.input.bandit = op.bandit
+	build.configTab:BuildModList()
+	return nil
+end
+
+local validMajorGods = { None = true, TheBrineKing = true, Lunaris = true, Solaris = true, Arakaali = true }
+local validMinorGods = {
+	None = true, Gruthkul = true, Yugul = true, Abberath = true, Tukohama = true,
+	Garukhan = true, Ralakesh = true, Ryslatha = true, Shakari = true,
+}
+
+local function applySetPantheon(op)
+	if not op.major and not op.minor then
+		return "set_pantheon: at least one of 'major' or 'minor' is required"
+	end
+	if not build.configTab then return "set_pantheon: configTab not available" end
+	if op.major then
+		if not validMajorGods[op.major] then
+			return "set_pantheon: invalid major god '" .. op.major .. "'"
+		end
+		build.pantheonMajorGod = op.major
+		build.configTab.input.pantheonMajorGod = op.major
+	end
+	if op.minor then
+		if not validMinorGods[op.minor] then
+			return "set_pantheon: invalid minor god '" .. op.minor .. "'"
+		end
+		build.pantheonMinorGod = op.minor
+		build.configTab.input.pantheonMinorGod = op.minor
+	end
+	build.configTab:BuildModList()
+	return nil
+end
+
 -- Dispatch table for operations
 local opHandlers = {
 	set_level        = applySetLevel,
@@ -983,6 +1114,9 @@ local opHandlers = {
 	equip_unique     = applyEquipUnique,
 	equip_flask      = applyEquipFlask,
 	set_item         = applySetItem,
+	set_config       = applySetConfig,
+	set_bandit       = applySetBandit,
+	set_pantheon     = applySetPantheon,
 }
 
 -- Process a modify request
@@ -1076,13 +1210,19 @@ local function handleModify(request)
 		}
 	end
 
+	-- Add config as a section
+	local config = serializeConfig(build)
+	if config then
+		grouped.sections.config = config
+		grouped.section_index[#grouped.section_index + 1] = {
+			id = "config",
+			name = "Configuration",
+			description = "Active configuration overrides (conditions, enemy settings, combat state)",
+		}
+	end
+
 	local resultData = {
-		character = {
-			class = build.spec.curClassName,
-			ascendancy = build.spec.curAscendClassName,
-			level = build.characterLevel,
-			bandit = build.bandit,
-		},
+		character = serializeCharacter(build),
 		summary = grouped.summary,
 		section_index = grouped.section_index,
 		sections = grouped.sections,

@@ -61,8 +61,9 @@ export const buildPlannerModule: NativeReferenceModule = {
   name: "Build Planner",
   description:
     "Analyze, modify, or explore a Path of Exile build via Path of Building. "
-    + "First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. "
-    + "Summary includes LifeUnreservedPercent — if below 35, the character is on Low Life (Pain Attunement, Petrified Blood, and other low-life mechanics are active). "
+    + "First call returns a compact summary (DPS, life, resists, attributes), character info (class, ascendancy, bandit, pantheon), and a section_index listing available detail sections. "
+    + "Request sections='config' to see active configuration overrides (combat conditions, enemy settings, Wither stacks, etc.). "
+    + "To determine Low Life status, check config for conditionLowLife — do NOT rely on LifeUnreservedPercent, which reflects static reservations only, not combat-conditional effects like Dissolution of the Flesh. "
     + "To drill deeper, call again with the buildId and sections parameter (e.g. sections='offense,defense'). "
     + "Stat sections return curated key stats plus _extra_keys listing other available stats — use stat_keys to request specific extras. "
     + "For modifications, pass buildId + operations. The response includes a changes object with {before, after, delta} for every summary stat that changed — "
@@ -93,7 +94,10 @@ export const buildPlannerModule: NativeReferenceModule = {
         + '- {"op":"deallocate_node","name":"Phase Acrobatics"} — Deallocate a notable or keystone by name. Errors if the node is not currently allocated.\n'
         + '- {"op":"equip_unique","name":"Abyssus","slot":"Helmet"} — Equip a unique item by name. Slots: Weapon 1, Weapon 2, Helmet, Body Armour, Gloves, Boots, Belt, Ring 1, Ring 2, Amulet. For flasks, use equip_flask instead.\n'
         + '- {"op":"equip_flask","name":"Taste of Hate","slot":"Flask 2"} — Equip a unique flask by name and activate it. Slots: Flask 1, Flask 2, Flask 3, Flask 4, Flask 5. The flask is automatically toggled active so its stats are included in calculations.\n'
-        + '- {"op":"set_item","slot":"Body Armour","text":"Astral Plate\\nRarity: Rare\\n..."} — Equip a rare/custom item using PoB item text format.',
+        + '- {"op":"set_item","slot":"Body Armour","text":"Astral Plate\\nRarity: Rare\\n..."} — Equip a rare/custom item using PoB item text format.\n'
+        + '- {"op":"set_config","var":"multiplierWitheredStackCount","value":15} — Set any PoB config override. Common vars: multiplierWitheredStackCount, conditionLowLife, conditionStationary, conditionFullLife, resistancePenalty, enemyIsBoss (Sirus/Shaper/etc).\n'
+        + '- {"op":"set_bandit","bandit":"None"} — Set bandit quest reward. Values: None (Kill All), Oak, Kraityn, Alira.\n'
+        + '- {"op":"set_pantheon","major":"Arakaali","minor":"Ralakesh"} — Set pantheon gods. Major: None, TheBrineKing, Lunaris, Solaris, Arakaali. Minor: None, Gruthkul, Yugul, Abberath, Tukohama, Garukhan, Ralakesh, Ryslatha, Shakari. Can set one or both.',
     },
     sections: {
       type: "string",
@@ -101,7 +105,7 @@ export const buildPlannerModule: NativeReferenceModule = {
         "Comma-separated section names to include in the response (e.g. 'offense,defense'). "
         + "Omit for a compact summary with a section index listing available sections. "
         + "Available: offense, ailments, defense, resistances, ehp, recovery, charges, limits, "
-        + "socket_groups, items, keystones, tree, minion_offense, minion_defense. "
+        + "socket_groups, items, keystones, tree, config, minion_offense, minion_defense. "
         + "Stat sections return curated key stats by default plus an _extra_keys array listing other available stat names in that section. "
         + "Use the stat_keys parameter to include specific extra keys alongside the curated defaults. "
         + "tree returns allocated/available/remaining passive points with breakdown: available_points = level_points + quest_points (23, all acts) + extra_points. "
