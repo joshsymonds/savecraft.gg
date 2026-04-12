@@ -247,13 +247,32 @@ local function serializeItems(build)
 						sockets[#sockets + 1] = { color = s.color, group = s.group }
 					end
 				end
-				items[slotName] = {
+				local entry = {
 					name = item.title or item.name or item.baseName or "Unknown",
 					baseName = item.baseName,
 					rarity = item.rarity,
 					type = item.type,
 					sockets = sockets,
 				}
+				-- Include mod text for non-unique items (rares, magics).
+				-- Unique mods are known by name; rare mods are the item.
+				if item.rarity ~= "UNIQUE" and item.rarity ~= "RELIC" then
+					local mods = {}
+					if item.implicitModLines then
+						for _, ml in ipairs(item.implicitModLines) do
+							if ml.line then mods[#mods + 1] = ml.line end
+						end
+					end
+					if item.explicitModLines then
+						for _, ml in ipairs(item.explicitModLines) do
+							if ml.line then mods[#mods + 1] = ml.line end
+						end
+					end
+					if #mods > 0 then
+						entry.mods = mods
+					end
+				end
+				items[slotName] = entry
 			end
 		end
 	end
@@ -303,8 +322,12 @@ end
 -- =========================================================================
 
 -- Summary: fixed set of headline stats, always returned.
+-- Per-element HitAverage keys show damage composition after all conversion and
+-- "gain as extra" mechanics — zero-value elements are filtered out downstream.
 local summaryKeys = {
 	"CombinedDPS", "TotalDPS",
+	"PhysicalHitAverage", "FireHitAverage", "ColdHitAverage",
+	"LightningHitAverage", "ChaosHitAverage",
 	"Life", "LifeUnreserved", "LifeUnreservedPercent",
 	"EnergyShield", "Mana", "Armour", "Evasion",
 	"FireResist", "ColdResist", "LightningResist", "ChaosResist",
@@ -321,6 +344,8 @@ local summaryKeys = {
 local sectionCuratedKeys = {
 	offense = {
 		"CombinedDPS", "TotalDPS", "AverageDamage", "AverageHit",
+		"PhysicalHitAverage", "FireHitAverage", "ColdHitAverage",
+		"LightningHitAverage", "ChaosHitAverage",
 		"Speed", "CritChance", "CritMultiplier", "CritEffect",
 		"HitChance", "ProjectileCount", "PierceChance",
 		"AreaOfEffectMod", "Duration", "Cooldown", "ManaCost",
@@ -330,6 +355,7 @@ local sectionCuratedKeys = {
 		"PoisonDPS", "PoisonChance", "TotalPoisonDPS",
 		"IgniteDPS", "IgniteChance",
 		"DecayDPS", "BurningGroundDPS",
+		"PhysicalDot", "FireDot", "ColdDot", "LightningDot", "ChaosDot",
 		"ChillEffect", "ShockEffect",
 		"ImpaleChance", "ImpaleDPS",
 	},

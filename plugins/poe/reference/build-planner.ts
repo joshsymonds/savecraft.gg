@@ -62,6 +62,9 @@ export const buildPlannerModule: NativeReferenceModule = {
   description:
     "Analyze, modify, or explore a Path of Exile build via Path of Building. "
     + "First call returns a compact summary (DPS, life, resists, attributes), character info (class, ascendancy, bandit, pantheon), and a section_index listing available detail sections. "
+    + "The summary includes per-element damage breakdown (PhysicalHitAverage, FireHitAverage, ColdHitAverage, LightningHitAverage, ChaosHitAverage) showing the actual damage type split after all conversion and 'gain as extra' mechanics — "
+    + "check these BEFORE recommending element-specific gem or support changes. A skill tagged 'Fire' may deal significant chaos damage via gear conversion. "
+    + "The items section includes mod text for rare/magic items — use these to understand gear-based conversion, added-as-extra, and other build-defining mechanics. Unique item mods are not shown (use unique_search to look them up by name). "
     + "Request sections='config' to see active configuration overrides (combat conditions, enemy settings, Wither stacks, etc.). "
     + "To determine Low Life status, check config for conditionLowLife — do NOT rely on LifeUnreservedPercent, which reflects static reservations only, not combat-conditional effects like Dissolution of the Flesh. "
     + "To drill deeper, call again with the buildId and sections parameter (e.g. sections='offense,defense'). "
