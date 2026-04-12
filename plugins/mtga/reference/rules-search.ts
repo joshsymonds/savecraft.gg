@@ -48,6 +48,16 @@ const REASONING_GUIDE = `
 
 Magic's Comprehensive Rules form a semi-formal logical system where card text functions as local overrides to global defaults, conflicts resolve through deterministic algorithms, and game state is derived by recomputing all continuous effects from scratch every time anything changes. Understanding this architecture — not memorizing rulings — is what enables correct synthesis of interactions from raw rules text.
 
+THREE STRUCTURAL CAUSES OF REASONING ERRORS
+
+Before applying any rule, internalize why errors happen:
+
+1. INTUITION DEFEATS LITERALISM. MTG rules are extremely literal and precise. "Tap to attack, therefore tap to block" is logical but wrong. "The last effect played wins" is intuitive but ignores the layer system. "You can always respond" feels right but misses non-stack actions. ALWAYS force literal reading and keyword classification before intuitive interpretation.
+
+2. ORDERING SYSTEMS ARE INVISIBLE. The layer system, replacement effect ordering, SBA timing, and APNAP ordering exist only in the Comprehensive Rules, not on card text. An AI reasoning only from card text will miss them entirely. Whenever multiple effects interact, identify and apply the relevant ordering system.
+
+3. NEGATION AND ABSENCE CREATE TRAPS. Replacement effects cause events to NEVER HAPPEN — triggers watching for those events don't fire. Indestructible prevents destruction but NOT sacrifice, exile, or -X/-X. Protection prevents exactly four things (DEBT: Damage, Enchanting/Equipping, Blocking, Targeting) and NOTHING else. "Can't" always beats "can." You must prove negatives explicitly, not match patterns.
+
 THE GOLDEN RULES (CR 101) — AXIOM HIERARCHY
 
 CR 101.1: Card text overrides general rules. The CR defines default behavior; cards create exceptions. When a card says something that contradicts a rule, the card wins. The sole exception is that a player can always concede (104.3a). Reasoning always starts by reading what the cards actually say, not what you assume the rules dictate.
@@ -96,6 +106,10 @@ Does NOT use the stack: mana abilities (605.3b), special actions (116.1 — incl
 "When [this] enters" = triggered ability (603.6a) that goes on the stack after the permanent is already on the battlefield and can be responded to.
 
 Costs (before the colon in activated abilities, or explicit "as an additional cost") are paid during step 601.2h as one atomic operation. No player receives priority during casting. By the time an opponent can respond, the spell is on the stack and all costs have been paid.
+
+PROTECTION SCOPE — THE DEBT MNEMONIC
+
+Protection prevents exactly four things: Damage, Enchanting/Equipping, Blocking, Targeting (DEBT). If an effect doesn't do one of these four things, protection is irrelevant. Board wipes (Wrath of God) don't target, so they ignore protection entirely. Sacrifice effects (Liliana's -2) don't target or deal damage, so protection is irrelevant. "Choose a creature" is not "target a creature," so hexproof and protection don't apply. Protection from Everything (Progenitus) still dies to non-targeting sacrifice and destroy effects. Indestructible prevents destruction and lethal damage but does NOT prevent: death from 0 or less toughness (via -X/-X or -1/-1 counters), sacrifice, exile, legend rule, or being countered. An indestructible creature IS a legal target for "destroy" effects — the spell resolves, fails to destroy, but any other effects on the spell still happen.
 
 ABILITY ONTOLOGY — PRINTED vs. GRANTED
 

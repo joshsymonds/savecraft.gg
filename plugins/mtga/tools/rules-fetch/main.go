@@ -11,12 +11,15 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -32,6 +35,16 @@ type Rule struct {
 	Text    string   `json:"text"`
 	Example string   `json:"example,omitempty"`
 	SeeAlso []string `json:"seeAlso,omitempty"` // cross-referenced rule numbers
+}
+
+// Interaction is a curated rules interaction pattern for LLM reasoning guidance.
+type Interaction struct {
+	Title       string `json:"title"`
+	Mechanics   string `json:"mechanics"`
+	CardNames   string `json:"card_names"`
+	RuleNumbers string `json:"rule_numbers"`
+	Breakdown   string `json:"breakdown"`
+	CommonError string `json:"common_error"`
 }
 
 var ruleNumberPattern = regexp.MustCompile(`^(\d{3}\.\d+[a-z]?)\b`)
@@ -76,17 +89,24 @@ func run() error {
 	rules := parseComprehensiveRules(rulesText)
 	fmt.Printf("Parsed %d rules\n", len(rules))
 
+	// ── Load interaction patterns ───────────────────────────
+	interactions, err := loadInteractions()
+	if err != nil {
+		return fmt.Errorf("loading interactions: %w", err)
+	}
+	fmt.Printf("Loaded %d interaction patterns\n", len(interactions))
+
 	// ── Cloudflare population (D1 + Vectorize concurrently) ──────────────
 	needsD1 := *d1DatabaseID != ""
 	needsVectorize := *vectorizeIndex != ""
 
 	if needsD1 || needsVectorize {
 		var cfWg sync.WaitGroup
-		errs := make(chan error, 2)
+		errs := make(chan error, 4)
 
 		if needsD1 {
 			cfWg.Go(func() {
-				fmt.Println("\nPopulating D1 tables...")
+				fmt.Println("\nPopulating D1 rules tables...")
 				sql := buildImportSQL(rules)
 
 				// Content hash for change detection.
@@ -101,25 +121,59 @@ func run() error {
 
 				fmt.Printf("Generated %.1f MB of SQL (%d rules)\n", float64(len(sql))/1048576, len(rules))
 				if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
-					errs <- fmt.Errorf("D1 import: %w", err)
+					errs <- fmt.Errorf("D1 rules import: %w", err)
 					return
 				}
 
 				if err := cfapi.UpdatePipelineState(*cfAccountID, *d1DatabaseID, *cfAPIToken, "rules", cfapi.PipelineGlobalSet, contentHash, len(rules)); err != nil {
-					fmt.Printf("WARN: pipeline state update failed: %v\n", err)
+					fmt.Printf("WARN: rules pipeline state update failed: %v\n", err)
 				}
-				fmt.Println("D1 population complete")
+				fmt.Println("D1 rules population complete")
+			})
+
+			cfWg.Go(func() {
+				fmt.Println("\nPopulating D1 interactions tables...")
+				sql := buildInteractionsImportSQL(interactions)
+
+				h := sha256.Sum256([]byte(sql))
+				contentHash := hex.EncodeToString(h[:])
+
+				existing, err := cfapi.GetPipelineHash(*cfAccountID, *d1DatabaseID, *cfAPIToken, "interactions", cfapi.PipelineGlobalSet)
+				if err == nil && existing == contentHash {
+					fmt.Println("D1 interactions unchanged (hash match), skipping import")
+					return
+				}
+
+				fmt.Printf("Generated %.1f KB of SQL (%d interactions)\n", float64(len(sql))/1024, len(interactions))
+				if err := cfapi.ImportD1SQL(*cfAccountID, *d1DatabaseID, *cfAPIToken, sql); err != nil {
+					errs <- fmt.Errorf("D1 interactions import: %w", err)
+					return
+				}
+
+				if err := cfapi.UpdatePipelineState(*cfAccountID, *d1DatabaseID, *cfAPIToken, "interactions", cfapi.PipelineGlobalSet, contentHash, len(interactions)); err != nil {
+					fmt.Printf("WARN: interactions pipeline state update failed: %v\n", err)
+				}
+				fmt.Println("D1 interactions population complete")
 			})
 		}
 
 		if needsVectorize {
 			cfWg.Go(func() {
-				fmt.Println("\nPopulating Vectorize index...")
+				fmt.Println("\nPopulating Vectorize rules index...")
 				if err := populateVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, rules); err != nil {
-					errs <- fmt.Errorf("populating vectorize: %w", err)
+					errs <- fmt.Errorf("populating rules vectorize: %w", err)
 					return
 				}
-				fmt.Println("Vectorize population complete")
+				fmt.Println("Vectorize rules population complete")
+			})
+
+			cfWg.Go(func() {
+				fmt.Println("\nPopulating Vectorize interactions index...")
+				if err := populateInteractionsVectorize(*cfAccountID, *vectorizeIndex, *cfAPIToken, interactions); err != nil {
+					errs <- fmt.Errorf("populating interactions vectorize: %w", err)
+					return
+				}
+				fmt.Println("Vectorize interactions population complete")
 			})
 		}
 
@@ -133,6 +187,25 @@ func run() error {
 	}
 
 	return nil
+}
+
+// loadInteractions reads interaction patterns from the data/interactions.json file.
+func loadInteractions() ([]Interaction, error) {
+	// Resolve path relative to this source file.
+	_, thisFile, _, _ := runtime.Caller(0)
+	dataPath := filepath.Join(filepath.Dir(thisFile), "..", "..", "data", "interactions.json")
+
+	data, err := os.ReadFile(dataPath)
+	if err != nil {
+		return nil, fmt.Errorf("reading %s: %w", dataPath, err)
+	}
+
+	var interactions []Interaction
+	if err := json.Unmarshal(data, &interactions); err != nil {
+		return nil, fmt.Errorf("parsing %s: %w", dataPath, err)
+	}
+
+	return interactions, nil
 }
 
 func parseComprehensiveRules(text string) []Rule {

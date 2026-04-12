@@ -38,6 +38,68 @@ func buildImportSQL(rules []Rule) string {
 	return b.String()
 }
 
+// buildInteractionsImportSQL generates SQL for bulk import of interaction patterns.
+func buildInteractionsImportSQL(interactions []Interaction) string {
+	var b strings.Builder
+	q := cfapi.SQLQuote
+
+	b.WriteString("DELETE FROM mtga_interactions_fts;\n")
+	b.WriteString("DELETE FROM mtga_interactions;\n")
+
+	for i, inter := range interactions {
+		id := i + 1
+		fmt.Fprintf(&b, "INSERT INTO mtga_interactions (id, title, mechanics, card_names, rule_numbers, breakdown, common_error) VALUES (%d, %s, %s, %s, %s, %s, %s);\n",
+			id, q(inter.Title), q(inter.Mechanics), q(inter.CardNames), q(inter.RuleNumbers), q(inter.Breakdown), q(inter.CommonError))
+		fmt.Fprintf(&b, "INSERT INTO mtga_interactions_fts (id, title, mechanics, card_names, breakdown) VALUES (%d, %s, %s, %s, %s);\n",
+			id, q(inter.Title), q(inter.Mechanics), q(inter.CardNames), q(inter.Breakdown))
+	}
+
+	return b.String()
+}
+
+// populateInteractionsVectorize embeds interaction patterns and upserts to Vectorize.
+func populateInteractionsVectorize(accountID, indexName, apiToken string, interactions []Interaction) error {
+	type entry struct {
+		id       string
+		text     string
+		metaType string
+	}
+	var entries []entry
+
+	for i, inter := range interactions {
+		text := inter.Title + " " + inter.CardNames + " " + inter.Mechanics + " " + inter.Breakdown
+		entries = append(entries, entry{id: fmt.Sprintf("interaction-%d", i+1), text: text, metaType: "interaction"})
+	}
+
+	fmt.Printf("Embedding %d interaction entries...\n", len(entries))
+
+	texts := make([]string, len(entries))
+	for i, e := range entries {
+		texts[i] = e.text
+	}
+
+	embeddings, err := cfapi.EmbedTextsWithRetry(accountID, apiToken, texts)
+	if err != nil {
+		return fmt.Errorf("embedding interactions: %w", err)
+	}
+
+	vectors := make([]cfapi.VectorizeVector, len(entries))
+	for i, e := range entries {
+		vectors[i] = cfapi.VectorizeVector{
+			ID:       e.id,
+			Values:   embeddings[i],
+			Metadata: map[string]string{"type": e.metaType},
+		}
+	}
+
+	fmt.Printf("Upserting %d interaction vectors...\n", len(vectors))
+	if err := cfapi.UpsertVectors(accountID, indexName, apiToken, vectors); err != nil {
+		return fmt.Errorf("vectorize upsert: %w", err)
+	}
+
+	return nil
+}
+
 // populateVectorize embeds Comprehensive Rules and upserts to Vectorize.
 func populateVectorize(accountID, indexName, apiToken string, rules []Rule) error {
 	const embeddingBatchSize = 100

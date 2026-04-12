@@ -1,0 +1,394 @@
+[
+  {
+    "title": "Blood Moon + Sagas (Post-May 2025 Rules Change)",
+    "mechanics": "layers,type-changing,SBA,ability-granting,recent-change",
+    "card_names": "Blood Moon,Urza's Saga,Harbinger of the Seas",
+    "rule_numbers": "305.7,613.1d,613.1f,704.5s,714.4",
+    "breakdown": "RECENT RULES CHANGE (June 2025 Final Fantasy release). Step 1: Blood Moon applies in Layer 4 (type-changing). Urza's Saga becomes a Mountain and loses its land subtypes. Step 2: In Layer 6, Blood Moon removes abilities from rules text (305.7). Chapter abilities are rules text — they are removed. Step 3: Abilities GRANTED by resolved chapter abilities are NOT rules text — they are effect-granted abilities and persist (305.7 explicitly says 'this doesn't remove any abilities that were granted to the land by other effects'). Step 4: SBA check (704.5s): The sacrifice SBA now only applies to 'a Saga with one or more chapter abilities.' The Saga has zero chapter abilities, so the SBA does not trigger. Step 5: The turn-based action that adds lore counters (714.3b) also no longer applies to Sagas with no chapter abilities. Result: The Saga survives as a Mountain. If chapter II had resolved before Blood Moon entered, the Construct-making activated ability persists permanently because it was granted by an effect, not printed rules text.",
+    "common_error": "LLMs trained before June 2025 will confidently cite the old rule that a Saga with no chapter abilities has a final chapter number of 0, and since any number of lore counters is >= 0, it's immediately sacrificed. This was correct before the Final Fantasy rules update but is now wrong. Additionally, LLMs conflate 'chapter ability' (rules text, removed by Blood Moon) with 'ability granted BY a chapter ability' (effect-granted, preserved per 305.7)."
+  },
+  {
+    "title": "Damage Assignment Order Removed from Combat (November 2024)",
+    "mechanics": "combat,damage-assignment,recent-change",
+    "card_names": "Any creature blocked by multiple creatures",
+    "rule_numbers": "509.2,510.1",
+    "breakdown": "RECENT RULES CHANGE (November 2024 Foundations release). The entire concept of 'damage assignment order' for multiple blockers was deleted from the game. Previously, when a creature was blocked by multiple creatures, the attacker chose an ordering during declare blockers, and had to assign lethal damage to the first creature before any to the second. Now: the attacking creature's controller simply divides combat damage however they choose among all blocking creatures. No ordering required. You can assign 1 damage to each of three 5/5 blockers if you want. Exception: Trample still requires assigning lethal damage to all blockers before excess tramples over. Deathtouch + trample still only needs 1 damage per blocker.",
+    "common_error": "LLMs will describe the old damage assignment order system in detail — choosing an order during declare blockers, assigning lethal to the first before moving to the second, etc. This system no longer exists as of November 2024."
+  },
+  {
+    "title": "Torbran + Damage Doublers (Replacement Effect Ordering)",
+    "mechanics": "replacement-effects,damage-modification",
+    "card_names": "Torbran Thane of Red Fell,Furnace of Rath,Fiery Emancipation,Angrath's Marauders",
+    "rule_numbers": "614.1,616.1",
+    "breakdown": "When multiple replacement effects try to modify the same damage event, CR 616.1 dictates that the AFFECTED PLAYER or CONTROLLER OF THE AFFECTED OBJECT chooses the application order — not the controller of the replacement effect sources. For damage dealt to a player, that player chooses. Example: Lightning Bolt (3 damage) with Torbran (+2) and Furnace of Rath (double). The opponent being dealt damage chooses the order that minimizes damage: double first (3×2=6), then +2 (6+2=8). NOT +2 first (3+2=5), then double (5×2=10). With Fiery Emancipation (triple) instead: opponent chooses triple first (3×3=9), then +2 (9+2=11), not +2 first then triple (5×3=15).",
+    "common_error": "LLMs assume the controller of Torbran and the damage doubler chooses the application order and calculates maximum damage. The correct answer is always that the opponent chooses, and they will pick the order that minimizes damage."
+  },
+  {
+    "title": "Blood Moon + Urborg, Tomb of Yawgmoth (Dependency)",
+    "mechanics": "layers,type-changing,dependency",
+    "card_names": "Blood Moon,Urborg Tomb of Yawgmoth",
+    "rule_numbers": "613.1d,613.7,613.8",
+    "breakdown": "Both effects apply in Layer 4 (type-changing). Blood Moon: 'Nonbasic lands are Mountains.' Urborg: 'Each land is a Swamp in addition to its other land types.' Dependency analysis (613.8): Does applying Blood Moon change what Urborg does? Yes — Blood Moon changes Urborg's type to Mountain, which removes Urborg's ability (per 305.7, type-changing removes rules-text abilities). Since applying Blood Moon first changes whether Urborg's effect exists, Urborg's effect DEPENDS on Blood Moon's effect. Per 613.8, the depended-upon effect (Blood Moon) applies first regardless of timestamp. After Blood Moon applies, Urborg is a Mountain with no abilities, so its 'each land is a Swamp' effect never applies. Result: All nonbasic lands are Mountains only. Timestamp is irrelevant — even if Urborg entered after Blood Moon, Blood Moon still wins via dependency.",
+    "common_error": "LLMs either assume timestamp determines the winner (it doesn't — dependency overrides timestamp) or assume the effects somehow 'cancel out.' Some LLMs correctly identify both apply in Layer 4 but fail to perform the dependency analysis."
+  },
+  {
+    "title": "Humility + Opalescence (The Classic Layer Puzzle)",
+    "mechanics": "layers,type-changing,ability-removing,dependency,power-toughness",
+    "card_names": "Humility,Opalescence",
+    "rule_numbers": "613.1d,613.1f,613.1g,613.8",
+    "breakdown": "This is considered the most complex rules interaction in Magic. Layer 4 (type-changing): Opalescence makes all non-Aura enchantments into creatures with P/T equal to their mana value. Both Humility and Opalescence become enchantment creatures. Layer 6 (ability-adding/removing): Dependency applies — Humility's effect depends on Opalescence's effect because Opalescence makes Humility a creature, which changes what Humility's own effect applies to ('creatures lose all abilities'). So Opalescence applies first in Layer 6 (granting the P/T-setting ability), then Humility applies (removing all abilities from creatures). After Layer 6, all enchantment creatures have no abilities. Layer 7b (P/T setting): Both Opalescence's 'P/T equal to mana value' and Humility's '1/1' are Layer 7b effects. Neither depends on the other in Layer 7b, so TIMESTAMP determines order. The later one wins. If Humility entered last: all enchantment creatures are 1/1. If Opalescence entered last: all enchantment creatures have P/T equal to mana value. Critically: Opalescence's effect always functions in Layer 4 regardless of Humility, because dependency forces Opalescence first in Layer 6.",
+    "common_error": "LLMs either say the effects 'cancel out,' or apply timestamp globally without performing per-layer dependency analysis. The key insight is that dependency applies independently in each layer — Opalescence wins in Layer 4 always (via dependency), but timestamp governs Layer 7b."
+  },
+  {
+    "title": "Commander Death Triggers Work (SBA, Not Replacement)",
+    "mechanics": "SBA,commander,triggered-abilities,recent-change",
+    "card_names": "Any commander,Elenda the Dusk Rose,Child of Alara,Kokusho the Evening Star",
+    "rule_numbers": "903.9a,704.3",
+    "breakdown": "RULES CHANGE (2020, but still the most commonly wrong Commander ruling). When a commander would die or be exiled, it ACTUALLY goes to the graveyard or exile zone first. Then a state-based action checks and the owner may move it to the command zone. This is NOT a replacement effect — the commander physically enters the graveyard, triggering any 'dies' or 'leaves the battlefield' abilities, and is then moved by SBA. Commanders like Elenda the Dusk Rose, Child of Alara, and Kokusho the Evening Star all get their death triggers even when moved to the command zone afterward. Exception: For hand and library zones, the old replacement effect still applies — if your commander would be put into your hand or library, you may replace that with the command zone (and it never touches those zones).",
+    "common_error": "LLMs trained on pre-2020 content (which dominates the internet) will say 'when your commander dies, you can choose to send it to the command zone instead, so it never goes to the graveyard and dies triggers don't fire.' This is the single most common Commander rules error."
+  },
+  {
+    "title": "Rest in Peace Prevents 'Dies' Triggers Entirely",
+    "mechanics": "replacement-effects,triggered-abilities,graveyard",
+    "card_names": "Rest in Peace,Leyline of the Void,Anafenza the Foremost,Blood Artist,Zulaport Cutthroat,Grave Pact",
+    "rule_numbers": "614.1,700.4,603.2h",
+    "breakdown": "'Dies' means 'is put into a graveyard from the battlefield' (700.4). Rest in Peace creates a replacement effect: cards that would be put into a graveyard are exiled instead (614.1). The creature NEVER goes to the graveyard, so it NEVER 'dies' in rules terms. Blood Artist, Grave Pact, Zulaport Cutthroat, and all other 'when a creature dies' triggers never fire at all. Per 603.2h: 'An ability triggers only if its trigger event actually occurs. An event that's prevented or replaced won't trigger anything.' However, 'leaves the battlefield' triggers DO still fire because the creature did leave the battlefield — it just went to exile instead of the graveyard. Same logic applies to Leyline of the Void, Anafenza the Foremost, and Kalitas Traitor of Ghet.",
+    "common_error": "LLMs often say the creature 'died' but went to exile instead of the graveyard, implying the dies trigger fires but the card ends up in exile. This is wrong — the replacement prevents the dies event entirely."
+  },
+  {
+    "title": "'Can't Be Countered' vs Exile Effects",
+    "mechanics": "stack,uncounterability,exile",
+    "card_names": "Carnage Tyrant,Loxodon Smiter,Cavern of Souls,Mindbreak Trap,Summary Dismissal",
+    "rule_numbers": "101.1,701.5",
+    "breakdown": "'Can't be countered' means exactly and only that — the spell cannot be COUNTERED (701.5). Exiling a spell from the stack is NOT countering it. Mindbreak Trap ('Exile any number of target spells') never uses the word 'counter.' It simply removes spells from the stack. Summary Dismissal ('Exile all other spells and counter all abilities') also exiles spells rather than countering them. An uncounterable creature cast via Cavern of Souls is completely vulnerable to Mindbreak Trap. This also applies to effects that bounce spells to hand (Remand, Unsubstantiate) or put them elsewhere — these are not countering.",
+    "common_error": "LLMs and players interpret 'can't be countered' as 'immune to all stack interaction' or 'guaranteed to resolve.' The protection is narrow — only against the specific game action of countering."
+  },
+  {
+    "title": "Panharmonicon Doesn't Double Replacement Effects",
+    "mechanics": "replacement-effects,triggered-abilities,ETB",
+    "card_names": "Panharmonicon,Walking Ballista,Hangarback Walker,Mulldrifter,Torpor Orb",
+    "rule_numbers": "603.1,614.1c",
+    "breakdown": "Panharmonicon doubles 'triggered abilities of artifacts or creatures you control triggered by permanents entering.' It only affects TRIGGERED abilities — those using 'when' or 'whenever.' Effects using 'as [this] enters' or '[this] enters with' are REPLACEMENT EFFECTS (614.1c), a fundamentally different category. Walking Ballista 'enters with X +1/+1 counters' is a replacement effect — NOT doubled by Panharmonicon. Mulldrifter's 'When Mulldrifter enters' IS a triggered ability — doubled by Panharmonicon. The same distinction applies to Torpor Orb and Hushbringer, which only prevent triggered abilities, not replacement effects.",
+    "common_error": "LLMs conflate all ETB effects as 'ETB triggers.' 'Enters with counters' and 'as this enters, choose' are replacement effects that are mechanically distinct from 'when this enters' triggered abilities. This affects Panharmonicon, Torpor Orb, Hushbringer, Strict Proctor, and similar cards."
+  },
+  {
+    "title": "You Cannot Respond to Costs Being Paid",
+    "mechanics": "stack,costs,priority",
+    "card_names": "Viscera Seer,Fling,Ashnod's Altar",
+    "rule_numbers": "601.2h,116.1",
+    "breakdown": "Costs are paid as part of casting the spell or activating the ability (601.2h). The entire casting process (601.2a–h) is one atomic operation. No player receives priority until after the spell is fully on the stack with all costs paid. Example: Player casts Fling, sacrificing a creature as an additional cost. The opponent CANNOT 'respond to the sacrifice' by casting Murder on the creature — by the time any player gets priority, the creature is already in the graveyard and the spell is on the stack. To prevent the sacrifice, the opponent would need to remove the creature BEFORE Fling is cast. Same principle applies to activated abilities with sacrifice costs (Viscera Seer), life payment, tapping, etc.",
+    "common_error": "LLMs and players believe there is a window to respond between when costs are announced and when they are paid. There is not. Costs and casting/activation are atomic."
+  },
+  {
+    "title": "Clone + Hushbringer ('As Enters' vs 'When Enters')",
+    "mechanics": "replacement-effects,triggered-abilities,ETB,copy",
+    "card_names": "Clone,Clever Impersonator,Sakashima,Hushbringer,Torpor Orb",
+    "rule_numbers": "614.1c,603.1",
+    "breakdown": "Clone's 'As this enters the battlefield, you may choose a creature on the battlefield. If you do, this enters as a copy of that creature' is a REPLACEMENT EFFECT (614.1c), not a triggered ability. It uses 'as,' not 'when.' Hushbringer and Torpor Orb prevent TRIGGERED abilities ('When/Whenever a creature enters'), not replacement effects. Clone will copy normally with Hushbringer in play. The copy choice happens during the entry event itself, before the permanent is on the battlefield. This is also why Clone entering as a copy of something doesn't trigger 'when this enters' abilities that Hushbringer would suppress — the Clone IS the copied creature when it enters, but its ETB triggers (from the copied creature) are still suppressed by Hushbringer.",
+    "common_error": "LLMs assume Hushbringer/Torpor Orb prevents Clone from copying because the copy happens 'when it enters.' The copy is an 'as enters' replacement effect, not a 'when enters' triggered ability."
+  },
+  {
+    "title": "Dress Down + Evoke Elementals",
+    "mechanics": "layers,ability-removing,triggered-abilities,evoke",
+    "card_names": "Dress Down,Solitude,Fury,Grief,Endurance,Subtlety",
+    "rule_numbers": "613.1f,603.2",
+    "breakdown": "When an Evoke elemental (e.g., Solitude) enters with Dress Down in play: Dress Down removes all abilities from creatures in Layer 6. The game checks for triggered abilities using the permanent's characteristics AFTER continuous effects apply (603.2). Since Solitude has no abilities after Layer 6, neither the Evoke sacrifice trigger NOR the ETB exile trigger fires. Result: Solitude stays on the battlefield as a creature with no abilities (and reduced P/T from Dress Down's Layer 7b effect). When Dress Down leaves at end of turn, Solitude regains all its abilities — including lifelink and its stats — but the ETB window has passed, so the exile trigger doesn't retroactively fire. The Evoke sacrifice trigger also doesn't retroactively fire. You keep a free Solitude permanently.",
+    "common_error": "LLMs often say the Evoke sacrifice trigger 'already happened' or was 'already put on the stack' before Dress Down could remove it. This is wrong — the game checks for triggers after continuous effects are applied, and Dress Down removes the ability before the trigger can fire."
+  },
+  {
+    "title": "Split Second vs Morph and Special Actions",
+    "mechanics": "stack,split-second,special-actions,morph",
+    "card_names": "Krosan Grip,Willbender,Voidmage Apprentice,Counterbalance",
+    "rule_numbers": "116.2b,702.61",
+    "breakdown": "Split second prevents players from CASTING spells or ACTIVATING abilities (other than mana abilities) while the spell is on the stack. It does NOT create a truly uninteractable state. Three categories of actions still work: (1) Mana abilities can be activated (they never use the stack). (2) Special actions can be taken — this includes turning a face-down creature face-up (morph/manifest), foretelling, and playing a land (116.2b). Turning Willbender face-up is a special action that doesn't use the stack, which then triggers its morph ability, which goes on the stack ABOVE the split second spell and can change its target. (3) Triggered abilities still trigger and go on the stack normally — Counterbalance, Standstill, etc. still function.",
+    "common_error": "LLMs say split second makes a spell 'uncounterable' or 'uninteractable.' It only prevents casting and activating. Morph, mana abilities, and triggered abilities all still work."
+  },
+  {
+    "title": "Blood Artist + Board Wipes (Zone-Change Triggers Look Back)",
+    "mechanics": "triggered-abilities,zone-change,last-known-information",
+    "card_names": "Blood Artist,Zulaport Cutthroat,Wrath of God,Massacre Wurm",
+    "rule_numbers": "603.10,603.10a",
+    "breakdown": "When a board wipe destroys all creatures simultaneously, zone-change triggers (including 'dies' triggers) 'look back in time' to the game state immediately BEFORE the event (603.10, 603.10a). Right before Wrath of God resolved, Blood Artist was on the battlefield with its ability active. Therefore, Blood Artist 'sees' every creature dying simultaneously, including itself. If you control Blood Artist and 4 other creatures that all die to Wrath, Blood Artist triggers 5 times (4 other creatures + itself). The game uses the existence and characteristics of objects immediately prior to the zone change, not their current zone.",
+    "common_error": "LLMs say 'Blood Artist is in the graveyard when the other creatures die, so it doesn't see them' or 'Blood Artist dies at the same time so it can't trigger.' Zone-change triggers look back to the pre-event state."
+  },
+  {
+    "title": "Postcombat vs Second Main Phase (Neheb)",
+    "mechanics": "phases,terminology,recent-change",
+    "card_names": "Neheb the Eternal,Aggravated Assault,Belbe Corrupted Observer",
+    "rule_numbers": "505.1",
+    "breakdown": "RECENT RULES CHANGE (August 2024 Bloomburrow release). 'Precombat main phase' became 'first main phase' and 'postcombat main phase' became 'second main phase.' However, these terms are NOT interchangeable. 'Second main phase' refers only to the one specific phase. 'Postcombat main phase' refers to ANY main phase after a combat phase, including third, fourth, etc. main phases created by extra combat effects. 11 cards (including Neheb the Eternal) specifically retained the 'postcombat main phase' wording. This preserves the Neheb + Aggravated Assault infinite combo: with extra combats, Neheb triggers at the beginning of each postcombat main phase, not just the second main phase.",
+    "common_error": "LLMs will say 'postcombat main phase is now called second main phase' and treat them as synonymous. They are not — the distinction preserves functionality for 11 specific cards."
+  },
+  {
+    "title": "Copying Spells on the Stack vs Casting Copies",
+    "mechanics": "stack,copying,cast-triggers",
+    "card_names": "Twincast,Fork,Isochron Scepter,Storm",
+    "rule_numbers": "707.10,601.1",
+    "breakdown": "When a spell is copied on the stack (Twincast, Fork), the copy is placed directly on the stack — it is NOT cast (707.10). Consequences: (1) 'Whenever you cast' triggers don't fire. (2) Storm count doesn't increase. (3) Painful Quandary and similar 'when a player casts' effects don't trigger. When a card instructs you to CAST a copy (Isochron Scepter: 'you may copy the exiled card and cast the copy'), the copy IS cast, triggering all cast-related abilities. The copy from Twincast has no physical card, so when it leaves the stack it ceases to exist (400.7f). Copies on the stack are independent — countering the original doesn't affect existing copies.",
+    "common_error": "LLMs treat all spell copying as identical. The critical distinction is whether the copy is 'put on the stack' (not cast) or 'cast' (triggers cast abilities)."
+  },
+  {
+    "title": "Lion's Eye Diamond Timing Restriction",
+    "mechanics": "stack,mana-abilities,costs,timing",
+    "card_names": "Lion's Eye Diamond,Infernal Tutor,Flashback cards",
+    "rule_numbers": "605.1a,601.2",
+    "breakdown": "Lion's Eye Diamond IS a mana ability (605.1a) and doesn't use the stack, so it cannot be responded to. However, it has a timing restriction: 'Activate only as an instant.' This means it cannot be activated during the announcement of a spell (601.2) — you can't crack LED in the middle of casting another spell to pay for it. The competitive workaround: cast Infernal Tutor using other mana, EXPLICITLY RETAIN PRIORITY, then crack LED. Your hand is now empty when Tutor resolves (enabling hellbent), and you have 3 mana floating. This also works with flashback and retrace cards since those are cast from the graveyard, not hand. At tournament level, explicitly saying 'I retain priority' is critical — default shortcuts pass priority.",
+    "common_error": "LLMs either say LED can be used to pay for spells from hand (wrong — timing restriction prevents this) or say opponents can 'respond' to LED activation (wrong — it's a mana ability that doesn't use the stack)."
+  },
+  {
+    "title": "APNAP Trigger Ordering in Multiplayer",
+    "mechanics": "stack,triggered-abilities,multiplayer,priority",
+    "card_names": "Rhystic Study,Smothering Tithe,Mystic Remora",
+    "rule_numbers": "603.3b,101.4",
+    "breakdown": "When multiple triggered abilities trigger simultaneously in multiplayer, APNAP (Active Player, Non-Active Player) order applies (603.3b). The active player puts ALL their triggered abilities on the stack first (in any order they choose), then each non-active player in turn order does the same. Because the stack resolves LIFO (last in, first out), the LAST player to put triggers on the stack has their triggers resolve FIRST. This means the active player's triggers resolve LAST in a multiplayer game. In a 2-player game, the non-active player's triggers always resolve before the active player's from the same trigger event.",
+    "common_error": "LLMs either put triggers on the stack in random order, or assume the active player's triggers resolve first (the opposite is true)."
+  },
+  {
+    "title": "Auras Entering Without Being Cast Bypass Hexproof",
+    "mechanics": "replacement-effects,auras,targeting,hexproof",
+    "card_names": "Sun Titan,Pacifism,Restoration Angel,Animate Dead",
+    "rule_numbers": "303.4f,614.1c",
+    "breakdown": "When an Aura enters the battlefield WITHOUT being cast (returned by Sun Titan, flickered by Restoration Angel, reanimated by Animate Dead), it doesn't target. Instead, the player CHOOSES what it enchants as it enters — this is a replacement effect modifying how it enters (303.4f, 614.1c). Since it doesn't target, hexproof and shroud are irrelevant. You CAN attach Pacifism to a hexproof creature this way. The Aura only needs a legal object per its 'Enchant [quality]' text. However, protection still prevents attachment because protection prevents ENCHANTING, not just targeting.",
+    "common_error": "LLMs assume Auras always target. They only target when CAST. Entering the battlefield through other means uses the 'choose' replacement effect, bypassing hexproof and shroud."
+  },
+  {
+    "title": "Solemnity + Undying/Persist Infinite Loop",
+    "mechanics": "replacement-effects,counters,undying,persist,infinite-loop",
+    "card_names": "Solemnity,Kitchen Finks,Geralf's Messenger,Murderous Redcap",
+    "rule_numbers": "614.1a",
+    "breakdown": "Solemnity creates a replacement effect preventing counters from being placed on permanents (614.1a). When a creature with Undying dies without a +1/+1 counter, Undying triggers and returns it. Solemnity's replacement effect prevents the +1/+1 counter from being placed. The creature returns with NO counters. Undying checks 'if it had no +1/+1 counters' at the time it died — and since Solemnity prevents counters, this is always true. This creates a deterministic infinite loop with any sacrifice outlet. Same with Persist: the -1/-1 counter is never placed, so Persist always triggers. Kitchen Finks + Solemnity + sac outlet = infinite life. Geralf's Messenger + Solemnity + sac outlet = infinite damage.",
+    "common_error": "LLMs sometimes say Solemnity 'removes' the counter after it's placed (wrong — it prevents placement entirely via replacement effect) or that Undying/Persist won't trigger because Solemnity 'prevents' the mechanic (wrong — the creature returns, just without the counter)."
+  },
+  {
+    "title": "Imprisoned in the Moon + Blood Moon (Conditional Dependency)",
+    "mechanics": "layers,type-changing,dependency,timestamp",
+    "card_names": "Imprisoned in the Moon,Blood Moon",
+    "rule_numbers": "613.1d,613.7,613.8",
+    "breakdown": "Both apply in Layer 4 (type-changing). The dependency analysis depends on what Imprisoned enchants. CASE 1 — Imprisoned on a LAND: No dependency exists (neither changes what the other does or applies to). Timestamp governs. Blood Moon after Imprisoned: land is a Mountain. Imprisoned after Blood Moon: land is a colorless land with only '{T}: Add {C}.' CASE 2 — Imprisoned on a CREATURE: Dependency exists. Blood Moon only affects lands, and Imprisoned makes the creature into a land. Applying Imprisoned changes whether Blood Moon's effect applies to this permanent. Therefore Imprisoned depends on Blood Moon... wait, no — Imprisoned's effect makes the creature a land, which changes what Blood Moon applies to, so Blood Moon depends on Imprisoned. Imprisoned applies first (via dependency), making the creature a land, then Blood Moon applies to the now-land permanent, making it a Mountain.",
+    "common_error": "LLMs fail to recognize that the dependency analysis changes based on what Imprisoned enchants. On a land: timestamp. On a creature: dependency (Imprisoned first, then Blood Moon)."
+  },
+  {
+    "title": "ETB Replacement Lookahead (Humility + Enters Tapped)",
+    "mechanics": "replacement-effects,ETB,lookahead,layers",
+    "card_names": "Humility,Diregraf Ghoul,Urabrask the Hidden",
+    "rule_numbers": "614.12,613.1",
+    "breakdown": "CR 614.12 creates the 'lookahead' rule: when determining which replacement effects apply to a permanent entering the battlefield, the game creates a hypothetical version of the permanent as it would exist on the battlefield, then checks whether it would have the relevant ability. With Humility in play, the hypothetical Diregraf Ghoul on the battlefield would have NO abilities (Humility removes them in Layer 6). Therefore its 'enters tapped' replacement effect doesn't apply, and it enters UNTAPPED. Same principle: Urabrask the Hidden gives your creatures haste — but if Humility is in play, Urabrask has no abilities, so the haste-granting effect doesn't exist in the hypothetical, and your creatures don't have haste as they enter.",
+    "common_error": "LLMs assume ETB replacement effects are checked based on the card's printed text, not the permanent's characteristics as they would exist on the battlefield. The lookahead rule (614.12) means continuous effects like Humility ARE considered."
+  },
+  {
+    "title": "Impending Creates Non-Creature Permanents",
+    "mechanics": "impending,types,creature-removal,recent-change",
+    "card_names": "Overlord of the Mistmoors,Overlord of the Hauntwoods,Overlord of the Boilerbilges",
+    "rule_numbers": "702.176",
+    "breakdown": "RECENT MECHANIC (September 2024 Duskmourn release). When a creature card is cast for its Impending cost, it enters as a non-creature enchantment with time counters. It only becomes a creature when the last time counter is removed. While it has time counters, it is NOT a creature — creature removal (Murder, Path to Exile, Wrath of God) cannot target or affect it. You need enchantment removal (Naturalize, Disenchant) to deal with it. If time counters are added to an already-creature Impending card (e.g., via Clockspinning), it stops being a creature again. A copy of an Impending permanent enters without time counters and IS a creature immediately.",
+    "common_error": "LLMs see a creature card and assume it's always a creature on the battlefield. 'Can I Murder the Overlord of the Mistmoors?' — only if it has no time counters. If cast for Impending, it's an enchantment."
+  },
+  {
+    "title": "Legendary Vehicle Commanders (July 2025)",
+    "mechanics": "commander,vehicles,recent-change",
+    "card_names": "Parhelion II,Weatherlight Compleated,Skysovereign Consul Flagship,Mechtitan Core",
+    "rule_numbers": "903.3",
+    "breakdown": "RECENT RULES CHANGE (July 2025 Edge of Eternities release). Any legendary permanent card with a printed power/toughness box on its front face can now be a commander. This retroactively made ~22 existing legendary Vehicles legal commanders, including Parhelion II, Weatherlight Compleated, Skysovereign Consul Flagship, and Mechtitan Core. Vehicles don't need to be crewed to be your commander — they sit in the command zone as non-creature artifacts and can be cast normally.",
+    "common_error": "LLMs will say 'Vehicles cannot be your commander because they are not creatures.' This changed in July 2025."
+  },
+  {
+    "title": "+1/+1 and -1/-1 Counter Annihilation vs Zero Toughness",
+    "mechanics": "SBA,counters",
+    "card_names": "Any creature with +1/+1 counters receiving -1/-1 counters",
+    "rule_numbers": "704.3,704.5f,704.5q",
+    "breakdown": "Counter annihilation (704.5q: +1/+1 and -1/-1 counters cancel each other) and zero toughness death (704.5f) are BOTH state-based actions performed SIMULTANEOUSLY (704.3). Example: A 3/3 creature with one +1/+1 counter (so 4/4) receives three -1/-1 counters (now has one +1/+1 and three -1/-1, net -2/-2, so 1/1). SBAs check: counter annihilation removes one pair (leaving two -1/-1 counters, creature is 1/1). The creature survives. But: A 2/2 with one +1/+1 counter (3/3) receiving three -1/-1 counters (net -2/-2, so 0/0). At SBA check: toughness is 0 AND counters need annihilating. Both happen simultaneously — the creature dies. Counter annihilation doesn't 'save' the creature because the zero-toughness check happens at the same time.",
+    "common_error": "LLMs assume counter annihilation happens 'first' and then toughness is rechecked. Both SBAs are simultaneous — if toughness is 0 when SBAs check, the creature dies regardless of pending counter annihilation."
+  },
+  {
+    "title": "Legend Rule + ETB Triggers (SBA Timing)",
+    "mechanics": "SBA,legend-rule,triggered-abilities",
+    "card_names": "Any legendary creature played as a second copy",
+    "rule_numbers": "704.3,704.5j,603.3",
+    "breakdown": "When a second legendary permanent with the same name enters: (1) The ETB triggered ability triggers (if any). (2) SBAs are checked before any player receives priority (704.3). (3) The legend rule (704.5j) forces the controller to choose one to keep; the other goes to the graveyard. (4) THEN all waiting triggers (ETB, dies, leaves-the-battlefield) are put on the stack simultaneously. The controller orders them (603.3b). You CANNOT respond between the ETB and the legend rule — SBAs don't use the stack. The ETB trigger DOES happen (it triggered when the creature entered), and the legend rule also applies, all before anyone gets priority.",
+    "common_error": "LLMs either say the legend rule prevents the ETB trigger (wrong — it triggers, just waits for the stack), or say you can respond to the ETB before the legend rule (wrong — SBAs are checked before priority is given)."
+  },
+  {
+    "title": "Intervening 'If' Clauses Check Twice",
+    "mechanics": "triggered-abilities,intervening-if",
+    "card_names": "Felidar Sovereign,Near-Death Experience,Reveillark",
+    "rule_numbers": "603.4",
+    "breakdown": "The 'intervening if' pattern: 'When/At [trigger event], if [condition], [effect]' (603.4). The condition is checked TWICE: once when the trigger event occurs (the ability only goes on the stack if the condition is true), and again when the ability resolves (does nothing if the condition is now false). Example: Felidar Sovereign — 'At the beginning of your upkeep, if you have 40 or more life, you win the game.' If you have 39 life at the beginning of your upkeep, the ability NEVER goes on the stack. It doesn't trigger. This is different from abilities where the condition is ONLY in the effect: 'When X happens, you may do Y if Z' — these always trigger, and only check Z on resolution.",
+    "common_error": "LLMs assume all triggered abilities always go on the stack and check conditions only on resolution. Intervening 'if' clauses prevent the trigger entirely if the condition isn't met when the trigger event occurs."
+  },
+  {
+    "title": "State Triggers Only Re-Trigger After Leaving the Stack",
+    "mechanics": "triggered-abilities,state-triggers",
+    "card_names": "Near-Death Experience,Oath of Druids",
+    "rule_numbers": "603.8",
+    "breakdown": "State-triggered abilities (triggers based on a game state being true rather than a specific event occurring) have a special rule (603.8): the ability doesn't trigger again until it has resolved, been countered, or otherwise left the stack. If the game state still matches after the ability leaves the stack, it triggers again. Example: 'Whenever you have no cards in hand, draw a card.' After you play your last card, this triggers once. It doesn't trigger 50 times or create an infinite loop. Only after it resolves (and you draw a card) would it check again — and now you have a card, so it doesn't re-trigger.",
+    "common_error": "LLMs sometimes calculate state triggers as creating infinite loops or triggering multiple times from a single state check."
+  },
+  {
+    "title": "Dryad of the Ilysian Grove + Blood Moon (Timestamp, Not Dependency)",
+    "mechanics": "layers,type-changing,timestamp",
+    "card_names": "Dryad of the Ilysian Grove,Blood Moon,Valakut the Molten Pinnacle",
+    "rule_numbers": "613.1d,613.7,613.8",
+    "breakdown": "Both apply in Layer 4 (type-changing). Dryad: 'Lands you control are every basic land type in addition to their other types.' Blood Moon: 'Nonbasic lands are Mountains.' Dependency analysis: They affect overlapping but not identical sets (Dryad affects lands you control; Blood Moon affects all nonbasic lands). Applying one does not change what the other does, applies to, or whether it exists. No dependency — timestamp governs (613.7). If Dryad entered AFTER Blood Moon: your nonbasic lands are all basic land types (Dryad overwrites Blood Moon's type-setting for your lands). This means Valakut the Molten Pinnacle sees Mountains and triggers normally. If Blood Moon entered AFTER Dryad: your nonbasic lands are Mountains only.",
+    "common_error": "LLMs assume Blood Moon 'always wins' because it removes abilities. But Dryad's ability comes from the creature, not the lands themselves — Blood Moon doesn't remove it. The interaction is pure timestamp in Layer 4."
+  },
+  {
+    "title": "Oko + Darksteel Citadel (Indestructible Is Just an Ability)",
+    "mechanics": "layers,ability-removing,type-changing",
+    "card_names": "Oko Thief of Crowns,Darksteel Citadel,Darksteel Mutation",
+    "rule_numbers": "613.1d,613.1f",
+    "breakdown": "Oko's +1 ability: target artifact or creature 'loses all other abilities and becomes a green Elk creature with base power and toughness 3/3.' The 'loses all abilities' applies in Layer 6. Darksteel Citadel has indestructible as a PRINTED ABILITY — it is removed by 'loses all abilities.' The resulting Elk is NOT indestructible. Contrast with Darksteel Mutation on a creature — Mutation grants indestructible in Layer 6 while also setting P/T in Layer 7b. If Oko targets a creature enchanted by Darksteel Mutation, timestamp in Layer 6 determines whether it has indestructible (Mutation adds it, Oko removes all — last timestamp wins).",
+    "common_error": "LLMs conflate 'indestructible' with an intrinsic property of Darksteel cards. It's just a keyword ability like any other and can be removed by 'loses all abilities.'"
+  },
+  {
+    "title": "Painter's Servant + Iona / Grindstone (Color Layer Scope)",
+    "mechanics": "layers,color-changing,color-identity",
+    "card_names": "Painter's Servant,Iona Shield of Emeria,Grindstone",
+    "rule_numbers": "613.1e",
+    "breakdown": "Painter's Servant applies in Layer 5 (color-changing): ALL cards, spells, and permanents everywhere (in every zone) are the chosen color in addition to their other colors. This means: (1) With Iona naming the same color, opponents literally cannot cast any spells — every card in their hand is now that color. (2) With Grindstone, milling two cards always hits two cards that share a color (they're all the chosen color), so the mill continues until the library is empty. The surprising scope: Painter's Servant affects cards in ALL zones — hand, library, graveyard, exile, even outside the game. This is because Layer 5 color-changing applies everywhere per 613.1.",
+    "common_error": "LLMs sometimes assume color-changing effects only apply to permanents on the battlefield. Painter's Servant explicitly applies to 'all cards that aren't on the battlefield, spells, and permanents' — every zone."
+  },
+  {
+    "title": "Madness: Replacement Effect Then Triggered Ability",
+    "mechanics": "replacement-effects,triggered-abilities,madness,timing",
+    "card_names": "Fiery Temper,Big Game Hunter,Tormenting Voice,Faithless Looting",
+    "rule_numbers": "702.34",
+    "breakdown": "Madness involves both a replacement effect AND a triggered ability in sequence. Step 1 (Replacement): When discarded, the card goes to exile instead of the graveyard (replacement effect). Step 2 (Trigger): A triggered ability goes on the stack that, when it resolves, lets you cast the card for its madness cost. Key timing: if you discard to pay a COST (e.g., Tormenting Voice's additional cost), the madness trigger goes on the stack ABOVE Tormenting Voice, meaning the madness spell resolves FIRST. If you discard during RESOLUTION of a spell (e.g., opponent's Mind Rot), the resolving spell finishes completely, then the madness trigger goes on the stack. Madness lets you ignore timing restrictions — you can cast a creature or sorcery at instant speed via madness.",
+    "common_error": "LLMs either say madness lets you cast the card immediately when discarded (wrong — it goes through a triggered ability on the stack) or confuse the timing of when the trigger goes on the stack relative to the discarding effect."
+  },
+  {
+    "title": "Chromatic Sphere vs Chromatic Star (Mana Ability Distinction)",
+    "mechanics": "mana-abilities,stack,triggered-abilities",
+    "card_names": "Chromatic Sphere,Chromatic Star,Rest in Peace,Thassa's Oracle",
+    "rule_numbers": "605.1a,603.1",
+    "breakdown": "Chromatic Sphere: '{1}, {T}, Sacrifice: Add one mana of any color. Draw a card.' The ENTIRE ability — mana AND draw — is a single mana ability (605.1a). It doesn't use the stack. The draw happens immediately with no chance to respond. Chromatic Star: '{1}, {T}, Sacrifice: Add one mana of any color.' PLUS separately: 'When Chromatic Star is put into a graveyard from the battlefield, draw a card.' The mana is a mana ability, but the draw is a SEPARATE TRIGGERED ABILITY that uses the stack. With Rest in Peace in play: Chromatic Sphere still draws (it's part of the mana ability, which resolves immediately). Chromatic Star does NOT draw (it never reaches the graveyard, so the trigger never fires). With Thassa's Oracle and an empty library: Chromatic Sphere wins immediately with no chance to respond.",
+    "common_error": "LLMs treat Chromatic Sphere and Chromatic Star as functionally identical. The distinction between a unified mana ability and a separate triggered ability is mechanically critical."
+  },
+  {
+    "title": "Competing Exile Replacement Effects (Dauthi Voidwalker + Rest in Peace)",
+    "mechanics": "replacement-effects,exile,graveyard",
+    "card_names": "Dauthi Voidwalker,Rest in Peace,Leyline of the Void,Kalitas Traitor of Ghet",
+    "rule_numbers": "616.1",
+    "breakdown": "When multiple replacement effects try to modify the same event (a card going to the graveyard), the AFFECTED OBJECT'S CONTROLLER OR OWNER chooses which replacement to apply (616.1). When an opponent's creature would die with both Dauthi Voidwalker and Rest in Peace on your side: the dying creature's controller (your opponent) chooses whether it gets exiled by Voidwalker (with a void counter, castable later by you) or by Rest in Peace (just exiled, no counter). The opponent will choose Rest in Peace to deny you the void counter. Once one replacement applies, the card is going to exile (not the graveyard), so the other replacement no longer applies.",
+    "common_error": "LLMs assume the controller of the replacement effects (you) chooses which applies. It's the affected object's controller/owner who chooses — and they'll pick the option that's worst for you."
+  },
+  {
+    "title": "Self-Replacement Effects Have Priority (Force of Negation + Rest in Peace)",
+    "mechanics": "replacement-effects,self-replacement",
+    "card_names": "Force of Negation,Rest in Peace",
+    "rule_numbers": "614.15,616.1",
+    "breakdown": "Force of Negation: 'If this spell is cast during a main phase, exile it instead of putting it into your graveyard as it resolves. If that spell is countered this way, exile it instead of putting it anywhere else.' The 'exile instead of putting it anywhere else' clause is a SELF-REPLACEMENT EFFECT (614.15) — it modifies part of its own spell's effect. Per 614.15, self-replacement effects are applied BEFORE any other replacement effects in the 616.1 ordering. Force's exile clause applies first; since the spell is now going to exile, Rest in Peace's replacement no longer applies. This matters when other effects care about which specific effect exiled a card.",
+    "common_error": "LLMs don't recognize the self-replacement effect priority. They may say the controller chooses between Force's exile and Rest in Peace's exile, but self-replacement effects bypass the normal choice entirely."
+  },
+  {
+    "title": "Finality Counters Bypass Death Triggers and Recursion",
+    "mechanics": "replacement-effects,counters,graveyard,recent-change",
+    "card_names": "Rite of the Moth,Balustrade Wurm,Undying creatures,Reanimate",
+    "rule_numbers": "122.1b",
+    "breakdown": "RECENT MECHANIC (September 2024 Duskmourn release). Finality counters create a replacement effect: 'If this permanent would be put into a graveyard from the battlefield, exile it instead.' Consequences: (1) A creature with a finality counter and Undying/Persist is just exiled — the return trigger never fires because it was exiled, not put into the graveyard (it never 'died'). (2) Cards like Reanimate can't target a creature exiled by its finality counter. (3) 'Dies' triggers (Blood Artist, etc.) don't fire. (4) However, finality counters CAN be removed (e.g., Vampire Hexmage), restoring normal graveyard behavior.",
+    "common_error": "LLMs trained before Duskmourn won't know finality counters exist and will give answers assuming creatures go to the graveyard normally."
+  },
+  {
+    "title": "Creatures Don't Tap to Block",
+    "mechanics": "combat,blocking,tapping",
+    "card_names": "Any blocking creature",
+    "rule_numbers": "509.1,302.7",
+    "breakdown": "Creatures tap to ATTACK (302.7, unless they have vigilance), but blocking does NOT require tapping. A tapped creature cannot be declared as a blocker (509.1a), but if a creature becomes tapped after being declared as a blocker (e.g., an opponent taps it in response), it remains a blocker. Blocking is declared, not maintained. Additionally, summoning-sick creatures CAN block — summoning sickness only prevents attacking and activating abilities with the tap/untap symbol (302.6). A creature you just played can block on your opponent's next turn.",
+    "common_error": "LLMs and players assume blocking requires tapping because attacking does. This is the most universally cited misconception in Magic. A corollary error is saying summoning-sick creatures can't block — they can."
+  },
+  {
+    "title": "Ghost Blocking (Sacrificed Blocker Still Blocks)",
+    "mechanics": "combat,blocking,sacrifice",
+    "card_names": "Any blocker sacrificed after declare blockers",
+    "rule_numbers": "509.1h,510.1c",
+    "breakdown": "Once a creature is declared as a blocker, it remains a blocker even if it leaves the battlefield before the combat damage step. The attacking creature is still 'blocked' — without trample, the attacker deals NO combat damage to the defending player. This is called 'ghost blocking' or 'chump and sac.' Example: Block a 10/10 with a 1/1, then sacrifice the 1/1 to Viscera Seer before damage. The 10/10 is blocked and deals its damage to nothing (0 damage to the now-absent blocker). With trample, the attacker would assign lethal damage to the last-known toughness of the blocker (1), then trample the rest (9) to the player.",
+    "common_error": "LLMs say 'if the blocker is removed, the creature becomes unblocked and deals damage to the player.' This is wrong — once blocked, always blocked (unless an effect specifically says otherwise)."
+  },
+  {
+    "title": "Deathtouch + Trample: Only 1 Damage Per Blocker",
+    "mechanics": "combat,deathtouch,trample,damage-assignment",
+    "card_names": "Any creature with deathtouch and trample",
+    "rule_numbers": "702.2c,702.19c",
+    "breakdown": "When assigning combat damage from a creature with both deathtouch and trample, any nonzero amount of damage from a source with deathtouch is considered 'lethal damage' for the purpose of damage assignment (702.2c). This means the attacking creature only needs to assign 1 damage to each blocking creature, then trample the rest to the defending player. A 7/7 with deathtouch and trample blocked by three 5/5 creatures assigns 1 to each blocker (killing all three via deathtouch) and tramples 4 damage to the defending player. This even works against indestructible blockers — 1 damage is 'lethal' for assignment purposes even though the creature won't actually die.",
+    "common_error": "LLMs calculate lethal damage normally (5 per blocker in the example above) ignoring that deathtouch redefines 'lethal' for assignment. Some also incorrectly say deathtouch + trample doesn't work against indestructible."
+  },
+  {
+    "title": "First Strike Has No Effect During 'Fight' Effects",
+    "mechanics": "combat,first-strike,fight",
+    "card_names": "Domri Rade,Prey Upon,Rabid Bite,Ram Through",
+    "rule_numbers": "701.12,702.7",
+    "breakdown": "Fight effects (701.12) cause two creatures to deal damage to each other simultaneously. This is NOT combat damage — it happens during the resolution of a spell or ability. First strike and double strike only create an additional combat damage step during the COMBAT PHASE (702.7). Since fight effects don't use combat damage steps, first strike is completely irrelevant. Both creatures deal their full damage simultaneously. Similarly, abilities that trigger on 'combat damage' don't trigger from fight damage. Note: some fight-like effects are one-directional ('deals damage equal to its power to target creature') — these are also not combat damage.",
+    "common_error": "LLMs apply first strike to fight effects, saying the first-strike creature deals damage first and kills the other creature before it can deal damage back. First strike only matters in combat."
+  },
+  {
+    "title": "Protection = DEBT Only (Board Wipes Ignore It)",
+    "mechanics": "protection,hexproof,targeting,DEBT",
+    "card_names": "Wrath of God,Progenitus,Teferi's Protection,Sword of Fire and Ice",
+    "rule_numbers": "702.16",
+    "breakdown": "Protection prevents exactly four things, captured in the DEBT mnemonic: Damage from sources with the quality, Enchanting/Equipping by permanents with the quality, Blocking by creatures with the quality, Targeting by spells/abilities with the quality. If an effect doesn't do one of these four things, protection is irrelevant. Board wipes (Wrath of God, Damnation) don't target and don't deal damage — they destroy, which is not in DEBT. A creature with protection from white dies to Wrath of God. Sacrifice effects (Liliana's -2, Innocent Blood) don't target or damage — protection doesn't help. Effects that say 'choose' don't target — hexproof and protection don't apply. Even Protection from Everything (Progenitus) dies to Wrath of God, Toxic Deluge, and sacrifice effects.",
+    "common_error": "LLMs over-apply protection as blanket immunity. 'My creature has protection from white, so Wrath of God can't kill it' is wrong. Protection's scope is precisely DEBT and nothing more."
+  },
+  {
+    "title": "Indestructible Doesn't Prevent -X/-X, Sacrifice, Exile, or Legend Rule",
+    "mechanics": "indestructible,destruction,toughness,sacrifice",
+    "card_names": "Darksteel Colossus,Avacyn Angel of Hope,Toxic Deluge,Cyclonic Rift",
+    "rule_numbers": "702.12,704.5f",
+    "breakdown": "Indestructible prevents two things: destruction effects ('destroy target creature') and lethal damage (damage doesn't cause the creature to be 'destroyed' as a state-based action). It does NOT prevent: (1) Death from 0 or less toughness via -X/-X effects or -1/-1 counters (704.5f — this is 'put into graveyard,' not 'destroyed'). (2) Sacrifice (the controller puts it into the graveyard as a cost or effect). (3) Exile (not destruction). (4) Legend rule (704.5j — owner chooses one, the other is 'put into the graveyard,' not 'destroyed'). (5) Being countered (on the stack, not yet a permanent). CRITICAL: An indestructible creature IS a legal target for 'destroy' effects. The spell resolves normally — it just fails to destroy. Any other effects on the spell still happen. Example: Dromoka's Command ('destroy target enchantment' + 'put a +1/+1 counter') targeting an indestructible enchantment still puts the counter on a creature.",
+    "common_error": "LLMs treat indestructible as comprehensive removal immunity. They also sometimes say a 'destroy' spell can't TARGET an indestructible permanent — it can, it just doesn't destroy it."
+  },
+  {
+    "title": "Tarmogoyf + Lightning Bolt Paradox (Mid-Resolution SBA)",
+    "mechanics": "SBA,toughness,mid-resolution,graveyard",
+    "card_names": "Tarmogoyf,Lightning Bolt",
+    "rule_numbers": "704.3,704.4",
+    "breakdown": "Suppose Tarmogoyf is 4/5 (4 card types in graveyards) and Lightning Bolt targets it. During Bolt's resolution: Bolt deals 3 damage (Tarmogoyf is 4/5 with 3 damage marked). Then Bolt moves to the graveyard as part of resolution. If 'instant' wasn't previously among card types in graveyards, Tarmogoyf is now 5/6. SBAs check AFTER resolution completes (704.4 — SBAs aren't checked mid-resolution): Tarmogoyf is 5/6 with 3 damage — it survives. The key rule: 704.4 states SBAs 'don't apply while a spell or ability is resolving.' A creature can temporarily have lethal damage or 0 toughness mid-resolution and survive if the condition is corrected before resolution completes and SBAs check.",
+    "common_error": "LLMs either say Tarmogoyf dies (ignoring that Bolt entering the graveyard changes its toughness before SBAs check) or fail to explain WHY it survives (704.4 — SBAs don't apply mid-resolution)."
+  },
+  {
+    "title": "Layer 7 Sublayers: Turn to Frog + Giant Growth Always = 4/4",
+    "mechanics": "layers,power-toughness,sublayers",
+    "card_names": "Turn to Frog,Giant Growth,Godhead of Awe,Mutagenic Growth",
+    "rule_numbers": "613.1g,613.4",
+    "breakdown": "Layer 7 (power/toughness) has four sublayers that ALWAYS apply in order: 7a (characteristic-defining abilities), 7b (set-to-specific-value effects like 'is 1/1'), 7c (modifications like +3/+3 and counters), 7d (P/T switching). Sublayer order is fixed — timestamp is irrelevant ACROSS sublayers. Turn to Frog ('target creature becomes a 1/1 blue Frog') sets P/T in Layer 7b. Giant Growth ('+3/+3 until end of turn') modifies P/T in Layer 7c. Layer 7b ALWAYS applies before 7c. So regardless of which was cast first: set to 1/1 (7b), then +3/+3 (7c) = 4/4. Even if Giant Growth was cast first and Turn to Frog second, the result is still 4/4. Timestamp only matters WITHIN the same sublayer.",
+    "common_error": "LLMs apply timestamp across sublayers, saying 'Turn to Frog was cast last so it overrides Giant Growth, making it 1/1.' Sublayers have fixed ordering — 7b always before 7c."
+  },
+  {
+    "title": "Lands Produce Mana — They Are Not Mana",
+    "mechanics": "lands,mana,mana-abilities,terminology",
+    "card_names": "Llanowar Elves,Forest,Birds of Paradise",
+    "rule_numbers": "106.1,605.1a,305.6",
+    "breakdown": "Lands are permanent cards that exist on the battlefield. Mana is an abstract resource that exists in the mana pool (106.1). Tapping a Forest PRODUCES green mana via its mana ability — the land stays on the battlefield. Llanowar Elves says '{T}: Add {G}' — it produces green mana, it does NOT search for a Forest card. 'Add {G}' means 'add one green mana to your mana pool,' not 'put a Forest onto the battlefield.' Cards that actually search for lands say 'search your library for a Forest card' (e.g., Rampant Growth). Additionally, determining whether an ability is a mana ability has a non-intuitive exception: an ability that produces mana but TARGETS something is NOT a mana ability (605.1a) and uses the stack normally. Deathrite Shaman's mana-producing mode targets a land card in a graveyard, so it's not a mana ability and can be responded to.",
+    "common_error": "LLMs conflate lands and mana. They may say Llanowar Elves 'searches for a Forest' or that destroying a land removes mana from the pool (it doesn't — mana already produced stays until the phase ends)."
+  },
+  {
+    "title": "Spells, Permanents, and Cards Are Zone-Specific Terms",
+    "mechanics": "zones,terminology,stack,counterspells",
+    "card_names": "Any card in multiple zones",
+    "rule_numbers": "108.1,111.1,110.1",
+    "breakdown": "A 'card' exists in all zones but is the base term (108.1). A 'spell' is a card only while it's on the stack (111.1) — after it resolves, it becomes a permanent or goes to a graveyard as a card. A 'permanent' is a card (or token) only while on the battlefield (110.1). This means EVERYTHING except lands becomes a spell when cast — including artifacts, enchantments, planeswalkers, and creatures. Players often think 'spell' means only instants and sorceries. 'Counter target spell' from Counterspell can counter a creature spell, artifact spell, etc. 'Creature' refers to a permanent on the battlefield; 'creature card' refers to a card with the creature type in any other zone; 'creature spell' refers to a creature card on the stack.",
+    "common_error": "LLMs sometimes use zone terms interchangeably. They may say 'counter target creature' (creatures are on the battlefield, not the stack) or fail to recognize that Counterspell can counter an artifact being cast."
+  },
+  {
+    "title": "Alternative Costs: Only One Per Spell",
+    "mechanics": "costs,alternative-costs,additional-costs,casting",
+    "card_names": "Force of Will,Overload,Omniscience,Fist of Suns",
+    "rule_numbers": "601.2b,118.9",
+    "breakdown": "A spell can only be cast using ONE alternative cost (118.9). Alternative costs include: casting 'without paying its mana cost' (Omniscience, cascade), overload, flashback, madness, dash, escape, and any cost that replaces the mana cost entirely. You CANNOT combine two alternative costs — e.g., you cannot overload a spell cast via cascade (without paying its mana cost). You CAN add additional costs on top of any alternative cost — kicker, Thalia's tax, additional costs from the spell itself (like exiling cards for Force of Will's alternative cost). The distinction: alternative costs REPLACE the mana cost; additional costs ADD to whatever you're paying. Related: mana cost vs mana value — a card with no mana cost (like Ancestral Vision) has mana value 0, but 'no mana cost' is not the same as 'mana cost {0}.' You can't pay {0} to cast it normally.",
+    "common_error": "LLMs allow stacking alternative costs (overload + without paying mana cost) or confuse alternative costs with additional costs. They also sometimes say cards with no mana cost can be cast for free without an alternative cost mechanism."
+  },
+  {
+    "title": "Mana Abilities That Target Aren't Mana Abilities",
+    "mechanics": "mana-abilities,targeting,stack",
+    "card_names": "Deathrite Shaman,Selvala Explorer Returned",
+    "rule_numbers": "605.1a",
+    "breakdown": "A mana ability is an activated ability that (1) doesn't require a target, (2) could produce mana, and (3) is not a loyalty ability (605.1a). If ANY of these conditions fail, it's a normal activated ability that uses the stack and can be responded to. Deathrite Shaman's first ability ('{T}: Exile target land card from a graveyard. Add one mana of any color that land could produce') TARGETS a land card. Despite producing mana, it is NOT a mana ability because it targets. It uses the stack and can be responded to (e.g., the targeted land card can be exiled in response). Compare to Llanowar Elves ('{T}: Add {G}') — no target, produces mana, not a loyalty ability → mana ability, doesn't use the stack.",
+    "common_error": "LLMs assume any ability that produces mana is a mana ability. The targeting exception is critical and commonly missed."
+  },
+  {
+    "title": "Confusion in the Ranks Triggers on Itself Entering",
+    "mechanics": "triggered-abilities,self-triggering,ETB",
+    "card_names": "Confusion in the Ranks,Pandemonium,Warstorm Surge",
+    "rule_numbers": "603.6a,603.10",
+    "breakdown": "When a permanent enters the battlefield, the game checks all triggered abilities — including those of the entering permanent itself AND those on other permanents that trigger on entry events. Confusion in the Ranks ('Whenever an artifact, creature, or enchantment enters the battlefield, that permanent's controller may exchange control of that permanent and target permanent that shares a card type with it') is itself an enchantment. When it enters, its own trigger condition is met (an enchantment entered the battlefield), so it DOES trigger on itself. The controller can exchange Confusion with another enchantment immediately. Same principle applies to Pandemonium (triggers when itself enters as an enchantment, if it's also a creature for some reason) and any permanent whose trigger condition can match itself.",
+    "common_error": "LLMs deny that permanents can trigger their own ETB-watching abilities, reasoning that the ability 'isn't on the battlefield yet' when the permanent enters. Per 603.6a, triggered abilities look at the game state after the event, at which point the permanent and its abilities are on the battlefield."
+  }
+]
