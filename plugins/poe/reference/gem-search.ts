@@ -73,6 +73,10 @@ export const gemSearchModule: NativeReferenceModule = {
     "USE PROACTIVELY: query this module to verify gem names, check gem colors,",
     "look up support gem interactions, or find gems by keyword before referencing",
     "them in build advice. Prevents hallucinating gem names or wrong gem colors.",
+    "Support gems include: mana_multiplier (cost %), cannot_support_minions (boolean),",
+    "minion_excluded_effects (stats that don't apply to minions/totems),",
+    "require_skill_types and exclude_skill_types. stats_at_20 includes both",
+    "constant and level-scaled effects (e.g. the actual 'more damage' multiplier).",
   ].join(" "),
   parameters: {
     query: {
