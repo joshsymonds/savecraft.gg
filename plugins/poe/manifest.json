@@ -28,7 +28,7 @@
     "modules": {
       "build_planner": {
         "name": "Build Planner",
-        "description": "Analyze, modify, or explore a Path of Exile build via Path of Building. First call returns a compact summary with per-element damage breakdown (FireHitAverage, ChaosHitAverage, etc.) showing damage type split after conversion — check these before recommending element-specific changes. Items section includes rare/magic item mod text for understanding gear-based conversion. To drill deeper, call again with buildId and sections (e.g. 'offense,defense'). For modifications, pass buildId + operations. For tree exploration, pass buildId + nearby_metrics. Every response includes a buildId for follow-up calls."
+        "description": "Analyze, modify, or explore a Path of Exile build via Path of Building. First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. To drill deeper, call again with buildId and sections (e.g. 'offense,defense'). For modifications, pass buildId + operations + sections to see before/after comparison. For tree exploration, pass buildId + nearby_metrics to find the highest-impact nearby nodes. Every response includes a buildId for follow-up calls."
       }
     }
   }
