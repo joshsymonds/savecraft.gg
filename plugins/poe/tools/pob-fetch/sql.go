@@ -19,7 +19,8 @@ func buildSQL(
 	var b strings.Builder
 	q := cfapi.SQLQuote
 
-	b.WriteString("BEGIN;\n")
+	// No BEGIN/COMMIT — D1's bulk import API manages transaction semantics
+	// server-side. Explicit transaction statements cause import errors.
 
 	// Wipe all tables (FTS first, then data).
 	for _, table := range []string{
@@ -73,13 +74,13 @@ func buildSQL(
 
 		description := g.Description
 
-		fmt.Fprintf(&b, "INSERT INTO poe_gems (gem_id, name, is_support, color, tags, level_requirement, str_requirement, dex_requirement, int_requirement, cast_time, mana_cost, description, stats_at_20, quality_stats, supports_tags) VALUES (%s, %s, %d, %s, %s, NULL, %s, %s, %s, %s, %s, %s, %s, '[]', NULL);\n",
+		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_gems (gem_id, name, is_support, color, tags, level_requirement, str_requirement, dex_requirement, int_requirement, cast_time, mana_cost, description, stats_at_20, quality_stats, supports_tags) VALUES (%s, %s, %d, %s, %s, NULL, %s, %s, %s, %s, %s, %s, %s, '[]', NULL);\n",
 			q(g.GemID), q(g.Name), isSupport, q(g.Color), q(tagsJSON),
 			strReq, dexReq, intReq,
 			castTime, manaCost, q(description), q(statsJSON),
 		)
 
-		fmt.Fprintf(&b, "INSERT INTO poe_gems_fts (gem_id, name, tags, description) VALUES (%s, %s, %s, %s);\n",
+		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_gems_fts (gem_id, name, tags, description) VALUES (%s, %s, %s, %s);\n",
 			q(g.GemID), q(g.Name), q(tagsJSON), q(description),
 		)
 	}
@@ -96,12 +97,12 @@ func buildSQL(
 			itemClass = u.BaseType
 		}
 
-		fmt.Fprintf(&b, "INSERT INTO poe_uniques (name, variant, base_type, item_class, level_requirement, str_requirement, dex_requirement, int_requirement, properties, implicit_mods, explicit_mods, flavour_text, drop_level) VALUES (%s, %s, %s, %s, %s, NULL, NULL, NULL, '[]', %s, %s, NULL, NULL);\n",
+		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_uniques (name, variant, base_type, item_class, level_requirement, str_requirement, dex_requirement, int_requirement, properties, implicit_mods, explicit_mods, flavour_text, drop_level) VALUES (%s, %s, %s, %s, %s, NULL, NULL, NULL, '[]', %s, %s, NULL, NULL);\n",
 			q(u.Name), q(u.Variant), q(u.BaseType), q(itemClass),
 			levelReq, q(implicitsJSON), q(explicitsJSON),
 		)
 
-		fmt.Fprintf(&b, "INSERT INTO poe_uniques_fts (name, variant, base_type, item_class, explicit_mods) VALUES (%s, %s, %s, %s, %s);\n",
+		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_uniques_fts (name, variant, base_type, item_class, explicit_mods) VALUES (%s, %s, %s, %s, %s);\n",
 			q(u.Name), q(u.Variant), q(u.BaseType), q(itemClass),
 			q(explicitsJSON),
 		)
@@ -113,12 +114,12 @@ func buildSQL(
 		tagsJSON := cfapi.JSONArray(m.Tags)
 		level := nullableInt(m.Level)
 
-		fmt.Fprintf(&b, "INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);\n",
+		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);\n",
 			q(m.ModID), q(m.ModText), q(m.Affix), q(strings.ToLower(m.ModType)),
 			level, q(m.Group), q(itemClassesJSON), q(tagsJSON),
 		)
 
-		fmt.Fprintf(&b, "INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (%s, %s);\n",
+		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_mods_fts (mod_id, mod_text) VALUES (%s, %s);\n",
 			q(m.ModID), q(m.ModText),
 		)
 	}
@@ -128,11 +129,11 @@ func buildSQL(
 		levelReq := nullableInt(item.LevelReq)
 		tagsJSON := cfapi.JSONArray(item.Tags)
 
-		fmt.Fprintf(&b, "INSERT INTO poe_base_items (item_id, name, item_class, level_requirement, implicit_mods, properties, tags) VALUES (%s, %s, %s, %s, '[]', '{}', %s);\n",
+		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_base_items (item_id, name, item_class, level_requirement, implicit_mods, properties, tags) VALUES (%s, %s, %s, %s, '[]', '{}', %s);\n",
 			q(item.Name), q(item.Name), q(item.ItemClass), levelReq, q(tagsJSON),
 		)
 
-		fmt.Fprintf(&b, "INSERT INTO poe_base_items_fts (item_id, name, item_class) VALUES (%s, %s, %s);\n",
+		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_base_items_fts (item_id, name, item_class) VALUES (%s, %s, %s);\n",
 			q(item.Name), q(item.Name), q(item.ItemClass),
 		)
 	}
@@ -150,12 +151,12 @@ func buildSQL(
 		orbit := nullableInt(n.Orbit)
 		orbitIndex := nullableInt(n.OrbitIndex)
 
-		fmt.Fprintf(&b, "INSERT INTO poe_passive_nodes (skill_id, name, is_notable, is_keystone, is_mastery, is_ascendancy, ascendancy_name, stats, group_id, orbit, orbit_index) VALUES (%d, %s, %d, %d, %d, %d, %s, %s, %s, %s, %s);\n",
+		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_passive_nodes (skill_id, name, is_notable, is_keystone, is_mastery, is_ascendancy, ascendancy_name, stats, group_id, orbit, orbit_index) VALUES (%d, %s, %d, %d, %d, %d, %s, %s, %s, %s, %s);\n",
 			n.SkillID, q(n.Name), isNotable, isKeystone, isMastery, isAscendancy,
 			q(n.AscendancyName), q(statsJSON), groupID, orbit, orbitIndex,
 		)
 
-		fmt.Fprintf(&b, "INSERT INTO poe_passive_nodes_fts (skill_id, name, stats, ascendancy_name) VALUES (%d, %s, %s, %s);\n",
+		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_passive_nodes_fts (skill_id, name, stats, ascendancy_name) VALUES (%d, %s, %s, %s);\n",
 			n.SkillID, q(n.Name), q(statsJSON), q(n.AscendancyName),
 		)
 	}
@@ -175,13 +176,12 @@ func buildSQL(
 				continue
 			}
 
-			fmt.Fprintf(&b, "INSERT INTO poe_stat_translations (stat_id, translation, format_type) VALUES (%s, %s, NULL);\n",
+			fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_stat_translations (stat_id, translation, format_type) VALUES (%s, %s, NULL);\n",
 				q(statID), q(translation),
 			)
 		}
 	}
 
-	b.WriteString("COMMIT;\n")
 	return b.String()
 }
 

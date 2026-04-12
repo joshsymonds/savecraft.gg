@@ -136,13 +136,26 @@ local function serializeConfig(build)
 	local config = {}
 	local hasEntries = false
 	for k, v in pairs(build.configTab.input) do
-		if not configCharacterKeys[k] and v ~= nil and v ~= false and v ~= 0 and v ~= "" then
+		if not configCharacterKeys[k] and v ~= false and v ~= 0 and v ~= "" then
 			config[k] = v
 			hasEntries = true
 		end
 	end
 	if not hasEntries then return nil end
 	return config
+end
+
+-- Inject config section into grouped sections if non-empty.
+local function injectConfigSection(grouped, build)
+	local config = serializeConfig(build)
+	if config then
+		grouped.sections.config = config
+		grouped.section_index[#grouped.section_index + 1] = {
+			id = "config",
+			name = "Configuration",
+			description = "Active configuration overrides (conditions, enemy settings, combat state)",
+		}
+	end
 end
 
 -- Serialize socket groups (skills) from the build
@@ -752,16 +765,7 @@ local function handleCalc(request)
 	local statKeys = parseStatKeys(request)
 	local grouped = serializeSections(build, statKeys)
 
-	-- Add config as a section
-	local config = serializeConfig(build)
-	if config then
-		grouped.sections.config = config
-		grouped.section_index[#grouped.section_index + 1] = {
-			id = "config",
-			name = "Configuration",
-			description = "Active configuration overrides (conditions, enemy settings, combat state)",
-		}
-	end
+	injectConfigSection(grouped, build)
 
 	local result = {
 		type = "result",
@@ -1210,16 +1214,7 @@ local function handleModify(request)
 		}
 	end
 
-	-- Add config as a section
-	local config = serializeConfig(build)
-	if config then
-		grouped.sections.config = config
-		grouped.section_index[#grouped.section_index + 1] = {
-			id = "config",
-			name = "Configuration",
-			description = "Active configuration overrides (conditions, enemy settings, combat state)",
-		}
-	end
+	injectConfigSection(grouped, build)
 
 	local resultData = {
 		character = serializeCharacter(build),

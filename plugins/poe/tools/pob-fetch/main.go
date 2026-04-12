@@ -58,20 +58,25 @@ func run() error {
 	}
 	fmt.Printf("  %d gem entries\n", len(gems))
 
-	// Parse all skill files
+	// Parse all skill files (scan directory like Uniques/Bases)
 	allSkills := make(map[string]SkillData)
-	skillFiles := []string{
-		"act_str.lua", "act_dex.lua", "act_int.lua",
-		"sup_str.lua", "sup_dex.lua", "sup_int.lua",
+	skillDir := filepath.Join(dataDir, "Skills")
+	skillFiles, err := os.ReadDir(skillDir)
+	if err != nil {
+		return fmt.Errorf("reading Skills dir: %w", err)
 	}
 	for _, f := range skillFiles {
-		data, err := os.ReadFile(filepath.Join(dataDir, "Skills", f))
+		if !strings.HasSuffix(f.Name(), ".lua") || f.IsDir() {
+			continue
+		}
+		data, err := os.ReadFile(filepath.Join(skillDir, f.Name()))
 		if err != nil {
-			return fmt.Errorf("reading Skills/%s: %w", f, err)
+			return fmt.Errorf("reading Skills/%s: %w", f.Name(), err)
 		}
 		skills, err := parseSkillsLua(string(data))
 		if err != nil {
-			return fmt.Errorf("parsing Skills/%s: %w", f, err)
+			fmt.Printf("  WARN: Skills/%s: %v\n", f.Name(), err)
+			continue
 		}
 		for k, v := range skills {
 			allSkills[k] = v
