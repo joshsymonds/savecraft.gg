@@ -11,6 +11,8 @@
   import Stat from "../../../../views/src/components/data/Stat.svelte";
   import StatRow from "../../../../views/src/components/data/StatRow.svelte";
   import KeyValue from "../../../../views/src/components/data/KeyValue.svelte";
+  import DataTable from "../../../../views/src/components/data/DataTable.svelte";
+  import Tag from "../../../../views/src/components/data/Tag.svelte";
   import SocketGroup from "../../../../views/src/components/poe/SocketGroup.svelte";
   import ItemSlot from "../../../../views/src/components/poe/ItemSlot.svelte";
   import { classAccent } from "../../../../views/src/components/poe/colors";
@@ -48,6 +50,24 @@
   let sections = $derived(data.data.sections ?? {});
   let accent = $derived(classAccent(character.ascendancy || character.class));
   let isDeltaMode = $derived(changes != null && Object.keys(changes).length > 0);
+
+  // DataTable columns and rows for delta mode
+  const deltaColumns = [
+    { key: "stat", label: "Stat", align: "left" as const },
+    { key: "before", label: "Before", align: "right" as const },
+    { key: "after", label: "After", align: "right" as const },
+    { key: "change", label: "Change", align: "right" as const },
+  ];
+
+  let deltaRows = $derived.by(() => {
+    if (!changes) return [];
+    return Object.entries(changes).map(([key, c]) => ({
+      stat: formatStatKey(key),
+      before: formatNumber(c.before),
+      after: formatNumber(c.after),
+      change: { value: formatDelta(c.delta), variant: (c.delta > 0 ? "positive" : "negative") as "positive" | "negative" },
+    }));
+  });
 
   // Section metadata for display names
   const SECTION_NAMES: Record<string, string> = {
@@ -154,25 +174,9 @@
         <Badge label="PoB" variant={isDeltaMode ? "info" : "muted"} />
       {/snippet}
 
-      {#if isDeltaMode && changes}
+      {#if isDeltaMode}
         <!-- Delta-only mode: show what changed -->
-        <div class="delta-panel">
-          {#each Object.entries(changes) as [key, change]}
-            <div class="delta-row">
-              <span class="delta-label">{formatStatKey(key)}</span>
-              <span class="delta-values">
-                <span class="delta-before">{formatNumber(change.before)}</span>
-                <span class="delta-arrow">&rarr;</span>
-                <span class="delta-after">{formatNumber(change.after)}</span>
-              </span>
-              <span
-                class="delta-diff"
-                class:positive={change.delta > 0}
-                class:negative={change.delta < 0}
-              >{formatDelta(change.delta)}</span>
-            </div>
-          {/each}
-        </div>
+        <DataTable columns={deltaColumns} rows={deltaRows} />
       {:else}
         <!-- Normal mode: summary stats -->
         <StatRow justify="center" gap="var(--space-xl)">
@@ -329,18 +333,18 @@
     <Panel watermark={data.icon_url} accent={accent}>
       <Section title="Allocation Log" accent={accent}>
         {#each log as entry}
-          <div class="alloc-entry">
-            <div class="alloc-header">
-              <span class="alloc-target">{entry.target}</span>
-              <span class="alloc-cost">{entry.points_spent} points</span>
-            </div>
-            <div class="alloc-path">
-              {#each entry.path as node, i}
-                {#if i > 0}<span class="alloc-sep">&rarr;</span>{/if}
-                <span class="alloc-node" class:notable={node.type === "notable"} class:keystone={node.type === "keystone"}>{node.name}</span>
-              {/each}
-            </div>
-          </div>
+          <KeyValue items={[
+            { key: entry.target, value: `${entry.points_spent} points` },
+          ]} />
+          <StatRow gap="var(--space-xs)">
+            {#each entry.path as node, i}
+              {#if i > 0}<Badge label="→" variant="muted" />{/if}
+              <Tag
+                label={node.name}
+                color={node.type === "keystone" ? "var(--color-warning)" : node.type === "notable" ? "var(--color-highlight)" : undefined}
+              />
+            {/each}
+          </StatRow>
         {/each}
       </Section>
     </Panel>
@@ -424,105 +428,4 @@
     padding-top: var(--space-xs);
   }
 
-  /* Delta panel */
-  .delta-panel {
-    display: flex;
-    flex-direction: column;
-    gap: 0;
-    padding: var(--space-xs) 0;
-  }
-
-  .delta-row {
-    display: flex;
-    align-items: baseline;
-    padding: var(--space-xs) var(--space-sm);
-    border-bottom: 1px solid color-mix(in srgb, var(--color-border) 30%, transparent);
-  }
-
-  .delta-row:nth-child(even) {
-    background: color-mix(in srgb, var(--color-border) 8%, transparent);
-  }
-
-  .delta-label {
-    flex: 1;
-    font-family: var(--font-body);
-    font-size: 14px;
-    font-weight: 500;
-    color: var(--color-text-muted);
-  }
-
-  .delta-values {
-    font-family: var(--font-body);
-    font-size: 14px;
-    color: var(--color-text-dim);
-    margin-right: var(--space-md);
-  }
-
-  .delta-arrow {
-    margin: 0 var(--space-xs);
-    color: var(--color-text-muted);
-  }
-
-  .delta-diff {
-    font-family: var(--font-heading);
-    font-size: 15px;
-    font-weight: 700;
-    min-width: 70px;
-    text-align: right;
-  }
-
-  .delta-diff.positive { color: var(--color-positive); }
-  .delta-diff.negative { color: var(--color-negative); }
-
-  /* Allocation log */
-  .alloc-entry {
-    padding: var(--space-xs) 0;
-  }
-
-  .alloc-entry + .alloc-entry {
-    border-top: 1px solid color-mix(in srgb, var(--color-border) 30%, transparent);
-  }
-
-  .alloc-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    padding-bottom: var(--space-xs);
-  }
-
-  .alloc-target {
-    font-family: var(--font-heading);
-    font-size: 15px;
-    font-weight: 600;
-  }
-
-  .alloc-cost {
-    font-family: var(--font-body);
-    font-size: 13px;
-    color: var(--color-text-dim);
-  }
-
-  .alloc-path {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-xs);
-    font-family: var(--font-body);
-    font-size: 12px;
-    color: var(--color-text-dim);
-  }
-
-  .alloc-sep {
-    color: var(--color-text-muted);
-  }
-
-  .alloc-node.notable {
-    color: var(--color-highlight);
-    font-weight: 500;
-  }
-
-  .alloc-node.keystone {
-    color: var(--color-warning);
-    font-weight: 600;
-  }
 </style>
