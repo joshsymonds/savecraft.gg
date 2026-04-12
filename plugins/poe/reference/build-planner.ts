@@ -61,10 +61,12 @@ export const buildPlannerModule: NativeReferenceModule = {
   name: "Build Planner",
   description:
     "Analyze, modify, or explore a Path of Exile build via Path of Building. "
-    + "First call returns a compact summary (DPS, life, resists, attributes, LifeUnreservedPercent for Low Life detection) and a section_index listing available detail sections. "
+    + "First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. "
+    + "Summary includes LifeUnreservedPercent — if below 35, the character is on Low Life (Pain Attunement, Petrified Blood, and other low-life mechanics are active). "
     + "To drill deeper, call again with the buildId and sections parameter (e.g. sections='offense,defense'). "
     + "Stat sections return curated key stats plus _extra_keys listing other available stats — use stat_keys to request specific extras. "
-    + "For modifications, pass buildId + operations — the response includes a changes object showing {before, after, delta} for every summary stat that changed. "
+    + "For modifications, pass buildId + operations. The response includes a changes object with {before, after, delta} for every summary stat that changed — "
+    + "present the delta to the player, not the full stat dump. "
     + "For tree exploration, pass buildId + nearby_metrics to find the highest-impact nearby nodes ranked by real calc deltas. "
     + "Every response includes a buildId for follow-up calls.",
   parameters: {
