@@ -65,6 +65,8 @@ export const cardSearchModule: NativeReferenceModule = {
     "USE PROACTIVELY: query this module when you need to look up specific cards, find cards matching criteria, or verify card details.",
     "Supports searching by name, oracle text, type line, colors (with Scryfall-style operators: >=, =, <=, <, >), mana cost, format legality, rarity, and set.",
     "Results include full card data: name, mana cost, type line, oracle text, colors, legalities, rarity, set, and keywords.",
+    "IMPORTANT: Always pass `format` when the user mentions a format (Commander, Standard, Modern, etc.).",
+    "Use `type_exclude` to filter out unwanted card types — e.g. when searching for mana rocks, use type='artifact' with type_exclude=['land','creature'] to exclude Artifact Lands and Artifact Creatures.",
   ].join(" "),
   parameters: {
     name: { type: "string", description: "Card name search (keyword match via FTS5)." },
@@ -74,6 +76,7 @@ export const cardSearchModule: NativeReferenceModule = {
     cmc: { type: "integer", description: "Converted mana cost filter." },
     cmc_op: { type: "string", description: "CMC comparison operator: '<=', '=', '>=' (default '=')." },
     type: { type: "string", description: "Type line substring filter (case-insensitive), e.g. 'creature'." },
+    type_exclude: { type: "array", items: { type: "string" }, description: "Type line substrings to exclude (case-insensitive). Use to filter out unwanted card types, e.g. ['land'] to remove Artifact Lands from artifact searches, or ['land','creature'] to get only non-creature, non-land artifacts." },
     format: { type: "string", description: "Format legality filter, e.g. 'standard'. Excludes cards that are 'not_legal' in that format." },
     rarity: { type: "string", description: "Rarity filter: 'common', 'uncommon', 'rare', 'mythic'." },
     set: { type: "string", description: "Set code filter, e.g. 'DMU'." },
@@ -94,6 +97,9 @@ export const cardSearchModule: NativeReferenceModule = {
     const cmc = query.cmc as number | undefined;
     const cmcOp = (query.cmc_op as string) || "=";
     const type = (query.type as string) ?? "";
+    const typeExclude: string[] = Array.isArray(query.type_exclude)
+      ? (query.type_exclude as string[]).filter((s) => typeof s === "string" && s !== "")
+      : [];
     const format = (query.format as string) ?? "";
     const rarity = (query.rarity as string) ?? "";
     const set = (query.set as string) ?? "";
@@ -207,6 +213,11 @@ export const cardSearchModule: NativeReferenceModule = {
     if (type) {
       conditions.push(`c.type_line LIKE ?${paramIdx++} COLLATE NOCASE`);
       params.push(`%${type}%`);
+    }
+
+    for (const excl of typeExclude) {
+      conditions.push(`c.type_line NOT LIKE ?${paramIdx++} COLLATE NOCASE`);
+      params.push(`%${excl}%`);
     }
 
     if (format) {

@@ -200,6 +200,83 @@ describe("MTGA cards D1 schema", () => {
   });
 });
 
+describe("card_search type_exclude filter", () => {
+  beforeEach(cleanAll);
+
+  async function seedCardWithType(
+    id: string,
+    arenaId: number,
+    name: string,
+    typeLine: string,
+    cmc: number,
+  ): Promise<void> {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO magic_cards (scryfall_id, arena_id, oracle_id, name, mana_cost, cmc, type_line, oracle_text, rarity, set_code, is_default)
+         VALUES (?, ?, ?, ?, '', ?, ?, '', 'rare', 'TST', 1)`,
+      ).bind(id, arenaId, id, name, cmc, typeLine),
+      env.DB.prepare(
+        "INSERT INTO magic_cards_fts (scryfall_id, name, oracle_text, type_line) VALUES (?, ?, '', ?)",
+      ).bind(id, name, typeLine),
+    ]);
+  }
+
+  it("excludes Artifact Lands when type_exclude includes 'land'", async () => {
+    const { cardSearchModule } = await import("../../plugins/mtga/reference/card-search");
+
+    await seedCardWithType("scry-rock", 1, "Sol Ring", "Artifact", 1);
+    await seedCardWithType("scry-aland", 2, "Darksteel Citadel", "Artifact Land", 0);
+    await seedCardWithType("scry-equip", 3, "Sword of Fire", "Artifact — Equipment", 3);
+
+    const result = await cardSearchModule.execute(
+      { type: "artifact", type_exclude: ["land"], sort: "name" },
+      env,
+    );
+
+    const data = (result as { type: "structured"; data: { cards: { name: string }[] } }).data;
+    const names = data.cards.map((c) => c.name);
+
+    expect(names).toContain("Sol Ring");
+    expect(names).toContain("Sword of Fire");
+    expect(names).not.toContain("Darksteel Citadel");
+  });
+
+  it("excludes multiple types", async () => {
+    const { cardSearchModule } = await import("../../plugins/mtga/reference/card-search");
+
+    await seedCardWithType("scry-rock", 1, "Sol Ring", "Artifact", 1);
+    await seedCardWithType("scry-aland", 2, "Darksteel Citadel", "Artifact Land", 0);
+    await seedCardWithType("scry-golem", 3, "Solemn Simulacrum", "Artifact Creature — Golem", 4);
+
+    const result = await cardSearchModule.execute(
+      { type: "artifact", type_exclude: ["land", "creature"], sort: "name" },
+      env,
+    );
+
+    const data = (result as { type: "structured"; data: { cards: { name: string }[] } }).data;
+    const names = data.cards.map((c) => c.name);
+
+    expect(names).toContain("Sol Ring");
+    expect(names).not.toContain("Darksteel Citadel");
+    expect(names).not.toContain("Solemn Simulacrum");
+  });
+
+  it("returns all cards when type_exclude is empty", async () => {
+    const { cardSearchModule } = await import("../../plugins/mtga/reference/card-search");
+
+    await seedCardWithType("scry-rock", 1, "Sol Ring", "Artifact", 1);
+    await seedCardWithType("scry-aland", 2, "Darksteel Citadel", "Artifact Land", 0);
+
+    const result = await cardSearchModule.execute(
+      { type: "artifact", type_exclude: [], sort: "name" },
+      env,
+    );
+
+    const data = (result as { type: "structured"; data: { cards: { name: string }[] } }).data;
+    expect(data.cards.length).toBe(2);
+  });
+});
+
 describe("MTGA draft ratings D1 schema", () => {
   beforeEach(cleanAll);
 

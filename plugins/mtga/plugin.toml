@@ -33,7 +33,7 @@ description = "Search the MTG Comprehensive Rules and official per-card rulings 
 
 [reference.modules.card_search]
 name = "Card Search"
-description = "Search the complete Magic: The Gathering card database — all formats, all printings. Filter by name, color, type, mana cost, oracle text, and format legality. Powered by Scryfall Oracle Cards."
+description = "Search the complete Magic: The Gathering card database — all formats, all printings. Filter by name, color, type, mana cost, oracle text, format legality, and type_exclude to remove unwanted card types. Powered by Scryfall Oracle Cards."
 
 [reference.modules.collection_diff]
 name = "Collection Diff"
