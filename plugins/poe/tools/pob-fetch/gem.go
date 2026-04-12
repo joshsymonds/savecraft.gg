@@ -7,6 +7,15 @@ import (
 	"strings"
 )
 
+// Pre-compiled regexes for Lua parsing (used across multiple calls).
+var (
+	constantStatEntryRe = regexp.MustCompile(`\{\s*"([^"]+)"\s*,\s*(-?\d+)\s*\}`)
+	manaCostRe          = regexp.MustCompile(`Mana\s*=\s*(\d+)`)
+	manaMultiplierRe    = regexp.MustCompile(`manaMultiplier\s*=\s*(\d+)`)
+	quotedStringRe      = regexp.MustCompile(`"([^"]+)"`)
+	skillTypeRefRe      = regexp.MustCompile(`SkillType\.(\w+)`)
+)
+
 // GemMeta holds gem metadata parsed from Gems.lua.
 type GemMeta struct {
 	Name      string
@@ -304,9 +313,7 @@ func extractConstantStats(body string) []SkillStat {
 	block := extractNestedBlock(rest[braceIdx+1:])
 
 	var stats []SkillStat
-	// Match { "stat_id", value } entries
-	entryRe := regexp.MustCompile(`\{\s*"([^"]+)"\s*,\s*(-?\d+)\s*\}`)
-	for _, m := range entryRe.FindAllStringSubmatch(block, -1) {
+	for _, m := range constantStatEntryRe.FindAllStringSubmatch(block, -1) {
 		val, _ := strconv.Atoi(m[2])
 		stats = append(stats, SkillStat{ID: m[1], Value: val})
 	}
@@ -323,8 +330,7 @@ func extractManaCostLevel20(body string) int {
 	// Extract the level 20 block
 	block := extractNestedBlock(body[idx+8:])
 	// Find Mana = N within cost = { ... }
-	re := regexp.MustCompile(`Mana\s*=\s*(\d+)`)
-	m := re.FindStringSubmatch(block)
+	m := manaCostRe.FindStringSubmatch(block)
 	if m == nil {
 		return 0
 	}
@@ -339,8 +345,7 @@ func extractManaMultiplierLevel20(body string) int {
 		return 0
 	}
 	block := extractNestedBlock(body[idx+8:])
-	re := regexp.MustCompile(`manaMultiplier\s*=\s*(\d+)`)
-	m := re.FindStringSubmatch(block)
+	m := manaMultiplierRe.FindStringSubmatch(block)
 	if m == nil {
 		return 0
 	}
@@ -404,8 +409,7 @@ func extractStringArray(body, key string) []string {
 	}
 	block := extractNestedBlock(body[loc[1]:])
 	var result []string
-	strRe := regexp.MustCompile(`"([^"]+)"`)
-	for _, m := range strRe.FindAllStringSubmatch(block, -1) {
+	for _, m := range quotedStringRe.FindAllStringSubmatch(block, -1) {
 		result = append(result, m[1])
 	}
 	return result
@@ -425,8 +429,7 @@ func extractSkillTypeArray(body, key string) []string {
 		return nil
 	}
 	var result []string
-	typeRe := regexp.MustCompile(`SkillType\.(\w+)`)
-	for _, m := range typeRe.FindAllStringSubmatch(block, -1) {
+	for _, m := range skillTypeRefRe.FindAllStringSubmatch(block, -1) {
 		result = append(result, m[1])
 	}
 	return result
