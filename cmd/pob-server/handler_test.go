@@ -119,7 +119,8 @@ func TestCalcResponseShape(t *testing.T) {
 	mockScript := filepath.Join(t.TempDir(), "mock-pob.sh")
 	mockResponse := `{"type":"result","data":{` +
 		`"character":{"class":"Witch","ascendancy":"Occultist","level":99},` +
-		`"summary":{"CombinedDPS":100000,"Life":6728,"EnergyShield":2000,"Mana":500,` +
+		`"summary":{"CombinedDPS":100000,"Life":6728,"LifeUnreserved":6728,"LifeUnreservedPercent":100,` +
+		`"EnergyShield":2000,"Mana":500,` +
 		`"Armour":5000,"Evasion":3000,"FireResist":75,"ColdResist":75,` +
 		`"LightningResist":75,"ChaosResist":40,"BlockChance":30,` +
 		`"SpellSuppressionChance":100,"MovementSpeedMod":1.5,` +
@@ -210,7 +211,8 @@ func TestCalcResponseShape(t *testing.T) {
 		t.Fatalf("summary is not an object: %v", err)
 	}
 	expectedSummaryKeys := []string{
-		"CombinedDPS", "TotalDPS", "Life", "EnergyShield", "Mana",
+		"CombinedDPS", "TotalDPS", "Life", "LifeUnreserved", "LifeUnreservedPercent",
+		"EnergyShield", "Mana",
 		"Armour", "Evasion", "FireResist", "ColdResist", "LightningResist",
 		"ChaosResist", "BlockChance", "SpellSuppressionChance", "MovementSpeedMod",
 		"Str", "Dex", "Int", "FlaskEffect", "FlaskChargeGen",
@@ -802,5 +804,50 @@ func TestResolveCachedWithSectionsParam(t *testing.T) {
 	}
 	if _, ok := sections["offense"]; ok {
 		t.Error("sections should not contain 'offense' (not requested)")
+	}
+}
+
+func TestParseStatKeys(t *testing.T) {
+	tests := []struct {
+		name     string
+		query    string
+		expected []string
+	}{
+		{"absent", "", nil},
+		{"empty value", "stat_keys=", nil},
+		{"single key", "stat_keys=PierceChance", []string{"PierceChance"}},
+		{"multiple keys", "stat_keys=PierceChance,AreaOfEffectMod", []string{"PierceChance", "AreaOfEffectMod"}},
+		{
+			"whitespace trimmed",
+			"stat_keys=%20PierceChance%20,%20AreaOfEffectMod%20",
+			[]string{"PierceChance", "AreaOfEffectMod"},
+		},
+		{"trailing comma", "stat_keys=PierceChance,", []string{"PierceChance"}},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			url := "/test"
+			if tc.query != "" {
+				url += "?" + tc.query
+			}
+			req := httptest.NewRequest(http.MethodGet, url, nil)
+			got := parseStatKeys(req)
+
+			if tc.expected == nil {
+				if got != nil {
+					t.Fatalf("expected nil, got %v", got)
+				}
+				return
+			}
+			if len(got) != len(tc.expected) {
+				t.Fatalf("expected %d keys, got %d: %v", len(tc.expected), len(got), got)
+			}
+			for i, want := range tc.expected {
+				if got[i] != want {
+					t.Errorf("key[%d]: expected %q, got %q", i, want, got[i])
+				}
+			}
+		})
 	}
 }

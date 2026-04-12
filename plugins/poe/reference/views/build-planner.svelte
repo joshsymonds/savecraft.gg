@@ -124,7 +124,11 @@
 
   let keystones = $derived(sections.keystones as string[] | undefined);
 
-  let tree = $derived(sections.tree as { version?: number; allocated_nodes?: number } | undefined);
+  let tree = $derived(sections.tree as {
+    version?: number; allocated_nodes?: number; ascendancy_nodes?: number;
+    level_points?: number; quest_points?: number; extra_points?: number;
+    available_points?: number; remaining_points?: number;
+  } | undefined);
 </script>
 
 <div class="build-planner">
@@ -256,11 +260,25 @@
   {#if tree}
     <Panel watermark={data.icon_url} accent={accent}>
       <Section title="Passive Tree" accent={accent}>
-        <div class="tree-info">
-          {#if tree.allocated_nodes != null}
-            <Stat value={tree.allocated_nodes} label="Allocated Nodes" variant="highlight" />
+        <StatRow justify="center" gap="var(--space-xl)">
+          {#if tree.allocated_nodes != null && tree.available_points != null}
+            <Stat value="{tree.allocated_nodes} / {tree.available_points}" label="Allocated" variant="highlight" />
+          {:else if tree.allocated_nodes != null}
+            <Stat value={tree.allocated_nodes} label="Allocated" variant="highlight" />
           {/if}
-        </div>
+          {#if tree.remaining_points != null}
+            <Stat
+              value={tree.remaining_points}
+              label="Remaining"
+              variant={tree.remaining_points < 0 ? "negative" : tree.remaining_points > 0 ? "positive" : "muted"}
+            />
+          {/if}
+        </StatRow>
+        {#if tree.level_points != null && tree.quest_points != null}
+          <div class="tree-breakdown">
+            {tree.level_points} level + {tree.quest_points} quest{#if tree.extra_points} + {tree.extra_points} extra{/if} = {tree.available_points} points
+          </div>
+        {/if}
       </Section>
     </Panel>
   {/if}
@@ -335,9 +353,11 @@
     gap: var(--space-xs);
   }
 
-  .tree-info {
-    display: flex;
-    justify-content: center;
-    padding: var(--space-sm) 0;
+  .tree-breakdown {
+    text-align: center;
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--color-text-dim);
+    padding-top: var(--space-xs);
   }
 </style>
