@@ -26,28 +26,40 @@ type SkillStat struct {
 
 // SkillData holds skill data parsed from Skills/*.lua.
 type SkillData struct {
-	Description   string
-	Color         int // 1=str/R, 2=dex/G, 3=int/B
-	CastTime      float64
-	IsSupport     bool
-	ConstantStats []SkillStat
-	ManaCost      int // from level 20 cost.Mana
+	Description       string
+	Color             int // 1=str/R, 2=dex/G, 3=int/B
+	CastTime          float64
+	IsSupport         bool
+	ConstantStats     []SkillStat
+	LevelStats        []SkillStat // stats from stats[] paired with levels[20][] values
+	ManaCost          int         // from level 20 cost.Mana
+	ManaMultiplier    int         // from levels[20].manaMultiplier (percentage, e.g. 130)
+	IgnoreMinionTypes bool        // true = "Cannot modify the skills of minions"
+	NotMinionStat     []string    // stat IDs excluded from minions/totems
+	RequireSkillTypes []string    // skill types this support requires (e.g. ["Channel"])
+	ExcludeSkillTypes []string    // skill types this support refuses (e.g. ["Blessing"])
 }
 
 // GemData is the final joined gem record ready for SQL generation.
 type GemData struct {
-	GemID         string // variantId
-	Name          string
-	IsSupport     bool
-	Color         string // R, G, B, W
-	TagString     string
-	ReqStr        int
-	ReqDex        int
-	ReqInt        int
-	Description   string
-	CastTime      float64
-	ManaCost      int
-	ConstantStats []SkillStat
+	GemID             string // variantId
+	Name              string
+	IsSupport         bool
+	Color             string // R, G, B, W
+	TagString         string
+	ReqStr            int
+	ReqDex            int
+	ReqInt            int
+	Description       string
+	CastTime          float64
+	ManaCost          int
+	ConstantStats     []SkillStat
+	LevelStats        []SkillStat
+	ManaMultiplier    int
+	IgnoreMinionTypes bool
+	NotMinionStat     []string
+	RequireSkillTypes []string
+	ExcludeSkillTypes []string
 }
 
 // parseGemsLua extracts gem metadata from PoB's Gems.lua content.
@@ -114,12 +126,18 @@ func parseSkillsLua(content string) (map[string]SkillData, error) {
 		}
 
 		sd := SkillData{
-			Description:   extractLuaString(body, "description"),
-			CastTime:      extractLuaFloat(body, "castTime"),
-			Color:         extractLuaInt(body, "color"),
-			IsSupport:     strings.Contains(body, "support = true"),
-			ConstantStats: extractConstantStats(body),
-			ManaCost:      extractManaCostLevel20(body),
+			Description:       extractLuaString(body, "description"),
+			CastTime:          extractLuaFloat(body, "castTime"),
+			Color:             extractLuaInt(body, "color"),
+			IsSupport:         strings.Contains(body, "support = true"),
+			ConstantStats:     extractConstantStats(body),
+			LevelStats:        extractLevelStats(body),
+			ManaCost:          extractManaCostLevel20(body),
+			ManaMultiplier:    extractManaMultiplierLevel20(body),
+			IgnoreMinionTypes: strings.Contains(body, "ignoreMinionTypes = true"),
+			NotMinionStat:     extractStringArray(body, "notMinionStat"),
+			RequireSkillTypes: extractSkillTypeArray(body, "requireSkillTypes"),
+			ExcludeSkillTypes: extractSkillTypeArray(body, "excludeSkillTypes"),
 		}
 
 		skills[id] = sd
@@ -148,6 +166,12 @@ func joinGemsAndSkills(gems map[string]GemMeta, skills map[string]SkillData) []G
 			gd.CastTime = skill.CastTime
 			gd.ManaCost = skill.ManaCost
 			gd.ConstantStats = skill.ConstantStats
+			gd.LevelStats = skill.LevelStats
+			gd.ManaMultiplier = skill.ManaMultiplier
+			gd.IgnoreMinionTypes = skill.IgnoreMinionTypes
+			gd.NotMinionStat = skill.NotMinionStat
+			gd.RequireSkillTypes = skill.RequireSkillTypes
+			gd.ExcludeSkillTypes = skill.ExcludeSkillTypes
 			gd.IsSupport = gd.IsSupport || skill.IsSupport
 			gd.Color = colorIntToString(skill.Color)
 		} else {
@@ -306,4 +330,104 @@ func extractManaCostLevel20(body string) int {
 	}
 	n, _ := strconv.Atoi(m[1])
 	return n
+}
+
+// extractManaMultiplierLevel20 extracts the manaMultiplier from levels[20].
+func extractManaMultiplierLevel20(body string) int {
+	idx := strings.Index(body, "[20] = {")
+	if idx < 0 {
+		return 0
+	}
+	block := extractNestedBlock(body[idx+8:])
+	re := regexp.MustCompile(`manaMultiplier\s*=\s*(\d+)`)
+	m := re.FindStringSubmatch(block)
+	if m == nil {
+		return 0
+	}
+	n, _ := strconv.Atoi(m[1])
+	return n
+}
+
+// extractLevelStats pairs stats[] IDs with levels[20][] positional values.
+// PoB format: stats = { "id1", "id2", ... } and levels = { [20] = { val1, val2, ... } }
+// The positional values in levels[20] correspond to stats[] entries in order.
+// Only stats with interpolated values (positional numbers before named keys) are paired.
+func extractLevelStats(body string) []SkillStat {
+	// 1. Extract stat IDs from the stats array
+	statIDs := extractStringArray(body, "stats")
+	if len(statIDs) == 0 {
+		return nil
+	}
+
+	// 2. Extract positional values from levels[20]
+	idx := strings.Index(body, "[20] = {")
+	if idx < 0 {
+		return nil
+	}
+	block := extractNestedBlock(body[idx+8:])
+
+	// Extract positional (non-named) values from the level block.
+	// Format: { val1, val2, ..., levelRequirement = N, manaMultiplier = N, ... }
+	// Split by comma, take numeric-only tokens, stop at named keys.
+	var values []int
+	for _, token := range strings.Split(block, ",") {
+		token = strings.TrimSpace(token)
+		// Stop at named keys (contain "=")
+		if strings.Contains(token, "=") {
+			break
+		}
+		if token == "" {
+			continue
+		}
+		// Parse as float first (PoB uses floats like 0.8), then truncate to int
+		f, err := strconv.ParseFloat(token, 64)
+		if err != nil {
+			break
+		}
+		values = append(values, int(f))
+	}
+
+	// 3. Pair stat IDs with values (only as many as we have values)
+	var stats []SkillStat
+	for i := 0; i < len(statIDs) && i < len(values); i++ {
+		stats = append(stats, SkillStat{ID: statIDs[i], Value: values[i]})
+	}
+	return stats
+}
+
+// extractStringArray extracts a Lua array of strings: key = { "a", "b", ... }
+func extractStringArray(body, key string) []string {
+	re := cachedRe(key + `\s*=\s*\{`)
+	loc := re.FindStringIndex(body)
+	if loc == nil {
+		return nil
+	}
+	block := extractNestedBlock(body[loc[1]:])
+	var result []string
+	strRe := regexp.MustCompile(`"([^"]+)"`)
+	for _, m := range strRe.FindAllStringSubmatch(block, -1) {
+		result = append(result, m[1])
+	}
+	return result
+}
+
+// extractSkillTypeArray extracts a Lua array of SkillType references:
+// key = { SkillType.Attack, SkillType.Melee, }
+// Returns the type names without the "SkillType." prefix.
+func extractSkillTypeArray(body, key string) []string {
+	re := cachedRe(key + `\s*=\s*\{`)
+	loc := re.FindStringIndex(body)
+	if loc == nil {
+		return nil
+	}
+	block := extractNestedBlock(body[loc[1]:])
+	if strings.TrimSpace(block) == "" {
+		return nil
+	}
+	var result []string
+	typeRe := regexp.MustCompile(`SkillType\.(\w+)`)
+	for _, m := range typeRe.FindAllStringSubmatch(block, -1) {
+		result = append(result, m[1])
+	}
+	return result
 }
