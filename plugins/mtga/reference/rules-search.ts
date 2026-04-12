@@ -118,7 +118,9 @@ ABILITY ONTOLOGY — PRINTED vs. GRANTED
 
 The distinction between printed abilities and granted abilities (113.12) is architecturally significant. An effect that says a creature "gains flying" grants an ability that can be removed by "loses flying." But an effect that says a creature "is red" sets a characteristic — not an ability. "Loses all abilities" won't undo it.
 
-CR 305.7: When an effect sets a land's subtype to one or more basic land types, the land loses its old land types and all rules-text abilities, then gains intrinsic mana abilities for each new basic type. This is a Layer 4 type change. Abilities granted by external effects are unaffected. This is the canonical example of the printed-vs-granted distinction.
+CR 305.7: When an effect sets a land's subtype to one or more basic land types, the land loses its old land types and all rules-text abilities, then gains intrinsic mana abilities for each new basic type. This is a Layer 4 type change. CRITICALLY: 305.7 explicitly states "this doesn't remove any abilities that were granted to the land by other effects." This means abilities granted by resolved triggered abilities, continuous effects from other permanents, or any other external source PERSIST through type-changing effects like Blood Moon.
+
+THE "GAINS" KEYWORD IS THE KEY SIGNAL: When a card says a permanent "gains [ability]," the ability is being GRANTED by an effect, not printed as rules text. A chapter ability that says "Urza's Saga gains '{2}, {T}: Create a Construct...'" is a triggered ability (rules text) that, when it resolves, GRANTS an activated ability (effect-created). The chapter ability itself can be removed by Blood Moon, but the ability it already granted cannot — they are different objects with different sources. This is the single most common synthesis error in MTG rules reasoning.
 
 Copy effects (707.2) establish copiable values in Layer 1: they capture only printed text (name, mana cost, types, rules text, P/T) as modified by other copy effects, face-down status, and "as enters" P/T-setting abilities. Counters, granted abilities, and type-changing effects are NOT copied.
 
