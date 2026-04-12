@@ -1,5 +1,5 @@
 /**
- * MTG Arena rules_search — native reference module.
+ * MTG rules_search — native reference module.
  *
  * Hybrid search: D1 FTS5 (BM25 keyword ranking) + Vectorize (semantic similarity),
  * merged via Reciprocal Rank Fusion. Falls back to FTS5-only when Vectorize is

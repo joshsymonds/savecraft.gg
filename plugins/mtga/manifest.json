@@ -4,7 +4,7 @@
     "wasm"
   ],
   "icon": "icon.png",
-  "name": "Magic: The Gathering Arena",
+  "name": "Magic: The Gathering",
   "description": "Parses Player.log for collection, decks, match history, play-by-play game logs, drafts, rank, and inventory. Constructed coaching: personal match stats, sideboard analysis, deck evaluation. Gameplay analysis: per-turn play advice, mana efficiency, card timing, attack decisions, mulligan evaluation.",
   "channel": "beta",
   "coverage": "partial",

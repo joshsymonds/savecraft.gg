@@ -50,7 +50,7 @@
   });
 
   let isMythic = $derived(card.rarity === "mythic");
-  let hasPT = $derived(card.power != null && card.toughness != null);
+  let hasPT = $derived(!!card.power && !!card.toughness);
 </script>
 
 <div class="mtg-card" class:mythic={isMythic}>

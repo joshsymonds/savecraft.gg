@@ -1,5 +1,5 @@
 /**
- * Side-effect import: registers all MTGA native reference modules.
+ * Side-effect import: registers all MTG native reference modules.
  * Import this file from the Worker entrypoint to activate the modules.
  */
 

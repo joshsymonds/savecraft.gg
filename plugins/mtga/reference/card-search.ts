@@ -1,5 +1,5 @@
 /**
- * MTG Arena card_search — native reference module.
+ * MTG card_search — native reference module.
  *
  * Searches the Scryfall card database stored in D1. Supports FTS5 keyword
  * search on name/oracle_text/type_line, structured SQL filtering on all
@@ -52,8 +52,8 @@ function cardRowToResult(row: CardRow): Record<string, unknown> {
     rarity: row.rarity,
     set: row.set_code,
     keywords: JSON.parse(row.keywords || "[]") as string[],
-    ...(row.power != null && { power: row.power }),
-    ...(row.toughness != null && { toughness: row.toughness }),
+    ...(row.power && { power: row.power }),
+    ...(row.toughness && { toughness: row.toughness }),
   };
 }
 
@@ -61,7 +61,7 @@ export const cardSearchModule: NativeReferenceModule = {
   id: "card_search",
   name: "Card Search",
   description: [
-    "Search the MTG Arena card database (Scryfall Oracle Cards).",
+    "Search the complete Magic: The Gathering card database — all formats, all printings (Scryfall Oracle Cards).",
     "USE PROACTIVELY: query this module when you need to look up specific cards, find cards matching criteria, or verify card details.",
     "Supports searching by name, oracle text, type line, colors (with Scryfall-style operators: >=, =, <=, <, >), mana cost, format legality, rarity, and set.",
     "Results include full card data: name, mana cost, type line, oracle text, colors, legalities, rarity, set, and keywords.",
