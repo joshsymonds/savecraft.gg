@@ -323,7 +323,8 @@ end
 
 -- Summary: fixed set of headline stats, always returned.
 -- Per-element HitAverage keys show damage composition after all conversion and
--- "gain as extra" mechanics — zero-value elements are filtered out downstream.
+-- "gain as extra" mechanics — zero-value elements are stripped after building
+-- the summary (see the filter loop below serializeSections).
 local summaryKeys = {
 	"CombinedDPS", "TotalDPS",
 	"PhysicalHitAverage", "FireHitAverage", "ColdHitAverage",
@@ -336,6 +337,13 @@ local summaryKeys = {
 	"FlaskEffect", "FlaskChargeGen",
 	"LootQuantityNormalEnemies", "LootRarityMagicEnemies",
 	"EnemyCurseLimit",
+}
+
+-- Per-element keys that should be stripped from the summary when zero.
+-- Other summary keys (Life, Armour, etc.) always appear even if zero.
+local summaryPerElementKeys = {
+	"PhysicalHitAverage", "FireHitAverage", "ColdHitAverage",
+	"LightningHitAverage", "ChaosHitAverage",
 }
 
 -- Curated key lists per stat section. These are the keys shown by default.
@@ -664,6 +672,15 @@ local function serializeSections(build, requestedStatKeys)
 	local summary = {}
 	for _, key in ipairs(summaryKeys) do
 		summary[key] = output[key] or 0
+	end
+
+	-- Strip zero-value per-element damage keys from the summary so only
+	-- relevant damage types appear (e.g. a pure-fire build shows only
+	-- FireHitAverage, not five zero entries for the other elements).
+	for _, key in ipairs(summaryPerElementKeys) do
+		if summary[key] == 0 then
+			summary[key] = nil
+		end
 	end
 
 	-- Classify all scalar stats into sections
