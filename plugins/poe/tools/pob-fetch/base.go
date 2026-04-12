@@ -52,7 +52,7 @@ func parseBasesLua(content string) ([]BaseItem, error) {
 
 // findFieldBlock extracts the content of a named block: field = { ... }
 func findFieldBlock(body, field string) string {
-	re := regexp.MustCompile(field + `\s*=\s*\{`)
+	re := regexp.MustCompile(regexp.QuoteMeta(field) + `\s*=\s*\{`)
 	loc := re.FindStringIndex(body)
 	if loc == nil {
 		return ""

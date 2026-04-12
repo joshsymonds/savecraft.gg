@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -51,11 +50,6 @@ func buildSQL(
 		}
 		tagsJSON := cfapi.JSONArray(tags)
 
-		levelReq := nullableInt(g.ReqStr + g.ReqDex + g.ReqInt) // derive from requirements
-		// Actually, level requirement comes from skill data. We don't have it separately.
-		// Use NULL for now — the skill's levelRequirement in levels[1] would be the source,
-		// but we don't extract it in the current parser.
-		_ = levelReq
 		strReq := nullableInt(g.ReqStr)
 		dexReq := nullableInt(g.ReqDex)
 		intReq := nullableInt(g.ReqInt)
@@ -91,18 +85,24 @@ func buildSQL(
 	}
 
 	// ── Uniques ───────────────────────────────────────────────
+	baseIndex := buildBaseTypeIndex(bases)
 	for _, u := range uniques {
 		levelReq := nullableInt(u.LevelReq)
 		implicitsJSON := cfapi.JSONArray(u.ImplicitMods)
 		explicitsJSON := cfapi.JSONArray(u.ExplicitMods)
 
+		itemClass := baseIndex[u.BaseType]
+		if itemClass == "" {
+			itemClass = u.BaseType
+		}
+
 		fmt.Fprintf(&b, "INSERT INTO poe_uniques (name, variant, base_type, item_class, level_requirement, str_requirement, dex_requirement, int_requirement, properties, implicit_mods, explicit_mods, flavour_text, drop_level) VALUES (%s, %s, %s, %s, %s, NULL, NULL, NULL, '[]', %s, %s, NULL, NULL);\n",
-			q(u.Name), q(u.Variant), q(u.BaseType), q(itemClassFromBaseType(u.BaseType, bases)),
+			q(u.Name), q(u.Variant), q(u.BaseType), q(itemClass),
 			levelReq, q(implicitsJSON), q(explicitsJSON),
 		)
 
 		fmt.Fprintf(&b, "INSERT INTO poe_uniques_fts (name, variant, base_type, item_class, explicit_mods) VALUES (%s, %s, %s, %s, %s);\n",
-			q(u.Name), q(u.Variant), q(u.BaseType), q(itemClassFromBaseType(u.BaseType, bases)),
+			q(u.Name), q(u.Variant), q(u.BaseType), q(itemClass),
 			q(explicitsJSON),
 		)
 	}
@@ -199,17 +199,6 @@ func boolToInt(b bool) int {
 	return 0
 }
 
-// itemClassFromBaseType looks up the item class for a base type from the base items list.
-// Falls back to the base_type itself if not found.
-func itemClassFromBaseType(baseType string, bases []BaseItem) string {
-	for _, b := range bases {
-		if b.Name == baseType {
-			return b.ItemClass
-		}
-	}
-	return baseType
-}
-
 // buildBaseTypeIndex builds a map for fast base type → item class lookups.
 func buildBaseTypeIndex(bases []BaseItem) map[string]string {
 	m := make(map[string]string, len(bases))
@@ -217,16 +206,4 @@ func buildBaseTypeIndex(bases []BaseItem) map[string]string {
 		m[b.Name] = b.ItemClass
 	}
 	return m
-}
-
-// jsonMarshal is a convenience for JSON encoding that returns "[]" on nil.
-func jsonMarshal(v any) string {
-	if v == nil {
-		return "[]"
-	}
-	b, err := json.Marshal(v)
-	if err != nil {
-		return "[]"
-	}
-	return string(b)
 }

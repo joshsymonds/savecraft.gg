@@ -23,6 +23,8 @@ type PassiveNode struct {
 	OrbitIndex     int
 }
 
+var versionRe = regexp.MustCompile(`^\d+_\d+$`)
+
 // detectNewestTreeVersion scans TreeData/ subdirs and returns the highest
 // non-alternate, non-ruthless version directory name (e.g., "3_28").
 func detectNewestTreeVersion(treeDir string) (string, error) {
@@ -42,7 +44,7 @@ func detectNewestTreeVersion(treeDir string) (string, error) {
 			continue
 		}
 		// Must match N_N pattern
-		if !regexp.MustCompile(`^\d+_\d+$`).MatchString(name) {
+		if !versionRe.MatchString(name) {
 			continue
 		}
 		versions = append(versions, name)

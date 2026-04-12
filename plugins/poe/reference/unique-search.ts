@@ -4,7 +4,7 @@
  * FTS5 search over unique items stored in D1. Supports filtering by item
  * class (e.g. "Body Armour", "Amulet"). Variant items (e.g., Atziri's
  * Splendour with different defense types) are stored as separate rows.
- * Populated by poeninja-fetch from poe.ninja.
+ * Populated by pob-fetch from Path of Building data.
  */
 
 import type { Env } from "../../../worker/src/types";

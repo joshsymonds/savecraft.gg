@@ -26,10 +26,10 @@
   '';
 
   runPoeFetchers = env: d1Id: vectorizeSuffix: ''
-    echo "=== ${env}: repoe-fetch ==="
-    go run ./tools/repoe-fetch \
+    echo "=== ${env}: pob-fetch ==="
+    go run ./tools/pob-fetch \
       --d1-database-id=${d1Id} \
-      --vectorize-index=poe${vectorizeSuffix}
+      --pob-dir=../../.reference/pob
   '';
 
   innerScript = pkgs.writeShellScript "savecraft-data-refresh-inner" ''

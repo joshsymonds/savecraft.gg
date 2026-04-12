@@ -192,15 +192,21 @@ func colorFromRequirements(str, dex, int_ int) string {
 }
 
 // --- Lua extraction helpers ---
+// Regex cache: compiled once per key, reused across all calls.
 
-var luaStringRe = map[string]*regexp.Regexp{}
+var luaReCache = map[string]*regexp.Regexp{}
+
+func cachedRe(pattern string) *regexp.Regexp {
+	re, ok := luaReCache[pattern]
+	if !ok {
+		re = regexp.MustCompile(pattern)
+		luaReCache[pattern] = re
+	}
+	return re
+}
 
 func extractLuaString(body, key string) string {
-	re, ok := luaStringRe[key]
-	if !ok {
-		re = regexp.MustCompile(key + `\s*=\s*"([^"]*)"`)
-		luaStringRe[key] = re
-	}
+	re := cachedRe(key + `\s*=\s*"([^"]*)"`)
 	m := re.FindStringSubmatch(body)
 	if m == nil {
 		return ""
@@ -209,7 +215,7 @@ func extractLuaString(body, key string) string {
 }
 
 func extractLuaInt(body, key string) int {
-	re := regexp.MustCompile(key + `\s*=\s*(-?\d+)`)
+	re := cachedRe(key + `\s*=\s*(-?\d+)`)
 	m := re.FindStringSubmatch(body)
 	if m == nil {
 		return 0
@@ -219,7 +225,7 @@ func extractLuaInt(body, key string) int {
 }
 
 func extractLuaFloat(body, key string) float64 {
-	re := regexp.MustCompile(key + `\s*=\s*(-?[0-9]+\.?[0-9]*)`)
+	re := cachedRe(key + `\s*=\s*(-?[0-9]+\.?[0-9]*)`)
 	m := re.FindStringSubmatch(body)
 	if m == nil {
 		return 0
