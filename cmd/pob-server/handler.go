@@ -275,6 +275,7 @@ type modifyLuaRequest struct {
 	XML        string            `json:"xml"`
 	Operations []json.RawMessage `json:"operations"`
 	StatKeys   []string          `json:"statKeys,omitempty"`
+	PreSummary json.RawMessage   `json:"preSummary,omitempty"`
 }
 
 type modifyLuaResponse struct {
@@ -325,7 +326,29 @@ func (srv *Server) handleModify(
 		return
 	}
 
-	srv.modifyAndRespond(writer, request, xml, req.BuildID, req.Operations)
+	// Extract the stored summary for delta computation. This avoids a
+	// redundant PoB calc pass in the Lua wrapper — the pre-modify summary
+	// is passed in instead of being recomputed.
+	var preSummary json.RawMessage
+	if srv.cache.store != nil {
+		if _, storedData, err := srv.cache.store.Get(req.BuildID); err == nil {
+			preSummary = extractSummary([]byte(storedData))
+		}
+	}
+
+	srv.modifyAndRespond(writer, request, xml, req.BuildID, req.Operations, preSummary)
+}
+
+// extractSummary pulls the "summary" object from a stored PoB data JSON blob.
+// Returns nil if parsing fails or summary is absent.
+func extractSummary(data []byte) json.RawMessage {
+	var parsed struct {
+		Summary json.RawMessage `json:"summary"`
+	}
+	if json.Unmarshal(data, &parsed) != nil || parsed.Summary == nil {
+		return nil
+	}
+	return parsed.Summary
 }
 
 // modifyAndRespond sends a modify request to PoB, persists the result, and writes the response.
@@ -334,6 +357,7 @@ func (srv *Server) modifyAndRespond(
 	request *http.Request,
 	xml, parentID string,
 	operations []json.RawMessage,
+	preSummary json.RawMessage,
 ) {
 	proc, err := srv.pool.Acquire()
 	if err != nil {
@@ -356,6 +380,7 @@ func (srv *Server) modifyAndRespond(
 		XML:        xml,
 		Operations: operations,
 		StatKeys:   parseStatKeys(request),
+		PreSummary: preSummary,
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
@@ -641,10 +666,10 @@ func (srv *Server) handleGetBuild(
 	_, _ = writer.Write([]byte(xml))
 }
 
-// parseStatKeys reads the "stat_keys" query parameter and returns
-// the requested extra stat key names. Returns nil if the parameter is absent.
-func parseStatKeys(r *http.Request) []string {
-	raw := r.URL.Query().Get("stat_keys")
+// parseCSVParam reads a comma-separated query parameter and returns
+// the trimmed, non-empty values. Returns nil if the parameter is absent.
+func parseCSVParam(r *http.Request, param string) []string {
+	raw := r.URL.Query().Get(param)
 	if raw == "" {
 		return nil
 	}
@@ -662,26 +687,14 @@ func parseStatKeys(r *http.Request) []string {
 	return result
 }
 
-// parseSections reads the "sections" query parameter and returns
-// the requested section names. Returns nil if the parameter is absent.
-func parseSections(r *http.Request) []string {
-	raw := r.URL.Query().Get("sections")
-	if raw == "" {
-		return nil
+func parseStatKeys(r *http.Request) []string {
+	keys := parseCSVParam(r, "stat_keys")
+	if len(keys) > 50 {
+		keys = keys[:50]
 	}
-	parts := strings.Split(raw, ",")
-	result := make([]string, 0, len(parts))
-	for _, p := range parts {
-		p = strings.TrimSpace(p)
-		if p != "" {
-			result = append(result, p)
-		}
-	}
-	if len(result) == 0 {
-		return nil
-	}
-	return result
+	return keys
 }
+func parseSections(r *http.Request) []string { return parseCSVParam(r, "sections") }
 
 // filterSections modifies the PoB data JSON to control which sections are
 // included in the response. If sections is nil, the "sections" key is removed

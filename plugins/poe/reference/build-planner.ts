@@ -335,12 +335,11 @@ export const buildPlannerModule: NativeReferenceModule = {
       if (env.POB_API_KEY) {
         headers.Authorization = `Bearer ${env.POB_API_KEY}`;
       }
-      const params = new URLSearchParams();
-      if (sections) params.set("sections", sections);
-      if (statKeys) params.set("stat_keys", statKeys);
-      const qs = params.toString();
-      const summaryUrl = qs
-        ? `${pobUrl}/build/${resolvedBuildId}/summary?${qs}`
+      // stat_keys is not passed here — the summary endpoint serves cached data
+      // from SQLite, so stat_keys has no effect. It only applies to live calc
+      // paths (/calc, /modify, /resolve).
+      const summaryUrl = sections
+        ? `${pobUrl}/build/${resolvedBuildId}/summary?sections=${encodeURIComponent(sections)}`
         : `${pobUrl}/build/${resolvedBuildId}/summary`;
       response = await fetch(summaryUrl, {
         headers,

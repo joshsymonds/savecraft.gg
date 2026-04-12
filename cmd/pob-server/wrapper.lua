@@ -1004,15 +1004,17 @@ local function handleModify(request)
 		return { type = "error", message = "failed to load build: " .. tostring(loadErr) }
 	end
 
-	-- Force initial calc so we can snapshot the pre-modify summary
-	build.buildFlag = true
-	runCallback("OnFrame")
-
-	-- Capture pre-modify summary for delta computation
-	local preSummary = {}
-	if build.calcsTab and build.calcsTab.mainOutput then
-		for _, key in ipairs(summaryKeys) do
-			preSummary[key] = build.calcsTab.mainOutput[key] or 0
+	-- Use pre-computed summary from Go (avoids a redundant PoB calc pass).
+	-- Falls back to a live calc only if the Go handler couldn't provide one.
+	local preSummary = request.preSummary
+	if not preSummary then
+		build.buildFlag = true
+		runCallback("OnFrame")
+		preSummary = {}
+		if build.calcsTab and build.calcsTab.mainOutput then
+			for _, key in ipairs(summaryKeys) do
+				preSummary[key] = build.calcsTab.mainOutput[key] or 0
+			end
 		end
 	end
 
