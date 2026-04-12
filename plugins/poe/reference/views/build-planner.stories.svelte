@@ -333,6 +333,140 @@
       },
     },
   };
+
+  // Modify result: swapped a support gem, DPS up but life down
+  const modifyDPSGain = {
+    icon_url: iconUrl,
+    buildId: "mod-dps-001",
+    data: {
+      character: {
+        class: "Witch",
+        ascendancy: "Occultist",
+        level: 95,
+      },
+      summary: {
+        CombinedDPS: 1_302_456,
+        TotalDPS: 1_302_456,
+        Life: 4_650,
+        LifeUnreserved: 1_163,
+        LifeUnreservedPercent: 25,
+        EnergyShield: 2_104,
+        Mana: 847,
+        Armour: 1_240,
+        Evasion: 0,
+        FireResist: 75,
+        ColdResist: 75,
+        LightningResist: 76,
+        ChaosResist: -30,
+        BlockChance: 42,
+        SpellSuppressionChance: 0,
+        MovementSpeedMod: 1.3,
+        Str: 89,
+        Dex: 102,
+        Int: 312,
+      },
+      changes: {
+        CombinedDPS: { before: 1_247_832, after: 1_302_456, delta: 54_624 },
+        TotalDPS: { before: 1_247_832, after: 1_302_456, delta: 54_624 },
+        Life: { before: 4_891, after: 4_650, delta: -241 },
+        LifeUnreserved: { before: 1_223, after: 1_163, delta: -60 },
+      },
+      section_index: [],
+    },
+  };
+
+  // Modify result: equipped a ring, resists shifted
+  const modifyResists = {
+    icon_url: iconUrl,
+    buildId: "mod-res-001",
+    data: {
+      character: {
+        class: "Ranger",
+        ascendancy: "Deadeye",
+        level: 100,
+      },
+      summary: {
+        CombinedDPS: 8_412_000,
+        TotalDPS: 8_412_000,
+        Life: 5_200,
+        LifeUnreserved: 5_200,
+        LifeUnreservedPercent: 100,
+        EnergyShield: 0,
+        Mana: 312,
+        Armour: 1_580,
+        Evasion: 58_200,
+        FireResist: 75,
+        ColdResist: 82,
+        LightningResist: 69,
+        ChaosResist: -15,
+        BlockChance: 0,
+        SpellSuppressionChance: 100,
+        MovementSpeedMod: 2.1,
+        Str: 120,
+        Dex: 342,
+        Int: 95,
+      },
+      changes: {
+        ColdResist: { before: 75, after: 82, delta: 7 },
+        LightningResist: { before: 76, after: 69, delta: -7 },
+        ChaosResist: { before: -30, after: -15, delta: 15 },
+        Armour: { before: 1_240, after: 1_580, delta: 340 },
+      },
+      section_index: [],
+    },
+  };
+
+  // Modify result: allocated a node, has changes + allocation_log
+  const modifyWithAllocationLog = {
+    icon_url: iconUrl,
+    buildId: "mod-alloc-001",
+    data: {
+      character: {
+        class: "Witch",
+        ascendancy: "Occultist",
+        level: 95,
+      },
+      summary: {
+        CombinedDPS: 1_247_832,
+        TotalDPS: 1_247_832,
+        Life: 5_041,
+        LifeUnreserved: 1_260,
+        LifeUnreservedPercent: 25,
+        EnergyShield: 2_104,
+        Mana: 847,
+        Armour: 1_240,
+        Evasion: 0,
+        FireResist: 75,
+        ColdResist: 75,
+        LightningResist: 76,
+        ChaosResist: -30,
+        BlockChance: 42,
+        SpellSuppressionChance: 0,
+        MovementSpeedMod: 1.3,
+        Str: 99,
+        Dex: 102,
+        Int: 312,
+      },
+      changes: {
+        Life: { before: 4_891, after: 5_041, delta: 150 },
+        Str: { before: 89, after: 99, delta: 10 },
+      },
+      sections: {
+        allocation_log: [
+          {
+            target: "Heart of the Warrior",
+            points_spent: 3,
+            path: [
+              { name: "Travel Node", type: "travel" },
+              { name: "Warrior's Blood", type: "notable" },
+              { name: "Heart of the Warrior", type: "notable" },
+            ],
+          },
+        ],
+      },
+      section_index: [],
+    },
+  };
 </script>
 
 <!-- Full endgame build with all sections -->
@@ -367,5 +501,26 @@
 <Story name="MinionBuild">
   <div style="max-width: 700px;">
     <BuildPlanner data={minionBuild} />
+  </div>
+</Story>
+
+<!-- Modify result: DPS gain with life tradeoff -->
+<Story name="ModifyDPSGain">
+  <div style="max-width: 700px;">
+    <BuildPlanner data={modifyDPSGain} />
+  </div>
+</Story>
+
+<!-- Modify result: resist changes from new ring -->
+<Story name="ModifyResists">
+  <div style="max-width: 700px;">
+    <BuildPlanner data={modifyResists} />
+  </div>
+</Story>
+
+<!-- Modify result: node allocation with allocation log -->
+<Story name="ModifyWithAllocationLog">
+  <div style="max-width: 700px;">
+    <BuildPlanner data={modifyWithAllocationLog} />
   </div>
 </Story>
