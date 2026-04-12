@@ -11,7 +11,10 @@
  */
 
 import type { Env } from "../../../worker/src/types";
-import type { NativeReferenceModule, ReferenceResult } from "../../../worker/src/reference/types";
+import type {
+  NativeReferenceModule,
+  ReferenceResult,
+} from "../../../worker/src/reference/types";
 
 const DEFAULT_LIMIT = 20;
 const RRF_K = 60;
@@ -141,46 +144,83 @@ Step 8 — State uncertainty explicitly. If the retrieved rules text doesn't ful
 
 const MAX_INTERACTIONS = 3;
 
-/** Search interactions by FTS5 keyword match. */
+/** Search interactions by hybrid FTS5 + Vectorize, merged with RRF (same approach as rules). */
 async function searchInteractionsByKeyword(
   db: D1Database,
+  ai: Ai | undefined,
+  vectorIndex: VectorizeIndex | undefined,
   queryText: string,
 ): Promise<InteractionRow[]> {
-  const terms = queryText.trim().split(/\s+/).filter((t) => t.length >= 2);
+  const terms = queryText
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t.length >= 2);
   if (terms.length === 0) return [];
 
+  // BM25 keyword search via FTS5
   const safeQuery = terms.map((t) => `"${t.replace(/"/g, '""')}"`).join(" OR ");
-
   const ftsResults = await db
     .prepare(
       `SELECT id FROM mtga_interactions_fts WHERE mtga_interactions_fts MATCH ?1 ORDER BY rank LIMIT ?2`,
     )
-    .bind(safeQuery, MAX_INTERACTIONS)
+    .bind(safeQuery, MAX_INTERACTIONS * 2)
     .all<{ id: number }>();
+  const bm25Ids = ftsResults.results.map((r) => String(r.id));
 
-  if (ftsResults.results.length === 0) return [];
+  // Vectorize semantic search (if available)
+  let vectorIds: string[] = [];
+  if (ai && vectorIndex) {
+    try {
+      const embedding = (await ai.run("@cf/baai/bge-base-en-v1.5", {
+        text: [queryText],
+      })) as { data?: number[][] };
+      if (embedding.data?.[0]) {
+        const vectorResults = await vectorIndex.query(embedding.data[0], {
+          topK: MAX_INTERACTIONS * 2,
+          filter: { type: "interaction" },
+        });
+        vectorIds = vectorResults.matches.map((m) =>
+          m.id.replace("interaction-", ""),
+        );
+      }
+    } catch {
+      // Vectorize unavailable, fall back to FTS5-only
+    }
+  }
 
-  const ids = ftsResults.results.map((r) => r.id);
-  const placeholders = ids.map(() => "?").join(",");
+  // Merge via RRF
+  const topIds = mergeWithRRF(bm25Ids, vectorIds, RRF_K, MAX_INTERACTIONS);
+
+  if (topIds.length === 0) return [];
+
+  const numericIds = topIds.map((id) => Number(id));
+  const placeholders = numericIds.map(() => "?").join(",");
   const rows = await db
     .prepare(`SELECT * FROM mtga_interactions WHERE id IN (${placeholders})`)
-    .bind(...ids)
+    .bind(...numericIds)
     .all<InteractionRow>();
 
-  // Preserve FTS5 rank order
-  const rowMap = new Map(rows.results.map((r) => [r.id, r]));
-  return ids.map((id) => rowMap.get(id)).filter((r): r is InteractionRow => r != null);
+  // Preserve RRF rank order
+  const rowMap = new Map(rows.results.map((r) => [String(r.id), r]));
+  return topIds
+    .map((id) => rowMap.get(id))
+    .filter((r): r is InteractionRow => r != null);
 }
 
-/** Search interactions by rule number overlap. */
+/** Search interactions by rule number overlap.
+ * Uses LIKE on the comma-separated rule_numbers column. Broad matching is
+ * intentional: searching for "614.1" will also match interactions citing
+ * "614.12" or "614.1a", which are typically relevant sub-rules. */
 async function searchInteractionsByRuleNumber(
   db: D1Database,
   ruleNumbers: string[],
 ): Promise<InteractionRow[]> {
   if (ruleNumbers.length === 0) return [];
 
+  // Escape LIKE wildcards in rule numbers as defense-in-depth.
+  const escapeLike = (s: string) => s.replace(/%/g, "\\%").replace(/_/g, "\\_");
   const conditions = ruleNumbers.map(() => "rule_numbers LIKE ?").join(" OR ");
-  const binds = ruleNumbers.map((r) => `%${r}%`);
+  const binds = ruleNumbers.map((r) => `%${escapeLike(r)}%`);
 
   const rows = await db
     .prepare(`SELECT * FROM mtga_interactions WHERE ${conditions} LIMIT ?`)
@@ -213,7 +253,10 @@ async function searchRulesByFts(
   queryText: string,
   limit: number,
 ): Promise<RuleRow[]> {
-  const terms = queryText.trim().split(/\s+/).filter((t) => t.length >= 3);
+  const terms = queryText
+    .trim()
+    .split(/\s+/)
+    .filter((t) => t.length >= 3);
   if (terms.length === 0) return [];
 
   const safeQuery = terms.map((t) => `"${t.replace(/"/g, '""')}"`).join(" OR ");
@@ -236,12 +279,17 @@ async function searchRulesByFts(
 
   // Preserve FTS5 rank order
   const ruleMap = new Map(ruleRows.results.map((r) => [r.number, r]));
-  return ids.map((id) => ruleMap.get(id)).filter((r): r is RuleRow => r != null);
+  return ids
+    .map((id) => ruleMap.get(id))
+    .filter((r): r is RuleRow => r != null);
 }
 
 // ── Query handlers ───────────────────────────────────────────
 
-async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<ReferenceResult> {
+async function searchByRuleNumber(
+  db: D1Database,
+  ruleNum: string,
+): Promise<ReferenceResult> {
   const trimmed = ruleNum.trim();
 
   // Exact match + prefix match (702.2 -> 702.2, 702.2a, 702.2b...)
@@ -291,12 +339,16 @@ async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<Refe
   if (cappedRefs.length > 0) {
     const placeholders = cappedRefs.map(() => "?").join(",");
     const refRows = await db
-      .prepare(`SELECT number, text FROM mtga_rules WHERE number IN (${placeholders})`)
+      .prepare(
+        `SELECT number, text FROM mtga_rules WHERE number IN (${placeholders})`,
+      )
       .bind(...cappedRefs)
       .all<RuleRow>();
 
     if (refRows.results.length > 0) {
-      lines.push("\nCross-referenced rules (auto-expanded from see-also references):");
+      lines.push(
+        "\nCross-referenced rules (auto-expanded from see-also references):",
+      );
       for (const r of refRows.results) {
         lines.push(`${r.number} ${r.text}`);
       }
@@ -321,7 +373,10 @@ async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<Refe
 }
 
 /** Build suggested follow-up queries based on rule content. */
-function buildFollowUpSuggestions(rules: RuleRow[], expandedRefs: Set<string>): string {
+function buildFollowUpSuggestions(
+  rules: RuleRow[],
+  expandedRefs: Set<string>,
+): string {
   const suggestions: string[] = [];
 
   // Collect rule numbers mentioned in text but not already shown
@@ -334,7 +389,9 @@ function buildFollowUpSuggestions(rules: RuleRow[], expandedRefs: Set<string>): 
   for (const r of rules) {
     const combined = `${r.text} ${r.example ?? ""}`;
     // Match rule number patterns like 704.5g, 603.7a, 120.4
-    for (const match of combined.matchAll(/\brules? (\d{3}(?:\.\d+[a-z]?))\b/g)) {
+    for (const match of combined.matchAll(
+      /\brules? (\d{3}(?:\.\d+[a-z]?))\b/g,
+    )) {
       const ref = match[1]!;
       if (!shownNumbers.has(ref) && !mentionedRules.has(ref)) {
         mentionedRules.add(ref);
@@ -344,11 +401,16 @@ function buildFollowUpSuggestions(rules: RuleRow[], expandedRefs: Set<string>): 
 
   if (mentionedRules.size > 0) {
     const topRefs = [...mentionedRules].slice(0, 5);
-    suggestions.push(`Look up related rules: ${topRefs.map((r) => `rule ${r}`).join(", ")}`);
+    suggestions.push(
+      `Look up related rules: ${topRefs.map((r) => `rule ${r}`).join(", ")}`,
+    );
   }
 
   if (suggestions.length === 0) return "";
-  return "\n---\nSuggested follow-ups:\n" + suggestions.map((s) => `- ${s}`).join("\n");
+  return (
+    "\n---\nSuggested follow-ups:\n" +
+    suggestions.map((s) => `- ${s}`).join("\n")
+  );
 }
 
 async function searchByKeyword(
@@ -385,7 +447,12 @@ async function searchByKeyword(
   const topIds = mergeWithRRF(bm25Ids, vectorIds, RRF_K, limit);
 
   // Auto-match interaction patterns by keyword (independent of rules results)
-  const interactions = await searchInteractionsByKeyword(db, queryText);
+  const interactions = await searchInteractionsByKeyword(
+    db,
+    ai,
+    vectorIndex,
+    queryText,
+  );
 
   if (topIds.length === 0 && interactions.length === 0) {
     return {
@@ -407,20 +474,29 @@ async function searchByKeyword(
 
     // Re-sort by RRF rank order
     const ruleMap = new Map(ruleRows.results.map((r) => [r.number, r]));
-    const orderedRules = topIds.map((id) => ruleMap.get(id)).filter((r): r is RuleRow => r != null);
+    const orderedRules = topIds
+      .map((id) => ruleMap.get(id))
+      .filter((r): r is RuleRow => r != null);
 
     const totalMatches = bm25Ids.length + vectorIds.length - topIds.length; // approximate unique total
-    const searchMethod = vectorIds.length > 0 ? "hybrid (keyword + semantic)" : "keyword";
+    const searchMethod =
+      vectorIds.length > 0 ? "hybrid (keyword + semantic)" : "keyword";
 
-    lines.push(`${orderedRules.length} rules matching keyword "${queryText}" (${searchMethod} search, ${totalMatches > orderedRules.length ? `showing top ${orderedRules.length} of ~${totalMatches}` : `${orderedRules.length} total`})\n`);
+    lines.push(
+      `${orderedRules.length} rules matching keyword "${queryText}" (${searchMethod} search, ${totalMatches > orderedRules.length ? `showing top ${orderedRules.length} of ~${totalMatches}` : `${orderedRules.length} total`})\n`,
+    );
     for (const r of orderedRules) {
       lines.push(`${r.number} ${r.text}`);
     }
 
     // Add guidance
     lines.push("\n---");
-    lines.push("These rules are ranked by relevance. To get the full text of a specific rule including examples and cross-references, query by rule number (e.g., rule=\"702.2\").");
-    lines.push("IMPORTANT: Always cite specific rule numbers when explaining interactions to the player. Do not paraphrase rules from memory — use the text above.");
+    lines.push(
+      'These rules are ranked by relevance. To get the full text of a specific rule including examples and cross-references, query by rule number (e.g., rule="702.2").',
+    );
+    lines.push(
+      "IMPORTANT: Always cite specific rule numbers when explaining interactions to the player. Do not paraphrase rules from memory — use the text above.",
+    );
   }
 
   lines.push(formatInteractions(interactions));
@@ -461,7 +537,10 @@ export const rulesSearchModule: NativeReferenceModule = {
     limit: { type: "integer", description: "Max results (default 20)." },
   },
 
-  async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
+  async execute(
+    query: Record<string, unknown>,
+    env: Env,
+  ): Promise<ReferenceResult> {
     const rule = (query.rule as string) ?? "";
     const keyword = (query.keyword as string) ?? "";
     const limit = typeof query.limit === "number" ? query.limit : DEFAULT_LIMIT;
@@ -470,9 +549,18 @@ export const rulesSearchModule: NativeReferenceModule = {
       return searchByRuleNumber(env.DB, rule);
     }
     if (keyword) {
-      return searchByKeyword(env.DB, env.AI, env.MTGA_RULES_INDEX, keyword, limit);
+      return searchByKeyword(
+        env.DB,
+        env.AI,
+        env.MTGA_RULES_INDEX,
+        keyword,
+        limit,
+      );
     }
 
-    return { type: "text", content: "Specify one of: rule (number) or keyword.\n" };
+    return {
+      type: "text",
+      content: "Specify one of: rule (number) or keyword.\n",
+    };
   },
 };

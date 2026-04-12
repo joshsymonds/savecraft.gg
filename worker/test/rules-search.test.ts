@@ -366,6 +366,49 @@ describe("rules_search native module", () => {
     expect(text).toContain("Replacement Effect Ordering");
   });
 
+  it("caps interaction results at MAX_INTERACTIONS (3)", async () => {
+    await seedRules();
+    // Seed 5 interactions all matching "layers"
+    const stmts = [];
+    for (let n = 1; n <= 5; n++) {
+      stmts.push(
+        env.DB.prepare(
+          `INSERT INTO mtga_interactions (id, title, mechanics, card_names, rule_numbers, breakdown, common_error)
+           VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        ).bind(
+          n,
+          `Layer Interaction ${String(n)}`,
+          "layers",
+          "Card A,Card B",
+          "613.1",
+          `Breakdown ${String(n)}`,
+          `Error ${String(n)}`,
+        ),
+        env.DB.prepare(
+          `INSERT INTO mtga_interactions_fts (id, title, mechanics, card_names, breakdown)
+           VALUES (?, ?, ?, ?, ?)`,
+        ).bind(
+          n,
+          `Layer Interaction ${String(n)}`,
+          "layers",
+          "Card A,Card B",
+          `Breakdown ${String(n)}`,
+        ),
+      );
+    }
+    await env.DB.batch(stmts);
+
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ keyword: "layers" }, bm25Env);
+    const text = (result as { content: string }).content;
+
+    // Should have interaction patterns section
+    expect(text).toContain("Interaction Patterns");
+    // Count occurrences of "Layer Interaction" — should be at most 3
+    const matches = text.match(/Layer Interaction \d/g) ?? [];
+    expect(matches.length).toBeLessThanOrEqual(3);
+  });
+
   // ── Reasoning guide ───────────────────────────────────────
 
   it("every response includes reasoning guide placeholder", async () => {
