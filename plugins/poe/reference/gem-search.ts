@@ -33,6 +33,11 @@ interface GemRow {
   int_requirement: number | null;
   cast_time: number | null;
   mana_cost: string | null;
+  mana_multiplier: number | null;
+  cannot_support_minions: number;
+  minion_excluded_effects: string | null;
+  require_skill_types: string | null;
+  exclude_skill_types: string | null;
 }
 
 function gemRowToResult(row: GemRow): Record<string, unknown> {
@@ -52,6 +57,11 @@ function gemRowToResult(row: GemRow): Record<string, unknown> {
     int_requirement: row.int_requirement,
     cast_time: row.cast_time,
     mana_cost: row.mana_cost,
+    mana_multiplier: row.mana_multiplier,
+    cannot_support_minions: row.cannot_support_minions === 1,
+    minion_excluded_effects: parseJsonColumn(row.minion_excluded_effects),
+    require_skill_types: parseJsonColumn(row.require_skill_types),
+    exclude_skill_types: parseJsonColumn(row.exclude_skill_types),
   };
 }
 

@@ -24,6 +24,7 @@
     int_requirement?: number;
     cast_time?: number;
     mana_cost?: string;
+    mana_multiplier?: number;
     description?: string;
     /** Key stats at gem level 20 */
     stats_at_20?: string[];
@@ -31,6 +32,14 @@
     scaling?: Array<{ level: number; stats: string[] }>;
     /** For support gems: what tags it can support */
     supports_tags?: string[];
+    /** True if this support cannot modify minion/totem skills */
+    cannot_support_minions?: boolean;
+    /** Stat text lines that do NOT apply to minions/totems */
+    minion_excluded_effects?: string[];
+    /** Skill types this support requires */
+    require_skill_types?: string[];
+    /** Skill types this support refuses */
+    exclude_skill_types?: string[];
   }
 
   interface Props {
@@ -66,12 +75,32 @@
                     {#if gem.is_support}
                       <Badge label="Support" variant="info" />
                     {/if}
+                    {#if gem.cannot_support_minions}
+                      <Badge label="Cannot Support Minions" variant="warning" />
+                    {/if}
                   </div>
+                  {#if gem.require_skill_types?.length}
+                    <div class="gem-tags">
+                      {#each gem.require_skill_types as st}
+                        <Badge label="Requires: {st}" variant="info" />
+                      {/each}
+                    </div>
+                  {/if}
+                  {#if gem.exclude_skill_types?.length}
+                    <div class="gem-tags">
+                      {#each gem.exclude_skill_types as st}
+                        <Badge label="Excludes: {st}" variant="negative" />
+                      {/each}
+                    </div>
+                  {/if}
                   {#if gem.cast_time != null}
                     <div class="gem-prop">Cast Time: <strong>{gem.cast_time}s</strong></div>
                   {/if}
                   {#if gem.mana_cost}
                     <div class="gem-prop">Mana Cost: <strong>{gem.mana_cost}</strong></div>
+                  {/if}
+                  {#if gem.mana_multiplier}
+                    <div class="gem-prop">Cost Multiplier: <strong>{gem.mana_multiplier}%</strong></div>
                   {/if}
                 </div>
               {/snippet}
@@ -92,7 +121,11 @@
                   {/if}
                   {#if gem.stats_at_20}
                     {#each gem.stats_at_20 as stat}
-                      <StatLine text={stat} />
+                      {#if gem.minion_excluded_effects?.includes(stat)}
+                        <StatLine text="{stat} (not for minions/totems)" variant="fractured" />
+                      {:else}
+                        <StatLine text={stat} />
+                      {/if}
                     {/each}
                   {/if}
                 </div>

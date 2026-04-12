@@ -65,19 +65,48 @@ func buildSQL(
 			manaCost = fmt.Sprintf("'%d'", g.ManaCost)
 		}
 
-		// Translate constantStats to human-readable strings for stats_at_20
+		// Translate ALL stats to human-readable strings for stats_at_20:
+		// both level-scaled stats (from stats[] + levels[20][]) and constant stats.
+		// Level stats come first since they're typically the primary effects.
 		var statStrings []string
 		if translator != nil {
-			statStrings = translator.TranslateAll(g.ConstantStats)
+			statStrings = append(statStrings, translator.TranslateAll(g.LevelStats)...)
+			statStrings = append(statStrings, translator.TranslateAll(g.ConstantStats)...)
 		}
 		statsJSON := cfapi.JSONArray(statStrings)
 
+		// Support gem fields
+		cannotSupportMinions := 0
+		if g.IgnoreMinionTypes {
+			cannotSupportMinions = 1
+		}
+		manaMultiplier := nullableInt(g.ManaMultiplier)
+
+		// Translate notMinionStat IDs to human-readable text
+		var minionExcluded []string
+		if translator != nil && len(g.NotMinionStat) > 0 {
+			var notMinionStats []SkillStat
+			// Look up values from LevelStats for these stat IDs
+			levelStatMap := make(map[string]int)
+			for _, ls := range g.LevelStats {
+				levelStatMap[ls.ID] = ls.Value
+			}
+			for _, statID := range g.NotMinionStat {
+				notMinionStats = append(notMinionStats, SkillStat{ID: statID, Value: levelStatMap[statID]})
+			}
+			minionExcluded = translator.TranslateAll(notMinionStats)
+		}
+		minionExcludedJSON := cfapi.JSONArray(minionExcluded)
+		requireTypesJSON := cfapi.JSONArray(g.RequireSkillTypes)
+		excludeTypesJSON := cfapi.JSONArray(g.ExcludeSkillTypes)
+
 		description := g.Description
 
-		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_gems (gem_id, name, is_support, color, tags, level_requirement, str_requirement, dex_requirement, int_requirement, cast_time, mana_cost, description, stats_at_20, quality_stats, supports_tags) VALUES (%s, %s, %d, %s, %s, NULL, %s, %s, %s, %s, %s, %s, %s, '[]', NULL);\n",
+		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_gems (gem_id, name, is_support, color, tags, level_requirement, str_requirement, dex_requirement, int_requirement, cast_time, mana_cost, description, stats_at_20, quality_stats, supports_tags, mana_multiplier, cannot_support_minions, minion_excluded_effects, require_skill_types, exclude_skill_types) VALUES (%s, %s, %d, %s, %s, NULL, %s, %s, %s, %s, %s, %s, %s, '[]', NULL, %s, %d, %s, %s, %s);\n",
 			q(g.GemID), q(g.Name), isSupport, q(g.Color), q(tagsJSON),
 			strReq, dexReq, intReq,
 			castTime, manaCost, q(description), q(statsJSON),
+			manaMultiplier, cannotSupportMinions, q(minionExcludedJSON), q(requireTypesJSON), q(excludeTypesJSON),
 		)
 
 		fmt.Fprintf(&b, "INSERT OR REPLACE INTO poe_gems_fts (gem_id, name, tags, description) VALUES (%s, %s, %s, %s);\n",
