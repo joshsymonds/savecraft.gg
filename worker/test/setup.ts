@@ -158,6 +158,24 @@ const statements = [
     example,
     tokenize='porter unicode61'
   )`,
+  // MTG Arena interaction patterns (migration 0042)
+  `CREATE TABLE IF NOT EXISTS mtga_interactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    mechanics TEXT NOT NULL,
+    card_names TEXT NOT NULL,
+    rule_numbers TEXT NOT NULL,
+    breakdown TEXT NOT NULL,
+    common_error TEXT NOT NULL
+  )`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS mtga_interactions_fts USING fts5(
+    id UNINDEXED,
+    title,
+    mechanics,
+    card_names,
+    breakdown,
+    tokenize='porter unicode61'
+  )`,
   // MTG Arena cards + draft ratings (migration 0015)
   `CREATE TABLE IF NOT EXISTS magic_cards (
     scryfall_id TEXT PRIMARY KEY,

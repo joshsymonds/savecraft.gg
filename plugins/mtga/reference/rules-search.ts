@@ -26,7 +26,93 @@ interface RuleRow {
   see_also: string | null;
 }
 
+interface InteractionRow {
+  id: number;
+  title: string;
+  mechanics: string;
+  card_names: string;
+  rule_numbers: string;
+  breakdown: string;
+  common_error: string;
+}
+
 import { mergeWithRRF } from "../../../worker/src/reference/rrf";
+
+// ── Reasoning guide ────────���────────────────────────────────
+// Appended to every rules_search response. Content pending from Magic SME.
+const REASONING_GUIDE = `
+---
+Reasoning Guide: Applying Rules to Interactions
+(Placeholder — detailed reasoning framework pending)
+---`;
+
+// ── Interaction search ──────────────────────────────────────
+
+const MAX_INTERACTIONS = 3;
+
+/** Search interactions by FTS5 keyword match. */
+async function searchInteractionsByKeyword(
+  db: D1Database,
+  queryText: string,
+): Promise<InteractionRow[]> {
+  const terms = queryText.trim().split(/\s+/).filter((t) => t.length >= 2);
+  if (terms.length === 0) return [];
+
+  const safeQuery = terms.map((t) => `"${t.replace(/"/g, '""')}"`).join(" OR ");
+
+  const ftsResults = await db
+    .prepare(
+      `SELECT id FROM mtga_interactions_fts WHERE mtga_interactions_fts MATCH ?1 ORDER BY rank LIMIT ?2`,
+    )
+    .bind(safeQuery, MAX_INTERACTIONS)
+    .all<{ id: number }>();
+
+  if (ftsResults.results.length === 0) return [];
+
+  const ids = ftsResults.results.map((r) => r.id);
+  const placeholders = ids.map(() => "?").join(",");
+  const rows = await db
+    .prepare(`SELECT * FROM mtga_interactions WHERE id IN (${placeholders})`)
+    .bind(...ids)
+    .all<InteractionRow>();
+
+  // Preserve FTS5 rank order
+  const rowMap = new Map(rows.results.map((r) => [r.id, r]));
+  return ids.map((id) => rowMap.get(id)).filter((r): r is InteractionRow => r != null);
+}
+
+/** Search interactions by rule number overlap. */
+async function searchInteractionsByRuleNumber(
+  db: D1Database,
+  ruleNumbers: string[],
+): Promise<InteractionRow[]> {
+  if (ruleNumbers.length === 0) return [];
+
+  const conditions = ruleNumbers.map(() => "rule_numbers LIKE ?").join(" OR ");
+  const binds = ruleNumbers.map((r) => `%${r}%`);
+
+  const rows = await db
+    .prepare(`SELECT * FROM mtga_interactions WHERE ${conditions} LIMIT ?`)
+    .bind(...binds, MAX_INTERACTIONS)
+    .all<InteractionRow>();
+
+  return rows.results;
+}
+
+/** Format interaction rows into a response section. */
+function formatInteractions(interactions: InteractionRow[]): string {
+  if (interactions.length === 0) return "";
+
+  const lines: string[] = [];
+  lines.push("\n═══ Interaction Patterns ═══");
+  for (const interaction of interactions) {
+    lines.push(`\n▶ ${interaction.title}`);
+    lines.push(`Rules: ${interaction.rule_numbers}`);
+    lines.push(interaction.breakdown);
+    lines.push(`⚠ Common LLM error: ${interaction.common_error}`);
+  }
+  return lines.join("\n");
+}
 
 // ── Shared helpers ───────────────────────────────────���──────
 
@@ -129,6 +215,14 @@ async function searchByRuleNumber(db: D1Database, ruleNum: string): Promise<Refe
   // Suggested follow-ups based on content
   lines.push(buildFollowUpSuggestions(rows.results, seeAlsoRefs));
 
+  // Auto-match interaction patterns by rule number
+  const allRuleNumbers = [...matchedNumbers, ...seeAlsoRefs];
+  const interactions = await searchInteractionsByRuleNumber(db, allRuleNumbers);
+  lines.push(formatInteractions(interactions));
+
+  // Reasoning guide
+  lines.push(REASONING_GUIDE);
+
   return {
     type: "text",
     content: lines.join("\n") + "\n",
@@ -199,38 +293,49 @@ async function searchByKeyword(
   // Merge results via RRF
   const topIds = mergeWithRRF(bm25Ids, vectorIds, RRF_K, limit);
 
-  if (topIds.length === 0) {
+  // Auto-match interaction patterns by keyword (independent of rules results)
+  const interactions = await searchInteractionsByKeyword(db, queryText);
+
+  if (topIds.length === 0 && interactions.length === 0) {
     return {
       type: "text",
       content: `No rules found matching keyword "${queryText}". Try a different keyword, or use the "rule" parameter with a specific rule number.\n`,
     };
   }
 
-  // Fetch full rule text for merged results
-  const placeholders = topIds.map(() => "?").join(",");
-  const ruleRows = await db
-    .prepare(`SELECT * FROM mtga_rules WHERE number IN (${placeholders})`)
-    .bind(...topIds)
-    .all<RuleRow>();
-
-  // Re-sort by RRF rank order
-  const ruleMap = new Map(ruleRows.results.map((r) => [r.number, r]));
-  const orderedRules = topIds.map((id) => ruleMap.get(id)).filter((r): r is RuleRow => r != null);
-
-  const totalMatches = bm25Ids.length + vectorIds.length - topIds.length; // approximate unique total
-  const searchMethod = vectorIds.length > 0 ? "hybrid (keyword + semantic)" : "keyword";
-
   const lines: string[] = [];
   lines.push(`${RULES_HEADER}\n`);
-  lines.push(`${orderedRules.length} rules matching keyword "${queryText}" (${searchMethod} search, ${totalMatches > orderedRules.length ? `showing top ${orderedRules.length} of ~${totalMatches}` : `${orderedRules.length} total`})\n`);
-  for (const r of orderedRules) {
-    lines.push(`${r.number} ${r.text}`);
+
+  if (topIds.length > 0) {
+    // Fetch full rule text for merged results
+    const placeholders = topIds.map(() => "?").join(",");
+    const ruleRows = await db
+      .prepare(`SELECT * FROM mtga_rules WHERE number IN (${placeholders})`)
+      .bind(...topIds)
+      .all<RuleRow>();
+
+    // Re-sort by RRF rank order
+    const ruleMap = new Map(ruleRows.results.map((r) => [r.number, r]));
+    const orderedRules = topIds.map((id) => ruleMap.get(id)).filter((r): r is RuleRow => r != null);
+
+    const totalMatches = bm25Ids.length + vectorIds.length - topIds.length; // approximate unique total
+    const searchMethod = vectorIds.length > 0 ? "hybrid (keyword + semantic)" : "keyword";
+
+    lines.push(`${orderedRules.length} rules matching keyword "${queryText}" (${searchMethod} search, ${totalMatches > orderedRules.length ? `showing top ${orderedRules.length} of ~${totalMatches}` : `${orderedRules.length} total`})\n`);
+    for (const r of orderedRules) {
+      lines.push(`${r.number} ${r.text}`);
+    }
+
+    // Add guidance
+    lines.push("\n---");
+    lines.push("These rules are ranked by relevance. To get the full text of a specific rule including examples and cross-references, query by rule number (e.g., rule=\"702.2\").");
+    lines.push("IMPORTANT: Always cite specific rule numbers when explaining interactions to the player. Do not paraphrase rules from memory — use the text above.");
   }
 
-  // Add guidance
-  lines.push("\n---");
-  lines.push("These rules are ranked by relevance. To get the full text of a specific rule including examples and cross-references, query by rule number (e.g., rule=\"702.2\").");
-  lines.push("IMPORTANT: Always cite specific rule numbers when explaining interactions to the player. Do not paraphrase rules from memory — use the text above.");
+  lines.push(formatInteractions(interactions));
+
+  // Reasoning guide
+  lines.push(REASONING_GUIDE);
 
   return {
     type: "text",

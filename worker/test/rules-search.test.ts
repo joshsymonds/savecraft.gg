@@ -258,4 +258,127 @@ describe("rules_search native module", () => {
     expect(module_.description).toContain("USE PROACTIVELY");
     expect(module_.description).toContain("Do not rely on training data");
   });
+
+  // ── Interaction patterns ──────────────────────────────────
+
+  async function seedInteractions(): Promise<void> {
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO mtga_interactions (id, title, mechanics, card_names, rule_numbers, breakdown, common_error)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        1,
+        "Blood Moon + Sagas",
+        "layers,type-changing,SBA,ability-granting",
+        "Blood Moon,Urza's Saga",
+        "305.7,613.1d,613.1f,704.5s,714.4",
+        "Step 1: Blood Moon applies in Layer 4 (type-changing). Urza's Saga becomes a Mountain.\nStep 2: In Layer 6, Blood Moon removes abilities from rules text (305.7). Chapter abilities are rules text — removed.\nStep 3: Abilities GRANTED by resolved chapter abilities are NOT rules text — they persist (305.7 explicitly excludes granted abilities).\nStep 4: SBA check (704.5s): 'a Saga with one or more chapter abilities' — Saga has zero chapter abilities, so SBA does not trigger.\nResult: Saga survives as a Mountain. If chapter II had resolved, the Construct-making ability persists permanently.",
+        "LLMs conflate 'chapter ability' (rules text, removed by Blood Moon) with 'ability granted BY a chapter ability' (effect-granted, preserved per 305.7). They also apply the old pre-May-2025 rule that sacrificed Sagas with zero chapter abilities.",
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_interactions_fts (id, title, mechanics, card_names, breakdown)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).bind(
+        1,
+        "Blood Moon + Sagas",
+        "layers,type-changing,SBA,ability-granting",
+        "Blood Moon,Urza's Saga",
+        "Step 1: Blood Moon applies in Layer 4 (type-changing). Urza's Saga becomes a Mountain.",
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_interactions (id, title, mechanics, card_names, rule_numbers, breakdown, common_error)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        2,
+        "Replacement Effect Ordering (Torbran + Furnace of Rath)",
+        "replacement-effects,damage-modification",
+        "Torbran Thane of Red Fell,Furnace of Rath",
+        "614.1,616.1",
+        "When multiple replacement effects modify the same event, the affected player or controller of the affected object chooses the order (616.1). For damage to a player, THAT PLAYER chooses — not the controller of the replacement sources.",
+        "LLMs assume the controller of the replacement effect sources chooses the order. In Torbran + Furnace of Rath, the opponent (taking damage) chooses, and will pick: double first (6), then +2 (8) — not +2 first (5) then double (10).",
+      ),
+      env.DB.prepare(
+        `INSERT INTO mtga_interactions_fts (id, title, mechanics, card_names, breakdown)
+         VALUES (?, ?, ?, ?, ?)`,
+      ).bind(
+        2,
+        "Replacement Effect Ordering (Torbran + Furnace of Rath)",
+        "replacement-effects,damage-modification",
+        "Torbran Thane of Red Fell,Furnace of Rath",
+        "When multiple replacement effects modify the same event, the affected player or controller of the affected object chooses the order (616.1).",
+      ),
+    ]);
+  }
+
+  it("keyword search returns matched interactions alongside rules", async () => {
+    await seedRules();
+    await seedInteractions();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ keyword: "Blood Moon" }, bm25Env);
+
+    const text = (result as { content: string }).content;
+    expect(text).toContain("Interaction Patterns");
+    expect(text).toContain("Blood Moon + Sagas");
+    expect(text).toContain("chapter ability");
+  });
+
+  it("interactions match by card name", async () => {
+    await seedRules();
+    await seedInteractions();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ keyword: "Urza's Saga" }, bm25Env);
+
+    const text = (result as { content: string }).content;
+    expect(text).toContain("Blood Moon + Sagas");
+  });
+
+  it("interactions match by mechanic", async () => {
+    await seedRules();
+    await seedInteractions();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ keyword: "replacement effects" }, bm25Env);
+
+    const text = (result as { content: string }).content;
+    expect(text).toContain("Replacement Effect Ordering");
+    expect(text).toContain("Torbran");
+  });
+
+  it("no interactions returned when nothing matches", async () => {
+    await seedRules();
+    await seedInteractions();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ keyword: "deathtouch" }, bm25Env);
+
+    const text = (result as { content: string }).content;
+    expect(text).not.toContain("Interaction Patterns");
+  });
+
+  it("rule number lookup also searches interactions by rule number", async () => {
+    await seedRules();
+    await seedInteractions();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+    const result = await module_.execute({ rule: "614.1" }, env);
+
+    const text = (result as { content: string }).content;
+    // 614.1 is in the replacement effects interaction's rule_numbers
+    expect(text).toContain("Interaction Patterns");
+    expect(text).toContain("Replacement Effect Ordering");
+  });
+
+  // ── Reasoning guide ───────────────────────────────────────
+
+  it("every response includes reasoning guide placeholder", async () => {
+    await seedRules();
+    const module_ = getNativeModule("mtga", "rules_search")!;
+
+    // Check keyword search
+    const kwResult = await module_.execute({ keyword: "deathtouch" }, bm25Env);
+    const kwText = (kwResult as { content: string }).content;
+    expect(kwText).toContain("Reasoning Guide");
+
+    // Check rule lookup
+    const ruleResult = await module_.execute({ rule: "702.2" }, env);
+    const ruleText = (ruleResult as { content: string }).content;
+    expect(ruleText).toContain("Reasoning Guide");
+  });
 });

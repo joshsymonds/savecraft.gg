@@ -21,6 +21,8 @@ export const CLEANUP_TABLES = [
   "game_credentials",
   "saves",
   "sources",
+  "mtga_interactions_fts",
+  "mtga_interactions",
   "mtga_rules_fts",
   "mtga_rules",
   "magic_cards_fts",
