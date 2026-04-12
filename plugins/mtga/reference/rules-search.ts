@@ -38,13 +38,90 @@ interface InteractionRow {
 
 import { mergeWithRRF } from "../../../worker/src/reference/rrf";
 
-// ── Reasoning guide ────────���────────────────────────────────
-// Appended to every rules_search response. Content pending from Magic SME.
+// ── Reasoning guide ─────────────────────────────────────────
+// Appended to every rules_search response. Provides the LLM with a complete
+// framework for reasoning about rules interactions — preventing synthesis
+// errors even when the correct rules are retrieved.
 const REASONING_GUIDE = `
----
-Reasoning Guide: Applying Rules to Interactions
-(Placeholder — detailed reasoning framework pending)
----`;
+
+═══ Rules Reasoning Guide ═══
+
+Magic's Comprehensive Rules form a semi-formal logical system where card text functions as local overrides to global defaults, conflicts resolve through deterministic algorithms, and game state is derived by recomputing all continuous effects from scratch every time anything changes. Understanding this architecture — not memorizing rulings — is what enables correct synthesis of interactions from raw rules text.
+
+THE GOLDEN RULES (CR 101) — AXIOM HIERARCHY
+
+CR 101.1: Card text overrides general rules. The CR defines default behavior; cards create exceptions. When a card says something that contradicts a rule, the card wins. The sole exception is that a player can always concede (104.3a). Reasoning always starts by reading what the cards actually say, not what you assume the rules dictate.
+
+CR 101.2: When one effect permits something and another prohibits it, "can't" always beats "can." This is a hard, deterministic tiebreaker that applies universally. Importantly, 101.2a carves out an exception: adding and removing abilities are not "can"/"can't" conflicts — they resolve through the layer system instead, via timestamp ordering.
+
+CR 101.3: Impossible instructions are simply ignored. This prevents the system from halting on undefined states. Combined, these three rules create a precedence chain: card text > specific rules > general rules, with "can't" trumping "can" at every level, and impossibility silently skipped.
+
+THE LAYER SYSTEM (CR 613) — DETERMINISTIC RECOMPUTATION
+
+The layer system is not a one-time resolution — it is a continuous, automatic recomputation that the game performs constantly. Every time anything changes, the game recalculates all characteristics of all objects by starting from printed values and applying all continuous effects in a fixed sequence of seven layers: copy (1) → control (2) → text (3) → type (4) → color (5) → abilities (6) → power/toughness (7). Layer 7 contains four sublayers: CDAs (7a), then set-to-specific-value effects (7b), then modifications and counters (7c), then P/T switching (7d).
+
+CRITICAL: Effects in earlier layers cannot "see" changes from later layers, but later layers see everything from earlier ones. When the game evaluates Layer 4 (type changes), it doesn't know what abilities Layer 6 will add or remove. When Layer 6 evaluates, it sees all type changes from Layer 4. This one-directional information flow is what makes the system deterministic rather than circular.
+
+Within each layer, three ordering mechanisms apply in priority:
+1. Characteristic-defining abilities always apply before other effects in layers 2–6 (per 613.3) and in sublayer 7a.
+2. All remaining effects apply in timestamp order (613.7). Earlier timestamps apply first, so the most recent effect "wins" when two effects conflict in the same layer.
+3. The dependency system (613.8) overrides timestamp when one effect's behavior depends on another. Effect A depends on Effect B if they're in the same layer and applying B would change what A does, what A applies to, or whether A exists. When a dependency exists, the depended-upon effect applies first regardless of timestamp. If dependencies form a loop, the system falls back to timestamp.
+
+CR 613.6 (cross-layer lock-in): When a single effect spans multiple layers — like "all noncreature artifacts become 2/2 artifact creatures" — it locks in the set of affected objects when it first applies (Layer 4: type change) and continues applying to those same objects in later layers (Layer 7b: P/T setting), even if the generating ability is removed during this process.
+
+REPLACEMENT EFFECTS (CR 614–616) — ITERATIVE PRIORITY ALGORITHM
+
+Replacement effects are syntactically identified by the words "instead," "skip," "as [this] enters," or "[this] enters with." They modify events as they happen and never use the stack — they cannot be responded to. This is fundamentally different from triggered abilities ("when," "whenever," "at"), which go on the stack and can be countered or responded to.
+
+When multiple replacement effects would modify the same event, CR 616.1 provides a strict priority algorithm. The affected player or controller must choose from applicable effects in this order: self-replacement effects first (614.15), then control-changing effects, then copy effects ("enter as a copy"), then back-face-up effects, then free choice among remaining effects. After each application, the system re-evaluates which replacement effects still apply to the now-modified event and repeats until none remain.
+
+CRITICAL: The AFFECTED PLAYER or CONTROLLER OF THE AFFECTED OBJECT chooses the order — not the controller of the replacement effect sources. For damage dealt to a player, that player chooses.
+
+For enters-the-battlefield replacement effects, CR 614.12 establishes a "lookahead" procedure: the game checks the permanent's characteristics as it would exist on the battlefield, taking into account replacement effects already applied, the permanent's own static abilities, and existing battlefield continuous effects.
+
+STATE-BASED ACTIONS (CR 704) — INVARIANT CHECKS
+
+State-based actions function like garbage collection — automatic invariant enforcement that runs whenever a player would receive priority. All applicable SBAs are found and performed simultaneously as a single event (704.3). The check then repeats until no more SBAs apply and no triggers are waiting.
+
+CRITICAL (704.4): SBAs pay no attention to what happens during the resolution of a spell or ability. A creature whose toughness temporarily reaches 0 during a spell's resolution but recovers before the spell finishes resolving will survive.
+
+SBAs are not replacement effects and not triggered abilities. They don't use the stack. They can't be responded to. Read their trigger conditions literally — a rule that says "a Saga with one or more chapter abilities" does NOT apply to a Saga with zero chapter abilities.
+
+STACK vs. NON-STACK — THE MOST COMMON REASONING ERROR
+
+Uses the stack: spells, activated abilities (non-mana), and triggered abilities.
+Does NOT use the stack: mana abilities (605.3b), special actions (116.1 — including playing lands, morphing, foretelling), state-based actions (704), replacement effects (614), and turn-based actions (703).
+
+"As [this] enters" = replacement effect (614.1c), a static ability that modifies the entry event itself. Doesn't use the stack. Choices are made before the permanent enters.
+"When [this] enters" = triggered ability (603.6a) that goes on the stack after the permanent is already on the battlefield and can be responded to.
+
+Costs (before the colon in activated abilities, or explicit "as an additional cost") are paid during step 601.2h as one atomic operation. No player receives priority during casting. By the time an opponent can respond, the spell is on the stack and all costs have been paid.
+
+ABILITY ONTOLOGY — PRINTED vs. GRANTED
+
+The distinction between printed abilities and granted abilities (113.12) is architecturally significant. An effect that says a creature "gains flying" grants an ability that can be removed by "loses flying." But an effect that says a creature "is red" sets a characteristic — not an ability. "Loses all abilities" won't undo it.
+
+CR 305.7: When an effect sets a land's subtype to one or more basic land types, the land loses its old land types and all rules-text abilities, then gains intrinsic mana abilities for each new basic type. This is a Layer 4 type change. Abilities granted by external effects are unaffected. This is the canonical example of the printed-vs-granted distinction.
+
+Copy effects (707.2) establish copiable values in Layer 1: they capture only printed text (name, mana cost, types, rules text, P/T) as modified by other copy effects, face-down status, and "as enters" P/T-setting abilities. Counters, granted abilities, and type-changing effects are NOT copied.
+
+REASONING ALGORITHM — USE THIS PROCEDURE FOR EVERY INTERACTION
+
+Step 1 — Read literally. Parse the card text and identify every operative word. "Instead" = replacement effect. "When/whenever/at" = triggered ability. "As [this] enters" = replacement effect. "[Cost]: [Effect]" = activated ability. A declarative statement with no trigger word = static ability.
+
+Step 2 — Classify the interaction type. Is this about continuous effects overlapping (→ layer system)? Multiple replacement effects on one event (→ 616.1 algorithm)? Whether something uses the stack (→ stack/non-stack classification)? A game-state check (→ SBAs)?
+
+Step 3 — Apply golden rules. Check for "can't" effects — they win over "can" effects (101.2). Check whether card text creates an exception to a general rule (101.1). Discard impossible instructions (101.3).
+
+Step 4 — For continuous effects, trace through layers. Start from printed characteristics. Apply layers 1–7 in order with sublayers. Within each layer: CDAs first, then timestamp order, then check for dependencies. Effects in earlier layers are invisible to later layers. If a single effect spans layers, lock in the affected objects when first applied (613.6).
+
+Step 5 — For replacement effects, iterate. Identify all applicable replacements. Apply self-replacements first (614.15). Then follow the 616.1 priority chain. After each application, re-evaluate which replacements still apply. The AFFECTED PLAYER/CONTROLLER chooses.
+
+Step 6 — For stack interactions, verify what uses the stack. Only spells, activated abilities, and triggered abilities use the stack. Costs are paid during casting before anyone receives priority.
+
+Step 7 — Verify against design intent. If the derived answer seems wrong, check whether a specific rule was missed. Common gaps: 613.6 (cross-layer lock-in), 614.12 (ETB replacement lookahead), 704.4 (SBAs ignore mid-resolution states), 113.12 (setting characteristics ≠ granting abilities), 101.2a (adding/removing abilities isn't a can/can't conflict).
+
+Step 8 — State uncertainty explicitly. If the retrieved rules text doesn't fully determine the answer, say so. Edge cases exist where head-judge authority is the actual resolution mechanism.`;
 
 // ── Interaction search ──────────────────────────────────────
 

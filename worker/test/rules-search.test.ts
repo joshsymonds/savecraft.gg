@@ -210,8 +210,9 @@ describe("rules_search native module", () => {
     const text = (result as { content: string }).content;
     expect(text).toContain("702.2");
     expect(text).toContain("702.2a");
-    // Should NOT contain unrelated rules
-    expect(text).not.toContain("614.1");
+    // Rules section (before reasoning guide) should NOT contain unrelated rules
+    const rulesSection = text.split("═══ Rules Reasoning Guide ═══")[0]!;
+    expect(rulesSection).not.toContain("614.1");
   });
 
   it("keyword search handles multiple terms", async () => {
