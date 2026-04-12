@@ -37,6 +37,7 @@ function pobFetch(
   body: Record<string, unknown>,
   apiKey?: string,
   sections?: string,
+  statKeys?: string,
 ): Promise<Response> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (apiKey) {
@@ -44,6 +45,7 @@ function pobFetch(
   }
   const params = new URLSearchParams();
   if (sections) params.set("sections", sections);
+  if (statKeys) params.set("stat_keys", statKeys);
   const qs = params.toString();
   const url = qs ? `${pobUrl}${path}?${qs}` : `${pobUrl}${path}`;
   return fetch(url, {
@@ -59,9 +61,10 @@ export const buildPlannerModule: NativeReferenceModule = {
   name: "Build Planner",
   description:
     "Analyze, modify, or explore a Path of Exile build via Path of Building. "
-    + "First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. "
+    + "First call returns a compact summary (DPS, life, resists, attributes, LifeUnreservedPercent for Low Life detection) and a section_index listing available detail sections. "
     + "To drill deeper, call again with the buildId and sections parameter (e.g. sections='offense,defense'). "
-    + "For modifications, pass buildId + operations + sections to see before/after comparison on the stats you care about. "
+    + "Stat sections return curated key stats plus _extra_keys listing other available stats — use stat_keys to request specific extras. "
+    + "For modifications, pass buildId + operations — the response includes a changes object showing {before, after, delta} for every summary stat that changed. "
     + "For tree exploration, pass buildId + nearby_metrics to find the highest-impact nearby nodes ranked by real calc deltas. "
     + "Every response includes a buildId for follow-up calls.",
   parameters: {
@@ -97,8 +100,17 @@ export const buildPlannerModule: NativeReferenceModule = {
         + "Omit for a compact summary with a section index listing available sections. "
         + "Available: offense, ailments, defense, resistances, ehp, recovery, charges, limits, "
         + "socket_groups, items, keystones, tree, minion_offense, minion_defense. "
-        + "tree returns allocated/available/remaining passive points and ascendancy node count — use it to check the point budget. "
+        + "Stat sections return curated key stats by default plus an _extra_keys array listing other available stat names in that section. "
+        + "Use the stat_keys parameter to include specific extra keys alongside the curated defaults. "
+        + "tree returns allocated/available/remaining passive points with breakdown: available_points = level_points + quest_points (23, all acts) + extra_points. "
         + "After allocate_node, the response includes an allocation_log section showing every node allocated along the path and points spent.",
+    },
+    stat_keys: {
+      type: "string",
+      description:
+        "Comma-separated stat key names to include alongside the curated defaults in stat sections (e.g. 'PierceChance,AreaOfEffectMod'). "
+        + "Use this to drill into specific stats discovered via _extra_keys in a previous response. "
+        + "Any PoB calc output key is accepted. Only used with sections parameter.",
     },
     nearby_metrics: {
       type: "string",
@@ -141,6 +153,7 @@ export const buildPlannerModule: NativeReferenceModule = {
     const buildId = query.build_id as string | undefined;
     const operations = query.operations as string | undefined;
     const sections = query.sections as string | undefined;
+    const statKeys = query.stat_keys as string | undefined;
     const nearbyMetrics = query.nearby_metrics as string | undefined;
     const nearbyRadius = query.nearby_radius as number | undefined;
     const nearbyLimit = query.nearby_limit as number | undefined;
@@ -240,7 +253,7 @@ export const buildPlannerModule: NativeReferenceModule = {
       // Resolve URL → buildId + calc results
       let response: Response;
       try {
-        response = await pobFetch(pobUrl, "/resolve", { url: build }, env.POB_API_KEY, sections);
+        response = await pobFetch(pobUrl, "/resolve", { url: build }, env.POB_API_KEY, sections, statKeys);
       } catch (e) {
         return {
           type: "text",
@@ -292,6 +305,7 @@ export const buildPlannerModule: NativeReferenceModule = {
           { buildId: resolvedBuildId, operations: parsedOps },
           env.POB_API_KEY,
           sections,
+          statKeys,
         );
       } catch (e) {
         return {
@@ -319,8 +333,12 @@ export const buildPlannerModule: NativeReferenceModule = {
       if (env.POB_API_KEY) {
         headers.Authorization = `Bearer ${env.POB_API_KEY}`;
       }
-      const summaryUrl = sections
-        ? `${pobUrl}/build/${resolvedBuildId}/summary?sections=${encodeURIComponent(sections)}`
+      const params = new URLSearchParams();
+      if (sections) params.set("sections", sections);
+      if (statKeys) params.set("stat_keys", statKeys);
+      const qs = params.toString();
+      const summaryUrl = qs
+        ? `${pobUrl}/build/${resolvedBuildId}/summary?${qs}`
         : `${pobUrl}/build/${resolvedBuildId}/summary`;
       response = await fetch(summaryUrl, {
         headers,

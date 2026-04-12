@@ -202,11 +202,16 @@ local function serializeTreeSummary(build)
 	-- 23 quest reward passive points (all acts complete). PoB assumes this too
 	-- (Build.lua:863: usedMax = 99 + 23 + extra). The acts table is local to
 	-- Build.lua so we hardcode the same constant.
-	local available = (build.characterLevel - 1) + 23 + extra
+	local levelPoints = build.characterLevel - 1
+	local questPoints = 23
+	local available = levelPoints + questPoints + extra
 	return {
 		version = build.spec.treeVersion,
 		allocated_nodes = used,
 		ascendancy_nodes = ascUsed,
+		level_points = levelPoints,
+		quest_points = questPoints,
+		extra_points = extra,
 		available_points = available,
 		remaining_points = available - used,
 	}
@@ -219,7 +224,8 @@ end
 -- Summary: fixed set of headline stats, always returned.
 local summaryKeys = {
 	"CombinedDPS", "TotalDPS",
-	"Life", "EnergyShield", "Mana", "Armour", "Evasion",
+	"Life", "LifeUnreserved", "LifeUnreservedPercent",
+	"EnergyShield", "Mana", "Armour", "Evasion",
 	"FireResist", "ColdResist", "LightningResist", "ChaosResist",
 	"BlockChance", "SpellSuppressionChance", "MovementSpeedMod",
 	"Str", "Dex", "Int",
@@ -227,6 +233,77 @@ local summaryKeys = {
 	"LootQuantityNormalEnemies", "LootRarityMagicEnemies",
 	"EnemyCurseLimit",
 }
+
+-- Curated key lists per stat section. These are the keys shown by default.
+-- Other non-zero keys classified into the section appear in _extra_keys for
+-- progressive disclosure — the LLM can request them via the stat_keys param.
+local sectionCuratedKeys = {
+	offense = {
+		"CombinedDPS", "TotalDPS", "AverageDamage", "AverageHit",
+		"Speed", "CritChance", "CritMultiplier", "CritEffect",
+		"HitChance", "ProjectileCount", "PierceChance",
+		"AreaOfEffectMod", "Duration", "Cooldown", "ManaCost",
+	},
+	ailments = {
+		"TotalDotDPS", "BleedDPS", "BleedChance",
+		"PoisonDPS", "PoisonChance", "TotalPoisonDPS",
+		"IgniteDPS", "IgniteChance",
+		"DecayDPS", "BurningGroundDPS",
+		"ChillEffect", "ShockEffect",
+		"ImpaleChance", "ImpaleDPS",
+	},
+	defense = {
+		"Armour", "Evasion", "EvadeChance",
+		"EnergyShield", "Ward",
+		"BlockChance", "SpellBlockChance", "SpellSuppressionChance",
+		"DamageReductionMax", "PhysicalDamageReduction",
+		"StunAvoidChance", "MovementSpeedMod", "EffectiveMovementSpeedMod",
+	},
+	resistances = {
+		"FireResist", "ColdResist", "LightningResist", "ChaosResist",
+		"FireResistOverCap", "ColdResistOverCap",
+		"LightningResistOverCap", "ChaosResistOverCap",
+		"CritExtraDamageReduction",
+	},
+	ehp = {
+		"Life", "LifeUnreserved", "LifeUnreservedPercent", "Mana",
+		"EnergyShield", "TotalEHP",
+		"PhysicalMaximumHitTaken", "FireMaximumHitTaken",
+		"ColdMaximumHitTaken", "LightningMaximumHitTaken",
+		"ChaosMaximumHitTaken", "LifeRecoverable",
+	},
+	recovery = {
+		"LifeRegenRecovery", "LifeLeechRate", "MaxLifeLeechRate",
+		"LifeOnHit", "LifeOnKill",
+		"EnergyShieldRegenRecovery", "EnergyShieldRecharge",
+		"EnergyShieldLeechRate",
+		"ManaRegenRecovery", "ManaLeechRate",
+		"NetLifeRegen", "TotalNetRegen",
+	},
+	charges = {
+		"PowerCharges", "PowerChargesMax",
+		"FrenzyCharges", "FrenzyChargesMax",
+		"EnduranceCharges", "EnduranceChargesMax",
+		"Rage", "MaximumRage",
+		"FortificationStacks", "TotalCharges", "GhostShrouds",
+	},
+	limits = {
+		"ActiveTotemLimit", "ActiveTrapLimit", "ActiveMineLimit",
+		"ActiveMinionLimit", "ActiveBrandLimit",
+		"FlaskEffect", "FlaskChargeGen",
+		"EnemyCurseLimit", "StoredUses", "SealMax",
+	},
+}
+
+-- Build lookup sets for fast curated-key membership checks.
+local curatedKeySets = {}
+for sid, keys in pairs(sectionCuratedKeys) do
+	local set = {}
+	for _, k in ipairs(keys) do
+		set[k] = true
+	end
+	curatedKeySets[sid] = set
+end
 
 -- Section definitions (stat sections only; structured sections added separately).
 local statSectionDefs = {
@@ -452,7 +529,9 @@ local function classifyStat(key)
 end
 
 -- Serialize calc output into grouped sections.
-local function serializeSections(build)
+-- requestedStatKeys: optional set (table of key→true) of extra stat keys
+-- the caller wants included alongside curated defaults.
+local function serializeSections(build, requestedStatKeys)
 	local emptySummary = {}
 	for _, key in ipairs(summaryKeys) do
 		emptySummary[key] = 0
@@ -468,10 +547,10 @@ local function serializeSections(build)
 
 	local output = build.calcsTab.mainOutput
 
-	-- Initialize stat section buckets
-	local sections = {}
+	-- Initialize raw stat section buckets (full classification)
+	local rawSections = {}
 	for _, def in ipairs(statSectionDefs) do
-		sections[def.id] = {}
+		rawSections[def.id] = {}
 	end
 
 	-- Build summary from fixed keys
@@ -485,13 +564,44 @@ local function serializeSections(build)
 		local t = type(value)
 		if t == "number" or t == "string" or t == "boolean" then
 			local sid = classifyStat(key)
-			if sections[sid] then
-				sections[sid][key] = value
+			if rawSections[sid] then
+				rawSections[sid][key] = value
 			else
 				-- Unknown section from classifyStat; put in offense
-				sections.offense[key] = value
+				rawSections.offense[key] = value
 			end
 		end
+	end
+
+	-- Apply curated filtering: keep curated keys + requested keys,
+	-- collect remaining non-zero keys into _extra_keys.
+	local sections = {}
+	for _, def in ipairs(statSectionDefs) do
+		local sid = def.id
+		local raw = rawSections[sid]
+		local curated = curatedKeySets[sid]
+		local filtered = {}
+		local extras = {}
+
+		for key, value in pairs(raw) do
+			-- Skip zero/false values entirely
+			local dominated = (type(value) == "number" and value == 0)
+				or (type(value) == "boolean" and not value)
+			if not dominated then
+				if (curated and curated[key])
+					or (requestedStatKeys and requestedStatKeys[key]) then
+					filtered[key] = value
+				else
+					extras[#extras + 1] = key
+				end
+			end
+		end
+
+		table.sort(extras)
+		if #extras > 0 then
+			filtered._extra_keys = extras
+		end
+		sections[sid] = filtered
 	end
 
 	-- Add structured data as sections
@@ -499,7 +609,6 @@ local function serializeSections(build)
 	sections.items = serializeItems(build)
 	sections.keystones = serializeKeystones(build)
 	sections.tree = serializeTreeSummary(build)
-
 
 	-- Build section index
 	local index = {}
@@ -539,6 +648,16 @@ local function serializeSections(build)
 	}
 end
 
+-- Parse optional stat_keys from request into a set for serializeSections.
+local function parseStatKeys(request)
+	if not request.statKeys then return nil end
+	local set = {}
+	for _, k in ipairs(request.statKeys) do
+		set[k] = true
+	end
+	return set
+end
+
 -- Process a calc request
 local function handleCalc(request)
 	local xml = request.xml
@@ -562,7 +681,8 @@ local function handleCalc(request)
 	runCallback("OnFrame")
 
 	-- Serialize results into grouped sections
-	local grouped = serializeSections(build)
+	local statKeys = parseStatKeys(request)
+	local grouped = serializeSections(build, statKeys)
 	local result = {
 		type = "result",
 		data = {
@@ -884,6 +1004,18 @@ local function handleModify(request)
 		return { type = "error", message = "failed to load build: " .. tostring(loadErr) }
 	end
 
+	-- Force initial calc so we can snapshot the pre-modify summary
+	build.buildFlag = true
+	runCallback("OnFrame")
+
+	-- Capture pre-modify summary for delta computation
+	local preSummary = {}
+	if build.calcsTab and build.calcsTab.mainOutput then
+		for _, key in ipairs(summaryKeys) do
+			preSummary[key] = build.calcsTab.mainOutput[key] or 0
+		end
+	end
+
 	-- Invalidate cached indexes (new build may have different tree/data)
 	nodeIndex = nil
 	allocationLog = {}
@@ -910,8 +1042,27 @@ local function handleModify(request)
 	-- Export the modified build to XML
 	local modifiedXml = build:SaveDB("modified")
 
-	-- Serialize results into grouped sections (same as handleCalc)
-	local grouped = serializeSections(build)
+	-- Serialize results into grouped sections
+	local statKeys = parseStatKeys(request)
+	local grouped = serializeSections(build, statKeys)
+
+	-- Compute delta: compare pre-modify vs post-modify summary
+	local changes = {}
+	local hasChanges = false
+	for _, key in ipairs(summaryKeys) do
+		local before = preSummary[key] or 0
+		local after = grouped.summary[key] or 0
+		if type(before) == "number" and type(after) == "number" then
+			local delta = after - before
+			if delta ~= 0 then
+				changes[key] = { before = before, after = after, delta = delta }
+				hasChanges = true
+			end
+		elseif before ~= after then
+			changes[key] = { before = before, after = after }
+			hasChanges = true
+		end
+	end
 
 	-- Include allocation log if any allocate_node operations ran
 	if #allocationLog > 0 then
@@ -923,19 +1074,24 @@ local function handleModify(request)
 		}
 	end
 
+	local resultData = {
+		character = {
+			class = build.spec.curClassName,
+			ascendancy = build.spec.curAscendClassName,
+			level = build.characterLevel,
+			bandit = build.bandit,
+		},
+		summary = grouped.summary,
+		section_index = grouped.section_index,
+		sections = grouped.sections,
+	}
+	if hasChanges then
+		resultData.changes = changes
+	end
+
 	return {
 		type = "result",
-		data = {
-			character = {
-				class = build.spec.curClassName,
-				ascendancy = build.spec.curAscendClassName,
-				level = build.characterLevel,
-				bandit = build.bandit,
-			},
-			summary = grouped.summary,
-			section_index = grouped.section_index,
-			sections = grouped.sections,
-		},
+		data = resultData,
 		xml = modifiedXml,
 	}
 end

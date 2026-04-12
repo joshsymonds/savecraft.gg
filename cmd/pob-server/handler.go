@@ -29,8 +29,9 @@ type CalcRequest struct {
 }
 
 type calcLuaRequest struct {
-	Type string `json:"type"`
-	XML  string `json:"xml"`
+	Type     string   `json:"type"`
+	XML      string   `json:"xml"`
+	StatKeys []string `json:"statKeys,omitempty"`
 }
 
 // calcResponse wraps the PoB result with a buildId for caching.
@@ -203,8 +204,9 @@ func (srv *Server) calcAndRespond(
 	defer srv.pool.Release(proc)
 
 	response, err := proc.Send(calcLuaRequest{
-		Type: "calc",
-		XML:  xml,
+		Type:     "calc",
+		XML:      xml,
+		StatKeys: parseStatKeys(request),
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
@@ -272,6 +274,7 @@ type modifyLuaRequest struct {
 	Type       string            `json:"type"`
 	XML        string            `json:"xml"`
 	Operations []json.RawMessage `json:"operations"`
+	StatKeys   []string          `json:"statKeys,omitempty"`
 }
 
 type modifyLuaResponse struct {
@@ -352,6 +355,7 @@ func (srv *Server) modifyAndRespond(
 		Type:       "modify",
 		XML:        xml,
 		Operations: operations,
+		StatKeys:   parseStatKeys(request),
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
@@ -635,6 +639,27 @@ func (srv *Server) handleGetBuild(
 
 	writer.Header().Set("Content-Type", "application/xml")
 	_, _ = writer.Write([]byte(xml))
+}
+
+// parseStatKeys reads the "stat_keys" query parameter and returns
+// the requested extra stat key names. Returns nil if the parameter is absent.
+func parseStatKeys(r *http.Request) []string {
+	raw := r.URL.Query().Get("stat_keys")
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	if len(result) == 0 {
+		return nil
+	}
+	return result
 }
 
 // parseSections reads the "sections" query parameter and returns
