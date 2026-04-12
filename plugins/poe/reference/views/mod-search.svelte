@@ -12,24 +12,16 @@
   import Badge from "../../../../views/src/components/data/Badge.svelte";
   import StatLine from "../../../../views/src/components/poe/StatLine.svelte";
 
-  interface TierStat {
-    text: string;
-    min: number;
-    max: number;
-  }
-
   interface ModTier {
     tier: number;
     name: string;
     level: number;
-    stats: TierStat[];
-    weight: number;
+    text: string;
   }
 
   interface ModResult {
     mod_name: string;
     generation_type: string;
-    domain: string;
     tiers: ModTier[];
   }
 
@@ -55,18 +47,9 @@
 
   let activeGenerationFilters = $state<string[]>([]);
 
-  /** Collect unique domains from results for dynamic filter chips */
-  let domainFilters = $derived.by(() => {
-    const domains = [...new Set(data.mods.map((m) => m.domain))];
-    return domains.map((d) => ({ label: d, value: d }));
-  });
-
-  let activeDomainFilters = $state<string[]>([]);
-
   let filteredMods = $derived.by(() => {
     return data.mods.filter((mod) => {
       if (activeGenerationFilters.length > 0 && !activeGenerationFilters.includes(mod.generation_type)) return false;
-      if (activeDomainFilters.length > 0 && !activeDomainFilters.includes(mod.domain)) return false;
       return true;
     });
   });
@@ -92,10 +75,9 @@
 
   const columns = [
     { key: "tier", label: "Tier", align: "center" as const, sortable: true, width: "60px" },
-    { key: "name", label: "Name", sortable: true, width: "140px" },
-    { key: "range", label: "Stat Range", sortable: false },
+    { key: "name", label: "Affix", sortable: true, width: "140px" },
+    { key: "text", label: "Mod Text", sortable: false },
     { key: "level", label: "iLvl", align: "center" as const, sortable: true, width: "60px" },
-    { key: "weight", label: "Weight", align: "right" as const, sortable: true, width: "80px" },
   ];
 
   /** Build DataTable rows from a mod's tiers */
@@ -103,9 +85,8 @@
     return tiers.map((t) => ({
       tier: { value: tierLabel(t.tier), variant: tierVariant(t.tier), sortValue: t.tier },
       name: t.name || "—",
-      range: t.stats.map((s) => s.text).join(", "),
+      text: t.text,
       level: t.level,
-      weight: t.weight,
     }));
   }
 </script>
@@ -119,20 +100,13 @@
         title="Mod Search"
         subtitle="{filteredMods.length} mod{filteredMods.length !== 1 ? 's' : ''}{data.query ? ` for "${data.query}"` : ''}"
       >
-        {#if generationFilters.length > 0 || domainFilters.length > 1}
+        {#if generationFilters.length > 0}
           <div class="filters">
             <FilterBar
               filters={generationFilters}
               active={activeGenerationFilters}
               onchange={(v) => (activeGenerationFilters = v)}
             />
-            {#if domainFilters.length > 1}
-              <FilterBar
-                filters={domainFilters}
-                active={activeDomainFilters}
-                onchange={(v) => (activeDomainFilters = v)}
-              />
-            {/if}
           </div>
         {/if}
 
@@ -152,7 +126,6 @@
                       label={mod.generation_type}
                       variant={mod.generation_type === "prefix" ? "info" : "positive"}
                     />
-                    <Badge label={mod.domain} variant="muted" />
                   </div>
                 </div>
                 <DataTable

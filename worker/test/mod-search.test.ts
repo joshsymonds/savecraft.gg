@@ -14,109 +14,40 @@ describe("mod_search native module", () => {
 
   async function seedMods(): Promise<void> {
     await env.DB.batch([
-      // Physical damage prefix — 3 tiers
+      // Physical damage prefix — 3 tiers (same group)
       env.DB.prepare(
-        `INSERT INTO poe_mods (mod_id, mod_name, generation_type, mod_type, domain, item_class_spawns, stat_ids, stat_ranges, tiers)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(
-        "LocalPhysicalDamagePercent|item|prefix",
-        "% increased Physical Damage",
-        "prefix",
-        "explicit",
-        "item",
-        '{"weapon":50}',
-        '["local_physical_damage_+%"]',
-        "[]",
-        JSON.stringify([
-          {
-            tier: 1,
-            name: "Merciless",
-            level: 83,
-            stats: [{ text: "170% increased Physical Damage", min: 170, max: 179 }],
-            weight: 25,
-          },
-          {
-            tier: 2,
-            name: "Tyrannical",
-            level: 73,
-            stats: [{ text: "155% increased Physical Damage", min: 155, max: 169 }],
-            weight: 50,
-          },
-          {
-            tier: 3,
-            name: "Cruel",
-            level: 60,
-            stats: [{ text: "135% increased Physical Damage", min: 135, max: 154 }],
-            weight: 100,
-          },
-        ]),
-      ),
-      // Fire resistance suffix
+        `INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("PhysDmg1", "(170-179)% increased Physical Damage", "Merciless", "prefix", 83, "IncreasedPhysicalDamagePercent", '["weapon"]', '["physical_damage"]'),
       env.DB.prepare(
-        `INSERT INTO poe_mods (mod_id, mod_name, generation_type, mod_type, domain, item_class_spawns, stat_ids, stat_ranges, tiers)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(
-        "FireResist|item|suffix",
-        "% to Fire Resistance",
-        "suffix",
-        "explicit",
-        "item",
-        '{"ring":100,"amulet":100,"helmet":100}',
-        '["base_fire_damage_resistance_%"]',
-        "[]",
-        JSON.stringify([
-          {
-            tier: 1,
-            name: "of the Furnace",
-            level: 72,
-            stats: [{ text: "+46% to Fire Resistance", min: 46, max: 48 }],
-            weight: 50,
-          },
-          {
-            tier: 2,
-            name: "of the Magma",
-            level: 60,
-            stats: [{ text: "+36% to Fire Resistance", min: 36, max: 41 }],
-            weight: 100,
-          },
-        ]),
-      ),
-      // Flask duration prefix
+        `INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("PhysDmg2", "(155-169)% increased Physical Damage", "Tyrannical", "prefix", 73, "IncreasedPhysicalDamagePercent", '["weapon"]', '["physical_damage"]'),
       env.DB.prepare(
-        `INSERT INTO poe_mods (mod_id, mod_name, generation_type, mod_type, domain, item_class_spawns, stat_ids, stat_ranges, tiers)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      ).bind(
-        "FlaskDuration|flask|prefix",
-        "% increased Duration",
-        "prefix",
-        "explicit",
-        "flask",
-        '{"flask":200}',
-        '["local_flask_duration_+%"]',
-        "[]",
-        JSON.stringify([
-          {
-            tier: 1,
-            name: "Enduring",
-            level: 55,
-            stats: [{ text: "+30% increased Duration", min: 30, max: 40 }],
-            weight: 100,
-          },
-        ]),
-      ),
+        `INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("PhysDmg3", "(135-154)% increased Physical Damage", "Cruel", "prefix", 60, "IncreasedPhysicalDamagePercent", '["weapon"]', '["physical_damage"]'),
+      // Fire resistance suffix — 2 tiers
+      env.DB.prepare(
+        `INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FireRes1", "+46% to Fire Resistance", "of the Furnace", "suffix", 72, "FireResistance", '["ring","amulet","helmet"]', '["elemental","fire","resistance"]'),
+      env.DB.prepare(
+        `INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FireRes2", "+36% to Fire Resistance", "of the Magma", "suffix", 60, "FireResistance", '["ring","amulet","helmet"]', '["elemental","fire","resistance"]'),
+      // Flask duration prefix — 1 tier
+      env.DB.prepare(
+        `INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind("FlaskDur1", "+30% increased Duration", "Enduring", "prefix", 55, "FlaskDuration", '["flask"]', '["flask"]'),
       // FTS5 rows
-      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_name) VALUES (?, ?)").bind(
-        "LocalPhysicalDamagePercent|item|prefix",
-        "% increased Physical Damage",
-      ),
-      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_name) VALUES (?, ?)").bind(
-        "FireResist|item|suffix",
-        "% to Fire Resistance",
-      ),
-      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_name) VALUES (?, ?)").bind(
-        "FlaskDuration|flask|prefix",
-        "% increased Duration",
-      ),
+      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (?, ?)").bind("PhysDmg1", "(170-179)% increased Physical Damage"),
+      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (?, ?)").bind("PhysDmg2", "(155-169)% increased Physical Damage"),
+      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (?, ?)").bind("PhysDmg3", "(135-154)% increased Physical Damage"),
+      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (?, ?)").bind("FireRes1", "+46% to Fire Resistance"),
+      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (?, ?)").bind("FireRes2", "+36% to Fire Resistance"),
+      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (?, ?)").bind("FlaskDur1", "+30% increased Duration"),
     ]);
   }
 
@@ -135,21 +66,25 @@ describe("mod_search native module", () => {
     expect(result.type).toBe("text");
   });
 
-  it("searches by mod name via FTS5", async () => {
+  it("searches by mod text via FTS5 and groups by group_name", async () => {
     await seedMods();
 
     const result = await modSearchModule.execute({ query: "physical damage" }, ftsEnv);
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const mods = result.data.mods as Record<string, unknown>[];
+    const mods = result.data.mods as Array<{ mod_name: string; generation_type: string; tiers: Array<{ tier: number; name: string; level: number; text: string }> }>;
+    // 3 tiers grouped into 1 mod group
     expect(mods.length).toBe(1);
-    expect(mods[0]!.mod_name).toBe("% increased Physical Damage");
+    expect(mods[0]!.mod_name).toContain("Physical Damage");
     expect(mods[0]!.generation_type).toBe("prefix");
 
-    const tiers = mods[0]!.tiers as Record<string, unknown>[];
+    const tiers = mods[0]!.tiers;
     expect(tiers.length).toBe(3);
+    // Tiers sorted by level desc (T1 = highest)
     expect(tiers[0]).toMatchObject({ tier: 1, name: "Merciless", level: 83 });
+    expect(tiers[1]).toMatchObject({ tier: 2, name: "Tyrannical", level: 73 });
+    expect(tiers[2]).toMatchObject({ tier: 3, name: "Cruel", level: 60 });
   });
 
   it("searches fire resistance", async () => {
@@ -159,9 +94,9 @@ describe("mod_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const mods = result.data.mods as Record<string, unknown>[];
+    const mods = result.data.mods as Array<{ mod_name: string; generation_type: string }>;
     expect(mods.length).toBe(1);
-    expect(mods[0]!.mod_name).toBe("% to Fire Resistance");
+    expect(mods[0]!.mod_name).toContain("Fire Resistance");
     expect(mods[0]!.generation_type).toBe("suffix");
   });
 
@@ -175,28 +110,15 @@ describe("mod_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const mods = result.data.mods as Record<string, unknown>[];
-    // "% increased Physical Damage" and "% increased Duration" are both prefixes
-    // that match "increased"
+    const mods = result.data.mods as Array<{ generation_type: string }>;
+    // "increased Physical Damage" (3 tiers → 1 group) and "increased Duration" (1 tier → 1 group)
     expect(mods.length).toBe(2);
     for (const mod of mods) {
       expect(mod.generation_type).toBe("prefix");
     }
   });
 
-  it("filters by domain", async () => {
-    await seedMods();
-
-    const result = await modSearchModule.execute({ query: "increased", domain: "flask" }, ftsEnv);
-    expect(result.type).toBe("structured");
-    if (result.type !== "structured") throw new Error("unexpected type");
-
-    const mods = result.data.mods as Record<string, unknown>[];
-    expect(mods.length).toBe(1);
-    expect(mods[0]!.domain).toBe("flask");
-  });
-
-  it("filters by item_class (spawn weight tag)", async () => {
+  it("filters by item_class", async () => {
     await seedMods();
 
     const result = await modSearchModule.execute(
@@ -206,9 +128,9 @@ describe("mod_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const mods = result.data.mods as Record<string, unknown>[];
+    const mods = result.data.mods as Array<{ mod_name: string }>;
     expect(mods.length).toBe(1);
-    expect(mods[0]!.mod_name).toBe("% to Fire Resistance");
+    expect(mods[0]!.mod_name).toContain("Fire Resistance");
   });
 
   it("item_class filter excludes non-matching mods", async () => {
@@ -222,7 +144,7 @@ describe("mod_search native module", () => {
     expect(result.type).toBe("structured");
     if (result.type !== "structured") throw new Error("unexpected type");
 
-    const mods = result.data.mods as Record<string, unknown>[];
+    const mods = result.data.mods as Array<unknown>;
     expect(mods.length).toBe(0);
   });
 

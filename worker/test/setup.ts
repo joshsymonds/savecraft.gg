@@ -557,17 +557,17 @@ const statements = [
   )`,
   `CREATE TABLE IF NOT EXISTS poe_mods (
     mod_id TEXT PRIMARY KEY,
-    mod_name TEXT NOT NULL,
+    mod_text TEXT NOT NULL,
+    affix TEXT,
     generation_type TEXT,
-    mod_type TEXT,
-    domain TEXT,
-    item_class_spawns TEXT NOT NULL DEFAULT '{}',
-    stat_ids TEXT NOT NULL DEFAULT '[]',
-    stat_ranges TEXT NOT NULL DEFAULT '[]',
-    tiers TEXT NOT NULL DEFAULT '[]'
+    level INTEGER,
+    group_name TEXT,
+    item_classes TEXT NOT NULL DEFAULT '[]',
+    tags TEXT NOT NULL DEFAULT '[]'
   )`,
+  `CREATE INDEX IF NOT EXISTS idx_poe_mods_group ON poe_mods(group_name)`,
   `CREATE VIRTUAL TABLE IF NOT EXISTS poe_mods_fts USING fts5(
-    mod_id UNINDEXED, mod_name,
+    mod_id UNINDEXED, mod_text,
     tokenize='porter unicode61'
   )`,
 ];

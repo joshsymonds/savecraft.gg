@@ -111,13 +111,14 @@ func buildSQL(
 	for _, m := range mods {
 		itemClassesJSON := cfapi.JSONArray(m.ItemClasses)
 		tagsJSON := cfapi.JSONArray(m.Tags)
+		level := nullableInt(m.Level)
 
-		fmt.Fprintf(&b, "INSERT INTO poe_mods (mod_id, mod_name, generation_type, mod_type, domain, item_class_spawns, stat_ids, stat_ranges, tiers) VALUES (%s, %s, %s, %s, NULL, %s, '[]', '[]', %s);\n",
-			q(m.ModID), q(m.ModText), q(strings.ToLower(m.ModType)), q(strings.ToLower(m.ModType)),
-			q(itemClassesJSON), q(tagsJSON),
+		fmt.Fprintf(&b, "INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags) VALUES (%s, %s, %s, %s, %s, %s, %s, %s);\n",
+			q(m.ModID), q(m.ModText), q(m.Affix), q(strings.ToLower(m.ModType)),
+			level, q(m.Group), q(itemClassesJSON), q(tagsJSON),
 		)
 
-		fmt.Fprintf(&b, "INSERT INTO poe_mods_fts (mod_id, mod_name) VALUES (%s, %s);\n",
+		fmt.Fprintf(&b, "INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (%s, %s);\n",
 			q(m.ModID), q(m.ModText),
 		)
 	}
