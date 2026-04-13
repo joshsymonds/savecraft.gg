@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"os"
 	"os/exec"
 	"testing"
 )
@@ -15,6 +16,13 @@ func runLuaSuite(t *testing.T, script string) {
 	t.Helper()
 	cmd, why := luajitCmd(script)
 	if cmd == nil {
+		// In CI, missing luajit is a hard failure: the algorithm-level test
+		// surface vanishes silently otherwise. Locally, skip is fine — the
+		// devenv is supposed to provide it but a fresh checkout pre-direnv
+		// reload won't have it on PATH.
+		if os.Getenv("CI") != "" {
+			t.Fatalf("luajit unavailable in CI: %s", why)
+		}
 		t.Skipf("luajit unavailable: %s", why)
 	}
 	cmd.Dir = "."
@@ -42,6 +50,19 @@ func TestAuditSegmentLuaSuite(t *testing.T) {
 // hand-rolled fake spec tables, no real PoB load.
 func TestAuditExtractionLuaSuite(t *testing.T) {
 	runLuaSuite(t, "audit_extract_test.lua")
+}
+
+// TestNearbyFilterLuaSuite runs the pure-Lua nearby_filter_test.lua tests.
+// Tests the candidate predicate + stat-key dedup helpers extracted from
+// handleNearby in wrapper.lua.
+func TestNearbyFilterLuaSuite(t *testing.T) {
+	runLuaSuite(t, "nearby_filter_test.lua")
+}
+
+// TestNearbyRankLuaSuite runs the pure-Lua nearby_rank_test.lua tests.
+// Tests the per-metric ranking + tiebreaker logic extracted from handleNearby.
+func TestNearbyRankLuaSuite(t *testing.T) {
+	runLuaSuite(t, "nearby_rank_test.lua")
 }
 
 // luajitCmd builds an exec.Cmd that runs `luajit <script>` using whatever

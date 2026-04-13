@@ -197,6 +197,13 @@ function M.segment(nodes, adjacency, rootId)
 		end
 	end
 
+	-- Sort branches by head id for deterministic output. Without this the
+	-- pairs() iteration above gives arbitrary order and downstream consumers
+	-- (rank truncation, test snapshots) become run-to-run flaky.
+	table.sort(branches, function(a, b)
+		return a.head < b.head
+	end)
+
 	return branches
 end
 

@@ -84,6 +84,8 @@ local wrapperDir = arg[0]:match("(.*/)") or "./"
 package.path = wrapperDir .. "?.lua;" .. package.path
 local auditSegment = require("audit_segment")
 local auditExtract = require("audit_extract")
+local nearbyFilter = require("nearby_filter")
+local nearbyRank = require("nearby_rank")
 
 -- =========================================================================
 -- Human-readable label mappings for PoB internal values
@@ -1404,33 +1406,17 @@ local function handleNearby(request)
 	-- Get the calculator function and baseline output
 	local calcFunc, calcBase = build.calcsTab:GetMiscCalculator()
 
-	-- Collect all stats we need deltas for (metrics + deltaStats, deduplicated)
-	local allStats = {}
-	local statSet = {}
-	for _, s in ipairs(metrics) do
-		if not statSet[s] then
-			allStats[#allStats + 1] = s
-			statSet[s] = true
-		end
-	end
-	for _, s in ipairs(deltaStats) do
-		if not statSet[s] then
-			allStats[#allStats + 1] = s
-			statSet[s] = true
-		end
-	end
+	-- Collect deduplicated stat keys for the per-candidate calc deltas.
+	local allStats = nearbyFilter.collectStatKeys(metrics, deltaStats)
 
-	-- Evaluate all candidate nodes within radius
+	-- Iterate candidates: filter, perturb, format. Filter and rank are pure
+	-- helpers in nearby_filter.lua / nearby_rank.lua so the algorithm pieces
+	-- can be unit-tested without loading PoB; the loop body that touches
+	-- PoB-internal accessors stays here.
 	local cache = {}
 	local candidates = {}
 	for id, node in pairs(build.spec.nodes) do
-		if not node.alloc
-			and node.pathDist and node.pathDist <= radius
-			and node.path
-			and (node.type == "Normal" or node.type == "Notable" or node.type == "Keystone")
-			and node.modKey and node.modKey ~= ""
-			and not node.ascendancyName
-		then
+		if nearbyFilter.shouldEvaluate(node, radius) then
 			-- Compute output with this node hypothetically allocated (modKey cache)
 			if not cache[node.modKey] then
 				cache[node.modKey] = calcFunc({ addNodes = { [node] = true } })
@@ -1475,60 +1461,19 @@ local function handleNearby(request)
 				path_cost = node.pathDist,
 				path = pathNames,
 				deltas = deltas,
-				-- efficiency computed per-metric below
 			}
 		end
 	end
 
-	-- Build result sets: one per metric, ranked by efficiency
-	local ascending = sortOrder == "asc"
+	-- Build result sets: one per metric, ranked by efficiency via nearby_rank.
 	local results = {}
 	for _, metric in ipairs(metrics) do
-		-- Compute signed efficiency for this metric and sort
-		local ranked = {}
-		for _, c in ipairs(candidates) do
-			local delta = c.deltas[metric] or 0
-			local eff = 0
-			if c.path_cost > 0 then
-				eff = delta / c.path_cost
-			end
-			ranked[#ranked + 1] = {
-				name = c.name,
-				type = c.type,
-				stats = c.stats,
-				path_cost = c.path_cost,
-				path = c.path,
-				deltas = c.deltas,
-				efficiency = eff,
-			}
-		end
-
-		if ascending then
-			table.sort(ranked, function(a, b)
-				if a.efficiency ~= b.efficiency then return a.efficiency < b.efficiency end
-				if a.path_cost ~= b.path_cost then return a.path_cost < b.path_cost end
-				return a.name < b.name
-			end)
-		else
-			table.sort(ranked, function(a, b)
-				if a.efficiency ~= b.efficiency then return a.efficiency > b.efficiency end
-				if a.path_cost ~= b.path_cost then return a.path_cost < b.path_cost end
-				return a.name < b.name
-			end)
-		end
-
-		-- Take top N
-		local nodes = {}
-		for i = 1, math.min(limit, #ranked) do
-			nodes[i] = ranked[i]
-		end
-
 		results[#results + 1] = {
 			metric = metric,
 			baseline = calcBase[metric] or 0,
 			limit = limit,
 			radius = radius,
-			nodes = nodes,
+			nodes = nearbyRank.rank(candidates, metric, sortOrder, limit),
 		}
 	end
 
