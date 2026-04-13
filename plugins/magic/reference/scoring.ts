@@ -36,12 +36,6 @@ export interface CardMetaRow {
   produced_mana: string;
 }
 
-export interface SetMetadataRow {
-  set_code: string;
-  asfan: number;
-  pack_size: number;
-}
-
 export interface SynergyDbRow {
   card_a: string;
   card_b: string;

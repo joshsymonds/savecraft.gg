@@ -311,12 +311,6 @@ const statements = [
     steepness REAL NOT NULL,
     PRIMARY KEY (set_code, axis)
   )`,
-  // Set metadata (migration 0025)
-  `CREATE TABLE IF NOT EXISTS magic_set_metadata (
-    set_code TEXT PRIMARY KEY,
-    asfan REAL NOT NULL DEFAULT 0.4,
-    pack_size INTEGER NOT NULL DEFAULT 14
-  )`,
   // Deck stats (migration 0026)
   `CREATE TABLE IF NOT EXISTS magic_draft_deck_stats (
     set_code TEXT NOT NULL,

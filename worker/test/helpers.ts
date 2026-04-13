@@ -38,7 +38,6 @@ export const CLEANUP_TABLES = [
   "magic_draft_role_targets",
   "magic_draft_calibration",
   "magic_draft_deck_stats",
-  "magic_set_metadata",
   "magic_pipeline_state",
   "magic_play_card_timing",
   "magic_play_tempo",

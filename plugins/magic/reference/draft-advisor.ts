@@ -16,7 +16,6 @@ import type {
 import {
   type RatingRow,
   type CardMetaRow,
-  type SetMetadataRow,
   type SynergyDbRow,
   type CurveDbRow,
   type CardRoleRow,
@@ -147,7 +146,6 @@ async function preloadSetData(
 
   const [
     calibrationResult,
-    setMetaResult,
     roleTargetResult,
     curveResult,
     cardRoleResult,
@@ -162,12 +160,6 @@ async function preloadSetData(
       )
       .bind(setCode)
       .all<CalibrationRow>(),
-    db
-      .prepare(
-        `SELECT asfan, pack_size FROM magic_set_metadata WHERE set_code = ?1`,
-      )
-      .bind(setCode)
-      .all<SetMetadataRow>(),
     db
       .prepare(
         `SELECT archetype, role, avg_count FROM magic_draft_role_targets WHERE set_code = ?1`,
@@ -259,7 +251,6 @@ async function preloadSetData(
     });
   }
 
-  const setMeta = setMetaResult.results[0];
   return {
     sigmoidParams,
     roleTargets: roleTargetResult.results,
@@ -268,8 +259,8 @@ async function preloadSetData(
     allRatings,
     allColorStats,
     metaCache,
-    asfan: setMeta?.asfan ?? DEFAULT_ASFAN,
-    packSize: setMeta?.pack_size ?? DEFAULT_PACK_SIZE,
+    asfan: DEFAULT_ASFAN,
+    packSize: DEFAULT_PACK_SIZE,
     deckStatsByPair,
   };
 }
@@ -476,15 +467,6 @@ async function contextualPick(
         .bind(setCode)
         .all<CalibrationRow>();
 
-  const setMetaPromise: Promise<{ results: SetMetadataRow[] }> = preloaded
-    ? Promise.resolve({ results: [] as SetMetadataRow[] }) // already loaded
-    : db
-        .prepare(
-          `SELECT asfan, pack_size FROM magic_set_metadata WHERE set_code = ?1`,
-        )
-        .bind(setCode)
-        .all<SetMetadataRow>();
-
   const deckStatsPromise: Promise<{
     results: {
       archetype: string;
@@ -526,7 +508,6 @@ async function contextualPick(
     roleResult,
     roleTargetResult,
     calibrationResult,
-    setMetaResult,
     deckStatsResult,
   ] = await Promise.all([
     overallPromise,
@@ -536,7 +517,6 @@ async function contextualPick(
     rolePromise,
     roleTargetPromise,
     calibrationPromise,
-    setMetaPromise,
     deckStatsPromise,
   ]);
 
@@ -687,13 +667,9 @@ async function contextualPick(
         return built;
       })();
 
-  // Resolve set metadata (ASFAN + pack size).
-  const asfan = preloaded
-    ? preloaded.asfan
-    : (setMetaResult.results[0]?.asfan ?? DEFAULT_ASFAN);
-  const packSize = preloaded
-    ? preloaded.packSize
-    : (setMetaResult.results[0]?.pack_size ?? DEFAULT_PACK_SIZE);
+  // Set metadata is no longer table-backed; always use defaults.
+  const asfan = preloaded ? preloaded.asfan : DEFAULT_ASFAN;
+  const packSize = preloaded ? preloaded.packSize : DEFAULT_PACK_SIZE;
   const totalPicks = packSize * 3;
   const remainingPicks = Math.max(0, totalPicks - pickNumber);
 
