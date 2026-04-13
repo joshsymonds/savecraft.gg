@@ -52,7 +52,7 @@ func TestNearbyShouldEvaluate(t *testing.T) {
 	}
 }
 
-func TestNearbyCollectStatKeys(t *testing.T) {
+func TestCollectStatKeys(t *testing.T) {
 	cases := []struct {
 		name       string
 		metrics    []string
@@ -97,7 +97,7 @@ func TestNearbyCollectStatKeys(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := nearbyCollectStatKeys(tc.metrics, tc.deltaStats)
+			got := collectStatKeys(tc.metrics, tc.deltaStats)
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("got %v, want %v", got, tc.want)
 			}

@@ -103,7 +103,7 @@ const (
 	defaultAuditBranchLimit = 10
 	maxAuditBranchLimit     = 50
 	defaultAuditNodeLimit   = 20
-	maxAuditNodeLimit       = 100
+	maxAuditNodeLimit       = 50
 	maxAuditMetrics         = 10
 	maxAuditDeltaStats      = 20
 
@@ -278,10 +278,15 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 	// branches come first in the array; that's the index range we use to
 	// split deltas back per scope after the response.
 	branchRemoves := buildBranchRemoves(treeSelected, ascSelected)
+	// Tree and ascendancy node ids share the same PoB id space but never
+	// collide: tree nodes have no ascendancyName, ascendancy nodes do, and
+	// PoB allocates them from disjoint id ranges. The merged singleRemoves
+	// slice is therefore safe — the perturb response's per-id deltas map
+	// can be consumed by both scopes' rank calls without any prefix games.
 	singleRemoves := append(append([]int(nil), treeLeaves...), ascLeaves...)
 
 	// Build the canonical stat-key list (rank metrics + report-only delta stats).
-	statKeys := nearbyCollectStatKeys(req.Metrics, req.DeltaStats)
+	statKeys := collectStatKeys(req.Metrics, req.DeltaStats)
 
 	perturbEnvelope, ok := srv.runAuditPerturb(writer, proc, branchRemoves, singleRemoves, statKeys)
 	if !ok {
@@ -289,9 +294,15 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 	}
 
 	// Split branch deltas back into the two scope arrays.
-	treeBranchDeltas, ascBranchDeltas := splitBranchDeltas(
+	treeBranchDeltas, ascBranchDeltas := srv.splitBranchDeltas(
 		perturbEnvelope.Data.BranchDeltas, len(treeSelected), len(ascSelected),
 	)
+
+	// Build per-scope NodeTypes lookups for the rank step. The extract data
+	// has them keyed by id; we just reference the maps the extract response
+	// already gave us so dead-weight extraction can flag empty sockets.
+	treeNodeTypes := scopeNodeTypes(extractEnvelope.Data.Tree)
+	ascNodeTypes := scopeNodeTypes(extractEnvelope.Data.Ascendancy)
 
 	// Rank each scope independently.
 	treeOut, treeDead, treeWeakest := auditRank(auditRankInput{
@@ -299,6 +310,7 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 		BranchDeltas:     treeBranchDeltas,
 		LeafDeltas:       perturbEnvelope.Data.SingleDeltas,
 		LeavesByBranchID: treeLeavesByBranch,
+		NodeTypes:        treeNodeTypes,
 		Adjacency:        treeAdj,
 		Metrics:          req.Metrics,
 		DeltaStats:       req.DeltaStats,
@@ -311,6 +323,7 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 		BranchDeltas:     ascBranchDeltas,
 		LeafDeltas:       perturbEnvelope.Data.SingleDeltas,
 		LeavesByBranchID: ascLeavesByBranch,
+		NodeTypes:        ascNodeTypes,
 		Adjacency:        ascAdj,
 		Metrics:          req.Metrics,
 		DeltaStats:       req.DeltaStats,
@@ -360,10 +373,27 @@ func buildBranchRemoves(treeSelected, ascSelected []segmentBranch) [][]int {
 
 // splitBranchDeltas slices a flat branch-delta array back into the two
 // scope-specific arrays based on the original tree/ascendancy lengths.
-func splitBranchDeltas(all []map[string]float64, treeLen, ascLen int) ([]map[string]float64, []map[string]float64) {
-	if len(all) < treeLen+ascLen {
-		// Defensive: pad with empty maps so downstream rank doesn't crash.
-		padded := make([]map[string]float64, treeLen+ascLen)
+//
+// On under-run (Lua returned fewer entries than requested) the result is
+// padded with empty maps so downstream rank doesn't crash, AND a warning
+// is logged so the truncation surfaces in pob-server logs. Empty deltas
+// would otherwise feed into auditExtractDeadWeight as zero-contribution
+// entries and produce phantom dead_weight nodes — the warning lets us
+// distinguish a real Lua bug from genuinely zero-impact branches.
+func (srv *Server) splitBranchDeltas(
+	all []map[string]float64,
+	treeLen, ascLen int,
+) ([]map[string]float64, []map[string]float64) {
+	expected := treeLen + ascLen
+	if len(all) < expected {
+		srv.log.Warn(
+			"audit_perturb branchDeltas truncated",
+			"got", len(all),
+			"want", expected,
+			"treeLen", treeLen,
+			"ascLen", ascLen,
+		)
+		padded := make([]map[string]float64, expected)
 		copy(padded, all)
 		for i := range padded {
 			if padded[i] == nil {
@@ -372,7 +402,21 @@ func splitBranchDeltas(all []map[string]float64, treeLen, ascLen int) ([]map[str
 		}
 		all = padded
 	}
-	return all[:treeLen], all[treeLen : treeLen+ascLen]
+	return all[:treeLen], all[treeLen:expected]
+}
+
+// scopeNodeTypes builds the per-id node-type lookup for one scope's extract
+// data. Returns nil for nil input; auditRank handles nil maps (lookups
+// return the empty string, which is the same as "no type info available").
+func scopeNodeTypes(data *auditExtractScopeData) map[int]string {
+	if data == nil {
+		return nil
+	}
+	out := make(map[int]string, len(data.Nodes))
+	for id, node := range data.Nodes {
+		out[id] = node.Type
+	}
+	return out
 }
 
 // auditFinalInput bundles the per-scope rank output for the final response
@@ -404,6 +448,15 @@ func (srv *Server) writeAuditFinalResponse(writer http.ResponseWriter, in auditF
 	writer.Header().Set("Content-Type", "application/json")
 	if in.Req.Scope == auditScopeBoth {
 		dead := append(append([]deadWeightEntry{}, in.TreeDead...), in.AscDead...)
+		// For scope=both, surface the tree's weakest as the canonical
+		// summary hint. Fall back to the ascendancy weakest when the tree
+		// has no analyzed branches (e.g. a build that only has weakness
+		// inside its ascendancy). The two parallel sections still carry
+		// their own ranked lists; this is just the at-a-glance pointer.
+		canonicalWeakest := in.TreeWeakest
+		if canonicalWeakest == nil {
+			canonicalWeakest = in.AscWeakest
+		}
 		_ = json.NewEncoder(writer).Encode(auditResponseBoth{
 			BuildID:            in.Req.BuildID,
 			Baseline:           baseline,
@@ -413,7 +466,7 @@ func (srv *Server) writeAuditFinalResponse(writer http.ResponseWriter, in auditF
 			Summary: auditSummary{
 				TotalAllocated:   in.TreeTotal + in.AscTotal,
 				BranchesAnalyzed: len(in.TreeBranches) + len(in.AscBranches),
-				WeakestBranchID:  in.TreeWeakest, // for "both" we surface the tree weakest as canonical
+				WeakestBranchID:  canonicalWeakest,
 				TotalDeadPoints:  len(in.TreeDead) + len(in.AscDead),
 			},
 		})

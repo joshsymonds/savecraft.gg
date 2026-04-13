@@ -21,12 +21,23 @@ import (
 //
 // auditSortStrongestKey is the inverse: most-negative-delta first.
 
+// Dead-weight reason codes. "empty_socket" is a more specific signal than
+// the generic "zero_contribution" — it means the node is a jewel socket
+// type and we identified it explicitly, so the LLM can suggest the cut
+// with extra confidence (and the reason carries forward even if a future
+// PoB version starts emitting tiny noise for empty sockets).
+const (
+	deadWeightReasonZero   = "zero_contribution"
+	deadWeightReasonSocket = "empty_socket"
+)
+
 // nodeBreakdown is one entry in a branch's per-node breakdown. Removable
 // nodes (DFS-tree leaves within the branch) have real deltas; non-removable
 // interior nodes get an empty-but-present deltas map and removable=false
 // with a reason string.
 type nodeBreakdown struct {
 	ID        int                `json:"id"`
+	Type      string             `json:"type"`
 	Removable bool               `json:"removable"`
 	Deltas    map[string]float64 `json:"deltas"`
 	Reason    string             `json:"reason,omitempty"`
@@ -38,6 +49,7 @@ type nodeBreakdown struct {
 type deadWeightEntry struct {
 	ID       int                `json:"id"`
 	BranchID string             `json:"branchId"`
+	Type     string             `json:"type"`
 	Deltas   map[string]float64 `json:"deltas"`
 	Reason   string             `json:"reason"`
 }
@@ -61,6 +73,14 @@ type auditRankInput struct {
 	// not in this set get a non-removable breakdown entry.
 	LeavesByBranchID map[string][]int
 
+	// NodeTypes is the per-id PoB type string from the original extract,
+	// used to (a) stamp each breakdown entry with its node type and (b)
+	// flag empty jewel sockets explicitly in dead_weight rather than
+	// relying on the implicit zero-delta path. Empty (nil/missing) is
+	// treated as "" — the dead-weight extractor falls back to the generic
+	// zero_contribution reason in that case.
+	NodeTypes map[int]string
+
 	// Adjacency for the original allocated graph (so non-leaf interior nodes
 	// can be identified — they get the synthetic non-removable breakdown).
 	Adjacency map[int][]int
@@ -76,17 +96,23 @@ type auditRankInput struct {
 // auditRank produces the final branches + dead_weight + weakest branch id.
 // All output slices are non-nil (possibly empty) so the wire shape is
 // consistent — the JSON encoder emits [] not null.
+//
+// Dead-weight extraction runs against the FULL evaluated branches list
+// BEFORE truncation, so a dead leaf living in a branch that won't make the
+// rank cut still surfaces. The player should know what they can cut at zero
+// cost regardless of whether that node's parent branch ranks on the metric.
 func auditRank(input auditRankInput) ([]auditBranchResponse, []deadWeightEntry, *string) {
 	branches := auditBuildBranchResponses(input)
-	auditSortBranches(branches, input.Sort, input.Metrics)
-
-	if input.BranchLimit > 0 && len(branches) > input.BranchLimit {
-		branches = branches[:input.BranchLimit]
-	}
 
 	deadWeight := []deadWeightEntry{}
 	if input.IncludeZero {
 		deadWeight = auditExtractDeadWeight(branches, input.DeltaStats)
+	}
+
+	auditSortBranches(branches, input.Sort, input.Metrics)
+
+	if input.BranchLimit > 0 && len(branches) > input.BranchLimit {
+		branches = branches[:input.BranchLimit]
 	}
 
 	var weakestID *string
@@ -124,7 +150,12 @@ func auditBuildBranchResponses(input auditRankInput) []auditBranchResponse {
 			}
 		}
 
-		breakdown := auditBuildNodeBreakdown(branch, input.LeavesByBranchID[branch.ID], input.LeafDeltas)
+		breakdown := auditBuildNodeBreakdown(
+			branch,
+			input.LeavesByBranchID[branch.ID],
+			input.LeafDeltas,
+			input.NodeTypes,
+		)
 
 		out = append(out, auditBranchResponse{
 			ID:            branch.ID,
@@ -147,11 +178,14 @@ func auditBuildBranchResponses(input auditRankInput) []auditBranchResponse {
 // nodes (interior travel, or leaves we didn't drill due to node budget)
 // get removable=false with empty deltas — the calc would either be invalid
 // (interior node) or simply wasn't run (budget). Either way the LLM should
-// not treat them as cuts in isolation.
+// not treat them as cuts in isolation. Each entry carries the node's PoB
+// type (from the extract data) so downstream consumers can distinguish
+// e.g. Socket from Notable without re-fetching.
 func auditBuildNodeBreakdown(
 	branch segmentBranch,
 	drilledLeaves []int,
 	leafDeltas map[int]map[string]float64,
+	nodeTypes map[int]string,
 ) []nodeBreakdown {
 	leafSet := make(map[int]bool, len(drilledLeaves))
 	for _, id := range drilledLeaves {
@@ -160,6 +194,7 @@ func auditBuildNodeBreakdown(
 
 	out := make([]nodeBreakdown, 0, len(branch.Nodes))
 	for _, id := range branch.Nodes {
+		nodeType := nodeTypes[id]
 		if leafSet[id] {
 			deltas := leafDeltas[id]
 			if deltas == nil {
@@ -167,6 +202,7 @@ func auditBuildNodeBreakdown(
 			}
 			out = append(out, nodeBreakdown{
 				ID:        id,
+				Type:      nodeType,
 				Removable: true,
 				Deltas:    deltas,
 			})
@@ -174,6 +210,7 @@ func auditBuildNodeBreakdown(
 		}
 		out = append(out, nodeBreakdown{
 			ID:        id,
+			Type:      nodeType,
 			Removable: false,
 			Deltas:    map[string]float64{},
 			Reason:    "interior_or_unevaluated",
@@ -206,10 +243,16 @@ func auditSortBranches(branches []auditBranchResponse, sortOrder string, metrics
 	})
 }
 
-// auditExtractDeadWeight scans the (already-sorted, already-truncated)
-// branches for drilled leaves whose removal produced zero deltas across
-// every requested DeltaStat. These are the highest-confidence cuts:
+// auditExtractDeadWeight scans the FULL evaluated branches list (before
+// rank-truncation) for drilled leaves whose removal produced zero deltas
+// across every requested DeltaStat. These are the highest-confidence cuts:
 // the LLM can suggest dropping them with no metric impact.
+//
+// Empty jewel sockets get an explicit "empty_socket" reason rather than the
+// generic "zero_contribution" code — they are conceptually dead even if a
+// future PoB version emits tiny noise, and the explicit signal helps the
+// LLM phrase the suggestion correctly. Detection is by node type carried
+// through from the original extract data via auditBuildNodeBreakdown.
 func auditExtractDeadWeight(
 	branches []auditBranchResponse,
 	deltaStats []string,
@@ -223,11 +266,16 @@ func auditExtractDeadWeight(
 			if !auditAllZero(bd.Deltas, deltaStats) {
 				continue
 			}
+			reason := deadWeightReasonZero
+			if bd.Type == nodeTypeSocket {
+				reason = deadWeightReasonSocket
+			}
 			out = append(out, deadWeightEntry{
 				ID:       bd.ID,
 				BranchID: branch.ID,
+				Type:     bd.Type,
 				Deltas:   bd.Deltas,
-				Reason:   "zero_contribution",
+				Reason:   reason,
 			})
 		}
 	}
@@ -275,10 +323,15 @@ func auditSelectBranchesToEvaluate(branches []segmentBranch, branchLimit int) []
 
 // auditGatherLeaves distributes the per-branch DFS-tree leaves (computed
 // during segmentation) into a flat budget-respecting list for the perturb
-// pass. Leaves are taken from branches in input order until nodeLimit total
-// is exhausted. Returns both a per-branch lookup map (used downstream to
-// build the per-node breakdown) and a flat slice (used as the singleRemoves
-// payload for the audit_perturb Send).
+// pass. Returns both a per-branch lookup map (used downstream to build the
+// per-node breakdown) and a flat slice (used as the singleRemoves payload
+// for the audit_perturb Send).
+//
+// Allocation is round-robin across branches: take one leaf from each branch
+// in turn until nodeLimit total is exhausted. This prevents a single
+// fat-leaf branch from starving every other branch — without round-robin,
+// a 50-leaf branch at index 0 would consume the entire default budget and
+// the other 9 branches in the rank window would get zero drill-down.
 //
 // The "leaf" definition lives in segmentGraph: a DFS-tree leaf within the
 // branch is a node with no DFS children, and therefore safe to remove in
@@ -288,27 +341,37 @@ func auditSelectBranchesToEvaluate(branches []segmentBranch, branchLimit int) []
 // calc, which is the load-bearing requirement.
 func auditGatherLeaves(branches []segmentBranch, nodeLimit int) (map[string][]int, []int) {
 	leavesByBranch := make(map[string][]int, len(branches))
-	allLeaves := make([]int, 0)
 	budget := nodeLimit
 	if budget < 0 {
 		budget = 0
 	}
+	allLeaves := make([]int, 0, budget)
 
-	for _, branch := range branches {
-		if budget == 0 {
-			break
-		}
-		var taken []int
-		for _, id := range branch.Leaves {
+	if budget == 0 || len(branches) == 0 {
+		return leavesByBranch, allLeaves
+	}
+
+	// Cursor per branch tracks how many of its Leaves we've consumed so far.
+	cursors := make([]int, len(branches))
+	for budget > 0 {
+		progress := false
+		for i := range branches {
 			if budget == 0 {
 				break
 			}
-			taken = append(taken, id)
+			if cursors[i] >= len(branches[i].Leaves) {
+				continue
+			}
+			id := branches[i].Leaves[cursors[i]]
+			cursors[i]++
+			leavesByBranch[branches[i].ID] = append(leavesByBranch[branches[i].ID], id)
 			allLeaves = append(allLeaves, id)
 			budget--
+			progress = true
 		}
-		if len(taken) > 0 {
-			leavesByBranch[branch.ID] = taken
+		if !progress {
+			// Every branch's leaf pool is drained; stop even if budget remains.
+			break
 		}
 	}
 	return leavesByBranch, allLeaves

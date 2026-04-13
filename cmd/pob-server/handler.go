@@ -552,9 +552,9 @@ const (
 // strings used in the wire response. Unknown types fall through as "normal".
 func nearbyDisplayType(rawType string) string {
 	switch rawType {
-	case "Notable":
+	case nodeTypeNotable:
 		return nearbyDispNotable
-	case "Keystone":
+	case nodeTypeKeystone:
 		return nearbyDispKeystone
 	default:
 		return nearbyDispNormal
@@ -620,9 +620,9 @@ func (srv *Server) handleNearby(
 	defer srv.pool.Release(proc)
 
 	// Stat keys for both baseline (Send 1) and perturb deltas (Send 2).
-	// nearbyCollectStatKeys deduplicates metrics + deltaStats while preserving
+	// collectStatKeys deduplicates metrics + deltaStats while preserving
 	// metrics order — the canonical order for everything downstream.
-	statKeys := nearbyCollectStatKeys(req.Metrics, req.DeltaStats)
+	statKeys := collectStatKeys(req.Metrics, req.DeltaStats)
 
 	extractEnvelope, ok := srv.runNearbyExtract(writer, proc, xml, req.Radius, statKeys)
 	if !ok {

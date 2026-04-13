@@ -75,8 +75,8 @@ func TestAuditSelectBranchesToEvaluate(t *testing.T) {
 
 func TestAuditGatherLeaves(t *testing.T) {
 	// Leaves are populated during segmentation (DFS-tree leaves within each
-	// branch). auditGatherLeaves just distributes them across a per-branch
-	// budget. So fixtures here construct segmentBranch with Leaves directly.
+	// branch). auditGatherLeaves distributes them across a per-branch budget
+	// in round-robin order so a single fat branch can't starve the rest.
 	branches := []segmentBranch{
 		{ID: "b1", Nodes: []int{2, 3, 4}, Leaves: []int{4}}, // chain 2→3→4
 		{ID: "b2", Nodes: []int{5}, Leaves: []int{5}},       // single node
@@ -123,6 +123,55 @@ func TestAuditGatherLeaves(t *testing.T) {
 		}
 		if len(allLeaves) != 1 || allLeaves[0] != 3 {
 			t.Errorf("allLeaves = %v, want [3]", allLeaves)
+		}
+	})
+
+	t.Run("round_robin_prevents_fat_branch_starvation", func(t *testing.T) {
+		// One fat branch with 100 leaves followed by 4 small branches.
+		// At nodeLimit=4, naive sequential allocation would give all 4 to
+		// the fat branch and zero to the others. Round-robin gives one to
+		// each of the first 4 branches.
+		fat := make([]int, 100)
+		for i := range fat {
+			fat[i] = 1000 + i
+		}
+		mixed := []segmentBranch{
+			{ID: "fat", Leaves: fat},
+			{ID: "a", Leaves: []int{1}},
+			{ID: "b", Leaves: []int{2}},
+			{ID: "c", Leaves: []int{3}},
+		}
+		leavesByBranch, allLeaves := auditGatherLeaves(mixed, 4)
+		if len(allLeaves) != 4 {
+			t.Fatalf("allLeaves len = %d, want 4", len(allLeaves))
+		}
+		// Each branch should have contributed exactly one leaf.
+		for _, id := range []string{"fat", "a", "b", "c"} {
+			got := leavesByBranch[id]
+			if len(got) != 1 {
+				t.Errorf("branch %q got %d leaves, want 1 (round-robin)", id, len(got))
+			}
+		}
+	})
+
+	t.Run("round_robin_continues_after_branch_drained", func(t *testing.T) {
+		// Branch with 1 leaf and branch with 5 leaves at nodeLimit=4.
+		// First pass: take 1 from each (2 total). Second pass: skip drained
+		// b1 and take from b2. Third+fourth: continue draining b2.
+		mixed := []segmentBranch{
+			{ID: "small", Leaves: []int{10}},
+			{ID: "big", Leaves: []int{20, 21, 22, 23, 24}},
+		}
+		leavesByBranch, allLeaves := auditGatherLeaves(mixed, 4)
+		if len(allLeaves) != 4 {
+			t.Fatalf("allLeaves len = %d, want 4", len(allLeaves))
+		}
+		if !reflect.DeepEqual(leavesByBranch["small"], []int{10}) {
+			t.Errorf("small leaves = %v, want [10]", leavesByBranch["small"])
+		}
+		// big should get 3 leaves (one from each of passes 1, 2, 3)
+		if len(leavesByBranch["big"]) != 3 {
+			t.Errorf("big leaves count = %d, want 3", len(leavesByBranch["big"]))
 		}
 	})
 }
@@ -206,20 +255,27 @@ func TestAuditSortBranches(t *testing.T) {
 // ----------------------------------------------------------------------------
 
 func TestAuditExtractDeadWeight(t *testing.T) {
+	zeroDeltas := map[string]float64{"Life": 0, "CombinedDPS": 0}
 	branches := []auditBranchResponse{
 		{
 			ID: "b1",
 			NodeBreakdown: []nodeBreakdown{
-				{ID: 10, Removable: true, Deltas: map[string]float64{"Life": 0, "CombinedDPS": 0}}, // dead
-				{ID: 11, Removable: true, Deltas: map[string]float64{"Life": -50, "CombinedDPS": 0}},
-				{ID: 12, Removable: false, Deltas: map[string]float64{}}, // interior — skipped
+				{ID: 10, Type: "Notable", Removable: true, Deltas: zeroDeltas}, // dead
+				{
+					ID: 11, Type: "Notable", Removable: true,
+					Deltas: map[string]float64{"Life": -50, "CombinedDPS": 0},
+				},
+				{ID: 12, Type: "Normal", Removable: false, Deltas: map[string]float64{}}, // interior
 			},
 		},
 		{
 			ID: "b2",
 			NodeBreakdown: []nodeBreakdown{
-				{ID: 20, Removable: true, Deltas: map[string]float64{"Life": 0, "CombinedDPS": 0}}, // dead
-				{ID: 21, Removable: true, Deltas: map[string]float64{"Life": 0, "CombinedDPS": 100}},
+				{ID: 20, Type: "Socket", Removable: true, Deltas: zeroDeltas}, // empty socket
+				{
+					ID: 21, Type: "Notable", Removable: true,
+					Deltas: map[string]float64{"Life": 0, "CombinedDPS": 100},
+				},
 			},
 		},
 	}
@@ -236,8 +292,15 @@ func TestAuditExtractDeadWeight(t *testing.T) {
 		if dead[0].BranchID != "b1" {
 			t.Errorf("dead[0].BranchID = %q, want b1", dead[0].BranchID)
 		}
-		if dead[0].Reason != "zero_contribution" {
-			t.Errorf("dead[0].Reason = %q, want zero_contribution", dead[0].Reason)
+		if dead[0].Reason != deadWeightReasonZero {
+			t.Errorf("dead[0].Reason = %q, want %q", dead[0].Reason, deadWeightReasonZero)
+		}
+		// Node 20 is type Socket — should get the explicit empty_socket reason.
+		if dead[1].Reason != deadWeightReasonSocket {
+			t.Errorf("dead[1].Reason = %q, want %q (Socket type)", dead[1].Reason, deadWeightReasonSocket)
+		}
+		if dead[1].Type != "Socket" {
+			t.Errorf("dead[1].Type = %q, want Socket", dead[1].Type)
 		}
 	})
 
@@ -309,6 +372,7 @@ func TestAuditRank_EndToEnd(t *testing.T) {
 		BranchDeltas:     branchDeltas,
 		LeafDeltas:       leafDeltas,
 		LeavesByBranchID: leavesByBranch,
+		NodeTypes:        map[int]string{10: "Notable", 20: "Normal", 21: "Notable"},
 		Metrics:          []string{"Life"},
 		DeltaStats:       []string{"Life"},
 		Sort:             auditSortWeakest,

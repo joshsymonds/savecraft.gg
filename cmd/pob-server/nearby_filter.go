@@ -46,7 +46,9 @@ func nearbyShouldEvaluate(candidate *nearbyCandidate, radius int) bool {
 	if candidate.Path == nil {
 		return false
 	}
-	if candidate.Type != "Normal" && candidate.Type != nodeTypeNotable && candidate.Type != nodeTypeKeystone {
+	if candidate.Type != "Normal" &&
+		candidate.Type != nodeTypeNotable &&
+		candidate.Type != nodeTypeKeystone {
 		return false
 	}
 	if candidate.ModKey == "" {
@@ -58,25 +60,5 @@ func nearbyShouldEvaluate(candidate *nearbyCandidate, radius int) bool {
 	return true
 }
 
-// nearbyCollectStatKeys deduplicates two stat-key lists, preserving the
-// order from metrics (the rank-by stats) and appending novel entries from
-// deltaStats (the additional report-only stats). The returned list is the
-// canonical order in which calc deltas should be requested for each
-// candidate, so consistency across the candidate loop matters.
-func nearbyCollectStatKeys(metrics, deltaStats []string) []string {
-	seen := make(map[string]bool, len(metrics)+len(deltaStats))
-	result := make([]string, 0, len(metrics)+len(deltaStats))
-	for _, k := range metrics {
-		if !seen[k] {
-			result = append(result, k)
-			seen[k] = true
-		}
-	}
-	for _, k := range deltaStats {
-		if !seen[k] {
-			result = append(result, k)
-			seen[k] = true
-		}
-	}
-	return result
-}
+// The dedup helper that used to live here moved to statkeys.go and is now
+// `collectStatKeys`, shared between /nearby and /audit. See that file.

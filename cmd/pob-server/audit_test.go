@@ -71,8 +71,8 @@ func TestParseAuditClampsNodeLimit(t *testing.T) {
 	if errMsg != "" {
 		t.Fatalf("unexpected error: %s", errMsg)
 	}
-	if req.NodeLimit != 100 {
-		t.Errorf("expected clamped nodeLimit 100, got %d", req.NodeLimit)
+	if req.NodeLimit != 50 {
+		t.Errorf("expected clamped nodeLimit 50, got %d", req.NodeLimit)
 	}
 }
 
@@ -177,10 +177,23 @@ func TestAuditReturns404ForMissingBuild(t *testing.T) {
 // two canned responses on two successive reads (extract then perturb). The
 // new /audit handler does two Sends per request; this helper makes both
 // available with one canned pair.
+//
+// Responses are written to temp files and the mock script `cat`s them, so
+// fixtures can contain arbitrary characters (single quotes, backslashes)
+// without breaking the shell quoting.
 func auditTwoSendMockServer(t *testing.T, extractResp, perturbResp string) (*Server, string) {
 	t.Helper()
-	mockScript := filepath.Join(t.TempDir(), "mock-audit.sh")
-	script := "#!/bin/sh\nread line\necho '" + extractResp + "'\nread line\necho '" + perturbResp + "'\n"
+	dir := t.TempDir()
+	extractFile := filepath.Join(dir, "extract.json")
+	perturbFile := filepath.Join(dir, "perturb.json")
+	if err := os.WriteFile(extractFile, []byte(extractResp), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(perturbFile, []byte(perturbResp), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mockScript := filepath.Join(dir, "mock-audit.sh")
+	script := "#!/bin/sh\nread line\ncat " + extractFile + "\necho\nread line\ncat " + perturbFile + "\necho\n"
 	if err := os.WriteFile(mockScript, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
@@ -343,6 +356,52 @@ func TestAuditRoundTripScopeBoth(t *testing.T) {
 	}
 	if resp.AscendancyBranches[0].Deltas["Life"] != -300 {
 		t.Errorf("ascendancy branch delta = %v, want -300", resp.AscendancyBranches[0].Deltas["Life"])
+	}
+}
+
+// TestAuditRoundTripScopeBothEmptyTreeFallsBackToAscendancy verifies that
+// when scope=both and the tree has zero analyzed branches but the ascendancy
+// has weakness, summary.weakestBranchId surfaces the ascendancy weakest
+// rather than nil. The two parallel sections still carry their own ranked
+// lists; this is just the at-a-glance summary hint.
+func TestAuditRoundTripScopeBothEmptyTreeFallsBackToAscendancy(t *testing.T) {
+	// Empty tree section, ascendancy with one branch.
+	extractResp := `{"type":"result","data":{` +
+		`"tree":{"nodes":{"1":{"type":"ClassStart"}},"adjacency":{"1":[]},"rootId":1,"totalAllocated":1},` +
+		`"ascendancy":{` +
+		`"nodes":{"100":{"type":"AscendClassStart"},"101":{"type":"Keystone"}},` +
+		`"adjacency":{"100":[101],"101":[100]},` +
+		`"rootId":100,"totalAllocated":2}` +
+		`}}`
+	perturbResp := `{"type":"result","data":{` +
+		`"baseline":{"Life":2000},` +
+		`"branchDeltas":[{"Life":-300}],` +
+		`"singleDeltas":{"101":{"Life":-300}}}}`
+
+	srv, buildID := auditTwoSendMockServer(t, extractResp, perturbResp)
+	body := `{"buildId":"` + buildID + `","scope":"both","metrics":["Life"]}`
+	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.handleAudit(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp auditResponseBoth
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON response: %v", err)
+	}
+	if len(resp.TreeBranches) != 0 {
+		t.Errorf("TreeBranches len = %d, want 0 (single-node tree has no branches)", len(resp.TreeBranches))
+	}
+	if len(resp.AscendancyBranches) != 1 {
+		t.Errorf("AscendancyBranches len = %d, want 1", len(resp.AscendancyBranches))
+	}
+	if resp.Summary.WeakestBranchID == nil {
+		t.Fatal("Summary.WeakestBranchID is nil — should fall back to ascendancy weakest")
+	}
+	if *resp.Summary.WeakestBranchID != resp.AscendancyBranches[0].ID {
+		t.Errorf("WeakestBranchID = %q, want %q (ascendancy fallback)",
+			*resp.Summary.WeakestBranchID, resp.AscendancyBranches[0].ID)
 	}
 }
 

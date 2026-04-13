@@ -27,13 +27,14 @@ import (
 // node passive tree is well within reason for either, and the iterative
 // shape was already the pattern from the Lua original.
 
-// PoB node type strings used by segmentation. The full set in PassiveSpec.lua
-// also includes "Normal", "Mastery", "Socket", "ClassStart", and
-// "AscendClassStart" — those flow through as opaque strings here, only
-// Notable and Keystone get classified as branch terminals.
+// PoB node type strings used by segmentation and dead-weight classification.
+// The full set in PassiveSpec.lua also includes "Normal", "Mastery",
+// "ClassStart", and "AscendClassStart" — those flow through as opaque
+// strings here.
 const (
 	nodeTypeNotable  = "Notable"
 	nodeTypeKeystone = "Keystone"
+	nodeTypeSocket   = "Socket"
 )
 
 // segmentNode is the per-node payload consumed by segmentation. The Type

@@ -81,10 +81,23 @@ func TestNearbyReturns404ForMissingBuild(t *testing.T) {
 // nearbyTwoSendMockServer wires a Server backed by a bash mock that returns
 // two canned responses on two successive reads — mirroring the two-send
 // protocol the new /nearby handler uses (extract → perturb).
+//
+// Responses are written to temp files and the mock script `cat`s them, so
+// fixtures can contain arbitrary characters (single quotes, backslashes)
+// without breaking the shell quoting.
 func nearbyTwoSendMockServer(t *testing.T, extractResp, perturbResp string) (*Server, string) {
 	t.Helper()
-	mockScript := filepath.Join(t.TempDir(), "mock-nearby.sh")
-	script := "#!/bin/sh\nread line\necho '" + extractResp + "'\nread line\necho '" + perturbResp + "'\n"
+	dir := t.TempDir()
+	extractFile := filepath.Join(dir, "extract.json")
+	perturbFile := filepath.Join(dir, "perturb.json")
+	if err := os.WriteFile(extractFile, []byte(extractResp), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(perturbFile, []byte(perturbResp), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	mockScript := filepath.Join(dir, "mock-nearby.sh")
+	script := "#!/bin/sh\nread line\ncat " + extractFile + "\necho\nread line\ncat " + perturbFile + "\necho\n"
 	if err := os.WriteFile(mockScript, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}

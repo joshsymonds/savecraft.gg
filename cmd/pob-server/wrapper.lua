@@ -1516,14 +1516,27 @@ local function handleAuditPerturb(request)
 		branchDeltas[i] = computeDeltas(output)
 	end
 
-	-- Per-node single-removal (leaf drill-down).
+	-- Per-node single-removal (leaf drill-down). Cache per modKey: two
+	-- leaves with identical mod sets (e.g. duplicate +10 STR travel nodes)
+	-- produce the same calc result, so one calcFunc call serves both.
+	-- Mirrors the cache pattern in handleNearbyPerturb's add-node loop.
 	local singleDeltas = {}
+	local cache = {}
 	for i = 1, #singleRemoves do
 		local id = singleRemoves[i]
 		local node = build.spec.nodes[id]
 		if node ~= nil then
-			local output = calcFunc({ removeNodes = { [node] = true } })
-			singleDeltas[tostring(id)] = computeDeltas(output)
+			local modKey = node.modKey or ""
+			if modKey ~= "" and cache[modKey] ~= nil then
+				singleDeltas[tostring(id)] = cache[modKey]
+			else
+				local output = calcFunc({ removeNodes = { [node] = true } })
+				local deltas = computeDeltas(output)
+				singleDeltas[tostring(id)] = deltas
+				if modKey ~= "" then
+					cache[modKey] = deltas
+				end
+			end
 		end
 	end
 
