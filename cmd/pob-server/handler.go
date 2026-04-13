@@ -524,9 +524,11 @@ func parseNearbyRequest(w http.ResponseWriter, r *http.Request) (NearbyRequest, 
 	if len(req.DeltaStats) == 0 {
 		req.DeltaStats = []string{"Life", "CombinedDPS", "EnergyShield"}
 	}
-	if req.Sort == "" {
-		req.Sort = "desc"
-	} else if req.Sort != "asc" && req.Sort != "desc" {
+	switch req.Sort {
+	case "":
+		req.Sort = nearbySortDesc
+	case nearbySortAsc, nearbySortDesc:
+	default:
 		return req, "sort must be 'asc' or 'desc'"
 	}
 
@@ -538,6 +540,12 @@ const (
 	nearbyDispNotable  = "notable"
 	nearbyDispKeystone = "keystone"
 	nearbyDispNormal   = "normal"
+)
+
+// /nearby sort-order constants.
+const (
+	nearbySortAsc  = "asc"
+	nearbySortDesc = "desc"
 )
 
 // nearbyDisplayType maps PoB's raw type strings to the lowercased display

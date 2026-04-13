@@ -46,7 +46,7 @@ func nearbyShouldEvaluate(candidate *nearbyCandidate, radius int) bool {
 	if candidate.Path == nil {
 		return false
 	}
-	if candidate.Type != "Normal" && candidate.Type != "Notable" && candidate.Type != "Keystone" {
+	if candidate.Type != "Normal" && candidate.Type != nodeTypeNotable && candidate.Type != nodeTypeKeystone {
 		return false
 	}
 	if candidate.ModKey == "" {

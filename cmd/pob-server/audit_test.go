@@ -173,13 +173,15 @@ func TestAuditReturns404ForMissingBuild(t *testing.T) {
 	}
 }
 
-// auditMockServer wires a Server backed by a bash-mock subprocess that
-// returns the given response when read from. Mirrors the existing nearby
-// mock-server helper pattern.
-func auditMockServer(t *testing.T, mockResponse string) (*Server, string) {
+// auditTwoSendMockServer wires a Server backed by a bash mock that returns
+// two canned responses on two successive reads (extract then perturb). The
+// new /audit handler does two Sends per request; this helper makes both
+// available with one canned pair.
+func auditTwoSendMockServer(t *testing.T, extractResp, perturbResp string) (*Server, string) {
 	t.Helper()
 	mockScript := filepath.Join(t.TempDir(), "mock-audit.sh")
-	if err := os.WriteFile(mockScript, []byte("#!/bin/sh\nread line\necho '"+mockResponse+"'\n"), 0o755); err != nil {
+	script := "#!/bin/sh\nread line\necho '" + extractResp + "'\nread line\necho '" + perturbResp + "'\n"
+	if err := os.WriteFile(mockScript, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	bashPath, err := exec.LookPath("bash")
@@ -210,21 +212,39 @@ func auditMockServer(t *testing.T, mockResponse string) (*Server, string) {
 	return &Server{pool: pool, cache: cache, log: logger}, buildID
 }
 
+// auditOneSendMockServer is for tests where the empty-extract path means no
+// perturb Send happens (handler short-circuits when no branches selected).
+// The mock script only handles one read.
+func auditOneSendMockServer(t *testing.T, extractResp string) (*Server, string) {
+	t.Helper()
+	emptyPerturb := `{"type":"result","data":{"baseline":{},"branchDeltas":[],"singleDeltas":{}}}`
+	return auditTwoSendMockServer(t, extractResp, emptyPerturb)
+}
+
 // TestAuditRoundTripWithRealGraph exercises the full pipeline: the bash mock
-// returns an audit_extract response carrying a real fixture graph, the Go
-// handler runs segmentation, and the final HTTP response is asserted to
-// contain the expected branches. This is the only end-to-end test of the
-// extract → segment → assemble flow; perturbation lands in task #5.
+// returns an audit_extract response carrying a real fixture graph + an
+// audit_perturb response with matching branch and per-leaf deltas. The Go
+// handler runs segmentation, selects branches, gathers leaves, applies the
+// perturb deltas via auditRank, and assembles the final response.
 func TestAuditRoundTripWithRealGraph(t *testing.T) {
-	// Fixture: 1(root) → 2(Normal) → 3(Notable). Bridges (1,2) and (2,3) →
-	// two nested branches when segmented.
-	mockResponse := `{"type":"result","data":{"tree":{` +
+	// Fixture: 1(root) → 2(Normal) → 3(Notable). Bridges (1,2) and (2,3)
+	// produce two nested branches when segmented:
+	//   branch headed at 2: {2,3}, terminal=3 Notable, leaf=3
+	//   branch headed at 3: {3}, terminal=3 Notable, leaf=3
+	extractResp := `{"type":"result","data":{"tree":{` +
 		`"nodes":{"1":{"type":"ClassStart"},"2":{"type":"Normal"},"3":{"type":"Notable"}},` +
 		`"adjacency":{"1":[2],"2":[1,3],"3":[2]},` +
 		`"rootId":1,"totalAllocated":3}}}`
+	// Two branches → two branchDeltas entries. Leaf ids are 3 in both branches
+	// (in branch 2-3, only node 3 has degree 1; in branch {3}, node 3 itself).
+	// Single-node deltas keyed by stringified id.
+	perturbResp := `{"type":"result","data":{` +
+		`"baseline":{"Life":1000},` +
+		`"branchDeltas":[{"Life":-200},{"Life":-150}],` +
+		`"singleDeltas":{"3":{"Life":-150}}}}`
 
-	srv, buildID := auditMockServer(t, mockResponse)
-	body := `{"buildId":"` + buildID + `"}`
+	srv, buildID := auditTwoSendMockServer(t, extractResp, perturbResp)
+	body := `{"buildId":"` + buildID + `","metrics":["Life"]}`
 	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	srv.handleAudit(rec, req)
@@ -240,8 +260,11 @@ func TestAuditRoundTripWithRealGraph(t *testing.T) {
 	if resp.BuildID != buildID {
 		t.Errorf("BuildID = %q, want %q", resp.BuildID, buildID)
 	}
+	if resp.Baseline["Life"] != 1000 {
+		t.Errorf("Baseline[Life] = %v, want 1000", resp.Baseline["Life"])
+	}
 	if len(resp.Branches) != 2 {
-		t.Fatalf("expected 2 branches from segmentation, got %d", len(resp.Branches))
+		t.Fatalf("expected 2 branches, got %d", len(resp.Branches))
 	}
 	if resp.Summary.TotalAllocated != 3 {
 		t.Errorf("Summary.TotalAllocated = %d, want 3", resp.Summary.TotalAllocated)
@@ -250,29 +273,32 @@ func TestAuditRoundTripWithRealGraph(t *testing.T) {
 		t.Errorf("Summary.BranchesAnalyzed = %d, want 2", resp.Summary.BranchesAnalyzed)
 	}
 
-	// Branch ordering is by Head id ascending (deterministic). Outer branch
-	// is headed at 2 with two nodes, inner at 3 with one node.
-	outer := resp.Branches[0]
-	if outer.Head != 2 || outer.NodeCount != 2 {
-		t.Errorf("outer = head=%d count=%d, want head=2 count=2", outer.Head, outer.NodeCount)
+	// Default sort is "weakest" → least negative first. Branch with Life=-150
+	// (loses less) should come before branch with Life=-200.
+	first := resp.Branches[0]
+	if first.Deltas["Life"] != -150 {
+		t.Errorf("first.Deltas[Life] = %v, want -150 (weakest)", first.Deltas["Life"])
 	}
-	if outer.Terminal == nil || outer.Terminal.ID != 3 || outer.Terminal.Type != "Notable" {
-		t.Errorf("outer.Terminal = %+v, want {3 Notable}", outer.Terminal)
-	}
-	if outer.Deltas == nil || outer.Efficiency == nil {
-		t.Error("outer.Deltas and Efficiency must be non-nil placeholders for task #5")
+	second := resp.Branches[1]
+	if second.Deltas["Life"] != -200 {
+		t.Errorf("second.Deltas[Life] = %v, want -200", second.Deltas["Life"])
 	}
 
-	inner := resp.Branches[1]
-	if inner.Head != 3 || inner.NodeCount != 1 {
-		t.Errorf("inner = head=%d count=%d, want head=3 count=1", inner.Head, inner.NodeCount)
+	// Efficiency = delta / node_count.
+	if first.Efficiency["Life"] == 0 {
+		t.Errorf("first.Efficiency[Life] = 0, expected non-zero")
+	}
+
+	// weakest_branch_id should be set to the first ranked branch.
+	if resp.Summary.WeakestBranchID == nil || *resp.Summary.WeakestBranchID != first.ID {
+		t.Errorf("WeakestBranchID = %v, want %q", resp.Summary.WeakestBranchID, first.ID)
 	}
 }
 
-// TestAuditRoundTripScopeBoth verifies the parallel tree_branches +
+// TestAuditRoundTripScopeBoth verifies parallel tree_branches +
 // ascendancy_branches sections come back when scope=both, never merged.
 func TestAuditRoundTripScopeBoth(t *testing.T) {
-	mockResponse := `{"type":"result","data":{` +
+	extractResp := `{"type":"result","data":{` +
 		`"tree":{` +
 		`"nodes":{"1":{"type":"ClassStart"},"2":{"type":"Notable"}},` +
 		`"adjacency":{"1":[2],"2":[1]},` +
@@ -282,8 +308,13 @@ func TestAuditRoundTripScopeBoth(t *testing.T) {
 		`"adjacency":{"100":[101],"101":[100]},` +
 		`"rootId":100,"totalAllocated":2}` +
 		`}}`
-	srv, buildID := auditMockServer(t, mockResponse)
-	body := `{"buildId":"` + buildID + `","scope":"both"}`
+	perturbResp := `{"type":"result","data":{` +
+		`"baseline":{"Life":2000},` +
+		`"branchDeltas":[{"Life":-100},{"Life":-300}],` +
+		`"singleDeltas":{"2":{"Life":-100},"101":{"Life":-300}}}}`
+
+	srv, buildID := auditTwoSendMockServer(t, extractResp, perturbResp)
+	body := `{"buildId":"` + buildID + `","scope":"both","metrics":["Life"]}`
 	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	srv.handleAudit(rec, req)
@@ -307,13 +338,20 @@ func TestAuditRoundTripScopeBoth(t *testing.T) {
 	if resp.AscendancyBranches[0].Terminal == nil || resp.AscendancyBranches[0].Terminal.Type != "Keystone" {
 		t.Errorf("ascendancy terminal = %+v, want Keystone", resp.AscendancyBranches[0].Terminal)
 	}
+	if resp.TreeBranches[0].Deltas["Life"] != -100 {
+		t.Errorf("tree branch delta = %v, want -100", resp.TreeBranches[0].Deltas["Life"])
+	}
+	if resp.AscendancyBranches[0].Deltas["Life"] != -300 {
+		t.Errorf("ascendancy branch delta = %v, want -300", resp.AscendancyBranches[0].Deltas["Life"])
+	}
 }
 
 // TestAuditRoundTripEmptyExtract verifies the empty-graph case produces a
 // well-formed response with empty branches[] (NOT omitted) and zero summary.
+// The handler short-circuits the second Send when there are no branches, so
+// the mock only needs to provide an extract response.
 func TestAuditRoundTripEmptyExtract(t *testing.T) {
-	mockResponse := `{"type":"result","data":{}}`
-	srv, buildID := auditMockServer(t, mockResponse)
+	srv, buildID := auditOneSendMockServer(t, `{"type":"result","data":{}}`)
 	body := `{"buildId":"` + buildID + `"}`
 	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))
 	rec := httptest.NewRecorder()
@@ -336,5 +374,45 @@ func TestAuditRoundTripEmptyExtract(t *testing.T) {
 	}
 	if resp.Summary.TotalAllocated != 0 || resp.Summary.BranchesAnalyzed != 0 {
 		t.Errorf("Summary should be all zeros, got %+v", resp.Summary)
+	}
+}
+
+// TestAuditRoundTripDeadWeightFlagged verifies a leaf with all-zero deltas
+// shows up in the dead_weight bucket.
+func TestAuditRoundTripDeadWeightFlagged(t *testing.T) {
+	// Single branch with one node (the leaf). Perturb returns zero deltas.
+	extractResp := `{"type":"result","data":{"tree":{` +
+		`"nodes":{"1":{"type":"ClassStart"},"2":{"type":"Notable"}},` +
+		`"adjacency":{"1":[2],"2":[1]},` +
+		`"rootId":1,"totalAllocated":2}}}`
+	perturbResp := `{"type":"result","data":{` +
+		`"baseline":{"Life":1000},` +
+		`"branchDeltas":[{"Life":0}],` +
+		`"singleDeltas":{"2":{"Life":0}}}}`
+
+	srv, buildID := auditTwoSendMockServer(t, extractResp, perturbResp)
+	body := `{"buildId":"` + buildID + `","metrics":["Life"]}`
+	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.handleAudit(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp auditResponseSingle
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON response: %v", err)
+	}
+	if len(resp.DeadWeight) != 1 {
+		t.Fatalf("expected 1 dead_weight entry, got %d: %+v", len(resp.DeadWeight), resp.DeadWeight)
+	}
+	if resp.DeadWeight[0].ID != 2 {
+		t.Errorf("dead_weight[0].ID = %d, want 2", resp.DeadWeight[0].ID)
+	}
+	if resp.DeadWeight[0].Reason != "zero_contribution" {
+		t.Errorf("dead_weight[0].Reason = %q, want zero_contribution", resp.DeadWeight[0].Reason)
+	}
+	if resp.Summary.TotalDeadPoints != 1 {
+		t.Errorf("Summary.TotalDeadPoints = %d, want 1", resp.Summary.TotalDeadPoints)
 	}
 }

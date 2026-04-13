@@ -1468,6 +1468,75 @@ local function handleNearbyExtract(request)
 	}
 end
 
+-- Process an audit_perturb request.
+-- Assumes the build is already loaded from a prior audit_extract on the same
+-- process. branchRemoves is an array of node-id arrays — each inner array is
+-- one branch to remove as a unit. singleRemoves is an array of individual
+-- node ids for leaf-level drill-down (each gets its own one-node removal).
+-- Both passes share the same baseline calc; results are returned together
+-- so the Go side can do everything in one round-trip after extract.
+local function handleAuditPerturb(request)
+	local branchRemoves = request.branchRemoves or {}
+	local singleRemoves = request.singleRemoves or {}
+	local stats = request.stats or {}
+
+	if not build or not build.spec or not build.spec.nodes then
+		return { type = "error", message = "no build loaded; call audit_extract first" }
+	end
+
+	local calcFunc, calcBase = build.calcsTab:GetMiscCalculator()
+
+	local baseline = {}
+	for i = 1, #stats do
+		baseline[stats[i]] = calcBase[stats[i]] or 0
+	end
+
+	local function computeDeltas(output)
+		local deltas = {}
+		for j = 1, #stats do
+			local stat = stats[j]
+			local base = calcBase[stat] or 0
+			local modified = output[stat] or 0
+			deltas[stat] = modified - base
+		end
+		return deltas
+	end
+
+	-- Per-branch removal: each entry is a set of node IDs removed together.
+	local branchDeltas = {}
+	for i = 1, #branchRemoves do
+		local removeSet = {}
+		for _, id in ipairs(branchRemoves[i]) do
+			local node = build.spec.nodes[id]
+			if node ~= nil then
+				removeSet[node] = true
+			end
+		end
+		local output = calcFunc({ removeNodes = removeSet })
+		branchDeltas[i] = computeDeltas(output)
+	end
+
+	-- Per-node single-removal (leaf drill-down).
+	local singleDeltas = {}
+	for i = 1, #singleRemoves do
+		local id = singleRemoves[i]
+		local node = build.spec.nodes[id]
+		if node ~= nil then
+			local output = calcFunc({ removeNodes = { [node] = true } })
+			singleDeltas[tostring(id)] = computeDeltas(output)
+		end
+	end
+
+	return {
+		type = "result",
+		data = {
+			baseline = baseline,
+			branchDeltas = branchDeltas,
+			singleDeltas = singleDeltas,
+		},
+	}
+end
+
 -- Process a nearby_perturb request.
 -- Assumes the build is already loaded from a prior nearby_extract on the
 -- same process (pob-server's pool keeps a process bound for the duration of
@@ -1565,6 +1634,13 @@ for line in io.stdin:lines() do
 				response = result
 			else
 				response = { type = "error", message = "audit_extract crashed: " .. tostring(result) }
+			end
+		elseif request.type == "audit_perturb" then
+			local ok, result = pcall(handleAuditPerturb, request)
+			if ok then
+				response = result
+			else
+				response = { type = "error", message = "audit_perturb crashed: " .. tostring(result) }
 			end
 		elseif request.type == "ping" then
 			response = { type = "pong" }

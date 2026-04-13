@@ -52,6 +52,12 @@ type segmentTerminal struct {
 }
 
 // segmentBranch is one cleanly-removable pendant subtree.
+//
+// Leaves carries the ids of DFS-tree leaves WITHIN the branch — nodes with
+// no DFS children. These are the nodes that can be safely removed in
+// isolation: removing a DFS leaf cuts no other allocated node off from the
+// anchor, because no other in-branch node depends on it as a parent. Used
+// downstream by auditRank for the per-node drill-down.
 type segmentBranch struct {
 	ID         string           `json:"id"`
 	Anchor     int              `json:"anchor"`
@@ -60,6 +66,7 @@ type segmentBranch struct {
 	NodeCount  int              `json:"nodeCount"`
 	Terminal   *segmentTerminal `json:"terminal"`
 	PureTravel bool             `json:"pureTravel"`
+	Leaves     []int            `json:"leaves"`
 }
 
 // segmentGraph splits an allocated subgraph rooted at rootID into branches.
@@ -85,7 +92,7 @@ func segmentGraph(nodes map[int]segmentNode, adjacency map[int][]int, rootID int
 		if !segmentIsBranchHead(parentID, nodeID, rootID, disc, low) {
 			continue
 		}
-		subtreeNodes := segmentCollectSubtree(nodeID, dfsChildren)
+		subtreeNodes, leaves := segmentCollectSubtree(nodeID, dfsChildren)
 		terminal := segmentClassifyTerminal(subtreeNodes, nodes, disc)
 		branches = append(branches, segmentBranch{
 			ID:         fmt.Sprintf("branch_%d_%d", parentID, nodeID),
@@ -95,6 +102,7 @@ func segmentGraph(nodes map[int]segmentNode, adjacency map[int][]int, rootID int
 			NodeCount:  len(subtreeNodes),
 			Terminal:   terminal,
 			PureTravel: terminal == nil,
+			Leaves:     leaves,
 		})
 	}
 
@@ -205,18 +213,25 @@ func segmentDFSConsiderBackEdge(state *segmentDFSState, current, neighborID int)
 	}
 }
 
-// segmentCollectSubtree returns all node ids in the DFS-tree subtree rooted at
-// start, in unspecified order. Uses an explicit stack rather than recursion.
-func segmentCollectSubtree(start int, dfsChildren map[int][]int) []int {
-	var result []int
+// segmentCollectSubtree walks the DFS-tree subtree rooted at start and
+// returns (allNodes, leaves). A leaf is a node with no DFS children — and
+// therefore safely removable in isolation, because no other in-branch node
+// uses it as a tree-edge parent. Uses an explicit stack rather than recursion.
+func segmentCollectSubtree(start int, dfsChildren map[int][]int) ([]int, []int) {
+	var allNodes, leaves []int
 	stack := []int{start}
 	for len(stack) > 0 {
 		current := stack[len(stack)-1]
 		stack = stack[:len(stack)-1]
-		result = append(result, current)
-		stack = append(stack, dfsChildren[current]...)
+		allNodes = append(allNodes, current)
+		children := dfsChildren[current]
+		if len(children) == 0 {
+			leaves = append(leaves, current)
+			continue
+		}
+		stack = append(stack, children...)
 	}
-	return result
+	return allNodes, leaves
 }
 
 // segmentClassifyTerminal picks the branch's terminal: Keystone always wins
