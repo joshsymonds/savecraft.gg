@@ -77,6 +77,14 @@ log("PoB loaded successfully")
 -- JSON library is available from PoB's runtime
 local dkjson = require("dkjson")
 
+-- Load sibling Lua modules that ship alongside wrapper.lua. arg[0] is the
+-- script path luajit was invoked with; its directory is where audit_segment.lua
+-- lives. Extending package.path lets require() resolve it the normal way.
+local wrapperDir = arg[0]:match("(.*/)") or "./"
+package.path = wrapperDir .. "?.lua;" .. package.path
+local auditSegment = require("audit_segment")
+local auditExtract = require("audit_extract")
+
 -- =========================================================================
 -- Human-readable label mappings for PoB internal values
 -- =========================================================================
@@ -1276,6 +1284,94 @@ local function handleModify(request)
 	}
 end
 
+-- analyzeAuditScope runs extraction + segmentation for one scope against the
+-- currently-loaded `build`. Returns (branches, totalAllocated). Branches carry
+-- empty deltas/efficiency placeholders; the perturbation pass that fills them
+-- lands in a follow-up task.
+local function analyzeAuditScope(scope)
+	local nodes, adjacency, rootId, total = auditExtract.extract(build.spec, scope)
+	if rootId == nil then
+		return {}, 0
+	end
+	local rawBranches = auditSegment.segment(nodes, adjacency, rootId)
+	local result = {}
+	for i = 1, #rawBranches do
+		local b = rawBranches[i]
+		result[#result + 1] = {
+			id = b.id,
+			anchor = b.anchor,
+			head = b.head,
+			nodes = b.nodes,
+			node_count = b.node_count,
+			terminal = b.terminal,
+			pure_travel = b.pure_travel,
+			deltas = {},
+			efficiency = {},
+		}
+	end
+	return result, total
+end
+
+-- Process an audit_allocated request.
+-- Performs PoB build load → recalc → graph extraction → branch segmentation
+-- and assembles the response shape. Per-branch perturbation deltas + the
+-- dead_weight bucket land in a follow-up task; for now `deltas`/`efficiency`
+-- are empty placeholders and `dead_weight` is empty.
+local function handleAudit(request)
+	local xml = request.xml
+	if not xml or xml == "" then
+		return { type = "error", message = "missing 'xml' field" }
+	end
+
+	local loadOk, loadErr = pcall(function()
+		loadBuildFromXML(xml, "audit-build")
+	end)
+	if not loadOk then
+		return { type = "error", message = "failed to load build: " .. tostring(loadErr) }
+	end
+
+	-- Force a full recalc so build.spec has paths/dependencies populated.
+	build.buildFlag = true
+	runCallback("OnFrame")
+
+	local scope = request.scope or "tree"
+	local summary = {
+		total_allocated = 0,
+		branches_analyzed = 0,
+		weakest_branch_id = nil,
+		total_dead_points = 0,
+	}
+
+	local data
+	if scope == "both" then
+		local treeBranches, treeTotal = analyzeAuditScope("tree")
+		local ascBranches, ascTotal = analyzeAuditScope("ascendancy")
+		summary.total_allocated = treeTotal + ascTotal
+		summary.branches_analyzed = #treeBranches + #ascBranches
+		data = {
+			build_id = "",
+			baseline = {},
+			tree_branches = treeBranches,
+			ascendancy_branches = ascBranches,
+			dead_weight = {},
+			summary = summary,
+		}
+	else
+		local branches, totalAlloc = analyzeAuditScope(scope)
+		summary.total_allocated = totalAlloc
+		summary.branches_analyzed = #branches
+		data = {
+			build_id = "",
+			baseline = {},
+			branches = branches,
+			dead_weight = {},
+			summary = summary,
+		}
+	end
+
+	return { type = "result", data = data }
+end
+
 -- Process a nearby node search request
 local function handleNearby(request)
 	local xml = request.xml
@@ -1471,6 +1567,13 @@ for line in io.stdin:lines() do
 				response = result
 			else
 				response = { type = "error", message = "nearby crashed: " .. tostring(result) }
+			end
+		elseif request.type == "audit" then
+			local ok, result = pcall(handleAudit, request)
+			if ok then
+				response = result
+			else
+				response = { type = "error", message = "audit crashed: " .. tostring(result) }
 			end
 		elseif request.type == "ping" then
 			response = { type = "pong" }
