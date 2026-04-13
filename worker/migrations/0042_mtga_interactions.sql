@@ -3,7 +3,7 @@
 -- alongside Comprehensive Rules to help LLMs reason correctly about edge cases.
 -- Content is hand-authored and derives from the Comprehensive Rules.
 
-CREATE TABLE IF NOT EXISTS magic_interactions (
+CREATE TABLE IF NOT EXISTS mtga_interactions (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   title TEXT NOT NULL,           -- e.g. "Blood Moon + Sagas"
   mechanics TEXT NOT NULL,       -- comma-separated tags: "layers,type-changing,SBA"
@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS magic_interactions (
   common_error TEXT NOT NULL     -- what LLMs typically get wrong
 );
 
-CREATE VIRTUAL TABLE IF NOT EXISTS magic_interactions_fts USING fts5(
+CREATE VIRTUAL TABLE IF NOT EXISTS mtga_interactions_fts USING fts5(
   id UNINDEXED,
   title,
   mechanics,

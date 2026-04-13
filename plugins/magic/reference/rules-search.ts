@@ -554,7 +554,7 @@ export const rulesSearchModule: NativeReferenceModule = {
       return searchByKeyword(
         env.DB,
         env.AI,
-        env.MTGA_RULES_INDEX,
+        env.MAGIC_RULES_INDEX,
         keyword,
         limit,
       );

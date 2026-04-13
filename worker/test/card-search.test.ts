@@ -170,7 +170,7 @@ describe("card_search native module", () => {
 
   // Strip AI + Vectorize so FTS5 tests don't hit the network
   // (Vectorize calls are slow/flaky in Miniflare).
-  const ftsEnv = { ...env, AI: undefined, MTGA_CARDS_INDEX: undefined } as unknown as typeof env;
+  const ftsEnv = { ...env, AI: undefined, MAGIC_CARDS_INDEX: undefined } as unknown as typeof env;
 
   it("searches by card name via FTS5", async () => {
     await seedCards();

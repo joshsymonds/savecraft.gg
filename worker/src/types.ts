@@ -44,10 +44,10 @@ export interface Env {
   BATTLENET_REGION?: string;
   /** Workers AI binding for embedding queries. */
   AI?: Ai;
-  /** Vectorize index for MTG Arena rules semantic search. */
-  MTGA_RULES_INDEX?: VectorizeIndex;
-  /** Vectorize index for MTG Arena card semantic search. */
-  MTGA_CARDS_INDEX?: VectorizeIndex;
+  /** Vectorize index for Magic rules semantic search. */
+  MAGIC_RULES_INDEX?: VectorizeIndex;
+  /** Vectorize index for Magic card semantic search. */
+  MAGIC_CARDS_INDEX?: VectorizeIndex;
   /** Vectorize index for PoE gems + passive nodes semantic search. */
   POE_INDEX?: VectorizeIndex;
   /** URL of the PoB calc service (e.g. "https://pob.savecraft.gg"). */

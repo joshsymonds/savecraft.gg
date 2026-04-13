@@ -199,7 +199,7 @@ describe("rules_search native module", () => {
 
   // Strip AI + Vectorize so keyword tests exercise BM25 only and don't
   // hit the network (Vectorize calls are slow/flaky in Miniflare).
-  const bm25Env = { ...env, AI: undefined, MTGA_RULES_INDEX: undefined } as unknown as typeof env;
+  const bm25Env = { ...env, AI: undefined, MAGIC_RULES_INDEX: undefined } as unknown as typeof env;
 
   it("keyword search returns BM25-ranked results", async () => {
     await seedRules();

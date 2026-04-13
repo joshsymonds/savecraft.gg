@@ -4,7 +4,7 @@
 
 -- ── Per-user match history ─────────────────────────────────
 
-CREATE TABLE IF NOT EXISTS magic_match_history (
+CREATE TABLE IF NOT EXISTS mtga_match_history (
   match_id         TEXT NOT NULL,
   user_uuid        TEXT NOT NULL,
   event_id         TEXT NOT NULL,
@@ -20,17 +20,17 @@ CREATE TABLE IF NOT EXISTS magic_match_history (
 );
 
 CREATE INDEX IF NOT EXISTS idx_match_history_user_format
-  ON magic_match_history(user_uuid, format);
+  ON mtga_match_history(user_uuid, format);
 
 CREATE INDEX IF NOT EXISTS idx_match_history_user_deck
-  ON magic_match_history(user_uuid, deck_name);
+  ON mtga_match_history(user_uuid, deck_name);
 
 CREATE INDEX IF NOT EXISTS idx_match_history_user_time
-  ON magic_match_history(user_uuid, played_at DESC);
+  ON mtga_match_history(user_uuid, played_at DESC);
 
 -- ── Global metagame: archetypes per format ─────────────────
 
-CREATE TABLE IF NOT EXISTS magic_meta_archetypes (
+CREATE TABLE IF NOT EXISTS mtga_meta_archetypes (
   format           TEXT NOT NULL,
   archetype_name   TEXT NOT NULL,
   metagame_share   REAL NOT NULL DEFAULT 0,      -- 0.0–1.0
@@ -42,7 +42,7 @@ CREATE TABLE IF NOT EXISTS magic_meta_archetypes (
 
 -- ── Global metagame: tournament decklists ──────────────────
 
-CREATE TABLE IF NOT EXISTS magic_meta_decklists (
+CREATE TABLE IF NOT EXISTS mtga_meta_decklists (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   format           TEXT NOT NULL,
   archetype_name   TEXT NOT NULL,
@@ -55,14 +55,14 @@ CREATE TABLE IF NOT EXISTS magic_meta_decklists (
 );
 
 CREATE INDEX IF NOT EXISTS idx_meta_decklists_format_archetype
-  ON magic_meta_decklists(format, archetype_name);
+  ON mtga_meta_decklists(format, archetype_name);
 
 CREATE INDEX IF NOT EXISTS idx_meta_decklists_format_date
-  ON magic_meta_decklists(format, date DESC);
+  ON mtga_meta_decklists(format, date DESC);
 
 -- ── Global metagame: archetype matchups ────────────────────
 
-CREATE TABLE IF NOT EXISTS magic_meta_matchups (
+CREATE TABLE IF NOT EXISTS mtga_meta_matchups (
   format           TEXT NOT NULL,
   archetype_a      TEXT NOT NULL,
   archetype_b      TEXT NOT NULL,

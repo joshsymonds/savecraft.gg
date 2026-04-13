@@ -1,12 +1,12 @@
 -- Rename color_pair → archetype across all draft tables, and rename
--- magic_draft_color_stats → magic_draft_archetype_stats to reflect that
+-- mtga_draft_color_stats → mtga_draft_archetype_stats to reflect that
 -- archetypes now span 1-5 colors (not just pairs).
 -- Pre-launch: drop and recreate — no data migration needed.
 
--- ── magic_draft_color_stats → magic_draft_archetype_stats ──────
-DROP TABLE IF EXISTS magic_draft_color_stats;
+-- ── mtga_draft_color_stats → mtga_draft_archetype_stats ──────
+DROP TABLE IF EXISTS mtga_draft_color_stats;
 
-CREATE TABLE IF NOT EXISTS magic_draft_archetype_stats (
+CREATE TABLE IF NOT EXISTS mtga_draft_archetype_stats (
   set_code TEXT NOT NULL,
   card_name TEXT NOT NULL,
   archetype TEXT NOT NULL,
@@ -24,10 +24,10 @@ CREATE TABLE IF NOT EXISTS magic_draft_archetype_stats (
   PRIMARY KEY (set_code, card_name, archetype)
 );
 
--- ── magic_draft_archetype_curves: color_pair → archetype ──────
-DROP TABLE IF EXISTS magic_draft_archetype_curves;
+-- ── mtga_draft_archetype_curves: color_pair → archetype ──────
+DROP TABLE IF EXISTS mtga_draft_archetype_curves;
 
-CREATE TABLE IF NOT EXISTS magic_draft_archetype_curves (
+CREATE TABLE IF NOT EXISTS mtga_draft_archetype_curves (
   set_code    TEXT NOT NULL,
   archetype   TEXT NOT NULL,
   cmc         INTEGER NOT NULL,
@@ -36,11 +36,11 @@ CREATE TABLE IF NOT EXISTS magic_draft_archetype_curves (
   PRIMARY KEY (set_code, archetype, cmc)
 );
 
--- ── magic_draft_role_targets: color_pair → archetype ──────────
+-- ── mtga_draft_role_targets: color_pair → archetype ──────────
 DROP INDEX IF EXISTS idx_role_targets_set;
-DROP TABLE IF EXISTS magic_draft_role_targets;
+DROP TABLE IF EXISTS mtga_draft_role_targets;
 
-CREATE TABLE IF NOT EXISTS magic_draft_role_targets (
+CREATE TABLE IF NOT EXISTS mtga_draft_role_targets (
   set_code    TEXT NOT NULL,
   archetype   TEXT NOT NULL,
   role        TEXT NOT NULL,
@@ -50,12 +50,12 @@ CREATE TABLE IF NOT EXISTS magic_draft_role_targets (
 );
 
 CREATE INDEX IF NOT EXISTS idx_role_targets_set
-  ON magic_draft_role_targets(set_code);
+  ON mtga_draft_role_targets(set_code);
 
--- ── magic_draft_deck_stats: color_pair → archetype ────────────
-DROP TABLE IF EXISTS magic_draft_deck_stats;
+-- ── mtga_draft_deck_stats: color_pair → archetype ────────────
+DROP TABLE IF EXISTS mtga_draft_deck_stats;
 
-CREATE TABLE IF NOT EXISTS magic_draft_deck_stats (
+CREATE TABLE IF NOT EXISTS mtga_draft_deck_stats (
   set_code          TEXT NOT NULL,
   archetype         TEXT NOT NULL,
   avg_lands         REAL NOT NULL,

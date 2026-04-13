@@ -122,7 +122,7 @@ export const cardSearchModule: NativeReferenceModule = {
     // ── Vectorize semantic search (if available) ──────────────
     let vectorScryfallIds: string[] = [];
     if (hasFtsQuery) {
-      const vectorIndex = env.MTGA_CARDS_INDEX;
+      const vectorIndex = env.MAGIC_CARDS_INDEX;
       if (env.AI && vectorIndex) {
         try {
           const queryText = [name, text].filter(Boolean).join(" ");

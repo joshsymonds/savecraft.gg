@@ -2,7 +2,7 @@
 -- Populated by replay-fetch tool, queried by play_advisor reference module.
 
 -- Per-card deployment timing → win rate by turn.
-CREATE TABLE IF NOT EXISTS magic_play_card_timing (
+CREATE TABLE IF NOT EXISTS mtga_play_card_timing (
   set_code TEXT NOT NULL,
   card_name TEXT NOT NULL,
   archetype TEXT NOT NULL,
@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS magic_play_card_timing (
 
 -- Mana efficiency per turn per archetype.
 -- mana_spent_bucket: 0, 1, 2, 3, 4, 5 (where 5 = 5+).
-CREATE TABLE IF NOT EXISTS magic_play_tempo (
+CREATE TABLE IF NOT EXISTS mtga_play_tempo (
   set_code TEXT NOT NULL,
   archetype TEXT NOT NULL,
   turn_number INTEGER NOT NULL,
@@ -29,7 +29,7 @@ CREATE TABLE IF NOT EXISTS magic_play_tempo (
 -- Attack patterns: per-creature attack decisions correlated with outcome.
 -- user_creatures_count/oppo_creatures_count capped at 4 (4 = 4+).
 -- attacked: 1 = creature attacked this turn, 0 = held back.
-CREATE TABLE IF NOT EXISTS magic_play_combat (
+CREATE TABLE IF NOT EXISTS mtga_play_combat (
   set_code TEXT NOT NULL,
   attacker_name TEXT NOT NULL,
   turn_number INTEGER NOT NULL,
@@ -43,7 +43,7 @@ CREATE TABLE IF NOT EXISTS magic_play_combat (
 
 -- Mulligan hand shapes → win rate.
 -- nonland_cmc_bucket: 'low' (avg < 2.0), 'mid' (2.0-3.0), 'high' (> 3.0).
-CREATE TABLE IF NOT EXISTS magic_play_mulligan (
+CREATE TABLE IF NOT EXISTS mtga_play_mulligan (
   set_code TEXT NOT NULL,
   archetype TEXT NOT NULL,
   on_play INTEGER NOT NULL,
@@ -58,7 +58,7 @@ CREATE TABLE IF NOT EXISTS magic_play_mulligan (
 -- Per-turn aggregate baselines for game_review normalization.
 -- Stores totals (not averages) so averages can be computed at query time
 -- and sample sizes are transparent.
-CREATE TABLE IF NOT EXISTS magic_play_turn_baselines (
+CREATE TABLE IF NOT EXISTS mtga_play_turn_baselines (
   set_code TEXT NOT NULL,
   archetype TEXT NOT NULL,
   turn_number INTEGER NOT NULL,
