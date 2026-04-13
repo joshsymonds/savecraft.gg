@@ -37,7 +37,7 @@ binding = "AI"
 
 [[vectorize]]
 binding = "MAGIC_RULES_INDEX"
-index_name = "mtga-rules"
+index_name = "magic-rules"
 
 [[vectorize]]
 binding = "MAGIC_CARDS_INDEX"
@@ -103,7 +103,7 @@ binding = "AI"
 
 [[env.production.vectorize]]
 binding = "MAGIC_RULES_INDEX"
-index_name = "mtga-rules"
+index_name = "magic-rules"
 
 [[env.production.vectorize]]
 binding = "MAGIC_CARDS_INDEX"
@@ -170,7 +170,7 @@ binding = "AI"
 
 [[env.staging.vectorize]]
 binding = "MAGIC_RULES_INDEX"
-index_name = "mtga-rules-staging"
+index_name = "magic-rules-staging"
 
 [[env.staging.vectorize]]
 binding = "MAGIC_CARDS_INDEX"
