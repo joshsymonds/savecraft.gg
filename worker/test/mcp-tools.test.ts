@@ -2046,4 +2046,219 @@ describe("buildPlannerModule", () => {
       content: expect.stringContaining("nearby_delta_stats is not valid JSON"),
     });
   });
+
+  // ----- audit_allocated mode -----
+
+  it("returns error for audit_allocated without build_id", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute({ audit_allocated: "true" }, {
+      ...env,
+      POB_URL: "http://localhost:8077",
+    } as unknown as Env);
+    // The generic build-or-build_id check fires first; both error paths
+    // mention "build_id is required" so the substring assertion covers both.
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("build_id is required"),
+    });
+  });
+
+  it("returns error for invalid audit_metrics JSON", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build_id: "abc123", audit_allocated: "true", audit_metrics: "not json" },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("audit_metrics is not valid JSON"),
+    });
+  });
+
+  it("returns error for non-array audit_metrics", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build_id: "abc123", audit_allocated: "true", audit_metrics: '"Life"' },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("audit_metrics must be a JSON array"),
+    });
+  });
+
+  it("returns error for invalid audit_delta_stats JSON", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      {
+        build_id: "abc123",
+        audit_allocated: "true",
+        audit_metrics: '["Life"]',
+        audit_delta_stats: "{",
+      },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("audit_delta_stats is not valid JSON"),
+    });
+  });
+
+  it("returns error for audit_allocated when POB_URL not configured", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build_id: "abc123", audit_allocated: "true" },
+      { ...env, POB_URL: undefined } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("not configured"),
+    });
+  });
+
+  it("returns error when audit service is unreachable", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build_id: "abc123", audit_allocated: "true" },
+      { ...env, POB_URL: "http://127.0.0.1:1" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("unavailable"),
+    });
+  });
+
+  it("audit_allocated POSTs camelCase body to /audit", async () => {
+    // Spy on global fetch so we can inspect the outgoing request body without
+    // standing up a real pob-server.
+    const originalFetch = globalThis.fetch;
+    const calls: { url: string; body: unknown }[] = [];
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      let url: string;
+      if (input instanceof URL) {
+        url = input.href;
+      } else if (typeof input === "string") {
+        url = input;
+      } else {
+        url = input.url;
+      }
+      const body = init?.body ? JSON.parse(init.body as string) : undefined;
+      calls.push({ url, body });
+      return Promise.resolve(
+        Response.json({
+          buildId: "abc123",
+          baseline: {},
+          branches: [],
+          deadWeight: [],
+          summary: {
+            totalAllocated: 0,
+            branchesAnalyzed: 0,
+            weakestBranchId: null,
+            totalDeadPoints: 0,
+          },
+        }),
+      );
+    }) as typeof globalThis.fetch;
+
+    try {
+      const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+      const result = await buildPlannerModule.execute(
+        {
+          build_id: "abc123",
+          audit_allocated: "true",
+          audit_metrics: '["Life","CombinedDPS"]',
+          audit_delta_stats: '["Armour"]',
+          audit_branch_limit: 5,
+          audit_node_limit: 15,
+          audit_include_zero: "false",
+          audit_sort: "strongest",
+          audit_scope: "both",
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+
+      expect(result.type).toBe("structured");
+      expect(calls).toHaveLength(1);
+      expect(calls[0]?.url).toContain("/audit");
+      expect(calls[0]?.body).toEqual({
+        buildId: "abc123",
+        metrics: ["Life", "CombinedDPS"],
+        deltaStats: ["Armour"],
+        branchLimit: 5,
+        nodeLimit: 15,
+        includeZero: false,
+        sort: "strongest",
+        scope: "both",
+      });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("audit_allocated forwards minimal body when only build_id given", async () => {
+    const originalFetch = globalThis.fetch;
+    let capturedBody: unknown;
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedBody = init?.body ? JSON.parse(init.body as string) : undefined;
+      return Promise.resolve(
+        Response.json({
+          buildId: "abc123",
+          baseline: {},
+          branches: [],
+          deadWeight: [],
+          summary: {
+            totalAllocated: 0,
+            branchesAnalyzed: 0,
+            weakestBranchId: null,
+            totalDeadPoints: 0,
+          },
+        }),
+      );
+    }) as typeof globalThis.fetch;
+
+    try {
+      const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+      await buildPlannerModule.execute({ build_id: "abc123", audit_allocated: "true" }, {
+        ...env,
+        POB_URL: "http://localhost:8077",
+      } as unknown as Env);
+      // Only buildId — every optional field omitted so the Go server applies defaults.
+      expect(capturedBody).toEqual({ buildId: "abc123" });
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("audit_allocated includeZero=true is forwarded explicitly", async () => {
+    const originalFetch = globalThis.fetch;
+    let capturedBody: Record<string, unknown> | undefined;
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedBody = init?.body ? JSON.parse(init.body as string) : undefined;
+      return Promise.resolve(
+        Response.json({
+          buildId: "abc123",
+          baseline: {},
+          branches: [],
+          deadWeight: [],
+          summary: {
+            totalAllocated: 0,
+            branchesAnalyzed: 0,
+            weakestBranchId: null,
+            totalDeadPoints: 0,
+          },
+        }),
+      );
+    }) as typeof globalThis.fetch;
+
+    try {
+      const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+      await buildPlannerModule.execute(
+        { build_id: "abc123", audit_allocated: "true", audit_include_zero: "true" },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      expect(capturedBody?.includeZero).toBe(true);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
 });

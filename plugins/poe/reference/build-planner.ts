@@ -2,11 +2,13 @@
  * PoE build_planner — native reference module.
  *
  * Bridges the headless Path of Building calc service (pob-server) into the
- * MCP reference module system. Supports three workflows:
+ * MCP reference module system. Supports four workflows:
  *
  *   1. Analyze: pass a build URL → get structured calc results + buildId
  *   2. Modify: pass a buildId + operations → get updated results + new buildId
  *   3. Explore: pass a buildId + nearby_metrics → get ranked nearby nodes by impact
+ *   4. Audit:   pass a buildId + audit_allocated → get ranked weakest branches +
+ *               dead_weight nodes (the inverse of explore — what to cut)
  *
  * Every call returns a buildId that can be used for subsequent modifications,
  * enabling iterative build design without the player exporting build codes.
@@ -39,7 +41,9 @@ function pobFetch(
   sections?: string,
   statKeys?: string,
 ): Promise<Response> {
-  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
   if (apiKey) {
     headers.Authorization = `Bearer ${apiKey}`;
   }
@@ -60,19 +64,20 @@ export const buildPlannerModule: NativeReferenceModule = {
   id: "build_planner",
   name: "Build Planner",
   description:
-    "Analyze, modify, or explore a Path of Exile build via Path of Building. "
-    + "First call returns a compact summary (DPS, life, resists, attributes), character info (class, ascendancy, bandit, pantheon), and a section_index listing available detail sections. "
-    + "The summary includes per-element damage breakdown (PhysicalHitAverage, FireHitAverage, ColdHitAverage, LightningHitAverage, ChaosHitAverage) showing the actual damage type split after all conversion and 'gain as extra' mechanics — "
-    + "check these BEFORE recommending element-specific gem or support changes. A skill tagged 'Fire' may deal significant chaos damage via gear conversion. "
-    + "The items section includes mod text for rare/magic items — use these to understand gear-based conversion, added-as-extra, and other build-defining mechanics. Unique item mods are not shown (use unique_search to look them up by name). "
-    + "Request sections='config' to see active configuration overrides (combat conditions, enemy settings, Wither stacks, etc.). "
-    + "To determine Low Life status, check config for conditionLowLife — do NOT rely on LifeUnreservedPercent, which reflects static reservations only, not combat-conditional effects like Dissolution of the Flesh. "
-    + "To drill deeper, call again with the buildId and sections parameter (e.g. sections='offense,defense'). "
-    + "Stat sections return curated key stats plus _extra_keys listing other available stats — use stat_keys to request specific extras. "
-    + "For modifications, pass buildId + operations. The response includes a changes object with {before, after, delta} for every summary stat that changed — "
-    + "present the delta to the player, not the full stat dump. "
-    + "For tree exploration, pass buildId + nearby_metrics to find the highest-impact nearby nodes ranked by real calc deltas. "
-    + "Every response includes a buildId for follow-up calls.",
+    "Analyze, modify, or explore a Path of Exile build via Path of Building. " +
+    "First call returns a compact summary (DPS, life, resists, attributes), character info (class, ascendancy, bandit, pantheon), and a section_index listing available detail sections. " +
+    "The summary includes per-element damage breakdown (PhysicalHitAverage, FireHitAverage, ColdHitAverage, LightningHitAverage, ChaosHitAverage) showing the actual damage type split after all conversion and 'gain as extra' mechanics — " +
+    "check these BEFORE recommending element-specific gem or support changes. A skill tagged 'Fire' may deal significant chaos damage via gear conversion. " +
+    "The items section includes mod text for rare/magic items — use these to understand gear-based conversion, added-as-extra, and other build-defining mechanics. Unique item mods are not shown (use unique_search to look them up by name). " +
+    "Request sections='config' to see active configuration overrides (combat conditions, enemy settings, Wither stacks, etc.). " +
+    "To determine Low Life status, check config for conditionLowLife — do NOT rely on LifeUnreservedPercent, which reflects static reservations only, not combat-conditional effects like Dissolution of the Flesh. " +
+    "To drill deeper, call again with the buildId and sections parameter (e.g. sections='offense,defense'). " +
+    "Stat sections return curated key stats plus _extra_keys listing other available stats — use stat_keys to request specific extras. " +
+    "For modifications, pass buildId + operations. The response includes a changes object with {before, after, delta} for every summary stat that changed — " +
+    "present the delta to the player, not the full stat dump. " +
+    "For tree exploration, pass buildId + nearby_metrics to find the highest-impact nearby nodes ranked by real calc deltas. " +
+    "For tree pruning, pass buildId + audit_allocated to find weak branches in the CURRENT allocated tree — ranked by what the player would lose by removing them, with a dead_weight bucket of zero-contribution nodes. Pairs naturally with nearby_metrics: audit identifies underperforming branches, nearby finds replacement directions, you propose the swap. " +
+    "Every response includes a buildId for follow-up calls.",
   parameters: {
     build: {
       type: "string",
@@ -87,55 +92,55 @@ export const buildPlannerModule: NativeReferenceModule = {
     operations: {
       type: "string",
       description:
-        'JSON array of modifications to apply to the build. Omit for pure analysis. Each operation is an object with an "op" field and operation-specific parameters. Operations are applied in order. Available operations:\n'
-        + '- {"op":"set_level","level":95} — Set character level.\n'
-        + '- {"op":"swap_gem","socket_group":0,"gem_index":1,"new_gem":"Ruthless Support","level":20,"quality":20} — Replace a gem in a socket group (0-indexed).\n'
-        + '- {"op":"add_gem","socket_group":0,"gem":"Inspiration Support","level":20,"quality":20} — Add a gem to a socket group.\n'
-        + '- {"op":"remove_gem","socket_group":0,"gem_index":3} — Remove a gem by index from a socket group.\n'
-        + '- {"op":"toggle_keystone","name":"Resolute Technique","enabled":false} — Allocate or deallocate a keystone passive.\n'
-        + '- {"op":"allocate_node","name":"Unwavering Stance"} — Allocate a notable or keystone by name. Auto-paths through travel nodes. Response includes an allocation_log section showing every node allocated along the path and the total points spent.\n'
-        + '- {"op":"deallocate_node","name":"Phase Acrobatics"} — Deallocate a notable or keystone by name. Errors if the node is not currently allocated.\n'
-        + '- {"op":"equip_unique","name":"Abyssus","slot":"Helmet"} — Equip a unique item by name. Slots: Weapon 1, Weapon 2, Helmet, Body Armour, Gloves, Boots, Belt, Ring 1, Ring 2, Amulet. For flasks, use equip_flask instead.\n'
-        + '- {"op":"equip_flask","name":"Taste of Hate","slot":"Flask 2"} — Equip a unique flask by name and activate it. Slots: Flask 1, Flask 2, Flask 3, Flask 4, Flask 5. The flask is automatically toggled active so its stats are included in calculations.\n'
-        + '- {"op":"set_item","slot":"Body Armour","text":"Astral Plate\\nRarity: Rare\\n..."} — Equip a rare/custom item using PoB item text format.\n'
-        + '- {"op":"set_config","var":"multiplierWitheredStackCount","value":15} — Set any PoB config override. Common vars: multiplierWitheredStackCount, conditionLowLife, conditionStationary, conditionFullLife, resistancePenalty, enemyIsBoss (Sirus/Shaper/etc).\n'
-        + '- {"op":"set_bandit","bandit":"None"} — Set bandit quest reward. Values: None (Kill All), Oak, Kraityn, Alira.\n'
-        + '- {"op":"set_pantheon","major":"Arakaali","minor":"Ralakesh"} — Set pantheon gods. Major: None, TheBrineKing, Lunaris, Solaris, Arakaali. Minor: None, Gruthkul, Yugul, Abberath, Tukohama, Garukhan, Ralakesh, Ryslatha, Shakari. Can set one or both.',
+        'JSON array of modifications to apply to the build. Omit for pure analysis. Each operation is an object with an "op" field and operation-specific parameters. Operations are applied in order. Available operations:\n' +
+        '- {"op":"set_level","level":95} — Set character level.\n' +
+        '- {"op":"swap_gem","socket_group":0,"gem_index":1,"new_gem":"Ruthless Support","level":20,"quality":20} — Replace a gem in a socket group (0-indexed).\n' +
+        '- {"op":"add_gem","socket_group":0,"gem":"Inspiration Support","level":20,"quality":20} — Add a gem to a socket group.\n' +
+        '- {"op":"remove_gem","socket_group":0,"gem_index":3} — Remove a gem by index from a socket group.\n' +
+        '- {"op":"toggle_keystone","name":"Resolute Technique","enabled":false} — Allocate or deallocate a keystone passive.\n' +
+        '- {"op":"allocate_node","name":"Unwavering Stance"} — Allocate a notable or keystone by name. Auto-paths through travel nodes. Response includes an allocation_log section showing every node allocated along the path and the total points spent.\n' +
+        '- {"op":"deallocate_node","name":"Phase Acrobatics"} — Deallocate a notable or keystone by name. Errors if the node is not currently allocated.\n' +
+        '- {"op":"equip_unique","name":"Abyssus","slot":"Helmet"} — Equip a unique item by name. Slots: Weapon 1, Weapon 2, Helmet, Body Armour, Gloves, Boots, Belt, Ring 1, Ring 2, Amulet. For flasks, use equip_flask instead.\n' +
+        '- {"op":"equip_flask","name":"Taste of Hate","slot":"Flask 2"} — Equip a unique flask by name and activate it. Slots: Flask 1, Flask 2, Flask 3, Flask 4, Flask 5. The flask is automatically toggled active so its stats are included in calculations.\n' +
+        '- {"op":"set_item","slot":"Body Armour","text":"Astral Plate\\nRarity: Rare\\n..."} — Equip a rare/custom item using PoB item text format.\n' +
+        '- {"op":"set_config","var":"multiplierWitheredStackCount","value":15} — Set any PoB config override. Common vars: multiplierWitheredStackCount, conditionLowLife, conditionStationary, conditionFullLife, resistancePenalty, enemyIsBoss (Sirus/Shaper/etc).\n' +
+        '- {"op":"set_bandit","bandit":"None"} — Set bandit quest reward. Values: None (Kill All), Oak, Kraityn, Alira.\n' +
+        '- {"op":"set_pantheon","major":"Arakaali","minor":"Ralakesh"} — Set pantheon gods. Major: None, TheBrineKing, Lunaris, Solaris, Arakaali. Minor: None, Gruthkul, Yugul, Abberath, Tukohama, Garukhan, Ralakesh, Ryslatha, Shakari. Can set one or both.',
     },
     sections: {
       type: "string",
       description:
-        "Comma-separated section names to include in the response (e.g. 'offense,defense'). "
-        + "Omit for a compact summary with a section index listing available sections. "
-        + "Available: offense, ailments, defense, resistances, ehp, recovery, charges, limits, "
-        + "socket_groups, items, keystones, tree, config, minion_offense, minion_defense. "
-        + "Stat sections return curated key stats by default plus an _extra_keys array listing other available stat names in that section. "
-        + "Use the stat_keys parameter to include specific extra keys alongside the curated defaults. "
-        + "tree returns allocated/available/remaining passive points with breakdown: available_points = level_points + quest_points (23, all acts) + extra_points. "
-        + "After allocate_node, the response includes an allocation_log section showing every node allocated along the path and points spent.",
+        "Comma-separated section names to include in the response (e.g. 'offense,defense'). " +
+        "Omit for a compact summary with a section index listing available sections. " +
+        "Available: offense, ailments, defense, resistances, ehp, recovery, charges, limits, " +
+        "socket_groups, items, keystones, tree, config, minion_offense, minion_defense. " +
+        "Stat sections return curated key stats by default plus an _extra_keys array listing other available stat names in that section. " +
+        "Use the stat_keys parameter to include specific extra keys alongside the curated defaults. " +
+        "tree returns allocated/available/remaining passive points with breakdown: available_points = level_points + quest_points (23, all acts) + extra_points. " +
+        "After allocate_node, the response includes an allocation_log section showing every node allocated along the path and points spent.",
     },
     stat_keys: {
       type: "string",
       description:
-        "Comma-separated stat key names to include alongside the curated defaults in stat sections (e.g. 'PierceChance,AreaOfEffectMod'). "
-        + "Use this to drill into specific stats discovered via _extra_keys in a previous response. "
-        + "Any PoB calc output key is accepted. Only used with sections parameter.",
+        "Comma-separated stat key names to include alongside the curated defaults in stat sections (e.g. 'PierceChance,AreaOfEffectMod'). " +
+        "Use this to drill into specific stats discovered via _extra_keys in a previous response. " +
+        "Any PoB calc output key is accepted. Only used with sections parameter.",
     },
     nearby_metrics: {
       type: "string",
       description:
-        "JSON array of stat names to rank nearby nodes by (e.g. '[\"Life\",\"CombinedDPS\"]'). "
-        + "Triggers explore mode: finds unallocated nodes reachable from the current tree and ranks them by real calc impact per passive point. "
-        + "Requires build_id. Returns one ranked list per metric, each with baseline value and top nodes including stat deltas, path cost, travel path, and efficiency score. "
-        + "Common metrics: Life, EnergyShield, CombinedDPS, FullDPS, Armour, Evasion, BlockChance, "
-        + "SpellSuppressionChance, PhysicalMaximumHitTaken, ColdMaximumHitTaken, FireMaximumHitTaken, "
-        + "LightningMaximumHitTaken, Str, Dex, Int. Any PoB calc output key is accepted.",
+        'JSON array of stat names to rank nearby nodes by (e.g. \'["Life","CombinedDPS"]\'). ' +
+        "Triggers explore mode: finds unallocated nodes reachable from the current tree and ranks them by real calc impact per passive point. " +
+        "Requires build_id. Returns one ranked list per metric, each with baseline value and top nodes including stat deltas, path cost, travel path, and efficiency score. " +
+        "Common metrics: Life, EnergyShield, CombinedDPS, FullDPS, Armour, Evasion, BlockChance, " +
+        "SpellSuppressionChance, PhysicalMaximumHitTaken, ColdMaximumHitTaken, FireMaximumHitTaken, " +
+        "LightningMaximumHitTaken, Str, Dex, Int. Any PoB calc output key is accepted.",
     },
     nearby_radius: {
       type: "number",
       description:
-        "Maximum path distance for nearby node search (default 5). "
-        + "Increase to discover high-value nodes further from the current tree. Only used with nearby_metrics.",
+        "Maximum path distance for nearby node search (default 5). " +
+        "Increase to discover high-value nodes further from the current tree. Only used with nearby_metrics.",
     },
     nearby_limit: {
       type: "number",
@@ -145,19 +150,78 @@ export const buildPlannerModule: NativeReferenceModule = {
     nearby_delta_stats: {
       type: "string",
       description:
-        "JSON array of extra stat names to include in each node's deltas for context "
-        + "(default '[\"Life\",\"CombinedDPS\",\"EnergyShield\"]'). Only used with nearby_metrics.",
+        "JSON array of extra stat names to include in each node's deltas for context " +
+        '(default \'["Life","CombinedDPS","EnergyShield"]\'). Only used with nearby_metrics.',
     },
     nearby_sort: {
       type: "string",
       description:
-        "Sort order for nearby results: 'desc' (default) ranks nodes with the highest positive impact first "
-        + "(best improvements). 'asc' ranks nodes with the most negative impact first "
-        + "(useful for finding what would hurt a stat). Only used with nearby_metrics.",
+        "Sort order for nearby results: 'desc' (default) ranks nodes with the highest positive impact first " +
+        "(best improvements). 'asc' ranks nodes with the most negative impact first " +
+        "(useful for finding what would hurt a stat). Only used with nearby_metrics.",
+    },
+    audit_allocated: {
+      type: "string",
+      description:
+        "Set to 'true' to audit the player's CURRENT allocated passive tree for underperforming branches. " +
+        "Inverse of nearby_metrics: instead of suggesting nodes to add, identifies branches to consider removing. " +
+        "Returns ranked branches with real per-branch deltas (what you'd lose by cutting), each branch's terminal " +
+        "(the notable/keystone the branch was taken for), per-node breakdown of which nodes inside the branch are " +
+        "removable in isolation, and a dead_weight bucket of zero-contribution nodes. " +
+        "Pairs with nearby_metrics: call this first to find weak branches, then call nearby_metrics to find " +
+        "replacement directions, then propose the swap. Requires build_id.",
+    },
+    audit_metrics: {
+      type: "string",
+      description:
+        'JSON array of stat names to rank weak branches by (default \'["Life","CombinedDPS","EnergyShield"]\'). ' +
+        "Branches are ranked by their delta in the FIRST metric. Common metrics: Life, EnergyShield, CombinedDPS, " +
+        "FullDPS, Armour, Evasion. Any PoB calc output key is accepted. Only used with audit_allocated.",
+    },
+    audit_delta_stats: {
+      type: "string",
+      description:
+        "JSON array of additional stat names to include in each branch's deltas for context " +
+        "(defaults to audit_metrics). Branches always carry deltas for these AND for audit_metrics. " +
+        "Only used with audit_allocated.",
+    },
+    audit_branch_limit: {
+      type: "number",
+      description:
+        "Maximum branches to return after ranking (default 10, max 50). Only used with audit_allocated.",
+    },
+    audit_node_limit: {
+      type: "number",
+      description:
+        "Maximum leaf nodes to drill into per scope for the per-node breakdown (default 20, max 100). " +
+        "Higher values give richer per-node detail but cost more PoB calc time. Only used with audit_allocated.",
+    },
+    audit_include_zero: {
+      type: "string",
+      description:
+        "Set to 'false' to suppress the dead_weight bucket (default 'true', meaning zero-contribution nodes " +
+        "are flagged). Only used with audit_allocated.",
+    },
+    audit_sort: {
+      type: "string",
+      description:
+        "Sort order for audit results: 'weakest' (default) puts branches you'd lose the LEAST by removing first " +
+        "(closest-to-zero deltas — the cuts to suggest). 'strongest' puts branches you'd lose the MOST by removing first " +
+        "(load-bearing branches — what's actually carrying the build). Only used with audit_allocated.",
+    },
+    audit_scope: {
+      type: "string",
+      description:
+        "Which part of the tree to audit: 'tree' (default, the regular passive tree), 'ascendancy' (only ascendancy nodes — " +
+        "for respec analysis), or 'both' (returns parallel tree_branches and ascendancy_branches sections, never merged " +
+        "since they suggest structurally different actions). Only used with audit_allocated.",
     },
   },
 
-  async execute(query: Record<string, unknown>, env: Env): Promise<ReferenceResult> {
+  async execute(
+    query: Record<string, unknown>,
+    env: Env,
+  ): Promise<ReferenceResult> {
     const build = query.build as string | undefined;
     const buildId = query.build_id as string | undefined;
     const operations = query.operations as string | undefined;
@@ -168,6 +232,14 @@ export const buildPlannerModule: NativeReferenceModule = {
     const nearbyLimit = query.nearby_limit as number | undefined;
     const nearbyDeltaStats = query.nearby_delta_stats as string | undefined;
     const nearbySort = query.nearby_sort as string | undefined;
+    const auditAllocated = query.audit_allocated as string | undefined;
+    const auditMetrics = query.audit_metrics as string | undefined;
+    const auditDeltaStats = query.audit_delta_stats as string | undefined;
+    const auditBranchLimit = query.audit_branch_limit as number | undefined;
+    const auditNodeLimit = query.audit_node_limit as number | undefined;
+    const auditIncludeZero = query.audit_include_zero as string | undefined;
+    const auditSort = query.audit_sort as string | undefined;
+    const auditScope = query.audit_scope as string | undefined;
 
     if (!build && !buildId) {
       return {
@@ -193,6 +265,108 @@ export const buildPlannerModule: NativeReferenceModule = {
       };
     }
 
+    // Audit mode: audit_allocated triggers /audit (inverse of explore — find
+    // what to cut from the current tree). Mutually exclusive with the other
+    // modes; checked before nearby/operations/resolve to short-circuit cleanly.
+    if (auditAllocated) {
+      if (!buildId) {
+        return {
+          type: "text",
+          content: "Error: build_id is required for audit_allocated.",
+        };
+      }
+
+      // metrics: optional JSON array; defaults applied server-side
+      let parsedAuditMetrics: unknown[] | undefined;
+      if (auditMetrics) {
+        try {
+          parsedAuditMetrics = JSON.parse(auditMetrics);
+          if (!Array.isArray(parsedAuditMetrics)) {
+            return {
+              type: "text",
+              content: "Error: audit_metrics must be a JSON array.",
+            };
+          }
+        } catch {
+          return {
+            type: "text",
+            content: "Error: audit_metrics is not valid JSON.",
+          };
+        }
+      }
+
+      // delta_stats: optional JSON array; defaults to audit_metrics server-side
+      let parsedAuditDeltaStats: unknown[] | undefined;
+      if (auditDeltaStats) {
+        try {
+          parsedAuditDeltaStats = JSON.parse(auditDeltaStats);
+          if (!Array.isArray(parsedAuditDeltaStats)) {
+            return {
+              type: "text",
+              content: "Error: audit_delta_stats must be a JSON array.",
+            };
+          }
+        } catch {
+          return {
+            type: "text",
+            content: "Error: audit_delta_stats is not valid JSON.",
+          };
+        }
+      }
+
+      // include_zero: snake-case string param → bool. Default true; pass
+      // 'false' / 'no' / '0' to suppress the dead_weight bucket. The Go server
+      // distinguishes "field omitted" from "explicitly false" via a *bool, so
+      // only forward the field when the player set it explicitly.
+      let parsedIncludeZero: boolean | undefined;
+      if (auditIncludeZero !== undefined) {
+        const lowered = auditIncludeZero.toLowerCase();
+        parsedIncludeZero = !(
+          lowered === "false" ||
+          lowered === "no" ||
+          lowered === "0"
+        );
+      }
+
+      // Snake_case → camelCase translation. The Go server validates and clamps
+      // everything (max 10 metrics, max 20 deltaStats, branchLimit ∈ [1,50],
+      // nodeLimit ∈ [1,100], scope ∈ {tree,ascendancy,both}, sort ∈
+      // {weakest,strongest}); the TS layer just forwards.
+      const auditBody: Record<string, unknown> = { buildId };
+      if (parsedAuditMetrics !== undefined)
+        auditBody.metrics = parsedAuditMetrics;
+      if (parsedAuditDeltaStats !== undefined)
+        auditBody.deltaStats = parsedAuditDeltaStats;
+      if (auditBranchLimit !== undefined)
+        auditBody.branchLimit = auditBranchLimit;
+      if (auditNodeLimit !== undefined) auditBody.nodeLimit = auditNodeLimit;
+      if (parsedIncludeZero !== undefined)
+        auditBody.includeZero = parsedIncludeZero;
+      if (auditSort) auditBody.sort = auditSort;
+      if (auditScope) auditBody.scope = auditScope;
+
+      let response: Response;
+      try {
+        response = await pobFetch(pobUrl, "/audit", auditBody, env.POB_API_KEY);
+      } catch (e) {
+        return {
+          type: "text",
+          content: `PoB calc service is currently unavailable: ${e instanceof Error ? e.message : "unknown error"}. Try again later.`,
+        };
+      }
+
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        return {
+          type: "text",
+          content: `PoB audit error (${String(response.status)}): ${body}`,
+        };
+      }
+
+      const auditResult = (await response.json()) as Record<string, unknown>;
+      return { type: "structured", data: auditResult };
+    }
+
     // Explore mode: nearby_metrics triggers /nearby search
     if (nearbyMetrics) {
       if (!buildId) {
@@ -206,10 +380,16 @@ export const buildPlannerModule: NativeReferenceModule = {
       try {
         parsedMetrics = JSON.parse(nearbyMetrics);
         if (!Array.isArray(parsedMetrics) || parsedMetrics.length === 0) {
-          return { type: "text", content: "Error: nearby_metrics must be a non-empty JSON array." };
+          return {
+            type: "text",
+            content: "Error: nearby_metrics must be a non-empty JSON array.",
+          };
         }
       } catch {
-        return { type: "text", content: "Error: nearby_metrics is not valid JSON." };
+        return {
+          type: "text",
+          content: "Error: nearby_metrics is not valid JSON.",
+        };
       }
 
       let parsedDeltaStats: unknown[] | undefined;
@@ -217,10 +397,16 @@ export const buildPlannerModule: NativeReferenceModule = {
         try {
           parsedDeltaStats = JSON.parse(nearbyDeltaStats);
           if (!Array.isArray(parsedDeltaStats)) {
-            return { type: "text", content: "Error: nearby_delta_stats must be a JSON array." };
+            return {
+              type: "text",
+              content: "Error: nearby_delta_stats must be a JSON array.",
+            };
           }
         } catch {
-          return { type: "text", content: "Error: nearby_delta_stats is not valid JSON." };
+          return {
+            type: "text",
+            content: "Error: nearby_delta_stats is not valid JSON.",
+          };
         }
       }
 
@@ -235,7 +421,12 @@ export const buildPlannerModule: NativeReferenceModule = {
 
       let response: Response;
       try {
-        response = await pobFetch(pobUrl, "/nearby", nearbyBody, env.POB_API_KEY);
+        response = await pobFetch(
+          pobUrl,
+          "/nearby",
+          nearbyBody,
+          env.POB_API_KEY,
+        );
       } catch (e) {
         return {
           type: "text",
@@ -262,7 +453,14 @@ export const buildPlannerModule: NativeReferenceModule = {
       // Resolve URL → buildId + calc results
       let response: Response;
       try {
-        response = await pobFetch(pobUrl, "/resolve", { url: build }, env.POB_API_KEY, sections, statKeys);
+        response = await pobFetch(
+          pobUrl,
+          "/resolve",
+          { url: build },
+          env.POB_API_KEY,
+          sections,
+          statKeys,
+        );
       } catch (e) {
         return {
           type: "text",
@@ -278,7 +476,10 @@ export const buildPlannerModule: NativeReferenceModule = {
         };
       }
 
-      const resolveResult = (await response.json()) as { buildId: string; data: unknown };
+      const resolveResult = (await response.json()) as {
+        buildId: string;
+        data: unknown;
+      };
       resolvedBuildId = resolveResult.buildId;
 
       // If no operations, return the resolve result directly
@@ -292,7 +493,8 @@ export const buildPlannerModule: NativeReferenceModule = {
       if (!resolvedBuildId) {
         return {
           type: "text",
-          content: "Error: operations require a build to modify. Provide either build (URL) or build_id.",
+          content:
+            "Error: operations require a build to modify. Provide either build (URL) or build_id.",
         };
       }
 
@@ -300,10 +502,16 @@ export const buildPlannerModule: NativeReferenceModule = {
       try {
         parsedOps = JSON.parse(operations);
         if (!Array.isArray(parsedOps) || parsedOps.length === 0) {
-          return { type: "text", content: "Error: operations must be a non-empty JSON array." };
+          return {
+            type: "text",
+            content: "Error: operations must be a non-empty JSON array.",
+          };
         }
       } catch {
-        return { type: "text", content: "Error: operations is not valid JSON." };
+        return {
+          type: "text",
+          content: "Error: operations is not valid JSON.",
+        };
       }
 
       let response: Response;
