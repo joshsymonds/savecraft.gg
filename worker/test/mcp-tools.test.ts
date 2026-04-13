@@ -541,7 +541,7 @@ describe("MCP Tools", () => {
 
     it("suggests similar deck names when deck: section not found", async () => {
       const mtgaState = {
-        identity: { saveName: "Player", gameId: "mtga" },
+        identity: { saveName: "Player", gameId: "magic" },
         summary: "Player",
         sections: {
           player_summary: {
@@ -565,7 +565,7 @@ describe("MCP Tools", () => {
       await seedSave({
         saveUuid: "save-deck-fuzzy",
         userUuid: USER_A,
-        gameId: "mtga",
+        gameId: "magic",
         saveName: "Player",
         summary: "Player",
         gameState: mtgaState as unknown as typeof sampleGameState,
@@ -1731,7 +1731,7 @@ describe("MCP Tools", () => {
         "clair-obscur",
         "d2r",
         "factorio",
-        "mtga",
+        "magic",
         "poe",
         "rimworld",
         "sdv",

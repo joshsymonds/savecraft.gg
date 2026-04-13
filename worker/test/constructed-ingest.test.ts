@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { deriveFormat } from "../src/mtga/format";
+import { deriveFormat } from "../src/magic/format";
 import { storePush } from "../src/store";
 import type { SectionInput } from "../src/store";
 
@@ -70,16 +70,16 @@ describe("MTGA Constructed match ingest", () => {
       env,
       "user-abc",
       sourceUuid,
-      "mtga",
+      "magic",
       "Player",
       "Gold 4 Constructed",
       new Date().toISOString(),
       sections,
     );
 
-    // All 3 matches should be in mtga_match_history
+    // All 3 matches should be in magic_match_history
     const rows = await env.DB.prepare(
-      "SELECT * FROM mtga_match_history WHERE user_uuid = ? ORDER BY match_id",
+      "SELECT * FROM magic_match_history WHERE user_uuid = ? ORDER BY match_id",
     )
       .bind("user-abc")
       .all<{
@@ -124,7 +124,7 @@ describe("MTGA Constructed match ingest", () => {
       env,
       "user-abc",
       sourceUuid,
-      "mtga",
+      "magic",
       "Player",
       "Gold 4",
       "2026-03-26T12:00:00Z",
@@ -135,7 +135,7 @@ describe("MTGA Constructed match ingest", () => {
       env,
       "user-abc",
       sourceUuid,
-      "mtga",
+      "magic",
       "Player",
       "Gold 4 updated",
       "2026-03-26T13:00:00Z",
@@ -143,7 +143,7 @@ describe("MTGA Constructed match ingest", () => {
     );
 
     const count = await env.DB.prepare(
-      "SELECT COUNT(*) as n FROM mtga_match_history WHERE user_uuid = ?",
+      "SELECT COUNT(*) as n FROM magic_match_history WHERE user_uuid = ?",
     )
       .bind("user-abc")
       .first<{ n: number }>();
@@ -170,7 +170,7 @@ describe("MTGA Constructed match ingest", () => {
       sections,
     );
 
-    const count = await env.DB.prepare("SELECT COUNT(*) as n FROM mtga_match_history").first<{
+    const count = await env.DB.prepare("SELECT COUNT(*) as n FROM magic_match_history").first<{
       n: number;
     }>();
 
@@ -189,14 +189,14 @@ describe("MTGA Constructed match ingest", () => {
       env,
       null,
       sourceUuid,
-      "mtga",
+      "magic",
       "Player",
       "Gold 4",
       new Date().toISOString(),
       sections,
     );
 
-    const count = await env.DB.prepare("SELECT COUNT(*) as n FROM mtga_match_history").first<{
+    const count = await env.DB.prepare("SELECT COUNT(*) as n FROM magic_match_history").first<{
       n: number;
     }>();
 

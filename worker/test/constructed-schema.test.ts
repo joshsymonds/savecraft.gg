@@ -6,11 +6,11 @@ import { cleanAll } from "./helpers";
 describe("MTGA Constructed D1 schema", () => {
   beforeEach(cleanAll);
 
-  // ── mtga_match_history ───────────────────────────────────
+  // ── magic_match_history ───────────────────────────────────
 
   it("inserts and retrieves match history", async () => {
     await env.DB.prepare(
-      `INSERT INTO mtga_match_history
+      `INSERT INTO magic_match_history
         (match_id, user_uuid, event_id, format, deck_name, result,
          game_results, opponent_name, opponent_rank, opponent_cards, played_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
@@ -30,7 +30,7 @@ describe("MTGA Constructed D1 schema", () => {
       )
       .run();
 
-    const row = await env.DB.prepare("SELECT * FROM mtga_match_history WHERE match_id = ?")
+    const row = await env.DB.prepare("SELECT * FROM magic_match_history WHERE match_id = ?")
       .bind("match-001")
       .first<{
         match_id: string;
@@ -60,7 +60,7 @@ describe("MTGA Constructed D1 schema", () => {
 
     for (const [matchId, user, format, deck, result] of matches) {
       await env.DB.prepare(
-        `INSERT INTO mtga_match_history
+        `INSERT INTO magic_match_history
           (match_id, user_uuid, event_id, format, deck_name, result, played_at)
          VALUES (?, ?, 'event', ?, ?, ?, '2026-03-26T12:00:00Z')`,
       )
@@ -73,7 +73,7 @@ describe("MTGA Constructed D1 schema", () => {
       `SELECT
         COUNT(*) as total,
         SUM(CASE WHEN result = 'win' THEN 1 ELSE 0 END) as wins
-       FROM mtga_match_history
+       FROM magic_match_history
        WHERE user_uuid = ? AND format = ?`,
     )
       .bind("user-abc", "Standard")
@@ -85,7 +85,7 @@ describe("MTGA Constructed D1 schema", () => {
     // User abc Historic: 1W
     const historic = await env.DB.prepare(
       `SELECT COUNT(*) as total
-       FROM mtga_match_history
+       FROM magic_match_history
        WHERE user_uuid = ? AND format = ?`,
     )
       .bind("user-abc", "Historic")
@@ -96,7 +96,7 @@ describe("MTGA Constructed D1 schema", () => {
     // User xyz should not see abc's matches
     const other = await env.DB.prepare(
       `SELECT COUNT(*) as total
-       FROM mtga_match_history
+       FROM magic_match_history
        WHERE user_uuid = ?`,
     )
       .bind("user-xyz")
@@ -107,26 +107,26 @@ describe("MTGA Constructed D1 schema", () => {
 
   it("deduplicates on match_id (PRIMARY KEY)", async () => {
     await env.DB.prepare(
-      `INSERT INTO mtga_match_history
+      `INSERT INTO magic_match_history
         (match_id, user_uuid, event_id, format, result, played_at)
        VALUES ('dup-1', 'user-abc', 'event', 'Standard', 'win', '2026-03-26T12:00:00Z')`,
     ).run();
 
     // INSERT OR REPLACE should update
     await env.DB.prepare(
-      `INSERT OR REPLACE INTO mtga_match_history
+      `INSERT OR REPLACE INTO magic_match_history
         (match_id, user_uuid, event_id, format, result, played_at)
        VALUES ('dup-1', 'user-abc', 'event', 'Standard', 'loss', '2026-03-26T12:00:00Z')`,
     ).run();
 
     const row = await env.DB.prepare(
-      "SELECT result FROM mtga_match_history WHERE match_id = 'dup-1'",
+      "SELECT result FROM magic_match_history WHERE match_id = 'dup-1'",
     ).first<{ result: string }>();
 
     expect(row!.result).toBe("loss");
   });
 
-  // ── mtga_meta_archetypes ─────────────────────────────────
+  // ── magic_meta_archetypes ─────────────────────────────────
 
   it("inserts and queries metagame archetypes", async () => {
     const archetypes = [
@@ -137,7 +137,7 @@ describe("MTGA Constructed D1 schema", () => {
 
     for (const [format, name, share, wr, size] of archetypes) {
       await env.DB.prepare(
-        `INSERT INTO mtga_meta_archetypes
+        `INSERT INTO magic_meta_archetypes
           (format, archetype_name, metagame_share, win_rate, sample_size, last_updated)
          VALUES (?, ?, ?, ?, ?, '2026-03-26T00:00:00Z')`,
       )
@@ -147,7 +147,7 @@ describe("MTGA Constructed D1 schema", () => {
 
     const rows = await env.DB.prepare(
       `SELECT archetype_name, metagame_share, win_rate
-       FROM mtga_meta_archetypes
+       FROM magic_meta_archetypes
        WHERE format = ?
        ORDER BY metagame_share DESC`,
     )
@@ -159,7 +159,7 @@ describe("MTGA Constructed D1 schema", () => {
     expect(rows.results[0]!.metagame_share).toBeCloseTo(0.15);
   });
 
-  // ── mtga_meta_decklists ──────────────────────────────────
+  // ── magic_meta_decklists ──────────────────────────────────
 
   it("inserts and queries tournament decklists", async () => {
     const decklist = JSON.stringify({
@@ -171,7 +171,7 @@ describe("MTGA Constructed D1 schema", () => {
     });
 
     await env.DB.prepare(
-      `INSERT INTO mtga_meta_decklists
+      `INSERT INTO magic_meta_decklists
         (format, archetype_name, tournament_id, tournament_name, player_name, placement, decklist, date)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
@@ -188,7 +188,7 @@ describe("MTGA Constructed D1 schema", () => {
       .run();
 
     const rows = await env.DB.prepare(
-      `SELECT * FROM mtga_meta_decklists WHERE format = ? AND archetype_name = ?`,
+      `SELECT * FROM magic_meta_decklists WHERE format = ? AND archetype_name = ?`,
     )
       .bind("Standard", "Grixis Midrange")
       .all<{ player_name: string; placement: number; decklist: string }>();
@@ -199,17 +199,17 @@ describe("MTGA Constructed D1 schema", () => {
     expect(JSON.parse(rows.results[0]!.decklist).main).toHaveLength(2);
   });
 
-  // ── mtga_meta_matchups ───────────────────────────────────
+  // ── magic_meta_matchups ───────────────────────────────────
 
   it("inserts and queries matchup data", async () => {
     await env.DB.batch([
       env.DB.prepare(
-        `INSERT INTO mtga_meta_matchups
+        `INSERT INTO magic_meta_matchups
           (format, archetype_a, archetype_b, win_rate_a, sample_size)
          VALUES (?, ?, ?, ?, ?)`,
       ).bind("Standard", "Grixis Midrange", "Mono Red Aggro", 0.55, 200),
       env.DB.prepare(
-        `INSERT INTO mtga_meta_matchups
+        `INSERT INTO magic_meta_matchups
           (format, archetype_a, archetype_b, win_rate_a, sample_size)
          VALUES (?, ?, ?, ?, ?)`,
       ).bind("Standard", "Mono Red Aggro", "Grixis Midrange", 0.45, 200),
@@ -217,7 +217,7 @@ describe("MTGA Constructed D1 schema", () => {
 
     const row = await env.DB.prepare(
       `SELECT win_rate_a, sample_size
-       FROM mtga_meta_matchups
+       FROM magic_meta_matchups
        WHERE format = ? AND archetype_a = ? AND archetype_b = ?`,
     )
       .bind("Standard", "Grixis Midrange", "Mono Red Aggro")
@@ -228,7 +228,7 @@ describe("MTGA Constructed D1 schema", () => {
 
     // Reverse direction
     const reverse = await env.DB.prepare(
-      `SELECT win_rate_a FROM mtga_meta_matchups
+      `SELECT win_rate_a FROM magic_meta_matchups
        WHERE format = ? AND archetype_a = ? AND archetype_b = ?`,
     )
       .bind("Standard", "Mono Red Aggro", "Grixis Midrange")

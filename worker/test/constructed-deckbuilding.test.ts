@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { deckbuildingModule } from "../../plugins/mtga/reference/deckbuilding";
+import { deckbuildingModule } from "../../plugins/magic/reference/deckbuilding";
 
 import { cleanAll } from "./helpers";
 
@@ -368,14 +368,14 @@ describe("deckbuilding Constructed mode", () => {
   it("existing draft mode still works", async () => {
     // Seed minimal draft data so the existing mode doesn't break
     await env.DB.prepare(
-      `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata)
+      `INSERT INTO magic_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind("BLB", "Heartfire Hero", 5000, 7000, 2000, 0.55, 0.56, 0.53, 0.5, 0.03, 5, 6)
       .run();
 
     await env.DB.prepare(
-      `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks)
+      `INSERT INTO magic_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind("BLB", "R", 17, 15, 8, 1, 0.2, 2, 0.48, 0.52, 500)

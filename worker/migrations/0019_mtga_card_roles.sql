@@ -2,7 +2,7 @@
 -- Used for role-based deck composition scoring in draft recommendations.
 -- Populated by tagger-fetch tool, which scrapes Scryfall search API per set.
 
-CREATE TABLE IF NOT EXISTS mtga_card_roles (
+CREATE TABLE IF NOT EXISTS magic_card_roles (
   oracle_id       TEXT NOT NULL,
   front_face_name TEXT NOT NULL,
   role            TEXT NOT NULL,
@@ -11,6 +11,6 @@ CREATE TABLE IF NOT EXISTS mtga_card_roles (
 );
 
 CREATE INDEX IF NOT EXISTS idx_card_roles_name
-  ON mtga_card_roles(front_face_name, set_code);
+  ON magic_card_roles(front_face_name, set_code);
 CREATE INDEX IF NOT EXISTS idx_card_roles_set
-  ON mtga_card_roles(set_code);
+  ON magic_card_roles(set_code);

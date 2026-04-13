@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { cardSearchModule } from "../../plugins/mtga/reference/card-search";
+import { cardSearchModule } from "../../plugins/magic/reference/card-search";
 import { registerNativeModule } from "../src/reference/registry";
 
 import { cleanAll } from "./helpers";
@@ -9,7 +9,7 @@ import { cleanAll } from "./helpers";
 describe("card_search native module", () => {
   beforeEach(async () => {
     await cleanAll();
-    registerNativeModule("mtga", cardSearchModule);
+    registerNativeModule("magic", cardSearchModule);
   });
 
   async function seedCards(): Promise<void> {

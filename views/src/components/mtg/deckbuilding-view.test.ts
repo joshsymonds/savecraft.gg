@@ -1,7 +1,7 @@
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it } from "vitest";
 
-import Deckbuilding from "../../../../plugins/mtga/reference/views/deckbuilding.svelte";
+import Deckbuilding from "../../../../plugins/magic/reference/views/deckbuilding.svelte";
 
 afterEach(cleanup);
 

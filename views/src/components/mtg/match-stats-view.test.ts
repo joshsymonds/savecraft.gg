@@ -1,7 +1,7 @@
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it } from "vitest";
 
-import MatchStats from "../../../../plugins/mtga/reference/views/match-stats.svelte";
+import MatchStats from "../../../../plugins/magic/reference/views/match-stats.svelte";
 
 afterEach(cleanup);
 

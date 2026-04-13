@@ -37,7 +37,7 @@ import { VIEWS, VISUAL_MODULES } from "./views.gen.js";
 
 const PROTOCOL_VERSION = "2025-06-18";
 
-/** Generated game_id hint for tool descriptions — e.g. "poe (Path of Exile), mtga (Magic: The Gathering), ..." */
+/** Generated game_id hint for tool descriptions — e.g. "poe (Path of Exile), magic (Magic: The Gathering), ..." */
 const GAME_ID_HINT = MANIFEST_LIST.map((m) =>
   m.name ? `${m.game_id} (${m.name})` : m.game_id,
 ).join(", ");
@@ -52,7 +52,7 @@ Reference modules work without saves. Most are standalone knowledge bases — ru
 
 Always fetch live data — never assume you know a player's saves, characters, or game state from memory. Save data changes constantly. Fetch only what's relevant: use the filter parameter on list_games and request only the sections you'll reference. Memory is useful for player goals and preferences, not game state.
 
-Tool workflow: list_games shows games, saves, and reference modules. Unfiltered list_games shows module summaries without parameter schemas. Pass a filter to get full schemas — e.g. list_games(filter="poe"). If a filter returns no results, try the game_id directly (e.g. "mtga" for Magic, "d2r" for Diablo II) — game_ids don't always match colloquial names. get_save for a character, then get_section for detail. search_saves for cross-character queries (default to OR between keywords). Read relevant notes (get_note) before giving advice. refresh_save when something just changed in-game. setup_help ONLY when the player explicitly wants to connect a game or save — not when they merely lack saves. Answer reference questions first.
+Tool workflow: list_games shows games, saves, and reference modules. Unfiltered list_games shows module summaries without parameter schemas. Pass a filter to get full schemas — e.g. list_games(filter="poe"). If a filter returns no results, try the game_id directly (e.g. "magic" for Magic: The Gathering, "d2r" for Diablo II) — game_ids don't always match colloquial names. get_save for a character, then get_section for detail. search_saves for cross-character queries (default to OR between keywords). Read relevant notes (get_note) before giving advice. refresh_save when something just changed in-game. setup_help ONLY when the player explicitly wants to connect a game or save — not when they merely lack saves. Answer reference questions first.
 
 Visual-first: show_* tools return full data AND render an interactive view — the player sees a richer result and you can still reason from the data. Use show tools when presenting results to the player; fall back to data tools when the answer is a sentence or no visual exists. Exception: always use list_games (not show_games) for schema loading before reference queries — the visual is unnecessary for that step.
 

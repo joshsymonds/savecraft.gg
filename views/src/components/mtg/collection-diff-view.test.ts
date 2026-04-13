@@ -1,7 +1,7 @@
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it } from "vitest";
 
-import CollectionDiff from "../../../../plugins/mtga/reference/views/collection-diff.svelte";
+import CollectionDiff from "../../../../plugins/magic/reference/views/collection-diff.svelte";
 
 afterEach(cleanup);
 

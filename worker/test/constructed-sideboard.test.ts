@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { sideboardAnalysisModule } from "../../plugins/mtga/reference/sideboard-analysis";
+import { sideboardAnalysisModule } from "../../plugins/magic/reference/sideboard-analysis";
 
 import { cleanAll } from "./helpers";
 
@@ -134,7 +134,7 @@ async function seedBO3Matches(): Promise<void> {
 
   for (const m of matches) {
     await env.DB.prepare(
-      `INSERT INTO mtga_match_history
+      `INSERT INTO magic_match_history
         (match_id, user_uuid, event_id, format, deck_name, result,
          game_results, opponent_name, opponent_rank, opponent_cards, played_at)
        VALUES (?, ?, 'event', ?, '', ?, ?, '', '', ?, ?)`,

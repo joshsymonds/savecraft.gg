@@ -2,7 +2,7 @@
 -- Both directions stored (A→B and B→A) for clean index-only lookups.
 -- Used by draft_ratings module mode 6 for contextual pick recommendations.
 
-CREATE TABLE IF NOT EXISTS mtga_draft_synergies (
+CREATE TABLE IF NOT EXISTS magic_draft_synergies (
   set_code       TEXT NOT NULL,
   card_a         TEXT NOT NULL,
   card_b         TEXT NOT NULL,
@@ -12,12 +12,12 @@ CREATE TABLE IF NOT EXISTS mtga_draft_synergies (
 );
 
 CREATE INDEX IF NOT EXISTS idx_draft_synergies_lookup
-  ON mtga_draft_synergies(set_code, card_a);
+  ON magic_draft_synergies(set_code, card_a);
 
 -- Average CMC distribution of winning decks per archetype.
 -- Used by draft_ratings module mode 6 for curve need scoring.
 
-CREATE TABLE IF NOT EXISTS mtga_draft_archetype_curves (
+CREATE TABLE IF NOT EXISTS magic_draft_archetype_curves (
   set_code    TEXT NOT NULL,
   color_pair  TEXT NOT NULL,
   cmc         INTEGER NOT NULL,

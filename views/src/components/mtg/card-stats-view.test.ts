@@ -1,7 +1,7 @@
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it } from "vitest";
 
-import CardStats from "../../../../plugins/mtga/reference/views/card-stats.svelte";
+import CardStats from "../../../../plugins/magic/reference/views/card-stats.svelte";
 
 afterEach(cleanup);
 

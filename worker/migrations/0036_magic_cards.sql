@@ -1,12 +1,12 @@
--- Replace mtga_cards (arena_id PK) with magic_cards (scryfall_id PK).
+-- Replace magic_cards (arena_id PK) with magic_cards (scryfall_id PK).
 -- Expands card coverage from Arena-only (~23k) to all Magic cards (~113k)
 -- via Scryfall bulk data. arena_id becomes a nullable indexed column for
 -- collection_diff lookups. DFC back-face arena_ids stored in arena_id_back.
 
 -- ── Drop old tables ─────────────────────────────────────────────
 
-DROP TABLE IF EXISTS mtga_cards_fts;
-DROP TABLE IF EXISTS mtga_cards;
+DROP TABLE IF EXISTS magic_cards_fts;
+DROP TABLE IF EXISTS magic_cards;
 
 -- ── New card data table ─────────────────────────────────────────
 

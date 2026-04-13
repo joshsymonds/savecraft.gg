@@ -490,7 +490,7 @@ describe("MCP Protocol", () => {
     const resp = await SELF.fetch(
       mcpRequest("tools/call", 14, {
         name: "query_reference",
-        arguments: { game_id: "mtga", module: "card_search", queries: [] },
+        arguments: { game_id: "magic", module: "card_search", queries: [] },
       }),
     );
     expect(resp.status).toBe(200);
@@ -519,7 +519,7 @@ describe("MCP Protocol", () => {
     const resp = await SELF.fetch(
       mcpRequest("tools/call", 15, {
         name: "query_reference",
-        arguments: { game_id: "mtga", module: "card_search", queries },
+        arguments: { game_id: "magic", module: "card_search", queries },
       }),
     );
     expect(resp.status).toBe(200);

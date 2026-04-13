@@ -44,7 +44,7 @@
     rarity: "common",
   };
 
-  const iconUrl = "/plugins/mtga/icon.png";
+  const iconUrl = "/plugins/magic/icon.png";
 
   const goForTheThroat = {
     name: "Go for the Throat",

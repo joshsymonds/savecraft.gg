@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { playAdvisorModule } from "../../plugins/mtga/reference/play-advisor";
+import { playAdvisorModule } from "../../plugins/magic/reference/play-advisor";
 import { registerNativeModule } from "../src/reference/registry";
 
 import { cleanAll } from "./helpers";
@@ -115,7 +115,7 @@ async function seedCardTiming(): Promise<void> {
   ];
   for (const r of rows) {
     await env.DB.prepare(
-      `INSERT INTO mtga_play_card_timing (set_code, card_name, archetype, turn_number, times_deployed, games_won, total_games)
+      `INSERT INTO magic_play_card_timing (set_code, card_name, archetype, turn_number, times_deployed, games_won, total_games)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(r.set, r.card, r.arch, r.turn, r.deployed, r.won, r.total)
@@ -135,7 +135,7 @@ async function seedTempo(): Promise<void> {
   ];
   for (const r of rows) {
     await env.DB.prepare(
-      `INSERT INTO mtga_play_tempo (set_code, archetype, turn_number, on_play, mana_spent_bucket, games_won, total_games)
+      `INSERT INTO magic_play_tempo (set_code, archetype, turn_number, on_play, mana_spent_bucket, games_won, total_games)
        VALUES (?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(r.set, r.arch, r.turn, r.onPlay, r.bucket, r.won, r.total)
@@ -190,7 +190,7 @@ async function seedCombat(): Promise<void> {
   ];
   for (const r of rows) {
     await env.DB.prepare(
-      `INSERT INTO mtga_play_combat (set_code, attacker_name, turn_number, user_creatures_count, oppo_creatures_count, attacked, games_won, total_games)
+      `INSERT INTO magic_play_combat (set_code, attacker_name, turn_number, user_creatures_count, oppo_creatures_count, attacked, games_won, total_games)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(r.set, r.attacker, r.turn, r.userC, r.oppoC, r.attacked, r.won, r.total)
@@ -209,7 +209,7 @@ async function seedMulligan(): Promise<void> {
   ];
   for (const r of rows) {
     await env.DB.prepare(
-      `INSERT INTO mtga_play_mulligan (set_code, archetype, on_play, land_count, nonland_cmc_bucket, num_mulligans, games_won, total_games)
+      `INSERT INTO magic_play_mulligan (set_code, archetype, on_play, land_count, nonland_cmc_bucket, num_mulligans, games_won, total_games)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(r.set, r.arch, r.onPlay, r.lands, r.cmc, r.mulls, r.won, r.total)
@@ -300,7 +300,7 @@ async function seedBaselines(): Promise<void> {
   ];
   for (const r of rows) {
     await env.DB.prepare(
-      `INSERT INTO mtga_play_turn_baselines (set_code, archetype, turn_number, on_play, total_mana_spent, total_creatures_cast, total_spells_cast, total_creatures_attacked, total_attacks_possible, games_won, total_games)
+      `INSERT INTO magic_play_turn_baselines (set_code, archetype, turn_number, on_play, total_mana_spent, total_creatures_cast, total_spells_cast, total_creatures_attacked, total_attacks_possible, games_won, total_games)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     )
       .bind(
@@ -369,7 +369,7 @@ async function seedAll(): Promise<void> {
 describe("play_advisor reference module", () => {
   beforeEach(async () => {
     await cleanAll();
-    registerNativeModule("mtga", playAdvisorModule);
+    registerNativeModule("magic", playAdvisorModule);
     await seedAll();
   });
 
@@ -601,7 +601,7 @@ describe("play_advisor reference module", () => {
       `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
-      .bind(saveUuid, "user-play-test", "mtga", "mtga", "TestPlayer", "test")
+      .bind(saveUuid, "user-play-test", "magic", "magic", "TestPlayer", "test")
       .run();
 
     const gameSection = JSON.stringify({
@@ -749,7 +749,7 @@ describe("play_advisor reference module", () => {
       `INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary)
        VALUES (?, ?, ?, ?, ?, ?)`,
     )
-      .bind(saveUuid, "user-notfound", "mtga", "mtga", "TestPlayer", "test")
+      .bind(saveUuid, "user-notfound", "magic", "magic", "TestPlayer", "test")
       .run();
 
     const result = await playAdvisorModule.execute(

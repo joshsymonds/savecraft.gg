@@ -44,11 +44,11 @@
 
   let { data }: Props = $props();
 
-  let character = $derived(data.data.character);
-  let summary = $derived(data.data.summary);
-  let changes = $derived(data.data.changes);
-  let sections = $derived(data.data.sections ?? {});
-  let accent = $derived(classAccent(character.ascendancy || character.class));
+  let character = $derived(data.data?.character);
+  let summary = $derived(data.data?.summary);
+  let changes = $derived(data.data?.changes);
+  let sections = $derived(data.data?.sections ?? {});
+  let accent = $derived(character ? classAccent(character.ascendancy || character.class) : undefined);
   let isDeltaMode = $derived(changes != null && Object.keys(changes).length > 0);
 
   // DataTable columns and rows for delta mode
@@ -130,6 +130,7 @@
 
   // Character subtitle line
   let subtitle = $derived.by(() => {
+    if (!character) return "";
     const parts: string[] = [];
     if (character.ascendancy && character.ascendancy !== character.class) {
       parts.push(`${character.ascendancy} (${character.class})`);
@@ -167,6 +168,7 @@
 </script>
 
 <div class="build-planner">
+  {#if character && summary}
   <!-- Character header -->
   <Panel watermark={data.icon_url} accent={accent}>
     <Section title={character.ascendancy || character.class} subtitle={subtitle} accent={accent}>
@@ -348,6 +350,7 @@
         {/each}
       </Section>
     </Panel>
+  {/if}
   {/if}
 </div>
 

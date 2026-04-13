@@ -176,7 +176,7 @@ func TestInitImport_FailsImmediatelyOnError(t *testing.T) {
 				"success":     false,
 				"status":      "error",
 				"type":        "import",
-				"error":       "no such table: mtga_cards_fts: SQLITE_ERROR",
+				"error":       "no such table: magic_cards_fts: SQLITE_ERROR",
 				"at_bookmark": "000002f2-00000000-00005037-abc123",
 				"messages":    []string{"Starting import..."},
 			},

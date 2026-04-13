@@ -1,7 +1,7 @@
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it } from "vitest";
 
-import PlayAdvisor from "../../../../plugins/mtga/reference/views/play-advisor.svelte";
+import PlayAdvisor from "../../../../plugins/magic/reference/views/play-advisor.svelte";
 
 afterEach(cleanup);
 

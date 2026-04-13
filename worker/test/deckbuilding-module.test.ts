@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { deckbuildingModule } from "../../plugins/mtga/reference/deckbuilding";
+import { deckbuildingModule } from "../../plugins/magic/reference/deckbuilding";
 import { registerNativeModule } from "../src/reference/registry";
 
 import { cleanAll } from "./helpers";
@@ -107,97 +107,97 @@ async function seedDeckbuildingData(): Promise<void> {
 
     // Draft ratings (DSK set)
     env.DB.prepare(
-      `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "Vengeful Strangler", 10_000, 12_000, 2000, 0.56, 0.58, 0.54, 0.5, 0.04, 5, 4),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "Doomsday Excruciator", 5000, 8000, 3000, 0.62, 0.65, 0.6, 0.48, 0.12, 2, 1.5),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "Go for the Throat", 8000, 10_000, 2000, 0.59, 0.61, 0.57, 0.5, 0.07, 3, 2),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "Gloomlake Verge", 15_000, 20_000, 5000, 0.564, 0.62, 0.54, 0.48, 0.06, 8.5, 9.2),
 
     // Set stats
     env.DB.prepare(
-      `INSERT INTO mtga_draft_set_stats (set_code, format, total_games, card_count, avg_gihwr) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_set_stats (set_code, format, total_games, card_count, avg_gihwr) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "PremierDraft", 250_000, 4, 0.55),
 
     // Deck stats for UB and mono-B archetypes
     env.DB.prepare(
-      `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 17.2, 14.5, 5.3, 1.1, 0.25, 2.1, 0.52, 0.55, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     ).bind("DSK", "WB", 17, 15, 5, 0.5, 0.15, 1.5, 0.51, 0.54, 3000),
 
     // Archetype curves for UB and mono-B
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 1, 2.5, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 2, 5.5, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 3, 4, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", 6, 1.5, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "WB", 1, 2.5, 3000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "WB", 2, 5.5, 3000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "WB", 3, 4, 3000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_archetype_curves (set_code, archetype, cmc, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "WB", 6, 1.5, 3000),
 
     // Role targets for UB and mono-B
     env.DB.prepare(
-      `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", "creature", 14.5, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "UB", "removal", 3.5, 5000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "WB", "creature", 15, 3000),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_role_targets (set_code, archetype, role, avg_count, total_decks) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "WB", "removal", 3, 3000),
 
     // Card roles
     env.DB.prepare(
-      `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
     ).bind("o-1", "Vengeful Strangler", "creature", "DSK"),
     env.DB.prepare(
-      `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
     ).bind("o-2", "Doomsday Excruciator", "creature", "DSK"),
     env.DB.prepare(
-      `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
     ).bind("o-3", "Go for the Throat", "removal", "DSK"),
     env.DB.prepare(
-      `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
     ).bind("o-4", "Gloomlake Verge", "creature", "DSK"),
 
     // Synergies
     env.DB.prepare(
-      `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "Vengeful Strangler", "Gloomlake Verge", 0.04, 500),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "Gloomlake Verge", "Vengeful Strangler", 0.04, 500),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "Go for the Throat", "Gloomlake Verge", 0.02, 400),
     env.DB.prepare(
-      `INSERT INTO mtga_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
+      `INSERT INTO magic_draft_synergies (set_code, card_a, card_b, synergy_delta, games_together) VALUES (?, ?, ?, ?, ?)`,
     ).bind("DSK", "Doomsday Excruciator", "Vengeful Strangler", -0.01, 200),
   ]);
 }
@@ -207,7 +207,7 @@ async function seedDeckbuildingData(): Promise<void> {
 describe("deckbuilding native module", () => {
   beforeEach(async () => {
     await cleanAll();
-    registerNativeModule("mtga", deckbuildingModule);
+    registerNativeModule("magic", deckbuildingModule);
   });
 
   describe("health check mode", () => {
@@ -332,16 +332,16 @@ describe("deckbuilding native module", () => {
       // Add cabs roles: creatures and removal are CABS, Divination-like spell is not
       await env.DB.batch([
         env.DB.prepare(
-          `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+          `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
         ).bind("o-1", "Vengeful Strangler", "cabs", "DSK"),
         env.DB.prepare(
-          `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+          `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
         ).bind("o-2", "Doomsday Excruciator", "cabs", "DSK"),
         env.DB.prepare(
-          `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+          `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
         ).bind("o-3", "Go for the Throat", "cabs", "DSK"),
         env.DB.prepare(
-          `INSERT INTO mtga_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
+          `INSERT INTO magic_card_roles (oracle_id, front_face_name, role, set_code) VALUES (?, ?, ?, ?)`,
         ).bind("o-4", "Gloomlake Verge", "cabs", "DSK"),
       ]);
 
@@ -712,16 +712,16 @@ describe("deckbuilding native module", () => {
       // Add archetype stats for UB so alternatives can compute GIH WR shifts.
       await env.DB.batch([
         env.DB.prepare(
-          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
         ).bind("DSK", "Vengeful Strangler", "UB", 5000, 0.58),
         env.DB.prepare(
-          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
         ).bind("DSK", "Doomsday Excruciator", "UB", 3000, 0.64),
         env.DB.prepare(
-          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
         ).bind("DSK", "Go for the Throat", "UB", 4000, 0.61),
         env.DB.prepare(
-          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
         ).bind("DSK", "Gloomlake Verge", "UB", 3000, 0.59),
         // Add a white card so WUB is a viable archetype candidate
         env.DB.prepare(
@@ -740,30 +740,30 @@ describe("deckbuilding native module", () => {
           1,
         ),
         env.DB.prepare(
-          `INSERT INTO mtga_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_ratings (set_code, card_name, games_in_hand, games_played, games_not_seen, gihwr, ohwr, gdwr, gnswr, iwd, alsa, ata) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind("DSK", "White Knight", 10_000, 14_000, 4000, 0.54, 0.54, 0.54, 0.54, 0, 5, 5),
         // WUB (Esper) as an alternative triple archetype — shares UB colors but different identity
         env.DB.prepare(
-          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
         ).bind("DSK", "Vengeful Strangler", "WUB", 3000, 0.56),
         env.DB.prepare(
-          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
         ).bind("DSK", "Doomsday Excruciator", "WUB", 2000, 0.6),
         env.DB.prepare(
-          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
         ).bind("DSK", "Go for the Throat", "WUB", 2000, 0.57),
         env.DB.prepare(
-          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
         ).bind("DSK", "Gloomlake Verge", "WUB", 2000, 0.52),
         // WUB needs deck_stats to appear in candidates
         env.DB.prepare(
-          `INSERT INTO mtga_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_deck_stats (set_code, archetype, avg_lands, avg_creatures, avg_noncreatures, avg_fixing, splash_rate, splash_avg_sources, splash_winrate, nonsplash_winrate, total_decks) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         ).bind("DSK", "WUB", 17, 14, 5, 1, 0.2, 2, 0.51, 0.53, 2000),
         env.DB.prepare(
-          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
         ).bind("DSK", "White Knight", "WUB", 1500, 0.54),
         env.DB.prepare(
-          `INSERT INTO mtga_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
+          `INSERT INTO magic_draft_archetype_stats (set_code, card_name, archetype, games_in_hand, gihwr) VALUES (?, ?, ?, ?, ?)`,
         ).bind("DSK", "White Knight", "UB", 500, 0.5),
       ]);
 

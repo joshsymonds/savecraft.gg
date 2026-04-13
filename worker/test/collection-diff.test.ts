@@ -1,7 +1,7 @@
 import { env } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
-import { collectionDiffModule } from "../../plugins/mtga/reference/collection-diff";
+import { collectionDiffModule } from "../../plugins/magic/reference/collection-diff";
 import { registerNativeModule } from "../src/reference/registry";
 
 import { cleanAll } from "./helpers";
@@ -9,7 +9,7 @@ import { cleanAll } from "./helpers";
 describe("collection_diff native module", () => {
   beforeEach(async () => {
     await cleanAll();
-    registerNativeModule("mtga", collectionDiffModule);
+    registerNativeModule("magic", collectionDiffModule);
   });
 
   async function seedCards(): Promise<void> {

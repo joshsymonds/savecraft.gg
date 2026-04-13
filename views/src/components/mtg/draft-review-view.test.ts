@@ -1,7 +1,7 @@
 import { cleanup, render } from "@testing-library/svelte";
 import { afterEach, describe, expect, it } from "vitest";
 
-import DraftAdvisor from "../../../../plugins/mtga/reference/views/draft-advisor.svelte";
+import DraftAdvisor from "../../../../plugins/magic/reference/views/draft-advisor.svelte";
 
 afterEach(cleanup);
 

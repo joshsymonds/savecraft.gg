@@ -146,20 +146,20 @@ const statements = [
     UNIQUE(user_uuid, game_id)
   )`,
   // MTG Arena rules (migration 0014, card rulings dropped in 0040)
-  `CREATE TABLE IF NOT EXISTS mtga_rules (
+  `CREATE TABLE IF NOT EXISTS magic_rules (
     number TEXT PRIMARY KEY,
     text TEXT NOT NULL,
     example TEXT,
     see_also TEXT
   )`,
-  `CREATE VIRTUAL TABLE IF NOT EXISTS mtga_rules_fts USING fts5(
+  `CREATE VIRTUAL TABLE IF NOT EXISTS magic_rules_fts USING fts5(
     number UNINDEXED,
     text,
     example,
     tokenize='porter unicode61'
   )`,
   // MTG Arena interaction patterns (migration 0042)
-  `CREATE TABLE IF NOT EXISTS mtga_interactions (
+  `CREATE TABLE IF NOT EXISTS magic_interactions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,
     mechanics TEXT NOT NULL,
@@ -168,7 +168,7 @@ const statements = [
     breakdown TEXT NOT NULL,
     common_error TEXT NOT NULL
   )`,
-  `CREATE VIRTUAL TABLE IF NOT EXISTS mtga_interactions_fts USING fts5(
+  `CREATE VIRTUAL TABLE IF NOT EXISTS magic_interactions_fts USING fts5(
     id UNINDEXED,
     title,
     mechanics,
@@ -218,7 +218,7 @@ const statements = [
     PRIMARY KEY (alias_name)
   )`,
   `CREATE INDEX IF NOT EXISTS idx_magic_card_aliases_oracle_id ON magic_card_aliases(oracle_id)`,
-  `CREATE TABLE IF NOT EXISTS mtga_draft_ratings (
+  `CREATE TABLE IF NOT EXISTS magic_draft_ratings (
     set_code TEXT NOT NULL,
     card_name TEXT NOT NULL,
     games_in_hand INTEGER NOT NULL DEFAULT 0,
@@ -234,10 +234,10 @@ const statements = [
     ata_stddev REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (set_code, card_name)
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_draft_ratings_set ON mtga_draft_ratings(set_code)`,
-  `CREATE INDEX IF NOT EXISTS idx_draft_ratings_gihwr ON mtga_draft_ratings(set_code, gihwr DESC)`,
-  `CREATE INDEX IF NOT EXISTS idx_draft_ratings_iwd ON mtga_draft_ratings(set_code, iwd DESC)`,
-  `CREATE TABLE IF NOT EXISTS mtga_draft_archetype_stats (
+  `CREATE INDEX IF NOT EXISTS idx_draft_ratings_set ON magic_draft_ratings(set_code)`,
+  `CREATE INDEX IF NOT EXISTS idx_draft_ratings_gihwr ON magic_draft_ratings(set_code, gihwr DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_draft_ratings_iwd ON magic_draft_ratings(set_code, iwd DESC)`,
+  `CREATE TABLE IF NOT EXISTS magic_draft_archetype_stats (
     set_code TEXT NOT NULL,
     card_name TEXT NOT NULL,
     archetype TEXT NOT NULL,
@@ -254,20 +254,20 @@ const statements = [
     ata_stddev REAL NOT NULL DEFAULT 0,
     PRIMARY KEY (set_code, card_name, archetype)
   )`,
-  `CREATE TABLE IF NOT EXISTS mtga_draft_set_stats (
+  `CREATE TABLE IF NOT EXISTS magic_draft_set_stats (
     set_code TEXT PRIMARY KEY,
     format TEXT NOT NULL DEFAULT '',
     total_games INTEGER NOT NULL DEFAULT 0,
     card_count INTEGER NOT NULL DEFAULT 0,
     avg_gihwr REAL NOT NULL DEFAULT 0
   )`,
-  `CREATE VIRTUAL TABLE IF NOT EXISTS mtga_draft_ratings_fts USING fts5(
+  `CREATE VIRTUAL TABLE IF NOT EXISTS magic_draft_ratings_fts USING fts5(
     set_code UNINDEXED,
     card_name,
     tokenize='porter unicode61'
   )`,
   // Draft synergies + archetype curves (migration 0017)
-  `CREATE TABLE IF NOT EXISTS mtga_draft_synergies (
+  `CREATE TABLE IF NOT EXISTS magic_draft_synergies (
     set_code TEXT NOT NULL,
     card_a TEXT NOT NULL,
     card_b TEXT NOT NULL,
@@ -275,7 +275,7 @@ const statements = [
     games_together INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (set_code, card_a, card_b)
   )`,
-  `CREATE TABLE IF NOT EXISTS mtga_draft_archetype_curves (
+  `CREATE TABLE IF NOT EXISTS magic_draft_archetype_curves (
     set_code TEXT NOT NULL,
     archetype TEXT NOT NULL,
     cmc INTEGER NOT NULL,
@@ -284,17 +284,17 @@ const statements = [
     PRIMARY KEY (set_code, archetype, cmc)
   )`,
   // Card role tags from Scryfall Tagger (migration 0019)
-  `CREATE TABLE IF NOT EXISTS mtga_card_roles (
+  `CREATE TABLE IF NOT EXISTS magic_card_roles (
     oracle_id TEXT NOT NULL,
     front_face_name TEXT NOT NULL,
     role TEXT NOT NULL,
     set_code TEXT NOT NULL,
     PRIMARY KEY (oracle_id, role, set_code)
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_card_roles_name ON mtga_card_roles(front_face_name, set_code)`,
-  `CREATE INDEX IF NOT EXISTS idx_card_roles_set ON mtga_card_roles(set_code)`,
+  `CREATE INDEX IF NOT EXISTS idx_card_roles_name ON magic_card_roles(front_face_name, set_code)`,
+  `CREATE INDEX IF NOT EXISTS idx_card_roles_set ON magic_card_roles(set_code)`,
   // Role targets (migration 0022)
-  `CREATE TABLE IF NOT EXISTS mtga_draft_role_targets (
+  `CREATE TABLE IF NOT EXISTS magic_draft_role_targets (
     set_code TEXT NOT NULL,
     archetype TEXT NOT NULL,
     role TEXT NOT NULL,
@@ -302,9 +302,9 @@ const statements = [
     total_decks INTEGER NOT NULL,
     PRIMARY KEY (set_code, archetype, role)
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_role_targets_set ON mtga_draft_role_targets(set_code)`,
+  `CREATE INDEX IF NOT EXISTS idx_role_targets_set ON magic_draft_role_targets(set_code)`,
   // Sigmoid calibration (migration 0023)
-  `CREATE TABLE IF NOT EXISTS mtga_draft_calibration (
+  `CREATE TABLE IF NOT EXISTS magic_draft_calibration (
     set_code TEXT NOT NULL,
     axis TEXT NOT NULL,
     center REAL NOT NULL,
@@ -312,13 +312,13 @@ const statements = [
     PRIMARY KEY (set_code, axis)
   )`,
   // Set metadata (migration 0025)
-  `CREATE TABLE IF NOT EXISTS mtga_set_metadata (
+  `CREATE TABLE IF NOT EXISTS magic_set_metadata (
     set_code TEXT PRIMARY KEY,
     asfan REAL NOT NULL DEFAULT 0.4,
     pack_size INTEGER NOT NULL DEFAULT 14
   )`,
   // Deck stats (migration 0026)
-  `CREATE TABLE IF NOT EXISTS mtga_draft_deck_stats (
+  `CREATE TABLE IF NOT EXISTS magic_draft_deck_stats (
     set_code TEXT NOT NULL,
     archetype TEXT NOT NULL,
     avg_lands REAL NOT NULL,
@@ -333,7 +333,7 @@ const statements = [
     PRIMARY KEY (set_code, archetype)
   )`,
   // Pipeline state (migration 0027)
-  `CREATE TABLE IF NOT EXISTS mtga_pipeline_state (
+  `CREATE TABLE IF NOT EXISTS magic_pipeline_state (
     tool TEXT NOT NULL,
     set_code TEXT NOT NULL,
     content_hash TEXT NOT NULL,
@@ -342,7 +342,7 @@ const statements = [
     PRIMARY KEY (tool, set_code)
   )`,
   // Constructed: match history (migration 0029)
-  `CREATE TABLE IF NOT EXISTS mtga_match_history (
+  `CREATE TABLE IF NOT EXISTS magic_match_history (
     match_id TEXT NOT NULL,
     user_uuid TEXT NOT NULL,
     event_id TEXT NOT NULL,
@@ -356,11 +356,11 @@ const statements = [
     played_at TEXT NOT NULL,
     PRIMARY KEY (match_id, user_uuid)
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_match_history_user_format ON mtga_match_history(user_uuid, format)`,
-  `CREATE INDEX IF NOT EXISTS idx_match_history_user_deck ON mtga_match_history(user_uuid, deck_name)`,
-  `CREATE INDEX IF NOT EXISTS idx_match_history_user_time ON mtga_match_history(user_uuid, played_at DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_match_history_user_format ON magic_match_history(user_uuid, format)`,
+  `CREATE INDEX IF NOT EXISTS idx_match_history_user_deck ON magic_match_history(user_uuid, deck_name)`,
+  `CREATE INDEX IF NOT EXISTS idx_match_history_user_time ON magic_match_history(user_uuid, played_at DESC)`,
   // Constructed: metagame archetypes (migration 0029)
-  `CREATE TABLE IF NOT EXISTS mtga_meta_archetypes (
+  `CREATE TABLE IF NOT EXISTS magic_meta_archetypes (
     format TEXT NOT NULL,
     archetype_name TEXT NOT NULL,
     metagame_share REAL NOT NULL DEFAULT 0,
@@ -370,7 +370,7 @@ const statements = [
     PRIMARY KEY (format, archetype_name)
   )`,
   // Constructed: tournament decklists (migration 0029)
-  `CREATE TABLE IF NOT EXISTS mtga_meta_decklists (
+  `CREATE TABLE IF NOT EXISTS magic_meta_decklists (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     format TEXT NOT NULL,
     archetype_name TEXT NOT NULL,
@@ -381,10 +381,10 @@ const statements = [
     decklist TEXT NOT NULL DEFAULT '{}',
     date TEXT NOT NULL
   )`,
-  `CREATE INDEX IF NOT EXISTS idx_meta_decklists_format_archetype ON mtga_meta_decklists(format, archetype_name)`,
-  `CREATE INDEX IF NOT EXISTS idx_meta_decklists_format_date ON mtga_meta_decklists(format, date DESC)`,
+  `CREATE INDEX IF NOT EXISTS idx_meta_decklists_format_archetype ON magic_meta_decklists(format, archetype_name)`,
+  `CREATE INDEX IF NOT EXISTS idx_meta_decklists_format_date ON magic_meta_decklists(format, date DESC)`,
   // Constructed: archetype matchups (migration 0029)
-  `CREATE TABLE IF NOT EXISTS mtga_meta_matchups (
+  `CREATE TABLE IF NOT EXISTS magic_meta_matchups (
     format TEXT NOT NULL,
     archetype_a TEXT NOT NULL,
     archetype_b TEXT NOT NULL,
@@ -393,7 +393,7 @@ const statements = [
     PRIMARY KEY (format, archetype_a, archetype_b)
   )`,
   // Play advisor tables (migration 0030)
-  `CREATE TABLE IF NOT EXISTS mtga_play_card_timing (
+  `CREATE TABLE IF NOT EXISTS magic_play_card_timing (
     set_code TEXT NOT NULL,
     card_name TEXT NOT NULL,
     archetype TEXT NOT NULL,
@@ -403,7 +403,7 @@ const statements = [
     total_games INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (set_code, card_name, archetype, turn_number)
   )`,
-  `CREATE TABLE IF NOT EXISTS mtga_play_tempo (
+  `CREATE TABLE IF NOT EXISTS magic_play_tempo (
     set_code TEXT NOT NULL,
     archetype TEXT NOT NULL,
     turn_number INTEGER NOT NULL,
@@ -413,7 +413,7 @@ const statements = [
     total_games INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (set_code, archetype, turn_number, on_play, mana_spent_bucket)
   )`,
-  `CREATE TABLE IF NOT EXISTS mtga_play_combat (
+  `CREATE TABLE IF NOT EXISTS magic_play_combat (
     set_code TEXT NOT NULL,
     attacker_name TEXT NOT NULL,
     turn_number INTEGER NOT NULL,
@@ -424,7 +424,7 @@ const statements = [
     total_games INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (set_code, attacker_name, turn_number, user_creatures_count, oppo_creatures_count, attacked)
   )`,
-  `CREATE TABLE IF NOT EXISTS mtga_play_mulligan (
+  `CREATE TABLE IF NOT EXISTS magic_play_mulligan (
     set_code TEXT NOT NULL,
     archetype TEXT NOT NULL,
     on_play INTEGER NOT NULL,
@@ -435,7 +435,7 @@ const statements = [
     total_games INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (set_code, archetype, on_play, land_count, nonland_cmc_bucket, num_mulligans)
   )`,
-  `CREATE TABLE IF NOT EXISTS mtga_play_turn_baselines (
+  `CREATE TABLE IF NOT EXISTS magic_play_turn_baselines (
     set_code TEXT NOT NULL,
     archetype TEXT NOT NULL,
     turn_number INTEGER NOT NULL,
@@ -588,6 +588,80 @@ const statements = [
     mod_id UNINDEXED, mod_text,
     tokenize='porter unicode61'
   )`,
+  // EDHREC Commander data (migration 0044)
+  `CREATE TABLE IF NOT EXISTS magic_edh_commanders (
+    scryfall_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL,
+    color_identity TEXT NOT NULL DEFAULT '[]',
+    deck_count INTEGER NOT NULL DEFAULT 0,
+    themes TEXT NOT NULL DEFAULT '[]',
+    similar TEXT NOT NULL DEFAULT '[]',
+    rank INTEGER,
+    salt REAL,
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_edh_commanders_name ON magic_edh_commanders(name)`,
+  `CREATE INDEX IF NOT EXISTS idx_edh_commanders_slug ON magic_edh_commanders(slug)`,
+  `CREATE INDEX IF NOT EXISTS idx_edh_commanders_deck_count ON magic_edh_commanders(deck_count DESC)`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS magic_edh_commanders_fts USING fts5(
+    scryfall_id UNINDEXED, name,
+    tokenize='porter unicode61'
+  )`,
+  `CREATE TABLE IF NOT EXISTS magic_edh_recommendations (
+    commander_id TEXT NOT NULL,
+    card_name TEXT NOT NULL,
+    category TEXT NOT NULL,
+    synergy REAL NOT NULL DEFAULT 0,
+    inclusion INTEGER NOT NULL DEFAULT 0,
+    potential_decks INTEGER NOT NULL DEFAULT 0,
+    trend_zscore REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (commander_id, card_name, category)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_edh_recs_commander ON magic_edh_recommendations(commander_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_edh_recs_card ON magic_edh_recommendations(card_name)`,
+  `CREATE INDEX IF NOT EXISTS idx_edh_recs_category ON magic_edh_recommendations(commander_id, category)`,
+  `CREATE INDEX IF NOT EXISTS idx_edh_recs_synergy ON magic_edh_recommendations(commander_id, synergy DESC)`,
+  `CREATE TABLE IF NOT EXISTS magic_edh_combos (
+    commander_id TEXT NOT NULL,
+    combo_id TEXT NOT NULL,
+    card_names TEXT NOT NULL DEFAULT '[]',
+    card_ids TEXT NOT NULL DEFAULT '[]',
+    colors TEXT NOT NULL DEFAULT '',
+    results TEXT NOT NULL DEFAULT '[]',
+    deck_count INTEGER NOT NULL DEFAULT 0,
+    percentage REAL NOT NULL DEFAULT 0,
+    bracket_score REAL,
+    PRIMARY KEY (commander_id, combo_id)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_edh_combos_commander ON magic_edh_combos(commander_id)`,
+  `CREATE INDEX IF NOT EXISTS idx_edh_combos_deck_count ON magic_edh_combos(commander_id, deck_count DESC)`,
+  `CREATE VIRTUAL TABLE IF NOT EXISTS magic_edh_combos_fts USING fts5(
+    commander_id UNINDEXED, combo_id UNINDEXED,
+    card_names_text, results_text,
+    tokenize='porter unicode61'
+  )`,
+  `CREATE TABLE IF NOT EXISTS magic_edh_average_decks (
+    commander_id TEXT NOT NULL,
+    card_name TEXT NOT NULL,
+    quantity INTEGER NOT NULL DEFAULT 1,
+    category TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (commander_id, card_name)
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_edh_avg_commander ON magic_edh_average_decks(commander_id)`,
+  `CREATE TABLE IF NOT EXISTS magic_edh_mana_curves (
+    commander_id TEXT NOT NULL,
+    cmc INTEGER NOT NULL,
+    avg_count REAL NOT NULL DEFAULT 0,
+    PRIMARY KEY (commander_id, cmc)
+  )`,
+  `CREATE TABLE IF NOT EXISTS magic_edh_themes (
+    slug TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    total_count INTEGER NOT NULL DEFAULT 0,
+    commander_count INTEGER NOT NULL DEFAULT 0
+  )`,
+  `CREATE INDEX IF NOT EXISTS idx_edh_themes_total ON magic_edh_themes(total_count DESC)`,
 ];
 
 for (const sql of statements) {

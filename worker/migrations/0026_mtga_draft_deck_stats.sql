@@ -3,7 +3,7 @@
 -- Composition averages (lands, creatures, fixing, etc.) are from winning decks only.
 -- Win rates (splash vs non-splash) use all games for accurate rates.
 
-CREATE TABLE IF NOT EXISTS mtga_draft_deck_stats (
+CREATE TABLE IF NOT EXISTS magic_draft_deck_stats (
   set_code          TEXT NOT NULL,
   color_pair        TEXT NOT NULL,
   avg_lands         REAL NOT NULL,

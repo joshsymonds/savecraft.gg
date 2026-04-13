@@ -31,7 +31,7 @@ describe("section-reference resolution", () => {
 
   it("resolves deck data from a section reference", async () => {
     // Seed a save with a deck section
-    const saveId = await seedSaveWithData(USER_A, "mtga", "TestDeck");
+    const saveId = await seedSaveWithData(USER_A, "magic", "TestDeck");
     const deckData = {
       id: "deck-uuid",
       name: "Mono Black",
@@ -88,7 +88,7 @@ describe("section-reference resolution", () => {
   });
 
   it("rejects cross-user section access", async () => {
-    const saveId = await seedSaveWithData(USER_A, "mtga", "TestDeck");
+    const saveId = await seedSaveWithData(USER_A, "magic", "TestDeck");
     await env.DB.prepare(
       "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
     )
@@ -117,7 +117,7 @@ describe("section-reference resolution", () => {
   });
 
   it("query params take precedence over section-extracted values", async () => {
-    const saveId = await seedSaveWithData(USER_A, "mtga", "TestDeck");
+    const saveId = await seedSaveWithData(USER_A, "magic", "TestDeck");
     await env.DB.prepare(
       "INSERT INTO sections (save_uuid, name, description, data) VALUES (?, ?, ?, ?)",
     )
@@ -150,7 +150,7 @@ describe("section-reference resolution", () => {
     // Reproduces production bug: deck_section extracts format from saved deck,
     // but query also passes mode + format. The conflict check wrongly rejects
     // because format appears in both extracted data and query params.
-    const saveId = await seedSaveWithData(USER_A, "mtga", "TestDeck");
+    const saveId = await seedSaveWithData(USER_A, "magic", "TestDeck");
     const deckData = {
       cards: [{ name: "Sheoldred", count: 4 }],
       format: "Standard",
@@ -225,7 +225,7 @@ describe("section-reference resolution", () => {
   });
 
   it("resolves section when section is not found", async () => {
-    const saveId = await seedSaveWithData(USER_A, "mtga", "TestDeck");
+    const saveId = await seedSaveWithData(USER_A, "magic", "TestDeck");
 
     const module = echoModule([
       {
@@ -257,7 +257,7 @@ describe("draft_advisor section mapping auto-detect", () => {
 
   it("auto-detects live pick when last pick has no chosen card", async () => {
     // Import the module to get its sectionMappings
-    const { draftAdvisorModule } = await import("../../plugins/mtga/reference/draft-advisor");
+    const { draftAdvisorModule } = await import("../../plugins/magic/reference/draft-advisor");
     const mapping = draftAdvisorModule.sectionMappings?.find(
       (m) => m.sectionParam === "draft_section",
     );
@@ -307,7 +307,7 @@ describe("draft_advisor section mapping auto-detect", () => {
   });
 
   it("auto-detects review mode when all picks are complete", async () => {
-    const { draftAdvisorModule } = await import("../../plugins/mtga/reference/draft-advisor");
+    const { draftAdvisorModule } = await import("../../plugins/magic/reference/draft-advisor");
     const mapping = draftAdvisorModule.sectionMappings?.find(
       (m) => m.sectionParam === "draft_section",
     );
@@ -355,7 +355,7 @@ describe("collection_diff section mapping", () => {
   });
 
   it("extracts deck cards from deck section", async () => {
-    const { collectionDiffModule } = await import("../../plugins/mtga/reference/collection-diff");
+    const { collectionDiffModule } = await import("../../plugins/magic/reference/collection-diff");
     const mapping = collectionDiffModule.sectionMappings?.find(
       (m) => m.sectionParam === "deck_section",
     );

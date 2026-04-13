@@ -5,7 +5,7 @@
   import "../app.css";
 
   let { children } = $props();
-  const WIDE_PAGES = new Set(["/", "/games/mtga"]);
+  const WIDE_PAGES = new Set(["/", "/games/magic"]);
   let wide = $derived(WIDE_PAGES.has($page.url.pathname));
 </script>
 

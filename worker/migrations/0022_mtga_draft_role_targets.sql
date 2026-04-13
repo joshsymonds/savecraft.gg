@@ -3,7 +3,7 @@
 -- creatures, removal spells, mana fixers, and noncreature/nonremoval cards
 -- a winning deck in each archetype typically runs.
 
-CREATE TABLE IF NOT EXISTS mtga_draft_role_targets (
+CREATE TABLE IF NOT EXISTS magic_draft_role_targets (
   set_code    TEXT NOT NULL,
   color_pair  TEXT NOT NULL,
   role        TEXT NOT NULL,
@@ -13,4 +13,4 @@ CREATE TABLE IF NOT EXISTS mtga_draft_role_targets (
 );
 
 CREATE INDEX IF NOT EXISTS idx_role_targets_set
-  ON mtga_draft_role_targets(set_code);
+  ON magic_draft_role_targets(set_code);

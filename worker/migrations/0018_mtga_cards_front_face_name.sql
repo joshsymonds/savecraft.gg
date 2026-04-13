@@ -3,15 +3,15 @@
 -- but Scryfall stores full names with " // " (e.g. "Bonecrusher Giant // Stomp").
 -- All lookups from external sources should use front_face_name.
 
-ALTER TABLE mtga_cards ADD COLUMN front_face_name TEXT NOT NULL DEFAULT '';
+ALTER TABLE magic_cards ADD COLUMN front_face_name TEXT NOT NULL DEFAULT '';
 
 -- Backfill: extract everything before " // ", or use full name if no separator.
-UPDATE mtga_cards SET front_face_name = CASE
+UPDATE magic_cards SET front_face_name = CASE
   WHEN instr(name, ' // ') > 0 THEN substr(name, 1, instr(name, ' // ') - 1)
   ELSE name
 END;
 
-CREATE INDEX IF NOT EXISTS idx_mtga_cards_front_face
-  ON mtga_cards(front_face_name);
-CREATE INDEX IF NOT EXISTS idx_mtga_cards_front_face_default
-  ON mtga_cards(front_face_name, is_default);
+CREATE INDEX IF NOT EXISTS idx_magic_cards_front_face
+  ON magic_cards(front_face_name);
+CREATE INDEX IF NOT EXISTS idx_magic_cards_front_face_default
+  ON magic_cards(front_face_name, is_default);

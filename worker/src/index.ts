@@ -1,5 +1,5 @@
 // Side-effect import: register native reference modules
-import "../../plugins/mtga/reference/register";
+import "../../plugins/magic/reference/register";
 import "../../plugins/poe/reference/register";
 import "../../plugins/wow/reference/register";
 
