@@ -447,14 +447,49 @@ type NearbyRequest struct {
 	Sort       string   `json:"sort"`
 }
 
-type nearbyLuaRequest struct {
-	Type       string   `json:"type"`
-	XML        string   `json:"xml"`
-	Metrics    []string `json:"metrics"`
-	Radius     int      `json:"radius"`
-	Limit      int      `json:"limit"`
-	DeltaStats []string `json:"deltaStats"`
-	Sort       string   `json:"sort"`
+// nearbyExtractLuaRequest asks wrapper.lua to load the build, recalc, and
+// emit raw candidate property bags for every node within radius. The Go
+// side filters and ranks; Lua does not run any algorithm.
+type nearbyExtractLuaRequest struct {
+	Type   string   `json:"type"`
+	XML    string   `json:"xml"`
+	Radius int      `json:"radius"`
+	Stats  []string `json:"stats"`
+}
+
+// nearbyExtractData is the response payload from handleNearbyExtract.
+// Baseline carries the precomputed calc values for each requested stat so
+// the Go-side rank step can compute deltas without an extra round-trip.
+type nearbyExtractData struct {
+	Baseline   map[string]float64 `json:"baseline"`
+	Candidates []nearbyCandidate  `json:"candidates"`
+}
+
+// nearbyPerturbLuaRequest asks wrapper.lua to perturb the listed node ids
+// (each via calcFunc(addNodes)) on the build that's already loaded into
+// the same PoB process from the prior nearby_extract call. Returns deltas
+// keyed by stringified node id.
+type nearbyPerturbLuaRequest struct {
+	Type    string   `json:"type"`
+	NodeIDs []int    `json:"nodeIds"`
+	Stats   []string `json:"stats"`
+}
+
+// nearbyPerturbData is the response payload from handleNearbyPerturb.
+// Deltas is keyed by stringified node id (Lua serializes integer keys as
+// strings via tostring); Go decodes back to int via the json package.
+type nearbyPerturbData struct {
+	Deltas map[int]map[string]float64 `json:"deltas"`
+}
+
+// nearbyMetricResult is one entry in the per-metric ranked output array
+// returned by /nearby. Wire shape unchanged from before the conversion.
+type nearbyMetricResult struct {
+	Metric   string             `json:"metric"`
+	Baseline float64            `json:"baseline"`
+	Limit    int                `json:"limit"`
+	Radius   int                `json:"radius"`
+	Nodes    []nearbyRankedNode `json:"nodes"`
 }
 
 // parseNearbyRequest decodes, validates, and applies defaults/clamping to a nearby request.
@@ -498,6 +533,42 @@ func parseNearbyRequest(w http.ResponseWriter, r *http.Request) (NearbyRequest, 
 	return req, ""
 }
 
+// Nearby display-type constants for the wire response (lowercased PoB types).
+const (
+	nearbyDispNotable  = "notable"
+	nearbyDispKeystone = "keystone"
+	nearbyDispNormal   = "normal"
+)
+
+// nearbyDisplayType maps PoB's raw type strings to the lowercased display
+// strings used in the wire response. Unknown types fall through as "normal".
+func nearbyDisplayType(rawType string) string {
+	switch rawType {
+	case "Notable":
+		return nearbyDispNotable
+	case "Keystone":
+		return nearbyDispKeystone
+	default:
+		return nearbyDispNormal
+	}
+}
+
+// nearbyExtractEnvelope is the named type for wrapper.lua's nearby_extract
+// response (named so musttag can verify the inner Data type's tags).
+type nearbyExtractEnvelope struct {
+	Type    string            `json:"type"`
+	Message string            `json:"message,omitempty"`
+	Data    nearbyExtractData `json:"data,omitempty"`
+}
+
+// nearbyPerturbEnvelope is the named type for wrapper.lua's nearby_perturb
+// response.
+type nearbyPerturbEnvelope struct {
+	Type    string            `json:"type"`
+	Message string            `json:"message,omitempty"`
+	Data    nearbyPerturbData `json:"data,omitempty"`
+}
+
 func (srv *Server) handleNearby(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -517,7 +588,6 @@ func (srv *Server) handleNearby(
 		return
 	}
 
-	// Look up build XML
 	xml, err := srv.cache.Get(req.BuildID)
 	if err != nil {
 		if errors.Is(err, ErrBuildNotFound) {
@@ -532,11 +602,7 @@ func (srv *Server) handleNearby(
 	proc, err := srv.pool.Acquire()
 	if err != nil {
 		if errors.Is(err, ErrPoolExhausted) {
-			jsonError(
-				writer,
-				"all PoB processes are busy, try again later",
-				http.StatusServiceUnavailable,
-			)
+			jsonError(writer, "all PoB processes are busy, try again later", http.StatusServiceUnavailable)
 			return
 		}
 		srv.log.Error("pool acquire error", "err", err)
@@ -545,44 +611,154 @@ func (srv *Server) handleNearby(
 	}
 	defer srv.pool.Release(proc)
 
-	response, err := proc.Send(nearbyLuaRequest{
-		Type:       "nearby",
-		XML:        xml,
-		Metrics:    req.Metrics,
-		Radius:     req.Radius,
-		Limit:      req.Limit,
-		DeltaStats: req.DeltaStats,
-		Sort:       req.Sort,
-	})
-	if err != nil {
-		srv.log.Error("process send error", "err", err)
-		jsonError(
-			writer,
-			"PoB process error — check server logs for details",
-			http.StatusInternalServerError,
-		)
+	// Stat keys for both baseline (Send 1) and perturb deltas (Send 2).
+	// nearbyCollectStatKeys deduplicates metrics + deltaStats while preserving
+	// metrics order — the canonical order for everything downstream.
+	statKeys := nearbyCollectStatKeys(req.Metrics, req.DeltaStats)
+
+	extractEnvelope, ok := srv.runNearbyExtract(writer, proc, xml, req.Radius, statKeys)
+	if !ok {
 		return
 	}
 
-	var pobResp struct {
-		Type    string          `json:"type"`
-		Message string          `json:"message,omitempty"`
-		Data    json.RawMessage `json:"data,omitempty"`
+	// Filter Go-side. Only candidates that pass the predicate get a real
+	// perturbation calc.
+	var passing []*nearbyCandidate
+	for i := range extractEnvelope.Data.Candidates {
+		candidate := &extractEnvelope.Data.Candidates[i]
+		if nearbyShouldEvaluate(candidate, req.Radius) {
+			passing = append(passing, candidate)
+		}
 	}
-	if err := json.Unmarshal(response, &pobResp); err != nil {
-		srv.log.Error("failed to parse PoB response", "err", err)
-		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
-		return
-	}
-	if pobResp.Type == pobRespTypeError {
-		srv.log.Error("PoB nearby error", "message", pobResp.Message)
-		jsonError(writer, "PoB nearby search failed", http.StatusUnprocessableEntity)
+
+	deltasByID, ok := srv.runNearbyPerturb(writer, proc, passing, statKeys)
+	if !ok {
 		return
 	}
 
-	// Return the data array directly — no wrapping, no caching
+	// Build rank inputs and assemble per-metric results.
+	rankInputs := nearbyBuildRankInputs(passing, deltasByID)
+	results := make([]nearbyMetricResult, 0, len(req.Metrics))
+	for _, metric := range req.Metrics {
+		results = append(results, nearbyMetricResult{
+			Metric:   metric,
+			Baseline: extractEnvelope.Data.Baseline[metric],
+			Limit:    req.Limit,
+			Radius:   req.Radius,
+			Nodes:    nearbyRank(rankInputs, metric, req.Sort, req.Limit),
+		})
+	}
+
 	writer.Header().Set("Content-Type", "application/json")
-	_, _ = writer.Write(pobResp.Data)
+	_ = json.NewEncoder(writer).Encode(results)
+}
+
+// runNearbyExtract sends the nearby_extract request and unmarshals the
+// response. Writes a jsonError and returns ok=false on any failure.
+func (srv *Server) runNearbyExtract(
+	writer http.ResponseWriter,
+	proc *Process,
+	xml string,
+	radius int,
+	statKeys []string,
+) (nearbyExtractEnvelope, bool) {
+	var envelope nearbyExtractEnvelope
+	raw, sendErr := proc.Send(nearbyExtractLuaRequest{
+		Type:   "nearby_extract",
+		XML:    xml,
+		Radius: radius,
+		Stats:  statKeys,
+	})
+	if sendErr != nil {
+		srv.log.Error("process send error", "err", sendErr)
+		jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
+		return envelope, false
+	}
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		srv.log.Error("failed to parse extract response", "err", err)
+		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
+		return envelope, false
+	}
+	if envelope.Type == pobRespTypeError {
+		srv.log.Error("PoB nearby_extract error", "message", envelope.Message)
+		jsonError(writer, "PoB nearby search failed", http.StatusUnprocessableEntity)
+		return envelope, false
+	}
+	return envelope, true
+}
+
+// runNearbyPerturb sends the nearby_perturb request for the given candidate
+// list. Returns deltas by node id, or nil + ok=true when there are no
+// candidates to perturb (no second Send needed). Writes a jsonError and
+// returns ok=false on any failure.
+func (srv *Server) runNearbyPerturb(
+	writer http.ResponseWriter,
+	proc *Process,
+	passing []*nearbyCandidate,
+	statKeys []string,
+) (map[int]map[string]float64, bool) {
+	if len(passing) == 0 {
+		return nil, true
+	}
+	ids := make([]int, len(passing))
+	for i, candidate := range passing {
+		ids[i] = candidate.ID
+	}
+	raw, sendErr := proc.Send(nearbyPerturbLuaRequest{
+		Type:    "nearby_perturb",
+		NodeIDs: ids,
+		Stats:   statKeys,
+	})
+	if sendErr != nil {
+		srv.log.Error("process send error", "err", sendErr)
+		jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
+		return nil, false
+	}
+	var envelope nearbyPerturbEnvelope
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		srv.log.Error("failed to parse perturb response", "err", err)
+		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
+		return nil, false
+	}
+	if envelope.Type == pobRespTypeError {
+		srv.log.Error("PoB nearby_perturb error", "message", envelope.Message)
+		jsonError(writer, "PoB nearby search failed", http.StatusUnprocessableEntity)
+		return nil, false
+	}
+	return envelope.Data.Deltas, true
+}
+
+// nearbyBuildRankInputs converts filtered candidates and their per-id deltas
+// into the rank-input shape, lowercasing the type for the wire response and
+// dereferencing the optional path_dist pointer.
+func nearbyBuildRankInputs(
+	passing []*nearbyCandidate,
+	deltasByID map[int]map[string]float64,
+) []nearbyRankInput {
+	out := make([]nearbyRankInput, 0, len(passing))
+	for _, candidate := range passing {
+		path := candidate.Path
+		if path == nil {
+			path = []string{}
+		}
+		stats := candidate.Stats
+		if stats == nil {
+			stats = []string{}
+		}
+		pathCost := 0
+		if candidate.PathDist != nil {
+			pathCost = *candidate.PathDist
+		}
+		out = append(out, nearbyRankInput{
+			Name:     candidate.Name,
+			Type:     nearbyDisplayType(candidate.Type),
+			Stats:    stats,
+			PathCost: pathCost,
+			Path:     path,
+			Deltas:   deltasByID[candidate.ID],
+		})
+	}
+	return out
 }
 
 // httpClient returns the server's HTTP client, defaulting to http.DefaultClient.

@@ -173,30 +173,28 @@ func TestAuditReturns404ForMissingBuild(t *testing.T) {
 	}
 }
 
-func TestAuditWithMockPoBStub(t *testing.T) {
-	// Round-trip: handler dispatches to Lua, returns the data payload unwrapped.
-	mockResponse := `{"type":"result","data":{"build_id":"X","baseline":{},` +
-		`"branches":[],"dead_weight":[],` +
-		`"summary":{"total_allocated":0,"branches_analyzed":0,"weakest_branch_id":null,"total_dead_points":0}}}`
+// auditMockServer wires a Server backed by a bash-mock subprocess that
+// returns the given response when read from. Mirrors the existing nearby
+// mock-server helper pattern.
+func auditMockServer(t *testing.T, mockResponse string) (*Server, string) {
+	t.Helper()
 	mockScript := filepath.Join(t.TempDir(), "mock-audit.sh")
 	if err := os.WriteFile(mockScript, []byte("#!/bin/sh\nread line\necho '"+mockResponse+"'\n"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-
 	bashPath, err := exec.LookPath("bash")
 	if err != nil {
 		t.Skip("bash not available")
 	}
-
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
-	defer pool.Shutdown()
+	t.Cleanup(pool.Shutdown)
 
 	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	t.Cleanup(func() { store.Close() })
 
 	cache := &BuildCache{
 		builds:     make(map[string]cachedBuild),
@@ -209,8 +207,23 @@ func TestAuditWithMockPoBStub(t *testing.T) {
 	xml := "<PathOfBuilding/>"
 	buildID := cache.Put(xml)
 	_ = store.Put(buildID, xml, `{}`, "", "")
+	return &Server{pool: pool, cache: cache, log: logger}, buildID
+}
 
-	srv := &Server{pool: pool, cache: cache, log: logger}
+// TestAuditRoundTripWithRealGraph exercises the full pipeline: the bash mock
+// returns an audit_extract response carrying a real fixture graph, the Go
+// handler runs segmentation, and the final HTTP response is asserted to
+// contain the expected branches. This is the only end-to-end test of the
+// extract → segment → assemble flow; perturbation lands in task #5.
+func TestAuditRoundTripWithRealGraph(t *testing.T) {
+	// Fixture: 1(root) → 2(Normal) → 3(Notable). Bridges (1,2) and (2,3) →
+	// two nested branches when segmented.
+	mockResponse := `{"type":"result","data":{"tree":{` +
+		`"nodes":{"1":{"type":"ClassStart"},"2":{"type":"Normal"},"3":{"type":"Notable"}},` +
+		`"adjacency":{"1":[2],"2":[1,3],"3":[2]},` +
+		`"rootId":1,"totalAllocated":3}}}`
+
+	srv, buildID := auditMockServer(t, mockResponse)
 	body := `{"buildId":"` + buildID + `"}`
 	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))
 	rec := httptest.NewRecorder()
@@ -220,17 +233,108 @@ func TestAuditWithMockPoBStub(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	var resp struct {
-		BuildID    string          `json:"build_id"`
-		Baseline   json.RawMessage `json:"baseline"`
-		Branches   json.RawMessage `json:"branches"`
-		DeadWeight json.RawMessage `json:"dead_weight"`
-		Summary    json.RawMessage `json:"summary"`
-	}
+	var resp auditResponseSingle
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatalf("invalid JSON response: %v", err)
 	}
-	if resp.BuildID == "" || resp.Branches == nil || resp.DeadWeight == nil {
-		t.Fatalf("response missing required fields: %s", rec.Body.String())
+	if resp.BuildID != buildID {
+		t.Errorf("BuildID = %q, want %q", resp.BuildID, buildID)
+	}
+	if len(resp.Branches) != 2 {
+		t.Fatalf("expected 2 branches from segmentation, got %d", len(resp.Branches))
+	}
+	if resp.Summary.TotalAllocated != 3 {
+		t.Errorf("Summary.TotalAllocated = %d, want 3", resp.Summary.TotalAllocated)
+	}
+	if resp.Summary.BranchesAnalyzed != 2 {
+		t.Errorf("Summary.BranchesAnalyzed = %d, want 2", resp.Summary.BranchesAnalyzed)
+	}
+
+	// Branch ordering is by Head id ascending (deterministic). Outer branch
+	// is headed at 2 with two nodes, inner at 3 with one node.
+	outer := resp.Branches[0]
+	if outer.Head != 2 || outer.NodeCount != 2 {
+		t.Errorf("outer = head=%d count=%d, want head=2 count=2", outer.Head, outer.NodeCount)
+	}
+	if outer.Terminal == nil || outer.Terminal.ID != 3 || outer.Terminal.Type != "Notable" {
+		t.Errorf("outer.Terminal = %+v, want {3 Notable}", outer.Terminal)
+	}
+	if outer.Deltas == nil || outer.Efficiency == nil {
+		t.Error("outer.Deltas and Efficiency must be non-nil placeholders for task #5")
+	}
+
+	inner := resp.Branches[1]
+	if inner.Head != 3 || inner.NodeCount != 1 {
+		t.Errorf("inner = head=%d count=%d, want head=3 count=1", inner.Head, inner.NodeCount)
+	}
+}
+
+// TestAuditRoundTripScopeBoth verifies the parallel tree_branches +
+// ascendancy_branches sections come back when scope=both, never merged.
+func TestAuditRoundTripScopeBoth(t *testing.T) {
+	mockResponse := `{"type":"result","data":{` +
+		`"tree":{` +
+		`"nodes":{"1":{"type":"ClassStart"},"2":{"type":"Notable"}},` +
+		`"adjacency":{"1":[2],"2":[1]},` +
+		`"rootId":1,"totalAllocated":2},` +
+		`"ascendancy":{` +
+		`"nodes":{"100":{"type":"AscendClassStart"},"101":{"type":"Keystone"}},` +
+		`"adjacency":{"100":[101],"101":[100]},` +
+		`"rootId":100,"totalAllocated":2}` +
+		`}}`
+	srv, buildID := auditMockServer(t, mockResponse)
+	body := `{"buildId":"` + buildID + `","scope":"both"}`
+	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.handleAudit(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp auditResponseBoth
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON response: %v", err)
+	}
+	if len(resp.TreeBranches) != 1 {
+		t.Errorf("TreeBranches len = %d, want 1", len(resp.TreeBranches))
+	}
+	if len(resp.AscendancyBranches) != 1 {
+		t.Errorf("AscendancyBranches len = %d, want 1", len(resp.AscendancyBranches))
+	}
+	if resp.Summary.TotalAllocated != 4 {
+		t.Errorf("Summary.TotalAllocated = %d, want 4", resp.Summary.TotalAllocated)
+	}
+	if resp.AscendancyBranches[0].Terminal == nil || resp.AscendancyBranches[0].Terminal.Type != "Keystone" {
+		t.Errorf("ascendancy terminal = %+v, want Keystone", resp.AscendancyBranches[0].Terminal)
+	}
+}
+
+// TestAuditRoundTripEmptyExtract verifies the empty-graph case produces a
+// well-formed response with empty branches[] (NOT omitted) and zero summary.
+func TestAuditRoundTripEmptyExtract(t *testing.T) {
+	mockResponse := `{"type":"result","data":{}}`
+	srv, buildID := auditMockServer(t, mockResponse)
+	body := `{"buildId":"` + buildID + `"}`
+	req := httptest.NewRequest(http.MethodPost, "/audit", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.handleAudit(rec, req)
+	if rec.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp auditResponseSingle
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("invalid JSON response: %v", err)
+	}
+	if resp.Branches == nil {
+		t.Error("Branches must be a non-nil empty slice, not null")
+	}
+	if len(resp.Branches) != 0 {
+		t.Errorf("expected 0 branches, got %d", len(resp.Branches))
+	}
+	if resp.DeadWeight == nil {
+		t.Error("DeadWeight must be a non-nil empty slice, not null")
+	}
+	if resp.Summary.TotalAllocated != 0 || resp.Summary.BranchesAnalyzed != 0 {
+		t.Errorf("Summary should be all zeros, got %+v", resp.Summary)
 	}
 }

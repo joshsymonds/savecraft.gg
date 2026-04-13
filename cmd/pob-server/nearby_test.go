@@ -78,36 +78,29 @@ func TestNearbyReturns404ForMissingBuild(t *testing.T) {
 	}
 }
 
-func TestNearbyWithMockPoB(t *testing.T) {
-	// Mock script returns a canned nearby result with two metric result sets
+// nearbyTwoSendMockServer wires a Server backed by a bash mock that returns
+// two canned responses on two successive reads — mirroring the two-send
+// protocol the new /nearby handler uses (extract → perturb).
+func nearbyTwoSendMockServer(t *testing.T, extractResp, perturbResp string) (*Server, string) {
+	t.Helper()
 	mockScript := filepath.Join(t.TempDir(), "mock-nearby.sh")
-	mockResponse := `{"type":"result","data":[` +
-		`{"metric":"Life","baseline":20854,"limit":10,"radius":5,"nodes":[` +
-		`{"name":"Tireless","type":"notable","stats":["8% increased maximum Life"],"path_cost":4,"path":["Devotion","Faith and Steel","Tireless"],"deltas":{"Life":1247,"CombinedDPS":-12400,"EnergyShield":0},"efficiency":311.75}` +
-		`]},` +
-		`{"metric":"CombinedDPS","baseline":5222051,"limit":10,"radius":5,"nodes":[` +
-		`{"name":"Doom Cast","type":"notable","stats":["30% increased Spell Damage"],"path_cost":3,"path":["small node","Doom Cast"],"deltas":{"Life":0,"CombinedDPS":89000,"EnergyShield":0},"efficiency":29666.67}` +
-		`]}` +
-		`]}`
-
-	if err := os.WriteFile(mockScript, []byte("#!/bin/sh\nread line\necho '"+mockResponse+"'\n"), 0o755); err != nil {
+	script := "#!/bin/sh\nread line\necho '" + extractResp + "'\nread line\necho '" + perturbResp + "'\n"
+	if err := os.WriteFile(mockScript, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-
 	bashPath, err := exec.LookPath("bash")
 	if err != nil {
 		t.Skip("bash not available")
 	}
-
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
-	defer pool.Shutdown()
+	t.Cleanup(pool.Shutdown)
 
 	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer store.Close()
+	t.Cleanup(func() { store.Close() })
 
 	cache := &BuildCache{
 		builds:     make(map[string]cachedBuild),
@@ -117,14 +110,28 @@ func TestNearbyWithMockPoB(t *testing.T) {
 		cancel:     func() {},
 		store:      store,
 	}
-
-	// Seed a build
 	xml := "<PathOfBuilding/>"
 	buildID := cache.Put(xml)
 	_ = store.Put(buildID, xml, `{}`, "", "")
+	return &Server{pool: pool, cache: cache, log: logger}, buildID
+}
 
-	srv := &Server{pool: pool, cache: cache, log: logger}
+// TestNearbyTwoSendRoundTrip exercises the full extract → filter → perturb
+// → rank pipeline. The bash mock returns one realistic candidate via the
+// first Send (nearby_extract) and matching deltas via the second Send
+// (nearby_perturb). The Go handler filters, perturbs, ranks, and assembles
+// the per-metric results.
+func TestNearbyTwoSendRoundTrip(t *testing.T) {
+	extractResp := `{"type":"result","data":{` +
+		`"baseline":{"Life":20854,"CombinedDPS":5222051},` +
+		`"candidates":[{` +
+		`"id":1,"type":"Notable","alloc":false,"pathDist":4,` +
+		`"path":["Devotion","Faith and Steel","Tireless"],` +
+		`"modKey":"life_mod","ascendancyName":null,` +
+		`"name":"Tireless","stats":["8% increased maximum Life"]}]}}`
+	perturbResp := `{"type":"result","data":{"deltas":{"1":{"Life":1247,"CombinedDPS":-12400}}}}`
 
+	srv, buildID := nearbyTwoSendMockServer(t, extractResp, perturbResp)
 	body := `{"buildId":"` + buildID + `","metrics":["Life","CombinedDPS"]}`
 	req := httptest.NewRequest(http.MethodPost, "/nearby", strings.NewReader(body))
 	rec := httptest.NewRecorder()
@@ -134,205 +141,93 @@ func TestNearbyWithMockPoB(t *testing.T) {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
 	}
 
-	// Response should be a JSON array
-	var results []json.RawMessage
+	var results []nearbyMetricResult
 	if err := json.Unmarshal(rec.Body.Bytes(), &results); err != nil {
 		t.Fatalf("response is not a JSON array: %v", err)
 	}
-
 	if len(results) != 2 {
-		t.Fatalf("expected 2 result sets, got %d", len(results))
+		t.Fatalf("expected 2 result sets (one per metric), got %d", len(results))
 	}
 
-	// Verify first result set shape
-	var first struct {
-		Metric   string `json:"metric"`
-		Baseline int    `json:"baseline"`
-		Limit    int    `json:"limit"`
-		Radius   int    `json:"radius"`
-		Nodes    []struct {
-			Name       string             `json:"name"`
-			Type       string             `json:"type"`
-			Stats      []string           `json:"stats"`
-			PathCost   int                `json:"path_cost"`
-			Path       []string           `json:"path"`
-			Deltas     map[string]float64 `json:"deltas"`
-			Efficiency float64            `json:"efficiency"`
-		} `json:"nodes"`
+	life := results[0]
+	if life.Metric != "Life" {
+		t.Errorf("results[0].Metric = %q, want Life", life.Metric)
 	}
-	if err := json.Unmarshal(results[0], &first); err != nil {
-		t.Fatalf("failed to parse first result set: %v", err)
+	if life.Baseline != 20854 {
+		t.Errorf("results[0].Baseline = %v, want 20854", life.Baseline)
 	}
-
-	if first.Metric != "Life" {
-		t.Errorf("expected metric 'Life', got %q", first.Metric)
+	if len(life.Nodes) != 1 {
+		t.Fatalf("expected 1 ranked node, got %d", len(life.Nodes))
 	}
-	if first.Baseline != 20854 {
-		t.Errorf("expected baseline 20854, got %d", first.Baseline)
+	node := life.Nodes[0]
+	if node.Name != "Tireless" {
+		t.Errorf("node.Name = %q, want Tireless", node.Name)
 	}
-	if len(first.Nodes) != 1 {
-		t.Fatalf("expected 1 node, got %d", len(first.Nodes))
+	if node.Type != "notable" {
+		t.Errorf("node.Type = %q, want notable (lowercased by Go)", node.Type)
 	}
-	if first.Nodes[0].Name != "Tireless" {
-		t.Errorf("expected node name 'Tireless', got %q", first.Nodes[0].Name)
+	if node.PathCost != 4 {
+		t.Errorf("node.PathCost = %d, want 4", node.PathCost)
 	}
-	if first.Nodes[0].PathCost != 4 {
-		t.Errorf("expected path_cost 4, got %d", first.Nodes[0].PathCost)
+	if len(node.Path) != 3 {
+		t.Errorf("node.Path len = %d, want 3", len(node.Path))
 	}
-	if len(first.Nodes[0].Path) != 3 {
-		t.Errorf("expected 3 path nodes, got %d", len(first.Nodes[0].Path))
+	if node.Deltas["Life"] != 1247 {
+		t.Errorf("node.Deltas[Life] = %v, want 1247", node.Deltas["Life"])
 	}
-	if _, ok := first.Nodes[0].Deltas["Life"]; !ok {
-		t.Error("deltas missing 'Life'")
+	if node.Efficiency != float64(1247)/4 {
+		t.Errorf("node.Efficiency = %v, want %v", node.Efficiency, float64(1247)/4)
 	}
 }
 
-func TestNearbyAppliesDefaults(t *testing.T) {
-	// Mock script echoes the request JSON back as the response data,
-	// so we can verify the Go handler applied defaults before forwarding.
-	mockScript := filepath.Join(t.TempDir(), "mock-nearby-echo.sh")
-	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
-read line
-echo "{\"type\":\"result\",\"data\":$line}"
-`), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	bashPath, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("bash not available")
-	}
-
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
-	defer pool.Shutdown()
-
-	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-
-	cache := &BuildCache{
-		builds:     make(map[string]cachedBuild),
-		ttl:        10 * time.Minute,
-		maxEntries: 100,
-		nowFunc:    time.Now,
-		cancel:     func() {},
-		store:      store,
-	}
-
-	xml := "<PathOfBuilding/>"
-	buildID := cache.Put(xml)
-	_ = store.Put(buildID, xml, `{}`, "", "")
-
-	srv := &Server{pool: pool, cache: cache, log: logger}
-
-	// Send request with only required fields — no radius, limit, or deltaStats
-	body := `{"buildId":"` + buildID + `","metrics":["Life"]}`
+// parseNearby is a test helper to drive parseNearbyRequest without going
+// through the full HTTP handler. Mirrors the parseAudit helper in audit_test.go.
+func parseNearby(t *testing.T, body string) (NearbyRequest, string) {
+	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/nearby", strings.NewReader(body))
 	rec := httptest.NewRecorder()
-	srv.handleNearby(rec, req)
+	return parseNearbyRequest(rec, req)
+}
 
-	if rec.Code != 200 {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+func TestParseNearbyAppliesDefaults(t *testing.T) {
+	req, errMsg := parseNearby(t, `{"buildId":"abc","metrics":["Life"]}`)
+	if errMsg != "" {
+		t.Fatalf("unexpected error: %s", errMsg)
 	}
-
-	// The mock echoed back the Lua request — verify defaults were applied
-	var echoed struct {
-		Type       string   `json:"type"`
-		Radius     int      `json:"radius"`
-		Limit      int      `json:"limit"`
-		DeltaStats []string `json:"deltaStats"`
-		Metrics    []string `json:"metrics"`
+	if req.Radius != 5 {
+		t.Errorf("Radius = %d, want default 5", req.Radius)
 	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &echoed); err != nil {
-		t.Fatalf("failed to parse echoed request: %v", err)
+	if req.Limit != 10 {
+		t.Errorf("Limit = %d, want default 10", req.Limit)
 	}
-
-	if echoed.Type != "nearby" {
-		t.Errorf("expected type 'nearby', got %q", echoed.Type)
+	if len(req.DeltaStats) != 3 {
+		t.Errorf("DeltaStats len = %d, want default 3", len(req.DeltaStats))
 	}
-	if echoed.Radius != 5 {
-		t.Errorf("expected default radius 5, got %d", echoed.Radius)
-	}
-	if echoed.Limit != 10 {
-		t.Errorf("expected default limit 10, got %d", echoed.Limit)
-	}
-	if len(echoed.DeltaStats) != 3 {
-		t.Errorf("expected 3 default deltaStats, got %d", len(echoed.DeltaStats))
-	}
-	if len(echoed.Metrics) != 1 || echoed.Metrics[0] != "Life" {
-		t.Errorf("expected metrics [Life], got %v", echoed.Metrics)
+	if req.Sort != "desc" {
+		t.Errorf("Sort = %q, want default desc", req.Sort)
 	}
 }
 
-func TestNearbyClampsCrazyValues(t *testing.T) {
-	// Mock echoes back the request to verify clamping
-	mockScript := filepath.Join(t.TempDir(), "mock-nearby-clamp.sh")
-	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
-read line
-echo "{\"type\":\"result\",\"data\":$line}"
-`), 0o755); err != nil {
-		t.Fatal(err)
+func TestParseNearbyClampsCrazyValues(t *testing.T) {
+	body := `{"buildId":"abc","metrics":["a","b","c","d","e","f","g","h","i","j","k","l"],"radius":999,"limit":999}`
+	req, errMsg := parseNearby(t, body)
+	if errMsg != "" {
+		t.Fatalf("unexpected error: %s", errMsg)
 	}
-
-	bashPath, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("bash not available")
+	if req.Radius != 15 {
+		t.Errorf("Radius = %d, want clamped 15", req.Radius)
 	}
-
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
-	defer pool.Shutdown()
-
-	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
+	if req.Limit != 50 {
+		t.Errorf("Limit = %d, want clamped 50", req.Limit)
 	}
-	defer store.Close()
-
-	cache := &BuildCache{
-		builds:     make(map[string]cachedBuild),
-		ttl:        10 * time.Minute,
-		maxEntries: 100,
-		nowFunc:    time.Now,
-		cancel:     func() {},
-		store:      store,
+	if len(req.Metrics) != 10 {
+		t.Errorf("Metrics len = %d, want clamped 10", len(req.Metrics))
 	}
+}
 
-	xml := "<PathOfBuilding/>"
-	buildID := cache.Put(xml)
-	_ = store.Put(buildID, xml, `{}`, "", "")
-
-	srv := &Server{pool: pool, cache: cache, log: logger}
-
-	// Send absurd radius and limit
-	body := `{"buildId":"` + buildID + `","metrics":["Life","ES","DPS","Armour","Evasion","Block","Suppress","Str","Dex","Int","Extra1","Extra2"],"radius":999,"limit":999}`
-	req := httptest.NewRequest(http.MethodPost, "/nearby", strings.NewReader(body))
-	rec := httptest.NewRecorder()
-	srv.handleNearby(rec, req)
-
-	if rec.Code != 200 {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
-	}
-
-	var echoed struct {
-		Radius  int      `json:"radius"`
-		Limit   int      `json:"limit"`
-		Metrics []string `json:"metrics"`
-	}
-	if err := json.Unmarshal(rec.Body.Bytes(), &echoed); err != nil {
-		t.Fatalf("failed to parse echoed request: %v", err)
-	}
-
-	if echoed.Radius != 15 {
-		t.Errorf("expected clamped radius 15, got %d", echoed.Radius)
-	}
-	if echoed.Limit != 50 {
-		t.Errorf("expected clamped limit 50, got %d", echoed.Limit)
-	}
-	if len(echoed.Metrics) != 10 {
-		t.Errorf("expected clamped metrics to 10, got %d", len(echoed.Metrics))
+func TestParseNearbyRejectsInvalidSort(t *testing.T) {
+	_, errMsg := parseNearby(t, `{"buildId":"abc","metrics":["Life"],"sort":"sideways"}`)
+	if errMsg == "" {
+		t.Error("expected error for invalid sort")
 	}
 }

@@ -77,15 +77,12 @@ log("PoB loaded successfully")
 -- JSON library is available from PoB's runtime
 local dkjson = require("dkjson")
 
--- Load sibling Lua modules that ship alongside wrapper.lua. arg[0] is the
--- script path luajit was invoked with; its directory is where audit_segment.lua
--- lives. Extending package.path lets require() resolve it the normal way.
-local wrapperDir = arg[0]:match("(.*/)") or "./"
-package.path = wrapperDir .. "?.lua;" .. package.path
-local auditSegment = require("audit_segment")
-local auditExtract = require("audit_extract")
-local nearbyFilter = require("nearby_filter")
-local nearbyRank = require("nearby_rank")
+-- Note: this wrapper deliberately contains no algorithm code beyond what
+-- requires PoB's runtime. Anything that operates on plain graph/list data
+-- (segmentation, filtering, ranking, dedup) lives in Go under cmd/pob-server,
+-- where it can be tested natively without a Lua runtime. Lua handles only
+-- (1) loading PoB and recalcing, (2) walking PoB's data structures into
+-- JSON-friendly shapes, and (3) calling calcFunc for perturbation.
 
 -- =========================================================================
 -- Human-readable label mappings for PoB internal values
@@ -1286,198 +1283,240 @@ local function handleModify(request)
 	}
 end
 
--- analyzeAuditScope runs extraction + segmentation for one scope against the
--- currently-loaded `build`. Returns (branches, totalAllocated). Branches carry
--- empty deltas/efficiency placeholders; the perturbation pass that fills them
--- lands in a follow-up task.
-local function analyzeAuditScope(scope)
-	local nodes, adjacency, rootId, total = auditExtract.extract(build.spec, scope)
-	if rootId == nil then
-		return {}, 0
+-- extractAuditScope walks the currently-loaded `build` for one scope and
+-- returns a JSON-friendly graph dict for the Go side to segment. nodes and
+-- adjacency are keyed by stringified node id so dkjson serializes them as
+-- JSON objects (not sparse arrays). Returns nil when the scope's start node
+-- is missing or unallocated.
+local function extractAuditScope(scope)
+	local rootId
+	if scope == "tree" then
+		if build.spec.curClass and build.spec.curClass.startNodeId then
+			rootId = build.spec.curClass.startNodeId
+		end
+	elseif scope == "ascendancy" then
+		if build.spec.curAscendClass and build.spec.curAscendClass.startNodeId then
+			rootId = build.spec.curAscendClass.startNodeId
+		end
 	end
-	local rawBranches = auditSegment.segment(nodes, adjacency, rootId)
-	local result = {}
-	for i = 1, #rawBranches do
-		local b = rawBranches[i]
-		result[#result + 1] = {
-			id = b.id,
-			anchor = b.anchor,
-			head = b.head,
-			nodes = b.nodes,
-			node_count = b.node_count,
-			terminal = b.terminal,
-			pure_travel = b.pure_travel,
-			deltas = {},
-			efficiency = {},
-		}
+
+	if rootId == nil or build.spec.nodes == nil then
+		return nil
 	end
-	return result, total
+
+	local function inScope(node)
+		if not node.alloc then
+			return false
+		end
+		if scope == "tree" then
+			return node.ascendancyName == nil
+		elseif scope == "ascendancy" then
+			return node.ascendancyName ~= nil
+		end
+		return false
+	end
+
+	local nodes = {}
+	local total = 0
+	for id, node in pairs(build.spec.nodes) do
+		if inScope(node) then
+			nodes[tostring(id)] = { type = node.type }
+			total = total + 1
+		end
+	end
+
+	if nodes[tostring(rootId)] == nil then
+		return nil
+	end
+
+	-- Adjacency lists are filtered to in-scope allocated neighbors only.
+	-- Without this, tree-scope extraction would walk into the ascendancy
+	-- via the class-start ↔ ascendancy-start edge.
+	local adjacency = {}
+	for idStr, _ in pairs(nodes) do
+		local id = tonumber(idStr)
+		local node = build.spec.nodes[id]
+		local neighbors = {}
+		if node.linked then
+			for i = 1, #node.linked do
+				local other = node.linked[i]
+				if other and other.id and nodes[tostring(other.id)] then
+					neighbors[#neighbors + 1] = other.id
+				end
+			end
+		end
+		adjacency[idStr] = neighbors
+	end
+
+	return {
+		nodes = nodes,
+		adjacency = adjacency,
+		rootId = rootId,
+		totalAllocated = total,
+	}
 end
 
--- Process an audit_allocated request.
--- Performs PoB build load → recalc → graph extraction → branch segmentation
--- and assembles the response shape. Per-branch perturbation deltas + the
--- dead_weight bucket land in a follow-up task; for now `deltas`/`efficiency`
--- are empty placeholders and `dead_weight` is empty.
-local function handleAudit(request)
+-- Process an audit_extract request.
+-- Loads the build, recalcs so paths are populated, then walks build.spec.nodes
+-- per requested scope and returns the raw graph data. The Go side runs
+-- segmentation. For scope == "both", returns both `tree` and `ascendancy`
+-- sections in parallel.
+local function handleAuditExtract(request)
 	local xml = request.xml
 	if not xml or xml == "" then
 		return { type = "error", message = "missing 'xml' field" }
 	end
 
 	local loadOk, loadErr = pcall(function()
-		loadBuildFromXML(xml, "audit-build")
+		loadBuildFromXML(xml, "audit-extract")
 	end)
 	if not loadOk then
 		return { type = "error", message = "failed to load build: " .. tostring(loadErr) }
 	end
 
-	-- Force a full recalc so build.spec has paths/dependencies populated.
 	build.buildFlag = true
 	runCallback("OnFrame")
 
 	local scope = request.scope or "tree"
-	local summary = {
-		total_allocated = 0,
-		branches_analyzed = 0,
-		weakest_branch_id = nil,
-		total_dead_points = 0,
-	}
-
-	local data
-	if scope == "both" then
-		local treeBranches, treeTotal = analyzeAuditScope("tree")
-		local ascBranches, ascTotal = analyzeAuditScope("ascendancy")
-		summary.total_allocated = treeTotal + ascTotal
-		summary.branches_analyzed = #treeBranches + #ascBranches
-		data = {
-			build_id = "",
-			baseline = {},
-			tree_branches = treeBranches,
-			ascendancy_branches = ascBranches,
-			dead_weight = {},
-			summary = summary,
-		}
-	else
-		local branches, totalAlloc = analyzeAuditScope(scope)
-		summary.total_allocated = totalAlloc
-		summary.branches_analyzed = #branches
-		data = {
-			build_id = "",
-			baseline = {},
-			branches = branches,
-			dead_weight = {},
-			summary = summary,
-		}
+	local data = {}
+	if scope == "tree" or scope == "both" then
+		data.tree = extractAuditScope("tree")
+	end
+	if scope == "ascendancy" or scope == "both" then
+		data.ascendancy = extractAuditScope("ascendancy")
 	end
 
 	return { type = "result", data = data }
 end
 
--- Process a nearby node search request
-local function handleNearby(request)
+-- Process a nearby_extract request.
+-- Loads the build, recalcs, then walks build.spec.nodes within radius and
+-- emits raw candidate property bags for the Go side to filter. Also returns
+-- baseline values for the requested stats (computed once here to avoid a
+-- second calcFunc round-trip later).
+--
+-- The candidate `type` field carries the raw PoB type string ("Normal",
+-- "Notable", "Keystone", "Mastery", "Socket", "ClassStart", "AscendClassStart")
+-- so the Go-side predicate can gate on it. The Go handler converts to the
+-- lowercased display string when assembling the wire response.
+local function handleNearbyExtract(request)
 	local xml = request.xml
 	if not xml or xml == "" then
 		return { type = "error", message = "missing 'xml' field" }
 	end
 
-	local metrics = request.metrics
-	if not metrics or #metrics == 0 then
-		return { type = "error", message = "missing 'metrics' field" }
-	end
-
 	local radius = request.radius or 5
-	local limit = request.limit or 10
-	local deltaStats = request.deltaStats or { "Life", "CombinedDPS", "EnergyShield" }
-	local sortOrder = request.sort or "desc" -- "desc" = highest first (beneficial), "asc" = lowest first
+	local stats = request.stats or {}
 
-	-- Load the build from XML
 	local loadOk, loadErr = pcall(function()
-		loadBuildFromXML(xml, "nearby-build")
+		loadBuildFromXML(xml, "nearby-extract")
 	end)
 	if not loadOk then
 		return { type = "error", message = "failed to load build: " .. tostring(loadErr) }
 	end
 
-	-- Force a full recalculation so calcsTab is populated
 	build.buildFlag = true
 	runCallback("OnFrame")
 
-	-- Get the calculator function and baseline output
-	local calcFunc, calcBase = build.calcsTab:GetMiscCalculator()
+	local _, calcBase = build.calcsTab:GetMiscCalculator()
+	local baseline = {}
+	for i = 1, #stats do
+		baseline[stats[i]] = calcBase[stats[i]] or 0
+	end
 
-	-- Collect deduplicated stat keys for the per-candidate calc deltas.
-	local allStats = nearbyFilter.collectStatKeys(metrics, deltaStats)
-
-	-- Iterate candidates: filter, perturb, format. Filter and rank are pure
-	-- helpers in nearby_filter.lua / nearby_rank.lua so the algorithm pieces
-	-- can be unit-tested without loading PoB; the loop body that touches
-	-- PoB-internal accessors stays here.
-	local cache = {}
 	local candidates = {}
 	for id, node in pairs(build.spec.nodes) do
-		if nearbyFilter.shouldEvaluate(node, radius) then
-			-- Compute output with this node hypothetically allocated (modKey cache)
-			if not cache[node.modKey] then
-				cache[node.modKey] = calcFunc({ addNodes = { [node] = true } })
-			end
-			local output = cache[node.modKey]
-
-			-- Compute deltas for all requested stats
-			local deltas = {}
-			for _, stat in ipairs(allStats) do
-				local base = calcBase[stat] or 0
-				local modified = output[stat] or 0
-				deltas[stat] = modified - base
-			end
-
-			-- Build path names
-			local pathNames = {}
-			for _, pathNode in ipairs(node.path) do
-				pathNames[#pathNames + 1] = pathNode.dn or pathNode.name or tostring(pathNode.id)
-			end
-
-			-- Build stat descriptions
-			local stats = {}
-			local sd = node.sd or node.stats
-			if sd then
-				for _, s in ipairs(sd) do
-					stats[#stats + 1] = s
+		if node.pathDist and node.pathDist <= radius then
+			-- Resolved path names (nil if PoB didn't compute a path)
+			local pathNames
+			if node.path then
+				pathNames = {}
+				for _, pathNode in ipairs(node.path) do
+					pathNames[#pathNames + 1] = pathNode.dn or pathNode.name or tostring(pathNode.id)
 				end
 			end
 
-			-- Determine node type string
-			local nodeType = "normal"
-			if node.isKeystone then
-				nodeType = "keystone"
-			elseif node.isNotable then
-				nodeType = "notable"
+			-- Stat description strings
+			local statDescs = {}
+			local sd = node.sd or node.stats
+			if sd then
+				for _, s in ipairs(sd) do
+					statDescs[#statDescs + 1] = s
+				end
 			end
 
 			candidates[#candidates + 1] = {
-				name = node.dn or node.name or ("node_" .. tostring(id)),
-				type = nodeType,
-				stats = stats,
-				path_cost = node.pathDist,
+				id = id,
+				type = node.type,
+				alloc = node.alloc and true or false,
+				pathDist = node.pathDist,
 				path = pathNames,
-				deltas = deltas,
+				modKey = node.modKey or "",
+				ascendancyName = node.ascendancyName,
+				name = node.dn or node.name or ("node_" .. tostring(id)),
+				stats = statDescs,
 			}
 		end
 	end
 
-	-- Build result sets: one per metric, ranked by efficiency via nearby_rank.
-	local results = {}
-	for _, metric in ipairs(metrics) do
-		results[#results + 1] = {
-			metric = metric,
-			baseline = calcBase[metric] or 0,
-			limit = limit,
-			radius = radius,
-			nodes = nearbyRank.rank(candidates, metric, sortOrder, limit),
-		}
+	return {
+		type = "result",
+		data = {
+			baseline = baseline,
+			candidates = candidates,
+		},
+	}
+end
+
+-- Process a nearby_perturb request.
+-- Assumes the build is already loaded from a prior nearby_extract on the
+-- same process (pob-server's pool keeps a process bound for the duration of
+-- one HTTP request). Perturbs each requested node id via calcFunc(addNodes),
+-- caches per modKey to avoid duplicate work, and returns deltas keyed by
+-- stringified id.
+local function handleNearbyPerturb(request)
+	local nodeIds = request.nodeIds
+	if not nodeIds then
+		return { type = "error", message = "missing 'nodeIds' field" }
+	end
+	local stats = request.stats or {}
+
+	if not build or not build.spec or not build.spec.nodes then
+		return { type = "error", message = "no build loaded; call nearby_extract first" }
 	end
 
-	return { type = "result", data = results }
+	local calcFunc, calcBase = build.calcsTab:GetMiscCalculator()
+	local cache = {}
+	local deltasById = {}
+
+	for i = 1, #nodeIds do
+		local id = nodeIds[i]
+		local node = build.spec.nodes[id]
+		if node ~= nil then
+			local modKey = node.modKey or ""
+			if modKey ~= "" and cache[modKey] == nil then
+				cache[modKey] = calcFunc({ addNodes = { [node] = true } })
+			end
+			local output = cache[modKey]
+			local deltas = {}
+			if output ~= nil then
+				for j = 1, #stats do
+					local stat = stats[j]
+					local base = calcBase[stat] or 0
+					local modified = output[stat] or 0
+					deltas[stat] = modified - base
+				end
+			end
+			deltasById[tostring(id)] = deltas
+		end
+	end
+
+	return {
+		type = "result",
+		data = {
+			deltas = deltasById,
+		},
+	}
 end
 
 -- Main request loop
@@ -1506,19 +1545,26 @@ for line in io.stdin:lines() do
 			else
 				response = { type = "error", message = "modify crashed: " .. tostring(result) }
 			end
-		elseif request.type == "nearby" then
-			local ok, result = pcall(handleNearby, request)
+		elseif request.type == "nearby_extract" then
+			local ok, result = pcall(handleNearbyExtract, request)
 			if ok then
 				response = result
 			else
-				response = { type = "error", message = "nearby crashed: " .. tostring(result) }
+				response = { type = "error", message = "nearby_extract crashed: " .. tostring(result) }
 			end
-		elseif request.type == "audit" then
-			local ok, result = pcall(handleAudit, request)
+		elseif request.type == "nearby_perturb" then
+			local ok, result = pcall(handleNearbyPerturb, request)
 			if ok then
 				response = result
 			else
-				response = { type = "error", message = "audit crashed: " .. tostring(result) }
+				response = { type = "error", message = "nearby_perturb crashed: " .. tostring(result) }
+			end
+		elseif request.type == "audit_extract" then
+			local ok, result = pcall(handleAuditExtract, request)
+			if ok then
+				response = result
+			else
+				response = { type = "error", message = "audit_extract crashed: " .. tostring(result) }
 			end
 		elseif request.type == "ping" then
 			response = { type = "pong" }
