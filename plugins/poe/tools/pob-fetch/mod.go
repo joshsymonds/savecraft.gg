@@ -23,9 +23,11 @@ type ModTier struct {
 var modEntryRe = regexp.MustCompile(`^\t\["(\w+)"\]\s*=\s*\{(.+)\},?\s*$`)
 
 // weaponHandRe matches mod IDs of the form Weapon...{1h|2h}<digits>[_],
-// capturing the hand digit. PoB's weapon mods encode hand this way and
-// otherwise ship with an empty weightKey ({"default"} at weight 0), so we
-// recover the classification from the id when source data is empty.
+// capturing the hand digit. PoB's weapon mods encode hand in the id but
+// their weightKey table often contains no non-default non-zero-weight
+// entries, leaving extractWeightedClasses empty. synthesizeWeaponClasses
+// uses this regex to recover classification from the id whenever the
+// extractor yields an empty result.
 var weaponHandRe = regexp.MustCompile(`^Weapon.*([12])h\d+_?$`)
 
 // parseModsLua parses a PoB Mod*.lua file into a slice of ModTier.

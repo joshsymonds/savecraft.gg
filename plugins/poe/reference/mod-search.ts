@@ -82,17 +82,18 @@ function normalizeItemClasses(itemClassesJson: string | null): string {
 
 /**
  * Group flat mod rows into ModGroups and build tier arrays sorted by level desc.
- * Group key = group_name + "|" + normalized(item_classes), so rows sharing a
- * group_name but targeting different item classes (e.g. 1h vs 2h weapons)
- * form distinct groups. Tiers are assigned via dense-rank on level: rows
- * sharing a level share a tier number; the next distinct level gets the
- * next tier.
+ * Group key is a JSON tuple of [group_name, normalized(item_classes)] so rows
+ * sharing a group_name but targeting different item classes (e.g. 1h vs 2h
+ * weapons) form distinct groups, with no chance of a separator collision if a
+ * future group_name ever contains a reserved character. Tiers are assigned
+ * via dense-rank on level: rows sharing a level share a tier number; the
+ * next distinct level gets the next tier.
  */
 function groupModRows(rows: ModRow[]): ModGroup[] {
   const groups = new Map<string, ModRow[]>();
   for (const row of rows) {
     const base = row.group_name || row.mod_id;
-    const key = `${base}|${normalizeItemClasses(row.item_classes)}`;
+    const key = JSON.stringify([base, normalizeItemClasses(row.item_classes)]);
     const existing = groups.get(key);
     if (existing) {
       existing.push(row);

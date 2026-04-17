@@ -54,9 +54,11 @@ func TestParseModsLua(t *testing.T) {
 		t.Errorf("group: got %q", str1.Group)
 	}
 
-	// Check item classes extracted from weightKey (non-default, non-zero weight)
-	if len(str1.ItemClasses) != 3 {
-		t.Errorf("expected 3 item classes, got %d: %v", len(str1.ItemClasses), str1.ItemClasses)
+	// Item classes extracted from weightKey (non-default, non-zero weight) —
+	// asserts the exact slice so an extraction-order or filter regression
+	// that still happens to yield 3 elements would still fail this test.
+	if got, want := str1.ItemClasses, []string{"ring", "amulet", "belt"}; !stringSliceEq(got, want) {
+		t.Errorf("item_classes: got %v, want %v", got, want)
 	}
 
 	// Check tags
