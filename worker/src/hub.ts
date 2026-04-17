@@ -1,6 +1,7 @@
 import { DurableObject } from "cloudflare:workers";
 
 import { DebugLog } from "./debug-log";
+import { normalizeGameId } from "./gameid";
 import type {
   GameInfo,
   PushSave,
@@ -930,6 +931,10 @@ export class SourceHub extends DurableObject<Env> {
         this.debugLog.push("warn", "pushSave missing identity or gameId");
         return;
       }
+
+      // Rewrite legacy game_ids to their canonical form before anything reads
+      // them (dedup, rejection check, storage, event synthesis). See gameid.ts.
+      push.gameId = normalizeGameId(push.gameId);
 
       // Check if the push should be rejected (disabled game or excluded save)
       const rejection = await this.checkPushRejection(sourceId, push.gameId, saveName);
