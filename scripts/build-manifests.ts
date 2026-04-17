@@ -22,6 +22,7 @@ const STRIP_TOP_LEVEL = new Set([
   "default_paths",
   "file_extensions",
   "file_patterns",
+  "exclude_dirs",
   "author",
   "homepage",
   "workshop_url",

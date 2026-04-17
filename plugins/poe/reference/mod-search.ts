@@ -128,8 +128,8 @@ function groupModRows(rows: ModRow[]): ModGroup[] {
     });
 
     result.push({
-      mod_name: tiers[0].mod_text,
-      generation_type: tiers[0].generation_type ?? "prefix",
+      mod_name: tiers[0]!.mod_text,
+      generation_type: tiers[0]!.generation_type ?? "prefix",
       tiers: tierEntries,
     });
   }

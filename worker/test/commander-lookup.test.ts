@@ -98,8 +98,8 @@ describe("commander_lookup native module", () => {
     expect(data.commander.rank).toBe(3);
 
     expect(data.themes.length).toBeGreaterThanOrEqual(2);
-    expect(data.themes[0].slug).toBe("infect");
-    expect(data.similar[0].name).toBe("Atraxa, Grand Unifier");
+    expect(data.themes[0]!.slug).toBe("infect");
+    expect(data.similar[0]!.name).toBe("Atraxa, Grand Unifier");
     expect(data.mana_curve).toHaveLength(2);
 
     // Recommendations grouped by category
@@ -108,7 +108,7 @@ describe("commander_lookup native module", () => {
     expect(Object.keys(data.recommendations)).toContain("creatures");
 
     // topcards should be ordered by synergy DESC then inclusion DESC
-    const topcards = data.recommendations.topcards;
+    const topcards = data.recommendations.topcards!;
     expect(topcards.length).toBe(2);
     expect(topcards.map((c) => c.card_name)).toContain("Sol Ring");
     expect(topcards.map((c) => c.card_name)).toContain("Swords to Plowshares");
@@ -208,7 +208,7 @@ describe("commander_lookup native module", () => {
     if (result.type !== "structured") return;
     const data = result.data as { recommendations: Record<string, unknown[]> };
     expect(Object.keys(data.recommendations)).toEqual(["topcards"]);
-    expect(data.recommendations.topcards.length).toBe(2);
+    expect(data.recommendations.topcards!.length).toBe(2);
   });
 
   it("respects limit parameter per category", async () => {
@@ -222,7 +222,7 @@ describe("commander_lookup native module", () => {
     if (result.type !== "structured") return;
     const data = result.data as { recommendations: Record<string, unknown[]> };
     // topcards has 2 seeded rows, should truncate to 1
-    expect(data.recommendations.topcards.length).toBe(1);
+    expect(data.recommendations.topcards!.length).toBe(1);
   });
 
   it("returns a text error when commander is not found", async () => {

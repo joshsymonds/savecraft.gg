@@ -359,7 +359,9 @@ describe("mod_search native module", () => {
       expect(mod.tiers[0]!.tier).toBe(1);
       expect(mod.tiers[0]!.level).toBe(80);
     }
-    const texts = mods.map((m) => m.tiers[0]!.text).sort();
+    const texts = mods
+      .map((m) => m.tiers[0]!.text)
+      .toSorted((a, b) => a.localeCompare(b));
     expect(texts).toEqual([
       "Gain (11-13)% of Fire Damage as Extra Chaos Damage",
       "Gain (21-26)% of Fire Damage as Extra Chaos Damage",
