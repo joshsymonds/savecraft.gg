@@ -64,12 +64,35 @@ function matchesItemClass(
 }
 
 /**
- * Group flat mod rows by group_name and build tier arrays sorted by level desc.
+ * Canonical string for an item_classes JSON column. Sorts entries so row
+ * order variations collapse to the same key; null/invalid JSON becomes "".
+ * Used as part of the group key so rows sharing a group_name but differing
+ * in class set (e.g. weapon_1h vs weapon_2h) form separate output groups.
+ */
+function normalizeItemClasses(itemClassesJson: string | null): string {
+  if (!itemClassesJson) return "";
+  try {
+    const classes: string[] = JSON.parse(itemClassesJson);
+    if (!Array.isArray(classes)) return "";
+    return [...classes].sort().join(",");
+  } catch {
+    return "";
+  }
+}
+
+/**
+ * Group flat mod rows into ModGroups and build tier arrays sorted by level desc.
+ * Group key = group_name + "|" + normalized(item_classes), so rows sharing a
+ * group_name but targeting different item classes (e.g. 1h vs 2h weapons)
+ * form distinct groups. Tiers are assigned via dense-rank on level: rows
+ * sharing a level share a tier number; the next distinct level gets the
+ * next tier.
  */
 function groupModRows(rows: ModRow[]): ModGroup[] {
   const groups = new Map<string, ModRow[]>();
   for (const row of rows) {
-    const key = row.group_name || row.mod_id;
+    const base = row.group_name || row.mod_id;
+    const key = `${base}|${normalizeItemClasses(row.item_classes)}`;
     const existing = groups.get(key);
     if (existing) {
       existing.push(row);
@@ -80,18 +103,34 @@ function groupModRows(rows: ModRow[]): ModGroup[] {
 
   const result: ModGroup[] = [];
   for (const [, tiers] of groups) {
-    // Sort by level descending (highest = T1)
-    tiers.sort((a, b) => (b.level ?? 0) - (a.level ?? 0));
+    // Sort by level descending (highest = T1), break ties by mod_id asc for
+    // determinism so two rows at the same level land in a stable order.
+    tiers.sort((a, b) => {
+      const diff = (b.level ?? 0) - (a.level ?? 0);
+      if (diff !== 0) return diff;
+      return a.mod_id.localeCompare(b.mod_id);
+    });
+
+    let currentTier = 0;
+    let lastLevel: number | null = null;
+    const tierEntries = tiers.map((t) => {
+      const level = t.level ?? 0;
+      if (level !== lastLevel) {
+        currentTier++;
+        lastLevel = level;
+      }
+      return {
+        tier: currentTier,
+        name: t.affix ?? "",
+        level,
+        text: t.mod_text,
+      };
+    });
 
     result.push({
       mod_name: tiers[0].mod_text,
       generation_type: tiers[0].generation_type ?? "prefix",
-      tiers: tiers.map((t, i) => ({
-        tier: i + 1,
-        name: t.affix ?? "",
-        level: t.level ?? 0,
-        text: t.mod_text,
-      })),
+      tiers: tierEntries,
     });
   }
 

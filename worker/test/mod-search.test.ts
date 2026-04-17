@@ -224,6 +224,148 @@ describe("mod_search native module", () => {
     expect(mods.length).toBe(0);
   });
 
+  it("assigns same tier number to rows sharing a level (dense-rank)", async () => {
+    // Two rows at level 80, one row at level 72 — same group_name, same item_classes.
+    // Expected: tiers [1, 1, 2], not [1, 2, 3].
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FireAddedAsChaosA",
+        "Gain (11-13)% of Fire Damage as Extra Chaos Damage",
+        "Corrosive",
+        "prefix",
+        80,
+        "FireAddedAsChaos",
+        '["weapon_1h"]',
+        '["chaos_damage"]',
+      ),
+      env.DB.prepare(
+        `INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FireAddedAsChaosB",
+        "Gain (14-16)% of Fire Damage as Extra Chaos Damage",
+        "Corrosive",
+        "prefix",
+        80,
+        "FireAddedAsChaos",
+        '["weapon_1h"]',
+        '["chaos_damage"]',
+      ),
+      env.DB.prepare(
+        `INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "FireAddedAsChaosC",
+        "Gain (8-10)% of Fire Damage as Extra Chaos Damage",
+        "Dissolving",
+        "prefix",
+        72,
+        "FireAddedAsChaos",
+        '["weapon_1h"]',
+        '["chaos_damage"]',
+      ),
+      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (?, ?)").bind(
+        "FireAddedAsChaosA",
+        "Gain (11-13)% of Fire Damage as Extra Chaos Damage",
+      ),
+      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (?, ?)").bind(
+        "FireAddedAsChaosB",
+        "Gain (14-16)% of Fire Damage as Extra Chaos Damage",
+      ),
+      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (?, ?)").bind(
+        "FireAddedAsChaosC",
+        "Gain (8-10)% of Fire Damage as Extra Chaos Damage",
+      ),
+    ]);
+
+    const result = await modSearchModule.execute(
+      { query: "fire damage as extra chaos" },
+      ftsEnv,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const mods = result.data.mods as {
+      tiers: { tier: number; level: number }[];
+    }[];
+    expect(mods.length).toBe(1);
+    const tiers = mods[0]!.tiers;
+    expect(tiers.length).toBe(3);
+    // Level 80 rows share tier 1; level 72 row is tier 2.
+    expect(tiers[0]!.level).toBe(80);
+    expect(tiers[0]!.tier).toBe(1);
+    expect(tiers[1]!.level).toBe(80);
+    expect(tiers[1]!.tier).toBe(1);
+    expect(tiers[2]!.level).toBe(72);
+    expect(tiers[2]!.tier).toBe(2);
+  });
+
+  it("splits groups by item_classes even when group_name matches", async () => {
+    // Same group_name "FireAddedAsChaos", but one row is 1h and one is 2h.
+    // Expected: two distinct mod groups in the output, not one merged group.
+    await env.DB.batch([
+      env.DB.prepare(
+        `INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "WeaponFireAddedAsChaos1h3",
+        "Gain (11-13)% of Fire Damage as Extra Chaos Damage",
+        "Corrosive",
+        "prefix",
+        80,
+        "FireAddedAsChaos",
+        '["weapon_1h"]',
+        '["chaos_damage"]',
+      ),
+      env.DB.prepare(
+        `INSERT INTO poe_mods (mod_id, mod_text, affix, generation_type, level, group_name, item_classes, tags)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      ).bind(
+        "WeaponFireAddedAsChaos2h3",
+        "Gain (21-26)% of Fire Damage as Extra Chaos Damage",
+        "Corrosive",
+        "prefix",
+        80,
+        "FireAddedAsChaos",
+        '["weapon_2h"]',
+        '["chaos_damage"]',
+      ),
+      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (?, ?)").bind(
+        "WeaponFireAddedAsChaos1h3",
+        "Gain (11-13)% of Fire Damage as Extra Chaos Damage",
+      ),
+      env.DB.prepare("INSERT INTO poe_mods_fts (mod_id, mod_text) VALUES (?, ?)").bind(
+        "WeaponFireAddedAsChaos2h3",
+        "Gain (21-26)% of Fire Damage as Extra Chaos Damage",
+      ),
+    ]);
+
+    const result = await modSearchModule.execute(
+      { query: "fire damage as extra chaos" },
+      ftsEnv,
+    );
+    expect(result.type).toBe("structured");
+    if (result.type !== "structured") throw new Error("unexpected type");
+
+    const mods = result.data.mods as {
+      tiers: { tier: number; level: number; text: string }[];
+    }[];
+    expect(mods.length).toBe(2);
+    for (const mod of mods) {
+      expect(mod.tiers.length).toBe(1);
+      expect(mod.tiers[0]!.tier).toBe(1);
+      expect(mod.tiers[0]!.level).toBe(80);
+    }
+    const texts = mods.map((m) => m.tiers[0]!.text).sort();
+    expect(texts).toEqual([
+      "Gain (11-13)% of Fire Damage as Extra Chaos Damage",
+      "Gain (21-26)% of Fire Damage as Extra Chaos Damage",
+    ]);
+  });
+
   it("returns empty results for non-matching query", async () => {
     await seedMods();
 
