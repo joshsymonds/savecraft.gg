@@ -22,6 +22,12 @@ type ModTier struct {
 // modEntryRe matches the mod ID at the start of each line entry.
 var modEntryRe = regexp.MustCompile(`^\t\["(\w+)"\]\s*=\s*\{(.+)\},?\s*$`)
 
+// weaponHandRe matches mod IDs of the form Weapon...{1h|2h}<digits>[_],
+// capturing the hand digit. PoB's weapon mods encode hand this way and
+// otherwise ship with an empty weightKey ({"default"} at weight 0), so we
+// recover the classification from the id when source data is empty.
+var weaponHandRe = regexp.MustCompile(`^Weapon.*([12])h\d+_?$`)
+
 // parseModsLua parses a PoB Mod*.lua file into a slice of ModTier.
 // Each entry is a single line in the format:
 //
@@ -43,6 +49,9 @@ func parseModsLua(content string) ([]ModTier, error) {
 		group := extractLuaString(body, "group")
 		modText := extractModTexts(body)
 		itemClasses := extractWeightedClasses(body)
+		if len(itemClasses) == 0 {
+			itemClasses = synthesizeWeaponClasses(modID)
+		}
 		tags := extractModTags(body)
 
 		if modText == "" {
@@ -111,6 +120,18 @@ func findAfterField(body, field string) int {
 		return -1
 	}
 	return idx + eq + openQ + 1 + closeQ + 1
+}
+
+// synthesizeWeaponClasses returns a single-element weapon_1h / weapon_2h class
+// slice when modID is a weapon mod encoding hand in its id, or nil otherwise.
+// Callers use it as a fallback when extractWeightedClasses yields an empty
+// result — never to overwrite populated source classifications.
+func synthesizeWeaponClasses(modID string) []string {
+	m := weaponHandRe.FindStringSubmatch(modID)
+	if m == nil {
+		return nil
+	}
+	return []string{"weapon_" + m[1] + "h"}
 }
 
 // extractWeightedClasses extracts item class tags from weightKey/weightVal arrays.
