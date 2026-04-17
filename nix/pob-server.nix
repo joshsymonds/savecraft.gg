@@ -35,7 +35,7 @@ in {
 
     poolSize = lib.mkOption {
       type = lib.types.int;
-      default = 4;
+      default = 8;
       description = "Maximum number of concurrent LuaJIT PoB processes.";
     };
 
