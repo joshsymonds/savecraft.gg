@@ -934,12 +934,12 @@ export class SourceHub extends DurableObject<Env> {
 
       // Rewrite legacy game_ids to their canonical form before anything reads
       // them (dedup, rejection check, storage, event synthesis). See gameid.ts.
-      push.gameId = normalizeGameId(push.gameId);
+      const gameId = normalizeGameId(push.gameId);
 
       // Check if the push should be rejected (disabled game or excluded save)
-      const rejection = await this.checkPushRejection(sourceId, push.gameId, saveName);
+      const rejection = await this.checkPushRejection(sourceId, gameId, saveName);
       if (rejection) {
-        this.debugLog.push("warn", rejection.reason, { gameId: push.gameId, saveName, sourceId });
+        this.debugLog.push("warn", rejection.reason, { gameId, saveName, sourceId });
         ws.send(
           Message.encode({
             payload: {
@@ -948,7 +948,7 @@ export class SourceHub extends DurableObject<Env> {
                 saveUuid: "",
                 snapshotTimestamp: undefined,
                 error: rejection.error,
-                gameId: push.gameId,
+                gameId,
               },
             },
           }).finish(),
@@ -969,7 +969,7 @@ export class SourceHub extends DurableObject<Env> {
         this.env,
         userUuid,
         sourceId,
-        push.gameId,
+        gameId,
         saveName,
         push.summary,
         parsedAt,
@@ -985,17 +985,17 @@ export class SourceHub extends DurableObject<Env> {
             saveUuid,
             snapshotTimestamp: push.parsedAt,
             error: PushSaveError.PUSH_SAVE_ERROR_UNSPECIFIED,
-            gameId: push.gameId,
+            gameId,
           },
         },
       }).finish();
       ws.send(resultMsg);
 
-      this.debugLog.push("info", "pushSave completed", { saveUuid, gameId: push.gameId, changed });
+      this.debugLog.push("info", "pushSave completed", { saveUuid, gameId, changed });
 
       // Only emit pushCompleted event when data actually changed.
       if (changed) {
-        await this.synthesizePushCompleted(sourceId, push, saveUuid);
+        await this.synthesizePushCompleted(sourceId, push, gameId, saveUuid);
       }
     } catch (error) {
       this.debugLog.push("error", "pushSave failed", {
@@ -1080,13 +1080,14 @@ export class SourceHub extends DurableObject<Env> {
   private async synthesizePushCompleted(
     sourceId: string,
     push: PushSave,
+    gameId: string,
     saveUuid: string,
   ): Promise<void> {
     const pushCompletedMsg: Message = {
       payload: {
         $case: "pushCompleted",
         pushCompleted: {
-          gameId: push.gameId,
+          gameId,
           saveUuid,
           summary: push.summary,
           identity: push.identity,
@@ -1100,7 +1101,7 @@ export class SourceHub extends DurableObject<Env> {
     applyMutation(state, {
       kind: "pushCompleted",
       sourceId,
-      gameId: push.gameId,
+      gameId,
       saveUuid,
       summary: push.summary,
       identity: push.identity,
@@ -1123,8 +1124,9 @@ export class SourceHub extends DurableObject<Env> {
    */
   private async maybeAutoEnableGame(rpc: Message | undefined): Promise<void> {
     if (rpc?.payload?.$case !== "gameDetected") return;
-    const { gameId, path } = rpc.payload.gameDetected;
-    if (!gameId || !path) return;
+    const { gameId: rawId, path } = rpc.payload.gameDetected;
+    if (!rawId || !path) return;
+    const gameId = normalizeGameId(rawId);
 
     try {
       const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
@@ -1171,10 +1173,11 @@ export class SourceHub extends DurableObject<Env> {
       const sourceUuid = await this.ctx.storage.get<string>(SOURCE_UUID_KEY);
       if (!sourceUuid) return;
 
-      const validGames = games.filter(
-        (game): game is typeof game & { gameId: string; path: string } =>
+      const validGames = games
+        .filter((game): game is typeof game & { gameId: string; path: string } =>
           Boolean(game.gameId && game.path),
-      );
+        )
+        .map((game) => ({ ...game, gameId: normalizeGameId(game.gameId) }));
       if (validGames.length === 0) return;
 
       const gameIds = validGames.map((game) => game.gameId);

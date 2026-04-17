@@ -237,6 +237,26 @@ describe("migration 0047 data rename (idempotency)", () => {
     expect(config!.game_id).toBe("magic");
   });
 
+  it("surfaces the UNIQUE (user_uuid, game_id, save_name) constraint if both mtga and magic rows exist for the same save", async () => {
+    // Documents migration behavior under a collision. Production was verified
+    // collision-free on 2026-04-17 before deploy; this test exists so a future
+    // reader sees that a collision would fail the UPDATE (surfacing the issue
+    // at deploy time), not silently drop data or create divergent rows.
+    const { sourceUuid } = await seedSource("mig-user-3");
+    await env.DB.batch([
+      env.DB.prepare(
+        "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, 'mtga', 'MTG Arena', 'ClashChar', 's', ?, ?)",
+      ).bind(crypto.randomUUID(), "mig-user-3", "2026-04-10T00:00:00Z", sourceUuid),
+      env.DB.prepare(
+        "INSERT INTO saves (uuid, user_uuid, game_id, game_name, save_name, summary, last_updated, last_source_uuid) VALUES (?, ?, 'magic', 'Magic', 'ClashChar', 's', ?, ?)",
+      ).bind(crypto.randomUUID(), "mig-user-3", "2026-04-15T00:00:00Z", sourceUuid),
+    ]);
+
+    await expect(
+      env.DB.prepare("UPDATE saves SET game_id = 'magic' WHERE game_id = 'mtga'").run(),
+    ).rejects.toThrow(/UNIQUE|constraint/i);
+  });
+
   it("is a no-op on a second run (no mtga rows remain after first run)", async () => {
     const { sourceUuid } = await seedSource("mig-user-2");
     await env.DB.prepare(
