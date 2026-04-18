@@ -44,6 +44,15 @@ COMPONENTS=(
 # Dynamically discover plugin tag families
 while IFS= read -r family; do
   game_id="${family#plugin-}"
+  # Skip retired plugins: if plugin.toml is gone, the deploy workflow has
+  # nothing to read and no amount of tagging will ship it. The tag family
+  # persists in git forever, so without this guard every run forever surfaces
+  # a huge deletion diff begging someone to tag it.
+  if [ ! -f "plugins/${game_id}/plugin.toml" ]; then
+    echo "=== ${family}: retired (no plugins/${game_id}/plugin.toml on HEAD) ==="
+    echo ""
+    continue
+  fi
   if [ -f "plugins/${game_id}/reference/register.ts" ]; then
     # Native TS: exclude entire reference/ from plugin (deploys with cloud)
     COMPONENTS+=("${family}|plugins/${game_id}/ :(exclude)plugins/${game_id}/reference/ :(exclude)plugins/${game_id}/tools/")
