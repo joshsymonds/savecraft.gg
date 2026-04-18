@@ -5,6 +5,7 @@ import { parse } from "smol-toml";
 export interface ReferenceModule {
   name: string;
   description: string;
+  requires_save: boolean;
 }
 
 export interface GameInfo {
@@ -29,14 +30,14 @@ interface PluginToml {
   coverage: string;
   limitations?: string[];
   reference?: {
-    modules?: Record<string, { name: string; description: string }>;
+    modules?: Record<string, { name: string; description: string; requires_save?: boolean }>;
   };
 }
 
 const PLUGINS_DIR = resolve("../plugins");
 
-export function loadPlugin(gameDir: string): GameInfo {
-  const dir = resolve(PLUGINS_DIR, gameDir);
+export function loadPlugin(gameDir: string, pluginsDir: string = PLUGINS_DIR): GameInfo {
+  const dir = resolve(pluginsDir, gameDir);
   const toml = readFileSync(resolve(dir, "plugin.toml"), "utf-8");
   const cfg = parse(toml) as unknown as PluginToml;
 
@@ -59,6 +60,7 @@ export function loadPlugin(gameDir: string): GameInfo {
     ? Object.values(cfg.reference.modules).map((m) => ({
         name: m.name,
         description: m.description,
+        requires_save: typeof m.requires_save === "boolean" ? m.requires_save : true,
       }))
     : [];
 
@@ -75,9 +77,9 @@ export function loadPlugin(gameDir: string): GameInfo {
   };
 }
 
-export function discoverPlugins(): GameInfo[] {
-  return readdirSync(PLUGINS_DIR, { withFileTypes: true })
-    .filter((d) => d.isDirectory() && existsSync(resolve(PLUGINS_DIR, d.name, "plugin.toml")))
-    .map((d) => loadPlugin(d.name))
+export function discoverPlugins(pluginsDir: string = PLUGINS_DIR): GameInfo[] {
+  return readdirSync(pluginsDir, { withFileTypes: true })
+    .filter((d) => d.isDirectory() && existsSync(resolve(pluginsDir, d.name, "plugin.toml")))
+    .map((d) => loadPlugin(d.name, pluginsDir))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
