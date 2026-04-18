@@ -507,6 +507,121 @@ describe("MCP Protocol", () => {
     expect(body.result.content![0]!.text).toContain('list_games(filter="magic")');
   });
 
+  it("query_reference missing-queries error for poe/build_planner cites module params + example", async () => {
+    // In miniflare test mode the plugin register side-effect imports
+    // land in a separate `registry` module instance from the one the
+    // Worker bundle reads, so we re-register a real poe module test-side
+    // to put its parameter schema in scope for this test. Production
+    // resolves both through the same bundle, so this workaround is
+    // local to vitest.
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    registerNativeModule("poe", buildPlannerModule);
+
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 50, {
+        name: "show_reference",
+        arguments: { game_id: "poe", module: "build_planner" },
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+      };
+    };
+    expect(body.result.isError).toBe(true);
+    const text = body.result.content![0]!.text;
+
+    // Regression: existing phrases that other tooling / manual ops may
+    // grep on must keep working.
+    expect(text).toContain("queries is required");
+    expect(text).toContain('list_games(filter="poe")');
+
+    // Enrichment: at least two of build_planner's stable parameter
+    // names should appear, so the AI can skip the list_games hop and
+    // just retry.
+    expect(text).toContain("build");
+    expect(text).toContain("operations");
+    expect(text).toContain("sections");
+
+    // The example payload block should be a visible JSON-shaped hint
+    // with the label key the AI can fill in and retry.
+    expect(text).toMatch(/queries:\s*\[/);
+    expect(text).toContain("label");
+  });
+
+  it("query_reference missing-queries error handles unknown module gracefully", async () => {
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 51, {
+        name: "query_reference",
+        arguments: { game_id: "poe", module: "does-not-exist" },
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+      };
+    };
+    expect(body.result.isError).toBe(true);
+    const text = body.result.content![0]!.text;
+    // Falls back cleanly: core phrase still present, no crash, no
+    // bogus parameter list.
+    expect(text).toContain("queries is required");
+    expect(text).toContain('list_games(filter="poe")');
+  });
+
+  it("query_reference missing-queries error without game_id uses placeholder", async () => {
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 52, {
+        name: "query_reference",
+        arguments: { module: "build_planner" },
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+      };
+    };
+    expect(body.result.isError).toBe(true);
+    const text = body.result.content![0]!.text;
+    // Regression: preserves the existing <game_id> placeholder when
+    // game_id is absent.
+    expect(text).toContain("queries is required");
+    expect(text).toContain('list_games(filter="<game_id>")');
+  });
+
   it("query_reference rejects too many queries", async () => {
     await SELF.fetch(
       mcpRequest("initialize", 1, {

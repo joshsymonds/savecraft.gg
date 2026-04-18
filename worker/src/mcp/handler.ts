@@ -17,6 +17,7 @@ import type { Env } from "../types";
 
 import { MANIFEST_LIST } from "./manifests.gen.js";
 import {
+  buildQueriesHint,
   createNote,
   deleteNote,
   getInfo,
@@ -863,6 +864,23 @@ function extractResultData(
   }
 }
 
+function missingQueriesError(args: Record<string, unknown>): ToolResult {
+  const gameIdRaw = typeof args.game_id === "string" ? args.game_id : "";
+  const gameIdHint = gameIdRaw.length > 0 ? gameIdRaw : "<game_id>";
+  const moduleIdRaw = typeof args.module === "string" ? args.module : "";
+  const enriched =
+    gameIdRaw.length > 0 && moduleIdRaw.length > 0
+      ? buildQueriesHint(normalizeGameId(gameIdRaw), moduleIdRaw)
+      : null;
+  const lead =
+    `queries is required: provide an array like [{label: "...", ...module-specific-params}]. ` +
+    `Call list_games(filter="${gameIdHint}") for the parameter schema.`;
+  return {
+    content: [{ type: "text", text: enriched ? `${lead}${enriched}` : lead }],
+    isError: true,
+  };
+}
+
 async function handleQueryReference(
   env: Env,
   userUuid: string,
@@ -870,19 +888,7 @@ async function handleQueryReference(
 ): Promise<ToolResult | ViewToolResult> {
   const queries = args.queries;
   if (!Array.isArray(queries) || queries.length === 0) {
-    const gameIdHint =
-      typeof args.game_id === "string" && args.game_id.length > 0 ? args.game_id : "<game_id>";
-    return {
-      content: [
-        {
-          type: "text",
-          text:
-            `queries is required: provide an array like [{label: "...", ...module-specific-params}]. ` +
-            `Call list_games(filter="${gameIdHint}") for the parameter schema.`,
-        },
-      ],
-      isError: true,
-    };
+    return missingQueriesError(args);
   }
   if (queries.length > MAX_BATCH_QUERIES) {
     return {

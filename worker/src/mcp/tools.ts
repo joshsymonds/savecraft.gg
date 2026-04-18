@@ -1114,6 +1114,34 @@ function formatSchemaHint(gameId: string, moduleId: string): string {
   return `\n\nThis module's actual parameters:\n${lines.join("\n")}`;
 }
 
+/**
+ * Build a concrete example `queries` array plus schema summary for
+ * the missing-queries error path. Returns null when no schema is
+ * available (unknown module, game_id not supplied, etc.).
+ */
+export function buildQueriesHint(gameId: string, moduleId: string): string | null {
+  const params = getModuleParameters(gameId, moduleId);
+  if (!params) return null;
+
+  const example: Record<string, unknown> = { label: "example" };
+  for (const [name, rawSchema] of Object.entries(params)) {
+    const schema = rawSchema as { type?: string; required?: boolean };
+    if (schema.required !== true) continue;
+    example[name] = exampleValueForType(schema.type);
+  }
+
+  const exampleJson = JSON.stringify(example);
+  return `\n\nExample: queries: [${exampleJson}]${formatSchemaHint(gameId, moduleId)}`;
+}
+
+function exampleValueForType(type: string | undefined): unknown {
+  if (type === "number" || type === "integer") return 0;
+  if (type === "boolean") return false;
+  if (type === "array") return [];
+  if (type === "object") return {};
+  return "...";
+}
+
 /** Append schema hint to an error result so the LLM can self-correct. */
 function withSchemaHint(result: ToolResult, gameId: string, moduleId: string): ToolResult {
   if (!result.isError) return result;
