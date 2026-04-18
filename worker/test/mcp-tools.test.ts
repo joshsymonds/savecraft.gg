@@ -513,7 +513,7 @@ describe("MCP Tools", () => {
       expect(data.sections).toHaveProperty("skills");
     });
 
-    it("returns error for non-existent section", async () => {
+    it("returns error for non-existent section with available names", async () => {
       await seedSave({
         saveUuid: "save-nosec",
         userUuid: USER_A,
@@ -524,6 +524,35 @@ describe("MCP Tools", () => {
 
       const result = await getSection(env.DB, USER_A, "save-nosec", ["nonexistent"]);
       expect(result.isError).toBe(true);
+      const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+      expect(text).toContain("None of the requested sections were found");
+      // Error must list the actual section names from D1 so the AI can self-correct.
+      expect(text).toContain("character_overview");
+      expect(text).toContain("equipped_gear");
+      expect(text).toContain("skills");
+    });
+
+    it("falls back to get_save hint when save has zero sections", async () => {
+      // A save can legitimately have no sections (e.g. parser emitted none).
+      const emptyState = {
+        identity: { saveName: "Empty", gameId: "d2r" },
+        summary: "Empty",
+        sections: {},
+      };
+      await seedSave({
+        saveUuid: "save-empty-sections",
+        userUuid: USER_A,
+        gameId: "d2r",
+        saveName: "Empty",
+        summary: "Empty",
+        gameState: emptyState as unknown as typeof sampleGameState,
+      });
+
+      const result = await getSection(env.DB, USER_A, "save-empty-sections", ["anything"]);
+      expect(result.isError).toBe(true);
+      const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+      expect(text).toContain("None of the requested sections were found");
+      expect(text).toContain("get_save");
     });
 
     it("rejects access to other user's save", async () => {
@@ -592,126 +621,93 @@ describe("MCP Tools", () => {
       expect(text).not.toContain("Did you mean");
     });
 
-    // Production log 2026-04-18T07:02:15Z: an AI called get_section with
-    // sections:["game:07b94a4e-236b-4750-8ff3-112c6c888518"] — a UUID
-    // where a section name was expected. The generic "none found" error
-    // didn't steer the AI toward the real fix, so we catch UUID-shapes
-    // early and return a specific hint.
-    describe("UUID-shaped section values", () => {
-      const productionUuid = "07b94a4e-236b-4750-8ff3-112c6c888518";
+    // Regression: the magic plugin emits real section names of the form
+    // `match:<uuid>` and `game:<uuid>`. A server-side shape-validation
+    // guard previously false-positived on these and rejected valid
+    // sections before the D1 lookup. Section names are plugin-controlled
+    // opaque strings — validation must use the DB as ground truth.
+    describe("prefixed-UUID section names (magic regression)", () => {
+      const matchUuid = "29513b6e-aec9-4150-a0e3-64f4682d3f40";
+      const mtgaState = {
+        identity: { saveName: "DraftDodger", gameId: "magic" },
+        summary: "DraftDodger",
+        sections: {
+          player_summary: {
+            description: "Player overview",
+            data: { display_name: "DraftDodger" },
+          },
+          [`match:${matchUuid}`]: {
+            description: "Match result",
+            data: { matchId: matchUuid, opponent: "xyretire" },
+          },
+          [`game:${matchUuid}`]: {
+            description: "Turn-by-turn game log",
+            data: { matchId: matchUuid, turns: [] },
+          },
+        },
+      };
 
-      it("rejects bare UUID with a UUID-specific error", async () => {
+      it("returns data for match:<uuid> section", async () => {
         await seedSave({
-          saveUuid: "save-uuid-bare",
+          saveUuid: "save-magic-match",
           userUuid: USER_A,
-          gameId: "d2r",
-          saveName: "Hammerdin",
-          summary: "Paladin, Level 89",
+          gameId: "magic",
+          saveName: "DraftDodger",
+          summary: "DraftDodger",
+          gameState: mtgaState as unknown as typeof sampleGameState,
         });
 
-        const result = await getSection(env.DB, USER_A, "save-uuid-bare", [productionUuid]);
-        expect(result.isError).toBe(true);
-        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
-        expect(text).toContain("Section names are");
-        expect(text).toContain("get_save");
-        expect(text).toContain(productionUuid);
+        const result = await getSection(env.DB, USER_A, "save-magic-match", [
+          `match:${matchUuid}`,
+        ]);
+        expect(result.isError).toBeUndefined();
+        const data = parseResult(result) as {
+          save_id: string;
+          section: string;
+          data: { matchId: string; opponent: string };
+        };
+        expect(data.section).toBe(`match:${matchUuid}`);
+        expect(data.data.matchId).toBe(matchUuid);
+        expect(data.data.opponent).toBe("xyretire");
       });
 
-      it("rejects the production-captured prefixed UUID form", async () => {
-        // This is the exact value from the 2026-04-18 error log.
+      it("returns data for game:<uuid> section", async () => {
         await seedSave({
-          saveUuid: "save-uuid-prefixed",
+          saveUuid: "save-magic-game",
           userUuid: USER_A,
-          gameId: "d2r",
-          saveName: "Hammerdin",
-          summary: "Paladin, Level 89",
+          gameId: "magic",
+          saveName: "DraftDodger",
+          summary: "DraftDodger",
+          gameState: mtgaState as unknown as typeof sampleGameState,
         });
 
-        const result = await getSection(env.DB, USER_A, "save-uuid-prefixed", [
-          `game:${productionUuid}`,
+        const result = await getSection(env.DB, USER_A, "save-magic-game", [
+          `game:${matchUuid}`,
         ]);
-        expect(result.isError).toBe(true);
-        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
-        expect(text).toContain("Section names are");
+        expect(result.isError).toBeUndefined();
+        const data = parseResult(result) as { section: string };
+        expect(data.section).toBe(`game:${matchUuid}`);
       });
 
-      it("rejects uppercase UUID shapes", async () => {
+      it("miss error on magic save lists the real match:/game: names", async () => {
         await seedSave({
-          saveUuid: "save-uuid-upper",
+          saveUuid: "save-magic-miss",
           userUuid: USER_A,
-          gameId: "d2r",
-          saveName: "Hammerdin",
-          summary: "Paladin, Level 89",
+          gameId: "magic",
+          saveName: "DraftDodger",
+          summary: "DraftDodger",
+          gameState: mtgaState as unknown as typeof sampleGameState,
         });
 
-        const result = await getSection(env.DB, USER_A, "save-uuid-upper", [
-          productionUuid.toUpperCase(),
-        ]);
+        // Bare UUID — definitely not a section name. Error must surface
+        // the real section names so the AI can pick a valid one.
+        const result = await getSection(env.DB, USER_A, "save-magic-miss", [matchUuid]);
         expect(result.isError).toBe(true);
         const text = result.content[0]?.type === "text" ? result.content[0].text : "";
-        expect(text).toContain("Section names are");
-      });
-
-      it("rejects other prefix forms the AI might guess", async () => {
-        await seedSave({
-          saveUuid: "save-uuid-save",
-          userUuid: USER_A,
-          gameId: "d2r",
-          saveName: "Hammerdin",
-          summary: "Paladin, Level 89",
-        });
-
-        const result = await getSection(env.DB, USER_A, "save-uuid-save", [
-          `save:${productionUuid}`,
-        ]);
-        expect(result.isError).toBe(true);
-        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
-        expect(text).toContain("Section names are");
-      });
-
-      it("rejects mixed array containing at least one UUID", async () => {
-        // AI passes one valid-looking name plus a UUID. The UUID should
-        // trigger the specific error before the DB query even runs —
-        // don't let the "partial success" response hide the shape bug.
-        await seedSave({
-          saveUuid: "save-uuid-mixed",
-          userUuid: USER_A,
-          gameId: "d2r",
-          saveName: "Hammerdin",
-          summary: "Paladin, Level 89",
-        });
-
-        const result = await getSection(env.DB, USER_A, "save-uuid-mixed", [
-          "equipped_gear",
-          productionUuid,
-        ]);
-        expect(result.isError).toBe(true);
-        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
-        expect(text).toContain("Section names are");
-        expect(text).toContain(productionUuid);
-      });
-
-      it("does not false-positive on section-like strings with dashes", async () => {
-        // Section names *could* contain hyphens (current schema doesn't
-        // strictly forbid it). Only the full 8-4-4-4-12 hex UUID shape
-        // should trip the guard.
-        await seedSave({
-          saveUuid: "save-dashed-name",
-          userUuid: USER_A,
-          gameId: "d2r",
-          saveName: "Hammerdin",
-          summary: "Paladin, Level 89",
-        });
-
-        const result = await getSection(env.DB, USER_A, "save-dashed-name", [
-          "some-section-name-2026-04-18",
-        ]);
-        // This section won't exist, so we expect the generic miss error
-        // (isError === true), NOT the UUID-specific hint.
-        expect(result.isError).toBe(true);
-        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
-        expect(text).not.toContain("Section names are");
         expect(text).toContain("None of the requested sections were found");
+        expect(text).toContain(`match:${matchUuid}`);
+        expect(text).toContain(`game:${matchUuid}`);
+        expect(text).toContain("player_summary");
       });
     });
   });

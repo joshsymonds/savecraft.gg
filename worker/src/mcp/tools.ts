@@ -481,21 +481,6 @@ export async function getSave(
   return textResult(result);
 }
 
-// Matches bare or prefixed (e.g. "game:") standard 8-4-4-4-12 UUIDs.
-// AIs occasionally pass these in `sections[]` when they confuse the
-// section-name argument with the save/game ID; catch the mistake
-// before a DB query so the error can name the actual fix.
-const uuidSectionShape =
-  /^(?:[a-z][a-z0-9_]*:)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-
-function uuidLikeSectionError(sections: string[]): ToolResult | null {
-  const uuidLike = sections.find((s) => uuidSectionShape.test(s));
-  if (uuidLike === undefined) return null;
-  return errorResult(
-    `Section names are short strings like 'offense', 'items', 'characters' — not UUIDs. Got: ${uuidLike}. Call get_save({save_id}) first to see the available section names for this save.`,
-  );
-}
-
 function singleSectionResult(saveId: string, row: { name: string; data: string }): ToolResult {
   const byteSize = new TextEncoder().encode(row.data).length;
   if (byteSize > SECTION_SIZE_LIMIT) {
@@ -524,9 +509,6 @@ export async function getSection(
     );
   }
 
-  const uuidErr = uuidLikeSectionError(sections);
-  if (uuidErr) return uuidErr;
-
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
     return errorResult("Save not found. Check the game listing for available saves and their IDs.");
@@ -541,8 +523,19 @@ export async function getSection(
   if (rows.results.length === 0) {
     const deckSuggestion = await deckMissError(db, saveId, sections);
     if (deckSuggestion) return deckSuggestion;
+    const available = await db
+      .prepare("SELECT name FROM sections WHERE save_uuid = ? ORDER BY name")
+      .bind(saveId)
+      .all<{ name: string }>();
+    const requested = sections.join(", ");
+    if (available.results.length === 0) {
+      return errorResult(
+        `None of the requested sections were found: ${requested}. Call get_save to see available section names.`,
+      );
+    }
+    const names = available.results.map((r) => r.name).join(", ");
     return errorResult(
-      `None of the requested sections were found: ${sections.join(", ")}. Call get_save to see available section names.`,
+      `None of the requested sections were found: ${requested}. Available sections for this save: ${names}.`,
     );
   }
 
