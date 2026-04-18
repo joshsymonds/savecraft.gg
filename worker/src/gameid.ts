@@ -5,6 +5,8 @@
 //
 // mtga→magic: plugin renamed 2026-04-12 (commits 322d3fd, f15fedc, e19744d).
 // Paired with migration 0047 which rewrites pre-alias rows in saves + source_configs.
+// mtg→magic: typo alias for LLMs that drop the trailing "a" — observed in
+// production MCP traffic from both Claude and ChatGPT.
 //
 // Null-prototype table: a daemon sending a reserved key like `__proto__`
 // or `constructor` would otherwise resolve to Object.prototype's member and
@@ -12,6 +14,7 @@
 const ALIASES: Record<string, string> = Object.freeze(
   Object.assign(Object.create(null) as Record<string, string>, {
     mtga: "magic",
+    mtg: "magic",
   }),
 );
 

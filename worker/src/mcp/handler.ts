@@ -6,6 +6,7 @@
  * Supports: initialize, notifications/initialized, tools/list, tools/call.
  * Transport: Streamable HTTP (POST with JSON responses, no SSE needed for sync tools).
  */
+import { normalizeGameId } from "../gameid";
 import { getNativeModule } from "../reference/registry";
 import {
   resolveSectionParams,
@@ -888,7 +889,7 @@ async function handleQueryReference(
     };
   }
 
-  const gameId = args.game_id as string;
+  const gameId = normalizeGameId(args.game_id as string);
   const moduleId = args.module as string;
 
   // Look up the native module for section-reference resolution.

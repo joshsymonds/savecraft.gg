@@ -64,6 +64,10 @@ describe("normalizeGameId", () => {
     expect(normalizeGameId("mtga")).toBe("magic");
   });
 
+  it("rewrites mtg typo to magic", () => {
+    expect(normalizeGameId("mtg")).toBe("magic");
+  });
+
   it("leaves magic untouched", () => {
     expect(normalizeGameId("magic")).toBe("magic");
   });
