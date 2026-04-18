@@ -359,4 +359,17 @@ describe("MCP did-you-mean for unknown modules", () => {
     const err = singleQueryError(result);
     expect(err).not.toContain("evolution_tracker");
   });
+
+  it("skips suggestions when the module name is absurdly long (DoS guard)", async () => {
+    // Pathological input — 2000 chars — must short-circuit before per-id
+    // Levenshtein runs, so no "Did you mean" appears.
+    const result = await callTool(45, "query_reference", {
+      game_id: "magic",
+      module: `rules${"x".repeat(2000)}`,
+      queries: [{ label: "x" }],
+    });
+    const err = singleQueryError(result);
+    expect(err).toContain("not found for game");
+    expect(err).not.toContain("Did you mean");
+  });
 });

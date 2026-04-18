@@ -604,6 +604,10 @@ async function suggestDeckSections(
  * distance, with the same 0.7 normalized-distance threshold as suggestDeckSections.
  */
 function suggestModules(gameId: string, requested: string): string[] {
+  // Cap input length so an attacker-controlled multi-MB module name can't
+  // burn CPU quota in the per-id Levenshtein DP (cost is O(query × id)).
+  // Real module ids are <40 chars; 256 is generous and covers plausible typos.
+  if (requested.length > 256) return [];
   const wasmIds = Object.keys(MANIFESTS.get(gameId)?.reference?.modules ?? {});
   const nativeIds = getNativeModules(gameId).map((m) => m.id);
   const allIds = [...new Set([...wasmIds, ...nativeIds])];

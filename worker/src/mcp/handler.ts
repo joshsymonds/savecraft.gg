@@ -173,7 +173,7 @@ const TOOLS: ToolDefinition[] = [
       properties: {
         filter: {
           type: "string",
-          description: `Filter by game name or ID (case-insensitive substring). Supported game_ids: ${GAME_ID_HINT}. Omit to see all games.`,
+          description: `Filter by game name or ID — tokenized on whitespace, any token substring-matches case-insensitively. Aliases like mtg/mtga route to magic. Supported game_ids: ${GAME_ID_HINT}. Omit to see all games.`,
         },
       },
     },
@@ -520,7 +520,7 @@ const TOOLS: ToolDefinition[] = [
       properties: {
         filter: {
           type: "string",
-          description: `Filter by game name or ID (case-insensitive substring). Supported game_ids: ${GAME_ID_HINT}. Omit to see all games.`,
+          description: `Filter by game name or ID — tokenized on whitespace, any token substring-matches case-insensitively. Aliases like mtg/mtga route to magic. Supported game_ids: ${GAME_ID_HINT}. Omit to see all games.`,
         },
       },
     },
