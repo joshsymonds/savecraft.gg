@@ -481,6 +481,37 @@ export async function getSave(
   return textResult(result);
 }
 
+// Matches bare or prefixed (e.g. "game:") standard 8-4-4-4-12 UUIDs.
+// AIs occasionally pass these in `sections[]` when they confuse the
+// section-name argument with the save/game ID; catch the mistake
+// before a DB query so the error can name the actual fix.
+const uuidSectionShape =
+  /^(?:[a-z][a-z0-9_]*:)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function uuidLikeSectionError(sections: string[]): ToolResult | null {
+  const uuidLike = sections.find((s) => uuidSectionShape.test(s));
+  if (uuidLike === undefined) return null;
+  return errorResult(
+    `Section names are short strings like 'offense', 'items', 'characters' — not UUIDs. Got: ${uuidLike}. Call get_save({save_id}) first to see the available section names for this save.`,
+  );
+}
+
+function singleSectionResult(saveId: string, row: { name: string; data: string }): ToolResult {
+  const byteSize = new TextEncoder().encode(row.data).length;
+  if (byteSize > SECTION_SIZE_LIMIT) {
+    const sizeKb = String(Math.round(byteSize / 1024));
+    const limitKb = String(SECTION_SIZE_LIMIT / 1024);
+    return errorResult(
+      `Section '${row.name}' is too large (${sizeKb}KB, limit is ${limitKb}KB). This section contains too much data for a single response.`,
+    );
+  }
+  return textResult({
+    save_id: saveId,
+    section: row.name,
+    data: JSON.parse(row.data) as Record<string, unknown>,
+  });
+}
+
 export async function getSection(
   db: D1Database,
   userUuid: string,
@@ -492,6 +523,9 @@ export async function getSection(
       "Provide at least one section name in the 'sections' array. Call get_save to see available section names.",
     );
   }
+
+  const uuidErr = uuidLikeSectionError(sections);
+  if (uuidErr) return uuidErr;
 
   const save = await lookupSave(db, userUuid, saveId);
   if (!save)
@@ -514,20 +548,7 @@ export async function getSection(
 
   // Single section — return flat result
   if (sections.length === 1 && rows.results[0]) {
-    const row = rows.results[0];
-    const byteSize = new TextEncoder().encode(row.data).length;
-    if (byteSize > SECTION_SIZE_LIMIT) {
-      const sizeKb = String(Math.round(byteSize / 1024));
-      const limitKb = String(SECTION_SIZE_LIMIT / 1024);
-      return errorResult(
-        `Section '${row.name}' is too large (${sizeKb}KB, limit is ${limitKb}KB). This section contains too much data for a single response.`,
-      );
-    }
-    return textResult({
-      save_id: saveId,
-      section: row.name,
-      data: JSON.parse(row.data) as Record<string, unknown>,
-    });
+    return singleSectionResult(saveId, rows.results[0]);
   }
 
   // Multiple sections

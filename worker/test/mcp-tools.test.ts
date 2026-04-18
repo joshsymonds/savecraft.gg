@@ -591,6 +591,129 @@ describe("MCP Tools", () => {
       const text = result.content[0]?.type === "text" ? result.content[0].text : "";
       expect(text).not.toContain("Did you mean");
     });
+
+    // Production log 2026-04-18T07:02:15Z: an AI called get_section with
+    // sections:["game:07b94a4e-236b-4750-8ff3-112c6c888518"] — a UUID
+    // where a section name was expected. The generic "none found" error
+    // didn't steer the AI toward the real fix, so we catch UUID-shapes
+    // early and return a specific hint.
+    describe("UUID-shaped section values", () => {
+      const productionUuid = "07b94a4e-236b-4750-8ff3-112c6c888518";
+
+      it("rejects bare UUID with a UUID-specific error", async () => {
+        await seedSave({
+          saveUuid: "save-uuid-bare",
+          userUuid: USER_A,
+          gameId: "d2r",
+          saveName: "Hammerdin",
+          summary: "Paladin, Level 89",
+        });
+
+        const result = await getSection(env.DB, USER_A, "save-uuid-bare", [productionUuid]);
+        expect(result.isError).toBe(true);
+        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+        expect(text).toContain("Section names are");
+        expect(text).toContain("get_save");
+        expect(text).toContain(productionUuid);
+      });
+
+      it("rejects the production-captured prefixed UUID form", async () => {
+        // This is the exact value from the 2026-04-18 error log.
+        await seedSave({
+          saveUuid: "save-uuid-prefixed",
+          userUuid: USER_A,
+          gameId: "d2r",
+          saveName: "Hammerdin",
+          summary: "Paladin, Level 89",
+        });
+
+        const result = await getSection(env.DB, USER_A, "save-uuid-prefixed", [
+          `game:${productionUuid}`,
+        ]);
+        expect(result.isError).toBe(true);
+        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+        expect(text).toContain("Section names are");
+      });
+
+      it("rejects uppercase UUID shapes", async () => {
+        await seedSave({
+          saveUuid: "save-uuid-upper",
+          userUuid: USER_A,
+          gameId: "d2r",
+          saveName: "Hammerdin",
+          summary: "Paladin, Level 89",
+        });
+
+        const result = await getSection(env.DB, USER_A, "save-uuid-upper", [
+          productionUuid.toUpperCase(),
+        ]);
+        expect(result.isError).toBe(true);
+        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+        expect(text).toContain("Section names are");
+      });
+
+      it("rejects other prefix forms the AI might guess", async () => {
+        await seedSave({
+          saveUuid: "save-uuid-save",
+          userUuid: USER_A,
+          gameId: "d2r",
+          saveName: "Hammerdin",
+          summary: "Paladin, Level 89",
+        });
+
+        const result = await getSection(env.DB, USER_A, "save-uuid-save", [
+          `save:${productionUuid}`,
+        ]);
+        expect(result.isError).toBe(true);
+        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+        expect(text).toContain("Section names are");
+      });
+
+      it("rejects mixed array containing at least one UUID", async () => {
+        // AI passes one valid-looking name plus a UUID. The UUID should
+        // trigger the specific error before the DB query even runs —
+        // don't let the "partial success" response hide the shape bug.
+        await seedSave({
+          saveUuid: "save-uuid-mixed",
+          userUuid: USER_A,
+          gameId: "d2r",
+          saveName: "Hammerdin",
+          summary: "Paladin, Level 89",
+        });
+
+        const result = await getSection(env.DB, USER_A, "save-uuid-mixed", [
+          "equipped_gear",
+          productionUuid,
+        ]);
+        expect(result.isError).toBe(true);
+        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+        expect(text).toContain("Section names are");
+        expect(text).toContain(productionUuid);
+      });
+
+      it("does not false-positive on section-like strings with dashes", async () => {
+        // Section names *could* contain hyphens (current schema doesn't
+        // strictly forbid it). Only the full 8-4-4-4-12 hex UUID shape
+        // should trip the guard.
+        await seedSave({
+          saveUuid: "save-dashed-name",
+          userUuid: USER_A,
+          gameId: "d2r",
+          saveName: "Hammerdin",
+          summary: "Paladin, Level 89",
+        });
+
+        const result = await getSection(env.DB, USER_A, "save-dashed-name", [
+          "some-section-name-2026-04-18",
+        ]);
+        // This section won't exist, so we expect the generic miss error
+        // (isError === true), NOT the UUID-specific hint.
+        expect(result.isError).toBe(true);
+        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+        expect(text).not.toContain("Section names are");
+        expect(text).toContain("None of the requested sections were found");
+      });
+    });
   });
 
   // ── get_save ────────────────────────────────────────────────
