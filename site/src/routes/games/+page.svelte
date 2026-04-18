@@ -3,6 +3,7 @@
   Games page — lists all supported games from plugin manifests.
 -->
 <script lang="ts">
+  import { ModuleBadge } from "$lib/components/marketing";
   import type { GameInfo } from "./+page.server.ts";
 
   let { data } = $props<{ data: { games: GameInfo[] } }>();
@@ -96,7 +97,10 @@
               <div class="modules-list">
                 {#each game.referenceModules as mod (mod.name)}
                   <div class="module-item">
-                    <span class="module-name">{mod.name}</span>
+                    <div class="module-title-row">
+                      <span class="module-name">{mod.name}</span>
+                      <ModuleBadge requiresSave={mod.requires_save} />
+                    </div>
                     <span class="module-desc">{mod.description}</span>
                   </div>
                 {/each}
@@ -351,13 +355,19 @@
     border-radius: 3px;
   }
 
+  .module-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 4px;
+    flex-wrap: wrap;
+  }
+
   .module-name {
-    display: block;
     font-family: var(--font-heading);
     font-size: 15px;
     font-weight: 600;
     color: var(--color-text);
-    margin-bottom: 4px;
   }
 
   .module-desc {
