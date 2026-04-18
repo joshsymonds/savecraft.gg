@@ -76,7 +76,7 @@
       <div class="client-hint">
         <span class="client-name">ChatGPT</span>
         <span class="client-steps">
-          Settings &rarr; Connections &rarr; Add remote server &rarr; paste URL
+          Settings &rarr; Apps &rarr; Advanced settings &rarr; Create App &rarr; paste URL
         </span>
       </div>
 

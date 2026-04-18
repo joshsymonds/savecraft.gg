@@ -87,12 +87,24 @@
               >chatgpt.com</a
             > and sign in.
           </li>
-          <li>Click your profile icon in the top right, then click <strong>Settings</strong>.</li>
-          <li>Click <strong>Connections</strong> in the sidebar.</li>
-          <li>Click <strong>Add remote server</strong>.</li>
+          <li>Click your name in the lower left, then click <strong>Settings</strong>.</li>
           <li>
-            Paste this URL and click <strong>Save</strong>:
-            <code class="url-block">https://mcp.savecraft.gg</code>
+            Click <strong>Apps</strong>, expand the <strong>Advanced settings</strong> bar, then
+            click <strong>Create App</strong>.
+          </li>
+          <li>
+            Fill in the form:
+            <ul class="substeps">
+              <li>Name: <strong>Savecraft</strong></li>
+              <li>
+                MCP URL: <code class="url-block">https://mcp.savecraft.gg</code>
+              </li>
+              <li>Authentication: <strong>OAuth</strong></li>
+              <li>
+                Check <strong>&ldquo;I understand and want to continue&rdquo;</strong>, then click
+                <strong>Create</strong>.
+              </li>
+            </ul>
           </li>
           <li>
             ChatGPT will ask you to <strong>authorize Savecraft</strong>. Click Allow. You'll sign
@@ -408,6 +420,27 @@
     border-left: 3px solid var(--color-green);
     border-radius: 0 4px 4px 0;
     margin-top: 4px;
+  }
+
+  .substeps {
+    list-style: disc;
+    padding-left: 22px;
+    margin-top: 8px;
+    margin-bottom: 0;
+  }
+
+  .substeps li {
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 400;
+    color: var(--color-text-dim);
+    line-height: 1.6;
+    padding: 2px 0;
+  }
+
+  .substeps .url-block {
+    margin-top: 6px;
+    margin-bottom: 0;
   }
 
   .section-note {
