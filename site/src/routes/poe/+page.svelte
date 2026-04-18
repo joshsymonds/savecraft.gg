@@ -15,7 +15,7 @@
     ParticleField,
   } from "$lib/components/marketing";
   import type { DemoMessage } from "$lib/components/marketing/types";
-  import type { GameInfo, ReferenceModule } from "$lib/server/plugins";
+  import type { GameInfo } from "$lib/server/plugins";
 
   let { data } = $props<{ data: { game: GameInfo } }>();
 
