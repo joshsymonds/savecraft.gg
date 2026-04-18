@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 )
 
 // pobRespTypeError is the PoB JSON-lines protocol error type.
@@ -20,6 +21,15 @@ type Server struct {
 	apiKey string
 	client *http.Client // for outbound requests (URL resolution); nil uses DefaultClient
 	log    *slog.Logger
+
+	// gemNames is a lazy-populated cache of PoB's canonical gem names,
+	// fetched once from wrapper.lua's list_gems accessor. Used to
+	// compute fuzzy suggestions when a swap_gem / add_gem op fails.
+	// Once-populated and process-lifetime stable (PoB gem data doesn't
+	// change without a plugin/data bump). If the first fetch fails,
+	// enrichment gracefully falls through — no worse than today.
+	gemNamesOnce sync.Once
+	gemNames     []string
 }
 
 // CalcRequest is the JSON body for POST /calc.
@@ -404,11 +414,14 @@ func (srv *Server) modifyAndRespond(
 	}
 	if pobResp.Type == pobRespTypeError {
 		srv.log.Error("PoB modify error", "message", pobResp.Message)
-		jsonError(
-			writer,
-			"PoB modification failed",
-			http.StatusUnprocessableEntity,
-		)
+		message := pobResp.Message
+		if message == "" {
+			message = "PoB modification failed"
+		}
+		if enriched, ok := enrichGemNotFoundError(message, srv.getGemNames(proc)); ok {
+			message = enriched
+		}
+		jsonError(writer, message, http.StatusUnprocessableEntity)
 		return
 	}
 
@@ -934,6 +947,46 @@ func filterRequestedSections(
 		return original, fmt.Errorf("marshal response: %w", err)
 	}
 	return result, nil
+}
+
+// listGemsLuaRequest is the JSON-lines payload for wrapper.lua's
+// list_gems accessor.
+type listGemsLuaRequest struct {
+	Type string `json:"type"`
+}
+
+// listGemsLuaResponse is the shape returned by wrapper.lua for a
+// list_gems request.
+type listGemsLuaResponse struct {
+	Type string `json:"type"`
+	Data struct {
+		Gems []string `json:"gems"`
+	} `json:"data"`
+}
+
+// getGemNames returns the cached list of PoB gem names, fetching from
+// the given Lua process on first call. Safe for concurrent use via
+// sync.Once. On fetch failure the cache stays empty and subsequent
+// callers get an empty slice — fuzzy suggestions are best-effort.
+func (srv *Server) getGemNames(proc *Process) []string {
+	srv.gemNamesOnce.Do(func() {
+		resp, err := proc.Send(listGemsLuaRequest{Type: "list_gems"})
+		if err != nil {
+			srv.log.Warn("list_gems fetch failed", "err", err)
+			return
+		}
+		var parsed listGemsLuaResponse
+		if err := json.Unmarshal(resp, &parsed); err != nil {
+			srv.log.Warn("list_gems response parse failed", "err", err)
+			return
+		}
+		if parsed.Type != "result" {
+			srv.log.Warn("list_gems returned non-result", "type", parsed.Type)
+			return
+		}
+		srv.gemNames = parsed.Data.Gems
+	})
+	return srv.gemNames
 }
 
 func jsonError(writer http.ResponseWriter, msg string, code int) {

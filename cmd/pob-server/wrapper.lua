@@ -1071,10 +1071,27 @@ local function applyDeallocateNode(op)
 	return nil
 end
 
+-- lookupGem returns PoB's gem data for the given name, handling two
+-- kinds of colloquial input: case-insensitive match against the index,
+-- and a trailing " Support" suffix that PoB's canonical names omit
+-- (e.g. PoB: "Added Lightning Damage" vs build-guide "Added Lightning
+-- Damage Support"). Go-side enrichGemNotFoundError handles the
+-- rest (Levenshtein fuzzy suggestions) when this still returns nil.
+local function lookupGem(name)
+	ensureGemIndex()
+	if not name or name == "" then return nil end
+	local gem = gemIndex[name:lower()]
+	if gem then return gem end
+	local stripped = name:gsub("%s+[Ss]upport$", "")
+	if stripped ~= "" and stripped ~= name then
+		return gemIndex[stripped:lower()]
+	end
+	return nil
+end
+
 local function applySwapGem(op)
 	if not op.new_gem then return "swap_gem: missing 'new_gem'" end
-	ensureGemIndex()
-	local gemData = gemIndex[op.new_gem:lower()]
+	local gemData = lookupGem(op.new_gem)
 	if not gemData then return "swap_gem: gem not found: " .. op.new_gem end
 
 	local groupIdx = (op.socket_group or 0) + 1 -- Lua is 1-indexed
@@ -1099,8 +1116,7 @@ end
 
 local function applyAddGem(op)
 	if not op.gem then return "add_gem: missing 'gem'" end
-	ensureGemIndex()
-	local gemData = gemIndex[op.gem:lower()]
+	local gemData = lookupGem(op.gem)
 	if not gemData then return "add_gem: gem not found: " .. op.gem end
 
 	local groupIdx = (op.socket_group or 0) + 1
@@ -1785,6 +1801,23 @@ for line in io.stdin:lines() do
 				response = result
 			else
 				response = { type = "error", message = "audit_perturb crashed: " .. tostring(result) }
+			end
+		elseif request.type == "list_gems" then
+			local ok, result = pcall(function()
+				ensureGemIndex()
+				local names = {}
+				for _, gem in pairs(gemIndex) do
+					if gem.name then
+						names[#names + 1] = gem.name
+					end
+				end
+				table.sort(names)
+				return { type = "result", data = { gems = names } }
+			end)
+			if ok then
+				response = result
+			else
+				response = { type = "error", message = "list_gems crashed: " .. tostring(result) }
 			end
 		elseif request.type == "ping" then
 			response = { type = "pong" }

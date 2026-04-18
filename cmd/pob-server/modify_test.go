@@ -122,6 +122,151 @@ func TestModifyHandlerRejectsSetItemMissingSeparator(t *testing.T) {
 	}
 }
 
+// Production MCP log 2026-04-18T07:15:32 captured
+// `swap_gem: gem not found: Added Lightning Damage Support` — the
+// AI used the wrong canonical name. With the Lua suffix-strip in
+// place (handled at wrapper.lua) AND the Go-side fuzzy enrichment
+// wired into the error response, the caller should see suggestions
+// and a pointer to the gem_search reference module.
+func TestModifyHandlerEnrichesGemNotFoundError(t *testing.T) {
+	// Mock bash: dispatches by request type. `modify` returns a
+	// gem-not-found Lua error; `list_gems` returns a canned name list
+	// that the Go side will Levenshtein-rank against the bad name.
+	mockScript := filepath.Join(t.TempDir(), "mock-gem-enrich.sh")
+	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
+while read line; do
+  case "$line" in
+    *'"type":"modify"'*)
+      echo '{"type":"error","message":"operation 1: swap_gem: gem not found: Added Lightning Damgae"}'
+      ;;
+    *'"type":"list_gems"'*)
+      echo '{"type":"result","data":{"gems":["Added Lightning Damage","Added Cold Damage","Hatred","Ruthless Support"]}}'
+      ;;
+  esac
+done
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	defer pool.Shutdown()
+
+	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    time.Now,
+		cancel:     func() {},
+		store:      store,
+	}
+	origXML := "<PathOfBuilding/>"
+	origID := cache.Put(origXML)
+	_ = store.Put(origID, origXML, "{}", "", "")
+	srv := &Server{pool: pool, cache: cache, log: logger}
+
+	// A valid swap_gem op in shape (Go validator doesn't check gem
+	// names); the Lua mock is what returns the gem-not-found error.
+	body := `{"buildId":"` + origID + `","operations":[{"op":"swap_gem","socket_group":0,"gem_index":0,"new_gem":"Added Lightning Damgae"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.handleModify(rec, req)
+
+	// 422 for a PoB modification failure (preserving current behavior).
+	if rec.Code != 422 {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+	respBody := rec.Body.String()
+
+	// Must still carry the original phrase so any tooling matching on
+	// it keeps working.
+	if !strings.Contains(respBody, "gem not found") {
+		t.Errorf("response missing original 'gem not found' phrase: %s", respBody)
+	}
+	// The Levenshtein top match for "Added Lightning Damgae" should be
+	// "Added Lightning Damage".
+	if !strings.Contains(respBody, "Added Lightning Damage") {
+		t.Errorf("response missing fuzzy suggestion 'Added Lightning Damage': %s", respBody)
+	}
+	// Must point at the reference module for further discovery.
+	if !strings.Contains(respBody, "gem_search") {
+		t.Errorf("response missing 'gem_search' pointer: %s", respBody)
+	}
+}
+
+// Regression: non-gem errors (e.g. allocate_node failures) pass
+// through without gem_search enrichment.
+func TestModifyHandlerDoesNotEnrichNonGemErrors(t *testing.T) {
+	mockScript := filepath.Join(t.TempDir(), "mock-other-err.sh")
+	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
+while read line; do
+  case "$line" in
+    *'"type":"modify"'*)
+      echo '{"type":"error","message":"operation 1: allocate_node: node not found: Nonexistent Node"}'
+      ;;
+    *'"type":"list_gems"'*)
+      echo '{"type":"result","data":{"gems":["Added Lightning Damage"]}}'
+      ;;
+  esac
+done
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	defer pool.Shutdown()
+
+	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    time.Now,
+		cancel:     func() {},
+		store:      store,
+	}
+	origXML := "<PathOfBuilding/>"
+	origID := cache.Put(origXML)
+	_ = store.Put(origID, origXML, "{}", "", "")
+	srv := &Server{pool: pool, cache: cache, log: logger}
+
+	body := `{"buildId":"` + origID + `","operations":[{"op":"allocate_node","name":"Nonexistent Node"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.handleModify(rec, req)
+
+	if rec.Code != 422 {
+		t.Fatalf("expected 422, got %d: %s", rec.Code, rec.Body.String())
+	}
+	respBody := rec.Body.String()
+	if strings.Contains(respBody, "gem_search") {
+		t.Errorf("non-gem error leaked gem_search hint: %s", respBody)
+	}
+	if !strings.Contains(respBody, "allocate_node") {
+		t.Errorf("non-gem error lost original context: %s", respBody)
+	}
+}
+
 // Operations other than set_item must pass through the validator
 // untouched; no false rejections.
 func TestModifyHandlerPassesThroughNonSetItemOps(t *testing.T) {
