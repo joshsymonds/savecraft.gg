@@ -73,13 +73,14 @@ requires_save = "yes"
   it("handles mixed module shapes in one plugin", () => {
     const game = loadPlugin("fixture", tmp);
     const pairs = game.referenceModules.map((m) => [m.name, m.requires_save] as const);
-    expect(pairs).toEqual(
-      expect.arrayContaining([
+    expect(pairs).toHaveLength(4);
+    expect([...pairs].sort()).toEqual(
+      [
         ["Default", true],
-        ["Explicit True", true],
         ["Explicit False", false],
+        ["Explicit True", true],
         ["Malformed", true],
-      ]),
+      ].sort(),
     );
   });
 });

@@ -66,8 +66,7 @@ describe("Magic landing page reframe", () => {
 
   it("derives the instant tier from requires_save (9 instant modules from the mock)", () => {
     const { container } = render(Page, { props: { data: { game: mockGame } } });
-    const tierInstant = container.querySelector(".tier-instant")?.parentElement;
-    const items = tierInstant?.querySelectorAll(".tier-features li");
+    const items = container.querySelectorAll(".tier-card:has(.tier-instant) .tier-features li");
     expect(items).toHaveLength(9);
   });
 
