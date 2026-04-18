@@ -113,7 +113,7 @@
         variant="solo-peek"
         accent="gold"
         eyebrow="YOUR GAME DATA, FINALLY ACCURATE"
-        title="Your AI stops making things up."
+        title="Real game data for your AI."
         subtitle="Savecraft connects your saves to Claude and ChatGPT — gear, builds, decks, farms — plus expert reference modules with real game data. Magic, Path of Exile, Factorio, Stellaris, and more."
         actions={heroActions}
         frames={heroFrames}
