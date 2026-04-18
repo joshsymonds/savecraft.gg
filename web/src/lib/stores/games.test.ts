@@ -365,7 +365,7 @@ describe("buildPickerCatalog", () => {
     expect(result[0]!.gameId).toBe("wow");
   });
 
-  it("uses manifest.description for file_extensions fallback", () => {
+  it("uses manifest.description for mod-source manifests with no file_extensions", () => {
     const plugins = new Map<string, PluginManifest>([
       [
         "stellaris",
@@ -373,6 +373,7 @@ describe("buildPickerCatalog", () => {
           game_id: "stellaris",
           name: "Stellaris",
           description: "Grand strategy saves",
+          source: "mod",
           file_extensions: null,
         }),
       ],
@@ -439,5 +440,127 @@ describe("buildPickerCatalog", () => {
       "Diablo II: Resurrected",
       "Stardew Valley",
     ]);
+  });
+
+  it("includes manifests with an api source", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "wow",
+        makeManifest({
+          game_id: "wow",
+          name: "World of Warcraft",
+          source: "api",
+          file_extensions: [],
+          adapter: { authProvider: "battlenet", regions: ["us"] },
+        }),
+      ],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.gameId).toBe("wow");
+  });
+
+  it("includes manifests with a workshop_url", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "rimworld",
+        makeManifest({
+          game_id: "rimworld",
+          name: "RimWorld",
+          source: "mod",
+          file_extensions: [],
+          workshop_url: "steam://workshop/123",
+        }),
+      ],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.gameId).toBe("rimworld");
+  });
+
+  it("includes manifests with file_extensions", () => {
+    const plugins = new Map<string, PluginManifest>([
+      ["d2r", makeManifest({ game_id: "d2r", name: "Diablo II: Resurrected" })],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.gameId).toBe("d2r");
+  });
+
+  it("excludes reference-only manifests with no install path", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "poe",
+        makeManifest({
+          game_id: "poe",
+          name: "Path of Exile",
+          file_extensions: [],
+        }),
+      ],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    expect(result).toHaveLength(0);
+  });
+
+  it("excludes reference-only manifests when file_extensions is null", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "poe",
+        makeManifest({
+          game_id: "poe",
+          name: "Path of Exile",
+          file_extensions: null,
+        }),
+      ],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    expect(result).toHaveLength(0);
+  });
+
+  it("includes a reference-only manifest if the game is already watched", () => {
+    const plugins = new Map<string, PluginManifest>([
+      [
+        "poe",
+        makeManifest({
+          game_id: "poe",
+          name: "Path of Exile",
+          file_extensions: [],
+        }),
+      ],
+    ]);
+    const mergedGames: Game[] = [
+      {
+        gameId: "poe",
+        name: "Path of Exile",
+        iconUrl: undefined,
+        statusLine: "No saves",
+        saves: [],
+        sourceCount: 1,
+        sources: [],
+        needsConfig: false,
+      },
+    ];
+    const result = buildPickerCatalog(plugins, mergedGames);
+    expect(result).toHaveLength(1);
+    expect(result[0]!.gameId).toBe("poe");
+    expect(result[0]!.watched).toBe(true);
+  });
+
+  it("filters multiple manifests, keeping only those with install paths", () => {
+    const plugins = new Map<string, PluginManifest>([
+      ["d2r", makeManifest({ game_id: "d2r", name: "Diablo II: Resurrected" })],
+      ["poe", makeManifest({ game_id: "poe", name: "Path of Exile", file_extensions: [] })],
+      [
+        "wow",
+        makeManifest({
+          game_id: "wow",
+          name: "World of Warcraft",
+          source: "api",
+          file_extensions: [],
+        }),
+      ],
+    ]);
+    const result = buildPickerCatalog(plugins, []);
+    expect(result.map((g) => g.gameId).sort((a, b) => a.localeCompare(b))).toEqual(["d2r", "wow"]);
   });
 });

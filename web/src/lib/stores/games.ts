@@ -68,6 +68,15 @@ export function mergeGames(sources: Source[]): Game[] {
   return result;
 }
 
+function hasInstallPath(manifest: PluginManifest): boolean {
+  return (
+    manifest.source === "api" ||
+    manifest.source === "mod" ||
+    Boolean(manifest.workshop_url) ||
+    (manifest.file_extensions?.length ?? 0) > 0
+  );
+}
+
 /** Build the game picker catalog from plugin manifests and the current merged game list. */
 export function buildPickerCatalog(
   plugins: Map<string, PluginManifest>,
@@ -76,6 +85,7 @@ export function buildPickerCatalog(
   const watchedIds = new Set(mergedGames.map((g) => g.gameId));
   const result: PickerGame[] = [];
   for (const [gameId, manifest] of plugins) {
+    if (!hasInstallPath(manifest) && !watchedIds.has(gameId)) continue;
     const merged = mergedGames.find((g) => g.gameId === gameId);
     const isApi = manifest.source === "api";
     const isModule = manifest.source === "mod";
