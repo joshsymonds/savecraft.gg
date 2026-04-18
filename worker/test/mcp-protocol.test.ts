@@ -675,4 +675,58 @@ describe("MCP Protocol", () => {
 
     clearNativeRegistry();
   });
+
+  // Regression test for Bug Task #1: single-query shortcut threw
+  // `TypeError: Cannot use 'in' operator to search for 'error' in <string>`
+  // whenever a text-only native module returned prose that isn't JSON —
+  // `extractResultData`'s JSON.parse catch returns the raw string, and the
+  // subsequent `"error" in data` check in `handleQueryReference` throws.
+  it("query_reference single-query returns text from a non-JSON text module", async () => {
+    const prose = "Humility + Opalescence: Opalescence self-excludes via 'each other'.";
+    const textModule: NativeReferenceModule = {
+      id: "prose_mod",
+      name: "Prose Module",
+      description: "Returns plain prose that is not valid JSON",
+      execute: () => Promise.resolve({ type: "text", content: prose }),
+    };
+    registerNativeModule("testgame", textModule);
+
+    await SELF.fetch(
+      mcpRequest("initialize", 1, {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "test-client", version: "1.0.0" },
+      }),
+    );
+
+    const resp = await SELF.fetch(
+      mcpRequest("tools/call", 21, {
+        name: "query_reference",
+        arguments: {
+          game_id: "testgame",
+          module: "prose_mod",
+          queries: [{ label: "x", keyword: "anything" }],
+        },
+      }),
+    );
+    expect(resp.status).toBe(200);
+
+    const body = (await parseJsonResponse(resp)) as {
+      result: Record<string, unknown> & {
+        content?: { type: string; text: string }[];
+        isError?: boolean;
+        structuredContent?: unknown;
+      };
+      error?: { code: number; message: string };
+    };
+    expect(body.error).toBeUndefined();
+    expect(body.result.isError).toBeFalsy();
+    expect(body.result.structuredContent).toBeUndefined();
+    expect(body.result.content).toBeDefined();
+    const blocks = body.result.content!;
+    const joined = blocks.map((b) => b.text).join("\n");
+    expect(joined).toContain(prose);
+
+    clearNativeRegistry();
+  });
 });

@@ -833,19 +833,32 @@ function handleGetInfo(
 
 const MAX_BATCH_QUERIES = 50;
 
-/** Extract data from a tool result, handling both ViewToolResult and ToolResult. */
-function extractResultData(result: ToolResult | ViewToolResult): unknown {
+/** Extract data from a tool result, handling both ViewToolResult and ToolResult.
+ *
+ * Precise return lets callers narrow without blind casts: the null case means
+ * "no content," the string case means a text-only module returned prose that
+ * isn't JSON, and the Record case is either structured data or an `{error:...}`
+ * envelope from an isError result. */
+// eslint-disable-next-line sonarjs/function-return-type -- precise union lets callers narrow without casts; the whole point of the return type is that each branch produces a different shape
+function extractResultData(
+  result: ToolResult | ViewToolResult,
+): string | Record<string, unknown> | null {
   if (result.isError) {
     return { error: result.content[0]?.text ?? "Unknown error" };
   }
   if ("structuredContent" in result) {
     return result.structuredContent;
   }
-  const dataBlock = result.content.length > 1 ? result.content[1] : result.content[0];
+  const raw = result.content.length > 1 ? result.content[1]?.text : result.content[0]?.text;
+  if (raw === undefined) return null;
   try {
-    return JSON.parse(dataBlock?.text ?? "null") as unknown;
+    const parsed = JSON.parse(raw) as unknown;
+    if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      return parsed as Record<string, unknown>;
+    }
+    return raw;
   } catch {
-    return dataBlock?.text ?? null;
+    return raw;
   }
 }
 
@@ -919,6 +932,7 @@ async function handleQueryReference(
     }),
   );
 
+  // eslint-disable-next-line sonarjs/function-return-type -- each result is intentionally either a string (text-only module prose), a Record (structured data or {error:...}), or null
   const results = responses.map((outcome, index) => {
     const label = (queries[index] as Record<string, unknown>).label as string | undefined;
     const data =
@@ -931,16 +945,34 @@ async function handleQueryReference(
   const iconUrl = env.SERVER_URL ? resolveIconUrl(env.SERVER_URL, gameId) : undefined;
   const iconSpread = iconUrl ? { icon_url: iconUrl } : {};
 
-  // Single-query shortcut: unwrap the array
   if (results.length === 1) {
-    const data = results[0] as Record<string, unknown>;
-    if ("error" in data) {
-      return { content: [{ type: "text", text: String(data.error) }], isError: true };
-    }
-    return viewResult({ module: moduleId, ...iconSpread, ...data });
+    return unwrapSingleQueryResult(results[0] ?? null, moduleId, iconSpread);
   }
 
   return viewResult({ module: moduleId, _multiQuery: true, ...iconSpread, results });
+}
+
+/** Unwrap a single-query result into a ToolResult or ViewToolResult.
+ *
+ * Text-only modules (rules_search, etc.) emit prose that isn't JSON, so
+ * `extractResultData` returns a raw string — `"error" in <string>` throws
+ * TypeError in V8. Narrow before the membership check. */
+function unwrapSingleQueryResult(
+  data: string | Record<string, unknown> | null,
+  moduleId: string,
+  iconSpread: Record<string, unknown>,
+): ToolResult | ViewToolResult {
+  if (typeof data === "string") {
+    return { content: [{ type: "text", text: data }] };
+  }
+  if (data !== null && "error" in data) {
+    return {
+      content: [{ type: "text", text: String(data.error) }],
+      isError: true,
+    };
+  }
+  // Null data spreads to nothing — deliberate, preserves pre-fix semantics.
+  return viewResult({ module: moduleId, ...iconSpread, ...data });
 }
 
 function parseRpc(request: Request): Promise<JsonRpcRequest> {
