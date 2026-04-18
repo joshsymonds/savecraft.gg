@@ -7,6 +7,7 @@
   import { PUBLIC_APP_URL } from "$env/static/public";
   import {
     ConversationDemo,
+    HeroScreenshots,
     MarketingSection,
     ModeCard,
     ModuleBadge,
@@ -17,16 +18,18 @@
 
   let { data } = $props<{ data: { game: GameInfo } }>();
 
-  const conversation: DemoMessage[] = [
-    { role: "player", text: "2-3 again. Can you batch review this draft?" },
+  const heroFrames = [
     {
-      role: "ai",
-      text: "14 optimal, 12 good, 3 questionable, 12 misses. Your first picks and late-pack reads were solid. The recurring pattern in the misses: you undervalued lands and fixing across all three packs. Six picks where the advisor wanted a land or fixing over what you took — biggest gap was P2P7, Make Your Move over Mutant Town (.63 vs .36).",
+      src: "/images/magic/magic-good.jpeg",
+      alt: "Claude reviewing a Magic TMNT draft — user asks 'how did I do?', Claude pulls draft history and renders a 14/12/3/12 Optimal/Good/Questionable/Miss review with a pick timeline filtered by outcome",
     },
-    { role: "player", text: "I didn't think lands mattered that much in limited." },
     {
-      role: "ai",
-      text: "In a multicolor set like TMT, the mana infrastructure is doing heavy lifting you can't see on the card. WR wants to be aggressive — stumbling on mana turn 3 is a death sentence. The creature quality in TMT is deep enough that playables come late, but the fixing doesn't wheel. Prioritize it picks 5-10.",
+      src: "/images/magic/rocks.jpg",
+      alt: "Claude recommending 3-CMC mana rocks for Commander — tabbed grid of Eye / Heart / Horn / Skull / Tooth of Ramos colored by mana identity",
+    },
+    {
+      src: "/images/magic/lifelink.jpg",
+      alt: "Claude listing every white lifelink creature 2 mana or less — framed card grid with rarity chips and abilities",
     },
   ];
 
@@ -88,32 +91,22 @@
     <ParticleField seed={137} />
 
     <section class="hero">
-      <div class="hero-grid">
-        <div class="hero-text">
-          <div class="hero-eyebrow">REAL DATA FOR MAGIC: THE GATHERING</div>
-          <h1 class="hero-title">
-            Your AI stops inventing<br />cards here.
-          </h1>
-          <p class="hero-sub">
-            All-format reference — Commander, Standard, draft, Legacy. EDHREC combos, 17Lands stats,
-            Frank Karsten's mana math, and the full MTG rules. Plus your Arena data when you connect
-            the daemon.
-          </p>
-          <div class="hero-actions">
-            <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">TRY THE REFERENCE TOOLS</a>
-            <a href="#tiers" class="btn-outline">CONNECT YOUR ARENA DATA</a>
-          </div>
-        </div>
-
-        <ConversationDemo
-          {conversation}
-          headerLabel="DRAFT REVIEW — TARKIR: DRAGONSTORM"
-          headerDotColor="var(--color-gold)"
-          startDelay={1000}
-        />
-      </div>
+      <HeroScreenshots
+        variant="solo-peek"
+        accent="gold"
+        eyebrow="REAL DATA FOR MAGIC: THE GATHERING"
+        title="Your AI stops inventing cards here."
+        subtitle="All-format reference — Commander, Standard, draft, Legacy. EDHREC combos, 17Lands stats, Frank Karsten's mana math, and the full MTG rules. Plus your Arena data when you connect the daemon."
+        actions={heroActions}
+        frames={heroFrames}
+      />
     </section>
   </div>
+
+  {#snippet heroActions()}
+    <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">TRY THE REFERENCE TOOLS</a>
+    <a href="#tiers" class="btn-outline">CONNECT YOUR ARENA DATA</a>
+  {/snippet}
 
   <!-- ═══ CREDIBILITY BAR ═══ -->
   <div class="proof-bar">
@@ -412,50 +405,7 @@
   .hero {
     position: relative;
     z-index: 1;
-    padding: 140px 32px 60px;
-    max-width: 1100px;
-    margin: 0 auto;
-  }
-
-  .hero-grid {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 48px;
-    align-items: center;
-  }
-
-  .hero-eyebrow {
-    font-family: var(--font-heading);
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--color-gold);
-    letter-spacing: 4px;
-    margin-bottom: 20px;
-    text-transform: uppercase;
-  }
-
-  .hero-title {
-    font-family: var(--font-pixel);
-    font-size: clamp(18px, 2.8vw, 28px);
-    color: var(--color-text);
-    line-height: 1.7;
-    margin-bottom: 20px;
-  }
-
-  .hero-sub {
-    font-family: var(--font-heading);
-    font-size: 18px;
-    font-weight: 400;
-    color: var(--color-text-dim);
-    line-height: 1.6;
-    max-width: 480px;
-  }
-
-  .hero-actions {
-    display: flex;
-    gap: 14px;
-    flex-wrap: wrap;
-    margin-top: 28px;
+    padding: 140px 0 60px;
   }
 
   /* ── Buttons ──────────────────────────────────────────── */
@@ -879,9 +829,8 @@
 
   /* ── Responsive ──────────────────────────────────────── */
   @media (max-width: 900px) {
-    .hero-grid {
-      grid-template-columns: 1fr;
-      gap: 32px;
+    .hero {
+      padding: 100px 0 40px;
     }
 
     .modules-grid {

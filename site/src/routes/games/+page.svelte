@@ -88,6 +88,8 @@
             {game.description}
             {#if game.gameId === "magic"}
               <a href="/magic" class="card-detail-link">See what your AI can do &rarr;</a>
+            {:else if game.gameId === "poe"}
+              <a href="/poe" class="card-detail-link">See what your AI can do &rarr;</a>
             {/if}
           </p>
 

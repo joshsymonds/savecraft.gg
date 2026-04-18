@@ -42,14 +42,16 @@ describe("Marketing page", () => {
   it("renders the hero title", () => {
     const { container } = render(Page, { props: { data: mockData } });
     expect(container.querySelector(".hero-title")).toBeInTheDocument();
-    expect(container.querySelector(".hero-title")?.textContent).toContain("Your AI is making");
+    expect(container.querySelector(".hero-title")?.textContent).toContain(
+      "Your AI stops making things up",
+    );
   });
 
   it("renders game cards for available and planned games", () => {
     const { container } = render(Page, { props: { data: mockData } });
     const cards = container.querySelectorAll(".games-grid .game-card");
-    // 2 auto-discovered + 2 hardcoded planned
-    expect(cards).toHaveLength(4);
+    // 2 auto-discovered + 1 hardcoded planned (Baldur's Gate 3)
+    expect(cards).toHaveLength(3);
   });
 
   it("renders the conversation demo area", () => {

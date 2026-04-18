@@ -26,5 +26,30 @@ darwin = ""
 
 [reference.modules.build_planner]
 name = "Build Planner"
-description = "Analyze, modify, or explore a Path of Exile build via Path of Building. First call returns a compact summary (DPS, life, resists, attributes) and a section_index listing available detail sections. To drill deeper, call again with buildId and sections (e.g. 'offense,defense'). For modifications, pass buildId + operations + sections to see before/after comparison. For tree exploration, pass buildId + nearby_metrics to find the highest-impact nearby nodes. Every response includes a buildId for follow-up calls."
+description = "Analyze, modify, or explore a Path of Exile build via headless Path of Building. Paste a pobb.in link, swap gems, allocate tree nodes, equip uniques, or audit weak branches — every call returns real calc deltas."
+requires_save = false
+
+[reference.modules.gem_search]
+name = "Gem Search"
+description = "Anti-hallucination lookup for skill and support gems. Filter by name, tags, requirements, or color. Every gem description, mana cost, and quality stat is grounded in the current patch's data."
+requires_save = false
+
+[reference.modules.passive_tree]
+name = "Passive Tree Search"
+description = "Anti-hallucination lookup for keystones, notables, and ascendancy nodes. Search by name or stat text — no more Claude inventing effects that don't exist or misremembering what a keystone does."
+requires_save = false
+
+[reference.modules.unique_search]
+name = "Unique Search"
+description = "Anti-hallucination lookup for unique items by name, base type, or mod text. Every mod line, implicit, and requirement is from the current patch — not Claude's outdated memory."
+requires_save = false
+
+[reference.modules.mod_search]
+name = "Mod Search"
+description = "Crafting mod lookup across item classes, grouped by effect with tiers ranked by required item level. Filter by prefix/suffix, item class, or mod text."
+requires_save = false
+
+[reference.modules.economy]
+name = "Economy Prices"
+description = "Live poe.ninja prices by league. 'What's a 6L Kaom's Heart worth this week?' 'Best upgrade I can afford for 30 divines?' Cached hourly per isolate with 7-day sparklines."
 requires_save = false
