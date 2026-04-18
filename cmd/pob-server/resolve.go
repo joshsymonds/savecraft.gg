@@ -6,6 +6,8 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"regexp"
+	"slices"
 	"strings"
 )
 
@@ -21,9 +23,81 @@ type resolveResult struct {
 // maxResolveBody limits fetched build code responses to 1 MB.
 const maxResolveBody = 1024 * 1024
 
+// buildSite describes one entry in PoB's buildSites.websiteList,
+// ported from .reference/pob/src/Modules/BuildSiteTools.lua.
+// Each entry maps user-facing paste URLs from a specific host to the
+// raw-code fetch URL that returns the pob build code.
+type buildSite struct {
+	// id matches PoB's internal id field (e.g. "POBBin"). Used only by
+	// TestBuildSitesListInSyncWithPoB to diff against the vendored Lua.
+	id string
+	// hosts are the lowercased hostnames recognized for this site.
+	// First entry is canonical; the rest are accepted aliases (www., etc).
+	hosts []string
+	// matchPath is applied to the parsed URL path (starting with "/").
+	// Capture group 1 MUST yield the paste ID.
+	matchPath *regexp.Regexp
+	// downloadFormat is a Sprintf-style template with a single %s for the
+	// paste ID. The result is the full raw-code fetch URL.
+	downloadFormat string
+}
+
+// buildSitesList mirrors PoB's buildSites.websiteList at
+// .reference/pob/src/Modules/BuildSiteTools.lua:10-29. Keep in sync —
+// TestBuildSitesListInSyncWithPoB fails on drift. Adding a site here
+// expands pob-server's SSRF allowlist, so every change must be
+// deliberate and reviewed.
+//
+//nolint:gochecknoglobals // static allowlist shared across functions; regex compiled once at init
+var buildSitesList = []buildSite{
+	{
+		id:             "Maxroll",
+		hosts:          []string{"maxroll.gg", "www.maxroll.gg"},
+		matchPath:      regexp.MustCompile(`^/poe/pob/(.+?)/?$`),
+		downloadFormat: "https://maxroll.gg/poe/api/pob/%s",
+	},
+	{
+		id:             "POBBin",
+		hosts:          []string{"pobb.in", "www.pobb.in"},
+		matchPath:      regexp.MustCompile(`^/(?:pob/)?(.+?)(?:/raw)?/?$`),
+		downloadFormat: "https://pobb.in/pob/%s",
+	},
+	{
+		id:             "PoeNinja",
+		hosts:          []string{"poe.ninja", "www.poe.ninja"},
+		matchPath:      regexp.MustCompile(`^/(?:poe1/)?pob/(\w+)/?$`),
+		downloadFormat: "https://poe.ninja/poe1/pob/raw/%s",
+	},
+	{
+		id:             "pastebin",
+		hosts:          []string{"pastebin.com", "www.pastebin.com"},
+		matchPath:      regexp.MustCompile(`^/(?:raw/)?(\w+)/?$`),
+		downloadFormat: "https://pastebin.com/raw/%s",
+	},
+	{
+		id:             "pastebinProxy",
+		hosts:          []string{"pastebinp.com", "www.pastebinp.com"},
+		matchPath:      regexp.MustCompile(`^/(?:raw/)?(\w+)/?$`),
+		downloadFormat: "https://pastebinp.com/raw/%s",
+	},
+	{
+		id:             "rentry",
+		hosts:          []string{"rentry.co", "www.rentry.co"},
+		matchPath:      regexp.MustCompile(`^/(\w+)/?$`),
+		downloadFormat: "https://rentry.co/paste/%s/raw",
+	},
+	{
+		id:             "PoEDB",
+		hosts:          []string{"poedb.tw", "www.poedb.tw"},
+		matchPath:      regexp.MustCompile(`^/pob/(.+?)(?:/raw)?/?$`),
+		downloadFormat: "https://poedb.tw/pob/%s/raw",
+	},
+}
+
 // resolveBuildURL fetches a build code from a URL and decodes it to XML.
 // For internal pob.savecraft.gg URLs, it returns the stored build directly.
-// For external URLs, only known paste sites (pobb.in, pastebin.com) are allowed.
+// For external URLs, only hosts in buildSitesList (mirror of PoB's
+// buildSites.websiteList) are allowed.
 func resolveBuildURL(
 	rawURL string,
 	store *BuildStore,
@@ -36,31 +110,77 @@ func resolveBuildURL(
 		)
 	}
 
+	if !isHTTPScheme(parsed.Scheme) {
+		return nil, fmt.Errorf(
+			"unsupported URL scheme %q: only http and https are supported",
+			parsed.Scheme,
+		)
+	}
+
 	// Internal: pob.savecraft.gg/{id}
 	if isInternalHost(parsed.Host) {
 		return resolveInternal(parsed, store)
 	}
 
-	// Only allow known paste sites to prevent SSRF
-	if !isAllowedExternalHost(parsed.Host) {
-		return nil, fmt.Errorf(
-			"unsupported host %q: only pobb.in and pastebin.com URLs are supported",
-			parsed.Host,
-		)
+	_, fetchURL, err := matchBuildSite(parsed)
+	if err != nil {
+		return nil, err
 	}
 
-	// External: fetch and decode
-	return resolveExternal(rawURL, parsed, client)
+	return resolveExternal(rawURL, fetchURL, client)
+}
+
+func isHTTPScheme(scheme string) bool {
+	s := strings.ToLower(scheme)
+	return s == "http" || s == "https"
 }
 
 func isInternalHost(host string) bool {
-	return host == "pob.savecraft.gg"
+	return strings.EqualFold(host, "pob.savecraft.gg")
 }
 
-func isAllowedExternalHost(host string) bool {
-	h := strings.ToLower(host)
-	return h == "pobb.in" || h == "www.pobb.in" ||
-		h == "pastebin.com" || h == "www.pastebin.com"
+// matchBuildSite finds the buildSite entry matching the URL's host and
+// path, returning the site and the full download URL to fetch. Returns
+// an error whose message lists supported hosts when no match is found.
+func matchBuildSite(parsed *url.URL) (*buildSite, string, error) {
+	host := strings.ToLower(parsed.Host)
+	for i := range buildSitesList {
+		site := &buildSitesList[i]
+		if !hostMatchesSite(site, host) {
+			continue
+		}
+		match := site.matchPath.FindStringSubmatch(parsed.Path)
+		if len(match) < 2 || match[1] == "" {
+			return nil, "", fmt.Errorf(
+				"URL path %q does not match the expected shape for %s "+
+					"(e.g. %s)",
+				parsed.Path, site.hosts[0],
+				fmt.Sprintf(site.downloadFormat, "<id>"),
+			)
+		}
+		return site, fmt.Sprintf(site.downloadFormat, match[1]), nil
+	}
+	return nil, "", fmt.Errorf(
+		"unsupported host %q: supported hosts are %s",
+		parsed.Host, supportedHostsForError(),
+	)
+}
+
+func hostMatchesSite(site *buildSite, lowerHost string) bool {
+	return slices.Contains(site.hosts, lowerHost)
+}
+
+// supportedHostsForError returns a comma-separated list of canonical
+// supported hosts for use in user-facing error messages.
+func supportedHostsForError() string {
+	canonical := make([]string, 0, len(buildSitesList))
+	for _, site := range buildSitesList {
+		if len(site.hosts) == 0 {
+			continue
+		}
+		canonical = append(canonical, site.hosts[0])
+	}
+	return strings.Join(canonical, ", ")
 }
 
 func resolveInternal(
@@ -87,11 +207,9 @@ func resolveInternal(
 
 func resolveExternal(
 	rawURL string,
-	parsed *url.URL,
+	fetchURL string,
 	client *http.Client,
 ) (*resolveResult, error) {
-	fetchURL := buildFetchURL(rawURL, parsed)
-
 	resp, err := client.Get(fetchURL) //nolint:noctx // no request context available
 	if err != nil {
 		return nil, fmt.Errorf("fetching %s: %w", fetchURL, err)
@@ -131,30 +249,4 @@ func resolveExternal(
 		sourceURL: rawURL,
 		cached:    false,
 	}, nil
-}
-
-// buildFetchURL converts a user-facing URL to a raw/API endpoint.
-func buildFetchURL(rawURL string, parsed *url.URL) string {
-	host := strings.ToLower(parsed.Host)
-	path := parsed.Path
-
-	// pobb.in/{id} → pobb.in/{id}/raw
-	if host == "pobb.in" || host == "www.pobb.in" {
-		if !strings.HasSuffix(path, "/raw") {
-			return rawURL + "/raw"
-		}
-		return rawURL
-	}
-
-	// pastebin.com/{id} → pastebin.com/raw/{id}
-	if host == "pastebin.com" || host == "www.pastebin.com" {
-		if !strings.HasPrefix(path, "/raw/") {
-			id := strings.TrimPrefix(path, "/")
-			return parsed.Scheme + "://" + parsed.Host + "/raw/" + id
-		}
-		return rawURL
-	}
-
-	// Unreachable: isAllowedExternalHost gates entry to this function.
-	return rawURL
 }
