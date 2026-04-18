@@ -383,6 +383,13 @@ func genMonsters(inputDir, outputDir string) error {
 		"diabloclone": "Uber Diablo",
 	}
 
+	// Monsters that only spawn in Hell difficulty in the live game, despite
+	// having TreasureClass entries populated for Normal/NM in monstats.txt.
+	// diabloclone is the DClone event — only triggers on Hell via SoJ sales.
+	hellOnlyMonsters := map[string]bool{
+		"diabloclone": true,
+	}
+
 	for _, row := range rows {
 		id := row["Id"]
 		if id == "" {
@@ -418,6 +425,11 @@ func genMonsters(inputDir, outputDir string) error {
 		tcChampH := coalesce(row, "TreasureClass2(H)", "TreasureClassChamp(H)")
 		tcUniqueH := coalesce(row, "TreasureClass3(H)", "TreasureClassUnique(H)")
 		tcQuestH := coalesce(row, "TreasureClass4(H)", "TreasureClassQuest(H)")
+
+		if hellOnlyMonsters[id] {
+			tc, tcChamp, tcUnique, tcQuest = "", "", "", ""
+			tcN, tcChampN, tcUniqueN, tcQuestN = "", "", "", ""
+		}
 
 		b.WriteString("\t{")
 		fmt.Fprintf(&b, "ID: %s, Name: %s", goStr(id), goStr(name))

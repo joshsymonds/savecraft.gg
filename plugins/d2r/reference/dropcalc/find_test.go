@@ -258,3 +258,32 @@ func TestFindItemSourcesUberDiabloDistinct(t *testing.T) {
 		}
 	}
 }
+
+// Uber Diablo (DClone) only spawns in Hell — the SoJ-sale event is Hell-only.
+// Phantom Normal/NM entries in monstats.txt must be filtered out in datagen so
+// drop lookups and monster-mode queries never surface "Uber Diablo Nightmare".
+func TestDiablocloneHellOnly(t *testing.T) {
+	c := NewCalculator()
+
+	sources := c.FindItemSources("xea", FindOptions{
+		Difficulty: -1,
+		TCType:     -1,
+		Players:    1,
+	})
+	for _, s := range sources {
+		if s.MonsterID == "diabloclone" && s.Difficulty != 2 {
+			t.Errorf("diabloclone appeared in difficulty %d via item lookup; expected Hell only",
+				s.Difficulty)
+		}
+	}
+
+	for _, diff := range []int{0, 1} {
+		if _, err := c.ResolveWithQuality("diabloclone", diff, 0, 1, 1, 0, ""); err == nil {
+			t.Errorf("diabloclone resolved in difficulty %d; expected no-TC error", diff)
+		}
+	}
+
+	if _, err := c.ResolveWithQuality("diabloclone", 2, 0, 1, 1, 0, ""); err != nil {
+		t.Errorf("diabloclone Hell lookup failed: %v", err)
+	}
+}

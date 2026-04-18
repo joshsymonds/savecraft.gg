@@ -29,7 +29,7 @@
   "sha256": "9f9817a00fc2ff93af1bd67c372aa3a2068d14b2076321458e3c2df541fb3875",
   "url": "plugins/d2r/parser.wasm",
   "reference": {
-    "sha256": "b334de614f916ffa290f3345f62c471916fc66f395015dc0a17064dfceb9800a",
+    "sha256": "e4d2840dfeb430b22882970cff8adbcee9b13439ae6375f30f1c0a9e419e5a71",
     "url": "plugins/d2r/reference.wasm",
     "modules": {
       "drop_calc": {
