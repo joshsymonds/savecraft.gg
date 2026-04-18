@@ -1,7 +1,7 @@
 <!--
   @component
-  MTGA game landing page — showcases real data and expert reference modules for Magic: The Gathering Arena.
-  Targets Arena drafters (r/MagicArena, r/lrcast) with data-backed credibility.
+  Magic: The Gathering landing page — all-format reference tools (Commander, Standard,
+  draft, Legacy) plus Arena-specific coaching when the daemon is connected.
 -->
 <script lang="ts">
   import { PUBLIC_APP_URL } from "$env/static/public";
@@ -9,10 +9,11 @@
     ConversationDemo,
     MarketingSection,
     ModeCard,
+    ModuleBadge,
     ParticleField,
   } from "$lib/components/marketing";
   import type { DemoMessage } from "$lib/components/marketing/types";
-  import type { GameInfo } from "$lib/server/plugins";
+  import type { GameInfo, ReferenceModule } from "$lib/server/plugins";
 
   let { data } = $props<{ data: { game: GameInfo } }>();
 
@@ -29,16 +30,11 @@
     },
   ];
 
-  // Reference modules that work without the daemon (server-side only, no Player.log needed)
-  const INSTANT_MODULE_NAMES = new Set(["Rules Search", "Card Search", "Card Stats", "Mana Base"]);
-
   let referenceModules = $derived(data.game.referenceModules);
-  let instantModules = $derived(
-    referenceModules.filter((m: { name: string }) => INSTANT_MODULE_NAMES.has(m.name)),
-  );
+  let instantModules = $derived(referenceModules.filter((m: ReferenceModule) => !m.requires_save));
 
   // ── Before/After demo data ─────────────────────────────────
-  const withoutMessages = [
+  const withoutStandard = [
     { role: "player" as const, text: "Should I craft Sheoldred for my mono-black deck?" },
     {
       role: "ai" as const,
@@ -46,25 +42,41 @@
     },
   ];
 
-  const withConversation: DemoMessage[] = [
+  const withStandard: DemoMessage[] = [
     { role: "player", text: "Should I craft Sheoldred for my mono-black deck?" },
     {
       role: "ai",
       text: "Can't — Sheoldred rotated with Dominaria United, she's not Standard-legal. But Archfiend of the Dross does the same job in your list at 58.2% GIH WR. You're missing 2 copies, that's 2 rare wildcards. You have 4 in the bank.",
     },
   ];
+
+  const withoutCommander = [
+    { role: "player" as const, text: "Is my Atraxa superfriends deck missing anything?" },
+    {
+      role: "ai" as const,
+      text: "Your Atraxa deck looks solid — lots of options for improvement depending on your playstyle. I'd suggest adding more planeswalkers and counters synergy.",
+    },
+  ];
+
+  const withCommander: DemoMessage[] = [
+    { role: "player", text: "Is my Atraxa superfriends deck missing anything?" },
+    {
+      role: "ai",
+      text: "58% overlap with EDHREC's Atraxa build. Missing 3 high-inclusion staples: Anointed Procession, Smothering Tithe, Doubling Season (all above 40% inclusion). Your 4 extras are off-meta but thematic. Combo search finds 2 infinite lines involving Atraxa + The Chain Veil — neither in your list.",
+    },
+  ];
 </script>
 
 <svelte:head>
-  <title>Magic: The Gathering Arena — Real Data for Your AI | Savecraft</title>
+  <title>Magic: The Gathering — Real Data for Your AI | Savecraft</title>
   <meta
     name="description"
-    content="Savecraft gives Claude and ChatGPT your actual Arena data plus ten expert reference modules — 17Lands stats, Frank Karsten's mana math, and the full MTG Comprehensive Rules."
+    content="Savecraft gives Claude and ChatGPT all-format Magic reference — Commander, Standard, draft, Legacy — plus your Arena data when you connect the daemon. 17Lands stats, EDHREC Commander data, Frank Karsten's mana math, and the full MTG Comprehensive Rules."
   />
   <meta property="og:title" content="Savecraft — Real MTG Data for Claude and ChatGPT" />
   <meta
     property="og:description"
-    content="Draft analysis across 31 color archetypes, deck health checks, mana base math, and rules lookup — grounded in Bayesian-calibrated 17Lands data and your actual collection."
+    content="All-format Magic reference — EDHREC Commander data, 17Lands draft stats across 31 color archetypes, Frank Karsten's mana math, and the full MTG rules. Plus your Arena collection and match history when you connect the daemon."
   />
   <meta property="og:url" content="https://savecraft.gg/games/magic" />
   <meta property="og:type" content="website" />
@@ -83,18 +95,19 @@
             Your AI stops inventing<br />cards here.
           </h1>
           <p class="hero-sub">
-            Your collection, drafts, and decks — plus ten expert modules backed by 17Lands stats,
-            Frank Karsten's mana math, and the full MTG rules. All in Claude or ChatGPT.
+            All-format reference — Commander, Standard, draft, Legacy. EDHREC combos, 17Lands stats,
+            Frank Karsten's mana math, and the full MTG rules. Plus your Arena data when you connect
+            the daemon.
           </p>
           <div class="hero-actions">
-            <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT YOUR ARENA DATA</a>
-            <a href="#tools" class="btn-outline">SEE THE REFERENCE TOOLS</a>
+            <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">TRY THE REFERENCE TOOLS</a>
+            <a href="#tiers" class="btn-outline">CONNECT YOUR ARENA DATA</a>
           </div>
         </div>
 
         <ConversationDemo
           {conversation}
-          headerLabel="MTG ARENA — TMT DRAFT REVIEW"
+          headerLabel="DRAFT REVIEW — TARKIR: DRAGONSTORM"
           headerDotColor="var(--color-gold)"
           startDelay={1000}
         />
@@ -108,6 +121,8 @@
     <span class="proof-sep">*</span>
     <span class="proof-item">Frank Karsten mana base methodology</span>
     <span class="proof-sep">*</span>
+    <span class="proof-item">EDHREC Commander data + combos</span>
+    <span class="proof-sep">*</span>
     <span class="proof-item">Scryfall + MTG Comprehensive Rules</span>
   </div>
 
@@ -115,13 +130,16 @@
   <MarketingSection
     id="tools"
     eyebrow="REFERENCE TOOLS"
-    title="Ten modules. Real data."
+    title="Real data for every format."
     subtitle="Every answer is grounded in real card data, real match statistics, and published methodology. No hallucinated cards. No invented abilities."
   >
     <div class="modules-grid">
       {#each referenceModules as mod (mod.name)}
         <div class="module-card">
-          <h3 class="module-name">{mod.name}</h3>
+          <div class="module-title-row">
+            <h3 class="module-name">{mod.name}</h3>
+            <ModuleBadge requiresSave={mod.requires_save} />
+          </div>
           <p class="module-desc">{mod.description}</p>
         </div>
       {/each}
@@ -130,15 +148,15 @@
 
   <!-- ═══ BEFORE / AFTER ═══ -->
   <MarketingSection eyebrow="THE DIFFERENCE" title="What changes">
+    <!-- Standard / Arena pair -->
     <div class="compare-grid">
-      <!-- WITHOUT — distinct generic chat style -->
       <div class="compare-card compare-without">
         <div class="compare-header compare-header-without">
           <span class="compare-dot compare-dot-red"></span>
           WITHOUT SAVECRAFT
         </div>
         <div class="compare-body">
-          {#each withoutMessages as msg (msg.role)}
+          {#each withoutStandard as msg (msg.role)}
             <div
               class="without-msg"
               class:without-player={msg.role === "player"}
@@ -154,11 +172,10 @@
         </p>
       </div>
 
-      <!-- WITH — uses ConversationDemo -->
       <div class="compare-card compare-with">
         <ConversationDemo
-          conversation={withConversation}
-          headerLabel="MTG ARENA — MONO-BLACK STANDARD"
+          conversation={withStandard}
+          headerLabel="STANDARD — MONO-BLACK WILDCARDS"
           headerDotColor="var(--color-green)"
           startDelay={800}
         />
@@ -167,13 +184,50 @@
         </p>
       </div>
     </div>
+
+    <!-- Commander pair -->
+    <div class="compare-grid compare-grid-second">
+      <div class="compare-card compare-without">
+        <div class="compare-header compare-header-without">
+          <span class="compare-dot compare-dot-red"></span>
+          WITHOUT SAVECRAFT
+        </div>
+        <div class="compare-body">
+          {#each withoutCommander as msg (msg.role)}
+            <div
+              class="without-msg"
+              class:without-player={msg.role === "player"}
+              class:without-ai={msg.role === "ai"}
+            >
+              <span class="without-role">{msg.role === "player" ? "YOU" : "AI"}</span>
+              <span class="without-text">{msg.text}</span>
+            </div>
+          {/each}
+        </div>
+        <p class="compare-caption compare-caption-bad">
+          Vague advice. No staple detection. No combo awareness.
+        </p>
+      </div>
+
+      <div class="compare-card compare-with">
+        <ConversationDemo
+          conversation={withCommander}
+          headerLabel="COMMANDER — ATRAXA DECK REVIEW"
+          headerDotColor="var(--color-green)"
+          startDelay={800}
+        />
+        <p class="compare-caption compare-caption-good">
+          EDHREC aggregate data. Specific staples. Real combo lines.
+        </p>
+      </div>
+    </div>
   </MarketingSection>
 
   <!-- ═══ COACHING MODES ═══ -->
   <MarketingSection
     eyebrow="HOW YOU USE IT"
-    title="Draft coach and deck doctor"
-    subtitle="Same data, two modes. Whether you want a sounding board mid-draft or a second opinion on your 23."
+    title="Three coaching modes"
+    subtitle="Same grounded data, three ways to use it. Draft with you live, audit your Constructed build, or dial in your Commander deck."
   >
     <div class="modes-grid">
       <ModeCard
@@ -206,14 +260,30 @@
           },
         ]}
       />
+      <ModeCard
+        icon="o"
+        label="COMMANDER ADVISOR"
+        color="var(--color-blue)"
+        examples={[
+          {
+            role: "player",
+            text: "Building Korvold — what combos should I include?",
+          },
+          {
+            role: "ai",
+            text: "Korvold has 12 popular combo lines on EDHREC, 4 with bracket score 4 (fast). Top-ranked: Dockside Extortionist + Temur Sabertooth (infinite mana, 3 pieces, 34% of Korvold decks run it). Food Chain + Squee combos out 2 separate lines. Your RBG identity supports all of them.",
+          },
+        ]}
+      />
     </div>
   </MarketingSection>
 
   <!-- ═══ TWO-TIER CTA ═══ -->
   <MarketingSection
+    id="tiers"
     eyebrow="CONNECT"
     title="Two ways in"
-    subtitle="Reference tools work immediately. Install the daemon to unlock your actual collection and draft data."
+    subtitle="All-format reference works immediately. Install the daemon to unlock your Arena collection, match history, and live draft coaching."
   >
     <div class="tiers-grid">
       <div class="tier-card">
@@ -223,7 +293,8 @@
         </div>
         <div class="tier-body">
           <p class="tier-desc">
-            Connect Savecraft to Claude or ChatGPT. Your AI immediately gets access to:
+            Connect Savecraft to Claude or ChatGPT. All-format reference tools work immediately — no
+            install required:
           </p>
           <ul class="tier-features">
             {#each instantModules as mod (mod.name)}
@@ -242,8 +313,8 @@
         </div>
         <div class="tier-body">
           <p class="tier-desc">
-            Install the Savecraft daemon to sync your Player.log. Your AI can then coach with your
-            actual game state:
+            Install the Savecraft daemon to sync your MTGA Player.log. Your AI can then coach with
+            your actual game state:
           </p>
           <ul class="tier-features">
             <li>Review your draft picks against optimal lines</li>
@@ -278,6 +349,14 @@
         <span class="method-desc">
           Hypergeometric mana base calculations from "How Many Sources Do You Need to Consistently
           Cast Your Spells?" Pre-computed castability tables for exact on-curve probability.
+        </span>
+      </div>
+      <div class="method-item">
+        <span class="method-source">EDHREC</span>
+        <span class="method-desc">
+          Aggregate Commander deck data: per-commander recommendation categories (staples, themes,
+          high-synergy cards), combo lines with bracket scores, average decklists, and
+          color-identity-subset filtering across thousands of unique commanders.
         </span>
       </div>
       <div class="method-item">
@@ -475,12 +554,20 @@
     border-color: var(--color-border-light);
   }
 
+  .module-title-row {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin-bottom: 8px;
+    flex-wrap: wrap;
+  }
+
   .module-name {
     font-family: var(--font-heading);
     font-size: 16px;
     font-weight: 600;
     color: var(--color-text);
-    margin-bottom: 8px;
+    margin: 0;
     letter-spacing: 0.5px;
   }
 
@@ -498,6 +585,10 @@
     grid-template-columns: 1fr 1fr;
     gap: 20px;
     margin-top: 32px;
+  }
+
+  .compare-grid-second {
+    margin-top: 20px;
   }
 
   .compare-card {
@@ -604,7 +695,7 @@
   /* ── Modes ───────────────────────────────────────────── */
   .modes-grid {
     display: grid;
-    grid-template-columns: 1fr 1fr;
+    grid-template-columns: 1fr 1fr 1fr;
     gap: 20px;
   }
 
