@@ -11,10 +11,7 @@ const twoFrames = [
   { src: "/images/b.jpg", alt: "second frame" },
 ];
 
-const threeFrames = [
-  ...twoFrames,
-  { src: "/images/c.jpg", alt: "third frame" },
-];
+const threeFrames = [...twoFrames, { src: "/images/c.jpg", alt: "third frame" }];
 
 describe("HeroScreenshots", () => {
   it("stacked variant renders every frame as an img", () => {
