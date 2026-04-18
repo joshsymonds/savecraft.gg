@@ -1,6 +1,9 @@
 import { SELF } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { registerNativeModule } from "../src/reference/registry";
+import type { NativeReferenceModule } from "../src/reference/types";
+
 import { cleanAll, getOAuthToken, seedSource } from "./helpers";
 
 const TEST_USER = "mcp-alias-user";
@@ -270,5 +273,90 @@ describe("MCP missing-queries enriched error", () => {
     const err = singleQueryError(result);
     expect(err).not.toContain("queries is required");
     expect(err).toContain("not found for game");
+  });
+});
+
+/**
+ * Inert stub matching the NativeReferenceModule contract — execute is never
+ * actually invoked in these tests because we deliberately ask for nearby names
+ * that don't match. The registration's only job is to populate getNativeModules
+ * so suggestModules has candidates to compare against.
+ */
+function stubModule(id: string): NativeReferenceModule {
+  return {
+    id,
+    name: id,
+    description: `stub module ${id}`,
+    execute: () => Promise.resolve({ type: "text", content: "" }),
+  };
+}
+
+describe("MCP did-you-mean for unknown modules", () => {
+  beforeEach(async () => {
+    await cleanAll();
+    await seedSource(TEST_USER);
+    TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
+    await initialize();
+    // Production registers magic native modules at Worker boot via side-effect
+    // imports; Vitest's pool-workers entry doesn't run those, so register the
+    // names this suite probes for. Idempotent — overwrites are fine across runs.
+    registerNativeModule("magic", stubModule("rules_search"));
+    registerNativeModule("magic", stubModule("card_search"));
+  });
+
+  it("suggests rules_search when user types `rules` for magic", async () => {
+    const result = await callTool(40, "query_reference", {
+      game_id: "magic",
+      module: "rules",
+      queries: [{ label: "x" }],
+    });
+    const err = singleQueryError(result);
+    expect(err).toContain('not found for game "magic"');
+    expect(err).toContain("Did you mean: rules_search");
+  });
+
+  it("suggests card_search for the `card_serach` typo", async () => {
+    const result = await callTool(41, "query_reference", {
+      game_id: "magic",
+      module: "card_serach",
+      queries: [{ label: "x" }],
+    });
+    const err = singleQueryError(result);
+    expect(err).toContain("Did you mean: card_search");
+  });
+
+  it("appends no suggestion when nothing is close enough", async () => {
+    const result = await callTool(42, "query_reference", {
+      game_id: "magic",
+      module: "_xyzzyqqq_unrelated",
+      queries: [{ label: "x" }],
+    });
+    const err = singleQueryError(result);
+    expect(err).toContain('not found for game "magic"');
+    expect(err).not.toContain("Did you mean");
+    // Existing list_games hint preserved.
+    expect(err).toContain('list_games(filter="magic")');
+  });
+
+  it("matches case-insensitively for the suggestion comparison", async () => {
+    const result = await callTool(43, "query_reference", {
+      game_id: "magic",
+      module: "RULES",
+      queries: [{ label: "x" }],
+    });
+    const err = singleQueryError(result);
+    expect(err).toContain("Did you mean: rules_search");
+  });
+
+  it("does not suggest cross-game modules", async () => {
+    // factorio has evolution_tracker; magic shouldn't get that as a suggestion
+    // even when a magic query asks for something Levenshtein-close to it.
+    const result = await callTool(44, "query_reference", {
+      game_id: "magic",
+      module: "evolution",
+      queries: [{ label: "x" }],
+    });
+    const err = singleQueryError(result);
+    expect(err).not.toContain("evolution_tracker");
   });
 });

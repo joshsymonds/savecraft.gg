@@ -597,6 +597,27 @@ async function suggestDeckSections(
   return scored.slice(0, 3).map((s) => s.name);
 }
 
+/**
+ * Find reference module ids similar to the requested one for a given game.
+ * Considers both WASM modules (from MANIFESTS) and native modules (from
+ * getNativeModules). Returns up to 3 suggestions ordered by Levenshtein
+ * distance, with the same 0.7 normalized-distance threshold as suggestDeckSections.
+ */
+function suggestModules(gameId: string, requested: string): string[] {
+  const wasmIds = Object.keys(MANIFESTS.get(gameId)?.reference?.modules ?? {});
+  const nativeIds = getNativeModules(gameId).map((m) => m.id);
+  const allIds = [...new Set([...wasmIds, ...nativeIds])];
+  if (allIds.length === 0) return [];
+  const query = requested.toLowerCase();
+  const maxDistance = Math.max(query.length, 1);
+  return allIds
+    .map((id) => ({ id, distance: levenshtein(query, id.toLowerCase()) }))
+    .filter((s) => s.distance / Math.max(s.id.length, maxDistance) < 0.7)
+    .toSorted((a, b) => a.distance - b.distance)
+    .slice(0, 3)
+    .map((s) => s.id);
+}
+
 /** Levenshtein edit distance between two strings. */
 function levenshtein(source: string, target: string): number {
   if (source.length === 0) return target.length;
@@ -1082,8 +1103,10 @@ function withSchemaHint(result: ToolResult, gameId: string, moduleId: string): T
 
 /** Error message when a module doesn't exist — directs the LLM to discover available modules. */
 function moduleNotFoundError(gameId: string, moduleId: string): ToolResult {
+  const suggestions = suggestModules(gameId, moduleId);
+  const suggestionHint = suggestions.length > 0 ? ` Did you mean: ${suggestions.join(", ")}?` : "";
   return errorResult(
-    `Reference module "${moduleId}" not found for game "${gameId}". ` +
+    `Reference module "${moduleId}" not found for game "${gameId}".${suggestionHint} ` +
       `Call list_games(filter="${gameId}") to see available reference modules and their parameter schemas.`,
   );
 }
