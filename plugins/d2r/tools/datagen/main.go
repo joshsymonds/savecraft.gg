@@ -380,7 +380,15 @@ func genMonsters(inputDir, outputDir string) error {
 	// Override display names for monsters whose game-data NameStr is
 	// ambiguous or misleading in a drop calculator context.
 	monsterNameOverrides := map[string]string{
-		"diabloclone": "Uber Diablo",
+		"diabloclone":    "Uber Diablo",
+		"baalcrab":       "Baal",
+		"izual":          "Izual",
+		"bloodraven":     "Blood Raven",
+		"putriddefiler1": "Putrid Defiler",
+		"putriddefiler2": "Putrid Defiler",
+		"putriddefiler3": "Putrid Defiler",
+		"putriddefiler4": "Putrid Defiler",
+		"putriddefiler5": "Putrid Defiler",
 	}
 
 	// Monsters that only spawn in Hell difficulty in the live game, despite
