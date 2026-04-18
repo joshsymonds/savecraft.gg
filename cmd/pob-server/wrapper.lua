@@ -74,6 +74,125 @@ end
 
 log("PoB loaded successfully")
 
+-- PoB's HeadlessWrapper stubs GetScriptPath(), Inflate(), and Deflate() to no-ops.
+-- That silently breaks any build that touches zlib-compressed data:
+--   * Timeless Jewel LUTs (Data/TimelessJewelData/*.zip) — loaded by PassiveSpec
+--     whenever a build has a Timeless Jewel socketed. Without working Inflate,
+--     readLUT asserts and the entire spec load aborts, leaving the build as a
+--     default Scion with no allocated nodes — gear-only stats, wrong class.
+--   * Import/export build codes (base64-zlib) in Main:Init, ImportTab, etc.
+-- Fix: point GetScriptPath at pobDir so the jewel data paths resolve, and
+-- implement Inflate/Deflate via LuaJIT FFI against system zlib.
+function GetScriptPath()
+	return pobDir
+end
+
+do
+	local ffiOk, ffi = pcall(require, "ffi")
+	if not ffiOk then
+		log("FATAL: LuaJIT FFI is required for zlib bindings")
+		os.exit(1)
+	end
+
+	-- On NixOS the linker doesn't find libz.so via short name; accept either
+	-- a full path (POB_ZLIB_PATH) or fall back to dlopen("z") for dev setups.
+	local zlibPath = os.getenv("POB_ZLIB_PATH") or "z"
+	local zlibOk, zlib = pcall(ffi.load, zlibPath)
+	if not zlibOk then
+		log("FATAL: failed to load zlib from %s: %s", zlibPath, tostring(zlib))
+		os.exit(1)
+	end
+
+	ffi.cdef[[
+		typedef struct z_stream_s {
+			const uint8_t *next_in;
+			unsigned int   avail_in;
+			unsigned long  total_in;
+			uint8_t       *next_out;
+			unsigned int   avail_out;
+			unsigned long  total_out;
+			const char    *msg;
+			void          *state;
+			void          *zalloc;
+			void          *zfree;
+			void          *opaque;
+			int            data_type;
+			unsigned long  adler;
+			unsigned long  reserved;
+		} z_stream;
+		int   inflateInit_(z_stream *strm, const char *version, int stream_size);
+		int   inflate(z_stream *strm, int flush);
+		int   inflateEnd(z_stream *strm);
+		int   deflateInit_(z_stream *strm, int level, const char *version, int stream_size);
+		int   deflate(z_stream *strm, int flush);
+		int   deflateEnd(z_stream *strm);
+		const char *zlibVersion(void);
+	]]
+
+	local Z_OK, Z_STREAM_END = 0, 1
+	local Z_NO_FLUSH, Z_FINISH = 0, 4
+	local Z_DEFAULT_COMPRESSION = -1
+
+	local version = zlib.zlibVersion()
+	local streamSize = ffi.sizeof("z_stream")
+	local chunkSize = 64 * 1024
+	local chunk = ffi.new("uint8_t[?]", chunkSize)
+
+	function Inflate(data)
+		if not data or data == "" then return "" end
+		local strm = ffi.new("z_stream")
+		if zlib.inflateInit_(strm, version, streamSize) ~= Z_OK then return "" end
+		strm.next_in = ffi.cast("const uint8_t*", data)
+		strm.avail_in = #data
+		local parts = {}
+		while true do
+			strm.next_out = chunk
+			strm.avail_out = chunkSize
+			local rc = zlib.inflate(strm, Z_NO_FLUSH)
+			if rc ~= Z_OK and rc ~= Z_STREAM_END then
+				zlib.inflateEnd(strm)
+				return ""
+			end
+			local produced = chunkSize - strm.avail_out
+			if produced > 0 then
+				parts[#parts + 1] = ffi.string(chunk, produced)
+			end
+			if rc == Z_STREAM_END then break end
+			-- Safety net: no progress possible. Shouldn't happen on well-formed input.
+			if strm.avail_in == 0 and produced == 0 then break end
+		end
+		zlib.inflateEnd(strm)
+		return table.concat(parts)
+	end
+
+	function Deflate(data)
+		if not data or data == "" then return "" end
+		local strm = ffi.new("z_stream")
+		if zlib.deflateInit_(strm, Z_DEFAULT_COMPRESSION, version, streamSize) ~= Z_OK then
+			return ""
+		end
+		strm.next_in = ffi.cast("const uint8_t*", data)
+		strm.avail_in = #data
+		local parts = {}
+		while true do
+			strm.next_out = chunk
+			strm.avail_out = chunkSize
+			local rc = zlib.deflate(strm, Z_FINISH)
+			local produced = chunkSize - strm.avail_out
+			if produced > 0 then
+				parts[#parts + 1] = ffi.string(chunk, produced)
+			end
+			if rc == Z_STREAM_END then break end
+			if rc ~= Z_OK then
+				zlib.deflateEnd(strm)
+				return ""
+			end
+		end
+		zlib.deflateEnd(strm)
+		return table.concat(parts)
+	end
+end
+
 -- JSON library is available from PoB's runtime
 local dkjson = require("dkjson")
 

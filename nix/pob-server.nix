@@ -106,6 +106,10 @@ in {
         Environment = [
           "HOME=/var/lib/pob-server"
           "PATH=${lib.makeBinPath [pkgs.bash pkgs.coreutils pkgs.luajit]}"
+          # wrapper.lua uses LuaJIT FFI against zlib to implement PoB's
+          # Inflate/Deflate globals (HeadlessWrapper stubs them to no-ops,
+          # which breaks Timeless Jewel LUT loading and build code import).
+          "POB_ZLIB_PATH=${pkgs.zlib}/lib/libz.so"
         ];
 
         # Security hardening — process untrusted PoB build codes safely
