@@ -69,6 +69,109 @@ func TestModifyHandlerReturns404ForMissingBuild(t *testing.T) {
 	}
 }
 
+// Production log 2026-04-18T07:19:22: a user's `set_item` operation
+// with a malformed item text crashed PoB's Lua Item class 5 times in
+// a row. With the Go-side pre-validator wired in, the request should
+// now be rejected at the HTTP layer with a specific error before the
+// LuaJIT subprocess is even acquired — no pool use, no crash surface.
+func TestModifyHandlerRejectsSetItemMissingRarity(t *testing.T) {
+	srv := newTestServer(t)
+
+	xml := "<PathOfBuilding/>"
+	id := srv.cache.Put(xml)
+	_ = srv.cache.store.Put(id, xml, "{}", "", "")
+
+	// Missing "Rarity:" header.
+	body := `{"buildId":"` + id + `","operations":[{"op":"set_item","slot":"Weapon 1","text":"Kinetic Wand\nAdds 10 to 50 Lightning Damage"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.handleModify(rec, req)
+
+	if rec.Code != 400 {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "Rarity:") {
+		t.Errorf("error body should cite 'Rarity:' header, got: %s", rec.Body.String())
+	}
+}
+
+// The exact production-captured crashing text: no title line, so
+// "Rarity:" is present but the PoB "--------" separator between
+// title/base and modifiers is missing. Must be rejected in Go.
+func TestModifyHandlerRejectsSetItemMissingSeparator(t *testing.T) {
+	srv := newTestServer(t)
+
+	xml := "<PathOfBuilding/>"
+	id := srv.cache.Put(xml)
+	_ = srv.cache.store.Put(id, xml, "{}", "", "")
+
+	productionCrashText := `Kinetic Wand\nRarity: Rare\nCannot roll Caster Modifiers\nAdds 20 to 360 Lightning Damage\nAdds 14 to 28 Fire Damage\nAdds 14 to 28 Cold Damage\n38% increased Critical Strike Chance\n+45% to Global Critical Strike Multiplier\nCan have up to 3 Crafted Modifiers`
+	body := `{"buildId":"` + id + `","operations":[{"op":"set_item","slot":"Weapon 1","text":"` + productionCrashText + `"}]}`
+	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.handleModify(rec, req)
+
+	if rec.Code != 400 {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "--------") {
+		t.Errorf("error body should cite '--------' separator, got: %s", rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "operation 1") {
+		t.Errorf("error body should identify the offending operation index, got: %s", rec.Body.String())
+	}
+}
+
+// Operations other than set_item must pass through the validator
+// untouched; no false rejections.
+func TestModifyHandlerPassesThroughNonSetItemOps(t *testing.T) {
+	// Using httptest with mock bash: if validation correctly ignores
+	// non-set_item ops, the request reaches the pool and returns 200.
+	mockScript := filepath.Join(t.TempDir(), "mock-passthrough.sh")
+	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
+read line
+echo '{"type":"result","data":{"character":{"class":"Templar","ascendancy":"Guardian","level":90},"summary":{"Life":5000}},"xml":"<PathOfBuilding><Build level=\"90\"/></PathOfBuilding>"}'
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	defer pool.Shutdown()
+
+	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    time.Now,
+		cancel:     func() {},
+		store:      store,
+	}
+	origXML := "<PathOfBuilding/>"
+	origID := cache.Put(origXML)
+	_ = store.Put(origID, origXML, "{}", "", "")
+	srv := &Server{pool: pool, cache: cache, log: logger}
+
+	body := `{"buildId":"` + origID + `","operations":[{"op":"set_level","level":95}]}`
+	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.handleModify(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestModifyEquipFlaskWithMockPoB(t *testing.T) {
 	// Mock script: reads a modify request with equip_flask, returns a canned result
 	// where PhysicalMaximumHitTaken increased (showing flask stats are applied).

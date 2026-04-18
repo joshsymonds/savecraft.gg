@@ -313,6 +313,10 @@ func (srv *Server) handleModify(
 		jsonError(writer, "at least one operation is required", http.StatusBadRequest)
 		return
 	}
+	if err := validateModifyOperations(req.Operations); err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
 
 	// Look up the original build XML
 	xml, err := srv.cache.Get(req.BuildID)

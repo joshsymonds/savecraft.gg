@@ -1201,7 +1201,19 @@ local function applySetItem(op)
 	if not op.text then return "set_item: missing 'text'" end
 	if not op.slot then return "set_item: missing 'slot'" end
 
-	local item = new("Item", op.text)
+	-- PoB's Item parser has crashed on malformed text in production
+	-- (Classes/Item.lua:1050, baseName nil). Go-side validateItemText
+	-- catches the common structural cases, but keep this pcall as a
+	-- last line of defence so edge-case parse failures surface as a
+	-- structured op error instead of an unhandled Lua error that the
+	-- top-level pcall wraps in a generic "modify crashed:" message.
+	local parseOk, item = pcall(new, "Item", op.text)
+	if not parseOk then
+		return "set_item: failed to parse item text — PoB error: " .. tostring(item)
+	end
+	if not item or not item.baseName then
+		return "set_item: parsed item has no base name — ensure the item text includes the base item name on its own line (e.g. 'Kinetic Wand') between the rare name and the '--------' separator"
+	end
 	build.itemsTab:AddItem(item, true)
 
 	local activeSet = build.itemsTab.activeItemSet
