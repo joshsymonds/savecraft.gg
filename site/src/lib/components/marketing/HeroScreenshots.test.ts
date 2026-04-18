@@ -13,6 +13,8 @@ const twoFrames = [
 
 const threeFrames = [...twoFrames, { src: "/images/c.jpg", alt: "third frame" }];
 
+const fourFrames = [...threeFrames, { src: "/images/d.jpg", alt: "fourth frame" }];
+
 describe("HeroScreenshots", () => {
   it("stacked variant renders every frame as an img", () => {
     const { container } = render(HeroScreenshots, {
@@ -23,12 +25,20 @@ describe("HeroScreenshots", () => {
     expect(imgs[0]?.getAttribute("alt")).toBe("first frame");
   });
 
-  it("overlap variant clamps to the first two frames", () => {
+  it("overlap variant renders up to three frames", () => {
     const { container } = render(HeroScreenshots, {
       props: { frames: threeFrames, variant: "overlap" },
     });
     const imgs = container.querySelectorAll("img");
-    expect(imgs).toHaveLength(2);
+    expect(imgs).toHaveLength(3);
+  });
+
+  it("overlap variant clamps to the first three frames when more are supplied", () => {
+    const { container } = render(HeroScreenshots, {
+      props: { frames: fourFrames, variant: "overlap" },
+    });
+    const imgs = container.querySelectorAll("img");
+    expect(imgs).toHaveLength(3);
   });
 
   it("carousel variant renders dots equal to frame count when more than one", () => {
