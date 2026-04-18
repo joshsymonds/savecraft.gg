@@ -657,9 +657,7 @@ describe("MCP Tools", () => {
           gameState: mtgaState as unknown as typeof sampleGameState,
         });
 
-        const result = await getSection(env.DB, USER_A, "save-magic-match", [
-          `match:${matchUuid}`,
-        ]);
+        const result = await getSection(env.DB, USER_A, "save-magic-match", [`match:${matchUuid}`]);
         expect(result.isError).toBeUndefined();
         const data = parseResult(result) as {
           save_id: string;
@@ -681,9 +679,7 @@ describe("MCP Tools", () => {
           gameState: mtgaState as unknown as typeof sampleGameState,
         });
 
-        const result = await getSection(env.DB, USER_A, "save-magic-game", [
-          `game:${matchUuid}`,
-        ]);
+        const result = await getSection(env.DB, USER_A, "save-magic-game", [`game:${matchUuid}`]);
         expect(result.isError).toBeUndefined();
         const data = parseResult(result) as { section: string };
         expect(data.section).toBe(`game:${matchUuid}`);
@@ -710,8 +706,8 @@ describe("MCP Tools", () => {
           sections: Record<string, unknown>;
           missing?: string[];
         };
-        expect(Object.keys(data.sections).sort()).toEqual(
-          ["player_summary", `match:${matchUuid}`].sort(),
+        expect(Object.keys(data.sections).toSorted((a, b) => a.localeCompare(b))).toEqual(
+          ["player_summary", `match:${matchUuid}`].toSorted((a, b) => a.localeCompare(b)),
         );
         expect(data.missing).toEqual(["does-not-exist"]);
       });
