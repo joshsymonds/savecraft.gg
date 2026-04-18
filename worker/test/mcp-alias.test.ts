@@ -133,3 +133,79 @@ describe("MCP game_id alias normalization", () => {
     expect(err).toContain('for game "rimworld"');
   });
 });
+
+interface ListGamesResult {
+  games: { game_id: string; game_name: string }[];
+}
+
+/** Parse the games payload from list_games. listGames returns textResult — JSON serialized in content[0].text. */
+function listGamesData(result: CallResult): ListGamesResult {
+  expect(result.isError).toBeFalsy();
+  const text = result.content?.[0]?.text;
+  if (text === undefined) throw new Error("expected text content from list_games");
+  return JSON.parse(text) as ListGamesResult;
+}
+
+describe("MCP list_games filter tokenization", () => {
+  beforeEach(async () => {
+    await cleanAll();
+    await seedSource(TEST_USER);
+    TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
+    await initialize();
+  });
+
+  it("matches a single canonical game_id (rimworld regression)", async () => {
+    const result = await callTool(20, "list_games", { filter: "rimworld" });
+    const data = listGamesData(result);
+    expect(data.games.map((g) => g.game_id)).toContain("rimworld");
+  });
+
+  it("matches a verbose multi-token filter via any token", async () => {
+    // Production-observed filter that previously errored: no game has the full
+    // string in id or name, but the "Magic" token alone substring-matches.
+    const result = await callTool(21, "list_games", {
+      filter: "Magic The Gathering Arena MTG deck cards draft",
+    });
+    const data = listGamesData(result);
+    expect(data.games.map((g) => g.game_id)).toContain("magic");
+  });
+
+  it("matches case-insensitively across multi-word filters", async () => {
+    const result = await callTool(22, "list_games", { filter: "magic the gathering" });
+    const data = listGamesData(result);
+    expect(data.games.map((g) => g.game_id)).toContain("magic");
+  });
+
+  it("matches an aliased single-token filter (mtga -> magic)", async () => {
+    const result = await callTool(23, "list_games", { filter: "mtga" });
+    const data = listGamesData(result);
+    expect(data.games.map((g) => g.game_id)).toContain("magic");
+  });
+
+  it("matches when only one token in a multi-token filter is an alias", async () => {
+    const result = await callTool(24, "list_games", { filter: "mtga arena cards" });
+    const data = listGamesData(result);
+    expect(data.games.map((g) => g.game_id)).toContain("magic");
+  });
+
+  it("returns the no-match error for a filter with zero matching tokens", async () => {
+    const result = await callTool(25, "list_games", {
+      filter: "totally_nonexistent_game_xyz",
+    });
+    expect(result.isError).toBe(true);
+    expect(result.content?.[0]?.text).toContain("No games matching");
+  });
+
+  it("returns the full catalog when filter is empty string", async () => {
+    const result = await callTool(26, "list_games", { filter: "" });
+    const data = listGamesData(result);
+    // Empty filter behaves like no filter — full catalog with multiple entries.
+    expect(data.games.length).toBeGreaterThan(1);
+  });
+
+  it("returns the full catalog when filter is whitespace only", async () => {
+    const result = await callTool(27, "list_games", { filter: "   " });
+    const data = listGamesData(result);
+    expect(data.games.length).toBeGreaterThan(1);
+  });
+});

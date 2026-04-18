@@ -7,6 +7,7 @@
 import { ADAPTER_REFRESH_COOLDOWN_SEC, AdapterError } from "../adapters/adapter";
 import { adapters } from "../adapters/registry";
 import { resolveCharacterContext } from "../adapters/resolve-character";
+import { normalizeGameId } from "../gameid";
 import { getNativeGameIds, getNativeModule, getNativeModules } from "../reference/registry";
 import type { NativeReferenceModule } from "../reference/types";
 import { storePush } from "../store";
@@ -107,10 +108,30 @@ interface NotePreviewRow {
   preview: string;
 }
 
-/** Test if a game matches a filter pattern (case-insensitive substring on id or name). */
+/**
+ * Test if a game matches a filter pattern. Tokenizes the filter on whitespace
+ * and matches if ANY token (or its alias-normalized form) substring-matches
+ * the game id or name. Empty/whitespace-only filters match everything.
+ *
+ * Production traffic showed verbose LLM filters like "Magic The Gathering Arena MTG"
+ * failing the previous full-string substring match; tokenization rescues them
+ * because individual tokens like "magic" still match. The alias normalization
+ * also makes filter="mtga" match canonical "magic".
+ */
 function matchesGameFilter(gameId: string, gameName: string, filter: string): boolean {
-  const lower = filter.toLowerCase();
-  return gameId.toLowerCase().includes(lower) || gameName.toLowerCase().includes(lower);
+  const tokens = filter.toLowerCase().split(/\s+/).filter(Boolean);
+  if (tokens.length === 0) return true;
+  const idLower = gameId.toLowerCase();
+  const nameLower = gameName.toLowerCase();
+  return tokens.some((tok) => {
+    const norm = normalizeGameId(tok);
+    return (
+      idLower.includes(tok) ||
+      nameLower.includes(tok) ||
+      idLower.includes(norm) ||
+      nameLower.includes(norm)
+    );
+  });
 }
 
 interface GameEntry {
