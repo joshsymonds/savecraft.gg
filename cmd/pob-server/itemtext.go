@@ -7,59 +7,110 @@ import (
 	"strings"
 )
 
-// maxItemTextBytes caps the accepted size of a set_item operation's
-// item text to bound the parse work Lua does. Real PoB-exported items
-// are well under 4KB even for multi-line unique items.
-const maxItemTextBytes = 64 * 1024
+// buildItemText assembles PoB's item-text format from structured
+// fields. The output is the canonical skeleton PoB's Item class parses:
+//
+//	Rarity: <rarity>
+//	<name>
+//	<base>
+//	--------
+//	<mod 1>
+//	<mod 2>
+//	...
+//
+// MVP supports rares only — validateSetItemFields gates input before
+// this function is called.
+func buildItemText(rarity, name, base string, mods []string) string {
+	parts := make([]string, 0, 4+len(mods))
+	parts = append(parts, "Rarity: "+rarity, name, base, "--------")
+	parts = append(parts, mods...)
+	return strings.Join(parts, "\n")
+}
 
-// validateItemText rejects obviously-malformed PoB item text before
-// it reaches wrapper.lua's Item class. PoB's item parser crashes on
-// certain malformed inputs (baseName-nil in Classes/Item.lua when the
-// canonical "Rarity: ... / <rare name> / <base name> / -------- / mods"
-// skeleton is broken), so catching the common structural mistakes in
-// Go gives the AI caller an actionable error instead of a generic
-// "modify crashed: ..." surface. A pcall in wrapper.lua stays in
-// place as the last line of defense for edge cases.
-func validateItemText(text string) error {
-	trimmed := strings.TrimSpace(text)
-	if trimmed == "" {
-		return errors.New("item text is empty")
-	}
-	if len(text) > maxItemTextBytes {
-		return fmt.Errorf("item text exceeds size limit (%dKB)", maxItemTextBytes/1024)
-	}
-	if !strings.Contains(text, "Rarity:") {
+// validateSetItemFields enforces the structured contract for set_item
+// ops. MVP supports only "Rare" rarity; anything else returns an
+// error that points the caller to equip_unique or, for still-unsupported
+// cases, requests an issue filing.
+func validateSetItemFields(rarity, name, base string) error {
+	if rarity == "" {
 		return errors.New(
-			"item text is missing the 'Rarity:' header. PoB format: 'Rarity: <rarity>\\n<rare name>\\n<base name>\\n--------\\n<mods>'",
+			"missing 'rarity' field. Required: rarity ('Rare' only currently), name, base. Optional: mods array",
 		)
 	}
-	if !strings.Contains(text, "--------") {
+	if rarity != "Rare" {
+		return fmt.Errorf(
+			"rarity %q is not currently supported. Use equip_unique for Unique items; set_item handles only Rare. File an issue to request Magic/Normal support",
+			rarity,
+		)
+	}
+	if name == "" {
 		return errors.New(
-			"item text is missing the '--------' separator between the title/base block and the modifier block. PoB format: 'Rarity: <rarity>\\n<rare name>\\n<base name>\\n--------\\n<mods>'",
+			"'Rare' items require 'name' (the rare name, e.g. 'Bramble Song')",
+		)
+	}
+	if base == "" {
+		return errors.New(
+			"missing 'base' field (the base type, e.g. 'Astral Plate', 'Kinetic Wand')",
 		)
 	}
 	return nil
 }
 
-// validateModifyOperations runs cheap Go-side checks against each op
-// before it's sent to Lua. Today only set_item has a Go validator;
-// other ops are checked by the Lua handler. If an op's JSON cannot be
-// decoded into the narrow shape we inspect, we fall through silently
-// — the Lua layer will emit the authoritative error for that shape.
-func validateModifyOperations(ops []json.RawMessage) error {
-	for idx, raw := range ops {
+// setItemOp captures only the fields relevant to validation + text
+// construction. Slot passes through to Lua as-is.
+type setItemOp struct {
+	Op     string   `json:"op"`
+	Slot   string   `json:"slot"`
+	Rarity string   `json:"rarity"`
+	Name   string   `json:"name"`
+	Base   string   `json:"base"`
+	Mods   []string `json:"mods"`
+}
+
+// transformedSetItem is the shape forwarded to wrapper.lua's
+// applySetItem. Structured fields never reach Lua.
+type transformedSetItem struct {
+	Op   string `json:"op"`
+	Slot string `json:"slot"`
+	Text string `json:"text"`
+}
+
+// validateAndTransformModifyOperations runs Go-side checks against
+// each op and, for set_item, constructs PoB's item text from
+// structured fields and rewrites the op payload accordingly. Non-
+// set_item ops are returned unchanged. Ops whose JSON can't be
+// decoded to even peek at the op field fall through — wrapper.lua's
+// dispatcher emits the authoritative error for those.
+func validateAndTransformModifyOperations(ops []json.RawMessage) ([]json.RawMessage, error) {
+	out := make([]json.RawMessage, len(ops))
+	for i, raw := range ops {
 		var header struct {
-			Op   string `json:"op"`
-			Text string `json:"text"`
+			Op string `json:"op"`
 		}
 		if err := json.Unmarshal(raw, &header); err != nil {
+			out[i] = raw
 			continue
 		}
-		if header.Op == "set_item" {
-			if err := validateItemText(header.Text); err != nil {
-				return fmt.Errorf("operation %d: set_item: %w", idx+1, err)
-			}
+		if header.Op != "set_item" {
+			out[i] = raw
+			continue
 		}
+		var op setItemOp
+		if err := json.Unmarshal(raw, &op); err != nil {
+			return nil, fmt.Errorf("operation %d: set_item: cannot decode fields: %w", i+1, err)
+		}
+		if err := validateSetItemFields(op.Rarity, op.Name, op.Base); err != nil {
+			return nil, fmt.Errorf("operation %d: set_item: %w", i+1, err)
+		}
+		transformed, err := json.Marshal(transformedSetItem{
+			Op:   "set_item",
+			Slot: op.Slot,
+			Text: buildItemText(op.Rarity, op.Name, op.Base, op.Mods),
+		})
+		if err != nil {
+			return nil, fmt.Errorf("operation %d: set_item: cannot re-encode: %w", i+1, err)
+		}
+		out[i] = transformed
 	}
-	return nil
+	return out, nil
 }

@@ -356,3 +356,50 @@ describe("getModuleParameters", () => {
     expect(getModuleParameters("nonexistent", "nonexistent")).toBeUndefined();
   });
 });
+
+// Guard the two preventive guidance surfaces: build_planner's set_item
+// example must cite the same PoB item-text skeleton that the Go
+// validator enforces (cmd/pob-server/itemtext.go), and gem_search
+// must name itself as the canonical source for build_planner gem ops
+// with the " Support"-suffix gotcha. If either description drifts out
+// of sync with the validator or with each other, these assertions
+// fail and force a deliberate update.
+describe("PoE module descriptions provide preventive guidance", () => {
+  it("build_planner set_item example uses structured fields, not a text blob", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const operationsParameter = buildPlannerModule.parameters?.operations as {
+      description: string;
+    };
+    const desc = operationsParameter.description;
+
+    const setItemLine = desc.split("\n").find((line) => line.includes('"set_item"'));
+    expect(setItemLine).toBeDefined();
+
+    // The structured shape is the current contract (post-2026-04-18).
+    // The Go side at cmd/pob-server/itemtext.go constructs PoB's item
+    // text from these fields — the tool should never instruct the
+    // caller to produce the text blob themselves.
+    expect(setItemLine!).toContain('"rarity"');
+    expect(setItemLine!).toContain('"name"');
+    expect(setItemLine!).toContain('"base"');
+    expect(setItemLine!).toContain('"mods"');
+
+    // Regression guard: the old text-blob shape must not creep back.
+    // If someone ever reintroduces "text":"Rarity:..." in the example,
+    // this fails loudly.
+    expect(setItemLine!).not.toMatch(/"text":"Rarity:/);
+
+    // Rarity constraint must be documented so the AI sees "Rare only"
+    // without having to call and fail.
+    expect(setItemLine!).toContain("equip_unique");
+  });
+
+  it("gem_search names itself as canonical source for build_planner gem ops", async () => {
+    const { gemSearchModule } = await import("../../plugins/poe/reference/gem-search");
+    const desc = gemSearchModule.description;
+    expect(desc).toContain("build_planner");
+    // PoB canonical names omit " Support" — the gotcha that burned a
+    // user in production on 2026-04-18.
+    expect(desc).toContain("Support");
+  });
+});

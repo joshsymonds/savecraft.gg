@@ -69,44 +69,64 @@ func TestModifyHandlerReturns404ForMissingBuild(t *testing.T) {
 	}
 }
 
-// Production log 2026-04-18T07:19:22: a user's `set_item` operation
-// with a malformed item text crashed PoB's Lua Item class 5 times in
-// a row. With the Go-side pre-validator wired in, the request should
-// now be rejected at the HTTP layer with a specific error before the
-// LuaJIT subprocess is even acquired — no pool use, no crash surface.
-func TestModifyHandlerRejectsSetItemMissingRarity(t *testing.T) {
+// set_item is structured-only (post-2026-04-18). Missing required
+// fields must be rejected with a specific error before the LuaJIT
+// pool is ever touched.
+func TestModifyHandlerRejectsSetItemMissingRequiredFields(t *testing.T) {
 	srv := newTestServer(t)
-
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
 	_ = srv.cache.store.Put(id, xml, "{}", "", "")
 
-	// Missing "Rarity:" header.
-	body := `{"buildId":"` + id + `","operations":[{"op":"set_item","slot":"Weapon 1","text":"Kinetic Wand\nAdds 10 to 50 Lightning Damage"}]}`
-	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
-	rec := httptest.NewRecorder()
-	srv.handleModify(rec, req)
-
-	if rec.Code != 400 {
-		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	cases := []struct {
+		name       string
+		op         string
+		wantErrSub string
+	}{
+		{
+			name:       "missing rarity",
+			op:         `{"op":"set_item","slot":"Weapon 1","name":"X","base":"Y"}`,
+			wantErrSub: "rarity",
+		},
+		{
+			name:       "missing name",
+			op:         `{"op":"set_item","slot":"Weapon 1","rarity":"Rare","base":"Y"}`,
+			wantErrSub: "name",
+		},
+		{
+			name:       "missing base",
+			op:         `{"op":"set_item","slot":"Weapon 1","rarity":"Rare","name":"X"}`,
+			wantErrSub: "base",
+		},
 	}
-	if !strings.Contains(rec.Body.String(), "Rarity:") {
-		t.Errorf("error body should cite 'Rarity:' header, got: %s", rec.Body.String())
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := `{"buildId":"` + id + `","operations":[` + tc.op + `]}`
+			req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
+			rec := httptest.NewRecorder()
+			srv.handleModify(rec, req)
+			if rec.Code != 400 {
+				t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), tc.wantErrSub) {
+				t.Errorf("error body missing %q: %s", tc.wantErrSub, rec.Body.String())
+			}
+			if !strings.Contains(rec.Body.String(), "operation 1") {
+				t.Errorf("error body should identify operation index: %s", rec.Body.String())
+			}
+		})
 	}
 }
 
-// The exact production-captured crashing text: no title line, so
-// "Rarity:" is present but the PoB "--------" separator between
-// title/base and modifiers is missing. Must be rejected in Go.
-func TestModifyHandlerRejectsSetItemMissingSeparator(t *testing.T) {
+// Non-Rare rarities are rejected with a clear pointer to
+// equip_unique so the AI self-corrects.
+func TestModifyHandlerRejectsSetItemMagicRarity(t *testing.T) {
 	srv := newTestServer(t)
-
 	xml := "<PathOfBuilding/>"
 	id := srv.cache.Put(xml)
 	_ = srv.cache.store.Put(id, xml, "{}", "", "")
 
-	productionCrashText := `Kinetic Wand\nRarity: Rare\nCannot roll Caster Modifiers\nAdds 20 to 360 Lightning Damage\nAdds 14 to 28 Fire Damage\nAdds 14 to 28 Cold Damage\n38% increased Critical Strike Chance\n+45% to Global Critical Strike Multiplier\nCan have up to 3 Crafted Modifiers`
-	body := `{"buildId":"` + id + `","operations":[{"op":"set_item","slot":"Weapon 1","text":"` + productionCrashText + `"}]}`
+	body := `{"buildId":"` + id + `","operations":[{"op":"set_item","slot":"Weapon 1","rarity":"Magic","name":"X","base":"Y"}]}`
 	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
 	rec := httptest.NewRecorder()
 	srv.handleModify(rec, req)
@@ -114,11 +134,87 @@ func TestModifyHandlerRejectsSetItemMissingSeparator(t *testing.T) {
 	if rec.Code != 400 {
 		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "--------") {
-		t.Errorf("error body should cite '--------' separator, got: %s", rec.Body.String())
+	body404 := rec.Body.String()
+	if !strings.Contains(body404, "Magic") {
+		t.Errorf("error should name the rejected rarity: %s", body404)
 	}
-	if !strings.Contains(rec.Body.String(), "operation 1") {
-		t.Errorf("error body should identify the offending operation index, got: %s", rec.Body.String())
+	if !strings.Contains(body404, "equip_unique") {
+		t.Errorf("error should point to equip_unique: %s", body404)
+	}
+}
+
+// Structured set_item fields must be converted to PoB's item-text
+// format in Go before forwarding to Lua. Use a mock bash that
+// captures stdin so we can assert the forwarded payload contains
+// the expected constructed text.
+func TestModifyHandlerBuildsTextFromStructuredFields(t *testing.T) {
+	capturePath := filepath.Join(t.TempDir(), "stdin-capture.jsonl")
+	mockScript := filepath.Join(t.TempDir(), "mock-capture.sh")
+	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
+while read line; do
+  echo "$line" >> `+capturePath+`
+  echo '{"type":"result","data":{"character":{"class":"Marauder","level":90},"summary":{"Life":5000}},"xml":"<PathOfBuilding/>"}'
+done
+`), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	defer pool.Shutdown()
+
+	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer store.Close()
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    time.Now,
+		cancel:     func() {},
+		store:      store,
+	}
+	origXML := "<PathOfBuilding/>"
+	origID := cache.Put(origXML)
+	_ = store.Put(origID, origXML, "{}", "", "")
+	srv := &Server{pool: pool, cache: cache, log: logger}
+
+	body := `{"buildId":"` + origID + `","operations":[{"op":"set_item","slot":"Body Armour","rarity":"Rare","name":"Bramble Song","base":"Astral Plate","mods":["+80 to maximum Life","80% increased Armour"]}]}`
+	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
+	rec := httptest.NewRecorder()
+	srv.handleModify(rec, req)
+
+	if rec.Code != 200 {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	captured, err := os.ReadFile(capturePath)
+	if err != nil {
+		t.Fatalf("failed to read captured stdin: %v", err)
+	}
+	capturedStr := string(captured)
+	// The forwarded Lua payload MUST carry the Go-constructed text
+	// (JSON-escaped) and must NOT carry the structured fields.
+	for _, want := range []string{
+		`"text":"`,
+		`Rarity: Rare`,
+		`Bramble Song`,
+		`Astral Plate`,
+		`--------`,
+		`+80 to maximum Life`,
+	} {
+		if !strings.Contains(capturedStr, want) {
+			t.Errorf("forwarded payload missing %q:\n%s", want, capturedStr)
+		}
+	}
+	for _, leak := range []string{`"rarity":`, `"base":`, `"mods":`} {
+		if strings.Contains(capturedStr, leak) {
+			t.Errorf("structured field %q leaked to Lua:\n%s", leak, capturedStr)
+		}
 	}
 }
 
