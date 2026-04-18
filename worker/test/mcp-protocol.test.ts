@@ -503,7 +503,8 @@ describe("MCP Protocol", () => {
       };
     };
     expect(body.result.isError).toBe(true);
-    expect(body.result.content![0]!.text).toContain("non-empty array");
+    expect(body.result.content![0]!.text).toContain("queries is required");
+    expect(body.result.content![0]!.text).toContain('list_games(filter="magic")');
   });
 
   it("query_reference rejects too many queries", async () => {

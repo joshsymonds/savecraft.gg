@@ -209,3 +209,66 @@ describe("MCP list_games filter tokenization", () => {
     expect(data.games.length).toBeGreaterThan(1);
   });
 });
+
+describe("MCP missing-queries enriched error", () => {
+  beforeEach(async () => {
+    await cleanAll();
+    await seedSource(TEST_USER);
+    TOKEN_HOLDER.value = await getOAuthToken(TEST_USER);
+    await initialize();
+  });
+
+  it("query_reference with no queries field returns enriched error with game_id", async () => {
+    const result = await callTool(30, "query_reference", {
+      game_id: "poe",
+      module: "build_planner",
+    });
+    const err = singleQueryError(result);
+    expect(err).toContain("queries is required");
+    expect(err).toContain("[{label");
+    expect(err).toContain('list_games(filter="poe")');
+  });
+
+  it("query_reference with empty queries array returns the same enriched error", async () => {
+    const result = await callTool(31, "query_reference", {
+      game_id: "poe",
+      module: "build_planner",
+      queries: [],
+    });
+    const err = singleQueryError(result);
+    expect(err).toContain("queries is required");
+    expect(err).toContain("[{label");
+    expect(err).toContain('list_games(filter="poe")');
+  });
+
+  it("query_reference with no game_id falls back to a placeholder filter hint", async () => {
+    const result = await callTool(32, "query_reference", {
+      module: "build_planner",
+      queries: [],
+    });
+    const err = singleQueryError(result);
+    expect(err).toContain("queries is required");
+    expect(err).toContain('list_games(filter="<game_id>")');
+  });
+
+  it("show_reference inherits the enriched error via delegation", async () => {
+    const result = await callTool(33, "show_reference", {
+      game_id: "poe",
+      module: "build_planner",
+    });
+    const err = singleQueryError(result);
+    expect(err).toContain("queries is required");
+    expect(err).toContain('list_games(filter="poe")');
+  });
+
+  it("does not fire on valid one-query call (regression: module-not-found wins)", async () => {
+    const result = await callTool(34, "query_reference", {
+      game_id: "magic",
+      module: "_does_not_exist_queries_probe",
+      queries: [{ label: "x" }],
+    });
+    const err = singleQueryError(result);
+    expect(err).not.toContain("queries is required");
+    expect(err).toContain("not found for game");
+  });
+});

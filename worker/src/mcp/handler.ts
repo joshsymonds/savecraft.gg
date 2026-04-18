@@ -870,9 +870,16 @@ async function handleQueryReference(
 ): Promise<ToolResult | ViewToolResult> {
   const queries = args.queries;
   if (!Array.isArray(queries) || queries.length === 0) {
+    const gameIdHint =
+      typeof args.game_id === "string" && args.game_id.length > 0 ? args.game_id : "<game_id>";
     return {
       content: [
-        { type: "text", text: "Invalid queries: must be a non-empty array of query objects." },
+        {
+          type: "text",
+          text:
+            `queries is required: provide an array like [{label: "...", ...module-specific-params}]. ` +
+            `Call list_games(filter="${gameIdHint}") for the parameter schema.`,
+        },
       ],
       isError: true,
     };
