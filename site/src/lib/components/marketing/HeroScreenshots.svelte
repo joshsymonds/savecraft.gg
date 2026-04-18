@@ -17,13 +17,7 @@
 
   interface Props {
     frames: Frame[];
-    variant?:
-      | "stacked"
-      | "overlap"
-      | "carousel"
-      | "solo"
-      | "solo-peek"
-      | "side-solo";
+    variant?: "stacked" | "overlap" | "carousel" | "solo" | "solo-peek" | "side-solo";
     accent?: "gold" | "crimson" | "blue" | "green";
     title?: string;
     eyebrow?: string;
