@@ -1,4 +1,5 @@
 export { default as ConversationDemo } from "./ConversationDemo.svelte";
+export { default as HeroScreenshots } from "./HeroScreenshots.svelte";
 export { default as MarketingSection } from "./MarketingSection.svelte";
 export { default as ModeCard } from "./ModeCard.svelte";
 export { default as ModuleBadge } from "./ModuleBadge.svelte";
