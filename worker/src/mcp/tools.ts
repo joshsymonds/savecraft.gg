@@ -523,8 +523,10 @@ export async function getSection(
   if (rows.results.length === 0) {
     const deckSuggestion = await deckMissError(db, saveId, sections);
     if (deckSuggestion) return deckSuggestion;
+    // Safety valve: bound the error payload. Today's saves have <30 sections,
+    // but future plugins may emit per-entity sections at higher counts.
     const available = await db
-      .prepare("SELECT name FROM sections WHERE save_uuid = ? ORDER BY name")
+      .prepare("SELECT name FROM sections WHERE save_uuid = ? ORDER BY name LIMIT 200")
       .bind(saveId)
       .all<{ name: string }>();
     const requested = sections.join(", ");

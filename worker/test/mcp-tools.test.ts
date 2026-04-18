@@ -689,6 +689,33 @@ describe("MCP Tools", () => {
         expect(data.section).toBe(`game:${matchUuid}`);
       });
 
+      it("partial hit with prefixed-UUID section + missing name returns found + missing", async () => {
+        await seedSave({
+          saveUuid: "save-magic-mixed",
+          userUuid: USER_A,
+          gameId: "magic",
+          saveName: "DraftDodger",
+          summary: "DraftDodger",
+          gameState: mtgaState as unknown as typeof sampleGameState,
+        });
+
+        const result = await getSection(env.DB, USER_A, "save-magic-mixed", [
+          "player_summary",
+          `match:${matchUuid}`,
+          "does-not-exist",
+        ]);
+        expect(result.isError).toBeUndefined();
+        const data = parseResult(result) as {
+          save_id: string;
+          sections: Record<string, unknown>;
+          missing?: string[];
+        };
+        expect(Object.keys(data.sections).sort()).toEqual(
+          ["player_summary", `match:${matchUuid}`].sort(),
+        );
+        expect(data.missing).toEqual(["does-not-exist"]);
+      });
+
       it("miss error on magic save lists the real match:/game: names", async () => {
         await seedSave({
           saveUuid: "save-magic-miss",
