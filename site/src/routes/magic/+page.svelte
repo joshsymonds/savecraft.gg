@@ -78,7 +78,7 @@
     property="og:description"
     content="All-format Magic reference — EDHREC Commander data, 17Lands draft stats across 31 color archetypes, Frank Karsten's mana math, and the full MTG rules. Plus your Arena collection and match history when you connect the daemon."
   />
-  <meta property="og:url" content="https://savecraft.gg/games/magic" />
+  <meta property="og:url" content="https://savecraft.gg/magic" />
   <meta property="og:type" content="website" />
 </svelte:head>
 

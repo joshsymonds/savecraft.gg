@@ -87,7 +87,7 @@
           <p class="card-description">
             {game.description}
             {#if game.gameId === "magic"}
-              <a href="/games/magic" class="card-detail-link">See what your AI can do &rarr;</a>
+              <a href="/magic" class="card-detail-link">See what your AI can do &rarr;</a>
             {/if}
           </p>
 
