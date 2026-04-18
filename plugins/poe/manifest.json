@@ -30,9 +30,17 @@
         "name": "Build Planner",
         "description": "Analyze, modify, or explore a Path of Exile build via headless Path of Building. Paste a pobb.in link, swap gems, allocate tree nodes, equip uniques, or audit weak branches — every call returns real calc deltas."
       },
+      "economy": {
+        "name": "Economy Prices",
+        "description": "Live poe.ninja prices by league. 'What's a 6L Kaom's Heart worth this week?' 'Best upgrade I can afford for 30 divines?' Cached hourly per isolate with 7-day sparklines."
+      },
       "gem_search": {
         "name": "Gem Search",
         "description": "Anti-hallucination lookup for skill and support gems. Filter by name, tags, requirements, or color. Every gem description, mana cost, and quality stat is grounded in the current patch's data."
+      },
+      "mod_search": {
+        "name": "Mod Search",
+        "description": "Crafting mod lookup across item classes, grouped by effect with tiers ranked by required item level. Filter by prefix/suffix, item class, or mod text."
       },
       "passive_tree": {
         "name": "Passive Tree Search",
@@ -41,14 +49,6 @@
       "unique_search": {
         "name": "Unique Search",
         "description": "Anti-hallucination lookup for unique items by name, base type, or mod text. Every mod line, implicit, and requirement is from the current patch — not Claude's outdated memory."
-      },
-      "mod_search": {
-        "name": "Mod Search",
-        "description": "Crafting mod lookup across item classes, grouped by effect with tiers ranked by required item level. Filter by prefix/suffix, item class, or mod text."
-      },
-      "economy": {
-        "name": "Economy Prices",
-        "description": "Live poe.ninja prices by league. 'What's a 6L Kaom's Heart worth this week?' 'Best upgrade I can afford for 30 divines?' Cached hourly per isolate with 7-day sparklines."
       }
     }
   }
