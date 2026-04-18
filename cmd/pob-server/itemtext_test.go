@@ -163,7 +163,7 @@ func TestValidateSetItemFields(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			err := validateSetItemFields(tc.rarity, tc.itemName, tc.base)
+			err := validateSetItemFields(tc.rarity, tc.itemName, tc.base, nil)
 			switch {
 			case !tc.wantErr && err != nil:
 				t.Fatalf("expected valid, got: %v", err)
@@ -310,6 +310,57 @@ func TestValidateAndTransformModifyOperations(t *testing.T) {
 		}
 		if _, ok := transformed["rarity"]; ok {
 			t.Errorf("op 1 structured fields leaked: %v", transformed)
+		}
+	})
+
+	t.Run("deprecated text field gets a specific hint in the error", func(t *testing.T) {
+		ops := []json.RawMessage{
+			json.RawMessage(
+				`{"op":"set_item","slot":"Weapon 1","text":"Rarity: Rare\nSomething\nKinetic Wand\n--------\nmod"}`,
+			),
+		}
+		_, err := validateAndTransformModifyOperations(ops)
+		if err == nil {
+			t.Fatal("expected error for deprecated text field")
+		}
+		if !strings.Contains(err.Error(), "no longer accepted") {
+			t.Errorf("error should name the schema change: %v", err)
+		}
+		if !strings.Contains(err.Error(), "structured fields") {
+			t.Errorf("error should point at structured replacement: %v", err)
+		}
+	})
+
+	t.Run("embedded newline in mod is rejected", func(t *testing.T) {
+		ops := []json.RawMessage{
+			json.RawMessage(
+				`{"op":"set_item","slot":"Weapon 1","rarity":"Rare","name":"X","base":"Y","mods":["good mod","bad\nmod"]}`,
+			),
+		}
+		_, err := validateAndTransformModifyOperations(ops)
+		if err == nil {
+			t.Fatal("expected error for embedded newline in mod")
+		}
+		if !strings.Contains(err.Error(), "index 1") {
+			t.Errorf("error should identify the offending mod index: %v", err)
+		}
+		if !strings.Contains(err.Error(), "single-line") {
+			t.Errorf("error should instruct single-line mods: %v", err)
+		}
+	})
+
+	t.Run("embedded newline in name is rejected", func(t *testing.T) {
+		ops := []json.RawMessage{
+			json.RawMessage(
+				`{"op":"set_item","slot":"Weapon 1","rarity":"Rare","name":"Evil\nName","base":"Y"}`,
+			),
+		}
+		_, err := validateAndTransformModifyOperations(ops)
+		if err == nil {
+			t.Fatal("expected error for embedded newline in name")
+		}
+		if !strings.Contains(err.Error(), "name contains") {
+			t.Errorf("error should identify the name field: %v", err)
 		}
 	})
 

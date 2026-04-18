@@ -65,6 +65,29 @@ func TestResolveInternalURLNotFound(t *testing.T) {
 	}
 }
 
+// The resolver HTTP client MUST NOT follow redirects — the allowlist
+// is checked only on the initial URL. A paste host returning a 302
+// to an internal/link-local/cloud-metadata address must fail, not
+// silently fetch the redirect target.
+func TestResolveExternalRejectsRedirects(t *testing.T) {
+	mock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Location", "http://169.254.169.254/latest/meta-data/")
+		w.WriteHeader(http.StatusFound)
+	}))
+	defer mock.Close()
+
+	fetchURL := mock.URL + "/mybuild"
+	_, err := resolveExternal(fetchURL, fetchURL, newResolveHTTPClient())
+	if err == nil {
+		t.Fatal("expected error: redirect must not be followed")
+	}
+	// The 302 should surface as a non-200 status-code error, not a
+	// successful fetch of whatever the redirect target would serve.
+	if !strings.Contains(err.Error(), "302") {
+		t.Errorf("expected 302 status in error, got: %v", err)
+	}
+}
+
 func TestResolveExternalURL(t *testing.T) {
 	xml := "<PathOfBuilding><Build level=\"80\"/></PathOfBuilding>"
 	code, err := EncodeBuildCode(xml)

@@ -398,8 +398,13 @@ describe("PoE module descriptions provide preventive guidance", () => {
     const { gemSearchModule } = await import("../../plugins/poe/reference/gem-search");
     const desc = gemSearchModule.description;
     expect(desc).toContain("build_planner");
-    // PoB canonical names omit " Support" — the gotcha that burned a
-    // user in production on 2026-04-18.
-    expect(desc).toContain("Support");
+    // Regression guard for the 2026-04-18 production gotcha: PoB's
+    // canonical names OMIT the trailing " Support". The gem_search
+    // description must explain this specifically — a loose
+    // `toContain("Support")` would pass on any mention (the pre-
+    // existing "Support gems include..." line), so pin the actual
+    // guidance phrase.
+    expect(desc).toMatch(/OMIT.*Support/);
+    expect(desc).toContain("Added Lightning Damage");
   });
 });

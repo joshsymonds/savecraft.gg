@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"time"
 )
 
 // resolveResult is the output of resolveBuildURL.
@@ -92,6 +93,23 @@ var buildSitesList = []buildSite{
 		matchPath:      regexp.MustCompile(`^/pob/(.+?)(?:/raw)?/?$`),
 		downloadFormat: "https://poedb.tw/pob/%s/raw",
 	},
+}
+
+// newResolveHTTPClient returns the HTTP client used for fetching
+// build codes from allowlisted paste hosts. Redirects are blocked
+// by default: the allowlist is enforced only on the initial URL, so
+// an allowlisted host returning a 302 to an internal, link-local,
+// or cloud-metadata address would otherwise escape the allowlist.
+// Callers who legitimately need redirect-following on specific
+// hosts should add host-aware redirect validation here rather than
+// relaxing the default.
+func newResolveHTTPClient() *http.Client {
+	return &http.Client{
+		Timeout: 15 * time.Second,
+		CheckRedirect: func(*http.Request, []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
 }
 
 // resolveBuildURL fetches a build code from a URL and decodes it to XML.

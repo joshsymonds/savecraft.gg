@@ -1080,11 +1080,16 @@ end
 local function lookupGem(name)
 	ensureGemIndex()
 	if not name or name == "" then return nil end
-	local gem = gemIndex[name:lower()]
+	local lower = name:lower()
+	local gem = gemIndex[lower]
 	if gem then return gem end
-	local stripped = name:gsub("%s+[Ss]upport$", "")
-	if stripped ~= "" and stripped ~= name then
-		return gemIndex[stripped:lower()]
+	-- PoB canonical names OMIT the trailing " Support" suffix
+	-- (e.g. index key "added lightning damage"). Users — and LLMs —
+	-- often include it. Strip against the lowercased input so any
+	-- casing ("Support", "SUPPORT", "support") is normalized.
+	local stripped = lower:gsub("%s+support$", "")
+	if stripped ~= "" and stripped ~= lower then
+		return gemIndex[stripped]
 	end
 	return nil
 end
@@ -1218,11 +1223,13 @@ local function applySetItem(op)
 	if not op.slot then return "set_item: missing 'slot'" end
 
 	-- PoB's Item parser has crashed on malformed text in production
-	-- (Classes/Item.lua:1050, baseName nil). Go-side validateItemText
-	-- catches the common structural cases, but keep this pcall as a
-	-- last line of defence so edge-case parse failures surface as a
-	-- structured op error instead of an unhandled Lua error that the
-	-- top-level pcall wraps in a generic "modify crashed:" message.
+	-- (Classes/Item.lua:1050, baseName nil). Go-side
+	-- validateSetItemFields + buildItemText (cmd/pob-server/itemtext.go)
+	-- now construct the item text from structured fields, so malformed
+	-- input is caught before reaching Lua. Keep this pcall as a last
+	-- line of defence — any future Go-side bug producing bad text
+	-- surfaces as a structured op error rather than the generic
+	-- top-level "modify crashed:" wrap.
 	local parseOk, item = pcall(new, "Item", op.text)
 	if not parseOk then
 		return "set_item: failed to parse item text — PoB error: " .. tostring(item)

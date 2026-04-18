@@ -22,14 +22,17 @@ type Server struct {
 	client *http.Client // for outbound requests (URL resolution); nil uses DefaultClient
 	log    *slog.Logger
 
-	// gemNames is a lazy-populated cache of PoB's canonical gem names,
-	// fetched once from wrapper.lua's list_gems accessor. Used to
-	// compute fuzzy suggestions when a swap_gem / add_gem op fails.
-	// Once-populated and process-lifetime stable (PoB gem data doesn't
-	// change without a plugin/data bump). If the first fetch fails,
-	// enrichment gracefully falls through — no worse than today.
-	gemNamesOnce sync.Once
-	gemNames     []string
+	// gemNames caches PoB's canonical gem names, fetched from
+	// wrapper.lua's list_gems accessor. Used to compute fuzzy
+	// suggestions when a swap_gem / add_gem op fails. Populated once
+	// per server instance on first need; gem data is process-lifetime
+	// stable (changes only via a plugin/data bump, which requires a
+	// pob-server redeploy). If the first fetch fails, subsequent
+	// fetches retry — unlike sync.Once, which would permanently pin
+	// an empty slice on a transient failure.
+	gemNamesMu     sync.Mutex
+	gemNames       []string
+	gemNamesLoaded bool
 }
 
 // CalcRequest is the JSON body for POST /calc.
@@ -967,27 +970,33 @@ type listGemsLuaResponse struct {
 }
 
 // getGemNames returns the cached list of PoB gem names, fetching from
-// the given Lua process on first call. Safe for concurrent use via
-// sync.Once. On fetch failure the cache stays empty and subsequent
-// callers get an empty slice — fuzzy suggestions are best-effort.
+// the given Lua process on first call. Concurrent-safe via the mutex.
+// Retries on every call until one succeeds, so a transient Lua
+// failure doesn't permanently disable fuzzy enrichment — once
+// populated, the list is served from cache for the rest of the
+// process lifetime.
 func (srv *Server) getGemNames(proc *Process) []string {
-	srv.gemNamesOnce.Do(func() {
-		resp, err := proc.Send(listGemsLuaRequest{Type: "list_gems"})
-		if err != nil {
-			srv.log.Warn("list_gems fetch failed", "err", err)
-			return
-		}
-		var parsed listGemsLuaResponse
-		if err := json.Unmarshal(resp, &parsed); err != nil {
-			srv.log.Warn("list_gems response parse failed", "err", err)
-			return
-		}
-		if parsed.Type != "result" {
-			srv.log.Warn("list_gems returned non-result", "type", parsed.Type)
-			return
-		}
-		srv.gemNames = parsed.Data.Gems
-	})
+	srv.gemNamesMu.Lock()
+	defer srv.gemNamesMu.Unlock()
+	if srv.gemNamesLoaded {
+		return srv.gemNames
+	}
+	resp, err := proc.Send(listGemsLuaRequest{Type: "list_gems"})
+	if err != nil {
+		srv.log.Warn("list_gems fetch failed (will retry on next miss)", "err", err)
+		return nil
+	}
+	var parsed listGemsLuaResponse
+	if err := json.Unmarshal(resp, &parsed); err != nil {
+		srv.log.Warn("list_gems response parse failed", "err", err)
+		return nil
+	}
+	if parsed.Type != "result" {
+		srv.log.Warn("list_gems returned non-result", "type", parsed.Type)
+		return nil
+	}
+	srv.gemNames = parsed.Data.Gems
+	srv.gemNamesLoaded = true
 	return srv.gemNames
 }
 

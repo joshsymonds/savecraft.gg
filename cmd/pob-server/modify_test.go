@@ -14,6 +14,51 @@ import (
 	"time"
 )
 
+// newMockModifyServer builds a pob-server test harness wired to a
+// bash mock script instead of real LuaJIT. Returns the Server and the
+// seeded build ID. Skips if bash isn't available.
+func newMockModifyServer(t *testing.T, mockScript string) (*Server, string) {
+	t.Helper()
+	bashPath, err := exec.LookPath("bash")
+	if err != nil {
+		t.Skip("bash not available")
+	}
+	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
+	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
+	t.Cleanup(pool.Shutdown)
+
+	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { store.Close() })
+
+	cache := &BuildCache{
+		builds:     make(map[string]cachedBuild),
+		ttl:        10 * time.Minute,
+		maxEntries: 100,
+		nowFunc:    time.Now,
+		cancel:     func() {},
+		store:      store,
+	}
+	origXML := "<PathOfBuilding/>"
+	origID := cache.Put(origXML)
+	_ = store.Put(origID, origXML, "{}", "", "")
+	return &Server{pool: pool, cache: cache, log: logger}, origID
+}
+
+// writeMockScript helps tests construct a bash script file that
+// returns canned responses based on the request type seen on stdin.
+// Returns the path to the script.
+func writeMockScript(t *testing.T, body string) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "mock.sh")
+	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func TestModifyHandlerRejectsGet(t *testing.T) {
 	srv := newTestServer(t)
 
@@ -149,40 +194,13 @@ func TestModifyHandlerRejectsSetItemMagicRarity(t *testing.T) {
 // the expected constructed text.
 func TestModifyHandlerBuildsTextFromStructuredFields(t *testing.T) {
 	capturePath := filepath.Join(t.TempDir(), "stdin-capture.jsonl")
-	mockScript := filepath.Join(t.TempDir(), "mock-capture.sh")
-	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
+	mockScript := writeMockScript(t, `#!/bin/sh
 while read line; do
   echo "$line" >> `+capturePath+`
   echo '{"type":"result","data":{"character":{"class":"Marauder","level":90},"summary":{"Life":5000}},"xml":"<PathOfBuilding/>"}'
 done
-`), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	bashPath, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("bash not available")
-	}
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
-	defer pool.Shutdown()
-
-	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	cache := &BuildCache{
-		builds:     make(map[string]cachedBuild),
-		ttl:        10 * time.Minute,
-		maxEntries: 100,
-		nowFunc:    time.Now,
-		cancel:     func() {},
-		store:      store,
-	}
-	origXML := "<PathOfBuilding/>"
-	origID := cache.Put(origXML)
-	_ = store.Put(origID, origXML, "{}", "", "")
-	srv := &Server{pool: pool, cache: cache, log: logger}
+`)
+	srv, origID := newMockModifyServer(t, mockScript)
 
 	body := `{"buildId":"` + origID + `","operations":[{"op":"set_item","slot":"Body Armour","rarity":"Rare","name":"Bramble Song","base":"Astral Plate","mods":["+80 to maximum Life","80% increased Armour"]}]}`
 	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
@@ -228,8 +246,7 @@ func TestModifyHandlerEnrichesGemNotFoundError(t *testing.T) {
 	// Mock bash: dispatches by request type. `modify` returns a
 	// gem-not-found Lua error; `list_gems` returns a canned name list
 	// that the Go side will Levenshtein-rank against the bad name.
-	mockScript := filepath.Join(t.TempDir(), "mock-gem-enrich.sh")
-	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
+	mockScript := writeMockScript(t, `#!/bin/sh
 while read line; do
   case "$line" in
     *'"type":"modify"'*)
@@ -240,36 +257,8 @@ while read line; do
       ;;
   esac
 done
-`), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	bashPath, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("bash not available")
-	}
-
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
-	defer pool.Shutdown()
-
-	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	cache := &BuildCache{
-		builds:     make(map[string]cachedBuild),
-		ttl:        10 * time.Minute,
-		maxEntries: 100,
-		nowFunc:    time.Now,
-		cancel:     func() {},
-		store:      store,
-	}
-	origXML := "<PathOfBuilding/>"
-	origID := cache.Put(origXML)
-	_ = store.Put(origID, origXML, "{}", "", "")
-	srv := &Server{pool: pool, cache: cache, log: logger}
+`)
+	srv, origID := newMockModifyServer(t, mockScript)
 
 	// A valid swap_gem op in shape (Go validator doesn't check gem
 	// names); the Lua mock is what returns the gem-not-found error.
@@ -303,8 +292,7 @@ done
 // Regression: non-gem errors (e.g. allocate_node failures) pass
 // through without gem_search enrichment.
 func TestModifyHandlerDoesNotEnrichNonGemErrors(t *testing.T) {
-	mockScript := filepath.Join(t.TempDir(), "mock-other-err.sh")
-	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
+	mockScript := writeMockScript(t, `#!/bin/sh
 while read line; do
   case "$line" in
     *'"type":"modify"'*)
@@ -315,36 +303,8 @@ while read line; do
       ;;
   esac
 done
-`), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	bashPath, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("bash not available")
-	}
-
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
-	defer pool.Shutdown()
-
-	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	cache := &BuildCache{
-		builds:     make(map[string]cachedBuild),
-		ttl:        10 * time.Minute,
-		maxEntries: 100,
-		nowFunc:    time.Now,
-		cancel:     func() {},
-		store:      store,
-	}
-	origXML := "<PathOfBuilding/>"
-	origID := cache.Put(origXML)
-	_ = store.Put(origID, origXML, "{}", "", "")
-	srv := &Server{pool: pool, cache: cache, log: logger}
+`)
+	srv, origID := newMockModifyServer(t, mockScript)
 
 	body := `{"buildId":"` + origID + `","operations":[{"op":"allocate_node","name":"Nonexistent Node"}]}`
 	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))
@@ -366,42 +326,13 @@ done
 // Operations other than set_item must pass through the validator
 // untouched; no false rejections.
 func TestModifyHandlerPassesThroughNonSetItemOps(t *testing.T) {
-	// Using httptest with mock bash: if validation correctly ignores
-	// non-set_item ops, the request reaches the pool and returns 200.
-	mockScript := filepath.Join(t.TempDir(), "mock-passthrough.sh")
-	if err := os.WriteFile(mockScript, []byte(`#!/bin/sh
+	// If validation correctly ignores non-set_item ops, the request
+	// reaches the pool and returns 200.
+	mockScript := writeMockScript(t, `#!/bin/sh
 read line
 echo '{"type":"result","data":{"character":{"class":"Templar","ascendancy":"Guardian","level":90},"summary":{"Life":5000}},"xml":"<PathOfBuilding><Build level=\"90\"/></PathOfBuilding>"}'
-`), 0o755); err != nil {
-		t.Fatal(err)
-	}
-
-	bashPath, err := exec.LookPath("bash")
-	if err != nil {
-		t.Skip("bash not available")
-	}
-
-	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
-	pool := NewPool(1, 5*time.Minute, bashPath, mockScript, t.TempDir(), logger)
-	defer pool.Shutdown()
-
-	store, err := NewBuildStore(filepath.Join(t.TempDir(), "test.db"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer store.Close()
-	cache := &BuildCache{
-		builds:     make(map[string]cachedBuild),
-		ttl:        10 * time.Minute,
-		maxEntries: 100,
-		nowFunc:    time.Now,
-		cancel:     func() {},
-		store:      store,
-	}
-	origXML := "<PathOfBuilding/>"
-	origID := cache.Put(origXML)
-	_ = store.Put(origID, origXML, "{}", "", "")
-	srv := &Server{pool: pool, cache: cache, log: logger}
+`)
+	srv, origID := newMockModifyServer(t, mockScript)
 
 	body := `{"buildId":"` + origID + `","operations":[{"op":"set_level","level":95}]}`
 	req := httptest.NewRequest(http.MethodPost, "/modify", strings.NewReader(body))

@@ -30,8 +30,11 @@ func buildItemText(rarity, name, base string, mods []string) string {
 // validateSetItemFields enforces the structured contract for set_item
 // ops. MVP supports only "Rare" rarity; anything else returns an
 // error that points the caller to equip_unique or, for still-unsupported
-// cases, requests an issue filing.
-func validateSetItemFields(rarity, name, base string) error {
+// cases, requests an issue filing. Embedded newlines / nulls in any
+// field are rejected — they would silently inject extra lines into
+// the PoB item text, potentially producing surprising parses that
+// the Lua pcall would catch as generic errors.
+func validateSetItemFields(rarity, name, base string, mods []string) error {
 	if rarity == "" {
 		return errors.New(
 			"missing 'rarity' field. Required: rarity ('Rare' only currently), name, base. Optional: mods array",
@@ -53,11 +56,36 @@ func validateSetItemFields(rarity, name, base string) error {
 			"missing 'base' field (the base type, e.g. 'Astral Plate', 'Kinetic Wand')",
 		)
 	}
+	if err := checkSingleLine("name", name); err != nil {
+		return err
+	}
+	if err := checkSingleLine("base", base); err != nil {
+		return err
+	}
+	for i, mod := range mods {
+		if err := checkSingleLine(fmt.Sprintf("mod at index %d", i), mod); err != nil {
+			return fmt.Errorf("%w; supply each mod as a single-line string", err)
+		}
+	}
+	return nil
+}
+
+// checkSingleLine rejects field values containing characters that
+// would inject extra lines into the constructed PoB item text.
+func checkSingleLine(fieldName, value string) error {
+	if strings.ContainsAny(value, "\n\r\x00") {
+		return fmt.Errorf(
+			"%s contains an embedded newline or null byte",
+			fieldName,
+		)
+	}
 	return nil
 }
 
 // setItemOp captures only the fields relevant to validation + text
-// construction. Slot passes through to Lua as-is.
+// construction. Slot passes through to Lua as-is. `Text` is captured
+// solely to emit a deprecation hint — the field was removed from the
+// contract on 2026-04-18 in favor of structured rarity/name/base/mods.
 type setItemOp struct {
 	Op     string   `json:"op"`
 	Slot   string   `json:"slot"`
@@ -65,6 +93,7 @@ type setItemOp struct {
 	Name   string   `json:"name"`
 	Base   string   `json:"base"`
 	Mods   []string `json:"mods"`
+	Text   string   `json:"text"`
 }
 
 // transformedSetItem is the shape forwarded to wrapper.lua's
@@ -99,7 +128,18 @@ func validateAndTransformModifyOperations(ops []json.RawMessage) ([]json.RawMess
 		if err := json.Unmarshal(raw, &op); err != nil {
 			return nil, fmt.Errorf("operation %d: set_item: cannot decode fields: %w", i+1, err)
 		}
-		if err := validateSetItemFields(op.Rarity, op.Name, op.Base); err != nil {
+		if err := validateSetItemFields(op.Rarity, op.Name, op.Base, op.Mods); err != nil {
+			// If the caller sent a deprecated `text` field, surface
+			// the schema change explicitly — the new error would
+			// otherwise read as "missing rarity" without pointing at
+			// the underlying API break.
+			if op.Text != "" && op.Rarity == "" {
+				return nil, fmt.Errorf(
+					"operation %d: set_item: %w. Note: the 'text' field is no longer accepted — set_item now takes structured fields (rarity, name, base, mods). Call list_games(filter=\"poe\") for the current schema",
+					i+1,
+					err,
+				)
+			}
 			return nil, fmt.Errorf("operation %d: set_item: %w", i+1, err)
 		}
 		transformed, err := json.Marshal(transformedSetItem{
