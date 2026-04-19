@@ -209,7 +209,7 @@ const TOOLS: ToolDefinition[] = [
     name: "get_section",
     title: "Get Save Section Data",
     description:
-      "Deep data for specific aspects of a save — equipment, skills, quests, stats, inventory, abilities, or any game-specific section. Returns actual in-game state the player has experienced. Only request sections you will directly reference in your response.",
+      "Deep data for specific aspects of a save — equipment, skills, quests, stats, inventory, abilities, or any game-specific section. Returns actual in-game state the player has experienced. Only request sections you will directly reference in your response. Game-specific shapes are documented in each section's own description (visible via get_save); MTGA game:<match_id> sections use a compressed key-renamed shape — read the section description for its key legend before interpreting the payload.",
     inputSchema: {
       type: "object",
       properties: {
