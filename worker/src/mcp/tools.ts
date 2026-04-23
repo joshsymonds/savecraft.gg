@@ -481,6 +481,59 @@ export async function getSave(
   return textResult(result);
 }
 
+/**
+ * Section names Claude tends to guess for MTGA ownership queries. None of these
+ * are emitted by the Magic plugin because MTGA does not log the player's card
+ * collection to Player.log (verified 2026-04-23 across production saves).
+ * Matched case-insensitively. See plugins/magic/manifest.json limitations for
+ * the proactive signal Claude reads from list_games.
+ */
+const MAGIC_OWNERSHIP_GUESS_NAMES = new Set(["collection", "cards", "owned_cards", "inventory"]);
+
+/**
+ * When none of the requested sections were found, produce a not-found error
+ * with the real available section names (or a bare fallback if the save has no
+ * sections at all). Factored out of getSection to keep complexity within the
+ * lint budget — the two branches here would otherwise push getSection over.
+ */
+async function noSectionsFoundError(
+  db: D1Database,
+  saveId: string,
+  sections: string[],
+): Promise<ToolResult> {
+  const available = await db
+    .prepare("SELECT name FROM sections WHERE save_uuid = ? ORDER BY name LIMIT 200")
+    .bind(saveId)
+    .all<{ name: string }>();
+  const requested = sections.join(", ");
+  if (available.results.length === 0) {
+    return errorResult(
+      `None of the requested sections were found: ${requested}. Call get_save to see available section names.`,
+    );
+  }
+  const names = available.results.map((r) => r.name).join(", ");
+  return errorResult(
+    `None of the requested sections were found: ${requested}. Available sections for this save: ${names}.`,
+  );
+}
+
+/**
+ * Gate: if a Magic save is being asked for an ownership-implying section name,
+ * return a structured redirect; otherwise return null and let the generic path
+ * handle it. Factored out of getSection to keep complexity within lint budget.
+ */
+function checkMagicOwnershipGuess(gameId: string, sections: string[]): ToolResult | null {
+  if (gameId !== "magic") return null;
+  for (const s of sections) {
+    if (MAGIC_OWNERSHIP_GUESS_NAMES.has(s.toLowerCase())) {
+      return errorResult(
+        `Magic Arena does not log the player's card collection to Player.log, so the '${s}' section does not exist and cannot be added. Card ownership queries ("what cards do I own?") cannot be answered from save data. For general card lookups (rules, printings, sets, mana costs, legality), call card_search without a save context. Available Magic save sections are enumerated by get_save — typical names include player_summary, deck:{name}, match:{id}, game:{id}, and draft_history.`,
+      );
+    }
+  }
+  return null;
+}
+
 function singleSectionResult(saveId: string, row: { name: string; data: string }): ToolResult {
   const byteSize = new TextEncoder().encode(row.data).length;
   if (byteSize > SECTION_SIZE_LIMIT) {
@@ -513,6 +566,13 @@ export async function getSection(
   if (!save)
     return errorResult("Save not found. Check the game listing for available saves and their IDs.");
 
+  // Magic-specific redirect: if Claude guesses at an ownership-implying section
+  // name, return a structured explanation instead of the generic not-found path.
+  // If any requested name matches a guess, redirect the whole call — the guess
+  // is the confused part, and Claude will re-request with only the legit names.
+  const ownershipRedirect = checkMagicOwnershipGuess(save.game_id, sections);
+  if (ownershipRedirect) return ownershipRedirect;
+
   // Query requested sections from D1
   const placeholders = sections.map(() => "?").join(", ");
   const rows = await db
@@ -523,22 +583,7 @@ export async function getSection(
   if (rows.results.length === 0) {
     const deckSuggestion = await deckMissError(db, saveId, sections);
     if (deckSuggestion) return deckSuggestion;
-    // Safety valve: bound the error payload. Today's saves have <30 sections,
-    // but future plugins may emit per-entity sections at higher counts.
-    const available = await db
-      .prepare("SELECT name FROM sections WHERE save_uuid = ? ORDER BY name LIMIT 200")
-      .bind(saveId)
-      .all<{ name: string }>();
-    const requested = sections.join(", ");
-    if (available.results.length === 0) {
-      return errorResult(
-        `None of the requested sections were found: ${requested}. Call get_save to see available section names.`,
-      );
-    }
-    const names = available.results.map((r) => r.name).join(", ");
-    return errorResult(
-      `None of the requested sections were found: ${requested}. Available sections for this save: ${names}.`,
-    );
+    return noSectionsFoundError(db, saveId, sections);
   }
 
   // Single section — return flat result

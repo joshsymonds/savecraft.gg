@@ -733,6 +733,127 @@ describe("MCP Tools", () => {
         expect(text).toContain("player_summary");
       });
     });
+
+    describe("Magic ownership-guess redirect (regression: uzimith 2026-04-23)", () => {
+      const mtgaState = {
+        identity: { saveName: "uzimy", gameId: "magic" },
+        summary: "uzimy",
+        sections: {
+          player_summary: {
+            description: "Player overview",
+            data: { display_name: "uzimy" },
+          },
+        },
+      };
+
+      it("redirects 'collection' to card_search and names the MTGA constraint", async () => {
+        await seedSave({
+          saveUuid: "save-magic-collection-guess",
+          userUuid: USER_A,
+          gameId: "magic",
+          saveName: "uzimy",
+          summary: "uzimy",
+          gameState: mtgaState as unknown as typeof sampleGameState,
+        });
+
+        const result = await getSection(env.DB, USER_A, "save-magic-collection-guess", [
+          "collection",
+        ]);
+        expect(result.isError).toBe(true);
+        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+        // Must explicitly name the constraint so Claude learns the right mental model.
+        expect(text).toContain("Magic Arena does not log");
+        // Must point Claude to the correct alternative tool.
+        expect(text).toContain("card_search");
+        // Must surface the section name Claude guessed at, for the error to be grounded.
+        expect(text).toContain("collection");
+        // Must NOT be the generic "None of the requested sections were found" path —
+        // that wording suggests the section could exist and leaves Claude hunting.
+        expect(text).not.toContain("None of the requested sections were found");
+      });
+
+      it("redirects 'cards', 'owned_cards', and 'inventory' with the same constraint message", async () => {
+        await seedSave({
+          saveUuid: "save-magic-other-guesses",
+          userUuid: USER_A,
+          gameId: "magic",
+          saveName: "uzimy",
+          summary: "uzimy",
+          gameState: mtgaState as unknown as typeof sampleGameState,
+        });
+
+        for (const guess of ["cards", "owned_cards", "inventory"]) {
+          const result = await getSection(env.DB, USER_A, "save-magic-other-guesses", [guess]);
+          expect(result.isError).toBe(true);
+          const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+          expect(text, `guess=${guess}`).toContain("Magic Arena does not log");
+          expect(text, `guess=${guess}`).toContain("card_search");
+        }
+      });
+
+      it("redirect is case-insensitive (Collection, COLLECTION, Cards)", async () => {
+        await seedSave({
+          saveUuid: "save-magic-case",
+          userUuid: USER_A,
+          gameId: "magic",
+          saveName: "uzimy",
+          summary: "uzimy",
+          gameState: mtgaState as unknown as typeof sampleGameState,
+        });
+
+        for (const guess of ["Collection", "COLLECTION", "Cards", "Inventory"]) {
+          const result = await getSection(env.DB, USER_A, "save-magic-case", [guess]);
+          expect(result.isError, `guess=${guess}`).toBe(true);
+          const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+          expect(text, `guess=${guess}`).toContain("Magic Arena does not log");
+        }
+      });
+
+      it("redirect fires when ownership guess is mixed with a legitimate section", async () => {
+        await seedSave({
+          saveUuid: "save-magic-mixed-guess",
+          userUuid: USER_A,
+          gameId: "magic",
+          saveName: "uzimy",
+          summary: "uzimy",
+          gameState: mtgaState as unknown as typeof sampleGameState,
+        });
+
+        // Claude asks for a legit section AND a guess together — the redirect
+        // takes priority because the guess is the confused part of the request.
+        // Claude re-requesting with only the legit section is the correct pivot.
+        const result = await getSection(env.DB, USER_A, "save-magic-mixed-guess", [
+          "player_summary",
+          "collection",
+        ]);
+        expect(result.isError).toBe(true);
+        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+        expect(text).toContain("Magic Arena does not log");
+        expect(text).toContain("card_search");
+      });
+
+      it("does NOT redirect for non-Magic games that have a legit 'inventory' section", async () => {
+        // D2R's inventory is real game state. The redirect must be gated on game_id.
+        await seedSave({
+          saveUuid: "save-d2r-inventory-intact",
+          userUuid: USER_A,
+          gameId: "d2r",
+          saveName: "Hammerdin",
+          summary: "Paladin, Level 89",
+        });
+
+        // Use a plausibly-existing D2R section to avoid tripping the generic
+        // miss path — equipped_gear exists in sampleGameState. The point of the
+        // test is that requesting "inventory" on D2R returns normal behavior,
+        // not the Magic redirect.
+        const result = await getSection(env.DB, USER_A, "save-d2r-inventory-intact", [
+          "inventory",
+        ]);
+        const text = result.content[0]?.type === "text" ? result.content[0].text : "";
+        // The response must NOT contain the Magic-specific constraint wording.
+        expect(text).not.toContain("Magic Arena does not log");
+      });
+    });
   });
 
   // ── get_save ────────────────────────────────────────────────
