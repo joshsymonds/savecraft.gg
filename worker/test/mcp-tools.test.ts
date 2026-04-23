@@ -846,9 +846,7 @@ describe("MCP Tools", () => {
           summary: "Paladin, Level 89",
         });
 
-        const result = await getSection(env.DB, USER_A, "save-d2r-inventory-intact", [
-          "inventory",
-        ]);
+        const result = await getSection(env.DB, USER_A, "save-d2r-inventory-intact", ["inventory"]);
         const text = result.content[0]?.type === "text" ? result.content[0].text : "";
         // The response must NOT contain the Magic-specific constraint wording.
         expect(text).not.toContain("Magic Arena does not log");
