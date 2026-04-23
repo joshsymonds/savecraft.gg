@@ -313,7 +313,7 @@
             <li>Review your draft picks against optimal lines</li>
             <li>Health-check your deck vs winning archetypes</li>
             <li>Calculate wildcard cost for any decklist</li>
-            <li>Track your collection, rank, and inventory</li>
+            <li>Track your rank, currencies, wildcards, and match history</li>
           </ul>
           <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-outline tier-cta">INSTALL THE DAEMON</a>
         </div>
