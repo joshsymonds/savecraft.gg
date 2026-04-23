@@ -491,12 +491,13 @@ export async function getSave(
 const MAGIC_OWNERSHIP_GUESS_NAMES = new Set(["collection", "cards", "owned_cards", "inventory"]);
 
 /**
- * When none of the requested sections were found, produce a not-found error
- * with the real available section names (or a bare fallback if the save has no
- * sections at all). Factored out of getSection to keep complexity within the
- * lint budget — the two branches here would otherwise push getSection over.
+ * Handle the section-miss path with a single D1 lookup. Loads the save's
+ * section names once, then chooses between deck-suggestion output (if a
+ * requested `deck:<name>` name matches anything fuzzily) and the generic
+ * not-found listing. Factored out of getSection to keep complexity within the
+ * lint budget and to avoid the pre-refactor two-query pattern.
  */
-async function noSectionsFoundError(
+async function handleSectionMiss(
   db: D1Database,
   saveId: string,
   sections: string[],
@@ -505,15 +506,30 @@ async function noSectionsFoundError(
     .prepare("SELECT name FROM sections WHERE save_uuid = ? ORDER BY name LIMIT 200")
     .bind(saveId)
     .all<{ name: string }>();
+  const names = available.results.map((r) => r.name);
+
+  // Deck-miss with suggestions takes priority — fuzzy-match just the deck names.
+  const firstDeckMiss = sections.find((s) => s.startsWith("deck:"));
+  if (firstDeckMiss) {
+    const suggestions = rankDeckSuggestions(
+      firstDeckMiss,
+      names.filter((n) => n.startsWith("deck:")),
+    );
+    if (suggestions.length > 0) {
+      return errorResult(
+        `Section '${firstDeckMiss}' not found. Did you mean: ${suggestions.join(", ")}?`,
+      );
+    }
+  }
+
   const requested = sections.join(", ");
-  if (available.results.length === 0) {
+  if (names.length === 0) {
     return errorResult(
       `None of the requested sections were found: ${requested}. Call get_save to see available section names.`,
     );
   }
-  const names = available.results.map((r) => r.name).join(", ");
   return errorResult(
-    `None of the requested sections were found: ${requested}. Available sections for this save: ${names}.`,
+    `None of the requested sections were found: ${requested}. Available sections for this save: ${names.join(", ")}.`,
   );
 }
 
@@ -581,9 +597,7 @@ export async function getSection(
     .all<{ name: string; data: string }>();
 
   if (rows.results.length === 0) {
-    const deckSuggestion = await deckMissError(db, saveId, sections);
-    if (deckSuggestion) return deckSuggestion;
-    return noSectionsFoundError(db, saveId, sections);
+    return handleSectionMiss(db, saveId, sections);
   }
 
   // Single section — return flat result
@@ -612,57 +626,32 @@ export async function getSection(
   return textResult(response);
 }
 
-/** If any requested section starts with "deck:", suggest close matches. */
-async function deckMissError(
-  db: D1Database,
-  saveUuid: string,
-  sections: string[],
-): Promise<ToolResult | null> {
-  const firstDeckMiss = sections.find((s) => s.startsWith("deck:"));
-  if (!firstDeckMiss) return null;
-  const suggestions = await suggestDeckSections(db, saveUuid, firstDeckMiss);
-  if (suggestions.length === 0) return null;
-  return errorResult(
-    `Section '${firstDeckMiss}' not found. Did you mean: ${suggestions.join(", ")}?`,
-  );
-}
-
 /**
- * Find deck sections with names similar to the requested one.
- * Uses Levenshtein distance on the name portion after "deck:", returning up to 3 suggestions.
+ * Rank deck sections by Levenshtein distance against a requested deck: name.
+ * Pure function — operates on a pre-loaded list of deck names rather than
+ * issuing its own D1 query, so the caller can share one SELECT across the
+ * deck-suggestion and generic-miss paths. Returns up to 3 suggestions.
  */
-async function suggestDeckSections(
-  db: D1Database,
-  saveUuid: string,
-  requested: string,
-): Promise<string[]> {
-  const allDecks = await db
-    .prepare("SELECT name FROM sections WHERE save_uuid = ? AND name LIKE 'deck:%'")
-    .bind(saveUuid)
-    .all<{ name: string }>();
-
-  if (allDecks.results.length === 0) return [];
-
+function rankDeckSuggestions(requested: string, deckNames: string[]): string[] {
+  if (deckNames.length === 0) return [];
   const query = requested.slice(5).toLowerCase();
-
-  // Score by Levenshtein distance, normalized to [0, 1]. Filter out poor matches.
   const maxDistance = Math.max(query.length, 1);
-  const scored = allDecks.results
-    .map((row) => ({
-      name: row.name,
-      distance: levenshtein(query, row.name.slice(5).toLowerCase()),
+  return deckNames
+    .map((name) => ({
+      name,
+      distance: levenshtein(query, name.slice(5).toLowerCase()),
     }))
     .filter((s) => s.distance / Math.max(s.name.length - 5, maxDistance) < 0.7)
-    .toSorted((a, b) => a.distance - b.distance);
-
-  return scored.slice(0, 3).map((s) => s.name);
+    .toSorted((a, b) => a.distance - b.distance)
+    .slice(0, 3)
+    .map((s) => s.name);
 }
 
 /**
  * Find reference module ids similar to the requested one for a given game.
  * Considers both WASM modules (from MANIFESTS) and native modules (from
  * getNativeModules). Returns up to 3 suggestions ordered by Levenshtein
- * distance, with the same 0.7 normalized-distance threshold as suggestDeckSections.
+ * distance, with the same 0.7 normalized-distance threshold as rankDeckSuggestions.
  */
 function suggestModules(gameId: string, requested: string): string[] {
   // Cap input length so an attacker-controlled multi-MB module name can't

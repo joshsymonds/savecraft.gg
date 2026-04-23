@@ -832,8 +832,12 @@ describe("MCP Tools", () => {
         expect(text).toContain("card_search");
       });
 
-      it("does NOT redirect for non-Magic games that have a legit 'inventory' section", async () => {
-        // D2R's inventory is real game state. The redirect must be gated on game_id.
+      it("does NOT redirect for non-Magic games that request 'inventory'", async () => {
+        // D2R's inventory would be real game state, so the redirect must be gated
+        // on game_id. sampleGameState has no `inventory` section, so this request
+        // takes the generic miss path — the test asserts (a) the Magic-specific
+        // wording is absent, (b) the normal miss error is returned, proving the
+        // redirect does NOT fire on non-Magic saves.
         await seedSave({
           saveUuid: "save-d2r-inventory-intact",
           userUuid: USER_A,
@@ -842,16 +846,16 @@ describe("MCP Tools", () => {
           summary: "Paladin, Level 89",
         });
 
-        // Use a plausibly-existing D2R section to avoid tripping the generic
-        // miss path — equipped_gear exists in sampleGameState. The point of the
-        // test is that requesting "inventory" on D2R returns normal behavior,
-        // not the Magic redirect.
         const result = await getSection(env.DB, USER_A, "save-d2r-inventory-intact", [
           "inventory",
         ]);
         const text = result.content[0]?.type === "text" ? result.content[0].text : "";
         // The response must NOT contain the Magic-specific constraint wording.
         expect(text).not.toContain("Magic Arena does not log");
+        // Positive: the generic miss path fires for D2R. If the redirect leaked
+        // past the game_id gate, neither this nor the negative assertion above
+        // would hold.
+        expect(text).toContain("None of the requested sections were found");
       });
     });
   });

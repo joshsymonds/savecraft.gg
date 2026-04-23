@@ -79,7 +79,7 @@
   <meta property="og:title" content="Savecraft — Real MTG Data for Claude and ChatGPT" />
   <meta
     property="og:description"
-    content="All-format Magic reference — EDHREC Commander data, 17Lands draft stats across 31 color archetypes, Frank Karsten's mana math, and the full MTG rules. Plus your Arena collection and match history when you connect the daemon."
+    content="All-format Magic reference — EDHREC Commander data, 17Lands draft stats across 31 color archetypes, Frank Karsten's mana math, and the full MTG rules. Plus your Arena rank, match history, and draft picks when you connect the daemon."
   />
   <meta property="og:url" content="https://savecraft.gg/magic" />
   <meta property="og:type" content="website" />
@@ -276,7 +276,7 @@
     id="tiers"
     eyebrow="CONNECT"
     title="Two ways in"
-    subtitle="All-format reference works immediately. Install the daemon to unlock your Arena collection, match history, and live draft coaching."
+    subtitle="All-format reference works immediately. Install the daemon to unlock your Arena rank, match history, and live draft coaching."
   >
     <div class="tiers-grid">
       <div class="tier-card">
