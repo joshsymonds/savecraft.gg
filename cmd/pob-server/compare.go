@@ -28,14 +28,30 @@ type CompareResponse struct {
 	Diffs  *compareDiffs       `json:"diffs,omitempty"`
 }
 
-// compareDiffs groups all diff dimensions (summary + tree + gear today;
-// skills, buy-similar in follow-up tasks). The shape is "diff-typed,
-// per-key" so consumers iterate uniformly: every dimension's entries
-// carry perBuild arrays or set-op results, never a 2-build-only field.
+// compareDiffs groups all diff dimensions (summary + tree + gear +
+// skills today; buy-similar in a follow-up task). The shape is
+// "diff-typed, per-key" so consumers iterate uniformly: every
+// dimension's entries carry perBuild arrays or set-op results, never a
+// 2-build-only field.
 type compareDiffs struct {
 	Summary map[string]compareStatDiff `json:"summary,omitempty"`
 	Tree    *compareTreeDiff           `json:"tree,omitempty"`
 	Gear    map[string]compareSlotDiff `json:"gear,omitempty"`
+	Skills  []compareSocketGroupDiff   `json:"skills,omitempty"`
+}
+
+// compareSocketGroupDiff is one entry in the skills diff. Groups are
+// matched across builds by label (case-sensitive); each match shows the
+// gem-name list per build, with `same` true iff every entry has gems
+// AND every entry's gem set is identical.
+//
+// PerBuild entries are []string — empty when a build doesn't have this
+// labeled group. JSON encodes empty as `[]`, not `null`, so view code
+// can iterate uniformly.
+type compareSocketGroupDiff struct {
+	Label    string     `json:"label"`
+	PerBuild [][]string `json:"perBuild"`
+	Same     bool       `json:"same"`
 }
 
 // compareSlotDiff is one entry in the gear diff — one equipment slot's
@@ -94,10 +110,10 @@ type compareStatDiff struct {
 // carries label + error and leaves the other fields nil; the response is
 // still 200 if at least one build succeeded.
 //
-// allocatedNodes and itemsBySlot are hidden from the wire (lowercase,
-// no JSON tag) and feed diff computation. Consumers see set-op /
-// per-slot results under diffs.tree and diffs.gear instead of raw
-// per-build payloads.
+// allocatedNodes, itemsBySlot, and socketGroups are hidden from the wire
+// (lowercase, no JSON tag) and feed diff computation. Consumers see
+// set-op / per-slot / per-group results under diffs.tree, diffs.gear,
+// and diffs.skills instead of raw per-build payloads.
 type compareBuildEntry struct {
 	ID        string         `json:"id,omitempty"`
 	Label     string         `json:"label"`
@@ -107,6 +123,17 @@ type compareBuildEntry struct {
 
 	allocatedNodes []int
 	itemsBySlot    map[string]string
+	socketGroups   []socketGroupSummary
+}
+
+// socketGroupSummary is the minimal per-group shape used for the skills
+// diff. Gems are stored sorted ascending by name so set comparison is
+// just slice equality — gem ORDER inside a group doesn't change the
+// gameplay (a Cyclone+Brutality+Pulverise setup behaves the same as
+// Pulverise+Brutality+Cyclone).
+type socketGroupSummary struct {
+	Label string
+	Gems  []string
 }
 
 // buildIDPattern matches the 32-char lowercase hex shape that
@@ -296,6 +323,14 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 			Items map[string]struct {
 				Name string `json:"name"`
 			} `json:"items"`
+			// SocketGroups is an ordered array of skill setups (label +
+			// gem list). v1 diff matches by label, ignores gem order.
+			SocketGroups []struct {
+				Label string `json:"label"`
+				Gems  []struct {
+					Name string `json:"name"`
+				} `json:"gems"`
+			} `json:"socket_groups"`
 		} `json:"sections"`
 	}
 	if json.Unmarshal(data, &parsed) != nil {
@@ -311,6 +346,23 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 			if item.Name != "" {
 				entry.itemsBySlot[slot] = item.Name
 			}
+		}
+	}
+
+	if len(parsed.Sections.SocketGroups) > 0 {
+		entry.socketGroups = make([]socketGroupSummary, 0, len(parsed.Sections.SocketGroups))
+		for _, group := range parsed.Sections.SocketGroups {
+			gemNames := make([]string, 0, len(group.Gems))
+			for _, gem := range group.Gems {
+				if gem.Name != "" {
+					gemNames = append(gemNames, gem.Name)
+				}
+			}
+			sort.Strings(gemNames)
+			entry.socketGroups = append(entry.socketGroups, socketGroupSummary{
+				Label: group.Label,
+				Gems:  gemNames,
+			})
 		}
 	}
 }
@@ -337,10 +389,11 @@ func computeCompareDiffs(entries []compareBuildEntry) *compareDiffs {
 	summary := computeSummaryDiff(successful)
 	tree := computeTreeDiff(successful)
 	gear := computeGearDiff(successful)
-	if len(summary) == 0 && tree == nil && len(gear) == 0 {
+	skills := computeSkillsDiff(successful)
+	if len(summary) == 0 && tree == nil && len(gear) == 0 && len(skills) == 0 {
 		return nil
 	}
-	return &compareDiffs{Summary: summary, Tree: tree, Gear: gear}
+	return &compareDiffs{Summary: summary, Tree: tree, Gear: gear, Skills: skills}
 }
 
 // computeTreeDiff produces the per-build allocated-node set ops. Returns
@@ -529,6 +582,93 @@ func computeGearDiff(successful []compareBuildEntry) map[string]compareSlotDiff 
 		out[slot] = compareSlotDiff{PerBuild: perBuild, Same: same}
 	}
 	return out
+}
+
+// computeSkillsDiff produces the per-socket-group diff. Groups are
+// matched across builds by their `Label` (case-sensitive). For each
+// matched label, perBuild carries one gem-name list per successful
+// build (empty when that build doesn't have a group with this label).
+//
+// `same` is true iff every perBuild entry is non-empty AND every gem
+// set is identical (Gems are pre-sorted in hydrateEntryFromData so
+// equality is just slice comparison).
+//
+// Returns nil for <2 successful builds or when no successful build has
+// any groups.
+//
+// Multi-group label collision within a single build (PoB allows it)
+// collapses to one entry per build slot — the LAST occurrence wins.
+// In practice users rename collision-prone labels; if this turns into
+// a real concern, a v2 enhancement can disambiguate via socket group
+// index alongside label.
+func computeSkillsDiff(successful []compareBuildEntry) []compareSocketGroupDiff {
+	if len(successful) < 2 {
+		return nil
+	}
+
+	// Per-build map: label → sorted gem list. Built once so we can do
+	// O(1) lookups while iterating the union.
+	perBuildByLabel := make([]map[string][]string, len(successful))
+	labelOrder := make([]string, 0)
+	labelSet := make(map[string]bool)
+	for i, entry := range successful {
+		perBuildByLabel[i] = make(map[string][]string, len(entry.socketGroups))
+		for _, group := range entry.socketGroups {
+			perBuildByLabel[i][group.Label] = group.Gems
+			if !labelSet[group.Label] {
+				labelSet[group.Label] = true
+				labelOrder = append(labelOrder, group.Label)
+			}
+		}
+	}
+	if len(labelOrder) == 0 {
+		return nil
+	}
+	sort.Strings(labelOrder)
+
+	out := make([]compareSocketGroupDiff, 0, len(labelOrder))
+	for _, label := range labelOrder {
+		perBuild := make([][]string, len(successful))
+		var first []string
+		firstSet := false
+		same := true
+		for i := range successful {
+			gems := perBuildByLabel[i][label]
+			// Empty/missing → empty slice (not nil) so JSON encodes as []
+			if gems == nil {
+				gems = []string{}
+			}
+			perBuild[i] = gems
+			if len(gems) == 0 {
+				same = false
+				continue
+			}
+			if !firstSet {
+				first = gems
+				firstSet = true
+			} else if !equalStringSlices(first, gems) {
+				same = false
+			}
+		}
+		out = append(out, compareSocketGroupDiff{
+			Label:    label,
+			PerBuild: perBuild,
+			Same:     same,
+		})
+	}
+	return out
+}
+
+func equalStringSlices(a, b []string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := range a {
+		if a[i] != b[i] {
+			return false
+		}
+	}
+	return true
 }
 
 // labelFor returns labels[i] when present, else an auto-generated label
