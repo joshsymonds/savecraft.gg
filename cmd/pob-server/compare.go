@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -11,9 +12,16 @@ import (
 )
 
 // CompareRequest is the JSON body for POST /compare.
+//
+// BuySimilar opts the response into a `buySimilar` array of trade-URL
+// recommendations covering gear slots where one build has an item the
+// other lacks (or has a different one). League selects the trade
+// realm; defaults to "Standard" when omitted.
 type CompareRequest struct {
-	Builds []string `json:"builds"`
-	Labels []string `json:"labels,omitempty"`
+	Builds     []string `json:"builds"`
+	Labels     []string `json:"labels,omitempty"`
+	BuySimilar bool     `json:"buy_similar,omitempty"`
+	League     string   `json:"league,omitempty"`
 }
 
 // CompareResponse is the per-build keyed payload returned from /compare.
@@ -24,8 +32,27 @@ type CompareRequest struct {
 // excluded). It's omitted entirely when fewer than 2 builds succeeded —
 // no meaningful "leader" or "range" exists for a single data point.
 type CompareResponse struct {
-	Builds []compareBuildEntry `json:"builds"`
-	Diffs  *compareDiffs       `json:"diffs,omitempty"`
+	Builds     []compareBuildEntry      `json:"builds"`
+	Diffs      *compareDiffs            `json:"diffs,omitempty"`
+	BuySimilar []compareBuySimilarEntry `json:"buySimilar,omitempty"`
+}
+
+// compareBuySimilarEntry is one trade-URL recommendation. fromBuildId
+// has the item; toBuildId either lacks it or has a different one in
+// the same slot. The tradeUrl is a direct pathofexile.com/trade search
+// pre-filled with the source's item name.
+//
+// Only emitted when CompareRequest.BuySimilar is true. Multi-build
+// fanout: every (from, to) pair where source has a slot item and
+// target's slot item differs gets its own entry — at N=3 with three
+// distinct Helmets, that's 6 entries (each pair both directions); at
+// N=3 where two share an item and one differs, that's 4 entries.
+type compareBuySimilarEntry struct {
+	FromBuildID string `json:"fromBuildId"`
+	ToBuildID   string `json:"toBuildId"`
+	Slot        string `json:"slot"`
+	ItemName    string `json:"itemName"`
+	TradeURL    string `json:"tradeUrl"`
 }
 
 // compareDiffs groups all diff dimensions (summary + tree + gear +
@@ -180,6 +207,9 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 	// the successful subset; errored slots don't contribute.
 	if successes >= 2 {
 		resp.Diffs = computeCompareDiffs(resp.Builds)
+		if req.BuySimilar {
+			resp.BuySimilar = computeBuySimilar(resp.Builds, req.League)
+		}
 	}
 
 	// Total failure → 502 (we proxied to the build pipeline and got
@@ -669,6 +699,128 @@ func equalStringSlices(a, b []string) bool {
 		}
 	}
 	return true
+}
+
+// defaultBuySimilarLeague is the trade realm used when the request
+// omits the `league` field. Standard is always-on; league names like
+// "Mirage" or "Mirage Hardcore" rotate every 3-4 months and would 404
+// when the league ends.
+const defaultBuySimilarLeague = "Standard"
+
+// computeBuySimilar produces trade-URL recommendations for gear slots
+// where one successful build has an item another lacks (or has a
+// different one). Errored slots are excluded — they appear in the
+// builds[] response but contribute nothing here.
+//
+// Pair semantics: every (from, to) ordered pair where
+// from.itemsBySlot[slot] is non-empty AND to.itemsBySlot[slot] differs
+// produces an entry. With N builds and a slot where every item is
+// distinct, that yields N*(N-1) entries for that slot — each build can
+// be the source and each other build can be the target.
+func computeBuySimilar(entries []compareBuildEntry, league string) []compareBuySimilarEntry {
+	if league == "" {
+		league = defaultBuySimilarLeague
+	}
+
+	// Filter to successful builds (errored entries can't be source or target).
+	successful := make([]compareBuildEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Error == "" {
+			successful = append(successful, entry)
+		}
+	}
+	if len(successful) < 2 {
+		return nil
+	}
+
+	// Collect all slots seen across successful builds; we iterate slots
+	// outermost so the response groups naturally per-slot when sorted.
+	slotSet := make(map[string]bool)
+	for _, entry := range successful {
+		for slot := range entry.itemsBySlot {
+			slotSet[slot] = true
+		}
+	}
+	if len(slotSet) == 0 {
+		return nil
+	}
+	slots := make([]string, 0, len(slotSet))
+	for slot := range slotSet {
+		slots = append(slots, slot)
+	}
+	sort.Strings(slots)
+
+	var out []compareBuySimilarEntry
+	for _, slot := range slots {
+		for i, from := range successful {
+			fromName := from.itemsBySlot[slot]
+			if fromName == "" {
+				continue // can only recommend FROM a build that has the item
+			}
+			for j, to := range successful {
+				if i == j {
+					continue
+				}
+				if to.itemsBySlot[slot] == fromName {
+					continue // target already has the same item; no recommendation needed
+				}
+				out = append(out, compareBuySimilarEntry{
+					FromBuildID: from.ID,
+					ToBuildID:   to.ID,
+					Slot:        slot,
+					ItemName:    fromName,
+					TradeURL:    buildTradeURL(fromName, league),
+				})
+			}
+		}
+	}
+	return out
+}
+
+// buildTradeURL constructs a pathofexile.com/trade search URL for the
+// given item name in the specified league. The query JSON is
+// base64-URL-encoded into the `q` parameter — same convention used by
+// pob-archives and other PoB-adjacent tools that link directly to a
+// pre-filled trade search.
+//
+// v1 query is name + status:online. Mod-level filters and item-type
+// constraints are deferred to a v2 enhancement when the diff data
+// surfaces enough info to seed them meaningfully (today we have item
+// names but not parsed mod tiers).
+func buildTradeURL(itemName, league string) string {
+	type tradeStatus struct {
+		Option string `json:"option"`
+	}
+	type tradeQueryInner struct {
+		Status tradeStatus `json:"status"`
+		Name   string      `json:"name"`
+		Stats  []any       `json:"stats"`
+	}
+	type tradeSort struct {
+		Price string `json:"price"`
+	}
+	type tradeQuery struct {
+		Query tradeQueryInner `json:"query"`
+		Sort  tradeSort       `json:"sort"`
+	}
+
+	payload, _ := json.Marshal(tradeQuery{
+		Query: tradeQueryInner{
+			Status: tradeStatus{Option: "online"},
+			Name:   itemName,
+			Stats:  []any{},
+		},
+		Sort: tradeSort{Price: "asc"},
+	})
+	encoded := base64.RawURLEncoding.EncodeToString(payload)
+
+	u := url.URL{
+		Scheme:   "https",
+		Host:     "www.pathofexile.com",
+		Path:     "/trade/search/" + league,
+		RawQuery: "q=" + encoded,
+	}
+	return u.String()
 }
 
 // labelFor returns labels[i] when present, else an auto-generated label
