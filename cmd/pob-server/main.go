@@ -109,6 +109,7 @@ func main() {
 	mux.HandleFunc("/nearby", srv.authMiddleware(srv.handleNearby))
 	mux.HandleFunc("/audit", srv.authMiddleware(srv.handleAudit))
 	mux.HandleFunc("/build/", srv.authMiddleware(srv.handleGetBuild))
+	mux.HandleFunc("/compare", srv.authMiddleware(srv.handleCompare))
 	mux.HandleFunc("/health", srv.handleHealth)
 
 	addr := fmt.Sprintf(":%d", cfg.port)
