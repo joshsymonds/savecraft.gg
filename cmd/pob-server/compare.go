@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -27,12 +28,34 @@ type CompareResponse struct {
 	Diffs  *compareDiffs       `json:"diffs,omitempty"`
 }
 
-// compareDiffs groups all diff dimensions (summary today; tree, gear,
+// compareDiffs groups all diff dimensions (summary + tree today; gear,
 // skills, buy-similar in follow-up tasks). The shape is "diff-typed,
 // per-key" so consumers iterate uniformly: every dimension's entries
-// carry perBuild arrays plus dimension-specific summary fields.
+// carry perBuild arrays or set-op results, never a 2-build-only field.
 type compareDiffs struct {
 	Summary map[string]compareStatDiff `json:"summary,omitempty"`
+	Tree    *compareTreeDiff           `json:"tree,omitempty"`
+}
+
+// compareTreeDiff carries the set-op result of the regular-tree
+// allocated-node lists across the SUCCESSFUL builds.
+//
+// AllocatedOnlyIn is keyed by buildId; the value is the list of nodes
+// allocated in EXACTLY that build and no other (set difference: A \
+// (union of all others)). A node allocated in two of three builds
+// appears in NEITHER allocatedOnlyIn entry — it's not unique to either,
+// but also not common to all.
+//
+// Common is the intersection: nodes allocated in EVERY successful
+// build. Sorted ascending.
+//
+// The diff is omitted (nil) when any successful build's response
+// lacked allocated_node_ids — partial data would produce misleading set
+// ops. (e.g. "build B has no node 5" looks the same as "build B's data
+// is missing".)
+type compareTreeDiff struct {
+	AllocatedOnlyIn map[string][]int `json:"allocatedOnlyIn"`
+	Common          []int            `json:"common"`
 }
 
 // compareStatDiff is one row of the summary-stat diff table. perBuild is
@@ -57,12 +80,20 @@ type compareStatDiff struct {
 // carries id + label + character + summary. On per-build failure it
 // carries label + error and leaves the other fields nil; the response is
 // still 200 if at least one build succeeded.
+//
+// allocatedNodes is hidden from the wire (lowercase, no JSON tag) and
+// holds the regular-tree allocated node ID list extracted from
+// data.sections.tree.allocated_node_ids. Used only for diff computation;
+// consumers see the per-build node list under diffs.tree, not on each
+// build entry directly.
 type compareBuildEntry struct {
 	ID        string         `json:"id,omitempty"`
 	Label     string         `json:"label"`
 	Character map[string]any `json:"character,omitempty"`
 	Summary   map[string]any `json:"summary,omitempty"`
 	Error     string         `json:"error,omitempty"`
+
+	allocatedNodes []int
 }
 
 // buildIDPattern matches the 32-char lowercase hex shape that
@@ -235,18 +266,25 @@ func (srv *Server) tryCachedSummary(buildID string) (json.RawMessage, bool) {
 }
 
 // hydrateEntryFromData unpacks the wrapper.lua-shaped data into the
-// per-build entry's character and summary fields. Top-level fields
-// only — the diff dimensions (sections, etc.) come from later tasks.
+// per-build entry's public + diff-input fields. character + summary go
+// on the wire; allocatedNodes feeds the tree diff but is not exposed
+// per-build (consumers see set-op results under diffs.tree instead).
 func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 	var parsed struct {
 		Character map[string]any `json:"character"`
 		Summary   map[string]any `json:"summary"`
+		Sections  struct {
+			Tree struct {
+				AllocatedNodeIDs []int `json:"allocated_node_ids"`
+			} `json:"tree"`
+		} `json:"sections"`
 	}
 	if json.Unmarshal(data, &parsed) != nil {
 		return
 	}
 	entry.Character = parsed.Character
 	entry.Summary = parsed.Summary
+	entry.allocatedNodes = parsed.Sections.Tree.AllocatedNodeIDs
 }
 
 // computeCompareDiffs walks the SUCCESSFUL build entries and assembles
@@ -269,10 +307,88 @@ func computeCompareDiffs(entries []compareBuildEntry) *compareDiffs {
 	}
 
 	summary := computeSummaryDiff(successful)
-	if len(summary) == 0 {
+	tree := computeTreeDiff(successful)
+	if len(summary) == 0 && tree == nil {
 		return nil
 	}
-	return &compareDiffs{Summary: summary}
+	return &compareDiffs{Summary: summary, Tree: tree}
+}
+
+// computeTreeDiff produces the per-build allocated-node set ops. Returns
+// nil when ANY successful build's allocatedNodes is nil — partial data
+// would make "common" misleading (a node missing from one build looks
+// the same as that build's data not arriving). All-or-nothing keeps the
+// semantics honest.
+func computeTreeDiff(successful []compareBuildEntry) *compareTreeDiff {
+	if len(successful) < 2 {
+		return nil
+	}
+	for _, entry := range successful {
+		if entry.allocatedNodes == nil {
+			return nil
+		}
+	}
+
+	// Build a set per build for fast membership tests.
+	sets := make([]map[int]bool, len(successful))
+	for i, entry := range successful {
+		set := make(map[int]bool, len(entry.allocatedNodes))
+		for _, id := range entry.allocatedNodes {
+			set[id] = true
+		}
+		sets[i] = set
+	}
+
+	// common = intersection across all builds. Iterate the first build's
+	// set and keep nodes present in every other.
+	var common []int
+	for id := range sets[0] {
+		present := true
+		for j := 1; j < len(sets); j++ {
+			if !sets[j][id] {
+				present = false
+				break
+			}
+		}
+		if present {
+			common = append(common, id)
+		}
+	}
+	sort.Ints(common)
+
+	// allocatedOnlyIn[buildID] = nodes in this build but NO others.
+	allocatedOnlyIn := make(map[string][]int, len(successful))
+	for i, entry := range successful {
+		var only []int
+		for _, id := range entry.allocatedNodes {
+			unique := true
+			for j, otherSet := range sets {
+				if i == j {
+					continue
+				}
+				if otherSet[id] {
+					unique = false
+					break
+				}
+			}
+			if unique {
+				only = append(only, id)
+			}
+		}
+		sort.Ints(only)
+		// Initialize to empty slice (not nil) so the JSON wire shape is
+		// `[]` instead of `null` for build with no unique nodes — easier
+		// for consumers to iterate.
+		if only == nil {
+			only = []int{}
+		}
+		allocatedOnlyIn[entry.ID] = only
+	}
+
+	if common == nil {
+		common = []int{}
+	}
+	return &compareTreeDiff{AllocatedOnlyIn: allocatedOnlyIn, Common: common}
 }
 
 // computeSummaryDiff builds the per-stat diff table. Iterates the first

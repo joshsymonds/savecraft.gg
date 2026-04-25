@@ -459,9 +459,24 @@ local function serializeTreeSummary(build)
 	local levelPoints = build.characterLevel - 1
 	local questPoints = 23
 	local available = levelPoints + questPoints + extra
+	-- Collect the regular-tree allocated node IDs as a sorted array. Used by
+	-- /compare's tree set-op diff (allocatedOnlyIn / common). Excludes
+	-- ascendancy and class-start nodes — they're auto-allocated or don't
+	-- compete for the same passive-point pool, so including them in a
+	-- tree diff would just add noise.
+	local allocatedIDs = {}
+	if build.spec.nodes then
+		for id, node in pairs(build.spec.nodes) do
+			if node.alloc and not node.ascendancyName and not node.classStart then
+				allocatedIDs[#allocatedIDs + 1] = id
+			end
+		end
+	end
+	table.sort(allocatedIDs)
 	return {
 		version = build.spec.treeVersion,
 		allocated_nodes = used,
+		allocated_node_ids = allocatedIDs,
 		ascendancy_nodes = ascUsed,
 		level_points = levelPoints,
 		quest_points = questPoints,
