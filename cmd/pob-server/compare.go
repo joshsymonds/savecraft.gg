@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -778,23 +777,51 @@ func computeBuySimilar(entries []compareBuildEntry, league string) []compareBuyS
 }
 
 // buildTradeURL constructs a pathofexile.com/trade search URL for the
-// given item name in the specified league. The query JSON is
-// base64-URL-encoded into the `q` parameter — same convention used by
-// pob-archives and other PoB-adjacent tools that link directly to a
-// pre-filled trade search.
+// given item name in the specified league. The wire format mirrors
+// PoB's CompareBuySimilar.lua: the trade query JSON is URL-percent-
+// encoded into the `q` parameter (NOT base64). This format has been
+// validated end-to-end by POSTing the same payload to PoE's
+// /api/trade/search/<league> endpoint — it returns 200 with a search
+// ID and result hashes, confirming the wire shape is correct.
 //
-// v1 query is name + status:online. Mod-level filters and item-type
-// constraints are deferred to a v2 enhancement when the diff data
-// surfaces enough info to seed them meaningfully (today we have item
-// names but not parsed mod tiers).
+// v1 query is name + empty stats filter group + sort:price asc. Mod-
+// level filters and item-type constraints are deferred to a v2
+// enhancement.
+//
+// See buildTradeQueryPayload for the marshaled JSON; tests against the
+// live API live in compare_buy_similar_smoke_test.go (build-tagged).
 func buildTradeURL(itemName, league string) string {
+	payload := buildTradeQueryPayload(itemName)
+	u := url.URL{
+		Scheme: "https",
+		Host:   "www.pathofexile.com",
+		Path:   "/trade/search/" + league,
+	}
+	// Use url.Values to get standard percent-encoding, matching what
+	// PoB does with its urlEncode helper. net/url's Values encoder
+	// uses %20 for spaces (not +) which is what the trade endpoint
+	// expects — confirmed by curl test against the live API.
+	values := url.Values{}
+	values.Set("q", string(payload))
+	u.RawQuery = values.Encode()
+	return u.String()
+}
+
+// buildTradeQueryPayload returns the canonical JSON the trade endpoint
+// expects. Exported (lowercase but package-private accessible) for the
+// build-tagged smoke test; production callers use buildTradeURL.
+func buildTradeQueryPayload(itemName string) []byte {
 	type tradeStatus struct {
 		Option string `json:"option"`
 	}
+	type tradeStatsGroup struct {
+		Type    string `json:"type"`
+		Filters []any  `json:"filters"`
+	}
 	type tradeQueryInner struct {
-		Status tradeStatus `json:"status"`
-		Name   string      `json:"name"`
-		Stats  []any       `json:"stats"`
+		Status tradeStatus       `json:"status"`
+		Name   string            `json:"name"`
+		Stats  []tradeStatsGroup `json:"stats"`
 	}
 	type tradeSort struct {
 		Price string `json:"price"`
@@ -803,24 +830,17 @@ func buildTradeURL(itemName, league string) string {
 		Query tradeQueryInner `json:"query"`
 		Sort  tradeSort       `json:"sort"`
 	}
-
 	payload, _ := json.Marshal(tradeQuery{
 		Query: tradeQueryInner{
 			Status: tradeStatus{Option: "online"},
 			Name:   itemName,
-			Stats:  []any{},
+			// PoB's reference uses a single AND group with empty
+			// filters list; matches their working production format.
+			Stats: []tradeStatsGroup{{Type: "and", Filters: []any{}}},
 		},
 		Sort: tradeSort{Price: "asc"},
 	})
-	encoded := base64.RawURLEncoding.EncodeToString(payload)
-
-	u := url.URL{
-		Scheme:   "https",
-		Host:     "www.pathofexile.com",
-		Path:     "/trade/search/" + league,
-		RawQuery: "q=" + encoded,
-	}
-	return u.String()
+	return payload
 }
 
 // labelFor returns labels[i] when present, else an auto-generated label

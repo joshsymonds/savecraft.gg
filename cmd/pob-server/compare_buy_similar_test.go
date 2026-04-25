@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/base64"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -36,7 +35,10 @@ func decodeCompareWithBuySimilar(t *testing.T, body []byte) compareRespWithBuySi
 }
 
 // extractTradeQuery decodes the `q` query-string parameter of a trade
-// URL and returns the inner JSON (as a map) for assertions.
+// URL and returns the inner JSON (as a map) for assertions. The wire
+// format is URL-percent-encoded JSON (net/url's url.Values handles
+// the decode in u.Query().Get()) — matching PoB's reference impl and
+// validated against PoE's /api/trade/search endpoint.
 func extractTradeQuery(t *testing.T, tradeURL string) map[string]any {
 	t.Helper()
 	u, err := url.Parse(tradeURL)
@@ -47,13 +49,9 @@ func extractTradeQuery(t *testing.T, tradeURL string) map[string]any {
 	if q == "" {
 		t.Fatalf("trade URL missing q param: %s", tradeURL)
 	}
-	decoded, err := base64.RawURLEncoding.DecodeString(q)
-	if err != nil {
-		t.Fatalf("decode q: %v", err)
-	}
 	var out map[string]any
-	if err := json.Unmarshal(decoded, &out); err != nil {
-		t.Fatalf("parse q JSON: %v", err)
+	if err := json.Unmarshal([]byte(q), &out); err != nil {
+		t.Fatalf("parse q JSON: %v\nq: %s", err, q)
 	}
 	return out
 }
