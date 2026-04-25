@@ -258,6 +258,37 @@ func TestCompareSingleBuildRejected(t *testing.T) {
 	}
 }
 
+// TestCompareTooManyBuildsRejected: more than maxCompareBuilds (8) →
+// 400 with explanatory message. Cold serial calc on N=20+ would stall
+// past the MCP timeout and pin workers indefinitely; the cap matches
+// the production pool size.
+func TestCompareTooManyBuildsRejected(t *testing.T) {
+	pool, _ := captureMockPool(t, nil)
+	defer pool.Shutdown()
+	srv := newTestSrv(t, pool)
+	srv.cache.store = newInMemoryStoreForTest(t)
+
+	// Nine distinct 32-hex buildIDs — one over the cap.
+	body := `{"builds":[` +
+		`"00000000000000000000000000000001",` +
+		`"00000000000000000000000000000002",` +
+		`"00000000000000000000000000000003",` +
+		`"00000000000000000000000000000004",` +
+		`"00000000000000000000000000000005",` +
+		`"00000000000000000000000000000006",` +
+		`"00000000000000000000000000000007",` +
+		`"00000000000000000000000000000008",` +
+		`"00000000000000000000000000000009"]}`
+	rec := httptest.NewRecorder()
+	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "8") {
+		t.Errorf("error body should mention the 8-build cap: %s", rec.Body.String())
+	}
+}
+
 // TestCompareUnknownBuildIDPerSlot: passing a buildId that doesn't exist
 // reports `error` in that slot; other builds still resolve.
 func TestCompareUnknownBuildIDPerSlot(t *testing.T) {

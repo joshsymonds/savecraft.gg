@@ -2594,6 +2594,33 @@ describe("buildPlannerModule", () => {
     });
   });
 
+  it("rejects compare_with when total builds (primary + compare_with) exceeds 8", async () => {
+    // Server caps at 8; rejecting at the MCP layer gives faster feedback
+    // and avoids forwarding a request that's guaranteed to fail.
+    // Total = primary (1) + compare_with.length must be <= 8 → cap is 7.
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      {
+        build: "https://pobb.in/abc",
+        compare_with: [
+          "https://pobb.in/b1",
+          "https://pobb.in/b2",
+          "https://pobb.in/b3",
+          "https://pobb.in/b4",
+          "https://pobb.in/b5",
+          "https://pobb.in/b6",
+          "https://pobb.in/b7",
+          "https://pobb.in/b8",
+        ],
+      },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("at most 8"),
+    });
+  });
+
   it("rejects empty compare_with array", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
     const result = await buildPlannerModule.execute(

@@ -321,6 +321,17 @@ export const buildPlannerModule: NativeReferenceModule = {
             "against the primary.",
         };
       }
+      // Total builds (primary + compare_with) must fit the server cap of
+      // 8. Reject early so the user gets faster feedback than waiting for
+      // a /compare round-trip that's guaranteed to 400.
+      if (compareWith.length + 1 > 8) {
+        return {
+          type: "text",
+          content:
+            "Error: compare accepts at most 8 builds per request (primary + compare_with). " +
+            "Split the comparison into smaller batches.",
+        };
+      }
       const primary = build ?? buildId;
       // primary is guaranteed non-empty by the earlier (!build && !buildId) check.
       const compareBody: Record<string, unknown> = {

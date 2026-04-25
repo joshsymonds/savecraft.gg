@@ -168,6 +168,12 @@ type socketGroupSummary struct {
 // /compare input array without parsing the URL form.
 var buildIDPattern = regexp.MustCompile(`^[a-f0-9]{32}$`)
 
+// maxCompareBuilds caps the array size to keep one /compare request from
+// monopolising the pool past the MCP-side timeout. Matches the production
+// pool size — even a max-size request can run all builds in parallel
+// after perf-2's parallelization, so wall time is bounded at ~1× per-build.
+const maxCompareBuilds = 8
+
 func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Request) {
 	if request.Method != http.MethodPost {
 		jsonError(writer, "method not allowed", http.StatusMethodNotAllowed)
@@ -190,6 +196,10 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 	}
 	if len(req.Builds) < 2 {
 		jsonError(writer, "compare needs at least 2 builds", http.StatusBadRequest)
+		return
+	}
+	if len(req.Builds) > maxCompareBuilds {
+		jsonError(writer, "compare accepts at most 8 builds per request", http.StatusBadRequest)
 		return
 	}
 
