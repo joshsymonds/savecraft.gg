@@ -296,15 +296,21 @@ func (srv *Server) calcAndRespond(
 	proc.SetLastLoadedBuildID(buildID)
 
 	// Filter sections based on query parameter
-	filtered, written := srv.applySectionFilter(writer, pobResp.Data, parseSections(request))
+	sections := parseSections(request)
+	filtered, written := srv.applySectionFilter(writer, pobResp.Data, sections)
 	if written {
 		return
 	}
 
 	// Inline power report: top-N "what should I take next" nodes ranked
-	// by the leading non-zero metric. Failure here logs and degrades to
-	// nil — never fails the parent response.
-	powerReport := srv.attachPowerReport(proc, buildID, xml, extractSummaryFloats(pobResp.Data))
+	// by the leading non-zero metric. Only runs when the caller requested
+	// full sections (anything beyond summary) — summary-only requests
+	// skip the inline extract+perturb cost. Failure logs and degrades
+	// to nil; never fails the parent response.
+	var powerReport *powerReportResult
+	if powerReportNeeded(sections) {
+		powerReport = srv.attachPowerReport(proc, buildID, xml, extractSummaryFloats(pobResp.Data))
+	}
 
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(calcResponse{
@@ -524,14 +530,20 @@ func (srv *Server) modifyAndRespond(
 	proc.SetLastLoadedBuildID(newID)
 
 	// Filter sections based on query parameter
-	filtered, written := srv.applySectionFilter(writer, pobResp.Data, parseSections(request))
+	sections := parseSections(request)
+	filtered, written := srv.applySectionFilter(writer, pobResp.Data, sections)
 	if written {
 		return
 	}
 
-	// Inline power report on the modified build. modifiedXML carries the
-	// post-operations XML so the inline extract runs against the new state.
-	powerReport := srv.attachPowerReport(proc, newID, modifiedXML, extractSummaryFloats(pobResp.Data))
+	// Inline power report on the modified build. Only runs when the
+	// caller requested full sections; summary-only modify calls skip
+	// the cost. modifiedXML carries the post-operations XML so the
+	// inline extract runs against the new state.
+	var powerReport *powerReportResult
+	if powerReportNeeded(sections) {
+		powerReport = srv.attachPowerReport(proc, newID, modifiedXML, extractSummaryFloats(pobResp.Data))
+	}
 
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(calcResponse{
@@ -1100,6 +1112,24 @@ func parseStatKeys(r *http.Request) []string {
 	return keys
 }
 func parseSections(r *http.Request) []string { return parseCSVParam(r, "sections") }
+
+// powerReportNeeded reports whether the requested sections include any
+// non-summary view. The epic spec requires power report only when full
+// sections are requested — summary-only callers don't pay the inline
+// extract+perturb cost.
+//
+// Empty or nil sections defaults to summary-only (see the manifest).
+func powerReportNeeded(sections []string) bool {
+	if len(sections) == 0 {
+		return false
+	}
+	for _, s := range sections {
+		if s != "summary" {
+			return true
+		}
+	}
+	return false
+}
 
 // sectionTaxonomy maps each new flat section name to the list of
 // underlying wrapper.lua section keys it aggregates. The Lua side keeps

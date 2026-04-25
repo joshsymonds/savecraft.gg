@@ -151,11 +151,11 @@
 
     if (diffs?.tree) {
       const treeRows: Record<string, CellValue>[] = [
-        buildTreeRow("Common to all", diffs.tree.common.length, true),
+        buildTreeRow("Common to all", diffs.tree.common.length, undefined),
       ];
       successful.forEach((b) => {
         const onlyHere = diffs!.tree!.allocatedOnlyIn[b.id ?? ""] ?? [];
-        treeRows.push(buildTreeRow(`Only in ${buildColumnLabel(b)}`, onlyHere.length, false));
+        treeRows.push(buildTreeRow(`Only in ${buildColumnLabel(b)}`, onlyHere.length, b));
       });
       out.push({ label: "Allocated Tree", rows: treeRows });
     }
@@ -205,20 +205,26 @@
   });
 
   // Tree rows have a single "count" axis but the GroupedTable has one
-  // column per build. The count is shared (it's not per-build), so we
-  // mirror it across all build columns when "Common to all", and put
-  // it only on the relevant build's column for "Only in X" rows.
-  function buildTreeRow(label: string, count: number, sharedAcrossAll: boolean): Record<string, CellValue> {
+  // column per build. When `targetBuild` is undefined the count is
+  // shared (the "Common to all" row mirrors across every build column);
+  // when set, only that build's column gets the count and the others
+  // get a muted dash. Discriminating structurally on `targetBuild` —
+  // not by string-matching the label — survives any future change to
+  // buildColumnLabel formatting.
+  function buildTreeRow(
+    label: string,
+    count: number,
+    targetBuild: CompareBuild | undefined,
+  ): Record<string, CellValue> {
     const row: Record<string, CellValue> = { axis: label };
-    if (sharedAcrossAll) {
+    if (targetBuild === undefined) {
       successful.forEach((b) => {
         row[`b${b.id ?? b.label}`] = count;
       });
     } else {
-      // Find which build this row is for by parsing the label.
       successful.forEach((b) => {
         const colKey = `b${b.id ?? b.label}`;
-        if (label === `Only in ${buildColumnLabel(b)}`) {
+        if (b === targetBuild) {
           row[colKey] = count;
         } else {
           row[colKey] = { value: "—", variant: "muted" };

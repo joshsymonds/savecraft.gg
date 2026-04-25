@@ -561,6 +561,11 @@ func (pool *Pool) unpinLocked(buildID string) {
 		t.Stop()
 		delete(pool.affinityTimers, buildID)
 	}
+	// Drop the epoch entry too so long-running daemons handling many
+	// distinct buildIDs don't accumulate stale keys. Safe because any
+	// pending stale-timer goroutine captures the epoch by value, not
+	// by map reference.
+	delete(pool.affinityEpoch, buildID)
 }
 
 // Release returns a process to the idle pool and starts its idle timer.
@@ -596,6 +601,15 @@ func (pool *Pool) killIdle(proc *Process) {
 	}
 	delete(pool.timers, proc)
 
+	// Clear any pin on this process so the affinity slot is released
+	// immediately. Otherwise — when idleTimeout < affinityTTL — the
+	// dead pin survives in affinityProc/Rev until the affinity timer
+	// fires, wasting one of the pool's pin slots and triggering
+	// needless LRU eviction logic in the meantime.
+	if buildID, ok := pool.affinityRev[proc]; ok {
+		pool.unpinLocked(buildID)
+	}
+
 	proc.Kill()
 	pool.log.Info("killed idle PoB process", "idle", len(pool.idle), "busy", pool.busy)
 }
@@ -624,6 +638,7 @@ func (pool *Pool) Shutdown() {
 	pool.affinityProc = make(map[string]*Process)
 	pool.affinityRev = make(map[*Process]string)
 	pool.affinityLastUsed = make(map[string]time.Time)
+	pool.affinityEpoch = make(map[string]uint64)
 
 	for _, proc := range pool.idle {
 		proc.Kill()

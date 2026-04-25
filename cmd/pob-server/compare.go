@@ -204,12 +204,14 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 	}
 
 	// Run per-build calc in parallel. Pool affinity still works under
-	// fan-out — each worker pins its own build_id. Bound concurrency
-	// at min(len(builds), pool.maxSize) so we never block waiting for
-	// a worker that won't exist. Per-build errors live on entry.Error;
-	// the goroutines themselves never return an error.
+	// fan-out — each worker pins its own build_id. Cap concurrency at
+	// `pool.maxSize - 1` (with a floor of 1) so /compare never claims
+	// the entire pool and starves /resolve / /modify / /audit / /nearby
+	// with ErrPoolExhausted during a max-size compare. Per-build errors
+	// live on entry.Error; the goroutines themselves never return one.
 	resp := CompareResponse{Builds: make([]compareBuildEntry, len(req.Builds))}
-	concurrency := min(len(req.Builds), srv.pool.maxSize)
+	compareSlots := max(1, srv.pool.maxSize-1)
+	concurrency := min(len(req.Builds), compareSlots)
 	sem := make(chan struct{}, concurrency)
 	var wg sync.WaitGroup
 	for i, input := range req.Builds {
@@ -734,6 +736,21 @@ func equalStringSlices(a, b []string) bool {
 // when the league ends.
 const defaultBuySimilarLeague = "Standard"
 
+// isValidLeague rejects league strings that look like attempts to break
+// out of the URL path component or stretch the wire payload. Real PoE
+// league names are short alphanumerics with spaces (e.g. "Standard",
+// "Mirage Hardcore"). Anything containing path separators or query
+// delimiters falls back to defaultBuySimilarLeague upstream.
+func isValidLeague(league string) bool {
+	if len(league) == 0 || len(league) > 64 {
+		return false
+	}
+	if strings.ContainsAny(league, "/?#") {
+		return false
+	}
+	return true
+}
+
 // computeBuySimilar produces trade-URL recommendations for gear slots
 // where one successful build has an item another lacks (or has a
 // different one). Errored slots are excluded — they appear in the
@@ -745,7 +762,7 @@ const defaultBuySimilarLeague = "Standard"
 // distinct, that yields N*(N-1) entries for that slot — each build can
 // be the source and each other build can be the target.
 func computeBuySimilar(entries []compareBuildEntry, league string) []compareBuySimilarEntry {
-	if league == "" {
+	if league == "" || !isValidLeague(league) {
 		league = defaultBuySimilarLeague
 	}
 
@@ -825,10 +842,11 @@ func buildTradeURL(itemName, league string) string {
 		Host:   "www.pathofexile.com",
 		Path:   "/trade/search/" + league,
 	}
-	// Use url.Values to get standard percent-encoding, matching what
-	// PoB does with its urlEncode helper. net/url's Values encoder
-	// uses %20 for spaces (not +) which is what the trade endpoint
-	// expects — confirmed by curl test against the live API.
+	// Use url.Values to encode the JSON payload as a query parameter.
+	// net/url's Values encoder follows form-urlencoded rules: spaces
+	// become `+`, special chars percent-encoded. Both `+` and `%20`
+	// decode to the same space in the trade endpoint (RFC 3986); the
+	// live API smoke test confirms this format is accepted.
 	values := url.Values{}
 	values.Set("q", string(payload))
 	u.RawQuery = values.Encode()

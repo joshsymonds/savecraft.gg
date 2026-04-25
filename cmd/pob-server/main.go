@@ -63,6 +63,10 @@ func parseConfig() config {
 		flag.Usage()
 		os.Exit(1)
 	}
+	if cfg.poolSize <= 0 {
+		fmt.Fprintf(os.Stderr, "error: -pool-size must be > 0\n")
+		os.Exit(1)
+	}
 	if cfg.apiKey == "" {
 		cfg.apiKey = os.Getenv("POB_API_KEY")
 	}

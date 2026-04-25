@@ -288,6 +288,52 @@ func TestCompareBuySimilarItemNameWithApostrophe(t *testing.T) {
 	}
 }
 
+// TestBuildTradeURLEncodesSpecialChars: contract test pinning the
+// query-encoding format on the trade URL's `q` parameter. url.Parse
+// transparently round-trips encoding variants, so the apostrophe test
+// above can't catch a future change to the wire format — this test
+// asserts on the raw URL string.
+func TestBuildTradeURLEncodesSpecialChars(t *testing.T) {
+	tradeURL := buildTradeURL("Atziri's Foible", "Standard")
+	// url.Values.Encode() (form-urlencoded) emits `+` for spaces and
+	// percent-encodes the apostrophe. Both `+` and `%20` decode to the
+	// same space at the trade endpoint per RFC 3986; we pin the form
+	// our encoder produces so a future swap to QueryEscape doesn't
+	// silently change the wire shape without a smoke-test re-run.
+	if !strings.Contains(tradeURL, "Atziri%27s+Foible") {
+		t.Errorf("expected name encoded as Atziri%%27s+Foible, got: %s", tradeURL)
+	}
+}
+
+// TestComputeBuySimilarRejectsDangerousLeague: league strings that
+// contain path separators or stretch the URL fall back to the default
+// league rather than letting an attacker shape the trade URL's path.
+func TestComputeBuySimilarRejectsDangerousLeague(t *testing.T) {
+	cases := map[string]string{
+		"path traversal":  "../../admin",
+		"query separator": "Standard?evil=1",
+		"fragment":        "Standard#anchor",
+		"oversized":       strings.Repeat("a", 65),
+	}
+	for name, badLeague := range cases {
+		t.Run(name, func(t *testing.T) {
+			entries := []compareBuildEntry{
+				{ID: "a", itemsBySlot: map[string]string{"Helmet": "Atziri's Foible"}},
+				{ID: "b", itemsBySlot: map[string]string{"Helmet": "Devoto's Devotion"}},
+			}
+			out := computeBuySimilar(entries, badLeague)
+			if len(out) == 0 {
+				t.Fatal("expected entries")
+			}
+			for _, entry := range out {
+				if !strings.Contains(entry.TradeURL, "/trade/search/Standard?") {
+					t.Errorf("expected fallback to Standard league, got: %s", entry.TradeURL)
+				}
+			}
+		})
+	}
+}
+
 // TestCompareBuySimilarErroredBuildExcluded: an errored slot doesn't
 // appear as source or target in any entry.
 func TestCompareBuySimilarErroredBuildExcluded(t *testing.T) {

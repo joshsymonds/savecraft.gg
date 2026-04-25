@@ -258,8 +258,12 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 	if !ok {
 		return
 	}
-	// Wrapper now has req.BuildID loaded; record for skip-reload on follow-ups.
+	// Wrapper now has req.BuildID loaded; record for skip-reload AND pin so
+	// follow-up /audit calls on the same build hit affinity. Without the
+	// Pin, /audit was the odd one out — /resolve, /modify, /compare all
+	// pin after a successful calc, but /audit only set last-loaded.
 	proc.SetLastLoadedBuildID(req.BuildID)
+	srv.pool.Pin(proc, req.BuildID)
 
 	// Per-scope segmentation. Each scope's branches are independent and get
 	// their own evaluation budget (branch_limit + node_limit apply per scope).

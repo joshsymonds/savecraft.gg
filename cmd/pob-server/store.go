@@ -66,6 +66,13 @@ func NewBuildStore(dbPath string) (*BuildStore, error) {
 		return nil, fmt.Errorf("opening database: %w", err)
 	}
 
+	// SQLite is single-writer; with parallel /compare goroutines and
+	// auto-power-report writes fan-in, multiple Go-side connections
+	// would otherwise serialize on SQLite's write lock and burn the
+	// 5s busy_timeout retrying. Cap at 1 to make the serialization
+	// deterministic in Go and skip the retry path.
+	db.SetMaxOpenConns(1)
+
 	if _, err := db.ExecContext(context.Background(), schema); err != nil {
 		db.Close()
 		return nil, fmt.Errorf("creating schema: %w", err)

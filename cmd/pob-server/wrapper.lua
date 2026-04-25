@@ -218,6 +218,11 @@ local function ensureBuildLoaded(request, xml, label)
 		loadBuildFromXML(xml, label)
 	end)
 	if not ok then
+		-- loadBuildFromXML may have partially mutated state before
+		-- failing. Clear the cache key so the next request always
+		-- reloads, even if it happens to carry the same loadedBuildId
+		-- as whatever was last successfully loaded.
+		_lastLoadedBuildId = ""
 		return false, "failed to load build: " .. tostring(err)
 	end
 	_lastLoadedBuildId = hint or ""

@@ -53,7 +53,7 @@ func TestCalcAttachesPowerReport(t *testing.T) {
 	srv, _ := powerReportHarness(t, minimalCalcResponse, extractCanned, perturbCanned2)
 
 	rec := httptest.NewRecorder()
-	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc",
+	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc?sections=offense",
 		strings.NewReader(`{"buildXml":"<PathOfBuilding/>"}`)))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
@@ -111,7 +111,7 @@ func TestCalcLeadingMetricFallsThrough(t *testing.T) {
 	srv, captured := powerReportHarness(t, dpsZeroSummary, extractCanned, perturbCanned2)
 
 	rec := httptest.NewRecorder()
-	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc",
+	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc?sections=offense",
 		strings.NewReader(`{"buildXml":"<PathOfBuilding/>"}`)))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
@@ -136,7 +136,7 @@ func TestPowerReportDisabledByDefault(t *testing.T) {
 	srv := newTestSrv(t, pool) // PowerReportEnabled stays false
 
 	rec := httptest.NewRecorder()
-	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc",
+	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc?sections=offense",
 		strings.NewReader(`{"buildXml":"<PathOfBuilding/>"}`)))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
@@ -147,6 +147,35 @@ func TestPowerReportDisabledByDefault(t *testing.T) {
 	}
 	if _, has := resp["power_report"]; has {
 		t.Errorf("power_report must be omitted when feature disabled; got: %s", resp["power_report"])
+	}
+}
+
+// TestPowerReportSkippedForSummaryOnlyRequest: even when the feature
+// is enabled, a request that asks for summary only doesn't trigger the
+// inline extract+perturb cost. The test pool primes only ONE response
+// (calc); a power-report attempt would block on the missing perturb
+// response and timeout the test.
+func TestPowerReportSkippedForSummaryOnlyRequest(t *testing.T) {
+	pool, _ := captureMockPool(t, []string{minimalCalcResponse})
+	defer pool.Shutdown()
+	srv := newTestSrv(t, pool)
+	srv.cache.store = newInMemoryStoreForTest(t)
+	srv.modIndex = NewModSourceIndex()
+	srv.PowerReportEnabled = true
+
+	// No `?sections=` query string → defaults to summary-only.
+	rec := httptest.NewRecorder()
+	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc",
+		strings.NewReader(`{"buildXml":"<PathOfBuilding/>"}`)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	var resp map[string]json.RawMessage
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatal(err)
+	}
+	if _, has := resp["power_report"]; has {
+		t.Errorf("power_report must be omitted on summary-only request; got: %s", resp["power_report"])
 	}
 }
 
@@ -174,7 +203,7 @@ func TestPowerReportSkipsWhenAllBaselinesZero(t *testing.T) {
 	srv.PowerReportEnabled = true
 
 	rec := httptest.NewRecorder()
-	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc",
+	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc?sections=offense",
 		strings.NewReader(`{"buildXml":"<PathOfBuilding/>"}`)))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
@@ -194,7 +223,7 @@ func TestPowerReportInlineRadiusIs3(t *testing.T) {
 	srv, captured := powerReportHarness(t, minimalCalcResponse, extractCanned, perturbCanned2)
 
 	rec := httptest.NewRecorder()
-	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc",
+	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc?sections=offense",
 		strings.NewReader(`{"buildXml":"<PathOfBuilding/>"}`)))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200, got %d", rec.Code)
@@ -224,7 +253,7 @@ func TestPowerReportFailureDoesNotFailParent(t *testing.T) {
 	srv.PowerReportEnabled = true
 
 	rec := httptest.NewRecorder()
-	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc",
+	srv.handleCalc(rec, httptest.NewRequest(http.MethodPost, "/calc?sections=offense",
 		strings.NewReader(`{"buildXml":"<PathOfBuilding/>"}`)))
 	if rec.Code != http.StatusOK {
 		t.Fatalf("inline failure must not fail parent; got %d: %s", rec.Code, rec.Body.String())
