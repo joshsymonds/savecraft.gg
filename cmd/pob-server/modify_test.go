@@ -386,9 +386,10 @@ echo '{"type":"result","data":{"character":{"class":"Templar","ascendancy":"Hier
 	srv := &Server{pool: pool, cache: cache, log: logger}
 
 	body := `{"buildId":"` + origID + `","operations":[{"op":"equip_flask","name":"Taste of Hate","slot":"Flask 2"}]}`
+	// "defense" is the new public taxonomy; old "ehp" rolls into it.
 	req := httptest.NewRequest(
 		http.MethodPost,
-		"/modify?sections=ehp",
+		"/modify?sections=defense",
 		strings.NewReader(body),
 	)
 	rec := httptest.NewRecorder()
@@ -413,22 +414,23 @@ echo '{"type":"result","data":{"character":{"class":"Templar","ascendancy":"Hier
 		t.Fatalf("data is not an object: %v", err)
 	}
 
-	// Sections should contain ehp with flask-affected stats
+	// New taxonomy: defense aggregates the old ehp + resistances + recovery
+	// + minion_defense + base defense. The flask-affected hit-pool stat
+	// lands in defense.
 	var sections map[string]json.RawMessage
 	if err := json.Unmarshal(data["sections"], &sections); err != nil {
 		t.Fatalf("sections is not an object: %v", err)
 	}
-	if _, ok := sections["ehp"]; !ok {
-		t.Error("sections missing 'ehp'")
+	if _, ok := sections["defense"]; !ok {
+		t.Error("sections missing 'defense'")
 	}
 
-	// Verify PhysicalMaximumHitTaken is present in ehp section
-	var ehp map[string]json.RawMessage
-	if err := json.Unmarshal(sections["ehp"], &ehp); err != nil {
-		t.Fatalf("ehp is not an object: %v", err)
+	var defense map[string]json.RawMessage
+	if err := json.Unmarshal(sections["defense"], &defense); err != nil {
+		t.Fatalf("defense is not an object: %v", err)
 	}
-	if _, ok := ehp["PhysicalMaximumHitTaken"]; !ok {
-		t.Error("ehp missing PhysicalMaximumHitTaken")
+	if _, ok := defense["PhysicalMaximumHitTaken"]; !ok {
+		t.Error("defense missing PhysicalMaximumHitTaken")
 	}
 }
 

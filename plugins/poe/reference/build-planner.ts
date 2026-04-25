@@ -112,13 +112,18 @@ export const buildPlannerModule: NativeReferenceModule = {
       type: "string",
       description:
         "Comma-separated section names to include in the response (e.g. 'offense,defense'). " +
-        "Omit for a compact summary with a section index listing available sections. " +
-        "Available: offense, ailments, defense, resistances, ehp, recovery, charges, limits, " +
-        "socket_groups, items, keystones, tree, config, minion_offense, minion_defense. " +
-        "Stat sections return curated key stats by default plus an _extra_keys array listing other available stat names in that section. " +
+        "Omit for a top-line summary only — character info plus the canonical summary stats. " +
+        "Six sections are valid:\n" +
+        "- offense: hit damage, DPS, ailments (bleed/poison/ignite), minion offense, charges, limits.\n" +
+        "- defense: armour, evasion, energy shield, resistances, EHP, recovery, minion defense.\n" +
+        "- gear: equipped items by slot (gear.items) and skill socket groups (gear.socket_groups).\n" +
+        "- tree: allocated passive points (allocated_nodes, available_points = level_points + quest_points (23, all acts) + extra_points), tree.version, plus tree.keystones.\n" +
+        "- config: active configuration overrides (conditions, enemy settings, combat state).\n" +
+        "- summary: same shape returned at the top level when sections is omitted; explicitly request it as part of a multi-section call.\n" +
+        "Stat sections (offense, defense) return curated key stats by default plus an _extra_keys array listing other available stat names. " +
         "Use the stat_keys parameter to include specific extra keys alongside the curated defaults. " +
-        "tree returns allocated/available/remaining passive points with breakdown: available_points = level_points + quest_points (23, all acts) + extra_points. " +
-        "After allocate_node, the response includes an allocation_log section showing every node allocated along the path and points spent.",
+        "After allocate_node, the response includes an allocation_log section showing every node allocated along the path and points spent. " +
+        "Unknown or retired section names return an error listing the six valid choices.",
     },
     stat_keys: {
       type: "string",

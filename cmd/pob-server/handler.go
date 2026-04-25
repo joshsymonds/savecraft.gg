@@ -177,11 +177,9 @@ func (srv *Server) handleResolve(
 	// If already cached (internal URL), return stored summary
 	if result.cached && result.summary != "" {
 		data := json.RawMessage(result.summary)
-		sections := parseSections(request)
-		filtered, filterErr := filterSections(data, sections)
-		if filterErr != nil {
-			srv.log.Warn("section filter failed, returning unfiltered", "err", filterErr)
-			filtered = data
+		filtered, written := srv.applySectionFilter(writer, data, parseSections(request))
+		if written {
+			return
 		}
 
 		idJSON, _ := json.Marshal(result.buildID)
@@ -278,12 +276,9 @@ func (srv *Server) calcAndRespond(
 	proc.SetLastLoadedBuildID(buildID)
 
 	// Filter sections based on query parameter
-	responseData := pobResp.Data
-	sections := parseSections(request)
-	filtered, err := filterSections(responseData, sections)
-	if err != nil {
-		srv.log.Warn("section filter failed, returning unfiltered", "err", err)
-		filtered = responseData
+	filtered, written := srv.applySectionFilter(writer, pobResp.Data, parseSections(request))
+	if written {
+		return
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
@@ -482,12 +477,9 @@ func (srv *Server) modifyAndRespond(
 	proc.SetLastLoadedBuildID(newID)
 
 	// Filter sections based on query parameter
-	responseData := pobResp.Data
-	sections := parseSections(request)
-	filtered, err := filterSections(responseData, sections)
-	if err != nil {
-		srv.log.Warn("section filter failed, returning unfiltered", "err", err)
-		filtered = responseData
+	filtered, written := srv.applySectionFilter(writer, pobResp.Data, parseSections(request))
+	if written {
+		return
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
@@ -995,13 +987,9 @@ func (srv *Server) handleGetBuild(
 	}
 
 	if wantSummary {
-		// Filter sections based on query parameter
-		data := json.RawMessage(summary)
-		sections := parseSections(request)
-		filtered, filterErr := filterSections(data, sections)
-		if filterErr != nil {
-			srv.log.Warn("section filter failed, returning unfiltered", "err", filterErr)
-			filtered = data
+		filtered, written := srv.applySectionFilter(writer, json.RawMessage(summary), parseSections(request))
+		if written {
+			return
 		}
 
 		idJSON, _ := json.Marshal(id)
@@ -1061,15 +1049,144 @@ func parseStatKeys(r *http.Request) []string {
 }
 func parseSections(r *http.Request) []string { return parseCSVParam(r, "sections") }
 
-// filterSections modifies the PoB data JSON to control which sections are
-// included in the response. If sections is nil, the "sections" key is removed
-// entirely (summary-only response). If sections is non-nil, only the listed
-// keys are kept within the "sections" object.
+// sectionTaxonomy maps each new flat section name to the list of
+// underlying wrapper.lua section keys it aggregates. The Lua side keeps
+// emitting the original 15-name structure (offense / ailments / defense /
+// resistances / ehp / recovery / charges / limits / minion_offense /
+// minion_defense / socket_groups / items / keystones / tree / config);
+// the Go remap collapses that into the public-facing 6-name surface.
+//
+// Stat-dict aggregation (offense, defense): underlying sections are
+// merged into a single flat object — keys union, _extra_keys arrays
+// concatenated.
+//
+// Composite aggregation (gear, tree): each underlying section is exposed
+// as a sub-key (gear.items, gear.socket_groups, tree.keystones) instead
+// of being merged, since their shapes (object vs array) don't compose.
+//
+// summary lives at the top level (not inside `sections`); it has no
+// underlying keys to aggregate.
+//
+// Pre-launch: any name not in this map is rejected with a clear error
+// pointing at the valid set.
+var sectionTaxonomy = []sectionDef{
+	{
+		ID:          "summary",
+		Name:        "Summary",
+		Description: "Top-line character stats: DPS, Life, ES, Mana, resistances, attributes",
+		// summary is at the top level, not aggregated from underlying sections
+	},
+	{
+		ID:          "offense",
+		Name:        "Offense",
+		Description: "Damage, DPS, ailments, minion offense, charges, limits",
+		Aggregate:   []string{"offense", "ailments", "minion_offense", "charges", "limits"},
+		Style:       sectionStyleStatDict,
+	},
+	{
+		ID:          "defense",
+		Name:        "Defense",
+		Description: "Armour, evasion, energy shield, resistances, EHP, recovery, minion defense",
+		Aggregate:   []string{"defense", "resistances", "ehp", "recovery", "minion_defense"},
+		Style:       sectionStyleStatDict,
+	},
+	{
+		ID:          "gear",
+		Name:        "Gear",
+		Description: "Equipped items by slot and skill socket groups",
+		Aggregate:   []string{"items", "socket_groups"},
+		Style:       sectionStyleComposite,
+	},
+	{
+		ID:          "tree",
+		Name:        "Tree",
+		Description: "Allocated passive points, keystones, tree summary",
+		Aggregate:   []string{"tree", "keystones"},
+		Style:       sectionStyleComposite,
+	},
+	{
+		ID:          "config",
+		Name:        "Configuration",
+		Description: "Active configuration overrides (conditions, enemy settings, combat state)",
+		Aggregate:   []string{"config"},
+		Style:       sectionStyleComposite,
+	},
+}
+
+type sectionStyle int
+
+const (
+	sectionStyleStatDict  sectionStyle = iota // merge stat-dicts; concat _extra_keys
+	sectionStyleComposite                     // expose underlying keys as sub-keys
+)
+
+type sectionDef struct {
+	ID          string
+	Name        string
+	Description string
+	Aggregate   []string
+	Style       sectionStyle
+}
+
+// validSectionNames is the set of names accepted by parseSections.
+func validSectionNames() []string {
+	out := make([]string, 0, len(sectionTaxonomy))
+	for _, def := range sectionTaxonomy {
+		out = append(out, def.ID)
+	}
+	return out
+}
+
+// ErrUnknownSection signals that the caller requested a section name that
+// isn't in the public taxonomy. Handlers turn this into a 400 instead of
+// the generic 500-with-fallback path that data-parse failures take.
+var ErrUnknownSection = errors.New("unknown section name")
+
+// applySectionFilter is the standard "validate → filter → 400-on-bad-name,
+// fall-back-on-data-error" wrapper used by every handler that surfaces
+// `sections=…` to the public API. Returns the filtered data and a bool
+// indicating whether the response was already written (true → caller
+// should return immediately).
+func (srv *Server) applySectionFilter(
+	writer http.ResponseWriter,
+	data json.RawMessage,
+	sections []string,
+) (json.RawMessage, bool) {
+	filtered, err := filterSections(data, sections)
+	if err == nil {
+		return filtered, false
+	}
+	if errors.Is(err, ErrUnknownSection) {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return nil, true
+	}
+	// Data-parse failure: log, fall through to unfiltered output to keep
+	// /resolve and /modify usable on a malformed wrapper.lua response.
+	srv.log.Warn("section filter failed, returning unfiltered", "err", err)
+	return data, false
+}
+
+// filterSections rewrites the wrapper.lua-shaped response to expose the
+// public 6-name section taxonomy. When sections is nil, the `sections`
+// key is dropped (summary-only default). When sections is non-nil, each
+// requested name is aggregated from its underlying Lua keys; unknown or
+// retired names trigger an error.
+//
+// section_index is always replaced with the canonical 6-entry list,
+// regardless of what wrapper.lua emitted, so callers always see the new
+// taxonomy.
 func filterSections(data json.RawMessage, sections []string) (json.RawMessage, error) {
 	var parsed map[string]json.RawMessage
 	if err := json.Unmarshal(data, &parsed); err != nil {
 		return data, fmt.Errorf("unmarshal data: %w", err)
 	}
+
+	// Always overwrite section_index with the canonical 6-name list.
+	indexJSON, err := json.Marshal(buildSectionIndex())
+	if err != nil {
+		return data, fmt.Errorf("marshal section_index: %w", err)
+	}
+	parsed["section_index"] = indexJSON
 
 	if sections == nil {
 		delete(parsed, "sections")
@@ -1080,37 +1197,198 @@ func filterSections(data json.RawMessage, sections []string) (json.RawMessage, e
 		return result, nil
 	}
 
-	return filterRequestedSections(parsed, data, sections)
-}
+	// Validate every requested name. Old/unknown names → all-or-nothing
+	// rejection (the request is out of contract).
+	if err := validateSectionNames(sections); err != nil {
+		return data, err
+	}
 
-// filterRequestedSections keeps only the named keys in the "sections" object.
-func filterRequestedSections(
-	parsed map[string]json.RawMessage,
-	original json.RawMessage,
-	sections []string,
-) (json.RawMessage, error) {
-	var allSections map[string]json.RawMessage
-	if raw, ok := parsed["sections"]; ok {
-		if err := json.Unmarshal(raw, &allSections); err != nil {
-			return original, fmt.Errorf("unmarshal sections: %w", err)
-		}
-	}
-	filtered := make(map[string]json.RawMessage)
-	for _, name := range sections {
-		if val, ok := allSections[name]; ok {
-			filtered[name] = val
-		}
-	}
-	filteredJSON, err := json.Marshal(filtered)
+	rawSections, err := extractRawSections(parsed)
 	if err != nil {
-		return original, fmt.Errorf("marshal filtered sections: %w", err)
+		return data, err
 	}
-	parsed["sections"] = filteredJSON
+
+	aggregated, err := aggregateSections(rawSections, sections)
+	if err != nil {
+		return data, err
+	}
+
+	aggregatedJSON, err := json.Marshal(aggregated)
+	if err != nil {
+		return data, fmt.Errorf("marshal aggregated sections: %w", err)
+	}
+	parsed["sections"] = aggregatedJSON
 	result, err := json.Marshal(parsed)
 	if err != nil {
-		return original, fmt.Errorf("marshal response: %w", err)
+		return data, fmt.Errorf("marshal response: %w", err)
 	}
 	return result, nil
+}
+
+func buildSectionIndex() []map[string]string {
+	out := make([]map[string]string, 0, len(sectionTaxonomy))
+	for _, def := range sectionTaxonomy {
+		out = append(out, map[string]string{
+			"id":          def.ID,
+			"name":        def.Name,
+			"description": def.Description,
+		})
+	}
+	return out
+}
+
+func validateSectionNames(requested []string) error {
+	known := make(map[string]bool, len(sectionTaxonomy))
+	for _, def := range sectionTaxonomy {
+		known[def.ID] = true
+	}
+	for _, name := range requested {
+		if !known[name] {
+			return fmt.Errorf(
+				"%w %q — valid: %s",
+				ErrUnknownSection,
+				name,
+				strings.Join(validSectionNames(), ", "),
+			)
+		}
+	}
+	return nil
+}
+
+func extractRawSections(parsed map[string]json.RawMessage) (map[string]json.RawMessage, error) {
+	raw, ok := parsed["sections"]
+	if !ok {
+		return map[string]json.RawMessage{}, nil
+	}
+	var out map[string]json.RawMessage
+	if err := json.Unmarshal(raw, &out); err != nil {
+		return nil, fmt.Errorf("unmarshal sections: %w", err)
+	}
+	return out, nil
+}
+
+// aggregateSections produces the requested public-facing sections from
+// the wrapper.lua raw map. Returns a sections object keyed by the new
+// public names.
+func aggregateSections(
+	raw map[string]json.RawMessage,
+	requested []string,
+) (map[string]json.RawMessage, error) {
+	defByID := make(map[string]sectionDef, len(sectionTaxonomy))
+	for _, def := range sectionTaxonomy {
+		defByID[def.ID] = def
+	}
+
+	out := make(map[string]json.RawMessage, len(requested))
+	for _, name := range requested {
+		def := defByID[name]
+		// summary has no underlying aggregation; it's served from the
+		// top-level summary key, not the sections object. Skip silently
+		// when requested — the caller still gets `summary` at the top
+		// level (filterSections never strips it).
+		if name == "summary" {
+			continue
+		}
+		switch def.Style {
+		case sectionStyleStatDict:
+			merged, err := mergeStatDicts(raw, def.Aggregate)
+			if err != nil {
+				return nil, fmt.Errorf("aggregate %q: %w", name, err)
+			}
+			mergedJSON, err := json.Marshal(merged)
+			if err != nil {
+				return nil, fmt.Errorf("marshal %q: %w", name, err)
+			}
+			out[name] = mergedJSON
+		case sectionStyleComposite:
+			composed := composeSubKeys(name, raw, def.Aggregate)
+			composedJSON, err := json.Marshal(composed)
+			if err != nil {
+				return nil, fmt.Errorf("marshal %q: %w", name, err)
+			}
+			out[name] = composedJSON
+		}
+	}
+	return out, nil
+}
+
+// mergeStatDicts unions multiple stat-dict sections (offense, ailments,
+// etc.) into a single flat object. Numeric/scalar keys collide rarely
+// (PoB stat keys are unique across these old sections); when they do,
+// the last source wins. The _extra_keys arrays from each source are
+// concatenated.
+func mergeStatDicts(
+	raw map[string]json.RawMessage,
+	sources []string,
+) (map[string]json.RawMessage, error) {
+	out := make(map[string]json.RawMessage)
+	var extraKeys []string
+
+	for _, source := range sources {
+		rawSrc, ok := raw[source]
+		if !ok {
+			continue
+		}
+		var srcMap map[string]json.RawMessage
+		if err := json.Unmarshal(rawSrc, &srcMap); err != nil {
+			return nil, fmt.Errorf("unmarshal %q: %w", source, err)
+		}
+		// Pull _extra_keys aside; merge other keys verbatim.
+		if rawExtras, ok := srcMap["_extra_keys"]; ok {
+			var extras []string
+			if err := json.Unmarshal(rawExtras, &extras); err == nil {
+				extraKeys = append(extraKeys, extras...)
+			}
+			delete(srcMap, "_extra_keys")
+		}
+		maps.Copy(out, srcMap)
+	}
+	if len(extraKeys) > 0 {
+		extrasJSON, err := json.Marshal(extraKeys)
+		if err != nil {
+			return nil, fmt.Errorf("marshal _extra_keys: %w", err)
+		}
+		out["_extra_keys"] = extrasJSON
+	}
+	return out, nil
+}
+
+// composeSubKeys exposes each underlying source as a sub-key on the new
+// section, with one ergonomic hoist: when a source's name matches its
+// containing section's name (config inside config, tree inside tree),
+// that source's object fields are merged directly onto the section
+// instead of nested under the duplicate name. So:
+//
+//	config (sources: ["config"])      → {conditionLowLife: true, ...}
+//	tree   (sources: ["tree", "keystones"]) → {version, allocated_nodes, ..., keystones: [...]}
+//	gear   (sources: ["items", "socket_groups"]) → {items: {...}, socket_groups: [...]}
+//
+// The hoist rule applies to any single-source-name-matches-section case
+// without special-casing config or tree by name.
+func composeSubKeys(
+	sectionName string,
+	raw map[string]json.RawMessage,
+	sources []string,
+) map[string]json.RawMessage {
+	out := make(map[string]json.RawMessage)
+	for _, source := range sources {
+		rawSrc, ok := raw[source]
+		if !ok {
+			continue
+		}
+		if source == sectionName {
+			// Hoist: dissolve the source object's fields onto the
+			// section. If the source value isn't an object, fall through
+			// to the default sub-key behavior so we don't lose data.
+			var fields map[string]json.RawMessage
+			if json.Unmarshal(rawSrc, &fields) == nil {
+				maps.Copy(out, fields)
+				continue
+			}
+		}
+		out[source] = rawSrc
+	}
+	return out
 }
 
 // listGemsLuaRequest is the JSON-lines payload for wrapper.lua's

@@ -563,6 +563,9 @@ func TestSummaryWithSectionsParam(t *testing.T) {
 	}
 }
 
+// Unknown section names are now rejected with 400 instead of silently
+// ignored. The error body names the offending section and lists the
+// valid set.
 func TestSummaryWithUnknownSections(t *testing.T) {
 	srv := newTestServer(t)
 
@@ -578,27 +581,17 @@ func TestSummaryWithUnknownSections(t *testing.T) {
 	rec := httptest.NewRecorder()
 	srv.handleGetBuild(rec, req)
 
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected 400, got %d: %s", rec.Code, rec.Body.String())
 	}
-
-	var resp map[string]json.RawMessage
-	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
-		t.Fatalf("invalid JSON: %v", err)
+	body := rec.Body.String()
+	if !strings.Contains(body, "nonexistent") {
+		t.Errorf("error body should name the bad section: %s", body)
 	}
-
-	var data map[string]json.RawMessage
-	if err := json.Unmarshal(resp["data"], &data); err != nil {
-		t.Fatalf("data is not an object: %v", err)
-	}
-
-	// sections should be present but empty (unknown sections silently ignored)
-	var sections map[string]json.RawMessage
-	if err := json.Unmarshal(data["sections"], &sections); err != nil {
-		t.Fatalf("sections is not an object: %v", err)
-	}
-	if len(sections) != 0 {
-		t.Fatalf("expected empty sections for unknown names, got %d keys", len(sections))
+	for _, want := range []string{"summary", "offense", "defense", "gear", "tree", "config"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("error body should list valid name %q: %s", want, body)
+		}
 	}
 }
 
@@ -760,10 +753,12 @@ func TestResolveCachedWithSectionsParam(t *testing.T) {
 	id := srv.cache.Put(xml)
 	_ = srv.cache.store.Put(id, xml, storedSummary, "https://pob.savecraft.gg/"+id, "")
 
-	// Simulate the cached resolve path by hitting /build/{id}/summary with sections
+	// Use the new flat taxonomy: defense aggregates the old defense +
+	// resistances + ehp + recovery + minion_defense. Requesting just
+	// "defense" returns the merged result.
 	req := httptest.NewRequest(
 		http.MethodGet,
-		"/build/"+id+"/summary?sections=defense,resistances",
+		"/build/"+id+"/summary?sections=defense",
 		nil,
 	)
 	rec := httptest.NewRecorder()
@@ -795,15 +790,18 @@ func TestResolveCachedWithSectionsParam(t *testing.T) {
 		t.Fatalf("sections is not an object: %v", err)
 	}
 
-	// Only defense and resistances requested
+	// Only the new "defense" should be present.
 	if _, ok := sections["defense"]; !ok {
 		t.Error("sections missing 'defense'")
 	}
-	if _, ok := sections["resistances"]; !ok {
-		t.Error("sections missing 'resistances'")
-	}
 	if _, ok := sections["offense"]; ok {
 		t.Error("sections should not contain 'offense' (not requested)")
+	}
+	// Old names must not appear in the response.
+	for _, oldName := range []string{"resistances", "ehp", "recovery", "minion_defense"} {
+		if _, ok := sections[oldName]; ok {
+			t.Errorf("sections should not expose retired name %q", oldName)
+		}
 	}
 }
 
