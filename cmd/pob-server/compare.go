@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
 )
 
 // CompareRequest is the JSON body for POST /compare.
@@ -192,11 +193,28 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
+	// Run per-build calc in parallel. Pool affinity still works under
+	// fan-out — each worker pins its own build_id. Bound concurrency
+	// at min(len(builds), pool.maxSize) so we never block waiting for
+	// a worker that won't exist. Per-build errors live on entry.Error;
+	// the goroutines themselves never return an error.
 	resp := CompareResponse{Builds: make([]compareBuildEntry, len(req.Builds))}
-	successes := 0
+	concurrency := min(len(req.Builds), srv.pool.maxSize)
+	sem := make(chan struct{}, concurrency)
+	var wg sync.WaitGroup
 	for i, input := range req.Builds {
-		entry := srv.compareOneBuild(input, labelFor(req.Labels, i, input))
-		resp.Builds[i] = entry
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			defer func() { <-sem }()
+			resp.Builds[i] = srv.compareOneBuild(input, labelFor(req.Labels, i, input))
+		}()
+	}
+	wg.Wait()
+
+	successes := 0
+	for _, entry := range resp.Builds {
 		if entry.Error == "" {
 			successes++
 		}
@@ -397,9 +415,9 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 }
 
 // computeCompareDiffs walks the SUCCESSFUL build entries and assembles
-// the diff dimensions from their per-build payload. Today only the
-// summary dimension is populated; tree, gear, skills, and buy-similar
-// follow as separate tasks.
+// all four diff dimensions (summary, tree, gear, skills) from their
+// per-build payload. Buy-similar is computed separately by the caller
+// when CompareRequest.BuySimilar is true.
 //
 // Stat-level rule: a stat appears in the diff only when EVERY successful
 // build has a numeric value for it. Mixed-presence stats are dropped to

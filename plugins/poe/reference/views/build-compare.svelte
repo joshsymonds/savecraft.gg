@@ -280,21 +280,19 @@
   }
 </script>
 
-<div class="build-compare">
+<Panel>
+  <Section title="Build Comparison" {subtitle}>
+    <GroupedTable {columns} {groups} />
+  </Section>
+</Panel>
+
+{#if hasBuySimilar}
   <Panel>
-    <Section title="Build Comparison" {subtitle}>
-      <GroupedTable {columns} {groups} />
+    <Section
+      title="Buy Similar"
+      subtitle="{buySimilar?.length} trade recommendations"
+    >
+      <DataTable columns={buySimilarColumns} rows={buySimilarRows} />
     </Section>
   </Panel>
-
-  {#if hasBuySimilar}
-    <Panel>
-      <Section
-        title="Buy Similar"
-        subtitle="{buySimilar?.length} trade recommendations"
-      >
-        <DataTable columns={buySimilarColumns} rows={buySimilarRows} />
-      </Section>
-    </Panel>
-  {/if}
-</div>
+{/if}

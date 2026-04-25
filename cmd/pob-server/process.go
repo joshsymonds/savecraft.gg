@@ -215,6 +215,7 @@ type Pool struct {
 	affinityRev      map[*Process]string    // process → buildID (one-to-one with affinityProc)
 	affinityLastUsed map[string]time.Time   // buildID → last touch (for LRU)
 	affinityTimers   map[string]*time.Timer // buildID → TTL expiry timer
+	affinityEpoch    map[string]uint64      // buildID → monotonic epoch; bumped on touch/unpin so already-fired timers can detect they're stale and skip Unpin
 }
 
 // NewPool creates a new lazy process pool.
@@ -236,6 +237,7 @@ func NewPool(poolMax int, idleTimeout time.Duration, luajitBin, wrapperPath, pob
 		affinityRev:      make(map[*Process]string),
 		affinityLastUsed: make(map[string]time.Time),
 		affinityTimers:   make(map[string]*time.Timer),
+		affinityEpoch:    make(map[string]uint64),
 	}
 }
 
@@ -513,17 +515,36 @@ func (pool *Pool) cancelIdleTimerLocked(proc *Process) {
 
 // touchAffinityLocked updates the last-used timestamp and resets the TTL timer.
 // Caller must hold pool.mu and have already established affinityProc[buildID].
+//
+// Bumps affinityEpoch[buildID] so any prior timer that has already fired but
+// is still queued waiting on pool.mu will see a stale epoch and skip Unpin.
+// Without this, a fired-but-not-yet-run timer can unpin a freshly-replaced
+// pin and force an unnecessary 1.2s XML reload on the next request.
 func (pool *Pool) touchAffinityLocked(buildID string) {
 	pool.affinityLastUsed[buildID] = time.Now()
+	pool.affinityEpoch[buildID]++
+	epoch := pool.affinityEpoch[buildID]
 	if t, ok := pool.affinityTimers[buildID]; ok {
 		t.Stop()
 		delete(pool.affinityTimers, buildID)
 	}
 	if pool.affinityTTL > 0 {
 		pool.affinityTimers[buildID] = time.AfterFunc(pool.affinityTTL, func() {
-			pool.Unpin(buildID)
+			pool.unpinIfEpochCurrent(buildID, epoch)
 		})
 	}
+}
+
+// unpinIfEpochCurrent unpins buildID only if epoch still matches the current
+// affinityEpoch — meaning no touchAffinityLocked has reset the timer since
+// this AfterFunc was scheduled. Stale calls (post-touch fires) become no-ops.
+func (pool *Pool) unpinIfEpochCurrent(buildID string, epoch uint64) {
+	pool.mu.Lock()
+	defer pool.mu.Unlock()
+	if pool.affinityEpoch[buildID] != epoch {
+		return
+	}
+	pool.unpinLocked(buildID)
 }
 
 // unpinLocked: remove all affinity bookkeeping for buildID. The underlying

@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 	"time"
 )
@@ -64,6 +65,29 @@ func parseConfig() config {
 	}
 	if cfg.apiKey == "" {
 		cfg.apiKey = os.Getenv("POB_API_KEY")
+	}
+	// Env var fallbacks for affinity tunables: when the flag was not
+	// explicitly set (still equals its compile-time default), prefer
+	// the env var if present. This matches POB_API_KEY's behaviour.
+	if cfg.affinityTTL == DefaultAffinityTTL {
+		if v := os.Getenv("POB_AFFINITY_TTL"); v != "" {
+			parsed, err := time.ParseDuration(v)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "error: POB_AFFINITY_TTL invalid: %v\n", err)
+				os.Exit(1)
+			}
+			cfg.affinityTTL = parsed
+		}
+	}
+	if cfg.affinityMaxPins == 0 {
+		if v := os.Getenv("POB_AFFINITY_POOL_MAX"); v != "" {
+			parsed, err := strconv.Atoi(v)
+			if err != nil || parsed < 0 {
+				fmt.Fprintf(os.Stderr, "error: POB_AFFINITY_POOL_MAX invalid: %s\n", v)
+				os.Exit(1)
+			}
+			cfg.affinityMaxPins = parsed
+		}
 	}
 	if cfg.wrapperPath == "" {
 		cfg.wrapperPath = cfg.pobDir + "/../wrapper.lua"

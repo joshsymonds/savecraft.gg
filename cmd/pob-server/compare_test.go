@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -50,33 +51,14 @@ func compareHarness(
 func minimalCalcResponseClass(class string, dps int) string {
 	return `{"type":"result","data":{` +
 		`"character":{"class":"` + class + `","ascendancy":"X","level":99},` +
-		`"summary":{"CombinedDPS":` + itoa(dps) + `,"Life":6000,"LifeUnreserved":6000,"LifeUnreservedPercent":100,` +
+		`"summary":{"CombinedDPS":` + strconv.Itoa(dps) + `,"Life":6000,"LifeUnreserved":6000,"LifeUnreservedPercent":100,` +
 		`"EnergyShield":0,"Mana":500,"Armour":0,"Evasion":0,` +
 		`"FireResist":75,"ColdResist":75,"LightningResist":75,"ChaosResist":40,` +
 		`"BlockChance":0,"SpellSuppressionChance":0,"MovementSpeedMod":1,` +
 		`"Str":100,"Dex":100,"Int":100,"FlaskEffect":0,"FlaskChargeGen":0,` +
 		`"LootQuantityNormalEnemies":0,"LootRarityMagicEnemies":0,` +
-		`"EnemyCurseLimit":1,"TotalDPS":` + itoa(dps) + `},` +
+		`"EnemyCurseLimit":1,"TotalDPS":` + strconv.Itoa(dps) + `},` +
 		`"section_index":[],"sections":{}}}`
-}
-
-func itoa(n int) string {
-	if n == 0 {
-		return "0"
-	}
-	var s string
-	neg := n < 0
-	if neg {
-		n = -n
-	}
-	for n > 0 {
-		s = string(rune('0'+(n%10))) + s
-		n /= 10
-	}
-	if neg {
-		s = "-" + s
-	}
-	return s
 }
 
 func decodeCompare(t *testing.T, body []byte) compareResp {

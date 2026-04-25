@@ -329,6 +329,48 @@ func TestCompareSkillsDiffEmptyGroups(t *testing.T) {
 	}
 }
 
+// TestCompareSkillsDiffWithinBuildLabelCollision: when one build has
+// two socket groups with the same label (PoB permits this), the diff
+// keeps only the LAST occurrence. Documents the behavior described at
+// compare.go:628-632 so it can't silently drift.
+func TestCompareSkillsDiffWithinBuildLabelCollision(t *testing.T) {
+	srv, idA, idB, _ := compareHarness(
+		t,
+		"<A/>", "<B/>",
+		calcResponseWithSkills("Witch", []testSocketGroup{
+			{Label: "Main Skill", Gems: []string{"Cyclone", "Pulverise"}},
+			{Label: "Main Skill", Gems: []string{"Arc", "Spell Echo"}},
+		}),
+		calcResponseWithSkills("Marauder", []testSocketGroup{
+			{Label: "Main Skill", Gems: []string{"Cyclone", "Brutality"}},
+		}),
+	)
+	body := `{"builds":["` + idA + `","` + idB + `"]}`
+	rec := httptest.NewRecorder()
+	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	resp := decodeCompareWithSkills(t, rec.Body.Bytes())
+	g := findGroup(resp.Diffs.Skills, "Main Skill")
+	if g == nil {
+		t.Fatal("Main Skill group missing")
+	}
+	// Build A had two "Main Skill" groups: ["Cyclone","Pulverise"] then
+	// ["Arc","Spell Echo"]. Last occurrence wins → ["Arc","Spell Echo"]
+	// (sorted by hydrateEntryFromData → ["Arc","Spell Echo"]).
+	wantA := []string{"Arc", "Spell Echo"}
+	if len(g.PerBuild[0]) != len(wantA) {
+		t.Fatalf("perBuild[0] len = %d, want %d (gems: %v)", len(g.PerBuild[0]), len(wantA), g.PerBuild[0])
+	}
+	for i, gem := range wantA {
+		if g.PerBuild[0][i] != gem {
+			t.Errorf("perBuild[0][%d] = %q, want %q", i, g.PerBuild[0][i], gem)
+		}
+	}
+}
+
 // TestCompareSkillsDiffOrderInsensitive: gem order within a group
 // shouldn't matter — same gems in different order are still "same".
 func TestCompareSkillsDiffOrderInsensitive(t *testing.T) {

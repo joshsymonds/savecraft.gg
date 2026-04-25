@@ -1,5 +1,12 @@
 package main
 
+// Affinity tests use real time (time.Sleep, real time.AfterFunc) rather
+// than a fake clock. This matches the project convention already in use
+// at process_test.go:TestPoolIdleTimeout — Pool's timer surface is not
+// abstracted behind a clock interface. If CI flakes here, refactor Pool
+// to take a clock dependency rather than papering over with longer
+// timeouts.
+
 import (
 	"errors"
 	"io"
