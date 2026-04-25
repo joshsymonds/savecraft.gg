@@ -4,7 +4,7 @@
   const { Story } = defineMeta({ title: "PoE/Views/BuildCompare", tags: ["autodocs"] });
 
   // ─── Mock builds ───────────────────────────────────────────────────────────
-  // The data shape mirrors CompareResponse from cmd/pob-server/compare.go.
+  // Data shape mirrors CompareResponse from cmd/pob-server/compare.go.
   // Stories below mix and match these to exercise the seven scenarios.
 
   const witchBuild = {
@@ -20,6 +20,23 @@
       LightningResist: 76,
       ChaosResist: -30,
       Armour: 1_240,
+      Evasion: 0,
+    },
+  };
+
+  const elementalistBuild = {
+    id: "witch-02",
+    label: "Hierophant Arc",
+    character: { class: "Witch", ascendancy: "Elementalist", level: 96 },
+    summary: {
+      CombinedDPS: 1_840_000,
+      Life: 5_120,
+      EnergyShield: 6_400,
+      FireResist: 78,
+      ColdResist: 75,
+      LightningResist: 75,
+      ChaosResist: 18,
+      Armour: 980,
       Evasion: 0,
     },
   };
@@ -41,46 +58,295 @@
     },
   };
 
-  // ─── N=2 same-class diff ──────────────────────────────────────────────────
-  // First scaffold story — minimal data to verify the empty layout renders
-  // each of the six sections. Subsequent stories will progressively flesh
-  // out the diff data shapes.
+  const rangerBuild = {
+    id: "ranger-01",
+    label: "Lightning Arrow Deadeye",
+    character: { class: "Ranger", ascendancy: "Deadeye", level: 95 },
+    summary: {
+      CombinedDPS: 3_120_000,
+      Life: 4_650,
+      EnergyShield: 0,
+      FireResist: 75,
+      ColdResist: 75,
+      LightningResist: 76,
+      ChaosResist: -45,
+      Armour: 0,
+      Evasion: 22_400,
+    },
+  };
+
+  // ─── 1. N=2 same-class diff ───────────────────────────────────────────────
+  // Two witches, modest deltas, full diff coverage. The "everyday" case.
   const n2SameClass = {
-    builds: [witchBuild, marauderBuild],
+    builds: [witchBuild, elementalistBuild],
     diffs: {
       summary: {
-        CombinedDPS: { perBuild: [1_247_832, 2_500_000], leader: 1, range: 0.501 },
-        Life: { perBuild: [4_891, 7_200], leader: 1, range: 0.321 },
+        CombinedDPS: { perBuild: [1_247_832, 1_840_000], leader: 1, range: 0.475 },
+        Life: { perBuild: [4_891, 5_120], leader: 1, range: 0.047 },
+        EnergyShield: { perBuild: [2_104, 6_400], leader: 1, range: 2.041 },
+        ChaosResist: { perBuild: [-30, 18], leader: 1, range: 1.6 },
       },
       tree: {
         allocatedOnlyIn: {
-          "witch-01": [3001, 3002, 3003],
-          "marauder-01": [4001, 4002],
+          "witch-01": [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008],
+          "witch-02": [4001, 4002, 4003, 4004, 4005, 4006],
         },
-        common: [1001, 1002],
+        common: Array.from({ length: 32 }, (_, i) => 1000 + i),
       },
       gear: {
-        Helmet: { perBuild: ["Atziri's Foible", "Devoto's Devotion"], same: false },
-        "Body Armour": { perBuild: ["Kintsugi", null], same: false },
+        Helmet: { perBuild: ["Atziri's Foible", "Crown of the Tyrant"], same: false },
+        "Body Armour": { perBuild: ["Kintsugi", "Shavronne's Wrappings"], same: false },
+        Boots: { perBuild: ["Goldwyrm", "Goldwyrm"], same: true },
       },
       skills: [
         {
-          label: "Cyclone Setup",
+          label: "Main Skill",
           perBuild: [
+            ["Vaal Spark", "Lightning Penetration", "Spell Echo"],
+            ["Arc", "Lightning Penetration", "Spell Echo"],
+          ],
+          same: false,
+        },
+        {
+          label: "Aura Setup",
+          perBuild: [
+            ["Discipline", "Wrath"],
+            ["Discipline", "Wrath"],
+          ],
+          same: true,
+        },
+      ],
+    },
+  };
+
+  // ─── 2. N=3 multi-build ───────────────────────────────────────────────────
+  // Three classes, three columns. Verifies header row + group bars + data
+  // rows scale cleanly to wider tables.
+  const n3MultiBuild = {
+    builds: [witchBuild, marauderBuild, rangerBuild],
+    diffs: {
+      summary: {
+        CombinedDPS: { perBuild: [1_247_832, 2_500_000, 3_120_000], leader: 2, range: 1.502 },
+        Life: { perBuild: [4_891, 7_200, 4_650], leader: 1, range: 0.55 },
+        EnergyShield: { perBuild: [2_104, 0, 0], leader: 0, range: Infinity },
+        Armour: { perBuild: [1_240, 18_500, 0], leader: 1, range: Infinity },
+        Evasion: { perBuild: [0, 800, 22_400], leader: 2, range: Infinity },
+      },
+      tree: {
+        allocatedOnlyIn: {
+          "witch-01": [3001, 3002, 3003, 3004, 3005, 3006, 3007, 3008],
+          "marauder-01": [5001, 5002, 5003, 5004, 5005, 5006, 5007],
+          "ranger-01": [6001, 6002, 6003, 6004, 6005, 6006, 6007, 6008, 6009],
+        },
+        common: Array.from({ length: 18 }, (_, i) => 1000 + i),
+      },
+      gear: {
+        Helmet: {
+          perBuild: ["Atziri's Foible", "Devoto's Devotion", "Hyrri's Demise"],
+          same: false,
+        },
+        "Body Armour": {
+          perBuild: ["Kintsugi", "Belly of the Beast", "Queen of the Forest"],
+          same: false,
+        },
+        Boots: {
+          perBuild: ["Goldwyrm", "Atziri's Step", "Atziri's Step"],
+          same: false,
+        },
+      },
+      skills: [
+        {
+          label: "Main Skill",
+          perBuild: [
+            ["Vaal Spark", "Lightning Penetration", "Spell Echo"],
             ["Cyclone", "Pulverise", "Brutality"],
-            ["Cyclone", "Brutality", "Inspiration"],
+            ["Lightning Arrow", "Mirage Archer", "Awakened Lightning Pen"],
           ],
           same: false,
         },
       ],
     },
   };
+
+  // ─── 3. Large stat deltas ─────────────────────────────────────────────────
+  // Order-of-magnitude differences. Verifies the leader-highlight variant
+  // works on dramatic numbers (M vs k vs raw) without wrapping/overflow.
+  const largeStatDeltas = {
+    builds: [witchBuild, marauderBuild],
+    diffs: {
+      summary: {
+        CombinedDPS: { perBuild: [124_000, 12_400_000], leader: 1, range: 99.0 },
+        Life: { perBuild: [3_200, 14_500], leader: 1, range: 3.531 },
+        EnergyShield: { perBuild: [180, 0], leader: 0, range: Infinity },
+        Armour: { perBuild: [400, 52_000], leader: 1, range: 129.0 },
+      },
+      tree: {
+        allocatedOnlyIn: { "witch-01": [3001, 3002], "marauder-01": [5001] },
+        common: [1001, 1002, 1003],
+      },
+      gear: {},
+      skills: [],
+    },
+  };
+
+  // ─── 4. Gear missing on one build ─────────────────────────────────────────
+  // Asymmetric gear: build B doesn't have several slots populated. Verifies
+  // the `—` muted variant renders correctly when slotDiff.perBuild[i] is null.
+  const gearMissing = {
+    builds: [witchBuild, elementalistBuild],
+    diffs: {
+      summary: {
+        CombinedDPS: { perBuild: [1_247_832, 1_840_000], leader: 1, range: 0.475 },
+      },
+      gear: {
+        Helmet: { perBuild: ["Atziri's Foible", "Crown of the Tyrant"], same: false },
+        "Body Armour": { perBuild: ["Kintsugi", null], same: false },
+        Gloves: { perBuild: [null, "Voidbringer"], same: false },
+        Boots: { perBuild: ["Goldwyrm", null], same: false },
+        Belt: { perBuild: [null, null], same: false },
+        Amulet: { perBuild: ["Bisco's Collar", "Bisco's Collar"], same: true },
+      },
+      skills: [],
+      tree: { allocatedOnlyIn: {}, common: [] },
+    },
+  };
+
+  // ─── 5. Buy-similar populated ─────────────────────────────────────────────
+  // The buy-similar Panel renders below the comparison Panel. Trade URLs are
+  // truncated for display in the Item column.
+  const buySimilarPopulated = {
+    builds: [witchBuild, marauderBuild],
+    diffs: {
+      summary: {
+        CombinedDPS: { perBuild: [1_247_832, 2_500_000], leader: 1, range: 1.004 },
+        Life: { perBuild: [4_891, 7_200], leader: 1, range: 0.472 },
+      },
+      gear: {
+        Helmet: { perBuild: ["Atziri's Foible", "Devoto's Devotion"], same: false },
+        "Body Armour": { perBuild: ["Kintsugi", "Belly of the Beast"], same: false },
+        Boots: { perBuild: ["Goldwyrm", "Kaom's Roots"], same: false },
+      },
+      skills: [],
+      tree: { allocatedOnlyIn: {}, common: [] },
+    },
+    buySimilar: [
+      {
+        fromBuildId: "marauder-01",
+        toBuildId: "witch-01",
+        slot: "Helmet",
+        itemName: "Devoto's Devotion",
+        tradeUrl: "https://www.pathofexile.com/trade/search/Standard?example=1",
+      },
+      {
+        fromBuildId: "marauder-01",
+        toBuildId: "witch-01",
+        slot: "Body Armour",
+        itemName: "Belly of the Beast",
+        tradeUrl: "https://www.pathofexile.com/trade/search/Standard?example=2",
+      },
+      {
+        fromBuildId: "marauder-01",
+        toBuildId: "witch-01",
+        slot: "Boots",
+        itemName: "Kaom's Roots",
+        tradeUrl: "https://www.pathofexile.com/trade/search/Standard?example=3",
+      },
+    ],
+  };
+
+  // ─── 6. Buy-similar empty ─────────────────────────────────────────────────
+  // Verifies the buy-similar Panel does NOT render when buySimilar is
+  // missing or empty. Same comparison content as #5 minus the trades.
+  const buySimilarEmpty = {
+    builds: [witchBuild, marauderBuild],
+    diffs: {
+      summary: {
+        CombinedDPS: { perBuild: [1_247_832, 2_500_000], leader: 1, range: 1.004 },
+        Life: { perBuild: [4_891, 7_200], leader: 1, range: 0.472 },
+      },
+      gear: {
+        Helmet: { perBuild: ["Atziri's Foible", "Devoto's Devotion"], same: false },
+        "Body Armour": { perBuild: ["Kintsugi", "Belly of the Beast"], same: false },
+      },
+      skills: [],
+      tree: { allocatedOnlyIn: {}, common: [] },
+    },
+    buySimilar: [],
+  };
+
+  // ─── 7. Errored build ─────────────────────────────────────────────────────
+  // One build failed to resolve. It appears in `builds` but NOT in any
+  // diff's perBuild — column set is built from the successful subset only.
+  // Subtitle should read "3 builds · 2 resolved" to surface the error.
+  const erroredBuild = {
+    builds: [
+      witchBuild,
+      { id: "broken-01", label: "Unparseable Build", error: "Failed to parse: invalid base64" },
+      marauderBuild,
+    ],
+    diffs: {
+      summary: {
+        // Only TWO entries in perBuild — successful subset is [witch, marauder].
+        CombinedDPS: { perBuild: [1_247_832, 2_500_000], leader: 1, range: 1.004 },
+        Life: { perBuild: [4_891, 7_200], leader: 1, range: 0.472 },
+      },
+      tree: {
+        allocatedOnlyIn: { "witch-01": [3001, 3002], "marauder-01": [5001, 5002, 5003] },
+        common: [1001, 1002, 1003],
+      },
+      gear: {
+        Helmet: { perBuild: ["Atziri's Foible", "Devoto's Devotion"], same: false },
+      },
+      skills: [],
+    },
+  };
 </script>
 
-<!-- Scaffold story: empty layout shell, minimal data. Verifies all six
-     sections render their empty Panel + Section frames. -->
-<Story name="Scaffold">
+<!-- 1. N=2 same-class — the canonical diff. -->
+<Story name="N=2 same-class">
   <div style="max-width: 700px;">
     <BuildCompare data={n2SameClass} />
+  </div>
+</Story>
+
+<!-- 2. N=3 multi-build — wider table, three columns. -->
+<Story name="N=3 multi-build">
+  <div style="max-width: 900px;">
+    <BuildCompare data={n3MultiBuild} />
+  </div>
+</Story>
+
+<!-- 3. Large stat deltas — order-of-magnitude differences. -->
+<Story name="Large stat deltas">
+  <div style="max-width: 700px;">
+    <BuildCompare data={largeStatDeltas} />
+  </div>
+</Story>
+
+<!-- 4. Gear missing — `—` muted variant for missing slots. -->
+<Story name="Gear missing">
+  <div style="max-width: 700px;">
+    <BuildCompare data={gearMissing} />
+  </div>
+</Story>
+
+<!-- 5. Buy-similar populated — second Panel with trade recommendations. -->
+<Story name="Buy-similar populated">
+  <div style="max-width: 700px;">
+    <BuildCompare data={buySimilarPopulated} />
+  </div>
+</Story>
+
+<!-- 6. Buy-similar empty — second Panel does not render. -->
+<Story name="Buy-similar empty">
+  <div style="max-width: 700px;">
+    <BuildCompare data={buySimilarEmpty} />
+  </div>
+</Story>
+
+<!-- 7. Errored build — one build failed to resolve, subtitle reflects it. -->
+<Story name="Errored build">
+  <div style="max-width: 700px;">
+    <BuildCompare data={erroredBuild} />
   </div>
 </Story>
