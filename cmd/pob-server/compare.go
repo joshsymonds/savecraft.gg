@@ -28,13 +28,26 @@ type CompareResponse struct {
 	Diffs  *compareDiffs       `json:"diffs,omitempty"`
 }
 
-// compareDiffs groups all diff dimensions (summary + tree today; gear,
+// compareDiffs groups all diff dimensions (summary + tree + gear today;
 // skills, buy-similar in follow-up tasks). The shape is "diff-typed,
 // per-key" so consumers iterate uniformly: every dimension's entries
 // carry perBuild arrays or set-op results, never a 2-build-only field.
 type compareDiffs struct {
 	Summary map[string]compareStatDiff `json:"summary,omitempty"`
 	Tree    *compareTreeDiff           `json:"tree,omitempty"`
+	Gear    map[string]compareSlotDiff `json:"gear,omitempty"`
+}
+
+// compareSlotDiff is one entry in the gear diff — one equipment slot's
+// view across the SUCCESSFUL builds.
+//
+// PerBuild values are pointers so JSON null marshaling distinguishes
+// "build has nothing equipped in this slot" (nil pointer) from "build
+// equipped Atziri's Foible." Same is true iff every entry is non-nil
+// AND every name matches.
+type compareSlotDiff struct {
+	PerBuild []*string `json:"perBuild"`
+	Same     bool      `json:"same"`
 }
 
 // compareTreeDiff carries the set-op result of the regular-tree
@@ -81,11 +94,10 @@ type compareStatDiff struct {
 // carries label + error and leaves the other fields nil; the response is
 // still 200 if at least one build succeeded.
 //
-// allocatedNodes is hidden from the wire (lowercase, no JSON tag) and
-// holds the regular-tree allocated node ID list extracted from
-// data.sections.tree.allocated_node_ids. Used only for diff computation;
-// consumers see the per-build node list under diffs.tree, not on each
-// build entry directly.
+// allocatedNodes and itemsBySlot are hidden from the wire (lowercase,
+// no JSON tag) and feed diff computation. Consumers see set-op /
+// per-slot results under diffs.tree and diffs.gear instead of raw
+// per-build payloads.
 type compareBuildEntry struct {
 	ID        string         `json:"id,omitempty"`
 	Label     string         `json:"label"`
@@ -94,6 +106,7 @@ type compareBuildEntry struct {
 	Error     string         `json:"error,omitempty"`
 
 	allocatedNodes []int
+	itemsBySlot    map[string]string
 }
 
 // buildIDPattern matches the 32-char lowercase hex shape that
@@ -267,8 +280,9 @@ func (srv *Server) tryCachedSummary(buildID string) (json.RawMessage, bool) {
 
 // hydrateEntryFromData unpacks the wrapper.lua-shaped data into the
 // per-build entry's public + diff-input fields. character + summary go
-// on the wire; allocatedNodes feeds the tree diff but is not exposed
-// per-build (consumers see set-op results under diffs.tree instead).
+// on the wire; allocatedNodes feeds the tree diff and itemsBySlot feeds
+// the gear diff — neither is exposed per-build, consumers see results
+// under diffs.tree and diffs.gear instead.
 func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 	var parsed struct {
 		Character map[string]any `json:"character"`
@@ -277,6 +291,11 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 			Tree struct {
 				AllocatedNodeIDs []int `json:"allocated_node_ids"`
 			} `json:"tree"`
+			// Items is slot → object; we only need the name for the v1
+			// diff (matches the shape from wrapper.lua serializeItems).
+			Items map[string]struct {
+				Name string `json:"name"`
+			} `json:"items"`
 		} `json:"sections"`
 	}
 	if json.Unmarshal(data, &parsed) != nil {
@@ -285,6 +304,15 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 	entry.Character = parsed.Character
 	entry.Summary = parsed.Summary
 	entry.allocatedNodes = parsed.Sections.Tree.AllocatedNodeIDs
+
+	if len(parsed.Sections.Items) > 0 {
+		entry.itemsBySlot = make(map[string]string, len(parsed.Sections.Items))
+		for slot, item := range parsed.Sections.Items {
+			if item.Name != "" {
+				entry.itemsBySlot[slot] = item.Name
+			}
+		}
+	}
 }
 
 // computeCompareDiffs walks the SUCCESSFUL build entries and assembles
@@ -308,10 +336,11 @@ func computeCompareDiffs(entries []compareBuildEntry) *compareDiffs {
 
 	summary := computeSummaryDiff(successful)
 	tree := computeTreeDiff(successful)
-	if len(summary) == 0 && tree == nil {
+	gear := computeGearDiff(successful)
+	if len(summary) == 0 && tree == nil && len(gear) == 0 {
 		return nil
 	}
-	return &compareDiffs{Summary: summary, Tree: tree}
+	return &compareDiffs{Summary: summary, Tree: tree, Gear: gear}
 }
 
 // computeTreeDiff produces the per-build allocated-node set ops. Returns
@@ -450,6 +479,56 @@ func statDiff(perBuild []float64) compareStatDiff {
 		rng = (maxVal - minVal) / maxVal
 	}
 	return compareStatDiff{PerBuild: perBuild, Leader: leader, Range: rng}
+}
+
+// computeGearDiff produces the per-slot equipment diff. Iterates the
+// union of slot names across every successful build, then for each slot
+// builds a perBuild array (item name pointer or nil-when-empty) and a
+// `same` flag that's true iff every entry is non-nil and every name
+// matches.
+//
+// Returns nil when fewer than 2 successful builds exist or none of them
+// have any items (unusual but defensive — empty diff is misleading).
+func computeGearDiff(successful []compareBuildEntry) map[string]compareSlotDiff {
+	if len(successful) < 2 {
+		return nil
+	}
+
+	slotSet := make(map[string]bool)
+	for _, entry := range successful {
+		for slot := range entry.itemsBySlot {
+			slotSet[slot] = true
+		}
+	}
+	if len(slotSet) == 0 {
+		return nil
+	}
+
+	out := make(map[string]compareSlotDiff, len(slotSet))
+	for slot := range slotSet {
+		perBuild := make([]*string, len(successful))
+		first := ""
+		firstSet := false
+		same := true
+		for i, entry := range successful {
+			name, ok := entry.itemsBySlot[slot]
+			if !ok || name == "" {
+				perBuild[i] = nil
+				same = false // any null breaks identity
+				continue
+			}
+			nameCopy := name
+			perBuild[i] = &nameCopy
+			if !firstSet {
+				first = name
+				firstSet = true
+			} else if name != first {
+				same = false
+			}
+		}
+		out[slot] = compareSlotDiff{PerBuild: perBuild, Same: same}
+	}
+	return out
 }
 
 // labelFor returns labels[i] when present, else an auto-generated label
