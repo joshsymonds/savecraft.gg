@@ -2639,6 +2639,36 @@ describe("buildPlannerModule", () => {
     }
   });
 
+  it("compare response carries module: build_compare so the iframe routes to build-compare.svelte", async () => {
+    // The view-dispatch wrapper (`unwrapSingleQueryResult` in worker/src/mcp/handler.ts)
+    // sets `module: <toolId>` first, then spreads `...data`. For the compare branch
+    // the iframe must mount build-compare.svelte (not build-planner.svelte), so the
+    // module's compare response data must override the wrapper's default by carrying
+    // module: "build_compare".
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((_input: RequestInfo | URL, _init?: RequestInit) => {
+      return Promise.resolve(
+        Response.json({ builds: [{ id: "a", label: "a", character: {}, summary: {} }] }),
+      );
+    }) as typeof globalThis.fetch;
+
+    try {
+      const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+      const result = await buildPlannerModule.execute(
+        {
+          build: "https://pobb.in/primary",
+          compare_with: ["https://pobb.in/other"],
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      expect(result.type).toBe("structured");
+      if (result.type !== "structured") return;
+      expect((result.data as Record<string, unknown>).module).toBe("build_compare");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("forwards optional buy_similar and league to /compare", async () => {
     let capturedBody: Record<string, unknown> | undefined;
     const originalFetch = globalThis.fetch;

@@ -350,6 +350,12 @@ export const buildPlannerModule: NativeReferenceModule = {
         };
       }
       const compareResult = (await response.json()) as Record<string, unknown>;
+      // Override the wrapper's default module field so the MCP host
+      // mounts build-compare.svelte (not build-planner.svelte). The
+      // wrapper at worker/src/mcp/handler.ts spreads the module's
+      // returned data after `module: moduleId`, so this key shadows
+      // the default.
+      compareResult.module = "build_compare";
       return { type: "structured", data: compareResult };
     }
 
