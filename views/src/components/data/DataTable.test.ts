@@ -140,6 +140,27 @@ describe("DataTable", () => {
     expect(chances[0].textContent).toBe("1:710");
   });
 
+  it("renders cells with href as external links", () => {
+    const linkColumns = [
+      { key: "name", label: "Name" },
+      { key: "trade", label: "Trade" },
+    ];
+    const linkRows = [
+      { name: "Atziri's Foible", trade: { value: "Search →", href: "https://www.pathofexile.com/trade/search/Standard" } },
+    ];
+    const { container } = render(DataTable, { props: { columns: linkColumns, rows: linkRows } });
+    const link = container.querySelector("tbody td:nth-child(2) a") as HTMLAnchorElement | null;
+    expect(link).toBeTruthy();
+    expect(link?.getAttribute("href")).toBe("https://www.pathofexile.com/trade/search/Standard");
+    // External-link safety: target=_blank requires rel=noopener noreferrer
+    // to prevent the linked page from accessing window.opener.
+    expect(link?.getAttribute("target")).toBe("_blank");
+    const rel = link?.getAttribute("rel") ?? "";
+    expect(rel).toContain("noopener");
+    expect(rel).toContain("noreferrer");
+    expect(link?.textContent).toBe("Search →");
+  });
+
   it("applies column format function", () => {
     const fmtColumns = [
       { key: "name", label: "Name" },

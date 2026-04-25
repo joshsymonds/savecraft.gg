@@ -238,10 +238,17 @@
   }
 
   // ─── Buy-similar table ──────────────────────────────────────────────
+  // Rows are recommendations: "Build B has Item X; Build A doesn't —
+  // here's a trade search to find it." From / For columns disambiguate
+  // ordered pairs (the same item can recommend in both directions).
+  // Trade column is a clickable link; the URL is generated server-side
+  // and validated against the live PoE trade API.
   let buySimilarColumns = [
-    { key: "slot", label: "Slot", align: "left" as const, width: "20%" },
+    { key: "slot", label: "Slot", align: "left" as const, width: "16%" },
     { key: "item", label: "Item", align: "left" as const },
-    { key: "from", label: "From", align: "left" as const, width: "20%" },
+    { key: "from", label: "From", align: "left" as const, width: "18%" },
+    { key: "to", label: "For", align: "left" as const, width: "18%" },
+    { key: "trade", label: "Trade", align: "right" as const, width: "12%" },
   ];
 
   let buySimilarRows = $derived.by(() => {
@@ -250,6 +257,8 @@
       slot: entry.slot,
       item: entry.itemName,
       from: labelForBuildId(entry.fromBuildId),
+      to: labelForBuildId(entry.toBuildId),
+      trade: { value: "Search →", href: entry.tradeUrl },
     }));
   });
 

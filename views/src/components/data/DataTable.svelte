@@ -7,8 +7,12 @@
   type Variant = "positive" | "negative" | "highlight" | "info" | "warning" | "muted"
     | "legendary" | "epic" | "rare" | "uncommon" | "common" | "poor";
 
-  /** A cell value can be a plain string/number or a rich object with variant coloring. */
-  type CellValue = string | number | { value: string | number; variant?: Variant; sortValue?: number };
+  /** A cell value can be a plain string/number or a rich object with optional
+      variant coloring, sort key, or href (renders as a target=_blank link). */
+  type CellValue =
+    | string
+    | number
+    | { value: string | number; variant?: Variant; sortValue?: number; href?: string };
 
   interface Column {
     key: string;
@@ -51,6 +55,12 @@
   /** Extract the variant from a CellValue, if any. */
   function cellVariant(cell: CellValue): Variant | undefined {
     if (typeof cell === "object" && cell !== null && "variant" in cell) return cell.variant;
+    return undefined;
+  }
+
+  /** Extract the href from a CellValue, if any. */
+  function cellHref(cell: CellValue): string | undefined {
+    if (typeof cell === "object" && cell !== null && "href" in cell) return cell.href;
     return undefined;
   }
 
@@ -107,8 +117,15 @@
           {#each columns as col}
             {@const cell = row[col.key] as CellValue}
             {@const variant = cellVariant(cell)}
+            {@const href = cellHref(cell)}
             <td style:text-align={col.align ?? "left"} class:has-variant={!!variant} class={variant ?? ""}>
-              {col.format ? col.format(cell) : rawValue(cell)}
+              {#if href}
+                <a class="cell-link" href={href} target="_blank" rel="noopener noreferrer">
+                  {col.format ? col.format(cell) : rawValue(cell)}
+                </a>
+              {:else}
+                {col.format ? col.format(cell) : rawValue(cell)}
+              {/if}
             </td>
           {/each}
         </tr>
@@ -194,5 +211,20 @@
 
   td.has-variant {
     font-weight: 700;
+  }
+
+  /* Anchor cells: gold underline-on-hover, matches the design system's
+     interactive-link treatment. The variant color (if any) on the
+     parent <td> still applies via inheritance. */
+  .cell-link {
+    color: var(--color-gold);
+    text-decoration: none;
+    font-weight: 600;
+    transition: color 0.15s, text-decoration-color 0.15s;
+  }
+
+  .cell-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 2px;
   }
 </style>
