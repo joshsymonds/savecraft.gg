@@ -93,11 +93,12 @@ func main() {
 	}
 
 	srv := &Server{
-		pool:   pool,
-		cache:  cache,
-		apiKey: cfg.apiKey,
-		client: newResolveHTTPClient(),
-		log:    logger,
+		pool:     pool,
+		cache:    cache,
+		apiKey:   cfg.apiKey,
+		client:   newResolveHTTPClient(),
+		modIndex: NewModSourceIndex(),
+		log:      logger,
 	}
 
 	mux := http.NewServeMux()

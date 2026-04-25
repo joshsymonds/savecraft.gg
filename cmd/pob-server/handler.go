@@ -17,11 +17,12 @@ const pobRespTypeError = "error"
 
 // Server is the PoB HTTP server.
 type Server struct {
-	pool   *Pool
-	cache  *BuildCache
-	apiKey string
-	client *http.Client // for outbound requests (URL resolution); nil uses DefaultClient
-	log    *slog.Logger
+	pool     *Pool
+	cache    *BuildCache
+	apiKey   string
+	client   *http.Client // for outbound requests (URL resolution); nil uses DefaultClient
+	modIndex *ModSourceIndex
+	log      *slog.Logger
 
 	// gemNames caches PoB's canonical gem names, fetched from
 	// wrapper.lua's list_gems accessor. Used to compute fuzzy
@@ -782,6 +783,15 @@ func (srv *Server) runNearbyPerturb(
 		return nil, true
 	}
 
+	// Mod-source index pre-filter: drop candidates that provably can't
+	// affect the LEADING metric. Filtered candidates contribute nothing to
+	// the result (delta = 0 by construction) and skip both perturbation
+	// and the cache write.
+	passing = srv.filterByModIndex(passing, statKeys)
+	if len(passing) == 0 {
+		return nil, true
+	}
+
 	// Cache pre-check: split candidates into fully-cached vs needs-perturb.
 	cachedHits, perturb := srv.splitNearbyByCacheLocked(buildID, passing, statKeys)
 
@@ -827,6 +837,25 @@ func (srv *Server) runNearbyPerturb(
 	// computation, so any cache row that disagrees is stale).
 	merged := mergeDeltaMaps(cachedHits, freshDeltas)
 	return merged, true
+}
+
+// filterByModIndex drops candidates whose stat strings provably cannot
+// affect the leading metric (statKeys[0]). When the index isn't wired up
+// or the leading metric is derived/unknown, all candidates pass through.
+// The leading metric is the rank metric; downstream stats are reported as
+// context but don't drive ranking, so over-filtering on the lead is OK.
+func (srv *Server) filterByModIndex(passing []*nearbyCandidate, statKeys []string) []*nearbyCandidate {
+	if srv.modIndex == nil || len(statKeys) == 0 {
+		return passing
+	}
+	leading := statKeys[0]
+	out := make([]*nearbyCandidate, 0, len(passing))
+	for _, candidate := range passing {
+		if srv.modIndex.NodeAffectsMetric(candidate.Stats, candidate.Type, leading) {
+			out = append(out, candidate)
+		}
+	}
+	return out
 }
 
 // splitNearbyByCacheLocked queries the delta cache for every
