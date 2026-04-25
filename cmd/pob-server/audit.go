@@ -247,7 +247,7 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
-	proc, ok := srv.acquirePoolProcess(writer)
+	proc, ok := srv.acquirePoolProcess(writer, req.BuildID)
 	if !ok {
 		return
 	}
@@ -513,10 +513,11 @@ func (srv *Server) fetchAuditBuildXML(writer http.ResponseWriter, buildID string
 	return "", false
 }
 
-// acquirePoolProcess pulls a PoB process from the pool, writing the
-// appropriate HTTP error and returning ok=false on failure.
-func (srv *Server) acquirePoolProcess(writer http.ResponseWriter) (*Process, bool) {
-	proc, err := srv.pool.Acquire()
+// acquirePoolProcess pulls a PoB process from the pool, preferring the process
+// pinned to buildID when one exists. Writes the appropriate HTTP error and
+// returns ok=false on failure. Pass buildID="" for build-agnostic acquires.
+func (srv *Server) acquirePoolProcess(writer http.ResponseWriter, buildID string) (*Process, bool) {
+	proc, err := srv.pool.AcquireForBuild(buildID)
 	if err == nil {
 		return proc, true
 	}

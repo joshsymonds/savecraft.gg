@@ -195,6 +195,11 @@ func (srv *Server) handleResolve(
 }
 
 // calcAndRespond acquires a PoB process, runs calc, persists, and writes the JSON response.
+//
+// /resolve has no buildID at acquire time (the content-hash is computed after
+// the calc completes), so this uses generic Acquire and pins the process to
+// the resulting buildID before release. Subsequent calls on the same buildID
+// hit affinity.
 func (srv *Server) calcAndRespond(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -260,6 +265,10 @@ func (srv *Server) calcAndRespond(
 			srv.log.Warn("store put failed", "id", buildID, "err", err)
 		}
 	}
+
+	// Pin the process to this buildID so follow-up calls (modify, nearby,
+	// audit, compare) hit affinity instead of paying a cold load.
+	srv.pool.Pin(proc, buildID)
 
 	// Filter sections based on query parameter
 	responseData := pobResp.Data
@@ -371,6 +380,12 @@ func extractSummary(data []byte) json.RawMessage {
 }
 
 // modifyAndRespond sends a modify request to PoB, persists the result, and writes the response.
+//
+// /modify acquires by parentID (the input buildID) so the affinity-pinned
+// process handles the request directly. After modify produces a new
+// content-hash buildID, SwapAffinity transfers the pin from parentID to the
+// new ID — old buildID's pin is dropped, new buildID inherits the same
+// process.
 func (srv *Server) modifyAndRespond(
 	writer http.ResponseWriter,
 	request *http.Request,
@@ -378,7 +393,7 @@ func (srv *Server) modifyAndRespond(
 	operations []json.RawMessage,
 	preSummary json.RawMessage,
 ) {
-	proc, err := srv.pool.Acquire()
+	proc, err := srv.pool.AcquireForBuild(parentID)
 	if err != nil {
 		if errors.Is(err, ErrPoolExhausted) {
 			jsonError(
@@ -440,6 +455,17 @@ func (srv *Server) modifyAndRespond(
 			newID, modifiedXML, string(pobResp.Data), "", parentID,
 		); err != nil {
 			srv.log.Warn("store put failed", "id", newID, "err", err)
+		}
+	}
+
+	// Transfer the affinity pin from parentID → newID so subsequent calls on
+	// the modified build hit the same process. If parentID had no pin (cold
+	// /modify), Pin establishes one on newID instead.
+	if newID != parentID {
+		if srv.pool.LookupAffinity(parentID) == proc {
+			srv.pool.SwapAffinity(parentID, newID)
+		} else {
+			srv.pool.Pin(proc, newID)
 		}
 	}
 
@@ -629,7 +655,7 @@ func (srv *Server) handleNearby(
 		return
 	}
 
-	proc, err := srv.pool.Acquire()
+	proc, err := srv.pool.AcquireForBuild(req.BuildID)
 	if err != nil {
 		if errors.Is(err, ErrPoolExhausted) {
 			jsonError(writer, "all PoB processes are busy, try again later", http.StatusServiceUnavailable)

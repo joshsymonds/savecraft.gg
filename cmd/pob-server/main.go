@@ -19,16 +19,18 @@ import (
 )
 
 type config struct {
-	port        int
-	pobDir      string
-	apiKey      string
-	poolSize    int
-	idleTimeout time.Duration
-	cacheTTL    time.Duration
-	cacheMax    int
-	dbPath      string
-	luajitBin   string
-	wrapperPath string
+	port            int
+	pobDir          string
+	apiKey          string
+	poolSize        int
+	idleTimeout     time.Duration
+	cacheTTL        time.Duration
+	cacheMax        int
+	dbPath          string
+	luajitBin       string
+	wrapperPath     string
+	affinityTTL     time.Duration
+	affinityMaxPins int
 }
 
 func parseConfig() config {
@@ -49,6 +51,10 @@ func parseConfig() config {
 	)
 	flag.StringVar(&cfg.luajitBin, "luajit", "luajit", "Path to luajit binary")
 	flag.StringVar(&cfg.wrapperPath, "wrapper", "", "Path to wrapper.lua (default: <pob-dir>/../wrapper.lua)")
+	flag.DurationVar(&cfg.affinityTTL, "affinity-ttl", DefaultAffinityTTL,
+		"Idle TTL for build_id pins; sliding window resets on each acquire")
+	flag.IntVar(&cfg.affinityMaxPins, "affinity-max-pins", 0,
+		"Max simultaneous pinned builds (0 = pool-size); LRU eviction beyond this")
 	flag.Parse()
 
 	if cfg.pobDir == "" {
@@ -70,6 +76,10 @@ func main() {
 	logger := slog.Default()
 
 	pool := NewPool(cfg.poolSize, cfg.idleTimeout, cfg.luajitBin, cfg.wrapperPath, cfg.pobDir, logger)
+	pool.affinityTTL = cfg.affinityTTL
+	if cfg.affinityMaxPins > 0 {
+		pool.affinityMaxPins = cfg.affinityMaxPins
+	}
 	cache := NewBuildCache(cfg.cacheTTL, cfg.cacheMax)
 
 	if cfg.dbPath != "" {
@@ -100,7 +110,13 @@ func main() {
 	mux.HandleFunc("/health", srv.handleHealth)
 
 	addr := fmt.Sprintf(":%d", cfg.port)
-	logger.Info("pob-server starting", "addr", addr, "poolMax", cfg.poolSize, "idleTimeout", cfg.idleTimeout)
+	logger.Info("pob-server starting",
+		"addr", addr,
+		"poolMax", cfg.poolSize,
+		"idleTimeout", cfg.idleTimeout,
+		"affinityTTL", pool.affinityTTL,
+		"affinityMaxPins", pool.affinityMaxPins,
+	)
 
 	httpServer := &http.Server{
 		Addr:         addr,
