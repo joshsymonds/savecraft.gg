@@ -23,7 +23,7 @@ type compareDiffsGearOnWire struct {
 
 // compareSlotDiffOnWire mirrors the wire shape: perBuild is a list of
 // pointers so JSON null encodes as nil — distinguishing "slot empty in
-// this build" from "build absent."
+// this build" from "build absent".
 type compareSlotDiffOnWire struct {
 	PerBuild []*string `json:"perBuild"`
 	Same     bool      `json:"same"`
@@ -53,9 +53,9 @@ func calcResponseWithItems(class string, items map[string]string) string {
 		// Each slot value is an object with at least `name`.
 		nameJSON, _ := json.Marshal(name)
 		slotJSON, _ := json.Marshal(slot)
-		b.WriteString(string(slotJSON))
+		b.Write(slotJSON)
 		b.WriteString(`:{"name":`)
-		b.WriteString(string(nameJSON))
+		b.Write(nameJSON)
 		b.WriteString(`,"baseName":"X","rarity":"UNIQUE","type":"X"}`)
 	}
 	b.WriteString("}")
@@ -74,7 +74,7 @@ func calcResponseWithItems(class string, items map[string]string) string {
 // TestCompareGearDiffIdenticalSlot: two builds with the same Helmet name
 // produce diffs.gear.Helmet.same = true.
 func TestCompareGearDiffIdenticalSlot(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
@@ -110,7 +110,7 @@ func TestCompareGearDiffIdenticalSlot(t *testing.T) {
 
 // TestCompareGearDiffDifferentSlot: same slot, different items → same=false.
 func TestCompareGearDiffDifferentSlot(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
@@ -142,7 +142,7 @@ func TestCompareGearDiffDifferentSlot(t *testing.T) {
 // TestCompareGearDiffSlotEmptyInOneBuild: build A has Helmet, build B
 // doesn't → perBuild = ["Helmet name", null], same: false.
 func TestCompareGearDiffSlotEmptyInOneBuild(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
@@ -254,7 +254,7 @@ func TestCompareGearDiffOmittedWhenSingleSuccess(t *testing.T) {
 // the other build has shows perBuild=[name, null], same: false.
 func TestCompareGearDiffEmptyItemsMap(t *testing.T) {
 	// Build B has no items section at all (use minimalCalcResponseClass).
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),

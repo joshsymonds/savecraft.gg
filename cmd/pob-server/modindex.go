@@ -89,7 +89,7 @@ func (m *ModSourceIndex) NodeAffectsMetric(stats []string, nodeType string, metr
 	if len(stats) == 0 {
 		return true
 	}
-	if nodeType == "Keystone" {
+	if nodeType == nodeTypeKeystone {
 		return true
 	}
 	m.mu.RLock()

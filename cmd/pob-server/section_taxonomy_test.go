@@ -23,7 +23,7 @@ const rawWithOldSections = `{
 		"limits": {"ActiveTotemLimit":1},
 		"minion_offense": {"MinionDamage":12345},
 		"minion_defense": {"MinionLife":3000},
-		"socket_groups": [{"label":"Main","gems":[]}],
+		"socketGroups": [{"label":"Main","gems":[]}],
 		"items": {"Helmet":{"name":"Atziri's Foible"}},
 		"keystones": ["Acrobatics"],
 		"tree": {"version":"3.28","allocated_nodes":95},
@@ -99,7 +99,10 @@ func TestSectionDefenseAggregatesOldSections(t *testing.T) {
 	if err := json.Unmarshal(sections["defense"], &defense); err != nil {
 		t.Fatal(err)
 	}
-	wantKeys := []string{"Armour", "Evasion", "FireResist", "ColdResist", "ChaosResist", "PhysicalMaximumHitTaken", "LifeRegenRecovery", "MinionLife"}
+	wantKeys := []string{
+		"Armour", "Evasion", "FireResist", "ColdResist", "ChaosResist",
+		"PhysicalMaximumHitTaken", "LifeRegenRecovery", "MinionLife",
+	}
 	for _, key := range wantKeys {
 		if _, ok := defense[key]; !ok {
 			t.Errorf("defense missing %q; got keys: %v", key, mapKeys(defense))
@@ -108,7 +111,7 @@ func TestSectionDefenseAggregatesOldSections(t *testing.T) {
 }
 
 // TestSectionGearGroupsItemsAndSocketGroups: `gear` exposes both old
-// `items` (object) and `socket_groups` (array) under sub-keys.
+// `items` (object) and `socketGroups` (array) under sub-keys.
 func TestSectionGearGroupsItemsAndSocketGroups(t *testing.T) {
 	parsed := mustFilter(t, []string{"gear"})
 	sections := sectionsObj(t, parsed)
@@ -119,8 +122,8 @@ func TestSectionGearGroupsItemsAndSocketGroups(t *testing.T) {
 	if _, ok := gear["items"]; !ok {
 		t.Errorf("gear.items missing")
 	}
-	if _, ok := gear["socket_groups"]; !ok {
-		t.Errorf("gear.socket_groups missing")
+	if _, ok := gear["socketGroups"]; !ok {
+		t.Errorf("gear.socketGroups missing")
 	}
 }
 
@@ -233,7 +236,7 @@ func TestSectionIndexLists6NewNames(t *testing.T) {
 	}
 }
 
-// helpers
+// helpers.
 func keys(m map[string]json.RawMessage) []string {
 	out := make([]string, 0, len(m))
 	for k := range m {

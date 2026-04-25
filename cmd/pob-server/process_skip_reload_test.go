@@ -8,7 +8,7 @@ import (
 
 // TestProcessLastLoadedBuildID: Get/Set/Reset round-trip.
 func TestProcessLastLoadedBuildID(t *testing.T) {
-	pool := newAffinityTestPool(2, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(2, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	proc, err := pool.Acquire()
@@ -40,7 +40,7 @@ func TestProcessLastLoadedBuildID(t *testing.T) {
 // TestProcessLastLoadedBuildIDRace: concurrent Get/Set is race-clean.
 // Run with -race; the struct must use a mutex (or atomic) to protect the field.
 func TestProcessLastLoadedBuildIDRace(t *testing.T) {
-	pool := newAffinityTestPool(2, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(2, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	proc, err := pool.Acquire()
@@ -75,7 +75,7 @@ func TestProcessLastLoadedBuildIDRace(t *testing.T) {
 // loadedBuildId="<previous>" and Lua would skip-reload a build that doesn't
 // match the XML.
 func TestPoolStealLRUResetsLoadedBuildID(t *testing.T) {
-	pool := newAffinityTestPool(2, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(2, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	pA, _ := pool.AcquireForBuild("build-A")

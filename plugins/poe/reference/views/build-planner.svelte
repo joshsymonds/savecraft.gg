@@ -148,7 +148,7 @@
   );
 
   // Structured sections
-  let socketGroups = $derived(sections.socket_groups as Array<{
+  let socketGroups = $derived(sections.socketGroups as Array<{
     label: string; enabled: boolean; slot: string;
     gems: Array<{ name?: string; nameSpec?: string; level?: number; quality?: number; enabled?: boolean; support?: boolean }>;
     isMainGroup: boolean;

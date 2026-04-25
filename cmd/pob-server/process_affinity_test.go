@@ -22,8 +22,11 @@ import (
 // process death (cat exits immediately on missing-file error). `cat /dev/stdin`
 // stays alive while stdin is open and exits within milliseconds when pool.Kill
 // closes stdin — no 30-second cleanup leaks if a test fails to Shutdown.
-func newAffinityTestPool(poolMax int, idleTimeout, affinityTTL time.Duration, affinityMaxPins int) *Pool {
-	pool := NewPool(poolMax, idleTimeout, "cat", "/dev/stdin", ".", slog.New(slog.NewTextHandler(io.Discard, nil)))
+//
+// idleTimeout is fixed at 5 minutes — all affinity tests use the same value
+// because the pool's affinity logic is the focus, not idle eviction.
+func newAffinityTestPool(poolMax int, affinityTTL time.Duration, affinityMaxPins int) *Pool {
+	pool := NewPool(poolMax, 5*time.Minute, "cat", "/dev/stdin", ".", slog.New(slog.NewTextHandler(io.Discard, nil)))
 	pool.affinityTTL = affinityTTL
 	pool.affinityMaxPins = affinityMaxPins
 	return pool
@@ -31,7 +34,7 @@ func newAffinityTestPool(poolMax int, idleTimeout, affinityTTL time.Duration, af
 
 // TestAffinityHit: AcquireForBuild on a pinned-idle process returns that exact process.
 func TestAffinityHit(t *testing.T) {
-	pool := newAffinityTestPool(2, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(2, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	proc, err := pool.AcquireForBuild("build-A")
@@ -56,7 +59,7 @@ func TestAffinityHit(t *testing.T) {
 // single fixed-window timer would allow.
 func TestAffinitySlidingWindow(t *testing.T) {
 	ttl := 100 * time.Millisecond
-	pool := newAffinityTestPool(2, 5*time.Minute, ttl, 2)
+	pool := newAffinityTestPool(2, ttl, 2)
 	defer pool.Shutdown()
 
 	proc, err := pool.AcquireForBuild("build-A")
@@ -84,7 +87,7 @@ func TestAffinitySlidingWindow(t *testing.T) {
 // TestAffinityTTLExpiry: process unpinned after idle TTL elapses with no activity.
 func TestAffinityTTLExpiry(t *testing.T) {
 	ttl := 50 * time.Millisecond
-	pool := newAffinityTestPool(2, 5*time.Minute, ttl, 2)
+	pool := newAffinityTestPool(2, ttl, 2)
 	defer pool.Shutdown()
 
 	proc, err := pool.AcquireForBuild("build-A")
@@ -107,7 +110,7 @@ func TestAffinityTTLExpiry(t *testing.T) {
 // TestAffinityLRUEviction: pinning a (pool_max + 1)th distinct build evicts the
 // least-recently-used pin, repurposing that process for the new build.
 func TestAffinityLRUEviction(t *testing.T) {
-	pool := newAffinityTestPool(3, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(3, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	// Pin two builds, with build-A used first (oldest)
@@ -139,7 +142,7 @@ func TestAffinityLRUEviction(t *testing.T) {
 
 // TestAffinitySwap: SwapAffinity transfers the pin from old → new on the same process.
 func TestAffinitySwap(t *testing.T) {
-	pool := newAffinityTestPool(2, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(2, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	proc, _ := pool.AcquireForBuild("build-A")
@@ -165,7 +168,7 @@ func TestAffinitySwap(t *testing.T) {
 
 // TestAffinitySwapNoOp: SwapAffinity on an oldID without a pin is a silent no-op.
 func TestAffinitySwapNoOp(t *testing.T) {
-	pool := newAffinityTestPool(2, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(2, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	// No panic, no error — just nothing happens
@@ -180,7 +183,7 @@ func TestAffinitySwapNoOp(t *testing.T) {
 // (different) pin evicts the existing newID pin first; the more recent
 // operation wins.
 func TestAffinitySwapEvictsExisting(t *testing.T) {
-	pool := newAffinityTestPool(3, 5*time.Minute, 10*time.Minute, 3)
+	pool := newAffinityTestPool(3, 10*time.Minute, 3)
 	defer pool.Shutdown()
 
 	pA, _ := pool.AcquireForBuild("build-A")
@@ -212,13 +215,13 @@ func TestAffinitySwapEvictsExisting(t *testing.T) {
 // Pool size > N so racing acquires don't hit ErrPoolExhausted; the test
 // exercises Pin's deduplication, not capacity.
 func TestAffinityConcurrentPinRace(t *testing.T) {
-	pool := newAffinityTestPool(8, 5*time.Minute, 10*time.Minute, 8)
+	pool := newAffinityTestPool(8, 10*time.Minute, 8)
 	defer pool.Shutdown()
 
-	const N = 5
+	const concurrentPins = 5
 	var wg sync.WaitGroup
-	procs := make([]*Process, N)
-	for i := range N {
+	procs := make([]*Process, concurrentPins)
+	for i := range concurrentPins {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
@@ -260,7 +263,7 @@ func TestAffinityConcurrentPinRace(t *testing.T) {
 // acquire. The first caller gets the pinned process; the second gets a generic
 // process (different).
 func TestAffinityConcurrentAcquireExistingPin(t *testing.T) {
-	pool := newAffinityTestPool(2, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(2, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	proc, _ := pool.AcquireForBuild("build-A")
@@ -293,7 +296,7 @@ func TestAffinityConcurrentAcquireExistingPin(t *testing.T) {
 // TestAffinityGenericAcquireUnchanged: Acquire() (no build_id) preserves
 // existing semantics — returns any free unpinned process.
 func TestAffinityGenericAcquireUnchanged(t *testing.T) {
-	pool := newAffinityTestPool(2, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(2, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	pinned, _ := pool.AcquireForBuild("build-A")
@@ -316,7 +319,7 @@ func TestAffinityGenericAcquireUnchanged(t *testing.T) {
 // pool is full and ALL processes are pinned, the LRU pin is evicted and its
 // process repurposed.
 func TestAffinityPoolFullStealsLRU(t *testing.T) {
-	pool := newAffinityTestPool(2, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(2, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	pA, _ := pool.AcquireForBuild("build-A")
@@ -350,7 +353,7 @@ func TestAffinityPoolFullStealsLRU(t *testing.T) {
 // TestAffinityProcessCrash: if a pinned process dies, the next
 // AcquireForBuild reloads cleanly without observing the dead process.
 func TestAffinityProcessCrash(t *testing.T) {
-	pool := newAffinityTestPool(2, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(2, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	proc, _ := pool.AcquireForBuild("build-A")
@@ -377,7 +380,7 @@ func TestAffinityProcessCrash(t *testing.T) {
 // TestAffinityShutdownClean: Shutdown clears all pins and stops timers; no
 // goroutine leaks and Stats reports zero busy/idle.
 func TestAffinityShutdownClean(t *testing.T) {
-	pool := newAffinityTestPool(3, 5*time.Minute, 10*time.Minute, 3)
+	pool := newAffinityTestPool(3, 10*time.Minute, 3)
 
 	for _, id := range []string{"a", "b", "c"} {
 		p, err := pool.AcquireForBuild(id)
@@ -403,7 +406,7 @@ func TestAffinityShutdownClean(t *testing.T) {
 // last-used timestamp. Verified via observable ordering in LRU eviction:
 // access pattern A→B→A then pin C should evict B (A was touched last).
 func TestAffinityTimestampUpdated(t *testing.T) {
-	pool := newAffinityTestPool(3, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(3, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	pA, _ := pool.AcquireForBuild("build-A")
@@ -440,7 +443,7 @@ func TestAffinityTimestampUpdated(t *testing.T) {
 // TestAffinityAcquireForBuildEmptyID: AcquireForBuild("") behaves like Acquire()
 // — never pins, never matches.
 func TestAffinityAcquireForBuildEmptyID(t *testing.T) {
-	pool := newAffinityTestPool(2, 5*time.Minute, 10*time.Minute, 2)
+	pool := newAffinityTestPool(2, 10*time.Minute, 2)
 	defer pool.Shutdown()
 
 	proc, err := pool.AcquireForBuild("")

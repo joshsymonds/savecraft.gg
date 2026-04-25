@@ -338,7 +338,7 @@ export const buildPlannerModule: NativeReferenceModule = {
         builds: [primary as string, ...compareWith],
       };
       if (buySimilar) {
-        compareBody.buy_similar = true;
+        compareBody.buySimilar = true;
       }
       if (league) {
         compareBody.league = league;

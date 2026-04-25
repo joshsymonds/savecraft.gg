@@ -20,7 +20,7 @@ import (
 type CompareRequest struct {
 	Builds     []string `json:"builds"`
 	Labels     []string `json:"labels,omitempty"`
-	BuySimilar bool     `json:"buy_similar,omitempty"`
+	BuySimilar bool     `json:"buySimilar,omitempty"`
 	League     string   `json:"league,omitempty"`
 }
 
@@ -375,7 +375,7 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 		Summary   map[string]any `json:"summary"`
 		Sections  struct {
 			Tree struct {
-				AllocatedNodeIDs []int `json:"allocated_node_ids"`
+				AllocatedNodeIDs []int `json:"allocatedNodeIds"`
 			} `json:"tree"`
 			// Items is slot → object; we only need the name for the v1
 			// diff (matches the shape from wrapper.lua serializeItems).
@@ -389,7 +389,7 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 				Gems  []struct {
 					Name string `json:"name"`
 				} `json:"gems"`
-			} `json:"socket_groups"`
+			} `json:"socketGroups"`
 		} `json:"sections"`
 	}
 	if json.Unmarshal(data, &parsed) != nil {
@@ -469,8 +469,15 @@ func computeTreeDiff(successful []compareBuildEntry) *compareTreeDiff {
 			return nil
 		}
 	}
+	sets := buildAllocatedNodeSets(successful)
+	common := commonAllocatedNodes(sets)
+	allocatedOnlyIn := uniqueAllocatedNodesPerBuild(successful, sets)
+	return &compareTreeDiff{AllocatedOnlyIn: allocatedOnlyIn, Common: common}
+}
 
-	// Build a set per build for fast membership tests.
+// buildAllocatedNodeSets returns one node-id set per successful build
+// for fast intersection / unique-membership checks.
+func buildAllocatedNodeSets(successful []compareBuildEntry) []map[int]bool {
 	sets := make([]map[int]bool, len(successful))
 	for i, entry := range successful {
 		set := make(map[int]bool, len(entry.allocatedNodes))
@@ -479,57 +486,76 @@ func computeTreeDiff(successful []compareBuildEntry) *compareTreeDiff {
 		}
 		sets[i] = set
 	}
+	return sets
+}
 
-	// common = intersection across all builds. Iterate the first build's
-	// set and keep nodes present in every other.
+// commonAllocatedNodes returns the sorted intersection of every
+// per-build allocated set. Empty slice (not nil) when no node appears in
+// every build, so the JSON wire shape stays `[]`.
+func commonAllocatedNodes(sets []map[int]bool) []int {
+	if len(sets) == 0 {
+		return []int{}
+	}
 	var common []int
 	for id := range sets[0] {
-		present := true
-		for j := 1; j < len(sets); j++ {
-			if !sets[j][id] {
-				present = false
-				break
-			}
-		}
-		if present {
+		if presentInAll(id, sets[1:]) {
 			common = append(common, id)
 		}
 	}
 	sort.Ints(common)
+	if common == nil {
+		common = []int{}
+	}
+	return common
+}
 
-	// allocatedOnlyIn[buildID] = nodes in this build but NO others.
-	allocatedOnlyIn := make(map[string][]int, len(successful))
+// presentInAll reports whether id is in every set. Used by
+// commonAllocatedNodes to test the rest of the build slice against the
+// first build's set.
+func presentInAll(id int, rest []map[int]bool) bool {
+	for _, set := range rest {
+		if !set[id] {
+			return false
+		}
+	}
+	return true
+}
+
+// uniqueAllocatedNodesPerBuild returns sorted "only-in-this-build" node
+// lists keyed by build ID. Each list is `[]` (not nil) when a build has
+// no unique nodes — easier wire shape for consumers.
+func uniqueAllocatedNodesPerBuild(
+	successful []compareBuildEntry,
+	sets []map[int]bool,
+) map[string][]int {
+	out := make(map[string][]int, len(successful))
 	for i, entry := range successful {
 		var only []int
 		for _, id := range entry.allocatedNodes {
-			unique := true
-			for j, otherSet := range sets {
-				if i == j {
-					continue
-				}
-				if otherSet[id] {
-					unique = false
-					break
-				}
-			}
-			if unique {
+			if uniqueToBuild(id, i, sets) {
 				only = append(only, id)
 			}
 		}
 		sort.Ints(only)
-		// Initialize to empty slice (not nil) so the JSON wire shape is
-		// `[]` instead of `null` for build with no unique nodes — easier
-		// for consumers to iterate.
 		if only == nil {
 			only = []int{}
 		}
-		allocatedOnlyIn[entry.ID] = only
+		out[entry.ID] = only
 	}
+	return out
+}
 
-	if common == nil {
-		common = []int{}
+// uniqueToBuild reports whether id is in build idx's set but no other.
+func uniqueToBuild(id, idx int, sets []map[int]bool) bool {
+	for j, otherSet := range sets {
+		if j == idx {
+			continue
+		}
+		if otherSet[id] {
+			return false
+		}
 	}
-	return &compareTreeDiff{AllocatedOnlyIn: allocatedOnlyIn, Common: common}
+	return true
 }
 
 // computeSummaryDiff builds the per-stat diff table. Iterates the first
@@ -664,9 +690,23 @@ func computeSkillsDiff(successful []compareBuildEntry) []compareSocketGroupDiff 
 	if len(successful) < 2 {
 		return nil
 	}
+	perBuildByLabel, labelOrder := indexSocketGroupsByLabel(successful)
+	if len(labelOrder) == 0 {
+		return nil
+	}
+	out := make([]compareSocketGroupDiff, 0, len(labelOrder))
+	for _, label := range labelOrder {
+		out = append(out, buildSocketGroupDiff(label, perBuildByLabel))
+	}
+	return out
+}
 
-	// Per-build map: label → sorted gem list. Built once so we can do
-	// O(1) lookups while iterating the union.
+// indexSocketGroupsByLabel builds a per-build map (label → sorted gem
+// list) and a sorted union of all labels. Within-build label collisions
+// collapse to "last occurrence wins" — see computeSkillsDiff doc.
+func indexSocketGroupsByLabel(
+	successful []compareBuildEntry,
+) ([]map[string][]string, []string) {
 	perBuildByLabel := make([]map[string][]string, len(successful))
 	labelOrder := make([]string, 0)
 	labelSet := make(map[string]bool)
@@ -680,42 +720,39 @@ func computeSkillsDiff(successful []compareBuildEntry) []compareSocketGroupDiff 
 			}
 		}
 	}
-	if len(labelOrder) == 0 {
-		return nil
-	}
 	sort.Strings(labelOrder)
+	return perBuildByLabel, labelOrder
+}
 
-	out := make([]compareSocketGroupDiff, 0, len(labelOrder))
-	for _, label := range labelOrder {
-		perBuild := make([][]string, len(successful))
-		var first []string
-		firstSet := false
-		same := true
-		for i := range successful {
-			gems := perBuildByLabel[i][label]
-			// Empty/missing → empty slice (not nil) so JSON encodes as []
-			if gems == nil {
-				gems = []string{}
-			}
-			perBuild[i] = gems
-			if len(gems) == 0 {
-				same = false
-				continue
-			}
-			if !firstSet {
-				first = gems
-				firstSet = true
-			} else if !equalStringSlices(first, gems) {
-				same = false
-			}
+// buildSocketGroupDiff assembles one compareSocketGroupDiff for the
+// given label across all successful builds. `same` is true iff every
+// build has a non-empty gem list AND every list matches.
+func buildSocketGroupDiff(
+	label string,
+	perBuildByLabel []map[string][]string,
+) compareSocketGroupDiff {
+	perBuild := make([][]string, len(perBuildByLabel))
+	var first []string
+	firstSet := false
+	same := true
+	for i, byLabel := range perBuildByLabel {
+		gems := byLabel[label]
+		if gems == nil {
+			gems = []string{}
 		}
-		out = append(out, compareSocketGroupDiff{
-			Label:    label,
-			PerBuild: perBuild,
-			Same:     same,
-		})
+		perBuild[i] = gems
+		if len(gems) == 0 {
+			same = false
+			continue
+		}
+		if !firstSet {
+			first = gems
+			firstSet = true
+		} else if !equalStringSlices(first, gems) {
+			same = false
+		}
 	}
-	return out
+	return compareSocketGroupDiff{Label: label, PerBuild: perBuild, Same: same}
 }
 
 func equalStringSlices(a, b []string) bool {
@@ -736,13 +773,42 @@ func equalStringSlices(a, b []string) bool {
 // when the league ends.
 const defaultBuySimilarLeague = "Standard"
 
+// successfulBuildEntries returns only the entries with no .Error set —
+// errored entries can't be source or target in a buy-similar pair.
+func successfulBuildEntries(entries []compareBuildEntry) []compareBuildEntry {
+	out := make([]compareBuildEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Error == "" {
+			out = append(out, entry)
+		}
+	}
+	return out
+}
+
+// allSlotsSorted returns the deduped + sorted union of every slot key
+// observed across the input entries' itemsBySlot maps.
+func allSlotsSorted(successful []compareBuildEntry) []string {
+	slotSet := make(map[string]bool)
+	for _, entry := range successful {
+		for slot := range entry.itemsBySlot {
+			slotSet[slot] = true
+		}
+	}
+	slots := make([]string, 0, len(slotSet))
+	for slot := range slotSet {
+		slots = append(slots, slot)
+	}
+	sort.Strings(slots)
+	return slots
+}
+
 // isValidLeague rejects league strings that look like attempts to break
 // out of the URL path component or stretch the wire payload. Real PoE
 // league names are short alphanumerics with spaces (e.g. "Standard",
 // "Mirage Hardcore"). Anything containing path separators or query
 // delimiters falls back to defaultBuySimilarLeague upstream.
 func isValidLeague(league string) bool {
-	if len(league) == 0 || len(league) > 64 {
+	if league == "" || len(league) > 64 {
 		return false
 	}
 	if strings.ContainsAny(league, "/?#") {
@@ -765,57 +831,48 @@ func computeBuySimilar(entries []compareBuildEntry, league string) []compareBuyS
 	if league == "" || !isValidLeague(league) {
 		league = defaultBuySimilarLeague
 	}
-
-	// Filter to successful builds (errored entries can't be source or target).
-	successful := make([]compareBuildEntry, 0, len(entries))
-	for _, entry := range entries {
-		if entry.Error == "" {
-			successful = append(successful, entry)
-		}
-	}
+	successful := successfulBuildEntries(entries)
 	if len(successful) < 2 {
 		return nil
 	}
-
-	// Collect all slots seen across successful builds; we iterate slots
-	// outermost so the response groups naturally per-slot when sorted.
-	slotSet := make(map[string]bool)
-	for _, entry := range successful {
-		for slot := range entry.itemsBySlot {
-			slotSet[slot] = true
-		}
-	}
-	if len(slotSet) == 0 {
+	slots := allSlotsSorted(successful)
+	if len(slots) == 0 {
 		return nil
 	}
-	slots := make([]string, 0, len(slotSet))
-	for slot := range slotSet {
-		slots = append(slots, slot)
-	}
-	sort.Strings(slots)
 
 	var out []compareBuySimilarEntry
 	for _, slot := range slots {
-		for i, from := range successful {
-			fromName := from.itemsBySlot[slot]
-			if fromName == "" {
-				continue // can only recommend FROM a build that has the item
+		out = append(out, buySimilarPairsForSlot(slot, successful, league)...)
+	}
+	return out
+}
+
+// buySimilarPairsForSlot generates one entry per ordered (from, to) pair
+// where `from` has an item in `slot` and `to` either has a different item
+// or none. With N successful builds and a slot where every item is
+// distinct, that yields N*(N-1) entries.
+func buySimilarPairsForSlot(
+	slot string,
+	successful []compareBuildEntry,
+	league string,
+) []compareBuySimilarEntry {
+	var out []compareBuySimilarEntry
+	for i, from := range successful {
+		fromName := from.itemsBySlot[slot]
+		if fromName == "" {
+			continue
+		}
+		for j, to := range successful {
+			if i == j || to.itemsBySlot[slot] == fromName {
+				continue
 			}
-			for j, to := range successful {
-				if i == j {
-					continue
-				}
-				if to.itemsBySlot[slot] == fromName {
-					continue // target already has the same item; no recommendation needed
-				}
-				out = append(out, compareBuySimilarEntry{
-					FromBuildID: from.ID,
-					ToBuildID:   to.ID,
-					Slot:        slot,
-					ItemName:    fromName,
-					TradeURL:    buildTradeURL(fromName, league),
-				})
-			}
+			out = append(out, compareBuySimilarEntry{
+				FromBuildID: from.ID,
+				ToBuildID:   to.ID,
+				Slot:        slot,
+				ItemName:    fromName,
+				TradeURL:    buildTradeURL(fromName, league),
+			})
 		}
 	}
 	return out
@@ -837,7 +894,7 @@ func computeBuySimilar(entries []compareBuildEntry, league string) []compareBuyS
 // live API live in compare_buy_similar_smoke_test.go (build-tagged).
 func buildTradeURL(itemName, league string) string {
 	payload := buildTradeQueryPayload(itemName)
-	u := url.URL{
+	tradeURL := url.URL{
 		Scheme: "https",
 		Host:   "www.pathofexile.com",
 		Path:   "/trade/search/" + league,
@@ -849,8 +906,8 @@ func buildTradeURL(itemName, league string) string {
 	// live API smoke test confirms this format is accepted.
 	values := url.Values{}
 	values.Set("q", string(payload))
-	u.RawQuery = values.Encode()
-	return u.String()
+	tradeURL.RawQuery = values.Encode()
+	return tradeURL.String()
 }
 
 // buildTradeQueryPayload returns the canonical JSON the trade endpoint

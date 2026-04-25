@@ -373,15 +373,6 @@ func (pool *Pool) SwapAffinity(oldBuildID, newBuildID string) {
 	pool.touchAffinityLocked(newBuildID)
 }
 
-// Unpin removes the affinity entry for buildID. The underlying process is
-// untouched — if idle it remains in the idle list as unpinned; if busy it
-// continues serving its current acquirer. Used by tests and the TTL sweep.
-func (pool *Pool) Unpin(buildID string) {
-	pool.mu.Lock()
-	defer pool.mu.Unlock()
-	pool.unpinLocked(buildID)
-}
-
 // PinnedBuildID returns the buildID currently pinned to proc, or "" if none.
 func (pool *Pool) PinnedBuildID(proc *Process) string {
 	pool.mu.Lock()

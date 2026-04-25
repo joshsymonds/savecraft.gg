@@ -77,8 +77,9 @@ func TestModSourceIndexEmptyStatsConservative(t *testing.T) {
 }
 
 // TestModSourceIndexConcurrent: NodeAffectsMetric is safe to call from
-// many goroutines concurrently.
+// many goroutines concurrently. Run with -race to catch data races.
 func TestModSourceIndexConcurrent(t *testing.T) {
+	t.Parallel()
 	idx := NewModSourceIndex()
 	var wg sync.WaitGroup
 	for range 8 {
@@ -148,7 +149,14 @@ func TestNearbyPerturbModIndexFilter(t *testing.T) {
 	}
 	rawIDs := requests[0]["nodeIds"]
 	idsList, _ := rawIDs.([]any)
-	if len(idsList) != 1 || int(idsList[0].(float64)) != 100 {
-		t.Fatalf("expected only node 100 in perturb, got %+v", idsList)
+	if len(idsList) != 1 {
+		t.Fatalf("expected 1 node in perturb, got %d: %+v", len(idsList), idsList)
+	}
+	first, ok := idsList[0].(float64)
+	if !ok {
+		t.Fatalf("expected node id to be float64, got %T", idsList[0])
+	}
+	if int(first) != 100 {
+		t.Fatalf("expected only node 100 in perturb, got %v", first)
 	}
 }

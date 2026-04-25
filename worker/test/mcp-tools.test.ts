@@ -2570,10 +2570,10 @@ describe("buildPlannerModule", () => {
   // compare_with: opt-in N-build comparison through /compare
   it("rejects compare_with when neither build nor build_id is provided", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
-    const result = await buildPlannerModule.execute(
-      { compare_with: ["https://pobb.in/other"] },
-      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
-    );
+    const result = await buildPlannerModule.execute({ compare_with: ["https://pobb.in/other"] }, {
+      ...env,
+      POB_URL: "http://localhost:8077",
+    } as unknown as Env);
     // Same primary-required error path as the rest of the module —
     // compare doesn't get a special bypass.
     expect(result).toEqual({
@@ -2638,7 +2638,13 @@ describe("buildPlannerModule", () => {
     let capturedBody: Record<string, unknown> | undefined;
     const originalFetch = globalThis.fetch;
     globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
-      capturedURL = typeof input === "string" ? input : input.toString();
+      if (typeof input === "string") {
+        capturedURL = input;
+      } else if (input instanceof URL) {
+        capturedURL = input.toString();
+      } else {
+        capturedURL = input.url;
+      }
       capturedBody = init?.body ? JSON.parse(init.body as string) : undefined;
       return Promise.resolve(
         Response.json({ builds: [{ id: "a", label: "a", character: {}, summary: {} }] }),
@@ -2690,7 +2696,7 @@ describe("buildPlannerModule", () => {
       );
       expect(result.type).toBe("structured");
       if (result.type !== "structured") return;
-      expect((result.data as Record<string, unknown>).module).toBe("build_compare");
+      expect(result.data.module).toBe("build_compare");
     } finally {
       globalThis.fetch = originalFetch;
     }
@@ -2715,7 +2721,7 @@ describe("buildPlannerModule", () => {
         },
         { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
       );
-      expect(capturedBody?.buy_similar).toBe(true);
+      expect(capturedBody?.buySimilar).toBe(true);
       expect(capturedBody?.league).toBe("Mirage");
     } finally {
       globalThis.fetch = originalFetch;
@@ -2748,7 +2754,10 @@ describe("buildPlannerModule", () => {
 
   it("manifest declares compare_with as array with descriptive text", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
-    const params = buildPlannerModule.parameters as Record<string, { type: string; description: string }>;
+    const params = buildPlannerModule.parameters as Record<
+      string,
+      { type: string; description: string }
+    >;
     const compareWith = params.compare_with;
     expect(compareWith).toBeDefined();
     expect(compareWith?.type).toBe("array");

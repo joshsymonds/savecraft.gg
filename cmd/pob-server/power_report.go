@@ -13,7 +13,7 @@ const (
 	powerReportLimit  = 5
 )
 
-// powerReportPriorityMetrics is the ordered fallback list for the leading
+// powerReportPriorityMetrics() is the ordered fallback list for the leading
 // metric. The first metric in this list with a non-zero baseline drives
 // the rank; the others are reported as context deltas. Picked to cover the
 // dominant build archetypes:
@@ -24,7 +24,9 @@ const (
 //
 // If none of these has signal in the build's summary, the inline runner
 // skips entirely — there's no meaningful "next node" to recommend.
-var powerReportPriorityMetrics = []string{"CombinedDPS", "Life", "EnergyShield"}
+func powerReportPriorityMetrics() []string {
+	return []string{"CombinedDPS", "Life", "EnergyShield"}
+}
 
 // attachPowerReport runs an inline nearby-style search after a successful
 // /resolve or /modify and returns the top-N unallocated nodes ranked by
@@ -98,7 +100,7 @@ func (srv *Server) attachPowerReport(
 // a non-zero value in the summary, or "" if every priority metric is zero
 // (defensive: also "" when summary is nil/empty).
 func pickLeadingMetric(summary map[string]float64) string {
-	for _, m := range powerReportPriorityMetrics {
+	for _, m := range powerReportPriorityMetrics() {
 		if v, ok := summary[m]; ok && v != 0 {
 			return m
 		}
@@ -110,9 +112,9 @@ func pickLeadingMetric(summary map[string]float64) string {
 // Other priority metrics are kept after for context deltas. nearbyRank's
 // metric arg picks `leading` for ranking; the rest just decorate.
 func orderedStatKeys(leading string) []string {
-	out := make([]string, 0, len(powerReportPriorityMetrics))
+	out := make([]string, 0, len(powerReportPriorityMetrics()))
 	out = append(out, leading)
-	for _, m := range powerReportPriorityMetrics {
+	for _, m := range powerReportPriorityMetrics() {
 		if m != leading {
 			out = append(out, m)
 		}
@@ -157,38 +159,54 @@ func (srv *Server) runInlineNearbyPerturb(
 	proc *Process, buildID string, passing []*nearbyCandidate, statKeys []string,
 ) (map[int]map[string]float64, bool) {
 	cachedHits, perturb := srv.splitNearbyByCacheLocked(buildID, passing, statKeys)
+	freshDeltas, ok := srv.runInlinePerturbBatch(proc, buildID, perturb, statKeys)
+	if !ok {
+		return nil, false
+	}
+	return mergeDeltaMaps(cachedHits, freshDeltas), true
+}
 
-	var freshDeltas map[int]map[string]float64
-	if len(perturb) > 0 {
-		ids := make([]int, len(perturb))
-		for i, c := range perturb {
-			ids[i] = c.ID
-		}
-		raw, err := proc.Send(nearbyPerturbLuaRequest{
-			Type:    "nearby_perturb",
-			NodeIDs: ids,
-			Stats:   statKeys,
-		})
-		if err != nil {
-			srv.log.Warn("inline power report: nearby_perturb send failed", "err", err)
-			return nil, false
-		}
-		var envelope nearbyPerturbEnvelope
-		if err := json.Unmarshal(raw, &envelope); err != nil {
-			srv.log.Warn("inline power report: nearby_perturb parse failed", "err", err)
-			return nil, false
-		}
-		if envelope.Type == pobRespTypeError {
-			srv.log.Warn("inline power report: nearby_perturb returned error", "message", envelope.Message)
-			return nil, false
-		}
-		freshDeltas = envelope.Data.Deltas
-		if srv.cache.store != nil && buildID != "" && len(freshDeltas) > 0 {
-			if err := srv.cache.store.PutDeltasBatch(buildID, freshDeltas); err != nil {
-				srv.log.Warn("inline power report: delta cache write failed", "err", err)
-			}
+// runInlinePerturbBatch sends nearby_perturb for the cache-miss candidates,
+// parses the response, and refreshes the delta cache. Returns nil + ok=true
+// for an empty perturb list. Errors here log warnings and return ok=false
+// — the caller (auto-power-report) degrades to nil rather than failing
+// the parent /resolve or /modify response.
+func (srv *Server) runInlinePerturbBatch(
+	proc *Process,
+	buildID string,
+	perturb []*nearbyCandidate,
+	statKeys []string,
+) (map[int]map[string]float64, bool) {
+	if len(perturb) == 0 {
+		return nil, true
+	}
+	ids := make([]int, len(perturb))
+	for i, c := range perturb {
+		ids[i] = c.ID
+	}
+	raw, err := proc.Send(nearbyPerturbLuaRequest{
+		Type:    "nearby_perturb",
+		NodeIDs: ids,
+		Stats:   statKeys,
+	})
+	if err != nil {
+		srv.log.Warn("inline power report: nearby_perturb send failed", "err", err)
+		return nil, false
+	}
+	var envelope nearbyPerturbEnvelope
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		srv.log.Warn("inline power report: nearby_perturb parse failed", "err", err)
+		return nil, false
+	}
+	if envelope.Type == pobRespTypeError {
+		srv.log.Warn("inline power report: nearby_perturb returned error", "message", envelope.Message)
+		return nil, false
+	}
+	freshDeltas := envelope.Data.Deltas
+	if srv.cache.store != nil && buildID != "" && len(freshDeltas) > 0 {
+		if err := srv.cache.store.PutDeltasBatch(buildID, freshDeltas); err != nil {
+			srv.log.Warn("inline power report: delta cache write failed", "err", err)
 		}
 	}
-
-	return mergeDeltaMaps(cachedHits, freshDeltas), true
+	return freshDeltas, true
 }

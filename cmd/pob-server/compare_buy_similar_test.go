@@ -59,7 +59,7 @@ func extractTradeQuery(t *testing.T, tradeURL string) map[string]any {
 // TestCompareBuySimilarOptInRequired: without the buy_similar flag the
 // response has no buySimilar field.
 func TestCompareBuySimilarOptInRequired(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
@@ -81,7 +81,7 @@ func TestCompareBuySimilarOptInRequired(t *testing.T) {
 // TestCompareBuySimilarDifferentItem: opt-in + slot with different items
 // → entry with from/to/slot/itemName + a parseable trade URL.
 func TestCompareBuySimilarDifferentItem(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
@@ -138,7 +138,7 @@ func TestCompareBuySimilarDifferentItem(t *testing.T) {
 // TestCompareBuySimilarIdenticalItemEmitsNothing: same item in slot →
 // no entry for that slot.
 func TestCompareBuySimilarIdenticalItemEmitsNothing(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
@@ -163,7 +163,7 @@ func TestCompareBuySimilarIdenticalItemEmitsNothing(t *testing.T) {
 // doesn't → entry with itemName = source's helmet, target = the build
 // without it.
 func TestCompareBuySimilarTargetMissingItem(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
@@ -204,7 +204,7 @@ func TestCompareBuySimilarTargetMissingItem(t *testing.T) {
 // TestCompareBuySimilarLeagueParam: passing league: "Mirage" produces
 // URLs whose path contains /trade/search/Mirage/.
 func TestCompareBuySimilarLeagueParam(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
@@ -231,7 +231,7 @@ func TestCompareBuySimilarLeagueParam(t *testing.T) {
 // TestCompareBuySimilarDefaultLeague: omitting league defaults to
 // "Standard".
 func TestCompareBuySimilarDefaultLeague(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
@@ -255,7 +255,7 @@ func TestCompareBuySimilarDefaultLeague(t *testing.T) {
 // TestCompareBuySimilarItemNameWithApostrophe: special characters in
 // item names are URL-safe in the encoded query.
 func TestCompareBuySimilarItemNameWithApostrophe(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		// "Atziri's Foible" contains an apostrophe.

@@ -61,7 +61,7 @@ type calcLuaRequest struct {
 type calcResponse struct {
 	BuildID     string             `json:"buildId"`
 	PobData     json.RawMessage    `json:"data"`
-	PowerReport *powerReportResult `json:"power_report,omitempty"`
+	PowerReport *powerReportResult `json:"powerReport,omitempty"`
 }
 
 // powerReportResult is the inline equivalent of /nearby's per-metric output —
@@ -852,47 +852,64 @@ func (srv *Server) runNearbyPerturb(
 	cachedHits, perturb := srv.splitNearbyByCacheLocked(buildID, passing, statKeys)
 
 	// Send perturb only for the candidates with at least one cache miss.
-	var freshDeltas map[int]map[string]float64
-	if len(perturb) > 0 {
-		ids := make([]int, len(perturb))
-		for i, candidate := range perturb {
-			ids[i] = candidate.ID
-		}
-		raw, sendErr := proc.Send(nearbyPerturbLuaRequest{
-			Type:    "nearby_perturb",
-			NodeIDs: ids,
-			Stats:   statKeys,
-		})
-		if sendErr != nil {
-			srv.log.Error("process send error", "err", sendErr)
-			jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
-			return nil, false
-		}
-		var envelope nearbyPerturbEnvelope
-		if err := json.Unmarshal(raw, &envelope); err != nil {
-			srv.log.Error("failed to parse perturb response", "err", err)
-			jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
-			return nil, false
-		}
-		if envelope.Type == pobRespTypeError {
-			srv.log.Error("PoB nearby_perturb error", "message", envelope.Message)
-			jsonError(writer, "PoB nearby search failed", http.StatusUnprocessableEntity)
-			return nil, false
-		}
-		freshDeltas = envelope.Data.Deltas
-
-		// Refresh the cache with the fresh perturbation results.
-		if srv.cache.store != nil && buildID != "" && len(freshDeltas) > 0 {
-			if err := srv.cache.store.PutDeltasBatch(buildID, freshDeltas); err != nil {
-				srv.log.Warn("delta cache write failed", "err", err)
-			}
-		}
+	freshDeltas, ok := srv.runPerturbBatch(writer, proc, buildID, perturb, statKeys)
+	if !ok {
+		return nil, false
 	}
 
 	// Merge cached + fresh; fresh wins on collision (it's the most recent
 	// computation, so any cache row that disagrees is stale).
 	merged := mergeDeltaMaps(cachedHits, freshDeltas)
 	return merged, true
+}
+
+// runPerturbBatch sends a single nearby_perturb for the candidates with
+// at least one cache miss, parses the response, and refreshes the delta
+// cache. Returns nil + ok=true when the perturb list is empty (caller
+// merges with cachedHits). On any send/parse/Lua error this writes a
+// jsonError and returns ok=false.
+func (srv *Server) runPerturbBatch(
+	writer http.ResponseWriter,
+	proc *Process,
+	buildID string,
+	perturb []*nearbyCandidate,
+	statKeys []string,
+) (map[int]map[string]float64, bool) {
+	if len(perturb) == 0 {
+		return nil, true
+	}
+	ids := make([]int, len(perturb))
+	for i, candidate := range perturb {
+		ids[i] = candidate.ID
+	}
+	raw, sendErr := proc.Send(nearbyPerturbLuaRequest{
+		Type:    "nearby_perturb",
+		NodeIDs: ids,
+		Stats:   statKeys,
+	})
+	if sendErr != nil {
+		srv.log.Error("process send error", "err", sendErr)
+		jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
+		return nil, false
+	}
+	var envelope nearbyPerturbEnvelope
+	if err := json.Unmarshal(raw, &envelope); err != nil {
+		srv.log.Error("failed to parse perturb response", "err", err)
+		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
+		return nil, false
+	}
+	if envelope.Type == pobRespTypeError {
+		srv.log.Error("PoB nearby_perturb error", "message", envelope.Message)
+		jsonError(writer, "PoB nearby search failed", http.StatusUnprocessableEntity)
+		return nil, false
+	}
+	freshDeltas := envelope.Data.Deltas
+	if srv.cache.store != nil && buildID != "" && len(freshDeltas) > 0 {
+		if err := srv.cache.store.PutDeltasBatch(buildID, freshDeltas); err != nil {
+			srv.log.Warn("delta cache write failed", "err", err)
+		}
+	}
+	return freshDeltas, true
 }
 
 // filterByModIndex drops candidates whose stat strings provably cannot
@@ -1151,48 +1168,53 @@ func powerReportNeeded(sections []string) bool {
 //
 // Pre-launch: any name not in this map is rejected with a clear error
 // pointing at the valid set.
-var sectionTaxonomy = []sectionDef{
-	{
-		ID:          "summary",
-		Name:        "Summary",
-		Description: "Top-line character stats: DPS, Life, ES, Mana, resistances, attributes",
-		// summary is at the top level, not aggregated from underlying sections
-	},
-	{
-		ID:          "offense",
-		Name:        "Offense",
-		Description: "Damage, DPS, ailments, minion offense, charges, limits",
-		Aggregate:   []string{"offense", "ailments", "minion_offense", "charges", "limits"},
-		Style:       sectionStyleStatDict,
-	},
-	{
-		ID:          "defense",
-		Name:        "Defense",
-		Description: "Armour, evasion, energy shield, resistances, EHP, recovery, minion defense",
-		Aggregate:   []string{"defense", "resistances", "ehp", "recovery", "minion_defense"},
-		Style:       sectionStyleStatDict,
-	},
-	{
-		ID:          "gear",
-		Name:        "Gear",
-		Description: "Equipped items by slot and skill socket groups",
-		Aggregate:   []string{"items", "socket_groups"},
-		Style:       sectionStyleComposite,
-	},
-	{
-		ID:          "tree",
-		Name:        "Tree",
-		Description: "Allocated passive points, keystones, tree summary",
-		Aggregate:   []string{"tree", "keystones"},
-		Style:       sectionStyleComposite,
-	},
-	{
-		ID:          "config",
-		Name:        "Configuration",
-		Description: "Active configuration overrides (conditions, enemy settings, combat state)",
-		Aggregate:   []string{"config"},
-		Style:       sectionStyleComposite,
-	},
+// sectionTaxonomy returns the immutable 6-name section taxonomy. Returned
+// fresh per call so callers can't mutate the canonical definition; the
+// allocation cost is negligible compared to the JSON encoding it gates.
+func sectionTaxonomy() []sectionDef {
+	return []sectionDef{
+		{
+			ID:          "summary",
+			Name:        "Summary",
+			Description: "Top-line character stats: DPS, Life, ES, Mana, resistances, attributes",
+			// summary is at the top level, not aggregated from underlying sections
+		},
+		{
+			ID:          "offense",
+			Name:        "Offense",
+			Description: "Damage, DPS, ailments, minion offense, charges, limits",
+			Aggregate:   []string{"offense", "ailments", "minion_offense", "charges", "limits"},
+			Style:       sectionStyleStatDict,
+		},
+		{
+			ID:          "defense",
+			Name:        "Defense",
+			Description: "Armour, evasion, energy shield, resistances, EHP, recovery, minion defense",
+			Aggregate:   []string{"defense", "resistances", "ehp", "recovery", "minion_defense"},
+			Style:       sectionStyleStatDict,
+		},
+		{
+			ID:          "gear",
+			Name:        "Gear",
+			Description: "Equipped items by slot and skill socket groups",
+			Aggregate:   []string{"items", "socketGroups"},
+			Style:       sectionStyleComposite,
+		},
+		{
+			ID:          "tree",
+			Name:        "Tree",
+			Description: "Allocated passive points, keystones, tree summary",
+			Aggregate:   []string{"tree", "keystones"},
+			Style:       sectionStyleComposite,
+		},
+		{
+			ID:          "config",
+			Name:        "Configuration",
+			Description: "Active configuration overrides (conditions, enemy settings, combat state)",
+			Aggregate:   []string{"config"},
+			Style:       sectionStyleComposite,
+		},
+	}
 }
 
 type sectionStyle int
@@ -1212,8 +1234,8 @@ type sectionDef struct {
 
 // validSectionNames is the set of names accepted by parseSections.
 func validSectionNames() []string {
-	out := make([]string, 0, len(sectionTaxonomy))
-	for _, def := range sectionTaxonomy {
+	out := make([]string, 0, len(sectionTaxonomy()))
+	for _, def := range sectionTaxonomy() {
 		out = append(out, def.ID)
 	}
 	return out
@@ -1308,8 +1330,8 @@ func filterSections(data json.RawMessage, sections []string) (json.RawMessage, e
 }
 
 func buildSectionIndex() []map[string]string {
-	out := make([]map[string]string, 0, len(sectionTaxonomy))
-	for _, def := range sectionTaxonomy {
+	out := make([]map[string]string, 0, len(sectionTaxonomy()))
+	for _, def := range sectionTaxonomy() {
 		out = append(out, map[string]string{
 			"id":          def.ID,
 			"name":        def.Name,
@@ -1320,8 +1342,8 @@ func buildSectionIndex() []map[string]string {
 }
 
 func validateSectionNames(requested []string) error {
-	known := make(map[string]bool, len(sectionTaxonomy))
-	for _, def := range sectionTaxonomy {
+	known := make(map[string]bool, len(sectionTaxonomy()))
+	for _, def := range sectionTaxonomy() {
 		known[def.ID] = true
 	}
 	for _, name := range requested {
@@ -1356,8 +1378,8 @@ func aggregateSections(
 	raw map[string]json.RawMessage,
 	requested []string,
 ) (map[string]json.RawMessage, error) {
-	defByID := make(map[string]sectionDef, len(sectionTaxonomy))
-	for _, def := range sectionTaxonomy {
+	defByID := make(map[string]sectionDef, len(sectionTaxonomy()))
+	for _, def := range sectionTaxonomy() {
 		defByID[def.ID] = def
 	}
 

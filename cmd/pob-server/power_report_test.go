@@ -45,7 +45,7 @@ const perturbCanned2 = `{"type":"result","data":{"deltas":{` +
 	`"100":{"Life":50,"CombinedDPS":0,"EnergyShield":0},` +
 	`"200":{"Life":300,"CombinedDPS":0,"EnergyShield":0}}}}`
 
-// TestCalcAttachesPowerReport: a /calc response includes a `power_report`
+// TestCalcAttachesPowerReport: a /calc response includes a `powerReport`
 // key carrying the top-N nodes ranked by the leading non-zero metric.
 // minimalCalcResponse has CombinedDPS=100000 (first priority, non-zero),
 // so CombinedDPS is the leading metric.
@@ -62,13 +62,13 @@ func TestCalcAttachesPowerReport(t *testing.T) {
 	var resp struct {
 		BuildID     string          `json:"buildId"`
 		Data        json.RawMessage `json:"data"`
-		PowerReport json.RawMessage `json:"power_report"`
+		PowerReport json.RawMessage `json:"powerReport"`
 	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
 	if resp.PowerReport == nil {
-		t.Fatal("expected power_report on /calc response, got nil")
+		t.Fatal("expected powerReport on /calc response, got nil")
 	}
 
 	var report struct {
@@ -78,7 +78,7 @@ func TestCalcAttachesPowerReport(t *testing.T) {
 		Nodes  []json.RawMessage `json:"nodes"`
 	}
 	if err := json.Unmarshal(resp.PowerReport, &report); err != nil {
-		t.Fatalf("invalid power_report shape: %v", err)
+		t.Fatalf("invalid powerReport shape: %v", err)
 	}
 	if report.Metric != "CombinedDPS" {
 		t.Errorf("expected leading metric CombinedDPS (first non-zero), got %q", report.Metric)
@@ -122,7 +122,12 @@ func TestCalcLeadingMetricFallsThrough(t *testing.T) {
 		t.Fatalf("expected at least 2 captured requests (calc + extract), got %d", len(requests))
 	}
 	stats, _ := requests[1]["stats"].([]any)
-	if len(stats) == 0 || stats[0].(string) != "Life" {
+	if len(stats) == 0 {
+		t.Errorf("expected at least one stat in extract request, got %v", stats)
+		return
+	}
+	leading, ok := stats[0].(string)
+	if !ok || leading != "Life" {
 		t.Errorf("expected leading stat to be Life (CombinedDPS=0), got %v", stats)
 	}
 }
@@ -145,8 +150,8 @@ func TestPowerReportDisabledByDefault(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if _, has := resp["power_report"]; has {
-		t.Errorf("power_report must be omitted when feature disabled; got: %s", resp["power_report"])
+	if _, has := resp["powerReport"]; has {
+		t.Errorf("powerReport must be omitted when feature disabled; got: %s", resp["powerReport"])
 	}
 }
 
@@ -174,8 +179,8 @@ func TestPowerReportSkippedForSummaryOnlyRequest(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if _, has := resp["power_report"]; has {
-		t.Errorf("power_report must be omitted on summary-only request; got: %s", resp["power_report"])
+	if _, has := resp["powerReport"]; has {
+		t.Errorf("powerReport must be omitted on summary-only request; got: %s", resp["powerReport"])
 	}
 }
 
@@ -212,8 +217,8 @@ func TestPowerReportSkipsWhenAllBaselinesZero(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
 		t.Fatal(err)
 	}
-	if _, has := resp["power_report"]; has {
-		t.Errorf("power_report must be omitted when no metric has signal; got: %s", resp["power_report"])
+	if _, has := resp["powerReport"]; has {
+		t.Errorf("powerReport must be omitted when no metric has signal; got: %s", resp["powerReport"])
 	}
 }
 
@@ -241,7 +246,7 @@ func TestPowerReportInlineRadiusIs3(t *testing.T) {
 }
 
 // TestPowerReportFailureDoesNotFailParent: when the inline nearby_extract
-// errors, /calc still returns 200 with the rest of the data; power_report
+// errors, /calc still returns 200 with the rest of the data; powerReport
 // is omitted.
 func TestPowerReportFailureDoesNotFailParent(t *testing.T) {
 	luaError := `{"type":"error","message":"synthetic extract failure"}`
@@ -263,7 +268,7 @@ func TestPowerReportFailureDoesNotFailParent(t *testing.T) {
 	if _, has := resp["buildId"]; !has {
 		t.Error("parent response missing buildId despite inline-only failure")
 	}
-	if _, has := resp["power_report"]; has {
-		t.Errorf("power_report must be omitted on inline failure; got: %s", resp["power_report"])
+	if _, has := resp["powerReport"]; has {
+		t.Errorf("powerReport must be omitted on inline failure; got: %s", resp["powerReport"])
 	}
 }

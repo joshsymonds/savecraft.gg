@@ -39,7 +39,7 @@ func decodeCompareWithDiffs(t *testing.T, body []byte) compareRespWithDiffs {
 // summary diff entry with perBuild=[A,B], leader=index-of-max, and
 // range=(max-min)/max.
 func TestCompareSummaryDiffN2(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		minimalCalcResponseClass("Witch", 100000),
@@ -116,26 +116,26 @@ func TestCompareSummaryDiffN3(t *testing.T) {
 	// leader is whichever index in the response slice corresponds to 250000;
 	// the order of slot assignment depends on how the mock script reads
 	// canned responses, but Marauder is at 250000 across the three slots.
-	max := dps.PerBuild[0]
+	maxVal := dps.PerBuild[0]
 	maxIdx := 0
 	for i, v := range dps.PerBuild {
-		if v > max {
-			max = v
+		if v > maxVal {
+			maxVal = v
 			maxIdx = i
 		}
 	}
 	if dps.Leader != maxIdx {
 		t.Errorf("leader = %d, want %d (the max index in perBuild=%v)", dps.Leader, maxIdx, dps.PerBuild)
 	}
-	if max != 250000 {
-		t.Errorf("max value = %v, want 250000", max)
+	if maxVal != 250000 {
+		t.Errorf("max value = %v, want 250000", maxVal)
 	}
 }
 
 // TestCompareSummaryDiffEqualValues: identical stats produce range=0;
 // leader is the lowest index (tied → first wins).
 func TestCompareSummaryDiffEqualValues(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		minimalCalcResponseClass("Witch", 100000),
@@ -247,7 +247,7 @@ func TestCompareSummaryDiffExcludesPartialKeys(t *testing.T) {
 		`"summary":{"CombinedDPS":250000},` +
 		`"section_index":[],"sections":{}}}`
 
-	srv, idA, idB, _ := compareHarness(t, "<A/>", "<B/>", respA, respB)
+	srv, idA, idB := compareHarness(t, "<A/>", "<B/>", respA, respB)
 
 	body := `{"builds":["` + idA + `","` + idB + `"]}`
 	rec := httptest.NewRecorder()
@@ -271,7 +271,7 @@ func TestCompareSummaryDiffExcludesPartialKeys(t *testing.T) {
 // TestCompareSummaryDiffAllZeroes: when every build's stat is zero,
 // range=0 and leader=0 (no signal but no panic either).
 func TestCompareSummaryDiffAllZeroes(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		minimalCalcResponseClass("Witch", 0),

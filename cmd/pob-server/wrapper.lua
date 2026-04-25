@@ -481,7 +481,7 @@ local function serializeTreeSummary(build)
 	return {
 		version = build.spec.treeVersion,
 		allocated_nodes = used,
-		allocated_node_ids = allocatedIDs,
+		allocatedNodeIds = allocatedIDs,
 		ascendancy_nodes = ascUsed,
 		level_points = levelPoints,
 		quest_points = questPoints,
@@ -608,7 +608,7 @@ local statSectionDefs = {
 
 -- Full section index including structured data sections.
 local structuredSectionDefs = {
-	{ id = "socket_groups", name = "Socket Groups",  description = "Skill gems, links, and socket group configuration" },
+	{ id = "socketGroups", name = "Socket Groups",  description = "Skill gems, links, and socket group configuration" },
 	{ id = "items",         name = "Items",           description = "Equipped gear by slot" },
 	{ id = "keystones",        name = "Keystones",         description = "Allocated keystone passives" },
 	{ id = "tree",             name = "Passive Tree",      description = "Allocated/available/remaining passive points, ascendancy nodes, tree version" },
@@ -903,7 +903,7 @@ local function serializeSections(build, requestedStatKeys)
 	end
 
 	-- Add structured data as sections
-	sections.socket_groups = serializeSocketGroups(build)
+	sections.socketGroups = serializeSocketGroups(build)
 	sections.items = serializeItems(build)
 	sections.keystones = serializeKeystones(build)
 	sections.tree = serializeTreeSummary(build)

@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func newTestStore(t *testing.T) (*BuildStore, string) {
+func newTestStore(t *testing.T) *BuildStore {
 	t.Helper()
 	dbPath := filepath.Join(t.TempDir(), "test.db")
 	store, err := NewBuildStore(dbPath)
@@ -14,12 +14,12 @@ func newTestStore(t *testing.T) (*BuildStore, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { store.Close() })
-	return store, dbPath
+	return store
 }
 
 // TestDeltaCachePutGetRoundTrip: Put then Get returns the value.
 func TestDeltaCachePutGetRoundTrip(t *testing.T) {
-	store, _ := newTestStore(t)
+	store := newTestStore(t)
 
 	if err := store.PutDelta("build-A", 12345, "CombinedDPS", 1234.5); err != nil {
 		t.Fatal(err)
@@ -39,7 +39,7 @@ func TestDeltaCachePutGetRoundTrip(t *testing.T) {
 
 // TestDeltaCacheMissReturnsFalse: GetDelta on absent triple returns ok=false.
 func TestDeltaCacheMissReturnsFalse(t *testing.T) {
-	store, _ := newTestStore(t)
+	store := newTestStore(t)
 
 	v, ok, err := store.GetDelta("build-X", 999, "Life")
 	if err != nil {
@@ -53,7 +53,7 @@ func TestDeltaCacheMissReturnsFalse(t *testing.T) {
 // TestDeltaCacheBulkPutGet: PutDeltasBatch + GetDeltasBatch round-trip,
 // returning hits keyed by (node, metric) and a list of misses.
 func TestDeltaCacheBulkPutGet(t *testing.T) {
-	store, _ := newTestStore(t)
+	store := newTestStore(t)
 
 	// Put a small batch.
 	deltas := map[int]map[string]float64{
@@ -103,7 +103,7 @@ func TestDeltaCacheBulkPutGet(t *testing.T) {
 // TestDeltaCacheMetricsCoexist: same (build, node) under different metrics
 // stays separate.
 func TestDeltaCacheMetricsCoexist(t *testing.T) {
-	store, _ := newTestStore(t)
+	store := newTestStore(t)
 
 	if err := store.PutDelta("b", 1, "CombinedDPS", 100); err != nil {
 		t.Fatal(err)
@@ -159,7 +159,7 @@ func TestDeltaCachePersistsAcrossReopen(t *testing.T) {
 // TestDeltaCacheBuildIsolation: same (node, metric) under different builds
 // stays distinct.
 func TestDeltaCacheBuildIsolation(t *testing.T) {
-	store, _ := newTestStore(t)
+	store := newTestStore(t)
 
 	if err := store.PutDelta("A", 1, "Life", 100); err != nil {
 		t.Fatal(err)
@@ -178,7 +178,7 @@ func TestDeltaCacheBuildIsolation(t *testing.T) {
 
 // TestDeltaCacheConcurrent: concurrent Put/Get on the same store is race-free.
 func TestDeltaCacheConcurrent(t *testing.T) {
-	store, _ := newTestStore(t)
+	store := newTestStore(t)
 
 	var wg sync.WaitGroup
 	for w := range 8 {
@@ -206,7 +206,7 @@ func TestDeltaCacheConcurrent(t *testing.T) {
 
 // TestDeltaCacheEmptyBatch: no-op for empty input, no error.
 func TestDeltaCacheEmptyBatch(t *testing.T) {
-	store, _ := newTestStore(t)
+	store := newTestStore(t)
 
 	if err := store.PutDeltasBatch("build-A", nil); err != nil {
 		t.Fatal(err)

@@ -94,8 +94,12 @@ func TestNearbyPerturbCachePartialHitPerturbsOnlyMisses(t *testing.T) {
 	if len(idsList) != 1 {
 		t.Fatalf("expected 1 node in perturb, got %d: %+v", len(idsList), idsList)
 	}
-	if int(idsList[0].(float64)) != 200 {
-		t.Fatalf("expected only node 200 in perturb, got %v", idsList[0])
+	first, ok := idsList[0].(float64)
+	if !ok {
+		t.Fatalf("expected node id to be float64, got %T", idsList[0])
+	}
+	if int(first) != 200 {
+		t.Fatalf("expected only node 200 in perturb, got %v", first)
 	}
 }
 

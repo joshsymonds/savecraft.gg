@@ -48,13 +48,13 @@ func calcResponseWithTree(class string, allocatedIDs []int) string {
 		`"Str":100,"Dex":100,"Int":100,"FlaskEffect":0,"FlaskChargeGen":0,` +
 		`"LootQuantityNormalEnemies":0,"LootRarityMagicEnemies":0,` +
 		`"EnemyCurseLimit":1,"TotalDPS":100000},` +
-		`"section_index":[],"sections":{"tree":{"version":"3.28","allocated_nodes":3,"allocated_node_ids":` + string(idsJSON) + `}}}}`
+		`"section_index":[],"sections":{"tree":{"version":"3.28","allocated_nodes":3,"allocatedNodeIds":` + string(idsJSON) + `}}}}`
 }
 
 // TestCompareTreeDiffN2: two builds with overlapping allocated nodes
 // produce {allocatedOnlyIn: {idA: [unique-A], idB: [unique-B]}, common}.
 func TestCompareTreeDiffN2(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithTree("Witch", []int{1, 2, 3, 4}),
@@ -182,7 +182,7 @@ func TestCompareTreeDiffN3(t *testing.T) {
 // TestCompareTreeDiffIdenticalTrees: every build allocates the same
 // nodes → allocatedOnlyIn entries are empty, common is the full set.
 func TestCompareTreeDiffIdenticalTrees(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithTree("Witch", []int{1, 2, 3}),
@@ -212,7 +212,7 @@ func TestCompareTreeDiffIdenticalTrees(t *testing.T) {
 // TestCompareTreeDiffDisjointTrees: no node in any pair → common=[],
 // allocatedOnlyIn carries each build's full list.
 func TestCompareTreeDiffDisjointTrees(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithTree("Witch", []int{1, 2, 3}),
@@ -247,7 +247,7 @@ func TestCompareTreeDiffOmittedWhenDataMissing(t *testing.T) {
 	withTree := calcResponseWithTree("Witch", []int{1, 2, 3})
 	withoutTree := minimalCalcResponseClass("Marauder", 100000) // no tree section
 
-	srv, idA, idB, _ := compareHarness(t, "<A/>", "<B/>", withTree, withoutTree)
+	srv, idA, idB := compareHarness(t, "<A/>", "<B/>", withTree, withoutTree)
 	body := `{"builds":["` + idA + `","` + idB + `"]}`
 	rec := httptest.NewRecorder()
 	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))

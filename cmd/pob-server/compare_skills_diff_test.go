@@ -90,7 +90,7 @@ func findGroup(skills []compareSocketGroupOnWire, label string) *compareSocketGr
 // TestCompareSkillsDiffIdentical: two builds with the same group label
 // AND same gem set → same: true.
 func TestCompareSkillsDiffIdentical(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithSkills("Witch", []testSocketGroup{
@@ -126,7 +126,7 @@ func TestCompareSkillsDiffIdentical(t *testing.T) {
 // TestCompareSkillsDiffSameLabelDifferentGems: label match alone isn't
 // enough — gem set must match for same: true.
 func TestCompareSkillsDiffSameLabelDifferentGems(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithSkills("Witch", []testSocketGroup{
@@ -156,7 +156,7 @@ func TestCompareSkillsDiffSameLabelDifferentGems(t *testing.T) {
 // TestCompareSkillsDiffDifferentLabels: each label appears as its own
 // entry; the build that lacks the label has empty gem list there.
 func TestCompareSkillsDiffDifferentLabels(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithSkills("Witch", []testSocketGroup{
@@ -289,7 +289,7 @@ func TestCompareSkillsDiffOmittedWithSingleSuccess(t *testing.T) {
 // TestCompareSkillsDiffEmptyGroups: a build with no socket_groups
 // section contributes empty entries to other builds' groups.
 func TestCompareSkillsDiffEmptyGroups(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithSkills("Witch", []testSocketGroup{
@@ -334,7 +334,7 @@ func TestCompareSkillsDiffEmptyGroups(t *testing.T) {
 // keeps only the LAST occurrence. Documents the behavior described at
 // compare.go:628-632 so it can't silently drift.
 func TestCompareSkillsDiffWithinBuildLabelCollision(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithSkills("Witch", []testSocketGroup{
@@ -374,7 +374,7 @@ func TestCompareSkillsDiffWithinBuildLabelCollision(t *testing.T) {
 // TestCompareSkillsDiffOrderInsensitive: gem order within a group
 // shouldn't matter — same gems in different order are still "same".
 func TestCompareSkillsDiffOrderInsensitive(t *testing.T) {
-	srv, idA, idB, _ := compareHarness(
+	srv, idA, idB := compareHarness(
 		t,
 		"<A/>", "<B/>",
 		calcResponseWithSkills("Witch", []testSocketGroup{
