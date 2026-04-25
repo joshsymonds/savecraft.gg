@@ -12,11 +12,11 @@ import (
 
 // newAffinityTestPool builds a pool with a long-lived test subprocess.
 // Affinity tests deliberately sleep past the existing newTestPool's `cat ""`
-// process death, so we use `sleep 30` instead — it stays alive for the entire
-// test, doesn't consume stdin/stdout (unused by these tests), and exits cleanly
-// on Kill.
+// process death (cat exits immediately on missing-file error). `cat /dev/stdin`
+// stays alive while stdin is open and exits within milliseconds when pool.Kill
+// closes stdin — no 30-second cleanup leaks if a test fails to Shutdown.
 func newAffinityTestPool(poolMax int, idleTimeout, affinityTTL time.Duration, affinityMaxPins int) *Pool {
-	pool := NewPool(poolMax, idleTimeout, "sleep", "30", ".", slog.New(slog.NewTextHandler(io.Discard, nil)))
+	pool := NewPool(poolMax, idleTimeout, "cat", "/dev/stdin", ".", slog.New(slog.NewTextHandler(io.Discard, nil)))
 	pool.affinityTTL = affinityTTL
 	pool.affinityMaxPins = affinityMaxPins
 	return pool
