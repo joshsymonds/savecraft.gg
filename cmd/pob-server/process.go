@@ -18,12 +18,48 @@ import (
 var ErrPoolExhausted = errors.New("all PoB processes are busy")
 
 // Process represents a single persistent LuaJIT subprocess running wrapper.lua.
+//
+// lastLoadedBuildID tracks the buildID currently loaded into the wrapper's
+// in-memory `build` global. Handlers send this in the request as
+// `loadedBuildId`; wrapper.lua skips `loadBuildFromXML` when the request's
+// `loadedBuildId` matches its own internal `_lastLoadedBuildId`. The pool
+// clears this field when LRU-stealing the process for a different build, so
+// the next request reloads.
 type Process struct {
 	cmd    *exec.Cmd
 	stdin  io.WriteCloser
 	stdout *bufio.Scanner
 	stderr io.ReadCloser
 	exited chan struct{} // closed when the process exits
+
+	loadedMu          sync.Mutex
+	lastLoadedBuildID string
+}
+
+// LastLoadedBuildID returns the buildID most recently loaded by this process,
+// or "" if no build has been loaded.
+func (proc *Process) LastLoadedBuildID() string {
+	proc.loadedMu.Lock()
+	defer proc.loadedMu.Unlock()
+	return proc.lastLoadedBuildID
+}
+
+// SetLastLoadedBuildID records the buildID most recently loaded. Handlers call
+// this after a successful Send so subsequent requests on the same process can
+// signal "build already loaded, skip the reload" via the loadedBuildId field.
+func (proc *Process) SetLastLoadedBuildID(id string) {
+	proc.loadedMu.Lock()
+	defer proc.loadedMu.Unlock()
+	proc.lastLoadedBuildID = id
+}
+
+// ResetLastLoadedBuildID clears the field. Called by Pool when a process is
+// repurposed for a different build (LRU steal). Subsequent requests on the
+// process will not skip-reload.
+func (proc *Process) ResetLastLoadedBuildID() {
+	proc.loadedMu.Lock()
+	defer proc.loadedMu.Unlock()
+	proc.lastLoadedBuildID = ""
 }
 
 // SpawnProcess starts a new LuaJIT subprocess running wrapper.lua.
@@ -429,6 +465,10 @@ func (pool *Pool) stealLRUPinnedIdleLocked() *Process {
 	if !proc.Alive() {
 		return nil
 	}
+	// Repurposed for a different build: clear the load-skip hint so the next
+	// request reloads. Otherwise the next handler might send loadedBuildId
+	// matching the prior pin and Lua would skip-reload incorrect XML.
+	proc.ResetLastLoadedBuildID()
 	pool.busy++
 	return proc
 }

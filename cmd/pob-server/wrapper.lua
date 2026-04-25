@@ -196,6 +196,34 @@ end
 -- JSON library is available from PoB's runtime
 local dkjson = require("dkjson")
 
+-- Tracks the buildID currently loaded into the wrapper's `build` global.
+-- Set after every successful loadBuildFromXML; matched against the
+-- request.loadedBuildId hint to skip redundant reloads when the daemon's
+-- pool affinity (Process.LastLoadedBuildID) reports the same build is
+-- still in memory. The Go side drives correctness; this string is a
+-- cooperative cache key, not a security boundary.
+local _lastLoadedBuildId = ""
+
+-- ensureBuildLoaded calls loadBuildFromXML unless the request signals that
+-- the buildId currently in memory matches what's wanted. Returns ok=true on
+-- success (either skipped or freshly loaded) or ok=false with an error
+-- string describing the failure.
+local function ensureBuildLoaded(request, xml, label)
+	local hint = request.loadedBuildId
+	if hint and hint ~= "" and hint == _lastLoadedBuildId then
+		-- Build already in memory; reuse it.
+		return true, nil
+	end
+	local ok, err = pcall(function()
+		loadBuildFromXML(xml, label)
+	end)
+	if not ok then
+		return false, "failed to load build: " .. tostring(err)
+	end
+	_lastLoadedBuildId = hint or ""
+	return true, nil
+end
+
 -- Note: this wrapper deliberately contains no algorithm code beyond what
 -- requires PoB's runtime. Anything that operates on plain graph/list data
 -- (segmentation, filtering, ranking, dedup) lives in Go under cmd/pob-server,
@@ -915,12 +943,11 @@ local function handleCalc(request)
 		return { type = "error", message = "missing 'xml' field" }
 	end
 
-	-- Load the build from XML
-	local calcOk, calcErr = pcall(function()
-		loadBuildFromXML(xml, "api-build")
-	end)
-	if not calcOk then
-		return { type = "error", message = "failed to load build: " .. tostring(calcErr) }
+	-- Load the build from XML, or skip if the daemon's pool affinity reports
+	-- the same buildId is already in memory on this process.
+	local loadOk, loadErr = ensureBuildLoaded(request, xml, "api-build")
+	if not loadOk then
+		return { type = "error", message = loadErr }
 	end
 
 	-- Note: `build` is a global set by HeadlessWrapper after loadBuildFromXML
@@ -1338,12 +1365,10 @@ local function handleModify(request)
 		return { type = "error", message = "missing 'operations' field" }
 	end
 
-	-- Load the build from XML
-	local loadOk, loadErr = pcall(function()
-		loadBuildFromXML(xml, "modify-build")
-	end)
+	-- Load the build from XML, or skip if already in memory.
+	local loadOk, loadErr = ensureBuildLoaded(request, xml, "modify-build")
 	if not loadOk then
-		return { type = "error", message = "failed to load build: " .. tostring(loadErr) }
+		return { type = "error", message = loadErr }
 	end
 
 	-- Use pre-computed summary from Go (avoids a redundant PoB calc pass).
@@ -1521,11 +1546,9 @@ local function handleAuditExtract(request)
 		return { type = "error", message = "missing 'xml' field" }
 	end
 
-	local loadOk, loadErr = pcall(function()
-		loadBuildFromXML(xml, "audit-extract")
-	end)
+	local loadOk, loadErr = ensureBuildLoaded(request, xml, "audit-extract")
 	if not loadOk then
-		return { type = "error", message = "failed to load build: " .. tostring(loadErr) }
+		return { type = "error", message = loadErr }
 	end
 
 	build.buildFlag = true
@@ -1562,11 +1585,9 @@ local function handleNearbyExtract(request)
 	local radius = request.radius or 5
 	local stats = request.stats or {}
 
-	local loadOk, loadErr = pcall(function()
-		loadBuildFromXML(xml, "nearby-extract")
-	end)
+	local loadOk, loadErr = ensureBuildLoaded(request, xml, "nearby-extract")
 	if not loadOk then
-		return { type = "error", message = "failed to load build: " .. tostring(loadErr) }
+		return { type = "error", message = loadErr }
 	end
 
 	build.buildFlag = true

@@ -27,9 +27,10 @@ type AuditRequest struct {
 // the requested scope(s) and return the raw graph data. The Go side runs
 // segmentation on the result.
 type auditExtractLuaRequest struct {
-	Type  string `json:"type"`
-	XML   string `json:"xml"`
-	Scope string `json:"scope"`
+	Type          string `json:"type"`
+	XML           string `json:"xml"`
+	LoadedBuildID string `json:"loadedBuildId,omitempty"`
+	Scope         string `json:"scope"`
 }
 
 // auditExtractScopeData is one scope's worth of graph data returned from
@@ -257,6 +258,8 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 	if !ok {
 		return
 	}
+	// Wrapper now has req.BuildID loaded; record for skip-reload on follow-ups.
+	proc.SetLastLoadedBuildID(req.BuildID)
 
 	// Per-scope segmentation. Each scope's branches are independent and get
 	// their own evaluation budget (branch_limit + node_limit apply per scope).
@@ -540,9 +543,10 @@ func (srv *Server) runAuditExtract(
 ) (auditExtractEnvelope, bool) {
 	var envelope auditExtractEnvelope
 	rawResp, sendErr := proc.Send(auditExtractLuaRequest{
-		Type:  "audit_extract",
-		XML:   xml,
-		Scope: scope,
+		Type:          "audit_extract",
+		XML:           xml,
+		LoadedBuildID: proc.LastLoadedBuildID(),
+		Scope:         scope,
 	})
 	if sendErr != nil {
 		srv.log.Error("process send error", "err", sendErr)

@@ -42,9 +42,10 @@ type CalcRequest struct {
 }
 
 type calcLuaRequest struct {
-	Type     string   `json:"type"`
-	XML      string   `json:"xml"`
-	StatKeys []string `json:"statKeys,omitempty"`
+	Type          string   `json:"type"`
+	XML           string   `json:"xml"`
+	LoadedBuildID string   `json:"loadedBuildId,omitempty"`
+	StatKeys      []string `json:"statKeys,omitempty"`
 }
 
 // calcResponse wraps the PoB result with a buildId for caching.
@@ -222,9 +223,10 @@ func (srv *Server) calcAndRespond(
 	defer srv.pool.Release(proc)
 
 	response, err := proc.Send(calcLuaRequest{
-		Type:     "calc",
-		XML:      xml,
-		StatKeys: parseStatKeys(request),
+		Type:          "calc",
+		XML:           xml,
+		LoadedBuildID: proc.LastLoadedBuildID(),
+		StatKeys:      parseStatKeys(request),
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
@@ -269,6 +271,9 @@ func (srv *Server) calcAndRespond(
 	// Pin the process to this buildID so follow-up calls (modify, nearby,
 	// audit, compare) hit affinity instead of paying a cold load.
 	srv.pool.Pin(proc, buildID)
+	// Record what's loaded so the next request on this process can skip
+	// the XML reload via the loadedBuildId protocol field.
+	proc.SetLastLoadedBuildID(buildID)
 
 	// Filter sections based on query parameter
 	responseData := pobResp.Data
@@ -293,11 +298,12 @@ type ModifyRequest struct {
 }
 
 type modifyLuaRequest struct {
-	Type       string            `json:"type"`
-	XML        string            `json:"xml"`
-	Operations []json.RawMessage `json:"operations"`
-	StatKeys   []string          `json:"statKeys,omitempty"`
-	PreSummary json.RawMessage   `json:"preSummary,omitempty"`
+	Type          string            `json:"type"`
+	XML           string            `json:"xml"`
+	LoadedBuildID string            `json:"loadedBuildId,omitempty"`
+	Operations    []json.RawMessage `json:"operations"`
+	StatKeys      []string          `json:"statKeys,omitempty"`
+	PreSummary    json.RawMessage   `json:"preSummary,omitempty"`
 }
 
 type modifyLuaResponse struct {
@@ -410,11 +416,12 @@ func (srv *Server) modifyAndRespond(
 	defer srv.pool.Release(proc)
 
 	response, err := proc.Send(modifyLuaRequest{
-		Type:       "modify",
-		XML:        xml,
-		Operations: operations,
-		StatKeys:   parseStatKeys(request),
-		PreSummary: preSummary,
+		Type:          "modify",
+		XML:           xml,
+		LoadedBuildID: proc.LastLoadedBuildID(),
+		Operations:    operations,
+		StatKeys:      parseStatKeys(request),
+		PreSummary:    preSummary,
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
@@ -468,6 +475,9 @@ func (srv *Server) modifyAndRespond(
 			srv.pool.Pin(proc, newID)
 		}
 	}
+	// The wrapper now has the modified build loaded; record its ID so
+	// follow-up requests can skip reload.
+	proc.SetLastLoadedBuildID(newID)
 
 	// Filter sections based on query parameter
 	responseData := pobResp.Data
@@ -499,10 +509,11 @@ type NearbyRequest struct {
 // emit raw candidate property bags for every node within radius. The Go
 // side filters and ranks; Lua does not run any algorithm.
 type nearbyExtractLuaRequest struct {
-	Type   string   `json:"type"`
-	XML    string   `json:"xml"`
-	Radius int      `json:"radius"`
-	Stats  []string `json:"stats"`
+	Type          string   `json:"type"`
+	XML           string   `json:"xml"`
+	LoadedBuildID string   `json:"loadedBuildId,omitempty"`
+	Radius        int      `json:"radius"`
+	Stats         []string `json:"stats"`
 }
 
 // nearbyExtractData is the response payload from handleNearbyExtract.
@@ -676,6 +687,10 @@ func (srv *Server) handleNearby(
 	if !ok {
 		return
 	}
+	// Wrapper now has req.BuildID loaded (whether the load just happened or was
+	// skipped via affinity). Record so subsequent calls on this process can
+	// skip-reload via the loadedBuildId protocol field.
+	proc.SetLastLoadedBuildID(req.BuildID)
 
 	// Filter Go-side. Only candidates that pass the predicate get a real
 	// perturbation calc.
@@ -720,10 +735,11 @@ func (srv *Server) runNearbyExtract(
 ) (nearbyExtractEnvelope, bool) {
 	var envelope nearbyExtractEnvelope
 	raw, sendErr := proc.Send(nearbyExtractLuaRequest{
-		Type:   "nearby_extract",
-		XML:    xml,
-		Radius: radius,
-		Stats:  statKeys,
+		Type:          "nearby_extract",
+		XML:           xml,
+		LoadedBuildID: proc.LastLoadedBuildID(),
+		Radius:        radius,
+		Stats:         statKeys,
 	})
 	if sendErr != nil {
 		srv.log.Error("process send error", "err", sendErr)
