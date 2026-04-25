@@ -90,9 +90,10 @@ export const buildPlannerModule: NativeReferenceModule = {
         "Build ID from a previous build_planner response. Use this to modify, re-analyze, or explore a build without a URL. Omit on first call.",
     },
     operations: {
-      type: "string",
+      type: "array",
+      items: { type: "object" },
       description:
-        'JSON array of modifications to apply to the build. Omit for pure analysis. Each operation is an object with an "op" field and operation-specific parameters. Operations are applied in order. Available operations:\n' +
+        'Array of modifications to apply to the build. Omit for pure analysis. Each operation is an object with an "op" field and operation-specific parameters. Pass operations as a real JSON array (NOT a JSON-encoded string). Operations are applied in order. Available operations:\n' +
         '- {"op":"set_level","level":95} — Set character level.\n' +
         '- {"op":"swap_gem","socket_group":0,"gem_index":1,"new_gem":"Ruthless Support","level":20,"quality":20} — Replace a gem in a socket group (0-indexed).\n' +
         '- {"op":"add_gem","socket_group":0,"gem":"Inspiration Support","level":20,"quality":20} — Add a gem to a socket group.\n' +
@@ -224,7 +225,7 @@ export const buildPlannerModule: NativeReferenceModule = {
   ): Promise<ReferenceResult> {
     const build = query.build as string | undefined;
     const buildId = query.build_id as string | undefined;
-    const operations = query.operations as string | undefined;
+    const operations = query.operations;
     const sections = query.sections as string | undefined;
     const statKeys = query.stat_keys as string | undefined;
     const nearbyMetrics = query.nearby_metrics as string | undefined;
@@ -489,7 +490,7 @@ export const buildPlannerModule: NativeReferenceModule = {
     }
 
     // Step 2: If operations provided, modify the build
-    if (operations) {
+    if (operations !== undefined && operations !== null) {
       if (!resolvedBuildId) {
         return {
           type: "text",
@@ -498,19 +499,23 @@ export const buildPlannerModule: NativeReferenceModule = {
         };
       }
 
-      let parsedOps: unknown[];
-      try {
-        parsedOps = JSON.parse(operations);
-        if (!Array.isArray(parsedOps) || parsedOps.length === 0) {
-          return {
-            type: "text",
-            content: "Error: operations must be a non-empty JSON array.",
-          };
-        }
-      } catch {
+      // Pre-launch breaking change: operations must be a real JSON array.
+      // Stringified-JSON arrays (the old shape) and non-array values are
+      // rejected with a guiding error rather than silently parsed — see
+      // the epic anti-pattern "NO backwards-compat for stringified-JSON
+      // operations". The MCP manifest declares the array shape; clients
+      // that send anything else are out of contract.
+      if (!Array.isArray(operations)) {
         return {
           type: "text",
-          content: "Error: operations is not valid JSON.",
+          content:
+            "Error: operations must be a JSON array (e.g. [{\"op\":\"set_level\",\"level\":95}]). Pass it as a real array, not a JSON-encoded string.",
+        };
+      }
+      if (operations.length === 0) {
+        return {
+          type: "text",
+          content: "Error: operations must be a non-empty array.",
         };
       }
 
@@ -519,7 +524,7 @@ export const buildPlannerModule: NativeReferenceModule = {
         response = await pobFetch(
           pobUrl,
           "/modify",
-          { buildId: resolvedBuildId, operations: parsedOps },
+          { buildId: resolvedBuildId, operations },
           env.POB_API_KEY,
           sections,
           statKeys,

@@ -2194,28 +2194,68 @@ describe("buildPlannerModule", () => {
     });
   });
 
-  it("returns error for invalid operations JSON", async () => {
+  it("rejects stringified-JSON operations with a guiding error", async () => {
+    // Pre-launch breaking change: operations is now a real array, not a
+    // stringified JSON. A caller who passes the old shape gets an error
+    // pointing at the new array shape, not silent fallback.
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
     const result = await buildPlannerModule.execute(
-      { build_id: "abc123", operations: "not json" },
+      { build_id: "abc123", operations: '[{"op":"set_level","level":95}]' },
       {
         ...env,
         POB_URL: "http://localhost:8077",
       } as unknown as Env,
     );
-    expect(result).toEqual({ type: "text", content: expect.stringContaining("not valid JSON") });
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("must be a JSON array"),
+    });
   });
 
   it("returns error for empty operations array", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
-    const result = await buildPlannerModule.execute({ build_id: "abc123", operations: "[]" }, {
+    const result = await buildPlannerModule.execute({ build_id: "abc123", operations: [] }, {
       ...env,
       POB_URL: "http://localhost:8077",
     } as unknown as Env);
     expect(result).toEqual({
       type: "text",
-      content: expect.stringContaining("non-empty JSON array"),
+      content: expect.stringContaining("non-empty"),
     });
+  });
+
+  it("rejects non-array operations (object)", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build_id: "abc123", operations: { op: "set_level", level: 95 } },
+      {
+        ...env,
+        POB_URL: "http://localhost:8077",
+      } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("must be a JSON array"),
+    });
+  });
+
+  it("forwards a real array of operations to pob-server (reaches the unavailable path)", async () => {
+    // POB_URL points at a closed port; if validation accepts the array,
+    // execution proceeds to pobFetch and surfaces the connectivity error.
+    // Reaching that error path proves the array shape passed the new
+    // validation gate (a string would be rejected before pobFetch).
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      {
+        build_id: "abc123",
+        operations: [{ op: "set_level", level: 95 }],
+      },
+      {
+        ...env,
+        POB_URL: "http://127.0.0.1:1",
+      } as unknown as Env,
+    );
+    expect(result).toEqual({ type: "text", content: expect.stringContaining("unavailable") });
   });
 
   it("rejects raw base64 build codes", async () => {
