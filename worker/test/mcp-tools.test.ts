@@ -2566,4 +2566,137 @@ describe("buildPlannerModule", () => {
       globalThis.fetch = originalFetch;
     }
   });
+
+  // compare_with: opt-in N-build comparison through /compare
+  it("rejects compare_with when neither build nor build_id is provided", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { compare_with: ["https://pobb.in/other"] },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    // Same primary-required error path as the rest of the module —
+    // compare doesn't get a special bypass.
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("either build (URL) or build_id is required"),
+    });
+  });
+
+  it("rejects compare_with when not an array", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build: "https://pobb.in/abc", compare_with: "https://pobb.in/other" },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("must be a JSON array"),
+    });
+  });
+
+  it("rejects empty compare_with array", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build: "https://pobb.in/abc", compare_with: [] },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("at least one"),
+    });
+  });
+
+  it("forwards compare_with to /compare with concatenated builds", async () => {
+    let capturedURL: string | undefined;
+    let capturedBody: Record<string, unknown> | undefined;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((input: RequestInfo | URL, init?: RequestInit) => {
+      capturedURL = typeof input === "string" ? input : input.toString();
+      capturedBody = init?.body ? JSON.parse(init.body as string) : undefined;
+      return Promise.resolve(
+        Response.json({ builds: [{ id: "a", label: "a", character: {}, summary: {} }] }),
+      );
+    }) as typeof globalThis.fetch;
+
+    try {
+      const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+      await buildPlannerModule.execute(
+        {
+          build: "https://pobb.in/primary",
+          compare_with: ["https://pobb.in/other-1", "https://pobb.in/other-2"],
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      expect(capturedURL).toContain("/compare");
+      const builds = capturedBody?.builds as string[] | undefined;
+      expect(builds).toEqual([
+        "https://pobb.in/primary",
+        "https://pobb.in/other-1",
+        "https://pobb.in/other-2",
+      ]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("forwards optional buy_similar and league to /compare", async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedBody = init?.body ? JSON.parse(init.body as string) : undefined;
+      return Promise.resolve(Response.json({ builds: [] }));
+    }) as typeof globalThis.fetch;
+
+    try {
+      const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+      await buildPlannerModule.execute(
+        {
+          build: "https://pobb.in/primary",
+          compare_with: ["https://pobb.in/other"],
+          buy_similar: true,
+          league: "Mirage",
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      expect(capturedBody?.buy_similar).toBe(true);
+      expect(capturedBody?.league).toBe("Mirage");
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("uses build_id as primary when build URL is absent", async () => {
+    let capturedBody: Record<string, unknown> | undefined;
+    const originalFetch = globalThis.fetch;
+    globalThis.fetch = ((_input: RequestInfo | URL, init?: RequestInit) => {
+      capturedBody = init?.body ? JSON.parse(init.body as string) : undefined;
+      return Promise.resolve(Response.json({ builds: [] }));
+    }) as typeof globalThis.fetch;
+
+    try {
+      const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+      await buildPlannerModule.execute(
+        {
+          build_id: "abc123def456",
+          compare_with: ["https://pobb.in/other"],
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      const builds = capturedBody?.builds as string[] | undefined;
+      expect(builds).toEqual(["abc123def456", "https://pobb.in/other"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("manifest declares compare_with as array with descriptive text", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const params = buildPlannerModule.parameters as Record<string, { type: string; description: string }>;
+    const compareWith = params.compare_with;
+    expect(compareWith).toBeDefined();
+    expect(compareWith?.type).toBe("array");
+    expect(compareWith?.description).toContain("compare");
+    expect(params.buy_similar).toBeDefined();
+    expect(params.league).toBeDefined();
+  });
 });

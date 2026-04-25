@@ -222,6 +222,32 @@ export const buildPlannerModule: NativeReferenceModule = {
         "for respec analysis), or 'both' (returns parallel tree_branches and ascendancy_branches sections, never merged " +
         "since they suggest structurally different actions). Only used with audit_allocated.",
     },
+    compare_with: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Array of additional build URLs or build_ids to compare against the primary build. " +
+        "Triggers compare mode: returns per-build summaries plus diffs across summary stats, " +
+        "allocated tree nodes, equipped gear, and skill socket groups. Each diff entry uses " +
+        "perBuild arrays so the response shape is identical at N=2 and N=3+. " +
+        "The primary (build or build_id) is iterated alongside compare_with — pass at least one " +
+        "additional build here. Compare mode takes precedence over modify/nearby/audit when " +
+        "compare_with is set.",
+    },
+    buy_similar: {
+      type: "boolean",
+      description:
+        "When true alongside compare_with, response includes a buySimilar array with " +
+        "pathofexile.com/trade URLs pre-filled to find each item that one build has and " +
+        "another lacks (or has a different one in the same slot). Useful for 'how do I match " +
+        "this build?' workflows. Defaults to false.",
+    },
+    league: {
+      type: "string",
+      description:
+        "League name for buy_similar trade URLs (e.g. 'Standard', 'Mirage', 'Mirage Hardcore'). " +
+        "Defaults to 'Standard'. Only used when buy_similar is true.",
+    },
   },
 
   async execute(
@@ -246,6 +272,9 @@ export const buildPlannerModule: NativeReferenceModule = {
     const auditIncludeZero = query.audit_include_zero as string | undefined;
     const auditSort = query.audit_sort as string | undefined;
     const auditScope = query.audit_scope as string | undefined;
+    const compareWith = query.compare_with;
+    const buySimilar = query.buy_similar as boolean | undefined;
+    const league = query.league as string | undefined;
 
     if (!build && !buildId) {
       return {
@@ -269,6 +298,59 @@ export const buildPlannerModule: NativeReferenceModule = {
         content:
           "PoB calc service is not configured. The POB_URL environment variable is not set.",
       };
+    }
+
+    // Compare mode: compare_with triggers /compare with the primary build
+    // (build URL or build_id) concatenated with the compare_with builds.
+    // Takes precedence over modify/nearby/audit/resolve — when compare_with
+    // is set, compare is the operation regardless of other flags.
+    if (compareWith !== undefined && compareWith !== null) {
+      if (!Array.isArray(compareWith)) {
+        return {
+          type: "text",
+          content:
+            "Error: compare_with must be a JSON array of build URLs or build_ids " +
+            "(e.g. [\"https://pobb.in/abc\", \"def123\"]).",
+        };
+      }
+      if (compareWith.length === 0) {
+        return {
+          type: "text",
+          content:
+            "Error: compare_with must contain at least one additional build to compare " +
+            "against the primary.",
+        };
+      }
+      const primary = build ?? buildId;
+      // primary is guaranteed non-empty by the earlier (!build && !buildId) check.
+      const compareBody: Record<string, unknown> = {
+        builds: [primary as string, ...compareWith],
+      };
+      if (buySimilar) {
+        compareBody.buy_similar = true;
+      }
+      if (league) {
+        compareBody.league = league;
+      }
+
+      let response: Response;
+      try {
+        response = await pobFetch(pobUrl, "/compare", compareBody, env.POB_API_KEY);
+      } catch (e) {
+        return {
+          type: "text",
+          content: `PoB calc service is currently unavailable: ${e instanceof Error ? e.message : "unknown error"}. Try again later.`,
+        };
+      }
+      if (!response.ok) {
+        const body = await response.text().catch(() => "");
+        return {
+          type: "text",
+          content: `PoB compare error (${String(response.status)}): ${body}`,
+        };
+      }
+      const compareResult = (await response.json()) as Record<string, unknown>;
+      return { type: "structured", data: compareResult };
     }
 
     // Audit mode: audit_allocated triggers /audit (inverse of explore — find
