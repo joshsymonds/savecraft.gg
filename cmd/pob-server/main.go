@@ -93,12 +93,13 @@ func main() {
 	}
 
 	srv := &Server{
-		pool:     pool,
-		cache:    cache,
-		apiKey:   cfg.apiKey,
-		client:   newResolveHTTPClient(),
-		modIndex: NewModSourceIndex(),
-		log:      logger,
+		pool:               pool,
+		cache:              cache,
+		apiKey:             cfg.apiKey,
+		client:             newResolveHTTPClient(),
+		modIndex:           NewModSourceIndex(),
+		log:                logger,
+		PowerReportEnabled: true,
 	}
 
 	mux := http.NewServeMux()

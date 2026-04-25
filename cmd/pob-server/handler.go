@@ -24,6 +24,13 @@ type Server struct {
 	modIndex *ModSourceIndex
 	log      *slog.Logger
 
+	// PowerReportEnabled controls whether /resolve and /modify responses
+	// auto-attach a top-N "what should I take next" report. Default off so
+	// existing handler tests (which use minimal mock subprocesses) don't
+	// have to provide the extra extract+perturb canned responses; main.go
+	// flips this on in production.
+	PowerReportEnabled bool
+
 	// gemNames caches PoB's canonical gem names, fetched from
 	// wrapper.lua's list_gems accessor. Used to compute fuzzy
 	// suggestions when a swap_gem / add_gem op fails. Populated once
@@ -52,8 +59,21 @@ type calcLuaRequest struct {
 
 // calcResponse wraps the PoB result with a buildId for caching.
 type calcResponse struct {
-	BuildID string          `json:"buildId"`
-	PobData json.RawMessage `json:"data"`
+	BuildID     string             `json:"buildId"`
+	PobData     json.RawMessage    `json:"data"`
+	PowerReport *powerReportResult `json:"power_report,omitempty"`
+}
+
+// powerReportResult is the inline equivalent of /nearby's per-metric output —
+// one ranked list of unallocated nodes by the leading non-zero metric. The
+// shape mirrors nearbyMetricResult so MCP consumers that already understand
+// nearby can read this without a second schema.
+type powerReportResult struct {
+	Metric   string             `json:"metric"`
+	Baseline float64            `json:"baseline"`
+	Limit    int                `json:"limit"`
+	Radius   int                `json:"radius"`
+	Nodes    []nearbyRankedNode `json:"nodes"`
 }
 
 // maxRequestBodySize limits incoming POST bodies to 2 MB.
@@ -281,11 +301,38 @@ func (srv *Server) calcAndRespond(
 		return
 	}
 
+	// Inline power report: top-N "what should I take next" nodes ranked
+	// by the leading non-zero metric. Failure here logs and degrades to
+	// nil — never fails the parent response.
+	powerReport := srv.attachPowerReport(proc, buildID, xml, extractSummaryFloats(pobResp.Data))
+
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(calcResponse{
-		BuildID: buildID,
-		PobData: filtered,
+		BuildID:     buildID,
+		PobData:     filtered,
+		PowerReport: powerReport,
 	})
+}
+
+// extractSummaryFloats pulls the top-level `summary` object out of the
+// wrapper.lua response and decodes it as a numeric map for the inline
+// power report's leading-metric pick. Returns nil on parse failure —
+// callers handle that by skipping the inline call.
+func extractSummaryFloats(data json.RawMessage) map[string]float64 {
+	var parsed struct {
+		Summary map[string]json.RawMessage `json:"summary"`
+	}
+	if json.Unmarshal(data, &parsed) != nil || parsed.Summary == nil {
+		return nil
+	}
+	out := make(map[string]float64, len(parsed.Summary))
+	for key, raw := range parsed.Summary {
+		var n float64
+		if json.Unmarshal(raw, &n) == nil {
+			out[key] = n
+		}
+	}
+	return out
 }
 
 // ModifyRequest is the JSON body for POST /modify.
@@ -482,10 +529,15 @@ func (srv *Server) modifyAndRespond(
 		return
 	}
 
+	// Inline power report on the modified build. modifiedXML carries the
+	// post-operations XML so the inline extract runs against the new state.
+	powerReport := srv.attachPowerReport(proc, newID, modifiedXML, extractSummaryFloats(pobResp.Data))
+
 	writer.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(writer).Encode(calcResponse{
-		BuildID: newID,
-		PobData: filtered,
+		BuildID:     newID,
+		PobData:     filtered,
+		PowerReport: powerReport,
 	})
 }
 
