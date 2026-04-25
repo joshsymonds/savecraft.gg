@@ -291,7 +291,7 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 	// Build the canonical stat-key list (rank metrics + report-only delta stats).
 	statKeys := collectStatKeys(req.Metrics, req.DeltaStats)
 
-	perturbEnvelope, ok := srv.runAuditPerturb(writer, proc, branchRemoves, singleRemoves, statKeys)
+	perturbEnvelope, ok := srv.runAuditPerturb(writer, proc, req.BuildID, branchRemoves, singleRemoves, statKeys)
 	if !ok {
 		return
 	}
@@ -571,9 +571,16 @@ func (srv *Server) runAuditExtract(
 // process. Returns ok=false on any error (jsonError already written).
 // When there is nothing to perturb, returns a zero envelope + ok=true so
 // the caller skips the Send round-trip entirely.
+//
+// When the SQLite store is enabled, runAuditPerturb consults the
+// (build_id, node_id, metric) delta cache for singleRemoves only — branch
+// removes are keyed by node sets, not single nodes, so they aren't
+// cacheable here. Cached single-removes are folded back into the
+// response's SingleDeltas after the perturb call.
 func (srv *Server) runAuditPerturb(
 	writer http.ResponseWriter,
 	proc *Process,
+	buildID string,
 	branchRemoves [][]int,
 	singleRemoves []int,
 	stats []string,
@@ -582,10 +589,14 @@ func (srv *Server) runAuditPerturb(
 	if len(branchRemoves) == 0 && len(singleRemoves) == 0 {
 		return envelope, true
 	}
+
+	// Cache pre-check: skip already-cached single-remove nodes.
+	cachedSingles, perturbSingles := srv.splitAuditSinglesByCache(buildID, singleRemoves, stats)
+
 	rawResp, sendErr := proc.Send(auditPerturbLuaRequest{
 		Type:          "audit_perturb",
 		BranchRemoves: branchRemoves,
-		SingleRemoves: singleRemoves,
+		SingleRemoves: perturbSingles,
 		Stats:         stats,
 	})
 	if sendErr != nil {
@@ -603,5 +614,50 @@ func (srv *Server) runAuditPerturb(
 		jsonError(writer, "PoB audit failed", http.StatusUnprocessableEntity)
 		return envelope, false
 	}
+
+	// Refresh cache with fresh singles, then fold cached singles back into
+	// the response so the caller sees a unified SingleDeltas map.
+	if srv.cache.store != nil && buildID != "" && len(envelope.Data.SingleDeltas) > 0 {
+		if err := srv.cache.store.PutDeltasBatch(buildID, envelope.Data.SingleDeltas); err != nil {
+			srv.log.Warn("delta cache write failed", "err", err)
+		}
+	}
+	envelope.Data.SingleDeltas = mergeDeltaMaps(cachedSingles, envelope.Data.SingleDeltas)
 	return envelope, true
+}
+
+// splitAuditSinglesByCache returns cached single-remove deltas and the
+// subset of node ids that still need perturbation (any metric missing from
+// cache).
+func (srv *Server) splitAuditSinglesByCache(
+	buildID string, singles []int, stats []string,
+) (cached map[int]map[string]float64, perturb []int) {
+	if srv.cache.store == nil || buildID == "" || len(singles) == 0 || len(stats) == 0 {
+		return nil, singles
+	}
+	lookups := make([]deltaLookup, 0, len(singles)*len(stats))
+	for _, nodeID := range singles {
+		for _, metric := range stats {
+			lookups = append(lookups, deltaLookup{NodeID: nodeID, Metric: metric})
+		}
+	}
+	got, _, err := srv.cache.store.GetDeltasBatch(buildID, lookups)
+	if err != nil {
+		srv.log.Warn("delta cache read failed; bypassing", "err", err)
+		return nil, singles
+	}
+	perturb = make([]int, 0, len(singles))
+	for _, nodeID := range singles {
+		full := true
+		for _, metric := range stats {
+			if _, ok := got[nodeID][metric]; !ok {
+				full = false
+				break
+			}
+		}
+		if !full {
+			perturb = append(perturb, nodeID)
+		}
+	}
+	return got, perturb
 }

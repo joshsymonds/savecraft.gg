@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
 	"net/http"
 	"strings"
 	"sync"
@@ -702,7 +703,7 @@ func (srv *Server) handleNearby(
 		}
 	}
 
-	deltasByID, ok := srv.runNearbyPerturb(writer, proc, passing, statKeys)
+	deltasByID, ok := srv.runNearbyPerturb(writer, proc, req.BuildID, passing, statKeys)
 	if !ok {
 		return
 	}
@@ -763,41 +764,128 @@ func (srv *Server) runNearbyExtract(
 // list. Returns deltas by node id, or nil + ok=true when there are no
 // candidates to perturb (no second Send needed). Writes a jsonError and
 // returns ok=false on any failure.
+//
+// When the SQLite store is enabled, runNearbyPerturb consults the
+// (build_id, node_id, metric) delta cache before sending. Candidate nodes
+// whose every requested metric is cached are skipped; only nodes with at
+// least one missing metric get perturbed (and the response then refreshes
+// the cache for that whole node). Builds are content-addressed, so cached
+// values are deterministic.
 func (srv *Server) runNearbyPerturb(
 	writer http.ResponseWriter,
 	proc *Process,
+	buildID string,
 	passing []*nearbyCandidate,
 	statKeys []string,
 ) (map[int]map[string]float64, bool) {
 	if len(passing) == 0 {
 		return nil, true
 	}
-	ids := make([]int, len(passing))
-	for i, candidate := range passing {
-		ids[i] = candidate.ID
+
+	// Cache pre-check: split candidates into fully-cached vs needs-perturb.
+	cachedHits, perturb := srv.splitNearbyByCacheLocked(buildID, passing, statKeys)
+
+	// Send perturb only for the candidates with at least one cache miss.
+	var freshDeltas map[int]map[string]float64
+	if len(perturb) > 0 {
+		ids := make([]int, len(perturb))
+		for i, candidate := range perturb {
+			ids[i] = candidate.ID
+		}
+		raw, sendErr := proc.Send(nearbyPerturbLuaRequest{
+			Type:    "nearby_perturb",
+			NodeIDs: ids,
+			Stats:   statKeys,
+		})
+		if sendErr != nil {
+			srv.log.Error("process send error", "err", sendErr)
+			jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
+			return nil, false
+		}
+		var envelope nearbyPerturbEnvelope
+		if err := json.Unmarshal(raw, &envelope); err != nil {
+			srv.log.Error("failed to parse perturb response", "err", err)
+			jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
+			return nil, false
+		}
+		if envelope.Type == pobRespTypeError {
+			srv.log.Error("PoB nearby_perturb error", "message", envelope.Message)
+			jsonError(writer, "PoB nearby search failed", http.StatusUnprocessableEntity)
+			return nil, false
+		}
+		freshDeltas = envelope.Data.Deltas
+
+		// Refresh the cache with the fresh perturbation results.
+		if srv.cache.store != nil && buildID != "" && len(freshDeltas) > 0 {
+			if err := srv.cache.store.PutDeltasBatch(buildID, freshDeltas); err != nil {
+				srv.log.Warn("delta cache write failed", "err", err)
+			}
+		}
 	}
-	raw, sendErr := proc.Send(nearbyPerturbLuaRequest{
-		Type:    "nearby_perturb",
-		NodeIDs: ids,
-		Stats:   statKeys,
-	})
-	if sendErr != nil {
-		srv.log.Error("process send error", "err", sendErr)
-		jsonError(writer, "PoB process error — check server logs for details", http.StatusInternalServerError)
-		return nil, false
+
+	// Merge cached + fresh; fresh wins on collision (it's the most recent
+	// computation, so any cache row that disagrees is stale).
+	merged := mergeDeltaMaps(cachedHits, freshDeltas)
+	return merged, true
+}
+
+// splitNearbyByCacheLocked queries the delta cache for every
+// (candidate × statKeys) pair and returns the hits map plus the subset of
+// candidates that have at least one cache miss. When the store isn't
+// enabled or buildID is empty, the cache is bypassed and all candidates
+// fall through to perturb.
+func (srv *Server) splitNearbyByCacheLocked(
+	buildID string, passing []*nearbyCandidate, statKeys []string,
+) (hits map[int]map[string]float64, perturb []*nearbyCandidate) {
+	if srv.cache.store == nil || buildID == "" || len(statKeys) == 0 {
+		return nil, passing
 	}
-	var envelope nearbyPerturbEnvelope
-	if err := json.Unmarshal(raw, &envelope); err != nil {
-		srv.log.Error("failed to parse perturb response", "err", err)
-		jsonError(writer, "invalid response from PoB process", http.StatusInternalServerError)
-		return nil, false
+	lookups := make([]deltaLookup, 0, len(passing)*len(statKeys))
+	for _, candidate := range passing {
+		for _, metric := range statKeys {
+			lookups = append(lookups, deltaLookup{NodeID: candidate.ID, Metric: metric})
+		}
 	}
-	if envelope.Type == pobRespTypeError {
-		srv.log.Error("PoB nearby_perturb error", "message", envelope.Message)
-		jsonError(writer, "PoB nearby search failed", http.StatusUnprocessableEntity)
-		return nil, false
+	got, _, err := srv.cache.store.GetDeltasBatch(buildID, lookups)
+	if err != nil {
+		srv.log.Warn("delta cache read failed; bypassing", "err", err)
+		return nil, passing
 	}
-	return envelope.Data.Deltas, true
+
+	perturb = make([]*nearbyCandidate, 0, len(passing))
+	for _, candidate := range passing {
+		full := true
+		for _, metric := range statKeys {
+			if _, ok := got[candidate.ID][metric]; !ok {
+				full = false
+				break
+			}
+		}
+		if !full {
+			perturb = append(perturb, candidate)
+		}
+	}
+	return got, perturb
+}
+
+// mergeDeltaMaps combines cached hits and fresh perturbation deltas. Fresh
+// values overwrite cached values when both exist for the same (node, metric).
+func mergeDeltaMaps(cached, fresh map[int]map[string]float64) map[int]map[string]float64 {
+	if len(cached) == 0 && len(fresh) == 0 {
+		return nil
+	}
+	out := make(map[int]map[string]float64, len(cached)+len(fresh))
+	for nodeID, byMetric := range cached {
+		out[nodeID] = make(map[string]float64, len(byMetric))
+		maps.Copy(out[nodeID], byMetric)
+	}
+	for nodeID, byMetric := range fresh {
+		if out[nodeID] == nil {
+			out[nodeID] = make(map[string]float64, len(byMetric))
+		}
+		maps.Copy(out[nodeID], byMetric)
+	}
+	return out
 }
 
 // nearbyBuildRankInputs converts filtered candidates and their per-id deltas
