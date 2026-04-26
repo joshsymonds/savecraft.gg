@@ -17,12 +17,13 @@ const pobRespTypeError = "error"
 
 // Server is the PoB HTTP server.
 type Server struct {
-	pool     *Pool
-	cache    *BuildCache
-	apiKey   string
-	client   *http.Client // for outbound requests (URL resolution); nil uses DefaultClient
-	modIndex *ModSourceIndex
-	log      *slog.Logger
+	pool       *Pool
+	cache      *BuildCache
+	apiKey     string
+	client     *http.Client // for outbound requests (URL resolution); nil uses DefaultClient
+	modIndex   *ModSourceIndex
+	tradeStats *tradeStatsClient // populated by main.go in production; nil in tests that don't need it
+	log        *slog.Logger
 
 	// PowerReportEnabled controls whether /resolve and /modify responses
 	// auto-attach a top-N "what should I take next" report. Default off so

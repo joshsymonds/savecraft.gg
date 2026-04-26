@@ -129,6 +129,9 @@ func main() {
 		log:                logger,
 		PowerReportEnabled: true,
 	}
+	if cache.store != nil {
+		srv.tradeStats = newTradeStatsClient(cache.store, defaultTradeStatsURL, time.Now)
+	}
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("/calc", srv.authMiddleware(srv.handleCalc))
@@ -138,6 +141,7 @@ func main() {
 	mux.HandleFunc("/audit", srv.authMiddleware(srv.handleAudit))
 	mux.HandleFunc("/build/", srv.authMiddleware(srv.handleGetBuild))
 	mux.HandleFunc("/compare", srv.authMiddleware(srv.handleCompare))
+	mux.HandleFunc("/admin/refresh-trade-stats", srv.authMiddleware(srv.handleRefreshTradeStats))
 	mux.HandleFunc("/health", srv.handleHealth)
 
 	addr := fmt.Sprintf(":%d", cfg.port)

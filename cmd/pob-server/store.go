@@ -53,6 +53,24 @@ CREATE TABLE IF NOT EXISTS node_deltas (
 	created_at INTEGER NOT NULL,
 	PRIMARY KEY (build_id, node_id, metric)
 );
+
+-- Trade-API stats cache for Feature 2's advanced buy-similar mod-ID
+-- lookups. Mirrors PoB's upstream CompareTradeHelpers.getTradeStatsLookup
+-- shape but driven from Go (no Lua HTTP). Per-league because trade IDs
+-- can vary by realm/league reset; in practice they stay stable across
+-- a league but the league field future-proofs the cache.
+--
+-- stripped_text is the entry's text with [#()0-9-+.] removed —
+-- matches the upstream Lua normalization. category is PoB's category
+-- label (Explicit, Implicit, Enchant, etc).
+CREATE TABLE IF NOT EXISTS trade_stats (
+	league        TEXT NOT NULL,
+	stripped_text TEXT NOT NULL,
+	category      TEXT NOT NULL,
+	trade_id      TEXT NOT NULL,
+	fetched_at    INTEGER NOT NULL,
+	PRIMARY KEY (league, stripped_text, category)
+);
 `
 
 // NewBuildStore opens or creates a SQLite database at dbPath.
@@ -293,4 +311,77 @@ func (s *BuildStore) GetDeltasBatch(
 		}
 	}
 	return hits, misses, nil
+}
+
+// PutTradeStatsBatch upserts trade-stats rows for one league in a
+// single transaction. Caller is responsible for fetched_at; the
+// fetcher uses time.Now to populate it before calling.
+//
+// Each row is keyed by (league, stripped_text, category). On
+// conflict the trade_id and fetched_at are overwritten so a stale
+// row gets refreshed in place.
+func (s *BuildStore) PutTradeStatsBatch(league string, rows []tradeStatsRow) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	ctx := context.Background()
+	tx, err := s.db.BeginTx(ctx, nil)
+	if err != nil {
+		return fmt.Errorf("begin tx: %w", err)
+	}
+	defer func() { _ = tx.Rollback() }()
+
+	stmt, err := tx.PrepareContext(ctx, `
+		INSERT INTO trade_stats (league, stripped_text, category, trade_id, fetched_at)
+		VALUES (?, ?, ?, ?, ?)
+		ON CONFLICT(league, stripped_text, category) DO UPDATE SET
+			trade_id   = excluded.trade_id,
+			fetched_at = excluded.fetched_at
+	`)
+	if err != nil {
+		return fmt.Errorf("prepare insert: %w", err)
+	}
+	defer stmt.Close()
+
+	for _, row := range rows {
+		if _, err := stmt.ExecContext(ctx, league, row.StrippedText, row.Category, row.TradeID, row.FetchedAt.Unix()); err != nil {
+			return fmt.Errorf("inserting trade_stats (%s, %q, %q): %w", league, row.StrippedText, row.Category, err)
+		}
+	}
+	return tx.Commit()
+}
+
+// LookupTradeStat returns the trade_id for a (league, stripped_text,
+// category) tuple. ok=false with nil error when the row isn't present.
+// Used by buy-similar URL construction to populate per-mod filter IDs.
+func (s *BuildStore) LookupTradeStat(league, strippedText, category string) (string, bool, error) {
+	var id string
+	err := s.db.QueryRowContext(context.Background(), `
+		SELECT trade_id FROM trade_stats
+		WHERE league = ? AND stripped_text = ? AND category = ?
+	`, league, strippedText, category).Scan(&id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return "", false, nil
+	}
+	if err != nil {
+		return "", false, fmt.Errorf("lookup trade_stats: %w", err)
+	}
+	return id, true, nil
+}
+
+// TradeStatsLatestFetchedAt returns the most-recent fetched_at across
+// rows for a league, or (zero, false, nil) when no rows exist. Used by
+// the fetcher to short-circuit when within TTL.
+func (s *BuildStore) TradeStatsLatestFetchedAt(league string) (time.Time, bool, error) {
+	var ts int64
+	err := s.db.QueryRowContext(context.Background(), `
+		SELECT MAX(fetched_at) FROM trade_stats WHERE league = ?
+	`, league).Scan(&ts)
+	if errors.Is(err, sql.ErrNoRows) || ts == 0 {
+		return time.Time{}, false, nil
+	}
+	if err != nil {
+		return time.Time{}, false, fmt.Errorf("lookup latest trade_stats fetched_at: %w", err)
+	}
+	return time.Unix(ts, 0), true, nil
 }
