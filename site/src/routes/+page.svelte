@@ -142,7 +142,7 @@
     <div class="reference-callout">
       <h3 class="reference-callout-title">Draft stats. Drop tables. Crop planners. No install.</h3>
       <p class="reference-callout-desc">
-        Games ship with expert reference modules your AI can query instantly. Connect and start
+        Games ship with expert modules your AI can query instantly. Connect and start
         asking.
       </p>
       <div class="reference-callout-cta">

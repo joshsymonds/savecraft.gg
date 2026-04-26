@@ -104,7 +104,7 @@
   </div>
 
   {#snippet heroActions()}
-    <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">TRY THE REFERENCE TOOLS</a>
+    <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">TRY THE EXPERT MODULES</a>
     <a href="#tiers" class="btn-outline">CONNECT YOUR ARENA DATA</a>
   {/snippet}
 
@@ -122,7 +122,7 @@
   <!-- ═══ WHAT YOUR AI KNOWS ═══ -->
   <MarketingSection
     id="tools"
-    eyebrow="REFERENCE TOOLS"
+    eyebrow="EXPERT MODULES"
     title="Real data for every format."
     subtitle="Every answer is grounded in real card data, real match statistics, and published methodology. No hallucinated cards. No invented abilities."
   >
@@ -286,7 +286,7 @@
         </div>
         <div class="tier-body">
           <p class="tier-desc">
-            Connect Savecraft to Claude or ChatGPT. All-format reference tools work immediately — no
+            Connect Savecraft to Claude or ChatGPT. All-format expert modules work immediately — no
             install required:
           </p>
           <ul class="tier-features">
@@ -294,7 +294,7 @@
               <li>{mod.name}</li>
             {/each}
           </ul>
-          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold tier-cta">TRY THE REFERENCE TOOLS</a
+          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold tier-cta">TRY THE EXPERT MODULES</a
           >
         </div>
       </div>

@@ -95,7 +95,7 @@
 
           {#if game.referenceModules.length > 0}
             <div class="modules-section">
-              <span class="modules-label">REFERENCE TOOLS</span>
+              <span class="modules-label">EXPERT MODULES</span>
               <div class="modules-list">
                 {#each game.referenceModules as mod (mod.name)}
                   <div class="module-item">

@@ -204,7 +204,7 @@
         <tbody>
           <tr>
             <td><code>list_games</code></td>
-            <td>Returns all your games, saves, note titles, and available reference modules.</td>
+            <td>Returns all your games, saves, note titles, and available expert modules.</td>
           </tr>
           <tr>
             <td><code>get_save</code></td>

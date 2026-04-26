@@ -112,7 +112,7 @@
   <!-- ═══ REFERENCE TOOLS ═══ -->
   <MarketingSection
     id="tools"
-    eyebrow="REFERENCE TOOLS"
+    eyebrow="EXPERT MODULES"
     title="Real data for every build."
     subtitle="Every answer is grounded in PoB's actual calc engine, current RePoE data, and live poe.ninja prices. No hallucinated gem effects. No made-up unique mods. No guessed DPS."
   >
