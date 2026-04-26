@@ -117,6 +117,11 @@
       const successIdx = successful.indexOf(b);
       const isAnchor = successIdx >= 0 && successIdx === anchorIdx;
       const isErrored = !!b.error;
+      // Sublabel disambiguates columns when class+level happen to
+      // match across builds (e.g. two Scion L99s). Errored builds keep
+      // the "errored" tag instead — the user already knows what failed
+      // from the subtitle.
+      const idLabel = b.label || b.id?.slice(0, 8) || "";
       return {
         key: `b${b.id ?? b.label}`,
         label: buildColumnLabel(b),
@@ -125,7 +130,7 @@
         // column gets the gold-tinted column background plus a left-side
         // lock icon (rendered by GroupedTable when pinned: true).
         variant: isErrored ? ("negative" as const) : isAnchor ? ("highlight" as const) : undefined,
-        sublabel: isErrored ? "errored" : undefined,
+        sublabel: isErrored ? "errored" : idLabel || undefined,
         pinned: isAnchor,
         // Click any non-anchor, non-errored column to make it the new
         // anchor. Deltas across the entire Summary section recompute

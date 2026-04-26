@@ -33,6 +33,27 @@ function isURL(value: string): boolean {
   }
 }
 
+// friendlyBuildLabel collapses a /compare input (URL or buildId) to a
+// short identifier suitable for a column header sublabel. Disambiguates
+// columns when the per-build class+level happens to match across builds
+// (two Scion L99s look identical without this).
+//
+//   https://pobb.in/OeN3b-6rvLSM       → "pobb.in/OeN3b-6rvLSM"
+//   https://www.pathofexile.com/...    → "pathofexile.com/..."
+//   21df3afc0a5138821b8f1c071d6523cd   → "21df3afc"
+//   <anything else>                    → input truncated to 24 chars
+function friendlyBuildLabel(input: string): string {
+  if (/^[a-f0-9]{32}$/.test(input)) return input.slice(0, 8);
+  try {
+    const u = new URL(input);
+    const host = u.hostname.replace(/^www\./, "");
+    const path = u.pathname.replace(/^\/+/, "").split("/").filter(Boolean)[0];
+    return path ? `${host}/${path}` : host;
+  } catch {
+    return input.length > 24 ? input.slice(0, 24) + "…" : input;
+  }
+}
+
 function pobFetch(
   pobUrl: string,
   path: string,
@@ -334,8 +355,14 @@ export const buildPlannerModule: NativeReferenceModule = {
       }
       const primary = build ?? buildId;
       // primary is guaranteed non-empty by the earlier (!build && !buildId) check.
+      const buildSources = [primary as string, ...compareWith];
+      // Pre-compute friendly per-build labels so the view can disambiguate
+      // columns when the auto-generated class+level matches across builds
+      // (e.g. two Scion L99s). The server's labelFor fallback only emits
+      // the hostname, which is identical for any pair of pobb.in URLs.
       const compareBody: Record<string, unknown> = {
-        builds: [primary as string, ...compareWith],
+        builds: buildSources,
+        labels: buildSources.map(friendlyBuildLabel),
       };
       if (buySimilar) {
         compareBody.buySimilar = true;
