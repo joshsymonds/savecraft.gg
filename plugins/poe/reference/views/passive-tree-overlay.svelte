@@ -46,12 +46,39 @@
     connections: Connection[];
   }
 
+  // Per-build allocation. When provided, the tree colors allocated
+  // nodes by ownership: common-to-all → bright neutral; unique to one
+  // build → that build's color; shared by some-but-not-all → muted
+  // neutral. Unallocated nodes fade to ~15% opacity so the spatial
+  // context stays without competing with the diff.
+  //
+  // nodeIds accepts numbers (the wire shape from /compare's
+  // diffs.tree.allocatedOnlyIn) — stringified internally for lookup
+  // against tree-data.gen.json's string-keyed nodes record.
+  interface BuildAllocation {
+    id: string;
+    label: string;
+    color: string; // CSS color matching the build-compare column color
+    nodeIds: number[];
+  }
+
+  // Per-node ownership classification. "common" requires the node to
+  // be allocated by EVERY build in the prop array. "unique" with
+  // buildIndex is in exactly one build. "partial" is in 2+ but not all
+  // (only meaningful at N≥3). "none" means unallocated.
+  type Ownership =
+    | { kind: "common" }
+    | { kind: "unique"; buildIndex: number }
+    | { kind: "partial"; buildIndices: number[] }
+    | { kind: "none" };
+
   interface Props {
     data?: TreeData;
     hideAscendancy?: boolean;
+    perBuildAllocated?: BuildAllocation[];
   }
 
-  let { data, hideAscendancy = true }: Props = $props();
+  let { data, hideAscendancy = true, perBuildAllocated }: Props = $props();
 
   let tree = $derived(data ?? (treeData as TreeData));
 
@@ -67,6 +94,42 @@
   let visibleConnections = $derived.by(() =>
     tree.connections.filter((c) => visibleNodes.has(c.a) && visibleNodes.has(c.b)),
   );
+
+  // ─── Per-node ownership ────────────────────────────────────────────────
+  // For each visible node, determine ownership across the per-build
+  // allocation sets. Pre-stringified Sets per build avoid O(N) array
+  // scans per node (the tree has 2800+ nodes, each potentially
+  // checked against N allocation arrays of 80-120 ids).
+  let perBuildSets = $derived.by(() => {
+    if (!perBuildAllocated) return null;
+    return perBuildAllocated.map(
+      (a) => new Set(a.nodeIds.map((n) => String(n))),
+    );
+  });
+
+  let ownershipByNodeId = $derived.by(() => {
+    const out = new Map<string, Ownership>();
+    if (!perBuildSets) return out;
+    const totalBuilds = perBuildSets.length;
+    for (const id of visibleNodes.keys()) {
+      const owners: number[] = [];
+      for (let i = 0; i < perBuildSets.length; i++) {
+        if (perBuildSets[i].has(id)) owners.push(i);
+      }
+      if (owners.length === 0) {
+        out.set(id, { kind: "none" });
+      } else if (owners.length === totalBuilds) {
+        out.set(id, { kind: "common" });
+      } else if (owners.length === 1) {
+        out.set(id, { kind: "unique", buildIndex: owners[0] });
+      } else {
+        out.set(id, { kind: "partial", buildIndices: owners });
+      }
+    }
+    return out;
+  });
+
+  let allocationsActive = $derived(perBuildAllocated !== undefined && perBuildAllocated.length > 0);
 
   // SVG path-d for an arc connection, mirroring PoB's BuildConnector
   // arc geometry. Coordinate system: angle=0 → top (12 o'clock); angle
@@ -235,6 +298,7 @@
     text: string;
     typeLabel: string;
     ascendancy?: string | null;
+    ownership?: string | null;
   };
   let tooltip: TooltipState = $state({
     visible: false,
@@ -243,9 +307,17 @@
     text: "",
     typeLabel: "",
     ascendancy: null,
+    ownership: null,
   });
 
-  function onNodeEnter(e: MouseEvent, node: TreeNode) {
+  function onNodeEnter(e: MouseEvent, id: string, node: TreeNode) {
+    let ownershipText: string | null = null;
+    if (allocationsActive) {
+      const own = ownershipByNodeId.get(id);
+      if (own && perBuildAllocated) {
+        ownershipText = ownershipLabel(own, perBuildAllocated);
+      }
+    }
     tooltip = {
       visible: true,
       clientX: e.clientX,
@@ -253,6 +325,7 @@
       text: node.name || "(unnamed)",
       typeLabel: node.type,
       ascendancy: node.ascendancy ?? null,
+      ownership: ownershipText,
     };
   }
 
@@ -265,7 +338,7 @@
     tooltip = { ...tooltip, visible: false };
   }
 
-  // ─── Per-type styling (unchanged from spike) ───────────────────────────
+  // ─── Per-type styling ──────────────────────────────────────────────────
   function nodeRadius(type: TreeNode["type"]): number {
     switch (type) {
       case "Keystone":
@@ -283,7 +356,7 @@
     }
   }
 
-  function nodeFill(type: TreeNode["type"]): string {
+  function defaultNodeFill(type: TreeNode["type"]): string {
     switch (type) {
       case "Keystone":
         return "#e74c3c";
@@ -300,9 +373,91 @@
     }
   }
 
-  function nodeStroke(type: TreeNode["type"]): string {
+  function defaultNodeStroke(type: TreeNode["type"]): string {
     if (type === "JewelSocket") return "#bdc3c7";
     return "rgba(0, 0, 0, 0.3)";
+  }
+
+  // ─── Allocation-aware styling ──────────────────────────────────────────
+  // Colors when allocation overlay is active. Common → bright neutral
+  // (visually agreed-upon). Unique-to-build → that build's palette
+  // color (cycles for N≥4; built into the prop's color field).
+  // Partial (allocated by 2 of 3+) → muted neutral. Unallocated → the
+  // type's normal color but at low opacity so the tree skeleton stays
+  // legible without competing with the diff.
+  const COMMON_COLOR = "#ecf0f1"; // near-white
+  const PARTIAL_COLOR = "#7f8c8d"; // muted grey
+
+  function nodeFillForOwnership(
+    type: TreeNode["type"],
+    ownership: Ownership,
+    builds: BuildAllocation[],
+  ): string {
+    if (ownership.kind === "common") return COMMON_COLOR;
+    if (ownership.kind === "unique") return builds[ownership.buildIndex].color;
+    if (ownership.kind === "partial") return PARTIAL_COLOR;
+    return defaultNodeFill(type);
+  }
+
+  function nodeOpacityForOwnership(ownership: Ownership): number {
+    return ownership.kind === "none" ? 0.18 : 1;
+  }
+
+  function nodeStrokeForOwnership(
+    type: TreeNode["type"],
+    ownership: Ownership,
+  ): string {
+    // Allocated nodes get a darker outline for definition; unallocated
+    // ones use the muted default.
+    if (ownership.kind === "none") return defaultNodeStroke(type);
+    return "rgba(0, 0, 0, 0.55)";
+  }
+
+  function nodeStrokeWidthForOwnership(ownership: Ownership): number {
+    return ownership.kind === "none" ? 2 : 4;
+  }
+
+  // For connection lines: if both endpoints share the same ownership
+  // (both common, both unique-to-same-build, both partial), color the
+  // line accordingly. Otherwise the line is part of the unallocated
+  // skeleton and fades to background.
+  function connectionColorAndOpacity(
+    aOwn: Ownership,
+    bOwn: Ownership,
+    builds: BuildAllocation[],
+  ): { stroke: string; opacity: number } {
+    const skeleton = { stroke: "#34495e", opacity: 0.22 };
+    if (aOwn.kind === "none" || bOwn.kind === "none") return skeleton;
+    if (aOwn.kind === "common" && bOwn.kind === "common") {
+      return { stroke: COMMON_COLOR, opacity: 0.7 };
+    }
+    if (
+      aOwn.kind === "unique" &&
+      bOwn.kind === "unique" &&
+      aOwn.buildIndex === bOwn.buildIndex
+    ) {
+      return { stroke: builds[aOwn.buildIndex].color, opacity: 0.85 };
+    }
+    // Mixed ownership at the endpoints (e.g. one node common, one
+    // unique-to-A): connection isn't part of either build's path
+    // exclusively. Render as muted neutral so it's visually grouped
+    // with the diff but not attributable to one side.
+    return { stroke: PARTIAL_COLOR, opacity: 0.45 };
+  }
+
+  function ownershipLabel(
+    ownership: Ownership,
+    builds: BuildAllocation[],
+  ): string | null {
+    if (ownership.kind === "none") return null;
+    if (ownership.kind === "common") {
+      return `Common to all builds (${builds.length})`;
+    }
+    if (ownership.kind === "unique") {
+      return `Allocated only by ${builds[ownership.buildIndex].label}`;
+    }
+    const labels = ownership.buildIndices.map((i) => builds[i].label).join(", ");
+    return `Shared by ${labels}`;
   }
 </script>
 
@@ -320,27 +475,61 @@
       onmousedown={onMouseDown}
       role="presentation"
     >
-      <g class="connections" stroke="#34495e" stroke-width="3" fill="none" opacity="0.5">
+      <g class="connections" fill="none">
         {#each visibleConnections as conn (`${conn.a}-${conn.b}`)}
+          {@const aOwn = allocationsActive
+            ? (ownershipByNodeId.get(conn.a) ?? { kind: "none" as const })
+            : ({ kind: "none" as const })}
+          {@const bOwn = allocationsActive
+            ? (ownershipByNodeId.get(conn.b) ?? { kind: "none" as const })
+            : ({ kind: "none" as const })}
+          {@const colorOpacity = allocationsActive
+            ? connectionColorAndOpacity(aOwn, bOwn, perBuildAllocated!)
+            : { stroke: "#34495e", opacity: 0.5 }}
+          {@const strokeWidth = allocationsActive
+            && (aOwn.kind !== "none" && bOwn.kind !== "none") ? 5 : 3}
           {#if conn.type === "arc"}
-            <path d={arcPathD(conn)} />
+            <path
+              d={arcPathD(conn)}
+              stroke={colorOpacity.stroke}
+              stroke-width={strokeWidth}
+              opacity={colorOpacity.opacity}
+            />
           {:else}
             {@const a = visibleNodes.get(conn.a)!}
             {@const b = visibleNodes.get(conn.b)!}
-            <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+            <line
+              x1={a.x}
+              y1={a.y}
+              x2={b.x}
+              y2={b.y}
+              stroke={colorOpacity.stroke}
+              stroke-width={strokeWidth}
+              opacity={colorOpacity.opacity}
+            />
           {/if}
         {/each}
       </g>
       <g class="nodes">
         {#each [...visibleNodes.entries()] as [id, node] (id)}
+          {@const own = allocationsActive
+            ? (ownershipByNodeId.get(id) ?? { kind: "none" as const })
+            : ({ kind: "none" as const })}
           <circle
             cx={node.x}
             cy={node.y}
             r={nodeRadius(node.type)}
-            fill={nodeFill(node.type)}
-            stroke={nodeStroke(node.type)}
-            stroke-width="3"
-            onmouseenter={(e) => onNodeEnter(e, node)}
+            fill={allocationsActive
+              ? nodeFillForOwnership(node.type, own, perBuildAllocated!)
+              : defaultNodeFill(node.type)}
+            stroke={allocationsActive
+              ? nodeStrokeForOwnership(node.type, own)
+              : defaultNodeStroke(node.type)}
+            stroke-width={allocationsActive
+              ? nodeStrokeWidthForOwnership(own)
+              : 3}
+            opacity={allocationsActive ? nodeOpacityForOwnership(own) : 1}
+            onmouseenter={(e) => onNodeEnter(e, id, node)}
             onmouseleave={onNodeLeave}
             role="button"
             tabindex="-1"
@@ -364,6 +553,30 @@
         <div class="tooltip-meta">
           {tooltip.typeLabel}{tooltip.ascendancy ? ` · ${tooltip.ascendancy}` : ""}
         </div>
+        {#if tooltip.ownership}
+          <div class="tooltip-ownership">{tooltip.ownership}</div>
+        {/if}
+      </div>
+    {/if}
+
+    {#if allocationsActive && perBuildAllocated}
+      <div class="legend">
+        <div class="legend-row">
+          <span class="legend-swatch" style:background={COMMON_COLOR}></span>
+          <span>Common to all</span>
+        </div>
+        {#each perBuildAllocated as build (build.id)}
+          <div class="legend-row">
+            <span class="legend-swatch" style:background={build.color}></span>
+            <span>{build.label} only</span>
+          </div>
+        {/each}
+        {#if perBuildAllocated.length >= 3}
+          <div class="legend-row">
+            <span class="legend-swatch" style:background={PARTIAL_COLOR}></span>
+            <span>Shared by some</span>
+          </div>
+        {/if}
       </div>
     {/if}
   </div>
@@ -434,6 +647,40 @@
     color: #95a5a6;
     font-size: 11px;
     margin-top: 2px;
+  }
+  .tooltip-ownership {
+    color: #ecf0f1;
+    font-size: 11px;
+    margin-top: 4px;
+    padding-top: 4px;
+    border-top: 1px solid rgba(255, 255, 255, 0.15);
+  }
+  .legend {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    background: rgba(44, 62, 80, 0.92);
+    border: 1px solid #34495e;
+    border-radius: 4px;
+    padding: 8px 12px;
+    font-size: 12px;
+    color: #ecf0f1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    pointer-events: none;
+  }
+  .legend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .legend-swatch {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    border: 1px solid rgba(0, 0, 0, 0.4);
+    flex: 0 0 auto;
   }
   .meta {
     display: flex;
