@@ -286,7 +286,7 @@
         </div>
         <div class="tier-body">
           <p class="tier-desc">
-            Connect Savecraft to Claude or ChatGPT. All-format expert modules work immediately — no
+            Connect Savecraft to Claude or ChatGPT. All-format expert modules work immediately, no
             install required:
           </p>
           <ul class="tier-features">

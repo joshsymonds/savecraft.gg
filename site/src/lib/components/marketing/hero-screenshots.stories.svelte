@@ -107,7 +107,7 @@
     href="/demo"
     style="display:inline-block; background: linear-gradient(135deg, var(--color-gold), var(--color-gold-light)); color:#1a1405; padding:12px 24px; border-radius:2px; font-family: var(--font-heading); font-size:13px; font-weight:700; letter-spacing:2px; text-transform:uppercase; text-decoration:none; box-shadow: 0 4px 15px rgba(200,168,78,0.3);"
   >
-    Try the reference tools
+    Try the expert modules
   </a>
   <a
     href="/demo"
