@@ -1,6 +1,8 @@
 <!--
   @component
-  Retro terminal/boot screen empty state shown when no sources are connected.
+  Retro terminal/boot screen panel shown beneath ConnectCard when no sources are connected.
+  Frames daemon install + API account-linking as the optional save-integration upgrade,
+  not the primary onboarding step (that's ConnectCard, rendered above this on the dashboard).
   Wraps AddSourceContent with CRT-inspired visual effects.
 -->
 <script lang="ts">
@@ -20,9 +22,9 @@
   <div class="terminal" class:wide={!!onapiskip}>
     <!-- Terminal header lines -->
     <div class="terminal-header">
-      <p class="terminal-line prompt">&gt; NO SOURCES DETECTED</p>
+      <p class="terminal-line prompt">&gt; SAVE INTEGRATION (OPTIONAL)</p>
       <p class="terminal-line prompt dim">
-        &gt; ADD A SOURCE TO START SYNCING YOUR SAVES TO AI<span class="cursor">_</span>
+        &gt; WANT YOUR AI TO ALSO READ YOUR SAVES?<span class="cursor">_</span>
       </p>
     </div>
 

@@ -283,6 +283,7 @@
             <span class="empty-text">Connecting...</span>
           </div>
         {:else if $linkState !== "linking"}
+          <ConnectCard />
           <EmptySourceState
             onsubmit={handleManualLink}
             onapiskip={() => {
