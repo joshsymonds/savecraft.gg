@@ -91,12 +91,12 @@
   <title>Savecraft — Real game data for your AI assistant</title>
   <meta
     name="description"
-    content="Savecraft connects your actual game state to Claude and ChatGPT — characters, gear, skills, progress. Real data from your save files, updated live. Open source."
+    content="Savecraft gives Claude and ChatGPT real game data — rules, items, builds, and economy for Magic, Path of Exile, Factorio, and more. Plus live save state for supported games. Open source."
   />
   <meta property="og:title" content="Savecraft — Real game data for your AI assistant" />
   <meta
     property="og:description"
-    content="Savecraft connects your actual game state to Claude and ChatGPT — characters, gear, skills, progress. Real data from your save files, updated live."
+    content="Savecraft gives Claude and ChatGPT real game data — rules, items, builds, and economy for Magic, Path of Exile, Factorio, and more. Plus live save state for supported games."
   />
   <meta property="og:url" content="https://savecraft.gg" />
   <meta property="og:type" content="website" />
@@ -114,7 +114,7 @@
         accent="gold"
         eyebrow="YOUR GAME DATA, FINALLY ACCURATE"
         title="Real game data for your AI."
-        subtitle="Savecraft connects your saves to Claude and ChatGPT — gear, builds, decks, farms — plus expert reference modules with real game data. Magic, Path of Exile, Factorio, Stellaris, and more."
+        subtitle="Savecraft gives Claude and ChatGPT real game data — rules, items, builds, economy — for Magic, Path of Exile, Factorio, Stellaris, and more. Plus your live save state — gear, decks, farms — on supported games."
         actions={heroActions}
         frames={heroFrames}
       />
@@ -123,7 +123,7 @@
   <!-- /hero-bg -->
 
   {#snippet heroActions()}
-    <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT YOUR SAVES</a>
+    <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold">CONNECT CLAUDE OR CHATGPT</a>
     <a href="#how" class="btn-outline">SEE HOW IT WORKS</a>
   {/snippet}
 
@@ -131,7 +131,7 @@
   <div class="proof-bar">
     <span class="proof-item">Connects to Claude and ChatGPT</span>
     <span class="proof-sep">*</span>
-    <span class="proof-item">Open source daemon</span>
+    <span class="proof-item">Updated every patch</span>
     <span class="proof-sep">*</span>
     <span class="proof-item">Read-only — can never modify your saves</span>
   </div>
@@ -422,9 +422,14 @@
   <section class="section cta-section">
     <div class="cta-inner">
       <h2 class="cta-title">Fix your AI.</h2>
-      <p class="cta-sub">Connect in 30 seconds. Works with Claude and ChatGPT.</p>
+      <p class="cta-sub">
+        Connect Claude or ChatGPT in 30 seconds. Optionally install the daemon to read your saves
+        on supported games.
+      </p>
       <div class="cta-actions">
-        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large">CONNECT YOUR SAVES</a>
+        <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large"
+          >CONNECT CLAUDE OR CHATGPT</a
+        >
       </div>
       <div class="cta-install">
         <div class="install-tabs cta-install-tabs">
