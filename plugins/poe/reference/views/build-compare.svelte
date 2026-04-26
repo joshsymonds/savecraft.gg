@@ -50,6 +50,20 @@
     same: boolean;
   }
 
+  // Config values are heterogeneous: number (enemyLevel: 84), boolean
+  // (raiseSpectreEnableBuffs: true), or short string (enemyIsBoss:
+  // "Pinnacle"). A null at perBuild[i] means build i didn't have this
+  // key set — distinct from numeric 0 / boolean false / empty string.
+  // Same-value entries are filtered server-side; every entry the view
+  // sees represents a real divergence.
+  type ConfigValue = number | boolean | string | null;
+
+  interface ConfigDiffEntry {
+    key: string;
+    perBuild: ConfigValue[];
+    same: boolean;
+  }
+
   interface BuySimilarEntry {
     fromBuildId: string;
     toBuildId: string;
@@ -63,6 +77,7 @@
     tree?: TreeDiff;
     gear?: Record<string, SlotDiff>;
     skills?: SocketGroupDiff[];
+    config?: ConfigDiffEntry[];
   }
 
   interface Props {
@@ -276,6 +291,28 @@
       });
     }
 
+    if (diffs?.config && diffs.config.length > 0) {
+      out.push({
+        label: "Config",
+        rows: diffs.config.map((entry) => {
+          const row: Record<string, CellValue> = { axis: formatStatKey(entry.key) };
+          successful.forEach((b, i) => {
+            const value = entry.perBuild[i];
+            const colKey = `b${b.id ?? b.label}`;
+            if (value === null || value === undefined) {
+              row[colKey] = { value: "—", variant: "muted" };
+            } else {
+              row[colKey] = formatConfigValue(value);
+            }
+          });
+          erroredBuilds.forEach((b) => {
+            row[`b${b.id ?? b.label}`] = buildErroredCell();
+          });
+          return row;
+        }),
+      });
+    }
+
     return out;
   });
 
@@ -360,6 +397,16 @@
     if (n >= 1_000) return n.toLocaleString();
     if (Number.isInteger(n)) return n.toString();
     return n.toFixed(1);
+  }
+
+  // Config values arrive as the raw decoded JSON type. Numbers go
+  // through the same magnitude-aware formatter as Summary stats so the
+  // wire shape is consistent; booleans render as Yes/No (more readable
+  // than true/false in a comparison column); strings pass through.
+  function formatConfigValue(value: number | boolean | string): string {
+    if (typeof value === "boolean") return value ? "Yes" : "No";
+    if (typeof value === "number") return formatNumber(value);
+    return value;
   }
 
   function formatStatKey(key: string): string {

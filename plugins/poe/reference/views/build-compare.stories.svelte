@@ -274,7 +274,47 @@
     buySimilar: [],
   };
 
-  // ─── 7. Errored build ─────────────────────────────────────────────────────
+  // ─── 7. Config diff ───────────────────────────────────────────────────────
+  // Two builds with divergent configs across all three value types
+  // (number, boolean, short string). enemyLevel agrees and is filtered
+  // server-side; only differing keys appear in the Config row group.
+  const configDiff = {
+    builds: [witchBuild, marauderBuild],
+    diffs: {
+      summary: {
+        CombinedDPS: { perBuild: [1_247_832, 2_500_000], leader: 1, range: 1.004 },
+      },
+      gear: {},
+      skills: [],
+      tree: { allocatedOnlyIn: {}, common: [] },
+      config: [
+        {
+          key: "enemyIsBoss",
+          perBuild: ["Pinnacle", "Conqueror"],
+          same: false,
+        },
+        {
+          key: "enemyArmour",
+          perBuild: [61_989, 100_000],
+          same: false,
+        },
+        {
+          key: "raiseSpectreEnableBuffs",
+          perBuild: [true, false],
+          same: false,
+        },
+        // Asymmetric: only the witch has this setting; marauder didn't
+        // configure it, so the marauder column shows the muted "—".
+        {
+          key: "summonElementalRelicEnableHatredAura",
+          perBuild: [true, null],
+          same: false,
+        },
+      ],
+    },
+  };
+
+  // ─── 8. Errored build ─────────────────────────────────────────────────────
   // One build failed to resolve. It appears in `builds` but NOT in any
   // diff's perBuild — column set is built from the successful subset only.
   // Subtitle should read "3 builds · 2 resolved" to surface the error.
@@ -344,7 +384,14 @@
   </div>
 </Story>
 
-<!-- 7. Errored build — one build failed to resolve, subtitle reflects it. -->
+<!-- 7. Config diff — heterogeneous values (number/bool/string), asymmetric. -->
+<Story name="Config diff">
+  <div style="max-width: 700px;">
+    <BuildCompare data={configDiff} />
+  </div>
+</Story>
+
+<!-- 8. Errored build — one build failed to resolve, subtitle reflects it. -->
 <Story name="Errored build">
   <div style="max-width: 700px;">
     <BuildCompare data={erroredBuild} />

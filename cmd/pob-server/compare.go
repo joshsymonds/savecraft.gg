@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"net/url"
+	"reflect"
 	"regexp"
 	"sort"
 	"strings"
@@ -65,6 +66,22 @@ type compareDiffs struct {
 	Tree    *compareTreeDiff           `json:"tree,omitempty"`
 	Gear    map[string]compareSlotDiff `json:"gear,omitempty"`
 	Skills  []compareSocketGroupDiff   `json:"skills,omitempty"`
+	Config  []compareConfigDiffEntry   `json:"config,omitempty"`
+}
+
+// compareConfigDiffEntry is one row of the config diff. PerBuild values
+// are heterogeneous (number / bool / string) and indexed parallel to the
+// SUCCESSFUL subset of CompareResponse.Builds. A nil at PerBuild[i] means
+// build i didn't have this config key set — distinct from a numeric 0 or
+// boolean false, which are real values worth comparing.
+//
+// Same-value entries (where every build agrees) are filtered out — config
+// is large (~30 keys) and the wire payload is more useful when it surfaces
+// only the divergences.
+type compareConfigDiffEntry struct {
+	Key      string `json:"key"`
+	PerBuild []any  `json:"perBuild"`
+	Same     bool   `json:"same"`
 }
 
 // compareSocketGroupDiff is one entry in the skills diff. Groups are
@@ -151,6 +168,7 @@ type compareBuildEntry struct {
 	allocatedNodes []int
 	itemsBySlot    map[string]string
 	socketGroups   []socketGroupSummary
+	config         map[string]any
 }
 
 // socketGroupSummary is the minimal per-group shape used for the skills
@@ -390,6 +408,10 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 					Name string `json:"name"`
 				} `json:"gems"`
 			} `json:"socketGroups"`
+			// Config is a flat dict of overrides (numbers, bools, short
+			// strings). Heterogeneous values; the diff layer compares
+			// with reflect.DeepEqual.
+			Config map[string]any `json:"config"`
 		} `json:"sections"`
 	}
 	if json.Unmarshal(data, &parsed) != nil {
@@ -424,6 +446,10 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 			})
 		}
 	}
+
+	if len(parsed.Sections.Config) > 0 {
+		entry.config = parsed.Sections.Config
+	}
 }
 
 // computeCompareDiffs walks the SUCCESSFUL build entries and assembles
@@ -449,10 +475,73 @@ func computeCompareDiffs(entries []compareBuildEntry) *compareDiffs {
 	tree := computeTreeDiff(successful)
 	gear := computeGearDiff(successful)
 	skills := computeSkillsDiff(successful)
-	if len(summary) == 0 && tree == nil && len(gear) == 0 && len(skills) == 0 {
+	config := computeConfigDiff(successful)
+	if len(summary) == 0 && tree == nil && len(gear) == 0 && len(skills) == 0 && len(config) == 0 {
 		return nil
 	}
-	return &compareDiffs{Summary: summary, Tree: tree, Gear: gear, Skills: skills}
+	return &compareDiffs{Summary: summary, Tree: tree, Gear: gear, Skills: skills, Config: config}
+}
+
+// computeConfigDiff produces sorted per-key entries for config keys that
+// disagree across the successful builds. Same-value keys are filtered —
+// the wire payload's value is highlighting divergence.
+//
+// Iterates the UNION of keys across all builds. A nil PerBuild value
+// distinguishes "key absent in this build's config" from "set to numeric
+// 0 / boolean false / empty string", which are real values.
+//
+// Sort order is alphabetical so the wire shape is deterministic across
+// runs — view code can render rows in a stable order without sorting.
+func computeConfigDiff(successful []compareBuildEntry) []compareConfigDiffEntry {
+	if len(successful) < 2 {
+		return nil
+	}
+	keys := make(map[string]bool)
+	for _, entry := range successful {
+		for key := range entry.config {
+			keys[key] = true
+		}
+	}
+	if len(keys) == 0 {
+		return nil
+	}
+	sortedKeys := make([]string, 0, len(keys))
+	for key := range keys {
+		sortedKeys = append(sortedKeys, key)
+	}
+	sort.Strings(sortedKeys)
+
+	out := make([]compareConfigDiffEntry, 0, len(sortedKeys))
+	for _, key := range sortedKeys {
+		perBuild := make([]any, len(successful))
+		same := true
+		var first any
+		hasFirst := false
+		for i, entry := range successful {
+			val, present := entry.config[key]
+			if !present {
+				perBuild[i] = nil
+			} else {
+				perBuild[i] = val
+			}
+			if !hasFirst {
+				first = perBuild[i]
+				hasFirst = true
+				continue
+			}
+			if !reflect.DeepEqual(perBuild[i], first) {
+				same = false
+			}
+		}
+		if same {
+			continue
+		}
+		out = append(out, compareConfigDiffEntry{Key: key, PerBuild: perBuild, Same: false})
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 // computeTreeDiff produces the per-build allocated-node set ops. Returns

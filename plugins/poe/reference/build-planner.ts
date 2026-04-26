@@ -249,11 +249,13 @@ export const buildPlannerModule: NativeReferenceModule = {
       description:
         "Array of additional build URLs or build_ids to compare against the primary build. " +
         "Triggers compare mode: returns per-build summaries plus diffs across summary stats, " +
-        "allocated tree nodes, equipped gear, and skill socket groups. Each diff entry uses " +
-        "perBuild arrays so the response shape is identical at N=2 and N=3+. " +
-        "The primary (build or build_id) is iterated alongside compare_with — pass at least one " +
-        "additional build here. Compare mode takes precedence over modify/nearby/audit when " +
-        "compare_with is set.",
+        "allocated tree nodes, equipped gear, skill socket groups, and configuration overrides " +
+        "(diffs.config — only keys that disagree across builds, with heterogeneous values: " +
+        "numbers like enemyLevel, booleans like raiseSpectreEnableBuffs, short strings like " +
+        "enemyIsBoss). Each diff entry uses perBuild arrays so the response shape is identical " +
+        "at N=2 and N=3+. The primary (build or build_id) is iterated alongside compare_with — " +
+        "pass at least one additional build here. Compare mode takes precedence over " +
+        "modify/nearby/audit when compare_with is set.",
     },
     buy_similar: {
       type: "boolean",
