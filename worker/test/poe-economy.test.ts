@@ -375,6 +375,8 @@ describe("economy reference module — response normalization", () => {
     expect(inpulsa.confidence).toBe("low");
     expect(inpulsa.sparkline).toEqual([0, 0, -1, -1.5, 0, -2, -2]);
     expect(inpulsa.change_7d).toBe(-2.0);
+    expect(inpulsa.mods).toBeUndefined();
+    expect(inpulsa.level_required).toBeUndefined();
   });
 
   it("normalizes currency shape: currencyTypeName→name, chaosEquivalent→chaos_value, no divine_value, change_7d from receiveSparkLine.totalChange, listings from receive.listing_count", async () => {
