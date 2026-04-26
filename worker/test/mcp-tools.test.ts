@@ -2765,4 +2765,122 @@ describe("buildPlannerModule", () => {
     expect(params.buy_similar).toBeDefined();
     expect(params.league).toBeDefined();
   });
+
+  // mod_sources: per-modifier source breakdown for named stats
+  it("rejects mod_sources when not an array (string passed)", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build: "https://pobb.in/abc", mod_sources: "Life" },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("must be a JSON array"),
+    });
+  });
+
+  it("rejects mod_sources when entries are not strings", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build: "https://pobb.in/abc", mod_sources: ["Life", 42] },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("must all be strings"),
+    });
+  });
+
+  it("rejects mod_sources_limit above the cap", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build: "https://pobb.in/abc", mod_sources: ["Life"], mod_sources_limit: 100 },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("out of range"),
+    });
+  });
+
+  it("rejects mod_sources_limit below the floor", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build: "https://pobb.in/abc", mod_sources: ["Life"], mod_sources_limit: 0 },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("out of range"),
+    });
+  });
+
+  it("rejects mod_sources combined with compare_with (next-slice work)", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      {
+        build: "https://pobb.in/abc",
+        mod_sources: ["Life"],
+        compare_with: ["https://pobb.in/other"],
+      },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("not yet supported alongside compare_with"),
+    });
+  });
+
+  it("forwards mod_sources to /resolve body when provided alone", async () => {
+    // Capture pob-server request body to verify the wire shape.
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const originalFetch = globalThis.fetch;
+    let capturedBody: Record<string, unknown> = {};
+    let capturedPath = "";
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const u = url instanceof URL ? url : new URL(url.toString());
+      capturedPath = u.pathname;
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({
+          buildId: "abc123def456",
+          data: { statSources: { Life: [] } },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      await buildPlannerModule.execute(
+        {
+          build: "https://pobb.in/abc",
+          mod_sources: ["Life", "CombinedDPS"],
+          mod_sources_limit: 7,
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      expect(capturedPath).toBe("/resolve");
+      expect(capturedBody.modSources).toEqual(["Life", "CombinedDPS"]);
+      expect(capturedBody.modSourcesLimit).toBe(7);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("manifest declares mod_sources and mod_sources_limit with teaching descriptions", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const params = buildPlannerModule.parameters as Record<
+      string,
+      { type: string; description: string; items?: { type: string } }
+    >;
+    expect(params.mod_sources).toBeDefined();
+    expect(params.mod_sources?.type).toBe("array");
+    expect(params.mod_sources?.items?.type).toBe("string");
+    // Description must teach WHEN to use, not just what it does.
+    expect(params.mod_sources?.description).toMatch(/why/i);
+    expect(params.mod_sources?.description).toContain("source_type");
+
+    expect(params.mod_sources_limit).toBeDefined();
+    expect(params.mod_sources_limit?.type).toBe("integer");
+    expect(params.mod_sources_limit?.description).toMatch(/1-50/);
+  });
 });

@@ -51,10 +51,55 @@ type CalcRequest struct {
 }
 
 type calcLuaRequest struct {
-	Type          string   `json:"type"`
-	XML           string   `json:"xml"`
-	LoadedBuildID string   `json:"loadedBuildId,omitempty"`
-	StatKeys      []string `json:"statKeys,omitempty"`
+	Type          string                   `json:"type"`
+	XML           string                   `json:"xml"`
+	LoadedBuildID string                   `json:"loadedBuildId,omitempty"`
+	StatKeys      []string                 `json:"statKeys,omitempty"`
+	StatSources   *calcLuaStatSourcesField `json:"stat_sources,omitempty"`
+}
+
+// calcLuaStatSourcesField is the wire shape wrapper.lua's
+// injectStatSources reads — Stats names which summary stats to drill
+// into, Limit caps the top-N rows per stat. Limit==0 is treated as
+// unlimited by Lua, but Go-side handlers default to 10 when the user
+// doesn't specify so wire payloads stay bounded.
+type calcLuaStatSourcesField struct {
+	Stats []string `json:"stats"`
+	Limit int      `json:"limit,omitempty"`
+}
+
+// modSourcesDefaultLimit is applied when a request sets modSources but
+// omits modSourcesLimit. PoB's TabulateMods can return 50+ rows on
+// high-DPS builds, so the default keeps responses tractable for LLM
+// consumers without forcing them to specify the cap explicitly.
+const modSourcesDefaultLimit = 10
+
+// modSourcesMaxLimit caps user-supplied modSourcesLimit so a single
+// request can't blow up the response. Requests above this return 400.
+const modSourcesMaxLimit = 50
+
+// validateAndBuildStatSourcesField checks the request's mod-sources
+// fields and returns a calcLuaStatSourcesField ready to forward to
+// wrapper.lua. Returns (nil, nil) when the user didn't ask for sources.
+// Returns (nil, error) when the request is invalid (limit out of range).
+func validateAndBuildStatSourcesField(modSources []string, modSourcesLimit int) (*calcLuaStatSourcesField, error) {
+	if len(modSources) == 0 {
+		if modSourcesLimit > 0 {
+			return nil, errors.New("modSourcesLimit set without modSources — pass modSources: [\"Life\", ...] to enable")
+		}
+		return nil, nil
+	}
+	if modSourcesLimit < 0 {
+		return nil, errors.New("modSourcesLimit must be >= 0")
+	}
+	if modSourcesLimit > modSourcesMaxLimit {
+		return nil, fmt.Errorf("modSourcesLimit %d exceeds cap %d", modSourcesLimit, modSourcesMaxLimit)
+	}
+	limit := modSourcesLimit
+	if limit == 0 {
+		limit = modSourcesDefaultLimit
+	}
+	return &calcLuaStatSourcesField{Stats: modSources, Limit: limit}, nil
 }
 
 // calcResponse wraps the PoB result with a buildId for caching.
@@ -126,7 +171,7 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	srv.calcAndRespond(writer, request, xml, "", "")
+	srv.calcAndRespond(writer, request, xml, "", "", nil)
 }
 
 func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
@@ -144,8 +189,15 @@ func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
 }
 
 // ResolveRequest is the JSON body for POST /resolve.
+//
+// ModSources/ModSourcesLimit opt into per-modifier source breakdowns
+// for the named stats. When set, the response includes data.statSources
+// keyed by stat name. The cached fast-path is bypassed because cached
+// summaries don't carry source data.
 type ResolveRequest struct {
-	URL string `json:"url"`
+	URL             string   `json:"url"`
+	ModSources      []string `json:"modSources,omitempty"`
+	ModSourcesLimit int      `json:"modSourcesLimit,omitempty"`
 }
 
 func (srv *Server) handleResolve(
@@ -174,6 +226,12 @@ func (srv *Server) handleResolve(
 		return
 	}
 
+	statSources, err := validateAndBuildStatSourcesField(req.ModSources, req.ModSourcesLimit)
+	if err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	result, err := resolveBuildURL(req.URL, srv.cache.store, srv.httpClient())
 	if err != nil {
 		if errors.Is(err, ErrBuildNotFound) {
@@ -194,8 +252,10 @@ func (srv *Server) handleResolve(
 		return
 	}
 
-	// If already cached (internal URL), return stored summary
-	if result.cached && result.summary != "" {
+	// Cached fast-path is only valid when the caller hasn't asked for
+	// statSources — the stored summary doesn't carry source data, so
+	// we must run a fresh calc to populate it.
+	if result.cached && result.summary != "" && statSources == nil {
 		data := json.RawMessage(result.summary)
 		filtered, written := srv.applySectionFilter(writer, data, parseSections(request))
 		if written {
@@ -211,8 +271,9 @@ func (srv *Server) handleResolve(
 		return
 	}
 
-	// External URL: calc through PoB, persist, return
-	srv.calcAndRespond(writer, request, result.xml, result.sourceURL, "")
+	// External URL — or cached internal URL with a statSources request:
+	// calc through PoB, persist, return.
+	srv.calcAndRespond(writer, request, result.xml, result.sourceURL, "", statSources)
 }
 
 // calcAndRespond acquires a PoB process, runs calc, persists, and writes the JSON response.
@@ -225,6 +286,7 @@ func (srv *Server) calcAndRespond(
 	writer http.ResponseWriter,
 	request *http.Request,
 	xml, sourceURL, parentID string,
+	statSources *calcLuaStatSourcesField,
 ) {
 	proc, err := srv.pool.Acquire()
 	if err != nil {
@@ -247,6 +309,7 @@ func (srv *Server) calcAndRespond(
 		XML:           xml,
 		LoadedBuildID: proc.LastLoadedBuildID(),
 		StatKeys:      parseStatKeys(request),
+		StatSources:   statSources,
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)
@@ -342,18 +405,25 @@ func extractSummaryFloats(data json.RawMessage) map[string]float64 {
 }
 
 // ModifyRequest is the JSON body for POST /modify.
+//
+// ModSources/ModSourcesLimit follow the same opt-in semantics as
+// ResolveRequest — when set, the response includes data.statSources
+// for the named stats reflecting the post-modify ModDB.
 type ModifyRequest struct {
-	BuildID    string            `json:"buildId"`
-	Operations []json.RawMessage `json:"operations"`
+	BuildID         string            `json:"buildId"`
+	Operations      []json.RawMessage `json:"operations"`
+	ModSources      []string          `json:"modSources,omitempty"`
+	ModSourcesLimit int               `json:"modSourcesLimit,omitempty"`
 }
 
 type modifyLuaRequest struct {
-	Type          string            `json:"type"`
-	XML           string            `json:"xml"`
-	LoadedBuildID string            `json:"loadedBuildId,omitempty"`
-	Operations    []json.RawMessage `json:"operations"`
-	StatKeys      []string          `json:"statKeys,omitempty"`
-	PreSummary    json.RawMessage   `json:"preSummary,omitempty"`
+	Type          string                   `json:"type"`
+	XML           string                   `json:"xml"`
+	LoadedBuildID string                   `json:"loadedBuildId,omitempty"`
+	Operations    []json.RawMessage        `json:"operations"`
+	StatKeys      []string                 `json:"statKeys,omitempty"`
+	PreSummary    json.RawMessage          `json:"preSummary,omitempty"`
+	StatSources   *calcLuaStatSourcesField `json:"stat_sources,omitempty"`
 }
 
 type modifyLuaResponse struct {
@@ -391,6 +461,11 @@ func (srv *Server) handleModify(
 		jsonError(writer, "at least one operation is required", http.StatusBadRequest)
 		return
 	}
+	statSources, err := validateAndBuildStatSourcesField(req.ModSources, req.ModSourcesLimit)
+	if err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
 	transformedOps, err := validateAndTransformModifyOperations(req.Operations)
 	if err != nil {
 		jsonError(writer, err.Error(), http.StatusBadRequest)
@@ -420,7 +495,7 @@ func (srv *Server) handleModify(
 		}
 	}
 
-	srv.modifyAndRespond(writer, request, xml, req.BuildID, req.Operations, preSummary)
+	srv.modifyAndRespond(writer, request, xml, req.BuildID, req.Operations, preSummary, statSources)
 }
 
 // extractSummary pulls the "summary" object from a stored PoB data JSON blob.
@@ -448,6 +523,7 @@ func (srv *Server) modifyAndRespond(
 	xml, parentID string,
 	operations []json.RawMessage,
 	preSummary json.RawMessage,
+	statSources *calcLuaStatSourcesField,
 ) {
 	proc, err := srv.pool.AcquireForBuild(parentID)
 	if err != nil {
@@ -472,6 +548,7 @@ func (srv *Server) modifyAndRespond(
 		Operations:    operations,
 		StatKeys:      parseStatKeys(request),
 		PreSummary:    preSummary,
+		StatSources:   statSources,
 	})
 	if err != nil {
 		srv.log.Error("process send error", "err", err)

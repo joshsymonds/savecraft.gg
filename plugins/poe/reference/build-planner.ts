@@ -98,6 +98,7 @@ export const buildPlannerModule: NativeReferenceModule = {
     "present the delta to the player, not the full stat dump. " +
     "For tree exploration, pass buildId + nearby_metrics to find the highest-impact nearby nodes ranked by real calc deltas. " +
     "For tree pruning, pass buildId + audit_allocated to find weak branches in the CURRENT allocated tree — ranked by what the player would lose by removing them, with a dead_weight bucket of zero-contribution nodes. Pairs naturally with nearby_metrics: audit identifies underperforming branches, nearby finds replacement directions, you propose the swap. " +
+    "To drill into WHY a stat has its value (which item, tree node, skill, or pantheon contributes), pass mod_sources with the stat names (e.g. mod_sources=[\"Life\",\"CombinedDPS\"]). The response carries data.statSources keyed by stat with top-N source rows. " +
     "Every response includes a buildId for follow-up calls.",
   parameters: {
     build: {
@@ -271,6 +272,30 @@ export const buildPlannerModule: NativeReferenceModule = {
         "League name for buy_similar trade URLs (e.g. 'Standard', 'Mirage', 'Mirage Hardcore'). " +
         "Defaults to 'Standard'. Only used when buy_similar is true.",
     },
+    mod_sources: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Array of stat names to drill into per-modifier sources for. Use when " +
+        "explaining WHY a build has a given stat value — e.g. 'why is my Life so low' " +
+        "→ pass [\"Life\"]; 'what's contributing to my DPS' → pass [\"CombinedDPS\"]; " +
+        "'walk me through this build's defenses' → pass [\"Armour\",\"Evasion\",\"EnergyShield\",\"Life\"]. " +
+        "Each requested stat returns a top-N list of modifier rows under " +
+        "data.statSources[statName], where each row carries source_type " +
+        "(Item/Tree/Skill/Pantheon/Spectre/Class/Base), source_name (the " +
+        "actual item / passive node / gem / etc. that contributes), mod_name, " +
+        "mod_type (BASE/INC/MORE/FLAG/OVERRIDE), and value. Heavy field — only " +
+        "request the stats you'll actually surface to the user. Currently " +
+        "available with build / build_id / operations; not yet supported with " +
+        "compare_with (use a sequence of build_planner calls instead). Default empty.",
+    },
+    mod_sources_limit: {
+      type: "integer",
+      description:
+        "Top-N limit per stat for mod_sources, sorted by abs(value) descending. " +
+        "Default 10. Range 1-50; the cap exists because a single high-DPS stat can " +
+        "have 50+ contributing mods and the response payload would balloon.",
+    },
   },
 
   async execute(
@@ -298,6 +323,53 @@ export const buildPlannerModule: NativeReferenceModule = {
     const compareWith = query.compare_with;
     const buySimilar = query.buy_similar as boolean | undefined;
     const league = query.league as string | undefined;
+    const modSources = query.mod_sources;
+    const modSourcesLimit = query.mod_sources_limit as number | undefined;
+
+    // Validate mod_sources / mod_sources_limit early — keeps the error
+    // path off the network and gives the LLM a precise message to act
+    // on. Server-side handlers re-validate as defense in depth.
+    let modSourcesArray: string[] | undefined;
+    if (modSources !== undefined && modSources !== null) {
+      if (!Array.isArray(modSources)) {
+        return {
+          type: "text",
+          content:
+            'Error: mod_sources must be a JSON array of stat names (e.g. ["Life","CombinedDPS"]). Pass it as a real array, not a JSON-encoded string.',
+        };
+      }
+      const allStrings = modSources.every((s) => typeof s === "string");
+      if (!allStrings) {
+        return {
+          type: "text",
+          content: "Error: mod_sources entries must all be strings (stat names like Life, CombinedDPS, TotalEHP).",
+        };
+      }
+      if (modSources.length > 0) {
+        modSourcesArray = modSources as string[];
+      }
+    }
+    if (modSourcesLimit !== undefined) {
+      if (typeof modSourcesLimit !== "number" || !Number.isInteger(modSourcesLimit)) {
+        return {
+          type: "text",
+          content: "Error: mod_sources_limit must be an integer between 1 and 50.",
+        };
+      }
+      if (modSourcesLimit < 1 || modSourcesLimit > 50) {
+        return {
+          type: "text",
+          content: `Error: mod_sources_limit ${modSourcesLimit} out of range. Must be 1-50 to keep response payloads tractable.`,
+        };
+      }
+    }
+    if (modSourcesArray !== undefined && compareWith !== undefined && compareWith !== null) {
+      return {
+        type: "text",
+        content:
+          "Error: mod_sources is not yet supported alongside compare_with. Either pass mod_sources alone (single-build drill-down) or compare_with alone (cross-build compare). Multi-build statSources is a planned future addition.",
+      };
+    }
 
     if (!build && !buildId) {
       return {
@@ -585,12 +657,19 @@ export const buildPlannerModule: NativeReferenceModule = {
 
     if (build) {
       // Resolve URL → buildId + calc results
+      const resolveBody: Record<string, unknown> = { url: build };
+      if (modSourcesArray !== undefined) {
+        resolveBody.modSources = modSourcesArray;
+        if (modSourcesLimit !== undefined) {
+          resolveBody.modSourcesLimit = modSourcesLimit;
+        }
+      }
       let response: Response;
       try {
         response = await pobFetch(
           pobUrl,
           "/resolve",
-          { url: build },
+          resolveBody,
           env.POB_API_KEY,
           sections,
           statKeys,
@@ -652,12 +731,22 @@ export const buildPlannerModule: NativeReferenceModule = {
         };
       }
 
+      const modifyBody: Record<string, unknown> = {
+        buildId: resolvedBuildId,
+        operations,
+      };
+      if (modSourcesArray !== undefined) {
+        modifyBody.modSources = modSourcesArray;
+        if (modSourcesLimit !== undefined) {
+          modifyBody.modSourcesLimit = modSourcesLimit;
+        }
+      }
       let response: Response;
       try {
         response = await pobFetch(
           pobUrl,
           "/modify",
-          { buildId: resolvedBuildId, operations },
+          modifyBody,
           env.POB_API_KEY,
           sections,
           statKeys,
