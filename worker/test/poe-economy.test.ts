@@ -565,6 +565,33 @@ describe("economy reference module — error paths", () => {
     expect(result.type).toBe("text");
   });
 
+  it("negative-caches non-OK overview responses so repeated callers don't slam upstream", async () => {
+    const mockFetch = vi.fn(async (input: RequestInfo | URL) => {
+      const url = typeof input === "string" ? input : input.toString();
+      if (url.includes("/poe1/api/data/index-state")) {
+        return Response.json(FAKE_INDEX_STATE, { status: 200 });
+      }
+      return new Response("server err", { status: 500 });
+    });
+    vi.stubGlobal("fetch", mockFetch);
+
+    const r1 = await economyModule.execute(
+      { query: "x", type: "UniqueArmour", league: "Standard" },
+      testEnv,
+    );
+    const r2 = await economyModule.execute(
+      { query: "y", type: "UniqueArmour", league: "Standard" },
+      testEnv,
+    );
+    expect(r1.type).toBe("text");
+    expect(r2.type).toBe("text");
+
+    const overviewCalls = mockFetch.mock.calls.filter((c) =>
+      String(c[0]).includes("/economy/stash/current/"),
+    );
+    expect(overviewCalls.length).toBe(1);
+  });
+
   it("returns text error when query parameter is missing", async () => {
     const mockFetch = vi.fn(makeFakeFetch());
     vi.stubGlobal("fetch", mockFetch);
