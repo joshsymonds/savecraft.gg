@@ -1,9 +1,29 @@
 <script module>
   import { defineMeta } from "@storybook/addon-svelte-csf";
   import BuildPlanner from "./build-planner.svelte";
+  import treeData from "./tree-data.gen.json";
   const { Story } = defineMeta({ title: "PoE/Views/BuildPlanner", tags: ["autodocs"] });
 
   const iconUrl = "/plugins/poe/icon.png";
+
+  // Pull a meaningful allocation set from real tree data so the
+  // visual overlay renders as a believable Witch tree.
+  function nodeIdsInRegion(minX, maxX, minY, maxY) {
+    const ids = [];
+    for (const [id, node] of Object.entries(treeData.nodes)) {
+      if (node.ascendancy) continue;
+      if (node.x < minX || node.x > maxX) continue;
+      if (node.y < minY || node.y > maxY) continue;
+      ids.push(Number(id));
+    }
+    return ids;
+  }
+  const witchAllocation = [
+    ...new Set([
+      ...nodeIdsInRegion(2000, 8000, -8000, -1500), // Witch territory (NE quadrant)
+      ...nodeIdsInRegion(-1500, 1500, -1500, 1500), // Center commons every build pays for
+    ]),
+  ];
 
   // Full Vaal Spark Occultist build with all sections
   const fullBuild = {
@@ -142,6 +162,7 @@
           extra_points: 0,
           available_points: 117,
           remaining_points: -4,
+          allocatedNodeIds: witchAllocation,
         },
       },
     },

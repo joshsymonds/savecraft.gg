@@ -16,6 +16,7 @@
   import SocketGroup from "../../../../views/src/components/poe/SocketGroup.svelte";
   import ItemSlot from "../../../../views/src/components/poe/ItemSlot.svelte";
   import { classAccent } from "../../../../views/src/components/poe/colors";
+  import PassiveTreeOverlay from "./passive-tree-overlay.svelte";
 
   interface Change {
     before: number;
@@ -164,6 +165,7 @@
     version?: number; allocated_nodes?: number; ascendancy_nodes?: number;
     level_points?: number; quest_points?: number; extra_points?: number;
     available_points?: number; remaining_points?: number;
+    allocatedNodeIds?: number[];
   } | undefined);
 </script>
 
@@ -237,6 +239,44 @@
   </Panel>
 
   {#if !isDeltaMode}
+    <!-- Passive Tree — surfaced second so the visual tree lands above the long
+         stat/equipment chain when the AI requested it -->
+    {#if tree}
+      <Panel watermark={data.icon_url} accent={accent}>
+        <Section title="Passive Tree" accent={accent}>
+          <StatRow justify="center" gap="var(--space-xl)">
+            {#if tree.allocated_nodes != null && tree.available_points != null}
+              <Stat value="{tree.allocated_nodes} / {tree.available_points}" label="Allocated" variant="highlight" />
+            {:else if tree.allocated_nodes != null}
+              <Stat value={tree.allocated_nodes} label="Allocated" variant="highlight" />
+            {/if}
+            {#if tree.remaining_points != null}
+              <Stat
+                value={tree.remaining_points}
+                label="Remaining"
+                variant={tree.remaining_points < 0 ? "negative" : tree.remaining_points > 0 ? "positive" : "muted"}
+              />
+            {/if}
+          </StatRow>
+          {#if tree.level_points != null && tree.quest_points != null}
+            <div class="tree-breakdown">
+              {tree.level_points} level + {tree.quest_points} quest{#if tree.extra_points} + {tree.extra_points} extra{/if} = {tree.available_points} points
+            </div>
+          {/if}
+          {#if tree.allocatedNodeIds?.length}
+            <PassiveTreeOverlay
+              perBuildAllocated={[{
+                id: "this-build",
+                label: character.ascendancy || character.class,
+                color: accent ?? "#5fa8d3",
+                nodeIds: tree.allocatedNodeIds,
+              }]}
+            />
+          {/if}
+        </Section>
+      </Panel>
+    {/if}
+
     <!-- Dynamic stat sections -->
     {#each statSectionIds as sectionId}
       {@const sectionData = sections[sectionId] as Record<string, number>}
@@ -297,33 +337,6 @@
               <Badge label={keystone} variant="warning" />
             {/each}
           </div>
-        </Section>
-      </Panel>
-    {/if}
-
-    <!-- Passive Tree -->
-    {#if tree}
-      <Panel watermark={data.icon_url} accent={accent}>
-        <Section title="Passive Tree" accent={accent}>
-          <StatRow justify="center" gap="var(--space-xl)">
-            {#if tree.allocated_nodes != null && tree.available_points != null}
-              <Stat value="{tree.allocated_nodes} / {tree.available_points}" label="Allocated" variant="highlight" />
-            {:else if tree.allocated_nodes != null}
-              <Stat value={tree.allocated_nodes} label="Allocated" variant="highlight" />
-            {/if}
-            {#if tree.remaining_points != null}
-              <Stat
-                value={tree.remaining_points}
-                label="Remaining"
-                variant={tree.remaining_points < 0 ? "negative" : tree.remaining_points > 0 ? "positive" : "muted"}
-              />
-            {/if}
-          </StatRow>
-          {#if tree.level_points != null && tree.quest_points != null}
-            <div class="tree-breakdown">
-              {tree.level_points} level + {tree.quest_points} quest{#if tree.extra_points} + {tree.extra_points} extra{/if} = {tree.available_points} points
-            </div>
-          {/if}
         </Section>
       </Panel>
     {/if}
