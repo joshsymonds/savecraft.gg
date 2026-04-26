@@ -142,8 +142,7 @@
     <div class="reference-callout">
       <h3 class="reference-callout-title">Draft stats. Drop tables. Crop planners. No install.</h3>
       <p class="reference-callout-desc">
-        Games ship with expert modules your AI can query instantly. Connect and start
-        asking.
+        Games ship with expert modules your AI can query instantly. Connect and start asking.
       </p>
       <div class="reference-callout-cta">
         <a href={`${PUBLIC_APP_URL}/connect`} class="btn-gold">CONNECT CLAUDE OR CHATGPT</a>
@@ -423,8 +422,8 @@
     <div class="cta-inner">
       <h2 class="cta-title">Fix your AI.</h2>
       <p class="cta-sub">
-        Connect Claude or ChatGPT in 30 seconds. Optionally install the daemon to read your saves
-        on supported games.
+        Connect Claude or ChatGPT in 30 seconds. Optionally install the daemon to read your saves on
+        supported games.
       </p>
       <div class="cta-actions">
         <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold btn-large"

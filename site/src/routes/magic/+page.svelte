@@ -294,8 +294,7 @@
               <li>{mod.name}</li>
             {/each}
           </ul>
-          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold tier-cta">TRY THE EXPERT MODULES</a
-          >
+          <a href={`${PUBLIC_APP_URL}/sign-in`} class="btn-gold tier-cta">TRY THE EXPERT MODULES</a>
         </div>
       </div>
 

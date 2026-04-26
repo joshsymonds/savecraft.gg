@@ -1,10 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  economyModule,
-  resetEconomyCache,
-} from "../../plugins/poe/reference/economy";
+import { economyModule, resetEconomyCache } from "../../plugins/poe/reference/economy";
 import type { Env } from "../src/types";
+
+// ---------------------------------------------------------------------------
+// urlOf: extract a URL string from any RequestInfo | URL value the fetch mock
+// receives. Avoids unsafe-stringification lint hits on Request objects.
+// ---------------------------------------------------------------------------
+
+function urlOf(input: RequestInfo | URL): string {
+  if (typeof input === "string") return input;
+  if (input instanceof URL) return input.toString();
+  return input.url;
+}
 
 // ---------------------------------------------------------------------------
 // Fake poe.ninja responses
@@ -36,15 +44,13 @@ const FAKE_ITEM_OVERVIEW = {
       itemType: "Belt",
       sparkLine: { totalChange: 12.5, data: [0, 1, 2, 3, 4, 5, 12.5] },
       lowConfidenceSparkLine: { totalChange: 12.5, data: [0, 1, 2, 3, 4, 5, 12.5] },
-      explicitModifiers: [
-        { text: "+(50-65) to all Attributes", optional: false },
-      ],
+      explicitModifiers: [{ text: "+(50-65) to all Attributes", optional: false }],
       implicitModifiers: [],
       mutatedModifiers: [],
       flavourText: "We were strong once.",
       chaosValue: 800,
       exaltedValue: 60,
-      divineValue: 4.0,
+      divineValue: 4,
       count: 50,
       detailsId: "headhunter",
       tradeInfo: [],
@@ -55,8 +61,8 @@ const FAKE_ITEM_OVERVIEW = {
       name: "Inpulsa's Broken Heart",
       icon: "https://example.com/inpulsa.png",
       baseType: "Sadist Garb",
-      sparkLine: { totalChange: -2.0, data: [0, null, -1, -1.5, null, -2, -2] },
-      lowConfidenceSparkLine: { totalChange: -2.0, data: [] },
+      sparkLine: { totalChange: -2, data: [0, null, -1, -1.5, null, -2, -2] },
+      lowConfidenceSparkLine: { totalChange: -2, data: [] },
       explicitModifiers: [],
       implicitModifiers: [],
       mutatedModifiers: [],
@@ -74,13 +80,13 @@ const FAKE_CURRENCY_OVERVIEW = {
   lines: [
     {
       currencyTypeName: "Mirror of Kalandra",
-      pay: { value: 0.000001, count: 30, listing_count: 50 },
-      receive: { value: 1000000, count: 20, listing_count: 90 },
+      pay: { value: 0.000_001, count: 30, listing_count: 50 },
+      receive: { value: 1_000_000, count: 20, listing_count: 90 },
       paySparkLine: { totalChange: 0, data: [] },
-      receiveSparkLine: { totalChange: -5.0, data: [0, 1, -2, -5] },
+      receiveSparkLine: { totalChange: -5, data: [0, 1, -2, -5] },
       lowConfidencePaySparkLine: { totalChange: 0, data: [] },
-      lowConfidenceReceiveSparkLine: { totalChange: -5.0, data: [0, 1, -2, -5] },
-      chaosEquivalent: 950000,
+      lowConfidenceReceiveSparkLine: { totalChange: -5, data: [0, 1, -2, -5] },
+      chaosEquivalent: 950_000,
       detailsId: "mirror-of-kalandra",
     },
     {
@@ -112,7 +118,7 @@ interface FakeFetchOptions {
 function makeFakeFetch(options: FakeFetchOptions = {}) {
   const { errorOn = [], delayMs } = options;
   return async (input: RequestInfo | URL): Promise<Response> => {
-    const url = typeof input === "string" ? input : input.toString();
+    const url = urlOf(input);
     if (errorOn.some((p) => url.includes(p))) {
       throw new TypeError("simulated network error");
     }
@@ -139,9 +145,7 @@ interface StructuredResult {
 
 function asStructured(result: unknown): StructuredResult {
   if ((result as { type?: string }).type !== "structured") {
-    throw new Error(
-      `expected structured result, got: ${JSON.stringify(result)}`,
-    );
+    throw new Error(`expected structured result, got: ${JSON.stringify(result)}`);
   }
   return result as StructuredResult;
 }
@@ -162,17 +166,14 @@ describe("economy reference module — path routing", () => {
     const mockFetch = vi.fn(makeFakeFetch());
     vi.stubGlobal("fetch", mockFetch);
 
-    await economyModule.execute(
-      { query: "Mirror", type: "Currency", league: "Standard" },
-      testEnv,
-    );
+    await economyModule.execute({ query: "Mirror", type: "Currency", league: "Standard" }, testEnv);
 
     const overviewCalls = mockFetch.mock.calls.filter((c) =>
-      String(c[0]).includes("/economy/stash/current/"),
+      urlOf(c[0]).includes("/economy/stash/current/"),
     );
     expect(overviewCalls.length).toBe(1);
-    expect(String(overviewCalls[0]![0])).toContain("/currency/overview");
-    expect(String(overviewCalls[0]![0])).not.toContain("/item/overview");
+    expect(urlOf(overviewCalls[0]![0])).toContain("/currency/overview");
+    expect(urlOf(overviewCalls[0]![0])).not.toContain("/item/overview");
   });
 
   it("routes Fragment type to /currency/overview", async () => {
@@ -185,10 +186,10 @@ describe("economy reference module — path routing", () => {
     );
 
     const overviewCalls = mockFetch.mock.calls.filter((c) =>
-      String(c[0]).includes("/economy/stash/current/"),
+      urlOf(c[0]).includes("/economy/stash/current/"),
     );
     expect(overviewCalls.length).toBe(1);
-    expect(String(overviewCalls[0]![0])).toContain("/currency/overview");
+    expect(urlOf(overviewCalls[0]![0])).toContain("/currency/overview");
   });
 
   it.each([
@@ -207,18 +208,15 @@ describe("economy reference module — path routing", () => {
     const mockFetch = vi.fn(makeFakeFetch());
     vi.stubGlobal("fetch", mockFetch);
 
-    await economyModule.execute(
-      { query: "x", type, league: "Standard" },
-      testEnv,
-    );
+    await economyModule.execute({ query: "x", type, league: "Standard" }, testEnv);
 
     const overviewCalls = mockFetch.mock.calls.filter((c) =>
-      String(c[0]).includes("/economy/stash/current/"),
+      urlOf(c[0]).includes("/economy/stash/current/"),
     );
     expect(overviewCalls.length).toBe(1);
-    expect(String(overviewCalls[0]![0])).toContain("/item/overview");
-    expect(String(overviewCalls[0]![0])).not.toContain("/currency/overview");
-    expect(String(overviewCalls[0]![0])).toContain(`type=${type}`);
+    expect(urlOf(overviewCalls[0]![0])).toContain("/item/overview");
+    expect(urlOf(overviewCalls[0]![0])).not.toContain("/currency/overview");
+    expect(urlOf(overviewCalls[0]![0])).toContain(`type=${type}`);
   });
 
   it("URL-encodes league and type values", async () => {
@@ -231,10 +229,10 @@ describe("economy reference module — path routing", () => {
     );
 
     const overviewCall = mockFetch.mock.calls.find((c) =>
-      String(c[0]).includes("/economy/stash/current/"),
+      urlOf(c[0]).includes("/economy/stash/current/"),
     );
     expect(overviewCall).toBeDefined();
-    expect(String(overviewCall![0])).toContain("league=Hardcore%20Mirage");
+    expect(urlOf(overviewCall![0])).toContain("league=Hardcore%20Mirage");
   });
 });
 
@@ -256,7 +254,7 @@ describe("economy reference module — league discovery", () => {
     );
 
     const indexCalls = mockFetch.mock.calls.filter((c) =>
-      String(c[0]).includes("/poe1/api/data/index-state"),
+      urlOf(c[0]).includes("/poe1/api/data/index-state"),
     );
     expect(indexCalls.length).toBe(1);
 
@@ -264,9 +262,9 @@ describe("economy reference module — league discovery", () => {
     expect(data.league).toBe("Mirage");
 
     const overviewCall = mockFetch.mock.calls.find((c) =>
-      String(c[0]).includes("/economy/stash/current/"),
+      urlOf(c[0]).includes("/economy/stash/current/"),
     );
-    expect(String(overviewCall![0])).toContain("league=Mirage");
+    expect(urlOf(overviewCall![0])).toContain("league=Mirage");
   });
 
   it("caches index-state across calls within TTL", async () => {
@@ -277,7 +275,7 @@ describe("economy reference module — league discovery", () => {
     await economyModule.execute({ query: "b", type: "UniqueArmour" }, testEnv);
 
     const indexCalls = mockFetch.mock.calls.filter((c) =>
-      String(c[0]).includes("/poe1/api/data/index-state"),
+      urlOf(c[0]).includes("/poe1/api/data/index-state"),
     );
     expect(indexCalls.length).toBe(1);
   });
@@ -298,7 +296,7 @@ describe("economy reference module — league discovery", () => {
     expect(content).toContain("Standard");
     // No overview fetch attempted.
     const overviewCalls = mockFetch.mock.calls.filter((c) =>
-      String(c[0]).includes("/economy/stash/current/"),
+      urlOf(c[0]).includes("/economy/stash/current/"),
     );
     expect(overviewCalls.length).toBe(0);
   });
@@ -307,10 +305,7 @@ describe("economy reference module — league discovery", () => {
     const mockFetch = vi.fn(makeFakeFetch({ errorOn: ["/poe1/api/data/index-state"] }));
     vi.stubGlobal("fetch", mockFetch);
 
-    const result = await economyModule.execute(
-      { query: "x", type: "UniqueArmour" },
-      testEnv,
-    );
+    const result = await economyModule.execute({ query: "x", type: "UniqueArmour" }, testEnv);
 
     expect(result.type).toBe("text");
     const content = (result as { type: "text"; content: string }).content;
@@ -343,7 +338,7 @@ describe("economy reference module — response normalization", () => {
     expect(hh.type).toBe("UniqueArmour");
     expect(hh.base_type).toBe("Leather Belt");
     expect(hh.chaos_value).toBe(800);
-    expect(hh.divine_value).toBe(4.0);
+    expect(hh.divine_value).toBe(4);
     expect(hh.change_7d).toBe(12.5);
     expect(hh.confidence).toBe("high");
     expect(hh.listings).toBe(100);
@@ -374,7 +369,7 @@ describe("economy reference module — response normalization", () => {
     const inpulsa = items[0]!;
     expect(inpulsa.confidence).toBe("low");
     expect(inpulsa.sparkline).toEqual([0, 0, -1, -1.5, 0, -2, -2]);
-    expect(inpulsa.change_7d).toBe(-2.0);
+    expect(inpulsa.change_7d).toBe(-2);
     expect(inpulsa.mods).toBeUndefined();
     expect(inpulsa.level_required).toBeUndefined();
   });
@@ -394,9 +389,9 @@ describe("economy reference module — response normalization", () => {
     const mirror = items[0]!;
     expect(mirror.name).toBe("Mirror of Kalandra");
     expect(mirror.type).toBe("Currency");
-    expect(mirror.chaos_value).toBe(950000);
+    expect(mirror.chaos_value).toBe(950_000);
     expect(mirror.divine_value).toBeUndefined();
-    expect(mirror.change_7d).toBe(-5.0);
+    expect(mirror.change_7d).toBe(-5);
     expect(mirror.listings).toBe(90);
     expect(mirror.confidence).toBe("high");
     expect(mirror.sparkline).toEqual([0, 1, -2, -5]);
@@ -456,17 +451,14 @@ describe("economy reference module — caching + singleflight", () => {
       testEnv,
     );
     // Currency endpoint fetch — different path; must hit network despite same league.
-    await economyModule.execute(
-      { query: "Mirror", type: "Currency", league: "Standard" },
-      testEnv,
-    );
+    await economyModule.execute({ query: "Mirror", type: "Currency", league: "Standard" }, testEnv);
 
     const overviewCalls = mockFetch.mock.calls.filter((c) =>
-      String(c[0]).includes("/economy/stash/current/"),
+      urlOf(c[0]).includes("/economy/stash/current/"),
     );
     expect(overviewCalls.length).toBe(2);
-    expect(String(overviewCalls[0]![0])).toContain("/item/overview");
-    expect(String(overviewCalls[1]![0])).toContain("/currency/overview");
+    expect(urlOf(overviewCalls[0]![0])).toContain("/item/overview");
+    expect(urlOf(overviewCalls[1]![0])).toContain("/currency/overview");
   });
 
   it("singleflight: concurrent calls with the same key trigger one fetch", async () => {
@@ -485,7 +477,7 @@ describe("economy reference module — caching + singleflight", () => {
     ]);
 
     const overviewCalls = mockFetch.mock.calls.filter((c) =>
-      String(c[0]).includes("/economy/stash/current/item/overview"),
+      urlOf(c[0]).includes("/economy/stash/current/item/overview"),
     );
     expect(overviewCalls.length).toBe(1);
 
@@ -503,9 +495,7 @@ describe("economy reference module — error paths", () => {
   });
 
   it("returns a text error when the overview endpoint throws", async () => {
-    const mockFetch = vi.fn(
-      makeFakeFetch({ errorOn: ["/economy/stash/current/item/overview"] }),
-    );
+    const mockFetch = vi.fn(makeFakeFetch({ errorOn: ["/economy/stash/current/item/overview"] }));
     vi.stubGlobal("fetch", mockFetch);
 
     const result = await economyModule.execute(
@@ -519,18 +509,13 @@ describe("economy reference module — error paths", () => {
 
   it("does not poison cache after a network failure — next call retries", async () => {
     let shouldFail = true;
-    const mockFetch = vi.fn(
-      async (input: RequestInfo | URL): Promise<Response> => {
-        const url = typeof input === "string" ? input : input.toString();
-        if (
-          shouldFail &&
-          url.includes("/economy/stash/current/item/overview")
-        ) {
-          throw new TypeError("simulated network error");
-        }
-        return makeFakeFetch()(input);
-      },
-    );
+    const mockFetch = vi.fn(async (input: RequestInfo | URL): Promise<Response> => {
+      const url = urlOf(input);
+      if (shouldFail && url.includes("/economy/stash/current/item/overview")) {
+        throw new TypeError("simulated network error");
+      }
+      return makeFakeFetch()(input);
+    });
     vi.stubGlobal("fetch", mockFetch);
 
     const failed = await economyModule.execute(
@@ -545,18 +530,16 @@ describe("economy reference module — error paths", () => {
       testEnv,
     );
     expect(ok.type).toBe("structured");
-    expect(
-      (asStructured(ok).data.items as unknown[]).length,
-    ).toBeGreaterThan(0);
+    expect((asStructured(ok).data.items as unknown[]).length).toBeGreaterThan(0);
   });
 
   it("returns a text error when the overview endpoint returns non-OK", async () => {
-    const mockFetch = vi.fn(async (input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input.toString();
+    const mockFetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+      const url = urlOf(input);
       if (url.includes("/poe1/api/data/index-state")) {
-        return Response.json(FAKE_INDEX_STATE, { status: 200 });
+        return Promise.resolve(Response.json(FAKE_INDEX_STATE, { status: 200 }));
       }
-      return new Response("server err", { status: 500 });
+      return Promise.resolve(new Response("server err", { status: 500 }));
     });
     vi.stubGlobal("fetch", mockFetch);
 
@@ -568,12 +551,12 @@ describe("economy reference module — error paths", () => {
   });
 
   it("negative-caches non-OK overview responses so repeated callers don't slam upstream", async () => {
-    const mockFetch = vi.fn(async (input: RequestInfo | URL) => {
-      const url = typeof input === "string" ? input : input.toString();
+    const mockFetch = vi.fn((input: RequestInfo | URL): Promise<Response> => {
+      const url = urlOf(input);
       if (url.includes("/poe1/api/data/index-state")) {
-        return Response.json(FAKE_INDEX_STATE, { status: 200 });
+        return Promise.resolve(Response.json(FAKE_INDEX_STATE, { status: 200 }));
       }
-      return new Response("server err", { status: 500 });
+      return Promise.resolve(new Response("server err", { status: 500 }));
     });
     vi.stubGlobal("fetch", mockFetch);
 
@@ -589,7 +572,7 @@ describe("economy reference module — error paths", () => {
     expect(r2.type).toBe("text");
 
     const overviewCalls = mockFetch.mock.calls.filter((c) =>
-      String(c[0]).includes("/economy/stash/current/"),
+      urlOf(c[0]).includes("/economy/stash/current/"),
     );
     expect(overviewCalls.length).toBe(1);
   });

@@ -91,8 +91,8 @@
       <h2 class="section-label">WHAT IS SAVECRAFT?</h2>
       <p class="about-text">
         Savecraft gives Claude and ChatGPT real game data on Magic, Path of Exile, Factorio, and
-        more: rules, items, builds, economy. For Diablo II, RimWorld, and Stellaris, it also
-        watches your save files so your AI sees your actual characters, gear, and run progress.
+        more: rules, items, builds, economy. For Diablo II, RimWorld, and Stellaris, it also watches
+        your save files so your AI sees your actual characters, gear, and run progress.
       </p>
       <p class="about-text">
         Savecraft is a connector, not a chatbot. You chat with your AI assistant as usual &mdash;
