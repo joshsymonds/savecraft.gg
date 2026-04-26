@@ -64,11 +64,54 @@ type compareBuySimilarEntry struct {
 // dimension's entries carry perBuild arrays or set-op results, never a
 // 2-build-only field.
 type compareDiffs struct {
-	Summary map[string]compareStatDiff `json:"summary,omitempty"`
-	Tree    *compareTreeDiff           `json:"tree,omitempty"`
-	Gear    map[string]compareSlotDiff `json:"gear,omitempty"`
-	Skills  []compareSocketGroupDiff   `json:"skills,omitempty"`
-	Config  []compareConfigDiffEntry   `json:"config,omitempty"`
+	Summary    map[string]compareStatDiff               `json:"summary,omitempty"`
+	Tree       *compareTreeDiff                         `json:"tree,omitempty"`
+	Gear       map[string]compareSlotDiff               `json:"gear,omitempty"`
+	Skills     []compareSocketGroupDiff                 `json:"skills,omitempty"`
+	Config     []compareConfigDiffEntry                 `json:"config,omitempty"`
+	ModSources map[string][]compareModSourceDiffEntry   `json:"modSources,omitempty"`
+}
+
+// compareModSourceDiffEntry is one row of the per-stat modifier-source
+// diff. Key is the cross-build matching identity (source_type + ":" +
+// source_name + "|" + mod_name + "|" + mod_type), constructed to mirror
+// PoB's upstream ModRowKey semantics — source_name is already
+// index-stripped by ResolveSourceName, so building the key from the
+// post-resolution row gives the same matching as PoB's source-string
+// normalization.
+//
+// PerBuild slots are pointers so JSON null distinguishes "this row
+// isn't in this build" from a value of zero. Indexed parallel to the
+// SUCCESSFUL subset of CompareResponse.Builds.
+//
+// Same-row entries (where every build agrees on source_name + value)
+// are filtered server-side — the diff surfaces divergences, not common
+// state, matching the config-diff precedent.
+type compareModSourceDiffEntry struct {
+	Key        string                       `json:"key"`
+	SourceType string                       `json:"source_type"`
+	ModType    string                       `json:"mod_type"`
+	PerBuild   []*compareModSourceCellValue `json:"perBuild"`
+}
+
+// compareModSourceCellValue is the per-build cell within one diff
+// entry. Source_name + value can vary even when the normalized key
+// matches — different items of the same name with different rolls.
+type compareModSourceCellValue struct {
+	SourceName string  `json:"source_name"`
+	ModName    string  `json:"mod_name"`
+	Value      float64 `json:"value"`
+}
+
+// statSourceRow is the wire shape wrapper.lua emits per row in
+// data.statSources[stat]. Used internally to decode entry.StatSources
+// before computing the cross-build diff.
+type statSourceRow struct {
+	SourceType string  `json:"source_type"`
+	SourceName string  `json:"source_name"`
+	ModName    string  `json:"mod_name"`
+	ModType    string  `json:"mod_type"`
+	Value      float64 `json:"value"`
 }
 
 // compareConfigDiffEntry is one row of the config diff. PerBuild values
@@ -499,10 +542,167 @@ func computeCompareDiffs(entries []compareBuildEntry) *compareDiffs {
 	gear := computeGearDiff(successful)
 	skills := computeSkillsDiff(successful)
 	config := computeConfigDiff(successful)
-	if len(summary) == 0 && tree == nil && len(gear) == 0 && len(skills) == 0 && len(config) == 0 {
+	modSources := computeModSourcesDiff(successful)
+	if len(summary) == 0 && tree == nil && len(gear) == 0 && len(skills) == 0 && len(config) == 0 && len(modSources) == 0 {
 		return nil
 	}
-	return &compareDiffs{Summary: summary, Tree: tree, Gear: gear, Skills: skills, Config: config}
+	return &compareDiffs{
+		Summary:    summary,
+		Tree:       tree,
+		Gear:       gear,
+		Skills:     skills,
+		Config:     config,
+		ModSources: modSources,
+	}
+}
+
+// modRowKey constructs the cross-build matching identity for a stat
+// source row. Mirrors PoB's upstream Classes/CompareCalcsHelpers.lua
+// ModRowKey(): same components ("source_type:source_name|mod_name|mod_type"),
+// same case-sensitive comparison.
+//
+// Source_name from wrapper.lua is already index-stripped (ResolveSourceName
+// does the upstream "Item:5:Body Armour" → "Body Armour" mapping), so
+// composing it with mod_name + mod_type gives the same matching
+// semantics as the Lua side.
+func modRowKey(sourceType, sourceName, modName, modType string) string {
+	return sourceType + ":" + sourceName + "|" + modName + "|" + modType
+}
+
+// computeModSourcesDiff produces sorted per-stat diff arrays for stats
+// that any successful build has source data for. Same-row entries
+// (every build agrees on source_name + value) are filtered — the diff
+// surfaces divergences, matching the config-diff precedent.
+//
+// Returns nil when no successful build has StatSources data — keeps
+// the response payload free of an empty modSources field for callers
+// who didn't request it.
+func computeModSourcesDiff(successful []compareBuildEntry) map[string][]compareModSourceDiffEntry {
+	if len(successful) < 2 {
+		return nil
+	}
+	// Decode each build's StatSources into typed rows once; later
+	// passes group + filter by key.
+	perBuildRows := make([]map[string][]statSourceRow, len(successful))
+	statKeys := make(map[string]bool)
+	hasAnyData := false
+	for i, entry := range successful {
+		if len(entry.StatSources) == 0 {
+			continue
+		}
+		hasAnyData = true
+		decoded := make(map[string][]statSourceRow, len(entry.StatSources))
+		for stat, raw := range entry.StatSources {
+			var rows []statSourceRow
+			if json.Unmarshal(raw, &rows) != nil {
+				continue
+			}
+			decoded[stat] = rows
+			statKeys[stat] = true
+		}
+		perBuildRows[i] = decoded
+	}
+	if !hasAnyData {
+		return nil
+	}
+
+	out := make(map[string][]compareModSourceDiffEntry, len(statKeys))
+	sortedStats := make([]string, 0, len(statKeys))
+	for stat := range statKeys {
+		sortedStats = append(sortedStats, stat)
+	}
+	sort.Strings(sortedStats)
+
+	for _, stat := range sortedStats {
+		entries := buildModSourceDiffEntries(perBuildRows, stat, len(successful))
+		if len(entries) > 0 {
+			out[stat] = entries
+		} else {
+			// Emit an empty slice rather than omitting the stat entirely
+			// when at least one build had data for it — keeps the response
+			// shape predictable for view code that iterates statKeys.
+			out[stat] = []compareModSourceDiffEntry{}
+		}
+	}
+	return out
+}
+
+// buildModSourceDiffEntries groups one stat's per-build rows by
+// modRowKey, emits one entry per key, and filters keys where every
+// build's cell agrees on source_name + value. Result is sorted by key
+// for deterministic output.
+func buildModSourceDiffEntries(
+	perBuildRows []map[string][]statSourceRow,
+	stat string,
+	buildCount int,
+) []compareModSourceDiffEntry {
+	type keyMeta struct {
+		sourceType string
+		modType    string
+	}
+	cells := make(map[string][]*compareModSourceCellValue)
+	meta := make(map[string]keyMeta)
+	for buildIdx, decoded := range perBuildRows {
+		rows := decoded[stat]
+		for _, row := range rows {
+			key := modRowKey(row.SourceType, row.SourceName, row.ModName, row.ModType)
+			perBuild, ok := cells[key]
+			if !ok {
+				perBuild = make([]*compareModSourceCellValue, buildCount)
+				cells[key] = perBuild
+				meta[key] = keyMeta{sourceType: row.SourceType, modType: row.ModType}
+			}
+			perBuild[buildIdx] = &compareModSourceCellValue{
+				SourceName: row.SourceName,
+				ModName:    row.ModName,
+				Value:      row.Value,
+			}
+		}
+	}
+
+	keys := make([]string, 0, len(cells))
+	for k := range cells {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	out := make([]compareModSourceDiffEntry, 0, len(keys))
+	for _, key := range keys {
+		perBuild := cells[key]
+		if cellsAgreeAcrossAll(perBuild) {
+			continue
+		}
+		out = append(out, compareModSourceDiffEntry{
+			Key:        key,
+			SourceType: meta[key].sourceType,
+			ModType:    meta[key].modType,
+			PerBuild:   perBuild,
+		})
+	}
+	return out
+}
+
+// cellsAgreeAcrossAll reports whether every cell in perBuild is
+// non-nil and shares the same source_name + value. Used to filter
+// "this row is identical across every build" entries — they're
+// uninteresting for a diff view.
+func cellsAgreeAcrossAll(perBuild []*compareModSourceCellValue) bool {
+	if len(perBuild) == 0 {
+		return false
+	}
+	first := perBuild[0]
+	if first == nil {
+		return false
+	}
+	for _, cell := range perBuild[1:] {
+		if cell == nil {
+			return false
+		}
+		if cell.SourceName != first.SourceName || cell.Value != first.Value {
+			return false
+		}
+	}
+	return true
 }
 
 // computeConfigDiff produces sorted per-key entries for config keys that
