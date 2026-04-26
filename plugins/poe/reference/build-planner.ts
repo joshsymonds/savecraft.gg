@@ -284,10 +284,12 @@ export const buildPlannerModule: NativeReferenceModule = {
         "data.statSources[statName], where each row carries source_type " +
         "(Item/Tree/Skill/Pantheon/Spectre/Class/Base), source_name (the " +
         "actual item / passive node / gem / etc. that contributes), mod_name, " +
-        "mod_type (BASE/INC/MORE/FLAG/OVERRIDE), and value. Heavy field — only " +
-        "request the stats you'll actually surface to the user. Currently " +
-        "available with build / build_id / operations; not yet supported with " +
-        "compare_with (use a sequence of build_planner calls instead). Default empty.",
+        "mod_type (BASE/INC/MORE/FLAG/OVERRIDE), and value. Works with build / " +
+        "build_id / operations / compare_with — when combined with compare_with, " +
+        "EVERY build in the response gets its own statSources for the requested " +
+        "stats, useful for 'which build has more flat life from items vs tree' " +
+        "style cross-build analysis. Heavy field — only request the stats you'll " +
+        "actually surface to the user. Default empty.",
     },
     mod_sources_limit: {
       type: "integer",
@@ -363,13 +365,6 @@ export const buildPlannerModule: NativeReferenceModule = {
         };
       }
     }
-    if (modSourcesArray !== undefined && compareWith !== undefined && compareWith !== null) {
-      return {
-        type: "text",
-        content:
-          "Error: mod_sources is not yet supported alongside compare_with. Either pass mod_sources alone (single-build drill-down) or compare_with alone (cross-build compare). Multi-build statSources is a planned future addition.",
-      };
-    }
 
     if (!build && !buildId) {
       return {
@@ -443,6 +438,12 @@ export const buildPlannerModule: NativeReferenceModule = {
       }
       if (league) {
         compareBody.league = league;
+      }
+      if (modSourcesArray !== undefined) {
+        compareBody.modSources = modSourcesArray;
+        if (modSourcesLimit !== undefined) {
+          compareBody.modSourcesLimit = modSourcesLimit;
+        }
       }
 
       let response: Response;

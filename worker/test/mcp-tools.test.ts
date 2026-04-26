@@ -2815,20 +2815,40 @@ describe("buildPlannerModule", () => {
     });
   });
 
-  it("rejects mod_sources combined with compare_with (next-slice work)", async () => {
+  it("forwards mod_sources alongside compare_with to /compare", async () => {
+    // Cross-build statSources flow (slice 4): the same mod_sources +
+    // mod_sources_limit fields propagate into the compare body so each
+    // per-build entry gets its own statSources from wrapper.lua.
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
-    const result = await buildPlannerModule.execute(
-      {
-        build: "https://pobb.in/abc",
-        mod_sources: ["Life"],
-        compare_with: ["https://pobb.in/other"],
-      },
-      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
-    );
-    expect(result).toEqual({
-      type: "text",
-      content: expect.stringContaining("not yet supported alongside compare_with"),
-    });
+    const originalFetch = globalThis.fetch;
+    let capturedBody: Record<string, unknown> = {};
+    let capturedPath = "";
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const u = url instanceof URL ? url : new URL(url.toString());
+      capturedPath = u.pathname;
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({ builds: [], diffs: null }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      await buildPlannerModule.execute(
+        {
+          build: "https://pobb.in/abc",
+          mod_sources: ["Life", "CombinedDPS"],
+          mod_sources_limit: 5,
+          compare_with: ["https://pobb.in/other"],
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      expect(capturedPath).toBe("/compare");
+      expect(capturedBody.modSources).toEqual(["Life", "CombinedDPS"]);
+      expect(capturedBody.modSourcesLimit).toBe(5);
+      expect(capturedBody.builds).toEqual(["https://pobb.in/abc", "https://pobb.in/other"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
   });
 
   it("forwards mod_sources to /resolve body when provided alone", async () => {

@@ -19,10 +19,12 @@ import (
 // other lacks (or has a different one). League selects the trade
 // realm; defaults to "Standard" when omitted.
 type CompareRequest struct {
-	Builds     []string `json:"builds"`
-	Labels     []string `json:"labels,omitempty"`
-	BuySimilar bool     `json:"buySimilar,omitempty"`
-	League     string   `json:"league,omitempty"`
+	Builds          []string `json:"builds"`
+	Labels          []string `json:"labels,omitempty"`
+	BuySimilar      bool     `json:"buySimilar,omitempty"`
+	League          string   `json:"league,omitempty"`
+	ModSources      []string `json:"modSources,omitempty"`
+	ModSourcesLimit int      `json:"modSourcesLimit,omitempty"`
 }
 
 // CompareResponse is the per-build keyed payload returned from /compare.
@@ -163,7 +165,11 @@ type compareBuildEntry struct {
 	Label     string         `json:"label"`
 	Character map[string]any `json:"character,omitempty"`
 	Summary   map[string]any `json:"summary,omitempty"`
-	Error     string         `json:"error,omitempty"`
+	// StatSources is opt-in per-stat modifier breakdown — populated only
+	// when the request includes ModSources. Uses json.RawMessage so the
+	// row shape from wrapper.lua flows through without re-parsing.
+	StatSources map[string]json.RawMessage `json:"statSources,omitempty"`
+	Error       string                     `json:"error,omitempty"`
 
 	allocatedNodes []int
 	itemsBySlot    map[string]string
@@ -221,6 +227,12 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
+	statSources, err := validateAndBuildStatSourcesField(req.ModSources, req.ModSourcesLimit)
+	if err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Run per-build calc in parallel. Pool affinity still works under
 	// fan-out — each worker pins its own build_id. Cap concurrency at
 	// `pool.maxSize - 1` (with a floor of 1) so /compare never claims
@@ -238,7 +250,7 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 		go func() {
 			defer wg.Done()
 			defer func() { <-sem }()
-			resp.Builds[i] = srv.compareOneBuild(input, labelFor(req.Labels, i, input))
+			resp.Builds[i] = srv.compareOneBuild(input, labelFor(req.Labels, i, input), statSources)
 		}()
 	}
 	wg.Wait()
@@ -275,19 +287,25 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 // compareOneBuild resolves a single builds[i] entry — either an existing
 // buildId or a URL — to a calc'd summary. On any failure it returns an
 // entry with Error set and the other fields zero-valued.
-func (srv *Server) compareOneBuild(input, label string) compareBuildEntry {
+//
+// statSources, when non-nil, opts the per-build calc into wrapper.lua's
+// TabulateMods walk for the named stats. The cached fast-path is
+// skipped because stored summaries lack source data.
+func (srv *Server) compareOneBuild(input, label string, statSources *calcLuaStatSourcesField) compareBuildEntry {
 	xml, buildID, err := srv.fetchCompareInputXML(input)
 	if err != nil {
 		return compareBuildEntry{Label: label, Error: err.Error()}
 	}
 
-	// If the build is already cached AND has a stored summary, skip the
-	// calc round-trip. (Today /resolve persists data into store after
-	// calc, so a cached build_id usually has summary; URLs don't.)
-	if cachedData, ok := srv.tryCachedSummary(buildID); ok {
-		entry := compareBuildEntry{ID: buildID, Label: label}
-		hydrateEntryFromData(&entry, cachedData)
-		return entry
+	// Cached fast-path is only valid when statSources is unset — stored
+	// summaries don't include source data, so a fresh calc is required
+	// to populate it.
+	if statSources == nil {
+		if cachedData, ok := srv.tryCachedSummary(buildID); ok {
+			entry := compareBuildEntry{ID: buildID, Label: label}
+			hydrateEntryFromData(&entry, cachedData)
+			return entry
+		}
 	}
 
 	// Cold path: acquire process, calc, persist.
@@ -301,6 +319,7 @@ func (srv *Server) compareOneBuild(input, label string) compareBuildEntry {
 		Type:          "calc",
 		XML:           xml,
 		LoadedBuildID: proc.LastLoadedBuildID(),
+		StatSources:   statSources,
 	})
 	if err != nil {
 		return compareBuildEntry{Label: label, Error: "PoB calc transport error"}
@@ -389,9 +408,10 @@ func (srv *Server) tryCachedSummary(buildID string) (json.RawMessage, bool) {
 // under diffs.tree and diffs.gear instead.
 func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 	var parsed struct {
-		Character map[string]any `json:"character"`
-		Summary   map[string]any `json:"summary"`
-		Sections  struct {
+		Character   map[string]any             `json:"character"`
+		Summary     map[string]any             `json:"summary"`
+		StatSources map[string]json.RawMessage `json:"statSources"`
+		Sections    struct {
 			Tree struct {
 				AllocatedNodeIDs []int `json:"allocatedNodeIds"`
 			} `json:"tree"`
@@ -419,6 +439,9 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 	}
 	entry.Character = parsed.Character
 	entry.Summary = parsed.Summary
+	if len(parsed.StatSources) > 0 {
+		entry.StatSources = parsed.StatSources
+	}
 	entry.allocatedNodes = parsed.Sections.Tree.AllocatedNodeIDs
 
 	if len(parsed.Sections.Items) > 0 {
