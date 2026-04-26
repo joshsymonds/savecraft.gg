@@ -2886,6 +2886,109 @@ describe("buildPlannerModule", () => {
     }
   });
 
+  // nearby_categories: restrict /nearby ranking by node type
+  it("rejects nearby_categories when not an array", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build: "https://pobb.in/abc", nearby_categories: "Keystone" },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("must be a JSON array"),
+    });
+  });
+
+  it("rejects nearby_categories when entries are not strings", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      { build: "https://pobb.in/abc", nearby_categories: ["Keystone", 7] },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("must all be strings"),
+    });
+  });
+
+  it("forwards nearby_categories to /nearby body", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const originalFetch = globalThis.fetch;
+    let capturedBody: Record<string, unknown> = {};
+    let capturedPath = "";
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const u = url instanceof URL ? url : new URL(url.toString());
+      capturedPath = u.pathname;
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({ buildId: "abc123def456", data: { results: [] } }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      await buildPlannerModule.execute(
+        {
+          build_id: "abc123def456",
+          nearby_metrics: '["Life"]',
+          nearby_categories: ["Keystone", "JewelSocket"],
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      expect(capturedPath).toBe("/nearby");
+      expect(capturedBody.categories).toEqual(["Keystone", "JewelSocket"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("forwards audit_categories to /audit body", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const originalFetch = globalThis.fetch;
+    let capturedBody: Record<string, unknown> = {};
+    let capturedPath = "";
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const u = url instanceof URL ? url : new URL(url.toString());
+      capturedPath = u.pathname;
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({ buildId: "abc123def456", branches: [] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      await buildPlannerModule.execute(
+        {
+          build_id: "abc123def456",
+          audit_allocated: "true",
+          audit_categories: ["Keystone"],
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      expect(capturedPath).toBe("/audit");
+      expect(capturedBody.categories).toEqual(["Keystone"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("manifest declares nearby_categories and audit_categories with teaching descriptions", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const params = buildPlannerModule.parameters as Record<
+      string,
+      { type: string; description: string; items?: { type: string } }
+    >;
+    expect(params.nearby_categories).toBeDefined();
+    expect(params.nearby_categories?.type).toBe("array");
+    expect(params.nearby_categories?.items?.type).toBe("string");
+    // Description must teach valid values + when to use.
+    expect(params.nearby_categories?.description).toContain("Keystone");
+    expect(params.nearby_categories?.description).toContain("JewelSocket");
+
+    expect(params.audit_categories).toBeDefined();
+    expect(params.audit_categories?.type).toBe("array");
+    expect(params.audit_categories?.description).toContain("Keystone");
+  });
+
   it("manifest declares mod_sources and mod_sources_limit with teaching descriptions", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
     const params = buildPlannerModule.parameters as Record<

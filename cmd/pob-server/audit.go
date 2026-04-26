@@ -21,6 +21,12 @@ type AuditRequest struct {
 	IncludeZero *bool    `json:"includeZero,omitempty"`
 	Sort        string   `json:"sort"`
 	Scope       string   `json:"scope"`
+	// Categories restricts which terminal-type branches surface in the
+	// response. Empty/missing → no filter (every branch passes through).
+	// Distinct from /nearby's category default — audit's natural state
+	// is "show all branches" since segmentation already only emits
+	// notable + keystone terminals. Valid values mirror nearbyValidCategories.
+	Categories []string `json:"categories,omitempty"`
 }
 
 // auditExtractLuaRequest is sent to wrapper.lua to walk build.spec.nodes for
@@ -243,6 +249,12 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 		return
 	}
 
+	allowedCategories, err := validateAuditCategories(req.Categories)
+	if err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	xml, ok := srv.fetchAuditBuildXML(writer, req.BuildID)
 	if !ok {
 		return
@@ -339,6 +351,12 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 		IncludeZero:      *req.IncludeZero,
 	})
 
+	// Apply category filter post-rank — drops branches whose terminal
+	// type isn't in the caller's allowlist. nil allowlist (default)
+	// passes everything through unchanged.
+	treeOut = filterAuditBranchesByCategory(treeOut, allowedCategories)
+	ascOut = filterAuditBranchesByCategory(ascOut, allowedCategories)
+
 	srv.writeAuditFinalResponse(writer, auditFinalInput{
 		Req:          req,
 		Baseline:     perturbEnvelope.Data.Baseline,
@@ -351,6 +369,45 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 		TreeWeakest:  treeWeakest,
 		AscWeakest:   ascWeakest,
 	})
+}
+
+// filterAuditBranchesByCategory drops branches whose terminal type
+// isn't in the allowlist. A nil/empty allowlist short-circuits to
+// "no filter" — audit's natural default is to show every branch since
+// segmentation already restricts terminals to notable + keystone.
+//
+// Branches with nil Terminal (no classifiable terminal — pure-travel
+// branches that segment off without reaching a meaningful endpoint)
+// drop when ANY allowlist is active. Without a terminal type they
+// can't satisfy a category filter.
+func filterAuditBranchesByCategory(branches []auditBranchResponse, allowed map[string]bool) []auditBranchResponse {
+	if len(allowed) == 0 {
+		return branches
+	}
+	out := make([]auditBranchResponse, 0, len(branches))
+	for _, b := range branches {
+		if b.Terminal == nil {
+			continue
+		}
+		if allowed[b.Terminal.Type] {
+			out = append(out, b)
+		}
+	}
+	return out
+}
+
+// validateAuditCategories validates the request's category list using
+// the shared nearbyValidCategories taxonomy. Distinct from
+// validateNearbyCategories: empty input returns nil (no filter — pass
+// every branch through), not the historical default. The semantic is
+// "what to keep" rather than "what's eligible for evaluation."
+func validateAuditCategories(input []string) (map[string]bool, error) {
+	if len(input) == 0 {
+		return nil, nil
+	}
+	// Reuse the shared validator's allowlist check; just discard its
+	// default-when-empty branch since we want nil for no-filter.
+	return validateNearbyCategories(input)
 }
 
 // segmentScopeFromExtract runs segmentation on one scope's extract data and

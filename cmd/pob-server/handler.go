@@ -638,6 +638,11 @@ type NearbyRequest struct {
 	Limit      int      `json:"limit"`
 	DeltaStats []string `json:"deltaStats"`
 	Sort       string   `json:"sort"`
+	// Categories restricts which node types are eligible for ranking.
+	// Empty/missing falls back to the historical default
+	// {Normal, Notable, Keystone}. Valid values: see nearbyValidCategories
+	// in nearby_filter.go.
+	Categories []string `json:"categories,omitempty"`
 }
 
 // nearbyExtractLuaRequest asks wrapper.lua to load the build, recalc, and
@@ -790,6 +795,12 @@ func (srv *Server) handleNearby(
 		return
 	}
 
+	allowedCategories, err := validateNearbyCategories(req.Categories)
+	if err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	xml, err := srv.cache.Get(req.BuildID)
 	if err != nil {
 		if errors.Is(err, ErrBuildNotFound) {
@@ -832,7 +843,7 @@ func (srv *Server) handleNearby(
 	var passing []*nearbyCandidate
 	for i := range extractEnvelope.Data.Candidates {
 		candidate := &extractEnvelope.Data.Candidates[i]
-		if nearbyShouldEvaluate(candidate, req.Radius) {
+		if nearbyShouldEvaluateWithCategories(candidate, req.Radius, allowedCategories) {
 			passing = append(passing, candidate)
 		}
 	}

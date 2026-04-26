@@ -188,6 +188,17 @@ export const buildPlannerModule: NativeReferenceModule = {
         "(best improvements). 'asc' ranks nodes with the most negative impact first " +
         "(useful for finding what would hurt a stat). Only used with nearby_metrics.",
     },
+    nearby_categories: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Restrict /nearby ranking to specific node categories. Use when the player " +
+        "asks specifically about keystones (\"what keystones could I grab?\" → " +
+        "[\"Keystone\"]) or jewel sockets (\"any nearby jewel sockets?\" → " +
+        "[\"JewelSocket\"]). Valid: Normal, Notable, Keystone, Mastery, JewelSocket, " +
+        "ClusterNotable, ClusterSocket. Default [Normal, Notable, Keystone] — broadly " +
+        "applicable for general tree exploration. Only used with nearby_metrics.",
+    },
     audit_allocated: {
       type: "string",
       description:
@@ -243,6 +254,17 @@ export const buildPlannerModule: NativeReferenceModule = {
         "Which part of the tree to audit: 'tree' (default, the regular passive tree), 'ascendancy' (only ascendancy nodes — " +
         "for respec analysis), or 'both' (returns parallel tree_branches and ascendancy_branches sections, never merged " +
         "since they suggest structurally different actions). Only used with audit_allocated.",
+    },
+    audit_categories: {
+      type: "array",
+      items: { type: "string" },
+      description:
+        "Restrict audit branches to those terminating in specific categories. Use when " +
+        "the player wants to focus on a particular kind of cut — e.g. 'are any of my " +
+        "keystones underperforming?' → [\"Keystone\"]. Default empty → no filter " +
+        "(every branch surfaces, since segmentation already restricts terminals to " +
+        "Notable + Keystone). Valid values mirror nearby_categories. Only used with " +
+        "audit_allocated.",
     },
     compare_with: {
       type: "array",
@@ -322,6 +344,8 @@ export const buildPlannerModule: NativeReferenceModule = {
     const auditIncludeZero = query.audit_include_zero as string | undefined;
     const auditSort = query.audit_sort as string | undefined;
     const auditScope = query.audit_scope as string | undefined;
+    const nearbyCategories = query.nearby_categories;
+    const auditCategories = query.audit_categories;
     const compareWith = query.compare_with;
     const buySimilar = query.buy_similar as boolean | undefined;
     const league = query.league as string | undefined;
@@ -371,6 +395,48 @@ export const buildPlannerModule: NativeReferenceModule = {
         type: "text",
         content: "Error: either build (URL) or build_id is required.",
       };
+    }
+
+    // Validate nearby_categories / audit_categories early so the LLM
+    // gets a clean error before any pob-server round-trip. Server-side
+    // re-validates as defense in depth.
+    let nearbyCategoriesArray: string[] | undefined;
+    if (nearbyCategories !== undefined && nearbyCategories !== null) {
+      if (!Array.isArray(nearbyCategories)) {
+        return {
+          type: "text",
+          content:
+            'Error: nearby_categories must be a JSON array of strings (e.g. ["Keystone","JewelSocket"]).',
+        };
+      }
+      if (!nearbyCategories.every((s) => typeof s === "string")) {
+        return {
+          type: "text",
+          content: "Error: nearby_categories entries must all be strings.",
+        };
+      }
+      if (nearbyCategories.length > 0) {
+        nearbyCategoriesArray = nearbyCategories as string[];
+      }
+    }
+    let auditCategoriesArray: string[] | undefined;
+    if (auditCategories !== undefined && auditCategories !== null) {
+      if (!Array.isArray(auditCategories)) {
+        return {
+          type: "text",
+          content:
+            'Error: audit_categories must be a JSON array of strings (e.g. ["Keystone"]).',
+        };
+      }
+      if (!auditCategories.every((s) => typeof s === "string")) {
+        return {
+          type: "text",
+          content: "Error: audit_categories entries must all be strings.",
+        };
+      }
+      if (auditCategories.length > 0) {
+        auditCategoriesArray = auditCategories as string[];
+      }
     }
 
     if (build && !isURL(build)) {
@@ -551,6 +617,7 @@ export const buildPlannerModule: NativeReferenceModule = {
         auditBody.includeZero = parsedIncludeZero;
       if (auditSort) auditBody.sort = auditSort;
       if (auditScope) auditBody.scope = auditScope;
+      if (auditCategoriesArray) auditBody.categories = auditCategoriesArray;
 
       let response: Response;
       try {
@@ -625,6 +692,7 @@ export const buildPlannerModule: NativeReferenceModule = {
       if (nearbyLimit) nearbyBody.limit = nearbyLimit;
       if (parsedDeltaStats) nearbyBody.deltaStats = parsedDeltaStats;
       if (nearbySort) nearbyBody.sort = nearbySort;
+      if (nearbyCategoriesArray) nearbyBody.categories = nearbyCategoriesArray;
 
       let response: Response;
       try {
