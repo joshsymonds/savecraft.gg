@@ -77,7 +77,7 @@ describe("GroupedTable", () => {
       ],
     });
     const highlightCell = container.querySelector("td.highlight");
-    expect(highlightCell?.textContent).toBe("win");
+    expect(highlightCell?.textContent?.trim()).toBe("win");
   });
 
   it("applies column-level variant to header and all cells in that column", () => {
@@ -124,7 +124,7 @@ describe("GroupedTable", () => {
       ],
     });
     const cell = container.querySelector("tbody tr:not(.group-header) td.highlight");
-    expect(cell?.textContent).toBe("win");
+    expect(cell?.textContent?.trim()).toBe("win");
     // Should NOT also have the warning class.
     expect(cell?.classList.contains("warning")).toBe(false);
   });

@@ -88,22 +88,56 @@
   // builds failed without losing the diff against the rest.
   let successful = $derived(builds.filter((b) => !b.error));
 
-  type Variant = "highlight" | "muted" | "negative";
-  type CellValue = string | number | { value: string | number; variant?: Variant };
+  type Variant = "highlight" | "muted" | "negative" | "positive";
+  type CellValue =
+    | string
+    | number
+    | {
+        value: string | number;
+        variant?: Variant;
+        sublabel?: string;
+        sublabelVariant?: Variant;
+        sublabelPosition?: "below" | "left";
+      };
+
+  // Pin/anchor model: one build is the "anchor", every other successful
+  // build's Summary cells get a small delta sublabel showing their value
+  // relative to the anchor. Default anchor is the first successful build
+  // (positional, deterministic). Click-to-re-anchor wires up next; for
+  // now this is a static visual.
+  let anchorIdx = $state(0);
 
   // One column per build (successful AND errored), preserving the
-  // original `builds` order. Errored columns use variant: "warning"
-  // and a "errored" sublabel so the column reads as failed start to
-  // finish; their cells get muted dashes from buildErroredCell below.
+  // original `builds` order. Errored columns use variant: "negative"
+  // and a "errored" sublabel; the anchor build's column gets an "anchor"
+  // sublabel so the user can see which baseline the deltas reference.
   let columns = $derived([
     { key: "axis", label: "", align: "left" as const, width: "30%" },
-    ...builds.map((b) => ({
-      key: `b${b.id ?? b.label}`,
-      label: buildColumnLabel(b),
-      align: "right" as const,
-      variant: b.error ? ("negative" as const) : undefined,
-      sublabel: b.error ? "errored" : undefined,
-    })),
+    ...builds.map((b) => {
+      const successIdx = successful.indexOf(b);
+      const isAnchor = successIdx >= 0 && successIdx === anchorIdx;
+      const isErrored = !!b.error;
+      return {
+        key: `b${b.id ?? b.label}`,
+        label: buildColumnLabel(b),
+        align: "right" as const,
+        // Errored columns retain their red-tinted treatment; the anchor
+        // column gets the gold-tinted column background plus a left-side
+        // lock icon (rendered by GroupedTable when pinned: true).
+        variant: isErrored ? ("negative" as const) : isAnchor ? ("highlight" as const) : undefined,
+        sublabel: isErrored ? "errored" : undefined,
+        pinned: isAnchor,
+        // Click any non-anchor, non-errored column to make it the new
+        // anchor. Deltas across the entire Summary section recompute
+        // automatically since anchorIdx is reactive state.
+        onSelect:
+          !isAnchor && !isErrored && successIdx >= 0
+            ? () => {
+                anchorIdx = successIdx;
+              }
+            : undefined,
+      };
+    }),
   ]);
 
   // Subtitle: surface the failure count and, for a single failure, the
@@ -125,6 +159,20 @@
     return { value: "—", variant: "muted" };
   }
 
+  // formatDelta: signed percent of `value` vs `anchor`. Returns "" when
+  // both are zero (no meaningful delta), "—" when the anchor itself is
+  // zero (can't compute %), and signed integer % otherwise. Tiny deltas
+  // (< 1%) carry one decimal so "+0.5%" doesn't get rounded to 0.
+  function formatDelta(value: number, anchor: number): string {
+    if (value === anchor) return "";
+    if (anchor === 0) return "—";
+    const pct = ((value - anchor) / Math.abs(anchor)) * 100;
+    const sign = pct > 0 ? "+" : "";
+    if (Math.abs(pct) >= 999.5) return `${sign}>999%`;
+    if (Math.abs(pct) < 1) return `${sign}${pct.toFixed(1)}%`;
+    return `${sign}${Math.round(pct)}%`;
+  }
+
   let groups = $derived.by(() => {
     const out: Array<{ label: string; rows: Record<string, CellValue>[] }> = [];
 
@@ -133,13 +181,35 @@
         label: "Summary",
         rows: Object.entries(diffs.summary).map(([statKey, diff]) => {
           const row: Record<string, CellValue> = { axis: formatStatKey(statKey) };
+          const anchorValue = diff.perBuild[anchorIdx] ?? 0;
           successful.forEach((b, i) => {
             const value = diff.perBuild[i] ?? 0;
             const isLeader = i === diff.leader && diff.range > 0;
+            const isAnchor = i === anchorIdx;
             const colKey = `b${b.id ?? b.label}`;
-            row[colKey] = isLeader
-              ? { value: formatNumber(value), variant: "highlight" }
-              : formatNumber(value);
+            const variant: Variant | undefined = isLeader ? "highlight" : undefined;
+            const sublabel = isAnchor ? undefined : formatDelta(value, anchorValue) || undefined;
+            // Color deltas: green for "more than anchor", red for less.
+            // The "—" indicator (anchor=0) gets no color override → muted.
+            let sublabelVariant: Variant | undefined;
+            if (sublabel?.startsWith("+")) sublabelVariant = "positive";
+            else if (sublabel?.startsWith("-")) sublabelVariant = "negative";
+            // Plain number cell when there's nothing to decorate (the
+            // anchor's own column on a non-leader stat).
+            if (variant === undefined && sublabel === undefined) {
+              row[colKey] = formatNumber(value);
+            } else {
+              row[colKey] = {
+                value: formatNumber(value),
+                variant,
+                sublabel,
+                sublabelVariant,
+                // Deltas flow to the cell's left edge (opposite the
+                // right-aligned value), mirroring the anchor column's
+                // lock-on-left, label-on-right layout.
+                sublabelPosition: sublabel ? "left" : undefined,
+              };
+            }
           });
           erroredBuilds.forEach((b) => {
             row[`b${b.id ?? b.label}`] = buildErroredCell();
@@ -265,7 +335,10 @@
   // ─── Helpers ────────────────────────────────────────────────────────
   function buildColumnLabel(b: CompareBuild): string {
     if (b.character) {
-      const cls = b.character.ascendancy || b.character.class;
+      // PoB emits the literal string "None" when no ascendancy is
+      // chosen — treat as absent and fall back to the base class.
+      const asc = b.character.ascendancy;
+      const cls = asc && asc !== "None" ? asc : b.character.class;
       return `${cls} L${b.character.level}`;
     }
     return b.label;
