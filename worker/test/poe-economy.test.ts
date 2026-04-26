@@ -349,6 +349,17 @@ describe("economy reference module — response normalization", () => {
     expect(hh.listings).toBe(100);
     expect(hh.icon_url).toBe("https://example.com/hh.png");
     expect(hh.sparkline).toEqual([0, 1, 2, 3, 4, 5, 12.5]);
+    expect(hh.level_required).toBe(40);
+    const mods = hh.mods as {
+      implicit: string[];
+      explicit: string[];
+      mutated: string[];
+      flavour?: string;
+    };
+    expect(mods.explicit).toEqual(["+(50-65) to all Attributes"]);
+    expect(mods.implicit).toEqual([]);
+    expect(mods.mutated).toEqual([]);
+    expect(mods.flavour).toBe("We were strong once.");
   });
 
   it("normalizes item with low listing count to confidence='low' and replaces sparkline nulls with 0", async () => {
@@ -387,6 +398,8 @@ describe("economy reference module — response normalization", () => {
     expect(mirror.listings).toBe(90);
     expect(mirror.confidence).toBe("high");
     expect(mirror.sparkline).toEqual([0, 1, -2, -5]);
+    expect(mirror.level_required).toBeUndefined();
+    expect(mirror.mods).toBeUndefined();
   });
 
   it("substring-matches case-insensitively across both shapes", async () => {

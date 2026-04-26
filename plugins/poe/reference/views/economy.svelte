@@ -10,13 +10,14 @@
   import EmptyState from "../../../../views/src/components/feedback/EmptyState.svelte";
   import Sparkline from "../../../../views/src/components/charts/Sparkline.svelte";
   import PriceTag from "../../../../views/src/components/poe/PriceTag.svelte";
+  import StatLine from "../../../../views/src/components/poe/StatLine.svelte";
 
   interface PriceResult {
     name: string;
     /** Item type for display (e.g. "Unique Armour", "Currency") */
     type: string;
     /** Base type or subtype */
-    base_type?: string;
+    base_type?: string | null;
     /** Current price in chaos */
     chaos_value: number;
     /** Current price in divine */
@@ -26,11 +27,30 @@
     /** Sparkline data points (last 7 days) */
     sparkline?: number[];
     /** Price change percentage (7d) */
-    change_7d?: number;
+    change_7d?: number | null;
     /** Item icon URL */
     icon_url?: string;
     /** Number of listings */
     listings?: number;
+    /** Required character level (items only) */
+    level_required?: number | null;
+    /** Item mod text (items only — currency results omit this) */
+    mods?: {
+      implicit: string[];
+      explicit: string[];
+      mutated: string[];
+      flavour?: string;
+    };
+  }
+
+  function hasMods(mods: PriceResult["mods"]): boolean {
+    if (!mods) return false;
+    return (
+      mods.implicit.length > 0 ||
+      mods.explicit.length > 0 ||
+      mods.mutated.length > 0 ||
+      Boolean(mods.flavour)
+    );
   }
 
   interface Props {
@@ -67,46 +87,68 @@
         <div class="price-list">
           {#each data.items as item}
             <div class="price-card">
-              <div class="price-left">
-                {#if item.icon_url}
-                  <img class="item-icon" src={item.icon_url} alt="" />
-                {/if}
-                <div class="item-info">
-                  <span class="item-name">{item.name}</span>
-                  {#if item.base_type}
-                    <span class="item-base">{item.base_type}</span>
+              <div class="price-row">
+                <div class="price-left">
+                  {#if item.icon_url}
+                    <img class="item-icon" src={item.icon_url} alt="" />
                   {/if}
-                  <div class="item-meta">
-                    <Badge label={item.type} variant="muted" />
-                    {#if item.listings}
-                      <span class="listings">{item.listings} listed</span>
+                  <div class="item-info">
+                    <span class="item-name">{item.name}</span>
+                    {#if item.base_type}
+                      <span class="item-base">{item.base_type}</span>
                     {/if}
+                    <div class="item-meta">
+                      <Badge label={item.type} variant="muted" />
+                      {#if item.level_required != null}
+                        <span class="level">Lvl {item.level_required}</span>
+                      {/if}
+                      {#if item.listings}
+                        <span class="listings">{item.listings} listed</span>
+                      {/if}
+                    </div>
                   </div>
+                </div>
+
+                <div class="price-right">
+                  <PriceTag
+                    chaos={item.chaos_value}
+                    divine={item.divine_value}
+                    confidence={item.confidence}
+                  />
+                  {#if item.sparkline && item.sparkline.length > 1}
+                    <div class="trend">
+                      <Sparkline
+                        values={item.sparkline}
+                        color={item.change_7d != null ? changeColor(item.change_7d) : "var(--color-info)"}
+                        width={100}
+                        height={28}
+                      />
+                      {#if item.change_7d != null}
+                        <span class="change" style:color={changeColor(item.change_7d)}>
+                          {changePrefix(item.change_7d)}{item.change_7d.toFixed(1)}%
+                        </span>
+                      {/if}
+                    </div>
+                  {/if}
                 </div>
               </div>
 
-              <div class="price-right">
-                <PriceTag
-                  chaos={item.chaos_value}
-                  divine={item.divine_value}
-                  confidence={item.confidence}
-                />
-                {#if item.sparkline && item.sparkline.length > 1}
-                  <div class="trend">
-                    <Sparkline
-                      values={item.sparkline}
-                      color={item.change_7d != null ? changeColor(item.change_7d) : "var(--color-info)"}
-                      width={100}
-                      height={28}
-                    />
-                    {#if item.change_7d != null}
-                      <span class="change" style:color={changeColor(item.change_7d)}>
-                        {changePrefix(item.change_7d)}{item.change_7d.toFixed(1)}%
-                      </span>
-                    {/if}
-                  </div>
-                {/if}
-              </div>
+              {#if hasMods(item.mods)}
+                <div class="price-mods">
+                  {#each item.mods!.implicit as mod}
+                    <StatLine text={mod} variant="implicit" />
+                  {/each}
+                  {#each item.mods!.explicit as mod}
+                    <StatLine text={mod} />
+                  {/each}
+                  {#each item.mods!.mutated as mod}
+                    <StatLine text={mod} variant="crafted" />
+                  {/each}
+                  {#if item.mods!.flavour}
+                    <em class="flavour">{item.mods!.flavour}</em>
+                  {/if}
+                </div>
+              {/if}
             </div>
           {/each}
         </div>
@@ -128,9 +170,8 @@
 
   .price-card {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-md);
+    flex-direction: column;
+    gap: var(--space-sm);
     padding: var(--space-sm) var(--space-md);
     background: var(--color-surface);
     border: 1px solid var(--color-border);
@@ -140,6 +181,35 @@
 
   .price-card:hover {
     border-color: var(--color-border-light);
+  }
+
+  .price-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-md);
+  }
+
+  .price-mods {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding-top: var(--space-xs);
+    padding-left: calc(32px + var(--space-sm));
+    border-top: 1px solid var(--color-border);
+  }
+
+  .flavour {
+    font-family: var(--font-body);
+    font-size: 12px;
+    color: var(--color-text-dim);
+    margin-top: 2px;
+  }
+
+  .level {
+    font-family: var(--font-body);
+    font-size: 11px;
+    color: var(--color-text-muted);
   }
 
   .price-left {

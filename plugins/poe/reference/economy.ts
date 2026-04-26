@@ -36,6 +36,10 @@ interface SparkLine {
   readonly data?: ReadonlyArray<number | null>;
 }
 
+interface PoeNinjaModifier {
+  readonly text: string;
+}
+
 interface PoeNinjaItemLine {
   readonly name: string;
   readonly chaosValue: number;
@@ -45,6 +49,11 @@ interface PoeNinjaItemLine {
   readonly sparkLine?: SparkLine;
   readonly lowConfidenceSparkLine?: SparkLine;
   readonly listingCount?: number;
+  readonly levelRequired?: number;
+  readonly implicitModifiers?: ReadonlyArray<PoeNinjaModifier>;
+  readonly explicitModifiers?: ReadonlyArray<PoeNinjaModifier>;
+  readonly mutatedModifiers?: ReadonlyArray<PoeNinjaModifier>;
+  readonly flavourText?: string;
 }
 
 interface PoeNinjaItemResponse {
@@ -295,10 +304,25 @@ function confidenceFromCount(n: number | undefined): "high" | "low" {
   return (n ?? 0) > 10 ? "high" : "low";
 }
 
+function modTexts(
+  mods: ReadonlyArray<PoeNinjaModifier> | undefined,
+): string[] {
+  return (mods ?? []).map((m) => m.text);
+}
+
 function normalizeItem(
   line: PoeNinjaItemLine,
   type: string,
 ): Record<string, unknown> {
+  const implicit = modTexts(line.implicitModifiers);
+  const explicit = modTexts(line.explicitModifiers);
+  const mutated = modTexts(line.mutatedModifiers);
+  const flavour = line.flavourText;
+  const hasMods =
+    implicit.length > 0 ||
+    explicit.length > 0 ||
+    mutated.length > 0 ||
+    typeof flavour === "string";
   return {
     name: line.name,
     type,
@@ -310,6 +334,10 @@ function normalizeItem(
     change_7d: line.sparkLine?.totalChange ?? null,
     icon_url: line.icon,
     listings: line.listingCount ?? 0,
+    level_required: line.levelRequired,
+    mods: hasMods
+      ? { implicit, explicit, mutated, flavour }
+      : undefined,
   };
 }
 
