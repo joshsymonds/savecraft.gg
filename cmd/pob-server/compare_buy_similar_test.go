@@ -87,7 +87,7 @@ func TestCompareBuySimilarDifferentItem(t *testing.T) {
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
 		calcResponseWithItems("Marauder", map[string]string{"Helmet": "Devoto's Devotion"}),
 	)
-	body := `{"builds":["` + idA + `","` + idB + `"],"buy_similar":true}`
+	body := `{"builds":["` + idA + `","` + idB + `"],"buySimilar":true}`
 	rec := httptest.NewRecorder()
 	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
 
@@ -144,7 +144,7 @@ func TestCompareBuySimilarIdenticalItemEmitsNothing(t *testing.T) {
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
 		calcResponseWithItems("Marauder", map[string]string{"Helmet": "Atziri's Foible"}),
 	)
-	body := `{"builds":["` + idA + `","` + idB + `"],"buy_similar":true}`
+	body := `{"builds":["` + idA + `","` + idB + `"],"buySimilar":true}`
 	rec := httptest.NewRecorder()
 	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
 
@@ -169,7 +169,7 @@ func TestCompareBuySimilarTargetMissingItem(t *testing.T) {
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
 		calcResponseWithItems("Marauder", map[string]string{"Body Armour": "Kintsugi"}),
 	)
-	body := `{"builds":["` + idA + `","` + idB + `"],"buy_similar":true}`
+	body := `{"builds":["` + idA + `","` + idB + `"],"buySimilar":true}`
 	rec := httptest.NewRecorder()
 	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
 
@@ -210,7 +210,7 @@ func TestCompareBuySimilarLeagueParam(t *testing.T) {
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
 		calcResponseWithItems("Marauder", map[string]string{"Helmet": "Devoto's Devotion"}),
 	)
-	body := `{"builds":["` + idA + `","` + idB + `"],"buy_similar":true,"league":"Mirage"}`
+	body := `{"builds":["` + idA + `","` + idB + `"],"buySimilar":true,"league":"Mirage"}`
 	rec := httptest.NewRecorder()
 	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
 
@@ -237,7 +237,7 @@ func TestCompareBuySimilarDefaultLeague(t *testing.T) {
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
 		calcResponseWithItems("Marauder", map[string]string{"Helmet": "Devoto's Devotion"}),
 	)
-	body := `{"builds":["` + idA + `","` + idB + `"],"buy_similar":true}`
+	body := `{"builds":["` + idA + `","` + idB + `"],"buySimilar":true}`
 	rec := httptest.NewRecorder()
 	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
 
@@ -262,7 +262,7 @@ func TestCompareBuySimilarItemNameWithApostrophe(t *testing.T) {
 		calcResponseWithItems("Witch", map[string]string{"Helmet": "Atziri's Foible"}),
 		calcResponseWithItems("Marauder", map[string]string{"Helmet": "Devoto's Devotion"}),
 	)
-	body := `{"builds":["` + idA + `","` + idB + `"],"buy_similar":true}`
+	body := `{"builds":["` + idA + `","` + idB + `"],"buySimilar":true}`
 	rec := httptest.NewRecorder()
 	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
 
@@ -348,7 +348,7 @@ func TestCompareBuySimilarErroredBuildExcluded(t *testing.T) {
 	_ = srv.cache.store.Put(idA, "<A/>", "", "", "")
 
 	// idB intentionally absent → errored slot.
-	body := `{"builds":["` + idA + `","00000000000000000000000000000000"],"buy_similar":true}`
+	body := `{"builds":["` + idA + `","00000000000000000000000000000000"],"buySimilar":true}`
 	rec := httptest.NewRecorder()
 	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
 

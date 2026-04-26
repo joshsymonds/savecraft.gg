@@ -45,7 +45,7 @@ type testSocketGroup struct {
 }
 
 // calcResponseWithSkills builds a wrapper.lua-shaped response with a
-// custom socket_groups array. Matches the schema from
+// custom socketGroups array. Matches the schema from
 // serializeSocketGroups: each group has label + gems[].name.
 func calcResponseWithSkills(class string, groups []testSocketGroup) string {
 	type gemEntry struct {
@@ -74,7 +74,7 @@ func calcResponseWithSkills(class string, groups []testSocketGroup) string {
 		`"Str":100,"Dex":100,"Int":100,"FlaskEffect":0,"FlaskChargeGen":0,` +
 		`"LootQuantityNormalEnemies":0,"LootRarityMagicEnemies":0,` +
 		`"EnemyCurseLimit":1,"TotalDPS":100000},` +
-		`"section_index":[],"sections":{"socket_groups":` + string(groupsJSON) + `}}}`
+		`"section_index":[],"sections":{"socketGroups":` + string(groupsJSON) + `}}}`
 }
 
 // findGroup returns the entry with matching label, or nil.
@@ -286,7 +286,7 @@ func TestCompareSkillsDiffOmittedWithSingleSuccess(t *testing.T) {
 	}
 }
 
-// TestCompareSkillsDiffEmptyGroups: a build with no socket_groups
+// TestCompareSkillsDiffEmptyGroups: a build with no socketGroups
 // section contributes empty entries to other builds' groups.
 func TestCompareSkillsDiffEmptyGroups(t *testing.T) {
 	srv, idA, idB := compareHarness(
@@ -295,7 +295,7 @@ func TestCompareSkillsDiffEmptyGroups(t *testing.T) {
 		calcResponseWithSkills("Witch", []testSocketGroup{
 			{Label: "Cyclone", Gems: []string{"Cyclone"}},
 		}),
-		// minimalCalcResponseClass has no socket_groups — extracts to
+		// minimalCalcResponseClass has no socketGroups — extracts to
 		// an empty socketGroups list on the entry.
 		minimalCalcResponseClass("Marauder", 100000),
 	)
