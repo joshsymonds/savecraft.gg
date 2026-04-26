@@ -193,17 +193,60 @@ do
 	end
 end
 
--- Compare helpers — ride-along on PoB's pure-data modules. These expose
--- mod-source resolution (CompareCalcsHelpers.TabulateMods, ResolveSourceName)
--- and trade-API helpers (CompareTradeHelpers.findTradeModId,
--- getTradeCategoryInfo). Loaded eagerly so any missing-dependency failure
--- surfaces at startup, not on first request. Held as locals — used by
--- subsequent Feature 1 (per-mod source breakdown) and Feature 2 (advanced
--- buy-similar) slices.
+-- Compare helpers — ride-along on PoB's pure-data modules. CompareCalcsHelpers
+-- powers per-mod source resolution (TabulateMods, ResolveSourceName, ModRowKey).
+-- CompareTradeHelpers gives us modLineTemplate (mod text → "#"-templated form)
+-- which is the Go side's matching contract for QueryMods + trade-stats lookups.
+-- Data/QueryMods is PoB's bundled trade-mod table, dumped on demand for the
+-- Go side via the dump_query_mods request type — closes the v1 mod-ID gap so
+-- buy-similar resolves common mods even when the trade-stats cache is empty.
+-- Loaded eagerly so any missing-dependency failure surfaces at startup.
 local compareCalcsHelpers = LoadModule("Classes/CompareCalcsHelpers")
 local compareTradeHelpers = LoadModule("Classes/CompareTradeHelpers")
-log("Compare helpers loaded: calcsHelpers=%s tradeHelpers=%s",
-	type(compareCalcsHelpers), type(compareTradeHelpers))
+local queryModsData = LoadModule("Data/QueryMods")
+log("Compare helpers loaded: calcsHelpers=%s tradeHelpers=%s queryMods=%s",
+	type(compareCalcsHelpers), type(compareTradeHelpers), type(queryModsData))
+
+-- dumpQueryModsLookup walks PoB's bundled QueryMods table and emits a flat
+-- map { "template|modType" → trade_id, "template" → trade_id } that mirrors
+-- the secondary-indexing CompareTradeHelpers.lua:getTradeModLookup builds
+-- internally. Go caches this once per wrapper.lua process — QueryMods is
+-- build-stable (changes only with PoB version bumps).
+local function dumpQueryModsLookup()
+	local lookup = {}
+	if not queryModsData then
+		return { lookup = lookup }
+	end
+	for _, mods in pairs(queryModsData) do
+		for _, modData in pairs(mods) do
+			if type(modData) == "table" and modData.tradeMod then
+				local text = modData.tradeMod.text
+				local modType = modData.tradeMod.type or "explicit"
+				local id = modData.tradeMod.id
+				if text and id then
+					lookup[text .. "|" .. modType] = id
+					if not lookup[text] then
+						lookup[text] = id
+					end
+					-- Also store template form for mods whose canonical
+					-- text contains literal numbers (e.g. "+1 to all
+					-- Maximum Resistances" → "+# to all Maximum Resistances").
+					local template = compareTradeHelpers.modLineTemplate(text)
+					if template ~= text then
+						local templateKey = template .. "|" .. modType
+						if not lookup[templateKey] then
+							lookup[templateKey] = id
+						end
+						if not lookup[template] then
+							lookup[template] = id
+						end
+					end
+				end
+			end
+		end
+	end
+	return { lookup = lookup }
+end
 
 -- JSON library is available from PoB's runtime
 local dkjson = require("dkjson")
@@ -1963,6 +2006,13 @@ for line in io.stdin:lines() do
 			end
 		elseif request.type == "ping" then
 			response = { type = "pong" }
+		elseif request.type == "dump_query_mods" then
+			local ok, result = pcall(dumpQueryModsLookup)
+			if ok then
+				response = { type = "result", data = result }
+			else
+				response = { type = "error", message = "dump_query_mods crashed: " .. tostring(result) }
+			end
 		else
 			response = { type = "error", message = "unknown request type: " .. tostring(request.type) }
 		end

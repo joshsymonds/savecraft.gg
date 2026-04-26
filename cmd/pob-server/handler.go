@@ -50,6 +50,19 @@ type Server struct {
 	// stable; the cache never invalidates within a process lifetime.
 	// Bounded only by the number of distinct builds the daemon sees.
 	auditNodeTypesCache sync.Map // string → map[int]string
+
+	// queryMods is the in-process snapshot of PoB's bundled
+	// Data/QueryMods.lua trade-mod table, dumped from wrapper.lua at
+	// startup (or lazily on first need). Maps "template|modType" →
+	// trade_id, with a "template"-only fallback entry per mod. This is
+	// the FIRST lookup leg for buy-similar mod-ID resolution; the
+	// SQLite trade_stats cache is the fallback for mods PoB doesn't
+	// bundle (cluster enchants, unique-specific mods, etc).
+	//
+	// Stable for the lifetime of a wrapper.lua process — QueryMods
+	// changes only with PoB version bumps. Tests pre-populate directly.
+	queryModsMu sync.RWMutex
+	queryMods   map[string]string
 }
 
 // CalcRequest is the JSON body for POST /calc.
@@ -1635,6 +1648,68 @@ func (srv *Server) getGemNames(proc *Process) []string {
 	srv.gemNames = parsed.Data.Gems
 	srv.gemNamesLoaded = true
 	return srv.gemNames
+}
+
+// dumpQueryModsLuaRequest is the wire shape sent to wrapper.lua for the
+// dump_query_mods request. Carries no payload — wrapper.lua walks its
+// loaded Data/QueryMods table and returns the resolved lookup.
+type dumpQueryModsLuaRequest struct {
+	Type string `json:"type"`
+}
+
+// dumpQueryModsLuaResponse decodes wrapper.lua's dump_query_mods reply.
+type dumpQueryModsLuaResponse struct {
+	Type string `json:"type"`
+	Data struct {
+		Lookup map[string]string `json:"lookup"`
+	} `json:"data"`
+	Message string `json:"message"`
+}
+
+// ensureQueryModsLoaded populates srv.queryMods from PoB's bundled
+// Data/QueryMods table on first need. Safe to call concurrently — the
+// load races but lands on identical data, so the last-writer-wins
+// outcome is correct. Called eagerly at startup and defensively from
+// any path that wants the QueryMods leg available.
+//
+// Acquires a pool process for the round-trip; safe to call before any
+// /compare arrives. On failure, leaves srv.queryMods nil so the next
+// caller retries — the buy-similar path gracefully falls through to
+// the trade_stats SQLite cache regardless.
+func (srv *Server) ensureQueryModsLoaded() {
+	srv.queryModsMu.RLock()
+	loaded := srv.queryMods != nil
+	srv.queryModsMu.RUnlock()
+	if loaded {
+		return
+	}
+
+	proc, err := srv.pool.Acquire()
+	if err != nil {
+		srv.log.Warn("queryMods load: pool acquire failed (will retry on next call)", "err", err)
+		return
+	}
+	defer srv.pool.Release(proc)
+
+	resp, err := proc.Send(dumpQueryModsLuaRequest{Type: "dump_query_mods"})
+	if err != nil {
+		srv.log.Warn("queryMods load: process send failed", "err", err)
+		return
+	}
+	var parsed dumpQueryModsLuaResponse
+	if err := json.Unmarshal(resp, &parsed); err != nil {
+		srv.log.Warn("queryMods load: response decode failed", "err", err)
+		return
+	}
+	if parsed.Type != "result" {
+		srv.log.Warn("queryMods load: non-result response", "type", parsed.Type, "msg", parsed.Message)
+		return
+	}
+
+	srv.queryModsMu.Lock()
+	srv.queryMods = parsed.Data.Lookup
+	srv.queryModsMu.Unlock()
+	srv.log.Info("queryMods loaded", "entries", len(parsed.Data.Lookup))
 }
 
 func jsonError(writer http.ResponseWriter, msg string, code int) {

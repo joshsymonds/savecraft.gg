@@ -112,6 +112,45 @@ func TestBuySimilarWithModFilterFromCache(t *testing.T) {
 	}
 }
 
+// TestBuySimilarUsesQueryModsLookup: a mod_text whose template matches
+// a QueryMods entry resolves to that trade_id even when the trade_stats
+// SQLite cache is empty. This is the v1 mod-ID gap closure — every mod
+// in PoB's bundled QueryMods data should be resolvable without an
+// admin trade-stats refresh having been run.
+func TestBuySimilarUsesQueryModsLookup(t *testing.T) {
+	srv := newTestServer(t)
+	// Pre-populate the queryMods snapshot directly (bypassing the
+	// wrapper.lua dump in production) — the lookup logic should hit
+	// this map before falling through to LookupTradeStat.
+	srv.queryMods = map[string]string{
+		// PoB stores modType lowercase in QueryMods; the lookup
+		// lowercases the caller's modType for this leg.
+		"+# to maximum Life|explicit": "explicit.stat_life_query_mods",
+	}
+	min := 90.0
+	filters := &compareBuySimilarFilters{
+		Mods: []compareBuySimilarModFilter{
+			{ModText: "+90 to maximum Life", ModType: "Explicit", Min: &min},
+		},
+	}
+	tradeURL := buildTradeURLWithFilters(srv, "Belly", "Standard", filters)
+	q := decodeTradeQueryFromURL(t, tradeURL)
+	queryObj, _ := q["query"].(map[string]any)
+	stats, _ := queryObj["stats"].([]any)
+	if len(stats) == 0 {
+		t.Fatalf("expected stats group; got %+v", queryObj)
+	}
+	group := stats[0].(map[string]any)
+	innerFilters, _ := group["filters"].([]any)
+	if len(innerFilters) != 1 {
+		t.Fatalf("expected 1 mod filter resolved via QueryMods, got %d: %+v", len(innerFilters), innerFilters)
+	}
+	entry := innerFilters[0].(map[string]any)
+	if entry["id"] != "explicit.stat_life_query_mods" {
+		t.Errorf("filter id = %v, want explicit.stat_life_query_mods (from QueryMods, not trade_stats cache)", entry["id"])
+	}
+}
+
 // TestBuySimilarFiltersUnknownModSkipped: a mod_text without a cached
 // trade_id is silently dropped from the stats filter list — the URL
 // still emits with the rest of the filters intact.

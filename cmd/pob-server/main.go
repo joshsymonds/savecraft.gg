@@ -133,7 +133,14 @@ func main() {
 		srv.tradeStats = newTradeStatsClient(cache.store, defaultTradeStatsURL, time.Now)
 	}
 
+	// Pre-warm PoB's bundled QueryMods table off the request path so the
+	// first /compare with buy_similar_filters doesn't pay the dump round-
+	// trip. ensureQueryModsLoaded is concurrent-safe — handleCompare
+	// re-calls defensively in case startup load was still in flight.
+	go srv.ensureQueryModsLoaded()
+
 	mux := http.NewServeMux()
+
 	mux.HandleFunc("/calc", srv.authMiddleware(srv.handleCalc))
 	mux.HandleFunc("/resolve", srv.authMiddleware(srv.handleResolve))
 	mux.HandleFunc("/modify", srv.authMiddleware(srv.handleModify))

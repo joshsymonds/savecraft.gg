@@ -432,6 +432,12 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 	if successes >= 2 {
 		resp.Diffs = computeCompareDiffs(resp.Builds)
 		if req.BuySimilar {
+			// Defensive: pre-warming at startup runs in a goroutine; if
+			// this is the first /compare, the QueryMods table may still
+			// be loading. ensureQueryModsLoaded is a no-op once warm.
+			if req.BuySimilarFilters != nil && len(req.BuySimilarFilters.Mods) > 0 {
+				srv.ensureQueryModsLoaded()
+			}
 			resp.BuySimilar = computeBuySimilarWithFilters(srv, resp.Builds, req.League, req.BuySimilarFilters)
 		}
 	}
@@ -1440,17 +1446,16 @@ func buildTradeQueryPayloadWithFilters(srv *Server, itemName, league string, fil
 // dropped silently. Result is the value for query.stats[0].filters.
 func resolveModFilters(srv *Server, league string, mods []compareBuySimilarModFilter) []any {
 	out := make([]any, 0, len(mods))
-	if len(mods) == 0 || srv == nil || srv.cache == nil || srv.cache.store == nil {
+	if len(mods) == 0 || srv == nil {
 		return out
 	}
 	for _, mod := range mods {
-		stripped := tradeStatsStripPattern.ReplaceAllString(modLineTemplate(mod.ModText), "")
 		category := mod.ModType
 		if category == "" {
 			category = "Explicit"
 		}
-		tradeID, ok, err := srv.cache.store.LookupTradeStat(league, stripped, category)
-		if err != nil || !ok {
+		tradeID := srv.lookupModTradeID(league, mod.ModText, category)
+		if tradeID == "" {
 			continue
 		}
 		entry := map[string]any{"id": tradeID}
@@ -1467,6 +1472,51 @@ func resolveModFilters(srv *Server, league string, mods []compareBuySimilarModFi
 		out = append(out, entry)
 	}
 	return out
+}
+
+// lookupModTradeID resolves a mod text + type to its PoE trade-API
+// stat id, mirroring PoB's CompareTradeHelpers.findTradeModId order:
+// QueryMods (PoB's bundled in-process table) FIRST, then the SQLite
+// trade_stats cache (covers mods PoB doesn't bundle — cluster
+// enchants, unique-specific mods, etc).
+//
+// Returns "" when neither leg resolves the mod. The caller silently
+// drops unresolved mods rather than failing the request — buy-similar
+// filters are best-effort.
+func (srv *Server) lookupModTradeID(league, modText, modType string) string {
+	template := modLineTemplate(modText)
+
+	// Leg 1: QueryMods snapshot. PoB stores modType lowercase
+	// ("explicit"/"implicit"/"enchant") in the tradeMod records, so we
+	// lowercase the caller's modType (which is uppercase to match the
+	// trade_stats convention). Try template+type first, then
+	// template-only fallback. Mirrors getTradeModLookup's secondary
+	// indexing in CompareTradeHelpers.lua.
+	srv.queryModsMu.RLock()
+	if srv.queryMods != nil {
+		qmType := strings.ToLower(modType)
+		if id, ok := srv.queryMods[template+"|"+qmType]; ok {
+			srv.queryModsMu.RUnlock()
+			return id
+		}
+		if id, ok := srv.queryMods[template]; ok {
+			srv.queryModsMu.RUnlock()
+			return id
+		}
+	}
+	srv.queryModsMu.RUnlock()
+
+	// Leg 2: SQLite trade_stats cache (per-league, populated by the
+	// trade-stats fetcher).
+	if srv.cache == nil || srv.cache.store == nil {
+		return ""
+	}
+	stripped := tradeStatsStripPattern.ReplaceAllString(template, "")
+	id, ok, err := srv.cache.store.LookupTradeStat(league, stripped, modType)
+	if err != nil || !ok {
+		return ""
+	}
+	return id
 }
 
 // buildOuterQueryFilters assembles the misc_filters / armour_filters
