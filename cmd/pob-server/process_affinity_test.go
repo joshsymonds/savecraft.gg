@@ -243,18 +243,24 @@ func TestAffinityConcurrentPinRace(t *testing.T) {
 	if pinned == nil {
 		t.Fatalf("expected build-X to have a pin after racing Pins")
 	}
-	// And among the racing procs, none are still pinned to a stale buildID
+	// And among the *distinct* racing procs, none are still pinned to a stale
+	// buildID. Dedupe procs[] first: under serial-ish scheduling all 5 acquires
+	// can return the same idle pinned process, and that's correct behavior.
+	// The invariant is "at most one distinct proc is pinned to build-X", not
+	// "the procs[] slice has at most one entry pinned to build-X".
+	seen := make(map[*Process]bool, len(procs))
 	pinCount := 0
 	for _, p := range procs {
-		if p == nil {
+		if p == nil || seen[p] {
 			continue
 		}
+		seen[p] = true
 		if pool.PinnedBuildID(p) == "build-X" {
 			pinCount++
 		}
 	}
 	if pinCount != 1 {
-		t.Fatalf("expected exactly 1 process pinned to build-X; got %d", pinCount)
+		t.Fatalf("expected exactly 1 distinct process pinned to build-X; got %d", pinCount)
 	}
 }
 
