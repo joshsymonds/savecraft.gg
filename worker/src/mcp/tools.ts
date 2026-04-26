@@ -1495,9 +1495,9 @@ Data deletion: You can delete individual saves, notes, and devices through the w
 
 Full privacy policy: https://savecraft.gg/privacy`;
 
-const ABOUT_INFO = `Savecraft is an open source project that connects your video game save files to AI assistants via the Model Context Protocol (MCP).
+const ABOUT_INFO = `Savecraft is an open source project that connects video game data to AI assistants via the Model Context Protocol (MCP).
 
-How it works: For local games (e.g. Diablo II, Stardew Valley), a daemon runs on your machine, watches save files, parses them with sandboxed WASM plugins, and pushes structured game state to the cloud. For API-backed games (e.g. World of Warcraft via Battle.net), server-side adapters connect through OAuth — no local install needed. Either way, AI assistants access your game data through MCP tools.
+Three layers, each independently useful: (1) Expert modules — rules engines, item databases, build planners, economy trackers — give AI assistants real, patch-current game data for every supported game; these work the moment a user connects an MCP URL, no install required. (2) Save-file integration — for games like Diablo II, RimWorld, Factorio, Stellaris, and Stardew Valley, an optional local daemon watches save files, parses them with sandboxed WASM plugins, and pushes structured game state to the cloud so the AI can read live characters, gear, and progress. (3) Account integration — for games like World of Warcraft, server-side adapters connect through OAuth (e.g. Battle.net); no local install required. AI assistants access all of this through the same MCP tools.
 
 Open source: https://github.com/joshsymonds/savecraft.gg
 Author: Josh Symonds (https://joshsymonds.com)

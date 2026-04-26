@@ -2,7 +2,15 @@
 
 ## What Savecraft Is
 
-Savecraft gives AI assistants access to your actual game state — your character, your gear, your progress — via MCP (Model Context Protocol). It turns Claude, ChatGPT, and Gemini into something that knows your game the way a co-op partner would: it can optimize your build, track your goals, and react when you vent about Countess dropping nothing for the fifteenth run in a row.
+Savecraft connects video game knowledge and game state to AI assistants — Claude, ChatGPT, Gemini — via MCP (Model Context Protocol). It works on three layers, each independently useful:
+
+1. **Expert modules** — rules engines, item databases, build planners, economy trackers — give AI assistants real, patch-current game data for every supported game (Magic, Path of Exile, Factorio, etc.). No local install required.
+2. **Save-file integration** — for games like Diablo II, RimWorld, Factorio, Stellaris, and Stardew Valley, an optional local daemon watches save files, parses them with sandboxed WASM plugins, and pushes structured game state to the cloud.
+3. **Account integration** — for games with public APIs (World of Warcraft via Battle.net, more later), server-side adapters connect through OAuth without a local install.
+
+A game can have any combination — most have expert modules, some have save integration, a few have account integration.
+
+The result: Claude, ChatGPT, and Gemini become something that knows your game the way a co-op partner would. They can optimize your build, track your goals, and react when you vent about Countess dropping nothing for the fifteenth run in a row.
 
 Most of these games are played solo. The best moments — the lucky drop, the build finally clicking, the boss that took twenty attempts — happen with nobody watching. Savecraft means there's always someone who knows the context. You don't explain what a Shael is or why Perfection matters. The AI already knows your character, your gear, your goals. It's Player 2.
 
