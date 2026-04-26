@@ -314,7 +314,83 @@
     },
   };
 
-  // ─── 8. Errored build ─────────────────────────────────────────────────────
+  // ─── 8. Mod sources diff ─────────────────────────────────────────────────
+  // Two stats with cross-build modifier divergence. Life has one row
+  // unique to each build (different tree nodes contribute) and one
+  // shared item where build B has a different roll (same Belly base,
+  // different INC value → server emitted both as separate rows since
+  // values differ). CombinedDPS shows an N=3-style mismatch where one
+  // build pulls a unique gem-source row.
+  const modSourcesPopulated = {
+    builds: [witchBuild, marauderBuild, rangerBuild],
+    diffs: {
+      summary: {
+        Life: { perBuild: [4_891, 7_200, 4_650], leader: 1, range: 0.55 },
+        CombinedDPS: { perBuild: [1_247_832, 2_500_000, 3_120_000], leader: 2, range: 1.502 },
+      },
+      gear: {},
+      skills: [],
+      tree: { allocatedOnlyIn: {}, common: [] },
+      modSources: {
+        Life: [
+          {
+            key: "Tree:Cruel Preparation|Life|BASE",
+            source_type: "Tree",
+            mod_type: "BASE",
+            perBuild: [
+              { source_name: "Cruel Preparation", mod_name: "Life", value: 50 },
+              null,
+              null,
+            ],
+          },
+          {
+            key: "Tree:Heart of the Warrior|Life|INC",
+            source_type: "Tree",
+            mod_type: "INC",
+            perBuild: [
+              null,
+              { source_name: "Heart of the Warrior", mod_name: "Life", value: 30 },
+              null,
+            ],
+          },
+          {
+            key: "Item:Belly of the Beast|Life|INC",
+            source_type: "Item",
+            mod_type: "INC",
+            perBuild: [
+              { source_name: "Belly of the Beast", mod_name: "Life", value: 40 },
+              { source_name: "Belly of the Beast", mod_name: "Life", value: 45 },
+              null,
+            ],
+          },
+        ],
+        CombinedDPS: [
+          {
+            key: "Skill:Awakened Spell Echo|CombinedDPS|MORE",
+            source_type: "Skill",
+            mod_type: "MORE",
+            perBuild: [
+              { source_name: "Awakened Spell Echo", mod_name: "CombinedDPS", value: 49 },
+              null,
+              null,
+            ],
+          },
+          {
+            key: "Skill:Awakened Lightning Pen|CombinedDPS|MORE",
+            source_type: "Skill",
+            mod_type: "MORE",
+            perBuild: [
+              null,
+              null,
+              { source_name: "Awakened Lightning Pen", mod_name: "CombinedDPS", value: 25 },
+            ],
+          },
+        ],
+      },
+    },
+  };
+
+  // ─── 9. Errored build ─────────────────────────────────────────────────────
   // One build failed to resolve. It appears in `builds` but NOT in any
   // diff's perBuild — column set is built from the successful subset only.
   // Subtitle should read "3 builds · 2 resolved" to surface the error.
@@ -391,7 +467,14 @@
   </div>
 </Story>
 
-<!-- 8. Errored build — one build failed to resolve, subtitle reflects it. -->
+<!-- 8. Mod sources diff — per-stat modifier sources, N=3, asymmetric. -->
+<Story name="Mod sources diff">
+  <div style="max-width: 900px;">
+    <BuildCompare data={modSourcesPopulated} />
+  </div>
+</Story>
+
+<!-- 9. Errored build — one build failed to resolve, subtitle reflects it. -->
 <Story name="Errored build">
   <div style="max-width: 700px;">
     <BuildCompare data={erroredBuild} />

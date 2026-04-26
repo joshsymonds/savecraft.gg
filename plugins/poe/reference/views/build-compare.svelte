@@ -64,6 +64,24 @@
     same: boolean;
   }
 
+  // ModSourceDiffEntry mirrors compareModSourceDiffEntry from the Go side
+  // (cmd/pob-server/compare.go). Each entry is one row of a per-stat
+  // modifier-source diff: which item / tree node / skill / pantheon
+  // contributes to a stat, where the contribution differs across builds.
+  // perBuild[i] is null when build i has no row matching this key.
+  interface ModSourceCell {
+    source_name: string;
+    mod_name: string;
+    value: number;
+  }
+
+  interface ModSourceDiffEntry {
+    key: string;
+    source_type: string;
+    mod_type: string;
+    perBuild: Array<ModSourceCell | null>;
+  }
+
   interface BuySimilarEntry {
     fromBuildId: string;
     toBuildId: string;
@@ -78,6 +96,7 @@
     gear?: Record<string, SlotDiff>;
     skills?: SocketGroupDiff[];
     config?: ConfigDiffEntry[];
+    modSources?: Record<string, ModSourceDiffEntry[]>;
   }
 
   interface Props {
@@ -313,6 +332,45 @@
       });
     }
 
+    // One row group per stat that has differing modifier sources across
+    // builds. Server-side has already filtered keys where every cell
+    // agrees on source_name + value, so every entry here represents a
+    // real divergence worth surfacing.
+    if (diffs?.modSources) {
+      const sortedStats = Object.keys(diffs.modSources).sort();
+      for (const stat of sortedStats) {
+        const entries = diffs.modSources[stat];
+        if (!entries || entries.length === 0) continue;
+        out.push({
+          label: `Mod Sources: ${formatStatKey(stat)}`,
+          rows: entries.map((entry) => {
+            const row: Record<string, CellValue> = {
+              axis: formatModSourceAxis(entry),
+            };
+            successful.forEach((b, i) => {
+              const cell = entry.perBuild[i];
+              const colKey = `b${b.id ?? b.label}`;
+              if (cell === null || cell === undefined) {
+                row[colKey] = { value: "—", variant: "muted" };
+              } else {
+                // Show the value with the source name as a sublabel
+                // — same pattern as Summary's leader/anchor cells.
+                row[colKey] = {
+                  value: formatNumber(cell.value),
+                  sublabel: cell.source_name,
+                  sublabelPosition: "below",
+                };
+              }
+            });
+            erroredBuilds.forEach((b) => {
+              row[`b${b.id ?? b.label}`] = buildErroredCell();
+            });
+            return row;
+          }),
+        });
+      }
+    }
+
     return out;
   });
 
@@ -407,6 +465,15 @@
     if (typeof value === "boolean") return value ? "Yes" : "No";
     if (typeof value === "number") return formatNumber(value);
     return value;
+  }
+
+  // formatModSourceAxis collapses a mod-source diff entry's identity
+  // into a short row label. The full key ("Item:Belly|Life|INC") is
+  // dense; the axis presents source_type + mod_type which uniquely
+  // identifies the kind of contribution within a stat's section.
+  // Example: "Item · INC", "Tree · BASE".
+  function formatModSourceAxis(entry: ModSourceDiffEntry): string {
+    return `${entry.source_type} · ${entry.mod_type}`;
   }
 
   function formatStatKey(key: string): string {
