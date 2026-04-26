@@ -1,11 +1,33 @@
 <script module>
   import { defineMeta } from "@storybook/addon-svelte-csf";
   import BuildCompare from "./build-compare.svelte";
+  import treeData from "./tree-data.gen.json";
   const { Story } = defineMeta({ title: "PoE/Views/BuildCompare", tags: ["autodocs"] });
 
   // ─── Mock builds ───────────────────────────────────────────────────────────
   // Data shape mirrors CompareResponse from cmd/pob-server/compare.go.
   // Stories below mix and match these to exercise the seven scenarios.
+
+  // Pull real allocated-node sets from regions of the bundled tree
+  // data so the visual passive-tree overlay panel renders meaningfully.
+  // Same spatial-region helper as passive-tree-overlay.stories.svelte —
+  // a build's "allocations" land in its class-territory lobe plus the
+  // center commons every build pays for.
+  function nodeIdsInRegion(minX, maxX, minY, maxY) {
+    const ids = [];
+    for (const [id, node] of Object.entries(treeData.nodes)) {
+      if (node.ascendancy) continue;
+      if (node.x < minX || node.x > maxX) continue;
+      if (node.y < minY || node.y > maxY) continue;
+      ids.push(Number(id));
+    }
+    return ids;
+  }
+  const witchTerritory = nodeIdsInRegion(2000, 8000, -8000, -1500);
+  const marauderTerritory = nodeIdsInRegion(-8000, -2000, 1500, 8000);
+  const rangerTerritory = nodeIdsInRegion(2500, 8000, 1500, 7000);
+  const elementalistTerritory = nodeIdsInRegion(2000, 8000, -8000, -3000); // overlaps Witch but slightly tighter
+  const centerCommons = nodeIdsInRegion(-1500, 1500, -1500, 1500);
 
   const witchBuild = {
     id: "witch-01",
@@ -22,6 +44,7 @@
       Armour: 1_240,
       Evasion: 0,
     },
+    tree: { allocatedNodeIds: [...new Set([...witchTerritory, ...centerCommons])] },
   };
 
   const elementalistBuild = {
@@ -39,6 +62,7 @@
       Armour: 980,
       Evasion: 0,
     },
+    tree: { allocatedNodeIds: [...new Set([...elementalistTerritory, ...centerCommons])] },
   };
 
   const marauderBuild = {
@@ -56,6 +80,7 @@
       Armour: 18_500,
       Evasion: 800,
     },
+    tree: { allocatedNodeIds: [...new Set([...marauderTerritory, ...centerCommons])] },
   };
 
   const rangerBuild = {
@@ -73,6 +98,7 @@
       Armour: 0,
       Evasion: 22_400,
     },
+    tree: { allocatedNodeIds: [...new Set([...rangerTerritory, ...centerCommons])] },
   };
 
   // ─── 1. N=2 same-class diff ───────────────────────────────────────────────

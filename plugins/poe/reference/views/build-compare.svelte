@@ -19,12 +19,27 @@
   import Section from "../../../../views/src/components/layout/Section.svelte";
   import DataTable from "../../../../views/src/components/data/DataTable.svelte";
   import GroupedTable from "../../../../views/src/components/data/GroupedTable.svelte";
+  import PassiveTreeOverlay from "./passive-tree-overlay.svelte";
+
+  // Per-build palette for the tree overlay. Same order as
+  // passive-tree-overlay.stories.svelte's allocation stories — the
+  // palette is consistent across views so a build's "color" stays the
+  // same whether you're looking at a 2-build or 3-build comparison.
+  // 8 entries match the maxCompareBuilds cap from the server.
+  const TREE_OVERLAY_PALETTE = [
+    "#27ae60", "#e74c3c", "#3498db", "#f39c12",
+    "#9b59b6", "#1abc9c", "#e67e22", "#8e44ad",
+  ];
 
   interface CompareBuild {
     id?: string;
     label: string;
     character?: { class: string; ascendancy?: string; level: number };
     summary?: Record<string, number>;
+    // tree.allocatedNodeIds is the per-build allocation set used by
+    // the visual passive-tree overlay panel below the comparison
+    // table. Mirrors the wire shape from compareBuildEntry.Tree.
+    tree?: { allocatedNodeIds: number[] };
     error?: string;
   }
 
@@ -115,6 +130,23 @@
   let hasBuySimilar = $derived((buySimilar?.length ?? 0) > 0);
   let successCount = $derived(builds.filter((b) => !b.error).length);
   let erroredBuilds = $derived(builds.filter((b) => b.error));
+
+  // Per-build allocation set for the visual tree overlay panel. Only
+  // successful builds with non-empty allocated_node_ids contribute;
+  // each gets a color from the TREE_OVERLAY_PALETTE indexed by their
+  // position in the successful-subset (consistent with how the
+  // GroupedTable columns are ordered).
+  let treeAllocations = $derived.by(() => {
+    return builds
+      .filter((b) => !b.error && b.tree?.allocatedNodeIds?.length)
+      .map((b, i) => ({
+        id: b.id ?? b.label,
+        label: buildColumnLabel(b),
+        color: TREE_OVERLAY_PALETTE[i % TREE_OVERLAY_PALETTE.length],
+        nodeIds: b.tree!.allocatedNodeIds,
+      }));
+  });
+  let hasTreeOverlay = $derived(treeAllocations.length >= 2);
 
   // The successful subset is what diff.perBuild arrays are indexed
   // against. Errored builds appear in `builds` AND get their own column
@@ -492,6 +524,17 @@
     <GroupedTable {columns} {groups} />
   </Section>
 </Panel>
+
+{#if hasTreeOverlay}
+  <Panel>
+    <Section
+      title="Allocated Tree"
+      subtitle="Visual diff across builds — scroll to zoom, drag to pan, hover any node for details"
+    >
+      <PassiveTreeOverlay perBuildAllocated={treeAllocations} />
+    </Section>
+  </Panel>
+{/if}
 
 {#if hasBuySimilar}
   <Panel>

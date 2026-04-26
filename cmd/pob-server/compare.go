@@ -306,12 +306,26 @@ type compareBuildEntry struct {
 	// when the request includes ModSources. Uses json.RawMessage so the
 	// row shape from wrapper.lua flows through without re-parsing.
 	StatSources map[string]json.RawMessage `json:"statSources,omitempty"`
-	Error       string                     `json:"error,omitempty"`
+	// Tree carries the build's allocated regular-tree node IDs so the
+	// view can render the visual passive-tree overlay. Set whenever
+	// hydrateEntryFromData saw allocated nodes in the wrapper.lua
+	// response. Mirrors the data.sections.tree shape exposed by /resolve
+	// so the two endpoints have parallel tree-data wire shapes.
+	Tree  *compareBuildTree `json:"tree,omitempty"`
+	Error string            `json:"error,omitempty"`
 
 	allocatedNodes []int
 	itemsBySlot    map[string]string
 	socketGroups   []socketGroupSummary
 	config         map[string]any
+}
+
+// compareBuildTree is the per-build wire shape for tree allocation
+// data. Kept as its own type so future tree fields (paths, jewel
+// socket assignments, etc.) extend without touching the parent
+// entry's tag layout.
+type compareBuildTree struct {
+	AllocatedNodeIDs []int `json:"allocatedNodeIds"`
 }
 
 // socketGroupSummary is the minimal per-group shape used for the skills
@@ -591,6 +605,11 @@ func hydrateEntryFromData(entry *compareBuildEntry, data json.RawMessage) {
 		entry.StatSources = parsed.StatSources
 	}
 	entry.allocatedNodes = parsed.Sections.Tree.AllocatedNodeIDs
+	if len(parsed.Sections.Tree.AllocatedNodeIDs) > 0 {
+		entry.Tree = &compareBuildTree{
+			AllocatedNodeIDs: parsed.Sections.Tree.AllocatedNodeIDs,
+		}
+	}
 
 	if len(parsed.Sections.Items) > 0 {
 		entry.itemsBySlot = make(map[string]string, len(parsed.Sections.Items))
