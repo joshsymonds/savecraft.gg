@@ -2941,6 +2941,79 @@ describe("buildPlannerModule", () => {
     }
   });
 
+  // Closes review-pass gap c2: nearby_categories on /resolve / /modify
+  // narrows the inline power_report's category set, not just the
+  // standalone /nearby ranking.
+  it("forwards nearby_categories to /resolve body for inline power report", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const originalFetch = globalThis.fetch;
+    let capturedBody: Record<string, unknown> = {};
+    let capturedPath = "";
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const u = url instanceof URL ? url : new URL(url.toString());
+      capturedPath = u.pathname;
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({ buildId: "abc123def456", data: { summary: {} } }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      await buildPlannerModule.execute(
+        {
+          build: "https://pobb.in/abc",
+          nearby_categories: ["JewelSocket"],
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      expect(capturedPath).toBe("/resolve");
+      expect(capturedBody.nearby_categories).toEqual(["JewelSocket"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("forwards nearby_categories to /modify body for inline power report", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const originalFetch = globalThis.fetch;
+    // /modify goes through /build/<id>/summary first then /modify; only
+    // capture the /modify body.
+    let modifyBody: Record<string, unknown> | null = null;
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const u = url instanceof URL ? url : new URL(url.toString());
+      if (u.pathname === "/modify") {
+        modifyBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+        return new Response(
+          JSON.stringify({ buildId: "newhash", data: { summary: {} } }),
+          { status: 200, headers: { "Content-Type": "application/json" } },
+        );
+      }
+      // /build/<id>/summary stub: returns the XML + summary the modify
+      // path needs to construct its request.
+      return new Response(
+        JSON.stringify({
+          summary: { class: "Witch", level: 95, summary: { Life: 5000 } },
+          buildXml: "<PathOfBuilding/>",
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      await buildPlannerModule.execute(
+        {
+          build_id: "abc123def456",
+          operations: [{ op: "set_level", level: 95 }],
+          nearby_categories: ["Keystone"],
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      expect(modifyBody).not.toBeNull();
+      expect(modifyBody!.nearby_categories).toEqual(["Keystone"]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
   it("forwards audit_categories to /audit body", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
     const originalFetch = globalThis.fetch;

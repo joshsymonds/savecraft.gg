@@ -192,7 +192,7 @@ func (srv *Server) handleCalc(writer http.ResponseWriter, request *http.Request)
 		return
 	}
 
-	srv.calcAndRespond(writer, request, xml, "", "", nil)
+	srv.calcAndRespond(writer, request, xml, "", "", nil, nil)
 }
 
 func (srv *Server) handleHealth(writer http.ResponseWriter, _ *http.Request) {
@@ -219,6 +219,11 @@ type ResolveRequest struct {
 	URL             string   `json:"url"`
 	ModSources      []string `json:"modSources,omitempty"`
 	ModSourcesLimit int      `json:"modSourcesLimit,omitempty"`
+	// NearbyCategories restricts the inline power report to specific
+	// PoB node types (Notable, Keystone, Mastery, JewelSocket,
+	// ClusterNotable, ClusterSocket). Empty = historical default
+	// {Normal, Notable, Keystone}. Validated via validateNearbyCategories.
+	NearbyCategories []string `json:"nearby_categories,omitempty"`
 }
 
 func (srv *Server) handleResolve(
@@ -248,6 +253,12 @@ func (srv *Server) handleResolve(
 	}
 
 	statSources, err := validateAndBuildStatSourcesField(req.ModSources, req.ModSourcesLimit)
+	if err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	allowedCategories, err := validateNearbyCategories(req.NearbyCategories)
 	if err != nil {
 		jsonError(writer, err.Error(), http.StatusBadRequest)
 		return
@@ -294,7 +305,7 @@ func (srv *Server) handleResolve(
 
 	// External URL — or cached internal URL with a statSources request:
 	// calc through PoB, persist, return.
-	srv.calcAndRespond(writer, request, result.xml, result.sourceURL, "", statSources)
+	srv.calcAndRespond(writer, request, result.xml, result.sourceURL, "", statSources, allowedCategories)
 }
 
 // calcAndRespond acquires a PoB process, runs calc, persists, and writes the JSON response.
@@ -308,6 +319,7 @@ func (srv *Server) calcAndRespond(
 	request *http.Request,
 	xml, sourceURL, parentID string,
 	statSources *calcLuaStatSourcesField,
+	allowedCategories map[string]bool,
 ) {
 	proc, err := srv.pool.Acquire()
 	if err != nil {
@@ -393,7 +405,7 @@ func (srv *Server) calcAndRespond(
 	// to nil; never fails the parent response.
 	var powerReport *powerReportResult
 	if powerReportNeeded(sections) {
-		powerReport = srv.attachPowerReport(proc, buildID, xml, extractSummaryFloats(pobResp.Data))
+		powerReport = srv.attachPowerReport(proc, buildID, xml, extractSummaryFloats(pobResp.Data), allowedCategories)
 	}
 
 	writer.Header().Set("Content-Type", "application/json")
@@ -435,6 +447,9 @@ type ModifyRequest struct {
 	Operations      []json.RawMessage `json:"operations"`
 	ModSources      []string          `json:"modSources,omitempty"`
 	ModSourcesLimit int               `json:"modSourcesLimit,omitempty"`
+	// NearbyCategories restricts the inline power report to specific
+	// PoB node types — see ResolveRequest for semantics.
+	NearbyCategories []string `json:"nearby_categories,omitempty"`
 }
 
 type modifyLuaRequest struct {
@@ -487,6 +502,11 @@ func (srv *Server) handleModify(
 		jsonError(writer, err.Error(), http.StatusBadRequest)
 		return
 	}
+	allowedCategories, err := validateNearbyCategories(req.NearbyCategories)
+	if err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
 	transformedOps, err := validateAndTransformModifyOperations(req.Operations)
 	if err != nil {
 		jsonError(writer, err.Error(), http.StatusBadRequest)
@@ -516,7 +536,7 @@ func (srv *Server) handleModify(
 		}
 	}
 
-	srv.modifyAndRespond(writer, request, xml, req.BuildID, req.Operations, preSummary, statSources)
+	srv.modifyAndRespond(writer, request, xml, req.BuildID, req.Operations, preSummary, statSources, allowedCategories)
 }
 
 // extractSummary pulls the "summary" object from a stored PoB data JSON blob.
@@ -545,6 +565,7 @@ func (srv *Server) modifyAndRespond(
 	operations []json.RawMessage,
 	preSummary json.RawMessage,
 	statSources *calcLuaStatSourcesField,
+	allowedCategories map[string]bool,
 ) {
 	proc, err := srv.pool.AcquireForBuild(parentID)
 	if err != nil {
@@ -640,7 +661,7 @@ func (srv *Server) modifyAndRespond(
 	// inline extract runs against the new state.
 	var powerReport *powerReportResult
 	if powerReportNeeded(sections) {
-		powerReport = srv.attachPowerReport(proc, newID, modifiedXML, extractSummaryFloats(pobResp.Data))
+		powerReport = srv.attachPowerReport(proc, newID, modifiedXML, extractSummaryFloats(pobResp.Data), allowedCategories)
 	}
 
 	writer.Header().Set("Content-Type", "application/json")

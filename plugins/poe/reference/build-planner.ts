@@ -192,12 +192,16 @@ export const buildPlannerModule: NativeReferenceModule = {
       type: "array",
       items: { type: "string" },
       description:
-        "Restrict /nearby ranking to specific node categories. Use when the player " +
+        "Restrict node-category ranking to specific PoB types. Use when the player " +
         "asks specifically about keystones (\"what keystones could I grab?\" → " +
         "[\"Keystone\"]) or jewel sockets (\"any nearby jewel sockets?\" → " +
         "[\"JewelSocket\"]). Valid: Normal, Notable, Keystone, Mastery, JewelSocket, " +
         "ClusterNotable, ClusterSocket. Default [Normal, Notable, Keystone] — broadly " +
-        "applicable for general tree exploration. Only used with nearby_metrics.",
+        "applicable for general tree exploration. Used by nearby_metrics AND by the " +
+        "inline power_report that auto-attaches to every build resolution / modify " +
+        "call — passing this on a /resolve or /modify focuses that report on the " +
+        "category the player cares about (e.g. ask \"what's nearby?\" focused on " +
+        "keystones without making a separate nearby call).",
     },
     audit_allocated: {
       type: "string",
@@ -769,6 +773,9 @@ export const buildPlannerModule: NativeReferenceModule = {
           resolveBody.modSourcesLimit = modSourcesLimit;
         }
       }
+      // Forward nearby_categories to focus the inline power_report
+      // attached to /resolve responses on the requested category set.
+      if (nearbyCategoriesArray) resolveBody.nearby_categories = nearbyCategoriesArray;
       let response: Response;
       try {
         response = await pobFetch(
@@ -846,6 +853,7 @@ export const buildPlannerModule: NativeReferenceModule = {
           modifyBody.modSourcesLimit = modSourcesLimit;
         }
       }
+      if (nearbyCategoriesArray) modifyBody.nearby_categories = nearbyCategoriesArray;
       let response: Response;
       try {
         response = await pobFetch(

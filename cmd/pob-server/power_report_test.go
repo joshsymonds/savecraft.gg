@@ -245,6 +245,75 @@ func TestPowerReportInlineRadiusIs3(t *testing.T) {
 	}
 }
 
+// extractMixedTypesCanned: a /resolve baseline with three candidates
+// of distinct PoB node types — Notable, JewelSocket, Mastery — so a
+// category-filter test can assert which ones survive into the report.
+const extractMixedTypesCanned = `{"type":"result","data":{"baseline":{"Life":6000,"CombinedDPS":100000,"EnergyShield":0},"candidates":[` +
+	`{"id":100,"type":"Notable","alloc":false,"pathDist":1,"path":["A"],"modKey":"k1","name":"Path of the Iron","stats":["+10 to maximum Life"]},` +
+	`{"id":200,"type":"JewelSocket","alloc":false,"pathDist":2,"path":["A","B"],"modKey":"k2","name":"Medium Jewel Socket","stats":["Adds a Jewel Socket"]},` +
+	`{"id":300,"type":"Mastery","alloc":false,"pathDist":1,"path":["A"],"modKey":"k3","name":"Life Mastery","stats":["+1% increased maximum Life"]}` +
+	`]}}`
+
+const perturbMixedTypesCanned = `{"type":"result","data":{"deltas":{` +
+	`"100":{"Life":50,"CombinedDPS":1000,"EnergyShield":0},` +
+	`"200":{"Life":0,"CombinedDPS":0,"EnergyShield":0},` +
+	`"300":{"Life":30,"CombinedDPS":500,"EnergyShield":0}}}}`
+
+// TestResolveNearbyCategoriesFiltersInlinePowerReport: a /resolve
+// request with nearby_categories=["JewelSocket"] should produce a
+// power_report containing ONLY the JewelSocket candidate, even though
+// the extract response carries Notable + Mastery candidates with higher
+// rank scores. Closes review-pass gap c2.
+func TestResolveNearbyCategoriesFiltersInlinePowerReport(t *testing.T) {
+	pool, captured := captureMockPool(t, []string{
+		minimalCalcResponse,
+		extractMixedTypesCanned,
+		perturbMixedTypesCanned,
+	})
+	defer pool.Shutdown()
+	srv := newTestSrv(t, pool)
+	srv.cache.store = newInMemoryStoreForTest(t)
+	srv.modIndex = NewModSourceIndex()
+	srv.PowerReportEnabled = true
+	// Seed a build so /resolve's URL flow can hit the cache directly.
+	xml := "<PathOfBuilding/>"
+	id := srv.cache.Put(xml)
+	if err := srv.cache.store.Put(id, xml, "", "https://pob.savecraft.gg/"+id, ""); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"url":"https://pob.savecraft.gg/` + id + `","nearby_categories":["JewelSocket"]}`
+	rec := httptest.NewRecorder()
+	srv.handleResolve(rec, httptest.NewRequest(http.MethodPost, "/resolve?sections=offense", strings.NewReader(body)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	_ = captured
+
+	// Wire shape: nearbyDisplayType lowercases + collapses to
+	// notable/keystone/normal, so we can't filter by `type` directly.
+	// Match on `name` instead — filter must keep only "Medium Jewel
+	// Socket" and drop the Notable + Mastery entries.
+	var resp struct {
+		PowerReport struct {
+			Nodes []struct {
+				Name string `json:"name"`
+			} `json:"nodes"`
+		} `json:"powerReport"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v\nbody: %s", err, rec.Body.String())
+	}
+	if len(resp.PowerReport.Nodes) == 0 {
+		t.Fatalf("expected the JewelSocket node, got 0 nodes; body=%s", rec.Body.String())
+	}
+	for _, n := range resp.PowerReport.Nodes {
+		if n.Name != "Medium Jewel Socket" {
+			t.Errorf("nearby_categories=[JewelSocket] should filter out node %q", n.Name)
+		}
+	}
+}
+
 // TestPowerReportFailureDoesNotFailParent: when the inline nearby_extract
 // errors, /calc still returns 200 with the rest of the data; powerReport
 // is omitted.

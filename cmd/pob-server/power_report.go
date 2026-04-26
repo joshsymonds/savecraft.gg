@@ -35,12 +35,18 @@ func powerReportPriorityMetrics() []string {
 // extract failure, perturb failure. Failures log at warn level but never
 // fail the parent response.
 //
+// allowedCategories filters which PoB node types make the cut — pass
+// nearbyDefaultCategorySet() to preserve the legacy {Normal, Notable,
+// Keystone} behavior. Callers pre-validate via validateNearbyCategories
+// at the request boundary so this method always receives a sane map.
+//
 // The runner reuses the existing Lua extract/perturb protocol, the
 // affinity pool, the delta cache, and the mod-source index transparently.
 func (srv *Server) attachPowerReport(
 	proc *Process,
 	buildID, xml string,
 	summary map[string]float64,
+	allowedCategories map[string]bool,
 ) *powerReportResult {
 	if !srv.PowerReportEnabled {
 		return nil
@@ -61,10 +67,13 @@ func (srv *Server) attachPowerReport(
 		return nil
 	}
 
+	if len(allowedCategories) == 0 {
+		allowedCategories = nearbyDefaultCategorySet()
+	}
 	var passing []*nearbyCandidate
 	for i := range extract.Candidates {
 		c := &extract.Candidates[i]
-		if nearbyShouldEvaluate(c, powerReportRadius) {
+		if nearbyShouldEvaluateWithCategories(c, powerReportRadius, allowedCategories) {
 			passing = append(passing, c)
 		}
 	}
