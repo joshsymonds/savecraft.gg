@@ -1,8 +1,9 @@
 /**
  * PoE economy — native reference module.
  *
- * Live price data from poe.ninja with per-isolate in-memory caching (~1hr TTL).
- * No D1 access — fetches directly from the poe.ninja API.
+ * Live price data from poe.ninja's /poe1 API with per-isolate in-memory caching
+ * (~1hr TTL). No D1 access — fetches directly. League is auto-detected via
+ * /poe1/api/data/index-state when callers omit it.
  */
 
 import type { Env } from "../../../worker/src/types";
@@ -12,85 +13,322 @@ import type {
 } from "../../../worker/src/reference/types";
 
 // ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+const BASE = "https://poe.ninja/poe1";
+/** Path version segment. poe.ninja's bundle ships only "current" today. */
+const VERSION = "current";
+/** Types served by /currency/overview. Everything else uses /item/overview. */
+const CURRENCY_TYPES = new Set<string>(["Currency", "Fragment"]);
+const DEFAULT_TYPE = "UniqueArmour";
+const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+const MAX_CACHE_ENTRIES = 50;
+const FETCH_TIMEOUT_MS = 10_000;
+const INDEX_STATE_CACHE_KEY = "index-state";
+
+// ---------------------------------------------------------------------------
 // poe.ninja response types
 // ---------------------------------------------------------------------------
 
-interface PoeNinjaLine {
+interface SparkLine {
+  readonly totalChange?: number;
+  readonly data?: ReadonlyArray<number | null>;
+}
+
+interface PoeNinjaItemLine {
   readonly name: string;
   readonly chaosValue: number;
-  readonly divineValue: number;
-  readonly detailsId: string;
-  readonly icon: string;
+  readonly divineValue?: number;
+  readonly icon?: string;
   readonly baseType?: string;
-  readonly sparkline?: { readonly data: ReadonlyArray<number | null> };
-  readonly lowConfidenceSparkline?: { readonly data: ReadonlyArray<number | null> };
+  readonly sparkLine?: SparkLine;
+  readonly lowConfidenceSparkLine?: SparkLine;
   readonly listingCount?: number;
 }
 
-interface PoeNinjaResponse {
-  readonly lines: readonly PoeNinjaLine[];
+interface PoeNinjaItemResponse {
+  readonly lines: readonly PoeNinjaItemLine[];
+}
+
+interface PoeNinjaCurrencyLeg {
+  readonly value: number;
+  readonly count?: number;
+  readonly listing_count?: number;
+}
+
+interface PoeNinjaCurrencyLine {
+  readonly currencyTypeName: string;
+  readonly chaosEquivalent?: number;
+  readonly receive?: PoeNinjaCurrencyLeg;
+  readonly receiveSparkLine?: SparkLine;
+  readonly lowConfidenceReceiveSparkLine?: SparkLine;
+}
+
+interface PoeNinjaCurrencyResponse {
+  readonly lines: readonly PoeNinjaCurrencyLine[];
+}
+
+interface IndexStateLeague {
+  readonly name: string;
+  readonly url?: string;
+  readonly displayName?: string;
+}
+
+interface IndexState {
+  readonly economyLeagues: readonly IndexStateLeague[];
+  readonly oldEconomyLeagues?: readonly IndexStateLeague[];
 }
 
 // ---------------------------------------------------------------------------
-// Per-isolate cache
+// Cache
 // ---------------------------------------------------------------------------
 
-const CACHE_TTL_MS = 60 * 60 * 1000; // 1 hour
+type Path = "item" | "currency";
 
-interface CachedPriceData {
-  readonly lines: readonly PoeNinjaLine[];
+interface CachedOverview {
+  readonly kind: "overview";
+  readonly path: Path;
+  readonly itemLines?: readonly PoeNinjaItemLine[];
+  readonly currencyLines?: readonly PoeNinjaCurrencyLine[];
   readonly fetchedAt: number;
 }
 
-const MAX_CACHE_ENTRIES = 50;
-const priceCache = new Map<string, CachedPriceData>();
-/** Singleflight: in-flight fetch promises to deduplicate concurrent requests. */
-const inflightFetches = new Map<string, Promise<CachedPriceData | null>>();
+interface CachedIndexState {
+  readonly kind: "index-state";
+  readonly state: IndexState;
+  readonly fetchedAt: number;
+}
 
-/** Clear cache (for tests). */
+type CacheEntry = CachedOverview | CachedIndexState;
+
+const cache = new Map<string, CacheEntry>();
+/** Singleflight: in-flight fetches deduplicated by cache key. */
+const inflight = new Map<string, Promise<CacheEntry | null>>();
+
+/** Clear all caches. Test helper. */
 export function resetEconomyCache(): void {
-  priceCache.clear();
-  inflightFetches.clear();
+  cache.clear();
+  inflight.clear();
+}
+
+function cacheGet(key: string): CacheEntry | undefined {
+  const entry = cache.get(key);
+  if (!entry) return undefined;
+  if (Date.now() - entry.fetchedAt >= CACHE_TTL_MS) {
+    cache.delete(key);
+    return undefined;
+  }
+  return entry;
+}
+
+function cacheSet(key: string, entry: CacheEntry): void {
+  if (cache.size >= MAX_CACHE_ENTRIES && !cache.has(key)) {
+    cache.clear();
+  }
+  cache.set(key, entry);
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Routing + URL builders
 // ---------------------------------------------------------------------------
 
-const DEFAULT_TYPE = "UniqueArmour";
-const DEFAULT_LEAGUE = "Settlers";
-
-function computeChange7d(
-  sparkline: ReadonlyArray<number | null> | undefined,
-): number | null {
-  if (!sparkline || sparkline.length === 0) return null;
-  const last = sparkline[sparkline.length - 1];
-  return last ?? null;
+function pathFor(type: string): Path {
+  return CURRENCY_TYPES.has(type) ? "currency" : "item";
 }
+
+function overviewUrl(path: Path, league: string, type: string): string {
+  return `${BASE}/api/economy/stash/${VERSION}/${path}/overview?league=${encodeURIComponent(league)}&type=${encodeURIComponent(type)}`;
+}
+
+function indexStateUrl(): string {
+  return `${BASE}/api/data/index-state`;
+}
+
+function overviewCacheKey(path: Path, league: string, type: string): string {
+  return `overview:${path}:${league}:${type}`;
+}
+
+// ---------------------------------------------------------------------------
+// Fetch helpers (singleflight on top of cacheGet)
+// ---------------------------------------------------------------------------
+
+async function fetchOverview(
+  path: Path,
+  league: string,
+  type: string,
+): Promise<CachedOverview | null> {
+  const key = overviewCacheKey(path, league, type);
+  const existing = cacheGet(key);
+  if (existing && existing.kind === "overview") return existing;
+
+  let promise = inflight.get(key);
+  if (!promise) {
+    promise = (async (): Promise<CacheEntry | null> => {
+      const url = overviewUrl(path, league, type);
+      const response = await fetch(url, {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (!response.ok) return null;
+      const fetchedAt = Date.now();
+      if (path === "currency") {
+        const body = (await response.json()) as PoeNinjaCurrencyResponse;
+        return {
+          kind: "overview",
+          path,
+          currencyLines: body.lines,
+          fetchedAt,
+        };
+      }
+      const body = (await response.json()) as PoeNinjaItemResponse;
+      return {
+        kind: "overview",
+        path,
+        itemLines: body.lines,
+        fetchedAt,
+      };
+    })();
+    inflight.set(key, promise);
+  }
+
+  let result: CacheEntry | null;
+  try {
+    result = await promise;
+  } finally {
+    inflight.delete(key);
+  }
+  if (!result || result.kind !== "overview") return null;
+  cacheSet(key, result);
+  return result;
+}
+
+async function fetchIndexState(): Promise<IndexState | null> {
+  const existing = cacheGet(INDEX_STATE_CACHE_KEY);
+  if (existing && existing.kind === "index-state") return existing.state;
+
+  let promise = inflight.get(INDEX_STATE_CACHE_KEY);
+  if (!promise) {
+    promise = (async (): Promise<CacheEntry | null> => {
+      const response = await fetch(indexStateUrl(), {
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+      });
+      if (!response.ok) return null;
+      const state = (await response.json()) as IndexState;
+      return { kind: "index-state", state, fetchedAt: Date.now() };
+    })();
+    inflight.set(INDEX_STATE_CACHE_KEY, promise);
+  }
+
+  let result: CacheEntry | null;
+  try {
+    result = await promise;
+  } finally {
+    inflight.delete(INDEX_STATE_CACHE_KEY);
+  }
+  if (!result || result.kind !== "index-state") return null;
+  cacheSet(INDEX_STATE_CACHE_KEY, result);
+  return result.state;
+}
+
+// ---------------------------------------------------------------------------
+// League resolution
+// ---------------------------------------------------------------------------
+
+type LeagueResolution =
+  | { readonly ok: true; readonly league: string }
+  | { readonly ok: false; readonly message: string };
+
+async function resolveLeague(supplied: string | undefined): Promise<LeagueResolution> {
+  let state: IndexState | null;
+  try {
+    state = await fetchIndexState();
+  } catch {
+    state = null;
+  }
+
+  if (!state || state.economyLeagues.length === 0) {
+    if (supplied) {
+      // Caller specified one; trust it. We can't validate without index-state,
+      // but a bad league name will surface as an empty overview response.
+      return { ok: true, league: supplied };
+    }
+    return {
+      ok: false,
+      message:
+        "Could not auto-detect the current Path of Exile league. Specify a league explicitly (for example, league='Standard').",
+    };
+  }
+
+  if (!supplied) {
+    return { ok: true, league: state.economyLeagues[0]!.name };
+  }
+
+  const valid = [
+    ...state.economyLeagues,
+    ...(state.oldEconomyLeagues ?? []),
+  ];
+  if (valid.some((l) => l.name === supplied)) {
+    return { ok: true, league: supplied };
+  }
+
+  const current = state.economyLeagues.map((l) => l.name).join(", ");
+  const old = (state.oldEconomyLeagues ?? []).map((l) => l.name).join(", ");
+  const oldClause = old ? ` Recent past leagues: ${old}.` : "";
+  return {
+    ok: false,
+    message: `Unknown league '${supplied}'. Current leagues: ${current}.${oldClause}`,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Normalization
+// ---------------------------------------------------------------------------
 
 function normalizeSparkline(
-  sparkline: ReadonlyArray<number | null> | undefined,
+  data: ReadonlyArray<number | null> | undefined,
 ): readonly number[] {
-  if (!sparkline) return [];
-  return sparkline.map((v) => v ?? 0);
+  if (!data) return [];
+  return data.map((v) => v ?? 0);
 }
 
-function lineToResult(
-  line: PoeNinjaLine,
+function confidenceFromCount(n: number | undefined): "high" | "low" {
+  return (n ?? 0) > 10 ? "high" : "low";
+}
+
+function normalizeItem(
+  line: PoeNinjaItemLine,
   type: string,
 ): Record<string, unknown> {
-  const listingCount = line.listingCount ?? 0;
   return {
     name: line.name,
     type,
     base_type: line.baseType ?? null,
     chaos_value: line.chaosValue,
     divine_value: line.divineValue,
-    confidence: listingCount > 10 ? "high" : "low",
-    sparkline: normalizeSparkline(line.sparkline?.data),
-    change_7d: computeChange7d(line.sparkline?.data),
+    confidence: confidenceFromCount(line.listingCount),
+    sparkline: normalizeSparkline(line.sparkLine?.data),
+    change_7d: line.sparkLine?.totalChange ?? null,
     icon_url: line.icon,
-    listings: listingCount,
+    listings: line.listingCount ?? 0,
+  };
+}
+
+function normalizeCurrency(
+  line: PoeNinjaCurrencyLine,
+  type: string,
+): Record<string, unknown> {
+  const receive = line.receive;
+  return {
+    name: line.currencyTypeName,
+    type,
+    base_type: null,
+    chaos_value: line.chaosEquivalent ?? receive?.value ?? 0,
+    divine_value: undefined,
+    confidence: confidenceFromCount(receive?.count),
+    sparkline: normalizeSparkline(line.receiveSparkLine?.data),
+    change_7d: line.receiveSparkLine?.totalChange ?? null,
+    icon_url: undefined,
+    listings: receive?.listing_count ?? 0,
   };
 }
 
@@ -115,11 +353,12 @@ export const economyModule: NativeReferenceModule = {
     },
     type: {
       type: "string",
-      description: `poe.ninja item type: UniqueWeapon, UniqueArmour, UniqueAccessory, UniqueFlask, UniqueJewel, SkillGem, Currency, DivinationCard, etc. Default: '${DEFAULT_TYPE}'.`,
+      description: `poe.ninja item type: UniqueWeapon, UniqueArmour, UniqueAccessory, UniqueFlask, UniqueJewel, SkillGem, Currency, Fragment, DivinationCard, Oil, Fossil, Essence, Scarab, etc. Default: '${DEFAULT_TYPE}'.`,
     },
     league: {
       type: "string",
-      description: `League name. Default: '${DEFAULT_LEAGUE}'.`,
+      description:
+        "League name. Defaults to the current Path of Exile 1 league (auto-detected).",
     },
   },
 
@@ -130,72 +369,60 @@ export const economyModule: NativeReferenceModule = {
     const searchQuery =
       typeof query.query === "string" ? query.query.trim() : undefined;
     const type =
-      typeof query.type === "string" ? query.type.trim() : DEFAULT_TYPE;
-    const league =
-      typeof query.league === "string" ? query.league.trim() : DEFAULT_LEAGUE;
+      typeof query.type === "string" && query.type.trim().length > 0
+        ? query.type.trim()
+        : DEFAULT_TYPE;
+    const suppliedLeague =
+      typeof query.league === "string" && query.league.trim().length > 0
+        ? query.league.trim()
+        : undefined;
 
     if (!searchQuery) {
       return {
         type: "text",
         content:
-          "Provide a query parameter with the item name to search for. Optional: type (poe.ninja item type), league.",
+          "Provide a query parameter with the item name to search for. Optional: type (poe.ninja item type), league (defaults to current league).",
       };
     }
 
-    const cacheKey = `${type}:${league}`;
-    const now = Date.now();
-    let cached = priceCache.get(cacheKey);
+    const resolution = await resolveLeague(suppliedLeague);
+    if (!resolution.ok) {
+      return { type: "text", content: resolution.message };
+    }
+    const league = resolution.league;
+    const path = pathFor(type);
 
-    // Fetch if cache miss or expired
-    if (!cached || now - cached.fetchedAt >= CACHE_TTL_MS) {
-      // Singleflight: reuse in-flight fetch for the same key
-      let fetchPromise = inflightFetches.get(cacheKey);
-      if (!fetchPromise) {
-        fetchPromise = (async (): Promise<CachedPriceData | null> => {
-          const url = `https://poe.ninja/api/data/itemoverview?league=${encodeURIComponent(league)}&type=${encodeURIComponent(type)}`;
-          const response = await fetch(url, {
-            signal: AbortSignal.timeout(10_000),
-          });
-          if (!response.ok) return null;
-          const body = (await response.json()) as PoeNinjaResponse;
-          return { lines: body.lines, fetchedAt: Date.now() };
-        })();
-        inflightFetches.set(cacheKey, fetchPromise);
-      }
-
-      let result: CachedPriceData | null;
-      try {
-        result = await fetchPromise;
-      } catch (e) {
-        inflightFetches.delete(cacheKey);
-        return {
-          type: "text",
-          content: `poe.ninja is currently unavailable: ${e instanceof Error ? e.message : "unknown error"}. Try again later.`,
-        };
-      } finally {
-        inflightFetches.delete(cacheKey);
-      }
-
-      if (!result) {
-        return {
-          type: "text",
-          content: `poe.ninja returned an error for type '${type}' in league '${league}'. Check that the type and league names are correct.`,
-        };
-      }
-
-      cached = result;
-      // Bound cache size
-      if (priceCache.size >= MAX_CACHE_ENTRIES) {
-        priceCache.clear();
-      }
-      priceCache.set(cacheKey, cached);
+    let overview: CachedOverview | null;
+    try {
+      overview = await fetchOverview(path, league, type);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : "unknown error";
+      return {
+        type: "text",
+        content: `poe.ninja is currently unavailable: ${msg}. Try again later.`,
+      };
     }
 
-    // Filter by case-insensitive substring match on name
+    if (!overview) {
+      return {
+        type: "text",
+        content: `poe.ninja returned an error for type '${type}' in league '${league}'. Check that the type and league names are correct.`,
+      };
+    }
+
     const queryLower = searchQuery.toLowerCase();
-    const matches = cached.lines.filter((line) =>
-      line.name.toLowerCase().includes(queryLower),
-    );
+    let items: Record<string, unknown>[];
+    if (overview.path === "currency") {
+      items = (overview.currencyLines ?? [])
+        .filter((line) =>
+          line.currencyTypeName.toLowerCase().includes(queryLower),
+        )
+        .map((line) => normalizeCurrency(line, type));
+    } else {
+      items = (overview.itemLines ?? [])
+        .filter((line) => line.name.toLowerCase().includes(queryLower))
+        .map((line) => normalizeItem(line, type));
+    }
 
     return {
       type: "structured",
@@ -203,8 +430,8 @@ export const economyModule: NativeReferenceModule = {
         query: searchQuery,
         league,
         type,
-        items: matches.map((line) => lineToResult(line, type)),
-        count: matches.length,
+        items,
+        count: items.length,
       },
     };
   },
