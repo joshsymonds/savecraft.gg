@@ -968,6 +968,77 @@ local function parseStatKeys(request)
 	return set
 end
 
+-- Walk PoB's ModDB for one stat name and return the contributing rows
+-- as a JSON-friendly array. Each row carries:
+--   source_type — "Item" / "Tree" / "Skill" / "Pantheon" / etc. (PoB's
+--                 source-string prefix; "?" if missing)
+--   source_name — human-readable (item name, node name, gem name, etc.);
+--                 may be empty when ResolveSourceName can't decode
+--   mod_name    — the mod's name field (defaults to statName)
+--   mod_type    — "BASE" / "INC" / "MORE" / "FLAG" / "OVERRIDE"
+--   value       — numeric contribution
+--
+-- Sorted by abs(value) descending. Limited to top N when limit > 0.
+-- Returns nil when the build's calcsTab/modDB isn't available — caller
+-- should treat as "no data" rather than crash.
+local function serializeStatSources(targetBuild, statName, limit)
+	if not targetBuild or not targetBuild.calcsTab or not targetBuild.calcsTab.calcsEnv then
+		return nil
+	end
+	local actor = targetBuild.calcsTab.calcsEnv.player
+	if not actor or not actor.modDB then
+		return nil
+	end
+	local rows = {}
+	for _, modType in ipairs({ "BASE", "INC", "MORE", "FLAG", "OVERRIDE" }) do
+		local sectionData = { modName = statName, modType = modType }
+		local typed = compareCalcsHelpers.TabulateMods(sectionData, actor)
+		for _, row in ipairs(typed) do
+			local sourceType = "?"
+			local sourceName = ""
+			if row.mod and row.mod.source then
+				sourceType = row.mod.source:match("[^:]+") or "?"
+				sourceName = compareCalcsHelpers.ResolveSourceName(row.mod, targetBuild) or ""
+			end
+			rows[#rows + 1] = {
+				source_type = sourceType,
+				source_name = sourceName,
+				mod_name = (row.mod and row.mod.name) or statName,
+				mod_type = modType,
+				value = row.value,
+			}
+		end
+	end
+	table.sort(rows, function(a, b)
+		return math.abs(a.value or 0) > math.abs(b.value or 0)
+	end)
+	if limit and limit > 0 and #rows > limit then
+		for i = #rows, limit + 1, -1 do
+			rows[i] = nil
+		end
+	end
+	return rows
+end
+
+-- Build statSources keyed by stat name when request.stat_sources is set.
+-- Mutates resultData in place. Tolerates a missing/empty request field —
+-- callers that don't ask get no statSources field on the response.
+local function injectStatSources(resultData, request, targetBuild)
+	if not request.stat_sources or not request.stat_sources.stats then
+		return
+	end
+	local stats = request.stat_sources.stats
+	local limit = request.stat_sources.limit
+	local out = {}
+	for _, statName in ipairs(stats) do
+		local rows = serializeStatSources(targetBuild, statName, limit)
+		if rows then
+			out[statName] = rows
+		end
+	end
+	resultData.statSources = out
+end
+
 -- Process a calc request
 local function handleCalc(request)
 	local xml = request.xml
@@ -1004,6 +1075,7 @@ local function handleCalc(request)
 			sections = grouped.sections,
 		}
 	}
+	injectStatSources(result.data, request, build)
 
 	return result
 end
@@ -1486,6 +1558,7 @@ local function handleModify(request)
 	if hasChanges then
 		resultData.changes = changes
 	end
+	injectStatSources(resultData, request, build)
 
 	return {
 		type = "result",
