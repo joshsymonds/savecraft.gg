@@ -88,15 +88,15 @@
 </script>
 
 <svelte:head>
-  <title>Savecraft — Real game data for your AI assistant</title>
+  <title>Savecraft -- Real game data for your AI assistant</title>
   <meta
     name="description"
-    content="Savecraft gives Claude and ChatGPT real game data — rules, items, builds, and economy for Magic, Path of Exile, Factorio, and more. Plus live save state for supported games. Open source."
+    content="Savecraft gives Claude and ChatGPT real game data on Magic, Path of Exile, Factorio, and more: rules, items, builds, economy. Plus live save state for supported games. Open source."
   />
-  <meta property="og:title" content="Savecraft — Real game data for your AI assistant" />
+  <meta property="og:title" content="Savecraft -- Real game data for your AI assistant" />
   <meta
     property="og:description"
-    content="Savecraft gives Claude and ChatGPT real game data — rules, items, builds, and economy for Magic, Path of Exile, Factorio, and more. Plus live save state for supported games."
+    content="Savecraft gives Claude and ChatGPT real game data on Magic, Path of Exile, Factorio, and more: rules, items, builds, economy. Plus live save state for supported games."
   />
   <meta property="og:url" content="https://savecraft.gg" />
   <meta property="og:type" content="website" />
@@ -114,7 +114,7 @@
         accent="gold"
         eyebrow="YOUR GAME DATA, FINALLY ACCURATE"
         title="Real game data for your AI."
-        subtitle="Savecraft gives Claude and ChatGPT real game data — rules, items, builds, economy — for Magic, Path of Exile, Factorio, Stellaris, and more. Plus your live save state — gear, decks, farms — on supported games."
+        subtitle="Savecraft gives Claude and ChatGPT real game data on Magic, Path of Exile, Factorio, Stellaris, and more: rules, items, builds, economy, prices. For Diablo II, RimWorld, and other save-integration games, it also reads your live save state."
         actions={heroActions}
         frames={heroFrames}
       />

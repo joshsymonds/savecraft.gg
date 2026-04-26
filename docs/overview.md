@@ -2,13 +2,13 @@
 
 ## What Savecraft Is
 
-Savecraft connects video game knowledge and game state to AI assistants — Claude, ChatGPT, Gemini — via MCP (Model Context Protocol). It works on three layers, each independently useful:
+Savecraft connects video game knowledge and game state to AI assistants -- Claude, ChatGPT, Gemini -- via MCP (Model Context Protocol). Three layers:
 
-1. **Expert modules** — rules engines, item databases, build planners, economy trackers — give AI assistants real, patch-current game data for every supported game (Magic, Path of Exile, Factorio, etc.). No local install required.
-2. **Save-file integration** — for games like Diablo II, RimWorld, Factorio, Stellaris, and Stardew Valley, an optional local daemon watches save files, parses them with sandboxed WASM plugins, and pushes structured game state to the cloud.
-3. **Account integration** — for games with public APIs (World of Warcraft via Battle.net, more later), server-side adapters connect through OAuth without a local install.
+1. **Expert modules.** Rules engines, item databases, build planners, economy trackers. Available for every supported game (Magic, Path of Exile, Factorio, etc.); the user connects an MCP URL, no install.
+2. **Save-file integration.** For games like Diablo II, RimWorld, Factorio, Stellaris, and Stardew Valley, an optional local daemon watches save files, parses them with sandboxed WASM plugins, and pushes the parsed state to the cloud.
+3. **Account integration.** For games with public APIs (World of Warcraft via Battle.net, more later), server-side adapters connect through OAuth. No local install.
 
-A game can have any combination — most have expert modules, some have save integration, a few have account integration.
+A game can have any combination. Most have expert modules; some have save integration; a few have account integration.
 
 The result: Claude, ChatGPT, and Gemini become something that knows your game the way a co-op partner would. They can optimize your build, track your goals, and react when you vent about Countess dropping nothing for the fifteenth run in a row.
 
