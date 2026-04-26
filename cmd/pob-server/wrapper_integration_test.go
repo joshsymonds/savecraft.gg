@@ -57,7 +57,7 @@ func TestWrapperLuaSetItemPcallGuardsAgainstMalformedText(t *testing.T) {
 	if _, err := exec.LookPath(filepath.Join(pobDir, "HeadlessWrapper.lua")); err != nil {
 		// Use Stat via a quick exec-less check.
 	}
-	wrapperPath := filepath.Join(filepath.Dir(pobDir), "..", "cmd", "pob-server", "wrapper.lua")
+	wrapperPath := filepath.Join(filepath.Dir(pobDir), "..", "..", "cmd", "pob-server", "wrapper.lua")
 
 	logger := slog.New(slog.NewTextHandler(io.Discard, nil))
 	pool := NewPool(1, 5*time.Minute, luajitPath, wrapperPath, pobDir, logger)
@@ -107,14 +107,17 @@ func TestWrapperLuaSetItemPcallGuardsAgainstMalformedText(t *testing.T) {
 	if err := json.Unmarshal(rawResp, &parsed); err != nil {
 		t.Fatalf("response not JSON: %v (raw: %s)", err, rawResp)
 	}
-	if parsed.Type != "error" {
-		t.Fatalf("expected structured error, got type=%q message=%q", parsed.Type, parsed.Message)
+	// Two outcomes are valid for the pcall guard:
+	//   1. PoB rejects the malformed text → response is a structured
+	//      "error" with a clean message (e.g. "failed to parse item
+	//      text" or "has no base name").
+	//   2. PoB silently accepts the malformed text → response is a
+	//      "result" with the build's recomputed state.
+	// What MUST NOT happen is a raw Lua stack trace leaking through
+	// the pcall — that signals the defence-in-depth is broken.
+	if parsed.Type != "error" && parsed.Type != "result" {
+		t.Fatalf("unexpected response type=%q message=%q", parsed.Type, parsed.Message)
 	}
-	// The message MUST be a structured op error, NOT a raw Lua stack
-	// trace. Either the pcall in applySetItem caught it (message
-	// contains "failed to parse item text" or "has no base name") or
-	// PoB accepted the malformed text silently. If a Lua stack trace
-	// leaks through, pcall is broken.
 	if strings.Contains(parsed.Message, "stack traceback") {
 		t.Errorf("Lua stack trace leaked through pcall: %s", parsed.Message)
 	}
