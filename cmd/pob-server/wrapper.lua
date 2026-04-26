@@ -193,6 +193,18 @@ do
 	end
 end
 
+-- Compare helpers — ride-along on PoB's pure-data modules. These expose
+-- mod-source resolution (CompareCalcsHelpers.TabulateMods, ResolveSourceName)
+-- and trade-API helpers (CompareTradeHelpers.findTradeModId,
+-- getTradeCategoryInfo). Loaded eagerly so any missing-dependency failure
+-- surfaces at startup, not on first request. Held as locals — used by
+-- subsequent Feature 1 (per-mod source breakdown) and Feature 2 (advanced
+-- buy-similar) slices.
+local compareCalcsHelpers = LoadModule("Classes/CompareCalcsHelpers")
+local compareTradeHelpers = LoadModule("Classes/CompareTradeHelpers")
+log("Compare helpers loaded: calcsHelpers=%s tradeHelpers=%s",
+	type(compareCalcsHelpers), type(compareTradeHelpers))
+
 -- JSON library is available from PoB's runtime
 local dkjson = require("dkjson")
 
