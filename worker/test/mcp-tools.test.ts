@@ -2989,6 +2989,93 @@ describe("buildPlannerModule", () => {
     expect(params.audit_categories?.description).toContain("Keystone");
   });
 
+  // buy_similar_filters: PoB-parity narrowing of trade-search URLs
+  it("rejects buy_similar_filters when not an object", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      {
+        build: "https://pobb.in/abc",
+        compare_with: ["https://pobb.in/other"],
+        buy_similar: true,
+        buy_similar_filters: "not-an-object",
+      },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("must be a JSON object"),
+    });
+  });
+
+  it("rejects buy_similar_filters without buy_similar=true", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const result = await buildPlannerModule.execute(
+      {
+        build: "https://pobb.in/abc",
+        compare_with: ["https://pobb.in/other"],
+        buy_similar_filters: { ilvl_min: 84 },
+      },
+      { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+    );
+    expect(result).toEqual({
+      type: "text",
+      content: expect.stringContaining("without buy_similar=true"),
+    });
+  });
+
+  it("forwards buy_similar_filters to /compare body when buy_similar=true", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const originalFetch = globalThis.fetch;
+    let capturedBody: Record<string, unknown> = {};
+    let capturedPath = "";
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      const u = url instanceof URL ? url : new URL(url.toString());
+      capturedPath = u.pathname;
+      capturedBody = JSON.parse(init?.body as string) as Record<string, unknown>;
+      return new Response(
+        JSON.stringify({ builds: [], buySimilar: [] }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }) as typeof fetch;
+    try {
+      await buildPlannerModule.execute(
+        {
+          build: "https://pobb.in/abc",
+          compare_with: ["https://pobb.in/other"],
+          buy_similar: true,
+          buy_similar_filters: {
+            mods: [{ mod_text: "+# to maximum Life", min: 90 }],
+            ilvl_min: 84,
+          },
+        },
+        { ...env, POB_URL: "http://localhost:8077" } as unknown as Env,
+      );
+      expect(capturedPath).toBe("/compare");
+      expect(capturedBody.buySimilar).toBe(true);
+      const filters = capturedBody.buy_similar_filters as Record<string, unknown>;
+      expect(filters).toBeDefined();
+      expect(filters.ilvl_min).toBe(84);
+      expect(filters.mods).toEqual([{ mod_text: "+# to maximum Life", min: 90 }]);
+    } finally {
+      globalThis.fetch = originalFetch;
+    }
+  });
+
+  it("manifest declares buy_similar_filters as object with teaching examples", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const params = buildPlannerModule.parameters as Record<
+      string,
+      { type: string; description: string }
+    >;
+    expect(params.buy_similar_filters).toBeDefined();
+    expect(params.buy_similar_filters?.type).toBe("object");
+    // Description must teach valid filter shape with at least one example
+    // showing nested mods array.
+    expect(params.buy_similar_filters?.description).toContain("mod_text");
+    expect(params.buy_similar_filters?.description).toContain("ilvl_min");
+    expect(params.buy_similar_filters?.description).toMatch(/realm/);
+  });
+
   it("manifest declares mod_sources and mod_sources_limit with teaching descriptions", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
     const params = buildPlannerModule.parameters as Record<

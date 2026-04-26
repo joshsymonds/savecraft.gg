@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -19,12 +20,105 @@ import (
 // other lacks (or has a different one). League selects the trade
 // realm; defaults to "Standard" when omitted.
 type CompareRequest struct {
-	Builds          []string `json:"builds"`
-	Labels          []string `json:"labels,omitempty"`
-	BuySimilar      bool     `json:"buySimilar,omitempty"`
-	League          string   `json:"league,omitempty"`
-	ModSources      []string `json:"modSources,omitempty"`
-	ModSourcesLimit int      `json:"modSourcesLimit,omitempty"`
+	Builds             []string                  `json:"builds"`
+	Labels             []string                  `json:"labels,omitempty"`
+	BuySimilar         bool                      `json:"buySimilar,omitempty"`
+	League             string                    `json:"league,omitempty"`
+	BuySimilarFilters  *compareBuySimilarFilters `json:"buy_similar_filters,omitempty"`
+	ModSources         []string                  `json:"modSources,omitempty"`
+	ModSourcesLimit    int                       `json:"modSourcesLimit,omitempty"`
+}
+
+// compareBuySimilarFilters narrows the buy_similar trade-search URLs
+// from "find any item with this name" to the actual constraints the
+// LLM cares about — per-mod thresholds, defence ranges, item-level,
+// realm + listed status. Mirrors PoB's CompareBuySimilar buildURL
+// inputs.
+//
+// Mod IDs are resolved via the trade_stats SQLite cache (slice 11);
+// callers without a refreshed cache for the chosen league get URLs
+// with the non-mod filters applied and the mod entries silently
+// dropped — preferable to either an error or a 5xx.
+type compareBuySimilarFilters struct {
+	Mods            []compareBuySimilarModFilter `json:"mods,omitempty"`
+	ArmourMin       int                          `json:"armour_min,omitempty"`
+	EvasionMin      int                          `json:"evasion_min,omitempty"`
+	EnergyShieldMin int                          `json:"energy_shield_min,omitempty"`
+	WardMin         int                          `json:"ward_min,omitempty"`
+	IlvlMin         int                          `json:"ilvl_min,omitempty"`
+	IlvlMax         int                          `json:"ilvl_max,omitempty"`
+	Realm           string                       `json:"realm,omitempty"`
+	Listed          string                       `json:"listed,omitempty"`
+}
+
+// compareBuySimilarModFilter is one mod-level constraint. Min/Max are
+// pointers so JSON null distinguishes "no constraint" from "value is
+// zero" — important for damage modifiers where 0 is a real threshold.
+type compareBuySimilarModFilter struct {
+	ModText string   `json:"mod_text"`
+	ModType string   `json:"mod_type,omitempty"`
+	Min     *float64 `json:"min,omitempty"`
+	Max     *float64 `json:"max,omitempty"`
+}
+
+// validBuySimilarRealms / validBuySimilarListed cap the wire-format
+// inputs to PoB's known set. Unknown values rejected at the handler.
+var validBuySimilarRealms = map[string]bool{"": true, "pc": true, "sony": true, "xbox": true}
+var validBuySimilarListed = map[string]bool{"": true, "available": true, "securable": true, "online": true, "any": true}
+
+// validateBuySimilarFilters applies the realm/listed/ilvl/defence
+// guards and returns the first violation as a clear error. Nil
+// filters → nil error (no-op for callers that don't set the field).
+func validateBuySimilarFilters(f *compareBuySimilarFilters) error {
+	if f == nil {
+		return nil
+	}
+	if !validBuySimilarRealms[f.Realm] {
+		return fmt.Errorf("buy_similar_filters.realm %q invalid (valid: pc, sony, xbox)", f.Realm)
+	}
+	if !validBuySimilarListed[f.Listed] {
+		return fmt.Errorf("buy_similar_filters.listed %q invalid (valid: available, securable, online, any)", f.Listed)
+	}
+	if f.IlvlMin < 0 || f.IlvlMin > 100 {
+		return fmt.Errorf("buy_similar_filters.ilvl_min %d out of range 0-100", f.IlvlMin)
+	}
+	if f.IlvlMax < 0 || f.IlvlMax > 100 {
+		return fmt.Errorf("buy_similar_filters.ilvl_max %d out of range 0-100", f.IlvlMax)
+	}
+	if f.IlvlMax > 0 && f.IlvlMin > f.IlvlMax {
+		return fmt.Errorf("buy_similar_filters.ilvl_min %d > ilvl_max %d", f.IlvlMin, f.IlvlMax)
+	}
+	for _, name := range []struct {
+		name string
+		val  int
+	}{
+		{"armour_min", f.ArmourMin},
+		{"evasion_min", f.EvasionMin},
+		{"energy_shield_min", f.EnergyShieldMin},
+		{"ward_min", f.WardMin},
+	} {
+		if name.val < 0 {
+			return fmt.Errorf("buy_similar_filters.%s %d must be non-negative", name.name, name.val)
+		}
+	}
+	return nil
+}
+
+// modLineTemplate normalizes a mod line by replacing numeric runs
+// with `#`. Mirrors PoB's upstream Lua one-liner:
+//
+//	function M.modLineTemplate(line)
+//	    return line:gsub("[%d]+%.?[%d]*", "#")
+//	end
+//
+// Pure data normalization (not calc logic) — small enough that
+// reimplementing in Go doesn't violate the lua-thin rule. Used as the
+// lookup key against the trade_stats cache, where rows are stored
+// under their stripped (numbers-removed) text form.
+var modLineTemplatePattern = regexp.MustCompile(`[0-9]+(\.[0-9]+)?`)
+
+func modLineTemplate(line string) string {
+	return modLineTemplatePattern.ReplaceAllString(line, "#")
 }
 
 // CompareResponse is the per-build keyed payload returned from /compare.
@@ -276,6 +370,17 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
+	if req.BuySimilarFilters != nil && !req.BuySimilar {
+		jsonError(writer,
+			"buy_similar_filters set without buySimilar=true (filters would be silently ignored — set both or neither)",
+			http.StatusBadRequest)
+		return
+	}
+	if err := validateBuySimilarFilters(req.BuySimilarFilters); err != nil {
+		jsonError(writer, err.Error(), http.StatusBadRequest)
+		return
+	}
+
 	// Run per-build calc in parallel. Pool affinity still works under
 	// fan-out — each worker pins its own build_id. Cap concurrency at
 	// `pool.maxSize - 1` (with a floor of 1) so /compare never claims
@@ -310,7 +415,7 @@ func (srv *Server) handleCompare(writer http.ResponseWriter, request *http.Reque
 	if successes >= 2 {
 		resp.Diffs = computeCompareDiffs(resp.Builds)
 		if req.BuySimilar {
-			resp.BuySimilar = computeBuySimilar(resp.Builds, req.League)
+			resp.BuySimilar = computeBuySimilarWithFilters(srv, resp.Builds, req.League, req.BuySimilarFilters)
 		}
 	}
 
@@ -1140,6 +1245,20 @@ func isValidLeague(league string) bool {
 // distinct, that yields N*(N-1) entries for that slot — each build can
 // be the source and each other build can be the target.
 func computeBuySimilar(entries []compareBuildEntry, league string) []compareBuySimilarEntry {
+	return computeBuySimilarWithFilters(nil, entries, league, nil)
+}
+
+// computeBuySimilarWithFilters is the filter-aware fanout.
+// When filters is nil, behavior matches the legacy computeBuySimilar
+// — name-only URLs. When set, every emitted URL gets the same filter
+// envelope applied. srv is required for filter resolution (mod-ID
+// cache); pass nil to opt out and use the legacy URL builder.
+func computeBuySimilarWithFilters(
+	srv *Server,
+	entries []compareBuildEntry,
+	league string,
+	filters *compareBuySimilarFilters,
+) []compareBuySimilarEntry {
 	if league == "" || !isValidLeague(league) {
 		league = defaultBuySimilarLeague
 	}
@@ -1154,19 +1273,24 @@ func computeBuySimilar(entries []compareBuildEntry, league string) []compareBuyS
 
 	var out []compareBuySimilarEntry
 	for _, slot := range slots {
-		out = append(out, buySimilarPairsForSlot(slot, successful, league)...)
+		out = append(out, buySimilarPairsForSlotWithFilters(srv, slot, successful, league, filters)...)
 	}
 	return out
 }
 
-// buySimilarPairsForSlot generates one entry per ordered (from, to) pair
-// where `from` has an item in `slot` and `to` either has a different item
-// or none. With N successful builds and a slot where every item is
-// distinct, that yields N*(N-1) entries.
-func buySimilarPairsForSlot(
+// buySimilarPairsForSlotWithFilters generates one entry per ordered
+// (from, to) pair where `from` has an item in `slot` and `to` either
+// has a different item or none. With N successful builds and a slot
+// where every item is distinct, that yields N*(N-1) entries.
+//
+// Filters apply uniformly to every emitted URL when set; per-pair
+// customization is out of scope for v1.
+func buySimilarPairsForSlotWithFilters(
+	srv *Server,
 	slot string,
 	successful []compareBuildEntry,
 	league string,
+	filters *compareBuySimilarFilters,
 ) []compareBuySimilarEntry {
 	var out []compareBuySimilarEntry
 	for i, from := range successful {
@@ -1178,12 +1302,18 @@ func buySimilarPairsForSlot(
 			if i == j || to.itemsBySlot[slot] == fromName {
 				continue
 			}
+			var tradeURL string
+			if filters == nil {
+				tradeURL = buildTradeURL(fromName, league)
+			} else {
+				tradeURL = buildTradeURLWithFilters(srv, fromName, league, filters)
+			}
 			out = append(out, compareBuySimilarEntry{
 				FromBuildID: from.ID,
 				ToBuildID:   to.ID,
 				Slot:        slot,
 				ItemName:    fromName,
-				TradeURL:    buildTradeURL(fromName, league),
+				TradeURL:    tradeURL,
 			})
 		}
 	}
@@ -1220,6 +1350,144 @@ func buildTradeURL(itemName, league string) string {
 	values.Set("q", string(payload))
 	tradeURL.RawQuery = values.Encode()
 	return tradeURL.String()
+}
+
+// buildTradeURLWithFilters constructs a trade URL with the full filter
+// envelope: per-mod constraints (resolved via the trade_stats cache),
+// defence-stat ranges, item-level range, realm + listed status. Falls
+// back to the legacy buildTradeURL when filters is nil — preserves
+// the existing wire format for callers who don't set
+// buy_similar_filters.
+//
+// Mod IDs that aren't in the cache for the chosen league are silently
+// dropped from the stats[0].filters list. The URL still emits with
+// whatever non-mod filters were specified so the LLM gets a usable
+// (if less precise) search instead of an error.
+func buildTradeURLWithFilters(srv *Server, itemName, league string, filters *compareBuySimilarFilters) string {
+	if filters == nil {
+		return buildTradeURL(itemName, league)
+	}
+	payload := buildTradeQueryPayloadWithFilters(srv, itemName, league, filters)
+
+	realm := filters.Realm
+	if realm == "" {
+		realm = "pc"
+	}
+	pathParts := []string{"trade", "search"}
+	if realm != "pc" {
+		pathParts = append(pathParts, realm)
+	}
+	pathParts = append(pathParts, league)
+
+	tradeURL := url.URL{
+		Scheme: "https",
+		Host:   "www.pathofexile.com",
+		Path:   "/" + strings.Join(pathParts, "/"),
+	}
+	values := url.Values{}
+	values.Set("q", string(payload))
+	tradeURL.RawQuery = values.Encode()
+	return tradeURL.String()
+}
+
+// buildTradeQueryPayloadWithFilters serializes the full PoE trade
+// query envelope. Defaults to the same status / sort as the legacy
+// payload when filters omit them.
+func buildTradeQueryPayloadWithFilters(srv *Server, itemName, league string, filters *compareBuySimilarFilters) []byte {
+	status := filters.Listed
+	if status == "" {
+		status = "available"
+	}
+	queryStats := []map[string]any{
+		{"type": "and", "filters": resolveModFilters(srv, league, filters.Mods)},
+	}
+	queryFilters := buildOuterQueryFilters(filters)
+	queryInner := map[string]any{
+		"status": map[string]any{"option": status},
+		"name":   itemName,
+		"stats":  queryStats,
+	}
+	if len(queryFilters) > 0 {
+		queryInner["filters"] = queryFilters
+	}
+	envelope := map[string]any{
+		"query": queryInner,
+		"sort":  map[string]any{"price": "asc"},
+	}
+	out, _ := json.Marshal(envelope)
+	return out
+}
+
+// resolveModFilters maps each filter's mod_text → trade_id via the
+// store's trade_stats lookup. Entries without a cached ID are
+// dropped silently. Result is the value for query.stats[0].filters.
+func resolveModFilters(srv *Server, league string, mods []compareBuySimilarModFilter) []any {
+	out := make([]any, 0, len(mods))
+	if len(mods) == 0 || srv == nil || srv.cache == nil || srv.cache.store == nil {
+		return out
+	}
+	for _, mod := range mods {
+		stripped := tradeStatsStripPattern.ReplaceAllString(modLineTemplate(mod.ModText), "")
+		category := mod.ModType
+		if category == "" {
+			category = "Explicit"
+		}
+		tradeID, ok, err := srv.cache.store.LookupTradeStat(league, stripped, category)
+		if err != nil || !ok {
+			continue
+		}
+		entry := map[string]any{"id": tradeID}
+		value := map[string]any{}
+		if mod.Min != nil {
+			value["min"] = *mod.Min
+		}
+		if mod.Max != nil {
+			value["max"] = *mod.Max
+		}
+		if len(value) > 0 {
+			entry["value"] = value
+		}
+		out = append(out, entry)
+	}
+	return out
+}
+
+// buildOuterQueryFilters assembles the misc_filters / armour_filters
+// blocks under query.filters. Returns an empty map when no filter
+// applies — caller decides whether to attach.
+func buildOuterQueryFilters(filters *compareBuySimilarFilters) map[string]any {
+	out := map[string]any{}
+
+	if filters.IlvlMin > 0 || filters.IlvlMax > 0 {
+		ilvl := map[string]any{}
+		if filters.IlvlMin > 0 {
+			ilvl["min"] = filters.IlvlMin
+		}
+		if filters.IlvlMax > 0 {
+			ilvl["max"] = filters.IlvlMax
+		}
+		out["misc_filters"] = map[string]any{
+			"filters": map[string]any{"ilvl": ilvl},
+		}
+	}
+
+	armour := map[string]any{}
+	if filters.ArmourMin > 0 {
+		armour["armour"] = map[string]any{"min": filters.ArmourMin}
+	}
+	if filters.EvasionMin > 0 {
+		armour["ev"] = map[string]any{"min": filters.EvasionMin}
+	}
+	if filters.EnergyShieldMin > 0 {
+		armour["es"] = map[string]any{"min": filters.EnergyShieldMin}
+	}
+	if filters.WardMin > 0 {
+		armour["ward"] = map[string]any{"min": filters.WardMin}
+	}
+	if len(armour) > 0 {
+		out["armour_filters"] = map[string]any{"filters": armour}
+	}
+	return out
 }
 
 // buildTradeQueryPayload returns the canonical JSON the trade endpoint

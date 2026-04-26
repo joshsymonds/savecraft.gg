@@ -294,6 +294,24 @@ export const buildPlannerModule: NativeReferenceModule = {
         "League name for buy_similar trade URLs (e.g. 'Standard', 'Mirage', 'Mirage Hardcore'). " +
         "Defaults to 'Standard'. Only used when buy_similar is true.",
     },
+    buy_similar_filters: {
+      type: "object",
+      description:
+        "Constrain the buy_similar trade-search URLs by per-mod thresholds, " +
+        "defence ranges, item-level, realm, and listed status. Use when the " +
+        "player wants gear matching specific numbers, not just the same name — " +
+        "e.g. \"find me a Belly with at least 90 Life\" → " +
+        "{mods: [{mod_text: '+# to maximum Life', mod_type: 'Explicit', min: 90}]}. " +
+        "Or \"a high-armour chest, ilvl 84+\" → " +
+        "{armour_min: 800, ilvl_min: 84}. Filter shape: " +
+        "{mods: [{mod_text, mod_type, min, max}], armour_min, evasion_min, " +
+        "energy_shield_min, ward_min, ilvl_min, ilvl_max, realm, listed}. " +
+        "Realm: pc/sony/xbox (default pc). Listed: available/securable/online/any " +
+        "(default available). Mod IDs are resolved from the cached PoE trade-API " +
+        "dictionary; mods without a cached ID are silently dropped (URL still emits " +
+        "the name + non-mod filters). REQUIRES buy_similar=true — passing filters " +
+        "without that flag returns an error rather than silently ignoring them.",
+    },
     mod_sources: {
       type: "array",
       items: { type: "string" },
@@ -348,6 +366,7 @@ export const buildPlannerModule: NativeReferenceModule = {
     const auditCategories = query.audit_categories;
     const compareWith = query.compare_with;
     const buySimilar = query.buy_similar as boolean | undefined;
+    const buySimilarFilters = query.buy_similar_filters;
     const league = query.league as string | undefined;
     const modSources = query.mod_sources;
     const modSourcesLimit = query.mod_sources_limit as number | undefined;
@@ -504,6 +523,23 @@ export const buildPlannerModule: NativeReferenceModule = {
       }
       if (league) {
         compareBody.league = league;
+      }
+      if (buySimilarFilters !== undefined && buySimilarFilters !== null) {
+        if (typeof buySimilarFilters !== "object" || Array.isArray(buySimilarFilters)) {
+          return {
+            type: "text",
+            content:
+              'Error: buy_similar_filters must be a JSON object (e.g. {mods: [{mod_text: "+# to maximum Life", min: 90}]}). Pass it as a real object, not a JSON-encoded string.',
+          };
+        }
+        if (!buySimilar) {
+          return {
+            type: "text",
+            content:
+              "Error: buy_similar_filters set without buy_similar=true. Pass buy_similar=true alongside the filters or omit the filters object — silently ignoring filters would be a worse UX.",
+          };
+        }
+        compareBody.buy_similar_filters = buySimilarFilters;
       }
       if (modSourcesArray !== undefined) {
         compareBody.modSources = modSourcesArray;
