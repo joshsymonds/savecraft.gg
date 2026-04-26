@@ -91,6 +91,11 @@
     return out;
   });
 
+  // Derived array form of visibleNodes — kept stable across pan/zoom so
+  // the {#each} loop in the SVG doesn't re-spread the Map every frame.
+  // The Map is still used for O(1) lookups in arc/connection rendering.
+  let visibleNodesEntries = $derived.by<[string, TreeNode][]>(() => [...visibleNodes.entries()]);
+
   let visibleConnections = $derived.by(() =>
     tree.connections.filter((c) => visibleNodes.has(c.a) && visibleNodes.has(c.b)),
   );
@@ -511,7 +516,7 @@
         {/each}
       </g>
       <g class="nodes">
-        {#each [...visibleNodes.entries()] as [id, node] (id)}
+        {#each visibleNodesEntries as [id, node] (id)}
           {@const own = allocationsActive
             ? (ownershipByNodeId.get(id) ?? { kind: "none" as const })
             : ({ kind: "none" as const })}

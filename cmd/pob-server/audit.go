@@ -320,8 +320,9 @@ func (srv *Server) handleAudit(writer http.ResponseWriter, request *http.Request
 	// Build per-scope NodeTypes lookups for the rank step. The extract data
 	// has them keyed by id; we just reference the maps the extract response
 	// already gave us so dead-weight extraction can flag empty sockets.
-	treeNodeTypes := scopeNodeTypes(extractEnvelope.Data.Tree)
-	ascNodeTypes := scopeNodeTypes(extractEnvelope.Data.Ascendancy)
+	// Cached per (buildID, scope) since the result is build-stable.
+	treeNodeTypes := srv.cachedScopeNodeTypes(req.BuildID, "tree", extractEnvelope.Data.Tree)
+	ascNodeTypes := srv.cachedScopeNodeTypes(req.BuildID, "asc", extractEnvelope.Data.Ascendancy)
 
 	// Rank each scope independently.
 	treeOut, treeDead, treeWeakest := auditRank(auditRankInput{
@@ -480,6 +481,22 @@ func scopeNodeTypes(data *auditExtractScopeData) map[int]string {
 	for id, node := range data.Nodes {
 		out[id] = node.Type
 	}
+	return out
+}
+
+// cachedScopeNodeTypes returns the build-stable id→type map for one
+// audit scope, populating srv.auditNodeTypesCache on miss. Builds are
+// content-addressed so the value never changes for a given buildID.
+func (srv *Server) cachedScopeNodeTypes(buildID, scope string, data *auditExtractScopeData) map[int]string {
+	if data == nil {
+		return nil
+	}
+	cacheKey := buildID + "|" + scope
+	if v, ok := srv.auditNodeTypesCache.Load(cacheKey); ok {
+		return v.(map[int]string)
+	}
+	out := scopeNodeTypes(data)
+	srv.auditNodeTypesCache.Store(cacheKey, out)
 	return out
 }
 

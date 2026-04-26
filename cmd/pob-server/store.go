@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
@@ -27,6 +28,15 @@ type BuildMeta struct {
 // BuildStore persists builds in SQLite.
 type BuildStore struct {
 	db *sql.DB
+
+	// tradeStatsMem caches the full trade_stats table per league in
+	// memory so /compare's per-mod lookups don't all serialize on the
+	// single SQLite connection. ~5000 entries per league = ~500KB heap.
+	// Populated lazily on first lookup miss for a league or eagerly via
+	// PutTradeStatsBatch; invalidated for a league whenever
+	// PutTradeStatsBatch writes that league.
+	tradeStatsMemMu sync.RWMutex
+	tradeStatsMem   map[string]map[string]string // league → "category|stripped" → trade_id
 }
 
 const schema = `
@@ -96,7 +106,15 @@ func NewBuildStore(dbPath string) (*BuildStore, error) {
 		return nil, fmt.Errorf("creating schema: %w", err)
 	}
 
-	return &BuildStore{db: db}, nil
+	return &BuildStore{
+		db:            db,
+		tradeStatsMem: make(map[string]map[string]string),
+	}, nil
+}
+
+// tradeStatsMemKey is the per-league memcache lookup key.
+func tradeStatsMemKey(category, strippedText string) string {
+	return category + "|" + strippedText
 }
 
 // Put stores a build. If the ID already exists, summary/source_url/parent_id are updated.
@@ -348,25 +366,78 @@ func (s *BuildStore) PutTradeStatsBatch(league string, rows []tradeStatsRow) err
 			return fmt.Errorf("inserting trade_stats (%s, %q, %q): %w", league, row.StrippedText, row.Category, err)
 		}
 	}
-	return tx.Commit()
+	if err := tx.Commit(); err != nil {
+		return err
+	}
+
+	// Refresh the in-memory cache for this league so /compare hits the
+	// new data without needing another SQLite roundtrip per mod.
+	memEntries := make(map[string]string, len(rows))
+	for _, row := range rows {
+		memEntries[tradeStatsMemKey(row.Category, row.StrippedText)] = row.TradeID
+	}
+	s.tradeStatsMemMu.Lock()
+	s.tradeStatsMem[league] = memEntries
+	s.tradeStatsMemMu.Unlock()
+	return nil
 }
 
 // LookupTradeStat returns the trade_id for a (league, stripped_text,
 // category) tuple. ok=false with nil error when the row isn't present.
 // Used by buy-similar URL construction to populate per-mod filter IDs.
+//
+// Backed by a per-league in-memory cache populated lazily on first
+// lookup miss for a league or eagerly via PutTradeStatsBatch. After
+// warm, /compare's per-mod loops never touch SQLite.
 func (s *BuildStore) LookupTradeStat(league, strippedText, category string) (string, bool, error) {
-	var id string
-	err := s.db.QueryRowContext(context.Background(), `
-		SELECT trade_id FROM trade_stats
-		WHERE league = ? AND stripped_text = ? AND category = ?
-	`, league, strippedText, category).Scan(&id)
-	if errors.Is(err, sql.ErrNoRows) {
-		return "", false, nil
+	key := tradeStatsMemKey(category, strippedText)
+
+	s.tradeStatsMemMu.RLock()
+	entries, warm := s.tradeStatsMem[league]
+	s.tradeStatsMemMu.RUnlock()
+	if warm {
+		id, ok := entries[key]
+		return id, ok, nil
 	}
+
+	loaded, err := s.loadTradeStatsLeague(league)
 	if err != nil {
-		return "", false, fmt.Errorf("lookup trade_stats: %w", err)
+		return "", false, err
 	}
-	return id, true, nil
+	id, ok := loaded[key]
+	return id, ok, nil
+}
+
+// loadTradeStatsLeague reads every row for a league from SQLite and
+// stores the resulting map in the in-memory cache. Returns the loaded
+// map so the caller can answer the lookup that triggered the load
+// without re-acquiring the lock. Concurrent loads for the same league
+// race-and-overwrite — acceptable since the data is identical.
+func (s *BuildStore) loadTradeStatsLeague(league string) (map[string]string, error) {
+	rows, err := s.db.QueryContext(context.Background(), `
+		SELECT stripped_text, category, trade_id FROM trade_stats WHERE league = ?
+	`, league)
+	if err != nil {
+		return nil, fmt.Errorf("load trade_stats league %q: %w", league, err)
+	}
+	defer rows.Close()
+
+	entries := make(map[string]string)
+	for rows.Next() {
+		var stripped, category, tradeID string
+		if err := rows.Scan(&stripped, &category, &tradeID); err != nil {
+			return nil, fmt.Errorf("scan trade_stats: %w", err)
+		}
+		entries[tradeStatsMemKey(category, stripped)] = tradeID
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate trade_stats: %w", err)
+	}
+
+	s.tradeStatsMemMu.Lock()
+	s.tradeStatsMem[league] = entries
+	s.tradeStatsMemMu.Unlock()
+	return entries, nil
 }
 
 // TradeStatsLatestFetchedAt returns the most-recent fetched_at across

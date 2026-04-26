@@ -321,7 +321,7 @@ func TestComputeBuySimilarRejectsDangerousLeague(t *testing.T) {
 				{ID: "a", itemsBySlot: map[string]string{"Helmet": "Atziri's Foible"}},
 				{ID: "b", itemsBySlot: map[string]string{"Helmet": "Devoto's Devotion"}},
 			}
-			out := computeBuySimilar(entries, badLeague)
+			out := computeBuySimilarWithFilters(nil, entries, badLeague, nil)
 			if len(out) == 0 {
 				t.Fatal("expected entries")
 			}

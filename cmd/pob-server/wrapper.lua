@@ -1000,12 +1000,21 @@ local function serializeStatSources(targetBuild, statName, limit)
 				sourceType = row.mod.source:match("[^:]+") or "?"
 				sourceName = compareCalcsHelpers.ResolveSourceName(row.mod, targetBuild) or ""
 			end
+			-- mod_row_key: PoB's own ModRowKey is the contract for cross-build
+			-- matching. Emit it from here so Go preserves the value rather
+			-- than reconstructing the key from resolved fields (which loses
+			-- the BASE-TYPE-vs-item-name distinction PoB itself collapses).
+			local modRowKey = ""
+			if row.mod then
+				modRowKey = compareCalcsHelpers.ModRowKey(row)
+			end
 			rows[#rows + 1] = {
 				source_type = sourceType,
 				source_name = sourceName,
 				mod_name = (row.mod and row.mod.name) or statName,
 				mod_type = modType,
 				value = row.value,
+				mod_row_key = modRowKey,
 			}
 		end
 	end

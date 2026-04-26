@@ -43,6 +43,13 @@ type Server struct {
 	gemNamesMu     sync.Mutex
 	gemNames       []string
 	gemNamesLoaded bool
+
+	// auditNodeTypes caches the per-build (id → type) lookup that
+	// /audit's rank step needs, keyed by buildID + "|" + scopeName
+	// ("tree" or "asc"). Builds are content-addressed so the value is
+	// stable; the cache never invalidates within a process lifetime.
+	// Bounded only by the number of distinct builds the daemon sees.
+	auditNodeTypesCache sync.Map // string → map[int]string
 }
 
 // CalcRequest is the JSON body for POST /calc.

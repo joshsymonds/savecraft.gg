@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"net/http"
 	"regexp"
 	"sync"
@@ -25,6 +26,9 @@ const (
 	defaultTradeStatsURL = "https://www.pathofexile.com/api/trade/data/stats"
 	tradeStatsTTL        = 24 * time.Hour
 	tradeStatsTimeout    = 30 * time.Second
+	// Real responses are ~1MB; cap at 16MiB so a misbehaving (or
+	// hijacked) upstream can't OOM the daemon before the timeout fires.
+	tradeStatsMaxBytes = 16 << 20
 )
 
 // tradeStatsStripPattern mirrors the Lua-side normalization:
@@ -170,11 +174,15 @@ func (c *tradeStatsClient) fetch() ([]tradeStatsRow, error) {
 			} `json:"entries"`
 		} `json:"result"`
 	}
-	if err := json.NewDecoder(resp.Body).Decode(&parsed); err != nil {
+	if err := json.NewDecoder(io.LimitReader(resp.Body, tradeStatsMaxBytes)).Decode(&parsed); err != nil {
 		return nil, fmt.Errorf("decode trade stats: %w", err)
 	}
 
-	var rows []tradeStatsRow
+	rowEstimate := 0
+	for _, category := range parsed.Result {
+		rowEstimate += len(category.Entries)
+	}
+	rows := make([]tradeStatsRow, 0, rowEstimate)
 	for _, category := range parsed.Result {
 		for _, entry := range category.Entries {
 			if entry.ID == "" || entry.Text == "" {
@@ -208,6 +216,10 @@ func (srv *Server) handleRefreshTradeStats(writer http.ResponseWriter, request *
 	league := request.URL.Query().Get("league")
 	if league == "" {
 		league = "Standard"
+	}
+	if !isValidLeague(league) {
+		jsonError(writer, "league must be ≤64 chars and contain no path separators", http.StatusBadRequest)
+		return
 	}
 	if err := srv.tradeStats.Refresh(league); err != nil {
 		srv.log.Error("trade stats refresh", "league", league, "err", err)

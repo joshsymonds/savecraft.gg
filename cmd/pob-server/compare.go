@@ -167,12 +167,10 @@ type compareDiffs struct {
 }
 
 // compareModSourceDiffEntry is one row of the per-stat modifier-source
-// diff. Key is the cross-build matching identity (source_type + ":" +
-// source_name + "|" + mod_name + "|" + mod_type), constructed to mirror
-// PoB's upstream ModRowKey semantics — source_name is already
-// index-stripped by ResolveSourceName, so building the key from the
-// post-resolution row gives the same matching as PoB's source-string
-// normalization.
+// diff. Key is the cross-build matching identity emitted by wrapper.lua
+// via PoB's own compareCalcsHelpers.ModRowKey() — typically the
+// normalized form of `mod.source` (e.g. "Item:Belly of the Beast")
+// joined with mod_name and mod_type. PoB owns this contract end-to-end.
 //
 // PerBuild slots are pointers so JSON null distinguishes "this row
 // isn't in this build" from a value of zero. Indexed parallel to the
@@ -200,12 +198,17 @@ type compareModSourceCellValue struct {
 // statSourceRow is the wire shape wrapper.lua emits per row in
 // data.statSources[stat]. Used internally to decode entry.StatSources
 // before computing the cross-build diff.
+//
+// ModRowKey is computed by wrapper.lua via PoB's own
+// compareCalcsHelpers.ModRowKey() — Go preserves the value rather than
+// reconstructing it, so PoB owns the matching contract end-to-end.
 type statSourceRow struct {
 	SourceType string  `json:"source_type"`
 	SourceName string  `json:"source_name"`
 	ModName    string  `json:"mod_name"`
 	ModType    string  `json:"mod_type"`
 	Value      float64 `json:"value"`
+	ModRowKey  string  `json:"mod_row_key"`
 }
 
 // compareConfigDiffEntry is one row of the config diff. PerBuild values
@@ -680,17 +683,16 @@ func computeCompareDiffs(entries []compareBuildEntry) *compareDiffs {
 	}
 }
 
-// modRowKey constructs the cross-build matching identity for a stat
-// source row. Mirrors PoB's upstream Classes/CompareCalcsHelpers.lua
-// ModRowKey(): same components ("source_type:source_name|mod_name|mod_type"),
-// same case-sensitive comparison.
-//
-// Source_name from wrapper.lua is already index-stripped (ResolveSourceName
-// does the upstream "Item:5:Body Armour" → "Body Armour" mapping), so
-// composing it with mod_name + mod_type gives the same matching
-// semantics as the Lua side.
-func modRowKey(sourceType, sourceName, modName, modType string) string {
-	return sourceType + ":" + sourceName + "|" + modName + "|" + modType
+// modRowKey returns the cross-build matching identity for a stat
+// source row. wrapper.lua emits the key via PoB's own
+// compareCalcsHelpers.ModRowKey(); we preserve it here. The fallback
+// reconstruction exists only for older/cached rows that pre-date the
+// Lua-emitted field — it should never fire on a fresh calc.
+func modRowKey(row statSourceRow) string {
+	if row.ModRowKey != "" {
+		return row.ModRowKey
+	}
+	return row.SourceType + ":" + row.SourceName + "|" + row.ModName + "|" + row.ModType
 }
 
 // computeModSourcesDiff produces sorted per-stat diff arrays for stats
@@ -769,7 +771,7 @@ func buildModSourceDiffEntries(
 	for buildIdx, decoded := range perBuildRows {
 		rows := decoded[stat]
 		for _, row := range rows {
-			key := modRowKey(row.SourceType, row.SourceName, row.ModName, row.ModType)
+			key := modRowKey(row)
 			perBuild, ok := cells[key]
 			if !ok {
 				perBuild = make([]*compareModSourceCellValue, buildCount)
@@ -1253,9 +1255,9 @@ func isValidLeague(league string) bool {
 	return true
 }
 
-// computeBuySimilar produces trade-URL recommendations for gear slots
-// where one successful build has an item another lacks (or has a
-// different one). Errored slots are excluded — they appear in the
+// computeBuySimilarWithFilters produces trade-URL recommendations for
+// gear slots where one successful build has an item another lacks (or
+// has a different one). Errored slots are excluded — they appear in the
 // builds[] response but contribute nothing here.
 //
 // Pair semantics: every (from, to) ordered pair where
@@ -1263,14 +1265,10 @@ func isValidLeague(league string) bool {
 // produces an entry. With N builds and a slot where every item is
 // distinct, that yields N*(N-1) entries for that slot — each build can
 // be the source and each other build can be the target.
-func computeBuySimilar(entries []compareBuildEntry, league string) []compareBuySimilarEntry {
-	return computeBuySimilarWithFilters(nil, entries, league, nil)
-}
-
-// computeBuySimilarWithFilters is the filter-aware fanout.
-// When filters is nil, behavior matches the legacy computeBuySimilar
-// — name-only URLs. When set, every emitted URL gets the same filter
-// envelope applied. srv is required for filter resolution (mod-ID
+//
+// When filters is nil, every emitted URL uses the legacy name-only URL
+// builder. When set, every emitted URL gets the same filter envelope
+// applied. srv is required for filter resolution (mod-ID
 // cache); pass nil to opt out and use the legacy URL builder.
 func computeBuySimilarWithFilters(
 	srv *Server,
