@@ -31,10 +31,10 @@
 
 <svelte:head>
   <title>Connect — Savecraft</title>
-  <meta property="og:title" content="Savecraft — Game Save Connector for AI" />
+  <meta property="og:title" content="Savecraft — Real game data for your AI assistant" />
   <meta
     property="og:description"
-    content="This URL connects your game saves to AI assistants like Claude and ChatGPT. Add it in your AI app's settings — not in the chat."
+    content="This URL gives Claude or ChatGPT real game data — rules, items, builds, economy — for Magic, Path of Exile, Factorio, and more. Add it in your AI app's settings, not in the chat."
   />
   <meta property="og:url" content="https://my.savecraft.gg/connect" />
   <meta property="og:type" content="website" />
@@ -90,9 +90,10 @@
     <div class="about">
       <h2 class="section-label">WHAT IS SAVECRAFT?</h2>
       <p class="about-text">
-        Savecraft connects your video game save files to AI assistants like Claude and ChatGPT. It
-        watches your saves, parses them, and makes the data available to your AI so you can ask
-        questions about your characters, builds, and progress.
+        Savecraft gives Claude and ChatGPT real game data &mdash; rules, items, builds, and economy
+        for Magic, Path of Exile, Factorio, and more. For supported games (Diablo II, RimWorld,
+        Stellaris), it can also watch your save files so your AI can read your live characters,
+        gear, and progress.
       </p>
       <p class="about-text">
         Savecraft is a connector, not a chatbot. You chat with your AI assistant as usual &mdash;

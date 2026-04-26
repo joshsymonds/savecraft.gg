@@ -44,7 +44,7 @@
 <div class="sign-in-page">
   <div class="hero">
     <div class="logo">SAVECRAFT</div>
-    <p class="tagline">Connect your game saves to AI assistants.</p>
+    <p class="tagline">Real game data for your AI. Plus your saves on supported games.</p>
   </div>
   {#if pendingCode}
     <div class="pairing-banner">
