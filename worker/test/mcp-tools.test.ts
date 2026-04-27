@@ -3044,6 +3044,36 @@ describe("buildPlannerModule", () => {
     }
   });
 
+  // Closes review-pass gap c3 — epic success criterion: build_planner's
+  // tool-level description must include at least one chained-workflow
+  // example linking two NEW features (any pair from {mod_sources,
+  // buy_similar_filters, nearby_categories, audit_categories}). The
+  // pre-existing audit_allocated + nearby_metrics chain doesn't count.
+  it("manifest description chains two NEW feature params as a workflow example", async () => {
+    const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
+    const desc = buildPlannerModule.description;
+    // The chained sentence should mention at least one pair of the new
+    // params co-occurring within ~200 characters of each other so the
+    // LLM sees them as a pipeline, not as separate features.
+    const newParams = ["mod_sources", "buy_similar_filters", "nearby_categories", "audit_categories"] as const;
+    let foundChain = false;
+    for (const a of newParams) {
+      const idxA = desc.indexOf(a);
+      if (idxA === -1) continue;
+      for (const b of newParams) {
+        if (a === b) continue;
+        const idxB = desc.indexOf(b);
+        if (idxB === -1) continue;
+        if (Math.abs(idxA - idxB) < 200) {
+          foundChain = true;
+          break;
+        }
+      }
+      if (foundChain) break;
+    }
+    expect(foundChain).toBe(true);
+  });
+
   it("manifest declares nearby_categories and audit_categories with teaching descriptions", async () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
     const params = buildPlannerModule.parameters as Record<

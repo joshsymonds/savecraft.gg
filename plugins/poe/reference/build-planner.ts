@@ -99,6 +99,8 @@ export const buildPlannerModule: NativeReferenceModule = {
     "For tree exploration, pass buildId + nearby_metrics to find the highest-impact nearby nodes ranked by real calc deltas. " +
     "For tree pruning, pass buildId + audit_allocated to find weak branches in the CURRENT allocated tree — ranked by what the player would lose by removing them, with a dead_weight bucket of zero-contribution nodes. Pairs naturally with nearby_metrics: audit identifies underperforming branches, nearby finds replacement directions, you propose the swap. " +
     "To drill into WHY a stat has its value (which item, tree node, skill, or pantheon contributes), pass mod_sources with the stat names (e.g. mod_sources=[\"Life\",\"CombinedDPS\"]). The response carries data.statSources keyed by stat with top-N source rows. " +
+    "When a player asks why two builds diverge on a stat, call compare with mod_sources=true to surface the per-mod source breakdown — then re-call compare with buy_similar=true and buy_similar_filters populated from the divergent mods to find replacement gear that closes the gap. " +
+    "Use nearby_categories on a /resolve or /modify call to focus the inline power_report on a specific node type (e.g. nearby_categories=[\"Keystone\"] when the player asks \"any keystone I should grab?\") — pair with audit_categories on a follow-up audit_allocated call to get symmetric remove/add suggestions confined to the same category axis. " +
     "Every response includes a buildId for follow-up calls.",
   parameters: {
     build: {
