@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"sort"
 	"strings"
 	"testing"
 )
@@ -23,9 +24,20 @@ type compareDiffsSkillsOnWire struct {
 }
 
 type compareSocketGroupOnWire struct {
-	Label    string     `json:"label"`
+	Label    string                `json:"label"`
+	PerBuild [][]string            `json:"perBuild"`
+	Same     bool                  `json:"same"`
+	GemsDiff *skillsGemsDiffOnWire `json:"gemsDiff,omitempty"`
+}
+
+// skillsGemsDiffOnWire mirrors the production skillsGemsDiff struct.
+// PerBuild[i] = gems unique to build i (not present in EVERY build);
+// Common = gems present in every successful build's group at this
+// label. Both sorted ascending. Emitted only when same:false AND every
+// build has a non-empty group at this label.
+type skillsGemsDiffOnWire struct {
 	PerBuild [][]string `json:"perBuild"`
-	Same     bool       `json:"same"`
+	Common   []string   `json:"common"`
 }
 
 func decodeCompareWithSkills(t *testing.T, body []byte) compareRespWithSkills {
@@ -447,6 +459,207 @@ func TestCompareSkillsDiffOrderInsensitive(t *testing.T) {
 	}
 	if !g.Same {
 		t.Errorf("same should be true (same gem set, different order)")
+	}
+}
+
+// TestCompareSkillsDiffEmitsGemsBreakdown: three builds share the same
+// labeled group "Main Skill" but with overlapping-not-identical gem
+// sets. The diff MUST emit gemsDiff with common = gems in all three
+// AND perBuild[i] = gems in build i but missing from at least one
+// other build. Mirrors gearModsDiff semantics: any gem with tally < N
+// counts as "unique" to the builds that contain it.
+//
+//	Build A: [Cyclone, Brutality, Pulverise]
+//	Build B: [Cyclone, Brutality, Fortify]
+//	Build C: [Cyclone, Pulverise, Awakened Brutality]
+//
+// Expected:
+//
+//	common = [Cyclone]
+//	perBuild[0] = [Brutality, Pulverise]
+//	perBuild[1] = [Brutality, Fortify]
+//	perBuild[2] = [Awakened Brutality, Pulverise]
+func TestCompareSkillsDiffEmitsGemsBreakdown(t *testing.T) {
+	pool, _ := captureMockPool(t, []string{
+		calcResponseWithSkills("Witch", []testSocketGroup{
+			{Label: "Main Skill", Gems: []string{"Cyclone", "Brutality", "Pulverise"}},
+		}),
+		calcResponseWithSkills("Marauder", []testSocketGroup{
+			{Label: "Main Skill", Gems: []string{"Cyclone", "Brutality", "Fortify"}},
+		}),
+		calcResponseWithSkills("Ranger", []testSocketGroup{
+			{Label: "Main Skill", Gems: []string{"Cyclone", "Pulverise", "Awakened Brutality"}},
+		}),
+	})
+	pool.maxSize = 1
+	pool.affinityMaxPins = 1
+	defer pool.Shutdown()
+	srv := newTestSrv(t, pool)
+	srv.cache.store = newInMemoryStoreForTest(t)
+
+	idA := srv.cache.Put("<A/>")
+	idB := srv.cache.Put("<B/>")
+	idC := srv.cache.Put("<C/>")
+	for _, id := range []string{idA, idB, idC} {
+		_ = srv.cache.store.Put(id, "<x/>", "", "", "")
+	}
+
+	body := `{"builds":["` + idA + `","` + idB + `","` + idC + `"]}`
+	rec := httptest.NewRecorder()
+	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+	resp := decodeCompareWithSkills(t, rec.Body.Bytes())
+	g := findGroup(resp.Diffs.Skills, "Main Skill")
+	if g == nil {
+		t.Fatal("Main Skill group missing")
+	}
+	if g.Same {
+		t.Errorf("same should be false (gem sets differ across the three builds)")
+	}
+	if g.GemsDiff == nil {
+		t.Fatalf("expected gemsDiff to be present, got nil; perBuild=%v", g.PerBuild)
+	}
+
+	// Common: only Cyclone is in all three builds' Main Skill groups.
+	if !equalStringSlices(g.GemsDiff.Common, []string{"Cyclone"}) {
+		t.Errorf("gemsDiff.common = %v, want [Cyclone]", g.GemsDiff.Common)
+	}
+	if got := len(g.GemsDiff.PerBuild); got != 3 {
+		t.Fatalf("gemsDiff.perBuild length = %d, want 3 (parallel to successful builds)", got)
+	}
+	// Mock pool round-robins responses, so the build-position → class
+	// mapping isn't deterministic. Assert by membership: union of all
+	// three perBuild entries must equal {Brutality, Pulverise, Fortify,
+	// Awakened Brutality} and contain nothing else (Cyclone is in
+	// common, never in perBuild).
+	gotUnique := make(map[string]int)
+	for _, slot := range g.GemsDiff.PerBuild {
+		for _, gem := range slot {
+			gotUnique[gem]++
+		}
+	}
+	wantUnique := map[string]bool{
+		"Brutality":          true,
+		"Pulverise":          true,
+		"Fortify":            true,
+		"Awakened Brutality": true,
+	}
+	for gem := range wantUnique {
+		if gotUnique[gem] == 0 {
+			t.Errorf("expected gem %q in some perBuild entry; got %v", gem, gotUnique)
+		}
+	}
+	for gem := range gotUnique {
+		if !wantUnique[gem] {
+			t.Errorf("unexpected gem %q in gemsDiff.perBuild (should be common or filtered)", gem)
+		}
+	}
+	if gotUnique["Cyclone"] != 0 {
+		t.Errorf("Cyclone leaked into perBuild but it's in all three builds (should be common only)")
+	}
+	// Brutality: in 2 of 3 builds → should appear in 2 perBuild slots.
+	// Pulverise: in 2 of 3 builds → should appear in 2 perBuild slots.
+	// Fortify: in 1 of 3 → 1 slot.
+	// Awakened Brutality: in 1 of 3 → 1 slot.
+	if gotUnique["Brutality"] != 2 {
+		t.Errorf("Brutality appears in %d perBuild slots, want 2", gotUnique["Brutality"])
+	}
+	if gotUnique["Pulverise"] != 2 {
+		t.Errorf("Pulverise appears in %d perBuild slots, want 2", gotUnique["Pulverise"])
+	}
+	if gotUnique["Fortify"] != 1 {
+		t.Errorf("Fortify appears in %d perBuild slots, want 1", gotUnique["Fortify"])
+	}
+	if gotUnique["Awakened Brutality"] != 1 {
+		t.Errorf("Awakened Brutality appears in %d perBuild slots, want 1", gotUnique["Awakened Brutality"])
+	}
+
+	// Per-build entries are sorted ascending.
+	for i, slot := range g.GemsDiff.PerBuild {
+		if !sort.StringsAreSorted(slot) {
+			t.Errorf("gemsDiff.perBuild[%d] = %v, want sorted ascending", i, slot)
+		}
+	}
+}
+
+// TestCompareSkillsDiffGemsBreakdownOmittedWhenEmptyGroup: when any
+// build has an empty gem list at this label (e.g. one build has the
+// label but the others don't), the gemsDiff is omitted entirely —
+// computing common + per-build over partial data would mislead the
+// breakdown. Mirrors gear's !anyMissing gate.
+func TestCompareSkillsDiffGemsBreakdownOmittedWhenEmptyGroup(t *testing.T) {
+	srv, idA, idB := compareHarness(
+		t,
+		"<A/>", "<B/>",
+		calcResponseWithSkills("Witch", []testSocketGroup{
+			{Label: "Aura", Gems: []string{"Discipline", "Wrath"}},
+		}),
+		// Build B has no Aura group at all — it's missing entirely.
+		calcResponseWithSkills("Marauder", []testSocketGroup{
+			{Label: "Curse", Gems: []string{"Despair"}},
+		}),
+	)
+	body := `{"builds":["` + idA + `","` + idB + `"]}`
+	rec := httptest.NewRecorder()
+	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	resp := decodeCompareWithSkills(t, rec.Body.Bytes())
+	aura := findGroup(resp.Diffs.Skills, "Aura")
+	if aura == nil {
+		t.Fatal("Aura group missing")
+	}
+	if aura.Same {
+		t.Errorf("same should be false (B has no Aura group)")
+	}
+	if aura.GemsDiff != nil {
+		t.Errorf(
+			"expected gemsDiff to be omitted (B has no Aura group); got %+v",
+			aura.GemsDiff,
+		)
+	}
+}
+
+// TestCompareSkillsDiffGemsBreakdownOmittedWhenSame: when the gem
+// sets match across all builds, gemsDiff is omitted — the consumer
+// can read perBuild[0] directly and there's no breakdown to surface.
+// Mirrors gear's !modsSame gate.
+func TestCompareSkillsDiffGemsBreakdownOmittedWhenSame(t *testing.T) {
+	srv, idA, idB := compareHarness(
+		t,
+		"<A/>", "<B/>",
+		calcResponseWithSkills("Witch", []testSocketGroup{
+			{Label: "Movement", Gems: []string{"Leap Slam", "Faster Attacks"}},
+		}),
+		calcResponseWithSkills("Marauder", []testSocketGroup{
+			{Label: "Movement", Gems: []string{"Leap Slam", "Faster Attacks"}},
+		}),
+	)
+	body := `{"builds":["` + idA + `","` + idB + `"]}`
+	rec := httptest.NewRecorder()
+	srv.handleCompare(rec, httptest.NewRequest(http.MethodPost, "/compare", strings.NewReader(body)))
+
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d", rec.Code)
+	}
+	resp := decodeCompareWithSkills(t, rec.Body.Bytes())
+	g := findGroup(resp.Diffs.Skills, "Movement")
+	if g == nil {
+		t.Fatal("Movement group missing")
+	}
+	if !g.Same {
+		t.Errorf("same should be true (identical gem sets)")
+	}
+	if g.GemsDiff != nil {
+		t.Errorf(
+			"expected gemsDiff to be omitted when same:true; got %+v",
+			g.GemsDiff,
+		)
 	}
 }
 

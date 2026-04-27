@@ -141,6 +141,15 @@
             ["Arc", "Lightning Penetration", "Spell Echo"],
           ],
           same: false,
+          // Set-op breakdown: shared support gems land in common; the
+          // active skill diverges (Vaal Spark vs Arc). gemsDiff is
+          // emitted by the daemon when same:false AND every build has
+          // a non-empty group, so AI narrators can read the divergent
+          // gem(s) directly without diffing perBuild arrays.
+          gemsDiff: {
+            perBuild: [["Vaal Spark"], ["Arc"]],
+            common: ["Lightning Penetration", "Spell Echo"],
+          },
         },
         {
           label: "Aura Setup",
@@ -149,6 +158,9 @@
             ["Discipline", "Wrath"],
           ],
           same: true,
+          // Aura Setup matches across builds — gemsDiff is intentionally
+          // omitted (same:true gates it off; consumer reads perBuild[0]
+          // directly).
         },
       ],
     },

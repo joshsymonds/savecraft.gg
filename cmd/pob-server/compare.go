@@ -256,10 +256,32 @@ type compareConfigDiffEntry struct {
 // PerBuild entries are []string — empty when a build doesn't have this
 // labeled group. JSON encodes empty as `[]`, not `null`, so view code
 // can iterate uniformly.
+//
+// GemsDiff is the set-op breakdown emitted only when same:false AND
+// every build has a non-empty group at this label. Same gate-on-
+// !anyMissing semantics as gearModsDiff: partial data — one build's
+// empty group — would make the "common" set misleading. Saves the
+// consumer from re-diffing the raw PerBuild arrays manually.
 type compareSocketGroupDiff struct {
-	Label    string     `json:"label"`
+	Label    string          `json:"label"`
+	PerBuild [][]string      `json:"perBuild"`
+	Same     bool            `json:"same"`
+	GemsDiff *skillsGemsDiff `json:"gemsDiff,omitempty"`
+}
+
+// skillsGemsDiff is the per-group set-diff of gem lists across the
+// successful builds, mirroring gearModsDiff's shape and gate. Emitted
+// only on a compareSocketGroupDiff where same:false AND every build
+// has a non-empty group at the label — partial data (one build's
+// empty group) would make Common misleading.
+//
+// PerBuild[i] lists gems present in build i but missing from at least
+// one other build (i.e. tally < N). Common lists gems present in
+// every successful build's group at this label. Both sorted ascending
+// and deduped.
+type skillsGemsDiff struct {
 	PerBuild [][]string `json:"perBuild"`
-	Same     bool       `json:"same"`
+	Common   []string   `json:"common"`
 }
 
 // compareSlotDiff is one entry in the gear diff — one equipment slot's
@@ -1568,6 +1590,11 @@ func indexSocketGroupsByLabel(
 // buildSocketGroupDiff assembles one compareSocketGroupDiff for the
 // given label across all successful builds. `same` is true iff every
 // build has a non-empty gem list AND every list matches.
+//
+// GemsDiff is computed only when same:false AND every build has a
+// non-empty group at this label. The gate mirrors gearModsDiff's
+// !anyMissing semantics — a build with an empty group at this label
+// would make the "common" set misleading.
 func buildSocketGroupDiff(
 	label string,
 	perBuildByLabel []map[string][]string,
@@ -1576,6 +1603,7 @@ func buildSocketGroupDiff(
 	var first []string
 	firstSet := false
 	same := true
+	anyEmpty := false
 	for i, byLabel := range perBuildByLabel {
 		gems := byLabel[label]
 		if gems == nil {
@@ -1584,6 +1612,7 @@ func buildSocketGroupDiff(
 		perBuild[i] = gems
 		if len(gems) == 0 {
 			same = false
+			anyEmpty = true
 			continue
 		}
 		if !firstSet {
@@ -1593,7 +1622,17 @@ func buildSocketGroupDiff(
 			same = false
 		}
 	}
-	return compareSocketGroupDiff{Label: label, PerBuild: perBuild, Same: same}
+	out := compareSocketGroupDiff{Label: label, PerBuild: perBuild, Same: same}
+	if !same && !anyEmpty {
+		// computeGearModsDiff is reused as-is — the set-op math is
+		// identical (tally across builds, common = tally==N, perBuild
+		// = present-but-not-in-all). Sorted+deduped within each slice.
+		// Re-typed to skillsGemsDiff to keep wire field naming distinct
+		// in case the two layers' shapes ever need to diverge.
+		mods := computeGearModsDiff(perBuild)
+		out.GemsDiff = &skillsGemsDiff{PerBuild: mods.PerBuild, Common: mods.Common}
+	}
+	return out
 }
 
 // sortedCopy returns a sorted copy of the input slice. nil-safe.

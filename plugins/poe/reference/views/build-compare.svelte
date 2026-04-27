@@ -71,10 +71,23 @@
     modsSame: boolean;
   }
 
+  interface SkillsGemsDiff {
+    perBuild: string[][];
+    common: string[];
+  }
+
   interface SocketGroupDiff {
     label: string;
     perBuild: string[][];
     same: boolean;
+    // gemsDiff is the set-op breakdown emitted by the daemon when
+    // same:false AND every build has a non-empty group at this label.
+    // Wire shape mirrors gear's modsDiff: perBuild[i] = gems unique to
+    // build i (not in every other build), common = gems present in
+    // all builds. Optional — the view currently still narrates from
+    // raw perBuild for visual consistency, but the field rides on the
+    // wire so AI consumers can read the breakdown directly.
+    gemsDiff?: SkillsGemsDiff;
   }
 
   // Config values are heterogeneous: number (enemyLevel: 84), boolean
