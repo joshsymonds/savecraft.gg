@@ -19,6 +19,13 @@ export default defineWorkersConfig({
   cacheDir: shardIndex ? `node_modules/.vite-shard-${shardIndex}` : undefined,
   test: {
     setupFiles: ["./test/setup.ts"],
+    // Scope discovery to ./test/. Vitest's default `include` is **/*.test.ts
+    // which traverses .devenv/profile/lib/packages/ (the nix-managed
+    // dev-environment profile under worker/) and picks up bundled upstream
+    // package tests — including one with a literal ♫ in its path, which
+    // breaks miniflare's HeadersInit construction (undici ByteString rejects
+    // any character > 255 in a Request header value).
+    include: ["test/**/*.test.ts"],
     fileParallelism: false,
     poolOptions: {
       workers: {
