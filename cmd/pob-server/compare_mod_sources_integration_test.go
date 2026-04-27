@@ -153,14 +153,23 @@ func postCompare(t *testing.T, ts *httptest.Server, body map[string]any) *compar
 }
 
 // compareResponseShape is a minimal decode of CompareResponse — enough
-// to assert on per-build statSources keys without coupling to the full
-// internal wire shape.
+// to assert on per-build statSources keys + per-diff dimensions without
+// coupling to the full internal wire shape. Extend per-test as new
+// dimensions need assertions.
 type compareResponseShape struct {
 	Builds []struct {
 		Label       string                     `json:"label"`
 		Error       string                     `json:"error,omitempty"`
 		StatSources map[string]json.RawMessage `json:"statSources,omitempty"`
 	} `json:"builds"`
+	Diffs *struct {
+		Skills []struct {
+			Label    string     `json:"label"`
+			PerBuild [][]string `json:"perBuild"`
+			Same     bool       `json:"same"`
+		} `json:"skills,omitempty"`
+		Gear map[string]json.RawMessage `json:"gear,omitempty"`
+	} `json:"diffs,omitempty"`
 }
 
 // decodeRows decodes a raw statSources entry into the row slice. nil

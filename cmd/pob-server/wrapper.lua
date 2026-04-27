@@ -419,6 +419,13 @@ local function serializeSocketGroups(build)
 					gemInfo.castTime = gem.grantedEffect.castTime
 					gemInfo.hasGlobalEffect = gem.grantedEffect.hasGlobalEffect or false
 				end
+				-- Always populate gemInfo.name. PoB doesn't expose grantedEffect.name
+				-- for transfigured / alt-quality variants (e.g. "Static Strike of
+				-- Gathering Lightning"), only nameSpec. Fallback so the Go-side
+				-- diff sees a usable identifier instead of dropping the gem.
+				if not gemInfo.name or gemInfo.name == "" then
+					gemInfo.name = gem.nameSpec or ""
+				end
 
 				if gem.gemData then
 					gemInfo.tags = gem.gemData.tagString
@@ -434,8 +441,28 @@ local function serializeSocketGroups(build)
 				gems[#gems + 1] = gemInfo
 			end
 		end
+
+		-- Synthesize a label when PoB's user-set group label is empty.
+		-- Without this, computeSkillsDiff in compare.go keys all unlabeled
+		-- groups under "" and collapses them with last-write-wins semantics —
+		-- producing a single placeholder diff row. Use the first active-skill
+		-- gem's name as the synthesized label; fall back to slot-positional
+		-- if no active gems exist (rare: a group with only support gems).
+		local label = group.label or ""
+		if label == "" then
+			for _, gem in ipairs(gems) do
+				if not gem.support and gem.name and gem.name ~= "" then
+					label = gem.name
+					break
+				end
+			end
+		end
+		if label == "" then
+			label = string.format("(%s #%d)", group.slot or "group", i)
+		end
+
 		groups[#groups + 1] = {
-			label = group.label or "",
+			label = label,
 			enabled = group.enabled,
 			slot = group.slot or "",
 			gems = gems,
