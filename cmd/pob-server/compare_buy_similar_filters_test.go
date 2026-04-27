@@ -59,18 +59,6 @@ func TestModLineTemplateMatchesPoB(t *testing.T) {
 	}
 }
 
-// TestBuySimilarWithoutFiltersMatchesLegacyURL: regression guard. When
-// no filters are set, the URL is identical to the existing buildTradeURL
-// output — name + price-sort + empty filters.
-func TestBuySimilarWithoutFiltersMatchesLegacyURL(t *testing.T) {
-	srv := newTestServer(t)
-	got := buildTradeURLWithFilters(srv, "Belly of the Beast", "Standard", nil)
-	want := buildTradeURL("Belly of the Beast", "Standard")
-	if got != want {
-		t.Errorf("nil filters should match legacy URL\n got: %s\nwant: %s", got, want)
-	}
-}
-
 // TestBuySimilarWithModFilterFromCache: a filter referencing a
 // mod_text whose trade_id is in the cache emits a stats[0].filters
 // entry with {id, value: {min}}.

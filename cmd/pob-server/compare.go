@@ -1308,6 +1308,12 @@ func computeBuySimilarWithFilters(
 //
 // Filters apply uniformly to every emitted URL when set; per-pair
 // customization is out of scope for v1.
+//
+// Hoists URL construction out of the inner (j) loop — `tradeURL`
+// depends only on `fromName`, so each unique `from` build pays the
+// JSON-marshal + filter-resolution cost exactly once instead of N-1
+// times. With N=8 builds and ~10 slots that's ~70 marshals saved per
+// /compare.
 func buySimilarPairsForSlotWithFilters(
 	srv *Server,
 	slot string,
@@ -1321,15 +1327,16 @@ func buySimilarPairsForSlotWithFilters(
 		if fromName == "" {
 			continue
 		}
+		// Build the URL once per `from`; it does not depend on `to`.
+		var tradeURL string
+		if filters == nil {
+			tradeURL = buildTradeURL(fromName, league)
+		} else {
+			tradeURL = buildTradeURLWithFilters(srv, fromName, league, filters)
+		}
 		for j, to := range successful {
 			if i == j || to.itemsBySlot[slot] == fromName {
 				continue
-			}
-			var tradeURL string
-			if filters == nil {
-				tradeURL = buildTradeURL(fromName, league)
-			} else {
-				tradeURL = buildTradeURLWithFilters(srv, fromName, league, filters)
 			}
 			out = append(out, compareBuySimilarEntry{
 				FromBuildID: from.ID,
@@ -1377,19 +1384,16 @@ func buildTradeURL(itemName, league string) string {
 
 // buildTradeURLWithFilters constructs a trade URL with the full filter
 // envelope: per-mod constraints (resolved via the trade_stats cache),
-// defence-stat ranges, item-level range, realm + listed status. Falls
-// back to the legacy buildTradeURL when filters is nil — preserves
-// the existing wire format for callers who don't set
-// buy_similar_filters.
+// defence-stat ranges, item-level range, realm + listed status.
+// Callers MUST pass a non-nil filters; the legacy nil-filter path lives
+// at buildTradeURL and is selected by the (single) production call site
+// in buySimilarPairsForSlotWithFilters before this function is invoked.
 //
 // Mod IDs that aren't in the cache for the chosen league are silently
 // dropped from the stats[0].filters list. The URL still emits with
 // whatever non-mod filters were specified so the LLM gets a usable
 // (if less precise) search instead of an error.
 func buildTradeURLWithFilters(srv *Server, itemName, league string, filters *compareBuySimilarFilters) string {
-	if filters == nil {
-		return buildTradeURL(itemName, league)
-	}
 	payload := buildTradeQueryPayloadWithFilters(srv, itemName, league, filters)
 
 	realm := filters.Realm
@@ -1492,19 +1496,9 @@ func (srv *Server) lookupModTradeID(league, modText, modType string) string {
 	// trade_stats convention). Try template+type first, then
 	// template-only fallback. Mirrors getTradeModLookup's secondary
 	// indexing in CompareTradeHelpers.lua.
-	srv.queryModsMu.RLock()
-	if srv.queryMods != nil {
-		qmType := strings.ToLower(modType)
-		if id, ok := srv.queryMods[template+"|"+qmType]; ok {
-			srv.queryModsMu.RUnlock()
-			return id
-		}
-		if id, ok := srv.queryMods[template]; ok {
-			srv.queryModsMu.RUnlock()
-			return id
-		}
+	if id := srv.lookupQueryModsLeg(template, modType); id != "" {
+		return id
 	}
-	srv.queryModsMu.RUnlock()
 
 	// Leg 2: SQLite trade_stats cache (per-league, populated by the
 	// trade-stats fetcher).
@@ -1517,6 +1511,27 @@ func (srv *Server) lookupModTradeID(league, modText, modType string) string {
 		return ""
 	}
 	return id
+}
+
+// lookupQueryModsLeg consults the in-process QueryMods snapshot for a
+// trade ID matching `template` (already lowercased modType applied).
+// Returns "" when the snapshot is empty or no entry matches; the
+// `defer RUnlock` here means a future early return cannot leak the
+// read lock.
+func (srv *Server) lookupQueryModsLeg(template, modType string) string {
+	srv.queryModsMu.RLock()
+	defer srv.queryModsMu.RUnlock()
+	if srv.queryMods == nil {
+		return ""
+	}
+	qmType := strings.ToLower(modType)
+	if id, ok := srv.queryMods[template+"|"+qmType]; ok {
+		return id
+	}
+	if id, ok := srv.queryMods[template]; ok {
+		return id
+	}
+	return ""
 }
 
 // buildOuterQueryFilters assembles the misc_filters / armour_filters

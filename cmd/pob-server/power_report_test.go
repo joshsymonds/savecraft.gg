@@ -314,6 +314,67 @@ func TestResolveNearbyCategoriesFiltersInlinePowerReport(t *testing.T) {
 	}
 }
 
+// TestModifyNearbyCategoriesFiltersInlinePowerReport: symmetric
+// guarantee with the /resolve test above — `nearby_categories` on a
+// /modify request narrows the inline power_report's category mask the
+// same way it does on /resolve. Catches a regression where the
+// allowedCategories arg gets dropped from modifyAndRespond's call to
+// attachPowerReport.
+func TestModifyNearbyCategoriesFiltersInlinePowerReport(t *testing.T) {
+	modifyResponse := `{"type":"result","data":{` +
+		`"character":{"class":"Witch","ascendancy":"Occultist","level":99},` +
+		`"summary":{"CombinedDPS":100000,"Life":6000,"LifeUnreserved":6000,"LifeUnreservedPercent":100,` +
+		`"EnergyShield":2000,"Mana":500,"Armour":5000,"Evasion":3000,` +
+		`"FireResist":75,"ColdResist":75,"LightningResist":75,"ChaosResist":40,` +
+		`"BlockChance":30,"SpellSuppressionChance":100,"MovementSpeedMod":1.5,` +
+		`"Str":100,"Dex":150,"Int":200,"FlaskEffect":50,"FlaskChargeGen":10,` +
+		`"LootQuantityNormalEnemies":0,"LootRarityMagicEnemies":0,` +
+		`"EnemyCurseLimit":1,"TotalDPS":100000},` +
+		`"section_index":[],"sections":{}},"xml":"<PathOfBuilding modified=\"1\"/>"}`
+	pool, _ := captureMockPool(t, []string{
+		modifyResponse,
+		extractMixedTypesCanned,
+		perturbMixedTypesCanned,
+	})
+	defer pool.Shutdown()
+	srv := newTestSrv(t, pool)
+	srv.cache.store = newInMemoryStoreForTest(t)
+	srv.modIndex = NewModSourceIndex()
+	srv.PowerReportEnabled = true
+
+	xml := "<PathOfBuilding/>"
+	id := srv.cache.Put(xml)
+	if err := srv.cache.store.Put(id, xml, `{}`, "", ""); err != nil {
+		t.Fatal(err)
+	}
+
+	body := `{"buildId":"` + id + `","operations":[{"op":"set_level","level":95}],"nearby_categories":["JewelSocket"]}`
+	rec := httptest.NewRecorder()
+	srv.handleModify(rec, httptest.NewRequest(http.MethodPost, "/modify?sections=offense", strings.NewReader(body)))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200, got %d: %s", rec.Code, rec.Body.String())
+	}
+
+	var resp struct {
+		PowerReport struct {
+			Nodes []struct {
+				Name string `json:"name"`
+			} `json:"nodes"`
+		} `json:"powerReport"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resp); err != nil {
+		t.Fatalf("decode: %v\nbody: %s", err, rec.Body.String())
+	}
+	if len(resp.PowerReport.Nodes) == 0 {
+		t.Fatalf("expected the JewelSocket node, got 0 nodes; body=%s", rec.Body.String())
+	}
+	for _, n := range resp.PowerReport.Nodes {
+		if n.Name != "Medium Jewel Socket" {
+			t.Errorf("nearby_categories=[JewelSocket] should filter out node %q on /modify path", n.Name)
+		}
+	}
+}
+
 // TestPowerReportFailureDoesNotFailParent: when the inline nearby_extract
 // errors, /calc still returns 200 with the rest of the data; powerReport
 // is omitted.

@@ -3053,23 +3053,41 @@ describe("buildPlannerModule", () => {
     const { buildPlannerModule } = await import("../../plugins/poe/reference/build-planner");
     const desc = buildPlannerModule.description;
     // The chained sentence should mention at least one pair of the new
-    // params co-occurring within ~200 characters of each other so the
-    // LLM sees them as a pipeline, not as separate features.
+    // params co-occurring within ~200 characters of each other AND
+    // contain a connective phrase that signals workflow ordering — so
+    // a future doc rewrite that turns the chain into two adjacent
+    // bullet points (no "then" / "→" / "pair with") fails the test.
+    //
+    // Scan ALL occurrences of each param (descriptions reuse param
+    // names in non-chained context too); any qualifying pair counts.
     const newParams = ["mod_sources", "buy_similar_filters", "nearby_categories", "audit_categories"] as const;
+    const connectives = [" then ", "→", "pair with", "follow-up", "re-call"];
+    function allIndices(name: string): number[] {
+      const out: number[] = [];
+      let i = desc.indexOf(name);
+      while (i !== -1) {
+        out.push(i);
+        i = desc.indexOf(name, i + 1);
+      }
+      return out;
+    }
     let foundChain = false;
-    for (const a of newParams) {
-      const idxA = desc.indexOf(a);
-      if (idxA === -1) continue;
+    outer: for (const a of newParams) {
       for (const b of newParams) {
         if (a === b) continue;
-        const idxB = desc.indexOf(b);
-        if (idxB === -1) continue;
-        if (Math.abs(idxA - idxB) < 200) {
-          foundChain = true;
-          break;
+        for (const idxA of allIndices(a)) {
+          for (const idxB of allIndices(b)) {
+            if (Math.abs(idxA - idxB) >= 200) continue;
+            const spanStart = Math.min(idxA, idxB);
+            const spanEnd = Math.max(idxA, idxB) + b.length;
+            const span = desc.slice(spanStart, spanEnd);
+            if (connectives.some((c) => span.includes(c))) {
+              foundChain = true;
+              break outer;
+            }
+          }
         }
       }
-      if (foundChain) break;
     }
     expect(foundChain).toBe(true);
   });
