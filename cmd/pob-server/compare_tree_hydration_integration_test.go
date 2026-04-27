@@ -17,6 +17,17 @@ import (
 // a Lua-side rename of the field or a Go decode/contract drift — only
 // the real-Lua harness against captured fixtures catches that.
 //
+// Anchor: the v2-epic LLM friction was specifically that Build A had
+// nodes 15027 ("Beef") and 62588 ("Life Mastery") that Build B lacked,
+// and the consumer had no way to read those names. This test runs
+// against the same canonical fixtures that surfaced that friction;
+// the t.Logf calls below dump the resolved names to test output so a
+// `go test -run TestCompareTreeHydration -v` invocation grep-greps
+// them today. The assertions deliberately don't pin "Beef" or
+// "Life Mastery" by string — that would couple the test to PoB's
+// tree-data table and break on any future PoB renames. Name-non-empty
+// is the durable contract.
+//
 // Three invariants checked:
 //  1. Per-build sections.tree.allocatedNodes is populated for both
 //     fixtures and every node carries a non-empty name.

@@ -436,8 +436,13 @@ describe("PoE module descriptions provide preventive guidance", () => {
 
     // Cap-clamping language locks the runtime-vs-input distinction.
     // A future edit can't drop the relationship without breaking this
-    // assertion. Accept any of the common phrasings.
-    expect(desc).toMatch(/cap-clamped|clamp|maximum|max/i);
+    // assertion. Match the specific clamp wording — `max`/`maximum`
+    // alone are too permissive (the description already mentions
+    // MaximumHitTaken and hostItemMaxLink in unrelated clauses, so
+    // those tokens would let the regex pass against a description
+    // that never mentioned the multiplier→runtime cap relationship at
+    // all).
+    expect(desc).toMatch(/cap-clamp(?:ed)?|clamped against/i);
 
     // Instruct the AI to read the runtime stat (in offense/defense)
     // for the post-calc effect. Phrasing varies but the keywords pin
