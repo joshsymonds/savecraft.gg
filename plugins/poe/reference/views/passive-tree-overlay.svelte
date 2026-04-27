@@ -450,6 +450,107 @@
     return { stroke: PARTIAL_COLOR, opacity: 0.45 };
   }
 
+  // ─── Pre-computed per-render style records ───────────────────────────
+  // Pan/zoom mutates viewBox at ~60Hz. Doing per-connection ownership +
+  // color resolution inline with {@const} blocks in the {#each} re-runs
+  // those expressions every frame across ~5000 connections. Hoisting
+  // the per-element style decisions into derived arrays makes the
+  // template a pure {#each} over reference-stable records — the
+  // derivations only re-fire when one of their inputs changes
+  // (visibility filter, allocation set, ownership map), none of which
+  // mutate during pan/zoom.
+
+  type ConnectionStyle = {
+    key: string;
+    type: Connection["type"];
+    arcD: string;
+    aX: number;
+    aY: number;
+    bX: number;
+    bY: number;
+    stroke: string;
+    opacity: number;
+    strokeWidth: number;
+  };
+
+  let visibleConnectionsWithStyle = $derived.by<ConnectionStyle[]>(() => {
+    const out: ConnectionStyle[] = new Array(visibleConnections.length);
+    const skeletonStroke = "#34495e";
+    for (let i = 0; i < visibleConnections.length; i++) {
+      const conn = visibleConnections[i];
+      const aOwn = allocationsActive
+        ? (ownershipByNodeId.get(conn.a) ?? { kind: "none" as const })
+        : ({ kind: "none" as const });
+      const bOwn = allocationsActive
+        ? (ownershipByNodeId.get(conn.b) ?? { kind: "none" as const })
+        : ({ kind: "none" as const });
+      const colorOpacity = allocationsActive
+        ? connectionColorAndOpacity(aOwn, bOwn, perBuildAllocated!)
+        : { stroke: skeletonStroke, opacity: 0.5 };
+      const strokeWidth = allocationsActive && aOwn.kind !== "none" && bOwn.kind !== "none" ? 5 : 3;
+      let arcD = "";
+      let aX = 0, aY = 0, bX = 0, bY = 0;
+      if (conn.type === "arc") {
+        arcD = arcPathD(conn);
+      } else {
+        const a = visibleNodes.get(conn.a)!;
+        const b = visibleNodes.get(conn.b)!;
+        aX = a.x; aY = a.y; bX = b.x; bY = b.y;
+      }
+      out[i] = {
+        key: `${conn.a}-${conn.b}`,
+        type: conn.type,
+        arcD,
+        aX, aY, bX, bY,
+        stroke: colorOpacity.stroke,
+        opacity: colorOpacity.opacity,
+        strokeWidth,
+      };
+    }
+    return out;
+  });
+
+  type NodeStyle = {
+    id: string;
+    x: number;
+    y: number;
+    radius: number;
+    fill: string;
+    stroke: string;
+    strokeWidth: number;
+    opacity: number;
+    name: string;
+    node: TreeNode;
+  };
+
+  let visibleNodesWithStyle = $derived.by<NodeStyle[]>(() => {
+    const entries = visibleNodesEntries;
+    const out: NodeStyle[] = new Array(entries.length);
+    for (let i = 0; i < entries.length; i++) {
+      const [id, node] = entries[i];
+      const own = allocationsActive
+        ? (ownershipByNodeId.get(id) ?? { kind: "none" as const })
+        : ({ kind: "none" as const });
+      out[i] = {
+        id,
+        x: node.x,
+        y: node.y,
+        radius: nodeRadius(node.type),
+        fill: allocationsActive
+          ? nodeFillForOwnership(node.type, own, perBuildAllocated!)
+          : defaultNodeFill(node.type),
+        stroke: allocationsActive
+          ? nodeStrokeForOwnership(node.type, own)
+          : defaultNodeStroke(node.type),
+        strokeWidth: allocationsActive ? nodeStrokeWidthForOwnership(own) : 3,
+        opacity: allocationsActive ? nodeOpacityForOwnership(own) : 1,
+        name: node.name,
+        node,
+      };
+    }
+    return out;
+  });
+
   function ownershipLabel(
     ownership: Ownership,
     builds: BuildAllocation[],
@@ -481,64 +582,42 @@
       role="presentation"
     >
       <g class="connections" fill="none">
-        {#each visibleConnections as conn (`${conn.a}-${conn.b}`)}
-          {@const aOwn = allocationsActive
-            ? (ownershipByNodeId.get(conn.a) ?? { kind: "none" as const })
-            : ({ kind: "none" as const })}
-          {@const bOwn = allocationsActive
-            ? (ownershipByNodeId.get(conn.b) ?? { kind: "none" as const })
-            : ({ kind: "none" as const })}
-          {@const colorOpacity = allocationsActive
-            ? connectionColorAndOpacity(aOwn, bOwn, perBuildAllocated!)
-            : { stroke: "#34495e", opacity: 0.5 }}
-          {@const strokeWidth = allocationsActive
-            && (aOwn.kind !== "none" && bOwn.kind !== "none") ? 5 : 3}
+        {#each visibleConnectionsWithStyle as conn (conn.key)}
           {#if conn.type === "arc"}
             <path
-              d={arcPathD(conn)}
-              stroke={colorOpacity.stroke}
-              stroke-width={strokeWidth}
-              opacity={colorOpacity.opacity}
+              d={conn.arcD}
+              stroke={conn.stroke}
+              stroke-width={conn.strokeWidth}
+              opacity={conn.opacity}
             />
           {:else}
-            {@const a = visibleNodes.get(conn.a)!}
-            {@const b = visibleNodes.get(conn.b)!}
             <line
-              x1={a.x}
-              y1={a.y}
-              x2={b.x}
-              y2={b.y}
-              stroke={colorOpacity.stroke}
-              stroke-width={strokeWidth}
-              opacity={colorOpacity.opacity}
+              x1={conn.aX}
+              y1={conn.aY}
+              x2={conn.bX}
+              y2={conn.bY}
+              stroke={conn.stroke}
+              stroke-width={conn.strokeWidth}
+              opacity={conn.opacity}
             />
           {/if}
         {/each}
       </g>
       <g class="nodes">
-        {#each visibleNodesEntries as [id, node] (id)}
-          {@const own = allocationsActive
-            ? (ownershipByNodeId.get(id) ?? { kind: "none" as const })
-            : ({ kind: "none" as const })}
+        {#each visibleNodesWithStyle as n (n.id)}
           <circle
-            cx={node.x}
-            cy={node.y}
-            r={nodeRadius(node.type)}
-            fill={allocationsActive
-              ? nodeFillForOwnership(node.type, own, perBuildAllocated!)
-              : defaultNodeFill(node.type)}
-            stroke={allocationsActive
-              ? nodeStrokeForOwnership(node.type, own)
-              : defaultNodeStroke(node.type)}
-            stroke-width={allocationsActive
-              ? nodeStrokeWidthForOwnership(own)
-              : 3}
-            opacity={allocationsActive ? nodeOpacityForOwnership(own) : 1}
-            onmouseenter={(e) => onNodeEnter(e, id, node)}
+            cx={n.x}
+            cy={n.y}
+            r={n.radius}
+            fill={n.fill}
+            stroke={n.stroke}
+            stroke-width={n.strokeWidth}
+            opacity={n.opacity}
+            onmouseenter={(e) => onNodeEnter(e, n.id, n.node)}
             onmouseleave={onNodeLeave}
             role="button"
             tabindex="-1"
-            aria-label={node.name}
+            aria-label={n.name}
           ></circle>
         {/each}
       </g>
